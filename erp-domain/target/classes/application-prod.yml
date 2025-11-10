@@ -1,0 +1,16 @@
+spring:
+  datasource:
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+  flyway:
+    enabled: true
+  jpa:
+    properties:
+      hibernate:
+        default_schema: public
+jwt:
+  secret: ${JWT_SECRET}
+  access-token-ttl-seconds: ${JWT_ACCESS_TTL:900}
+  refresh-token-ttl-seconds: ${JWT_REFRESH_TTL:2592000}

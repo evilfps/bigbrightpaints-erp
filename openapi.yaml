@@ -1,0 +1,3423 @@
+openapi: 3.0.1
+info:
+  title: BigBright ERP Domain API
+  description: Core APIs for multi-company ERP platform
+  license:
+    name: Proprietary
+  version: v1
+externalDocs:
+  description: ERP Documentation
+  url: https://docs.bigbrightpaints.com
+servers:
+- url: http://localhost:8081
+  description: Generated server url
+paths:
+  /api/v1/sales/targets/{id}:
+    put:
+      tags:
+      - sales-controller
+      operationId: updateTarget
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SalesTargetRequest'
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseSalesTargetDto'
+    delete:
+      tags:
+      - sales-controller
+      operationId: deleteTarget
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        '200':
+          description: OK
+  /api/v1/sales/promotions/{id}:
+    put:
+      tags:
+      - sales-controller
+      operationId: updatePromotion
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PromotionRequest'
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponsePromotionDto'
+    delete:
+      tags:
+      - sales-controller
+      operationId: deletePromotion
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        '200':
+          description: OK
+  /api/v1/sales/orders/{id}:
+    put:
+      tags:
+      - sales-controller
+      operationId: updateOrder
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SalesOrderRequest'
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseSalesOrderDto'
+    delete:
+      tags:
+      - sales-controller
+      operationId: deleteOrder
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        '200':
+          description: OK
+  /api/v1/sales/credit-requests/{id}:
+    put:
+      tags:
+      - sales-controller
+      operationId: updateCreditRequest
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreditRequestRequest'
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseCreditRequestDto'
+  /api/v1/hr/employees/{id}:
+    put:
+      tags:
+      - hr-controller
+      operationId: updateEmployee
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmployeeRequest'
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseEmployeeDto'
+    delete:
+      tags:
+      - hr-controller
+      operationId: deleteEmployee
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        '200':
+          description: OK
+  /api/v1/factory/tasks/{id}:
+    put:
+      tags:
+      - factory-controller
+      operationId: updateTask
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FactoryTaskRequest'
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseFactoryTaskDto'
+  /api/v1/factory/production-plans/{id}:
+    put:
+      tags:
+      - factory-controller
+      operationId: updatePlan
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductionPlanRequest'
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseProductionPlanDto'
+    delete:
+      tags:
+      - factory-controller
+      operationId: deletePlan
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        '200':
+          description: OK
+  /api/v1/dealers/{id}:
+    put:
+      tags:
+      - sales-controller
+      operationId: updateDealer
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DealerRequest'
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseDealerDto'
+    delete:
+      tags:
+      - sales-controller
+      operationId: deleteDealer
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        '200':
+          description: OK
+  /api/v1/companies/{id}:
+    put:
+      tags:
+      - company-controller
+      operationId: update
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CompanyRequest'
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseCompanyDto'
+    delete:
+      tags:
+      - company-controller
+      operationId: delete
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        '200':
+          description: OK
+  /api/v1/admin/users/{id}:
+    put:
+      tags:
+      - admin-user-controller
+      operationId: update_1
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUserRequest'
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseUserDto'
+  /api/v1/accounting/raw-materials/{id}:
+    put:
+      tags:
+      - raw-material-controller
+      operationId: updateRawMaterial
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RawMaterialRequest'
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseRawMaterialDto'
+    delete:
+      tags:
+      - raw-material-controller
+      operationId: deleteRawMaterial
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        '200':
+          description: OK
+  /api/v1/sales/targets:
+    get:
+      tags:
+      - sales-controller
+      operationId: targets
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseListSalesTargetDto'
+    post:
+      tags:
+      - sales-controller
+      operationId: createTarget
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SalesTargetRequest'
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseSalesTargetDto'
+  /api/v1/sales/promotions:
+    get:
+      tags:
+      - sales-controller
+      operationId: promotions
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseListPromotionDto'
+    post:
+      tags:
+      - sales-controller
+      operationId: createPromotion
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PromotionRequest'
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponsePromotionDto'
+  /api/v1/sales/orders:
+    get:
+      tags:
+      - sales-controller
+      operationId: orders
+      parameters:
+      - name: status
+        in: query
+        required: false
+        schema:
+          type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseListSalesOrderDto'
+    post:
+      tags:
+      - sales-controller
+      operationId: createOrder
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SalesOrderRequest'
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseSalesOrderDto'
+  /api/v1/sales/orders/{id}/confirm:
+    post:
+      tags:
+      - sales-controller
+      operationId: confirmOrder
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseSalesOrderDto'
+  /api/v1/sales/orders/{id}/cancel:
+    post:
+      tags:
+      - sales-controller
+      operationId: cancelOrder
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CancelRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseSalesOrderDto'
+  /api/v1/sales/credit-requests:
+    get:
+      tags:
+      - sales-controller
+      operationId: creditRequests
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseListCreditRequestDto'
+    post:
+      tags:
+      - sales-controller
+      operationId: createCreditRequest
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreditRequestRequest'
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseCreditRequestDto'
+  /api/v1/raw-materials/intake:
+    post:
+      tags:
+      - raw-material-controller
+      operationId: intake
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RawMaterialIntakeRequest'
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseRawMaterialBatchDto'
+  /api/v1/raw-material-batches/{rawMaterialId}:
+    get:
+      tags:
+      - raw-material-controller
+      operationId: batches
+      parameters:
+      - name: rawMaterialId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseListRawMaterialBatchDto'
+    post:
+      tags:
+      - raw-material-controller
+      operationId: createBatch
+      parameters:
+      - name: rawMaterialId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RawMaterialBatchRequest'
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseRawMaterialBatchDto'
+  /api/v1/orchestrator/payroll/run:
+    post:
+      tags:
+      - orchestrator-controller
+      operationId: runPayroll
+      parameters:
+      - name: X-Company-Id
+        in: header
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PayrollRunRequest'
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: object
+                additionalProperties:
+                  type: object
+  /api/v1/orchestrator/orders/{orderId}/approve:
+    post:
+      tags:
+      - orchestrator-controller
+      operationId: approveOrder
+      parameters:
+      - name: orderId
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: X-Company-Id
+        in: header
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApproveOrderRequest'
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: object
+                additionalProperties:
+                  type: object
+  /api/v1/orchestrator/factory/dispatch/{batchId}:
+    post:
+      tags:
+      - orchestrator-controller
+      operationId: dispatch
+      parameters:
+      - name: batchId
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: X-Company-Id
+        in: header
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DispatchRequest'
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: object
+                additionalProperties:
+                  type: object
+  /api/v1/multi-company/companies/switch:
+    post:
+      tags:
+      - multi-company-controller
+      operationId: switchCompany
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SwitchCompanyRequest'
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseCompanyDto'
+  /api/v1/hr/payroll-runs:
+    get:
+      tags:
+      - hr-controller
+      operationId: payrollRuns
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseListPayrollRunDto'
+    post:
+      tags:
+      - hr-controller
+      operationId: createPayrollRun
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PayrollRunRequest'
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponsePayrollRunDto'
+  /api/v1/hr/leave-requests:
+    get:
+      tags:
+      - hr-controller
+      operationId: leaveRequests
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseListLeaveRequestDto'
+    post:
+      tags:
+      - hr-controller
+      operationId: createLeaveRequest
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LeaveRequestRequest'
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseLeaveRequestDto'
+  /api/v1/hr/employees:
+    get:
+      tags:
+      - hr-controller
+      operationId: employees
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseListEmployeeDto'
+    post:
+      tags:
+      - hr-controller
+      operationId: createEmployee
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmployeeRequest'
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseEmployeeDto'
+  /api/v1/factory/tasks:
+    get:
+      tags:
+      - factory-controller
+      operationId: tasks
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseListFactoryTaskDto'
+    post:
+      tags:
+      - factory-controller
+      operationId: createTask
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FactoryTaskRequest'
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseFactoryTaskDto'
+  /api/v1/factory/production-plans:
+    get:
+      tags:
+      - factory-controller
+      operationId: plans
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseListProductionPlanDto'
+    post:
+      tags:
+      - factory-controller
+      operationId: createPlan
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductionPlanRequest'
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseProductionPlanDto'
+  /api/v1/factory/production-batches:
+    get:
+      tags:
+      - factory-controller
+      operationId: batches_1
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseListProductionBatchDto'
+    post:
+      tags:
+      - factory-controller
+      operationId: logBatch
+      parameters:
+      - name: planId
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductionBatchRequest'
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseProductionBatchDto'
+  /api/v1/dealers:
+    get:
+      tags:
+      - sales-controller
+      operationId: dealers
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseListDealerDto'
+    post:
+      tags:
+      - sales-controller
+      operationId: createDealer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DealerRequest'
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseDealerDto'
+  /api/v1/companies:
+    get:
+      tags:
+      - company-controller
+      operationId: list
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseListCompanyDto'
+    post:
+      tags:
+      - company-controller
+      operationId: create
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CompanyRequest'
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseCompanyDto'
+  /api/v1/auth/refresh-token:
+    post:
+      tags:
+      - auth-controller
+      operationId: refresh
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshTokenRequest'
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+  /api/v1/auth/mfa/setup:
+    post:
+      tags:
+      - mfa-controller
+      operationId: setup
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseMfaSetupResponse'
+  /api/v1/auth/mfa/disable:
+    post:
+      tags:
+      - mfa-controller
+      operationId: disable
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MfaDisableRequest'
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseMfaStatusResponse'
+  /api/v1/auth/mfa/activate:
+    post:
+      tags:
+      - mfa-controller
+      operationId: activate
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MfaActivateRequest'
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseMfaStatusResponse'
+  /api/v1/auth/logout:
+    post:
+      tags:
+      - auth-controller
+      operationId: logout
+      parameters:
+      - name: refreshToken
+        in: query
+        required: false
+        schema:
+          type: string
+      responses:
+        '200':
+          description: OK
+  /api/v1/auth/login:
+    post:
+      tags:
+      - auth-controller
+      operationId: login
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          description: Unauthorized
+        '428':
+          description: MFA verification required
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseMfaChallengeResponse'
+  /api/v1/admin/users:
+    get:
+      tags:
+      - admin-user-controller
+      operationId: list_1
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseListUserDto'
+    post:
+      tags:
+      - admin-user-controller
+      operationId: create_1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUserRequest'
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseUserDto'
+  /api/v1/accounting/raw-materials:
+    get:
+      tags:
+      - raw-material-controller
+      operationId: listRawMaterials
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseListRawMaterialDto'
+    post:
+      tags:
+      - raw-material-controller
+      operationId: createRawMaterial
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RawMaterialRequest'
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseRawMaterialDto'
+  /api/v1/accounting/journal-entries:
+    get:
+      tags:
+      - accounting-controller
+      operationId: journalEntries
+      parameters:
+      - name: dealerId
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int64
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseListJournalEntryDto'
+    post:
+      tags:
+      - accounting-controller
+      operationId: createJournalEntry
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/JournalEntryRequest'
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseJournalEntryDto'
+  /api/v1/accounting/accounts:
+    get:
+      tags:
+      - accounting-controller
+      operationId: accounts
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseListAccountDto'
+    post:
+      tags:
+      - accounting-controller
+      operationId: createAccount
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AccountRequest'
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseAccountDto'
+  /api/v1/sales/orders/{id}/status:
+    patch:
+      tags:
+      - sales-controller
+      operationId: updateStatus
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StatusRequest'
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseSalesOrderDto'
+  /api/v1/hr/leave-requests/{id}/status:
+    patch:
+      tags:
+      - hr-controller
+      operationId: updateLeaveStatus
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StatusRequest'
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseLeaveRequestDto'
+  /api/v1/factory/production-plans/{id}/status:
+    patch:
+      tags:
+      - factory-controller
+      operationId: updatePlanStatus
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StatusRequest'
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseProductionPlanDto'
+  /api/v1/admin/users/{id}/unsuspend:
+    patch:
+      tags:
+      - admin-user-controller
+      operationId: unsuspend
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        '200':
+          description: OK
+  /api/v1/admin/users/{id}/suspend:
+    patch:
+      tags:
+      - admin-user-controller
+      operationId: suspend
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        '200':
+          description: OK
+  /api/v1/reports/profit-loss:
+    get:
+      tags:
+      - report-controller
+      operationId: profitLoss
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseProfitLossDto'
+  /api/v1/reports/inventory-valuation:
+    get:
+      tags:
+      - report-controller
+      operationId: inventoryValuation
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseInventoryValuationDto'
+  /api/v1/reports/cash-flow:
+    get:
+      tags:
+      - report-controller
+      operationId: cashFlow
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseCashFlowDto'
+  /api/v1/reports/balance-sheet:
+    get:
+      tags:
+      - report-controller
+      operationId: balanceSheet
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseBalanceSheetDto'
+  /api/v1/reports/account-statement:
+    get:
+      tags:
+      - report-controller
+      operationId: accountStatement
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseListAccountStatementEntryDto'
+  /api/v1/raw-materials/stock:
+    get:
+      tags:
+      - raw-material-controller
+      operationId: stockSummary
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseStockSummaryDto'
+  /api/v1/raw-materials/stock/low-stock:
+    get:
+      tags:
+      - raw-material-controller
+      operationId: lowStock
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseListInventoryStockSnapshot'
+  /api/v1/raw-materials/stock/inventory:
+    get:
+      tags:
+      - raw-material-controller
+      operationId: inventory
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseListInventoryStockSnapshot'
+  /api/v1/orchestrator/traces/{traceId}:
+    get:
+      tags:
+      - orchestrator-controller
+      operationId: trace
+      parameters:
+      - name: traceId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: object
+                additionalProperties:
+                  type: object
+  /api/v1/orchestrator/health/integrations:
+    get:
+      tags:
+      - orchestrator-controller
+      operationId: integrationsHealth
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: object
+                additionalProperties:
+                  type: object
+  /api/v1/orchestrator/health/events:
+    get:
+      tags:
+      - orchestrator-controller
+      operationId: eventHealth
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: object
+                additionalProperties:
+                  type: object
+  /api/v1/orchestrator/dashboard/finance:
+    get:
+      tags:
+      - dashboard-controller
+      operationId: financeDashboard
+      parameters:
+      - name: X-Company-Id
+        in: header
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: object
+                additionalProperties:
+                  type: object
+  /api/v1/orchestrator/dashboard/factory:
+    get:
+      tags:
+      - dashboard-controller
+      operationId: factoryDashboard
+      parameters:
+      - name: X-Company-Id
+        in: header
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: object
+                additionalProperties:
+                  type: object
+  /api/v1/orchestrator/dashboard/admin:
+    get:
+      tags:
+      - dashboard-controller
+      operationId: adminDashboard
+      parameters:
+      - name: X-Company-Id
+        in: header
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: object
+                additionalProperties:
+                  type: object
+  /api/v1/invoices:
+    get:
+      tags:
+      - invoice-controller
+      operationId: listInvoices
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseListInvoiceDto'
+  /api/v1/invoices/{id}:
+    get:
+      tags:
+      - invoice-controller
+      operationId: getInvoice
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseInvoiceDto'
+  /api/v1/invoices/dealers/{dealerId}:
+    get:
+      tags:
+      - invoice-controller
+      operationId: dealerInvoices
+      parameters:
+      - name: dealerId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseListInvoiceDto'
+  /api/v1/factory/dashboard:
+    get:
+      tags:
+      - factory-controller
+      operationId: dashboard
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseFactoryDashboardDto'
+  /api/v1/demo/ping:
+    get:
+      tags:
+      - demo-controller
+      operationId: ping
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseString'
+  /api/v1/auth/me:
+    get:
+      tags:
+      - auth-controller
+      operationId: me
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseMeResponse'
+  /api/v1/admin/roles:
+    get:
+      tags:
+      - role-controller
+      operationId: listRoles
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseListRoleDto'
+  /api/v1/accounting/reports/aged-debtors:
+    get:
+      tags:
+      - report-controller
+      operationId: agedDebtors
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseListAgedDebtorDto'
+  /api/integration/health:
+    get:
+      tags:
+      - integration-health-controller
+      operationId: health
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: object
+                additionalProperties:
+                  type: object
+components:
+  schemas:
+    SalesTargetRequest:
+      required:
+      - name
+      - periodEnd
+      - periodStart
+      - targetAmount
+      type: object
+      properties:
+        name:
+          type: string
+        periodStart:
+          type: string
+          format: date
+        periodEnd:
+          type: string
+          format: date
+        targetAmount:
+          type: number
+        achievedAmount:
+          type: number
+        assignee:
+          type: string
+    ApiResponseSalesTargetDto:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/SalesTargetDto'
+        timestamp:
+          type: string
+          format: date-time
+    SalesTargetDto:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        publicId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        periodStart:
+          type: string
+          format: date
+        periodEnd:
+          type: string
+          format: date
+        targetAmount:
+          type: number
+        achievedAmount:
+          type: number
+        assignee:
+          type: string
+    PromotionRequest:
+      required:
+      - discountType
+      - discountValue
+      - endDate
+      - name
+      - startDate
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        discountType:
+          type: string
+        discountValue:
+          type: number
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+        status:
+          type: string
+    ApiResponsePromotionDto:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/PromotionDto'
+        timestamp:
+          type: string
+          format: date-time
+    PromotionDto:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        publicId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+        discountType:
+          type: string
+        discountValue:
+          type: number
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+        status:
+          type: string
+    SalesOrderItemRequest:
+      required:
+      - productCode
+      - quantity
+      - unitPrice
+      type: object
+      properties:
+        productCode:
+          type: string
+        description:
+          type: string
+        quantity:
+          type: number
+        unitPrice:
+          type: number
+    SalesOrderRequest:
+      required:
+      - totalAmount
+      type: object
+      properties:
+        dealerId:
+          type: integer
+          format: int64
+        totalAmount:
+          type: number
+        currency:
+          type: string
+        notes:
+          type: string
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/SalesOrderItemRequest'
+    ApiResponseSalesOrderDto:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/SalesOrderDto'
+        timestamp:
+          type: string
+          format: date-time
+    SalesOrderDto:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        publicId:
+          type: string
+          format: uuid
+        orderNumber:
+          type: string
+        status:
+          type: string
+        totalAmount:
+          type: number
+        currency:
+          type: string
+        dealerName:
+          type: string
+        traceId:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/SalesOrderItemDto'
+    SalesOrderItemDto:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        productCode:
+          type: string
+        description:
+          type: string
+        quantity:
+          type: number
+        unitPrice:
+          type: number
+    CreditRequestRequest:
+      required:
+      - amountRequested
+      type: object
+      properties:
+        dealerId:
+          type: integer
+          format: int64
+        amountRequested:
+          type: number
+        reason:
+          type: string
+        status:
+          type: string
+    ApiResponseCreditRequestDto:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/CreditRequestDto'
+        timestamp:
+          type: string
+          format: date-time
+    CreditRequestDto:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        publicId:
+          type: string
+          format: uuid
+        dealerName:
+          type: string
+        amountRequested:
+          type: number
+        status:
+          type: string
+        reason:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+    EmployeeRequest:
+      required:
+      - email
+      - firstName
+      - lastName
+      type: object
+      properties:
+        firstName:
+          type: string
+        lastName:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+        hiredDate:
+          type: string
+          format: date
+    ApiResponseEmployeeDto:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/EmployeeDto'
+        timestamp:
+          type: string
+          format: date-time
+    EmployeeDto:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        publicId:
+          type: string
+          format: uuid
+        firstName:
+          type: string
+        lastName:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+        status:
+          type: string
+        hiredDate:
+          type: string
+          format: date
+    FactoryTaskRequest:
+      required:
+      - title
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        assignee:
+          type: string
+        status:
+          type: string
+        dueDate:
+          type: string
+          format: date
+    ApiResponseFactoryTaskDto:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/FactoryTaskDto'
+        timestamp:
+          type: string
+          format: date-time
+    FactoryTaskDto:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        publicId:
+          type: string
+          format: uuid
+        title:
+          type: string
+        description:
+          type: string
+        assignee:
+          type: string
+        status:
+          type: string
+        dueDate:
+          type: string
+          format: date
+    ProductionPlanRequest:
+      required:
+      - planNumber
+      - plannedDate
+      - productName
+      - quantity
+      type: object
+      properties:
+        planNumber:
+          type: string
+        productName:
+          type: string
+        quantity:
+          type: number
+          format: double
+        plannedDate:
+          type: string
+          format: date
+        notes:
+          type: string
+    ApiResponseProductionPlanDto:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/ProductionPlanDto'
+        timestamp:
+          type: string
+          format: date-time
+    ProductionPlanDto:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        publicId:
+          type: string
+          format: uuid
+        planNumber:
+          type: string
+        productName:
+          type: string
+        quantity:
+          type: number
+          format: double
+        plannedDate:
+          type: string
+          format: date
+        status:
+          type: string
+        notes:
+          type: string
+    DealerRequest:
+      required:
+      - code
+      - creditLimit
+      - name
+      type: object
+      properties:
+        name:
+          type: string
+        code:
+          type: string
+        email:
+          type: string
+        phone:
+          type: string
+        creditLimit:
+          type: number
+    ApiResponseDealerDto:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/DealerDto'
+        timestamp:
+          type: string
+          format: date-time
+    DealerDto:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        publicId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        code:
+          type: string
+        email:
+          type: string
+        phone:
+          type: string
+        status:
+          type: string
+        creditLimit:
+          type: number
+        outstandingBalance:
+          type: number
+    CompanyRequest:
+      required:
+      - code
+      - name
+      - timezone
+      type: object
+      properties:
+        name:
+          maxLength: 255
+          minLength: 0
+          type: string
+        code:
+          maxLength: 64
+          minLength: 0
+          type: string
+        timezone:
+          maxLength: 64
+          minLength: 0
+          type: string
+    ApiResponseCompanyDto:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/CompanyDto'
+        timestamp:
+          type: string
+          format: date-time
+    CompanyDto:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        publicId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        code:
+          type: string
+        timezone:
+          type: string
+    UpdateUserRequest:
+      required:
+      - displayName
+      type: object
+      properties:
+        displayName:
+          type: string
+        companyIds:
+          type: array
+          items:
+            type: integer
+            format: int64
+        roles:
+          type: array
+          items:
+            type: string
+        enabled:
+          type: boolean
+    ApiResponseUserDto:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/UserDto'
+        timestamp:
+          type: string
+          format: date-time
+    UserDto:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        publicId:
+          type: string
+          format: uuid
+        email:
+          type: string
+        displayName:
+          type: string
+        enabled:
+          type: boolean
+        mfaEnabled:
+          type: boolean
+        roles:
+          type: array
+          items:
+            type: string
+        companies:
+          type: array
+          items:
+            type: string
+    RawMaterialRequest:
+      required:
+      - maxStock
+      - minStock
+      - name
+      - reorderLevel
+      - sku
+      - unitType
+      type: object
+      properties:
+        name:
+          type: string
+        sku:
+          type: string
+        unitType:
+          type: string
+        reorderLevel:
+          type: number
+        minStock:
+          type: number
+        maxStock:
+          type: number
+    ApiResponseRawMaterialDto:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/RawMaterialDto'
+        timestamp:
+          type: string
+          format: date-time
+    RawMaterialDto:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        publicId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        sku:
+          type: string
+        unitType:
+          type: string
+        reorderLevel:
+          type: number
+        currentStock:
+          type: number
+        minStock:
+          type: number
+        maxStock:
+          type: number
+        stockStatus:
+          type: string
+    CancelRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+    RawMaterialIntakeRequest:
+      required:
+      - batchCode
+      - costPerUnit
+      - quantity
+      - rawMaterialId
+      - unit
+      type: object
+      properties:
+        rawMaterialId:
+          type: integer
+          format: int64
+        batchCode:
+          type: string
+        quantity:
+          type: number
+        unit:
+          type: string
+        costPerUnit:
+          type: number
+        supplier:
+          type: string
+        notes:
+          type: string
+    ApiResponseRawMaterialBatchDto:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/RawMaterialBatchDto'
+        timestamp:
+          type: string
+          format: date-time
+    RawMaterialBatchDto:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        publicId:
+          type: string
+          format: uuid
+        batchCode:
+          type: string
+        quantity:
+          type: number
+        unit:
+          type: string
+        costPerUnit:
+          type: number
+        supplier:
+          type: string
+        receivedAt:
+          type: string
+          format: date-time
+        notes:
+          type: string
+    RawMaterialBatchRequest:
+      required:
+      - batchCode
+      - costPerUnit
+      - quantity
+      - unit
+      type: object
+      properties:
+        batchCode:
+          type: string
+        quantity:
+          type: number
+        unit:
+          type: string
+        costPerUnit:
+          type: number
+        supplier:
+          type: string
+        notes:
+          type: string
+    PayrollRunRequest:
+      required:
+      - initiatedBy
+      - payrollDate
+      type: object
+      properties:
+        payrollDate:
+          type: string
+          format: date
+        initiatedBy:
+          type: string
+    ApproveOrderRequest:
+      required:
+      - approvedBy
+      - orderId
+      - totalAmount
+      type: object
+      properties:
+        orderId:
+          type: string
+        approvedBy:
+          type: string
+        totalAmount:
+          type: number
+    DispatchRequest:
+      required:
+      - batchId
+      - requestedBy
+      type: object
+      properties:
+        batchId:
+          type: string
+        requestedBy:
+          type: string
+    SwitchCompanyRequest:
+      required:
+      - companyCode
+      type: object
+      properties:
+        companyCode:
+          type: string
+    ApiResponsePayrollRunDto:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/PayrollRunDto'
+        timestamp:
+          type: string
+          format: date-time
+    PayrollRunDto:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        publicId:
+          type: string
+          format: uuid
+        runDate:
+          type: string
+          format: date
+        status:
+          type: string
+        processedBy:
+          type: string
+        notes:
+          type: string
+    LeaveRequestRequest:
+      required:
+      - endDate
+      - leaveType
+      - startDate
+      type: object
+      properties:
+        employeeId:
+          type: integer
+          format: int64
+        leaveType:
+          type: string
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+        reason:
+          type: string
+        status:
+          type: string
+    ApiResponseLeaveRequestDto:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/LeaveRequestDto'
+        timestamp:
+          type: string
+          format: date-time
+    LeaveRequestDto:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        publicId:
+          type: string
+          format: uuid
+        employeeId:
+          type: integer
+          format: int64
+        employeeName:
+          type: string
+        leaveType:
+          type: string
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+        status:
+          type: string
+        reason:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+    ProductionBatchRequest:
+      required:
+      - batchNumber
+      - quantityProduced
+      type: object
+      properties:
+        batchNumber:
+          type: string
+        quantityProduced:
+          type: number
+          format: double
+        loggedBy:
+          type: string
+        notes:
+          type: string
+    ApiResponseProductionBatchDto:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/ProductionBatchDto'
+        timestamp:
+          type: string
+          format: date-time
+    ProductionBatchDto:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        publicId:
+          type: string
+          format: uuid
+        batchNumber:
+          type: string
+        quantityProduced:
+          type: number
+          format: double
+        producedAt:
+          type: string
+          format: date-time
+        loggedBy:
+          type: string
+        notes:
+          type: string
+    RefreshTokenRequest:
+      required:
+      - companyCode
+      - refreshToken
+      type: object
+      properties:
+        refreshToken:
+          type: string
+        companyCode:
+          type: string
+    AuthResponse:
+      type: object
+      properties:
+        tokenType:
+          type: string
+        accessToken:
+          type: string
+        refreshToken:
+          type: string
+        expiresIn:
+          type: integer
+          format: int64
+        companyCode:
+          type: string
+        displayName:
+          type: string
+    ApiResponseMfaSetupResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/MfaSetupResponse'
+        timestamp:
+          type: string
+          format: date-time
+    MfaSetupResponse:
+      type: object
+      properties:
+        secret:
+          type: string
+        qrUri:
+          type: string
+        recoveryCodes:
+          type: array
+          items:
+            type: string
+    MfaDisableRequest:
+      type: object
+      properties:
+        code:
+          type: string
+        recoveryCode:
+          type: string
+    ApiResponseMfaStatusResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/MfaStatusResponse'
+        timestamp:
+          type: string
+          format: date-time
+    ApiResponseMfaChallengeResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/MfaChallengeResponse'
+        timestamp:
+          type: string
+          format: date-time
+    MfaStatusResponse:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+    MfaChallengeResponse:
+      type: object
+      properties:
+        required:
+          type: boolean
+    MfaActivateRequest:
+      required:
+      - code
+      type: object
+      properties:
+        code:
+          pattern: \d{6}
+          type: string
+    LoginRequest:
+      required:
+      - companyCode
+      - email
+      - password
+      type: object
+      properties:
+        email:
+          type: string
+        password:
+          type: string
+        companyCode:
+          type: string
+        mfaCode:
+          type: string
+        recoveryCode:
+          type: string
+    CreateUserRequest:
+      required:
+      - companyIds
+      - displayName
+      - email
+      - password
+      - roles
+      type: object
+      properties:
+        email:
+          type: string
+        password:
+          type: string
+        displayName:
+          type: string
+        companyIds:
+          type: array
+          items:
+            type: integer
+            format: int64
+        roles:
+          type: array
+          items:
+            type: string
+    JournalEntryRequest:
+      required:
+      - entryDate
+      - lines
+      - referenceNumber
+      type: object
+      properties:
+        referenceNumber:
+          type: string
+        entryDate:
+          type: string
+          format: date
+        memo:
+          type: string
+        dealerId:
+          type: integer
+          format: int64
+        lines:
+          type: array
+          items:
+            $ref: '#/components/schemas/JournalLineRequest'
+    JournalLineRequest:
+      required:
+      - accountId
+      - credit
+      - debit
+      type: object
+      properties:
+        accountId:
+          type: integer
+          format: int64
+        description:
+          type: string
+        debit:
+          type: number
+        credit:
+          type: number
+    ApiResponseJournalEntryDto:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/JournalEntryDto'
+        timestamp:
+          type: string
+          format: date-time
+    JournalEntryDto:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        publicId:
+          type: string
+          format: uuid
+        referenceNumber:
+          type: string
+        entryDate:
+          type: string
+          format: date
+        memo:
+          type: string
+        status:
+          type: string
+        dealerId:
+          type: integer
+          format: int64
+        dealerName:
+          type: string
+        lines:
+          type: array
+          items:
+            $ref: '#/components/schemas/JournalLineDto'
+    JournalLineDto:
+      type: object
+      properties:
+        accountId:
+          type: integer
+          format: int64
+        accountCode:
+          type: string
+        description:
+          type: string
+        debit:
+          type: number
+        credit:
+          type: number
+    AccountRequest:
+      required:
+      - code
+      - name
+      - type
+      type: object
+      properties:
+        code:
+          type: string
+        name:
+          type: string
+        type:
+          type: string
+    AccountDto:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        publicId:
+          type: string
+          format: uuid
+        code:
+          type: string
+        name:
+          type: string
+        type:
+          type: string
+        balance:
+          type: number
+    ApiResponseAccountDto:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/AccountDto'
+        timestamp:
+          type: string
+          format: date-time
+    StatusRequest:
+      type: object
+      properties:
+        status:
+          type: string
+    ApiResponseListSalesTargetDto:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/SalesTargetDto'
+        timestamp:
+          type: string
+          format: date-time
+    ApiResponseListPromotionDto:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/PromotionDto'
+        timestamp:
+          type: string
+          format: date-time
+    ApiResponseListSalesOrderDto:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/SalesOrderDto'
+        timestamp:
+          type: string
+          format: date-time
+    ApiResponseListCreditRequestDto:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/CreditRequestDto'
+        timestamp:
+          type: string
+          format: date-time
+    ApiResponseProfitLossDto:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/ProfitLossDto'
+        timestamp:
+          type: string
+          format: date-time
+    ProfitLossDto:
+      type: object
+      properties:
+        revenue:
+          type: number
+        costOfGoodsSold:
+          type: number
+        grossProfit:
+          type: number
+        operatingExpenses:
+          type: number
+        netIncome:
+          type: number
+    ApiResponseInventoryValuationDto:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/InventoryValuationDto'
+        timestamp:
+          type: string
+          format: date-time
+    InventoryValuationDto:
+      type: object
+      properties:
+        totalValue:
+          type: number
+        lowStockItems:
+          type: integer
+          format: int64
+    ApiResponseCashFlowDto:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/CashFlowDto'
+        timestamp:
+          type: string
+          format: date-time
+    CashFlowDto:
+      type: object
+      properties:
+        operating:
+          type: number
+        investing:
+          type: number
+        financing:
+          type: number
+        netChange:
+          type: number
+    ApiResponseBalanceSheetDto:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/BalanceSheetDto'
+        timestamp:
+          type: string
+          format: date-time
+    BalanceSheetDto:
+      type: object
+      properties:
+        totalAssets:
+          type: number
+        totalLiabilities:
+          type: number
+        totalEquity:
+          type: number
+    AccountStatementEntryDto:
+      type: object
+      properties:
+        dealerName:
+          type: string
+        date:
+          type: string
+          format: date
+        reference:
+          type: string
+        debit:
+          type: number
+        credit:
+          type: number
+        balance:
+          type: number
+    ApiResponseListAccountStatementEntryDto:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/AccountStatementEntryDto'
+        timestamp:
+          type: string
+          format: date-time
+    ApiResponseStockSummaryDto:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/StockSummaryDto'
+        timestamp:
+          type: string
+          format: date-time
+    StockSummaryDto:
+      type: object
+      properties:
+        totalMaterials:
+          type: integer
+          format: int64
+        lowStockMaterials:
+          type: integer
+          format: int64
+        criticalStockMaterials:
+          type: integer
+          format: int64
+        totalBatches:
+          type: integer
+          format: int64
+    ApiResponseListInventoryStockSnapshot:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/InventoryStockSnapshot'
+        timestamp:
+          type: string
+          format: date-time
+    InventoryStockSnapshot:
+      type: object
+      properties:
+        name:
+          type: string
+        sku:
+          type: string
+        currentStock:
+          type: number
+        reorderLevel:
+          type: number
+        status:
+          type: string
+    ApiResponseListRawMaterialBatchDto:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/RawMaterialBatchDto'
+        timestamp:
+          type: string
+          format: date-time
+    ApiResponseListInvoiceDto:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/InvoiceDto'
+        timestamp:
+          type: string
+          format: date-time
+    InvoiceDto:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        publicId:
+          type: string
+          format: uuid
+        invoiceNumber:
+          type: string
+        status:
+          type: string
+        subtotal:
+          type: number
+        taxTotal:
+          type: number
+        totalAmount:
+          type: number
+        currency:
+          type: string
+        issueDate:
+          type: string
+          format: date
+        dueDate:
+          type: string
+          format: date
+        dealerId:
+          type: integer
+          format: int64
+        dealerName:
+          type: string
+        salesOrderId:
+          type: integer
+          format: int64
+        createdAt:
+          type: string
+          format: date-time
+        lines:
+          type: array
+          items:
+            $ref: '#/components/schemas/InvoiceLineDto'
+    InvoiceLineDto:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        productCode:
+          type: string
+        description:
+          type: string
+        quantity:
+          type: number
+        unitPrice:
+          type: number
+        taxRate:
+          type: number
+        lineTotal:
+          type: number
+    ApiResponseInvoiceDto:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/InvoiceDto'
+        timestamp:
+          type: string
+          format: date-time
+    ApiResponseListPayrollRunDto:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/PayrollRunDto'
+        timestamp:
+          type: string
+          format: date-time
+    ApiResponseListLeaveRequestDto:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/LeaveRequestDto'
+        timestamp:
+          type: string
+          format: date-time
+    ApiResponseListEmployeeDto:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/EmployeeDto'
+        timestamp:
+          type: string
+          format: date-time
+    ApiResponseListFactoryTaskDto:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/FactoryTaskDto'
+        timestamp:
+          type: string
+          format: date-time
+    ApiResponseListProductionPlanDto:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProductionPlanDto'
+        timestamp:
+          type: string
+          format: date-time
+    ApiResponseListProductionBatchDto:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProductionBatchDto'
+        timestamp:
+          type: string
+          format: date-time
+    ApiResponseFactoryDashboardDto:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/FactoryDashboardDto'
+        timestamp:
+          type: string
+          format: date-time
+    FactoryDashboardDto:
+      type: object
+      properties:
+        productionEfficiency:
+          type: number
+          format: double
+        completedPlans:
+          type: integer
+          format: int64
+        batchesLogged:
+          type: integer
+          format: int64
+        alerts:
+          type: array
+          items:
+            type: string
+    ApiResponseString:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+    ApiResponseListDealerDto:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/DealerDto'
+        timestamp:
+          type: string
+          format: date-time
+    ApiResponseListCompanyDto:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/CompanyDto'
+        timestamp:
+          type: string
+          format: date-time
+    ApiResponseMeResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/MeResponse'
+        timestamp:
+          type: string
+          format: date-time
+    MeResponse:
+      type: object
+      properties:
+        email:
+          type: string
+        displayName:
+          type: string
+        companyId:
+          type: string
+        mfaEnabled:
+          type: boolean
+    ApiResponseListUserDto:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserDto'
+        timestamp:
+          type: string
+          format: date-time
+    ApiResponseListRoleDto:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/RoleDto'
+        timestamp:
+          type: string
+          format: date-time
+    PermissionDto:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        code:
+          type: string
+        description:
+          type: string
+    RoleDto:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        description:
+          type: string
+        permissions:
+          type: array
+          items:
+            $ref: '#/components/schemas/PermissionDto'
+    AgedDebtorDto:
+      type: object
+      properties:
+        dealerName:
+          type: string
+        current:
+          type: number
+        thirtyDays:
+          type: number
+        sixtyDays:
+          type: number
+        ninetyDays:
+          type: number
+    ApiResponseListAgedDebtorDto:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/AgedDebtorDto'
+        timestamp:
+          type: string
+          format: date-time
+    ApiResponseListRawMaterialDto:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/RawMaterialDto'
+        timestamp:
+          type: string
+          format: date-time
+    ApiResponseListJournalEntryDto:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/JournalEntryDto'
+        timestamp:
+          type: string
+          format: date-time
+    ApiResponseListAccountDto:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/AccountDto'
+        timestamp:
+          type: string
+          format: date-time

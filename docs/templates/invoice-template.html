@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tax Invoice</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        html { font-size: 12px; }
+        @page { size: A4; margin: 0; }
+        @media print {
+            body { -webkit-print-color-adjust: exact; print-color-adjust: exact; background-color: #fff !important; }
+            .page-container { width: 210mm; min-height: 297mm; margin: 0 auto; box-shadow: none !important; padding: 10mm !important; page-break-after: always; }
+            thead { display: table-header-group; }
+            tfoot { display: table-footer-group; }
+            tr { page-break-inside: avoid; }
+        }
+        @media screen {
+            body { background: #f3f4f6; display:flex; justify-content:center; padding:2rem; }
+            .page-container { width: 210mm; min-height:297mm; background:#fff; box-shadow:0 10px 15px -3px rgba(0,0,0,0.1),0 4px 6px -2px rgba(0,0,0,0.05); padding:10mm; box-sizing:border-box; }
+        }
+        .border-black { border-color:#000 !important; }
+        .border-r-black { border-right-color:#000 !important; }
+        .border-b-black { border-bottom-color:#000 !important; }
+        .border-t-black { border-top-color:#000 !important; }
+        .border-l-black { border-left-color:#000 !important; }
+        table { border-collapse:collapse; width:100%; table-layout:fixed; }
+        th, td { padding:2px 4px; vertical-align:top; word-wrap:break-word; border-color:#000 !important; }
+    </style>
+</head>
+<body class="font-sans text-black leading-tight">
+    <div class="page-container flex flex-col">
+        <h1 class="text-center font-bold text-xl mb-2 uppercase underline">Tax Invoice</h1>
+        <div class="border border-black flex-grow flex flex-col text-[11px]">
+            <div class="flex border-b border-black">
+                <div class="w-1/2 border-r border-black flex flex-col">
+                    <div class="p-2 border-b border-black flex-grow">
+                        <h2 class="font-bold text-sm uppercase text-blue-800">{{company_name}}</h2>
+                        <p>{{company_address_line1}}</p>
+                        <p>{{company_address_line2}}</p>
+                        <p><span class="font-bold">GSTIN/UIN:</span> {{company_gstin}}</p>
+                        <p>State Name: {{company_state}}, Code: {{company_state_code}}</p>
+                        <p>Email: {{company_email}}</p>
+                    </div>
+                    <div class="p-2 border-b border-black flex-grow">
+                        <p class="font-semibold mb-1">Consignee (Ship to)</p>
+                        <h3 class="font-bold uppercase">{{consignee_name}}</h3>
+                        <p>{{consignee_address_line1}}</p>
+                        <p>{{consignee_address_line2}}</p>
+                        <p>Mobile: {{consignee_mobile}}</p>
+                        <p><span class="font-bold">GSTIN/UIN:</span> {{consignee_gstin}}</p>
+                        <p>State: {{consignee_state}}, Code: {{consignee_state_code}}</p>
+                    </div>
+                    <div class="p-2 flex-grow">
+                        <p class="font-semibold mb-1">Buyer (Bill to)</p>
+                        <h3 class="font-bold uppercase">{{buyer_name}}</h3>
+                        <p>{{buyer_address_line1}}</p>
+                        <p>{{buyer_address_line2}}</p>
+                        <p>Mobile: {{buyer_mobile}}</p>
+                        <p><span class="font-bold">GSTIN/UIN:</span> {{buyer_gstin}}</p>
+                        <p>State: {{buyer_state}}, Code: {{buyer_state_code}}</p>
+                    </div>
+                </div>
+                <div class="w-1/2 flex flex-col">
+                    <div class="flex border-b border-black"><div class="w-1/2 p-2 border-r border-black"><p class="font-bold">Invoice No.</p><p class="font-bold">{{invoice_no}}</p></div><div class="w-1/2 p-2"><p class="font-bold">Dated</p><p class="font-bold">{{invoice_date}}</p></div></div>
+                    <div class="flex border-b border-black"><div class="w-1/2 p-2 border-r border-black"><p class="font-bold">Delivery Note</p><p>{{delivery_note}}</p></div><div class="w-1/2 p-2"><p class="font-bold">Mode/Terms of Payment</p><p>{{payment_mode}}</p></div></div>
+                    <div class="flex border-b border-black"><div class="w-1/2 p-2 border-r border-black"><p class="font-bold">Reference No. & Date</p><p>{{reference_no}}</p></div><div class="w-1/2 p-2"><p class="font-bold">Other References</p><p>{{other_references}}</p></div></div>
+                    <div class="flex border-b border-black"><div class="w-1/2 p-2 border-r border-black"><p class="font-bold">Buyer's Order No.</p><p>{{buyer_order_no}}</p></div><div class="w-1/2 p-2"><p class="font-bold">Dated</p><p>{{buyer_order_date}}</p></div></div>
+                    <div class="flex border-b border-black"><div class="w-1/2 p-2 border-r border-black"><p class="font-bold">Dispatch Doc No.</p><p>{{dispatch_doc_no}}</p></div><div class="w-1/2 p-2"><p class="font-bold">Delivery Note Date</p><p>{{delivery_note_date}}</p></div></div>
+                    <div class="flex border-b border-black"><div class="w-1/2 p-2 border-r border-black"><p class="font-bold">Dispatched through</p><p>{{dispatched_through}}</p></div><div class="w-1/2 p-2"><p class="font-bold">Destination</p><p>{{destination}}</p></div></div>
+                    <div class="flex-grow p-2"><p class="font-bold">Terms of Delivery</p><p>{{terms_of_delivery}}</p></div>
+                </div>
+            </div>
+            <div class="flex-grow flex flex-col min-h-[300px]">
+                <table class="flex-grow w-full">
+                    <thead>
+                        <tr class="border-b border-black text-center font-bold bg-gray-100 print:bg-transparent">
+                            <th class="border-r border-black w-[5%]">SI No.</th>
+                            <th class="border-r border-black w-[35%]">Description of Goods</th>
+                            <th class="border-r border-black w-[10%]">HSN/SAC</th>
+                            <th class="border-r border-black w-[10%]">Qty</th>
+                            <th class="border-r border-black w-[10%]">Rate</th>
+                            <th class="border-r border-black w-[8%]">Per</th>
+                            <th class="border-r border-black w-[8%]">Disc. %</th>
+                            <th class="w-[14%]">Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {{#items}}
+                        <tr>
+                            <td class="border-r border-black text-center">{{index}}</td>
+                            <td class="border-r border-black font-bold">{{description}}</td>
+                            <td class="border-r border-black text-center">{{hsn}}</td>
+                            <td class="border-r border-black text-center font-bold">{{quantity}} <span class="text-[9px]">{{unit}}</span></td>
+                            <td class="border-r border-black text-right">{{rate}}</td>
+                            <td class="border-r border-black text-center">{{per}}</td>
+                            <td class="border-r border-black text-center">{{discount}}</td>
+                            <td class="text-right font-bold">{{amount}}</td>
+                        </tr>
+                        {{/items}}
+                        <tr class="h-full"><td class="border-r border-black"></td><td class="border-r border-black"></td><td class="border-r border-black"></td><td class="border-r border-black"></td><td class="border-r border-black"></td><td class="border-r border-black"></td><td class="border-r border-black"></td><td></td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="border-t border-black">
+                <table class="w-full">
+                    <tr><td class="text-right p-1 font-bold" style="width:86%;">Sub Total</td><td class="text-right p-1 font-bold">{{subtotal}}</td></tr>
+                    <tr><td class="text-right p-1 font-bold italic">OUTPUT CGST ({{cgst_rate}}%)</td><td class="text-right p-1 font-bold">{{cgst_amount}}</td></tr>
+                    <tr><td class="text-right p-1 font-bold italic">OUTPUT SGST ({{sgst_rate}}%)</td><td class="text-right p-1 font-bold">{{sgst_amount}}</td></tr>
+                    <tr><td class="text-right p-1 font-bold italic">Round Off</td><td class="text-right p-1 font-bold">{{round_off}}</td></tr>
+                    <tr class="border-t border-black bg-gray-100 print:bg-transparent font-bold text-sm"><td class="text-right p-1">Total ₹</td><td class="text-right p-1">{{grand_total}}</td></tr>
+                </table>
+            </div>
+            <div class="border-t border-b border-black p-2">
+                <p>Amount Chargeable (in words): <span class="font-bold uppercase">{{amount_in_words}}</span></p>
+            </div>
+            <div class="border-b border-black">
+                <table class="text-center w-full">
+                    <thead>
+                        <tr class="bg-gray-100 print:bg-transparent border-b border-black">
+                            <th rowspan="2" class="border-r border-black w-[15%]">HSN/SAC</th>
+                            <th rowspan="2" class="border-r border-black w-[17%]">Taxable Value</th>
+                            <th colspan="2" class="border-r border-black border-b border-black w-[26%]">CGST</th>
+                            <th colspan="2" class="border-r border-black border-b border-black w-[26%]">SGST/UTGST</th>
+                            <th rowspan="2" class="w-[16%]">Total Tax Amount</th>
+                        </tr>
+                        <tr class="bg-gray-100 print:bg-transparent border-b border-black">
+                            <th class="border-r border-black">Rate</th>
+                            <th class="border-r border-black">Amount</th>
+                            <th class="border-r border-black">Rate</th>
+                            <th class="border-r border-black">Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {{#tax_rows}}
+                        <tr>
+                            <td class="border-r border-black text-left">{{hsn}}</td>
+                            <td class="border-r border-black text-right font-bold">{{taxable_value}}</td>
+                            <td class="border-r border-black text-right">{{cgst_rate}}%</td>
+                            <td class="border-r border-black text-right font-bold">{{cgst_amount}}</td>
+                            <td class="border-r border-black text-right">{{sgst_rate}}%</td>
+                            <td class="border-r border-black text-right font-bold">{{sgst_amount}}</td>
+                            <td class="text-right font-bold">{{total_tax}}</td>
+                        </tr>
+                        {{/tax_rows}}
+                        <tr class="border-t border-black font-bold bg-gray-100 print:bg-transparent">
+                            <td class="border-r border-black text-right">Total</td>
+                            <td class="border-r border-black text-right">{{total_taxable_value}}</td>
+                            <td class="border-r border-black"></td>
+                            <td class="border-r border-black text-right">{{total_cgst_amount}}</td>
+                            <td class="border-r border-black"></td>
+                            <td class="border-r border-black text-right">{{total_sgst_amount}}</td>
+                            <td class="text-right">{{grand_total_tax_amount}}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="flex-grow flex flex-col justify-between">
+                <div class="p-2 border-b border-black">
+                    <p>Tax Amount (in words): <span class="font-bold uppercase">{{tax_amount_in_words}}</span></p>
+                    <p class="mt-1"><span class="font-bold">Remarks:</span> {{remarks}}</p>
+                </div>
+                <div class="flex flex-grow min-h-[100px]">
+                    <div class="w-1/2 p-2 border-r border-black flex flex-col justify-between">
+                        <div>
+                            <p class="underline font-bold">Declaration</p>
+                            <p class="text-[10px]">{{declaration_text}}</p>
+                        </div>
+                        <p class="text-gray-500 pt-4">Customer's Seal and Signature</p>
+                    </div>
+                    <div class="w-1/2 p-2 flex flex-col justify-between text-right">
+                        <p class="font-bold">for <span class="uppercase text-blue-800">{{company_name}}</span></p>
+                        <p class="font-bold pt-8">Authorised Signatory</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <p class="text-center text-[10px] mt-1 text-gray-500">This is a Computer Generated Invoice</p>
+    </div>
+</body>
+</html>

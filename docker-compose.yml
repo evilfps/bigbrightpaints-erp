@@ -1,0 +1,48 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: erp_db
+    environment:
+      POSTGRES_DB: erp_domain
+      POSTGRES_USER: erp
+      POSTGRES_PASSWORD: erp
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: erp_rabbit
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+
+  app:
+    build:
+      context: .
+      dockerfile: erp-domain/Dockerfile
+    container_name: erp_domain_app
+    depends_on:
+      db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_started
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      SERVER_PORT: 8081
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/erp_domain
+      SPRING_DATASOURCE_USERNAME: erp
+      SPRING_DATASOURCE_PASSWORD: erp
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: 5672
+      JWT_SECRET: change-me-in-prod
+      JWT_ACCESS_TTL: 900
+      JWT_REFRESH_TTL: 2592000
+    ports:
+      - "8081:8081"

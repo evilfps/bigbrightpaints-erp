@@ -1,0 +1,16 @@
+# Local build and temp assets
+temp-maven/
+
+# Logs and runtime artifacts
+erp-domain/logs/
+boot.log
+boot.err
+
+# Editor/OS specific
+.DS_Store
+
+# Misc
+backup-$
+
+# Nested repo (ignored)
+THE-ORCHESTRATOR-FOR-BBP/
