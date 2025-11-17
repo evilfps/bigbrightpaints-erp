@@ -1,7 +1,6 @@
 package com.bigbrightpaints.erp.modules.factory.domain;
 
 import com.bigbrightpaints.erp.modules.company.domain.Company;
-import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatch;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionBrand;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionProduct;
 import jakarta.persistence.*;
@@ -11,11 +10,12 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import com.bigbrightpaints.erp.core.domain.VersionedEntity;
 
 @Entity
 @Table(name = "production_logs",
         uniqueConstraints = @UniqueConstraint(name = "uq_production_log_code", columnNames = {"company_id", "production_code"}))
-public class ProductionLog {
+public class ProductionLog extends VersionedEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -48,11 +48,27 @@ public class ProductionLog {
     @Column(name = "unit_of_measure", nullable = false)
     private String unitOfMeasure;
 
-    @Column(name = "produced_quantity", nullable = false)
-    private BigDecimal producedQuantity;
+    @Column(name = "mixed_quantity", nullable = false)
+    private BigDecimal mixedQuantity;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false)
+    private ProductionLogStatus status = ProductionLogStatus.MIXED;
+
+    @Column(name = "total_packed_quantity", nullable = false)
+    private BigDecimal totalPackedQuantity = BigDecimal.ZERO;
+
+    @Column(name = "wastage_quantity", nullable = false)
+    private BigDecimal wastageQuantity = BigDecimal.ZERO;
 
     @Column(name = "material_cost_total", nullable = false)
     private BigDecimal materialCostTotal = BigDecimal.ZERO;
+
+    @Column(name = "labor_cost_total", nullable = false)
+    private BigDecimal laborCostTotal = BigDecimal.ZERO;
+
+    @Column(name = "overhead_cost_total", nullable = false)
+    private BigDecimal overheadCostTotal = BigDecimal.ZERO;
 
     @Column(name = "unit_cost", nullable = false)
     private BigDecimal unitCost = BigDecimal.ZERO;
@@ -72,12 +88,17 @@ public class ProductionLog {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
+    @Column(name = "sales_order_id")
+    private Long salesOrderId;
+
+    @Column(name = "sales_order_number")
+    private String salesOrderNumber;
+
     @OneToMany(mappedBy = "log", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ProductionLogMaterial> materials = new ArrayList<>();
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "finished_good_batch_id")
-    private FinishedGoodBatch finishedGoodBatch;
+    @OneToMany(mappedBy = "productionLog", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<PackingRecord> packingRecords = new ArrayList<>();
 
     @PrePersist
     public void prePersist() {
@@ -163,12 +184,12 @@ public class ProductionLog {
         this.unitOfMeasure = unitOfMeasure;
     }
 
-    public BigDecimal getProducedQuantity() {
-        return producedQuantity;
+    public BigDecimal getMixedQuantity() {
+        return mixedQuantity;
     }
 
-    public void setProducedQuantity(BigDecimal producedQuantity) {
-        this.producedQuantity = producedQuantity;
+    public void setMixedQuantity(BigDecimal mixedQuantity) {
+        this.mixedQuantity = mixedQuantity;
     }
 
     public Instant getProducedAt() {
@@ -215,6 +236,22 @@ public class ProductionLog {
         this.materialCostTotal = materialCostTotal;
     }
 
+    public BigDecimal getLaborCostTotal() {
+        return laborCostTotal;
+    }
+
+    public void setLaborCostTotal(BigDecimal laborCostTotal) {
+        this.laborCostTotal = laborCostTotal;
+    }
+
+    public BigDecimal getOverheadCostTotal() {
+        return overheadCostTotal;
+    }
+
+    public void setOverheadCostTotal(BigDecimal overheadCostTotal) {
+        this.overheadCostTotal = overheadCostTotal;
+    }
+
     public BigDecimal getUnitCost() {
         return unitCost;
     }
@@ -223,11 +260,46 @@ public class ProductionLog {
         this.unitCost = unitCost;
     }
 
-    public FinishedGoodBatch getFinishedGoodBatch() {
-        return finishedGoodBatch;
+    public ProductionLogStatus getStatus() {
+        return status;
     }
 
-    public void setFinishedGoodBatch(FinishedGoodBatch finishedGoodBatch) {
-        this.finishedGoodBatch = finishedGoodBatch;
+    public void setStatus(ProductionLogStatus status) {
+        this.status = status;
+    }
+
+    public BigDecimal getTotalPackedQuantity() {
+        return totalPackedQuantity;
+    }
+
+    public void setTotalPackedQuantity(BigDecimal totalPackedQuantity) {
+        this.totalPackedQuantity = totalPackedQuantity;
+    }
+
+    public BigDecimal getWastageQuantity() {
+        return wastageQuantity;
+    }
+
+    public void setWastageQuantity(BigDecimal wastageQuantity) {
+        this.wastageQuantity = wastageQuantity;
+    }
+
+    public List<PackingRecord> getPackingRecords() {
+        return packingRecords;
+    }
+    public Long getSalesOrderId() {
+        return salesOrderId;
+    }
+
+    public void setSalesOrderId(Long salesOrderId) {
+        this.salesOrderId = salesOrderId;
+    }
+
+    public String getSalesOrderNumber() {
+        return salesOrderNumber;
+    }
+
+    public void setSalesOrderNumber(String salesOrderNumber) {
+        this.salesOrderNumber = salesOrderNumber;
     }
 }

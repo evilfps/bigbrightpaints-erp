@@ -1,5 +1,6 @@
 package com.bigbrightpaints.erp.modules.production.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.constraints.NotBlank;
 
 import java.math.BigDecimal;
@@ -16,6 +17,7 @@ public record ProductCreateRequest(
         String defaultColour,
         String sizeLabel,
         String unitOfMeasure,
+        @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
         String customSkuCode,
         BigDecimal basePrice,
         BigDecimal gstRate,

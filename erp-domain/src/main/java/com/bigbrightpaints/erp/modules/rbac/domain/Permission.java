@@ -1,10 +1,11 @@
 package com.bigbrightpaints.erp.modules.rbac.domain;
 
 import jakarta.persistence.*;
+import com.bigbrightpaints.erp.core.domain.VersionedEntity;
 
 @Entity
 @Table(name = "permissions")
-public class Permission {
+public class Permission extends VersionedEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

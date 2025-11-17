@@ -1,5 +1,6 @@
 package com.bigbrightpaints.erp.orchestrator.repository;
 
+import com.bigbrightpaints.erp.core.domain.VersionedEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -9,13 +10,12 @@ import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
-import jakarta.persistence.Version;
 import java.time.Instant;
 
 @Entity
 @Table(name = "order_auto_approval_state",
         uniqueConstraints = @UniqueConstraint(columnNames = {"company_code", "order_id"}))
-public class OrderAutoApprovalState {
+public class OrderAutoApprovalState extends VersionedEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -53,9 +53,6 @@ public class OrderAutoApprovalState {
 
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
-
-    @Version
-    private long version;
 
     protected OrderAutoApprovalState() {
     }

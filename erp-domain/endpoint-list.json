@@ -1,0 +1,572 @@
+[
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\controller\\IntegrationHealthController.java",
+    "method": "GET",
+    "path": "/health"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\orchestrator\\controller\\OrchestratorController.java",
+    "method": "GET",
+    "path": "/traces/{traceId}"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\orchestrator\\controller\\OrchestratorController.java",
+    "method": "GET",
+    "path": "/health/integrations"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\orchestrator\\controller\\OrchestratorController.java",
+    "method": "GET",
+    "path": "/health/events"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\sales\\controller\\SalesController.java",
+    "method": "GET",
+    "path": "/sales/orders"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\sales\\controller\\SalesController.java",
+    "method": "POST",
+    "path": "/sales/orders"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\sales\\controller\\SalesController.java",
+    "method": "PUT",
+    "path": "/sales/orders/{id}"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\sales\\controller\\SalesController.java",
+    "method": "DELETE",
+    "path": "/sales/orders/{id}"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\sales\\controller\\SalesController.java",
+    "method": "POST",
+    "path": "/sales/orders/{id}/confirm"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\sales\\controller\\SalesController.java",
+    "method": "POST",
+    "path": "/sales/orders/{id}/cancel"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\sales\\controller\\SalesController.java",
+    "method": "PATCH",
+    "path": "/sales/orders/{id}/status"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\sales\\controller\\SalesController.java",
+    "method": "GET",
+    "path": "/sales/promotions"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\sales\\controller\\SalesController.java",
+    "method": "POST",
+    "path": "/sales/promotions"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\sales\\controller\\SalesController.java",
+    "method": "PUT",
+    "path": "/sales/promotions/{id}"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\sales\\controller\\SalesController.java",
+    "method": "DELETE",
+    "path": "/sales/promotions/{id}"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\sales\\controller\\SalesController.java",
+    "method": "GET",
+    "path": "/sales/targets"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\sales\\controller\\SalesController.java",
+    "method": "POST",
+    "path": "/sales/targets"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\sales\\controller\\SalesController.java",
+    "method": "PUT",
+    "path": "/sales/targets/{id}"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\sales\\controller\\SalesController.java",
+    "method": "DELETE",
+    "path": "/sales/targets/{id}"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\sales\\controller\\SalesController.java",
+    "method": "GET",
+    "path": "/sales/credit-requests"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\sales\\controller\\SalesController.java",
+    "method": "POST",
+    "path": "/sales/credit-requests"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\sales\\controller\\SalesController.java",
+    "method": "PUT",
+    "path": "/sales/credit-requests/{id}"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\reports\\controller\\ReportController.java",
+    "method": "GET",
+    "path": "/reports/balance-sheet"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\reports\\controller\\ReportController.java",
+    "method": "GET",
+    "path": "/reports/profit-loss"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\reports\\controller\\ReportController.java",
+    "method": "GET",
+    "path": "/reports/cash-flow"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\reports\\controller\\ReportController.java",
+    "method": "GET",
+    "path": "/reports/inventory-valuation"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\reports\\controller\\ReportController.java",
+    "method": "GET",
+    "path": "/reports/inventory-reconciliation"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\reports\\controller\\ReportController.java",
+    "method": "GET",
+    "path": "/reports/balance-warnings"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\reports\\controller\\ReportController.java",
+    "method": "GET",
+    "path": "/reports/reconciliation-dashboard"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\reports\\controller\\ReportController.java",
+    "method": "GET",
+    "path": "/reports/trial-balance"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\reports\\controller\\ReportController.java",
+    "method": "GET",
+    "path": "/reports/account-statement"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\reports\\controller\\ReportController.java",
+    "method": "GET",
+    "path": "/accounting/reports/aged-debtors"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\reports\\controller\\ReportController.java",
+    "method": "GET",
+    "path": "/reports/wastage"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\reports\\controller\\ReportController.java",
+    "method": "GET",
+    "path": "/reports/production-logs/{id}/cost-breakdown"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\reports\\controller\\ReportController.java",
+    "method": "GET",
+    "path": "/reports/monthly-production-costs"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\production\\controller\\ProductionCatalogController.java",
+    "method": "GET",
+    "path": "/brands"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\production\\controller\\ProductionCatalogController.java",
+    "method": "GET",
+    "path": "/brands/{brandId}/products"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\portal\\controller\\PortalInsightsController.java",
+    "method": "GET",
+    "path": "/dashboard"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\portal\\controller\\PortalInsightsController.java",
+    "method": "GET",
+    "path": "/operations"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\portal\\controller\\PortalInsightsController.java",
+    "method": "GET",
+    "path": "/workforce"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\invoice\\controller\\InvoiceController.java",
+    "method": "GET",
+    "path": "/api/v1/invoices"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\invoice\\controller\\InvoiceController.java",
+    "method": "GET",
+    "path": "/{id}"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\invoice\\controller\\InvoiceController.java",
+    "method": "GET",
+    "path": "/dealers/{dealerId}"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\inventory\\controller\\RawMaterialController.java",
+    "method": "GET",
+    "path": "/accounting/raw-materials"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\inventory\\controller\\RawMaterialController.java",
+    "method": "POST",
+    "path": "/accounting/raw-materials"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\inventory\\controller\\RawMaterialController.java",
+    "method": "PUT",
+    "path": "/accounting/raw-materials/{id}"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\inventory\\controller\\RawMaterialController.java",
+    "method": "DELETE",
+    "path": "/accounting/raw-materials/{id}"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\inventory\\controller\\RawMaterialController.java",
+    "method": "GET",
+    "path": "/raw-materials/stock"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\inventory\\controller\\RawMaterialController.java",
+    "method": "GET",
+    "path": "/raw-materials/stock/inventory"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\inventory\\controller\\RawMaterialController.java",
+    "method": "GET",
+    "path": "/raw-materials/stock/low-stock"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\inventory\\controller\\RawMaterialController.java",
+    "method": "GET",
+    "path": "/raw-material-batches/{rawMaterialId}"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\inventory\\controller\\RawMaterialController.java",
+    "method": "POST",
+    "path": "/raw-material-batches/{rawMaterialId}"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\inventory\\controller\\RawMaterialController.java",
+    "method": "POST",
+    "path": "/raw-materials/intake"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\hr\\controller\\HrController.java",
+    "method": "GET",
+    "path": "/employees"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\hr\\controller\\HrController.java",
+    "method": "POST",
+    "path": "/employees"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\hr\\controller\\HrController.java",
+    "method": "PUT",
+    "path": "/employees/{id}"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\hr\\controller\\HrController.java",
+    "method": "DELETE",
+    "path": "/employees/{id}"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\hr\\controller\\HrController.java",
+    "method": "GET",
+    "path": "/leave-requests"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\hr\\controller\\HrController.java",
+    "method": "POST",
+    "path": "/leave-requests"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\hr\\controller\\HrController.java",
+    "method": "PATCH",
+    "path": "/leave-requests/{id}/status"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\hr\\controller\\HrController.java",
+    "method": "GET",
+    "path": "/payroll-runs"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\hr\\controller\\HrController.java",
+    "method": "POST",
+    "path": "/payroll-runs"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\factory\\controller\\FactoryController.java",
+    "method": "GET",
+    "path": "/production-plans"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\factory\\controller\\FactoryController.java",
+    "method": "POST",
+    "path": "/production-plans"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\factory\\controller\\FactoryController.java",
+    "method": "PUT",
+    "path": "/production-plans/{id}"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\factory\\controller\\FactoryController.java",
+    "method": "PATCH",
+    "path": "/production-plans/{id}/status"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\factory\\controller\\FactoryController.java",
+    "method": "DELETE",
+    "path": "/production-plans/{id}"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\factory\\controller\\FactoryController.java",
+    "method": "GET",
+    "path": "/production-batches"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\factory\\controller\\FactoryController.java",
+    "method": "POST",
+    "path": "/production-batches"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\factory\\controller\\FactoryController.java",
+    "method": "GET",
+    "path": "/tasks"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\factory\\controller\\FactoryController.java",
+    "method": "POST",
+    "path": "/tasks"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\factory\\controller\\FactoryController.java",
+    "method": "PUT",
+    "path": "/tasks/{id}"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\factory\\controller\\FactoryController.java",
+    "method": "GET",
+    "path": "/dashboard"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\factory\\controller\\FactoryController.java",
+    "method": "POST",
+    "path": "/cost-allocation"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\factory\\controller\\PackingController.java",
+    "method": "POST",
+    "path": "/packing-records"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\factory\\controller\\PackingController.java",
+    "method": "POST",
+    "path": "/packing-records/{productionLogId}/complete"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\factory\\controller\\PackingController.java",
+    "method": "GET",
+    "path": "/unpacked-batches"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\factory\\controller\\PackingController.java",
+    "method": "GET",
+    "path": "/production-logs/{productionLogId}/packing-history"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\factory\\controller\\ProductionLogController.java",
+    "method": "POST",
+    "path": "/api/v1/factory/production/logs"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\factory\\controller\\ProductionLogController.java",
+    "method": "GET",
+    "path": "/api/v1/factory/production/logs"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\factory\\controller\\ProductionLogController.java",
+    "method": "GET",
+    "path": "/{id}"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\demo\\controller\\DemoController.java",
+    "method": "GET",
+    "path": "/ping"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\company\\controller\\CompanyController.java",
+    "method": "GET",
+    "path": "/api/v1/companies"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\company\\controller\\MultiCompanyController.java",
+    "method": "POST",
+    "path": "/companies/switch"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\auth\\controller\\AuthController.java",
+    "method": "POST",
+    "path": "/login"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\auth\\controller\\AuthController.java",
+    "method": "POST",
+    "path": "/refresh-token"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\auth\\controller\\AuthController.java",
+    "method": "POST",
+    "path": "/logout"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\auth\\controller\\AuthController.java",
+    "method": "GET",
+    "path": "/me"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\auth\\controller\\AuthController.java",
+    "method": "POST",
+    "path": "/password/change"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\auth\\controller\\AuthController.java",
+    "method": "POST",
+    "path": "/password/forgot"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\auth\\controller\\AuthController.java",
+    "method": "POST",
+    "path": "/password/reset"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\auth\\controller\\MfaController.java",
+    "method": "POST",
+    "path": "/setup"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\auth\\controller\\MfaController.java",
+    "method": "POST",
+    "path": "/activate"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\auth\\controller\\MfaController.java",
+    "method": "POST",
+    "path": "/disable"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\auth\\controller\\UserProfileController.java",
+    "method": "GET",
+    "path": "/api/v1/auth/profile"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\auth\\controller\\UserProfileController.java",
+    "method": "PUT",
+    "path": "/api/v1/auth/profile"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\admin\\controller\\AdminUserController.java",
+    "method": "GET",
+    "path": "/api/v1/admin/users"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\admin\\controller\\AdminUserController.java",
+    "method": "POST",
+    "path": "/api/v1/admin/users"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\admin\\controller\\AdminUserController.java",
+    "method": "PUT",
+    "path": "/{id}"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\admin\\controller\\AdminUserController.java",
+    "method": "PATCH",
+    "path": "/{id}/suspend"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\admin\\controller\\AdminUserController.java",
+    "method": "PATCH",
+    "path": "/{id}/unsuspend"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\accounting\\controller\\AccountingCatalogController.java",
+    "method": "POST",
+    "path": "/import"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\accounting\\controller\\AccountingCatalogController.java",
+    "method": "GET",
+    "path": "/products"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\accounting\\controller\\AccountingCatalogController.java",
+    "method": "POST",
+    "path": "/products"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\accounting\\controller\\AccountingCatalogController.java",
+    "method": "PUT",
+    "path": "/products/{id}"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\accounting\\controller\\AccountingController.java",
+    "method": "GET",
+    "path": "/accounts"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\accounting\\controller\\AccountingController.java",
+    "method": "POST",
+    "path": "/accounts"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\accounting\\controller\\AccountingController.java",
+    "method": "GET",
+    "path": "/journal-entries"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\accounting\\controller\\AccountingController.java",
+    "method": "POST",
+    "path": "/journal-entries"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\accounting\\controller\\AccountingController.java",
+    "method": "POST",
+    "path": "/receipts/dealer"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\accounting\\controller\\AccountingController.java",
+    "method": "POST",
+    "path": "/payroll/payments"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\accounting\\controller\\AccountingController.java",
+    "method": "POST",
+    "path": "/sales/returns"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\accounting\\controller\\AccountingController.java",
+    "method": "POST",
+    "path": "/bank-reconciliation"
+  },
+  {
+    "file": "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\accounting\\controller\\AccountingController.java",
+    "method": "POST",
+    "path": "/inventory/physical-count"
+  }
+]

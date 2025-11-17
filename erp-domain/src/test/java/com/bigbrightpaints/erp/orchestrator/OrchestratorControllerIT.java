@@ -1,5 +1,10 @@
 package com.bigbrightpaints.erp.orchestrator;
 
+import com.bigbrightpaints.erp.modules.accounting.domain.Account;
+import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
+import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
+import com.bigbrightpaints.erp.modules.company.domain.Company;
+import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
 import com.bigbrightpaints.erp.modules.hr.domain.PayrollRunRepository;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrder;
 import com.bigbrightpaints.erp.orchestrator.repository.OutboxEventRepository;
@@ -19,18 +24,24 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 public class OrchestratorControllerIT extends AbstractIntegrationTest {
 
+    private static final String COMPANY_CODE = "ACME";
+    private static final String ORCH_EMAIL = "orch@bbp.com";
+    private static final String ORCH_PASSWORD = "orch123";
+
     @Autowired
     private TestRestTemplate rest;
     @Autowired
     private OutboxEventRepository outboxEventRepository;
     @Autowired
     private PayrollRunRepository payrollRunRepository;
-
-    private static final String COMPANY_CODE = "ACME";
-    private static final String ORCH_EMAIL = "orch@bbp.com";
-    private static final String ORCH_PASSWORD = "orch123";
+    @Autowired
+    private CompanyRepository companyRepository;
+    @Autowired
+    private AccountRepository accountRepository;
 
     private Long seededOrderId;
+    private Long payrollCashAccountId;
+    private Long payrollExpenseAccountId;
 
     @BeforeEach
     void seed() {
@@ -39,10 +50,29 @@ public class OrchestratorControllerIT extends AbstractIntegrationTest {
                 ORCH_PASSWORD,
                 "Orchestrator",
                 COMPANY_CODE,
-                List.of("ROLE_SALES", "orders.approve", "ROLE_FACTORY", "factory.dispatch", "ROLE_HR", "payroll.run")
+                List.of("ROLE_SALES", "orders.approve", "ROLE_FACTORY", "factory.dispatch", "ROLE_ACCOUNTING", "payroll.run")
         );
         SalesOrder order = dataSeeder.ensureSalesOrder(COMPANY_CODE, "SO-" + System.nanoTime(), new BigDecimal("5000"));
         seededOrderId = order.getId();
+        ensurePayrollAccounts();
+    }
+
+    private void ensurePayrollAccounts() {
+        Company company = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();
+        payrollCashAccountId = ensureAccount(company, "CASH-PAYROLL", "Payroll Cash", AccountType.ASSET).getId();
+        payrollExpenseAccountId = ensureAccount(company, "EXP-PAYROLL", "Payroll Expense", AccountType.EXPENSE).getId();
+    }
+
+    private Account ensureAccount(Company company, String code, String name, AccountType type) {
+        return accountRepository.findByCompanyAndCodeIgnoreCase(company, code)
+                .orElseGet(() -> {
+                    Account account = new Account();
+                    account.setCompany(company);
+                    account.setCode(code);
+                    account.setName(name);
+                    account.setType(type);
+                    return accountRepository.save(account);
+                });
     }
 
     @Test
@@ -76,7 +106,10 @@ public class OrchestratorControllerIT extends AbstractIntegrationTest {
 
         Map<String, Object> body = Map.of(
                 "payrollDate", LocalDate.now(),
-                "initiatedBy", "orch@bbp.com"
+                "initiatedBy", "orch@bbp.com",
+                "debitAccountId", payrollExpenseAccountId,
+                "creditAccountId", payrollCashAccountId,
+                "postingAmount", new BigDecimal("5000")
         );
 
         ResponseEntity<Map> response = rest.exchange(

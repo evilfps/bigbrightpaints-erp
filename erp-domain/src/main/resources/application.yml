@@ -46,6 +46,18 @@ spring:
       batch-size: 16384
       linger-ms: 1
       buffer-memory: 33554432
+  mail:
+    host: ${SPRING_MAIL_HOST:smtp-relay.brevo.com}
+    port: ${SPRING_MAIL_PORT:587}
+    username: ${SPRING_MAIL_USERNAME:}
+    password: ${SPRING_MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+            required: true
 
 management:
   endpoints:
@@ -78,7 +90,7 @@ erp:
       enabled: false
   security:
     mfa:
-      master-code: ${ERP_SECURITY_MFA_MASTER_CODE:000000}
+      # Master code functionality removed for security - use recovery codes only
     notifications:
       email:
         recipients: ${ERP_SECURITY_NOTIFICATIONS_EMAIL_RECIPIENTS:alerts@localhost}
@@ -97,11 +109,17 @@ erp:
     requests-per-minute: 100
   ai:
     gemini:
-      api-key: ${GEMINI_API_KEY:AIzaSyDtiQ9h9fOa3_84pRBiaY0XnJbGRZS3SyI}
+      api-key: ${GEMINI_API_KEY}
       model: gemini-2.5-pro
       max-tokens: 8192
       temperature: 0.7
     service-url: ${AI_SERVICE_URL:http://localhost:8000}
+  mail:
+    enabled: ${ERP_MAIL_ENABLED:false}
+    from-address: ${ERP_MAIL_FROM:noreply@bigbrightpaints.com}
+    base-url: ${ERP_MAIL_BASE_URL:http://localhost:3004}
+    send-credentials: ${ERP_MAIL_SEND_CREDENTIALS:true}
+    send-password-reset: ${ERP_MAIL_SEND_PASSWORD_RESET:true}
 
 logging:
   level:

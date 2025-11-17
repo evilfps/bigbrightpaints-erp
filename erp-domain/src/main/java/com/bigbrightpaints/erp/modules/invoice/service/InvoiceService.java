@@ -1,5 +1,7 @@
 package com.bigbrightpaints.erp.modules.invoice.service;
 
+import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
+import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.invoice.domain.Invoice;
@@ -11,6 +13,7 @@ import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrder;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrderItem;
+import com.bigbrightpaints.erp.modules.sales.service.SalesJournalService;
 import com.bigbrightpaints.erp.modules.sales.service.SalesService;
 import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
@@ -28,17 +31,23 @@ public class InvoiceService {
     private final DealerRepository dealerRepository;
     private final SalesService salesService;
     private final InvoiceNumberService invoiceNumberService;
+    private final JournalEntryRepository journalEntryRepository;
+    private final SalesJournalService salesJournalService;
 
     public InvoiceService(CompanyContextService companyContextService,
                           InvoiceRepository invoiceRepository,
                           DealerRepository dealerRepository,
                           SalesService salesService,
-                          InvoiceNumberService invoiceNumberService) {
+                          InvoiceNumberService invoiceNumberService,
+                          JournalEntryRepository journalEntryRepository,
+                          SalesJournalService salesJournalService) {
         this.companyContextService = companyContextService;
         this.invoiceRepository = invoiceRepository;
         this.dealerRepository = dealerRepository;
         this.salesService = salesService;
         this.invoiceNumberService = invoiceNumberService;
+        this.journalEntryRepository = journalEntryRepository;
+        this.salesJournalService = salesJournalService;
     }
 
     @Transactional
@@ -91,7 +100,10 @@ public class InvoiceService {
         invoice.setSubtotal(subtotal);
         invoice.setTaxTotal(taxTotal);
         invoice.setTotalAmount(subtotal.add(taxTotal));
-
+        JournalEntry journalEntry = resolveInvoiceJournal(order, invoice);
+        if (journalEntry != null) {
+            invoice.setJournalEntry(journalEntry);
+        }
         Invoice saved = invoiceRepository.save(invoice);
 
         return toDto(saved);
@@ -118,6 +130,27 @@ public class InvoiceService {
         Invoice invoice = invoiceRepository.findByCompanyAndId(company, id)
                 .orElseThrow(() -> new IllegalArgumentException("Invoice not found"));
         return toDto(invoice);
+    }
+
+    private JournalEntry resolveInvoiceJournal(SalesOrder order, Invoice invoice) {
+        Company company = order.getCompany();
+        String reference = "SALE-" + order.getId();
+        return journalEntryRepository.findByCompanyAndReferenceNumber(company, reference)
+                .orElseGet(() -> createInvoiceJournal(order, invoice, reference));
+    }
+
+    private JournalEntry createInvoiceJournal(SalesOrder order, Invoice invoice, String reference) {
+        Long entryId = salesJournalService.postSalesJournal(
+                order,
+                invoice.getTotalAmount(),
+                reference,
+                invoice.getIssueDate(),
+                "Invoice " + invoice.getInvoiceNumber());
+        if (entryId == null) {
+            return null;
+        }
+        return journalEntryRepository.findByCompanyAndId(order.getCompany(), entryId)
+                .orElseThrow(() -> new IllegalStateException("Sales journal entry not found for invoice reference " + reference));
     }
 
     private LocalDate currentDate(Company company) {
@@ -158,6 +191,7 @@ public class InvoiceService {
                 dealer != null ? dealer.getId() : null,
                 dealer != null ? dealer.getName() : null,
                 invoice.getSalesOrder() != null ? invoice.getSalesOrder().getId() : null,
+                invoice.getJournalEntry() != null ? invoice.getJournalEntry().getId() : null,
                 invoice.getCreatedAt(),
                 lineDtos
         );

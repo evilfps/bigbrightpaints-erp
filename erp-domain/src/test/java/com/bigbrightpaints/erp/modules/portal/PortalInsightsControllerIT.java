@@ -2,6 +2,7 @@ package com.bigbrightpaints.erp.modules.portal;
 
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
+import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.factory.domain.FactoryTask;
 import com.bigbrightpaints.erp.modules.factory.domain.FactoryTaskRepository;
@@ -167,7 +168,7 @@ public class PortalInsightsControllerIT extends AbstractIntegrationTest {
         account.setCompany(company);
         account.setCode("1000");
         account.setName("Cash");
-        account.setType("ASSET");
+        account.setType(AccountType.ASSET);
         account.setBalance(new BigDecimal("250000"));
         accountRepository.save(account);
     }

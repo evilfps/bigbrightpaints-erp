@@ -5,11 +5,12 @@ import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
+import com.bigbrightpaints.erp.core.domain.VersionedEntity;
 import java.util.UUID;
 
 @Entity
 @Table(name = "finished_good_batches", uniqueConstraints = @UniqueConstraint(columnNames = {"finished_good_id", "batch_code"}))
-public class FinishedGoodBatch {
+public class FinishedGoodBatch extends VersionedEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

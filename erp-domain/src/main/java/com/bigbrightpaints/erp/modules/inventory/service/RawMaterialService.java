@@ -1,21 +1,31 @@
 package com.bigbrightpaints.erp.modules.inventory.service;
 
+import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
+import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
+import com.bigbrightpaints.erp.modules.accounting.service.ReferenceNumberService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
+import com.bigbrightpaints.erp.modules.inventory.domain.InventoryReference;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterial;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatch;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatchRepository;
+import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovement;
+import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovementRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialRepository;
 import com.bigbrightpaints.erp.modules.inventory.dto.*;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionBrand;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionBrandRepository;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionProduct;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionProductRepository;
+import com.bigbrightpaints.erp.modules.purchasing.domain.Supplier;
+import com.bigbrightpaints.erp.modules.purchasing.domain.SupplierRepository;
 import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -26,20 +36,35 @@ public class RawMaterialService {
 
     private final RawMaterialRepository rawMaterialRepository;
     private final RawMaterialBatchRepository batchRepository;
+    private final RawMaterialMovementRepository movementRepository;
     private final CompanyContextService companyContextService;
     private final ProductionProductRepository productionProductRepository;
     private final ProductionBrandRepository productionBrandRepository;
+    private final AccountingFacade accountingFacade;
+    private final SupplierRepository supplierRepository;
+    private final BatchNumberService batchNumberService;
+    private final ReferenceNumberService referenceNumberService;
 
     public RawMaterialService(RawMaterialRepository rawMaterialRepository,
                               RawMaterialBatchRepository batchRepository,
+                              RawMaterialMovementRepository movementRepository,
                               CompanyContextService companyContextService,
                               ProductionProductRepository productionProductRepository,
-                              ProductionBrandRepository productionBrandRepository) {
+                              ProductionBrandRepository productionBrandRepository,
+                              AccountingFacade accountingFacade,
+                              SupplierRepository supplierRepository,
+                              BatchNumberService batchNumberService,
+                              ReferenceNumberService referenceNumberService) {
         this.rawMaterialRepository = rawMaterialRepository;
         this.batchRepository = batchRepository;
+        this.movementRepository = movementRepository;
         this.companyContextService = companyContextService;
         this.productionProductRepository = productionProductRepository;
         this.productionBrandRepository = productionBrandRepository;
+        this.accountingFacade = accountingFacade;
+        this.supplierRepository = supplierRepository;
+        this.batchNumberService = batchNumberService;
+        this.referenceNumberService = referenceNumberService;
     }
 
     public List<RawMaterialDto> listRawMaterials() {
@@ -69,7 +94,7 @@ public class RawMaterialService {
     @Transactional
     public RawMaterialDto updateRawMaterial(Long id, RawMaterialRequest request) {
         Company company = companyContextService.requireCurrentCompany();
-        RawMaterial material = rawMaterialRepository.findByCompanyAndId(company, id)
+        RawMaterial material = rawMaterialRepository.lockByCompanyAndId(company, id)
                 .orElseThrow(() -> new IllegalArgumentException("Raw material not found"));
         material.setName(request.name());
         material.setSku(request.sku());
@@ -86,7 +111,7 @@ public class RawMaterialService {
     @Transactional
     public void deleteRawMaterial(Long id) {
         Company company = companyContextService.requireCurrentCompany();
-        RawMaterial material = rawMaterialRepository.findByCompanyAndId(company, id)
+        RawMaterial material = rawMaterialRepository.lockByCompanyAndId(company, id)
                 .orElseThrow(() -> new IllegalArgumentException("Raw material not found"));
         rawMaterialRepository.delete(material);
     }
@@ -127,18 +152,40 @@ public class RawMaterialService {
 
     @Transactional
     public RawMaterialBatchDto createBatch(Long rawMaterialId, RawMaterialBatchRequest request) {
+        ReceiptResult receipt = recordReceipt(rawMaterialId, request, null);
+        return toBatchDto(receipt.batch());
+    }
+
+    @Transactional
+    public ReceiptResult recordReceipt(Long rawMaterialId,
+                                       RawMaterialBatchRequest request,
+                                       ReceiptContext context) {
         RawMaterial material = requireMaterial(rawMaterialId);
+        Supplier supplier = requireSupplier(material.getCompany(), request.supplierId());
+        ensurePostingAccounts(material, supplier);
         RawMaterialBatch batch = new RawMaterialBatch();
         batch.setRawMaterial(material);
-        batch.setBatchCode(request.batchCode());
+        String batchCode = resolveBatchCode(material, request.batchCode());
+        batch.setBatchCode(batchCode);
         batch.setQuantity(request.quantity());
         batch.setUnit(request.unit());
         batch.setCostPerUnit(request.costPerUnit());
-        batch.setSupplier(request.supplier());
+        batch.setSupplierName(supplier.getName());
+        batch.setSupplier(supplier);
         batch.setNotes(request.notes());
         material.setCurrentStock(material.getCurrentStock().add(request.quantity()));
         rawMaterialRepository.save(material);
-        return toBatchDto(batchRepository.save(batch));
+        RawMaterialBatch savedBatch = batchRepository.save(batch);
+        ReceiptContext effectiveContext = context != null ? context : ReceiptContext.forBatch(batch.getBatchCode());
+        RawMaterialMovement receiptMovement = recordReceiptMovement(material, savedBatch, request.quantity(), request.costPerUnit(), effectiveContext);
+        Long journalEntryId = effectiveContext.postJournal()
+                ? postInventoryReceipt(material, supplier, savedBatch, request.quantity(), request.costPerUnit(), effectiveContext)
+                : null;
+        if (journalEntryId != null && receiptMovement != null) {
+            receiptMovement.setJournalEntryId(journalEntryId);
+            movementRepository.save(receiptMovement);
+        }
+        return new ReceiptResult(savedBatch, receiptMovement, journalEntryId);
     }
 
     @Transactional
@@ -148,14 +195,14 @@ public class RawMaterialService {
                 request.quantity(),
                 request.unit(),
                 request.costPerUnit(),
-                request.supplier(),
+                request.supplierId(),
                 request.notes()
         ));
     }
 
     private RawMaterial requireMaterial(Long rawMaterialId) {
         Company company = companyContextService.requireCurrentCompany();
-        return rawMaterialRepository.findByCompanyAndId(company, rawMaterialId)
+        return rawMaterialRepository.lockByCompanyAndId(company, rawMaterialId)
                 .orElseThrow(() -> new IllegalArgumentException("Raw material not found"));
     }
 
@@ -166,8 +213,12 @@ public class RawMaterialService {
     }
 
     private RawMaterialBatchDto toBatchDto(RawMaterialBatch batch) {
+        Supplier supplier = batch.getSupplier();
         return new RawMaterialBatchDto(batch.getId(), batch.getPublicId(), batch.getBatchCode(), batch.getQuantity(),
-                batch.getUnit(), batch.getCostPerUnit(), batch.getSupplier(), batch.getReceivedAt(), batch.getNotes());
+                batch.getUnit(), batch.getCostPerUnit(),
+                supplier != null ? supplier.getId() : null,
+                batch.getSupplierName(),
+                batch.getReceivedAt(), batch.getNotes());
     }
 
     private InventoryStockSnapshot toSnapshot(RawMaterial material) {
@@ -191,6 +242,74 @@ public class RawMaterialService {
 
     private boolean isCriticalStock(RawMaterial material) {
         return material.getCurrentStock().compareTo(material.getMinStock()) <= 0;
+    }
+
+    private RawMaterialMovement recordReceiptMovement(RawMaterial material,
+                                                      RawMaterialBatch batch,
+                                                      BigDecimal quantity,
+                                                      BigDecimal costPerUnit,
+                                                      ReceiptContext context) {
+        BigDecimal normalizedQty = quantity == null ? BigDecimal.ZERO : quantity;
+        if (normalizedQty.compareTo(BigDecimal.ZERO) <= 0) {
+            return null;
+        }
+        RawMaterialMovement movement = new RawMaterialMovement();
+        movement.setRawMaterial(material);
+        movement.setRawMaterialBatch(batch);
+        String referenceType = context != null && StringUtils.hasText(context.referenceType())
+                ? context.referenceType()
+                : InventoryReference.RAW_MATERIAL_PURCHASE;
+        String referenceId = context != null && StringUtils.hasText(context.referenceId())
+                ? context.referenceId()
+                : batch.getBatchCode();
+        movement.setReferenceType(referenceType);
+        movement.setReferenceId(referenceId);
+        movement.setMovementType("RECEIPT");
+        movement.setQuantity(normalizedQty);
+        movement.setUnitCost(costPerUnit == null ? BigDecimal.ZERO : costPerUnit);
+        return movementRepository.save(movement);
+    }
+
+    private Long postInventoryReceipt(RawMaterial material,
+                                      Supplier supplier,
+                                      RawMaterialBatch batch,
+                                      BigDecimal quantity,
+                                      BigDecimal costPerUnit,
+                                      ReceiptContext context) {
+        Long inventoryAccountId = material.getInventoryAccountId();
+        if (inventoryAccountId == null || supplier.getPayableAccount() == null) {
+            return null;
+        }
+        BigDecimal totalCost = safeMultiply(quantity, costPerUnit);
+        if (totalCost.compareTo(BigDecimal.ZERO) <= 0) {
+            return null;
+        }
+        String memo = context != null && StringUtils.hasText(context.memo())
+                ? context.memo()
+                : "Raw material batch " + batch.getBatchCode();
+        String referenceNumber = resolveReferenceNumber(material, context, batch);
+        JournalEntryDto entry = accountingFacade.postPurchaseJournal(
+                supplier.getId(),
+                batch.getBatchCode(),
+                currentDate(material.getCompany()),
+                memo,
+                Map.of(inventoryAccountId, totalCost),
+                totalCost,
+                referenceNumber
+        );
+        return entry != null ? entry.id() : null;
+    }
+
+    private LocalDate currentDate(Company company) {
+        String timezone = company.getTimezone() == null ? "UTC" : company.getTimezone();
+        return LocalDate.now(ZoneId.of(timezone));
+    }
+
+    private BigDecimal safeMultiply(BigDecimal left, BigDecimal right) {
+        if (left == null || right == null) {
+            return BigDecimal.ZERO;
+        }
+        return left.multiply(right);
     }
 
     private void syncProductFromMaterial(Company company, RawMaterial material) {
@@ -236,4 +355,41 @@ public class RawMaterialService {
                     return productionBrandRepository.save(brand);
                 });
     }
+
+    private Supplier requireSupplier(Company company, Long supplierId) {
+        return supplierRepository.findByCompanyAndId(company, supplierId)
+                .orElseThrow(() -> new IllegalArgumentException("Supplier not found"));
+    }
+
+    private void ensurePostingAccounts(RawMaterial material, Supplier supplier) {
+        if (material.getInventoryAccountId() == null) {
+            throw new IllegalStateException("Raw material " + material.getName() + " is missing an inventory account");
+        }
+        if (supplier.getPayableAccount() == null) {
+            throw new IllegalStateException("Supplier " + supplier.getName() + " is missing a payable account");
+        }
+    }
+
+    private String resolveBatchCode(RawMaterial material, String requested) {
+        if (StringUtils.hasText(requested)) {
+            return requested.trim();
+        }
+        return batchNumberService.nextRawMaterialBatchCode(material);
+    }
+
+    private String resolveReferenceNumber(RawMaterial material, ReceiptContext context, RawMaterialBatch batch) {
+        if (context != null && StringUtils.hasText(context.referenceId())) {
+            String prefix = StringUtils.hasText(context.referenceType()) ? context.referenceType() : "RM";
+            return prefix + "-" + context.referenceId();
+        }
+        return referenceNumberService.rawMaterialReceiptReference(material.getCompany(), batch.getBatchCode());
+    }
+
+    public record ReceiptContext(String referenceType, String referenceId, String memo, boolean postJournal) {
+        public static ReceiptContext forBatch(String batchCode) {
+            return new ReceiptContext(InventoryReference.RAW_MATERIAL_PURCHASE, batchCode, "Raw material batch " + batchCode, true);
+        }
+    }
+
+    public record ReceiptResult(RawMaterialBatch batch, RawMaterialMovement movement, Long journalEntryId) {}
 }

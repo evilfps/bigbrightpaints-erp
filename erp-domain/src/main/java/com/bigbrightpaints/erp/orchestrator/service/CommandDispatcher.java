@@ -39,7 +39,7 @@ public class CommandDispatcher {
         String traceId = workflowService.startWorkflow("order-approval");
         InventoryReservationResult reservation = integrationCoordinator.reserveInventory(request.orderId(), companyId);
         boolean awaitingProduction = reservation != null && !reservation.shortages().isEmpty();
-        if (!awaitingProduction) {
+        if (awaitingProduction) {
             integrationCoordinator.queueProduction(request.orderId(), companyId);
         }
         String orderStatus = awaitingProduction ? "PENDING_PRODUCTION" : "READY_TO_SHIP";
@@ -88,7 +88,12 @@ public class CommandDispatcher {
         String traceId = workflowService.startWorkflow("dispatch");
         integrationCoordinator.updateProductionStatus(request.batchId(), companyId);
         integrationCoordinator.releaseInventory(request.batchId(), companyId);
-        integrationCoordinator.postDispatchJournal(request.batchId(), companyId);
+        integrationCoordinator.postDispatchJournal(
+                request.batchId(),
+                companyId,
+                request.debitAccountId(),
+                request.creditAccountId(),
+                request.postingAmount());
         DomainEvent event = DomainEvent.of("ProductionBatchDispatchedEvent", companyId, userId, "Batch",
             request.batchId(), Map.of("dispatchedBy", request.requestedBy()));
         eventPublisherService.enqueue(event);
@@ -99,10 +104,18 @@ public class CommandDispatcher {
     @Transactional
     public String runPayroll(PayrollRunRequest request, String companyId, String userId) {
         policyEnforcer.checkPayrollPermissions(userId, companyId);
+        if (request.postingAmount() == null || request.postingAmount().compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("Posting amount must be greater than zero for payroll");
+        }
         String traceId = workflowService.startWorkflow("payroll");
         integrationCoordinator.syncEmployees(companyId);
-        integrationCoordinator.generatePayroll(request.payrollDate(), companyId);
-        integrationCoordinator.postPayrollVouchers(request.payrollDate(), companyId);
+        var payrollRun = integrationCoordinator.generatePayroll(request.payrollDate(), request.postingAmount(), companyId);
+        integrationCoordinator.recordPayrollPayment(
+                payrollRun.id(),
+                request.postingAmount(),
+                request.debitAccountId(),
+                request.creditAccountId(),
+                companyId);
         DomainEvent event = DomainEvent.of("PayrollCompletedEvent", companyId, userId, "Payroll",
             request.payrollDate().toString(), Map.of("initiatedBy", request.initiatedBy()));
         eventPublisherService.enqueue(event);

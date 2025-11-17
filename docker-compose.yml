@@ -41,7 +41,7 @@ services:
       SPRING_DATASOURCE_PASSWORD: erp
       SPRING_RABBITMQ_HOST: rabbitmq
       SPRING_RABBITMQ_PORT: 5672
-      JWT_SECRET: change-me-in-prod
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET to a 256-bit secret before starting}
       JWT_ACCESS_TTL: 900
       JWT_REFRESH_TTL: 2592000
     ports:

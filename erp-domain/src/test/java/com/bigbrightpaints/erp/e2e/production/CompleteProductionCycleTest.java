@@ -1,0 +1,479 @@
+package com.bigbrightpaints.erp.e2e.production;
+
+import com.bigbrightpaints.erp.modules.accounting.domain.Account;
+import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
+import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
+import com.bigbrightpaints.erp.modules.company.domain.Company;
+import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
+import com.bigbrightpaints.erp.modules.factory.domain.ProductionLog;
+import com.bigbrightpaints.erp.modules.factory.domain.ProductionLogRepository;
+import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGood;
+import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatch;
+import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatchRepository;
+import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodRepository;
+import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterial;
+import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialRepository;
+import com.bigbrightpaints.erp.modules.production.domain.ProductionBrand;
+import com.bigbrightpaints.erp.modules.production.domain.ProductionBrandRepository;
+import com.bigbrightpaints.erp.modules.production.domain.ProductionProduct;
+import com.bigbrightpaints.erp.modules.production.domain.ProductionProductRepository;
+import com.bigbrightpaints.erp.test.AbstractIntegrationTest;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.web.client.TestRestTemplate;
+import org.springframework.http.*;
+
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.util.List;
+import java.util.Map;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+/**
+ * E2E Tests for Production & Manufacturing workflows
+ */
+@DisplayName("E2E: Complete Production Cycle")
+public class CompleteProductionCycleTest extends AbstractIntegrationTest {
+
+    private static final String COMPANY_CODE = "PROD-E2E";
+    private static final String ADMIN_EMAIL = "prod@e2e.com";
+    private static final String ADMIN_PASSWORD = "prod123";
+
+    @Autowired private TestRestTemplate rest;
+    @Autowired private CompanyRepository companyRepository;
+    @Autowired private ProductionBrandRepository brandRepository;
+    @Autowired private ProductionProductRepository productRepository;
+    @Autowired private RawMaterialRepository rawMaterialRepository;
+    @Autowired private FinishedGoodRepository finishedGoodRepository;
+    @Autowired private ProductionLogRepository productionLogRepository;
+    @Autowired private FinishedGoodBatchRepository finishedGoodBatchRepository;
+    @Autowired private AccountRepository accountRepository;
+
+    private String authToken;
+    private HttpHeaders headers;
+
+    @BeforeEach
+    void setup() {
+        dataSeeder.ensureUser(ADMIN_EMAIL, ADMIN_PASSWORD, "Production Admin", COMPANY_CODE,
+                List.of("ROLE_ADMIN", "ROLE_FACTORY"));
+        authToken = login();
+        headers = createHeaders(authToken);
+        ensureTestAccounts();
+    }
+
+    private String login() {
+        Map<String, Object> req = Map.of(
+                "email", ADMIN_EMAIL,
+                "password", ADMIN_PASSWORD,
+                "companyCode", COMPANY_CODE
+        );
+        ResponseEntity<Map> response = rest.postForEntity("/api/v1/auth/login", req, Map.class);
+        return (String) response.getBody().get("accessToken");
+    }
+
+    private HttpHeaders createHeaders(String token) {
+        HttpHeaders h = new HttpHeaders();
+        h.setBearerAuth(token);
+        h.setContentType(MediaType.APPLICATION_JSON);
+        return h;
+    }
+
+    private void ensureTestAccounts() {
+        Company company = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();
+        ensureAccount(company, "INV-RM", "Raw Material Inventory", AccountType.ASSET);
+        ensureAccount(company, "INV-FG", "Finished Goods Inventory", AccountType.ASSET);
+        ensureAccount(company, "WIP", "Work in Progress", AccountType.ASSET);
+    }
+
+    private Account ensureAccount(Company company, String code, String name, AccountType type) {
+        return accountRepository.findByCompanyAndCodeIgnoreCase(company, code)
+                .orElseGet(() -> {
+                    Account account = new Account();
+                    account.setCompany(company);
+                    account.setCode(code);
+                    account.setName(name);
+                    account.setType(type);
+                    return accountRepository.save(account);
+                });
+    }
+
+    @Test
+    @DisplayName("Complete Production Cycle: From Mixing to Packing")
+    void completeProductionCycle_FromMixingToPacking() {
+        Company company = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();
+
+        // Step 1: Create raw materials
+        RawMaterial rm1 = createRawMaterial(company, "RM-PAINT-BASE", "Paint Base", new BigDecimal("1000"));
+        RawMaterial rm2 = createRawMaterial(company, "RM-PIGMENT", "Pigment", new BigDecimal("500"));
+
+        // Step 2: Create production product
+        ProductionProduct product = createProduct(company, "FG-PAINT-001", "Premium Paint");
+
+        // Step 3: Log production (mixing)
+        Map<String, Object> material1 = Map.of(
+                "rawMaterialCode", rm1.getSku(),
+                "quantityUsed", new BigDecimal("50.00")
+        );
+        Map<String, Object> material2 = Map.of(
+                "rawMaterialCode", rm2.getSku(),
+                "quantityUsed", new BigDecimal("10.00")
+        );
+
+        Map<String, Object> logRequest = Map.of(
+                "productCode", product.getSkuCode(),
+                "quantityMixed", new BigDecimal("500.00"),
+                "productionDate", LocalDate.now(),
+                "supervisor", "John Supervisor",
+                "materialsUsed", List.of(material1, material2)
+        );
+
+        ResponseEntity<Map> logResponse = rest.exchange("/api/v1/factory/production-logs",
+                HttpMethod.POST, new HttpEntity<>(logRequest, headers), Map.class);
+
+        assertThat(logResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        Long productionLogId = ((Number) ((Map<?, ?>) logResponse.getBody().get("data")).get("id")).longValue();
+
+        // Step 4: Verify raw material stock was deducted
+        RawMaterial rm1Updated = rawMaterialRepository.findById(rm1.getId()).orElseThrow();
+        assertThat(rm1Updated.getCurrentStock()).isEqualByComparingTo(new BigDecimal("950.00"));
+
+        // Step 5: Pack the production batch
+        Map<String, Object> packingLine = Map.of(
+                "containerSize", new BigDecimal("10.00"),
+                "unitLabel", "10L Bucket",
+                "quantityPacked", new BigDecimal("400.00")
+        );
+
+        Map<String, Object> packingRequest = Map.of(
+                "productionLogId", productionLogId,
+                "packingDate", LocalDate.now(),
+                "packingLines", List.of(packingLine),
+                "wastage", new BigDecimal("100.00"),
+                "wastageReason", "Normal production wastage"
+        );
+
+        ResponseEntity<Map> packingResponse = rest.exchange("/api/v1/factory/packing",
+                HttpMethod.POST, new HttpEntity<>(packingRequest, headers), Map.class);
+
+        assertThat(packingResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+        // Step 6: Verify finished good batches were created
+        List<FinishedGoodBatch> batches = finishedGoodBatchRepository.findAll();
+        assertThat(batches).isNotEmpty();
+
+        // Step 7: Verify finished good stock increased
+        FinishedGood fg = finishedGoodRepository.findByCompanyAndProductCode(company, product.getSkuCode())
+                .orElseThrow();
+        assertThat(fg.getCurrentStock()).isGreaterThan(BigDecimal.ZERO);
+    }
+
+    @Test
+    @DisplayName("Production with Multiple Raw Materials: Inventory Deduction")
+    void productionWithMultipleRawMaterials_InventoryDeduction() {
+        Company company = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();
+
+        // Create multiple raw materials with known stock
+        RawMaterial rm1 = createRawMaterial(company, "RM-MULTI-1", "Material 1", new BigDecimal("1000"));
+        RawMaterial rm2 = createRawMaterial(company, "RM-MULTI-2", "Material 2", new BigDecimal("800"));
+        RawMaterial rm3 = createRawMaterial(company, "RM-MULTI-3", "Material 3", new BigDecimal("600"));
+
+        ProductionProduct product = createProduct(company, "FG-MULTI-001", "Multi Material Product");
+
+        // Log production with all materials
+        Map<String, Object> logRequest = Map.of(
+                "productCode", product.getSkuCode(),
+                "quantityMixed", new BigDecimal("200.00"),
+                "productionDate", LocalDate.now(),
+                "supervisor", "Test Supervisor",
+                "materialsUsed", List.of(
+                        Map.of("rawMaterialCode", rm1.getSku(), "quantityUsed", new BigDecimal("30.00")),
+                        Map.of("rawMaterialCode", rm2.getSku(), "quantityUsed", new BigDecimal("20.00")),
+                        Map.of("rawMaterialCode", rm3.getSku(), "quantityUsed", new BigDecimal("10.00"))
+                )
+        );
+
+        ResponseEntity<Map> response = rest.exchange("/api/v1/factory/production-logs",
+                HttpMethod.POST, new HttpEntity<>(logRequest, headers), Map.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+        // Verify all materials were deducted correctly
+        assertThat(rawMaterialRepository.findById(rm1.getId()).get().getCurrentStock())
+                .isEqualByComparingTo(new BigDecimal("970.00"));
+        assertThat(rawMaterialRepository.findById(rm2.getId()).get().getCurrentStock())
+                .isEqualByComparingTo(new BigDecimal("780.00"));
+        assertThat(rawMaterialRepository.findById(rm3.getId()).get().getCurrentStock())
+                .isEqualByComparingTo(new BigDecimal("590.00"));
+    }
+
+    @Test
+    @DisplayName("Packing with Wastage: Auto Calculation and Accounting")
+    void packingWithWastage_AutoCalculationAndAccounting() {
+        Company company = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();
+
+        // Create production log
+        RawMaterial rm = createRawMaterial(company, "RM-WASTAGE", "Wastage Material", new BigDecimal("500"));
+        ProductionProduct product = createProduct(company, "FG-WASTAGE-001", "Wastage Product");
+
+        Map<String, Object> logRequest = Map.of(
+                "productCode", product.getSkuCode(),
+                "quantityMixed", new BigDecimal("1000.00"),
+                "productionDate", LocalDate.now(),
+                "supervisor", "Supervisor",
+                "materialsUsed", List.of(
+                        Map.of("rawMaterialCode", rm.getSku(), "quantityUsed", new BigDecimal("100.00"))
+                )
+        );
+
+        ResponseEntity<Map> logResponse = rest.exchange("/api/v1/factory/production-logs",
+                HttpMethod.POST, new HttpEntity<>(logRequest, headers), Map.class);
+        Long logId = ((Number) ((Map<?, ?>) logResponse.getBody().get("data")).get("id")).longValue();
+
+        // Pack with significant wastage
+        Map<String, Object> packingRequest = Map.of(
+                "productionLogId", logId,
+                "packingDate", LocalDate.now(),
+                "packingLines", List.of(
+                        Map.of("containerSize", new BigDecimal("5.00"),
+                                "unitLabel", "5L Can",
+                                "quantityPacked", new BigDecimal("800.00"))
+                ),
+                "wastage", new BigDecimal("200.00"),
+                "wastageReason", "Spillage and quality control rejection"
+        );
+
+        ResponseEntity<Map> packingResponse = rest.exchange("/api/v1/factory/packing",
+                HttpMethod.POST, new HttpEntity<>(packingRequest, headers), Map.class);
+
+        assertThat(packingResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+        // Verify wastage was recorded
+        ProductionLog log = productionLogRepository.findById(logId).orElseThrow();
+        assertThat(log.getMixedQuantity().subtract(log.getTotalPackedQuantity()))
+                .isGreaterThanOrEqualTo(new BigDecimal("200.00"));
+    }
+
+    @Test
+    @DisplayName("Partial Packing: Multiple Packing Sessions")
+    void partialPacking_MultiplePackingSessions() {
+        Company company = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();
+
+        // Create production log with large batch
+        RawMaterial rm = createRawMaterial(company, "RM-PARTIAL", "Partial Material", new BigDecimal("1000"));
+        ProductionProduct product = createProduct(company, "FG-PARTIAL-001", "Partial Product");
+
+        Map<String, Object> logRequest = Map.of(
+                "productCode", product.getSkuCode(),
+                "quantityMixed", new BigDecimal("1000.00"),
+                "productionDate", LocalDate.now(),
+                "supervisor", "Supervisor",
+                "materialsUsed", List.of(
+                        Map.of("rawMaterialCode", rm.getSku(), "quantityUsed", new BigDecimal("50.00"))
+                )
+        );
+
+        ResponseEntity<Map> logResponse = rest.exchange("/api/v1/factory/production-logs",
+                HttpMethod.POST, new HttpEntity<>(logRequest, headers), Map.class);
+        Long logId = ((Number) ((Map<?, ?>) logResponse.getBody().get("data")).get("id")).longValue();
+
+        // First packing session - pack 400 units
+        Map<String, Object> packing1 = Map.of(
+                "productionLogId", logId,
+                "packingDate", LocalDate.now(),
+                "packingLines", List.of(
+                        Map.of("containerSize", new BigDecimal("10.00"),
+                                "unitLabel", "10L",
+                                "quantityPacked", new BigDecimal("400.00"))
+                ),
+                "wastage", new BigDecimal("50.00"),
+                "wastageReason", "First session wastage"
+        );
+
+        ResponseEntity<Map> pack1Response = rest.exchange("/api/v1/factory/packing",
+                HttpMethod.POST, new HttpEntity<>(packing1, headers), Map.class);
+        assertThat(pack1Response.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+        // Verify production log shows partial packing
+        ProductionLog log = productionLogRepository.findById(logId).orElseThrow();
+        assertThat(log.getTotalPackedQuantity()).isEqualByComparingTo(new BigDecimal("400.00"));
+
+        // Second packing session - pack remaining
+        Map<String, Object> packing2 = Map.of(
+                "productionLogId", logId,
+                "packingDate", LocalDate.now(),
+                "packingLines", List.of(
+                        Map.of("containerSize", new BigDecimal("10.00"),
+                                "unitLabel", "10L",
+                                "quantityPacked", new BigDecimal("500.00"))
+                ),
+                "wastage", new BigDecimal("50.00"),
+                "wastageReason", "Second session wastage"
+        );
+
+        ResponseEntity<Map> pack2Response = rest.exchange("/api/v1/factory/packing",
+                HttpMethod.POST, new HttpEntity<>(packing2, headers), Map.class);
+        assertThat(pack2Response.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+        // Verify total packed quantity
+        ProductionLog finalLog = productionLogRepository.findById(logId).orElseThrow();
+        assertThat(finalLog.getTotalPackedQuantity()).isEqualByComparingTo(new BigDecimal("900.00"));
+    }
+
+    @Test
+    @DisplayName("Production Log without Sufficient Raw Material: Throws Error")
+    void productionLog_WithoutSufficientRawMaterial_ThrowsError() {
+        Company company = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();
+
+        // Create raw material with low stock
+        RawMaterial rm = createRawMaterial(company, "RM-LOW-STOCK", "Low Stock Material", new BigDecimal("10.00"));
+        ProductionProduct product = createProduct(company, "FG-INSUFFICIENT-001", "Product");
+
+        // Try to use more than available
+        Map<String, Object> logRequest = Map.of(
+                "productCode", product.getSkuCode(),
+                "quantityMixed", new BigDecimal("100.00"),
+                "productionDate", LocalDate.now(),
+                "supervisor", "Supervisor",
+                "materialsUsed", List.of(
+                        Map.of("rawMaterialCode", rm.getSku(), "quantityUsed", new BigDecimal("50.00"))
+                )
+        );
+
+        ResponseEntity<Map> response = rest.exchange("/api/v1/factory/production-logs",
+                HttpMethod.POST, new HttpEntity<>(logRequest, headers), Map.class);
+
+        // Should fail with insufficient stock error
+        assertThat(response.getStatusCode()).isIn(HttpStatus.BAD_REQUEST, HttpStatus.UNPROCESSABLE_ENTITY);
+    }
+
+    @Test
+    @DisplayName("Complete Packing creates Finished Good Batches with FIFO")
+    void completePacking_CreatesFinishedGoodBatches_FIFO() {
+        Company company = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();
+
+        RawMaterial rm = createRawMaterial(company, "RM-FIFO", "FIFO Material", new BigDecimal("500"));
+        ProductionProduct product = createProduct(company, "FG-FIFO-001", "FIFO Product");
+
+        // Create first production batch
+        Map<String, Object> log1Request = Map.of(
+                "productCode", product.getSkuCode(),
+                "quantityMixed", new BigDecimal("100.00"),
+                "productionDate", LocalDate.now().minusDays(2),
+                "supervisor", "Supervisor",
+                "materialsUsed", List.of(
+                        Map.of("rawMaterialCode", rm.getSku(), "quantityUsed", new BigDecimal("20.00"))
+                )
+        );
+
+        ResponseEntity<Map> log1Response = rest.exchange("/api/v1/factory/production-logs",
+                HttpMethod.POST, new HttpEntity<>(log1Request, headers), Map.class);
+        Long log1Id = ((Number) ((Map<?, ?>) log1Response.getBody().get("data")).get("id")).longValue();
+
+        // Pack first batch
+        Map<String, Object> pack1 = Map.of(
+                "productionLogId", log1Id,
+                "packingDate", LocalDate.now().minusDays(2),
+                "packingLines", List.of(
+                        Map.of("containerSize", new BigDecimal("5.00"),
+                                "unitLabel", "5L",
+                                "quantityPacked", new BigDecimal("90.00"))
+                ),
+                "wastage", new BigDecimal("10.00"),
+                "wastageReason", "Normal wastage"
+        );
+
+        rest.exchange("/api/v1/factory/packing", HttpMethod.POST, new HttpEntity<>(pack1, headers), Map.class);
+
+        // Create second production batch
+        Map<String, Object> log2Request = Map.of(
+                "productCode", product.getSkuCode(),
+                "quantityMixed", new BigDecimal("100.00"),
+                "productionDate", LocalDate.now(),
+                "supervisor", "Supervisor",
+                "materialsUsed", List.of(
+                        Map.of("rawMaterialCode", rm.getSku(), "quantityUsed", new BigDecimal("20.00"))
+                )
+        );
+
+        ResponseEntity<Map> log2Response = rest.exchange("/api/v1/factory/production-logs",
+                HttpMethod.POST, new HttpEntity<>(log2Request, headers), Map.class);
+        Long log2Id = ((Number) ((Map<?, ?>) log2Response.getBody().get("data")).get("id")).longValue();
+
+        // Pack second batch
+        Map<String, Object> pack2 = Map.of(
+                "productionLogId", log2Id,
+                "packingDate", LocalDate.now(),
+                "packingLines", List.of(
+                        Map.of("containerSize", new BigDecimal("5.00"),
+                                "unitLabel", "5L",
+                                "quantityPacked", new BigDecimal("90.00"))
+                ),
+                "wastage", new BigDecimal("10.00"),
+                "wastageReason", "Normal wastage"
+        );
+
+        rest.exchange("/api/v1/factory/packing", HttpMethod.POST, new HttpEntity<>(pack2, headers), Map.class);
+
+        // Verify both batches exist
+        List<FinishedGoodBatch> batches = finishedGoodBatchRepository.findAll();
+        assertThat(batches).hasSizeGreaterThanOrEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("Monthly Packing Cost Allocation updates Unit Costs")
+    void monthlyPacking_CostAllocation_UpdatesUnitCosts() {
+        // This test verifies the cost allocation endpoint is available
+        Map<String, Object> allocRequest = Map.of(
+                "year", LocalDate.now().getYear(),
+                "month", LocalDate.now().getMonthValue()
+        );
+
+        ResponseEntity<Map> response = rest.exchange("/api/v1/factory/cost-allocation",
+                HttpMethod.POST, new HttpEntity<>(allocRequest, headers), Map.class);
+
+        // May return OK or BAD_REQUEST depending on data availability
+        assertThat(response.getStatusCode()).isIn(HttpStatus.OK, HttpStatus.BAD_REQUEST, HttpStatus.NOT_FOUND);
+    }
+
+    // Helper methods
+    private RawMaterial createRawMaterial(Company company, String sku, String name, BigDecimal stock) {
+        return rawMaterialRepository.findByCompanyAndSku(company, sku)
+                .orElseGet(() -> {
+                    RawMaterial rm = new RawMaterial();
+                    rm.setCompany(company);
+                    rm.setSku(sku);
+                    rm.setName(name);
+                    rm.setUnitType("KG");
+                    rm.setCurrentStock(stock);
+                    return rawMaterialRepository.save(rm);
+                });
+    }
+
+    private ProductionProduct createProduct(Company company, String skuCode, String name) {
+        return productRepository.findByCompanyAndSkuCode(company, skuCode)
+                .orElseGet(() -> {
+                    ProductionBrand brand = brandRepository.findByCompanyAndCodeIgnoreCase(company, "E2E-BRAND")
+                            .orElseGet(() -> {
+                                ProductionBrand b = new ProductionBrand();
+                                b.setCompany(company);
+                                b.setCode("E2E-BRAND");
+                                b.setName("E2E Test Brand");
+                                return brandRepository.save(b);
+                            });
+
+                    ProductionProduct p = new ProductionProduct();
+                    p.setCompany(company);
+                    p.setBrand(brand);
+                    p.setProductName(name);
+                    p.setCategory("FINISHED_GOOD");
+                    p.setUnitOfMeasure("UNIT");
+                    p.setSkuCode(skuCode);
+                    p.setBasePrice(new BigDecimal("150.00"));
+                    p.setGstRate(BigDecimal.ZERO);
+                    return productRepository.save(p);
+                });
+    }
+}

@@ -1,10 +1,10 @@
 package com.bigbrightpaints.erp.orchestrator.service;
 
 import com.bigbrightpaints.erp.core.security.CompanyContextHolder;
-import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.dto.AccountDto;
-import com.bigbrightpaints.erp.modules.accounting.dto.AccountRequest;
-import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryRequest;
+import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
+import com.bigbrightpaints.erp.modules.accounting.dto.PayrollPaymentRequest;
+import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingService;
 import com.bigbrightpaints.erp.modules.factory.dto.FactoryDashboardDto;
 import com.bigbrightpaints.erp.modules.factory.dto.FactoryTaskDto;
@@ -19,30 +19,27 @@ import com.bigbrightpaints.erp.modules.inventory.service.FinishedGoodsService.In
 import com.bigbrightpaints.erp.modules.inventory.service.FinishedGoodsService.InventoryShortage;
 import com.bigbrightpaints.erp.modules.invoice.service.InvoiceService;
 import com.bigbrightpaints.erp.modules.hr.dto.EmployeeDto;
+import com.bigbrightpaints.erp.modules.hr.dto.PayrollRunDto;
 import com.bigbrightpaints.erp.modules.hr.dto.PayrollRunRequest;
 import com.bigbrightpaints.erp.modules.hr.service.HrService;
 import com.bigbrightpaints.erp.modules.reports.dto.AgedDebtorDto;
 import com.bigbrightpaints.erp.modules.reports.dto.CashFlowDto;
 import com.bigbrightpaints.erp.modules.reports.dto.InventoryValuationDto;
 import com.bigbrightpaints.erp.modules.reports.service.ReportService;
-import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrder;
-import com.bigbrightpaints.erp.modules.sales.domain.SalesOrderItem;
 import com.bigbrightpaints.erp.modules.sales.dto.DealerDto;
 import com.bigbrightpaints.erp.modules.sales.dto.SalesOrderDto;
+import com.bigbrightpaints.erp.modules.sales.service.SalesJournalService;
 import com.bigbrightpaints.erp.modules.sales.service.SalesService;
 import com.bigbrightpaints.erp.orchestrator.repository.OrderAutoApprovalState;
 import com.bigbrightpaints.erp.orchestrator.repository.OrderAutoApprovalStateRepository;
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
@@ -61,28 +58,35 @@ public class IntegrationCoordinator {
     private final FinishedGoodsService finishedGoodsService;
     private final InvoiceService invoiceService;
     private final AccountingService accountingService;
+    private final SalesJournalService salesJournalService;
     private final HrService hrService;
     private final ReportService reportService;
     private final OrderAutoApprovalStateRepository orderAutoApprovalStateRepository;
+    private final AccountingFacade accountingFacade;
 
     public IntegrationCoordinator(SalesService salesService,
                                   FactoryService factoryService,
                                   FinishedGoodsService finishedGoodsService,
                                   InvoiceService invoiceService,
                                   AccountingService accountingService,
+                                  SalesJournalService salesJournalService,
                                   HrService hrService,
                                   ReportService reportService,
-                                  OrderAutoApprovalStateRepository orderAutoApprovalStateRepository) {
+                                  OrderAutoApprovalStateRepository orderAutoApprovalStateRepository,
+                                  AccountingFacade accountingFacade) {
         this.salesService = salesService;
         this.factoryService = factoryService;
         this.finishedGoodsService = finishedGoodsService;
         this.invoiceService = invoiceService;
         this.accountingService = accountingService;
+        this.salesJournalService = salesJournalService;
         this.hrService = hrService;
         this.reportService = reportService;
         this.orderAutoApprovalStateRepository = orderAutoApprovalStateRepository;
+        this.accountingFacade = accountingFacade;
     }
 
+    @Transactional
     public InventoryReservationResult reserveInventory(String orderId, String companyId) {
         return withCompanyContext(companyId, () -> {
             Long id = parseNumericId(orderId);
@@ -102,6 +106,7 @@ public class IntegrationCoordinator {
         });
     }
 
+    @Transactional
     public void queueProduction(String orderId, String companyId) {
         runWithCompanyContext(companyId, () -> {
             ProductionPlanRequest request = new ProductionPlanRequest(
@@ -115,110 +120,29 @@ public class IntegrationCoordinator {
         });
     }
 
-    public void createAccountingEntry(String orderId, BigDecimal amount, String companyId) {
-        runWithCompanyContext(companyId, () -> postSalesJournal(orderId, amount));
-    }
-
-    private void postSalesJournal(String orderId, BigDecimal amountOverride) {
-        Long id = parseNumericId(orderId);
-        if (id == null) {
-            return;
-        }
-        SalesOrder order = salesService.getOrderWithItems(id);
-        Dealer dealer = order.getDealer();
-        if (dealer == null) {
-            throw new IllegalStateException("Dealer is required to post a sales journal");
-        }
-        Account receivableAccount = dealer.getReceivableAccount();
-        if (receivableAccount == null) {
-            throw new IllegalStateException("Dealer " + dealer.getName() + " is missing a receivable account");
-        }
-        BigDecimal journalAmount = amountOverride != null ? amountOverride : order.getTotalAmount();
-        if (journalAmount == null || journalAmount.compareTo(BigDecimal.ZERO) == 0) {
-            log.info("Skipping sales journal for order {} because amount is zero", orderId);
-            return;
-        }
-        List<SalesOrderItem> items = order.getItems();
-        if (items == null || items.isEmpty()) {
-            log.warn("Order {} has no items; skipping sales journal", orderId);
-            return;
-        }
-        List<String> productCodes = items.stream()
-                .map(SalesOrderItem::getProductCode)
-                .filter(Objects::nonNull)
-                .distinct()
-                .toList();
-        Map<String, FinishedGoodsService.FinishedGoodAccountingProfile> profiles =
-                finishedGoodsService.accountingProfiles(productCodes);
-        Long fallbackRevenueAccount = resolveRevenueAccountId()
-                .orElse(null);
-        Map<Long, BigDecimal> revenueLines = new LinkedHashMap<>();
-        Map<Long, BigDecimal> taxLines = new LinkedHashMap<>();
-        for (SalesOrderItem item : items) {
-            String productCode = item.getProductCode();
-            FinishedGoodsService.FinishedGoodAccountingProfile profile = profiles.get(productCode);
-            Long revenueAccountId = profile != null ? profile.revenueAccountId() : null;
-            if (revenueAccountId == null) {
-                if (fallbackRevenueAccount == null) {
-                    throw new IllegalStateException("Finished good " + productCode + " missing revenue account");
-                }
-                log.warn("Finished good {} missing revenue account; falling back to {}", productCode, fallbackRevenueAccount);
-                revenueAccountId = fallbackRevenueAccount;
+    @Transactional
+    public Long createAccountingEntry(String orderId, String companyId) {
+        return withCompanyContext(companyId, () -> {
+            Long id = parseNumericId(orderId);
+            if (id == null) {
+                return null;
             }
-            BigDecimal lineSubtotal = item.getLineSubtotal() != null
-                    ? item.getLineSubtotal()
-                    : item.getQuantity().multiply(item.getUnitPrice());
-            if (lineSubtotal != null && lineSubtotal.compareTo(BigDecimal.ZERO) > 0) {
-                revenueLines.merge(revenueAccountId, lineSubtotal, BigDecimal::add);
-            }
-            BigDecimal lineTax = item.getGstAmount() != null ? item.getGstAmount() : BigDecimal.ZERO;
-            if (lineTax.compareTo(BigDecimal.ZERO) > 0) {
-                Long taxAccountId = profile != null ? profile.taxAccountId() : null;
-                if (taxAccountId == null) {
-                    throw new IllegalStateException("Finished good " + productCode + " missing tax account for GST posting");
-                }
-                taxLines.merge(taxAccountId, lineTax, BigDecimal::add);
-            }
-        }
-        if (revenueLines.isEmpty()) {
-            throw new IllegalStateException("No revenue lines derived for order " + order.getOrderNumber());
-        }
-        BigDecimal totalCredits = revenueLines.values().stream().reduce(BigDecimal.ZERO, BigDecimal::add)
-                .add(taxLines.values().stream().reduce(BigDecimal.ZERO, BigDecimal::add));
-        BigDecimal delta = journalAmount.abs().subtract(totalCredits);
-        if (delta.compareTo(BigDecimal.ZERO) != 0) {
-            Long firstAccount = revenueLines.keySet().iterator().next();
-            revenueLines.merge(firstAccount, delta, BigDecimal::add);
-        }
-        String memo = "Sales order " + order.getOrderNumber();
-        List<JournalEntryRequest.JournalLineRequest> lines = new ArrayList<>();
-        lines.add(new JournalEntryRequest.JournalLineRequest(
-                receivableAccount.getId(), memo, journalAmount.abs(), BigDecimal.ZERO));
-        revenueLines.forEach((accountId, amount) -> {
-            if (amount.compareTo(BigDecimal.ZERO) > 0) {
-                lines.add(new JournalEntryRequest.JournalLineRequest(accountId, memo, BigDecimal.ZERO, amount.abs()));
-            }
+            SalesOrder order = salesService.getOrderWithItems(id);
+            return salesJournalService.postSalesJournal(
+                    order,
+                    null,
+                    null,
+                    LocalDate.now(),
+                    "Sales order " + order.getOrderNumber());
         });
-        taxLines.forEach((accountId, amount) -> {
-            if (amount.compareTo(BigDecimal.ZERO) > 0) {
-                lines.add(new JournalEntryRequest.JournalLineRequest(accountId, memo, BigDecimal.ZERO, amount.abs()));
-            }
-        });
-        accountingService.createJournalEntry(new JournalEntryRequest(
-                "SALE-" + orderId,
-                LocalDate.now(),
-                memo,
-                dealer.getId(),
-                lines
-        ));
     }
 
     private void postCogsEntry(String orderId, List<FinishedGoodsService.DispatchPosting> postings) {
         if (postings == null || postings.isEmpty()) {
             return;
         }
-        List<JournalEntryRequest.JournalLineRequest> lines = new ArrayList<>();
-        for (FinishedGoodsService.DispatchPosting posting : postings) {
+        for (int index = 0; index < postings.size(); index++) {
+            FinishedGoodsService.DispatchPosting posting = postings.get(index);
             if (posting.cogsAccountId() == null || posting.inventoryAccountId() == null) {
                 continue;
             }
@@ -226,21 +150,15 @@ public class IntegrationCoordinator {
             if (cost == null || cost.compareTo(BigDecimal.ZERO) <= 0) {
                 continue;
             }
-            String memo = "COGS for order " + orderId;
-            lines.add(new JournalEntryRequest.JournalLineRequest(posting.cogsAccountId(), memo, cost, BigDecimal.ZERO));
-            lines.add(new JournalEntryRequest.JournalLineRequest(posting.inventoryAccountId(), memo, BigDecimal.ZERO, cost));
+            String referenceKey = orderId + "-" + posting.inventoryAccountId() + "-" + index;
+            accountingFacade.postCOGS(
+                    referenceKey,
+                    posting.cogsAccountId(),
+                    posting.inventoryAccountId(),
+                    cost,
+                    "COGS posting for order " + orderId
+            );
         }
-        if (lines.isEmpty()) {
-            return;
-        }
-        JournalEntryRequest request = new JournalEntryRequest(
-                "COGS-" + orderId + "-" + UUID.randomUUID().toString().substring(0, 6).toUpperCase(),
-                LocalDate.now(),
-                "COGS posting for order " + orderId,
-                null,
-                lines
-        );
-        accountingService.createJournalEntry(request);
     }
 
     @Transactional
@@ -256,6 +174,7 @@ public class IntegrationCoordinator {
         }
         AtomicReference<String> status = new AtomicReference<>("PENDING_PRODUCTION");
         AtomicBoolean awaitingProduction = new AtomicBoolean(false);
+        AtomicBoolean readyForShipment = new AtomicBoolean(false);
         runWithCompanyContext(normalizedCompanyId, () -> {
             OrderAutoApprovalState state = lockAutoApprovalState(normalizedCompanyId, numericId);
             if (state.isCompleted()) {
@@ -279,6 +198,9 @@ public class IntegrationCoordinator {
                 }
                 log.info("Auto-approved order {} for company {}; awaitingProduction={}", orderId, normalizedCompanyId, awaitingProduction.get());
                 status.set(awaitingProduction.get() ? "PENDING_PRODUCTION" : "READY_TO_SHIP");
+                if (!awaitingProduction.get() && !state.isDispatchFinalized()) {
+                    readyForShipment.set(true);
+                }
             } catch (RuntimeException ex) {
                 state.markFailed(ex.getMessage());
                 status.set("FAILED");
@@ -286,9 +208,15 @@ public class IntegrationCoordinator {
                 throw ex;
             }
         });
+        if (readyForShipment.get()) {
+            AutoApprovalResult shipment = finalizeShipment(orderId, normalizedCompanyId);
+            status.set(shipment.orderStatus());
+            awaitingProduction.set(shipment.awaitingProduction());
+        }
         return new AutoApprovalResult(status.get(), awaitingProduction.get());
     }
 
+    @Transactional
     public void updateProductionStatus(String planId, String companyId) {
         runWithCompanyContext(companyId, () -> {
             Long id = parseNumericId(planId);
@@ -305,6 +233,7 @@ public class IntegrationCoordinator {
         });
     }
 
+    @Transactional
     public AutoApprovalResult updateFulfillment(String orderId, String requestedStatus, String companyId) {
         return withCompanyContext(companyId, () -> {
             Long id = parseNumericId(orderId);
@@ -331,6 +260,7 @@ public class IntegrationCoordinator {
         });
     }
 
+    @Transactional
     public void releaseInventory(String batchId, String companyId) {
         runWithCompanyContext(companyId, () -> {
             ProductionBatchRequest request = new ProductionBatchRequest(
@@ -343,11 +273,17 @@ public class IntegrationCoordinator {
         });
     }
 
-    public void postDispatchJournal(String batchId, String companyId) {
+    @Transactional
+    public void postDispatchJournal(String batchId,
+                                    String companyId,
+                                    Long debitAccountId,
+                                    Long creditAccountId,
+                                    BigDecimal amount) {
         runWithCompanyContext(companyId, () ->
-                postJournal("DISPATCH-" + batchId, BigDecimal.ZERO, "Dispatch journal for batch " + batchId));
+                postJournal("DISPATCH-" + batchId, amount, "Dispatch journal for batch " + batchId, debitAccountId, creditAccountId));
     }
 
+    @Transactional(readOnly = true)
     public void syncEmployees(String companyId) {
         runWithCompanyContext(companyId, () -> {
             hrService.listEmployees();
@@ -355,18 +291,31 @@ public class IntegrationCoordinator {
         });
     }
 
-    public void generatePayroll(LocalDate payrollDate, String companyId) {
-        runWithCompanyContext(companyId, () -> {
-            hrService.createPayrollRun(new PayrollRunRequest(payrollDate, "Auto payroll run"));
-            log.info("Triggered payroll run for {}", payrollDate);
+    @Transactional
+    public PayrollRunDto generatePayroll(LocalDate payrollDate,
+                                         BigDecimal totalAmount,
+                                         String companyId) {
+        return withCompanyContext(companyId, () -> {
+            PayrollRunDto run = hrService.createPayrollRun(new PayrollRunRequest(
+                    payrollDate,
+                    totalAmount,
+                    "Auto payroll run"));
+            log.info("Triggered payroll run {} for {}", run.id(), payrollDate);
+            return run;
         });
     }
 
-    public void postPayrollVouchers(LocalDate payrollDate, String companyId) {
-        runWithCompanyContext(companyId, () ->
-                postJournal("PAYROLL-" + payrollDate, BigDecimal.ZERO, "Payroll vouchers for " + payrollDate));
+    @Transactional
+    public JournalEntryDto recordPayrollPayment(Long payrollRunId,
+                                                BigDecimal amount,
+                                                Long expenseAccountId,
+                                                Long cashAccountId,
+                                                String companyId) {
+        return withCompanyContext(companyId, () -> accountingFacade.recordPayrollPayment(
+                new PayrollPaymentRequest(payrollRunId, cashAccountId, expenseAccountId, amount, null, null)));
     }
 
+    @Transactional(readOnly = true)
     public Map<String, Object> health() {
         Map<String, Object> health = new HashMap<>();
         health.put("orders", salesService.listOrders(null).size());
@@ -376,6 +325,7 @@ public class IntegrationCoordinator {
         return health;
     }
 
+    @Transactional(readOnly = true)
     public Map<String, Object> fetchAdminDashboard(String companyId) {
         return withCompanyContext(companyId, () -> {
             Map<String, Object> snapshot = new HashMap<>();
@@ -387,6 +337,7 @@ public class IntegrationCoordinator {
         });
     }
 
+    @Transactional(readOnly = true)
     public Map<String, Object> fetchFactoryDashboard(String companyId) {
         return withCompanyContext(companyId, () -> {
             Map<String, Object> snapshot = new HashMap<>();
@@ -401,12 +352,14 @@ public class IntegrationCoordinator {
         });
     }
 
+    @Transactional(readOnly = true)
     public Map<String, Object> fetchFinanceDashboard(String companyId) {
         return withCompanyContext(companyId, () -> {
             Map<String, Object> snapshot = new HashMap<>();
             snapshot.put("cashflow", fetchCashflowSnapshot());
             snapshot.put("agedDebtors", reportService.agedDebtors());
             snapshot.put("ledger", fetchAccountingSnapshot());
+            snapshot.put("reconciliation", reportService.inventoryReconciliation());
             return snapshot;
         });
     }
@@ -562,43 +515,29 @@ public class IntegrationCoordinator {
         }
     }
 
-    private Optional<Long> resolveRevenueAccountId() {
-        ensureDefaultAccounts();
-        return accountingService.listAccounts().stream()
-                .filter(acc -> "REVENUE".equalsIgnoreCase(acc.type()))
-                .map(AccountDto::id)
-                .findFirst();
-    }
-
-    private void postJournal(String reference, BigDecimal amount, String memo) {
-        ensureDefaultAccounts();
-        List<AccountDto> accounts = accountingService.listAccounts();
-        if (accounts.size() < 2) {
-            log.warn("Unable to post journal entry; not enough accounts");
+    private void postJournal(String reference,
+                             BigDecimal amount,
+                             String memo,
+                             Long debitAccountId,
+                             Long creditAccountId) {
+        if (debitAccountId == null || creditAccountId == null) {
+            log.warn("Skipping {} journal; account mapping missing", reference);
             return;
         }
-        AccountDto debit = accounts.get(0);
-        AccountDto credit = accounts.get(1);
-        JournalEntryRequest request = new JournalEntryRequest(
+        if (amount == null || amount.compareTo(BigDecimal.ZERO) == 0) {
+            log.warn("Skipping {} journal; amount is zero", reference);
+            return;
+        }
+        BigDecimal postingAmount = amount.abs();
+        accountingFacade.postSimpleJournal(
                 reference,
                 LocalDate.now(),
                 memo,
-                null,
-                List.of(
-                        new JournalEntryRequest.JournalLineRequest(debit.id(), memo, amount.abs(), BigDecimal.ZERO),
-                        new JournalEntryRequest.JournalLineRequest(credit.id(), memo, BigDecimal.ZERO, amount.abs())
-                ));
-        accountingService.createJournalEntry(request);
-    }
-
-    private void ensureDefaultAccounts() {
-        List<AccountDto> accounts = accountingService.listAccounts();
-        if (accounts.size() >= 2) {
-            return;
-        }
-        String suffix = UUID.randomUUID().toString().substring(0, 4).toUpperCase();
-        accountingService.createAccount(new AccountRequest("1000-" + suffix, "Auto Cash", "ASSET"));
-        accountingService.createAccount(new AccountRequest("4000-" + suffix, "Auto Revenue", "REVENUE"));
+                debitAccountId,
+                creditAccountId,
+                postingAmount,
+                false
+        );
     }
 
     private AutoApprovalResult finalizeShipment(String orderId, String companyId) {
@@ -610,7 +549,7 @@ public class IntegrationCoordinator {
             SalesOrder order = salesService.getOrderWithItems(numericId);
             OrderAutoApprovalState state = lockAutoApprovalState(companyId, numericId);
             if (!state.isSalesJournalPosted()) {
-                createAccountingEntry(orderId, order.getTotalAmount(), companyId);
+                createAccountingEntry(orderId, companyId);
                 state.markSalesJournalPosted();
             }
             if (!state.isDispatchFinalized()) {

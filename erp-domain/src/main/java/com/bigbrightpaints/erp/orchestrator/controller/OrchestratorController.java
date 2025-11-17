@@ -32,7 +32,7 @@ public class OrchestratorController {
     }
 
     @PostMapping("/orders/{orderId}/approve")
-    @PreAuthorize("hasAuthority('ROLE_SALES') and hasAuthority('orders.approve')")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SALES') and hasAuthority('orders.approve')")
     public ResponseEntity<Map<String, Object>> approveOrder(@PathVariable String orderId,
                                                              @Valid @RequestBody ApproveOrderRequest request,
                                                              @RequestHeader("X-Company-Id") String companyId,
@@ -43,7 +43,7 @@ public class OrchestratorController {
     }
 
     @PostMapping("/orders/{orderId}/fulfillment")
-    @PreAuthorize("hasAuthority('ROLE_SALES') and hasAuthority('orders.fulfill')")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SALES') and hasAuthority('orders.fulfill')")
     public ResponseEntity<Map<String, Object>> fulfillOrder(@PathVariable String orderId,
                                                              @Valid @RequestBody OrderFulfillmentRequest request,
                                                              @RequestHeader("X-Company-Id") String companyId,
@@ -53,18 +53,22 @@ public class OrchestratorController {
     }
 
     @PostMapping("/factory/dispatch/{batchId}")
-    @PreAuthorize("hasAuthority('ROLE_FACTORY') and hasAuthority('factory.dispatch')")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_FACTORY') and hasAuthority('factory.dispatch')")
     public ResponseEntity<Map<String, Object>> dispatch(@PathVariable String batchId,
                                                          @Valid @RequestBody DispatchRequest request,
                                                          @RequestHeader("X-Company-Id") String companyId,
                                                          Principal principal) {
-        DispatchRequest normalized = new DispatchRequest(batchId, request.requestedBy());
+        DispatchRequest normalized = new DispatchRequest(batchId,
+                request.requestedBy(),
+                request.debitAccountId(),
+                request.creditAccountId(),
+                request.postingAmount());
         String traceId = commandDispatcher.dispatchBatch(normalized, companyId, principal.getName());
         return ResponseEntity.accepted().body(Map.of("traceId", traceId));
     }
 
     @PostMapping("/payroll/run")
-    @PreAuthorize("hasAuthority('ROLE_HR') and hasAuthority('payroll.run')")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING') and hasAuthority('payroll.run')")
     public ResponseEntity<Map<String, Object>> runPayroll(@Valid @RequestBody PayrollRunRequest request,
                                                            @RequestHeader("X-Company-Id") String companyId,
                                                            Principal principal) {

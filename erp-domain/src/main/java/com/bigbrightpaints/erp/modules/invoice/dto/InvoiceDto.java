@@ -19,5 +19,6 @@ public record InvoiceDto(Long id,
                          Long dealerId,
                          String dealerName,
                          Long salesOrderId,
+                         Long journalEntryId,
                          Instant createdAt,
                          List<InvoiceLineDto> lines) {}

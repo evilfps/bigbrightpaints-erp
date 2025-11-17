@@ -1,6 +1,7 @@
 package com.bigbrightpaints.erp.modules.factory.controller;
 
 import com.bigbrightpaints.erp.modules.factory.dto.*;
+import com.bigbrightpaints.erp.modules.factory.service.CostAllocationService;
 import com.bigbrightpaints.erp.modules.factory.service.FactoryService;
 import com.bigbrightpaints.erp.shared.dto.ApiResponse;
 import jakarta.validation.Valid;
@@ -14,9 +15,12 @@ import java.util.List;
 public class FactoryController {
 
     private final FactoryService factoryService;
+    private final CostAllocationService costAllocationService;
 
-    public FactoryController(FactoryService factoryService) {
+    public FactoryController(FactoryService factoryService,
+                            CostAllocationService costAllocationService) {
         this.factoryService = factoryService;
+        this.costAllocationService = costAllocationService;
     }
 
     /* Plans */
@@ -83,5 +87,12 @@ public class FactoryController {
     @GetMapping("/dashboard")
     public ResponseEntity<ApiResponse<FactoryDashboardDto>> dashboard() {
         return ResponseEntity.ok(ApiResponse.success(factoryService.dashboard()));
+    }
+
+    /* Cost Allocation */
+    @PostMapping("/cost-allocation")
+    public ResponseEntity<ApiResponse<CostAllocationResponse>> allocateCosts(@Valid @RequestBody CostAllocationRequest request) {
+        CostAllocationResponse response = costAllocationService.allocateCosts(request);
+        return ResponseEntity.ok(ApiResponse.success("Costs allocated successfully", response));
     }
 }

@@ -8,9 +8,12 @@ import com.bigbrightpaints.erp.modules.sales.domain.SalesOrder;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrderItem;
 import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -26,19 +29,22 @@ public class FinishedGoodsService {
     private final PackagingSlipRepository packagingSlipRepository;
     private final InventoryMovementRepository inventoryMovementRepository;
     private final InventoryReservationRepository inventoryReservationRepository;
+    private final BatchNumberService batchNumberService;
 
     public FinishedGoodsService(CompanyContextService companyContextService,
                                 FinishedGoodRepository finishedGoodRepository,
                                 FinishedGoodBatchRepository finishedGoodBatchRepository,
                                 PackagingSlipRepository packagingSlipRepository,
                                 InventoryMovementRepository inventoryMovementRepository,
-                                InventoryReservationRepository inventoryReservationRepository) {
+                                InventoryReservationRepository inventoryReservationRepository,
+                                BatchNumberService batchNumberService) {
         this.companyContextService = companyContextService;
         this.finishedGoodRepository = finishedGoodRepository;
         this.finishedGoodBatchRepository = finishedGoodBatchRepository;
         this.packagingSlipRepository = packagingSlipRepository;
         this.inventoryMovementRepository = inventoryMovementRepository;
         this.inventoryReservationRepository = inventoryReservationRepository;
+        this.batchNumberService = batchNumberService;
     }
 
     public List<FinishedGoodDto> listFinishedGoods() {
@@ -68,10 +74,10 @@ public class FinishedGoodsService {
 
     @Transactional
     public FinishedGoodBatchDto registerBatch(FinishedGoodBatchRequest request) {
-        FinishedGood finishedGood = requireFinishedGood(request.finishedGoodId());
+        FinishedGood finishedGood = lockFinishedGood(request.finishedGoodId());
         FinishedGoodBatch batch = new FinishedGoodBatch();
         batch.setFinishedGood(finishedGood);
-        batch.setBatchCode(request.batchCode());
+        batch.setBatchCode(resolveBatchCode(finishedGood, request.batchCode(), request.manufacturedAt()));
         batch.setQuantityTotal(request.quantity());
         batch.setQuantityAvailable(request.quantity());
         batch.setUnitCost(request.unitCost());
@@ -82,7 +88,7 @@ public class FinishedGoodsService {
         finishedGood.setCurrentStock(finishedGood.getCurrentStock().add(request.quantity()));
         finishedGoodRepository.save(finishedGood);
 
-        recordMovement(finishedGood, savedBatch, "MANUFACTURING", savedBatch.getPublicId().toString(),
+        recordMovement(finishedGood, savedBatch, InventoryReference.MANUFACTURING_ORDER, savedBatch.getPublicId().toString(),
                 "RECEIPT", request.quantity(), request.unitCost());
 
         return toBatchDto(savedBatch);
@@ -107,8 +113,7 @@ public class FinishedGoodsService {
 
         List<InventoryShortage> shortages = new ArrayList<>();
         for (SalesOrderItem item : order.getItems()) {
-            FinishedGood finishedGood = finishedGoodRepository.findByCompanyAndProductCode(order.getCompany(), item.getProductCode())
-                    .orElseThrow(() -> new IllegalArgumentException("Finished good not found for product code " + item.getProductCode()));
+            FinishedGood finishedGood = lockFinishedGood(order.getCompany(), item.getProductCode());
             allocateItem(order, slip, finishedGood, item, shortages);
         }
         return new InventoryReservationResult(toSlipDto(slip), List.copyOf(shortages));
@@ -148,7 +153,7 @@ public class FinishedGoodsService {
         slip.setDispatchedAt(Instant.now());
 
         List<InventoryReservation> reservations = inventoryReservationRepository
-                .findByReferenceTypeAndReferenceId("SALES_ORDER", salesOrderId.toString());
+                .findByReferenceTypeAndReferenceId(InventoryReference.SALES_ORDER, salesOrderId.toString());
         Map<Long, DispatchPostingBuilder> postingBuilders = new HashMap<>();
         for (InventoryReservation reservation : reservations) {
             BigDecimal qty = reservation.getReservedQuantity() != null ? reservation.getReservedQuantity() : reservation.getQuantity();
@@ -162,14 +167,15 @@ public class FinishedGoodsService {
                 if (fg.getValuationAccountId() == null || fg.getCogsAccountId() == null) {
                     throw new IllegalStateException("Finished good " + fg.getProductCode() + " missing accounting configuration");
                 }
-                fg.setReservedStock(fg.getReservedStock().subtract(qty));
-                finishedGoodRepository.save(fg);
+                FinishedGood lockedFg = lockFinishedGood(slip.getCompany(), fg.getId());
+                lockedFg.setReservedStock(lockedFg.getReservedStock().subtract(qty));
+                finishedGoodRepository.save(lockedFg);
                 BigDecimal unitCost = batch != null ? batch.getUnitCost() : BigDecimal.ZERO;
-                recordMovement(fg, batch, "SALES_ORDER", salesOrderId.toString(), "DISPATCH", qty, unitCost);
+                recordMovement(lockedFg, batch, InventoryReference.SALES_ORDER, salesOrderId.toString(), "DISPATCH", qty, unitCost);
 
                 postingBuilders
-                        .computeIfAbsent(fg.getValuationAccountId(),
-                                id -> new DispatchPostingBuilder(fg.getValuationAccountId(), fg.getCogsAccountId()))
+                        .computeIfAbsent(lockedFg.getValuationAccountId(),
+                                id -> new DispatchPostingBuilder(lockedFg.getValuationAccountId(), lockedFg.getCogsAccountId()))
                         .addCost(unitCost.multiply(qty));
             }
         }
@@ -214,14 +220,14 @@ public class FinishedGoodsService {
             InventoryReservation reservation = new InventoryReservation();
             reservation.setFinishedGood(finishedGood);
             reservation.setFinishedGoodBatch(batch);
-            reservation.setReferenceType("SALES_ORDER");
+            reservation.setReferenceType(InventoryReference.SALES_ORDER);
             reservation.setReferenceId(order.getId().toString());
             reservation.setQuantity(allocation);
             reservation.setReservedQuantity(allocation);
             reservation.setStatus("RESERVED");
             inventoryReservationRepository.save(reservation);
 
-            recordMovement(finishedGood, batch, "SALES_ORDER", order.getId().toString(), "RESERVE", allocation, batch.getUnitCost());
+            recordMovement(finishedGood, batch, InventoryReference.SALES_ORDER, order.getId().toString(), "RESERVE", allocation, batch.getUnitCost());
             remaining = remaining.subtract(allocation);
         }
 
@@ -230,10 +236,19 @@ public class FinishedGoodsService {
         }
     }
 
-    private FinishedGood requireFinishedGood(Long id) {
+    private FinishedGood lockFinishedGood(Long id) {
         Company company = companyContextService.requireCurrentCompany();
-        return finishedGoodRepository.findByCompanyAndId(company, id)
+        return lockFinishedGood(company, id);
+    }
+
+    private FinishedGood lockFinishedGood(Company company, Long id) {
+        return finishedGoodRepository.lockByCompanyAndId(company, id)
                 .orElseThrow(() -> new IllegalArgumentException("Finished good not found"));
+    }
+
+    private FinishedGood lockFinishedGood(Company company, String productCode) {
+        return finishedGoodRepository.lockByCompanyAndProductCode(company, productCode)
+                .orElseThrow(() -> new IllegalArgumentException("Finished good not found for product code " + productCode));
     }
 
     private void recordMovement(FinishedGood finishedGood,
@@ -252,6 +267,17 @@ public class FinishedGoodsService {
         movement.setQuantity(quantity);
         movement.setUnitCost(unitCost);
         inventoryMovementRepository.save(movement);
+    }
+
+    private String resolveBatchCode(FinishedGood finishedGood, String provided, Instant manufacturedAt) {
+        if (StringUtils.hasText(provided)) {
+            return provided.trim();
+        }
+        String timezone = finishedGood.getCompany().getTimezone() == null ? "UTC" : finishedGood.getCompany().getTimezone();
+        LocalDate produced = manufacturedAt != null
+                ? LocalDate.ofInstant(manufacturedAt, ZoneId.of(timezone))
+                : null;
+        return batchNumberService.nextFinishedGoodBatchCode(finishedGood, produced);
     }
 
     private FinishedGoodDto toDto(FinishedGood finishedGood) {

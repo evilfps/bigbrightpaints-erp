@@ -4,7 +4,6 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
-
 public record ProductionLogDetailDto(
         Long id,
         UUID publicId,
@@ -16,11 +15,16 @@ public record ProductionLogDetailDto(
         String batchColour,
         BigDecimal batchSize,
         String unitOfMeasure,
-        BigDecimal producedQuantity,
+        BigDecimal mixedQuantity,
+        BigDecimal totalPackedQuantity,
+        BigDecimal wastageQuantity,
+        String status,
         BigDecimal materialCostTotal,
+        BigDecimal laborCostTotal,
+        BigDecimal overheadCostTotal,
         BigDecimal unitCost,
-        String finishedGoodBatchCode,
-        UUID finishedGoodBatchPublicId,
+        Long salesOrderId,
+        String salesOrderNumber,
         String notes,
         String createdBy,
         List<ProductionLogMaterialDto> materials

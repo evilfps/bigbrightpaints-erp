@@ -28,19 +28,19 @@ public class DealerController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SALES_MANAGER')")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SALES')")
     public ResponseEntity<ApiResponse<DealerResponse>> createDealer(@Valid @RequestBody CreateDealerRequest request) {
         return ResponseEntity.ok(ApiResponse.success("Dealer created", dealerService.createDealer(request)));
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SALES_MANAGER','ROLE_ACCOUNTING')")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SALES')")
     public ResponseEntity<ApiResponse<List<DealerResponse>>> listDealers() {
         return ResponseEntity.ok(ApiResponse.success("Dealer directory", dealerService.listDealers()));
     }
 
     @GetMapping("/search")
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SALES_MANAGER','ROLE_ACCOUNTING')")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SALES')")
     public ResponseEntity<ApiResponse<List<DealerLookupResponse>>> searchDealers(@RequestParam(defaultValue = "") String query) {
         return ResponseEntity.ok(ApiResponse.success(dealerService.search(query)));
     }

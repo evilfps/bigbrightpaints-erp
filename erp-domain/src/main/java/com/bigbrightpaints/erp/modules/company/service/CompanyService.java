@@ -27,6 +27,7 @@ public class CompanyService {
         company.setName(request.name());
         company.setCode(request.code());
         company.setTimezone(request.timezone());
+        company.setDefaultGstRate(request.defaultGstRate());
         return toDto(repository.save(company));
     }
 
@@ -37,6 +38,7 @@ public class CompanyService {
         company.setName(request.name());
         company.setCode(request.code());
         company.setTimezone(request.timezone());
+        company.setDefaultGstRate(request.defaultGstRate());
         return toDto(company);
     }
 
@@ -50,6 +52,12 @@ public class CompanyService {
     }
 
     private CompanyDto toDto(Company company) {
-        return new CompanyDto(company.getId(), company.getPublicId(), company.getName(), company.getCode(), company.getTimezone());
+        return new CompanyDto(
+                company.getId(),
+                company.getPublicId(),
+                company.getName(),
+                company.getCode(),
+                company.getTimezone(),
+                company.getDefaultGstRate());
     }
 }

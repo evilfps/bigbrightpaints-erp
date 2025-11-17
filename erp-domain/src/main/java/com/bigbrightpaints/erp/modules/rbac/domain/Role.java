@@ -3,11 +3,12 @@ package com.bigbrightpaints.erp.modules.rbac.domain;
 import jakarta.persistence.*;
 
 import java.util.HashSet;
+import com.bigbrightpaints.erp.core.domain.VersionedEntity;
 import java.util.Set;
 
 @Entity
 @Table(name = "roles")
-public class Role {
+public class Role extends VersionedEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

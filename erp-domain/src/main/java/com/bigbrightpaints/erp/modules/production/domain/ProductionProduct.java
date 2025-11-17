@@ -2,12 +2,15 @@ package com.bigbrightpaints.erp.modules.production.domain;
 
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import jakarta.persistence.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import com.bigbrightpaints.erp.core.domain.VersionedEntity;
 
 @Entity
 @Table(name = "production_products",
@@ -15,7 +18,7 @@ import java.util.UUID;
                 @UniqueConstraint(name = "uq_product_company_sku", columnNames = {"company_id", "sku_code"}),
                 @UniqueConstraint(name = "uq_product_brand_name", columnNames = {"brand_id", "product_name"})
         })
-public class ProductionProduct {
+public class ProductionProduct extends VersionedEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -65,6 +68,7 @@ public class ProductionProduct {
     @Column(name = "min_selling_price", nullable = false)
     private BigDecimal minSellingPrice = BigDecimal.ZERO;
 
+    @JdbcTypeCode(SqlTypes.JSON) // map JSONB metadata via Hibernate 6 JSON support
     @Column(name = "metadata", columnDefinition = "jsonb")
     private Map<String, Object> metadata = new HashMap<>();
 

@@ -6,10 +6,10 @@ import jakarta.validation.constraints.NotNull;
 import java.math.BigDecimal;
 
 public record RawMaterialBatchRequest(
-        @NotBlank String batchCode,
+        String batchCode,
         @NotNull BigDecimal quantity,
         @NotBlank String unit,
         @NotNull BigDecimal costPerUnit,
-        String supplier,
+        @NotNull Long supplierId,
         String notes
 ) {}

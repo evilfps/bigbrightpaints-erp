@@ -26,13 +26,13 @@ public class DashboardController {
     }
 
     @GetMapping("/factory")
-    @PreAuthorize("hasAuthority('ROLE_FACTORY')")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_FACTORY')")
     public ResponseEntity<Map<String, Object>> factoryDashboard(@RequestHeader("X-Company-Id") String companyId) {
         return ResponseEntity.ok(dashboardAggregationService.factoryDashboard(companyId));
     }
 
     @GetMapping("/finance")
-    @PreAuthorize("hasAuthority('ROLE_FINANCE')")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
     public ResponseEntity<Map<String, Object>> financeDashboard(@RequestHeader("X-Company-Id") String companyId) {
         return ResponseEntity.ok(dashboardAggregationService.financeDashboard(companyId));
     }

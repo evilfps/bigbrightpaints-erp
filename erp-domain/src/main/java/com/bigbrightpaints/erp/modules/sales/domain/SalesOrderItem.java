@@ -3,11 +3,12 @@ package com.bigbrightpaints.erp.modules.sales.domain;
 import jakarta.persistence.*;
 
 import java.math.BigDecimal;
+import com.bigbrightpaints.erp.core.domain.VersionedEntity;
 import java.time.Instant;
 
 @Entity
 @Table(name = "sales_order_items")
-public class SalesOrderItem {
+public class SalesOrderItem extends VersionedEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

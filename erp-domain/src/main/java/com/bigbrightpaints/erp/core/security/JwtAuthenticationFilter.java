@@ -3,10 +3,16 @@ package com.bigbrightpaints.erp.core.security;
 import com.bigbrightpaints.erp.modules.auth.domain.UserPrincipal;
 import com.bigbrightpaints.erp.modules.auth.service.UserAccountDetailsService;
 import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.ExpiredJwtException;
+import io.jsonwebtoken.MalformedJwtException;
+import io.jsonwebtoken.UnsupportedJwtException;
+import io.jsonwebtoken.security.SignatureException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -16,16 +22,23 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.Date;
 
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
+    private static final Logger logger = LoggerFactory.getLogger(JwtAuthenticationFilter.class);
+
     private final JwtTokenService tokenService;
     private final UserAccountDetailsService userDetailsService;
+    private final TokenBlacklistService blacklistService;
 
-    public JwtAuthenticationFilter(JwtTokenService tokenService, UserAccountDetailsService userDetailsService) {
+    public JwtAuthenticationFilter(JwtTokenService tokenService,
+                                 UserAccountDetailsService userDetailsService,
+                                 TokenBlacklistService blacklistService) {
         this.tokenService = tokenService;
         this.userDetailsService = userDetailsService;
+        this.blacklistService = blacklistService;
     }
 
     @Override
@@ -35,14 +48,44 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         if (token != null && SecurityContextHolder.getContext().getAuthentication() == null) {
             try {
                 Claims claims = tokenService.parse(token);
+
+                // Check if token is blacklisted
+                String tokenId = claims.getId();
+                if (tokenId != null && blacklistService.isTokenBlacklisted(tokenId)) {
+                    logger.warn("Attempted use of blacklisted token - JTI: {}, User: {}, IP: {}",
+                               tokenId, claims.getSubject(), request.getRemoteAddr());
+                    filterChain.doFilter(request, response);
+                    return;
+                }
+
+                // Check if user's tokens are revoked
+                String userId = claims.getSubject();
+                Date issuedAt = claims.getIssuedAt();
+                if (issuedAt != null && blacklistService.isUserTokenRevoked(userId, issuedAt.toInstant())) {
+                    logger.warn("Attempted use of revoked user token - User: {}, IP: {}",
+                               userId, request.getRemoteAddr());
+                    filterChain.doFilter(request, response);
+                    return;
+                }
+
                 request.setAttribute("jwtClaims", claims);
                 UserPrincipal principal = (UserPrincipal) userDetailsService.loadUserByUsername(claims.getSubject());
                 UsernamePasswordAuthenticationToken authentication =
                         new UsernamePasswordAuthenticationToken(principal, token, principal.getAuthorities());
                 authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                 SecurityContextHolder.getContext().setAuthentication(authentication);
-            } catch (Exception ignored) {
-                // token invalid -> fallback to anonymous
+
+            } catch (ExpiredJwtException e) {
+                logger.debug("JWT token expired - User: {}, IP: {}",
+                           e.getClaims().getSubject(), request.getRemoteAddr());
+            } catch (MalformedJwtException e) {
+                logger.warn("Malformed JWT token - IP: {}", request.getRemoteAddr());
+            } catch (SignatureException e) {
+                logger.warn("Invalid JWT signature - IP: {}", request.getRemoteAddr());
+            } catch (UnsupportedJwtException e) {
+                logger.warn("Unsupported JWT token - IP: {}", request.getRemoteAddr());
+            } catch (Exception e) {
+                logger.error("JWT authentication error - IP: {}", request.getRemoteAddr(), e);
             }
         }
         filterChain.doFilter(request, response);

@@ -1,6 +1,5 @@
 package com.bigbrightpaints.erp.modules.inventory.dto;
 
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
 import java.math.BigDecimal;
@@ -9,7 +8,7 @@ import java.time.LocalDate;
 
 public record FinishedGoodBatchRequest(
         @NotNull Long finishedGoodId,
-        @NotBlank String batchCode,
+        String batchCode,
         @NotNull BigDecimal quantity,
         @NotNull BigDecimal unitCost,
         Instant manufacturedAt,

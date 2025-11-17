@@ -9,10 +9,11 @@ import jakarta.persistence.Lob;
 import jakarta.persistence.Table;
 import java.time.Instant;
 import java.util.UUID;
+import com.bigbrightpaints.erp.core.domain.VersionedEntity;
 
 @Entity
 @Table(name = "orchestrator_audit")
-public class AuditRecord {
+public class AuditRecord extends VersionedEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)

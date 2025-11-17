@@ -3,10 +3,11 @@ package com.bigbrightpaints.erp.modules.inventory.domain;
 import jakarta.persistence.*;
 
 import java.math.BigDecimal;
+import com.bigbrightpaints.erp.core.domain.VersionedEntity;
 
 @Entity
 @Table(name = "packaging_slip_lines")
-public class PackagingSlipLine {
+public class PackagingSlipLine extends VersionedEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

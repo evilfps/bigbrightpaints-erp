@@ -7,6 +7,7 @@ import com.bigbrightpaints.erp.modules.hr.dto.*;
 import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 @Service
@@ -129,15 +130,28 @@ public class HrService {
 
     @Transactional
     public PayrollRunDto createPayrollRun(PayrollRunRequest request) {
+        Company company = companyContextService.requireCurrentCompany();
         PayrollRun run = new PayrollRun();
-        run.setCompany(companyContextService.requireCurrentCompany());
+        run.setCompany(company);
         run.setRunDate(request.runDate());
         run.setNotes(request.notes());
+        if (request.totalAmount() != null) {
+            run.setTotalAmount(request.totalAmount());
+        }
         run.setStatus("COMPLETED");
         return toDto(payrollRunRepository.save(run));
     }
 
     private PayrollRunDto toDto(PayrollRun run) {
-        return new PayrollRunDto(run.getId(), run.getPublicId(), run.getRunDate(), run.getStatus(), run.getProcessedBy(), run.getNotes());
+        Long journalEntryId = run.getJournalEntry() != null ? run.getJournalEntry().getId() : null;
+        return new PayrollRunDto(
+                run.getId(),
+                run.getPublicId(),
+                run.getRunDate(),
+                run.getStatus(),
+                run.getProcessedBy(),
+                run.getNotes(),
+                run.getTotalAmount(),
+                journalEntryId);
     }
 }

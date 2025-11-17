@@ -1,6 +1,0 @@
-ALTER TABLE app_users
-    ADD COLUMN IF NOT EXISTS preferred_name VARCHAR(255),
-    ADD COLUMN IF NOT EXISTS job_title VARCHAR(255),
-    ADD COLUMN IF NOT EXISTS profile_picture_url VARCHAR(512),
-    ADD COLUMN IF NOT EXISTS phone_secondary VARCHAR(64),
-    ADD COLUMN IF NOT EXISTS secondary_email VARCHAR(255);

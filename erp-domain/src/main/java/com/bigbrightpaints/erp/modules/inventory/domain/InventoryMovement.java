@@ -3,11 +3,12 @@ package com.bigbrightpaints.erp.modules.inventory.domain;
 import jakarta.persistence.*;
 
 import java.math.BigDecimal;
+import com.bigbrightpaints.erp.core.domain.VersionedEntity;
 import java.time.Instant;
 
 @Entity
 @Table(name = "inventory_movements")
-public class InventoryMovement {
+public class InventoryMovement extends VersionedEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -39,6 +40,9 @@ public class InventoryMovement {
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
+    @Column(name = "journal_entry_id")
+    private Long journalEntryId;
+
     @PrePersist
     public void prePersist() {
         if (createdAt == null) {
@@ -62,4 +66,6 @@ public class InventoryMovement {
     public BigDecimal getUnitCost() { return unitCost; }
     public void setUnitCost(BigDecimal unitCost) { this.unitCost = unitCost; }
     public Instant getCreatedAt() { return createdAt; }
+    public Long getJournalEntryId() { return journalEntryId; }
+    public void setJournalEntryId(Long journalEntryId) { this.journalEntryId = journalEntryId; }
 }

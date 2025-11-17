@@ -1,6 +1,7 @@
 package com.bigbrightpaints.erp.modules.sales.service;
 
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
+import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.service.DealerLedgerService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
@@ -135,7 +136,7 @@ public class SalesService {
         account.setCompany(company);
         account.setCode(code);
         account.setName(dealer.getName() + " Receivable");
-        account.setType("ASSET");
+        account.setType(AccountType.ASSET);
         return accountRepository.save(account);
     }
 
@@ -150,14 +151,9 @@ public class SalesService {
 
     @Transactional
     public SalesOrderDto createOrder(SalesOrderRequest request) {
-        GstTreatment gstTreatment = resolveGstTreatment(request.gstTreatment());
-        BigDecimal orderLevelRate = gstTreatment == GstTreatment.ORDER_TOTAL
-                ? normalizePercent(request.gstRate())
-                : BigDecimal.ZERO;
-        if (gstTreatment == GstTreatment.ORDER_TOTAL && orderLevelRate.compareTo(BigDecimal.ZERO) <= 0) {
-            throw new IllegalArgumentException("GST rate is required when gstTreatment is ORDER_TOTAL");
-        }
         Company company = companyContextService.requireCurrentCompany();
+        GstTreatment gstTreatment = resolveGstTreatment(request.gstTreatment());
+        BigDecimal orderLevelRate = resolveOrderLevelRate(company, gstTreatment, request.gstRate());
         List<PricedOrderLine> items = resolveOrderItems(company, request.items(), gstTreatment, orderLevelRate);
         SalesOrder order = new SalesOrder();
         order.setCompany(company);
@@ -170,6 +166,7 @@ public class SalesService {
         order.setNotes(request.notes());
         OrderAmountSummary amounts = mapOrderItems(order, items, gstTreatment, orderLevelRate);
         validateTotalAmount(request.totalAmount(), amounts.total());
+        enforceCreditLimit(order.getDealer(), amounts.total());
         SalesOrder saved = salesOrderRepository.save(order);
         eventPublisher.publishEvent(new SalesOrderCreatedEvent(saved.getId(), company.getCode(), saved.getTotalAmount()));
         return toDto(saved);
@@ -177,14 +174,9 @@ public class SalesService {
 
     @Transactional
     public SalesOrderDto updateOrder(Long id, SalesOrderRequest request) {
-        GstTreatment gstTreatment = resolveGstTreatment(request.gstTreatment());
-        BigDecimal orderLevelRate = gstTreatment == GstTreatment.ORDER_TOTAL
-                ? normalizePercent(request.gstRate())
-                : BigDecimal.ZERO;
-        if (gstTreatment == GstTreatment.ORDER_TOTAL && orderLevelRate.compareTo(BigDecimal.ZERO) <= 0) {
-            throw new IllegalArgumentException("GST rate is required when gstTreatment is ORDER_TOTAL");
-        }
         SalesOrder order = requireOrder(id);
+        GstTreatment gstTreatment = resolveGstTreatment(request.gstTreatment());
+        BigDecimal orderLevelRate = resolveOrderLevelRate(order.getCompany(), gstTreatment, request.gstRate());
         List<PricedOrderLine> items = resolveOrderItems(order.getCompany(), request.items(), gstTreatment, orderLevelRate);
         if (request.dealerId() != null) {
             order.setDealer(requireDealer(request.dealerId()));
@@ -443,6 +435,9 @@ public class SalesService {
                     ? request.description().trim()
                     : product.getProductName();
             BigDecimal gstRate = request.gstRate() != null ? request.gstRate() : product.getGstRate();
+            if ((gstRate == null || gstRate.compareTo(BigDecimal.ZERO) <= 0) && company.getDefaultGstRate() != null) {
+                gstRate = company.getDefaultGstRate();
+            }
             BigDecimal normalizedRate = normalizePercent(gstRate);
             if (requiresTaxAccount(gstTreatment, orderLevelRate, normalizedRate)
                     && finishedGood.getTaxAccountId() == null) {
@@ -468,6 +463,30 @@ public class SalesService {
         if (delta.compareTo(new BigDecimal("0.01")) > 0) {
             throw new IllegalArgumentException(String.format(
                     "Order total %.2f does not match computed total %.2f", provided, computed));
+        }
+    }
+
+    private void enforceCreditLimit(Dealer dealer, BigDecimal orderTotal) {
+        if (dealer == null || dealer.getId() == null) {
+            return;
+        }
+        BigDecimal limit = dealer.getCreditLimit();
+        if (limit == null || limit.compareTo(BigDecimal.ZERO) <= 0) {
+            return;
+        }
+        BigDecimal outstanding = dealerLedgerService.currentBalance(dealer.getId());
+        if (outstanding == null) {
+            outstanding = BigDecimal.ZERO;
+        }
+        BigDecimal total = orderTotal == null ? BigDecimal.ZERO : orderTotal;
+        BigDecimal projected = outstanding.add(total);
+        if (projected.compareTo(limit) > 0) {
+            throw new IllegalStateException(String.format(
+                    "Dealer %s credit limit exceeded. Limit %.2f, outstanding %.2f, attempted order %.2f",
+                    dealer.getName(),
+                    limit,
+                    outstanding,
+                    total));
         }
     }
 
@@ -639,5 +658,22 @@ public class SalesService {
         Company company = companyContextService.requireCurrentCompany();
         return creditRequestRepository.findByCompanyAndId(company, id)
                 .orElseThrow(() -> new IllegalArgumentException("Credit request not found"));
+    }
+
+    private BigDecimal resolveOrderLevelRate(Company company,
+                                             GstTreatment gstTreatment,
+                                             BigDecimal requestedRate) {
+        if (gstTreatment != GstTreatment.ORDER_TOTAL) {
+            return BigDecimal.ZERO;
+        }
+        BigDecimal source = requestedRate;
+        if (source == null || source.compareTo(BigDecimal.ZERO) <= 0) {
+            source = company.getDefaultGstRate();
+        }
+        BigDecimal normalized = normalizePercent(source);
+        if (normalized.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("GST rate is required when gstTreatment is ORDER_TOTAL");
+        }
+        return normalized;
     }
 }

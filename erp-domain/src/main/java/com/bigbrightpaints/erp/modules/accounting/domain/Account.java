@@ -4,11 +4,12 @@ import com.bigbrightpaints.erp.modules.company.domain.Company;
 import jakarta.persistence.*;
 
 import java.math.BigDecimal;
+import com.bigbrightpaints.erp.core.domain.VersionedEntity;
 import java.util.UUID;
 
 @Entity
 @Table(name = "accounts", uniqueConstraints = @UniqueConstraint(columnNames = {"company_id", "code"}))
-public class Account {
+public class Account extends VersionedEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -27,8 +28,9 @@ public class Account {
     @Column(nullable = false)
     private String name;
 
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private String type;
+    private AccountType type;
 
     @Column(nullable = false)
     private BigDecimal balance = BigDecimal.ZERO;
@@ -48,8 +50,8 @@ public class Account {
     public void setCode(String code) { this.code = code; }
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
-    public String getType() { return type; }
-    public void setType(String type) { this.type = type; }
+    public AccountType getType() { return type; }
+    public void setType(AccountType type) { this.type = type; }
     public BigDecimal getBalance() { return balance; }
     public void setBalance(BigDecimal balance) { this.balance = balance; }
 }

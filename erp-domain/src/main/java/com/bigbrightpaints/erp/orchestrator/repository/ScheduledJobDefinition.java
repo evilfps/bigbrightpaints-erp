@@ -5,10 +5,11 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.OffsetDateTime;
+import com.bigbrightpaints.erp.core.domain.VersionedEntity;
 
 @Entity
 @Table(name = "scheduled_jobs")
-public class ScheduledJobDefinition {
+public class ScheduledJobDefinition extends VersionedEntity {
 
     @Id
     @Column(name = "job_id", nullable = false, updatable = false)

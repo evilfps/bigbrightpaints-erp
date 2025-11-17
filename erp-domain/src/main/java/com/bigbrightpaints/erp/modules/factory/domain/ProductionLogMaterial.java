@@ -4,11 +4,12 @@ import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterial;
 import jakarta.persistence.*;
 
 import java.math.BigDecimal;
+import com.bigbrightpaints.erp.core.domain.VersionedEntity;
 import java.time.Instant;
 
 @Entity
 @Table(name = "production_log_materials")
-public class ProductionLogMaterial {
+public class ProductionLogMaterial extends VersionedEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

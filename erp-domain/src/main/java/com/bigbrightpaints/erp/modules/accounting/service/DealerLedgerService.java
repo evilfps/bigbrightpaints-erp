@@ -52,6 +52,12 @@ public class DealerLedgerService {
         entry.setDebit(debit == null ? BigDecimal.ZERO : debit);
         entry.setCredit(credit == null ? BigDecimal.ZERO : credit);
         dealerLedgerRepository.save(entry);
+        Dealer managedDealer = dealerRepository.findById(dealer.getId()).orElse(dealer);
+        BigDecimal aggregate = dealerLedgerRepository.aggregateBalance(managedDealer.getCompany(), managedDealer)
+                .map(DealerBalanceView::balance)
+                .orElse(BigDecimal.ZERO);
+        managedDealer.setOutstandingBalance(aggregate);
+        dealerRepository.save(managedDealer);
     }
 
     public Map<Long, BigDecimal> currentBalances(Collection<Long> dealerIds) {

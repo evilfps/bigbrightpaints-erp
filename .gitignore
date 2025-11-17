@@ -14,3 +14,18 @@ backup-$
 
 # Nested repo (ignored)
 THE-ORCHESTRATOR-FOR-BBP/
+
+# Local tooling / history
+.claude/
+.history/
+.vscode/
+
+# Downloaded JDKs
+.jdk-temurin/
+.jdk-temurin-linux/
+temurin*.zip
+temurin*.tar.gz
+
+# Build outputs
+erp-domain/target/
+node_modules/

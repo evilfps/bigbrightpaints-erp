@@ -25,7 +25,13 @@ public class MultiCompanyController {
     public ResponseEntity<ApiResponse<CompanyDto>> switchCompany(@RequestBody SwitchCompanyRequest request) {
         Company company = companyService.findByCode(request.companyCode());
         return ResponseEntity.ok(ApiResponse.success("Switched company",
-                new CompanyDto(company.getId(), company.getPublicId(), company.getName(), company.getCode(), company.getTimezone())));
+                new CompanyDto(
+                        company.getId(),
+                        company.getPublicId(),
+                        company.getName(),
+                        company.getCode(),
+                        company.getTimezone(),
+                        company.getDefaultGstRate())));
     }
 
     public record SwitchCompanyRequest(@NotBlank String companyCode) {}

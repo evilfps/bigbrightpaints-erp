@@ -1,7 +1,11 @@
 package com.bigbrightpaints.erp.modules.inventory.domain;
 
 import com.bigbrightpaints.erp.modules.company.domain.Company;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.util.Collection;
 import java.util.List;
@@ -12,4 +16,13 @@ public interface FinishedGoodRepository extends JpaRepository<FinishedGood, Long
     Optional<FinishedGood> findByCompanyAndId(Company company, Long id);
     Optional<FinishedGood> findByCompanyAndProductCode(Company company, String productCode);
     List<FinishedGood> findByCompanyAndProductCodeIn(Company company, Collection<String> productCodes);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select fg from FinishedGood fg where fg.company = :company and fg.id = :id")
+    Optional<FinishedGood> lockByCompanyAndId(@Param("company") Company company, @Param("id") Long id);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select fg from FinishedGood fg where fg.company = :company and fg.productCode = :productCode")
+    Optional<FinishedGood> lockByCompanyAndProductCode(@Param("company") Company company,
+                                                       @Param("productCode") String productCode);
 }

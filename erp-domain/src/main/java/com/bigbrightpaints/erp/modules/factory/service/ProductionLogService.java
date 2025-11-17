@@ -1,22 +1,18 @@
 package com.bigbrightpaints.erp.modules.factory.service;
 
-import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryRequest;
-import com.bigbrightpaints.erp.modules.accounting.service.AccountingService;
+import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
+import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.factory.domain.ProductionLog;
 import com.bigbrightpaints.erp.modules.factory.domain.ProductionLogMaterial;
 import com.bigbrightpaints.erp.modules.factory.domain.ProductionLogRepository;
+import com.bigbrightpaints.erp.modules.factory.domain.ProductionLogStatus;
 import com.bigbrightpaints.erp.modules.factory.dto.ProductionLogDetailDto;
 import com.bigbrightpaints.erp.modules.factory.dto.ProductionLogDto;
 import com.bigbrightpaints.erp.modules.factory.dto.ProductionLogMaterialDto;
 import com.bigbrightpaints.erp.modules.factory.dto.ProductionLogRequest;
-import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGood;
-import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatch;
-import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatchRepository;
-import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodRepository;
-import com.bigbrightpaints.erp.modules.inventory.domain.InventoryMovement;
-import com.bigbrightpaints.erp.modules.inventory.domain.InventoryMovementRepository;
+import com.bigbrightpaints.erp.modules.inventory.domain.InventoryReference;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterial;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatch;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatchRepository;
@@ -27,6 +23,8 @@ import com.bigbrightpaints.erp.modules.production.domain.ProductionBrand;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionBrandRepository;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionProduct;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionProductRepository;
+import com.bigbrightpaints.erp.modules.sales.domain.SalesOrder;
+import com.bigbrightpaints.erp.modules.sales.domain.SalesOrderRepository;
 import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -50,9 +48,7 @@ import java.util.Optional;
 public class ProductionLogService {
 
     private static final DateTimeFormatter CODE_DATE = DateTimeFormatter.ofPattern("yyyyMMdd");
-    private static final String REFERENCE_TYPE_PRODUCTION_LOG = "PRODUCTION_LOG";
     private static final String MOVEMENT_TYPE_ISSUE = "ISSUE";
-    private static final String MOVEMENT_TYPE_RECEIPT = "RECEIPT";
     private static final RoundingMode COST_ROUNDING = RoundingMode.HALF_UP;
 
     private final CompanyContextService companyContextService;
@@ -60,35 +56,29 @@ public class ProductionLogService {
     private final ProductionBrandRepository brandRepository;
     private final ProductionProductRepository productRepository;
     private final RawMaterialRepository rawMaterialRepository;
-    private final FinishedGoodRepository finishedGoodRepository;
     private final RawMaterialBatchRepository rawMaterialBatchRepository;
     private final RawMaterialMovementRepository rawMaterialMovementRepository;
-    private final FinishedGoodBatchRepository finishedGoodBatchRepository;
-    private final InventoryMovementRepository inventoryMovementRepository;
-    private final AccountingService accountingService;
+    private final AccountingFacade accountingFacade;
+    private final SalesOrderRepository salesOrderRepository;
 
     public ProductionLogService(CompanyContextService companyContextService,
                                 ProductionLogRepository logRepository,
                                 ProductionBrandRepository brandRepository,
                                 ProductionProductRepository productRepository,
                                 RawMaterialRepository rawMaterialRepository,
-                                FinishedGoodRepository finishedGoodRepository,
                                 RawMaterialBatchRepository rawMaterialBatchRepository,
                                 RawMaterialMovementRepository rawMaterialMovementRepository,
-                                FinishedGoodBatchRepository finishedGoodBatchRepository,
-                                InventoryMovementRepository inventoryMovementRepository,
-                                AccountingService accountingService) {
+                                AccountingFacade accountingFacade,
+                                SalesOrderRepository salesOrderRepository) {
         this.companyContextService = companyContextService;
         this.logRepository = logRepository;
         this.brandRepository = brandRepository;
         this.productRepository = productRepository;
         this.rawMaterialRepository = rawMaterialRepository;
-        this.finishedGoodRepository = finishedGoodRepository;
         this.rawMaterialBatchRepository = rawMaterialBatchRepository;
         this.rawMaterialMovementRepository = rawMaterialMovementRepository;
-        this.finishedGoodBatchRepository = finishedGoodBatchRepository;
-        this.inventoryMovementRepository = inventoryMovementRepository;
-        this.accountingService = accountingService;
+        this.accountingFacade = accountingFacade;
+        this.salesOrderRepository = salesOrderRepository;
     }
 
     @Transactional
@@ -102,7 +92,7 @@ public class ProductionLogService {
             throw new IllegalArgumentException("Product does not belong to brand");
         }
         BigDecimal batchSize = positive(request.batchSize(), "batchSize");
-        BigDecimal producedQty = positive(request.producedQuantity(), "producedQuantity");
+        BigDecimal mixedQty = positive(request.mixedQuantity(), "mixedQuantity");
         String unitOfMeasure = StringUtils.hasText(request.unitOfMeasure())
                 ? request.unitOfMeasure().trim()
                 : Optional.ofNullable(product.getUnitOfMeasure()).filter(StringUtils::hasText).orElse("UNIT");
@@ -116,10 +106,23 @@ public class ProductionLogService {
         log.setBatchColour(clean(request.batchColour()));
         log.setBatchSize(batchSize);
         log.setUnitOfMeasure(unitOfMeasure);
-        log.setProducedQuantity(producedQty);
+        log.setMixedQuantity(mixedQty);
+        log.setStatus(ProductionLogStatus.READY_TO_PACK);
+        log.setTotalPackedQuantity(BigDecimal.ZERO);
+        log.setWastageQuantity(mixedQty);
         log.setProducedAt(resolveProducedAt(request.producedAt()));
         log.setNotes(clean(request.notes()));
         log.setCreatedBy(clean(request.createdBy()));
+        if (request.salesOrderId() != null) {
+            SalesOrder order = salesOrderRepository.findByCompanyAndId(company, request.salesOrderId())
+                    .orElseThrow(() -> new IllegalArgumentException("Sales order not found"));
+            log.setSalesOrderId(order.getId());
+            log.setSalesOrderNumber(order.getOrderNumber());
+        }
+        BigDecimal laborCost = nonNegative(request.laborCost());
+        BigDecimal overheadCost = nonNegative(request.overheadCost());
+        log.setLaborCostTotal(laborCost);
+        log.setOverheadCostTotal(overheadCost);
 
         if (request.materials() == null || request.materials().isEmpty()) {
             throw new IllegalArgumentException("Materials are required");
@@ -127,23 +130,12 @@ public class ProductionLogService {
 
         MaterialIssueSummary issueSummary = issueMaterials(company, log, request.materials());
         log.setMaterialCostTotal(issueSummary.totalCost());
-        log.setUnitCost(calculateUnitCost(issueSummary.totalCost(), producedQty));
+        BigDecimal totalCost = issueSummary.totalCost().add(laborCost).add(overheadCost);
+        log.setUnitCost(calculateUnitCost(totalCost, mixedQty));
 
         ProductionLog saved = logRepository.save(log);
 
-        boolean restock = request.addToFinishedGoods() == null || Boolean.TRUE.equals(request.addToFinishedGoods());
-        FinishedGoodReceipt receipt = null;
-        if (restock) {
-            receipt = restockFinishedGood(company, product, saved, producedQty, saved.getUnitCost());
-            if (receipt != null) {
-                saved.setFinishedGoodBatch(receipt.batch());
-            }
-        }
-
         postMaterialJournal(company, saved, product, issueSummary);
-        if (restock && receipt != null) {
-            postCompletionJournal(company, saved, product, receipt.finishedGood());
-        }
 
         return toDetailDto(saved);
     }
@@ -180,7 +172,7 @@ public class ProductionLogService {
                                                 ProductionLog log,
                                                 ProductionLogRequest.MaterialUsageRequest usage) {
         BigDecimal qty = positive(usage.quantity(), "materials.quantity");
-        RawMaterial rawMaterial = rawMaterialRepository.findByCompanyAndId(company, usage.rawMaterialId())
+        RawMaterial rawMaterial = rawMaterialRepository.lockByCompanyAndId(company, usage.rawMaterialId())
                 .orElseThrow(() -> new IllegalArgumentException("Raw material not found"));
         if (rawMaterial.getCurrentStock().compareTo(qty) < 0) {
             throw new IllegalArgumentException("Insufficient stock for " + rawMaterial.getName());
@@ -230,7 +222,7 @@ public class ProductionLogService {
             RawMaterialMovement movement = new RawMaterialMovement();
             movement.setRawMaterial(rawMaterial);
             movement.setRawMaterialBatch(batch);
-            movement.setReferenceType(REFERENCE_TYPE_PRODUCTION_LOG);
+            movement.setReferenceType(InventoryReference.PRODUCTION_LOG);
             movement.setReferenceId(referenceId);
             movement.setMovementType(MOVEMENT_TYPE_ISSUE);
             movement.setQuantity(take);
@@ -247,70 +239,6 @@ public class ProductionLogService {
         return totalCost;
     }
 
-    private FinishedGoodReceipt restockFinishedGood(Company company,
-                                                    ProductionProduct product,
-                                                    ProductionLog log,
-                                                    BigDecimal producedQty,
-                                                    BigDecimal unitCost) {
-        FinishedGood finishedGood = finishedGoodRepository.findByCompanyAndProductCode(company, product.getSkuCode())
-                .orElseGet(() -> initializeFinishedGood(company, product));
-        if (finishedGood.getValuationAccountId() == null) {
-            throw new IllegalStateException("Finished good " + finishedGood.getProductCode() + " missing valuation account");
-        }
-        FinishedGoodBatch batch = new FinishedGoodBatch();
-        batch.setFinishedGood(finishedGood);
-        batch.setBatchCode(log.getProductionCode());
-        batch.setQuantityTotal(producedQty);
-        batch.setQuantityAvailable(producedQty);
-        batch.setUnitCost(Optional.ofNullable(unitCost).orElse(BigDecimal.ZERO));
-        batch.setManufacturedAt(log.getProducedAt());
-        FinishedGoodBatch savedBatch = finishedGoodBatchRepository.save(batch);
-
-        BigDecimal current = Optional.ofNullable(finishedGood.getCurrentStock()).orElse(BigDecimal.ZERO);
-        finishedGood.setCurrentStock(current.add(producedQty));
-        finishedGoodRepository.save(finishedGood);
-
-        InventoryMovement movement = new InventoryMovement();
-        movement.setFinishedGood(finishedGood);
-        movement.setFinishedGoodBatch(savedBatch);
-        movement.setReferenceType(REFERENCE_TYPE_PRODUCTION_LOG);
-        movement.setReferenceId(log.getProductionCode());
-        movement.setMovementType(MOVEMENT_TYPE_RECEIPT);
-        movement.setQuantity(producedQty);
-        movement.setUnitCost(Optional.ofNullable(unitCost).orElse(BigDecimal.ZERO));
-        inventoryMovementRepository.save(movement);
-
-        return new FinishedGoodReceipt(finishedGood, savedBatch);
-    }
-
-    private FinishedGood initializeFinishedGood(Company company, ProductionProduct product) {
-        Long valuationAccountId = metadataLong(product, "fgValuationAccountId");
-        Long cogsAccountId = metadataLong(product, "fgCogsAccountId");
-        Long revenueAccountId = metadataLong(product, "fgRevenueAccountId");
-        Long discountAccountId = metadataLong(product, "fgDiscountAccountId");
-        Long taxAccountId = metadataLong(product, "fgTaxAccountId");
-        if (valuationAccountId == null || cogsAccountId == null || revenueAccountId == null
-                || discountAccountId == null || taxAccountId == null) {
-            throw new IllegalStateException("Product " + product.getProductName()
-                    + " missing fgValuationAccountId, fgCogsAccountId, fgRevenueAccountId, "
-                    + "fgDiscountAccountId or fgTaxAccountId in metadata");
-        }
-        FinishedGood created = new FinishedGood();
-        created.setCompany(company);
-        created.setProductCode(product.getSkuCode());
-        created.setName(product.getProductName());
-        created.setUnit(Optional.ofNullable(product.getUnitOfMeasure()).orElse("UNIT"));
-        created.setCostingMethod("FIFO");
-        created.setValuationAccountId(valuationAccountId);
-        created.setCogsAccountId(cogsAccountId);
-        created.setRevenueAccountId(revenueAccountId);
-        created.setDiscountAccountId(discountAccountId);
-        created.setTaxAccountId(taxAccountId);
-        created.setCurrentStock(BigDecimal.ZERO);
-        created.setReservedStock(BigDecimal.ZERO);
-        return finishedGoodRepository.save(created);
-    }
-
     private void postMaterialJournal(Company company,
                                      ProductionLog log,
                                      ProductionProduct product,
@@ -319,64 +247,32 @@ public class ProductionLogService {
             return;
         }
         Long wipAccountId = requireWipAccountId(product);
-        List<JournalEntryRequest.JournalLineRequest> lines = new ArrayList<>();
-        lines.add(new JournalEntryRequest.JournalLineRequest(
-                wipAccountId,
-                "WIP charge " + log.getProductionCode(),
-                summary.totalCost(),
-                BigDecimal.ZERO
-        ));
-        for (Map.Entry<Long, BigDecimal> entry : summary.accountTotals().entrySet()) {
-            lines.add(new JournalEntryRequest.JournalLineRequest(
-                    entry.getKey(),
-                    "Raw material issue " + log.getProductionCode(),
-                    BigDecimal.ZERO,
-                    entry.getValue()
-            ));
-        }
-        accountingService.createJournalEntry(new JournalEntryRequest(
-                log.getProductionCode() + "-RM",
+
+        // Delegate to AccountingFacade for material consumption journal
+        JournalEntryDto entry = accountingFacade.postMaterialConsumption(
+                log.getProductionCode(),
                 resolveJournalDate(company, log),
-                "Raw material consumption for " + log.getProductionCode(),
-                null,
-                lines
-        ));
+                wipAccountId,
+                summary.accountTotals(),
+                summary.totalCost()
+        );
+
+        if (entry != null) {
+            linkRawMaterialMovementsToJournal(log.getProductionCode(), entry.id());
+        }
     }
 
-    private void postCompletionJournal(Company company,
-                                       ProductionLog log,
-                                       ProductionProduct product,
-                                       FinishedGood finishedGood) {
-        BigDecimal totalCost = log.getMaterialCostTotal();
-        if (totalCost.compareTo(BigDecimal.ZERO) <= 0) {
+    private void linkRawMaterialMovementsToJournal(String referenceId, Long journalEntryId) {
+        if (journalEntryId == null) {
             return;
         }
-        Long wipAccountId = requireWipAccountId(product);
-        Long fgAccountId = finishedGood.getValuationAccountId();
-        if (fgAccountId == null) {
-            throw new IllegalStateException("Finished good " + finishedGood.getProductCode() + " missing valuation account");
+        List<RawMaterialMovement> movements = rawMaterialMovementRepository
+                .findByReferenceTypeAndReferenceId(InventoryReference.PRODUCTION_LOG, referenceId);
+        if (movements.isEmpty()) {
+            return;
         }
-        List<JournalEntryRequest.JournalLineRequest> lines = List.of(
-                new JournalEntryRequest.JournalLineRequest(
-                        fgAccountId,
-                        "Finished goods receipt " + log.getProductionCode(),
-                        totalCost,
-                        BigDecimal.ZERO
-                ),
-                new JournalEntryRequest.JournalLineRequest(
-                        wipAccountId,
-                        "Close WIP " + log.getProductionCode(),
-                        BigDecimal.ZERO,
-                        totalCost
-                )
-        );
-        accountingService.createJournalEntry(new JournalEntryRequest(
-                log.getProductionCode() + "-FG",
-                resolveJournalDate(company, log),
-                "Production completion for " + log.getProductionCode(),
-                null,
-                lines
-        ));
+        movements.forEach(movement -> movement.setJournalEntryId(journalEntryId));
+        rawMaterialMovementRepository.saveAll(movements);
     }
 
     private LocalDate resolveJournalDate(Company company, ProductionLog log) {
@@ -424,8 +320,6 @@ public class ProductionLogService {
 
     private record MaterialConsumption(ProductionLogMaterial material, BigDecimal totalCost, Long inventoryAccountId) {}
 
-    private record FinishedGoodReceipt(FinishedGood finishedGood, FinishedGoodBatch batch) {}
-
     private String nextProductionCode(Company company) {
         String prefix = "PROD-" + CODE_DATE.format(LocalDate.now(ZoneOffset.UTC));
         return logRepository.findTopByCompanyAndProductionCodeStartingWithOrderByProductionCodeDesc(company, prefix)
@@ -471,9 +365,17 @@ public class ProductionLogService {
                 log.getBatchColour(),
                 log.getBatchSize(),
                 log.getUnitOfMeasure(),
-                log.getProducedQuantity(),
+                log.getMixedQuantity(),
+                log.getTotalPackedQuantity(),
+                log.getWastageQuantity(),
+                log.getStatus().name(),
                 log.getCreatedBy(),
-                log.getUnitCost()
+                log.getUnitCost(),
+                log.getMaterialCostTotal(),
+                log.getLaborCostTotal(),
+                log.getOverheadCostTotal(),
+                log.getSalesOrderId(),
+                log.getSalesOrderNumber()
         );
     }
 
@@ -488,7 +390,6 @@ public class ProductionLogService {
                         material.getTotalCost()
                 ))
                 .toList();
-        FinishedGoodBatch batch = log.getFinishedGoodBatch();
         return new ProductionLogDetailDto(
                 log.getId(),
                 log.getPublicId(),
@@ -500,11 +401,16 @@ public class ProductionLogService {
                 log.getBatchColour(),
                 log.getBatchSize(),
                 log.getUnitOfMeasure(),
-                log.getProducedQuantity(),
+                log.getMixedQuantity(),
+                log.getTotalPackedQuantity(),
+                log.getWastageQuantity(),
+                log.getStatus().name(),
                 log.getMaterialCostTotal(),
+                log.getLaborCostTotal(),
+                log.getOverheadCostTotal(),
                 log.getUnitCost(),
-                batch != null ? batch.getBatchCode() : null,
-                batch != null ? batch.getPublicId() : null,
+                log.getSalesOrderId(),
+                log.getSalesOrderNumber(),
                 log.getNotes(),
                 log.getCreatedBy(),
                 materials
@@ -514,6 +420,13 @@ public class ProductionLogService {
     private BigDecimal positive(BigDecimal value, String field) {
         if (value == null || value.compareTo(BigDecimal.ZERO) <= 0) {
             throw new IllegalArgumentException(field + " must be positive");
+        }
+        return value;
+    }
+
+    private BigDecimal nonNegative(BigDecimal value) {
+        if (value == null || value.compareTo(BigDecimal.ZERO) <= 0) {
+            return BigDecimal.ZERO;
         }
         return value;
     }

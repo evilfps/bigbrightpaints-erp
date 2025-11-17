@@ -1,5 +1,6 @@
 package com.bigbrightpaints.erp.modules.admin.service;
 
+import com.bigbrightpaints.erp.core.notification.EmailService;
 import com.bigbrightpaints.erp.modules.admin.dto.CreateUserRequest;
 import com.bigbrightpaints.erp.modules.admin.dto.UpdateUserRequest;
 import com.bigbrightpaints.erp.modules.admin.dto.UserDto;
@@ -9,11 +10,14 @@ import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
 import com.bigbrightpaints.erp.modules.rbac.domain.Role;
 import com.bigbrightpaints.erp.modules.rbac.domain.RoleRepository;
+import com.bigbrightpaints.erp.modules.rbac.service.RoleService;
 import jakarta.transaction.Transactional;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import java.util.List;
+import java.util.Locale;
 
 @Service
 public class AdminUserService {
@@ -21,16 +25,22 @@ public class AdminUserService {
     private final UserAccountRepository userRepository;
     private final CompanyRepository companyRepository;
     private final RoleRepository roleRepository;
+    private final RoleService roleService;
     private final PasswordEncoder passwordEncoder;
+    private final EmailService emailService;
 
     public AdminUserService(UserAccountRepository userRepository,
                             CompanyRepository companyRepository,
                             RoleRepository roleRepository,
-                            PasswordEncoder passwordEncoder) {
+                            RoleService roleService,
+                            PasswordEncoder passwordEncoder,
+                            EmailService emailService) {
         this.userRepository = userRepository;
         this.companyRepository = companyRepository;
         this.roleRepository = roleRepository;
+        this.roleService = roleService;
         this.passwordEncoder = passwordEncoder;
+        this.emailService = emailService;
     }
 
     public List<UserDto> listUsers() {
@@ -42,7 +52,9 @@ public class AdminUserService {
         UserAccount user = new UserAccount(request.email(), passwordEncoder.encode(request.password()), request.displayName());
         attachCompanies(user, request.companyIds());
         attachRoles(user, request.roles());
-        return toDto(userRepository.save(user));
+        UserAccount saved = userRepository.save(user);
+        emailService.sendUserCredentialsEmail(saved.getEmail(), saved.getDisplayName(), request.password());
+        return toDto(saved);
     }
 
     @Transactional
@@ -88,10 +100,22 @@ public class AdminUserService {
 
     private void attachRoles(UserAccount user, List<String> roles) {
         roles.forEach(roleName -> {
-            Role role = roleRepository.findByName(roleName).orElseGet(() -> {
+            if (!StringUtils.hasText(roleName)) {
+                return;
+            }
+            String trimmed = roleName.trim();
+            String normalized = trimmed.toUpperCase(Locale.ROOT);
+            if (normalized.startsWith("ROLE_")) {
+                if (!roleService.isSystemRole(trimmed)) {
+                    throw new IllegalArgumentException("Unsupported platform role: " + trimmed);
+                }
+                user.addRole(roleService.ensureRoleExists(trimmed));
+                return;
+            }
+            Role role = roleRepository.findByName(trimmed).orElseGet(() -> {
                 Role newRole = new Role();
-                newRole.setName(roleName);
-                newRole.setDescription(roleName);
+                newRole.setName(trimmed);
+                newRole.setDescription(trimmed);
                 return roleRepository.save(newRole);
             });
             user.addRole(role);

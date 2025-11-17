@@ -63,9 +63,6 @@ class PasswordServiceTest {
     @Test
     void changePasswordRejectsWeakPasswords() {
         UserAccount user = userWithPassword("CurrentPass1!");
-        when(passwordHistoryRepository.findTop5ByUserOrderByChangedAtDesc(user))
-                .thenReturn(Collections.emptyList());
-
         ChangePasswordRequest request = new ChangePasswordRequest("CurrentPass1!", "weak", "weak");
 
         assertThrows(IllegalArgumentException.class, () -> passwordService.changePassword(user, request));

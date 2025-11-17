@@ -1,6 +1,7 @@
 package com.bigbrightpaints.erp.modules.sales.service;
 
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
+import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.service.DealerLedgerService;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccount;
@@ -76,7 +77,7 @@ public class DealerService {
         String rawPassword = generateRandomPassword();
 
         UserAccount portalUser = new UserAccount(portalEmail, passwordEncoder.encode(rawPassword), dealer.getName());
-        portalUser.getRoles().add(roleService.ensureRoleExists("ROLE_DEALER_OPERATOR"));
+        portalUser.getRoles().add(roleService.ensureRoleExists("ROLE_DEALER"));
         portalUser.getCompanies().add(company);
         portalUser = userAccountRepository.save(portalUser);
 
@@ -134,7 +135,7 @@ public class DealerService {
         account.setCompany(company);
         account.setCode(code);
         account.setName(dealer.getName() + " Receivable");
-        account.setType("ASSET");
+        account.setType(AccountType.ASSET);
         return accountRepository.save(account);
     }
 

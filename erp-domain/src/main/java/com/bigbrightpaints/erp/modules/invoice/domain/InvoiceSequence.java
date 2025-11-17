@@ -4,10 +4,11 @@ import com.bigbrightpaints.erp.modules.company.domain.Company;
 import jakarta.persistence.*;
 
 import java.time.Instant;
+import com.bigbrightpaints.erp.core.domain.VersionedEntity;
 
 @Entity
 @Table(name = "invoice_sequences", uniqueConstraints = @UniqueConstraint(columnNames = {"company_id", "fiscal_year"}))
-public class InvoiceSequence {
+public class InvoiceSequence extends VersionedEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

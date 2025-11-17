@@ -7,11 +7,12 @@ import jakarta.persistence.*;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import com.bigbrightpaints.erp.core.domain.VersionedEntity;
 import java.util.UUID;
 
 @Entity
 @Table(name = "packaging_slips", uniqueConstraints = @UniqueConstraint(columnNames = {"company_id", "slip_number"}))
-public class PackagingSlip {
+public class PackagingSlip extends VersionedEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

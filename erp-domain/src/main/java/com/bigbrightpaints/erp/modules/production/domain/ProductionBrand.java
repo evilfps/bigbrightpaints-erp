@@ -4,6 +4,7 @@ import com.bigbrightpaints.erp.modules.company.domain.Company;
 import jakarta.persistence.*;
 
 import java.time.Instant;
+import com.bigbrightpaints.erp.core.domain.VersionedEntity;
 import java.util.UUID;
 
 @Entity
@@ -12,7 +13,7 @@ import java.util.UUID;
                 @UniqueConstraint(name = "uq_brand_company_code", columnNames = {"company_id", "code"}),
                 @UniqueConstraint(name = "uq_brand_company_name", columnNames = {"company_id", "name"})
         })
-public class ProductionBrand {
+public class ProductionBrand extends VersionedEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

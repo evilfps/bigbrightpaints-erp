@@ -10,6 +10,7 @@ public record RawMaterialBatchDto(Long id,
                                   BigDecimal quantity,
                                   String unit,
                                   BigDecimal costPerUnit,
-                                  String supplier,
+                                  Long supplierId,
+                                  String supplierName,
                                   Instant receivedAt,
                                   String notes) {}

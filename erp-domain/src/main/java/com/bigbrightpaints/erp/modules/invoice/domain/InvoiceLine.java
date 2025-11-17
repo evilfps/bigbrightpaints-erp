@@ -3,10 +3,11 @@ package com.bigbrightpaints.erp.modules.invoice.domain;
 import jakarta.persistence.*;
 
 import java.math.BigDecimal;
+import com.bigbrightpaints.erp.core.domain.VersionedEntity;
 
 @Entity
 @Table(name = "invoice_lines")
-public class InvoiceLine {
+public class InvoiceLine extends VersionedEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

@@ -6,10 +6,11 @@ import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
+import com.bigbrightpaints.erp.core.domain.VersionedEntity;
 
 @Entity
 @Table(name = "finished_goods", uniqueConstraints = @UniqueConstraint(columnNames = {"company_id", "product_code"}))
-public class FinishedGood {
+public class FinishedGood extends VersionedEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

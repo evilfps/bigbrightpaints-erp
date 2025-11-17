@@ -1,5 +1,6 @@
 package com.bigbrightpaints.erp.modules.invoice.domain;
 
+import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrder;
@@ -10,11 +11,12 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import com.bigbrightpaints.erp.core.domain.VersionedEntity;
 import java.util.UUID;
 
 @Entity
 @Table(name = "invoices", uniqueConstraints = @UniqueConstraint(columnNames = {"company_id", "invoice_number"}))
-public class Invoice {
+public class Invoice extends VersionedEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -34,6 +36,10 @@ public class Invoice {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "sales_order_id")
     private SalesOrder salesOrder;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "journal_entry_id")
+    private JournalEntry journalEntry;
 
     @Column(name = "invoice_number", nullable = false)
     private String invoiceNumber;
@@ -95,6 +101,8 @@ public class Invoice {
     public void setDealer(Dealer dealer) { this.dealer = dealer; }
     public SalesOrder getSalesOrder() { return salesOrder; }
     public void setSalesOrder(SalesOrder salesOrder) { this.salesOrder = salesOrder; }
+    public JournalEntry getJournalEntry() { return journalEntry; }
+    public void setJournalEntry(JournalEntry journalEntry) { this.journalEntry = journalEntry; }
     public String getInvoiceNumber() { return invoiceNumber; }
     public void setInvoiceNumber(String invoiceNumber) { this.invoiceNumber = invoiceNumber; }
     public String getStatus() { return status; }

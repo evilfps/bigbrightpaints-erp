@@ -16,12 +16,15 @@ public record ProductionLogRequest(
         @NotNull(message = "Batch size is required")
         BigDecimal batchSize,
         String unitOfMeasure,
-        @NotNull(message = "Produced quantity is required")
-        BigDecimal producedQuantity,
+        @NotNull(message = "Mixed quantity is required")
+        BigDecimal mixedQuantity,
         String producedAt,
         String notes,
         String createdBy,
         Boolean addToFinishedGoods,
+        Long salesOrderId,
+        BigDecimal laborCost,
+        BigDecimal overheadCost,
         @Valid
         @NotEmpty(message = "Materials are required")
         List<MaterialUsageRequest> materials

@@ -4,11 +4,12 @@ import com.bigbrightpaints.erp.modules.company.domain.Company;
 import jakarta.persistence.*;
 
 import java.time.Instant;
+import com.bigbrightpaints.erp.core.domain.VersionedEntity;
 import java.util.UUID;
 
 @Entity
 @Table(name = "production_batches", uniqueConstraints = @UniqueConstraint(columnNames = {"company_id", "batch_number"}))
-public class ProductionBatch {
+public class ProductionBatch extends VersionedEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

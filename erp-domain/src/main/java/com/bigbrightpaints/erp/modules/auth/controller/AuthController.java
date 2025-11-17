@@ -3,11 +3,14 @@ package com.bigbrightpaints.erp.modules.auth.controller;
 import com.bigbrightpaints.erp.core.security.CompanyContextHolder;
 import com.bigbrightpaints.erp.modules.auth.domain.UserPrincipal;
 import com.bigbrightpaints.erp.modules.auth.service.AuthService;
+import com.bigbrightpaints.erp.modules.auth.service.PasswordResetService;
 import com.bigbrightpaints.erp.modules.auth.service.PasswordService;
 import com.bigbrightpaints.erp.modules.auth.web.AuthResponse;
+import com.bigbrightpaints.erp.modules.auth.web.ForgotPasswordRequest;
 import com.bigbrightpaints.erp.modules.auth.web.LoginRequest;
 import com.bigbrightpaints.erp.modules.auth.web.MeResponse;
 import com.bigbrightpaints.erp.modules.auth.web.RefreshTokenRequest;
+import com.bigbrightpaints.erp.modules.auth.web.ResetPasswordRequest;
 import com.bigbrightpaints.erp.modules.auth.web.ChangePasswordRequest;
 import com.bigbrightpaints.erp.shared.dto.ApiResponse;
 import jakarta.validation.Valid;
@@ -29,11 +32,14 @@ public class AuthController {
 
     private final AuthService authService;
     private final PasswordService passwordService;
+    private final PasswordResetService passwordResetService;
 
     public AuthController(AuthService authService,
-                          PasswordService passwordService) {
+                          PasswordService passwordService,
+                          PasswordResetService passwordResetService) {
         this.authService = authService;
         this.passwordService = passwordService;
+        this.passwordResetService = passwordResetService;
     }
 
     @PostMapping("/login")
@@ -81,5 +87,17 @@ public class AuthController {
         }
         passwordService.changePassword(principal.getUser(), request);
         return ResponseEntity.ok(ApiResponse.success("Password changed successfully", "OK"));
+    }
+
+    @PostMapping("/password/forgot")
+    public ResponseEntity<ApiResponse<String>> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
+        passwordResetService.requestReset(request.email());
+        return ResponseEntity.ok(ApiResponse.success("If the email exists, a reset link has been sent", "OK"));
+    }
+
+    @PostMapping("/password/reset")
+    public ResponseEntity<ApiResponse<String>> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
+        passwordResetService.resetPassword(request.token(), request.newPassword(), request.confirmPassword());
+        return ResponseEntity.ok(ApiResponse.success("Password has been reset successfully", "OK"));
     }
 }

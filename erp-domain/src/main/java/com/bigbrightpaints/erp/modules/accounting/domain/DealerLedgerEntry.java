@@ -15,6 +15,7 @@ import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
 import java.time.Instant;
+import com.bigbrightpaints.erp.core.domain.VersionedEntity;
 import java.time.LocalDate;
 
 @Entity
@@ -23,7 +24,7 @@ import java.time.LocalDate;
                 @Index(name = "idx_dealer_ledger_company", columnList = "company_id"),
                 @Index(name = "idx_dealer_ledger_dealer", columnList = "dealer_id")
         })
-public class DealerLedgerEntry {
+public class DealerLedgerEntry extends VersionedEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

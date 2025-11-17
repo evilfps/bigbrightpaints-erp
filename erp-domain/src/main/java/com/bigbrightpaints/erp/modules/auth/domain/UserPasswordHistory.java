@@ -3,10 +3,11 @@ package com.bigbrightpaints.erp.modules.auth.domain;
 import jakarta.persistence.*;
 
 import java.time.Instant;
+import com.bigbrightpaints.erp.core.domain.VersionedEntity;
 
 @Entity
 @Table(name = "user_password_history")
-public class UserPasswordHistory {
+public class UserPasswordHistory extends VersionedEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

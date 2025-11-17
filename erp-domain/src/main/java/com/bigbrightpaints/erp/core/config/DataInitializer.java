@@ -1,5 +1,8 @@
 package com.bigbrightpaints.erp.core.config;
 
+import com.bigbrightpaints.erp.modules.accounting.domain.Account;
+import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
+import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccount;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
@@ -12,6 +15,8 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import java.util.List;
+
 @Configuration
 public class DataInitializer {
 
@@ -20,6 +25,7 @@ public class DataInitializer {
     CommandLineRunner seedDefaultUser(UserAccountRepository userRepository,
                                       CompanyRepository companyRepository,
                                       RoleRepository roleRepository,
+                                      AccountRepository accountRepository,
                                       PasswordEncoder passwordEncoder) {
         return args -> {
             Company company = companyRepository.findByCodeIgnoreCase("BBP")
@@ -43,9 +49,39 @@ public class DataInitializer {
                         passwordEncoder.encode("ChangeMe123!"),
                         "Dev Admin");
                 user.addCompany(company);
-                user.addRole(adminRole);
-                return userRepository.save(user);
-            });
+                        user.addRole(adminRole);
+                        return userRepository.save(user);
+                    });
+
+            seedDefaultAccounts(company, accountRepository);
         };
     }
+
+    private void seedDefaultAccounts(Company company, AccountRepository accountRepository) {
+        if (company == null) {
+            return;
+        }
+        List<AccountSeed> seeds = List.of(
+                new AccountSeed("1000", "Cash", AccountType.ASSET),
+                new AccountSeed("1100", "Accounts Receivable", AccountType.ASSET),
+                new AccountSeed("1200", "Inventory", AccountType.ASSET),
+                new AccountSeed("2000", "Accounts Payable", AccountType.LIABILITY),
+                new AccountSeed("4000", "Revenue", AccountType.REVENUE),
+                new AccountSeed("5000", "Cost of Goods Sold", AccountType.COGS),
+                new AccountSeed("6000", "Operating Expenses", AccountType.EXPENSE)
+        );
+        for (AccountSeed seed : seeds) {
+            accountRepository.findByCompanyAndCodeIgnoreCase(company, seed.code())
+                    .orElseGet(() -> {
+                        Account account = new Account();
+                        account.setCompany(company);
+                        account.setCode(seed.code());
+                        account.setName(seed.name());
+                        account.setType(seed.type());
+                        return accountRepository.save(account);
+                    });
+        }
+    }
+
+    private record AccountSeed(String code, String name, AccountType type) {}
 }

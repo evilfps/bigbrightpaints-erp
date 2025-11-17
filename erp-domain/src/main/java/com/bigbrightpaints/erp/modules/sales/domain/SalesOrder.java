@@ -8,10 +8,11 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import com.bigbrightpaints.erp.core.domain.VersionedEntity;
 
 @Entity
 @Table(name = "sales_orders", uniqueConstraints = @UniqueConstraint(columnNames = {"company_id", "order_number"}))
-public class SalesOrder {
+public class SalesOrder extends VersionedEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

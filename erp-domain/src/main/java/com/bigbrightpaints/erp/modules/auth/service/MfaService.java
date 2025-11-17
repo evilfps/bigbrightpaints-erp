@@ -1,5 +1,6 @@
 package com.bigbrightpaints.erp.modules.auth.service;
 
+import com.bigbrightpaints.erp.core.security.CryptoService;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccount;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
 import com.bigbrightpaints.erp.modules.auth.exception.InvalidMfaException;
@@ -42,6 +43,7 @@ public class MfaService {
 
     private final UserAccountRepository userAccountRepository;
     private final PasswordEncoder passwordEncoder;
+    private final CryptoService cryptoService;
     private final SecureRandom secureRandom = new SecureRandom();
     private final Clock clock;
     private final String issuer;
@@ -49,16 +51,19 @@ public class MfaService {
     @Autowired
     public MfaService(UserAccountRepository userAccountRepository,
                       PasswordEncoder passwordEncoder,
+                      CryptoService cryptoService,
                       @Value("${security.mfa.issuer:BigBright ERP}") String issuer) {
-        this(userAccountRepository, passwordEncoder, issuer, Clock.systemUTC());
+        this(userAccountRepository, passwordEncoder, cryptoService, issuer, Clock.systemUTC());
     }
 
     MfaService(UserAccountRepository userAccountRepository,
                PasswordEncoder passwordEncoder,
+               CryptoService cryptoService,
                String issuer,
                Clock clock) {
         this.userAccountRepository = userAccountRepository;
         this.passwordEncoder = passwordEncoder;
+        this.cryptoService = cryptoService;
         this.issuer = issuer;
         this.clock = clock;
     }
@@ -70,7 +75,8 @@ public class MfaService {
         List<String> hashed = recoveryCodes.stream()
                 .map(passwordEncoder::encode)
                 .toList();
-        user.setMfaSecret(secret);
+        // Encrypt the MFA secret before storing
+        user.setMfaSecret(cryptoService.encrypt(secret));
         user.setMfaEnabled(false);
         user.setMfaRecoveryCodeHashes(hashed);
         userAccountRepository.save(user);
@@ -79,7 +85,9 @@ public class MfaService {
 
     @Transactional
     public void activate(UserAccount user, String code) {
-        if (!isValidTotp(user.getMfaSecret(), code)) {
+        // Decrypt the MFA secret for validation
+        String decryptedSecret = cryptoService.decrypt(user.getMfaSecret());
+        if (!isValidTotp(decryptedSecret, code)) {
             throw new IllegalArgumentException("Invalid MFA code");
         }
         user.setMfaEnabled(true);
@@ -92,7 +100,9 @@ public class MfaService {
             return;
         }
         boolean cleared = false;
-        if (isValidTotp(user.getMfaSecret(), totpCode)) {
+        // Decrypt the MFA secret for validation
+        String decryptedSecret = cryptoService.decrypt(user.getMfaSecret());
+        if (isValidTotp(decryptedSecret, totpCode)) {
             cleared = true;
         } else if (consumeRecoveryCode(user, normalizeCode(recoveryCode))) {
             cleared = true;
@@ -111,7 +121,9 @@ public class MfaService {
         }
         String normalizedTotp = normalizeCode(totpCode);
         String normalizedRecovery = normalizeCode(recoveryCode);
-        if (StringUtils.hasText(normalizedTotp) && isValidTotp(user.getMfaSecret(), normalizedTotp)) {
+        // Decrypt the MFA secret for validation
+        String decryptedSecret = cryptoService.decrypt(user.getMfaSecret());
+        if (StringUtils.hasText(normalizedTotp) && isValidTotp(decryptedSecret, normalizedTotp)) {
             return;
         }
         if (StringUtils.hasText(normalizedRecovery) && consumeRecoveryCode(user, normalizedRecovery)) {

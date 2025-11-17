@@ -7,10 +7,10 @@ import java.math.BigDecimal;
 
 public record RawMaterialIntakeRequest(
         @NotNull Long rawMaterialId,
-        @NotBlank String batchCode,
+        String batchCode,
         @NotNull BigDecimal quantity,
         @NotBlank String unit,
         @NotNull BigDecimal costPerUnit,
-        String supplier,
+        @NotNull Long supplierId,
         String notes
 ) {}

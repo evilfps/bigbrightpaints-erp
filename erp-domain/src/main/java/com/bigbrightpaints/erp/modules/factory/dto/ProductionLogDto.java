@@ -15,7 +15,15 @@ public record ProductionLogDto(
         String batchColour,
         BigDecimal batchSize,
         String unitOfMeasure,
-        BigDecimal producedQuantity,
+        BigDecimal mixedQuantity,
+        BigDecimal totalPackedQuantity,
+        BigDecimal wastageQuantity,
+        String status,
         String createdBy,
-        BigDecimal unitCost
+        BigDecimal unitCost,
+        BigDecimal materialCostTotal,
+        BigDecimal laborCostTotal,
+        BigDecimal overheadCostTotal,
+        Long salesOrderId,
+        String salesOrderNumber
 ) {}

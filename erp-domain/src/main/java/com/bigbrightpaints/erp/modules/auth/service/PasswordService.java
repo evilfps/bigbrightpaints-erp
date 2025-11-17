@@ -43,13 +43,25 @@ public class PasswordService {
         if (passwordEncoder.matches(request.newPassword(), user.getPasswordHash())) {
             throw new IllegalArgumentException("New password must be different from current password");
         }
-        List<String> violations = passwordPolicy.validate(request.newPassword());
+        applyNewPassword(user, request.newPassword());
+    }
+
+    @Transactional
+    public void resetPassword(UserAccount user, String newPassword, String confirmPassword) {
+        if (!newPassword.equals(confirmPassword)) {
+            throw new IllegalArgumentException("Password confirmation does not match");
+        }
+        applyNewPassword(user, newPassword);
+    }
+
+    private void applyNewPassword(UserAccount user, String newPassword) {
+        List<String> violations = passwordPolicy.validate(newPassword);
         if (!violations.isEmpty()) {
             throw new IllegalArgumentException("Password does not meet policy: " + String.join(", ", violations));
         }
-        ensureNotReused(user, request.newPassword());
+        ensureNotReused(user, newPassword);
         rememberCurrentPassword(user);
-        user.setPasswordHash(passwordEncoder.encode(request.newPassword()));
+        user.setPasswordHash(passwordEncoder.encode(newPassword));
         userAccountRepository.save(user);
     }
 

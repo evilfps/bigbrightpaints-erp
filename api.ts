@@ -557,11 +557,13 @@ export interface CompanyDto {
     'name'?: string;
     'code'?: string;
     'timezone'?: string;
+    'defaultGstRate'?: number;
 }
 export interface CompanyRequest {
     'name': string;
     'code': string;
     'timezone': string;
+    'defaultGstRate'?: number;
 }
 export interface CreateUserRequest {
     'email': string;

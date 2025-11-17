@@ -1,12 +1,24 @@
 package com.bigbrightpaints.erp.modules.sales;
 
+import com.bigbrightpaints.erp.modules.accounting.domain.Account;
+import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
+import com.bigbrightpaints.erp.modules.company.domain.Company;
+import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
+import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGood;
+import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodRepository;
+import com.bigbrightpaints.erp.modules.production.domain.ProductionBrand;
+import com.bigbrightpaints.erp.modules.production.domain.ProductionBrandRepository;
+import com.bigbrightpaints.erp.modules.production.domain.ProductionProduct;
+import com.bigbrightpaints.erp.modules.production.domain.ProductionProductRepository;
 import com.bigbrightpaints.erp.test.AbstractIntegrationTest;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.http.*;
 
 import java.math.BigDecimal;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -14,14 +26,66 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 public class SalesControllerIT extends AbstractIntegrationTest {
 
-    @Autowired private TestRestTemplate rest;
     private static final String COMPANY_CODE = "ACME";
     private static final String ADMIN_EMAIL = "admin@bbp.com";
     private static final String ADMIN_PASSWORD = "admin123";
+    private static final String TEST_SKU = "SKU-TEST-001";
 
-    @org.junit.jupiter.api.BeforeEach
+    @Autowired private TestRestTemplate rest;
+    @Autowired private CompanyRepository companyRepository;
+    @Autowired private ProductionBrandRepository productionBrandRepository;
+    @Autowired private ProductionProductRepository productionProductRepository;
+    @Autowired private FinishedGoodRepository finishedGoodRepository;
+    @Autowired private AccountRepository accountRepository;
+
+    @BeforeEach
     void seed() {
-        dataSeeder.ensureUser(ADMIN_EMAIL, ADMIN_PASSWORD, "Admin", COMPANY_CODE, java.util.List.of("ROLE_ADMIN"));
+        dataSeeder.ensureUser(ADMIN_EMAIL, ADMIN_PASSWORD, "Admin", COMPANY_CODE, List.of("ROLE_ADMIN"));
+        ensureProductAndFinishedGood();
+    }
+
+    private void ensureProductAndFinishedGood() {
+        Company company = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();
+
+        ProductionBrand brand = productionBrandRepository.findByCompanyAndCodeIgnoreCase(company, "TEST")
+                .orElseGet(() -> {
+                    ProductionBrand b = new ProductionBrand();
+                    b.setCompany(company);
+                    b.setCode("TEST");
+                    b.setName("Test Brand");
+                    return productionBrandRepository.save(b);
+                });
+
+        ProductionProduct product = productionProductRepository.findByCompanyAndSkuCode(company, TEST_SKU)
+                .orElseGet(() -> {
+                    ProductionProduct p = new ProductionProduct();
+                    p.setCompany(company);
+                    p.setBrand(brand);
+                    p.setProductName("Test Product");
+                    p.setCategory("FINISHED_GOOD");
+                    p.setUnitOfMeasure("UNIT");
+                    p.setSkuCode(TEST_SKU);
+                    p.setBasePrice(new BigDecimal("100.00"));
+                    p.setGstRate(BigDecimal.ZERO);
+                    return p;
+                });
+        productionProductRepository.save(product);
+
+        FinishedGood finishedGood = finishedGoodRepository.findByCompanyAndProductCode(company, TEST_SKU)
+                .orElseGet(() -> {
+                    FinishedGood fg = new FinishedGood();
+                    fg.setCompany(company);
+                    fg.setProductCode(TEST_SKU);
+                    fg.setName("Test Finished Good");
+                    fg.setCurrentStock(new BigDecimal("100"));
+                    fg.setReservedStock(BigDecimal.ZERO);
+                    return fg;
+                });
+        if (finishedGood.getRevenueAccountId() == null) {
+            // Any non-null value is enough for SalesService validation
+            finishedGood.setRevenueAccountId(1L);
+        }
+        finishedGoodRepository.save(finishedGood);
     }
 
     private String loginToken() {
@@ -41,26 +105,40 @@ public class SalesControllerIT extends AbstractIntegrationTest {
         headers.setBearerAuth(token);
         headers.setContentType(MediaType.APPLICATION_JSON);
 
-        Map<String, Object> dealerReq = Map.of(
-                "name", "Prime Dealer",
-                "code", "DLR-1",
-                "email", "dealer@example.com",
-                "phone", "9999999999",
-                "creditLimit", new BigDecimal("100000")
-        );
+        Map<String, Object> dealerReq = new HashMap<>();
+        dealerReq.put("name", "Prime Dealer");
+        dealerReq.put("companyName", "Prime Dealer Paints");
+        dealerReq.put("contactEmail", "dealer@example.com");
+        dealerReq.put("contactPhone", "9999999999");
+        dealerReq.put("address", "Main Street");
+        dealerReq.put("creditLimit", new BigDecimal("100000"));
+
         ResponseEntity<Map> dResp = rest.exchange("/api/v1/dealers", HttpMethod.POST,
                 new HttpEntity<>(dealerReq, headers), Map.class);
         assertThat(dResp.getStatusCode()).isEqualTo(HttpStatus.OK);
-        Map dealerData = (Map) dResp.getBody().get("data");
+        Map<?, ?> dealerData = (Map<?, ?>) dResp.getBody().get("data");
         Long dealerId = ((Number) dealerData.get("id")).longValue();
 
-        Map<String, Object> orderReq = Map.of(
-                "orderNumber", "SO-1001",
-                "dealerId", dealerId,
-                "totalAmount", new BigDecimal("12345.67"),
-                "currency", "INR",
-                "notes", "Test order"
-        );
+        BigDecimal unitPrice = new BigDecimal("100.00");
+        BigDecimal quantity = new BigDecimal("2");
+        BigDecimal expectedTotal = unitPrice.multiply(quantity);
+
+        Map<String, Object> lineItem = new HashMap<>();
+        lineItem.put("productCode", TEST_SKU);
+        lineItem.put("description", "Test line item");
+        lineItem.put("quantity", quantity);
+        lineItem.put("unitPrice", unitPrice);
+        lineItem.put("gstRate", BigDecimal.ZERO);
+
+        Map<String, Object> orderReq = new HashMap<>();
+        orderReq.put("dealerId", dealerId);
+        orderReq.put("totalAmount", expectedTotal);
+        orderReq.put("currency", "INR");
+        orderReq.put("notes", "Test order");
+        orderReq.put("items", List.of(lineItem));
+        orderReq.put("gstTreatment", "NONE");
+        orderReq.put("gstRate", null);
+
         ResponseEntity<Map> oResp = rest.exchange("/api/v1/sales/orders", HttpMethod.POST,
                 new HttpEntity<>(orderReq, headers), Map.class);
         assertThat(oResp.getStatusCode()).isEqualTo(HttpStatus.OK);
@@ -68,7 +146,7 @@ public class SalesControllerIT extends AbstractIntegrationTest {
         ResponseEntity<Map> listResp = rest.exchange("/api/v1/sales/orders", HttpMethod.GET,
                 new HttpEntity<>(headers), Map.class);
         assertThat(listResp.getStatusCode()).isEqualTo(HttpStatus.OK);
-        List list = (List) listResp.getBody().get("data");
+        List<?> list = (List<?>) listResp.getBody().get("data");
         assertThat(list).isNotEmpty();
     }
 }

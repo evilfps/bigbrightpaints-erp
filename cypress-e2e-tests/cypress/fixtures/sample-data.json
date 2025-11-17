@@ -1,0 +1,154 @@
+{
+  "dealers": [
+    {
+      "id": 1,
+      "name": "Test Dealer One",
+      "code": "TD001",
+      "email": "dealer1@test.com",
+      "phone": "+91-9876543210",
+      "status": "ACTIVE",
+      "creditLimit": 100000,
+      "outstandingBalance": 0
+    },
+    {
+      "id": 2,
+      "name": "Test Dealer Two", 
+      "code": "TD002",
+      "email": "dealer2@test.com",
+      "phone": "+91-9876543211",
+      "status": "ACTIVE",
+      "creditLimit": 250000,
+      "outstandingBalance": 15000
+    }
+  ],
+  
+  "products": [
+    {
+      "id": 1,
+      "productCode": "PAINT-WHITE-001",
+      "name": "Premium White Paint",
+      "unit": "LITER",
+      "currentStock": 150,
+      "unitPrice": 1200
+    },
+    {
+      "id": 2,
+      "productCode": "PAINT-BLUE-002",
+      "name": "Ocean Blue Paint",
+      "unit": "LITER", 
+      "currentStock": 80,
+      "unitPrice": 1500
+    },
+    {
+      "id": 3,
+      "productCode": "PAINT-RED-003",
+      "name": "Ruby Red Paint",
+      "unit": "LITER",
+      "currentStock": 200,
+      "unitPrice": 1000
+    }
+  ],
+
+  "accounts": [
+    {
+      "id": 1,
+      "code": "CASH",
+      "name": "Cash Account",
+      "type": "ASSET",
+      "balance": 50000
+    },
+    {
+      "id": 2,
+      "code": "AR",
+      "name": "Accounts Receivable",
+      "type": "ASSET", 
+      "balance": 25000
+    },
+    {
+      "id": 3,
+      "code": "SALES",
+      "name": "Sales Revenue",
+      "type": "REVENUE",
+      "balance": 0
+    },
+    {
+      "id": 4,
+      "code": "COGS",
+      "name": "Cost of Goods Sold",
+      "type": "EXPENSE",
+      "balance": 0
+    },
+    {
+      "id": 5,
+      "code": "INVENTORY",
+      "name": "Finished Goods Inventory",
+      "type": "ASSET",
+      "balance": 75000
+    }
+  ],
+
+  "sampleOrder": {
+    "dealerId": 1,
+    "items": [
+      {
+        "productCode": "PAINT-WHITE-001",
+        "quantity": 10,
+        "unitPrice": 1200
+      },
+      {
+        "productCode": "PAINT-BLUE-002", 
+        "quantity": 5,
+        "unitPrice": 1500
+      }
+    ],
+    "currency": "INR",
+    "gstTreatment": "ORDER_TOTAL",
+    "gstRate": 18.0,
+    "notes": "Sample test order"
+  },
+
+  "testUsers": [
+    {
+      "email": "test.sales@example.com",
+      "password": "TestPass123!",
+      "displayName": "Test Sales User",
+      "roles": ["SALES"]
+    },
+    {
+      "email": "test.accounting@example.com",
+      "password": "TestPass123!",
+      "displayName": "Test Accounting User", 
+      "roles": ["ACCOUNTING"]
+    },
+    {
+      "email": "test.factory@example.com",
+      "password": "TestPass123!",
+      "displayName": "Test Factory User",
+      "roles": ["FACTORY"]
+    }
+  ],
+
+  "gstRates": {
+    "standard": 18.0,
+    "reduced": 12.0,
+    "zero": 0.0
+  },
+
+  "testScenarios": {
+    "smallOrder": {
+      "items": [{"productCode": "PAINT-WHITE-001", "quantity": 2, "unitPrice": 1200}],
+      "expectedTotal": 2832
+    },
+    "largeOrder": {
+      "items": [
+        {"productCode": "PAINT-WHITE-001", "quantity": 50, "unitPrice": 1200},
+        {"productCode": "PAINT-BLUE-002", "quantity": 30, "unitPrice": 1500}
+      ],
+      "expectedTotal": 106200
+    },
+    "shortageOrder": {
+      "items": [{"productCode": "PAINT-BLUE-002", "quantity": 100, "unitPrice": 1500}],
+      "expectedShortage": 20
+    }
+  }
+}

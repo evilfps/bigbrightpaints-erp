@@ -1,0 +1,882 @@
+{
+  "src\\main\\java\\com\\bigbrightpaints\\erp\\controller\\IntegrationHealthController.java": {
+    "base": "/api/integration",
+    "endpoints": [
+      {
+        "method": "GET",
+        "path": "/api/integration/health",
+        "line": 15
+      }
+    ]
+  },
+  "src\\main\\java\\com\\bigbrightpaints\\erp\\orchestrator\\controller\\DashboardController.java": {
+    "base": "/api/v1/orchestrator/dashboard",
+    "endpoints": [
+      {
+        "method": "GET",
+        "path": "/api/v1/orchestrator/dashboard/admin",
+        "line": 22
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/orchestrator/dashboard/factory",
+        "line": 28
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/orchestrator/dashboard/finance",
+        "line": 34
+      }
+    ]
+  },
+  "src\\main\\java\\com\\bigbrightpaints\\erp\\orchestrator\\controller\\OrchestratorController.java": {
+    "base": "/api/v1/orchestrator",
+    "endpoints": [
+      {
+        "method": "POST",
+        "path": "/api/v1/orchestrator/orders/{orderId}/approve",
+        "line": 34
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/orchestrator/orders/{orderId}/fulfillment",
+        "line": 45
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/orchestrator/factory/dispatch/{batchId}",
+        "line": 55
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/orchestrator/payroll/run",
+        "line": 70
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/orchestrator/traces/{traceId}",
+        "line": 79
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/orchestrator/health/integrations",
+        "line": 84
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/orchestrator/health/events",
+        "line": 89
+      }
+    ]
+  },
+  "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\sales\\controller\\DealerController.java": {
+    "base": "/api/v1/dealers",
+    "endpoints": [
+      {
+        "method": "POST",
+        "path": "/api/v1/dealers",
+        "line": 30
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/dealers",
+        "line": 36
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/dealers/search",
+        "line": 42
+      }
+    ]
+  },
+  "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\sales\\controller\\SalesController.java": {
+    "base": "/api/v1",
+    "endpoints": [
+      {
+        "method": "GET",
+        "path": "/api/v1/sales/orders",
+        "line": 23
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/sales/orders",
+        "line": 28
+      },
+      {
+        "method": "PUT",
+        "path": "/api/v1/sales/orders/{id}",
+        "line": 33
+      },
+      {
+        "method": "DELETE",
+        "path": "/api/v1/sales/orders/{id}",
+        "line": 39
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/sales/orders/{id}/confirm",
+        "line": 45
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/sales/orders/{id}/cancel",
+        "line": 50
+      },
+      {
+        "method": "PATCH",
+        "path": "/api/v1/sales/orders/{id}/status",
+        "line": 57
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/sales/promotions",
+        "line": 67
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/sales/promotions",
+        "line": 72
+      },
+      {
+        "method": "PUT",
+        "path": "/api/v1/sales/promotions/{id}",
+        "line": 77
+      },
+      {
+        "method": "DELETE",
+        "path": "/api/v1/sales/promotions/{id}",
+        "line": 83
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/sales/targets",
+        "line": 90
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/sales/targets",
+        "line": 95
+      },
+      {
+        "method": "PUT",
+        "path": "/api/v1/sales/targets/{id}",
+        "line": 100
+      },
+      {
+        "method": "DELETE",
+        "path": "/api/v1/sales/targets/{id}",
+        "line": 106
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/sales/credit-requests",
+        "line": 113
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/sales/credit-requests",
+        "line": 118
+      },
+      {
+        "method": "PUT",
+        "path": "/api/v1/sales/credit-requests/{id}",
+        "line": 123
+      }
+    ]
+  },
+  "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\reports\\controller\\ReportController.java": {
+    "base": "/api/v1",
+    "endpoints": [
+      {
+        "method": "GET",
+        "path": "/api/v1/reports/balance-sheet",
+        "line": 29
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/reports/profit-loss",
+        "line": 34
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/reports/cash-flow",
+        "line": 39
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/reports/inventory-valuation",
+        "line": 44
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/reports/inventory-reconciliation",
+        "line": 49
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/reports/balance-warnings",
+        "line": 54
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/reports/reconciliation-dashboard",
+        "line": 59
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/reports/trial-balance",
+        "line": 65
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/reports/account-statement",
+        "line": 70
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/accounting/reports/aged-debtors",
+        "line": 75
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/reports/wastage",
+        "line": 80
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/reports/production-logs/{id}/cost-breakdown",
+        "line": 85
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/reports/monthly-production-costs",
+        "line": 90
+      }
+    ]
+  },
+  "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\rbac\\controller\\RoleController.java": {
+    "base": "/api/v1/admin/roles",
+    "endpoints": [
+      {
+        "method": "GET",
+        "path": "/api/v1/admin/roles",
+        "line": 24
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/admin/roles/factory",
+        "line": 30
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/admin/roles/sales",
+        "line": 36
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/admin/roles/dealer",
+        "line": 42
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/admin/roles",
+        "line": 48
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/admin/roles/dealer",
+        "line": 54
+      }
+    ]
+  },
+  "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\purchasing\\controller\\RawMaterialPurchaseController.java": {
+    "base": "/api/v1/purchasing/raw-material-purchases",
+    "endpoints": [
+      {
+        "method": "GET",
+        "path": "/api/v1/purchasing/raw-material-purchases",
+        "line": 26
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/purchasing/raw-material-purchases/{id}",
+        "line": 32
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/purchasing/raw-material-purchases",
+        "line": 38
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/purchasing/raw-material-purchases/returns",
+        "line": 44
+      }
+    ]
+  },
+  "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\purchasing\\controller\\SupplierController.java": {
+    "base": "/api/v1/suppliers",
+    "endpoints": [
+      {
+        "method": "GET",
+        "path": "/api/v1/suppliers",
+        "line": 29
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/suppliers/{id}",
+        "line": 35
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/suppliers",
+        "line": 41
+      },
+      {
+        "method": "PUT",
+        "path": "/api/v1/suppliers/{id}",
+        "line": 47
+      }
+    ]
+  },
+  "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\production\\controller\\ProductionCatalogController.java": {
+    "base": "/api/v1/production",
+    "endpoints": [
+      {
+        "method": "GET",
+        "path": "/api/v1/production/brands",
+        "line": 25
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/production/brands/{brandId}/products",
+        "line": 30
+      }
+    ]
+  },
+  "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\portal\\controller\\PortalInsightsController.java": {
+    "base": "/api/v1/portal",
+    "endpoints": [
+      {
+        "method": "GET",
+        "path": "/api/v1/portal/dashboard",
+        "line": 25
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/portal/operations",
+        "line": 30
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/portal/workforce",
+        "line": 35
+      }
+    ]
+  },
+  "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\invoice\\controller\\InvoiceController.java": {
+    "base": "/api/v1/invoices",
+    "endpoints": [
+      {
+        "method": "GET",
+        "path": "/api/v1/invoices",
+        "line": 21
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/invoices/{id}",
+        "line": 26
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/invoices/dealers/{dealerId}",
+        "line": 31
+      }
+    ]
+  },
+  "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\inventory\\controller\\InventoryAdjustmentController.java": {
+    "base": "/api/v1/inventory/adjustments",
+    "endpoints": [
+      {
+        "method": "GET",
+        "path": "/api/v1/inventory/adjustments",
+        "line": 24
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/inventory/adjustments",
+        "line": 30
+      }
+    ]
+  },
+  "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\inventory\\controller\\RawMaterialController.java": {
+    "base": "/api/v1",
+    "endpoints": [
+      {
+        "method": "GET",
+        "path": "/api/v1/accounting/raw-materials",
+        "line": 22
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/accounting/raw-materials",
+        "line": 27
+      },
+      {
+        "method": "PUT",
+        "path": "/api/v1/accounting/raw-materials/{id}",
+        "line": 32
+      },
+      {
+        "method": "DELETE",
+        "path": "/api/v1/accounting/raw-materials/{id}",
+        "line": 38
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/raw-materials/stock",
+        "line": 44
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/raw-materials/stock/inventory",
+        "line": 49
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/raw-materials/stock/low-stock",
+        "line": 54
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/raw-material-batches/{rawMaterialId}",
+        "line": 59
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/raw-material-batches/{rawMaterialId}",
+        "line": 64
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/raw-materials/intake",
+        "line": 70
+      }
+    ]
+  },
+  "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\hr\\controller\\HrController.java": {
+    "base": "/api/v1/hr",
+    "endpoints": [
+      {
+        "method": "GET",
+        "path": "/api/v1/hr/employees",
+        "line": 23
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/hr/employees",
+        "line": 28
+      },
+      {
+        "method": "PUT",
+        "path": "/api/v1/hr/employees/{id}",
+        "line": 33
+      },
+      {
+        "method": "DELETE",
+        "path": "/api/v1/hr/employees/{id}",
+        "line": 39
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/hr/leave-requests",
+        "line": 46
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/hr/leave-requests",
+        "line": 51
+      },
+      {
+        "method": "PATCH",
+        "path": "/api/v1/hr/leave-requests/{id}/status",
+        "line": 56
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/hr/payroll-runs",
+        "line": 65
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/hr/payroll-runs",
+        "line": 70
+      }
+    ]
+  },
+  "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\factory\\controller\\FactoryController.java": {
+    "base": "/api/v1/factory",
+    "endpoints": [
+      {
+        "method": "GET",
+        "path": "/api/v1/factory/production-plans",
+        "line": 27
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/factory/production-plans",
+        "line": 32
+      },
+      {
+        "method": "PUT",
+        "path": "/api/v1/factory/production-plans/{id}",
+        "line": 37
+      },
+      {
+        "method": "PATCH",
+        "path": "/api/v1/factory/production-plans/{id}/status",
+        "line": 43
+      },
+      {
+        "method": "DELETE",
+        "path": "/api/v1/factory/production-plans/{id}",
+        "line": 49
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/factory/production-batches",
+        "line": 58
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/factory/production-batches",
+        "line": 63
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/factory/tasks",
+        "line": 70
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/factory/tasks",
+        "line": 75
+      },
+      {
+        "method": "PUT",
+        "path": "/api/v1/factory/tasks/{id}",
+        "line": 80
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/factory/dashboard",
+        "line": 87
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/factory/cost-allocation",
+        "line": 93
+      }
+    ]
+  },
+  "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\factory\\controller\\PackingController.java": {
+    "base": "/api/v1/factory",
+    "endpoints": [
+      {
+        "method": "POST",
+        "path": "/api/v1/factory/packing-records",
+        "line": 22
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/factory/packing-records/{productionLogId}/complete",
+        "line": 27
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/factory/unpacked-batches",
+        "line": 32
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/factory/production-logs/{productionLogId}/packing-history",
+        "line": 37
+      }
+    ]
+  },
+  "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\factory\\controller\\ProductionLogController.java": {
+    "base": "/api/v1/factory/production/logs",
+    "endpoints": [
+      {
+        "method": "POST",
+        "path": "/api/v1/factory/production/logs",
+        "line": 24
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/factory/production/logs",
+        "line": 29
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/factory/production/logs/{id}",
+        "line": 34
+      }
+    ]
+  },
+  "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\demo\\controller\\DemoController.java": {
+    "base": "/api/v1/demo",
+    "endpoints": [
+      {
+        "method": "GET",
+        "path": "/api/v1/demo/ping",
+        "line": 13
+      }
+    ]
+  },
+  "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\company\\controller\\CompanyController.java": {
+    "base": "/api/v1/companies",
+    "endpoints": [
+      {
+        "method": "GET",
+        "path": "/api/v1/companies",
+        "line": 24
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/companies",
+        "line": 29
+      },
+      {
+        "method": "PUT",
+        "path": "/api/v1/companies/{id}",
+        "line": 35
+      },
+      {
+        "method": "DELETE",
+        "path": "/api/v1/companies/{id}",
+        "line": 42
+      }
+    ]
+  },
+  "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\company\\controller\\MultiCompanyController.java": {
+    "base": "/api/v1/multi-company",
+    "endpoints": [
+      {
+        "method": "POST",
+        "path": "/api/v1/multi-company/companies/switch",
+        "line": 24
+      }
+    ]
+  },
+  "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\auth\\controller\\AuthController.java": {
+    "base": "/api/v1/auth",
+    "endpoints": [
+      {
+        "method": "POST",
+        "path": "/api/v1/auth/login",
+        "line": 45
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/auth/refresh-token",
+        "line": 50
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/auth/logout",
+        "line": 55
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/auth/me",
+        "line": 61
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/auth/password/change",
+        "line": 82
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/auth/password/forgot",
+        "line": 92
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/auth/password/reset",
+        "line": 98
+      }
+    ]
+  },
+  "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\auth\\controller\\MfaController.java": {
+    "base": "/api/v1/auth/mfa",
+    "endpoints": [
+      {
+        "method": "POST",
+        "path": "/api/v1/auth/mfa/setup",
+        "line": 30
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/auth/mfa/activate",
+        "line": 40
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/auth/mfa/disable",
+        "line": 50
+      }
+    ]
+  },
+  "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\auth\\controller\\UserProfileController.java": {
+    "base": "/api/v1/auth/profile",
+    "endpoints": [
+      {
+        "method": "GET",
+        "path": "/api/v1/auth/profile",
+        "line": 27
+      },
+      {
+        "method": "PUT",
+        "path": "/api/v1/auth/profile",
+        "line": 35
+      }
+    ]
+  },
+  "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\admin\\controller\\AdminUserController.java": {
+    "base": "/api/v1/admin/users",
+    "endpoints": [
+      {
+        "method": "GET",
+        "path": "/api/v1/admin/users",
+        "line": 26
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/admin/users",
+        "line": 31
+      },
+      {
+        "method": "PUT",
+        "path": "/api/v1/admin/users/{id}",
+        "line": 36
+      },
+      {
+        "method": "PATCH",
+        "path": "/api/v1/admin/users/{id}/suspend",
+        "line": 42
+      },
+      {
+        "method": "PATCH",
+        "path": "/api/v1/admin/users/{id}/unsuspend",
+        "line": 48
+      }
+    ]
+  },
+  "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\accounting\\controller\\AccountingCatalogController.java": {
+    "base": "/api/v1/accounting/catalog",
+    "endpoints": [
+      {
+        "method": "POST",
+        "path": "/api/v1/accounting/catalog/import",
+        "line": 34
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/accounting/catalog/products",
+        "line": 39
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/accounting/catalog/products",
+        "line": 44
+      },
+      {
+        "method": "PUT",
+        "path": "/api/v1/accounting/catalog/products/{id}",
+        "line": 49
+      }
+    ]
+  },
+  "src\\main\\java\\com\\bigbrightpaints\\erp\\modules\\accounting\\controller\\AccountingController.java": {
+    "base": "/api/v1/accounting",
+    "endpoints": [
+      {
+        "method": "GET",
+        "path": "/api/v1/accounting/accounts",
+        "line": 35
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/accounting/accounts",
+        "line": 40
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/accounting/journal-entries",
+        "line": 45
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/accounting/journal-entries",
+        "line": 50
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/accounting/journal-entries/{entryId}/reverse",
+        "line": 55
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/accounting/receipts/dealer",
+        "line": 62
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/accounting/payroll/payments",
+        "line": 67
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/accounting/suppliers/payments",
+        "line": 72
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/accounting/sales/returns",
+        "line": 78
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/accounting/periods",
+        "line": 83
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/accounting/periods/{periodId}/close",
+        "line": 89
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/accounting/bank-reconciliation",
+        "line": 96
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/accounting/inventory/physical-count",
+        "line": 101
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/accounting/month-end/checklist",
+        "line": 106
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/accounting/month-end/checklist/{periodId}",
+        "line": 112
+      }
+    ]
+  }
+}
