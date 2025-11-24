@@ -44,6 +44,9 @@ public class PayrollRun extends VersionedEntity {
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
+    @OneToMany(mappedBy = "payrollRun", cascade = CascadeType.ALL, orphanRemoval = true)
+    private java.util.List<com.bigbrightpaints.erp.modules.hr.domain.PayrollRunLine> lines = new java.util.ArrayList<>();
+
     @PrePersist
     public void prePersist() {
         if (publicId == null) {
@@ -70,4 +73,6 @@ public class PayrollRun extends VersionedEntity {
     public void setTotalAmount(BigDecimal totalAmount) { this.totalAmount = totalAmount; }
     public JournalEntry getJournalEntry() { return journalEntry; }
     public void setJournalEntry(JournalEntry journalEntry) { this.journalEntry = journalEntry; }
+    public java.util.List<com.bigbrightpaints.erp.modules.hr.domain.PayrollRunLine> getLines() { return lines; }
+    public void setLines(java.util.List<com.bigbrightpaints.erp.modules.hr.domain.PayrollRunLine> lines) { this.lines = lines; }
 }

@@ -11,6 +11,8 @@ import com.bigbrightpaints.erp.modules.accounting.event.AccountCacheInvalidatedE
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.hr.domain.PayrollRun;
+import com.bigbrightpaints.erp.modules.hr.domain.PayrollRunLine;
+import com.bigbrightpaints.erp.modules.hr.domain.PayrollRunLineRepository;
 import com.bigbrightpaints.erp.modules.hr.domain.PayrollRunRepository;
 import com.bigbrightpaints.erp.modules.invoice.domain.Invoice;
 import com.bigbrightpaints.erp.modules.invoice.domain.InvoiceRepository;
@@ -56,6 +58,7 @@ public class AccountingService {
     private final DealerLedgerService dealerLedgerService;
     private final SupplierLedgerService supplierLedgerService;
     private final PayrollRunRepository payrollRunRepository;
+    private final PayrollRunLineRepository payrollRunLineRepository;
     private final AccountingPeriodService accountingPeriodService;
     private final ReferenceNumberService referenceNumberService;
     private final ApplicationEventPublisher eventPublisher;
@@ -76,6 +79,7 @@ public class AccountingService {
                              DealerLedgerService dealerLedgerService,
                              SupplierLedgerService supplierLedgerService,
                              PayrollRunRepository payrollRunRepository,
+                             PayrollRunLineRepository payrollRunLineRepository,
                              AccountingPeriodService accountingPeriodService,
                              ReferenceNumberService referenceNumberService,
                              ApplicationEventPublisher eventPublisher,
@@ -95,6 +99,7 @@ public class AccountingService {
         this.dealerLedgerService = dealerLedgerService;
         this.supplierLedgerService = supplierLedgerService;
         this.payrollRunRepository = payrollRunRepository;
+        this.payrollRunLineRepository = payrollRunLineRepository;
         this.accountingPeriodService = accountingPeriodService;
         this.referenceNumberService = referenceNumberService;
         this.eventPublisher = eventPublisher;
@@ -108,6 +113,7 @@ public class AccountingService {
         this.finishedGoodBatchRepository = finishedGoodBatchRepository;
         this.dealerRepository = dealerRepository;
         this.supplierRepository = supplierRepository;
+        this.payrollRunLineRepository = payrollRunLineRepository;
     }
 
     /* Accounts */
@@ -229,11 +235,11 @@ public class AccountingService {
         BigDecimal foreignTotal = BigDecimal.ZERO;
         for (JournalEntryRequest.JournalLineRequest lineRequest : lines) {
             if (lineRequest.accountId() == null) {
-                throw new IllegalArgumentException("Account is required for every journal line");
+                throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT, "Account is required for every journal line");
             }
             Account account = lockedAccounts.get(lineRequest.accountId());
             if (account == null) {
-                throw new IllegalArgumentException("Account not found");
+                throw new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE, "Account not found");
             }
             JournalLine line = new JournalLine();
             line.setJournalEntry(entry);
@@ -242,10 +248,10 @@ public class AccountingService {
             BigDecimal debit = lineRequest.debit() == null ? BigDecimal.ZERO : lineRequest.debit();
             BigDecimal credit = lineRequest.credit() == null ? BigDecimal.ZERO : lineRequest.credit();
             if (debit.compareTo(BigDecimal.ZERO) < 0 || credit.compareTo(BigDecimal.ZERO) < 0) {
-                throw new IllegalArgumentException("Debit/Credit cannot be negative");
+                throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT, "Debit/Credit cannot be negative");
             }
             if (debit.compareTo(BigDecimal.ZERO) > 0 && credit.compareTo(BigDecimal.ZERO) > 0) {
-                throw new IllegalArgumentException("Debit and credit cannot both be non-zero on the same line");
+                throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT, "Debit and credit cannot both be non-zero on the same line");
             }
             BigDecimal debitBase = toBaseCurrency(debit, fxRate);
             BigDecimal creditBase = toBaseCurrency(credit, fxRate);
@@ -273,25 +279,29 @@ public class AccountingService {
             }
         }
         if (totalBaseDebit.subtract(totalBaseCredit).abs().compareTo(JOURNAL_BALANCE_TOLERANCE) > 0) {
-            throw new IllegalArgumentException("Journal entry must balance");
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT, "Journal entry must balance");
         }
         if (!currency.equalsIgnoreCase(company.getBaseCurrency())) {
-            entry.setForeignAmountTotal(foreignTotal.doubleValue());
+            entry.setForeignAmountTotal(foreignTotal.setScale(2, RoundingMode.HALF_UP).doubleValue());
         }
         if (dealer != null && dealerReceivableAccount != null) {
             if (dealerArLines == 0) {
-                throw new IllegalArgumentException("Dealer journal entry requires exactly one receivable line for dealer " + dealer.getName());
+                throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                        "Dealer journal entry requires exactly one receivable line for dealer " + dealer.getName());
             }
             if (dealerArLines > 1 && !overrideAuthorized) {
-                throw new IllegalArgumentException("Dealer journal entry has multiple receivable lines; admin override required");
+                throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                        "Dealer journal entry has multiple receivable lines; admin override required");
             }
         }
         if (supplier != null && supplierPayableAccount != null) {
             if (supplierApLines == 0) {
-                throw new IllegalArgumentException("Supplier journal entry requires exactly one payable line for supplier " + supplier.getName());
+                throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                        "Supplier journal entry requires exactly one payable line for supplier " + supplier.getName());
             }
             if (supplierApLines > 1 && !overrideAuthorized) {
-                throw new IllegalArgumentException("Supplier journal entry has multiple payable lines; admin override required");
+                throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                        "Supplier journal entry has multiple payable lines; admin override required");
             }
         }
         Instant now = Instant.now();
@@ -354,10 +364,10 @@ public class AccountingService {
         Company company = companyContextService.requireCurrentCompany();
         JournalEntry entry = companyEntityLookup.requireJournalEntry(company, entryId);
         if ("VOIDED".equalsIgnoreCase(entry.getStatus())) {
-            throw new IllegalStateException("Entry is already voided");
+            throw new ApplicationException(ErrorCode.BUSINESS_INVALID_STATE, "Entry is already voided");
         }
         if ("REVERSED".equalsIgnoreCase(entry.getStatus())) {
-            throw new IllegalStateException("Entry has already been reversed");
+            throw new ApplicationException(ErrorCode.BUSINESS_INVALID_STATE, "Entry has already been reversed");
         }
         LocalDate reversalDate = request != null && request.reversalDate() != null
                 ? request.reversalDate()
@@ -369,7 +379,8 @@ public class AccountingService {
         if (entry.getAccountingPeriod() != null &&
                 entry.getAccountingPeriod().getStatus() != AccountingPeriodStatus.OPEN &&
                 !overrideAuthorized) {
-            throw new IllegalStateException("Entry belongs to a locked/closed period. Administrator override is required.");
+            throw new ApplicationException(ErrorCode.BUSINESS_INVALID_STATE,
+                    "Entry belongs to a locked/closed period. Administrator override is required.");
         }
         String sanitizedReason = request != null && StringUtils.hasText(request.reason())
                 ? request.reason().trim()
@@ -464,7 +475,7 @@ public class AccountingService {
         BigDecimal recordedTotal = run.getTotalAmount() == null ? BigDecimal.ZERO : run.getTotalAmount();
         if (recordedTotal.compareTo(BigDecimal.ZERO) > 0 &&
                 recordedTotal.subtract(amount).abs().compareTo(JOURNAL_BALANCE_TOLERANCE) > 0) {
-            throw new IllegalArgumentException("Payroll payment amount does not match recorded run total");
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT, "Payroll payment amount does not match recorded run total");
         }
         if (recordedTotal.compareTo(BigDecimal.ZERO) == 0) {
             run.setTotalAmount(amount);
@@ -493,6 +504,108 @@ public class AccountingService {
         run.setJournalEntry(payrollEntry);
         payrollRunRepository.save(run);
         return entry;
+    }
+
+    @Transactional
+    public PayrollBatchPaymentResponse processPayrollBatchPayment(PayrollBatchPaymentRequest request) {
+        Company company = companyContextService.requireCurrentCompany();
+        if (request.lines() == null || request.lines().isEmpty()) {
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT, "At least one payroll line is required");
+        }
+        Account cash = requireAccount(company, request.cashAccountId());
+        Account expense = requireAccount(company, request.expenseAccountId());
+
+        List<PayrollBatchPaymentRequest.PayrollLine> lines = request.lines();
+        List<PayrollBatchPaymentResponse.LineTotal> lineTotals = new ArrayList<>();
+        BigDecimal total = BigDecimal.ZERO;
+        for (PayrollBatchPaymentRequest.PayrollLine line : lines) {
+            if (!StringUtils.hasText(line.name())) {
+                throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT, "Line name is required");
+            }
+            int days = line.days() == null ? 0 : line.days();
+            if (days <= 0) {
+                throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT, "Days must be greater than zero for " + line.name());
+            }
+            BigDecimal wage = line.dailyWage() == null ? BigDecimal.ZERO : line.dailyWage();
+            if (wage.compareTo(BigDecimal.ZERO) <= 0) {
+                throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT, "Daily wage must be greater than zero for " + line.name());
+            }
+            BigDecimal advances = line.advances() == null ? BigDecimal.ZERO : line.advances();
+            if (advances.compareTo(BigDecimal.ZERO) < 0) {
+                throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT, "Advances cannot be negative for " + line.name());
+            }
+            BigDecimal lineTotal = wage.multiply(BigDecimal.valueOf(days)).subtract(advances);
+            if (lineTotal.compareTo(BigDecimal.ZERO) < 0) {
+                lineTotal = BigDecimal.ZERO;
+            }
+            lineTotal = lineTotal.setScale(2, RoundingMode.HALF_UP);
+            total = total.add(lineTotal);
+            lineTotals.add(new PayrollBatchPaymentResponse.LineTotal(
+                    line.name(),
+                    days,
+                    wage.setScale(2, RoundingMode.HALF_UP),
+                    advances.setScale(2, RoundingMode.HALF_UP),
+                    lineTotal,
+                    line.notes()
+            ));
+        }
+        if (total.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT, "Total payroll amount must be greater than zero");
+        }
+
+        PayrollRun run = new PayrollRun();
+        run.setCompany(company);
+        run.setRunDate(request.runDate());
+        run.setNotes(request.memo());
+        run.setTotalAmount(total);
+        run.setStatus("PAID");
+        run.setProcessedBy(resolveCurrentUsername());
+        PayrollRun savedRun = payrollRunRepository.save(run);
+
+        List<PayrollRunLine> persistedLines = new ArrayList<>();
+        for (PayrollBatchPaymentResponse.LineTotal line : lineTotals) {
+            PayrollRunLine entity = new PayrollRunLine();
+            entity.setPayrollRun(savedRun);
+            entity.setName(line.name());
+            entity.setDaysWorked(line.days());
+            entity.setDailyWage(line.dailyWage());
+            entity.setAdvances(line.advances());
+            entity.setLineTotal(line.lineTotal());
+            entity.setNotes(line.notes());
+            persistedLines.add(entity);
+        }
+        payrollRunLineRepository.saveAll(persistedLines);
+
+        String memo = StringUtils.hasText(request.memo())
+                ? request.memo().trim()
+                : "Payroll batch for " + request.runDate();
+        String reference = StringUtils.hasText(request.referenceNumber())
+                ? request.referenceNumber().trim()
+                : referenceNumberService.payrollPaymentReference(company);
+
+        JournalEntryDto je = createJournalEntry(new JournalEntryRequest(
+                reference,
+                request.runDate(),
+                memo,
+                null,
+                null,
+                Boolean.FALSE,
+                List.of(
+                        new JournalEntryRequest.JournalLineRequest(expense.getId(), memo, total, BigDecimal.ZERO),
+                        new JournalEntryRequest.JournalLineRequest(cash.getId(), memo, BigDecimal.ZERO, total)
+                )
+        ));
+        JournalEntry payrollEntry = companyEntityLookup.requireJournalEntry(company, je.id());
+        savedRun.setJournalEntry(payrollEntry);
+        payrollRunRepository.save(savedRun);
+
+        return new PayrollBatchPaymentResponse(
+                savedRun.getId(),
+                savedRun.getRunDate(),
+                total.setScale(2, RoundingMode.HALF_UP),
+                payrollEntry.getId(),
+                lineTotals
+        );
     }
 
     @Transactional
@@ -542,7 +655,7 @@ public class AccountingService {
         Account cashAccount = requireAccount(company, request.cashAccountId());
         List<SettlementAllocationRequest> allocations = request.allocations();
         if (allocations == null || allocations.isEmpty()) {
-            throw new IllegalArgumentException("At least one allocation is required");
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT, "At least one allocation is required");
         }
         if (StringUtils.hasText(trimmedIdempotencyKey)) {
             List<PartnerSettlementAllocation> existing = settlementAllocationRepository.findByCompanyAndIdempotencyKey(company, trimmedIdempotencyKey);
@@ -612,12 +725,12 @@ public class AccountingService {
             if (allocation.invoiceId() != null) {
                 invoice = companyEntityLookup.requireInvoice(company, allocation.invoiceId());
                 if (invoice.getDealer() == null || !invoice.getDealer().getId().equals(dealer.getId())) {
-                    throw new IllegalArgumentException("Invoice does not belong to the dealer");
+                    throw new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE, "Invoice does not belong to the dealer");
                 }
 
                 String settlementCurrency = company.getBaseCurrency();
                 if (StringUtils.hasText(settlementCurrency) && invoice.getCurrency() != null && !invoice.getCurrency().equalsIgnoreCase(settlementCurrency)) {
-                    throw new IllegalArgumentException(
+                    throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
                             String.format("Cannot settle invoice %s in %s with settlement currency %s", invoice.getInvoiceNumber(), invoice.getCurrency(), settlementCurrency));
                 }
 
@@ -655,16 +768,16 @@ public class AccountingService {
 
         // FIX #7: Removed duplicate validation block
         if (totalDiscount.compareTo(BigDecimal.ZERO) > 0 && request.discountAccountId() == null) {
-            throw new IllegalArgumentException("Discount account is required when a discount is applied");
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE, "Discount account is required when a discount is applied");
         }
         if (totalWriteOff.compareTo(BigDecimal.ZERO) > 0 && request.writeOffAccountId() == null) {
-            throw new IllegalArgumentException("Write-off account is required when a write-off is applied");
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE, "Write-off account is required when a write-off is applied");
         }
         if (totalFxGain.compareTo(BigDecimal.ZERO) > 0 && request.fxGainAccountId() == null) {
-            throw new IllegalArgumentException("FX gain account is required when FX gain is provided");
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE, "FX gain account is required when FX gain is provided");
         }
         if (totalFxLoss.compareTo(BigDecimal.ZERO) > 0 && request.fxLossAccountId() == null) {
-            throw new IllegalArgumentException("FX loss account is required when FX loss is provided");
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE, "FX loss account is required when FX loss is provided");
         }
 
         Account discountAccount = totalDiscount.compareTo(BigDecimal.ZERO) > 0
@@ -687,7 +800,8 @@ public class AccountingService {
                 .subtract(totalDiscount)
                 .subtract(totalWriteOff);
         if (cashAmount.compareTo(BigDecimal.ZERO) < 0) {
-            throw new IllegalArgumentException("Calculated cash amount cannot be negative. Adjust discount/write-off/FX values.");
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                    "Calculated cash amount cannot be negative. Adjust discount/write-off/FX values.");
         }
 
         String memo = StringUtils.hasText(request.memo())
@@ -792,7 +906,7 @@ public class AccountingService {
         Account cashAccount = requireAccount(company, request.cashAccountId());
         List<SettlementAllocationRequest> allocations = request.allocations();
         if (allocations == null || allocations.isEmpty()) {
-            throw new IllegalArgumentException("At least one allocation is required");
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT, "At least one allocation is required");
         }
         if (StringUtils.hasText(trimmedIdempotencyKey)) {
             List<PartnerSettlementAllocation> existing = settlementAllocationRepository.findByCompanyAndIdempotencyKey(company, trimmedIdempotencyKey);
@@ -861,7 +975,7 @@ public class AccountingService {
             if (allocation.purchaseId() != null) {
                 purchase = companyEntityLookup.requireRawMaterialPurchase(company, allocation.purchaseId());
                 if (purchase.getSupplier() == null || !purchase.getSupplier().getId().equals(supplier.getId())) {
-                    throw new IllegalArgumentException("Purchase does not belong to the supplier");
+                    throw new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE, "Purchase does not belong to the supplier");
                 }
                 // open-item: reduce outstanding by cleared amount
                 BigDecimal cleared = applied.add(discount).add(writeOff).add(fxAdjustment);
@@ -908,7 +1022,8 @@ public class AccountingService {
                 .subtract(totalDiscount)
                 .subtract(totalWriteOff);
         if (cashAmount.compareTo(BigDecimal.ZERO) < 0) {
-            throw new IllegalArgumentException("Calculated cash amount cannot be negative. Adjust discount/write-off/FX values.");
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                    "Calculated cash amount cannot be negative. Adjust discount/write-off/FX values.");
         }
 
         String memo = StringUtils.hasText(request.memo())
@@ -1073,7 +1188,7 @@ public class AccountingService {
 
     private BigDecimal requirePositive(BigDecimal value, String field) {
         if (value == null || value.compareTo(BigDecimal.ZERO) <= 0) {
-            throw new IllegalArgumentException("Value for " + field + " must be greater than zero");
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT, "Value for " + field + " must be greater than zero");
         }
         return value;
     }
@@ -1081,14 +1196,14 @@ public class AccountingService {
     private BigDecimal normalizeNonNegative(BigDecimal value, String field) {
         BigDecimal normalized = MoneyUtils.zeroIfNull(value);
         if (normalized.compareTo(BigDecimal.ZERO) < 0) {
-            throw new IllegalArgumentException("Value for " + field + " cannot be negative");
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT, "Value for " + field + " cannot be negative");
         }
         return normalized;
     }
 
     private void validateEntryDate(Company company, LocalDate entryDate, boolean overrideRequested, boolean overrideAuthorized) {
         if (entryDate == null) {
-            throw new IllegalArgumentException("Entry date is required");
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT, "Entry date is required");
         }
         LocalDate today = currentDate(company);
         LocalDate oldestAllowed = today.minusDays(30);
@@ -1097,12 +1212,13 @@ public class AccountingService {
         if ((!overrideAuthorized) && (future || tooOld)) {
             if (overrideRequested && !overrideAuthorized) {
                 String reason = future ? "future period" : "a closed period";
-                throw new IllegalArgumentException("Administrator approval is required to post into " + reason);
+                throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                        "Administrator approval is required to post into " + reason);
             }
             if (future) {
-                throw new IllegalArgumentException("Entry date cannot be in the future");
+                throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT, "Entry date cannot be in the future");
             }
-            throw new IllegalArgumentException("Entry date cannot be more than 30 days old");
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT, "Entry date cannot be more than 30 days old");
         }
     }
 
@@ -1178,7 +1294,8 @@ public class AccountingService {
         Invoice invoice = companyEntityLookup.requireInvoice(company, request.invoiceId());
         JournalEntry source = invoice.getJournalEntry();
         if (source == null) {
-            throw new IllegalStateException("Invoice " + invoice.getInvoiceNumber() + " has no posted journal to reverse");
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE,
+                    "Invoice " + invoice.getInvoiceNumber() + " has no posted journal to reverse");
         }
         String reference = resolveJournalReference(company,
                 StringUtils.hasText(request.idempotencyKey()) ? request.idempotencyKey() : request.referenceNumber());
@@ -1222,7 +1339,8 @@ public class AccountingService {
         RawMaterialPurchase purchase = companyEntityLookup.requireRawMaterialPurchase(company, request.purchaseId());
         JournalEntry source = purchase.getJournalEntry();
         if (source == null) {
-            throw new IllegalStateException("Purchase " + purchase.getInvoiceNumber() + " has no posted journal to reverse");
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE,
+                    "Purchase " + purchase.getInvoiceNumber() + " has no posted journal to reverse");
         }
         String reference = resolveJournalReference(company,
                 StringUtils.hasText(request.idempotencyKey()) ? request.idempotencyKey() : request.referenceNumber());
@@ -1319,7 +1437,7 @@ public class AccountingService {
         Invoice invoice = companyEntityLookup.requireInvoice(company, request.invoiceId());
         Dealer dealer = invoice.getDealer();
         if (dealer == null || dealer.getReceivableAccount() == null) {
-            throw new IllegalStateException("Invoice dealer missing receivable account");
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE, "Invoice dealer missing receivable account");
         }
         String reference = resolveJournalReference(company,
                 StringUtils.hasText(request.idempotencyKey()) ? request.idempotencyKey() : request.referenceNumber());
