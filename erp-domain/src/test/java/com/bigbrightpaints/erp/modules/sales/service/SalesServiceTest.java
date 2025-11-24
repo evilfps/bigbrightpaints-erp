@@ -252,6 +252,105 @@ class SalesServiceTest {
         assertEquals(new BigDecimal("12.0000"), orderCaptor.getValue().getItems().get(0).getGstRate());
     }
 
+    @Test
+    void createOrderCalculatesMixedPerItemGst() {
+        setupProduct("SKU6", BigDecimal.valueOf(100), BigDecimal.valueOf(18));
+        setupProduct("SKU7", BigDecimal.valueOf(50), BigDecimal.valueOf(5));
+
+        FinishedGood taxable = buildFinishedGood("SKU6");
+        taxable.setRevenueAccountId(10L);
+        taxable.setTaxAccountId(11L);
+        FinishedGood reduced = buildFinishedGood("SKU7");
+        reduced.setRevenueAccountId(12L);
+        reduced.setTaxAccountId(13L);
+
+        when(finishedGoodRepository.findByCompanyAndProductCode(company, "SKU6"))
+                .thenReturn(Optional.of(taxable));
+        when(finishedGoodRepository.findByCompanyAndProductCode(company, "SKU7"))
+                .thenReturn(Optional.of(reduced));
+        when(orderNumberService.nextOrderNumber(company)).thenReturn("SO-300");
+        when(salesOrderRepository.save(ArgumentMatchers.any(SalesOrder.class))).thenAnswer(invocation -> {
+            SalesOrder entity = invocation.getArgument(0);
+            setField(entity, "id", 701L);
+            return entity;
+        });
+
+        SalesOrderRequest request = new SalesOrderRequest(
+                null,
+                new BigDecimal("288.50"),
+                "INR",
+                null,
+                List.of(
+                        new SalesOrderItemRequest("SKU6", "High", new BigDecimal("2"), BigDecimal.valueOf(100), BigDecimal.valueOf(18)),
+                        new SalesOrderItemRequest("SKU7", "Reduced", BigDecimal.ONE, BigDecimal.valueOf(50), BigDecimal.valueOf(5))
+                ),
+                "PER_ITEM",
+                null,
+                false,
+                null);
+
+        salesService.createOrder(request);
+
+        ArgumentCaptor<SalesOrder> orderCaptor = ArgumentCaptor.forClass(SalesOrder.class);
+        verify(salesOrderRepository).save(orderCaptor.capture());
+        SalesOrder saved = orderCaptor.getValue();
+        assertEquals(new BigDecimal("250.00"), saved.getSubtotalAmount());
+        assertEquals(new BigDecimal("38.50"), saved.getGstTotal());
+        assertEquals(new BigDecimal("288.50"), saved.getTotalAmount());
+        assertEquals(BigDecimal.ZERO.setScale(2), saved.getGstRoundingAdjustment());
+        assertEquals(new BigDecimal("36.00"), saved.getItems().get(0).getGstAmount());
+        assertEquals(new BigDecimal("2.50"), saved.getItems().get(1).getGstAmount());
+    }
+
+    @Test
+    void createOrderHandlesExemptPerItemGst() {
+        setupProduct("SKU8", BigDecimal.valueOf(100), BigDecimal.valueOf(12));
+        setupProduct("SKU9", BigDecimal.valueOf(50), BigDecimal.ZERO);
+
+        FinishedGood taxable = buildFinishedGood("SKU8");
+        taxable.setRevenueAccountId(14L);
+        taxable.setTaxAccountId(15L);
+        FinishedGood exempt = buildFinishedGood("SKU9");
+        exempt.setRevenueAccountId(16L);
+        exempt.setTaxAccountId(17L);
+
+        when(finishedGoodRepository.findByCompanyAndProductCode(company, "SKU8"))
+                .thenReturn(Optional.of(taxable));
+        when(finishedGoodRepository.findByCompanyAndProductCode(company, "SKU9"))
+                .thenReturn(Optional.of(exempt));
+        when(orderNumberService.nextOrderNumber(company)).thenReturn("SO-301");
+        when(salesOrderRepository.save(ArgumentMatchers.any(SalesOrder.class))).thenAnswer(invocation -> {
+            SalesOrder entity = invocation.getArgument(0);
+            setField(entity, "id", 801L);
+            return entity;
+        });
+
+        SalesOrderRequest request = new SalesOrderRequest(
+                null,
+                new BigDecimal("162.00"),
+                "INR",
+                null,
+                List.of(
+                        new SalesOrderItemRequest("SKU8", "Taxed", BigDecimal.ONE, BigDecimal.valueOf(100), BigDecimal.valueOf(12)),
+                        new SalesOrderItemRequest("SKU9", "Exempt", BigDecimal.ONE, BigDecimal.valueOf(50), BigDecimal.ZERO)
+                ),
+                "PER_ITEM",
+                null,
+                false,
+                null);
+
+        salesService.createOrder(request);
+
+        ArgumentCaptor<SalesOrder> orderCaptor = ArgumentCaptor.forClass(SalesOrder.class);
+        verify(salesOrderRepository).save(orderCaptor.capture());
+        SalesOrder saved = orderCaptor.getValue();
+        assertEquals(new BigDecimal("150.00"), saved.getSubtotalAmount());
+        assertEquals(new BigDecimal("12.00"), saved.getGstTotal());
+        assertEquals(new BigDecimal("162.00"), saved.getTotalAmount());
+        assertEquals(new BigDecimal("12.00"), saved.getItems().get(0).getGstAmount());
+        assertEquals(BigDecimal.ZERO.setScale(2), saved.getItems().get(1).getGstAmount());
+    }
+
     private void setupProduct(String sku, BigDecimal price, BigDecimal gstRate) {
         ProductionProduct product = new ProductionProduct();
         product.setSkuCode(sku);

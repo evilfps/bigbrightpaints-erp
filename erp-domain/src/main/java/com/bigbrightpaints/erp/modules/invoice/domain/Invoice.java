@@ -10,9 +10,11 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import com.bigbrightpaints.erp.core.domain.VersionedEntity;
 import java.util.UUID;
+import java.util.Set;
 
 @Entity
 @Table(name = "invoices", uniqueConstraints = @UniqueConstraint(columnNames = {"company_id", "invoice_number"}))
@@ -79,6 +81,11 @@ public class Invoice extends VersionedEntity {
     @OneToMany(mappedBy = "invoice", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<InvoiceLine> lines = new ArrayList<>();
 
+    @ElementCollection
+    @CollectionTable(name = "invoice_payment_refs", joinColumns = @JoinColumn(name = "invoice_id"))
+    @Column(name = "payment_reference")
+    private Set<String> paymentReferences = new HashSet<>();
+
     @PrePersist
     public void prePersist() {
         if (publicId == null) {
@@ -132,4 +139,5 @@ public class Invoice extends VersionedEntity {
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
     public List<InvoiceLine> getLines() { return lines; }
+    public Set<String> getPaymentReferences() { return paymentReferences; }
 }

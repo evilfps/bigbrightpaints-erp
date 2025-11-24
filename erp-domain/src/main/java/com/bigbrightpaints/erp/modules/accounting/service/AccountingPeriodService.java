@@ -1,5 +1,8 @@
 package com.bigbrightpaints.erp.modules.accounting.service;
 
+import com.bigbrightpaints.erp.core.exception.ApplicationException;
+import com.bigbrightpaints.erp.core.exception.ErrorCode;
+import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.modules.accounting.domain.*;
 import com.bigbrightpaints.erp.modules.accounting.dto.AccountingPeriodCloseRequest;
@@ -20,7 +23,6 @@ import org.springframework.util.StringUtils;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
-import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 import java.math.RoundingMode;
@@ -34,19 +36,22 @@ public class AccountingPeriodService {
     private final CompanyEntityLookup companyEntityLookup;
     private final JournalLineRepository journalLineRepository;
     private final AccountRepository accountRepository;
+    private final CompanyClock companyClock;
 
     public AccountingPeriodService(AccountingPeriodRepository accountingPeriodRepository,
                                    CompanyContextService companyContextService,
                                    JournalEntryRepository journalEntryRepository,
                                    CompanyEntityLookup companyEntityLookup,
                                    JournalLineRepository journalLineRepository,
-                                   AccountRepository accountRepository) {
+                                   AccountRepository accountRepository,
+                                   CompanyClock companyClock) {
         this.accountingPeriodRepository = accountingPeriodRepository;
         this.companyContextService = companyContextService;
         this.journalEntryRepository = journalEntryRepository;
         this.companyEntityLookup = companyEntityLookup;
         this.journalLineRepository = journalLineRepository;
         this.accountRepository = accountRepository;
+        this.companyClock = companyClock;
     }
 
     public List<AccountingPeriodDto> listPeriods() {
@@ -147,6 +152,9 @@ public class AccountingPeriodService {
         if (period.getStatus() == AccountingPeriodStatus.OPEN) {
             return toDto(period);
         }
+        if (request == null || !StringUtils.hasText(request.reason())) {
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT, "Reopen reason is required");
+        }
         Instant now = Instant.now();
         period.setStatus(AccountingPeriodStatus.OPEN);
         period.setReopenedAt(now);
@@ -187,11 +195,11 @@ public class AccountingPeriodService {
         return buildChecklist(company, saved);
     }
 
-    public AccountingPeriod requireOpenPeriod(Company company, LocalDate referenceDate, boolean overrideAuthorized) {
+    public AccountingPeriod requireOpenPeriod(Company company, LocalDate referenceDate) {
         AccountingPeriod period = ensurePeriod(company, referenceDate);
-        if (period.getStatus() != AccountingPeriodStatus.OPEN && !overrideAuthorized) {
-            throw new com.bigbrightpaints.erp.core.exception.ApplicationException(
-                    com.bigbrightpaints.erp.core.exception.ErrorCode.VALIDATION_INVALID_INPUT,
+        if (period.getStatus() != AccountingPeriodStatus.OPEN) {
+            throw new ApplicationException(
+                    ErrorCode.VALIDATION_INVALID_INPUT,
                     "Accounting period " + period.getLabel() + " is locked/closed");
         }
         return period;
@@ -416,8 +424,7 @@ public class AccountingPeriodService {
     }
 
     private LocalDate resolveCurrentDate(Company company) {
-        String timezone = company.getTimezone() == null ? "UTC" : company.getTimezone();
-        return LocalDate.now(ZoneId.of(timezone));
+        return companyClock.today(company);
     }
 
     private AccountingPeriod resolvePeriod(Company company, Long periodId) {

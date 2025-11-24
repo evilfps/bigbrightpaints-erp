@@ -125,6 +125,60 @@ class PeriodCloseLockIT extends AbstractIntegrationTest {
         assertThat(ok.getStatusCode()).isEqualTo(HttpStatus.OK);
     }
 
+    @Test
+    @DisplayName("Posting to closed periods rejected even with admin override")
+    void postingIntoClosedPeriodRequiresReopenFirst() {
+        LocalDate today = LocalDate.now();
+        Long periodId = currentPeriodId(today);
+
+        ResponseEntity<Map> closeResp = rest.exchange(
+                "/api/v1/accounting/periods/" + periodId + "/close",
+                HttpMethod.POST,
+                new HttpEntity<>(Map.of("note", "Hard close", "force", true), headers),
+                Map.class);
+        assertThat(closeResp.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+        ResponseEntity<Map> blocked = rest.exchange("/api/v1/accounting/journal-entries",
+                HttpMethod.POST,
+                new HttpEntity<>(Map.of(
+                        "referenceNumber", "CLOSED-ADMIN-BLOCK",
+                        "entryDate", today,
+                        "memo", "Admin override should fail",
+                        "adminOverride", true,
+                        "lines", List.of(
+                                line(cash.getId(), new BigDecimal("1.00"), BigDecimal.ZERO),
+                                line(revenue.getId(), BigDecimal.ZERO, new BigDecimal("1.00"))
+                        )
+                ), headers),
+                Map.class);
+
+        assertThat(blocked.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(blocked.getBody().get("message").toString()).containsIgnoringCase("locked/closed");
+    }
+
+    @Test
+    @DisplayName("Reopen requires explicit reason")
+    void reopenRequiresReason() {
+        LocalDate today = LocalDate.now();
+        Long periodId = currentPeriodId(today);
+
+        ResponseEntity<Map> closeResp = rest.exchange(
+                "/api/v1/accounting/periods/" + periodId + "/close",
+                HttpMethod.POST,
+                new HttpEntity<>(Map.of("note", "Month end", "force", true), headers),
+                Map.class);
+        assertThat(closeResp.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+        ResponseEntity<Map> reopenResp = rest.exchange(
+                "/api/v1/accounting/periods/" + periodId + "/reopen",
+                HttpMethod.POST,
+                new HttpEntity<>(Map.of(), headers),
+                Map.class);
+
+        assertThat(reopenResp.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(reopenResp.getBody().get("message").toString()).containsIgnoringCase("reason");
+    }
+
     private Map<String, Object> line(Long accountId, BigDecimal debit, BigDecimal credit) {
         return Map.of(
                 "accountId", accountId,

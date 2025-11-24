@@ -513,8 +513,11 @@ public class SalesService {
             String description = StringUtils.hasText(request.description())
                     ? request.description().trim()
                     : product.getProductName();
-            BigDecimal gstRate = request.gstRate() != null ? request.gstRate() : product.getGstRate();
-            if ((gstRate == null || gstRate.compareTo(BigDecimal.ZERO) <= 0) && company.getDefaultGstRate() != null) {
+            BigDecimal requestedRate = request.gstRate();
+            BigDecimal gstRate = requestedRate != null ? requestedRate : product.getGstRate();
+            if (requestedRate == null
+                    && (gstRate == null || gstRate.compareTo(BigDecimal.ZERO) <= 0)
+                    && company.getDefaultGstRate() != null) {
                 gstRate = company.getDefaultGstRate();
             }
             BigDecimal normalizedRate = normalizePercent(gstRate);

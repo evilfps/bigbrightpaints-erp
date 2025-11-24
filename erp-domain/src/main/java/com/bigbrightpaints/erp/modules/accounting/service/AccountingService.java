@@ -113,7 +113,6 @@ public class AccountingService {
         this.finishedGoodBatchRepository = finishedGoodBatchRepository;
         this.dealerRepository = dealerRepository;
         this.supplierRepository = supplierRepository;
-        this.payrollRunLineRepository = payrollRunLineRepository;
     }
 
     /* Accounts */
@@ -167,7 +166,7 @@ public class AccountingService {
         boolean overrideRequested = Boolean.TRUE.equals(request.adminOverride());
         boolean overrideAuthorized = overrideRequested && hasEntryDateOverrideAuthority();
         validateEntryDate(company, entryDate, overrideRequested, overrideAuthorized);
-        AccountingPeriod postingPeriod = accountingPeriodService.requireOpenPeriod(company, entryDate, overrideAuthorized);
+        AccountingPeriod postingPeriod = accountingPeriodService.requireOpenPeriod(company, entryDate);
 
         entry.setEntryDate(entryDate);
         entry.setAccountingPeriod(postingPeriod);
@@ -375,7 +374,7 @@ public class AccountingService {
         boolean overrideRequested = request != null && Boolean.TRUE.equals(request.adminOverride());
         boolean overrideAuthorized = overrideRequested && hasEntryDateOverrideAuthority();
         validateEntryDate(company, reversalDate, overrideRequested, overrideAuthorized);
-        AccountingPeriod postingPeriod = accountingPeriodService.requireOpenPeriod(company, reversalDate, overrideAuthorized);
+        AccountingPeriod postingPeriod = accountingPeriodService.requireOpenPeriod(company, reversalDate);
         if (entry.getAccountingPeriod() != null &&
                 entry.getAccountingPeriod().getStatus() != AccountingPeriodStatus.OPEN &&
                 !overrideAuthorized) {
