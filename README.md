@@ -20,6 +20,18 @@ mvn -q -f erp-domain/pom.xml test
 
 Tests spin up Postgres 16 via Testcontainers and mock RabbitMQ, so Docker must be available even on CI.
 
+## Codex Cloud / Remote Docker
+
+When you need Docker/Testcontainers in Codex Cloud (or anywhere without a local daemon), use the Docker-in-Docker harness:
+
+```
+./scripts/run-tests-cloud.sh
+# run a subset
+./scripts/run-tests-cloud.sh mvn -B -pl erp-domain -am -Dtest="*SmokeTest" test
+```
+
+Details live in `docs/CLOUD_CONTAINERS.md`.
+
 ## Local Development
 
 ```bash

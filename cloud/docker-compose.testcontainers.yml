@@ -1,0 +1,38 @@
+name: erp-domain-cloud-tests
+
+services:
+  dind:
+    image: docker:27-dind
+    privileged: true
+    environment:
+      DOCKER_TLS_CERTDIR: ""
+    command: ["--storage-driver=overlay2"]
+    volumes:
+      - dind-storage:/var/lib/docker
+    healthcheck:
+      test: ["CMD-SHELL", "docker info >/dev/null 2>&1"]
+      interval: 5s
+      timeout: 5s
+      retries: 8
+      start_period: 5s
+
+  test-runner:
+    image: maven:3.9.9-eclipse-temurin-21
+    depends_on:
+      dind:
+        condition: service_healthy
+    working_dir: /workspace/erp-domain
+    environment:
+      DOCKER_HOST: tcp://dind:2375
+      DOCKER_TLS_CERTDIR: ""
+      TESTCONTAINERS_HOST_OVERRIDE: dind
+      TESTCONTAINERS_RYUK_DISABLED: "true"
+      TESTCONTAINERS_CHECKS_DISABLE: "true"
+    volumes:
+      - ..:/workspace
+      - maven-repo:/root/.m2
+    command: mvn -B -pl erp-domain -am test
+
+volumes:
+  dind-storage:
+  maven-repo:
