@@ -4,6 +4,7 @@ import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
+import com.bigbrightpaints.erp.modules.accounting.service.AccountingService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.factory.domain.PackingRecordRepository;
@@ -17,6 +18,7 @@ import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryMovement;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryMovementRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryReference;
+import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovementRepository;
 import com.bigbrightpaints.erp.modules.inventory.service.BatchNumberService;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionProduct;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -61,7 +63,11 @@ class PackingServiceTest {
     @Mock
     private InventoryMovementRepository inventoryMovementRepository;
     @Mock
+    private RawMaterialMovementRepository rawMaterialMovementRepository;
+    @Mock
     private AccountingFacade accountingFacade;
+    @Mock
+    private AccountingService accountingService;
     @Mock
     private ProductionLogService productionLogService;
     @Mock
@@ -85,7 +91,9 @@ class PackingServiceTest {
                 finishedGoodRepository,
                 finishedGoodBatchRepository,
                 inventoryMovementRepository,
+                rawMaterialMovementRepository,
                 accountingFacade,
+                accountingService,
                 productionLogService,
                 batchNumberService,
                 companyClock,

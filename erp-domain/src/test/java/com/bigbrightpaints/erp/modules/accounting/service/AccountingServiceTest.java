@@ -28,6 +28,7 @@ import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.PartnerSettlementAllocationRepository;
 import com.bigbrightpaints.erp.modules.invoice.service.InvoiceSettlementPolicy;
+import com.bigbrightpaints.erp.core.audit.AuditService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -101,6 +102,8 @@ class AccountingServiceTest {
     private jakarta.persistence.EntityManager entityManager;
     @Mock
     private com.bigbrightpaints.erp.core.config.SystemSettingsService systemSettingsService;
+    @Mock
+    private AuditService auditService;
 
     private AccountingService accountingService;
     private Company company;
@@ -130,7 +133,8 @@ class AccountingServiceTest {
                 supplierRepository,
                 invoiceSettlementPolicy,
                 entityManager,
-                systemSettingsService
+                systemSettingsService,
+                auditService
         );
         company = new Company();
         company.setBaseCurrency("INR");

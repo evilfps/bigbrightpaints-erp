@@ -274,7 +274,7 @@ public class AccountingFacade {
         // Generate reference number
         String reference = StringUtils.hasText(referenceNumber)
                 ? referenceNumber.trim()
-                : "RMP-" + supplier.getCode() + "-" + sanitize(invoiceNumber);
+                : referenceNumberService.purchaseReference(company, supplier, invoiceNumber);
 
         // Check for duplicate
         if (journalEntryRepository.findByCompanyAndReferenceNumber(company, reference).isPresent()) {
@@ -376,7 +376,7 @@ public class AccountingFacade {
 
         String reference = StringUtils.hasText(referenceNumber)
                 ? referenceNumber.trim()
-                : "PRN-" + supplier.getCode() + "-" + companyClock.today(company);
+                : referenceNumberService.purchaseReturnReference(company, supplier);
 
         Optional<JournalEntry> existing = journalEntryRepository.findByCompanyAndReferenceNumber(company, reference);
         if (existing.isPresent()) {
@@ -847,7 +847,9 @@ public class AccountingFacade {
             return null;
         }
 
-        String reference = StringUtils.hasText(referenceId) ? referenceId.trim() : "ADJ-" + sanitize(adjustmentType);
+        String reference = StringUtils.hasText(referenceId)
+                ? referenceId.trim()
+                : referenceNumberService.inventoryAdjustmentReference(company, adjustmentType);
         Optional<JournalEntry> existing = journalEntryRepository.findByCompanyAndReferenceNumber(company, reference);
         if (existing.isPresent()) {
             log.info("Inventory adjustment journal already exists for reference: {}", reference);

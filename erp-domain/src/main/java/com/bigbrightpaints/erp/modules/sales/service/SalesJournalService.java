@@ -148,7 +148,7 @@ public class SalesJournalService {
         }
 
         String resolvedMemo = memo != null ? memo : "Sales order " + order.getOrderNumber();
-        String resolvedReference = resolveReferenceNumber(referenceNumber, order);
+        String resolvedReference = StringUtils.hasText(referenceNumber) ? referenceNumber.trim() : null;
 
         // Delegate to AccountingFacade
         JournalEntryDto result = accountingFacade.postSalesJournal(
@@ -216,19 +216,4 @@ public class SalesJournalService {
 
     private record ProductAccounts(Long revenueAccountId, Long taxAccountId) {}
 
-    private String resolveReferenceNumber(String providedReference, SalesOrder order) {
-        if (StringUtils.hasText(providedReference)) {
-            return providedReference.trim();
-        }
-        String orderNumber = order.getOrderNumber();
-        String sanitized = StringUtils.hasText(orderNumber)
-                ? orderNumber.replaceAll("[^A-Za-z0-9]", "").toUpperCase()
-                : String.valueOf(order.getId());
-        if (!StringUtils.hasText(sanitized)) {
-            sanitized = "SO-" + order.getId();
-        } else {
-            sanitized = "SO-" + sanitized;
-        }
-        return sanitized;
-    }
 }

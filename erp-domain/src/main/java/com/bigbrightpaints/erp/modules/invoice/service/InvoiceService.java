@@ -140,11 +140,10 @@ public class InvoiceService {
     private JournalEntry resolveInvoiceJournal(SalesOrder order, Invoice invoice) {
         Company company = order.getCompany();
         // Use order NUMBER (not ID) for consistent reference across all journals
-        // Format: INV-{orderNumber} e.g., INV-BBP-2025-00001
         String orderNumber = order.getOrderNumber() != null ? order.getOrderNumber() : String.valueOf(order.getId());
-        String reference = "INV-" + orderNumber;
-        return journalEntryRepository.findByCompanyAndReferenceNumber(company, reference)
-                .orElseGet(() -> createInvoiceJournal(order, invoice, reference));
+        String legacyReference = "INV-" + orderNumber;
+        return journalEntryRepository.findByCompanyAndReferenceNumber(company, legacyReference)
+                .orElseGet(() -> createInvoiceJournal(order, invoice, null));
     }
 
     private JournalEntry createInvoiceJournal(SalesOrder order, Invoice invoice, String reference) {

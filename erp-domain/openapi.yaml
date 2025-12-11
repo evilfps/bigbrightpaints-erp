@@ -9,7 +9,7 @@ externalDocs:
   description: ERP Documentation
   url: https://docs.bigbrightpaints.com
 servers:
-- url: http://localhost:51904
+- url: http://localhost:62922
   description: Generated server url
 paths:
   /api/v1/suppliers/{id}:
@@ -8399,10 +8399,10 @@ components:
           type: string
         supportingDocumentRef:
           type: string
-        effectivePercentage:
-          type: number
         partialReversal:
           type: boolean
+        effectivePercentage:
+          type: number
     ApiResponseListJournalEntryDto:
       type: object
       properties:

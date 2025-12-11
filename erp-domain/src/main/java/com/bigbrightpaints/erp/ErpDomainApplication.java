@@ -3,6 +3,7 @@ package com.bigbrightpaints.erp;
 import com.bigbrightpaints.erp.core.config.EmailProperties;
 import com.bigbrightpaints.erp.core.notification.EmailService;
 import com.bigbrightpaints.erp.core.security.JwtProperties;
+import com.bigbrightpaints.erp.core.config.LicensingProperties;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccount;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
 import com.bigbrightpaints.erp.modules.auth.service.PasswordService;
@@ -24,7 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 @SpringBootApplication
 @EnableRetry
 @EnableScheduling
-@EnableConfigurationProperties({JwtProperties.class, EmailProperties.class})
+@EnableConfigurationProperties({JwtProperties.class, EmailProperties.class, LicensingProperties.class})
 public class ErpDomainApplication {
 
     public static void main(String[] args) {

@@ -150,7 +150,7 @@ public class SalesFulfillmentService {
                 Long salesJournalId = salesJournalService.postSalesJournal(
                         order,
                         null,
-                        "INV-" + orderNumber,
+                        null,
                         options.entryDate() != null ? options.entryDate() : LocalDate.now(),
                         "Sales fulfillment for " + orderNumber
                 );

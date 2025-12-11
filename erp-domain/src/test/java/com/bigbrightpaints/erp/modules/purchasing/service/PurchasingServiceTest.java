@@ -19,6 +19,7 @@ import com.bigbrightpaints.erp.modules.purchasing.domain.Supplier;
 import com.bigbrightpaints.erp.modules.purchasing.dto.PurchaseReturnRequest;
 import com.bigbrightpaints.erp.modules.purchasing.dto.RawMaterialPurchaseLineRequest;
 import com.bigbrightpaints.erp.modules.purchasing.dto.RawMaterialPurchaseRequest;
+import com.bigbrightpaints.erp.modules.accounting.service.ReferenceNumberService;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -37,6 +38,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.lenient;
 
 @ExtendWith(MockitoExtension.class)
 class PurchasingServiceTest {
@@ -58,6 +60,8 @@ class PurchasingServiceTest {
     @Mock
     private CompanyEntityLookup companyEntityLookup;
     @Mock
+    private ReferenceNumberService referenceNumberService;
+    @Mock
     private CompanyClock companyClock;
 
     private PurchasingService purchasingService;
@@ -77,6 +81,7 @@ class PurchasingServiceTest {
                 accountingFacade,
                 journalEntryRepository,
                 companyEntityLookup,
+                referenceNumberService,
                 companyClock
         );
 
@@ -101,6 +106,9 @@ class PurchasingServiceTest {
         rawMaterial.setInventoryAccountId(200L);
         rawMaterial.setCurrentStock(BigDecimal.valueOf(100));
         rawMaterial.setCompany(company);
+
+        lenient().when(referenceNumberService.purchaseReference(any(), any(), any())).thenReturn("RMP-TEST-0001");
+        lenient().when(referenceNumberService.purchaseReturnReference(any(), any())).thenReturn("PRN-TEST-0001");
     }
 
     @Test
@@ -205,7 +213,7 @@ class PurchasingServiceTest {
         ReflectionTestUtils.setField(journalEntry, "id", 999L);
 
         JournalEntryDto journalDto = dummyJournal("RMP-SUP001-INV002", 999L);
-        when(accountingFacade.postPurchaseJournal(any(), any(), any(), any(), any(), any()))
+        when(accountingFacade.postPurchaseJournal(any(), any(), any(), any(), any(), any(), any(), any()))
                 .thenReturn(journalDto);
         when(companyEntityLookup.requireJournalEntry(company, 999L)).thenReturn(journalEntry);
 
@@ -234,7 +242,7 @@ class PurchasingServiceTest {
 
         // Verify order: journal posted, then purchase saved with link
         var inOrder = inOrder(accountingFacade, purchaseRepository);
-        inOrder.verify(accountingFacade).postPurchaseJournal(any(), any(), any(), any(), any(), any());
+        inOrder.verify(accountingFacade).postPurchaseJournal(any(), any(), any(), any(), any(), any(), any(), any());
         inOrder.verify(purchaseRepository).save(any());
     }
 

@@ -10,11 +10,15 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import io.micrometer.core.instrument.Gauge;
+import io.micrometer.core.instrument.MeterRegistry;
 
 /**
  * Service for publishing domain events via outbox pattern.
@@ -35,12 +39,16 @@ public class EventPublisherService {
     private final OutboxEventRepository outboxEventRepository;
     private final RabbitTemplate rabbitTemplate;
     private final ObjectMapper objectMapper;
+    private final MeterRegistry meterRegistry;
 
     public EventPublisherService(OutboxEventRepository outboxEventRepository, RabbitTemplate rabbitTemplate,
-                                 ObjectMapper objectMapper) {
+                                 ObjectMapper objectMapper,
+                                 @Nullable MeterRegistry meterRegistry) {
         this.outboxEventRepository = outboxEventRepository;
         this.rabbitTemplate = rabbitTemplate;
         this.objectMapper = objectMapper;
+        this.meterRegistry = meterRegistry;
+        registerMetrics();
     }
 
     @Transactional
@@ -55,6 +63,7 @@ public class EventPublisherService {
     }
 
     @Transactional
+    @SchedulerLock(name = "outbox-publish-pending")
     public void publishPendingEvents() {
         // Mutex guard to prevent overlapping runs in single-instance mode
         if (!publishingInProgress.compareAndSet(false, true)) {
@@ -87,8 +96,22 @@ public class EventPublisherService {
 
     public Map<String, Object> healthSnapshot() {
         Map<String, Object> health = new HashMap<>();
-        health.put("pendingEvents", outboxEventRepository.count());
+        health.put("pendingEvents", outboxEventRepository.countByStatusAndDeadLetterFalse(OutboxEvent.Status.PENDING));
         health.put("deadLetters", outboxEventRepository.countByStatusAndDeadLetterTrue(OutboxEvent.Status.FAILED));
         return health;
+    }
+
+    private void registerMetrics() {
+        if (meterRegistry == null) {
+            return;
+        }
+        Gauge.builder("outbox.events.pending",
+                () -> outboxEventRepository.countByStatusAndDeadLetterFalse(OutboxEvent.Status.PENDING))
+                .description("Outbox events pending publish")
+                .register(meterRegistry);
+        Gauge.builder("outbox.events.deadletters",
+                () -> outboxEventRepository.countByStatusAndDeadLetterTrue(OutboxEvent.Status.FAILED))
+                .description("Outbox events dead-lettered after retries")
+                .register(meterRegistry);
     }
 }

@@ -6,7 +6,9 @@ import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.core.util.MoneyUtils;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
+import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryRequest;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
+import com.bigbrightpaints.erp.modules.accounting.service.AccountingService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.factory.domain.PackingRecord;
@@ -22,6 +24,8 @@ import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryMovement;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryMovementRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryReference;
+import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovement;
+import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovementRepository;
 import com.bigbrightpaints.erp.modules.inventory.service.BatchNumberService;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionProduct;
 import jakarta.transaction.Transactional;
@@ -50,7 +54,9 @@ public class PackingService {
     private final FinishedGoodRepository finishedGoodRepository;
     private final FinishedGoodBatchRepository finishedGoodBatchRepository;
     private final InventoryMovementRepository inventoryMovementRepository;
+    private final RawMaterialMovementRepository rawMaterialMovementRepository;
     private final AccountingFacade accountingFacade;
+    private final AccountingService accountingService;
     private final CompanyClock companyClock;
     private final ProductionLogService productionLogService;
     private final BatchNumberService batchNumberService;
@@ -63,7 +69,9 @@ public class PackingService {
                           FinishedGoodRepository finishedGoodRepository,
                           FinishedGoodBatchRepository finishedGoodBatchRepository,
                           InventoryMovementRepository inventoryMovementRepository,
+                          RawMaterialMovementRepository rawMaterialMovementRepository,
                           AccountingFacade accountingFacade,
+                          AccountingService accountingService,
                           ProductionLogService productionLogService,
                           BatchNumberService batchNumberService,
                           CompanyClock companyClock,
@@ -75,7 +83,9 @@ public class PackingService {
         this.finishedGoodRepository = finishedGoodRepository;
         this.finishedGoodBatchRepository = finishedGoodBatchRepository;
         this.inventoryMovementRepository = inventoryMovementRepository;
+        this.rawMaterialMovementRepository = rawMaterialMovementRepository;
         this.accountingFacade = accountingFacade;
+        this.accountingService = accountingService;
         this.productionLogService = productionLogService;
         this.batchNumberService = batchNumberService;
         this.companyClock = companyClock;
@@ -135,6 +145,12 @@ public class PackingService {
                 record.setPackagingCost(packagingResult.totalCost());
                 record.setPackagingQuantity(packagingResult.quantity());
                 sessionPackagingCost = sessionPackagingCost.add(packagingResult.totalCost());
+            }
+            
+            if (packagingResult.isConsumed() && packagingResult.inventoryAccountId() != null
+                    && packagingResult.totalCost().compareTo(BigDecimal.ZERO) > 0) {
+                String packagingReference = log.getProductionCode() + "-PACK-" + lineIndex;
+                postPackagingMaterialJournal(log, packagingResult, packedDate, packagingReference);
             }
             
             PackingRecord savedRecord = packingRecordRepository.save(record);
@@ -293,7 +309,7 @@ public class PackingService {
         // Post WIP->FG journal immediately to prevent desync on crash
         // Include packaging cost in the journal value
         BigDecimal journalUnitCost = materialUnitCost.add(packagingCostPerUnit);
-        postPackingSessionJournal(log, finishedGood, quantity, journalUnitCost, packedDate, savedMovement);
+        postPackingSessionJournal(log, finishedGood, quantity, materialUnitCost, packagingCostPerUnit, packedDate, savedMovement);
 
         return savedBatch;
     }
@@ -313,6 +329,7 @@ public class PackingService {
                                            FinishedGood finishedGood,
                                            BigDecimal quantity,
                                            BigDecimal materialUnitCost,
+                                           BigDecimal packagingCostPerUnit,
                                            LocalDate packedDate,
                                            InventoryMovement movement) {
         if (quantity.compareTo(BigDecimal.ZERO) <= 0) {
@@ -324,21 +341,88 @@ public class PackingService {
             throw new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE,
                     "Finished good " + finishedGood.getProductCode() + " missing valuation account");
         }
-        BigDecimal packedValue = MoneyUtils.safeMultiply(materialUnitCost, quantity).setScale(2, RoundingMode.HALF_UP);
+        BigDecimal productionValue = MoneyUtils.safeMultiply(materialUnitCost, quantity).setScale(2, RoundingMode.HALF_UP);
+        BigDecimal packagingValue = MoneyUtils.safeMultiply(packagingCostPerUnit, quantity).setScale(2, RoundingMode.HALF_UP);
+        BigDecimal totalValue = productionValue.add(packagingValue);
+        if (totalValue.compareTo(BigDecimal.ZERO) <= 0) {
+            return;
+        }
         String reference = log.getProductionCode() + "-PACK-" + movement.getId();
-        JournalEntryDto entry = accountingFacade.postSimpleJournal(
+        String memo = "FG receipt for " + log.getProductionCode() + " (qty: " + quantity + ")";
+
+        List<JournalEntryRequest.JournalLineRequest> lines = new java.util.ArrayList<>();
+        lines.add(new JournalEntryRequest.JournalLineRequest(fgAccountId, memo, totalValue, BigDecimal.ZERO));
+        if (productionValue.compareTo(BigDecimal.ZERO) > 0) {
+            lines.add(new JournalEntryRequest.JournalLineRequest(
+                    wipAccountId,
+                    memo + " - semi-finished",
+                    BigDecimal.ZERO,
+                    productionValue));
+        }
+        if (packagingValue.compareTo(BigDecimal.ZERO) > 0) {
+            lines.add(new JournalEntryRequest.JournalLineRequest(
+                    wipAccountId,
+                    memo + " - packaging",
+                    BigDecimal.ZERO,
+                    packagingValue));
+        }
+
+        JournalEntryRequest request = new JournalEntryRequest(
                 reference,
                 packedDate,
-                "FG receipt for " + log.getProductionCode() + " (qty: " + quantity + ")",
-                fgAccountId,
+                memo,
+                null,
+                null,
+                false,
+                lines
+        );
+
+        JournalEntryDto entry = accountingService.createJournalEntry(request);
+        movement.setJournalEntryId(entry.id());
+        inventoryMovementRepository.save(movement);
+    }
+
+    private void postPackagingMaterialJournal(ProductionLog log,
+                                              PackagingConsumptionResult packagingResult,
+                                              LocalDate packedDate,
+                                              String referenceId) {
+        if (packagingResult == null
+                || packagingResult.totalCost() == null
+                || packagingResult.totalCost().compareTo(BigDecimal.ZERO) <= 0) {
+            return;
+        }
+        Long packagingInventoryAccountId = packagingResult.inventoryAccountId();
+        if (packagingInventoryAccountId == null) {
+            return;
+        }
+        Long wipAccountId = requireWipAccountId(log.getProduct());
+        BigDecimal amount = packagingResult.totalCost().setScale(2, RoundingMode.HALF_UP);
+
+        JournalEntryDto entry = accountingFacade.postSimpleJournal(
+                referenceId + "-PACKMAT",
+                packedDate,
+                "Packaging material consumption for " + log.getProductionCode(),
                 wipAccountId,
-                packedValue,
+                packagingInventoryAccountId,
+                amount,
                 false
         );
         if (entry != null) {
-            movement.setJournalEntryId(entry.id());
-            inventoryMovementRepository.save(movement);
+            linkPackagingMovementsToJournal(referenceId, entry.id());
         }
+    }
+
+    private void linkPackagingMovementsToJournal(String referenceId, Long journalEntryId) {
+        if (journalEntryId == null) {
+            return;
+        }
+        List<RawMaterialMovement> movements = rawMaterialMovementRepository
+                .findByReferenceTypeAndReferenceId(InventoryReference.PACKING_RECORD, referenceId);
+        if (movements.isEmpty()) {
+            return;
+        }
+        movements.forEach(movement -> movement.setJournalEntryId(journalEntryId));
+        rawMaterialMovementRepository.saveAll(movements);
     }
 
     private void postCompletionEntries(Company company,

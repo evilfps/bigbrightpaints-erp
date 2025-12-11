@@ -1,5 +1,7 @@
 package com.bigbrightpaints.erp.modules.inventory.service;
 
+import com.bigbrightpaints.erp.core.exception.ApplicationException;
+import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
@@ -16,6 +18,7 @@ import com.bigbrightpaints.erp.modules.inventory.domain.InventoryMovementReposit
 import com.bigbrightpaints.erp.modules.inventory.dto.InventoryAdjustmentDto;
 import com.bigbrightpaints.erp.modules.inventory.dto.InventoryAdjustmentLineDto;
 import com.bigbrightpaints.erp.modules.inventory.dto.InventoryAdjustmentRequest;
+import com.bigbrightpaints.erp.modules.accounting.service.ReferenceNumberService;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.retry.annotation.Retryable;
@@ -31,7 +34,6 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 
 @Service
 public class InventoryAdjustmentService {
@@ -41,6 +43,7 @@ public class InventoryAdjustmentService {
     private final InventoryAdjustmentRepository adjustmentRepository;
     private final InventoryMovementRepository inventoryMovementRepository;
     private final AccountingFacade accountingFacade;
+    private final ReferenceNumberService referenceNumberService;
     private final CompanyClock companyClock;
 
     public InventoryAdjustmentService(CompanyContextService companyContextService,
@@ -48,12 +51,14 @@ public class InventoryAdjustmentService {
                                       InventoryAdjustmentRepository adjustmentRepository,
                                       InventoryMovementRepository inventoryMovementRepository,
                                       AccountingFacade accountingFacade,
+                                      ReferenceNumberService referenceNumberService,
                                       CompanyClock companyClock) {
         this.companyContextService = companyContextService;
         this.finishedGoodRepository = finishedGoodRepository;
         this.adjustmentRepository = adjustmentRepository;
         this.inventoryMovementRepository = inventoryMovementRepository;
         this.accountingFacade = accountingFacade;
+        this.referenceNumberService = referenceNumberService;
         this.companyClock = companyClock;
     }
 
@@ -77,7 +82,7 @@ public class InventoryAdjustmentService {
         InventoryAdjustmentType type = request.type() == null ? InventoryAdjustmentType.DAMAGED : request.type();
         InventoryAdjustment adjustment = new InventoryAdjustment();
         adjustment.setCompany(company);
-        adjustment.setReferenceNumber(resolveReference(type));
+        adjustment.setReferenceNumber(resolveReference(company, type));
         adjustment.setAdjustmentDate(request.adjustmentDate() != null ? request.adjustmentDate() : resolveCurrentDate(company));
         adjustment.setType(type);
         adjustment.setReason(request.reason());
@@ -88,7 +93,8 @@ public class InventoryAdjustmentService {
             InventoryAdjustmentLine line = buildLine(company, adjustment, lineRequest);
             Long valuationAccountId = line.getFinishedGood().getValuationAccountId();
             if (valuationAccountId == null) {
-                throw new IllegalStateException("Finished good " + line.getFinishedGood().getProductCode() + " missing valuation account");
+                throw new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE,
+                        "Finished good " + line.getFinishedGood().getProductCode() + " is missing a valuation account");
             }
             inventoryCredits.merge(valuationAccountId, line.getAmount(), BigDecimal::add);
             totalAmount = totalAmount.add(line.getAmount());
@@ -198,8 +204,8 @@ public class InventoryAdjustmentService {
         return "Inventory adjustment - " + suffix;
     }
 
-    private String resolveReference(InventoryAdjustmentType type) {
-        return "ADJ-" + type.name().charAt(0) + UUID.randomUUID().toString().substring(0, 7).toUpperCase();
+    private String resolveReference(Company company, InventoryAdjustmentType type) {
+        return referenceNumberService.inventoryAdjustmentReference(company, type != null ? type.name() : "GEN");
     }
 
     private LocalDate resolveCurrentDate(Company company) {

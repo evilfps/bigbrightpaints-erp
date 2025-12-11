@@ -1,6 +1,8 @@
 package com.bigbrightpaints.erp.core.security;
 
 import jakarta.annotation.PostConstruct;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.util.StringUtils;
 
@@ -8,6 +10,8 @@ import java.nio.charset.StandardCharsets;
 
 @ConfigurationProperties(prefix = "jwt")
 public class JwtProperties {
+
+    private static final Logger log = LoggerFactory.getLogger(JwtProperties.class);
 
     private String secret;
     private long accessTokenTtlSeconds = 900;
@@ -21,6 +25,9 @@ public class JwtProperties {
         int secretBytes = secret.getBytes(StandardCharsets.UTF_8).length;
         if (secretBytes < 32) {
             throw new IllegalStateException("JWT secret must be at least 256 bits (32 bytes); current=" + secretBytes);
+        }
+        if ("changeme".equalsIgnoreCase(secret) || secret.toLowerCase().contains("changeme")) {
+            log.warn("JWT secret is using a default-looking value; replace with a strong, random 32+ byte secret.");
         }
     }
 

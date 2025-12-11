@@ -16,6 +16,7 @@ import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovementRepos
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialRepository;
 import com.bigbrightpaints.erp.modules.inventory.dto.RawMaterialBatchRequest;
 import com.bigbrightpaints.erp.modules.inventory.service.RawMaterialService;
+import com.bigbrightpaints.erp.modules.accounting.service.ReferenceNumberService;
 import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchase;
 import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchaseLine;
 import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchaseRepository;
@@ -30,15 +31,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
-import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
-import java.util.UUID;
 
 @Service
 public class PurchasingService {
@@ -51,6 +49,7 @@ public class PurchasingService {
     private final AccountingFacade accountingFacade;
     private final JournalEntryRepository journalEntryRepository;
     private final CompanyEntityLookup companyEntityLookup;
+    private final ReferenceNumberService referenceNumberService;
     private final CompanyClock companyClock;
 
     public PurchasingService(CompanyContextService companyContextService,
@@ -61,6 +60,7 @@ public class PurchasingService {
                              AccountingFacade accountingFacade,
                              JournalEntryRepository journalEntryRepository,
                              CompanyEntityLookup companyEntityLookup,
+                             ReferenceNumberService referenceNumberService,
                              CompanyClock companyClock) {
         this.companyContextService = companyContextService;
         this.purchaseRepository = purchaseRepository;
@@ -70,6 +70,7 @@ public class PurchasingService {
         this.accountingFacade = accountingFacade;
         this.journalEntryRepository = journalEntryRepository;
         this.companyEntityLookup = companyEntityLookup;
+        this.referenceNumberService = referenceNumberService;
         this.companyClock = companyClock;
     }
 
@@ -126,7 +127,8 @@ public class PurchasingService {
         }
 
         // Post journal FIRST to avoid orphan purchases if journal fails
-        JournalEntryDto entry = postPurchaseEntry(request, supplier, inventoryDebits, totalAmount);
+        String referenceNumber = referenceNumberService.purchaseReference(company, supplier, invoiceNumber);
+        JournalEntryDto entry = postPurchaseEntry(request, supplier, inventoryDebits, totalAmount, referenceNumber);
         JournalEntry linkedJournal = null;
         if (entry != null) {
             linkedJournal = companyEntityLookup.requireJournalEntry(company, entry.id());
@@ -220,7 +222,9 @@ public class PurchasingService {
         BigDecimal unitCost = positive(request.unitCost(), "unitCost");
         BigDecimal totalAmount = MoneyUtils.safeMultiply(quantity, unitCost);
         String memo = returnMemo(material, supplier, request.reason());
-        String reference = resolveReturnReference(supplier, request.referenceNumber());
+        String reference = StringUtils.hasText(request.referenceNumber())
+                ? request.referenceNumber().trim()
+                : referenceNumberService.purchaseReturnReference(company, supplier);
         LocalDate returnDate = request.returnDate() != null ? request.returnDate() : companyClock.today(company);
 
         // Post journal FIRST before deducting stock
@@ -254,7 +258,8 @@ public class PurchasingService {
     private JournalEntryDto postPurchaseEntry(RawMaterialPurchaseRequest request,
                                               Supplier supplier,
                                               Map<Long, BigDecimal> inventoryDebits,
-                                              BigDecimal totalAmount) {
+                                              BigDecimal totalAmount,
+                                              String referenceNumber) {
         if (inventoryDebits.isEmpty() || totalAmount.compareTo(BigDecimal.ZERO) <= 0) {
             return null;
         }
@@ -269,7 +274,9 @@ public class PurchasingService {
                 entryDate,
                 memo,
                 inventoryDebits,
-                totalAmount
+                null,
+                totalAmount,
+                referenceNumber
         );
     }
 
@@ -324,14 +331,6 @@ public class PurchasingService {
         return value;
     }
 
-    private String resolveReferenceNumber(Supplier supplier, String invoiceNumber) {
-        String normalized = invoiceNumber == null ? "" : invoiceNumber.replaceAll("[^A-Za-z0-9]", "");
-        if (!StringUtils.hasText(normalized)) {
-            normalized = Instant.now().toString().replaceAll("[^A-Za-z0-9]", "");
-        }
-        return "RMP-" + supplier.getCode() + "-" + normalized.toUpperCase(Locale.ROOT);
-    }
-
     private String invoiceReference(String invoiceNumber, int lineIndex) {
         String normalized = invoiceNumber == null ? "" : invoiceNumber.replaceAll("\\s+", "-");
         return normalized + "-" + lineIndex;
@@ -348,13 +347,6 @@ public class PurchasingService {
     private String returnMemo(RawMaterial material, Supplier supplier, String reason) {
         String prefix = StringUtils.hasText(reason) ? reason.trim() : "Purchase return";
         return prefix + " - " + material.getName() + " to " + supplier.getName();
-    }
-
-    private String resolveReturnReference(Supplier supplier, String provided) {
-        if (StringUtils.hasText(provided)) {
-            return provided.trim();
-        }
-        return "PRN-" + supplier.getCode() + "-" + UUID.randomUUID().toString().substring(0, 6).toUpperCase(Locale.ROOT);
     }
 
     private String clean(String value) {

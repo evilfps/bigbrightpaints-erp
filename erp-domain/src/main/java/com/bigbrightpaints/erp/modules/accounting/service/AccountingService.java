@@ -1,5 +1,7 @@
 package com.bigbrightpaints.erp.modules.accounting.service;
 
+import com.bigbrightpaints.erp.core.audit.AuditEvent;
+import com.bigbrightpaints.erp.core.audit.AuditService;
 import com.bigbrightpaints.erp.core.config.SystemSettingsService;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
@@ -91,6 +93,7 @@ public class AccountingService {
     private final InvoiceSettlementPolicy invoiceSettlementPolicy;
     private final EntityManager entityManager;
     private final SystemSettingsService systemSettingsService;
+    private final AuditService auditService;
 
     public AccountingService(CompanyContextService companyContextService,
                              AccountRepository accountRepository,
@@ -114,7 +117,8 @@ public class AccountingService {
                              SupplierRepository supplierRepository,
                              InvoiceSettlementPolicy invoiceSettlementPolicy,
                              EntityManager entityManager,
-                             SystemSettingsService systemSettingsService) {
+                             SystemSettingsService systemSettingsService,
+                             AuditService auditService) {
         this.companyContextService = companyContextService;
         this.accountRepository = accountRepository;
         this.journalEntryRepository = journalEntryRepository;
@@ -138,6 +142,7 @@ public class AccountingService {
         this.invoiceSettlementPolicy = invoiceSettlementPolicy;
         this.entityManager = entityManager;
         this.systemSettingsService = systemSettingsService;
+        this.auditService = auditService;
     }
 
     /* Accounts */
@@ -200,8 +205,16 @@ public class AccountingService {
 
     @Transactional
     public JournalEntryDto createJournalEntry(JournalEntryRequest request) {
+        Map<String, String> auditMetadata = new HashMap<>();
+        if (request != null && request.referenceNumber() != null) {
+            auditMetadata.put("requestedReference", request.referenceNumber());
+        }
+        try {
         Company company = companyContextService.requireCurrentCompany();
         List<JournalEntryRequest.JournalLineRequest> lines = request.lines();
+        if (company.getId() != null) {
+            auditMetadata.put("companyId", company.getId().toString());
+        }
         if (lines == null || lines.isEmpty()) {
             throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT, "At least one journal line is required");
         }
@@ -212,11 +225,17 @@ public class AccountingService {
         entry.setCurrency(currency);
         entry.setFxRate(fxRate);
         entry.setReferenceNumber(resolveJournalReference(company, request.referenceNumber()));
+        auditMetadata.put("referenceNumber", entry.getReferenceNumber());
 
         Optional<JournalEntry> duplicate = journalEntryRepository.findByCompanyAndReferenceNumber(company, entry.getReferenceNumber());
         if (duplicate.isPresent()) {
             log.info("Idempotent return: journal entry '{}' already exists, returning existing entry",
                     entry.getReferenceNumber());
+            if (duplicate.get().getId() != null) {
+                auditMetadata.put("journalEntryId", duplicate.get().getId().toString());
+            }
+            auditMetadata.put("idempotent", "true");
+            auditService.logSuccess(AuditEvent.JOURNAL_ENTRY_POSTED, auditMetadata);
             return toDto(duplicate.get());
         }
 
@@ -397,7 +416,19 @@ public class AccountingService {
                                 saved));
             }
         }
+        if (saved.getId() != null) {
+            auditMetadata.put("journalEntryId", saved.getId().toString());
+        }
+        auditMetadata.put("status", saved.getStatus());
+        auditService.logSuccess(AuditEvent.JOURNAL_ENTRY_POSTED, auditMetadata);
         return toDto(saved);
+        } catch (Exception e) {
+            if (e.getMessage() != null) {
+                auditMetadata.put("error", e.getMessage());
+            }
+            auditService.logFailure(AuditEvent.JOURNAL_ENTRY_POSTED, auditMetadata);
+            throw e;
+        }
     }
 
     @Transactional

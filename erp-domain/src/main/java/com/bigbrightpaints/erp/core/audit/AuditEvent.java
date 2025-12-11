@@ -54,6 +54,11 @@ public enum AuditEvent {
     INTEGRATION_SUCCESS("External integration successful"),
     INTEGRATION_FAILURE("External integration failed"),
 
+    // Business Operations
+    REFERENCE_GENERATED("Business reference generated"),
+    ORDER_NUMBER_GENERATED("Order number generated"),
+    JOURNAL_ENTRY_POSTED("Journal entry posted"),
+
     // Financial Events
     TRANSACTION_CREATED("Financial transaction created"),
     TRANSACTION_APPROVED("Transaction approved"),

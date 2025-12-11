@@ -74,6 +74,7 @@ public class IntegrationCoordinator {
     private final Long dispatchDebitAccountId;
     private final Long dispatchCreditAccountId;
     private final TransactionTemplate txTemplate;
+    private static final AtomicBoolean dispatchAccountWarningLogged = new AtomicBoolean(false);
 
     public IntegrationCoordinator(SalesService salesService,
                                   FactoryService factoryService,
@@ -100,6 +101,12 @@ public class IntegrationCoordinator {
         this.accountingFacade = accountingFacade;
         this.dispatchDebitAccountId = normalizeAccount(dispatchDebitAccountId);
         this.dispatchCreditAccountId = normalizeAccount(dispatchCreditAccountId);
+        if (this.dispatchDebitAccountId == null || this.dispatchCreditAccountId == null) {
+            if (dispatchAccountWarningLogged.compareAndSet(false, true)) {
+                log.warn("Dispatch debit/credit accounts not configured; COGS postings for dispatch mapping will be skipped. " +
+                        "Set erp.dispatch.debit-account-id and erp.dispatch.credit-account-id to enable dispatch journals.");
+            }
+        }
         TransactionTemplate template = new TransactionTemplate(txManager);
         template.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
         this.txTemplate = template;
@@ -164,10 +171,13 @@ public class IntegrationCoordinator {
         for (int index = 0; index < postings.size(); index++) {
             FinishedGoodsService.DispatchPosting posting = postings.get(index);
             if (posting.cogsAccountId() == null || posting.inventoryAccountId() == null) {
+                log.warn("Skipping COGS posting for order {} idx {} due to missing account mapping (cogsAccountId={}, inventoryAccountId={})",
+                        orderNumber, index, posting.cogsAccountId(), posting.inventoryAccountId());
                 continue;
             }
             BigDecimal cost = posting.cost();
             if (cost == null || cost.compareTo(BigDecimal.ZERO) <= 0) {
+                log.warn("Skipping COGS posting for order {} idx {} because cost is null/zero (value={})", orderNumber, index, cost);
                 continue;
             }
             String referenceKey = orderNumber + "-" + posting.inventoryAccountId() + "-" + index;

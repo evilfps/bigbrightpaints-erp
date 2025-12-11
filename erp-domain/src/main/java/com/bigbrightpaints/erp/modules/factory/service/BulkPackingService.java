@@ -20,7 +20,9 @@ import java.math.RoundingMode;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Service for converting bulk FG batches into sized child batches.
@@ -63,6 +65,8 @@ public class BulkPackingService {
         this.batchNumberService = batchNumberService;
     }
 
+    private record PackagingCostSummary(BigDecimal totalCost, Map<Long, BigDecimal> accountTotals) {}
+
     /**
      * Pack a bulk FG batch into sized child batches.
      */
@@ -86,11 +90,12 @@ public class BulkPackingService {
         }
 
         // 3. Consume packaging materials (optional)
-        BigDecimal packagingCost = BigDecimal.ZERO;
+        PackagingCostSummary packagingCostSummary = new PackagingCostSummary(BigDecimal.ZERO, Map.of());
         if (request.packagingMaterials() != null && !request.packagingMaterials().isEmpty()) {
-            packagingCost = consumePackagingMaterials(company, request.packagingMaterials(), 
+            packagingCostSummary = consumePackagingMaterials(company, request.packagingMaterials(),
                     "BULK-PACK-" + bulkBatch.getBatchCode());
         }
+        BigDecimal packagingCost = packagingCostSummary.totalCost();
 
         // 4. Calculate cost per unit for child batches
         BigDecimal bulkUnitCost = bulkBatch.getUnitCost();
@@ -124,8 +129,8 @@ public class BulkPackingService {
         finishedGoodRepository.save(bulkFg);
 
         // 7. Post packaging journal
-        Long journalEntryId = postPackagingJournal(company, bulkBatch, childBatches, 
-                totalVolume, packagingCost, packDate, request.notes());
+        Long journalEntryId = postPackagingJournal(company, bulkBatch, childBatches,
+                totalVolume, packagingCostSummary, packDate, request.notes());
 
         // 8. Build response
         List<BulkPackResponse.ChildBatchDto> childDtos = childBatches.stream()
@@ -214,16 +219,21 @@ public class BulkPackingService {
         return BigDecimal.ONE;
     }
 
-    private BigDecimal consumePackagingMaterials(Company company, 
-                                                  List<BulkPackRequest.MaterialConsumption> materials,
-                                                  String reference) {
+    private PackagingCostSummary consumePackagingMaterials(Company company,
+                                                           List<BulkPackRequest.MaterialConsumption> materials,
+                                                           String reference) {
         BigDecimal totalCost = BigDecimal.ZERO;
-        
+        Map<Long, BigDecimal> accountTotals = new HashMap<>();
+
         for (BulkPackRequest.MaterialConsumption material : materials) {
             RawMaterial rm = rawMaterialRepository.lockByCompanyAndId(company, material.materialId())
                     .orElseThrow(() -> new ApplicationException(ErrorCode.BUSINESS_ENTITY_NOT_FOUND,
                             "Raw material not found: " + material.materialId()));
 
+            if (rm.getInventoryAccountId() == null) {
+                throw new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE,
+                        "Packaging material " + rm.getSku() + " missing inventory account");
+            }
             if (rm.getCurrentStock().compareTo(material.quantity()) < 0) {
                 throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
                         String.format("Insufficient %s. Available: %s, Required: %s",
@@ -254,9 +264,10 @@ public class BulkPackingService {
             rawMaterialRepository.save(rm);
             
             totalCost = totalCost.add(consumedCost);
+            accountTotals.merge(rm.getInventoryAccountId(), consumedCost, BigDecimal::add);
         }
-        
-        return totalCost;
+
+        return new PackagingCostSummary(totalCost, accountTotals);
     }
 
     private FinishedGoodBatch createChildBatch(Company company,
@@ -313,7 +324,7 @@ public class BulkPackingService {
                                        FinishedGoodBatch bulkBatch,
                                        List<FinishedGoodBatch> childBatches,
                                        BigDecimal volumeDeducted,
-                                       BigDecimal packagingCost,
+                                       PackagingCostSummary packagingCostSummary,
                                        LocalDate entryDate,
                                        String notes) {
         FinishedGood bulkFg = bulkBatch.getFinishedGood();
@@ -332,8 +343,17 @@ public class BulkPackingService {
         List<JournalLineRequest> lines = new ArrayList<>();
 
         // Credit: Bulk FG Inventory
-        lines.add(new JournalLineRequest(bulkAccountId, 
+        lines.add(new JournalLineRequest(bulkAccountId,
                 "Bulk consumption for packaging", BigDecimal.ZERO, bulkValue));
+
+        // Credit: Packaging RM Inventory (per account)
+        for (Map.Entry<Long, BigDecimal> entry : packagingCostSummary.accountTotals().entrySet()) {
+            BigDecimal creditAmount = entry.getValue().setScale(2, COST_ROUNDING);
+            if (creditAmount.compareTo(BigDecimal.ZERO) > 0) {
+                lines.add(new JournalLineRequest(entry.getKey(),
+                        "Packaging material consumption", BigDecimal.ZERO, creditAmount));
+            }
+        }
 
         // Debit: Each child FG Inventory
         for (FinishedGoodBatch childBatch : childBatches) {
@@ -350,16 +370,28 @@ public class BulkPackingService {
                     "Packed from bulk: " + childBatch.getSizeLabel(), childValue, BigDecimal.ZERO));
         }
 
-        // If there's a cost variance (packaging cost or rounding), adjust
+        // Adjust for rounding variance so debits = credits (bulk + packaging)
         BigDecimal totalDebit = lines.stream()
                 .map(JournalLineRequest::debit)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-        BigDecimal totalCredit = bulkValue;
-        
-        if (totalDebit.compareTo(totalCredit) != 0) {
-            // Small variance goes to COGS or variance account
-            // For now, adjust the last debit line
-            // In production, you'd want a proper variance account
+        BigDecimal totalCredit = lines.stream()
+                .map(JournalLineRequest::credit)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        if (totalDebit.compareTo(totalCredit) != 0 && lines.size() > 1) {
+            BigDecimal variance = totalCredit.subtract(totalDebit);
+            // Adjust the last debit line (child FG) to keep balanced
+            for (int i = lines.size() - 1; i >= 0; i--) {
+                JournalLineRequest line = lines.get(i);
+                if (line.debit().compareTo(BigDecimal.ZERO) > 0) {
+                    lines.set(i, new JournalLineRequest(
+                            line.accountId(),
+                            line.description(),
+                            line.debit().add(variance),
+                            line.credit()));
+                    break;
+                }
+            }
         }
 
         String reference = "PACK-" + bulkBatch.getBatchCode() + "-" + System.currentTimeMillis();
