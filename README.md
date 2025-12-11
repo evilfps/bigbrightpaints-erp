@@ -1,5 +1,10 @@
 # 🏭 BigBright ERP
 
+[![ERP Domain CI/CD](https://github.com/anasibnanwar-XYE/bigbrightpaints-erp/actions/workflows/erp-domain-ci.yml/badge.svg)](https://github.com/anasibnanwar-XYE/bigbrightpaints-erp/actions/workflows/erp-domain-ci.yml)
+[![Java Version](https://img.shields.io/badge/Java-21-blue.svg)](https://openjdk.org/projects/jdk/21/)
+[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.3.4-brightgreen.svg)](https://spring.io/projects/spring-boot)
+[![License](https://img.shields.io/badge/License-Proprietary-red.svg)](LICENSE.md)
+
 A comprehensive Enterprise Resource Planning (ERP) system designed for manufacturing businesses and enterprises. This full-stack application manages the complete business lifecycle including sales, inventory, production, accounting, HR, and dealer management.
 
 ## 📋 Table of Contents
@@ -234,9 +239,20 @@ npx @openapitools/openapi-generator-cli generate \
 cd erp-domain
 mvn test
 
+# Run tests with coverage
+mvn test jacoco:report
+
 # Build without tests
 mvn -q -DskipTests package
 ```
+
+**Test Coverage**: The project includes 155+ tests covering:
+- Unit tests for services and business logic
+- Integration tests with Testcontainers
+- End-to-end workflow tests
+- Regression tests for critical business processes
+
+Coverage reports are generated in `erp-domain/target/site/jacoco/`.
 
 ### E2E Tests (Cypress)
 
@@ -264,6 +280,46 @@ scripts/run-tests-cloud.sh
 ```
 
 See `docs/CLOUD_CONTAINERS.md` for Docker-in-Docker setup.
+
+## 🔄 CI/CD Pipeline
+
+The project uses GitHub Actions for continuous integration and deployment:
+
+### Automated Checks
+
+1. **Build and Test** - Compiles code and runs full test suite
+2. **Code Quality** - Runs Checkstyle for code style validation
+3. **Database Migrations** - Validates Flyway migrations against PostgreSQL
+4. **Test Coverage** - Generates JaCoCo coverage reports (minimum 20% required)
+5. **Artifact Publishing** - Archives build artifacts and test reports
+
+### Pipeline Jobs
+
+- **build-and-test**: Builds the application, runs tests, generates coverage reports
+- **code-quality**: Runs static code analysis and verification
+- **database-migrations**: Validates database schema changes
+
+### Viewing Results
+
+- Test results are uploaded as artifacts for each workflow run
+- Coverage reports are available in the workflow artifacts
+- Build artifacts (.jar files) are retained for 7 days
+
+### Running CI Locally
+
+```bash
+# Run the same checks locally
+cd erp-domain
+
+# Build and test
+mvn clean test jacoco:report
+
+# Code quality
+mvn checkstyle:check
+
+# Verify (full build with checks)
+mvn verify
+```
 
 ## 📁 Project Structure
 
