@@ -3,14 +3,17 @@ package com.bigbrightpaints.erp.modules.sales.service;
 import com.bigbrightpaints.erp.modules.accounting.service.DealerLedgerService;
 import com.bigbrightpaints.erp.modules.invoice.domain.Invoice;
 import com.bigbrightpaints.erp.modules.invoice.domain.InvoiceRepository;
+import com.bigbrightpaints.erp.modules.invoice.service.InvoicePdfService;
 import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrder;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrderRepository;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -26,17 +29,20 @@ public class DealerPortalService {
     private final DealerRepository dealerRepository;
     private final DealerLedgerService dealerLedgerService;
     private final InvoiceRepository invoiceRepository;
+    private final InvoicePdfService invoicePdfService;
     private final DealerService dealerService;
     private final SalesOrderRepository salesOrderRepository;
 
     public DealerPortalService(DealerRepository dealerRepository,
                                DealerLedgerService dealerLedgerService,
                                InvoiceRepository invoiceRepository,
+                               InvoicePdfService invoicePdfService,
                                DealerService dealerService,
                                SalesOrderRepository salesOrderRepository) {
         this.dealerRepository = dealerRepository;
         this.dealerLedgerService = dealerLedgerService;
         this.invoiceRepository = invoiceRepository;
+        this.invoicePdfService = invoicePdfService;
         this.dealerService = dealerService;
         this.salesOrderRepository = salesOrderRepository;
     }
@@ -262,5 +268,26 @@ public class DealerPortalService {
         result.put("orderCount", orders.size());
         result.put("orders", orderList);
         return result;
+    }
+
+    @Transactional(readOnly = true)
+    public InvoicePdfService.PdfDocument getMyInvoicePdf(Long invoiceId) {
+        Dealer dealer = getCurrentDealer();
+        Invoice invoice = invoiceRepository.findById(invoiceId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Invoice not found"));
+
+        if (invoice.getDealer() == null
+                || invoice.getDealer().getId() == null
+                || invoice.getCompany() == null
+                || dealer.getId() == null
+                || dealer.getCompany() == null
+                || dealer.getCompany().getId() == null
+                || invoice.getCompany().getId() == null
+                || !dealer.getCompany().getId().equals(invoice.getCompany().getId())
+                || !dealer.getId().equals(invoice.getDealer().getId())) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Invoice not found");
+        }
+
+        return invoicePdfService.renderInvoicePdf(invoiceId);
     }
 }

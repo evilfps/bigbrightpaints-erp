@@ -41,13 +41,13 @@ logging:
     org.springframework.web: WARN
     org.springframework.security: WARN
     org.hibernate.SQL: WARN
-  jwt:
-    # Must be 32+ bytes; prefer env/secret manager override
-    secret: ${JWT_SECRET}
-    # Default 15 min access; tune for UX vs security
-    access-token-ttl-seconds: ${JWT_ACCESS_TTL:900}
-    # Default 30 days refresh; reduce for shared environments
-    refresh-token-ttl-seconds: ${JWT_REFRESH_TTL:2592000}
+jwt:
+  # Must be 32+ bytes; prefer env/secret manager override
+  secret: ${JWT_SECRET}
+  # Default 15 min access; tune for UX vs security
+  access-token-ttl-seconds: ${JWT_ACCESS_TTL:900}
+  # Default 30 days refresh; reduce for shared environments
+  refresh-token-ttl-seconds: ${JWT_REFRESH_TTL:2592000}
 erp:
   licensing:
     product-id: ${ERP_LICENSE_PRODUCT_ID:31720}

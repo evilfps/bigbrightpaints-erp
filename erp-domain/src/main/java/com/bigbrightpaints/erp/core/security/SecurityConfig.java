@@ -47,7 +47,16 @@ public class SecurityConfig {
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(registry -> registry
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                .requestMatchers("/api/v1/auth/login", "/api/v1/auth/refresh-token", "/api/v1/auth/password/forgot", "/api/v1/auth/password/reset", "/swagger-ui/**", "/v3/api-docs/**", "/api/integration/health").permitAll()
+                .requestMatchers(
+                    "/api/v1/auth/login",
+                    "/api/v1/auth/refresh-token",
+                    "/api/v1/auth/password/forgot",
+                    "/api/v1/auth/password/reset",
+                    "/swagger-ui/**",
+                    "/v3/api-docs/**",
+                    "/v3/api-docs.yaml",
+                    "/api/integration/health"
+                ).permitAll()
                 .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
                 .anyRequest().authenticated())
             .userDetailsService(userDetailsService)

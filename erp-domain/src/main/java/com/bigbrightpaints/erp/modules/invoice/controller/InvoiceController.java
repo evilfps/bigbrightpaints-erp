@@ -5,6 +5,9 @@ import com.bigbrightpaints.erp.modules.invoice.dto.InvoiceDto;
 import com.bigbrightpaints.erp.modules.invoice.service.InvoicePdfService;
 import com.bigbrightpaints.erp.modules.invoice.service.InvoiceService;
 import com.bigbrightpaints.erp.shared.dto.ApiResponse;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -41,7 +44,16 @@ public class InvoiceController {
         return ResponseEntity.ok(ApiResponse.success(invoiceService.getInvoice(id)));
     }
 
-    @GetMapping("/{id}/pdf")
+    @GetMapping(value = "/{id}/pdf", produces = MediaType.APPLICATION_PDF_VALUE)
+    @Operation(summary = "Download invoice PDF")
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(
+            responseCode = "200",
+            description = "PDF document",
+            content = @Content(
+                    mediaType = MediaType.APPLICATION_PDF_VALUE,
+                    schema = @Schema(type = "string", format = "binary")
+            )
+    )
     public ResponseEntity<byte[]> downloadInvoicePdf(@PathVariable Long id) {
         InvoicePdfService.PdfDocument pdf = invoicePdfService.renderInvoicePdf(id);
         return ResponseEntity.ok()

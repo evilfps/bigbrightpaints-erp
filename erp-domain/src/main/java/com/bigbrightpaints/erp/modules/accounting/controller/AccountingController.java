@@ -13,6 +13,9 @@ import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.modules.sales.service.SalesReturnService;
 import com.bigbrightpaints.erp.shared.dto.ApiResponse;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -277,6 +280,15 @@ public class AccountingController {
     }
 
     @GetMapping(value = "/statements/dealers/{dealerId}/pdf", produces = "application/pdf")
+    @Operation(summary = "Download dealer statement PDF")
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(
+            responseCode = "200",
+            description = "PDF document",
+            content = @Content(
+                    mediaType = "application/pdf",
+                    schema = @Schema(type = "string", format = "binary")
+            )
+    )
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
     public ResponseEntity<byte[]> dealerStatementPdf(@PathVariable Long dealerId,
                                                      @RequestParam(required = false) String from,
@@ -290,6 +302,15 @@ public class AccountingController {
     }
 
     @GetMapping(value = "/statements/suppliers/{supplierId}/pdf", produces = "application/pdf")
+    @Operation(summary = "Download supplier statement PDF")
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(
+            responseCode = "200",
+            description = "PDF document",
+            content = @Content(
+                    mediaType = "application/pdf",
+                    schema = @Schema(type = "string", format = "binary")
+            )
+    )
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
     public ResponseEntity<byte[]> supplierStatementPdf(@PathVariable Long supplierId,
                                                        @RequestParam(required = false) String from,
@@ -303,6 +324,15 @@ public class AccountingController {
     }
 
     @GetMapping(value = "/aging/dealers/{dealerId}/pdf", produces = "application/pdf")
+    @Operation(summary = "Download dealer aging PDF")
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(
+            responseCode = "200",
+            description = "PDF document",
+            content = @Content(
+                    mediaType = "application/pdf",
+                    schema = @Schema(type = "string", format = "binary")
+            )
+    )
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
     public ResponseEntity<byte[]> dealerAgingPdf(@PathVariable Long dealerId,
                                                  @RequestParam(required = false) String asOf,
@@ -316,6 +346,15 @@ public class AccountingController {
     }
 
     @GetMapping(value = "/aging/suppliers/{supplierId}/pdf", produces = "application/pdf")
+    @Operation(summary = "Download supplier aging PDF")
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(
+            responseCode = "200",
+            description = "PDF document",
+            content = @Content(
+                    mediaType = "application/pdf",
+                    schema = @Schema(type = "string", format = "binary")
+            )
+    )
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
     public ResponseEntity<byte[]> supplierAgingPdf(@PathVariable Long supplierId,
                                                    @RequestParam(required = false) String asOf,

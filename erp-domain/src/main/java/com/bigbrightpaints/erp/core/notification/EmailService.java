@@ -61,6 +61,7 @@ public class EmailService {
         context.setVariable("email", to);
         context.setVariable("temporaryPassword", password);
         context.setVariable("loginUrl", properties.getBaseUrl());
+        context.setVariable("preheader", "Your Orchestrator ERP account is ready.");
         sendHtmlEmail(to, subject, "mail/credentials", context);
     }
 
@@ -76,6 +77,7 @@ public class EmailService {
         context.setVariable("email", to);
         context.setVariable("resetUrl", resetLink);
         context.setVariable("baseUrl", properties.getBaseUrl());
+        context.setVariable("preheader", "Use this secure link to reset your password (expires in 60 minutes).");
         sendHtmlEmail(to, subject, "mail/password-reset", context);
     }
 
@@ -85,32 +87,24 @@ public class EmailService {
         context.setVariable("displayName", displayName);
         context.setVariable("email", to);
         context.setVariable("loginUrl", properties.getBaseUrl());
+        context.setVariable("preheader", "Your password has been updated successfully.");
         sendHtmlEmail(to, subject, "mail/password-reset-confirmed", context);
     }
 
     public void sendUserSuspendedEmail(String to, String displayName) {
         String subject = "Your BigBright ERP account has been suspended";
-        String body = """
-                Hello %s,
-
-                Your account has been suspended by an administrator. If you believe this is a mistake, please contact support.
-
-                - BigBright ERP
-                """.formatted(displayName);
-        sendSimpleEmail(to, subject, body);
+        Context context = new Context();
+        context.setVariable("displayName", displayName);
+        context.setVariable("preheader", "Your account has been suspended.");
+        sendHtmlEmail(to, subject, "mail/user-suspended", context);
     }
 
     public void sendUserDeletedEmail(String to, String displayName) {
         String subject = "Your BigBright ERP account has been deleted";
-        String body = """
-                Hello %s,
-
-                Your account has been deleted and you no longer have access to BigBright ERP.
-                If you require access again, please reach out to an administrator.
-
-                - BigBright ERP
-                """.formatted(displayName);
-        sendSimpleEmail(to, subject, body);
+        Context context = new Context();
+        context.setVariable("displayName", displayName);
+        context.setVariable("preheader", "Your account has been deleted.");
+        sendHtmlEmail(to, subject, "mail/user-deleted", context);
     }
 
     public void sendInvoiceEmail(String to, String dealerName, String invoiceNumber, 
@@ -133,6 +127,8 @@ public class EmailService {
         context.setVariable("totalAmount", totalAmount);
         context.setVariable("companyName", companyName);
         context.setVariable("baseUrl", properties.getBaseUrl());
+        context.setVariable("subject", subject);
+        context.setVariable("preheader", "Invoice " + invoiceNumber + " is ready (PDF attached).");
         
         MimeMessagePreparator preparator = mimeMessage -> {
             MimeMessageHelper helper = new MimeMessageHelper(mimeMessage, true, "UTF-8");
@@ -200,6 +196,7 @@ public class EmailService {
             helper.setTo(to);
             helper.setFrom(properties.getFromAddress());
             helper.setSubject(subject);
+            applyStandardTemplateVariables(context, subject);
             String html = templateEngine.process(templateName, context);
             helper.setText(html, true);
         };
@@ -208,6 +205,21 @@ public class EmailService {
             log.info("Sent HTML email to {}", to);
         } catch (MailException ex) {
             log.error("Failed to send HTML email to {}: {}", to, ex.getMessage(), ex);
+        }
+    }
+
+    private void applyStandardTemplateVariables(Context context, String subject) {
+        if (context == null) {
+            return;
+        }
+        if (context.getVariable("subject") == null) {
+            context.setVariable("subject", subject);
+        }
+        if (context.getVariable("preheader") == null) {
+            context.setVariable("preheader", subject);
+        }
+        if (context.getVariable("baseUrl") == null) {
+            context.setVariable("baseUrl", properties.getBaseUrl());
         }
     }
 }

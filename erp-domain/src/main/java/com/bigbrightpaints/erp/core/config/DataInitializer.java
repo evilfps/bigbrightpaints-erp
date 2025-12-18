@@ -21,7 +21,7 @@ import java.util.List;
 public class DataInitializer {
 
     @Bean
-    @Profile("dev")
+    @Profile({"dev", "seed"})
     CommandLineRunner seedDefaultUser(UserAccountRepository userRepository,
                                       CompanyRepository companyRepository,
                                       RoleRepository roleRepository,
@@ -49,9 +49,9 @@ public class DataInitializer {
                         passwordEncoder.encode("ChangeMe123!"),
                         "Dev Admin");
                 user.addCompany(company);
-                        user.addRole(adminRole);
-                        return userRepository.save(user);
-                    });
+                user.addRole(adminRole);
+                return userRepository.save(user);
+            });
 
             seedDefaultAccounts(company, accountRepository);
             setCompanyDefaultAccounts(company, companyRepository, accountRepository);
@@ -85,8 +85,8 @@ public class DataInitializer {
     }
 
     private void setCompanyDefaultAccounts(Company company,
-                                           CompanyRepository companyRepository,
-                                           AccountRepository accountRepository) {
+                                          CompanyRepository companyRepository,
+                                          AccountRepository accountRepository) {
         // Only set if missing to avoid overriding user-configured values
         if (company.getDefaultInventoryAccountId() == null) {
             accountRepository.findByCompanyAndCodeIgnoreCase(company, "1200")

@@ -9,8 +9,8 @@ externalDocs:
   description: ERP Documentation
   url: https://docs.bigbrightpaints.com
 servers:
-- url: http://localhost:42099
-  description: Generated server url
+- url: /
+  description: Default
 paths:
   /api/v1/suppliers/{id}:
     get:
@@ -3615,6 +3615,7 @@ paths:
     get:
       tags:
       - invoice-controller
+      summary: Download invoice PDF
       operationId: downloadInvoicePdf
       parameters:
       - name: id
@@ -3625,12 +3626,12 @@ paths:
           format: int64
       responses:
         "200":
-          description: OK
+          description: PDF document
           content:
-            '*/*':
+            application/pdf:
               schema:
                 type: string
-                format: byte
+                format: binary
   /api/v1/invoices/dealers/{dealerId}:
     get:
       tags:
@@ -4061,6 +4062,27 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ApiResponseMapStringObject"
+  /api/v1/dealer-portal/invoices/{invoiceId}/pdf:
+    get:
+      tags:
+      - dealer-portal-controller
+      summary: Download invoice PDF (dealer scoped)
+      operationId: getMyInvoicePdf
+      parameters:
+      - name: invoiceId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: PDF document
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
   /api/v1/dealer-portal/dashboard:
     get:
       tags:
@@ -4190,6 +4212,7 @@ paths:
     get:
       tags:
       - accounting-controller
+      summary: Download supplier statement PDF
       operationId: supplierStatementPdf
       parameters:
       - name: supplierId
@@ -4216,12 +4239,12 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiResponseVoid"
         "200":
-          description: OK
+          description: PDF document
           content:
             application/pdf:
               schema:
                 type: string
-                format: byte
+                format: binary
   /api/v1/accounting/statements/dealers/{dealerId}:
     get:
       tags:
@@ -4261,6 +4284,7 @@ paths:
     get:
       tags:
       - accounting-controller
+      summary: Download dealer statement PDF
       operationId: dealerStatementPdf
       parameters:
       - name: dealerId
@@ -4287,12 +4311,12 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiResponseVoid"
         "200":
-          description: OK
+          description: PDF document
           content:
             application/pdf:
               schema:
                 type: string
-                format: byte
+                format: binary
   /api/v1/accounting/reports/income-statement/hierarchy:
     get:
       tags:
@@ -4604,6 +4628,7 @@ paths:
     get:
       tags:
       - accounting-controller
+      summary: Download supplier aging PDF
       operationId: supplierAgingPdf
       parameters:
       - name: supplierId
@@ -4630,12 +4655,12 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiResponseVoid"
         "200":
-          description: OK
+          description: PDF document
           content:
             application/pdf:
               schema:
                 type: string
-                format: byte
+                format: binary
   /api/v1/accounting/aging/dealers/{dealerId}:
     get:
       tags:
@@ -4675,6 +4700,7 @@ paths:
     get:
       tags:
       - accounting-controller
+      summary: Download dealer aging PDF
       operationId: dealerAgingPdf
       parameters:
       - name: dealerId
@@ -4701,12 +4727,12 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiResponseVoid"
         "200":
-          description: OK
+          description: PDF document
           content:
             application/pdf:
               schema:
                 type: string
-                format: byte
+                format: binary
   /api/v1/accounting/accounts/{accountId}/balance/compare:
     get:
       tags:
@@ -8411,10 +8437,10 @@ components:
           type: string
         supportingDocumentRef:
           type: string
-        partialReversal:
-          type: boolean
         effectivePercentage:
           type: number
+        partialReversal:
+          type: boolean
     ApiResponseListJournalEntryDto:
       type: object
       properties:

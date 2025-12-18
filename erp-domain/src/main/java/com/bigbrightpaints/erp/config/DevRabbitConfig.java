@@ -12,7 +12,7 @@ import org.springframework.context.annotation.Profile;
  * Dev-only stub to satisfy RabbitTemplate dependency without requiring a broker.
  */
 @Configuration
-@Profile("dev")
+@Profile({"dev", "openapi"})
 public class DevRabbitConfig {
 
     private static final Logger log = LoggerFactory.getLogger(DevRabbitConfig.class);

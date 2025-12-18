@@ -1,28 +1,63 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org">
-<body th:replace="~{mail/layout :: layout(~{::content})}">
+<html xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{mail/layout :: layout(~{::content})}">
+<body>
 <div th:fragment="content">
-  <p class="muted" style="margin:0 0 14px 0;">Invoice Ready</p>
-  <h2 style="margin:0 0 10px 0; font-size:24px;">Hello, <span th:text="${recipientName}">Customer</span></h2>
-  <p style="margin:0 0 16px 0; line-height:1.6;">
-    Your invoice is ready. A PDF copy is attached for your records.
+
+  <h1 class="body-font hero-text"
+      style="margin: 0 0 22px 0; color: #001F3F; font-size: 26px; font-weight: 600; line-height: 1.3;">
+    Invoice ready
+  </h1>
+
+  <p class="body-font" style="margin: 0 0 18px 0; font-size: 15px; line-height: 1.7; color: #475569;">
+    Hello <span th:text="${dealerName}">Customer</span>,
   </p>
-  <div style="padding:16px; border:1px solid #e6e8eb; border-radius:10px; margin-bottom:18px; background:#fafbff;">
-    <div style="display:flex; justify-content:space-between; margin-bottom:8px; font-weight:600;">
-      <span>Invoice No.</span><span th:text="${invoiceNumber}">INV-000</span>
-    </div>
-    <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
-      <span>Invoice Date</span><span th:text="${invoiceDate}">2025-12-01</span>
-    </div>
-    <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
-      <span>Due Date</span><span th:text="${dueDate}">2025-12-15</span>
-    </div>
-    <div style="display:flex; justify-content:space-between; font-weight:700; font-size:16px; color:#1d358b;">
-      <span>Total Amount</span><span th:text="${totalAmount}">₹0.00</span>
-    </div>
-  </div>
-  <p class="muted" style="margin:0 0 16px 0; line-height:1.6;">Need help? Reply to this email or contact your account manager.</p>
-  <a class="btn" th:href="${portalUrl}">View in Portal</a>
+
+  <p class="body-font" style="margin: 0 0 22px 0; font-size: 15px; line-height: 1.7; color: #475569;">
+    Your invoice from <strong th:text="${companyName}">Big Bright Paints</strong> is ready. A PDF copy is attached for your records.
+  </p>
+
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"
+         style="width: 100%; border: 1px solid #E2E8F0; border-radius: 8px; background: #FAFAFF; margin: 0 0 22px 0;">
+    <tr>
+      <td style="padding: 14px 16px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="width: 100%;">
+          <tr>
+            <td class="body-font" style="padding: 6px 0; font-size: 14px; color: #64748B;">Invoice No.</td>
+            <td class="body-font" style="padding: 6px 0; font-size: 14px; color: #334155; font-weight: 700;" align="right" th:text="${invoiceNumber}">INV-000</td>
+          </tr>
+          <tr>
+            <td class="body-font" style="padding: 6px 0; font-size: 14px; color: #64748B;">Invoice Date</td>
+            <td class="body-font" style="padding: 6px 0; font-size: 14px; color: #334155;" align="right" th:text="${invoiceDate}">2025-12-01</td>
+          </tr>
+          <tr>
+            <td class="body-font" style="padding: 6px 0; font-size: 14px; color: #64748B;">Due Date</td>
+            <td class="body-font" style="padding: 6px 0; font-size: 14px; color: #334155;" align="right" th:text="${dueDate}">2025-12-15</td>
+          </tr>
+          <tr>
+            <td class="body-font" style="padding: 8px 0 2px 0; font-size: 14px; color: #64748B; font-weight: 700;">Total Amount</td>
+            <td class="body-font" style="padding: 8px 0 2px 0; font-size: 16px; color: #001F3F; font-weight: 800;" align="right" th:text="${totalAmount}">0.00</td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+
+  <table role="presentation" border="0" cellspacing="0" cellpadding="0" style="margin: 0 0 18px 0;">
+    <tr>
+      <td align="left" bgcolor="#001F3F" style="border-radius: 4px;">
+        <a class="btn" th:href="${baseUrl}"
+           style="font-size: 14px; font-weight: 600; color: #ffffff; text-decoration: none; padding: 14px 28px; display: inline-block; border: 1px solid #001F3F; border-radius: 4px;">
+          View in Portal
+        </a>
+      </td>
+    </tr>
+  </table>
+
+  <p class="body-font" style="margin: 0; font-size: 14px; line-height: 1.7; color: #64748B;">
+    Need help? Reply to this email or contact your account manager.
+  </p>
+
 </div>
 </body>
 </html>

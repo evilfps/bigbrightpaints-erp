@@ -1,36 +1,150 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org">
+<html lang="en"
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:v="urn:schemas-microsoft-com:vml"
+      xmlns:o="urn:schemas-microsoft-com:office:office"
+      th:fragment="layout(content)">
 <head>
-  <meta charset="UTF-8">
-  <title th:text="${subject}">BIG BRIGHT Paints</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="x-apple-disable-message-reformatting">
+  <title th:text="${subject}">Big Bright Paints - Orchestrator ERP</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Philosopher:wght@700&display=swap" rel="stylesheet">
+
+  <style>
+    html, body { margin: 0 auto !important; padding: 0 !important; height: 100% !important; width: 100% !important; background-color: #F4F6F8; }
+    * { -ms-text-size-adjust: 100%; -webkit-text-size-adjust: 100%; }
+    div[style*="margin: 16px 0"] { margin: 0 !important; }
+    table, td { mso-table-lspace: 0pt !important; mso-table-rspace: 0pt !important; border-collapse: collapse !important; border-spacing: 0 !important; }
+    img { -ms-interpolation-mode: bicubic; border: 0; height: auto; line-height: 100%; outline: none; text-decoration: none; display: block; }
+
+    .brand-font { font-family: 'Philosopher', Georgia, serif; }
+    .body-font { font-family: 'Inter', Helvetica, Arial, sans-serif; }
+    .text-deep-blue { color: #001F3F; }
+    .text-amber { color: #DAA520; }
+
+    .email-container { width: 100% !important; max-width: 600px !important; margin: 0 auto !important; }
+    .content-padding { padding-left: 40px !important; padding-right: 40px !important; }
+
+    .muted { color: #64748B; font-size: 13px; line-height: 1.6; }
+    .btn {
+      display: inline-block;
+      padding: 14px 28px;
+      border-radius: 4px;
+      background: #001F3F;
+      border: 1px solid #001F3F;
+      color: #ffffff !important;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 14px;
+    }
+
+    @media screen and (max-width: 600px) {
+      .email-container { width: 100% !important; max-width: 100% !important; }
+      .content-padding { padding-left: 20px !important; padding-right: 20px !important; }
+      .header-text { text-align: center !important; }
+      .hero-text { font-size: 24px !important; }
+    }
+  </style>
 </head>
-<body style="margin:0;padding:0;background:#f5f6f9;">
-  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="width:100%;background:#f5f6f9;margin:0;padding:0;">
+<body width="100%" style="margin: 0; padding: 0 !important; mso-line-height-rule: exactly; background-color: #F4F6F8;">
+<center style="width: 100%; background-color: #F4F6F8;">
+
+  <div th:text="${preheader}"
+       style="display: none; font-size: 1px; line-height: 1px; max-height: 0px; max-width: 0px; opacity: 0; overflow: hidden; mso-hide: all; font-family: sans-serif;">
+    Big Bright Paints - Orchestrator ERP notification
+  </div>
+
+  <!--[if mso]>
+  <table align="center" role="presentation" cellspacing="0" cellpadding="0" border="0" width="600">
+    <tr><td>
+  <![endif]-->
+  <table align="center" role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" class="email-container">
     <tr>
-      <td align="center" style="padding:10px 6px;">
-        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width:500px;width:100%;background:#ffffff;border:1px solid #e6e8eb;border-radius:12px;box-shadow:0 8px 22px rgba(0,0,0,0.05);">
+      <td style="padding: 12px 0;">
+        <table width="100%" role="presentation">
           <tr>
-            <td style="padding:16px 18px 8px;text-align:center;border-bottom:1px solid #e6e8eb;">
-              <div style="font-family:Philosopher,Arial,serif;font-size:22px;letter-spacing:0.4px;margin:0;">
-                <span style="color:#1d358b;">BIG BRIGHT</span>
-                <span style="color:#f28a00;">Paints</span>
-              </div>
-              <div style="margin:6px 0 2px;font-size:12px;color:#777777;font-family:Inter,Arial,sans-serif;">Painting The Future</div>
-              <div style="margin:0;font-size:11px;color:#999999;font-family:Inter,Arial,sans-serif;">The Orchestrator - ERP</div>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding:16px 18px 20px;font-family:Inter,Arial,sans-serif;color:#1a1a1a;font-size:14px;line-height:1.55;" th:insert="${content}"></td>
-          </tr>
-          <tr>
-            <td style="padding:12px 16px 18px;text-align:center;font-size:11px;color:#777777;border-top:1px solid #e6e8eb;font-family:Inter,Arial,sans-serif;">
-              <div>Support: support@bigbrightpaints.com · <a th:href="${baseUrl}" style="color:#1d358b;text-decoration:none;font-weight:600;">Open ERP</a></div>
-              <div style="margin-top:6px;color:#999999;">&copy; 2025 Big Bright Paints · The Orchestrator</div>
+            <td class="content-padding" style="padding: 0 40px; text-align: right;">
+              <span class="body-font"
+                    style="font-size: 10px; text-transform: uppercase; letter-spacing: 1.5px; color: #94A3B8; font-weight: 700;">
+                ORCHESTRATOR ERP
+              </span>
             </td>
           </tr>
         </table>
       </td>
     </tr>
+
+    <tr>
+      <td style="background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 15px rgba(0,0,0,0.04); overflow: hidden;">
+
+        <table width="100%" role="presentation">
+          <tr>
+            <td class="content-padding" style="padding: 40px 40px 28px 40px; border-bottom: 1px solid #F1F5F9;">
+              <table width="100%" role="presentation">
+                <tr>
+                  <td align="left" class="header-text">
+                    <a th:href="${baseUrl}" style="text-decoration: none;">
+                      <span class="brand-font text-deep-blue" style="font-size: 28px; font-weight: 700; letter-spacing: -0.5px;">BIG BRIGHT</span>
+                      <span class="brand-font text-amber" style="font-size: 28px; font-weight: 700; margin-left: 2px;">PAINTS</span>
+                    </a>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+
+        <table width="100%" role="presentation">
+          <tr>
+            <td class="content-padding body-font" style="padding: 40px 40px 50px 40px; color: #334155; font-size: 15px; line-height: 1.7;">
+              <th:block th:replace="${content}"></th:block>
+            </td>
+          </tr>
+        </table>
+
+        <table width="100%" role="presentation" style="background-color: #FAFAFA; border-top: 1px solid #F1F5F9;">
+          <tr>
+            <td class="content-padding" style="padding: 26px 40px;">
+              <table width="100%" role="presentation">
+                <tr>
+                  <td valign="top" style="vertical-align: top;">
+                    <p class="body-font" style="margin: 0; font-size: 12px; color: #94A3B8; line-height: 1.6;">
+                      &copy; <span th:text="${#dates.year(#dates.createNow())}">2025</span> Big Bright Paints Ltd.
+                    </p>
+                  </td>
+                  <td valign="top" align="right" style="vertical-align: top;">
+                    <p class="body-font" style="margin: 0; font-size: 12px; color: #94A3B8; line-height: 1.6;">
+                      <a th:href="${baseUrl}" style="color: #001F3F; text-decoration: none; font-weight: 700;">Open ERP</a><br>
+                      <span style="font-size: 10px; letter-spacing: 1px; color: #CBD5E1; text-transform: uppercase; font-weight: 700;">Powered by Orchestrator</span>
+                    </p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+
+      </td>
+    </tr>
+
+    <tr>
+      <td style="padding: 18px 0; text-align: center;">
+        <p class="body-font" style="margin: 0; font-size: 11px; color: #94A3B8;">
+          This is an automated email. If you need help, contact support@bigbrightpaints.com.
+        </p>
+      </td>
+    </tr>
   </table>
+  <!--[if mso]>
+    </td></tr>
+  </table>
+  <![endif]-->
+
+</center>
 </body>
 </html>

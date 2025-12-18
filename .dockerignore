@@ -1,0 +1,14 @@
+.git
+.gitignore
+.idea
+.vscode
+.history
+
+**/target
+**/node_modules
+**/*.log
+**/logs
+
+temurin21*.zip
+temurin21*-linux.tar.gz
+jdk-21.0.3+9

@@ -1,10 +1,17 @@
 package com.bigbrightpaints.erp.modules.sales.controller;
 
 import com.bigbrightpaints.erp.modules.sales.service.DealerPortalService;
+import com.bigbrightpaints.erp.modules.invoice.service.InvoicePdfService;
 import com.bigbrightpaints.erp.shared.dto.ApiResponse;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -68,5 +75,26 @@ public class DealerPortalController {
     public ResponseEntity<ApiResponse<Map<String, Object>>> getMyOrders() {
         Map<String, Object> orders = dealerPortalService.getMyOrders();
         return ResponseEntity.ok(ApiResponse.success("Your orders", orders));
+    }
+
+    /**
+     * Download invoice PDF for the authenticated dealer.
+     */
+    @GetMapping(value = "/invoices/{invoiceId}/pdf", produces = MediaType.APPLICATION_PDF_VALUE)
+    @Operation(summary = "Download invoice PDF (dealer scoped)")
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(
+            responseCode = "200",
+            description = "PDF document",
+            content = @Content(
+                    mediaType = MediaType.APPLICATION_PDF_VALUE,
+                    schema = @Schema(type = "string", format = "binary")
+            )
+    )
+    public ResponseEntity<byte[]> getMyInvoicePdf(@PathVariable Long invoiceId) {
+        InvoicePdfService.PdfDocument pdf = dealerPortalService.getMyInvoicePdf(invoiceId);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + pdf.fileName() + "\"")
+                .contentType(MediaType.APPLICATION_PDF)
+                .body(pdf.content());
     }
 }

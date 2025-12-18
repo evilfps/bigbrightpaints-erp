@@ -27,13 +27,13 @@ public class SupplierController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING','ROLE_FACTORY')")
     public ResponseEntity<ApiResponse<List<SupplierResponse>>> listSuppliers() {
         return ResponseEntity.ok(ApiResponse.success("Suppliers", supplierService.listSuppliers()));
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING','ROLE_FACTORY')")
     public ResponseEntity<ApiResponse<SupplierResponse>> getSupplier(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.success(supplierService.getSupplier(id)));
     }
