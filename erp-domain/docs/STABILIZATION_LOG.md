@@ -41,3 +41,18 @@
 - Flyway status: 91 migrations; duplicate table/index creations are guarded; no rewrites performed.
 - How to deploy: see `docs/DEPLOY_CHECKLIST.md`; requires Java 21 and configured DB credentials.
 - Remaining risks: tests/build/boot blocked until Java runtime is installed; Docker required for Testcontainers suites.
+
+## 2026-01-02 (epic-01 kickoff)
+- Assumption: `AGENTS.md` not found in repo root; used `.history/AGENTS.md` for async execution rules.
+- Added accounting model + posting contract reference documentation.
+
+## 2026-01-02 (epic-01 M1 verification)
+- Commands run:
+  - `docker run --rm -v "/mnt/c/Users/ASUS/Downloads/CLI BACKEND":/workspace -w /workspace/erp-domain maven:3.9.9-eclipse-temurin-21 mvn -DskipTests compile`
+  - `docker run --rm -v "/mnt/c/Users/ASUS/Downloads/CLI BACKEND":/workspace -w /workspace/erp-domain maven:3.9.9-eclipse-temurin-21 mvn -Dcheckstyle.failOnViolation=false checkstyle:check`
+  - `docker run --rm --network host -v "/mnt/c/Users/ASUS/Downloads/CLI BACKEND":/workspace -w /workspace/erp-domain -v /var/run/docker.sock:/var/run/docker.sock -e TESTCONTAINERS_RYUK_DISABLED=true -e TESTCONTAINERS_HOST_OVERRIDE=host.docker.internal maven:3.9.9-eclipse-temurin-21 mvn test`
+- Validation:
+  - `mvn -DskipTests compile` succeeded via Docker.
+  - Checkstyle reported 28879 violations; `failOnViolation=false` used to surface baseline warnings without failing.
+  - `mvn test` (Docker/Testcontainers) succeeded: Tests run 179, Failures 0, Errors 0, Skipped 4.
+  - Surefire warning: corrupted channel dump recorded at `erp-domain/target/surefire-reports/2026-01-02T14-21-47_658-jvmRun1.dumpstream` (build succeeded).

@@ -38,3 +38,4 @@
 - JWT auth enforced via method-level security, with public auth endpoints and actuator health.
 - Flyway migrations are extensive (91 files) with additive forward migrations for payroll and performance indexes.
 - Multi-company support via company context filter and `X-Company-Id` header on orchestrator flows.
+- Accounting posting contract documented in `docs/ACCOUNTING_MODEL_AND_POSTING_CONTRACT.md`.
