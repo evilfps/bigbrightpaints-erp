@@ -204,3 +204,26 @@
   - Surefire warning: corrupted channel dump recorded at `erp-domain/target/surefire-reports/2026-01-02T16-38-26_271-jvmRun1.dumpstream` (build succeeded).
 - Notes:
   - Test logs include repeated "Invalid company ID format", "Unusual negative balance", and openhtmltopdf CSS warnings plus font cache rebuild; tests still passed.
+
+## 2026-01-02 (epic-02 kickoff)
+- Assumption: `AGENTS.md` not found in repo root; used `.history/AGENTS.md` for async execution rules.
+- Milestones (task-02): M1 document O2C state machines; M2 verify linking across order/dispatch/invoice/journal/ledger;
+  M3 audit idempotency; M4 lock rounding/totals; M5 golden-path E2E assertions; M6 reversal/exception coverage.
+- Verification gates: Dockerized `mvn -DskipTests compile`, `mvn -Dcheckstyle.failOnViolation=false checkstyle:check`,
+  full `mvn test` (Testcontainers) covering invariants/golden paths.
+
+## 2026-01-02 (epic-02 M1 verification)
+- Changes:
+  - Documented O2C state machines and added `PARTIAL` packaging slip status for partial dispatch behavior.
+- Commands run:
+  - `docker run --rm -v "/mnt/c/Users/ASUS/Downloads/CLI BACKEND":/workspace -w /workspace/erp-domain maven:3.9.9-eclipse-temurin-21 mvn -DskipTests compile`
+  - `docker run --rm -v "/mnt/c/Users/ASUS/Downloads/CLI BACKEND":/workspace -w /workspace/erp-domain maven:3.9.9-eclipse-temurin-21 mvn -Dcheckstyle.failOnViolation=false checkstyle:check`
+  - `docker run --rm --network host -v "/mnt/c/Users/ASUS/Downloads/CLI BACKEND":/workspace -w /workspace/erp-domain -v /var/run/docker.sock:/var/run/docker.sock -e TESTCONTAINERS_RYUK_DISABLED=true -e TESTCONTAINERS_HOST_OVERRIDE=host.docker.internal maven:3.9.9-eclipse-temurin-21 mvn test`
+- Validation:
+  - `mvn -DskipTests compile` succeeded via Docker.
+  - Checkstyle reported 28900 violations; `failOnViolation=false` used to surface baseline warnings without failing.
+  - `mvn test` (Docker/Testcontainers) succeeded: Tests run 184, Failures 0, Errors 0, Skipped 4.
+  - Surefire warning: corrupted channel dump recorded at `erp-domain/target/surefire-reports/2026-01-02T17-53-55_033-jvmRun1.dumpstream` (build succeeded).
+- Notes:
+  - Test logs include expected sequence contention, "Invalid company ID format"/"Unusual negative balance" warnings,
+    and openhtmltopdf font cache rebuild; tests still passed.
