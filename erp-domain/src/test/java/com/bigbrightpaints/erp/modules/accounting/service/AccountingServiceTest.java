@@ -6,12 +6,14 @@ import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriod;
+import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriodStatus;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriodRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalLineRepository;
 import com.bigbrightpaints.erp.modules.accounting.dto.DealerSettlementRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryRequest;
+import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryReversalRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.SettlementAllocationRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.SettlementPaymentRequest;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
@@ -186,6 +188,68 @@ class AccountingServiceTest {
         assertThatThrownBy(() -> accountingService.createJournalEntry(request))
                 .isInstanceOf(ApplicationException.class)
                 .hasMessageContaining("Accounting period is closed");
+    }
+
+    @Test
+    void reverseJournalEntry_rejectsLockedPeriod() {
+        LocalDate today = LocalDate.of(2024, 4, 1);
+        when(companyClock.today(company)).thenReturn(today);
+
+        AccountingPeriod lockedPeriod = new AccountingPeriod();
+        lockedPeriod.setStatus(AccountingPeriodStatus.LOCKED);
+        lockedPeriod.setYear(2024);
+        lockedPeriod.setMonth(3);
+
+        var entry = new com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry();
+        entry.setStatus("POSTED");
+        entry.setReferenceNumber("REV-LOCK");
+        entry.setEntryDate(today.minusDays(1));
+        entry.setAccountingPeriod(lockedPeriod);
+
+        when(companyEntityLookup.requireJournalEntry(company, 44L)).thenReturn(entry);
+
+        JournalEntryReversalRequest request = new JournalEntryReversalRequest(
+                today,
+                false,
+                "Test reversal",
+                "Locked period reversal",
+                Boolean.FALSE
+        );
+
+        assertThatThrownBy(() -> accountingService.reverseJournalEntry(44L, request))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("LOCKED period");
+    }
+
+    @Test
+    void reverseJournalEntry_rejectsClosedPeriodWithoutOverride() {
+        LocalDate today = LocalDate.of(2024, 4, 1);
+        when(companyClock.today(company)).thenReturn(today);
+
+        AccountingPeriod closedPeriod = new AccountingPeriod();
+        closedPeriod.setStatus(AccountingPeriodStatus.CLOSED);
+        closedPeriod.setYear(2024);
+        closedPeriod.setMonth(2);
+
+        var entry = new com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry();
+        entry.setStatus("POSTED");
+        entry.setReferenceNumber("REV-CLOSED");
+        entry.setEntryDate(today.minusDays(1));
+        entry.setAccountingPeriod(closedPeriod);
+
+        when(companyEntityLookup.requireJournalEntry(company, 45L)).thenReturn(entry);
+
+        JournalEntryReversalRequest request = new JournalEntryReversalRequest(
+                today,
+                false,
+                "Test reversal",
+                "Closed period reversal",
+                null
+        );
+
+        assertThatThrownBy(() -> accountingService.reverseJournalEntry(45L, request))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("CLOSED period");
     }
 
     @Test
