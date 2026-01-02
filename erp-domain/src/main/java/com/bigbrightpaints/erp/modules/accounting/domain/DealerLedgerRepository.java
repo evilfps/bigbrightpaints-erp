@@ -23,6 +23,8 @@ public interface DealerLedgerRepository extends JpaRepository<DealerLedgerEntry,
             "from DealerLedgerEntry e where e.company = :company and e.dealer = :dealer group by e.dealer.id")
     Optional<DealerBalanceView> aggregateBalance(@Param("company") Company company, @Param("dealer") Dealer dealer);
 
+    List<DealerLedgerEntry> findByCompanyAndJournalEntry(Company company, JournalEntry journalEntry);
+
     List<DealerLedgerEntry> findByCompanyAndDealerAndEntryDateBetweenOrderByEntryDateAsc(Company company,
                                                                                          Dealer dealer,
                                                                                          java.time.LocalDate start,
@@ -34,15 +36,15 @@ public interface DealerLedgerRepository extends JpaRepository<DealerLedgerEntry,
 
     // Aging report queries
     @Query("SELECT e FROM DealerLedgerEntry e WHERE e.company = :company AND e.dealer = :dealer " +
-           "AND e.paymentStatus != 'PAID' ORDER BY e.dueDate ASC")
+           "AND e.paymentStatus != 'PAID' AND e.invoiceNumber IS NOT NULL ORDER BY e.dueDate ASC")
     List<DealerLedgerEntry> findUnpaidByDealer(@Param("company") Company company, @Param("dealer") Dealer dealer);
 
     @Query("SELECT e FROM DealerLedgerEntry e WHERE e.company = :company " +
-           "AND e.paymentStatus != 'PAID' ORDER BY e.dealer.id, e.dueDate ASC")
+           "AND e.paymentStatus != 'PAID' AND e.invoiceNumber IS NOT NULL ORDER BY e.dealer.id, e.dueDate ASC")
     List<DealerLedgerEntry> findAllUnpaid(@Param("company") Company company);
 
     @Query("SELECT e FROM DealerLedgerEntry e WHERE e.company = :company " +
-           "AND e.paymentStatus != 'PAID' AND e.dueDate < :asOfDate ORDER BY e.dealer.id, e.dueDate ASC")
+           "AND e.paymentStatus != 'PAID' AND e.invoiceNumber IS NOT NULL AND e.dueDate < :asOfDate ORDER BY e.dealer.id, e.dueDate ASC")
     List<DealerLedgerEntry> findOverdueAsOf(@Param("company") Company company, @Param("asOfDate") java.time.LocalDate asOfDate);
 
     // DSO calculation support - using native query for date arithmetic compatibility

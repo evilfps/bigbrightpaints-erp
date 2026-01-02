@@ -1021,6 +1021,9 @@ public class SalesService {
             boolean hasCogsJournal = slip.getCogsJournalEntryId() != null
                     || (slipNumber != null && accountingFacade.hasCogsJournalFor(slipNumber));
             if (hasInvoice && hasArJournal && hasCogsJournal) {
+                if (existingInvoice != null) {
+                    dealerLedgerService.syncInvoiceLedger(existingInvoice, null);
+                }
                 String nextStatus = resolveOrderStatusAfterDispatch(company, order);
                 if (!nextStatus.equalsIgnoreCase(order.getStatus())) {
                     order.setStatus(nextStatus);
@@ -1416,6 +1419,7 @@ public class SalesService {
             invoice.setJournalEntry(companyEntityLookup.requireJournalEntry(company, arJournalEntryId));
         }
         invoice = invoiceRepository.save(invoice);
+        dealerLedgerService.syncInvoiceLedger(invoice, null);
 
         if (arJournalEntryId != null) {
             slip.setJournalEntryId(arJournalEntryId);

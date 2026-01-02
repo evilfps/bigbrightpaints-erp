@@ -9,6 +9,7 @@ import com.bigbrightpaints.erp.modules.accounting.service.AccountingService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
+import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.modules.hr.domain.*;
 import jakarta.transaction.Transactional;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -36,6 +37,7 @@ public class PayrollService {
     private final AccountRepository accountRepository;
     private final CompanyContextService companyContextService;
     private final CompanyEntityLookup companyEntityLookup;
+    private final CompanyClock companyClock;
 
     public PayrollService(PayrollRunRepository payrollRunRepository,
                           PayrollRunLineRepository payrollRunLineRepository,
@@ -44,7 +46,8 @@ public class PayrollService {
                           AccountingService accountingService,
                           AccountRepository accountRepository,
                           CompanyContextService companyContextService,
-                          CompanyEntityLookup companyEntityLookup) {
+                          CompanyEntityLookup companyEntityLookup,
+                          CompanyClock companyClock) {
         this.payrollRunRepository = payrollRunRepository;
         this.payrollRunLineRepository = payrollRunLineRepository;
         this.employeeRepository = employeeRepository;
@@ -53,6 +56,7 @@ public class PayrollService {
         this.accountRepository = accountRepository;
         this.companyContextService = companyContextService;
         this.companyEntityLookup = companyEntityLookup;
+        this.companyClock = companyClock;
     }
 
     // ===== PAYROLL RUN MANAGEMENT =====
@@ -334,9 +338,14 @@ public class PayrollService {
 
         lines.add(new JournalLineRequest(salaryPayableAccount.getId(), "Payroll payable", BigDecimal.ZERO, salaryPayableAmount));
 
+        LocalDate postingDate = run.getPeriodEnd();
+        LocalDate today = companyClock.today(company);
+        if (postingDate == null || postingDate.isAfter(today)) {
+            postingDate = today;
+        }
         JournalEntryRequest journalRequest = new JournalEntryRequest(
             "PAYROLL-" + run.getRunNumber(),    // referenceNumber
-            run.getPeriodEnd(),                  // entryDate
+            postingDate,                         // entryDate
             "Payroll - " + run.getRunNumber(),   // memo
             null,                                // dealerId
             null,                                // supplierId

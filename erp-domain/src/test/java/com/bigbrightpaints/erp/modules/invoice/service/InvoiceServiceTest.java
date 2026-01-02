@@ -2,6 +2,7 @@ package com.bigbrightpaints.erp.modules.invoice.service;
 
 import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
+import com.bigbrightpaints.erp.modules.accounting.service.DealerLedgerService;
 import com.bigbrightpaints.erp.modules.accounting.service.JournalReferenceResolver;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
@@ -46,6 +47,8 @@ class InvoiceServiceTest {
     private CompanyEntityLookup companyEntityLookup;
     @Mock
     private JournalReferenceResolver journalReferenceResolver;
+    @Mock
+    private DealerLedgerService dealerLedgerService;
 
     private InvoiceService invoiceService;
     private Company company;
@@ -59,7 +62,8 @@ class InvoiceServiceTest {
                 invoiceNumberService,
                 salesJournalService,
                 companyEntityLookup,
-                journalReferenceResolver
+                journalReferenceResolver,
+                dealerLedgerService
         );
         company = new Company();
         company.setTimezone("UTC");

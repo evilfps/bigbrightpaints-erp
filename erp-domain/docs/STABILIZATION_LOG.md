@@ -227,3 +227,25 @@
 - Notes:
   - Test logs include expected sequence contention, "Invalid company ID format"/"Unusual negative balance" warnings,
     and openhtmltopdf font cache rebuild; tests still passed.
+
+## 2026-01-03 (epic-02 M2 verification)
+- Changes:
+  - Synced dealer ledger entries with invoice metadata (invoice number, due date, payment status, paid amount/date)
+    after invoice issuance and dealer settlements (including idempotent settlement replays).
+  - Dealer ledger aging queries now exclude non-invoice entries by requiring `invoiceNumber`.
+  - O2C invariant test asserts dealer ledger metadata before and after settlement.
+  - Test fixtures use system timezone to avoid future-date validation drift; payroll posting clamps entry date to today
+    when payroll period end is in the future.
+- Commands run:
+  - `mvn -f erp-domain/pom.xml -DskipTests compile`
+  - `mvn -f erp-domain/pom.xml "-Dcheckstyle.failOnViolation=false" checkstyle:check`
+  - `mvn -f erp-domain/pom.xml test`
+- Validation:
+  - `mvn -DskipTests compile` succeeded.
+  - Checkstyle reported 28963 violations; `failOnViolation=false` used to surface baseline warnings without failing.
+  - `mvn test` succeeded: Tests run 184, Failures 0, Errors 0, Skipped 4.
+- Notes:
+  - Test logs include expected sequence contention, "Invalid company ID format"/"Unusual negative balance" warnings,
+    and openhtmltopdf CSS warnings; tests still passed.
+  - Assumption: test companies use system timezone to keep `LocalDate.now()` aligned with `CompanyClock` and avoid
+    "entry date in the future" validation failures.

@@ -4,6 +4,7 @@ import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.DealerLedgerRepository;
+import com.bigbrightpaints.erp.modules.accounting.domain.DealerLedgerEntry;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.SupplierLedgerRepository;
 import com.bigbrightpaints.erp.modules.accounting.service.TemporalBalanceService;
@@ -228,6 +229,18 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
                 .orElseThrow(() -> new AssertionError("Invoice missing for O2C flow"));
         invariants.assertJournalLinkedTo("INVOICE", invoiceId);
         invariants.assertJournalBalanced(invoice.getJournalEntry().getId());
+        List<DealerLedgerEntry> invoiceLedgerEntries =
+                dealerLedgerRepository.findByCompanyAndJournalEntry(company, invoice.getJournalEntry());
+        assertThat(invoiceLedgerEntries)
+                .as("dealer ledger entries created for invoice")
+                .isNotEmpty();
+        for (DealerLedgerEntry entry : invoiceLedgerEntries) {
+            assertThat(entry.getInvoiceNumber()).isEqualTo(invoice.getInvoiceNumber());
+            assertThat(entry.getDueDate()).isEqualTo(invoice.getDueDate());
+            assertThat(entry.getPaymentStatus()).isEqualTo("UNPAID");
+            assertThat(entry.getAmountPaid()).isEqualByComparingTo(BigDecimal.ZERO);
+            assertThat(entry.getPaidDate()).isNull();
+        }
 
         PackagingSlip slip = packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, orderId)
                 .stream().findFirst()
@@ -258,6 +271,16 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
         Map<?, ?> journalPayload = (Map<?, ?>) settleData.get("journalEntry");
         Long settlementJeId = ((Number) journalPayload.get("id")).longValue();
         invariants.assertJournalBalanced(settlementJeId);
+        List<DealerLedgerEntry> settledEntries =
+                dealerLedgerRepository.findByCompanyAndJournalEntry(company, invoice.getJournalEntry());
+        assertThat(settledEntries)
+                .as("dealer ledger entries updated after settlement")
+                .isNotEmpty();
+        for (DealerLedgerEntry entry : settledEntries) {
+            assertThat(entry.getPaymentStatus()).isEqualTo("PAID");
+            assertThat(entry.getAmountPaid()).isEqualByComparingTo(invoice.getTotalAmount());
+            assertThat(entry.getPaidDate()).isEqualTo(entryDate);
+        }
 
         invariants.assertSubledgerReconciles(o2c.requireAccount("AR").getId(), null);
     }

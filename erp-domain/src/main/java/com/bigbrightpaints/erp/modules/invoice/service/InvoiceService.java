@@ -13,6 +13,7 @@ import com.bigbrightpaints.erp.modules.invoice.domain.InvoiceRepository;
 import com.bigbrightpaints.erp.modules.invoice.dto.InvoiceDto;
 import com.bigbrightpaints.erp.modules.invoice.dto.InvoiceLineDto;
 import com.bigbrightpaints.erp.modules.accounting.service.JournalReferenceResolver;
+import com.bigbrightpaints.erp.modules.accounting.service.DealerLedgerService;
 import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrder;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrderItem;
@@ -38,6 +39,7 @@ public class InvoiceService {
     private final SalesJournalService salesJournalService;
     private final CompanyEntityLookup companyEntityLookup;
     private final JournalReferenceResolver journalReferenceResolver;
+    private final DealerLedgerService dealerLedgerService;
 
     public InvoiceService(CompanyContextService companyContextService,
                           InvoiceRepository invoiceRepository,
@@ -45,7 +47,8 @@ public class InvoiceService {
                           InvoiceNumberService invoiceNumberService,
                           SalesJournalService salesJournalService,
                           CompanyEntityLookup companyEntityLookup,
-                          JournalReferenceResolver journalReferenceResolver) {
+                          JournalReferenceResolver journalReferenceResolver,
+                          DealerLedgerService dealerLedgerService) {
         this.companyContextService = companyContextService;
         this.invoiceRepository = invoiceRepository;
         this.salesService = salesService;
@@ -53,6 +56,7 @@ public class InvoiceService {
         this.salesJournalService = salesJournalService;
         this.companyEntityLookup = companyEntityLookup;
         this.journalReferenceResolver = journalReferenceResolver;
+        this.dealerLedgerService = dealerLedgerService;
     }
 
     @Transactional
@@ -119,6 +123,7 @@ public class InvoiceService {
             }
         }
         Invoice saved = invoiceRepository.save(invoice);
+        dealerLedgerService.syncInvoiceLedger(saved, null);
 
         return toDto(saved);
     }

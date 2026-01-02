@@ -15,6 +15,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.ZoneId;
 import java.util.List;
 
 @Component
@@ -55,7 +56,7 @@ public class TestDataSeeder {
                     Company company = new Company();
                     company.setCode(code);
                     company.setName(name);
-                    company.setTimezone("UTC");
+                    company.setTimezone(ZoneId.systemDefault().getId());
                     Company saved = companyRepository.save(company);
                     criticalFixtureService.ifAvailable(service -> service.seedCompanyFixtures(saved));
                     return saved;

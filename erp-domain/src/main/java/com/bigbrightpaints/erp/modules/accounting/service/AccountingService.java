@@ -1092,6 +1092,11 @@ public class AccountingService {
                         .filter(v -> v.compareTo(BigDecimal.ZERO) < 0)
                         .map(BigDecimal::abs)
                         .reduce(BigDecimal.ZERO, BigDecimal::add);
+                for (PartnerSettlementAllocation row : existing) {
+                    if (row.getInvoice() != null) {
+                        dealerLedgerService.syncInvoiceLedger(row.getInvoice(), row.getSettlementDate());
+                    }
+                }
                 return new PartnerSettlementResponse(
                         toDto(entry),
                         applied,
@@ -1162,6 +1167,7 @@ public class AccountingService {
                 // Use centralized policy for settlement - handles status transitions
                 String settlementRef = trimmedIdempotencyKey + "-INV-" + invoice.getId();
                 invoiceSettlementPolicy.applySettlement(invoice, cleared, settlementRef);
+                dealerLedgerService.syncInvoiceLedger(invoice, entryDate);
                 touchedInvoices.add(invoice);
             }
 
