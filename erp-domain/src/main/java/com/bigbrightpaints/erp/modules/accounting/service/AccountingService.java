@@ -1755,6 +1755,9 @@ public class AccountingService {
         JournalEntryDto primaryReversal = reverseJournalEntry(primaryEntryId, request);
         reversedEntries.add(primaryReversal);
         processedIds.add(primaryEntryId);
+        if (primaryReversal != null && primaryReversal.id() != null) {
+            processedIds.add(primaryReversal.id());
+        }
         
         // Find related entries by EXACT reference prefix (not just first segment)
         // e.g., "INV-001" finds "INV-001-COGS", "INV-001-TAX" but NOT "INV-002"
@@ -1769,6 +1772,10 @@ public class AccountingService {
         for (JournalEntry related : relatedEntries) {
             if (processedIds.contains(related.getId())) {
                 continue; // Skip already processed
+            }
+            if (related.getReversalOf() != null) {
+                processedIds.add(related.getId());
+                continue; // Skip reversal entries to avoid reversing reversals
             }
             if (!"REVERSED".equalsIgnoreCase(related.getStatus()) &&
                 !"VOIDED".equalsIgnoreCase(related.getStatus())) {

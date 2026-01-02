@@ -163,3 +163,18 @@
   - Surefire warning: corrupted channel dump recorded at `erp-domain/target/surefire-reports/2026-01-02T15-34-32_253-jvmRun1.dumpstream` (build succeeded).
 - Notes:
   - Test logs include repeated "Invalid company ID format", "Unusual negative balance", and openhtmltopdf CSS warnings; tests still passed.
+
+## 2026-01-02 (epic-01 M4 verification)
+- Changes:
+  - Strengthened journal reversal E2E coverage; cascade reversals now skip reversal entries to avoid reversing the reversal.
+- Commands run:
+  - `docker run --rm --network host -v "/mnt/c/Users/ASUS/Downloads/CLI BACKEND":/workspace -w /workspace/erp-domain -v /var/run/docker.sock:/var/run/docker.sock -e TESTCONTAINERS_RYUK_DISABLED=true -e TESTCONTAINERS_HOST_OVERRIDE=host.docker.internal maven:3.9.9-eclipse-temurin-21 mvn -DskipTests compile`
+  - `docker run --rm --network host -v "/mnt/c/Users/ASUS/Downloads/CLI BACKEND":/workspace -w /workspace/erp-domain maven:3.9.9-eclipse-temurin-21 mvn -Dcheckstyle.failOnViolation=false checkstyle:check`
+  - `docker run --rm --network host -v "/mnt/c/Users/ASUS/Downloads/CLI BACKEND":/workspace -w /workspace/erp-domain -v /var/run/docker.sock:/var/run/docker.sock -e TESTCONTAINERS_RYUK_DISABLED=true -e TESTCONTAINERS_HOST_OVERRIDE=host.docker.internal maven:3.9.9-eclipse-temurin-21 mvn test`
+- Validation:
+  - `mvn -DskipTests compile` succeeded via Docker.
+  - Checkstyle reported 28900 violations; `failOnViolation=false` used to surface baseline warnings without failing.
+  - `mvn test` (Docker/Testcontainers) succeeded: Tests run 184, Failures 0, Errors 0, Skipped 4.
+  - Surefire warning: corrupted channel dump recorded at `erp-domain/target/surefire-reports/2026-01-02T16-08-04_972-jvmRun1.dumpstream` (build succeeded).
+- Notes:
+  - Test logs include repeated "Invalid company ID format", "Unusual negative balance", and openhtmltopdf CSS warnings plus font cache rebuild; tests still passed.

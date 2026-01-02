@@ -174,6 +174,10 @@ public class JournalEntryE2ETest extends AbstractIntegrationTest {
     @DisplayName("Journal Reversal: Creates Offsetting Entry with Linked Audit")
     void journalReversal_CreatesOffsettingEntry_LinkedAudit() {
         Company company = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();
+        Account cashAccount = accountRepository.findByCompanyAndCodeIgnoreCase(company, "CASH").orElseThrow();
+        Account revenueAccount = accountRepository.findByCompanyAndCodeIgnoreCase(company, "REVENUE").orElseThrow();
+        BigDecimal cashBefore = cashAccount.getBalance();
+        BigDecimal revenueBefore = revenueAccount.getBalance();
 
         // Create original entry
         Long originalEntryId = createBalancedJournalEntry(company, new BigDecimal("3000.00"));
@@ -191,7 +195,99 @@ public class JournalEntryE2ETest extends AbstractIntegrationTest {
                 Map.class);
 
         // Should create reversal entry
-        assertThat(response.getStatusCode()).isIn(HttpStatus.OK, HttpStatus.CREATED, HttpStatus.NOT_FOUND);
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+        Number reversalId = (Number) ((Map<?, ?>) response.getBody().get("data")).get("id");
+        JournalEntry reversalEntry = journalEntryRepository.findById(reversalId.longValue()).orElseThrow();
+        assertThat(reversalEntry.getReversalOf()).isNotNull();
+        assertThat(reversalEntry.getReversalOf().getId()).isEqualTo(originalEntryId);
+        assertThat(reversalEntry.getCorrectionType()).isEqualTo(JournalCorrectionType.REVERSAL);
+
+        JournalEntry originalEntry = journalEntryRepository.findById(originalEntryId).orElseThrow();
+        assertThat(originalEntry.getStatus()).isEqualTo("REVERSED");
+
+        Account cashAfter = accountRepository.findById(cashAccount.getId()).orElseThrow();
+        Account revenueAfter = accountRepository.findById(revenueAccount.getId()).orElseThrow();
+        assertThat(cashAfter.getBalance()).isEqualByComparingTo(cashBefore);
+        assertThat(revenueAfter.getBalance()).isEqualByComparingTo(revenueBefore);
+    }
+
+    @Test
+    @DisplayName("Journal Cascade Reversal: Reverses related entries and restores balances")
+    void journalCascadeReversal_ReversesRelatedEntriesAndRestoresBalances() {
+        Company company = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();
+        Account cashAccount = accountRepository.findByCompanyAndCodeIgnoreCase(company, "CASH").orElseThrow();
+        Account revenueAccount = accountRepository.findByCompanyAndCodeIgnoreCase(company, "REVENUE").orElseThrow();
+        Account expenseAccount = accountRepository.findByCompanyAndCodeIgnoreCase(company, "EXPENSE").orElseThrow();
+
+        BigDecimal cashBefore = cashAccount.getBalance();
+        BigDecimal revenueBefore = revenueAccount.getBalance();
+        BigDecimal expenseBefore = expenseAccount.getBalance();
+
+        String baseRef = "JE-CASCADE-" + System.currentTimeMillis();
+        Map<String, Object> baseReq = Map.of(
+                "entryDate", LocalDate.now(),
+                "referenceNumber", baseRef,
+                "memo", "Base entry",
+                "lines", List.of(
+                        Map.of("accountId", cashAccount.getId(), "debit", new BigDecimal("100.00"), "credit", BigDecimal.ZERO),
+                        Map.of("accountId", revenueAccount.getId(), "debit", BigDecimal.ZERO, "credit", new BigDecimal("100.00"))
+                )
+        );
+        ResponseEntity<Map> baseResp = rest.exchange("/api/v1/accounting/journal-entries",
+                HttpMethod.POST, new HttpEntity<>(baseReq, headers), Map.class);
+        Long baseEntryId = ((Number) ((Map<?, ?>) baseResp.getBody().get("data")).get("id")).longValue();
+
+        Map<String, Object> relatedReq = Map.of(
+                "entryDate", LocalDate.now(),
+                "referenceNumber", baseRef + "-COGS",
+                "memo", "Related entry",
+                "lines", List.of(
+                        Map.of("accountId", expenseAccount.getId(), "debit", new BigDecimal("60.00"), "credit", BigDecimal.ZERO),
+                        Map.of("accountId", cashAccount.getId(), "debit", BigDecimal.ZERO, "credit", new BigDecimal("60.00"))
+                )
+        );
+        ResponseEntity<Map> relatedResp = rest.exchange("/api/v1/accounting/journal-entries",
+                HttpMethod.POST, new HttpEntity<>(relatedReq, headers), Map.class);
+        Long relatedEntryId = ((Number) ((Map<?, ?>) relatedResp.getBody().get("data")).get("id")).longValue();
+
+        Map<String, Object> reversalReq = Map.of(
+                "reversalDate", LocalDate.now(),
+                "reason", "Cascade reversal test",
+                "memo", "Cascade reversal"
+        );
+        ResponseEntity<Map> reversalResp = rest.exchange(
+                "/api/v1/accounting/journal-entries/" + baseEntryId + "/cascade-reverse",
+                HttpMethod.POST,
+                new HttpEntity<>(reversalReq, headers),
+                Map.class);
+        assertThat(reversalResp.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+        JournalEntry baseEntry = journalEntryRepository.findById(baseEntryId).orElseThrow();
+        JournalEntry relatedEntry = journalEntryRepository.findById(relatedEntryId).orElseThrow();
+        assertThat(baseEntry.getStatus()).isEqualTo("REVERSED");
+        assertThat(relatedEntry.getStatus()).isEqualTo("REVERSED");
+
+        JournalEntry baseReversal = journalEntryRepository.findAll().stream()
+                .filter(entry -> entry.getReversalOf() != null)
+                .filter(entry -> entry.getReversalOf().getId().equals(baseEntryId))
+                .findFirst()
+                .orElseThrow();
+        JournalEntry relatedReversal = journalEntryRepository.findAll().stream()
+                .filter(entry -> entry.getReversalOf() != null)
+                .filter(entry -> entry.getReversalOf().getId().equals(relatedEntryId))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(baseReversal.getCorrectionType()).isEqualTo(JournalCorrectionType.REVERSAL);
+        assertThat(relatedReversal.getCorrectionType()).isEqualTo(JournalCorrectionType.REVERSAL);
+
+        Account cashAfter = accountRepository.findById(cashAccount.getId()).orElseThrow();
+        Account revenueAfter = accountRepository.findById(revenueAccount.getId()).orElseThrow();
+        Account expenseAfter = accountRepository.findById(expenseAccount.getId()).orElseThrow();
+        assertThat(cashAfter.getBalance()).isEqualByComparingTo(cashBefore);
+        assertThat(revenueAfter.getBalance()).isEqualByComparingTo(revenueBefore);
+        assertThat(expenseAfter.getBalance()).isEqualByComparingTo(expenseBefore);
     }
 
     @Test
