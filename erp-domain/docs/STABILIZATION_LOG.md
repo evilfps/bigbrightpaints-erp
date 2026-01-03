@@ -379,3 +379,17 @@
   - Checkstyle reported 28772 violations; `failOnViolation=false` used to surface baseline warnings without failing.
   - `mvn test` succeeded: Tests run 187, Failures 0, Errors 0, Skipped 4.
   - `mvn -Dtest=*Production* test` succeeded: Tests run 7, Failures 0, Errors 0, Skipped 0.
+
+## 2026-01-04 (epic-03 M4 verification - PASS)
+- Changes:
+  - Extended production E2E to validate unit-cost valuation through packing batches.
+- Commands run:
+  - `JAVA_HOME="/home/realnigga/Desktop/CLI BACKEND/.tools/jdk-21.0.3+9" PATH="/home/realnigga/Desktop/CLI BACKEND/.tools/jdk-21.0.3+9/bin:$PATH" mvn -f erp-domain/pom.xml -DskipTests compile`
+  - `JAVA_HOME="/home/realnigga/Desktop/CLI BACKEND/.tools/jdk-21.0.3+9" PATH="/home/realnigga/Desktop/CLI BACKEND/.tools/jdk-21.0.3+9/bin:$PATH" mvn -f erp-domain/pom.xml -Dcheckstyle.failOnViolation=false checkstyle:check`
+  - `JAVA_HOME="/home/realnigga/Desktop/CLI BACKEND/.tools/jdk-21.0.3+9" PATH="/home/realnigga/Desktop/CLI BACKEND/.tools/jdk-21.0.3+9/bin:$PATH" mvn -f erp-domain/pom.xml test`
+  - `JAVA_HOME="/home/realnigga/Desktop/CLI BACKEND/.tools/jdk-21.0.3+9" PATH="/home/realnigga/Desktop/CLI BACKEND/.tools/jdk-21.0.3+9/bin:$PATH" mvn -f erp-domain/pom.xml -Dtest=*Production* test`
+- Validation:
+  - `mvn -DskipTests compile` succeeded.
+  - Checkstyle reported 28772 violations; `failOnViolation=false` used to surface baseline warnings without failing.
+  - `mvn test` succeeded: Tests run 187, Failures 0, Errors 0, Skipped 4.
+  - `mvn -Dtest=*Production* test` succeeded: Tests run 7, Failures 0, Errors 0, Skipped 0.

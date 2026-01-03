@@ -28,6 +28,7 @@ import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.http.*;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
@@ -180,6 +181,18 @@ public class CompleteProductionCycleTest extends AbstractIntegrationTest {
         FinishedGood fg = finishedGoodRepository.findByCompanyAndProductCode(company, product.getSkuCode())
                 .orElseThrow();
         assertThat(fg.getCurrentStock()).isGreaterThan(BigDecimal.ZERO);
+
+        // Step 8: Verify production valuation carries through to FG batch costs
+        ProductionLog log = productionLogRepository.findById(productionLogId).orElseThrow();
+        assertThat(log.getMaterialCostTotal()).isEqualByComparingTo(new BigDecimal("60.00"));
+        BigDecimal expectedUnitCost = log.getMaterialCostTotal()
+                .divide(log.getMixedQuantity(), 6, RoundingMode.HALF_UP);
+        assertThat(log.getUnitCost()).isEqualByComparingTo(expectedUnitCost);
+
+        List<FinishedGoodBatch> fgBatches = finishedGoodBatchRepository.findByFinishedGoodOrderByManufacturedAtAsc(fg);
+        assertThat(fgBatches).isNotEmpty();
+        FinishedGoodBatch latestBatch = fgBatches.get(fgBatches.size() - 1);
+        assertThat(latestBatch.getUnitCost()).isEqualByComparingTo(log.getUnitCost());
     }
 
     @Test
