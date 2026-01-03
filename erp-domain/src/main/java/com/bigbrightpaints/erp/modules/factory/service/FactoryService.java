@@ -183,10 +183,11 @@ public class FactoryService {
 
     /* Dashboard */
     public FactoryDashboardDto dashboard() {
-        List<ProductionPlanDto> plans = listPlans();
-        List<ProductionBatchDto> batches = listBatches();
-        double efficiency = plans.isEmpty() ? 0 : (double) batches.size() / plans.size();
-        return new FactoryDashboardDto(efficiency, plans.stream().filter(p -> "COMPLETED".equals(p.status())).count(),
-                batches.size(), List.of());
+        Company company = companyContextService.requireCurrentCompany();
+        long planCount = planRepository.countByCompany(company);
+        long completedPlans = planRepository.countByCompanyAndStatus(company, "COMPLETED");
+        long batchCount = batchRepository.countByCompany(company);
+        double efficiency = planCount == 0 ? 0 : (double) batchCount / planCount;
+        return new FactoryDashboardDto(efficiency, completedPlans, batchCount, List.of());
     }
 }

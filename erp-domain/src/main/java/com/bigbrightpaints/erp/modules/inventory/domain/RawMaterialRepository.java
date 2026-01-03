@@ -16,6 +16,21 @@ public interface RawMaterialRepository extends JpaRepository<RawMaterial, Long> 
     List<RawMaterial> findByCompanyOrderByNameAsc(Company company);
     Optional<RawMaterial> findByCompanyAndId(Company company, Long id);
     Optional<RawMaterial> findByCompanyAndSku(Company company, String sku);
+    long countByCompany(Company company);
+
+    @Query("select count(rm) from RawMaterial rm where rm.company = :company and rm.currentStock < rm.reorderLevel")
+    long countLowStockByCompany(@Param("company") Company company);
+
+    @Query("select count(rm) from RawMaterial rm where rm.company = :company and rm.currentStock <= rm.minStock")
+    long countCriticalStockByCompany(@Param("company") Company company);
+
+    @Query("""
+            select rm from RawMaterial rm
+            where rm.company = :company
+              and (rm.currentStock < rm.reorderLevel or rm.currentStock <= rm.minStock)
+            order by rm.name asc
+            """)
+    List<RawMaterial> findLowStockByCompany(@Param("company") Company company);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select rm from RawMaterial rm where rm.company = :company and rm.id = :id")

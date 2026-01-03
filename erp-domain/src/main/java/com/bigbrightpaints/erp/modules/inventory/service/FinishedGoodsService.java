@@ -157,10 +157,8 @@ public class FinishedGoodsService {
     public List<FinishedGoodDto> getLowStockItems(int threshold) {
         Company company = companyContextService.requireCurrentCompany();
         BigDecimal thresholdQty = BigDecimal.valueOf(threshold);
-        return finishedGoodRepository.findByCompanyOrderByProductCodeAsc(company)
+        return finishedGoodRepository.findLowStockByCompany(company, thresholdQty)
                 .stream()
-                .filter(fg -> safeQuantity(fg.getCurrentStock()).subtract(safeQuantity(fg.getReservedStock()))
-                        .compareTo(thresholdQty) < 0)
                 .map(this::toDto)
                 .toList();
     }

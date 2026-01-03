@@ -1,5 +1,6 @@
 package com.bigbrightpaints.erp.modules.inventory.domain;
 
+import com.bigbrightpaints.erp.modules.company.domain.Company;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
@@ -13,6 +14,7 @@ import java.util.List;
 public interface RawMaterialBatchRepository extends JpaRepository<RawMaterialBatch, Long> {
     List<RawMaterialBatch> findByRawMaterial(RawMaterial rawMaterial);
     List<RawMaterialBatch> findByRawMaterial_InventoryAccountId(Long inventoryAccountId);
+    long countByRawMaterialCompany(Company company);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""

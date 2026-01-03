@@ -9,4 +9,6 @@ import java.util.Optional;
 public interface ProductionPlanRepository extends JpaRepository<ProductionPlan, Long> {
     List<ProductionPlan> findByCompanyOrderByPlannedDateDesc(Company company);
     Optional<ProductionPlan> findByCompanyAndId(Company company, Long id);
+    long countByCompany(Company company);
+    long countByCompanyAndStatus(Company company, String status);
 }

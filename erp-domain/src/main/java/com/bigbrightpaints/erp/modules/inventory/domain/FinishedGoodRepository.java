@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.math.BigDecimal;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -25,4 +26,13 @@ public interface FinishedGoodRepository extends JpaRepository<FinishedGood, Long
     @Query("select fg from FinishedGood fg where fg.company = :company and fg.productCode = :productCode")
     Optional<FinishedGood> lockByCompanyAndProductCode(@Param("company") Company company,
                                                        @Param("productCode") String productCode);
+
+    @Query("""
+            select fg from FinishedGood fg
+            where fg.company = :company
+              and (fg.currentStock - fg.reservedStock) < :threshold
+            order by fg.productCode asc
+            """)
+    List<FinishedGood> findLowStockByCompany(@Param("company") Company company,
+                                             @Param("threshold") BigDecimal threshold);
 }

@@ -9,4 +9,5 @@ import java.util.Optional;
 public interface ProductionBatchRepository extends JpaRepository<ProductionBatch, Long> {
     List<ProductionBatch> findByCompanyOrderByProducedAtDesc(Company company);
     Optional<ProductionBatch> findByCompanyAndId(Company company, Long id);
+    long countByCompany(Company company);
 }

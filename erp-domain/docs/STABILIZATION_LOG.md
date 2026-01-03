@@ -407,3 +407,17 @@
   - Checkstyle reported 28779 violations; `failOnViolation=false` used to surface baseline warnings without failing.
   - `mvn test` succeeded: Tests run 187, Failures 0, Errors 0, Skipped 4.
   - `mvn -Dtest=*Production* test` succeeded: Tests run 7, Failures 0, Errors 0, Skipped 0.
+
+## 2026-01-04 (epic-03 M6 verification - PASS)
+- Changes:
+  - Reduced dashboard and stock query overhead with count-based lookups and low-stock filtering in repositories.
+- Commands run:
+  - `JAVA_HOME="/home/realnigga/Desktop/CLI BACKEND/.tools/jdk-21.0.3+9" PATH="/home/realnigga/Desktop/CLI_BACKEND_epic03/.tools/apache-maven-3.9.9/bin:$PATH" mvn -f erp-domain/pom.xml -DskipTests compile`
+  - `JAVA_HOME="/home/realnigga/Desktop/CLI BACKEND/.tools/jdk-21.0.3+9" PATH="/home/realnigga/Desktop/CLI_BACKEND_epic03/.tools/apache-maven-3.9.9/bin:$PATH" mvn -f erp-domain/pom.xml -Dcheckstyle.failOnViolation=false checkstyle:check`
+  - `JAVA_HOME="/home/realnigga/Desktop/CLI BACKEND/.tools/jdk-21.0.3+9" PATH="/home/realnigga/Desktop/CLI_BACKEND_epic03/.tools/apache-maven-3.9.9/bin:$PATH" mvn -f erp-domain/pom.xml test`
+  - `JAVA_HOME="/home/realnigga/Desktop/CLI BACKEND/.tools/jdk-21.0.3+9" PATH="/home/realnigga/Desktop/CLI_BACKEND_epic03/.tools/apache-maven-3.9.9/bin:$PATH" mvn -f erp-domain/pom.xml -Dtest=*Production* test`
+- Validation:
+  - `mvn -DskipTests compile` succeeded.
+  - Checkstyle reported 28795 violations; `failOnViolation=false` used to surface baseline warnings without failing.
+  - `mvn test` succeeded: Tests run 187, Failures 0, Errors 0, Skipped 4.
+  - `mvn -Dtest=*Production* test` succeeded: Tests run 7, Failures 0, Errors 0, Skipped 0.

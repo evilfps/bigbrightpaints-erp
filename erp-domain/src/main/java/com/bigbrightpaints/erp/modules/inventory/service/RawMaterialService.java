@@ -129,14 +129,10 @@ public class RawMaterialService {
 
     public StockSummaryDto summarizeStock() {
         Company company = companyContextService.requireCurrentCompany();
-        List<RawMaterial> materials = rawMaterialRepository.findByCompanyOrderByNameAsc(company);
-        long total = materials.size();
-        long lowStock = materials.stream().filter(this::isLowStock).count();
-        long criticalStock = materials.stream().filter(this::isCriticalStock).count();
-        long batches = materials.stream()
-                .map(rawMaterial -> batchRepository.findByRawMaterial(rawMaterial).size())
-                .mapToLong(Integer::longValue)
-                .sum();
+        long total = rawMaterialRepository.countByCompany(company);
+        long lowStock = rawMaterialRepository.countLowStockByCompany(company);
+        long criticalStock = rawMaterialRepository.countCriticalStockByCompany(company);
+        long batches = batchRepository.countByRawMaterialCompany(company);
         return new StockSummaryDto(
                 null,
                 null,
@@ -160,8 +156,9 @@ public class RawMaterialService {
     }
 
     public List<InventoryStockSnapshot> listLowStock() {
-        return listInventory().stream()
-                .filter(snapshot -> "LOW_STOCK".equals(snapshot.status()) || "CRITICAL".equals(snapshot.status()))
+        Company company = companyContextService.requireCurrentCompany();
+        return rawMaterialRepository.findLowStockByCompany(company).stream()
+                .map(this::toSnapshot)
                 .toList();
     }
 
