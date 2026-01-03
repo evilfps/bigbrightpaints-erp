@@ -386,3 +386,19 @@
   - `mvn -Dtest=*Purchasing* test` succeeded: Tests run 4, Failures 0, Errors 0, Skipped 0.
 - Notes:
   - Test logs include expected invalid company ID format warnings, negative balance warnings, and dynamic agent warnings; tests still passed.
+
+## 2026-01-04 (epic-04 M5 verification)
+- Changes:
+  - Added Procure-to-Pay E2E coverage for purchase receipt, supplier settlement, and purchase return flows.
+- Commands run:
+  - `mvn -f erp-domain/pom.xml -DskipTests compile`
+  - `mvn -f erp-domain/pom.xml -Dcheckstyle.failOnViolation=false checkstyle:check`
+  - `mvn -f erp-domain/pom.xml test`
+  - `mvn -f erp-domain/pom.xml -Dtest=*Purchasing* test`
+- Validation:
+  - `mvn -DskipTests compile` succeeded.
+  - Checkstyle reported 28780 violations; `failOnViolation=false` used to surface baseline warnings without failing.
+  - `mvn test` succeeded: Tests run 191, Failures 0, Errors 0, Skipped 4.
+  - `mvn -Dtest=*Purchasing* test` succeeded: Tests run 4, Failures 0, Errors 0, Skipped 0.
+- Notes:
+  - Test logs include expected invalid company ID format warnings, negative balance warnings, and dynamic agent warnings; tests still passed.
