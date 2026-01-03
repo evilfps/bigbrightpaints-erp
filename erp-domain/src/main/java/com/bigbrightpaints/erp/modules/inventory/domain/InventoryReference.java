@@ -11,6 +11,7 @@ package com.bigbrightpaints.erp.modules.inventory.domain;
  *     <li>{@link #SALES_ORDER}: {@code referenceId} is the sales order database identifier.</li>
  *     <li>{@link #MANUFACTURING_ORDER}: {@code referenceId} is the finished good batch public id
  *     for manual manufacturing receipts.</li>
+ *     <li>{@link #OPENING_STOCK}: {@code referenceId} is the opening stock batch code.</li>
  * </ul>
  */
 public final class InventoryReference {
@@ -21,6 +22,7 @@ public final class InventoryReference {
     public static final String MANUFACTURING_ORDER = "MANUFACTURING_ORDER";
     public static final String PURCHASE_RETURN = "PURCHASE_RETURN";
     public static final String PACKING_RECORD = "PACKING_RECORD";
+    public static final String OPENING_STOCK = "OPENING_STOCK";
 
     private InventoryReference() {
     }

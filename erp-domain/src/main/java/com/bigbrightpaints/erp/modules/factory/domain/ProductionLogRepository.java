@@ -30,6 +30,7 @@ public interface ProductionLogRepository extends JpaRepository<ProductionLog, Lo
     int incrementPackedQuantityAtomic(@Param("id") Long id, @Param("quantity") BigDecimal quantity);
     Optional<ProductionLog> findTopByCompanyAndProductionCodeStartingWithOrderByProductionCodeDesc(Company company, String prefix);
     List<ProductionLog> findByCompanyAndStatusInOrderByProducedAtAsc(Company company, Collection<ProductionLogStatus> statuses);
+    List<ProductionLog> findByCompanyAndProducedAtBetween(Company company, Instant start, Instant end);
 
     @Query("SELECT pl FROM ProductionLog pl WHERE pl.company = :company " +
             "AND pl.status = 'FULLY_PACKED' " +

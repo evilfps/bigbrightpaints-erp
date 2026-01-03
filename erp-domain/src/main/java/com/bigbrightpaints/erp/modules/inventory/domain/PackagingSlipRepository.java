@@ -15,6 +15,11 @@ import java.util.Optional;
 public interface PackagingSlipRepository extends JpaRepository<PackagingSlip, Long> {
     @EntityGraph(attributePaths = {"salesOrder", "salesOrder.dealer", "lines", "lines.finishedGoodBatch", "lines.finishedGoodBatch.finishedGood"})
     List<PackagingSlip> findByCompanyOrderByCreatedAtDesc(Company company);
+
+    @EntityGraph(attributePaths = {"lines"})
+    List<PackagingSlip> findByCompanyAndDispatchedAtBetween(Company company,
+                                                            java.time.Instant start,
+                                                            java.time.Instant end);
     @EntityGraph(attributePaths = {"salesOrder", "salesOrder.dealer", "lines", "lines.finishedGoodBatch", "lines.finishedGoodBatch.finishedGood"})
     Optional<PackagingSlip> findByIdAndCompany(Long id, Company company);
     @EntityGraph(attributePaths = {"salesOrder", "salesOrder.dealer", "lines", "lines.finishedGoodBatch", "lines.finishedGoodBatch.finishedGood"})
@@ -29,4 +34,8 @@ public interface PackagingSlipRepository extends JpaRepository<PackagingSlip, Lo
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select p from PackagingSlip p where p.id = :id and p.company = :company")
     Optional<PackagingSlip> findAndLockByIdAndCompany(@Param("id") Long id, @Param("company") Company company);
+
+    long countByCompanyAndStatusInAndCreatedAtBefore(Company company,
+                                                     java.util.Collection<String> statuses,
+                                                     java.time.Instant cutoff);
 }

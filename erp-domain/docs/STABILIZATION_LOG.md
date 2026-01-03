@@ -317,3 +317,37 @@
   - `mvn -Dtest=*Sales* test` succeeded: Tests run 21, Failures 0, Errors 0, Skipped 0.
 - Notes:
   - Test logs include expected sequence contention, invalid company ID format warnings, negative balance warnings, and openhtmltopdf CSS warnings; tests still passed.
+
+## 2026-01-04 (epic-03 M1 verification - blocked)
+- Changes:
+  - Added production flow/state machine doc for production logs, packing, and finished goods.
+  - Added missing repository methods used by enterprise dashboards.
+  - Added missing inventory reference for opening stock and dashboard repository queries for invoices/settlements.
+- Commands run:
+  - `JAVA_HOME="/home/realnigga/Desktop/CLI BACKEND/.tools/jdk-21.0.3+9" PATH="/home/realnigga/Desktop/CLI BACKEND/.tools/jdk-21.0.3+9/bin:/home/realnigga/Desktop/CLI_BACKEND_epic03/.tools/apache-maven-3.9.9/bin:$PATH" mvn -f erp-domain/pom.xml -Dmaven.repo.local="/home/realnigga/Desktop/CLI BACKEND/.tools/m2" -DskipTests compile`
+  - `JAVA_HOME="/home/realnigga/Desktop/CLI BACKEND/.tools/jdk-21.0.3+9" PATH="/home/realnigga/Desktop/CLI BACKEND/.tools/jdk-21.0.3+9/bin:/home/realnigga/Desktop/CLI_BACKEND_epic03/.tools/apache-maven-3.9.9/bin:$PATH" mvn -f erp-domain/pom.xml -Dmaven.repo.local="/home/realnigga/Desktop/CLI BACKEND/.tools/m2" -Dcheckstyle.failOnViolation=false checkstyle:check`
+  - `JAVA_HOME="/home/realnigga/Desktop/CLI BACKEND/.tools/jdk-21.0.3+9" PATH="/home/realnigga/Desktop/CLI BACKEND/.tools/jdk-21.0.3+9/bin:/home/realnigga/Desktop/CLI_BACKEND_epic03/.tools/apache-maven-3.9.9/bin:$PATH" mvn -f erp-domain/pom.xml -Dmaven.repo.local="/home/realnigga/Desktop/CLI BACKEND/.tools/m2" test`
+- Validation:
+  - `mvn -DskipTests compile` succeeded (warnings for missing `javax.annotation.meta.When`).
+  - Checkstyle reported 28772 violations; `failOnViolation=false` used to surface baseline warnings without failing.
+  - `mvn test` failed: Testcontainers could not access Docker (`/var/run/docker.sock` permission denied).
+- Blocker:
+  - Current user lacks Docker daemon access; integration tests cannot start containers.
+
+## 2026-01-04 (epic-03 M1 verification - PASS)
+- Changes:
+  - Fixed dashboard settlement query naming to match Spring Data parsing.
+  - Stabilized period close test dates to avoid future-date validation failures.
+  - Removed unsupported `taxAmount` field from P2P invariant request payload.
+- Commands run:
+  - `JAVA_HOME="/home/realnigga/Desktop/CLI BACKEND/.tools/jdk-21.0.3+9" PATH="/home/realnigga/Desktop/CLI BACKEND/.tools/jdk-21.0.3+9/bin:$PATH" mvn -f erp-domain/pom.xml -DskipTests compile`
+  - `JAVA_HOME="/home/realnigga/Desktop/CLI BACKEND/.tools/jdk-21.0.3+9" PATH="/home/realnigga/Desktop/CLI BACKEND/.tools/jdk-21.0.3+9/bin:$PATH" mvn -f erp-domain/pom.xml -Dcheckstyle.failOnViolation=false checkstyle:check`
+  - `JAVA_HOME="/home/realnigga/Desktop/CLI BACKEND/.tools/jdk-21.0.3+9" PATH="/home/realnigga/Desktop/CLI BACKEND/.tools/jdk-21.0.3+9/bin:$PATH" mvn -f erp-domain/pom.xml test`
+  - `JAVA_HOME="/home/realnigga/Desktop/CLI BACKEND/.tools/jdk-21.0.3+9" PATH="/home/realnigga/Desktop/CLI BACKEND/.tools/jdk-21.0.3+9/bin:$PATH" mvn -f erp-domain/pom.xml -Dtest=*Production* test`
+- Validation:
+  - `mvn -DskipTests compile` succeeded (warnings for missing `javax.annotation.meta.When`).
+  - Checkstyle reported 28772 violations; `failOnViolation=false` used to surface baseline warnings without failing.
+  - `mvn test` succeeded: Tests run 187, Failures 0, Errors 0, Skipped 4.
+  - `mvn -Dtest=*Production* test` succeeded: Tests run 7, Failures 0, Errors 0, Skipped 0.
+- Notes:
+  - Used local JDK in `/home/realnigga/Desktop/CLI BACKEND/.tools/jdk-21.0.3+9` because system JDK lacks `javac` on PATH.

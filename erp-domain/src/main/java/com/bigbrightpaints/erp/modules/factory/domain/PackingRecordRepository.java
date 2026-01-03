@@ -7,4 +7,7 @@ import java.util.List;
 
 public interface PackingRecordRepository extends JpaRepository<PackingRecord, Long> {
     List<PackingRecord> findByCompanyAndProductionLogOrderByPackedDateAscIdAsc(Company company, ProductionLog productionLog);
+    List<PackingRecord> findByCompanyAndPackedDateBetween(Company company,
+                                                          java.time.LocalDate start,
+                                                          java.time.LocalDate end);
 }

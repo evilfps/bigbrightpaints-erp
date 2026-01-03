@@ -532,7 +532,6 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
         purchaseReq.put("supplierId", p2p.supplier().getId());
         purchaseReq.put("invoiceNumber", "P2P-INV-001");
         purchaseReq.put("invoiceDate", entryDate);
-        purchaseReq.put("taxAmount", BigDecimal.ZERO);
         purchaseReq.put("lines", List.of(line));
 
         ResponseEntity<Map> purchaseResp = rest.exchange("/api/v1/purchasing/raw-material-purchases",

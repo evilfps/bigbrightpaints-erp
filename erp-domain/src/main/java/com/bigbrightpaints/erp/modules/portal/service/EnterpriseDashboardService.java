@@ -342,7 +342,7 @@ public class EnterpriseDashboardService {
 
     private Double computeOrderToCash(Company company, DashboardWindow range) {
         List<PartnerSettlementAllocation> allocations = settlementAllocationRepository
-                .findByCompanyAndPartnerTypeAndSettlementDateBetweenWithInvoice(
+                .findByCompanyAndPartnerTypeAndSettlementDateBetween(
                         company, PartnerType.DEALER, range.start(), range.end());
         Map<Long, List<PartnerSettlementAllocation>> byInvoice = allocations.stream()
                 .filter(a -> a.getInvoice() != null)
