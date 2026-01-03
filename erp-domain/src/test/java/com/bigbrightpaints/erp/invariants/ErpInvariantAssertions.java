@@ -188,7 +188,12 @@ public class ErpInvariantAssertions {
     public void assertSubledgerReconciles(Long controlAccountId, LocalDate asOfDate) {
         Account account = accountRepository.findById(controlAccountId)
                 .orElseThrow(() -> new AssertionError("Account missing: " + controlAccountId));
-        Company company = account.getCompany();
+        Long companyId = account.getCompany() != null ? account.getCompany().getId() : null;
+        if (companyId == null) {
+            throw new AssertionError("Account is missing company for subledger reconciliation: " + account.getCode());
+        }
+        Company company = companyRepository.findById(companyId)
+                .orElseThrow(() -> new AssertionError("Company missing for account " + account.getCode()));
         LocalDate targetDate = asOfDate != null ? asOfDate : LocalDate.now();
 
         BigDecimal controlBalance = withCompanyContext(company.getCode(),

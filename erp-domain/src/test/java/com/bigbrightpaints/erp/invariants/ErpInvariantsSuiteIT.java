@@ -208,6 +208,16 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
                 HttpMethod.POST, new HttpEntity<>(orderReq, headers), Map.class);
         Map<?, ?> orderData = requireData(orderResp, "create order");
         Long orderId = ((Number) orderData.get("id")).longValue();
+        ResponseEntity<Map> orderRepeatResp = rest.exchange(
+                "/api/v1/sales/orders",
+                HttpMethod.POST,
+                new HttpEntity<>(orderReq, headers),
+                Map.class);
+        Map<?, ?> orderRepeatData = requireData(
+                orderRepeatResp,
+                "create order idempotent");
+        Long repeatOrderId = ((Number) orderRepeatData.get("id")).longValue();
+        assertThat(repeatOrderId).isEqualTo(orderId);
 
         rest.exchange("/api/v1/sales/orders/" + orderId + "/confirm",
                 HttpMethod.POST, new HttpEntity<>(headers), Map.class);
@@ -224,6 +234,11 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
             throw new AssertionError("dispatch confirm response missing finalInvoiceId: " + dispatchData);
         }
         Long invoiceId = invoiceNumber.longValue();
+        Object arJournalValue = dispatchData.get("arJournalEntryId");
+        if (!(arJournalValue instanceof Number arJournalNumber)) {
+            throw new AssertionError("dispatch confirm response missing arJournalEntryId: " + dispatchData);
+        }
+        Long arJournalId = arJournalNumber.longValue();
 
         Invoice invoice = invoiceRepository.findById(invoiceId)
                 .orElseThrow(() -> new AssertionError("Invoice missing for O2C flow"));
@@ -252,6 +267,36 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
                 .findByReferenceTypeAndReferenceIdOrderByCreatedAtAsc(InventoryReference.SALES_ORDER, orderId.toString());
         assertThat(movements).as("inventory movements created").isNotEmpty();
         invariants.assertNoNegativeStock(company.getId(), finishedGood.getProductCode());
+        List<Long> movementIds = movements.stream()
+                .map(InventoryMovement::getId)
+                .toList();
+
+        ResponseEntity<Map> dispatchRepeatResp = rest.exchange(
+                "/api/v1/sales/dispatch/confirm",
+                HttpMethod.POST,
+                new HttpEntity<>(dispatchReq, headers),
+                Map.class);
+        Map<?, ?> dispatchRepeatData = requireData(
+                dispatchRepeatResp,
+                "dispatch confirm idempotent");
+        Object repeatInvoiceValue = dispatchRepeatData.get("finalInvoiceId");
+        if (!(repeatInvoiceValue instanceof Number repeatInvoiceNumber)) {
+            throw new AssertionError("dispatch repeat response missing finalInvoiceId: " + dispatchRepeatData);
+        }
+        Object repeatJournalValue = dispatchRepeatData.get("arJournalEntryId");
+        if (!(repeatJournalValue instanceof Number repeatJournalNumber)) {
+            throw new AssertionError("dispatch repeat response missing arJournalEntryId: " + dispatchRepeatData);
+        }
+        assertThat(repeatInvoiceNumber.longValue()).isEqualTo(invoiceId);
+        assertThat(repeatJournalNumber.longValue()).isEqualTo(arJournalId);
+        List<InventoryMovement> repeatMovements = inventoryMovementRepository
+                .findByReferenceTypeAndReferenceIdOrderByCreatedAtAsc(InventoryReference.SALES_ORDER, orderId.toString());
+        assertThat(repeatMovements).as("inventory movements unchanged on replay")
+                .hasSize(movementIds.size());
+        List<Long> repeatMovementIds = repeatMovements.stream()
+                .map(InventoryMovement::getId)
+                .toList();
+        assertThat(repeatMovementIds).containsExactlyElementsOf(movementIds);
 
         Map<String, Object> allocation = Map.of(
                 "invoiceId", invoiceId,
@@ -279,6 +324,30 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
         for (DealerLedgerEntry entry : settledEntries) {
             assertThat(entry.getPaymentStatus()).isEqualTo("PAID");
             assertThat(entry.getAmountPaid()).isEqualByComparingTo(invoice.getTotalAmount());
+            assertThat(entry.getPaidDate()).isEqualTo(entryDate);
+        }
+
+        ResponseEntity<Map> settleRepeatResp = rest.exchange(
+                "/api/v1/accounting/settlements/dealers",
+                HttpMethod.POST,
+                new HttpEntity<>(settlementReq, headers),
+                Map.class);
+        Map<?, ?> settleRepeatData = requireData(
+                settleRepeatResp,
+                "dealer settlement idempotent");
+        Map<?, ?> repeatJournalPayload = (Map<?, ?>) settleRepeatData.get("journalEntry");
+        Long repeatSettlementId = ((Number) repeatJournalPayload.get("id")).longValue();
+        assertThat(repeatSettlementId).isEqualTo(settlementJeId);
+        Invoice settledInvoice = invoiceRepository.findById(invoiceId)
+                .orElseThrow(() -> new AssertionError("Invoice missing after settlement replay"));
+        List<DealerLedgerEntry> settledEntriesRepeat =
+                dealerLedgerRepository.findByCompanyAndJournalEntry(company, settledInvoice.getJournalEntry());
+        assertThat(settledEntriesRepeat)
+                .as("dealer ledger entries retained after settlement replay")
+                .isNotEmpty();
+        for (DealerLedgerEntry entry : settledEntriesRepeat) {
+            assertThat(entry.getPaymentStatus()).isEqualTo("PAID");
+            assertThat(entry.getAmountPaid()).isEqualByComparingTo(settledInvoice.getTotalAmount());
             assertThat(entry.getPaidDate()).isEqualTo(entryDate);
         }
 
