@@ -267,6 +267,24 @@
 - Notes:
   - Test logs include expected sequence contention, invalid company ID format warnings, negative balance warnings, and openhtmltopdf CSS warnings; tests still passed.
 
+## 2026-01-03 (epic-02 M6 verification)
+- Changes:
+  - Added O2C reversal/exception coverage for sales returns and credit notes in `ErpInvariantsSuiteIT`.
+  - Dispatch confirmation now respects admin credit-limit override to bypass enforcement checks.
+  - Updated `SalesServiceTest` constructor wiring to match current `SalesService` signature.
+- Commands run:
+  - `JAVA_HOME="$PWD/.tools/jdk-21.0.3+9" PATH="$PWD/.tools/jdk-21.0.3+9/bin:$PATH" mvn -f erp-domain/pom.xml -Dmaven.repo.local="$PWD/.tools/m2" -DskipTests compile`
+  - `JAVA_HOME="$PWD/.tools/jdk-21.0.3+9" PATH="$PWD/.tools/jdk-21.0.3+9/bin:$PATH" mvn -f erp-domain/pom.xml -Dmaven.repo.local="$PWD/.tools/m2" "-Dcheckstyle.failOnViolation=false" checkstyle:check`
+  - `JAVA_HOME="$PWD/.tools/jdk-21.0.3+9" PATH="$PWD/.tools/jdk-21.0.3+9/bin:$PATH" mvn -f erp-domain/pom.xml -Dmaven.repo.local="$PWD/.tools/m2" test`
+  - `JAVA_HOME="$PWD/.tools/jdk-21.0.3+9" PATH="$PWD/.tools/jdk-21.0.3+9/bin:$PATH" mvn -f erp-domain/pom.xml -Dmaven.repo.local="$PWD/.tools/m2" -Dtest=*Sales* test`
+- Validation:
+  - `mvn -DskipTests compile` succeeded.
+  - Checkstyle reported 28968 violations; `failOnViolation=false` used to surface baseline warnings without failing.
+  - `mvn test` succeeded: Tests run 187, Failures 0, Errors 0, Skipped 4.
+  - `mvn -Dtest=*Sales* test` succeeded: Tests run 21, Failures 0, Errors 0, Skipped 0.
+- Notes:
+  - Test logs include expected sequence contention, invalid company ID format warnings, negative balance warnings, and openhtmltopdf CSS warnings; tests still passed.
+
 ## 2026-01-03 (epic-02 M4 verification)
 - Changes:
   - Corrected GST inclusive ORDER_TOTAL rounding to distribute tax from the inclusive base and keep tax totals consistent.

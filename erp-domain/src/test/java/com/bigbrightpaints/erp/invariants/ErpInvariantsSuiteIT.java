@@ -5,6 +5,7 @@ import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.DealerLedgerRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.DealerLedgerEntry;
+import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.SupplierLedgerRepository;
 import com.bigbrightpaints.erp.modules.accounting.service.TemporalBalanceService;
@@ -23,6 +24,7 @@ import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatch;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatchRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialRepository;
 import com.bigbrightpaints.erp.modules.invoice.domain.Invoice;
+import com.bigbrightpaints.erp.modules.invoice.domain.InvoiceLine;
 import com.bigbrightpaints.erp.modules.invoice.domain.InvoiceRepository;
 import com.bigbrightpaints.erp.modules.hr.domain.PayrollRun;
 import com.bigbrightpaints.erp.modules.hr.domain.PayrollRunRepository;
@@ -352,6 +354,163 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
         }
 
         invariants.assertSubledgerReconciles(o2c.requireAccount("AR").getId(), null);
+    }
+
+    @Test
+    @DisplayName("Order-to-Cash: sales return restocks inventory and posts reversals")
+    void orderToCash_salesReturnRestocksInventory() {
+        Company company = o2c.company();
+        HttpHeaders headers = authHeaders("o2c@test.com", company.getCode());
+        FinishedGood finishedGood = o2c.finishedGood();
+
+        Map<String, Object> orderLine = new HashMap<>();
+        orderLine.put("productCode", finishedGood.getProductCode());
+        orderLine.put("description", "O2C return item");
+        orderLine.put("quantity", new BigDecimal("2"));
+        orderLine.put("unitPrice", new BigDecimal("100.00"));
+        orderLine.put("gstRate", BigDecimal.ZERO);
+
+        Map<String, Object> orderReq = new HashMap<>();
+        orderReq.put("dealerId", o2c.dealer().getId());
+        orderReq.put("totalAmount", new BigDecimal("200.00"));
+        orderReq.put("currency", "INR");
+        orderReq.put("gstTreatment", "NONE");
+        orderReq.put("items", List.of(orderLine));
+        orderReq.put("idempotencyKey", "O2C-RETURN-ORDER-001");
+
+        ResponseEntity<Map> orderResp = rest.exchange("/api/v1/sales/orders",
+                HttpMethod.POST, new HttpEntity<>(orderReq, headers), Map.class);
+        Map<?, ?> orderData = requireData(orderResp, "create order for return");
+        Long orderId = ((Number) orderData.get("id")).longValue();
+
+        rest.exchange("/api/v1/sales/orders/" + orderId + "/confirm",
+                HttpMethod.POST, new HttpEntity<>(headers), Map.class);
+
+        Map<String, Object> dispatchReq = new HashMap<>();
+        dispatchReq.put("orderId", orderId);
+        dispatchReq.put("confirmedBy", "o2c-test");
+
+        ResponseEntity<Map> dispatchResp = rest.exchange("/api/v1/sales/dispatch/confirm",
+                HttpMethod.POST, new HttpEntity<>(dispatchReq, headers), Map.class);
+        Map<?, ?> dispatchData = requireData(dispatchResp, "dispatch confirm for return");
+        Long invoiceId = ((Number) dispatchData.get("finalInvoiceId")).longValue();
+
+        Invoice invoice = invoiceRepository.findById(invoiceId)
+                .orElseThrow(() -> new AssertionError("Invoice missing for return flow"));
+        if (invoice.getLines().isEmpty()) {
+            throw new AssertionError("Invoice lines missing for return flow");
+        }
+        InvoiceLine invoiceLine = invoice.getLines().get(0);
+
+        BigDecimal stockAfterDispatch = finishedGoodRepository.findById(finishedGood.getId())
+                .orElseThrow(() -> new AssertionError("Finished good missing after dispatch"))
+                .getCurrentStock();
+
+        Map<String, Object> returnLine = Map.of(
+                "invoiceLineId", invoiceLine.getId(),
+                "quantity", new BigDecimal("1")
+        );
+        Map<String, Object> returnReq = new HashMap<>();
+        returnReq.put("invoiceId", invoiceId);
+        returnReq.put("reason", "Damaged on delivery");
+        returnReq.put("lines", List.of(returnLine));
+
+        ResponseEntity<Map> returnResp = rest.exchange("/api/v1/accounting/sales/returns",
+                HttpMethod.POST, new HttpEntity<>(returnReq, headers), Map.class);
+        requireData(returnResp, "sales return");
+
+        BigDecimal stockAfterReturn = finishedGoodRepository.findById(finishedGood.getId())
+                .orElseThrow(() -> new AssertionError("Finished good missing after return"))
+                .getCurrentStock();
+        assertThat(stockAfterReturn)
+                .as("stock should increase by returned quantity")
+                .isEqualByComparingTo(stockAfterDispatch.add(new BigDecimal("1")));
+
+        String salesReturnRef = "CRN-" + invoice.getInvoiceNumber();
+        assertThat(journalEntryRepository.findByCompanyAndReferenceNumber(company, salesReturnRef))
+                .as("sales return journal entry exists")
+                .isPresent();
+        assertThat(journalEntryRepository.findFirstByCompanyAndReferenceNumberStartingWith(company,
+                salesReturnRef + "-COGS"))
+                .as("COGS reversal journal entry exists")
+                .isPresent();
+
+        List<InventoryMovement> returnMovements =
+                inventoryMovementRepository.findByReferenceTypeAndReferenceIdOrderByCreatedAtAsc(
+                        "SALES_RETURN",
+                        invoice.getInvoiceNumber());
+        BigDecimal returnedQuantity = returnMovements.stream()
+                .map(InventoryMovement::getQuantity)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        assertThat(returnedQuantity)
+                .as("inventory return movement quantity")
+                .isEqualByComparingTo(new BigDecimal("1"));
+    }
+
+    @Test
+    @DisplayName("Order-to-Cash: credit note reverses invoice journal")
+    void orderToCash_creditNoteReversesInvoice() {
+        Company company = o2c.company();
+        HttpHeaders headers = authHeaders("o2c@test.com", company.getCode());
+        FinishedGood finishedGood = o2c.finishedGood();
+
+        Map<String, Object> orderLine = new HashMap<>();
+        orderLine.put("productCode", finishedGood.getProductCode());
+        orderLine.put("description", "O2C credit note item");
+        orderLine.put("quantity", new BigDecimal("1"));
+        orderLine.put("unitPrice", new BigDecimal("150.00"));
+        orderLine.put("gstRate", BigDecimal.ZERO);
+
+        Map<String, Object> orderReq = new HashMap<>();
+        orderReq.put("dealerId", o2c.dealer().getId());
+        orderReq.put("totalAmount", new BigDecimal("150.00"));
+        orderReq.put("currency", "INR");
+        orderReq.put("gstTreatment", "NONE");
+        orderReq.put("items", List.of(orderLine));
+        orderReq.put("idempotencyKey", "O2C-CN-ORDER-001");
+
+        ResponseEntity<Map> orderResp = rest.exchange("/api/v1/sales/orders",
+                HttpMethod.POST, new HttpEntity<>(orderReq, headers), Map.class);
+        Map<?, ?> orderData = requireData(orderResp, "create order for credit note");
+        Long orderId = ((Number) orderData.get("id")).longValue();
+
+        rest.exchange("/api/v1/sales/orders/" + orderId + "/confirm",
+                HttpMethod.POST, new HttpEntity<>(headers), Map.class);
+
+        Map<String, Object> dispatchReq = new HashMap<>();
+        dispatchReq.put("orderId", orderId);
+        dispatchReq.put("confirmedBy", "o2c-test");
+
+        ResponseEntity<Map> dispatchResp = rest.exchange("/api/v1/sales/dispatch/confirm",
+                HttpMethod.POST, new HttpEntity<>(dispatchReq, headers), Map.class);
+        Map<?, ?> dispatchData = requireData(dispatchResp, "dispatch confirm for credit note");
+        Long invoiceId = ((Number) dispatchData.get("finalInvoiceId")).longValue();
+
+        Invoice invoice = invoiceRepository.findById(invoiceId)
+                .orElseThrow(() -> new AssertionError("Invoice missing for credit note flow"));
+        if (invoice.getJournalEntry() == null) {
+            throw new AssertionError("Invoice journal missing for credit note flow");
+        }
+
+        String reference = "CN-O2C-" + invoice.getInvoiceNumber();
+        Map<String, Object> creditReq = new HashMap<>();
+        creditReq.put("invoiceId", invoiceId);
+        creditReq.put("referenceNumber", reference);
+        creditReq.put("memo", "O2C credit note test");
+
+        ResponseEntity<Map> creditResp = rest.exchange("/api/v1/accounting/credit-notes",
+                HttpMethod.POST, new HttpEntity<>(creditReq, headers), Map.class);
+        requireData(creditResp, "credit note");
+
+        JournalEntry creditNote = journalEntryRepository.findByCompanyAndReferenceNumber(company, reference)
+                .orElseThrow(() -> new AssertionError("Credit note journal missing"));
+        assertThat(creditNote.getReversalOf())
+                .as("credit note links to invoice journal")
+                .isNotNull();
+        assertThat(creditNote.getReversalOf().getId())
+                .isEqualTo(invoice.getJournalEntry().getId());
+
+        invariants.assertJournalBalanced(creditNote.getId());
     }
 
     @Test

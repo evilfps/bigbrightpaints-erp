@@ -13,13 +13,16 @@ import com.bigbrightpaints.erp.modules.inventory.domain.PackagingSlipRepository;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingService;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
+import com.bigbrightpaints.erp.core.exception.CreditLimitExceededException;
 import com.bigbrightpaints.erp.modules.invoice.service.InvoiceNumberService;
+import com.bigbrightpaints.erp.modules.invoice.domain.Invoice;
 import com.bigbrightpaints.erp.modules.invoice.domain.InvoiceRepository;
 import com.bigbrightpaints.erp.modules.factory.domain.FactoryTaskRepository;
 import com.bigbrightpaints.erp.modules.sales.dto.SalesOrderDto;
 import com.bigbrightpaints.erp.modules.inventory.dto.PackagingSlipDto;
 import com.bigbrightpaints.erp.modules.inventory.service.FinishedGoodsService.InventoryReservationResult;
 import com.bigbrightpaints.erp.modules.inventory.service.FinishedGoodsService.InventoryShortage;
+import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatch;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionBrand;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionProduct;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionProductRepository;
@@ -27,8 +30,10 @@ import com.bigbrightpaints.erp.modules.sales.domain.*;
 import com.bigbrightpaints.erp.modules.sales.dto.SalesOrderItemRequest;
 import com.bigbrightpaints.erp.modules.sales.dto.SalesOrderRequest;
 import com.bigbrightpaints.erp.modules.sales.dto.DispatchConfirmRequest;
+import com.bigbrightpaints.erp.modules.sales.dto.DispatchConfirmResponse;
 import com.bigbrightpaints.erp.modules.sales.event.SalesOrderCreatedEvent;
 import com.bigbrightpaints.erp.modules.inventory.domain.PackagingSlip;
+import com.bigbrightpaints.erp.modules.inventory.domain.PackagingSlipLine;
 import com.bigbrightpaints.erp.modules.accounting.service.CompanyDefaultAccountsService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -209,6 +214,144 @@ class SalesServiceTest {
         DispatchConfirmRequest request = new DispatchConfirmRequest(null, 10L, List.of(), null, null, false, null);
 
         assertThrows(ApplicationException.class, () -> salesService.confirmDispatch(request));
+    }
+
+    @Test
+    void confirmDispatchBlocksWhenCreditLimitExceededWithoutOverride() {
+        Dealer dealer = dealerWithCreditLimit(42L, BigDecimal.valueOf(100));
+        Account receivable = new Account();
+        receivable.setName("AR");
+        setField(receivable, "id", 900L);
+        dealer.setReceivableAccount(receivable);
+
+        SalesOrder order = new SalesOrder();
+        setField(order, "id", 10L);
+        order.setCompany(company);
+        order.setDealer(dealer);
+        order.setOrderNumber("SO-10");
+        order.setStatus("READY_TO_SHIP");
+        order.setTotalAmount(BigDecimal.valueOf(200));
+
+        SalesOrderItem item = new SalesOrderItem();
+        setField(item, "id", 1L);
+        item.setSalesOrder(order);
+        item.setProductCode("SKU-D");
+        item.setDescription("Desc");
+        item.setQuantity(BigDecimal.ONE);
+        item.setUnitPrice(BigDecimal.valueOf(200));
+        item.setGstRate(BigDecimal.ZERO);
+        order.getItems().add(item);
+
+        FinishedGood finishedGood = buildFinishedGood("SKU-D");
+        finishedGood.setCurrentStock(BigDecimal.ONE);
+
+        FinishedGoodBatch batch = new FinishedGoodBatch();
+        batch.setFinishedGood(finishedGood);
+        batch.setBatchCode("B-1");
+        batch.setQuantityTotal(BigDecimal.ONE);
+        batch.setQuantityAvailable(BigDecimal.ONE);
+        batch.setUnitCost(BigDecimal.ZERO);
+
+        PackagingSlip slip = new PackagingSlip();
+        setField(slip, "id", 55L);
+        slip.setCompany(company);
+        slip.setSalesOrder(order);
+        slip.setSlipNumber("PS-55");
+        slip.setStatus("PENDING");
+
+        PackagingSlipLine slipLine = new PackagingSlipLine();
+        setField(slipLine, "id", 99L);
+        slipLine.setPackagingSlip(slip);
+        slipLine.setFinishedGoodBatch(batch);
+        slipLine.setOrderedQuantity(BigDecimal.ONE);
+        slipLine.setQuantity(BigDecimal.ONE);
+        slipLine.setUnitCost(BigDecimal.ZERO);
+        slip.getLines().add(slipLine);
+
+        when(packagingSlipRepository.findAndLockByIdAndCompany(55L, company)).thenReturn(Optional.of(slip));
+        when(companyEntityLookup.requireSalesOrder(company, 10L)).thenReturn(order);
+        when(dealerRepository.lockByCompanyAndId(company, dealer.getId())).thenReturn(Optional.of(dealer));
+        when(dealerLedgerService.currentBalance(dealer.getId())).thenReturn(BigDecimal.ZERO);
+
+        DispatchConfirmRequest request = new DispatchConfirmRequest(55L, null, List.of(), null, "admin", Boolean.FALSE, null);
+
+        assertThrows(CreditLimitExceededException.class, () -> salesService.confirmDispatch(request));
+    }
+
+    @Test
+    void confirmDispatchAllowsAdminOverrideCreditLimit() {
+        Dealer dealer = dealerWithCreditLimit(42L, BigDecimal.valueOf(100));
+        Account receivable = new Account();
+        receivable.setName("AR");
+        setField(receivable, "id", 900L);
+        dealer.setReceivableAccount(receivable);
+
+        SalesOrder order = new SalesOrder();
+        setField(order, "id", 10L);
+        order.setCompany(company);
+        order.setDealer(dealer);
+        order.setOrderNumber("SO-10");
+        order.setStatus("READY_TO_SHIP");
+        order.setTotalAmount(BigDecimal.valueOf(200));
+
+        SalesOrderItem item = new SalesOrderItem();
+        setField(item, "id", 1L);
+        item.setSalesOrder(order);
+        item.setProductCode("SKU-D");
+        item.setDescription("Desc");
+        item.setQuantity(BigDecimal.ONE);
+        item.setUnitPrice(BigDecimal.valueOf(200));
+        item.setGstRate(BigDecimal.ZERO);
+        order.getItems().add(item);
+
+        FinishedGood finishedGood = buildFinishedGood("SKU-D");
+        finishedGood.setCurrentStock(BigDecimal.ONE);
+        finishedGood.setRevenueAccountId(3L);
+
+        FinishedGoodBatch batch = new FinishedGoodBatch();
+        batch.setFinishedGood(finishedGood);
+        batch.setBatchCode("B-1");
+        batch.setQuantityTotal(BigDecimal.ONE);
+        batch.setQuantityAvailable(BigDecimal.ONE);
+        batch.setUnitCost(BigDecimal.ZERO);
+
+        PackagingSlip slip = new PackagingSlip();
+        setField(slip, "id", 55L);
+        slip.setCompany(company);
+        slip.setSalesOrder(order);
+        slip.setSlipNumber("PS-55");
+        slip.setStatus("PENDING");
+
+        PackagingSlipLine slipLine = new PackagingSlipLine();
+        setField(slipLine, "id", 99L);
+        slipLine.setPackagingSlip(slip);
+        slipLine.setFinishedGoodBatch(batch);
+        slipLine.setOrderedQuantity(BigDecimal.ONE);
+        slipLine.setQuantity(BigDecimal.ONE);
+        slipLine.setUnitCost(BigDecimal.ZERO);
+        slip.getLines().add(slipLine);
+
+        when(packagingSlipRepository.findAndLockByIdAndCompany(55L, company)).thenReturn(Optional.of(slip));
+        when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 10L)).thenReturn(List.of(slip));
+        when(companyEntityLookup.requireSalesOrder(company, 10L)).thenReturn(order);
+        when(dealerRepository.lockByCompanyAndId(company, dealer.getId())).thenReturn(Optional.of(dealer));
+        when(invoiceNumberService.nextInvoiceNumber(company)).thenReturn("INV-55");
+        when(invoiceRepository.save(ArgumentMatchers.any(Invoice.class))).thenAnswer(invocation -> {
+            Invoice invoice = invocation.getArgument(0);
+            setField(invoice, "id", 777L);
+            return invoice;
+        });
+        when(salesOrderRepository.save(ArgumentMatchers.any(SalesOrder.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(packagingSlipRepository.save(ArgumentMatchers.any(PackagingSlip.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(accountRepository.findById(ArgumentMatchers.anyLong())).thenReturn(Optional.empty());
+
+        DispatchConfirmRequest request = new DispatchConfirmRequest(55L, null, List.of(), null, "admin", Boolean.TRUE, null);
+        DispatchConfirmResponse response = salesService.confirmDispatch(request);
+
+        assertEquals(55L, response.packingSlipId());
+        assertEquals(10L, response.salesOrderId());
+        assertEquals(777L, response.finalInvoiceId());
+        verifyNoInteractions(creditLimitOverrideService);
     }
 
     @Test

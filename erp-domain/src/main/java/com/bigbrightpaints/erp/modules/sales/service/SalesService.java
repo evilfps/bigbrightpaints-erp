@@ -1251,7 +1251,9 @@ public class SalesService {
                     "No shippable quantity available for dispatch");
         }
 
-        enforceDispatchCreditLimit(company, dealer, slip, order, totalAmount, request.overrideRequestId());
+        if (!Boolean.TRUE.equals(request.adminOverrideCreditLimit())) {
+            enforceDispatchCreditLimit(company, dealer, slip, order, totalAmount, request.overrideRequestId());
+        }
 
         if (!alreadyDispatched) {
             List<com.bigbrightpaints.erp.modules.inventory.dto.DispatchConfirmationRequest.LineConfirmation> confirmations =
