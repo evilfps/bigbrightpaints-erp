@@ -335,3 +335,20 @@
   - `mvn -Dtest=*Purchasing* test` succeeded: Tests run 4, Failures 0, Errors 0, Skipped 0.
 - Notes:
   - Test logs include expected invalid company ID format warnings, negative balance warnings, and dynamic agent warnings; tests still passed.
+
+## 2026-01-04 (epic-04 M2 verification)
+- Changes:
+  - Added raw material stock + movement assertions to P2P invariant purchase flow.
+  - Added P2P purchase return invariant (isolated company) to verify stock decrement and return movement linkage.
+- Commands run:
+  - `mvn -f erp-domain/pom.xml -DskipTests compile`
+  - `mvn -f erp-domain/pom.xml -Dcheckstyle.failOnViolation=false checkstyle:check`
+  - `mvn -f erp-domain/pom.xml test`
+  - `mvn -f erp-domain/pom.xml -Dtest=*Purchasing* test`
+- Validation:
+  - `mvn -DskipTests compile` succeeded.
+  - Checkstyle reported 28780 violations; `failOnViolation=false` used to surface baseline warnings without failing.
+  - `mvn test` succeeded: Tests run 188, Failures 0, Errors 0, Skipped 4.
+  - `mvn -Dtest=*Purchasing* test` succeeded: Tests run 4, Failures 0, Errors 0, Skipped 0.
+- Notes:
+  - Test logs include expected invalid company ID format warnings, negative balance warnings, and dynamic agent warnings; tests still passed.

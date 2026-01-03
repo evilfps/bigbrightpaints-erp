@@ -22,6 +22,8 @@ import com.bigbrightpaints.erp.modules.inventory.domain.PackagingSlipRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterial;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatch;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatchRepository;
+import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovement;
+import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovementRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialRepository;
 import com.bigbrightpaints.erp.modules.invoice.domain.Invoice;
 import com.bigbrightpaints.erp.modules.invoice.domain.InvoiceLine;
@@ -80,6 +82,7 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
     @Autowired private FinishedGoodRepository finishedGoodRepository;
     @Autowired private RawMaterialRepository rawMaterialRepository;
     @Autowired private RawMaterialBatchRepository rawMaterialBatchRepository;
+    @Autowired private RawMaterialMovementRepository rawMaterialMovementRepository;
     @Autowired private InvoiceRepository invoiceRepository;
     @Autowired private PackagingSlipRepository packagingSlipRepository;
     @Autowired private InventoryMovementRepository inventoryMovementRepository;
@@ -541,6 +544,22 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
 
         RawMaterialPurchase purchase = purchaseRepository.findById(purchaseId)
                 .orElseThrow(() -> new AssertionError("Purchase missing: " + purchaseId));
+        RawMaterial refreshedMaterial = rawMaterialRepository.findById(material.getId())
+                .orElseThrow(() -> new AssertionError("Raw material missing: " + material.getId()));
+        assertThat(refreshedMaterial.getCurrentStock()).isEqualByComparingTo(new BigDecimal("10"));
+
+        List<RawMaterialBatch> batches = rawMaterialBatchRepository.findByRawMaterial(refreshedMaterial);
+        assertThat(batches).hasSize(1);
+        RawMaterialBatch batch = batches.get(0);
+        assertThat(batch.getQuantity()).isEqualByComparingTo(new BigDecimal("10"));
+
+        List<RawMaterialMovement> movements = rawMaterialMovementRepository.findByRawMaterialBatch(batch);
+        assertThat(movements).hasSize(1);
+        RawMaterialMovement movement = movements.get(0);
+        assertThat(movement.getReferenceType()).isEqualTo(InventoryReference.RAW_MATERIAL_PURCHASE);
+        assertThat(movement.getMovementType()).isEqualTo("RECEIPT");
+        assertThat(movement.getQuantity()).isEqualByComparingTo(new BigDecimal("10"));
+        assertThat(movement.getJournalEntryId()).isNotNull();
         invariants.assertJournalLinkedTo("PURCHASE", purchaseId);
         invariants.assertJournalBalanced(purchase.getJournalEntry().getId());
 
@@ -562,6 +581,67 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
 
         invariants.assertSubledgerReconciles(p2p.requireAccount("AP").getId(), entryDate);
         invariants.assertNoNegativeStock(company.getId(), material.getSku());
+    }
+
+    @Test
+    @DisplayName("Procure-to-Pay: purchase return reduces stock and records movement")
+    void procureToPay_purchaseReturn_reducesStock() {
+        CanonicalErpDataset returnDataset = datasetBuilder.seedCompany("ERP-P2P-RET");
+        dataSeeder.ensureUser("p2p-ret@test.com", PASSWORD, "P2P Return Admin",
+                returnDataset.company().getCode(), BASE_ROLES);
+
+        Company company = returnDataset.company();
+        HttpHeaders headers = authHeaders("p2p-ret@test.com", company.getCode());
+        LocalDate entryDate = TestDateUtils.safeDate(company);
+
+        RawMaterial material = createRawMaterial(company, "RM-P2P-RET-001", "P2P Return Material",
+                returnDataset.requireAccount("INV").getId());
+
+        Map<String, Object> line = new HashMap<>();
+        line.put("rawMaterialId", material.getId());
+        line.put("quantity", new BigDecimal("10"));
+        line.put("costPerUnit", new BigDecimal("15.00"));
+
+        String invoiceNumber = "P2P-RET-INV-" + System.nanoTime();
+        Map<String, Object> purchaseReq = new HashMap<>();
+        purchaseReq.put("supplierId", returnDataset.supplier().getId());
+        purchaseReq.put("invoiceNumber", invoiceNumber);
+        purchaseReq.put("invoiceDate", entryDate);
+        purchaseReq.put("lines", List.of(line));
+
+        ResponseEntity<Map> purchaseResp = rest.exchange("/api/v1/purchasing/raw-material-purchases",
+                HttpMethod.POST, new HttpEntity<>(purchaseReq, headers), Map.class);
+        requireData(purchaseResp, "create purchase for return");
+
+        RawMaterial afterPurchase = rawMaterialRepository.findById(material.getId())
+                .orElseThrow(() -> new AssertionError("Raw material missing after purchase"));
+        assertThat(afterPurchase.getCurrentStock()).isEqualByComparingTo(new BigDecimal("10"));
+
+        String returnRef = "P2P-RET-" + System.nanoTime();
+        Map<String, Object> returnReq = new HashMap<>();
+        returnReq.put("supplierId", returnDataset.supplier().getId());
+        returnReq.put("rawMaterialId", material.getId());
+        returnReq.put("quantity", new BigDecimal("4"));
+        returnReq.put("unitCost", new BigDecimal("15.00"));
+        returnReq.put("referenceNumber", returnRef);
+        returnReq.put("returnDate", entryDate);
+        returnReq.put("reason", "Return test");
+
+        ResponseEntity<Map> returnResp = rest.exchange("/api/v1/purchasing/raw-material-purchases/returns",
+                HttpMethod.POST, new HttpEntity<>(returnReq, headers), Map.class);
+        requireData(returnResp, "purchase return");
+
+        RawMaterial afterReturn = rawMaterialRepository.findById(material.getId())
+                .orElseThrow(() -> new AssertionError("Raw material missing after return"));
+        assertThat(afterReturn.getCurrentStock()).isEqualByComparingTo(new BigDecimal("6"));
+
+        List<RawMaterialMovement> returnMovements = rawMaterialMovementRepository
+                .findByReferenceTypeAndReferenceId(InventoryReference.PURCHASE_RETURN, returnRef);
+        assertThat(returnMovements).hasSize(1);
+        RawMaterialMovement movement = returnMovements.get(0);
+        assertThat(movement.getMovementType()).isEqualTo("RETURN");
+        assertThat(movement.getQuantity()).isEqualByComparingTo(new BigDecimal("4"));
+        assertThat(movement.getJournalEntryId()).isNotNull();
     }
 
     @Test
