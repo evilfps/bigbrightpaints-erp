@@ -7,6 +7,7 @@ import com.bigbrightpaints.erp.modules.accounting.domain.DealerLedgerRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.DealerLedgerEntry;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
+import com.bigbrightpaints.erp.modules.accounting.domain.JournalLine;
 import com.bigbrightpaints.erp.modules.accounting.domain.SupplierLedgerRepository;
 import com.bigbrightpaints.erp.modules.accounting.service.TemporalBalanceService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
@@ -563,6 +564,22 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
         invariants.assertJournalLinkedTo("PURCHASE", purchaseId);
         invariants.assertJournalBalanced(purchase.getJournalEntry().getId());
 
+        JournalEntry purchaseEntry = journalEntryRepository.findById(purchase.getJournalEntry().getId())
+                .orElseThrow(() -> new AssertionError("Purchase journal missing"));
+        BigDecimal expectedTotal = new BigDecimal("150.00");
+        Long inventoryAccountId = p2p.requireAccount("INV").getId();
+        Long payableAccountId = p2p.requireAccount("AP").getId();
+        BigDecimal inventoryDebit = purchaseEntry.getLines().stream()
+                .filter(journalLine -> journalLine.getAccount().getId().equals(inventoryAccountId))
+                .map(JournalLine::getDebit)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal payableCredit = purchaseEntry.getLines().stream()
+                .filter(journalLine -> journalLine.getAccount().getId().equals(payableAccountId))
+                .map(JournalLine::getCredit)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        assertThat(inventoryDebit).isEqualByComparingTo(expectedTotal);
+        assertThat(payableCredit).isEqualByComparingTo(expectedTotal);
+
         Map<String, Object> allocation = Map.of(
                 "purchaseId", purchaseId,
                 "appliedAmount", purchase.getTotalAmount()
@@ -629,7 +646,8 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
 
         ResponseEntity<Map> returnResp = rest.exchange("/api/v1/purchasing/raw-material-purchases/returns",
                 HttpMethod.POST, new HttpEntity<>(returnReq, headers), Map.class);
-        requireData(returnResp, "purchase return");
+        Map<?, ?> returnData = requireData(returnResp, "purchase return");
+        Long returnEntryId = ((Number) returnData.get("id")).longValue();
 
         RawMaterial afterReturn = rawMaterialRepository.findById(material.getId())
                 .orElseThrow(() -> new AssertionError("Raw material missing after return"));
@@ -642,6 +660,22 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
         assertThat(movement.getMovementType()).isEqualTo("RETURN");
         assertThat(movement.getQuantity()).isEqualByComparingTo(new BigDecimal("4"));
         assertThat(movement.getJournalEntryId()).isNotNull();
+
+        JournalEntry returnEntry = journalEntryRepository.findById(returnEntryId)
+                .orElseThrow(() -> new AssertionError("Return journal missing"));
+        BigDecimal expectedTotal = new BigDecimal("60.00");
+        Long inventoryAccountId = returnDataset.requireAccount("INV").getId();
+        Long payableAccountId = returnDataset.requireAccount("AP").getId();
+        BigDecimal payableDebit = returnEntry.getLines().stream()
+                .filter(journalLine -> journalLine.getAccount().getId().equals(payableAccountId))
+                .map(JournalLine::getDebit)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal inventoryCredit = returnEntry.getLines().stream()
+                .filter(journalLine -> journalLine.getAccount().getId().equals(inventoryAccountId))
+                .map(JournalLine::getCredit)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        assertThat(payableDebit).isEqualByComparingTo(expectedTotal);
+        assertThat(inventoryCredit).isEqualByComparingTo(expectedTotal);
     }
 
     @Test
