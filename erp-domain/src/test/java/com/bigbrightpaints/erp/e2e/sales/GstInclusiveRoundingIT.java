@@ -158,4 +158,52 @@ public class GstInclusiveRoundingIT extends AbstractIntegrationTest {
         assertThat(subtotal).isEqualByComparingTo(expectedSubtotal.setScale(2));
         assertThat(tax).isEqualByComparingTo(expectedTaxTotal.setScale(2));
     }
+
+    @Test
+    @DisplayName("Inclusive GST order-total keeps totals consistent")
+    void gstInclusiveOrderTotal_RoundsPaise() {
+        Map<String, Object> item = new HashMap<>();
+        item.put("productCode", "SKU-A");
+        item.put("description", "Order total item");
+        item.put("quantity", new BigDecimal("1"));
+        item.put("unitPrice", new BigDecimal("100.00")); // inclusive
+
+        BigDecimal expectedTotal = new BigDecimal("100.00");
+        BigDecimal expectedTax = new BigDecimal("15.25"); // 100 /1.18 = 84.75 base
+        BigDecimal expectedSubtotal = expectedTotal.subtract(expectedTax);
+
+        Map<String, Object> orderReq = new HashMap<>();
+        orderReq.put("dealerId", null);
+        orderReq.put("totalAmount", expectedTotal);
+        orderReq.put("currency", "INR");
+        orderReq.put("notes", "Inclusive GST order total");
+        orderReq.put("items", List.of(item));
+        orderReq.put("gstTreatment", "ORDER_TOTAL");
+        orderReq.put("gstRate", new BigDecimal("18"));
+        orderReq.put("gstInclusive", true);
+
+        ResponseEntity<Map> resp = rest.exchange("/api/v1/sales/orders",
+                HttpMethod.POST, new HttpEntity<>(orderReq, headers), Map.class);
+        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.OK);
+        Map<?, ?> data = (Map<?, ?>) resp.getBody().get("data");
+        BigDecimal subtotal = new BigDecimal(data.get("subtotalAmount").toString());
+        BigDecimal tax = new BigDecimal(data.get("gstTotal").toString());
+        BigDecimal total = new BigDecimal(data.get("totalAmount").toString());
+        BigDecimal rounding = new BigDecimal(data.get("gstRoundingAdjustment").toString());
+
+        assertThat(total).isEqualByComparingTo(expectedTotal);
+        assertThat(subtotal).isEqualByComparingTo(expectedSubtotal.setScale(2));
+        assertThat(tax).isEqualByComparingTo(expectedTax);
+        assertThat(rounding).isEqualByComparingTo(BigDecimal.ZERO.setScale(2));
+
+        List<?> items = (List<?>) data.get("items");
+        assertThat(items).hasSize(1);
+        Map<?, ?> itemData = (Map<?, ?>) items.get(0);
+        BigDecimal lineSubtotal = new BigDecimal(itemData.get("lineSubtotal").toString());
+        BigDecimal lineTax = new BigDecimal(itemData.get("gstAmount").toString());
+        BigDecimal lineTotal = new BigDecimal(itemData.get("lineTotal").toString());
+        assertThat(lineSubtotal).isEqualByComparingTo(expectedSubtotal.setScale(2));
+        assertThat(lineTax).isEqualByComparingTo(expectedTax);
+        assertThat(lineTotal).isEqualByComparingTo(expectedTotal);
+    }
 }

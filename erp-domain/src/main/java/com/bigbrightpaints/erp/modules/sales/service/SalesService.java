@@ -511,15 +511,17 @@ public class SalesService {
                         .multiply(rate)
                         .divide(new BigDecimal("100"), 6, RoundingMode.HALF_UP));
             }
-            if (subtotal.compareTo(BigDecimal.ZERO) > 0 && targetTax.compareTo(BigDecimal.ZERO) > 0) {
+            BigDecimal allocationBase = gstInclusive ? rawSubtotal : subtotal;
+            if (allocationBase.compareTo(BigDecimal.ZERO) > 0 && targetTax.compareTo(BigDecimal.ZERO) > 0) {
                 BigDecimal distributed = BigDecimal.ZERO;
                 for (int i = 0; i < items.size(); i++) {
                     SalesOrderItem item = items.get(i);
-                    if (subtotal.compareTo(BigDecimal.ZERO) == 0) {
+                    if (allocationBase.compareTo(BigDecimal.ZERO) == 0) {
                         continue;
                     }
-                    BigDecimal share = targetTax.multiply(item.getLineSubtotal())
-                            .divide(subtotal, 6, RoundingMode.HALF_UP);
+                    BigDecimal lineSubtotal = item.getLineSubtotal();
+                    BigDecimal share = targetTax.multiply(lineSubtotal)
+                            .divide(allocationBase, 6, RoundingMode.HALF_UP);
                     share = currency(share);
                     if (i == items.size() - 1) {
                         BigDecimal remainder = targetTax.subtract(distributed.add(share));
@@ -529,7 +531,13 @@ public class SalesService {
                     distributed = distributed.add(share);
                     item.setGstRate(rate);
                     item.setGstAmount(share);
-                    item.setLineTotal(currency(item.getLineSubtotal().add(share)));
+                    if (gstInclusive) {
+                        BigDecimal exclusive = currency(lineSubtotal.subtract(share));
+                        item.setLineSubtotal(exclusive);
+                        item.setLineTotal(currency(exclusive.add(share)));
+                    } else {
+                        item.setLineTotal(currency(lineSubtotal.add(share)));
+                    }
                 }
             } else {
                 for (SalesOrderItem item : items) {
@@ -538,8 +546,7 @@ public class SalesService {
                     item.setLineTotal(item.getLineSubtotal());
                 }
             }
-            taxTotal = currency(subtotal.multiply(rate)
-                    .divide(new BigDecimal("100"), 6, RoundingMode.HALF_UP));
+            taxTotal = targetTax;
         } else {
             for (SalesOrderItem item : items) {
                 item.setGstRate(BigDecimal.ZERO);
