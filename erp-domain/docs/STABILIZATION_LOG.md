@@ -283,3 +283,19 @@
   - `mvn -Dtest=*Sales* test` succeeded: Tests run 21, Failures 0, Errors 0, Skipped 0.
 - Notes:
   - Test logs include expected sequence contention, invalid company ID format warnings, negative balance warnings, and openhtmltopdf CSS warnings; tests still passed.
+
+## 2026-01-03 (epic-02 M5 verification)
+- Changes:
+  - No code changes; confirmed O2C golden-path coverage in `ErpInvariantsSuiteIT` (order -> dispatch -> invoice -> settlement) with inventory, journal, and subledger assertions.
+- Commands run:
+  - `mvn -f erp-domain/pom.xml -DskipTests compile`
+  - `mvn -f erp-domain/pom.xml "-Dcheckstyle.failOnViolation=false" checkstyle:check`
+  - `mvn -f erp-domain/pom.xml test`
+  - `mvn -f erp-domain/pom.xml -Dtest=*Sales* test`
+- Validation:
+  - `mvn -DskipTests compile` succeeded.
+  - Checkstyle reported 28971 violations; `failOnViolation=false` used to surface baseline warnings without failing.
+  - `mvn test` succeeded: Tests run 186, Failures 0, Errors 0, Skipped 4.
+  - `mvn -Dtest=*Sales* test` succeeded: Tests run 21, Failures 0, Errors 0, Skipped 0.
+- Notes:
+  - Test logs include expected sequence contention, invalid company ID format warnings, negative balance warnings, and openhtmltopdf CSS warnings; tests still passed.
