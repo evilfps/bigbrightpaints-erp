@@ -825,17 +825,36 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
         BigDecimal expectedAdvance = expectedGross.multiply(new BigDecimal("0.20")).setScale(2, RoundingMode.HALF_UP);
         BigDecimal expectedNet = expectedGross.subtract(expectedAdvance);
 
-        assertThat(run.getTotalEmployees()).isEqualTo(1);
-        assertThat(run.getTotalBasePay()).isEqualByComparingTo(expectedGross);
-        assertThat(run.getTotalDeductions()).isEqualByComparingTo(expectedAdvance);
-        assertThat(run.getTotalNetPay()).isEqualByComparingTo(expectedNet);
-
         List<PayrollRunLine> lines = payrollRunLineRepository.findByPayrollRun(run);
-        assertThat(lines).hasSize(1);
-        PayrollRunLine line = lines.get(0);
+        assertThat(lines).isNotEmpty();
+        PayrollRunLine line = lines.stream()
+                .filter(candidate -> candidate.getEmployee().getId().equals(employeeId))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("Payroll line missing for employee " + employeeId));
+        assertThat(line.getBasePay()).isEqualByComparingTo(expectedGross);
         assertThat(line.getGrossPay()).isEqualByComparingTo(expectedGross);
         assertThat(line.getAdvanceDeduction()).isEqualByComparingTo(expectedAdvance);
+        assertThat(line.getTotalDeductions()).isEqualByComparingTo(expectedAdvance);
         assertThat(line.getNetPay()).isEqualByComparingTo(expectedNet);
+
+        BigDecimal totalBasePay = lines.stream()
+                .map(PayrollRunLine::getBasePay)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal totalOvertimePay = lines.stream()
+                .map(PayrollRunLine::getOvertimePay)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal totalDeductions = lines.stream()
+                .map(PayrollRunLine::getTotalDeductions)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal totalNetPay = lines.stream()
+                .map(PayrollRunLine::getNetPay)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        assertThat(run.getTotalEmployees()).isEqualTo(lines.size());
+        assertThat(run.getTotalBasePay()).isEqualByComparingTo(totalBasePay);
+        assertThat(run.getTotalOvertimePay()).isEqualByComparingTo(totalOvertimePay);
+        assertThat(run.getTotalDeductions()).isEqualByComparingTo(totalDeductions);
+        assertThat(run.getTotalNetPay()).isEqualByComparingTo(totalNetPay);
 
         invariants.assertJournalLinkedTo("PAYROLL_RUN", runId);
         if (run.getJournalEntryId() != null) {
@@ -847,19 +866,27 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
             Account salaryPayable = accountRepository.findByCompanyAndCodeIgnoreCase(company, "SALARY-PAYABLE")
                     .orElseThrow(() -> new AssertionError("Salary payable account missing"));
 
-            JournalLine expenseLine = journal.getLines().stream()
+            BigDecimal expenseDebit = journal.getLines().stream()
                     .filter(journalLine -> journalLine.getAccount().getId().equals(salaryExpense.getId()))
-                    .findFirst()
-                    .orElseThrow(() -> new AssertionError("Payroll expense line missing"));
-            JournalLine payableLine = journal.getLines().stream()
+                    .map(journalLine -> journalLine.getDebit() == null ? BigDecimal.ZERO : journalLine.getDebit())
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            BigDecimal expenseCredit = journal.getLines().stream()
+                    .filter(journalLine -> journalLine.getAccount().getId().equals(salaryExpense.getId()))
+                    .map(journalLine -> journalLine.getCredit() == null ? BigDecimal.ZERO : journalLine.getCredit())
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            BigDecimal payableCredit = journal.getLines().stream()
                     .filter(journalLine -> journalLine.getAccount().getId().equals(salaryPayable.getId()))
-                    .findFirst()
-                    .orElseThrow(() -> new AssertionError("Payroll payable line missing"));
+                    .map(journalLine -> journalLine.getCredit() == null ? BigDecimal.ZERO : journalLine.getCredit())
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            BigDecimal payableDebit = journal.getLines().stream()
+                    .filter(journalLine -> journalLine.getAccount().getId().equals(salaryPayable.getId()))
+                    .map(journalLine -> journalLine.getDebit() == null ? BigDecimal.ZERO : journalLine.getDebit())
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-            assertThat(expenseLine.getDebit()).isEqualByComparingTo(expectedNet);
-            assertThat(expenseLine.getCredit()).isEqualByComparingTo(BigDecimal.ZERO);
-            assertThat(payableLine.getCredit()).isEqualByComparingTo(expectedNet);
-            assertThat(payableLine.getDebit()).isEqualByComparingTo(BigDecimal.ZERO);
+            assertThat(expenseDebit).isEqualByComparingTo(totalNetPay);
+            assertThat(expenseCredit).isEqualByComparingTo(BigDecimal.ZERO);
+            assertThat(payableCredit).isEqualByComparingTo(totalNetPay);
+            assertThat(payableDebit).isEqualByComparingTo(BigDecimal.ZERO);
         }
 
         Map<String, Object> markPaidReq = Map.of("paymentReference", "PAYROLL-PAY-001");
@@ -872,6 +899,94 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
         Employee paidEmployee = employeeRepository.findByCompanyAndId(company, employeeId)
                 .orElseThrow(() -> new AssertionError("Employee missing after pay"));
         assertThat(paidEmployee.getAdvanceBalance()).isEqualByComparingTo(new BigDecimal("300.00"));
+    }
+
+    @Test
+    @DisplayName("Hire-to-Pay: payroll journal reversal creates balanced inverse")
+    void hireToPay_reversal() {
+        Company company = payroll.company();
+        HttpHeaders headers = authHeaders("pay@test.com", company.getCode());
+        // Use a weekly run to avoid payroll run number collisions in this suite.
+        LocalDate entryDate = TestDateUtils.safeDate(company);
+
+        datasetBuilder.ensurePayrollAccount(company, "SALARY-EXP", "Salary Expense",
+                AccountType.EXPENSE);
+        datasetBuilder.ensurePayrollAccount(company, "WAGE-EXP", "Wage Expense",
+                AccountType.EXPENSE);
+        datasetBuilder.ensurePayrollAccount(company, "SALARY-PAYABLE", "Salary Payable",
+                AccountType.LIABILITY);
+
+        Map<String, Object> employeeReq = new HashMap<>();
+        employeeReq.put("firstName", "Reva");
+        employeeReq.put("lastName", "Lance");
+        employeeReq.put("email", "reva.lance@erp.test");
+        employeeReq.put("phone", "555-0102");
+        employeeReq.put("role", "Payroll");
+        employeeReq.put("hiredDate", entryDate.minusDays(10));
+        employeeReq.put("employeeType", "LABOUR");
+        employeeReq.put("paymentSchedule", "WEEKLY");
+        employeeReq.put("dailyWage", new BigDecimal("1000.00"));
+        employeeReq.put("weeklyOffDays", 1);
+        employeeReq.put("standardHoursPerDay", new BigDecimal("8"));
+        employeeReq.put("overtimeRateMultiplier", new BigDecimal("1.5"));
+        employeeReq.put("doubleOtRateMultiplier", new BigDecimal("2.0"));
+
+        ResponseEntity<Map> empResp = rest.exchange("/api/v1/hr/employees",
+                HttpMethod.POST, new HttpEntity<>(employeeReq, headers), Map.class);
+        Map<?, ?> empData = requireData(empResp, "create employee");
+        Long employeeId = ((Number) empData.get("id")).longValue();
+
+        Map<String, Object> attendanceReq = new HashMap<>();
+        attendanceReq.put("date", entryDate);
+        attendanceReq.put("status", "PRESENT");
+        attendanceReq.put("regularHours", new BigDecimal("8"));
+        attendanceReq.put("overtimeHours", BigDecimal.ZERO);
+        attendanceReq.put("doubleOvertimeHours", BigDecimal.ZERO);
+        attendanceReq.put("holiday", false);
+        attendanceReq.put("weekend", false);
+        attendanceReq.put("remarks", "reversal attendance");
+
+        rest.exchange("/api/v1/hr/attendance/mark/" + employeeId,
+                HttpMethod.POST, new HttpEntity<>(attendanceReq, headers), Map.class);
+
+        LocalDate periodStart = entryDate;
+        LocalDate periodEnd = entryDate;
+        Map<String, Object> runRequest = new HashMap<>();
+        runRequest.put("runType", "WEEKLY");
+        runRequest.put("periodStart", periodStart);
+        runRequest.put("periodEnd", periodEnd);
+        runRequest.put("remarks", "Weekly payroll run reversal");
+
+        ResponseEntity<Map> runResp = rest.exchange("/api/v1/payroll/runs",
+                HttpMethod.POST, new HttpEntity<>(runRequest, headers), Map.class);
+        Map<?, ?> runData = requireData(runResp, "create payroll run");
+        Long runId = ((Number) runData.get("id")).longValue();
+
+        rest.exchange("/api/v1/payroll/runs/" + runId + "/calculate",
+                HttpMethod.POST, new HttpEntity<>(headers), Map.class);
+        rest.exchange("/api/v1/payroll/runs/" + runId + "/approve",
+                HttpMethod.POST, new HttpEntity<>(headers), Map.class);
+        rest.exchange("/api/v1/payroll/runs/" + runId + "/post",
+                HttpMethod.POST, new HttpEntity<>(headers), Map.class);
+
+        PayrollRun run = payrollRunRepository.findById(runId)
+                .orElseThrow(() -> new AssertionError("Payroll run missing: " + runId));
+        Long journalId = run.getJournalEntryId();
+        assertThat(journalId).as("payroll journal id").isNotNull();
+
+        Map<String, Object> reversalRequest = new HashMap<>();
+        reversalRequest.put("reversalDate", entryDate);
+        reversalRequest.put("reason", "PAYROLL_REVERSAL_TEST");
+        reversalRequest.put("memo", "Payroll reversal test");
+
+        ResponseEntity<Map> reversalResp = rest.exchange(
+                "/api/v1/accounting/journal-entries/" + journalId + "/reverse",
+                HttpMethod.POST,
+                new HttpEntity<>(reversalRequest, headers),
+                Map.class);
+        requireData(reversalResp, "reverse payroll journal");
+
+        invariants.assertReversalCreatesBalancedInverse(journalId);
     }
 
     private HttpHeaders authHeaders(String email, String companyCode) {
