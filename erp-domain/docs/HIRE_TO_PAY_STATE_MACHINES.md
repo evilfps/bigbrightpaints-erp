@@ -35,6 +35,8 @@ Source: `PayrollRun.RunType`.
 - Hours (regular/OT/double OT) drive hourly-based overtime pay.
 - Rates: `dailyRate`, `dailyWage`, `hourlyRate` derived from employee; OT multipliers from employee.
 - Deductions: advance deduction capped at 20% of gross pay, limited to employee `advanceBalance`; PF currently zero in calculation service.
+- Gross pay = base pay (daily rate * (present + 0.5 * half)) + overtime pay + holiday pay.
+- Net pay = gross pay - total deductions (advance deduction only, today).
 - Net pay = gross (base + OT + holiday) − deductions; run totals aggregate line values.
 
 # Posting Semantics (current)
@@ -42,6 +44,7 @@ Source: `PayrollRun.RunType`.
 - Liability: `SALARY-PAYABLE` credited for net pay (advances already netted).
 - Journal is balanced; reference/memo prefixed with payroll run number.
 - Posting date uses run period end; if in the future, clamped to company `today`.
+- No cash/bank journal is created in this flow; payment handling is external.
 
 # Payment and Clearing Behavior
 - Mark-as-paid updates each line payment status/reference.
