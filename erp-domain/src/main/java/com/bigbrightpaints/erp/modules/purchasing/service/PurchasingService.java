@@ -11,6 +11,8 @@ import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryReference;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterial;
+import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatch;
+import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatchRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovement;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovementRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialRepository;
@@ -44,6 +46,7 @@ public class PurchasingService {
     private final CompanyContextService companyContextService;
     private final RawMaterialPurchaseRepository purchaseRepository;
     private final RawMaterialRepository rawMaterialRepository;
+    private final RawMaterialBatchRepository rawMaterialBatchRepository;
     private final RawMaterialService rawMaterialService;
     private final RawMaterialMovementRepository movementRepository;
     private final AccountingFacade accountingFacade;
@@ -55,6 +58,7 @@ public class PurchasingService {
     public PurchasingService(CompanyContextService companyContextService,
                              RawMaterialPurchaseRepository purchaseRepository,
                              RawMaterialRepository rawMaterialRepository,
+                             RawMaterialBatchRepository rawMaterialBatchRepository,
                              RawMaterialService rawMaterialService,
                              RawMaterialMovementRepository movementRepository,
                              AccountingFacade accountingFacade,
@@ -65,6 +69,7 @@ public class PurchasingService {
         this.companyContextService = companyContextService;
         this.purchaseRepository = purchaseRepository;
         this.rawMaterialRepository = rawMaterialRepository;
+        this.rawMaterialBatchRepository = rawMaterialBatchRepository;
         this.rawMaterialService = rawMaterialService;
         this.movementRepository = movementRepository;
         this.accountingFacade = accountingFacade;
@@ -243,16 +248,57 @@ public class PurchasingService {
             throw new IllegalArgumentException("Cannot return more than on-hand inventory for " + material.getName());
         }
 
-        RawMaterialMovement movement = new RawMaterialMovement();
-        movement.setRawMaterial(material);
-        movement.setReferenceType(InventoryReference.PURCHASE_RETURN);
-        movement.setReferenceId(reference);
-        movement.setMovementType("RETURN");
-        movement.setQuantity(quantity);
-        movement.setUnitCost(unitCost);
-        movement.setJournalEntryId(entry.id());
-        movementRepository.save(movement);
+        List<RawMaterialMovement> movements = issueReturnFromBatches(material, quantity, unitCost, reference, entry.id());
+        movementRepository.saveAll(movements);
         return entry;
+    }
+
+    private List<RawMaterialMovement> issueReturnFromBatches(RawMaterial material,
+                                                            BigDecimal quantity,
+                                                            BigDecimal unitCost,
+                                                            String reference,
+                                                            Long journalEntryId) {
+        List<RawMaterialBatch> batches = rawMaterialBatchRepository.findAvailableBatchesFIFO(material);
+        BigDecimal remaining = quantity;
+        List<RawMaterialMovement> movements = new ArrayList<>();
+
+        for (RawMaterialBatch batch : batches) {
+            if (remaining.compareTo(BigDecimal.ZERO) <= 0) {
+                break;
+            }
+            BigDecimal available = batch.getQuantity() != null ? batch.getQuantity() : BigDecimal.ZERO;
+            if (available.compareTo(BigDecimal.ZERO) <= 0) {
+                continue;
+            }
+            BigDecimal take = available.min(remaining);
+            if (take.compareTo(BigDecimal.ZERO) <= 0) {
+                continue;
+            }
+
+            int updated = rawMaterialBatchRepository.deductQuantityIfSufficient(batch.getId(), take);
+            if (updated == 0) {
+                throw new IllegalArgumentException(
+                        "Concurrent modification detected or insufficient quantity for batch " + batch.getBatchCode());
+            }
+
+            RawMaterialMovement movement = new RawMaterialMovement();
+            movement.setRawMaterial(material);
+            movement.setRawMaterialBatch(batch);
+            movement.setReferenceType(InventoryReference.PURCHASE_RETURN);
+            movement.setReferenceId(reference);
+            movement.setMovementType("RETURN");
+            movement.setQuantity(take);
+            movement.setUnitCost(unitCost);
+            movement.setJournalEntryId(journalEntryId);
+            movements.add(movement);
+
+            remaining = remaining.subtract(take);
+        }
+
+        if (remaining.compareTo(BigDecimal.ZERO) > 0) {
+            throw new IllegalArgumentException("Insufficient batch availability for " + material.getName());
+        }
+        return movements;
     }
 
     private JournalEntryDto postPurchaseEntry(RawMaterialPurchaseRequest request,

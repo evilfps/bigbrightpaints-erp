@@ -10,6 +10,8 @@ import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterial;
+import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatch;
+import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatchRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovementRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialRepository;
 import com.bigbrightpaints.erp.modules.inventory.service.RawMaterialService;
@@ -50,6 +52,8 @@ class PurchasingServiceTest {
     @Mock
     private RawMaterialRepository rawMaterialRepository;
     @Mock
+    private RawMaterialBatchRepository rawMaterialBatchRepository;
+    @Mock
     private RawMaterialService rawMaterialService;
     @Mock
     private RawMaterialMovementRepository movementRepository;
@@ -76,6 +80,7 @@ class PurchasingServiceTest {
                 companyContextService,
                 purchaseRepository,
                 rawMaterialRepository,
+                rawMaterialBatchRepository,
                 rawMaterialService,
                 movementRepository,
                 accountingFacade,
@@ -180,6 +185,18 @@ class PurchasingServiceTest {
         when(accountingFacade.postPurchaseReturn(any(), any(), any(), any(), any(), any()))
                 .thenReturn(journalDto);
 
+        RawMaterialBatch batch = new RawMaterialBatch();
+        ReflectionTestUtils.setField(batch, "id", 55L);
+        batch.setBatchCode("RM-BATCH-001");
+        batch.setQuantity(BigDecimal.TEN);
+        batch.setUnit("KG");
+        batch.setCostPerUnit(BigDecimal.valueOf(5));
+        batch.setRawMaterial(rawMaterial);
+        when(rawMaterialBatchRepository.findAvailableBatchesFIFO(rawMaterial))
+                .thenReturn(List.of(batch));
+        when(rawMaterialBatchRepository.deductQuantityIfSufficient(55L, BigDecimal.valueOf(5)))
+                .thenReturn(1);
+
         // Atomic deduction returns 1 (success)
         when(rawMaterialRepository.deductStockIfSufficient(eq(20L), eq(BigDecimal.valueOf(5)))).thenReturn(1);
 
@@ -196,7 +213,9 @@ class PurchasingServiceTest {
         JournalEntryDto result = purchasingService.recordPurchaseReturn(request);
 
         verify(rawMaterialRepository).deductStockIfSufficient(20L, BigDecimal.valueOf(5));
-        verify(movementRepository).save(any());
+        verify(rawMaterialBatchRepository).findAvailableBatchesFIFO(rawMaterial);
+        verify(rawMaterialBatchRepository).deductQuantityIfSufficient(55L, BigDecimal.valueOf(5));
+        verify(movementRepository).saveAll(any());
         assert result != null;
     }
 
