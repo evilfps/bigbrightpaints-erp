@@ -59,6 +59,9 @@ public class RoleService {
             Role role = new Role();
             role.setName(normalizedName);
             role.setDescription(definition != null ? definition.getDescription() : normalizedName);
+            if (definition != null) {
+                definition.getDefaultPermissions().forEach(code -> role.getPermissions().add(ensurePermissionExists(code)));
+            }
             return roleRepository.save(role);
         });
     }

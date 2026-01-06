@@ -19,7 +19,7 @@ import java.util.Map;
  */
 @RestController
 @RequestMapping("/api/v1/payroll")
-@PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING','ROLE_ACCOUNTANT','ROLE_HR')")
+@PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
 public class HrPayrollController {
 
     private final PayrollService payrollService;
@@ -86,20 +86,20 @@ public class HrPayrollController {
     }
 
     @PostMapping("/runs/{id}/approve")
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING','ROLE_ACCOUNTANT')")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
     public ResponseEntity<ApiResponse<PayrollRunDto>> approvePayroll(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.success("Payroll approved", payrollService.approvePayroll(id)));
     }
 
     @PostMapping("/runs/{id}/post")
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING','ROLE_ACCOUNTANT')")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
     public ResponseEntity<ApiResponse<PayrollRunDto>> postPayroll(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.success("Payroll posted to accounting",
             payrollService.postPayrollToAccounting(id)));
     }
 
     @PostMapping("/runs/{id}/mark-paid")
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING','ROLE_ACCOUNTANT')")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
     public ResponseEntity<ApiResponse<PayrollRunDto>> markAsPaid(
             @PathVariable Long id,
             @RequestBody Map<String, String> request) {

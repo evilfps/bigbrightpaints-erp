@@ -75,7 +75,7 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
 
     private static final String PASSWORD = "test123";
     private static final List<String> BASE_ROLES = List.of(
-            "ROLE_ADMIN", "ROLE_ACCOUNTING", "ROLE_SALES", "ROLE_FACTORY", "ROLE_HR"
+            "ROLE_ADMIN", "ROLE_ACCOUNTING", "ROLE_SALES", "ROLE_FACTORY"
     );
 
     @Autowired private TestRestTemplate rest;

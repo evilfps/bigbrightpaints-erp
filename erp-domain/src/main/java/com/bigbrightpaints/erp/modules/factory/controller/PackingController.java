@@ -50,7 +50,7 @@ public class PackingController {
      * Converts parent SKU (e.g., Safari-WHITE) into child SKUs (Safari-WHITE-1L, Safari-WHITE-4L).
      */
     @PostMapping("/pack")
-    @PreAuthorize("hasAnyAuthority('ROLE_FACTORY','ROLE_INVENTORY','ROLE_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('ROLE_FACTORY','ROLE_ACCOUNTING','ROLE_ADMIN')")
     public ResponseEntity<ApiResponse<BulkPackResponse>> packBulkToSizes(@Valid @RequestBody BulkPackRequest request) {
         return ResponseEntity.ok(ApiResponse.success("Bulk packed into sizes", bulkPackingService.pack(request)));
     }
@@ -59,7 +59,7 @@ public class PackingController {
      * List available bulk batches for a finished good.
      */
     @GetMapping("/bulk-batches/{finishedGoodId}")
-    @PreAuthorize("hasAnyAuthority('ROLE_FACTORY','ROLE_INVENTORY','ROLE_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('ROLE_FACTORY','ROLE_ACCOUNTING','ROLE_ADMIN')")
     public ResponseEntity<ApiResponse<List<BulkPackResponse.ChildBatchDto>>> listBulkBatches(
             @PathVariable Long finishedGoodId) {
         return ResponseEntity.ok(ApiResponse.success(bulkPackingService.listBulkBatches(finishedGoodId)));
@@ -69,7 +69,7 @@ public class PackingController {
      * List child batches created from a parent bulk batch.
      */
     @GetMapping("/bulk-batches/{parentBatchId}/children")
-    @PreAuthorize("hasAnyAuthority('ROLE_FACTORY','ROLE_INVENTORY','ROLE_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('ROLE_FACTORY','ROLE_ACCOUNTING','ROLE_ADMIN')")
     public ResponseEntity<ApiResponse<List<BulkPackResponse.ChildBatchDto>>> listChildBatches(
             @PathVariable Long parentBatchId) {
         return ResponseEntity.ok(ApiResponse.success(bulkPackingService.listChildBatches(parentBatchId)));

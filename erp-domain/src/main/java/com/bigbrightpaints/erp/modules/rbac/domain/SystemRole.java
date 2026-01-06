@@ -13,9 +13,16 @@ import java.util.stream.Collectors;
  * Central definition for the platform roles we expose to admins.
  */
 public enum SystemRole {
-    ADMIN("ROLE_ADMIN", "Platform administrator", List.of("portal:accounting", "portal:factory", "portal:sales", "portal:dealer")),
-    ACCOUNTING("ROLE_ACCOUNTING", "Accounting, finance, HR, and inventory operator", List.of("portal:accounting")),
-    FACTORY("ROLE_FACTORY", "Factory, production, and dispatch operator", List.of("portal:factory")),
+    ADMIN("ROLE_ADMIN", "Platform administrator", List.of(
+            "portal:accounting", "portal:factory", "portal:sales", "portal:dealer",
+            "dispatch.confirm", "factory.dispatch", "payroll.run"
+    )),
+    ACCOUNTING("ROLE_ACCOUNTING", "Accounting, finance, HR, and inventory operator", List.of(
+            "portal:accounting", "payroll.run"
+    )),
+    FACTORY("ROLE_FACTORY", "Factory, production, and dispatch operator", List.of(
+            "portal:factory", "dispatch.confirm", "factory.dispatch"
+    )),
     SALES("ROLE_SALES", "Sales operations and dealer management", List.of("portal:sales")),
     DEALER("ROLE_DEALER", "Dealer workspace user", List.of("portal:dealer"));
 
