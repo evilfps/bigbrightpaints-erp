@@ -517,3 +517,23 @@
 - Warnings/notes:
   - Checkstyle baseline now 28861 (previously 28857) due to existing indentation rules in modified HR files.
   - Test logs include expected Testcontainers startup chatter, invalid company ID format warnings, negative balance warnings, and dynamic agent warnings; no failures.
+
+## 2026-01-06 (epic-06 M1 — permission model alignment)
+- Changes:
+  - Added role permission authorities to `UserPrincipal` and default permission syncing for system roles.
+  - Seeded action permissions (dispatch.confirm, factory.dispatch, payroll.run) via Flyway and aligned controller role checks to consolidated roles.
+  - Updated ERP invariant base roles and added unit coverage for permission authorities.
+- Commands run:
+  - `mvn -f erp-domain/pom.xml -DskipTests compile`
+  - `mvn -f erp-domain/pom.xml -Dcheckstyle.failOnViolation=false checkstyle:check`
+  - `mvn -f erp-domain/pom.xml test`
+  - `mvn -f erp-domain/pom.xml -Dtest=*Auth* test`
+- Validation:
+  - `mvn -DskipTests compile` succeeded (javac warnings about javax.annotation.meta.When.MAYBE, deprecated API notice).
+  - Checkstyle reported 28899 violations; `failOnViolation=false` used for baseline visibility.
+  - `mvn test` succeeded: Tests run 193, Failures 0, Errors 0, Skipped 4.
+  - `mvn -Dtest=*Auth* test` succeeded: Tests run 2, Failures 0, Errors 0, Skipped 0.
+- Warnings/notes:
+  - Testcontainers emitted auth config warnings and dynamic agent loading notices.
+  - Known test logs include invalid company ID format and negative balance warnings; no test failures.
+  - Dispatch mapping warning surfaced when debit/credit IDs are unset (expected in tests).
