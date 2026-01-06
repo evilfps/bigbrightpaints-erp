@@ -537,3 +537,21 @@
   - Testcontainers emitted auth config warnings and dynamic agent loading notices.
   - Known test logs include invalid company ID format and negative balance warnings; no test failures.
   - Dispatch mapping warning surfaced when debit/credit IDs are unset (expected in tests).
+
+## 2026-01-07 (epic-06 M2 — endpoint exposure audit)
+- Changes:
+  - Added RBAC guards to production catalog, raw material inventory, and demo endpoints.
+  - Explicitly required authentication on profile/MFA flows and authenticated auth endpoints.
+- Commands run:
+  - `mvn -f erp-domain/pom.xml -DskipTests compile`
+  - `mvn -f erp-domain/pom.xml -Dcheckstyle.failOnViolation=false checkstyle:check`
+  - `mvn -f erp-domain/pom.xml test`
+  - `mvn -f erp-domain/pom.xml -Dtest=*Auth* test`
+- Validation:
+  - `mvn -DskipTests compile` succeeded (javac warnings about javax.annotation.meta.When.MAYBE, deprecated API notice).
+  - Checkstyle reported 28900 violations; `failOnViolation=false` used for baseline visibility.
+  - `mvn test` succeeded: Tests run 193, Failures 0, Errors 0, Skipped 4.
+  - `mvn -Dtest=*Auth* test` succeeded: Tests run 2, Failures 0, Errors 0, Skipped 0.
+- Warnings/notes:
+  - Testcontainers auth config warnings and dynamic agent loading notices persisted.
+  - Known test logs include invalid company ID format, negative balance warnings, and dispatch mapping warnings; no failures.
