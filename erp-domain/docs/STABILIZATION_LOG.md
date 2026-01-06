@@ -574,3 +574,22 @@
 - Warnings/notes:
   - Testcontainers auth config warnings and dynamic agent loading notices persisted.
   - Test logs include invalid company ID format, negative balance warnings, dispatch mapping warnings, and HTML-to-PDF CSS parse warnings; no failures.
+
+## 2026-01-07 (epic-06 M4 — token lifecycle hardening)
+- Changes:
+  - Logout now blacklists the current access token and revokes refresh tokens for the active session (or all if missing).
+  - Refresh tokens now track issued time and are rejected when user-wide revocation has occurred.
+  - Password reset flow now enforces password history rules and revokes active tokens while clearing lockout counters.
+- Commands run:
+  - `mvn -f erp-domain/pom.xml -DskipTests compile`
+  - `mvn -f erp-domain/pom.xml -Dcheckstyle.failOnViolation=false checkstyle:check`
+  - `mvn -f erp-domain/pom.xml test`
+  - `mvn -f erp-domain/pom.xml -Dtest=*Auth* test`
+- Validation:
+  - `mvn -DskipTests compile` succeeded (javac warnings about javax.annotation.meta.When.MAYBE, deprecated API notice).
+  - Checkstyle reported 28969 violations; `failOnViolation=false` used for baseline visibility.
+  - `mvn test` succeeded: Tests run 193, Failures 0, Errors 0, Skipped 4.
+  - `mvn -Dtest=*Auth* test` succeeded: Tests run 2, Failures 0, Errors 0, Skipped 0.
+- Warnings/notes:
+  - Testcontainers auth config warnings and dynamic agent loading notices persisted.
+  - Test logs include invalid company ID format, negative balance warnings, dispatch mapping warnings, sequence contention warnings, and HTML-to-PDF CSS parse warnings; no failures.

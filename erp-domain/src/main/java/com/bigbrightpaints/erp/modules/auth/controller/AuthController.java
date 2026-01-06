@@ -17,6 +17,7 @@ import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -55,8 +56,18 @@ public class AuthController {
 
     @PostMapping("/logout")
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<Void> logout(@RequestParam(required = false) String refreshToken) {
-        authService.logout(refreshToken);
+    public ResponseEntity<Void> logout(@RequestParam(required = false) String refreshToken,
+                                       Authentication authentication) {
+        String accessToken = null;
+        String userEmail = null;
+        if (authentication != null) {
+            userEmail = authentication.getName();
+            Object credentials = authentication.getCredentials();
+            if (credentials instanceof String token && !token.isBlank()) {
+                accessToken = token;
+            }
+        }
+        authService.logout(refreshToken, accessToken, userEmail);
         return ResponseEntity.noContent().build();
     }
 

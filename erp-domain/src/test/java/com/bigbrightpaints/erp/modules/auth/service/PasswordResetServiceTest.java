@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 import com.bigbrightpaints.erp.core.notification.EmailService;
+import com.bigbrightpaints.erp.core.security.TokenBlacklistService;
 import com.bigbrightpaints.erp.modules.auth.domain.PasswordResetToken;
 import com.bigbrightpaints.erp.modules.auth.domain.PasswordResetTokenRepository;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccount;
@@ -30,6 +31,10 @@ class PasswordResetServiceTest {
     private PasswordService passwordService;
     @Mock
     private EmailService emailService;
+    @Mock
+    private TokenBlacklistService tokenBlacklistService;
+    @Mock
+    private RefreshTokenService refreshTokenService;
 
     private PasswordResetService passwordResetService;
 
@@ -39,7 +44,9 @@ class PasswordResetServiceTest {
                 userAccountRepository,
                 tokenRepository,
                 passwordService,
-                emailService);
+                emailService,
+                tokenBlacklistService,
+                refreshTokenService);
     }
 
     @Test

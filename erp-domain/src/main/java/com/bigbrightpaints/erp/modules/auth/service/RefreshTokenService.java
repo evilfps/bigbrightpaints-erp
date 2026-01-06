@@ -15,11 +15,11 @@ public class RefreshTokenService {
 
     public String issue(String userEmail, Instant expiresAt) {
         String token = UUID.randomUUID().toString();
-        store.put(token, new TokenRecord(userEmail, expiresAt));
+        store.put(token, new TokenRecord(userEmail, Instant.now(), expiresAt));
         return token;
     }
 
-    public Optional<String> consume(String refreshToken) {
+    public Optional<TokenRecord> consume(String refreshToken) {
         TokenRecord record = store.remove(refreshToken);
         if (record == null) {
             return Optional.empty();
@@ -27,7 +27,7 @@ public class RefreshTokenService {
         if (record.expiresAt().isBefore(Instant.now())) {
             return Optional.empty();
         }
-        return Optional.of(record.userEmail());
+        return Optional.of(record);
     }
 
     public void revoke(String refreshToken) {
@@ -41,5 +41,5 @@ public class RefreshTokenService {
         store.entrySet().removeIf(entry -> userEmail.equalsIgnoreCase(entry.getValue().userEmail()));
     }
 
-    private record TokenRecord(String userEmail, Instant expiresAt) {}
+    public record TokenRecord(String userEmail, Instant issuedAt, Instant expiresAt) {}
 }

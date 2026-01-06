@@ -14,8 +14,8 @@ import com.bigbrightpaints.erp.modules.auth.web.RefreshTokenRequest;
 import com.bigbrightpaints.erp.modules.auth.web.ResetPasswordRequest;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
+import io.jsonwebtoken.Claims;
 import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.authentication.LockedException;
 import org.springframework.security.core.Authentication;
@@ -41,28 +41,28 @@ public class AuthService {
     private final CompanyRepository companyRepository;
     private final JwtProperties properties;
     private final MfaService mfaService;
-    private final PasswordEncoder passwordEncoder;
+    private final PasswordService passwordService;
     private final EmailService emailService;
     private final TokenBlacklistService tokenBlacklistService;
 
     public AuthService(AuthenticationManager authenticationManager,
-                       PasswordEncoder passwordEncoder,
                        JwtTokenService tokenService,
                        RefreshTokenService refreshTokenService,
                        UserAccountRepository userAccountRepository,
                        CompanyRepository companyRepository,
                        JwtProperties properties,
                        MfaService mfaService,
+                       PasswordService passwordService,
                        EmailService emailService,
                        TokenBlacklistService tokenBlacklistService) {
         this.authenticationManager = authenticationManager;
-        this.passwordEncoder = passwordEncoder;
         this.tokenService = tokenService;
         this.refreshTokenService = refreshTokenService;
         this.userAccountRepository = userAccountRepository;
         this.companyRepository = companyRepository;
         this.properties = properties;
         this.mfaService = mfaService;
+        this.passwordService = passwordService;
         this.emailService = emailService;
         this.tokenBlacklistService = tokenBlacklistService;
     }
@@ -108,11 +108,9 @@ public class AuthService {
         if (user.getResetExpiry().isBefore(Instant.now())) {
             throw new IllegalArgumentException("Token expired");
         }
-        if (!request.newPassword().equals(request.confirmPassword())) {
-            throw new IllegalArgumentException("Passwords don't match");
-        }
-        user.setPasswordHash(passwordEncoder.encode(request.newPassword()));
-        user.setMustChangePassword(false);
+        passwordService.resetPassword(user, request.newPassword(), request.confirmPassword());
+        user.setFailedLoginAttempts(0);
+        user.setLockedUntil(null);
         user.setResetToken(null);
         user.setResetExpiry(null);
         userAccountRepository.save(user);
@@ -123,8 +121,12 @@ public class AuthService {
     }
 
     public AuthResponse refresh(RefreshTokenRequest request) {
-        String userEmail = refreshTokenService.consume(request.refreshToken())
+        RefreshTokenService.TokenRecord record = refreshTokenService.consume(request.refreshToken())
                 .orElseThrow(() -> new IllegalArgumentException("Invalid refresh token"));
+        String userEmail = record.userEmail();
+        if (tokenBlacklistService.isUserTokenRevoked(userEmail, record.issuedAt())) {
+            throw new IllegalArgumentException("Refresh token revoked");
+        }
         UserAccount user = userAccountRepository.findByEmailIgnoreCase(userEmail)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
         if (!user.isEnabled()) {
@@ -151,9 +153,31 @@ public class AuthService {
         return company;
     }
 
-    public void logout(String refreshToken) {
-        if (refreshToken != null) {
+    public void logout(String refreshToken, String accessToken, String userEmail) {
+        if (refreshToken != null && !refreshToken.isBlank()) {
             refreshTokenService.revoke(refreshToken);
+        } else if (userEmail != null && !userEmail.isBlank()) {
+            refreshTokenService.revokeAllForUser(userEmail);
+        }
+        blacklistAccessToken(accessToken, userEmail);
+    }
+
+    private void blacklistAccessToken(String accessToken, String userEmail) {
+        if (accessToken == null || accessToken.isBlank()) {
+            return;
+        }
+        try {
+            Claims claims = tokenService.parse(accessToken);
+            if (claims.getId() == null || claims.getExpiration() == null) {
+                return;
+            }
+            tokenBlacklistService.blacklistToken(
+                    claims.getId(),
+                    claims.getExpiration().toInstant(),
+                    userEmail,
+                    "logout");
+        } catch (Exception ignored) {
+            // Best-effort logout: skip blacklist if token cannot be parsed.
         }
     }
 

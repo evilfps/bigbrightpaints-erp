@@ -1,6 +1,7 @@
 package com.bigbrightpaints.erp.modules.auth.service;
 
 import com.bigbrightpaints.erp.core.notification.EmailService;
+import com.bigbrightpaints.erp.core.security.TokenBlacklistService;
 import com.bigbrightpaints.erp.modules.auth.domain.PasswordResetToken;
 import com.bigbrightpaints.erp.modules.auth.domain.PasswordResetTokenRepository;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccount;
@@ -21,16 +22,22 @@ public class PasswordResetService {
     private final PasswordResetTokenRepository tokenRepository;
     private final PasswordService passwordService;
     private final EmailService emailService;
+    private final TokenBlacklistService tokenBlacklistService;
+    private final RefreshTokenService refreshTokenService;
     private final SecureRandom secureRandom = new SecureRandom();
 
     public PasswordResetService(UserAccountRepository userAccountRepository,
                                 PasswordResetTokenRepository tokenRepository,
                                 PasswordService passwordService,
-                                EmailService emailService) {
+                                EmailService emailService,
+                                TokenBlacklistService tokenBlacklistService,
+                                RefreshTokenService refreshTokenService) {
         this.userAccountRepository = userAccountRepository;
         this.tokenRepository = tokenRepository;
         this.passwordService = passwordService;
         this.emailService = emailService;
+        this.tokenBlacklistService = tokenBlacklistService;
+        this.refreshTokenService = refreshTokenService;
     }
 
     @Transactional
@@ -61,6 +68,11 @@ public class PasswordResetService {
             throw new IllegalArgumentException("User account is disabled");
         }
         passwordService.resetPassword(user, newPassword, confirmPassword);
+        user.setFailedLoginAttempts(0);
+        user.setLockedUntil(null);
+        userAccountRepository.save(user);
+        tokenBlacklistService.revokeAllUserTokens(user.getEmail());
+        refreshTokenService.revokeAllForUser(user.getEmail());
         token.markUsed();
         tokenRepository.save(token);
         tokenRepository.deleteByUser(user);
@@ -72,4 +84,3 @@ public class PasswordResetService {
         return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
     }
 }
-
