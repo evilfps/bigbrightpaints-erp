@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.Collection;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
@@ -36,6 +37,23 @@ public interface PayrollRunRepository extends JpaRepository<PayrollRun, Long> {
     @Query("SELECT COUNT(pr) FROM PayrollRun pr WHERE pr.company = :company " +
            "AND YEAR(pr.periodStart) = :year")
     long countByCompanyAndYear(@Param("company") Company company, @Param("year") int year);
+
+    @Query("SELECT COUNT(pr) FROM PayrollRun pr WHERE pr.company = :company " +
+           "AND pr.periodStart >= :start AND pr.periodEnd <= :end " +
+           "AND pr.status IN :statuses")
+    long countByCompanyAndPeriodBetweenAndStatusIn(@Param("company") Company company,
+                                                   @Param("start") LocalDate start,
+                                                   @Param("end") LocalDate end,
+                                                   @Param("statuses") Collection<PayrollRun.PayrollStatus> statuses);
+
+    @Query("SELECT COUNT(pr) FROM PayrollRun pr WHERE pr.company = :company " +
+           "AND pr.periodStart >= :start AND pr.periodEnd <= :end " +
+           "AND pr.status IN :statuses " +
+           "AND pr.journalEntryId IS NULL AND pr.journalEntry IS NULL")
+    long countByCompanyAndPeriodBetweenAndStatusInAndJournalMissing(@Param("company") Company company,
+                                                                    @Param("start") LocalDate start,
+                                                                    @Param("end") LocalDate end,
+                                                                    @Param("statuses") Collection<PayrollRun.PayrollStatus> statuses);
 
     // For backward compatibility with existing code
     default List<PayrollRun> findByCompanyOrderByRunDateDesc(Company company) {

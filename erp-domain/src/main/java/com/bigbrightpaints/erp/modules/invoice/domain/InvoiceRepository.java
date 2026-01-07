@@ -10,8 +10,9 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
-import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -46,6 +47,16 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
     @Query("select i from Invoice i where i.company = :company and i.id in :ids order by i.issueDate desc, i.id desc")
     List<Invoice> findByCompanyAndIdInOrderByIssueDateDescIdDesc(@Param("company") Company company,
                                                                  @Param("ids") List<Long> ids);
+
+    long countByCompanyAndIssueDateBetweenAndStatusIn(Company company,
+                                                      LocalDate start,
+                                                      LocalDate end,
+                                                      Collection<String> statuses);
+
+    long countByCompanyAndIssueDateBetweenAndStatusNotAndJournalEntryIsNull(Company company,
+                                                                            LocalDate start,
+                                                                            LocalDate end,
+                                                                            String status);
 
     List<Invoice> findAllByCompanyAndSalesOrderId(Company company, Long salesOrderId);
 

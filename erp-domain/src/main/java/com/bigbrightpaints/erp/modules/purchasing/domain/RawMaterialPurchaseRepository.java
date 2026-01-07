@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
@@ -28,4 +29,14 @@ public interface RawMaterialPurchaseRepository extends JpaRepository<RawMaterial
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT p FROM RawMaterialPurchase p WHERE p.company = :company AND LOWER(p.invoiceNumber) = LOWER(:invoiceNumber)")
     Optional<RawMaterialPurchase> lockByCompanyAndInvoiceNumberIgnoreCase(@Param("company") Company company, @Param("invoiceNumber") String invoiceNumber);
+
+    long countByCompanyAndInvoiceDateBetweenAndStatusNot(Company company,
+                                                         LocalDate start,
+                                                         LocalDate end,
+                                                         String status);
+
+    long countByCompanyAndInvoiceDateBetweenAndStatusAndJournalEntryIsNull(Company company,
+                                                                           LocalDate start,
+                                                                           LocalDate end,
+                                                                           String status);
 }
