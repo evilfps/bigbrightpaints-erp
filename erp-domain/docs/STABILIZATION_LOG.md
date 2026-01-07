@@ -611,3 +611,21 @@
 - Warnings/notes:
   - Testcontainers emitted auth config warnings and dynamic agent loading notices persisted.
   - Test logs include invalid company ID format, negative balance warnings, dispatch mapping warnings, and HTML-to-PDF CSS parse warnings; no failures.
+
+## 2026-01-07 (epic-06 M6 — security regression tests)
+- Changes:
+  - Added admin security integration coverage for auth-required, role-required, and cross-company blocks.
+  - Added refresh-token/logout regression to confirm revoked refresh tokens cannot be reused.
+- Commands run:
+  - `mvn -f erp-domain/pom.xml -DskipTests compile`
+  - `mvn -f erp-domain/pom.xml -Dcheckstyle.failOnViolation=false checkstyle:check`
+  - `mvn -f erp-domain/pom.xml test`
+  - `mvn -f erp-domain/pom.xml -Dtest=*Auth* test`
+- Validation:
+  - `mvn -DskipTests compile` succeeded.
+  - Checkstyle reported 29110 violations; `failOnViolation=false` used for baseline visibility.
+  - `mvn test` succeeded: Tests run 197, Failures 0, Errors 0, Skipped 4.
+  - `mvn -Dtest=*Auth* test` succeeded: Tests run 3, Failures 0, Errors 0, Skipped 0.
+- Warnings/notes:
+  - Testcontainers auth config warnings and dynamic agent loading notices persisted.
+  - Test logs include invalid company ID format, negative balance warnings, dispatch mapping warnings, sequence contention warnings, and HTML-to-PDF CSS parse warnings; no failures.
