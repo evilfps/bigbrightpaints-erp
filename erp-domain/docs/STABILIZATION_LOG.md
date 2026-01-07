@@ -679,3 +679,18 @@
 - Warnings/notes:
   - Testcontainers auth config warnings and dynamic agent loading notices persisted.
   - Test logs include invalid company ID format, negative balance warnings, dispatch mapping warnings, sequence contention/duplicate key retries, and HTML-to-PDF CSS parse warnings; no failures.
+
+## 2026-01-07 (epic-07 M4 — performance budgets)
+- Changes:
+  - Defined p95 latency targets for list endpoints and bounded targets for report endpoints.
+- Commands run:
+  - `mvn -f erp-domain/pom.xml -DskipTests compile`
+  - `mvn -f erp-domain/pom.xml -Dcheckstyle.failOnViolation=false checkstyle:check`
+  - `mvn -f erp-domain/pom.xml test`
+- Validation:
+  - `mvn -DskipTests compile` succeeded.
+  - Checkstyle reported 29192 violations; `failOnViolation=false` used for baseline visibility.
+  - `mvn test` succeeded: Tests run 198, Failures 0, Errors 0, Skipped 4.
+- Warnings/notes:
+  - Testcontainers auth config warnings and dynamic agent loading notices persisted.
+  - Test logs include invalid company ID format, negative balance warnings, dispatch mapping warnings, sequence contention/duplicate key retries, and HTML-to-PDF CSS parse warnings; no failures.
