@@ -181,10 +181,7 @@ public class ReportService {
     public ReconciliationSummaryDto inventoryReconciliation() {
         Company company = companyContextService.requireCurrentCompany();
         InventoryTotals totals = computeInventoryTotals(company);
-        BigDecimal ledgerBalance = accountRepository.findByCompanyOrderByCodeAsc(company).stream()
-                .filter(account -> account.getName() != null && account.getName().toLowerCase().contains("inventory"))
-                .map(Account::getBalance)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal ledgerBalance = resolveInventoryLedgerBalance(company);
         BigDecimal variance = totals.totalValue().subtract(ledgerBalance);
         return new ReconciliationSummaryDto(totals.totalValue(), ledgerBalance, variance);
     }
@@ -224,10 +221,7 @@ public class ReportService {
         Company company = companyContextService.requireCurrentCompany();
         Account bankAccount = companyEntityLookup.requireAccount(company, bankAccountId);
         InventoryTotals totals = computeInventoryTotals(company);
-        BigDecimal ledgerInventoryBalance = accountRepository.findByCompanyOrderByCodeAsc(company).stream()
-                .filter(this::isInventoryAccount)
-                .map(Account::getBalance)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal ledgerInventoryBalance = resolveInventoryLedgerBalance(company);
         BigDecimal physicalInventoryValue = totals.totalValue();
         BigDecimal inventoryVariance = physicalInventoryValue.subtract(ledgerInventoryBalance);
         BigDecimal bankLedgerBalance = safe(bankAccount.getBalance());
@@ -276,6 +270,19 @@ public class ReportService {
             return false;
         }
         return account.getName().toLowerCase(Locale.ROOT).contains("inventory");
+    }
+
+    private BigDecimal resolveInventoryLedgerBalance(Company company) {
+        Long defaultInventoryAccountId = company.getDefaultInventoryAccountId();
+        if (defaultInventoryAccountId != null) {
+            Account account = companyEntityLookup.requireAccount(company, defaultInventoryAccountId);
+            return safe(account.getBalance());
+        }
+        return accountRepository.findByCompanyOrderByCodeAsc(company).stream()
+                .filter(this::isInventoryAccount)
+                .map(Account::getBalance)
+                .map(this::safe)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
     private InventoryTotals computeInventoryTotals(Company company) {

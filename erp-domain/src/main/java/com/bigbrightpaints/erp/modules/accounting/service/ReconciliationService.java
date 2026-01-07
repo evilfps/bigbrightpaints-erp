@@ -4,15 +4,19 @@ import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
 import com.bigbrightpaints.erp.modules.accounting.domain.DealerLedgerRepository;
+import com.bigbrightpaints.erp.modules.accounting.domain.SupplierLedgerRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
 import com.bigbrightpaints.erp.modules.accounting.dto.DealerBalanceView;
+import com.bigbrightpaints.erp.modules.accounting.dto.SupplierBalanceView;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryReservation;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryReservationRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.PackagingSlip;
 import com.bigbrightpaints.erp.modules.inventory.domain.PackagingSlipRepository;
+import com.bigbrightpaints.erp.modules.purchasing.domain.Supplier;
+import com.bigbrightpaints.erp.modules.purchasing.domain.SupplierRepository;
 import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrder;
@@ -43,6 +47,8 @@ public class ReconciliationService {
     private final AccountRepository accountRepository;
     private final DealerRepository dealerRepository;
     private final DealerLedgerRepository dealerLedgerRepository;
+    private final SupplierRepository supplierRepository;
+    private final SupplierLedgerRepository supplierLedgerRepository;
     private final InventoryReservationRepository inventoryReservationRepository;
     private final PackagingSlipRepository packagingSlipRepository;
     private final SalesOrderRepository salesOrderRepository;
@@ -52,6 +58,8 @@ public class ReconciliationService {
                                   AccountRepository accountRepository,
                                   DealerRepository dealerRepository,
                                   DealerLedgerRepository dealerLedgerRepository,
+                                  SupplierRepository supplierRepository,
+                                  SupplierLedgerRepository supplierLedgerRepository,
                                   InventoryReservationRepository inventoryReservationRepository,
                                   PackagingSlipRepository packagingSlipRepository,
                                   SalesOrderRepository salesOrderRepository,
@@ -60,6 +68,8 @@ public class ReconciliationService {
         this.accountRepository = accountRepository;
         this.dealerRepository = dealerRepository;
         this.dealerLedgerRepository = dealerLedgerRepository;
+        this.supplierRepository = supplierRepository;
+        this.supplierLedgerRepository = supplierLedgerRepository;
         this.inventoryReservationRepository = inventoryReservationRepository;
         this.packagingSlipRepository = packagingSlipRepository;
         this.salesOrderRepository = salesOrderRepository;
@@ -135,6 +145,74 @@ public class ReconciliationService {
                 discrepancies,
                 arAccounts.size(),
                 dealers.size()
+        );
+    }
+
+    /**
+     * Reconcile AP GL account balance with sum of supplier ledger balances.
+     */
+    @Transactional(readOnly = true)
+    public SupplierReconciliationResult reconcileApWithSupplierLedger() {
+        Company company = companyContextService.requireCurrentCompany();
+
+        List<Account> apAccounts = accountRepository.findByCompanyOrderByCodeAsc(company).stream()
+                .filter(a -> a.getType() == AccountType.LIABILITY)
+                .filter(a -> a.getCode() != null &&
+                        (a.getCode().toUpperCase().contains("AP") ||
+                                a.getCode().toUpperCase().contains("PAYABLE")))
+                .toList();
+
+        BigDecimal totalApBalance = apAccounts.stream()
+                .map(Account::getBalance)
+                .filter(b -> b != null)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        List<Supplier> suppliers = supplierRepository.findByCompanyOrderByNameAsc(company);
+        List<Long> supplierIds = suppliers.stream().map(Supplier::getId).toList();
+
+        Map<Long, BigDecimal> supplierBalances = supplierLedgerRepository
+                .aggregateBalances(company, supplierIds)
+                .stream()
+                .collect(Collectors.toMap(SupplierBalanceView::supplierId, SupplierBalanceView::balance));
+
+        BigDecimal totalSupplierLedgerBalance = supplierBalances.values().stream()
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal variance = totalApBalance.subtract(totalSupplierLedgerBalance);
+        boolean isReconciled = variance.abs().compareTo(TOLERANCE) <= 0;
+
+        List<SupplierDiscrepancy> discrepancies = new ArrayList<>();
+
+        for (Supplier supplier : suppliers) {
+            BigDecimal ledgerBalance = supplierBalances.getOrDefault(supplier.getId(), BigDecimal.ZERO);
+            BigDecimal outstandingBalance = supplier.getOutstandingBalance() != null
+                    ? supplier.getOutstandingBalance()
+                    : BigDecimal.ZERO;
+
+            BigDecimal supplierVariance = outstandingBalance.subtract(ledgerBalance);
+            if (supplierVariance.abs().compareTo(TOLERANCE) > 0) {
+                discrepancies.add(new SupplierDiscrepancy(
+                        supplier.getId(),
+                        supplier.getCode(),
+                        supplier.getName(),
+                        outstandingBalance,
+                        ledgerBalance,
+                        supplierVariance
+                ));
+            }
+        }
+
+        log.info("AP Reconciliation: GL={}, SupplierLedger={}, Variance={}, Reconciled={}",
+                totalApBalance, totalSupplierLedgerBalance, variance, isReconciled);
+
+        return new SupplierReconciliationResult(
+                totalApBalance,
+                totalSupplierLedgerBalance,
+                variance,
+                isReconciled,
+                discrepancies,
+                apAccounts.size(),
+                suppliers.size()
         );
     }
 
@@ -284,5 +362,24 @@ public class ReconciliationService {
             int salePatternCount,
             int cogsPatternCount,
             List<String> potentialCollisions
+    ) {}
+
+    public record SupplierReconciliationResult(
+            BigDecimal glApBalance,
+            BigDecimal supplierLedgerTotal,
+            BigDecimal variance,
+            boolean isReconciled,
+            List<SupplierDiscrepancy> discrepancies,
+            int apAccountCount,
+            int supplierCount
+    ) {}
+
+    public record SupplierDiscrepancy(
+            Long supplierId,
+            String supplierCode,
+            String supplierName,
+            BigDecimal outstandingBalance,
+            BigDecimal ledgerBalance,
+            BigDecimal variance
     ) {}
 }
