@@ -744,6 +744,26 @@
   - Testcontainers auth config warnings, dynamic agent loading notices persisted.
   - Test logs include invalid company ID format, negative balance warnings, dispatch mapping warnings, sequence contention/duplicate key retries, and HTML-to-PDF CSS parse warnings; no failures.
 
+## 2026-01-08 (epic-09 M4 — outbox reliability)
+- Changes:
+  - Added outbox retrying metrics/health counts for pending retry events.
+  - Documented outbox retry policy and manual replay guidance in deploy checklist.
+- Commands run:
+  - `mvn -f erp-domain/pom.xml -DskipTests compile`
+  - `mvn -f erp-domain/pom.xml -Dcheckstyle.failOnViolation=false checkstyle:check`
+  - `mvn -f erp-domain/pom.xml test`
+  - `DB_PORT=55432 JWT_SECRET=... ERP_SECURITY_ENCRYPTION_KEY=... docker compose up -d --build`
+  - `curl --retry 10 --retry-connrefused --retry-delay 5 http://localhost:9090/actuator/health`
+- Validation:
+  - `mvn -DskipTests compile` succeeded (javax.annotation warnings and deprecated API notes).
+  - Checkstyle reported 29441 violations; `failOnViolation=false` used for baseline visibility.
+  - `mvn test` succeeded: Tests run 202, Failures 0, Errors 0, Skipped 4.
+  - Docker compose boot succeeded with `DB_PORT=55432`; `/actuator/health` returned `{"status":"UP","groups":["liveness","readiness"]}`.
+- Warnings/notes:
+  - Initial `/actuator/health` check hit connection reset while the container was still starting; retry succeeded.
+  - Testcontainers auth config warnings, dynamic agent loading notices persisted.
+  - Test logs include invalid company ID format, negative balance warnings, dispatch mapping warnings, sequence contention/duplicate key retries, and HTML-to-PDF CSS parse warnings; no failures.
+
 ## 2026-01-08 (epic-08 M2 — reconciliation service hardening)
 - Changes:
   - Inventory reconciliation now prefers the default inventory control account.

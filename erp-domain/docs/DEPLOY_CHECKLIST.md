@@ -57,6 +57,16 @@
 - `/api/v1/orchestrator/health/integrations`
 - `/api/v1/orchestrator/health/events`
 
+## Outbox Operations
+- Retry policy: exponential backoff (30s * 2^retry), max 5 attempts; then status=FAILED and dead_letter=true.
+- Metrics: `outbox.events.pending`, `outbox.events.retrying`, `outbox.events.deadletters`.
+- Health snapshot: `/api/v1/orchestrator/health/events` (pending/retrying/dead-letter counts).
+- Manual replay:
+  - Inspect: `SELECT id, status, retry_count, last_error, next_attempt_at FROM orchestrator_outbox WHERE dead_letter = true ORDER BY created_at DESC;`
+  - Requeue one: `UPDATE orchestrator_outbox SET status='PENDING', dead_letter=false, retry_count=0, next_attempt_at=now() WHERE id='...';`
+  - Requeue all: `UPDATE orchestrator_outbox SET status='PENDING', dead_letter=false, retry_count=0, next_attempt_at=now() WHERE dead_letter = true;`
+  - Note: replays are at-least-once; confirm consumer idempotency before bulk requeue.
+
 ## Logs/Metrics
 - File log: `logs/erp-backend.log`
 - Actuator endpoints enabled for `health`, `info`, `metrics`.

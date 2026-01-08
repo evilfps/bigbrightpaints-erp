@@ -97,6 +97,8 @@ public class EventPublisherService {
     public Map<String, Object> healthSnapshot() {
         Map<String, Object> health = new HashMap<>();
         health.put("pendingEvents", outboxEventRepository.countByStatusAndDeadLetterFalse(OutboxEvent.Status.PENDING));
+        health.put("retryingEvents", outboxEventRepository
+                .countByStatusAndDeadLetterFalseAndRetryCountGreaterThan(OutboxEvent.Status.PENDING, 0));
         health.put("deadLetters", outboxEventRepository.countByStatusAndDeadLetterTrue(OutboxEvent.Status.FAILED));
         return health;
     }
@@ -108,6 +110,11 @@ public class EventPublisherService {
         Gauge.builder("outbox.events.pending",
                 () -> outboxEventRepository.countByStatusAndDeadLetterFalse(OutboxEvent.Status.PENDING))
                 .description("Outbox events pending publish")
+                .register(meterRegistry);
+        Gauge.builder("outbox.events.retrying",
+                () -> outboxEventRepository.countByStatusAndDeadLetterFalseAndRetryCountGreaterThan(
+                        OutboxEvent.Status.PENDING, 0))
+                .description("Outbox events waiting to retry after failures")
                 .register(meterRegistry);
         Gauge.builder("outbox.events.deadletters",
                 () -> outboxEventRepository.countByStatusAndDeadLetterTrue(OutboxEvent.Status.FAILED))

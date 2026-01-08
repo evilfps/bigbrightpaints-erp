@@ -12,4 +12,6 @@ public interface OutboxEventRepository extends JpaRepository<OutboxEvent, UUID> 
     long countByStatusAndDeadLetterTrue(OutboxEvent.Status status);
 
     long countByStatusAndDeadLetterFalse(OutboxEvent.Status status);
+
+    long countByStatusAndDeadLetterFalseAndRetryCountGreaterThan(OutboxEvent.Status status, int retryCount);
 }
