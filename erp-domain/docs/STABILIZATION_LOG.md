@@ -875,3 +875,20 @@
 - Warnings/notes:
   - Testcontainers auth config warnings, dynamic agent loading notices persisted.
   - Test logs include invalid company ID format, negative balance warnings, dispatch mapping warnings, sequence contention/duplicate key retries, and HTML-to-PDF CSS parse warnings; no failures.
+
+## 2026-01-08 (epic-10 M1 — linkage matrix)
+- Changes:
+  - Added cross-module linkage matrix documenting expected document→journal→ledger flows and linkage checks across O2C, P2P, production, payroll, and reversals.
+- Commands run:
+  - `mvn -f erp-domain/pom.xml -DskipTests compile`
+  - `mvn -f erp-domain/pom.xml -Dcheckstyle.failOnViolation=false checkstyle:check`
+  - `mvn -f erp-domain/pom.xml test`
+  - `mvn -f erp-domain/pom.xml -Dtest=*FullCycle* test`
+- Validation:
+  - `mvn -DskipTests compile` succeeded.
+  - Checkstyle reported 29441 violations; `failOnViolation=false` used for baseline visibility.
+  - `mvn test` succeeded: Tests run 202, Failures 0, Errors 0, Skipped 4.
+  - `mvn -Dtest=*FullCycle* test` succeeded: Tests run 2, Failures 0, Errors 0, Skipped 2.
+- Warnings/notes:
+  - Testcontainers auth config warnings, dynamic agent loading notices persisted.
+  - Test logs include invalid company ID format, negative balance warnings, dispatch mapping warnings, sequence contention/duplicate key retries, and HTML-to-PDF CSS parse warnings; no failures.
