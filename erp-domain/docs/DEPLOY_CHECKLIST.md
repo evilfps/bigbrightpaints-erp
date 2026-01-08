@@ -30,6 +30,22 @@
 - For existing DBs: do NOT rewrite migrations; use forward-fix if needed.
 - Optional: `flyway repair` only if checksum drift is known-safe.
 
+## Operational Runbook (Boot/Migrate/Backup/Restore)
+- Boot (prod-like): `JWT_SECRET=... ERP_SECURITY_ENCRYPTION_KEY=... docker compose up -d --build`
+- Migrate:
+  - Flyway runs automatically on startup; watch logs for `Flyway` migrate output.
+  - Verify applied migrations: `SELECT version, description, success FROM flyway_schema_history ORDER BY installed_rank DESC LIMIT 5;`
+- Backup (Postgres):
+  - `pg_dump --format=custom --no-owner --no-acl --file=backup_$(date +%F).dump "$SPRING_DATASOURCE_URL"`
+  - Store backups off-host and encrypt at rest.
+- Restore (Postgres):
+  - Stop app, restore into a clean DB: `pg_restore --clean --if-exists --no-owner --dbname "$SPRING_DATASOURCE_URL" backup_YYYY-MM-DD.dump`
+  - Start app to re-run health checks and confirm `/actuator/health`.
+- Rollback guidance:
+  - Schema additions: add a forward migration to revert or neutralize (do not edit applied migrations).
+  - Data backfills: write idempotent forward fixes; document compensating steps.
+  - Destructive changes: restore from backup and re-apply forward fixes in a new migration.
+
 ## Startup Commands
 - Build: `mvn package`
 - Run (dev): `mvn spring-boot:run`

@@ -772,3 +772,26 @@
   - Test compile emitted unchecked/unsafe operation warnings in LandedCostRevaluationIT.
   - Testcontainers auth config warnings, dynamic agent loading notices persisted.
   - Test logs include invalid company ID format, negative balance warnings, dispatch mapping warnings, sequence contention/duplicate key retries, and HTML-to-PDF CSS parse warnings; no failures.
+
+## 2026-01-08 (epic-09 M1 — operational runbooks)
+- Changes:
+  - Documented boot/migrate/backup/restore/rollback runbook steps in DEPLOY_CHECKLIST.
+- Commands run:
+  - `mvn -f erp-domain/pom.xml -DskipTests compile`
+  - `mvn -f erp-domain/pom.xml -Dcheckstyle.failOnViolation=false checkstyle:check`
+  - `mvn -f erp-domain/pom.xml test`
+  - `DB_PORT=55432 JWT_SECRET=... ERP_SECURITY_ENCRYPTION_KEY=... docker compose up -d --build`
+  - `curl --retry 10 --retry-connrefused --retry-delay 5 http://localhost:9090/actuator/health`
+  - `docker exec -e PGPASSWORD=erp erp_db pg_dump -U erp -d erp_domain --format=custom --no-owner --no-acl -f /tmp/erp_domain.dump`
+  - `docker exec -e PGPASSWORD=erp erp_db createdb -U erp erp_domain_restore_test`
+  - `docker exec -e PGPASSWORD=erp erp_db pg_restore -U erp -d erp_domain_restore_test /tmp/erp_domain.dump`
+- Validation:
+  - `mvn -DskipTests compile` succeeded.
+  - Checkstyle reported 29375 violations; `failOnViolation=false` used for baseline visibility.
+  - `mvn test` succeeded: Tests run 202, Failures 0, Errors 0, Skipped 4.
+  - Docker compose boot succeeded with `DB_PORT=55432`; `/actuator/health` returned `{"status":"UP","groups":["liveness","readiness"]}`.
+  - Backup/restore commands completed without error.
+- Warnings/notes:
+  - Docker compose plugin installed locally (v2.27.1); initial compose boot failed due to port 5432 in use.
+  - Testcontainers auth config warnings, dynamic agent loading notices persisted.
+  - Test logs include invalid company ID format, negative balance warnings, dispatch mapping warnings, sequence contention/duplicate key retries, and HTML-to-PDF CSS parse warnings; no failures.
