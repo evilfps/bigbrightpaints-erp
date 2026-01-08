@@ -9,7 +9,9 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Validates critical environment configuration for production deployments.
@@ -21,6 +23,8 @@ import java.util.List;
 public class ProductionEnvironmentValidator {
 
     private static final Logger logger = LoggerFactory.getLogger(ProductionEnvironmentValidator.class);
+    private static final int MIN_SECRET_LENGTH = 32;
+    private static final int MIN_UNIQUE_CHARS = 8;
 
     @Value("${jwt.secret:}")
     private String jwtSecret;
@@ -45,13 +49,8 @@ public class ProductionEnvironmentValidator {
         List<String> warnings = new ArrayList<>();
 
         // Critical security configurations (must fail startup if missing)
-        if (!StringUtils.hasText(jwtSecret) || jwtSecret.length() < 32) {
-            missingConfigs.add("JWT_SECRET (must be at least 32 bytes)");
-        }
-
-        if (!StringUtils.hasText(encryptionKey) || encryptionKey.length() < 32) {
-            missingConfigs.add("ERP_ENCRYPTION_KEY (must be at least 32 bytes for AES-256)");
-        }
+        validateSecret("JWT_SECRET", jwtSecret, missingConfigs);
+        validateSecret("ERP_ENCRYPTION_KEY", encryptionKey, missingConfigs);
 
         if (!StringUtils.hasText(databasePassword)) {
             missingConfigs.add("SPRING_DATASOURCE_PASSWORD");
@@ -83,5 +82,31 @@ public class ProductionEnvironmentValidator {
         }
 
         logger.info("Production environment validation passed successfully.");
+    }
+
+    /**
+     * Validates a secret value for minimum length and basic entropy.
+     * Checks that the secret has minimum length and sufficient unique characters
+     * to prevent weak secrets like repeated characters.
+     */
+    private void validateSecret(String name, String value, List<String> errors) {
+        if (!StringUtils.hasText(value)) {
+            errors.add(name + " is not set");
+            return;
+        }
+
+        if (value.length() < MIN_SECRET_LENGTH) {
+            errors.add(name + " must be at least " + MIN_SECRET_LENGTH + " bytes");
+            return;
+        }
+
+        // Basic entropy check: require minimum unique characters
+        Set<Character> uniqueChars = new HashSet<>();
+        for (char c : value.toCharArray()) {
+            uniqueChars.add(c);
+        }
+        if (uniqueChars.size() < MIN_UNIQUE_CHARS) {
+            errors.add(name + " has insufficient entropy (requires at least " + MIN_UNIQUE_CHARS + " unique characters)");
+        }
     }
 }

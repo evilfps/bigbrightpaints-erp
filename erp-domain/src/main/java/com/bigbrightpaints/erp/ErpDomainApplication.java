@@ -30,7 +30,11 @@ import java.security.SecureRandom;
 public class ErpDomainApplication {
 
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
-    private static final String PASSWORD_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$%^&*";
+    private static final String UPPERCASE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+    private static final String LOWERCASE_CHARS = "abcdefghjkmnpqrstuvwxyz";
+    private static final String DIGIT_CHARS = "23456789";
+    private static final String SPECIAL_CHARS = "!@#$%^&*";
+    private static final String ALL_CHARS = UPPERCASE_CHARS + LOWERCASE_CHARS + DIGIT_CHARS + SPECIAL_CHARS;
 
     public static void main(String[] args) {
         SpringApplication.run(ErpDomainApplication.class, args);
@@ -43,13 +47,13 @@ public class ErpDomainApplication {
     private static String generateSecureTemporaryPassword() {
         StringBuilder password = new StringBuilder(14);
         // Ensure at least one of each required character type
-        password.append(PASSWORD_CHARS.charAt(SECURE_RANDOM.nextInt(23))); // uppercase
-        password.append(PASSWORD_CHARS.charAt(SECURE_RANDOM.nextInt(23) + 23)); // lowercase
-        password.append(PASSWORD_CHARS.charAt(SECURE_RANDOM.nextInt(8) + 46)); // digit
-        password.append(PASSWORD_CHARS.charAt(SECURE_RANDOM.nextInt(8) + 54)); // special
-        // Fill remaining characters randomly
+        password.append(UPPERCASE_CHARS.charAt(SECURE_RANDOM.nextInt(UPPERCASE_CHARS.length())));
+        password.append(LOWERCASE_CHARS.charAt(SECURE_RANDOM.nextInt(LOWERCASE_CHARS.length())));
+        password.append(DIGIT_CHARS.charAt(SECURE_RANDOM.nextInt(DIGIT_CHARS.length())));
+        password.append(SPECIAL_CHARS.charAt(SECURE_RANDOM.nextInt(SPECIAL_CHARS.length())));
+        // Fill remaining characters randomly from all allowed characters
         for (int i = 4; i < 14; i++) {
-            password.append(PASSWORD_CHARS.charAt(SECURE_RANDOM.nextInt(PASSWORD_CHARS.length())));
+            password.append(ALL_CHARS.charAt(SECURE_RANDOM.nextInt(ALL_CHARS.length())));
         }
         // Shuffle the password to avoid predictable patterns
         char[] chars = password.toString().toCharArray();
