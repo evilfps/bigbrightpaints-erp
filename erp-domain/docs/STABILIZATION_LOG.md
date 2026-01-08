@@ -795,3 +795,24 @@
   - Docker compose plugin installed locally (v2.27.1); initial compose boot failed due to port 5432 in use.
   - Testcontainers auth config warnings, dynamic agent loading notices persisted.
   - Test logs include invalid company ID format, negative balance warnings, dispatch mapping warnings, sequence contention/duplicate key retries, and HTML-to-PDF CSS parse warnings; no failures.
+
+## 2026-01-08 (epic-09 M2 — Flyway procedure validation)
+- Changes:
+  - Updated Flyway audit notes with checksum drift handling, forward-fix guidance, and environment validation steps.
+  - Refreshed migration inventory count to 97.
+- Commands run:
+  - `mvn -f erp-domain/pom.xml -DskipTests compile`
+  - `mvn -f erp-domain/pom.xml -Dcheckstyle.failOnViolation=false checkstyle:check`
+  - `mvn -f erp-domain/pom.xml test`
+  - `DB_PORT=55432 JWT_SECRET=... ERP_SECURITY_ENCRYPTION_KEY=... docker compose up -d --build`
+  - `curl --retry 10 --retry-connrefused --retry-delay 5 http://localhost:9090/actuator/health`
+  - `docker exec -e PGPASSWORD=erp erp_db psql -U erp -d erp_domain -c "SELECT version, success FROM flyway_schema_history ORDER BY installed_rank DESC LIMIT 5;"`
+- Validation:
+  - `mvn -DskipTests compile` succeeded.
+  - Checkstyle reported 29375 violations; `failOnViolation=false` used for baseline visibility.
+  - `mvn test` succeeded: Tests run 202, Failures 0, Errors 0, Skipped 4.
+  - Docker compose boot succeeded with `DB_PORT=55432`; `/actuator/health` returned `{"status":"UP","groups":["liveness","readiness"]}`.
+  - Flyway history query returned latest versions 93-97 as `success=true`.
+- Warnings/notes:
+  - Testcontainers auth config warnings, dynamic agent loading notices persisted.
+  - Test logs include invalid company ID format, negative balance warnings, dispatch mapping warnings, sequence contention/duplicate key retries, and HTML-to-PDF CSS parse warnings; no failures.
