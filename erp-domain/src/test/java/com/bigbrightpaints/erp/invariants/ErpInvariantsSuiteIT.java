@@ -8,6 +8,8 @@ import com.bigbrightpaints.erp.modules.accounting.domain.DealerLedgerEntry;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalLine;
+import com.bigbrightpaints.erp.modules.accounting.domain.PartnerSettlementAllocation;
+import com.bigbrightpaints.erp.modules.accounting.domain.PartnerSettlementAllocationRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.SupplierLedgerRepository;
 import com.bigbrightpaints.erp.modules.accounting.service.TemporalBalanceService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
@@ -99,6 +101,7 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
     @Autowired private JournalEntryRepository journalEntryRepository;
     @Autowired private DealerLedgerRepository dealerLedgerRepository;
     @Autowired private SupplierLedgerRepository supplierLedgerRepository;
+    @Autowired private PartnerSettlementAllocationRepository settlementAllocationRepository;
     @Autowired private TemporalBalanceService temporalBalanceService;
     @Autowired private ProductionLogRepository productionLogRepository;
 
@@ -601,7 +604,26 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
 
         ResponseEntity<Map> settleResp = rest.exchange("/api/v1/accounting/settlements/suppliers",
                 HttpMethod.POST, new HttpEntity<>(settlementReq, headers), Map.class);
-        requireData(settleResp, "supplier settlement");
+        Map<?, ?> settleData = requireData(settleResp, "supplier settlement");
+        Map<?, ?> journalData = (Map<?, ?>) settleData.get("journalEntry");
+        Long settlementJournalId = journalData != null
+                ? ((Number) journalData.get("id")).longValue()
+                : null;
+
+        ResponseEntity<Map> settleRepeatResp = rest.exchange("/api/v1/accounting/settlements/suppliers",
+                HttpMethod.POST, new HttpEntity<>(settlementReq, headers), Map.class);
+        Map<?, ?> settleRepeatData = requireData(settleRepeatResp, "supplier settlement idempotent");
+        Map<?, ?> repeatJournalData = (Map<?, ?>) settleRepeatData.get("journalEntry");
+        Long repeatJournalId = repeatJournalData != null
+                ? ((Number) repeatJournalData.get("id")).longValue()
+                : null;
+        assertThat(repeatJournalId).isEqualTo(settlementJournalId);
+
+        List<PartnerSettlementAllocation> allocations =
+                settlementAllocationRepository.findByCompanyAndIdempotencyKey(company, "P2P-SETTLE-001");
+        assertThat(allocations)
+                .as("supplier settlement idempotency key should create one allocation set")
+                .hasSize(1);
 
         invariants.assertSubledgerReconciles(p2p.requireAccount("AP").getId(), entryDate);
         invariants.assertNoNegativeStock(company.getId(), material.getSku());
