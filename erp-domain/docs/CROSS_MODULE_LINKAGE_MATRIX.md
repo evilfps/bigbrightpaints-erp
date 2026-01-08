@@ -69,4 +69,44 @@ Test expectations (current + to enforce):
 - Regression E2E should assert reversals link back to the original document/journal.
 
 ## Link Keys
-Actual link keys (ids/refs) used by entities and migrations are documented in M2.
+Linkage keys observed in entities (primary keys, FK columns, and reference fields).
+
+### Order-to-Cash (O2C)
+- `sales_orders.id` -> `packaging_slips.sales_order_id`, `invoices.sales_order_id`, `production_logs.sales_order_id`.
+- `sales_orders.fulfillment_invoice_id` -> `invoices.id`.
+- `sales_orders.sales_journal_entry_id` / `sales_orders.cogs_journal_entry_id` -> `journal_entries.id`.
+- `packaging_slips.invoice_id` -> `invoices.id`.
+- `packaging_slips.journal_entry_id` / `packaging_slips.cogs_journal_entry_id` -> `journal_entries.id`.
+- `invoices.journal_entry_id` -> `journal_entries.id`.
+- `dealer_ledger_entries.journal_entry_id` -> `journal_entries.id`.
+- `dealer_ledger_entries.invoice_number` -> `invoices.invoice_number`.
+- `partner_settlement_allocations.invoice_id` -> `invoices.id`; `partner_settlement_allocations.journal_entry_id` -> `journal_entries.id`.
+- `packaging_slip_lines.packaging_slip_id` -> `packaging_slips.id`; `packaging_slip_lines.finished_good_batch_id` -> `finished_good_batches.id`.
+- `inventory_movements.reference_type=SALES_ORDER` and `inventory_reservations.reference_type=SALES_ORDER` use `reference_id = sales_orders.id` (InventoryReference.SALES_ORDER).
+
+### Procure-to-Pay (P2P)
+- `raw_material_purchases.journal_entry_id` -> `journal_entries.id`.
+- `raw_material_purchases.supplier_id` -> `suppliers.id`.
+- `partner_settlement_allocations.purchase_id` -> `raw_material_purchases.id`; `partner_settlement_allocations.journal_entry_id` -> `journal_entries.id`.
+- `supplier_ledger_entries.journal_entry_id` -> `journal_entries.id`.
+- `raw_material_movements.reference_type=RAW_MATERIAL_PURCHASE` uses `reference_id = raw_material_batches.batch_code`.
+- `raw_material_movements.reference_type=PURCHASE_RETURN` uses `reference_id = purchase return reference number`.
+
+### Production / Inventory
+- `production_logs.production_code` is used as `inventory_movements.reference_id` when `reference_type=PRODUCTION_LOG`.
+- `packing_records.production_log_id` -> `production_logs.id`.
+- `packing_records.finished_good_batch_id` -> `finished_good_batches.id`.
+- `inventory_movements.reference_type=PACKING_RECORD` uses `reference_id = <production_code>-PACK-<lineIndex>`.
+- `inventory_movements.journal_entry_id` -> `journal_entries.id`.
+- `finished_good_batches.parent_batch_id` links bulk-to-size child batches.
+- `inventory_movements.reference_type=MANUFACTURING_ORDER` uses `reference_id = finished_good_batches.public_id`.
+- `inventory_movements.reference_type=OPENING_STOCK` uses `reference_id = opening stock batch code`.
+
+### Payroll
+- `payroll_runs.journal_entry_id` and `payroll_runs.journal_entry_ref_id` -> `journal_entries.id`.
+- `payroll_run_lines.payroll_run_id` -> `payroll_runs.id`.
+- `attendance.payroll_run_id` -> `payroll_runs.id`.
+
+### Reversals / Reference Mapping
+- `journal_entries.reversal_of_id` -> `journal_entries.id` (original entry); `journal_entries.reversal_entry` is the inverse link.
+- `journal_reference_mappings.legacy_reference` / `canonical_reference` map to `journal_entries.reference_number` with `entity_type`/`entity_id` metadata.
