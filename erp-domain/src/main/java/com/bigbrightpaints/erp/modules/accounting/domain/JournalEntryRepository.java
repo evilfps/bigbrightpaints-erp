@@ -2,10 +2,12 @@ package com.bigbrightpaints.erp.modules.accounting.domain;
 
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDate;
 import java.util.Collection;
@@ -37,4 +39,7 @@ public interface JournalEntryRepository extends JpaRepository<JournalEntry, Long
 
     @EntityGraph(attributePaths = {"lines"})
     List<JournalEntry> findAll();
+
+    @Query("select je.company.id from JournalEntry je where je.id = :id")
+    Optional<Long> findCompanyIdById(@Param("id") Long id);
 }

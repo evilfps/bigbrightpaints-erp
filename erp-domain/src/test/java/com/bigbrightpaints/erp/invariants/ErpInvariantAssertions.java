@@ -102,16 +102,24 @@ public class ErpInvariantAssertions {
             case "INVOICE" -> {
                 Invoice invoice = invoiceRepository.findById(sourceId)
                         .orElseThrow(() -> new AssertionError("Invoice missing: " + sourceId));
-                assertThat(invoice.getJournalEntry())
+                JournalEntry journalEntry = invoice.getJournalEntry();
+                assertThat(journalEntry)
                         .as("invoice %s should link to journal entry", invoice.getInvoiceNumber())
                         .isNotNull();
+                assertSameCompanyIds("invoice journal",
+                        requireCompanyId(invoice.getCompany(), "invoice"),
+                        requireJournalCompanyId(journalEntry.getId(), "invoice journal"));
             }
             case "RAW_MATERIAL_PURCHASE", "PURCHASE" -> {
                 RawMaterialPurchase purchase = purchaseRepository.findById(sourceId)
                         .orElseThrow(() -> new AssertionError("Purchase missing: " + sourceId));
-                assertThat(purchase.getJournalEntry())
+                JournalEntry journalEntry = purchase.getJournalEntry();
+                assertThat(journalEntry)
                         .as("purchase %s should link to journal entry", purchase.getInvoiceNumber())
                         .isNotNull();
+                assertSameCompanyIds("purchase journal",
+                        requireCompanyId(purchase.getCompany(), "purchase"),
+                        requireJournalCompanyId(journalEntry.getId(), "purchase journal"));
             }
             case "PAYROLL_RUN" -> {
                 PayrollRun run = payrollRunRepository.findById(sourceId)
@@ -120,6 +128,15 @@ public class ErpInvariantAssertions {
                 assertThat(linked)
                         .as("payroll run %s should link to journal entry", run.getId())
                         .isTrue();
+                Long journalEntryId = run.getJournalEntryId();
+                if (journalEntryId == null && run.getJournalEntry() != null) {
+                    journalEntryId = run.getJournalEntry().getId();
+                }
+                if (journalEntryId != null) {
+                    assertSameCompanyIds("payroll journal",
+                            requireCompanyId(run.getCompany(), "payroll run"),
+                            requireJournalCompanyId(journalEntryId, "payroll journal"));
+                }
             }
             case "PACKAGING_SLIP" -> {
                 PackagingSlip slip = packagingSlipRepository.findById(sourceId)
@@ -128,6 +145,17 @@ public class ErpInvariantAssertions {
                 assertThat(linked)
                         .as("packaging slip %s should link to journal entry", slip.getSlipNumber())
                         .isTrue();
+                Long expectedCompanyId = requireCompanyId(slip.getCompany(), "packaging slip");
+                if (slip.getJournalEntryId() != null) {
+                    assertSameCompanyIds("packaging slip journal",
+                            expectedCompanyId,
+                            requireJournalCompanyId(slip.getJournalEntryId(), "packaging slip journal"));
+                }
+                if (slip.getCogsJournalEntryId() != null) {
+                    assertSameCompanyIds("packaging slip COGS journal",
+                            expectedCompanyId,
+                            requireJournalCompanyId(slip.getCogsJournalEntryId(), "packaging slip COGS journal"));
+                }
             }
             case "INVENTORY_MOVEMENT" -> {
                 InventoryMovement movement = inventoryMovementRepository.findById(sourceId)
@@ -135,6 +163,13 @@ public class ErpInvariantAssertions {
                 assertThat(movement.getJournalEntryId())
                         .as("inventory movement %s should link to journal entry", movement.getId())
                         .isNotNull();
+                FinishedGood finishedGood = movement.getFinishedGood();
+                assertThat(finishedGood)
+                        .as("inventory movement %s should link to finished good", movement.getId())
+                        .isNotNull();
+                assertSameCompanyIds("inventory journal",
+                        requireCompanyId(finishedGood.getCompany(), "inventory movement"),
+                        requireJournalCompanyId(movement.getJournalEntryId(), "inventory journal"));
             }
             default -> throw new AssertionError("Unsupported sourceType for journal linkage: " + sourceType);
         }
@@ -150,6 +185,9 @@ public class ErpInvariantAssertions {
         JournalEntry reversalEntry = reversal
                 .orElseThrow(() -> new AssertionError("Reversal entry missing for journal " + originalEntryId));
 
+        assertSameCompanyIds("reversal journal",
+                requireJournalCompanyId(original.getId(), "original journal"),
+                requireJournalCompanyId(reversalEntry.getId(), "reversal journal"));
         assertJournalBalanced(reversalEntry.getId());
 
         Map<Long, BigDecimal> originalNet = aggregateNetByAccount(original);
@@ -246,6 +284,33 @@ public class ErpInvariantAssertions {
 
     private boolean matchesCompany(Company entryCompany, Company company) {
         return entryCompany != null && company != null && entryCompany.getId().equals(company.getId());
+    }
+
+    private Long requireCompanyId(Company company, String label) {
+        assertThat(company)
+                .as("%s missing expected company", label)
+                .isNotNull();
+        assertThat(company.getId())
+                .as("%s missing company id", label)
+                .isNotNull();
+        return company.getId();
+    }
+
+    private Long requireJournalCompanyId(Long journalEntryId, String label) {
+        return journalEntryRepository.findCompanyIdById(journalEntryId)
+                .orElseThrow(() -> new AssertionError(label + " missing company id for journal " + journalEntryId));
+    }
+
+    private void assertSameCompanyIds(String label, Long expectedCompanyId, Long actualCompanyId) {
+        assertThat(expectedCompanyId)
+                .as("%s missing expected company id", label)
+                .isNotNull();
+        assertThat(actualCompanyId)
+                .as("%s missing linked company id", label)
+                .isNotNull();
+        assertThat(actualCompanyId)
+                .as("%s company should match", label)
+                .isEqualTo(expectedCompanyId);
     }
 
     private boolean isOnOrBefore(LocalDate entryDate, LocalDate targetDate) {
