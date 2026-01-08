@@ -780,6 +780,8 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
                 AccountType.EXPENSE);
         datasetBuilder.ensurePayrollAccount(company, "SALARY-PAYABLE", "Salary Payable",
                 AccountType.LIABILITY);
+        datasetBuilder.ensurePayrollAccount(company, "EMP-ADV", "Employee Advances",
+                AccountType.ASSET);
 
         Map<String, Object> employeeReq = new HashMap<>();
         employeeReq.put("firstName", "Pat");
@@ -865,6 +867,12 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
         BigDecimal totalOvertimePay = lines.stream()
                 .map(PayrollRunLine::getOvertimePay)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal totalGrossPay = lines.stream()
+                .map(PayrollRunLine::getGrossPay)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal totalAdvances = lines.stream()
+                .map(PayrollRunLine::getAdvanceDeduction)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal totalDeductions = lines.stream()
                 .map(PayrollRunLine::getTotalDeductions)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
@@ -887,6 +895,8 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
                     .orElseThrow(() -> new AssertionError("Salary expense account missing"));
             Account salaryPayable = accountRepository.findByCompanyAndCodeIgnoreCase(company, "SALARY-PAYABLE")
                     .orElseThrow(() -> new AssertionError("Salary payable account missing"));
+            Account advanceAccount = accountRepository.findByCompanyAndCodeIgnoreCase(company, "EMP-ADV")
+                    .orElseThrow(() -> new AssertionError("Employee advance account missing"));
 
             BigDecimal expenseDebit = journal.getLines().stream()
                     .filter(journalLine -> journalLine.getAccount().getId().equals(salaryExpense.getId()))
@@ -904,11 +914,21 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
                     .filter(journalLine -> journalLine.getAccount().getId().equals(salaryPayable.getId()))
                     .map(journalLine -> journalLine.getDebit() == null ? BigDecimal.ZERO : journalLine.getDebit())
                     .reduce(BigDecimal.ZERO, BigDecimal::add);
+            BigDecimal advanceCredit = journal.getLines().stream()
+                    .filter(journalLine -> journalLine.getAccount().getId().equals(advanceAccount.getId()))
+                    .map(journalLine -> journalLine.getCredit() == null ? BigDecimal.ZERO : journalLine.getCredit())
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            BigDecimal advanceDebit = journal.getLines().stream()
+                    .filter(journalLine -> journalLine.getAccount().getId().equals(advanceAccount.getId()))
+                    .map(journalLine -> journalLine.getDebit() == null ? BigDecimal.ZERO : journalLine.getDebit())
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-            assertThat(expenseDebit).isEqualByComparingTo(totalNetPay);
+            assertThat(expenseDebit).isEqualByComparingTo(totalGrossPay);
             assertThat(expenseCredit).isEqualByComparingTo(BigDecimal.ZERO);
             assertThat(payableCredit).isEqualByComparingTo(totalNetPay);
             assertThat(payableDebit).isEqualByComparingTo(BigDecimal.ZERO);
+            assertThat(advanceCredit).isEqualByComparingTo(totalAdvances);
+            assertThat(advanceDebit).isEqualByComparingTo(BigDecimal.ZERO);
         }
 
         Map<String, Object> markPaidReq = Map.of("paymentReference", "PAYROLL-PAY-001");

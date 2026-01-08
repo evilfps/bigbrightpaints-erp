@@ -328,20 +328,28 @@ public class PayrollService {
         BigDecimal totalAdvances = runLines.stream()
             .map(PayrollRunLine::getAdvanceDeduction)
             .reduce(BigDecimal.ZERO, BigDecimal::add);
+        Account advanceAccount = null;
+        if (totalAdvances.compareTo(BigDecimal.ZERO) > 0) {
+            advanceAccount = findAccountByCode(company, "EMP-ADV");
+        }
 
-        // Salary payable is net of advances (advance balances are cleared in HR when paid)
+        // Salary payable is net of advances (advances are cleared via the advance account)
         BigDecimal salaryPayableAmount = totalGrossPay.subtract(totalAdvances);
 
         // Build journal entry
-        // Debit: Expense (net pay; advances are treated as already cleared)
+        // Debit: Expense (gross pay)
         // Credit: Salary Payable (net pay)
+        // Credit: Employee Advances (advance recovery)
         List<JournalLineRequest> lines = new ArrayList<>();
 
         Account expenseAccount = run.getRunType() == PayrollRun.RunType.MONTHLY 
             ? salaryExpenseAccount : wageExpenseAccount;
-        lines.add(new JournalLineRequest(expenseAccount.getId(), "Payroll expense", salaryPayableAmount, BigDecimal.ZERO));
+        lines.add(new JournalLineRequest(expenseAccount.getId(), "Payroll expense", totalGrossPay, BigDecimal.ZERO));
 
         lines.add(new JournalLineRequest(salaryPayableAccount.getId(), "Payroll payable", BigDecimal.ZERO, salaryPayableAmount));
+        if (advanceAccount != null) {
+            lines.add(new JournalLineRequest(advanceAccount.getId(), "Advance recovery", BigDecimal.ZERO, totalAdvances));
+        }
 
         LocalDate postingDate = run.getPeriodEnd();
         LocalDate today = companyClock.today(company);

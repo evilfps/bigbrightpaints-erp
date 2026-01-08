@@ -18,7 +18,8 @@ Transitions (current behavior):
 - Approve -> `APPROVED` (only from `CALCULATED`).
 - Post to accounting -> `POSTED` (only from `APPROVED`):
   - builds a journal entry (reference `PAYROLL-<runNumber>`), posting date = period end clamped to `today`.
-  - debits expense (salary or wage) for **net of advances**, credits salary payable for the same amount.
+  - debits expense (salary or wage) for **gross pay**.
+  - credits salary payable for **net pay** and credits `EMP-ADV` (asset) for advance recovery.
   - sets `journalEntryId`/reference on run; links attendance rows (`payrollRunId`).
 - Mark paid -> `PAID` (only from `POSTED`):
   - sets line payment status = `PAID`, stores payment reference.
@@ -41,7 +42,8 @@ Source: `PayrollRun.RunType`.
 
 # Posting Semantics (current)
 - Expense account: `SALARY-EXP` for monthly runs; `WAGE-EXP` for weekly runs.
-- Liability: `SALARY-PAYABLE` credited for net pay (advances already netted).
+- Liability: `SALARY-PAYABLE` credited for net pay.
+- Asset: `EMP-ADV` credited to clear employee advances.
 - Journal is balanced; reference/memo prefixed with payroll run number.
 - Posting date uses run period end; if in the future, clamped to company `today`.
 - No cash/bank journal is created in this flow; payment handling is external.

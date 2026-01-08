@@ -966,3 +966,15 @@
   - Testcontainers auth config warnings, dynamic agent loading notices persisted.
   - Test logs include invalid company ID format, negative balance warnings, dispatch mapping warnings, sequence contention/duplicate key retries, and HTML-to-PDF CSS parse warnings; no failures.
   - PerformanceBudgetIT emitted verbose session metrics; no failures.
+
+## 2026-01-08 (payroll advance posting fix)
+- Changes:
+  - Posted payroll expense at gross and credited employee advances separately instead of netting advances against salary payable.
+  - Updated invariants and hire-to-pay flow documentation to assert EMP-ADV credit postings.
+- Commands run:
+  - `mvn -f erp-domain/pom.xml -Dtest=ErpInvariantsSuiteIT test`
+- Validation:
+  - `mvn -Dtest=ErpInvariantsSuiteIT test` succeeded: Tests run 9, Failures 0, Errors 0, Skipped 0.
+- Warnings/notes:
+  - Environment validation disabled; configuration health checks skipped.
+  - Test logs include invalid company ID format and negative balance warnings (INV, CASH, EMP-ADV); no failures.
