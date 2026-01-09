@@ -282,6 +282,13 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
         List<InventoryMovement> movements = inventoryMovementRepository
                 .findByReferenceTypeAndReferenceIdOrderByCreatedAtAsc(InventoryReference.SALES_ORDER, orderId.toString());
         assertThat(movements).as("inventory movements created").isNotEmpty();
+        List<InventoryMovement> dispatchMovements = movements.stream()
+                .filter(movement -> "DISPATCH".equalsIgnoreCase(movement.getMovementType()))
+                .toList();
+        assertThat(dispatchMovements).as("dispatch movements created").isNotEmpty();
+        for (InventoryMovement movement : dispatchMovements) {
+            invariants.assertJournalLinkedTo("INVENTORY_MOVEMENT", movement.getId());
+        }
         invariants.assertNoNegativeStock(company.getId(), finishedGood.getProductCode());
         List<Long> movementIds = movements.stream()
                 .map(InventoryMovement::getId)

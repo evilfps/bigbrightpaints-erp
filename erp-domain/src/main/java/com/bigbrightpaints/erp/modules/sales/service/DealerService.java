@@ -107,6 +107,16 @@ public class DealerService {
     }
 
     @Transactional
+    public DealerResponse getDealer(Long dealerId) {
+        Company company = companyContextService.requireCurrentCompany();
+        Dealer dealer = dealerRepository.findByCompanyAndId(company, dealerId)
+                .orElseThrow(() -> new IllegalArgumentException("Dealer not found"));
+        BigDecimal balance = dealerLedgerService.currentBalance(dealerId);
+        String portalEmail = dealer.getPortalUser() != null ? dealer.getPortalUser().getEmail() : null;
+        return toResponse(dealer, portalEmail, null, balance);
+    }
+
+    @Transactional
     public List<DealerLookupResponse> search(String query) {
         Company company = companyContextService.requireCurrentCompany();
         String term = StringUtils.hasText(query) ? query.trim() : "";

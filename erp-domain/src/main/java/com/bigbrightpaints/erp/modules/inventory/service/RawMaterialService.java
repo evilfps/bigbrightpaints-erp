@@ -78,6 +78,18 @@ public class RawMaterialService {
                 .toList();
     }
 
+    public RawMaterialDto getRawMaterial(Long rawMaterialId) {
+        RawMaterial material = requireMaterial(rawMaterialId);
+        return toDto(material);
+    }
+
+    public RawMaterialDto getRawMaterialBySku(String sku) {
+        Company company = companyContextService.requireCurrentCompany();
+        RawMaterial material = rawMaterialRepository.findByCompanyAndSku(company, sku)
+                .orElseThrow(() -> new IllegalArgumentException("Raw material not found for SKU " + sku));
+        return toDto(material);
+    }
+
     @Transactional
     public RawMaterialDto createRawMaterial(RawMaterialRequest request) {
         Company company = companyContextService.requireCurrentCompany();

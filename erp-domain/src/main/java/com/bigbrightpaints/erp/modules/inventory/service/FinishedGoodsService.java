@@ -217,6 +217,26 @@ public class FinishedGoodsService {
     }
 
     @Transactional
+    public int linkDispatchMovementsToJournal(Long salesOrderId, Long journalEntryId) {
+        if (salesOrderId == null || journalEntryId == null) {
+            return 0;
+        }
+        List<InventoryMovement> movements = inventoryMovementRepository
+                .findByReferenceTypeAndReferenceIdAndMovementTypeIgnoreCaseAndJournalEntryIdIsNull(
+                        InventoryReference.SALES_ORDER,
+                        salesOrderId.toString(),
+                        "DISPATCH");
+        if (movements.isEmpty()) {
+            return 0;
+        }
+        for (InventoryMovement movement : movements) {
+            movement.setJournalEntryId(journalEntryId);
+        }
+        inventoryMovementRepository.saveAll(movements);
+        return movements.size();
+    }
+
+    @Transactional
     public InventoryReservationResult reserveForOrder(SalesOrder order) {
         Company company = companyContextService.requireCurrentCompany();
         SalesOrder managedOrder = salesOrderRepository.findWithItemsByCompanyAndId(company, order.getId())

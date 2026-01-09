@@ -16,6 +16,7 @@ public interface DealerRepository extends JpaRepository<Dealer, Long> {
     List<Dealer> findByCompanyOrderByNameAsc(Company company);
     Optional<Dealer> findByCompanyAndId(Company company, Long id);
     Optional<Dealer> findByCompanyAndCodeIgnoreCase(Company company, String code);
+    Optional<Dealer> findByCompanyAndEmailIgnoreCase(Company company, String email);
     Optional<Dealer> findByCompanyAndReceivableAccount(Company company, Account receivableAccount);
     List<Dealer> findAllByCompanyAndReceivableAccount(Company company, Account receivableAccount);
     Optional<Dealer> findByCompanyAndPortalUserEmail(Company company, String email);

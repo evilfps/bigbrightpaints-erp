@@ -978,3 +978,23 @@
 - Warnings/notes:
   - Environment validation disabled; configuration health checks skipped.
   - Test logs include invalid company ID format and negative balance warnings (INV, CASH, EMP-ADV); no failures.
+
+## 2026-01-09 (onboarding scaffolding + linkage fixes)
+- Changes:
+  - Added accounting onboarding endpoints + service for brands/categories/products/variants/raw materials/suppliers/dealers, opening stock, and opening partner balances with idempotent references.
+  - Enforced default account mappings for onboarding product creation; added onboarding RBAC permission and production categories table.
+  - Required onboarding products to include WIP + semi-finished account metadata; updated onboarding guide/tests accordingly.
+  - Linked dispatch/return inventory movements back to their journal entries and extended invariants coverage.
+  - Added onboarding flow tests, updated OpenAPI snapshot, and documented onboarding steps.
+  - Fixed ops smoke token parsing (python here-doc input).
+- Commands run:
+  - `mvn -f erp-domain/pom.xml -DskipTests compile`
+  - `mvn -f erp-domain/pom.xml -Dcheckstyle.failOnViolation=false checkstyle:check`
+  - `mvn -f erp-domain/pom.xml test`
+- Validation:
+  - `mvn -DskipTests compile` succeeded.
+  - Checkstyle reported 30671 violations; `failOnViolation=false` used for baseline visibility.
+  - `mvn test` succeeded: Tests run 204, Failures 0, Errors 0, Skipped 4.
+- Warnings/notes:
+  - Testcontainers auth config warnings, dynamic agent loading notices persisted.
+  - Test logs include invalid company ID format, dispatch mapping not configured, negative balance warnings, and openhtmltopdf CSS parse warnings; no failures.

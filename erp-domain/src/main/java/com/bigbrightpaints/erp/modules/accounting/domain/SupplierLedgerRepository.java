@@ -1,6 +1,7 @@
 package com.bigbrightpaints.erp.modules.accounting.domain;
 
 import com.bigbrightpaints.erp.modules.accounting.dto.SupplierBalanceView;
+import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.purchasing.domain.Supplier;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -24,6 +25,8 @@ public interface SupplierLedgerRepository extends JpaRepository<SupplierLedgerEn
             "from SupplierLedgerEntry e where e.company = :company and e.supplier = :supplier group by e.supplier.id")
     Optional<SupplierBalanceView> aggregateBalance(@Param("company") Company company,
                                                    @Param("supplier") Supplier supplier);
+
+    List<SupplierLedgerEntry> findByCompanyAndJournalEntry(Company company, JournalEntry journalEntry);
 
     List<SupplierLedgerEntry> findByCompanyAndSupplierAndEntryDateBetweenOrderByEntryDateAsc(Company company,
                                                                                             Supplier supplier,

@@ -25,7 +25,9 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -73,6 +75,7 @@ public class SalesReturnService {
 
         BigDecimal receivableCredit = BigDecimal.ZERO;
         Map<Long, BigDecimal> totalReturnQtyByFg = new LinkedHashMap<>();
+        Map<Long, List<InventoryMovement>> returnMovementsByFg = new LinkedHashMap<>();
         Long salesOrderId = invoice.getSalesOrder() != null ? invoice.getSalesOrder().getId() : null;
         Map<Long, java.util.List<InventoryMovement>> dispatchMovementsByFg = salesOrderId != null
                 ? loadDispatchMovements(salesOrderId)
@@ -99,12 +102,17 @@ public class SalesReturnService {
 
             BigDecimal restockUnitCost = resolveReturnUnitCost(finishedGood, quantity, dispatchMovementsByFg, invoiceLine);
 
-            restockFinishedGood(
+            InventoryMovement returnMovement = restockFinishedGood(
                     finishedGood,
                     quantity,
                     invoice.getInvoiceNumber(),
                     restockUnitCost
             );
+            if (returnMovement != null) {
+                returnMovementsByFg
+                        .computeIfAbsent(finishedGood.getId(), ignored -> new ArrayList<>())
+                        .add(returnMovement);
+            }
         }
         if (receivableCredit.compareTo(BigDecimal.ZERO) <= 0) {
             throw new IllegalArgumentException("Return amount must be greater than zero");
@@ -151,12 +159,15 @@ public class SalesReturnService {
 
         // Reverse COGS and restore inventory value using dispatch cost
         if (salesOrderId != null && !totalReturnQtyByFg.isEmpty()) {
-            postCogsReversal(invoice, totalReturnQtyByFg, dispatchMovementsByFg);
+            postCogsReversal(invoice, totalReturnQtyByFg, dispatchMovementsByFg, returnMovementsByFg);
         }
         return salesReturnEntry;
     }
 
-    private void restockFinishedGood(FinishedGood finishedGood, BigDecimal quantity, String invoiceNumber, BigDecimal unitCost) {
+    private InventoryMovement restockFinishedGood(FinishedGood finishedGood,
+                                                  BigDecimal quantity,
+                                                  String invoiceNumber,
+                                                  BigDecimal unitCost) {
         FinishedGood fg = lockFinishedGood(finishedGood.getCompany(), finishedGood.getId());
         BigDecimal currentStock = fg.getCurrentStock() != null ? fg.getCurrentStock() : BigDecimal.ZERO;
         fg.setCurrentStock(currentStock.add(quantity));
@@ -179,7 +190,7 @@ public class SalesReturnService {
         movement.setMovementType("RETURN");
         movement.setQuantity(quantity);
         movement.setUnitCost(unitCost);
-        inventoryMovementRepository.save(movement);
+        return inventoryMovementRepository.save(movement);
     }
 
     private BigDecimal perUnitTax(InvoiceLine line) {
@@ -194,7 +205,8 @@ public class SalesReturnService {
 
     private void postCogsReversal(Invoice invoice,
                                   Map<Long, BigDecimal> returnQuantitiesByFinishedGood,
-                                  Map<Long, java.util.List<InventoryMovement>> dispatchMovements) {
+                                  Map<Long, java.util.List<InventoryMovement>> dispatchMovements,
+                                  Map<Long, List<InventoryMovement>> returnMovementsByFg) {
         int reversalIndex = 0;
         for (Map.Entry<Long, BigDecimal> entry : returnQuantitiesByFinishedGood.entrySet()) {
             Long fgId = entry.getKey();
@@ -228,7 +240,7 @@ public class SalesReturnService {
             Long cogsAcctId = fg.getCogsAccountId();
             if (reversalAmount.compareTo(BigDecimal.ZERO) > 0 && invAcctId != null && cogsAcctId != null) {
                 String ref = String.format("CRN-%s-COGS-%d", invoice.getInvoiceNumber(), reversalIndex++);
-                accountingFacade.postInventoryAdjustment(
+                JournalEntryDto cogsReversal = accountingFacade.postInventoryAdjustment(
                         "SALES_RETURN_COGS",
                         ref,
                         cogsAcctId,
@@ -237,7 +249,32 @@ public class SalesReturnService {
                         false,
                         "COGS reversal for return " + invoice.getInvoiceNumber()
                 );
+                if (cogsReversal != null) {
+                    linkReturnMovements(returnMovementsByFg, fgId, cogsReversal.id());
+                }
             }
+        }
+    }
+
+    private void linkReturnMovements(Map<Long, List<InventoryMovement>> returnMovementsByFg,
+                                     Long finishedGoodId,
+                                     Long journalEntryId) {
+        if (journalEntryId == null || returnMovementsByFg == null) {
+            return;
+        }
+        List<InventoryMovement> movements = returnMovementsByFg.getOrDefault(finishedGoodId, List.of());
+        if (movements.isEmpty()) {
+            return;
+        }
+        List<InventoryMovement> toUpdate = new ArrayList<>();
+        for (InventoryMovement movement : movements) {
+            if (movement.getJournalEntryId() == null) {
+                movement.setJournalEntryId(journalEntryId);
+                toUpdate.add(movement);
+            }
+        }
+        if (!toUpdate.isEmpty()) {
+            inventoryMovementRepository.saveAll(toUpdate);
         }
     }
 

@@ -283,6 +283,9 @@ public class SalesFulfillmentService {
 
         if (accountingFacade.hasCogsJournalFor(orderNumber)) {
             log.info("COGS already posted for order {}, skipping", orderNumber);
+            if (order.getCogsJournalEntryId() != null) {
+                finishedGoodsService.linkDispatchMovementsToJournal(order.getId(), order.getCogsJournalEntryId());
+            }
             return journalIds;
         }
 
@@ -339,6 +342,7 @@ public class SalesFulfillmentService {
         );
         if (cogsEntry != null) {
             journalIds.add(cogsEntry.id());
+            finishedGoodsService.linkDispatchMovementsToJournal(order.getId(), cogsEntry.id());
         }
 
         return journalIds;

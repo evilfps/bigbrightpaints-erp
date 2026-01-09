@@ -15,7 +15,7 @@ import java.util.stream.Collectors;
 public enum SystemRole {
     ADMIN("ROLE_ADMIN", "Platform administrator", List.of(
             "portal:accounting", "portal:factory", "portal:sales", "portal:dealer",
-            "dispatch.confirm", "factory.dispatch", "payroll.run"
+            "dispatch.confirm", "factory.dispatch", "payroll.run", "onboarding.manage"
     )),
     ACCOUNTING("ROLE_ACCOUNTING", "Accounting, finance, HR, and inventory operator", List.of(
             "portal:accounting", "payroll.run"

@@ -1465,6 +1465,10 @@ public class SalesService {
         }
         packagingSlipRepository.save(slip);
 
+        if (cogsJournalId != null) {
+            finishedGoodsService.linkDispatchMovementsToJournal(salesOrderId, cogsJournalId);
+        }
+
         if (arJournalEntryId != null && order.getSalesJournalEntryId() == null) {
             order.setSalesJournalEntryId(arJournalEntryId);
         }

@@ -25,14 +25,7 @@ login_payload=$(printf '{"email":"%s","password":"%s","companyCode":"%s"}' \
   "${ERP_SMOKE_EMAIL}" "${ERP_SMOKE_PASSWORD}" "${ERP_SMOKE_COMPANY}")
 token=$(curl -fsS -X POST "${BASE_URL}/api/v1/auth/login" \
   -H 'Content-Type: application/json' \
-  -d "${login_payload}" | python3 - <<'PY'
-import json
-import sys
-
-data = json.load(sys.stdin)
-print(data.get("accessToken", ""))
-PY
-)
+  -d "${login_payload}" | python3 -c 'import json, sys; print(json.load(sys.stdin).get("accessToken", ""))')
 
 if [[ -z "${token}" ]]; then
   echo "Login did not return accessToken." >&2

@@ -163,7 +163,10 @@ public class ErpInvariantAssertions {
                 assertThat(movement.getJournalEntryId())
                         .as("inventory movement %s should link to journal entry", movement.getId())
                         .isNotNull();
-                FinishedGood finishedGood = movement.getFinishedGood();
+                Long finishedGoodId = movement.getFinishedGood() != null ? movement.getFinishedGood().getId() : null;
+                FinishedGood finishedGood = finishedGoodId == null
+                        ? null
+                        : finishedGoodRepository.findById(finishedGoodId).orElse(null);
                 assertThat(finishedGood)
                         .as("inventory movement %s should link to finished good", movement.getId())
                         .isNotNull();

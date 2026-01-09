@@ -175,12 +175,12 @@ Treat this as a strict ladder: do not proceed to the next level until the curren
 
 **Commands**
 - `mvn -f erp-domain/pom.xml -DskipTests compile`
-- `mvn -f erp-domain/pom.xml checkstyle:check`
+- `mvn -f erp-domain/pom.xml -Dcheckstyle.failOnViolation=false checkstyle:check`
 
 **Pass criteria**
 - Maven exits `0` for both commands.
 - No compilation errors.
-- Checkstyle runs and reports violations (it is configured in advisory mode; record the count as a baseline signal).
+- Checkstyle runs in advisory mode and reports violations; record the count as a baseline signal. (Running without `-Dcheckstyle.failOnViolation=false` is expected to fail when violations exist.)
 
 **Logs that prove success**
 - Maven “BUILD SUCCESS”
@@ -231,11 +231,16 @@ This is where ERP-grade confidence is won: you don’t just “create documents�
 **Commands (tests)**
 - `mvn -f erp-domain/pom.xml -Dtest=ErpInvariantsSuiteIT,ReconciliationControlsIT,InventoryGlReconciliationIT,PeriodCloseLockIT test`
 
+**Prereq (compose DB, for API checks)**
+- Seed a company + user + default accounts (needed for login and reconciliation endpoints):
+  - `SQL_FILE=docs/ops_and_debug/seed_ops.sql`
+  - `docker exec -e PGPASSWORD=erp -i erp_db psql -U erp -d erp_domain < "$SQL_FILE"`
+
 **Commands (API, against a running app)**
 - Month-end checklist: `curl -fsS -H "Authorization: Bearer $TOKEN" -H "X-Company-Id: $COMPANY" "$BASE_URL/api/v1/accounting/month-end/checklist"`
 - Inventory valuation: `curl -fsS -H "Authorization: Bearer $TOKEN" -H "X-Company-Id: $COMPANY" "$BASE_URL/api/v1/reports/inventory-valuation"`
 - Inventory reconciliation: `curl -fsS -H "Authorization: Bearer $TOKEN" -H "X-Company-Id: $COMPANY" "$BASE_URL/api/v1/reports/inventory-reconciliation"`
-- Reconciliation dashboard: `curl -fsS -H "Authorization: Bearer $TOKEN" -H "X-Company-Id: $COMPANY" "$BASE_URL/api/v1/reports/reconciliation-dashboard"`
+- Reconciliation dashboard: `curl -fsS -H "Authorization: Bearer $TOKEN" -H "X-Company-Id: $COMPANY" "$BASE_URL/api/v1/reports/reconciliation-dashboard?bankAccountId=1000"`
 
 **Pass criteria**
 - Month-end checklist reports no missing/unposted/unlinked items for the verified period window.
@@ -252,9 +257,10 @@ This is where ERP-grade confidence is won: you don’t just “create documents�
 This is the production-like confidence check: real DB, RabbitMQ, required config validation, and real HTTP calls.
 
 **Commands**
-- Boot (prod-like): `DB_PORT=55432 JWT_SECRET='…32+ bytes…' ERP_SECURITY_ENCRYPTION_KEY='…32+ bytes…' docker compose up -d --build`
+- Boot (prod-like): `DB_PORT=55432 JWT_SECRET='…32+ bytes…' ERP_SECURITY_ENCRYPTION_KEY='…32+ bytes…' ERP_DISPATCH_DEBIT_ACCOUNT_ID=... ERP_DISPATCH_CREDIT_ACCOUNT_ID=... docker compose up -d --build`
 - Health (liveness/readiness groups are exposed on the management port): `curl -fsS http://localhost:9090/actuator/health`
 - Operator smoke script (auth + docs): `ERP_SMOKE_EMAIL=... ERP_SMOKE_PASSWORD=... ERP_SMOKE_COMPANY=... erp-domain/scripts/ops_smoke.sh`
+  - If the script is not executable: `bash erp-domain/scripts/ops_smoke.sh`
 
 **Pass criteria**
 - `docker compose ps` shows all services healthy (`erp_db`, `erp_rabbit`, `erp_domain_app`).
@@ -713,4 +719,3 @@ These are commonly observed in test/boot logs. Treat them as signals only when t
   - retries succeed and idempotency assertions pass
 - Investigate when:
   - duplicates leak into business keys (invoice numbers, journal reference numbers) or cause failed postings
-

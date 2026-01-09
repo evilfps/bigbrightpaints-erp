@@ -23,6 +23,8 @@ public interface SupplierRepository extends JpaRepository<Supplier, Long> {
 
     Optional<Supplier> findByCompanyAndCodeIgnoreCase(Company company, String code);
 
+    Optional<Supplier> findByCompanyAndNameIgnoreCase(Company company, String name);
+
     Optional<Supplier> findByCompanyAndPayableAccount(Company company, Account payableAccount);
 
     List<Supplier> findAllByCompanyAndPayableAccount(Company company, Account payableAccount);

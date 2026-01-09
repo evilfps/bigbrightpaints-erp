@@ -3,7 +3,7 @@ package com.bigbrightpaints.erp.test;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
 import com.bigbrightpaints.erp.modules.rbac.domain.Role;
-import com.bigbrightpaints.erp.modules.rbac.domain.RoleRepository;
+import com.bigbrightpaints.erp.modules.rbac.service.RoleService;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccount;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
 import com.bigbrightpaints.erp.core.service.CriticalFixtureService;
@@ -23,20 +23,20 @@ import java.util.List;
 public class TestDataSeeder {
 
     private final CompanyRepository companyRepository;
-    private final RoleRepository roleRepository;
+    private final RoleService roleService;
     private final UserAccountRepository userRepository;
     private final SalesOrderRepository salesOrderRepository;
     private final PasswordEncoder passwordEncoder;
     private final ObjectProvider<CriticalFixtureService> criticalFixtureService;
 
     public TestDataSeeder(CompanyRepository companyRepository,
-                          RoleRepository roleRepository,
+                          RoleService roleService,
                           UserAccountRepository userRepository,
                           SalesOrderRepository salesOrderRepository,
                           PasswordEncoder passwordEncoder,
                           ObjectProvider<CriticalFixtureService> criticalFixtureService) {
         this.companyRepository = companyRepository;
-        this.roleRepository = roleRepository;
+        this.roleService = roleService;
         this.userRepository = userRepository;
         this.salesOrderRepository = salesOrderRepository;
         this.passwordEncoder = passwordEncoder;
@@ -80,13 +80,7 @@ public class TestDataSeeder {
     }
 
     private Role ensureRole(String name) {
-        return roleRepository.findByName(name)
-                .orElseGet(() -> {
-                    Role role = new Role();
-                    role.setName(name);
-                    role.setDescription(name + " role");
-                    return roleRepository.save(role);
-                });
+        return roleService.ensureRoleExists(name);
     }
 
     public SalesOrder ensureSalesOrder(String companyCode, String orderNumber, BigDecimal totalAmount) {
