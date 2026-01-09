@@ -188,6 +188,73 @@ public class OnboardingFlowIT extends AbstractIntegrationTest {
     }
 
     @Test
+    @DisplayName("Opening stock retry rejects idempotency conflicts")
+    void openingStock_rejectsIdempotencyConflicts() {
+        Company company = onboardingDataset.company();
+        HttpHeaders headers = authHeaders("onboarding@test.com", company.getCode());
+        Account openingAccount = ensureAccount(company, "OPENING", "Opening Equity", AccountType.EQUITY);
+
+        Map<String, Object> productRequest = new HashMap<>();
+        productRequest.put("brandName", "Onboarding Brand 2");
+        productRequest.put("brandCode", "ONB2");
+        productRequest.put("productName", "Onboarding Paint 2");
+        productRequest.put("category", "FINISHED_GOOD");
+        productRequest.put("unitOfMeasure", "UNIT");
+        productRequest.put("customSkuCode", "ONB-FG-002");
+        productRequest.put("basePrice", new BigDecimal("120.00"));
+        productRequest.put("gstRate", BigDecimal.ZERO);
+        productRequest.put("minDiscountPercent", BigDecimal.ZERO);
+        productRequest.put("minSellingPrice", new BigDecimal("110.00"));
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("wipAccountId", onboardingDataset.requireAccount("WIP").getId());
+        metadata.put("semiFinishedAccountId", onboardingDataset.requireAccount("INV").getId());
+        productRequest.put("metadata", metadata);
+
+        ResponseEntity<Map> productResp = rest.exchange(
+                "/api/v1/accounting/onboarding/products",
+                HttpMethod.POST,
+                new HttpEntity<>(productRequest, headers),
+                Map.class);
+        Map<?, ?> productData = requireData(productResp, "create onboarding product");
+        String productCode = productData.get("skuCode").toString();
+
+        Map<String, Object> fgLine = new HashMap<>();
+        fgLine.put("productCode", productCode);
+        fgLine.put("quantity", new BigDecimal("10"));
+        fgLine.put("unitCost", new BigDecimal("12.50"));
+        fgLine.put("batchCode", "ONB-FG-OPEN-02");
+
+        Map<String, Object> openingRequest = new HashMap<>();
+        openingRequest.put("referenceNumber", "ONB-OPEN-002");
+        openingRequest.put("entryDate", LocalDate.now());
+        openingRequest.put("offsetAccountId", openingAccount.getId());
+        openingRequest.put("memo", "Opening stock for idempotency test");
+        openingRequest.put("finishedGoods", List.of(fgLine));
+
+        ResponseEntity<Map> firstResp = rest.exchange(
+                "/api/v1/accounting/onboarding/opening-stock",
+                HttpMethod.POST,
+                new HttpEntity<>(openingRequest, headers),
+                Map.class);
+        requireData(firstResp, "record opening stock");
+
+        Map<String, Object> conflictLine = new HashMap<>(fgLine);
+        conflictLine.put("quantity", new BigDecimal("9"));
+        Map<String, Object> conflictRequest = new HashMap<>(openingRequest);
+        conflictRequest.put("finishedGoods", List.of(conflictLine));
+
+        ResponseEntity<Map> conflictResp = rest.exchange(
+                "/api/v1/accounting/onboarding/opening-stock",
+                HttpMethod.POST,
+                new HttpEntity<>(conflictRequest, headers),
+                Map.class);
+        assertThat(conflictResp.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        Map<?, ?> body = conflictResp.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.get("message").toString().toLowerCase()).contains("idempotency conflict");
+    }
+
+    @Test
     @DisplayName("Product creation requires default account mapping")
     void productRequiresDefaultAccounts() {
         dataSeeder.ensureUser("nodef@test.com", PASSWORD, "No Defaults", "ERP-NODEF", List.of("ROLE_ADMIN"));

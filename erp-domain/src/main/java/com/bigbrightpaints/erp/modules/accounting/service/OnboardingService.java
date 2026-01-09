@@ -861,9 +861,14 @@ public class OnboardingService {
         for (OnboardingOpeningStockRequest.RawMaterialLine line : rawMaterials) {
             RawMaterial material = requireRawMaterial(company, line.sku());
             String batchCode = resolveOpeningBatchCode(referenceNumber, material.getSku(), line.batchCode());
-            if (rawMaterialBatchRepository.findByRawMaterialAndBatchCode(material, batchCode).isEmpty()) {
+            RawMaterialBatch batch = rawMaterialBatchRepository.findByRawMaterialAndBatchCode(material, batchCode)
+                    .orElseThrow(() -> new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                            "Opening stock reference already posted; missing batch " + batchCode));
+            BigDecimal quantity = requirePositive(line.quantity(), "quantity");
+            BigDecimal unitCost = requirePositive(line.unitCost(), "unitCost");
+            if (batch.getQuantity().compareTo(quantity) != 0 || batch.getCostPerUnit().compareTo(unitCost) != 0) {
                 throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
-                        "Opening stock reference already posted; missing batch " + batchCode);
+                        "Opening stock idempotency conflict for raw material " + material.getSku() + " batch " + batchCode);
             }
             skipped++;
         }
@@ -877,9 +882,15 @@ public class OnboardingService {
         for (OnboardingOpeningStockRequest.FinishedGoodLine line : finishedGoods) {
             FinishedGood finishedGood = requireFinishedGood(company, line.productCode());
             String batchCode = resolveOpeningBatchCode(referenceNumber, finishedGood.getProductCode(), line.batchCode());
-            if (finishedGoodBatchRepository.findByFinishedGoodAndBatchCode(finishedGood, batchCode).isEmpty()) {
+            FinishedGoodBatch batch = finishedGoodBatchRepository.findByFinishedGoodAndBatchCode(finishedGood, batchCode)
+                    .orElseThrow(() -> new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                            "Opening stock reference already posted; missing batch " + batchCode));
+            BigDecimal quantity = requirePositive(line.quantity(), "quantity");
+            BigDecimal unitCost = requirePositive(line.unitCost(), "unitCost");
+            if (batch.getQuantityTotal().compareTo(quantity) != 0 || batch.getUnitCost().compareTo(unitCost) != 0) {
                 throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
-                        "Opening stock reference already posted; missing batch " + batchCode);
+                        "Opening stock idempotency conflict for finished good " + finishedGood.getProductCode()
+                                + " batch " + batchCode);
             }
             skipped++;
         }
