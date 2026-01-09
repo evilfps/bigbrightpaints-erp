@@ -1,5 +1,6 @@
 package com.bigbrightpaints.erp.modules.accounting.controller;
 
+import com.bigbrightpaints.erp.modules.accounting.dto.OnboardingAccountSuggestionsResponse;
 import com.bigbrightpaints.erp.modules.accounting.dto.OnboardingOpeningStockRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.OnboardingOpeningStockResponse;
 import com.bigbrightpaints.erp.modules.accounting.dto.OnboardingPartnerOpeningBalanceRequest;
@@ -134,6 +135,11 @@ public class OnboardingController {
     @GetMapping("/dealers")
     public ResponseEntity<ApiResponse<List<DealerResponse>>> listDealers() {
         return ResponseEntity.ok(ApiResponse.success(onboardingService.listDealers()));
+    }
+
+    @GetMapping("/account-suggestions")
+    public ResponseEntity<ApiResponse<OnboardingAccountSuggestionsResponse>> accountSuggestions() {
+        return ResponseEntity.ok(ApiResponse.success(onboardingService.accountSuggestions()));
     }
 
     @PostMapping("/dealers")

@@ -7,10 +7,15 @@ import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.core.util.MoneyUtils;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
+import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
+import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
 import com.bigbrightpaints.erp.modules.accounting.domain.DealerLedgerRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.SupplierLedgerRepository;
+import com.bigbrightpaints.erp.modules.accounting.dto.AccountDto;
+import com.bigbrightpaints.erp.modules.accounting.dto.CompanyDefaultAccountsResponse;
+import com.bigbrightpaints.erp.modules.accounting.dto.OnboardingAccountSuggestionsResponse;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.OnboardingOpeningStockRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.OnboardingOpeningStockResponse;
@@ -86,6 +91,7 @@ public class OnboardingService {
     private static final Pattern NON_ALPHANUM = Pattern.compile("[^A-Z0-9]");
     private static final Pattern NON_SKU_CHAR = Pattern.compile("[^A-Z0-9-]");
     private static final List<String> RAW_MATERIAL_CATEGORIES = List.of("RAW_MATERIAL", "RAW MATERIAL", "RAW-MATERIAL");
+    private static final int ACCOUNT_SUGGESTION_LIMIT = 25;
 
     private final CompanyContextService companyContextService;
     private final CompanyEntityLookup companyEntityLookup;
@@ -114,6 +120,7 @@ public class OnboardingService {
     private final DealerLedgerRepository dealerLedgerRepository;
     private final SupplierLedgerService supplierLedgerService;
     private final SupplierLedgerRepository supplierLedgerRepository;
+    private final AccountRepository accountRepository;
 
     public OnboardingService(CompanyContextService companyContextService,
                              CompanyEntityLookup companyEntityLookup,
@@ -141,7 +148,8 @@ public class OnboardingService {
                              DealerLedgerService dealerLedgerService,
                              DealerLedgerRepository dealerLedgerRepository,
                              SupplierLedgerService supplierLedgerService,
-                             SupplierLedgerRepository supplierLedgerRepository) {
+                             SupplierLedgerRepository supplierLedgerRepository,
+                             AccountRepository accountRepository) {
         this.companyContextService = companyContextService;
         this.companyEntityLookup = companyEntityLookup;
         this.companyDefaultAccountsService = companyDefaultAccountsService;
@@ -169,6 +177,7 @@ public class OnboardingService {
         this.dealerLedgerRepository = dealerLedgerRepository;
         this.supplierLedgerService = supplierLedgerService;
         this.supplierLedgerRepository = supplierLedgerRepository;
+        this.accountRepository = accountRepository;
     }
 
     public List<ProductionBrandDto> listBrands() {
@@ -411,6 +420,31 @@ public class OnboardingService {
 
     public List<DealerResponse> listDealers() {
         return dealerService.listDealers();
+    }
+
+    public OnboardingAccountSuggestionsResponse accountSuggestions() {
+        Company company = companyContextService.requireCurrentCompany();
+        List<Account> accounts = accountRepository.findByCompanyOrderByCodeAsc(company).stream()
+                .filter(Account::isActive)
+                .toList();
+        CompanyDefaultAccountsService.DefaultAccounts defaults = companyDefaultAccountsService.getDefaults();
+        CompanyDefaultAccountsResponse defaultsResponse = new CompanyDefaultAccountsResponse(
+                defaults.inventoryAccountId(),
+                defaults.cogsAccountId(),
+                defaults.revenueAccountId(),
+                defaults.discountAccountId(),
+                defaults.taxAccountId()
+        );
+        return new OnboardingAccountSuggestionsResponse(
+                defaultsResponse,
+                candidatesByType(accounts, AccountType.ASSET),
+                candidatesByType(accounts, AccountType.COGS),
+                candidatesByType(accounts, AccountType.REVENUE),
+                candidatesByType(accounts, AccountType.LIABILITY),
+                candidatesByTypeWithHint(accounts, AccountType.ASSET, "WIP"),
+                candidatesByTypeWithHint(accounts, AccountType.ASSET, "SEMI"),
+                candidatesByTypes(accounts, List.of(AccountType.REVENUE, AccountType.EXPENSE))
+        );
     }
 
     @Transactional
@@ -1171,6 +1205,43 @@ public class OnboardingService {
                     fieldName + " must reference an active account");
         }
         return account;
+    }
+
+    private List<AccountDto> candidatesByType(List<Account> accounts, AccountType type) {
+        return accounts.stream()
+                .filter(account -> type.equals(account.getType()))
+                .limit(ACCOUNT_SUGGESTION_LIMIT)
+                .map(this::toAccountDto)
+                .toList();
+    }
+
+    private List<AccountDto> candidatesByTypes(List<Account> accounts, List<AccountType> types) {
+        return accounts.stream()
+                .filter(account -> types.contains(account.getType()))
+                .limit(ACCOUNT_SUGGESTION_LIMIT)
+                .map(this::toAccountDto)
+                .toList();
+    }
+
+    private List<AccountDto> candidatesByTypeWithHint(List<Account> accounts, AccountType type, String hint) {
+        String token = hint == null ? "" : hint.trim().toUpperCase(Locale.ROOT);
+        return accounts.stream()
+                .filter(account -> type.equals(account.getType()))
+                .filter(account -> token.isEmpty() || containsHint(account, token))
+                .limit(ACCOUNT_SUGGESTION_LIMIT)
+                .map(this::toAccountDto)
+                .toList();
+    }
+
+    private boolean containsHint(Account account, String token) {
+        String code = account.getCode() == null ? "" : account.getCode().toUpperCase(Locale.ROOT);
+        String name = account.getName() == null ? "" : account.getName().toUpperCase(Locale.ROOT);
+        return code.contains(token) || name.contains(token);
+    }
+
+    private AccountDto toAccountDto(Account account) {
+        return new AccountDto(account.getId(), account.getPublicId(),
+                account.getCode(), account.getName(), account.getType(), account.getBalance());
     }
 
     private <T> String nextCode(Company company,

@@ -27,6 +27,12 @@ Validate readiness:
 
 - `GET /api/v1/accounting/configuration/health`
 
+Account suggestions (read-only):
+
+- `GET /api/v1/accounting/onboarding/account-suggestions`
+
+This returns current default account IDs plus candidate lists for inventory, COGS, revenue, tax, WIP, and semi-finished selection.
+
 ## 2) Master data bootstrap
 
 ### Brands
@@ -69,6 +75,7 @@ Example product create:
 ```
 
 For production-enabled products, include `metadata.wipAccountId` and `metadata.semiFinishedAccountId` so configuration health remains green.
+Use the account suggestions endpoint to pick WIP/semi-finished asset accounts if you do not already have defaults.
 
 ### Product variants (size/color)
 
