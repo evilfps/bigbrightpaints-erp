@@ -998,3 +998,25 @@
 - Warnings/notes:
   - Testcontainers auth config warnings, dynamic agent loading notices persisted.
   - Test logs include invalid company ID format, dispatch mapping not configured, negative balance warnings, and openhtmltopdf CSS parse warnings; no failures.
+
+## 2026-01-09 (epic-10 M4/M5 — onboarding account suggestions + CoA guidance)
+- Changes:
+  - Added onboarding account suggestions endpoint (defaults + candidate lists by account type) to reduce admin onboarding friction.
+  - Documented minimal chart-of-accounts mappings, posting flow summary, required config checklist, and future auto-mapping plan in onboarding guide.
+- Commands run:
+  - `mvn -f erp-domain/pom.xml -DskipTests compile`
+  - `mvn -f erp-domain/pom.xml -Dcheckstyle.failOnViolation=false checkstyle:check`
+  - `mvn -f erp-domain/pom.xml test`
+  - `mvn -f erp-domain/pom.xml -Dtest=*FullCycle* test`
+  - `JWT_SECRET=... ERP_SECURITY_ENCRYPTION_KEY=... ERP_DISPATCH_DEBIT_ACCOUNT_ID=5000 ERP_DISPATCH_CREDIT_ACCOUNT_ID=1200 DB_PORT=55432 docker compose up -d --build`
+  - `curl -fsS http://localhost:9090/actuator/health`
+- Validation:
+  - `mvn -DskipTests compile` succeeded.
+  - Checkstyle reported 30757 violations; `failOnViolation=false` used for baseline visibility.
+  - `mvn test` succeeded: Tests run 206, Failures 0, Errors 0, Skipped 4.
+  - `mvn -Dtest=*FullCycle* test` succeeded: Tests run 2, Failures 0, Errors 0, Skipped 2.
+  - Docker Compose app started; `/actuator/health` returned `UP`.
+- Warnings/notes:
+  - Testcontainers auth config warnings and dynamic agent loading notices persisted.
+  - Test logs include invalid company ID format, negative balance warnings, sequence contention retries, and dispatch mapping not configured in tests; no failures.
+  - Docker logs note licensing enforcement disabled (erp.licensing.enforce=false).
