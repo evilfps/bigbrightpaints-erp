@@ -30,7 +30,7 @@ This codebase contains **62,901 lines of code** across 785 unique files.
 
 ### Total Statistics
 
-- **Total Files:** 785 unique files (793 text files, 2 duplicates)
+- **Total Files:** 785 unique files analyzed
 - **Total Lines of Code:** 62,901
 - **Total Blank Lines:** 9,520
 - **Total Comment Lines:** 2,407
@@ -44,7 +44,7 @@ This codebase contains **62,901 lines of code** across 785 unique files.
 
 3. **Database Layer:** 101 SQL files contain 2,036 lines of database-related code.
 
-4. **Code Quality:** The code has a comment ratio of approximately 3.8% (2,407 comments / 62,901 code lines), suggesting room for improvement in code documentation.
+4. **Code Quality:** The code has a comment ratio of 3.8% (2,407 comment lines / 62,901 code lines), indicating room for improvement in code documentation.
 
 5. **File Distribution:** With 785 files analyzed, the average file size is approximately 80 lines of code.
 
