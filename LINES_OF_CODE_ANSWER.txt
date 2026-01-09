@@ -1,0 +1,12 @@
+ANSWER: This branch has 126,138 lines of code across 981 files.
+
+Quick Breakdown:
+- Java: 55,836 lines (558 files)
+- TypeScript: 38,751 lines (286 files)  
+- YAML: 21,694 lines (13 files)
+- SQL: 4,200 lines (91 files)
+- JavaScript: 3,885 lines (24 files)
+- Shell: 1,114 lines (7 files)
+- Python: 658 lines (2 files)
+
+For detailed report, see LOC_REPORT.md
