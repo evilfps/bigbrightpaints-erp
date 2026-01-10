@@ -120,6 +120,7 @@ class SupplierStatementAgingIT extends AbstractIntegrationTest {
                 new HttpEntity<>(headers),
                 Map.class);
         assertThat(stmtResp.getStatusCode()).isEqualTo(HttpStatus.OK);
+        System.out.println("M2 API evidence supplier statement: " + stmtResp.getBody());
         Map<String, Object> stmt = (Map<String, Object>) stmtResp.getBody().get("data");
         BigDecimal openingBalance = new BigDecimal(stmt.get("openingBalance").toString());
         BigDecimal closingBalance = new BigDecimal(stmt.get("closingBalance").toString());
@@ -146,6 +147,7 @@ class SupplierStatementAgingIT extends AbstractIntegrationTest {
                 new HttpEntity<>(headers),
                 Map.class);
         assertThat(agingResp.getStatusCode()).isEqualTo(HttpStatus.OK);
+        System.out.println("M2 API evidence supplier aging: " + agingResp.getBody());
         Map<String, Object> aging = (Map<String, Object>) agingResp.getBody().get("data");
         BigDecimal totalOutstanding = new BigDecimal(aging.get("totalOutstanding").toString());
         assertThat(totalOutstanding).isEqualByComparingTo(expectedOutstanding);
