@@ -13,7 +13,7 @@
 
 ## Repo / Worktree State
 - Worktree: `/home/realnigga/Desktop/CLI_BACKEND_epic04`
-- Branch: `debug-03-auditability-linkage` (Task 03 final gates complete, tip `d08b612`)
+- Branch: `debug-04-module-deep-debug` (Task 04 M1 code committed, tip `8b7d5b0`)
 - Dirty: no
 
 ## Environment Setup
@@ -23,7 +23,7 @@
 - `mvn -f erp-domain/pom.xml -DskipTests compile` (PASS).
 - `mvn -f erp-domain/pom.xml -Dcheckstyle.failOnViolation=false checkstyle:check` (PASS; 30804 violations reported).
 - `mvn -f erp-domain/pom.xml test` (PASS; Tests run 206, Failures 0, Errors 0, Skipped 4).
-- `mvn -f erp-domain/pom.xml -Dtest=ReconciliationControlsIT,InventoryGlReconciliationIT test` (PASS; Tests run 4, Failures 0, Errors 0, Skipped 0).
+- `mvn -f erp-domain/pom.xml -Dtest=ErpInvariantsSuiteIT,OrderFulfillmentE2ETest,DispatchConfirmationIT,DealerLedgerIT,SettlementE2ETest,GstInclusiveRoundingIT test` (PASS; Tests run 24, Failures 0, Errors 0, Skipped 0).
 
 ## Warnings / Notes
 - Checkstyle baseline warnings (30804) persisted with failOnViolation=false.
@@ -39,7 +39,9 @@
 - Task 03 M2 warnings: negative balances/invalid company ID format in fixtures; dispatch debit/credit accounts not configured (COGS postings skipped).
 - Task 03 M3 assertion list + sample outputs captured; `mvn test` warnings (negative balances/invalid company ID format) and focused test warnings (dispatch debit/credit accounts not configured) persisted.
 - Task 03 final gates completed; `openapi.json` newline-only change reverted after test runs.
+- Task 04 M1 rerun after statement range update; `openapi.json` newline-only change reverted per contract policy.
+- Task 04 M1 logs include API evidence for dealer ledger, statement/aging, and invoice list/detail.
 
 ## Resume Instructions (Post Epic 10)
-1. Task 03 final gates complete on `debug-03-auditability-linkage` at `d08b612`.
-2. Push branch and prepare Task 03 completion report.
+1. Task 04 M1 complete on `debug-04-module-deep-debug` at `8b7d5b0` (Sales/O2C deep debug).
+2. Run Task 04 M2 (Purchasing/AP + Inventory deep debug) with gates + focused tests; capture evidence and update logs.

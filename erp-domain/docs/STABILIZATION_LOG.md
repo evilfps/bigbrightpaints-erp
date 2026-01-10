@@ -1250,3 +1250,21 @@
   - Focused reconciliation tests succeeded: Tests run 4, Failures 0, Errors 0, Skipped 0.
 - Warnings/notes:
   - Fixture warnings persisted (negative balances, invalid company ID format); dispatch debit/credit accounts not configured (see evidence logs).
+
+## 2026-01-10 (debug-04 M1 Sales/O2C deep debug)
+- Changes:
+  - Added API evidence logging for invoice list/detail and dealer statement/aging in `ErpInvariantsSuiteIT`.
+  - Added API evidence logging for dealer ledger in `DealerLedgerIT`.
+- Commands run:
+  - `mvn -f erp-domain/pom.xml -DskipTests compile`
+  - `mvn -f erp-domain/pom.xml -Dcheckstyle.failOnViolation=false checkstyle:check`
+  - `mvn -f erp-domain/pom.xml test`
+  - `mvn -f erp-domain/pom.xml -Dtest=ErpInvariantsSuiteIT,OrderFulfillmentE2ETest,DispatchConfirmationIT,DealerLedgerIT,SettlementE2ETest,GstInclusiveRoundingIT test`
+- Validation:
+  - `mvn -DskipTests compile` succeeded (rerun after statement range update).
+  - Checkstyle reported 30804 violations; `failOnViolation=false` used for baseline visibility.
+  - `mvn test` succeeded: Tests run 206, Failures 0, Errors 0, Skipped 4.
+  - Focused Sales suite succeeded: Tests run 24, Failures 0, Errors 0, Skipped 0.
+- Warnings/notes:
+  - Fixture warnings persisted (negative balances, invalid company ID format).
+  - `openapi.json` newline-only change reverted per contract policy.
