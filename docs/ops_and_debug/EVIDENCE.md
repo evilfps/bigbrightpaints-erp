@@ -981,3 +981,57 @@ Start: 2026-01-10T07:13:20Z
 - API evidence captured in focused log: orchestrator health snapshots, trace output (no secrets), outbox pending/retry/deadletter counts, and non-admin 403s (`M6 API evidence ...` lines).
 - Trace endpoint LOB streaming error fixed by mapping audit records to trace DTOs; tests rerun cleanly.
 - `openapi.json` newline-only change observed during tests and reverted per contract policy.
+
+### Task 04 — Final gates
+- Command: `mvn -f erp-domain/pom.xml -DskipTests compile`
+- Log: `docs/ops_and_debug/LOGS/20260110T141701Z_task04_final_compile.txt`
+- Exit: 0
+- Summary: BUILD SUCCESS
+
+- Command: `mvn -f erp-domain/pom.xml -Dcheckstyle.failOnViolation=false checkstyle:check`
+- Log: `docs/ops_and_debug/LOGS/20260110T141713Z_task04_final_checkstyle.txt`
+- Exit: 0
+- Summary: BUILD SUCCESS (violations: 30804)
+
+- Command: `mvn -f erp-domain/pom.xml test`
+- Log: `docs/ops_and_debug/LOGS/20260110T141724Z_task04_final_test.txt`
+- Exit: 0
+- Summary: Tests run 214, Failures 0, Errors 0, Skipped 4 (warnings: negative balances, invalid company ID format).
+
+- Command: `mvn -f erp-domain/pom.xml -Dtest=ErpInvariantsSuiteIT,OrderFulfillmentE2ETest,DispatchConfirmationIT,DealerLedgerIT,SettlementE2ETest,GstInclusiveRoundingIT test`
+- Log: `docs/ops_and_debug/LOGS/20260110T141836Z_task04_final_focus_sales.txt`
+- Exit: 0
+- Summary: Tests run 24, Failures 0, Errors 0, Skipped 0.
+
+- Command: `mvn -f erp-domain/pom.xml -Dtest=ErpInvariantsSuiteIT,ProcureToPayE2ETest,SupplierStatementAgingIT,ReconciliationControlsIT test`
+- Log: `docs/ops_and_debug/LOGS/20260110T141914Z_task04_final_focus_purchasing.txt`
+- Exit: 0
+- Summary: Tests run 14, Failures 0, Errors 0, Skipped 0.
+
+- Command: `mvn -f erp-domain/pom.xml -Dtest=InventoryGlReconciliationIT,DispatchConfirmationIT,LandedCostRevaluationIT,RevaluationCogsIT,ReconciliationControlsIT test`
+- Log: `docs/ops_and_debug/LOGS/20260110T141946Z_task04_final_focus_inventory.txt`
+- Exit: 0
+- Summary: Tests run 8, Failures 0, Errors 0, Skipped 0.
+
+- Command: `mvn -f erp-domain/pom.xml -Dtest=ErpInvariantsSuiteIT,FactoryPackagingCostingIT,CompleteProductionCycleTest,WipToFinishedCostIT test`
+- Log: `docs/ops_and_debug/LOGS/20260110T142017Z_task04_final_focus_production.txt`
+- Exit: 0
+- Summary: Tests run 18, Failures 0, Errors 0, Skipped 0.
+
+- Command: `mvn -f erp-domain/pom.xml -Dtest=ErpInvariantsSuiteIT,PayrollBatchPaymentIT,PeriodCloseLockIT test`
+- Log: `docs/ops_and_debug/LOGS/20260110T142050Z_task04_final_focus_payroll.txt`
+- Exit: 0
+- Summary: Tests run 13, Failures 0, Errors 0, Skipped 0.
+
+- Command: `mvn -f erp-domain/pom.xml -Dtest=AuthControllerIT,AuthHardeningIT,MfaControllerIT,AdminUserSecurityIT test`
+- Log: `docs/ops_and_debug/LOGS/20260110T142127Z_task04_final_focus_auth.txt`
+- Exit: 0
+- Summary: Tests run 12, Failures 0, Errors 0, Skipped 0.
+
+- Command: `mvn -f erp-domain/pom.xml -Dtest=OrchestratorControllerIT,CommandDispatcherTest,IntegrationCoordinatorTest test`
+- Log: `docs/ops_and_debug/LOGS/20260110T142211Z_task04_final_focus_orchestrator.txt`
+- Exit: 0
+- Summary: Tests run 13, Failures 0, Errors 0, Skipped 0.
+
+### Notes
+- `openapi.json` newline-only change observed during final gates and reverted per contract policy.
