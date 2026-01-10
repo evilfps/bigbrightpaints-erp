@@ -472,3 +472,42 @@ Start: 2026-01-10T07:03:12Z
 ### Go/No-Go
 - Status: GO
 - Blockers: none
+
+## Run 20260110T070712Z
+Start: 2026-01-10T07:07:12Z
+
+### Start condition
+- Branch: `debug-01-module-map`
+- Commit: `69bc1ff`
+- Dirty worktree: no
+- Docker: not used
+
+### Task 01 — Final gates
+- Command: `mvn -f erp-domain/pom.xml -DskipTests compile`
+- Log: `docs/ops_and_debug/LOGS/20260110T070712Z_task01_final_compile.txt`
+- Exit: 0
+- Summary: BUILD SUCCESS
+
+- Command: `mvn -f erp-domain/pom.xml -Dcheckstyle.failOnViolation=false checkstyle:check`
+- Log: `docs/ops_and_debug/LOGS/20260110T070719Z_task01_final_checkstyle.txt`
+- Exit: 0
+- Summary: BUILD SUCCESS (violations: 30804)
+
+- Command: `mvn -f erp-domain/pom.xml test`
+- Log: `docs/ops_and_debug/LOGS/20260110T070732Z_task01_final_test.txt`
+- Exit: 0
+- Summary: Tests run 206, Failures 0, Errors 0, Skipped 4
+
+- Command: `mvn -f erp-domain/pom.xml -Dtest=OpenApiSnapshotIT test`
+- Log: `docs/ops_and_debug/LOGS/20260110T070849Z_task01_final_openapi.txt`
+- Exit: 0
+- Summary: Tests run 1, Failures 0, Errors 0, Skipped 0
+
+- Command: `mvn -f erp-domain/pom.xml -Dtest=ErpInvariantsSuiteIT,ReconciliationControlsIT,PeriodCloseLockIT test`
+- Log: `docs/ops_and_debug/LOGS/20260110T070915Z_task01_final_focus.txt`
+- Exit: 0
+- Summary: Tests run 14, Failures 0, Errors 0, Skipped 0
+
+### Go/No-Go
+- Status: GO
+- Blockers: none

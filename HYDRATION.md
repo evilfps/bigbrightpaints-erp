@@ -13,7 +13,7 @@
 
 ## Repo / Worktree State
 - Worktree: `/home/realnigga/Desktop/CLI_BACKEND_epic04`
-- Branch: `debug-01-module-map` (Task 01 M3 complete, tip `334a4d2`)
+- Branch: `debug-01-module-map` (Task 01 complete, tip `69bc1ff`)
 - Dirty: no
 
 ## Environment Setup
@@ -23,6 +23,7 @@
 - `mvn -f erp-domain/pom.xml -DskipTests compile` (PASS).
 - `mvn -f erp-domain/pom.xml -Dcheckstyle.failOnViolation=false checkstyle:check` (PASS; 30804 violations reported).
 - `mvn -f erp-domain/pom.xml test` (PASS; Tests run 206, Failures 0, Errors 0, Skipped 4).
+- `mvn -f erp-domain/pom.xml -Dtest=OpenApiSnapshotIT test` (PASS; Tests run 1, Failures 0, Errors 0, Skipped 0).
 - `mvn -f erp-domain/pom.xml -Dtest=ErpInvariantsSuiteIT,ReconciliationControlsIT,PeriodCloseLockIT test` (PASS; Tests run 14, Failures 0, Errors 0, Skipped 0).
 
 ## Warnings / Notes
@@ -32,7 +33,7 @@
 - Gap checklist flagged CSV opening stock import tests, raw material intake journal linkage tests, orchestrator trigger linkage tests, and dealer portal scoping tests.
 
 ## Resume Instructions (Post Epic 10)
-1. Task 01 M3 complete on `debug-01-module-map` at `334a4d2`.
-2. Run final Task 01 gates: compile, checkstyle (failOnViolation=false), full test suite, plus `OpenApiSnapshotIT` and `ErpInvariantsSuiteIT,ReconciliationControlsIT,PeriodCloseLockIT`.
-3. Update `docs/ops_and_debug/EVIDENCE.md`, `erp-domain/docs/STABILIZATION_LOG.md`, and `HYDRATION.md`, then commit with message `debug-01: Task01 final gates`.
-4. Push branch and produce Task 01 completion report.
+1. Task 01 complete on `debug-01-module-map` at `69bc1ff`.
+2. Push branch and produce Task 01 completion report.
+3. Create Task 02 branch: `debug-02-<short-slug>` from `debug-01-module-map`.
+4. Read `tasks/debugging/task-02-endpoint-and-portal-matrix.md`, then execute milestones with required gates/tests.
