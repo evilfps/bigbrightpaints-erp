@@ -13,7 +13,7 @@
 
 ## Repo / Worktree State
 - Worktree: `/home/realnigga/Desktop/CLI_BACKEND_epic04`
-- Branch: `debug-04-module-deep-debug` (Task 04 M5 code committed, tip `72c53d6`)
+- Branch: `debug-04-module-deep-debug` (Task 04 M5 code committed, tip `a06434a`)
 - Dirty: no
 
 ## Environment Setup
@@ -48,5 +48,5 @@
 - Task 04 M5 fixture warnings (negative balances, invalid company ID format) persisted; `openapi.json` newline-only change reverted after tests.
 
 ## Resume Instructions (Post Epic 10)
-1. Task 04 M5 complete on `debug-04-module-deep-debug` at `72c53d6` (Admin/Auth/Dealer portal deep debug).
+1. Task 04 M5 complete on `debug-04-module-deep-debug` at `a06434a` (Admin/Auth/Dealer portal deep debug).
 2. Run Task 04 M6 (Orchestrator/outbox deep debug) with gates + focused tests; capture evidence and update logs.
