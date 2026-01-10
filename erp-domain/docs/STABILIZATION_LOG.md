@@ -1143,3 +1143,20 @@
 - Warnings/notes:
   - Drift detected: OpenAPI contains endpoints not present in endpoint_inventory.tsv; endpoint_inventory includes `/api/integration/health` not present in OpenAPI.
   - Alias handler drift flagged for `AccountingController#recordDealerReceipt` (cascade-reverse vs receipts/dealer path).
+
+## 2026-01-10 (debug-02 M2 portal matrix)
+- Changes:
+  - Completed `docs/API_PORTAL_MATRIX.md` with endpoint -> portal -> auth mapping, including OpenAPI drift endpoints and denyAll flagging.
+  - Flagged authenticated-only endpoints for security review and added company scoping note.
+- Commands run:
+  - `mvn -f erp-domain/pom.xml -DskipTests compile`
+  - `mvn -f erp-domain/pom.xml -Dcheckstyle.failOnViolation=false checkstyle:check`
+  - `mvn -f erp-domain/pom.xml test`
+  - `mvn -f erp-domain/pom.xml -Dtest=AuthControllerIT,AdminUserSecurityIT test`
+- Validation:
+  - `mvn -DskipTests compile` succeeded.
+  - Checkstyle reported 30804 violations; `failOnViolation=false` used for baseline visibility.
+  - `mvn test` succeeded: Tests run 206, Failures 0, Errors 0, Skipped 4.
+  - Focused tests succeeded: Tests run 5, Failures 0, Errors 0, Skipped 0.
+- Warnings/notes:
+  - Authenticated-only endpoints remain for orchestrator health/traces and packing endpoints (see matrix).

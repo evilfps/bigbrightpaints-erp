@@ -397,6 +397,56 @@ Start: 2026-01-10T06:41:31Z
 - Status: GO
 - Blockers: none
 
+## Run 20260110T093421Z
+Start: 2026-01-10T09:34:21Z
+
+### Start condition
+- Branch: `debug-02-endpoint-matrix`
+- Commit: `77042ea`
+- Dirty worktree: yes (`docs/API_PORTAL_MATRIX.md`)
+- Docker: not used
+
+### Task 02 — Milestone M2 (portal matrix completion)
+- Command: `mvn -f erp-domain/pom.xml -DskipTests compile`
+- Log: `docs/ops_and_debug/LOGS/20260110T093421Z_task02_M2_compile.txt`
+- Exit: 0
+- Summary: BUILD SUCCESS
+
+- Command: `mvn -f erp-domain/pom.xml -Dcheckstyle.failOnViolation=false checkstyle:check`
+- Log: `docs/ops_and_debug/LOGS/20260110T093430Z_task02_M2_checkstyle.txt`
+- Exit: 0
+- Summary: BUILD SUCCESS (violations: 30804)
+
+- Command: `mvn -f erp-domain/pom.xml test`
+- Log: `docs/ops_and_debug/LOGS/20260110T093442Z_task02_M2_test.txt`
+- Exit: 0
+- Summary: Tests run 206, Failures 0, Errors 0, Skipped 4
+
+- Command: `mvn -f erp-domain/pom.xml -Dtest=AuthControllerIT,AdminUserSecurityIT test`
+- Log: `docs/ops_and_debug/LOGS/20260110T093552Z_task02_M2_focus.txt`
+- Exit: 0
+- Summary: Tests run 5, Failures 0, Errors 0, Skipped 0
+
+### Matrix completion notes
+- `docs/API_PORTAL_MATRIX.md` updated to cover all endpoints from `endpoint_inventory.tsv` plus M1 OpenAPI-only drift entries; auth/portal mapping aligned to controller annotations.
+- `denyAll()` endpoints explicitly flagged; company scoping note updated to reflect `CompanyContextFilter`.
+
+### Authenticated-only endpoints (security review required)
+- `GET /api/v1/orchestrator/health/events`
+- `GET /api/v1/orchestrator/health/integrations`
+- `GET /api/v1/orchestrator/traces/{traceId}`
+- `POST /api/v1/factory/packing-records`
+- `POST /api/v1/factory/packing-records/{productionLogId}/complete`
+- `GET /api/v1/factory/production-logs/{productionLogId}/packing-history`
+- `GET /api/v1/factory/unpacked-batches`
+
+### Notes
+- OpenAPI newline-only change reverted per policy (no OpenAPI regeneration for M2).
+
+### Go/No-Go
+- Status: GO
+- Blockers: none
+
 ## Run 20260110T065618Z
 Start: 2026-01-10T06:56:18Z
 
