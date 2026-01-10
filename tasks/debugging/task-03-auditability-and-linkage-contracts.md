@@ -210,6 +210,74 @@ Existing tests (verify/extend as needed):
 
 ---
 
+## M2 invariant enforcement mapping
+
+### O2C (Order-to-Cash)
+- Invariant: Dispatch confirm is idempotent (no double issue, invoice, or journal).
+  - Tests: `ErpInvariantsSuiteIT`, `DispatchConfirmationIT`, `OrderFulfillmentE2ETest`.
+  - Runtime guards: `SalesService.confirmDispatch` returns early when slip already `DISPATCHED` with invoice/journals; `FinishedGoodsService.confirmDispatch` short-circuits on dispatched slips; SERIALIZABLE transaction + dealer lock.
+- Invariant: Posted invoice links to journal entry and same-company.
+  - Tests: `ErpInvariantsSuiteIT` (`assertJournalLinkedTo("INVOICE")`).
+  - Runtime guards: `SalesService.confirmDispatch` posts AR journal and sets `invoice.setJournalEntry(companyEntityLookup.requireJournalEntry(company, arJournalEntryId))`.
+- Invariant: Dispatch sets slip invoice/journal ids on post.
+  - Tests: `ErpInvariantsSuiteIT` (packaging slip journal linkage), `DispatchConfirmationIT`.
+  - Runtime guards: `SalesService.confirmDispatch` sets `slip.invoiceId`, `slip.journalEntryId`, `slip.cogsJournalEntryId`.
+- Invariant: Inventory issue movements reference SALES_ORDER and link to posting journal when COGS posted.
+  - Tests: `ErpInvariantsSuiteIT` (inventory movement linkage), `DispatchConfirmationIT`.
+  - Runtime guards: `FinishedGoodsService.confirmDispatch` records `InventoryReference.SALES_ORDER`; `FinishedGoodsService.linkDispatchMovementsToJournal` updates `journalEntryId`.
+- Invariant: Dealer ledger entries reference the same invoice/journal and same company.
+  - Tests: `DealerLedgerIT`, `SettlementE2ETest`, `ErpInvariantsSuiteIT` (subledger reconciliation).
+  - Runtime guards: `DealerLedgerService.syncInvoiceLedger` requires invoice journal + same company; `AccountingService.settleDealerInvoices` locks dealer/invoice and resyncs ledger.
+- Invariant: Settlement allocations are idempotent and cannot exceed outstanding.
+  - Tests: `SettlementE2ETest`, `ErpInvariantsSuiteIT` (settlement idempotency + reconciliation).
+  - Runtime guards: `AccountingService.settleDealerInvoices` uses idempotencyKey + invoice locks; `InvoiceSettlementPolicy.applySettlement` prevents negative outstanding (does not hard-fail on over-allocation).
+
+### P2P/AP (Procure-to-Pay)
+- Invariant: Purchase posts AP + inventory effects and links to journals (same-company).
+  - Tests: `ErpInvariantsSuiteIT` (`assertJournalLinkedTo("PURCHASE")`), `ProcureToPayE2ETest`.
+  - Runtime guards: `PurchasingService.createPurchase` posts journal first, sets `RawMaterialPurchase.journalEntry`, requires supplier payable + raw material inventory accounts.
+- Invariant: Receipt movements exist, ordered/idempotent, and link to journals when expected.
+  - Tests: `ProcureToPayE2ETest`, `ErpInvariantsSuiteIT` (inventory movement linkage).
+  - Runtime guards: `PurchasingService.createPurchase` locks invoice number; `rawMaterialService.recordReceipt` uses `InventoryReference.RAW_MATERIAL_PURCHASE`; movement `journalEntryId` set after posting.
+- Invariant: Supplier settlements/payments are idempotent and reconcile to AP control.
+  - Tests: `SupplierStatementAgingIT`, `ReconciliationControlsIT`, `ErpInvariantsSuiteIT` (subledger reconciliation).
+  - Runtime guards: `AccountingService.settleSupplierInvoices` uses idempotencyKey + locked purchase/supplier; validates discount/write-off accounts.
+- Invariant: Purchase returns reverse inventory/AP and set `journal_entry_id`, traceable.
+  - Tests: `ErpInvariantsSuiteIT` (P2P return path), `ProcureToPayE2ETest`.
+  - Runtime guards: `PurchasingService.recordPurchaseReturn` posts journal first, uses atomic stock deduction, `issueReturnFromBatches` sets `reference_type=PURCHASE_RETURN` + `journalEntryId`.
+
+### Production (Produce-to-Stock)
+- Invariant: No orphan production logs/packing records.
+  - Tests: `ErpInvariantsSuiteIT` (production dataset), `CompleteProductionCycleTest`.
+  - Runtime guards: `ProductionLogService.createLog` requires materials and posts material journal; `PackingService.recordPacking` locks log, validates lines, uses atomic packed-quantity update.
+- Invariant: Stock movements link back to production references and same-company.
+  - Tests: `FactoryPackagingCostingIT`, `CompleteProductionCycleTest`, `ErpInvariantsSuiteIT`.
+  - Runtime guards: `ProductionLogService.registerSemiFinishedBatch` and `PackingService.registerFinishedGoodBatch` use `InventoryReference.PRODUCTION_LOG`; `PackingService.linkPackagingMovementsToJournal` uses `reference_id=<production_code>-PACK-<n>`.
+- Invariant: Costing journals (WIP/FG/packaging) are linked and balanced.
+  - Tests: `WipToFinishedCostIT`, `FactoryPackagingCostingIT`, `ErpInvariantsSuiteIT`.
+  - Runtime guards: `ProductionLogService.registerSemiFinishedBatch` posts WIP->semi-FG and sets movement journal; `PackingService.postPackingSessionJournal` posts FG receipt + links movement journals.
+
+### Payroll (Hire-to-Pay)
+- Invariant: Payroll run state machine enforced (calculate -> approve -> post -> mark-paid).
+  - Tests: `ErpInvariantsSuiteIT`, `PayrollBatchPaymentIT`, `PeriodCloseLockIT`.
+  - Runtime guards: `PayrollService.calculatePayroll/approvePayroll/postPayrollToAccounting/markAsPaid` enforce status transitions.
+- Invariant: Posting produces linked journal entry; reversals are balanced inverse.
+  - Tests: `ErpInvariantsSuiteIT` (`assertJournalLinkedTo("PAYROLL_RUN")`).
+  - Runtime guards: `PayrollService.postPayrollToAccounting` builds journal entry and sets run journal id; no explicit payroll reversal helper (reversal coverage via accounting journal reversal tests).
+- Invariant: Advances/withholdings clearing consistent between payroll math and posting.
+  - Tests: `ErpInvariantsSuiteIT`, `PayrollBatchPaymentIT`.
+  - Runtime guards: `PayrollService.calculatePayroll` computes advances; `postPayrollToAccounting` credits `EMP-ADV` when advances > 0.
+- Invariant: Mark-paid operations are idempotent and auditable.
+  - Tests: `PayrollBatchPaymentIT`, `ErpInvariantsSuiteIT` (marks paid in flow).
+  - Runtime guards: `PayrollService.markAsPaid` requires POSTED status; sets payment status + reference on lines (no dedicated payment artifact).
+
+## M2 missing tests register (prioritized)
+1) Dealer receipt/settlement over-allocation guard (reject or cap allocations that exceed invoice outstanding; confirm subledger + AR control stay consistent).
+2) Dispatch idempotency on repeated confirm for same slip/order (verify no duplicate journals/invoices/stock movements).
+3) Unallocated receipt flows (if any) must not drift dealer ledger/AR control; confirm either blocked or fully allocated.
+4) Packing record packaging-material journal linkage (`InventoryReference.PACKING_RECORD` movements have `journal_entry_id` set).
+5) Payroll mark-paid audit linkage (verify payment reference persistence + idempotent mark-paid behavior).
+
 ## M1 contracts completion notes
 - Status: contracts updated with verified linkage keys from `erp-domain/docs/CROSS_MODULE_LINKAGE_MATRIX.md`.
 - UNKNOWN/needs verify:
