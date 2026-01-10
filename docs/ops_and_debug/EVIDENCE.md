@@ -397,6 +397,51 @@ Start: 2026-01-10T06:41:31Z
 - Status: GO
 - Blockers: none
 
+## Run 20260110T100056Z
+Start: 2026-01-10T10:00:56Z
+
+### Start condition
+- Branch: `debug-02-endpoint-matrix`
+- Commit: `595a7fb`
+- Dirty worktree: yes (`docs/API_PORTAL_MATRIX.md`)
+- Docker: not used
+
+### Task 02 — Milestone M3 (deprecation ledger)
+- Command: `mvn -f erp-domain/pom.xml -DskipTests compile`
+- Log: `docs/ops_and_debug/LOGS/20260110T100056Z_task02_M3_compile.txt`
+- Exit: 0
+- Summary: BUILD SUCCESS
+
+- Command: `mvn -f erp-domain/pom.xml -Dcheckstyle.failOnViolation=false checkstyle:check`
+- Log: `docs/ops_and_debug/LOGS/20260110T100104Z_task02_M3_checkstyle.txt`
+- Exit: 0
+- Summary: BUILD SUCCESS (violations: 30804)
+
+- Command: `mvn -f erp-domain/pom.xml test`
+- Log: `docs/ops_and_debug/LOGS/20260110T100115Z_task02_M3_test.txt`
+- Exit: 0
+- Summary: Tests run 206, Failures 0, Errors 0, Skipped 4
+
+- Command: `mvn -f erp-domain/pom.xml -Dtest=OpenApiSnapshotIT test`
+- Log: `docs/ops_and_debug/LOGS/20260110T100229Z_task02_M3_openapi.txt`
+- Exit: 0
+- Summary: Tests run 1, Failures 0, Errors 0, Skipped 0
+
+### Deprecation ledger updates
+- `docs/API_PORTAL_MATRIX.md` now includes proof requirements and test gates for all alias/deprecated endpoints.
+
+### Candidate removals proof plan
+- `POST /api/v1/dispatch/confirm` -> verify 0 hits in access logs for 2 releases + client inventory grep confirms canonical endpoint usage.
+- `GET /api/v1/hr/payroll-runs` -> verify 0 hits in access logs for 2 releases + client inventory grep confirms canonical endpoint usage.
+- `POST /api/v1/hr/payroll-runs` -> verify 0 hits in access logs for 2 releases + client inventory grep confirms canonical endpoint usage.
+- `POST /api/v1/orchestrator/dispatch/{orderId}` -> verify 0 hits in access logs for 2 releases + callers migrated to body-based dispatch.
+- `GET /api/v1/sales/dealers` -> verify 0 hits in access logs for 2 releases + portal routes point to `/api/v1/dealers`.
+- `GET /api/v1/sales/dealers/search` -> verify 0 hits in access logs for 2 releases + portal routes point to `/api/v1/dealers/search`.
+
+### Go/No-Go
+- Status: GO
+- Blockers: none
+
 ## Run 20260110T093421Z
 Start: 2026-01-10T09:34:21Z
 
