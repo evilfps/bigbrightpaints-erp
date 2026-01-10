@@ -1340,3 +1340,23 @@
 - Warnings/notes:
   - Fixture warnings persisted (negative balances, invalid company ID format).
   - `openapi.json` newline-only change reverted per contract policy.
+
+## 2026-01-10 (debug-04 M6 Orchestrator/outbox deep debug)
+- Changes:
+  - Restricted orchestrator trace/health endpoints to ROLE_ADMIN.
+  - Mapped trace audit records to DTOs to avoid LOB streaming errors.
+  - Added orchestrator health/trace/outbox evidence coverage in `OrchestratorControllerIT`.
+- Commands run:
+  - `mvn -f erp-domain/pom.xml -DskipTests compile`
+  - `mvn -f erp-domain/pom.xml -Dcheckstyle.failOnViolation=false checkstyle:check`
+  - `mvn -f erp-domain/pom.xml test`
+  - `mvn -f erp-domain/pom.xml -Dtest=OrchestratorControllerIT,CommandDispatcherTest,IntegrationCoordinatorTest test`
+- Validation:
+  - `mvn -DskipTests compile` succeeded.
+  - Checkstyle reported 30804 violations; `failOnViolation=false` used for baseline visibility.
+  - `mvn test` succeeded after trace fix: Tests run 214, Failures 0, Errors 0, Skipped 4.
+  - Focused orchestrator suite succeeded: Tests run 13, Failures 0, Errors 0, Skipped 0.
+- Warnings/notes:
+  - Initial `mvn test` failed due to trace LOB streaming; fixed by mapping audit records to DTOs and rerunning.
+  - Fixture warnings persisted (negative balances, invalid company ID format).
+  - `openapi.json` newline-only change reverted per contract policy.

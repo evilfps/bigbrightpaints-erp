@@ -940,3 +940,44 @@ Start: 2026-01-10T07:13:20Z
 - API evidence captured in focused log: admin unauth/role mismatch, dealer portal ledger read-only, cross-dealer/cross-company ledger rejection, and cross-company admin update (`M5 API evidence ...` lines).
 - Dealer portal read-only enforced for order creation (403) and dealer-only ledger access.
 - `openapi.json` newline-only change observed during tests and reverted per contract policy.
+
+### Task 04 — Milestone M6 (Orchestrator/outbox deep debug)
+- Command: `mvn -f erp-domain/pom.xml -DskipTests compile`
+- Log: `docs/ops_and_debug/LOGS/20260110T140752Z_task04_M6_compile.txt`
+- Exit: 0
+- Summary: BUILD SUCCESS
+
+- Command: `mvn -f erp-domain/pom.xml -Dcheckstyle.failOnViolation=false checkstyle:check`
+- Log: `docs/ops_and_debug/LOGS/20260110T140810Z_task04_M6_checkstyle.txt`
+- Exit: 0
+- Summary: BUILD SUCCESS (violations: 30804)
+
+- Command: `mvn -f erp-domain/pom.xml test`
+- Log: `docs/ops_and_debug/LOGS/20260110T140827Z_task04_M6_test.txt`
+- Exit: 1
+- Summary: Tests run 214, Failures 1 (OrchestratorControllerIT.admin_trace_endpoint_returns_events: 500 LOB stream), Errors 0, Skipped 4.
+
+- Command: `mvn -f erp-domain/pom.xml -DskipTests compile` (rerun after trace fix)
+- Log: `docs/ops_and_debug/LOGS/20260110T141110Z_task04_M6_compile_rerun.txt`
+- Exit: 0
+- Summary: BUILD SUCCESS
+
+- Command: `mvn -f erp-domain/pom.xml -Dcheckstyle.failOnViolation=false checkstyle:check` (rerun after trace fix)
+- Log: `docs/ops_and_debug/LOGS/20260110T141123Z_task04_M6_checkstyle_rerun.txt`
+- Exit: 0
+- Summary: BUILD SUCCESS (violations: 30804)
+
+- Command: `mvn -f erp-domain/pom.xml test` (rerun after trace fix)
+- Log: `docs/ops_and_debug/LOGS/20260110T141135Z_task04_M6_test_rerun.txt`
+- Exit: 0
+- Summary: Tests run 214, Failures 0, Errors 0, Skipped 4 (warnings: negative balances, invalid company ID format).
+
+- Command: `mvn -f erp-domain/pom.xml -Dtest=OrchestratorControllerIT,CommandDispatcherTest,IntegrationCoordinatorTest test`
+- Log: `docs/ops_and_debug/LOGS/20260110T141251Z_task04_M6_focus_orchestrator.txt`
+- Exit: 0
+- Summary: Tests run 13, Failures 0, Errors 0, Skipped 0.
+
+### Notes
+- API evidence captured in focused log: orchestrator health snapshots, trace output (no secrets), outbox pending/retry/deadletter counts, and non-admin 403s (`M6 API evidence ...` lines).
+- Trace endpoint LOB streaming error fixed by mapping audit records to trace DTOs; tests rerun cleanly.
+- `openapi.json` newline-only change observed during tests and reverted per contract policy.

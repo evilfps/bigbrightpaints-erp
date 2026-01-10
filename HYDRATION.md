@@ -13,17 +13,17 @@
 
 ## Repo / Worktree State
 - Worktree: `/home/realnigga/Desktop/CLI_BACKEND_epic04`
-- Branch: `debug-04-module-deep-debug` (Task 04 M5 code committed, tip `a06434a`)
+- Branch: `debug-04-module-deep-debug` (Task 04 M6 code committed, tip `0613c48`)
 - Dirty: no
 
 ## Environment Setup
 - No new installs; Docker/Testcontainers working.
 
 ## Commands Run (Latest)
-- `mvn -f erp-domain/pom.xml -DskipTests compile` (PASS).
+- `mvn -f erp-domain/pom.xml -DskipTests compile` (PASS; rerun after trace fix).
 - `mvn -f erp-domain/pom.xml -Dcheckstyle.failOnViolation=false checkstyle:check` (PASS; 30804 violations reported).
-- `mvn -f erp-domain/pom.xml test` (PASS; Tests run 210, Failures 0, Errors 0, Skipped 4).
-- `mvn -f erp-domain/pom.xml -Dtest=AuthControllerIT,AuthHardeningIT,MfaControllerIT,AdminUserSecurityIT test` (PASS; Tests run 12, Failures 0, Errors 0, Skipped 0).
+- `mvn -f erp-domain/pom.xml test` (PASS; Tests run 214, Failures 0, Errors 0, Skipped 4).
+- `mvn -f erp-domain/pom.xml -Dtest=OrchestratorControllerIT,CommandDispatcherTest,IntegrationCoordinatorTest test` (PASS; Tests run 13, Failures 0, Errors 0, Skipped 0).
 
 ## Warnings / Notes
 - Checkstyle baseline warnings (30804) persisted with failOnViolation=false.
@@ -46,7 +46,9 @@
 - Task 04 M4 logs include payroll run status transition evidence; `openapi.json` newline-only change reverted after tests.
 - Task 04 M5 logs include RBAC evidence for admin/dealer portal read-only enforcement and cross-company rejection.
 - Task 04 M5 fixture warnings (negative balances, invalid company ID format) persisted; `openapi.json` newline-only change reverted after tests.
+- Task 04 M6 trace endpoint LOB streaming error fixed by mapping audit records to DTOs; orchestrator trace/health now admin-only with evidence logs captured.
+- Task 04 M6 fixture warnings (negative balances, invalid company ID format) persisted; `openapi.json` newline-only change reverted after tests.
 
 ## Resume Instructions (Post Epic 10)
-1. Task 04 M5 complete on `debug-04-module-deep-debug` at `a06434a` (Admin/Auth/Dealer portal deep debug).
-2. Run Task 04 M6 (Orchestrator/outbox deep debug) with gates + focused tests; capture evidence and update logs.
+1. Task 04 M6 complete on `debug-04-module-deep-debug` at `0613c48` (Orchestrator/outbox deep debug).
+2. Run Task 04 final gates (compile/checkstyle/test + all focused module tests) and update evidence/hydration, then push + produce completion report.
