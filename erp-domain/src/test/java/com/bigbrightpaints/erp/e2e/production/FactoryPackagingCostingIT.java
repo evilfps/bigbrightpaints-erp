@@ -230,16 +230,32 @@ public class FactoryPackagingCostingIT extends AbstractIntegrationTest {
                 .findByReferenceTypeAndReferenceId(InventoryReference.PRODUCTION_LOG, productionCode);
         assertThat(rmMovements).isNotEmpty();
         assertThat(rmMovements).allMatch(movement -> rmJournal.getId().equals(movement.getJournalEntryId()));
+        System.out.println("M3 evidence rm movements: " + rmMovements.stream()
+                .map(movement -> "id=" + movement.getId()
+                        + ",ref=" + movement.getReferenceId()
+                        + ",journal=" + movement.getJournalEntryId())
+                .toList());
 
         String packagingReference = productionCode + "-PACK-1";
         List<RawMaterialMovement> packagingMovements = rawMaterialMovementRepository
                 .findByReferenceTypeAndReferenceId(InventoryReference.PACKING_RECORD, packagingReference);
         assertThat(packagingMovements).isNotEmpty();
         assertThat(packagingMovements).allMatch(movement -> packagingJournal.getId().equals(movement.getJournalEntryId()));
+        System.out.println("M3 evidence packaging movements: " + packagingMovements.stream()
+                .map(movement -> "id=" + movement.getId()
+                        + ",ref=" + movement.getReferenceId()
+                        + ",journal=" + movement.getJournalEntryId())
+                .toList());
 
         List<InventoryMovement> movements = inventoryMovementRepository
                 .findByReferenceTypeAndReferenceIdOrderByCreatedAtAsc(InventoryReference.PRODUCTION_LOG, productionCode);
         assertThat(movements).isNotEmpty();
+        System.out.println("M3 evidence inventory movements: " + movements.stream()
+                .map(movement -> "id=" + movement.getId()
+                        + ",type=" + movement.getMovementType()
+                        + ",ref=" + movement.getReferenceId()
+                        + ",journal=" + movement.getJournalEntryId())
+                .toList());
         assertThat(movements).anyMatch(movement ->
                 "RECEIPT".equals(movement.getMovementType())
                         && semiFinishedJournal.getId().equals(movement.getJournalEntryId())
