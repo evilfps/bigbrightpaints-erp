@@ -13,7 +13,7 @@
 
 ## Repo / Worktree State
 - Worktree: `/home/realnigga/Desktop/CLI_BACKEND_epic04`
-- Branch: `debug-02-endpoint-matrix` (Task 02 complete, tip `f210004`)
+- Branch: `debug-03-auditability-linkage` (Task 03 M1 complete, tip `d9ef08f`)
 - Dirty: no
 
 ## Environment Setup
@@ -23,8 +23,6 @@
 - `mvn -f erp-domain/pom.xml -DskipTests compile` (PASS).
 - `mvn -f erp-domain/pom.xml -Dcheckstyle.failOnViolation=false checkstyle:check` (PASS; 30804 violations reported).
 - `mvn -f erp-domain/pom.xml test` (PASS; Tests run 206, Failures 0, Errors 0, Skipped 4).
-- `mvn -f erp-domain/pom.xml -Dtest=OpenApiSnapshotIT test` (PASS; Tests run 1, Failures 0, Errors 0, Skipped 0).
-- `mvn -f erp-domain/pom.xml -Dtest=AuthControllerIT,AdminUserSecurityIT test` (PASS; Tests run 5, Failures 0, Errors 0, Skipped 0).
 
 ## Warnings / Notes
 - Checkstyle baseline warnings (30804) persisted with failOnViolation=false.
@@ -34,7 +32,11 @@
 - Gap checklist flagged CSV opening stock import tests, raw material intake journal linkage tests, orchestrator trigger linkage tests, and dealer portal scoping tests.
 - Authenticated-only endpoints remain for orchestrator health/traces and packing endpoints; security review required.
 - Deprecated endpoints ledger updated with proof requirements; no removals executed.
+- Task 03 M1 UNKNOWNs: unallocated receipt flow drift risk, dispatch idempotency marker usage, payroll payment artifacts linkage.
+- `mvn test` warnings about negative balance and invalid company ID surfaced in M1 logs.
+- `openapi.json` newline-only change reverted per contract policy.
 
 ## Resume Instructions (Post Epic 10)
-1. Task 02 complete on `debug-02-endpoint-matrix` at `f210004`.
-2. Push branch `debug-02-endpoint-matrix`.
+1. Task 03 M1 complete on `debug-03-auditability-linkage` at `d9ef08f`.
+2. Run Task 03 M2: update invariant enforcement mapping + missing tests register in `tasks/debugging/task-03-auditability-and-linkage-contracts.md`.
+3. Run gates + focused test `mvn -f erp-domain/pom.xml -Dtest=ErpInvariantsSuiteIT test`, log to `docs/ops_and_debug/LOGS/`.
