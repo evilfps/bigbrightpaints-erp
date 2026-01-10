@@ -1204,3 +1204,19 @@
   - `mvn test` succeeded: Tests run 206, Failures 0, Errors 0, Skipped 4.
 - Warnings/notes:
   - `mvn test` warnings about negative balance and invalid company ID observed (see evidence log).
+
+## 2026-01-10 (debug-03 M2 invariant enforcement mapping)
+- Changes:
+  - Added invariant enforcement mapping and missing-tests register to Task 03.
+- Commands run:
+  - `mvn -f erp-domain/pom.xml -DskipTests compile`
+  - `mvn -f erp-domain/pom.xml -Dcheckstyle.failOnViolation=false checkstyle:check`
+  - `mvn -f erp-domain/pom.xml test`
+  - `mvn -f erp-domain/pom.xml -Dtest=ErpInvariantsSuiteIT test`
+- Validation:
+  - `mvn -DskipTests compile` succeeded.
+  - Checkstyle reported 30804 violations; `failOnViolation=false` used for baseline visibility.
+  - `mvn test` succeeded: Tests run 206, Failures 0, Errors 0, Skipped 4.
+  - `ErpInvariantsSuiteIT` succeeded: Tests run 9, Failures 0, Errors 0, Skipped 0.
+- Warnings/notes:
+  - Fixture warnings: negative balances, invalid company ID format, dispatch debit/credit accounts not configured (see evidence logs).
