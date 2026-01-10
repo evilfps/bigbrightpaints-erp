@@ -1077,3 +1077,20 @@
   - `OpenApiSnapshotIT` succeeded: Tests run 1, Failures 0, Errors 0, Skipped 0.
 - Warnings/notes:
   - Endpoint inventory mismatch: openapi has endpoints missing from endpoint_inventory.tsv; inventory-only includes `/api/integration/health` (see evidence log).
+
+## 2026-01-10 (debug-01 M2 financial touchpoints)
+- Changes:
+  - Added verified financial touchpoints list with evidence chains and idempotency markers in Task 01.
+  - OpenAPI snapshot normalized after test runs (newline change only).
+- Commands run:
+  - `mvn -f erp-domain/pom.xml -DskipTests compile`
+  - `mvn -f erp-domain/pom.xml -Dcheckstyle.failOnViolation=false checkstyle:check`
+  - `mvn -f erp-domain/pom.xml test`
+  - `mvn -f erp-domain/pom.xml -Dtest=ErpInvariantsSuiteIT test`
+- Validation:
+  - `mvn -DskipTests compile` succeeded.
+  - Checkstyle reported 30804 violations; `failOnViolation=false` used for baseline visibility.
+  - `mvn test` succeeded: Tests run 206, Failures 0, Errors 0, Skipped 4.
+  - `ErpInvariantsSuiteIT` succeeded: Tests run 9, Failures 0, Errors 0, Skipped 0.
+- Warnings/notes:
+  - Idempotency verification flagged for opening stock import and raw material intake (see Task 01 M2 list).

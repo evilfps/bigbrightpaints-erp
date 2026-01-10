@@ -396,3 +396,41 @@ Start: 2026-01-10T06:41:31Z
 ### Go/No-Go
 - Status: GO
 - Blockers: none
+
+## Run 20260110T065618Z
+Start: 2026-01-10T06:56:18Z
+
+### Start condition
+- Branch: `debug-01-module-map`
+- Commit: `ecb1880`
+- Dirty worktree: no
+- Docker: not used
+
+### Task 01 — Milestone M2 (financial touchpoints + evidence chain)
+- Command: `mvn -f erp-domain/pom.xml -DskipTests compile`
+- Log: `docs/ops_and_debug/LOGS/20260110T065618Z_task01_M2_compile.txt`
+- Exit: 0
+- Summary: BUILD SUCCESS
+
+- Command: `mvn -f erp-domain/pom.xml -Dcheckstyle.failOnViolation=false checkstyle:check`
+- Log: `docs/ops_and_debug/LOGS/20260110T065625Z_task01_M2_checkstyle.txt`
+- Exit: 0
+- Summary: BUILD SUCCESS (violations: 30804)
+
+- Command: `mvn -f erp-domain/pom.xml test`
+- Log: `docs/ops_and_debug/LOGS/20260110T065639Z_task01_M2_test.txt`
+- Exit: 0
+- Summary: Tests run 206, Failures 0, Errors 0, Skipped 4
+
+- Command: `mvn -f erp-domain/pom.xml -Dtest=ErpInvariantsSuiteIT test`
+- Log: `docs/ops_and_debug/LOGS/20260110T065753Z_task01_M2_invariants.txt`
+- Exit: 0
+- Summary: Tests run 9, Failures 0, Errors 0, Skipped 0
+
+### Financial touchpoints list
+- Added a verified touchpoint list with endpoints, source docs, journal/ledger links, reconciliation endpoints, and idempotency markers in `tasks/debugging/task-01-architecture-and-module-map.md`.
+- Idempotency flagged for opening stock import and raw material intake as verify items (no explicit import id tracking observed).
+
+### Go/No-Go
+- Status: GO
+- Blockers: none
