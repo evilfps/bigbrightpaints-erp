@@ -13,8 +13,8 @@
 
 ## Repo / Worktree State
 - Worktree: `/home/realnigga/Desktop/CLI_BACKEND_epic04`
-- Branch: `epic-10-onboarding-integrity`
-- Dirty: yes (debugging + final predeploy task packs and ops/docs updates added locally)
+- Branch: `debug-01-module-map` (Task 01 M1 complete, tip `49135b9`)
+- Dirty: no
 
 ## Environment Setup
 - No new installs; Docker/Testcontainers working.
@@ -23,18 +23,16 @@
 - `mvn -f erp-domain/pom.xml -DskipTests compile` (PASS).
 - `mvn -f erp-domain/pom.xml -Dcheckstyle.failOnViolation=false checkstyle:check` (PASS; 30804 violations reported).
 - `mvn -f erp-domain/pom.xml test` (PASS; Tests run 206, Failures 0, Errors 0, Skipped 4).
-- `mvn -f erp-domain/pom.xml -Dtest=*FullCycle* test` (PASS; Tests run 2, Failures 0, Errors 0, Skipped 2).
-- `JWT_SECRET=... ERP_SECURITY_ENCRYPTION_KEY=... ERP_DISPATCH_DEBIT_ACCOUNT_ID=5000 ERP_DISPATCH_CREDIT_ACCOUNT_ID=1200 DB_PORT=55432 docker compose up -d --build` (PASS).
-- `curl -fsS http://localhost:9090/actuator/health` (PASS; UP).
+- `mvn -f erp-domain/pom.xml -Dtest=OpenApiSnapshotIT test` (PASS; Tests run 1, Failures 0, Errors 0, Skipped 0).
+- `jq + comm openapi vs endpoint_inventory.tsv diff` (PASS; see evidence log for mismatches).
 
 ## Warnings / Notes
 - Checkstyle baseline warnings (30804) persisted with failOnViolation=false.
-- Testcontainers auth config warnings and dynamic agent loading notices persisted.
-- Test logs include expected warnings (invalid company IDs, negative balances, sequence contention/duplicate key retries, HTML-to-PDF CSS parsing, dispatch mapping not configured in test env); no failures.
-- Docker logs note licensing enforcement disabled (erp.licensing.enforce=false).
+- Endpoint inventory mismatch: openapi has endpoints missing from endpoint_inventory.tsv; inventory-only includes `/api/integration/health` (see evidence log).
 
 ## Resume Instructions (Post Epic 10)
-1. Epic 10 onboarding integrity complete; no remaining milestones in scope.
-2. If new work is requested, branch from `epic-10-onboarding-integrity` at `cbec6d3` and re-run hydration.
-3. Deep Debugging Program: run `tasks/debugging/README.md` (tasks 01–07) sequentially with required verification gates after every milestone.
-4. Final predeploy stabilization phase: run `tasks/predeploy/README.md` (tasks 08–12) sequentially with required verification gates after every milestone.
+1. Task 01 M1 complete on `debug-01-module-map` at `49135b9`.
+2. Next milestone: Task 01 M2 in `tasks/debugging/task-01-architecture-and-module-map.md` (financial touchpoints + evidence chain).
+3. After M2 run gates: compile, checkstyle (failOnViolation=false), full test suite, and `mvn -f erp-domain/pom.xml -Dtest=ErpInvariantsSuiteIT test`.
+4. Update `docs/ops_and_debug/EVIDENCE.md`, `erp-domain/docs/STABILIZATION_LOG.md`, and `HYDRATION.md`, then commit with message `debug-01: M2 <summary>`.
+5. Continue Task 01 M3 once M2 is complete and verified.

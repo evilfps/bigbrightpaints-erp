@@ -1060,3 +1060,20 @@
 - Notes:
   - Execute tasks sequentially and run the required verification gates after every milestone.
   - Do not start the final predeploy phase until the debugging program tasks are complete.
+
+## 2026-01-10 (debug-01 M1 module map verification)
+- Changes:
+  - Updated Task 01 module map with verified controllers/services/tables and added portal/reports/demo sections.
+  - OpenAPI snapshot normalized after OpenApiSnapshotIT (newline change only).
+- Commands run:
+  - `mvn -f erp-domain/pom.xml -DskipTests compile`
+  - `mvn -f erp-domain/pom.xml -Dcheckstyle.failOnViolation=false checkstyle:check`
+  - `mvn -f erp-domain/pom.xml test`
+  - `mvn -f erp-domain/pom.xml -Dtest=OpenApiSnapshotIT test`
+- Validation:
+  - `mvn -DskipTests compile` succeeded.
+  - Checkstyle reported 30804 violations; `failOnViolation=false` used for baseline visibility.
+  - `mvn test` succeeded: Tests run 206, Failures 0, Errors 0, Skipped 4.
+  - `OpenApiSnapshotIT` succeeded: Tests run 1, Failures 0, Errors 0, Skipped 0.
+- Warnings/notes:
+  - Endpoint inventory mismatch: openapi has endpoints missing from endpoint_inventory.tsv; inventory-only includes `/api/integration/health` (see evidence log).

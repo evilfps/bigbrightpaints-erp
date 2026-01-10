@@ -352,3 +352,47 @@ Start: 2026-01-09T08:53:22Z
 - reconciliation dashboard post-adjustment: docs/ops_and_debug/LOGS/20260109T085322Z_recon_dashboard_post_adj.json
 - post-adjustment DB audit: docs/ops_and_debug/LOGS/20260109T085322Z_db_audit_post_adj.txt
 - January close after adjustment: docs/ops_and_debug/LOGS/20260109T085322Z_close_jan_post_adj.json
+
+## Run 20260110T064131Z
+Start: 2026-01-10T06:41:31Z
+
+### Start condition
+- Branch: `debug-01-module-map`
+- Commit: `49135b9`
+- Dirty worktree: no
+- Docker: not used
+
+### Task 01 — Milestone M1 (module map inventory)
+- Command: `mvn -f erp-domain/pom.xml -DskipTests compile`
+- Log: `docs/ops_and_debug/LOGS/20260110T064131Z_task01_M1_compile.txt`
+- Exit: 0
+- Summary: BUILD SUCCESS
+
+- Command: `mvn -f erp-domain/pom.xml -Dcheckstyle.failOnViolation=false checkstyle:check`
+- Log: `docs/ops_and_debug/LOGS/20260110T064146Z_task01_M1_checkstyle.txt`
+- Exit: 0
+- Summary: BUILD SUCCESS (violations: 30804)
+
+- Command: `mvn -f erp-domain/pom.xml test`
+- Log: `docs/ops_and_debug/LOGS/20260110T064159Z_task01_M1_test.txt`
+- Exit: 0
+- Summary: Tests run 206, Failures 0, Errors 0, Skipped 4
+
+- Command: `mvn -f erp-domain/pom.xml -Dtest=OpenApiSnapshotIT test`
+- Log: `docs/ops_and_debug/LOGS/20260110T064313Z_task01_M1_openapi_snapshot.txt`
+- Exit: 0
+- Summary: Tests run 1, Failures 0, Errors 0, Skipped 0
+
+- Command: openapi vs endpoint inventory diff (jq + comm)
+- Log: `docs/ops_and_debug/LOGS/20260110T064359Z_task01_M1_endpoint_inventory_diff.txt`
+- Exit: 0
+- Summary: inventory_only includes GET /api/integration/health; openapi_only list captured in log
+
+### Module inventory delta
+- Updated module map to anchor controller paths, services, and tables to code: `tasks/debugging/task-01-architecture-and-module-map.md`.
+- Corrected accounting config/onboarding/controller paths and expanded key tables (journal_reference_mappings, accounting_events, inventory adjustments).
+- Added portal, reports, and demo module sections (controllers/services/tables) to avoid blind spots.
+
+### Go/No-Go
+- Status: GO
+- Blockers: none
