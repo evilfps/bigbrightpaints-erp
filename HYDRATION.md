@@ -13,7 +13,7 @@
 
 ## Repo / Worktree State
 - Worktree: `/home/realnigga/Desktop/CLI_BACKEND_epic04`
-- Branch: `debug-04-module-deep-debug` (Task 04 M1 code committed, tip `8b7d5b0`)
+- Branch: `debug-04-module-deep-debug` (Task 04 M2 code committed, tip `043ef15`)
 - Dirty: no
 
 ## Environment Setup
@@ -23,7 +23,8 @@
 - `mvn -f erp-domain/pom.xml -DskipTests compile` (PASS).
 - `mvn -f erp-domain/pom.xml -Dcheckstyle.failOnViolation=false checkstyle:check` (PASS; 30804 violations reported).
 - `mvn -f erp-domain/pom.xml test` (PASS; Tests run 206, Failures 0, Errors 0, Skipped 4).
-- `mvn -f erp-domain/pom.xml -Dtest=ErpInvariantsSuiteIT,OrderFulfillmentE2ETest,DispatchConfirmationIT,DealerLedgerIT,SettlementE2ETest,GstInclusiveRoundingIT test` (PASS; Tests run 24, Failures 0, Errors 0, Skipped 0).
+- `mvn -f erp-domain/pom.xml -Dtest=ErpInvariantsSuiteIT,ProcureToPayE2ETest,SupplierStatementAgingIT,ReconciliationControlsIT test` (PASS; Tests run 14, Failures 0, Errors 0, Skipped 0).
+- `mvn -f erp-domain/pom.xml -Dtest=InventoryGlReconciliationIT,DispatchConfirmationIT,LandedCostRevaluationIT,RevaluationCogsIT,ReconciliationControlsIT test` (PASS; Tests run 8, Failures 0, Errors 0, Skipped 0).
 
 ## Warnings / Notes
 - Checkstyle baseline warnings (30804) persisted with failOnViolation=false.
@@ -41,7 +42,8 @@
 - Task 03 final gates completed; `openapi.json` newline-only change reverted after test runs.
 - Task 04 M1 rerun after statement range update; `openapi.json` newline-only change reverted per contract policy.
 - Task 04 M1 logs include API evidence for dealer ledger, statement/aging, and invoice list/detail.
+- Task 04 M2 logs include API evidence for supplier statement/aging and inventory valuation/reconciliation; `openapi.json` newline-only change reverted after tests.
 
 ## Resume Instructions (Post Epic 10)
-1. Task 04 M1 complete on `debug-04-module-deep-debug` at `8b7d5b0` (Sales/O2C deep debug).
-2. Run Task 04 M2 (Purchasing/AP + Inventory deep debug) with gates + focused tests; capture evidence and update logs.
+1. Task 04 M2 complete on `debug-04-module-deep-debug` at `043ef15` (Purchasing/AP + Inventory deep debug).
+2. Run Task 04 M3 (Factory/Production deep debug) with gates + focused tests; capture evidence and update logs.

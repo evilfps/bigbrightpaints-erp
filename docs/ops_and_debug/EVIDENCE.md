@@ -444,6 +444,38 @@ Start: 2026-01-10T06:41:31Z
 - Idempotency checks validated by `ErpInvariantsSuiteIT`: repeat order/dispatch/settlement returns same IDs and inventory movements unchanged on replay.
 - `openapi.json` newline-only change observed during tests and reverted per contract policy.
 
+### Task 04 — Milestone M2 (Purchasing/AP + Inventory deep debug)
+- Command: `mvn -f erp-domain/pom.xml -DskipTests compile`
+- Log: `docs/ops_and_debug/LOGS/20260110T132844Z_task04_M2_compile.txt`
+- Exit: 0
+- Summary: BUILD SUCCESS
+
+- Command: `mvn -f erp-domain/pom.xml -Dcheckstyle.failOnViolation=false checkstyle:check`
+- Log: `docs/ops_and_debug/LOGS/20260110T132852Z_task04_M2_checkstyle.txt`
+- Exit: 0
+- Summary: BUILD SUCCESS (violations: 30804)
+
+- Command: `mvn -f erp-domain/pom.xml test`
+- Log: `docs/ops_and_debug/LOGS/20260110T132904Z_task04_M2_test.txt`
+- Exit: 0
+- Summary: Tests run 206, Failures 0, Errors 0, Skipped 4 (warnings: negative balances, invalid company ID format).
+
+- Command: `mvn -f erp-domain/pom.xml -Dtest=ErpInvariantsSuiteIT,ProcureToPayE2ETest,SupplierStatementAgingIT,ReconciliationControlsIT test`
+- Log: `docs/ops_and_debug/LOGS/20260110T133016Z_task04_M2_focus_purchasing.txt`
+- Exit: 0
+- Summary: Tests run 14, Failures 0, Errors 0, Skipped 0.
+
+- Command: `mvn -f erp-domain/pom.xml -Dtest=InventoryGlReconciliationIT,DispatchConfirmationIT,LandedCostRevaluationIT,RevaluationCogsIT,ReconciliationControlsIT test`
+- Log: `docs/ops_and_debug/LOGS/20260110T133046Z_task04_M2_focus_inventory.txt`
+- Exit: 0
+- Summary: Tests run 8, Failures 0, Errors 0, Skipped 0.
+
+### Notes
+- API evidence captured in focused logs: supplier statement/aging and inventory valuation/reconciliation (`M2 API evidence ...` lines).
+- Orphan journal checks enforced by tests: `ErpInvariantsSuiteIT` asserts raw material movement `journal_entry_id` present for purchase receipts and inventory movement journals for dispatch.
+- Inventory reconciliation variance=0 confirmed in `ReconciliationControlsIT` and `/api/v1/reports/inventory-reconciliation` output.
+- `openapi.json` newline-only change observed during tests and reverted per contract policy.
+
 ### Task 03 — Milestone M1 (linkage contracts verification)
 - Command: `mvn -f erp-domain/pom.xml -DskipTests compile`
 - Log: `docs/ops_and_debug/LOGS/20260110T102714Z_task03_M1_compile.txt`
