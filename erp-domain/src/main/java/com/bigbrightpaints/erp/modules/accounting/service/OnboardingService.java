@@ -594,9 +594,6 @@ public class OnboardingService {
                     "Opening receivable requires exactly one partner line per request");
         }
         String reference = openingReference("OPEN-AR", request.referenceNumber());
-        Optional<JournalEntry> existing = journalEntryRepository.findByCompanyAndReferenceNumber(company, reference);
-        int skipped = existing.isPresent() ? 1 : 0;
-
         OnboardingPartnerOpeningBalanceRequest.PartnerLine line = lines.get(0);
         Dealer dealer = resolveDealer(company, line.partnerId(), line.partnerCode());
         if (dealer.getReceivableAccount() == null) {
@@ -607,6 +604,26 @@ public class OnboardingService {
         Long offsetAccountId = requireAccount(request.offsetAccountId(), company);
         String memo = resolveMemo(request.memo(), "Opening receivable for " + dealer.getName(), line.memo());
         LocalDate entryDate = resolveEntryDate(company, request.entryDate());
+        Optional<JournalEntry> existing = journalEntryRepository.findByCompanyAndReferenceNumber(company, reference);
+        if (existing.isPresent()) {
+            JournalEntry journalEntry = existing.get();
+            if (journalEntry.getDealer() == null || !journalEntry.getDealer().getId().equals(dealer.getId())) {
+                throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                        "Opening receivable reference already posted for another dealer");
+            }
+            BigDecimal posted = sumAccountAmount(journalEntry, dealer.getReceivableAccount().getId(), true);
+            if (posted.compareTo(amount) != 0) {
+                throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                        "Opening receivable idempotency conflict for reference " + reference);
+            }
+            if (dealerLedgerRepository.findByCompanyAndJournalEntry(company, journalEntry).isEmpty()) {
+                String entryMemo = StringUtils.hasText(journalEntry.getMemo()) ? journalEntry.getMemo() : memo;
+                dealerLedgerService.recordLedgerEntry(dealer,
+                        new LedgerContext(journalEntry.getEntryDate(), reference, entryMemo, amount, BigDecimal.ZERO, journalEntry));
+            }
+            auditService.logDataAccess("opening_receivable", journalEntry.getId().toString(), "IDEMPOTENT");
+            return new OnboardingPartnerOpeningBalanceResponse(reference, journalEntry.getId(), 1, 1);
+        }
 
         JournalEntryRequest payload = new JournalEntryRequest(
                 reference,
@@ -626,7 +643,7 @@ public class OnboardingService {
             dealerLedgerService.recordLedgerEntry(dealer, new LedgerContext(entryDate, reference, memo, amount, BigDecimal.ZERO, journalEntry));
         }
         auditService.logDataAccess("opening_receivable", journalEntry.getId().toString(), "CREATE");
-        return new OnboardingPartnerOpeningBalanceResponse(reference, journalEntry.getId(), 1, skipped);
+        return new OnboardingPartnerOpeningBalanceResponse(reference, journalEntry.getId(), 1, 0);
     }
 
     @Transactional
@@ -638,9 +655,6 @@ public class OnboardingService {
                     "Opening payable requires exactly one partner line per request");
         }
         String reference = openingReference("OPEN-AP", request.referenceNumber());
-        Optional<JournalEntry> existing = journalEntryRepository.findByCompanyAndReferenceNumber(company, reference);
-        int skipped = existing.isPresent() ? 1 : 0;
-
         OnboardingPartnerOpeningBalanceRequest.PartnerLine line = lines.get(0);
         Supplier supplier = resolveSupplier(company, line.partnerId(), line.partnerCode());
         if (supplier.getPayableAccount() == null) {
@@ -651,6 +665,26 @@ public class OnboardingService {
         Long offsetAccountId = requireAccount(request.offsetAccountId(), company);
         String memo = resolveMemo(request.memo(), "Opening payable for " + supplier.getName(), line.memo());
         LocalDate entryDate = resolveEntryDate(company, request.entryDate());
+        Optional<JournalEntry> existing = journalEntryRepository.findByCompanyAndReferenceNumber(company, reference);
+        if (existing.isPresent()) {
+            JournalEntry journalEntry = existing.get();
+            if (journalEntry.getSupplier() == null || !journalEntry.getSupplier().getId().equals(supplier.getId())) {
+                throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                        "Opening payable reference already posted for another supplier");
+            }
+            BigDecimal posted = sumAccountAmount(journalEntry, supplier.getPayableAccount().getId(), false);
+            if (posted.compareTo(amount) != 0) {
+                throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                        "Opening payable idempotency conflict for reference " + reference);
+            }
+            if (supplierLedgerRepository.findByCompanyAndJournalEntry(company, journalEntry).isEmpty()) {
+                String entryMemo = StringUtils.hasText(journalEntry.getMemo()) ? journalEntry.getMemo() : memo;
+                supplierLedgerService.recordLedgerEntry(supplier,
+                        new LedgerContext(journalEntry.getEntryDate(), reference, entryMemo, BigDecimal.ZERO, amount, journalEntry));
+            }
+            auditService.logDataAccess("opening_payable", journalEntry.getId().toString(), "IDEMPOTENT");
+            return new OnboardingPartnerOpeningBalanceResponse(reference, journalEntry.getId(), 1, 1);
+        }
 
         JournalEntryRequest payload = new JournalEntryRequest(
                 reference,
@@ -670,7 +704,17 @@ public class OnboardingService {
             supplierLedgerService.recordLedgerEntry(supplier, new LedgerContext(entryDate, reference, memo, BigDecimal.ZERO, amount, journalEntry));
         }
         auditService.logDataAccess("opening_payable", journalEntry.getId().toString(), "CREATE");
-        return new OnboardingPartnerOpeningBalanceResponse(reference, journalEntry.getId(), 1, skipped);
+        return new OnboardingPartnerOpeningBalanceResponse(reference, journalEntry.getId(), 1, 0);
+    }
+
+    private BigDecimal sumAccountAmount(JournalEntry journalEntry, Long accountId, boolean debit) {
+        if (journalEntry.getLines() == null || journalEntry.getLines().isEmpty()) {
+            return BigDecimal.ZERO;
+        }
+        return journalEntry.getLines().stream()
+                .filter(line -> line.getAccount() != null && Objects.equals(line.getAccount().getId(), accountId))
+                .map(line -> debit ? line.getDebit() : line.getCredit())
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
     private Optional<ProductionBrand> findBrand(Company company, String code, String name) {
