@@ -502,6 +502,32 @@ Start: 2026-01-10T06:41:31Z
 - Journal linkage verified in `FactoryPackagingCostingIT` (movement journals linked to production code and packing reference).
 - `openapi.json` newline-only change observed during tests and reverted per contract policy.
 
+### Task 04 — Milestone M4 (HR/Payroll deep debug)
+- Command: `mvn -f erp-domain/pom.xml -DskipTests compile`
+- Log: `docs/ops_and_debug/LOGS/20260110T133928Z_task04_M4_compile.txt`
+- Exit: 0
+- Summary: BUILD SUCCESS
+
+- Command: `mvn -f erp-domain/pom.xml -Dcheckstyle.failOnViolation=false checkstyle:check`
+- Log: `docs/ops_and_debug/LOGS/20260110T133936Z_task04_M4_checkstyle.txt`
+- Exit: 0
+- Summary: BUILD SUCCESS (violations: 30804)
+
+- Command: `mvn -f erp-domain/pom.xml test`
+- Log: `docs/ops_and_debug/LOGS/20260110T133949Z_task04_M4_test.txt`
+- Exit: 0
+- Summary: Tests run 206, Failures 0, Errors 0, Skipped 4 (warnings: negative balances, invalid company ID format).
+
+- Command: `mvn -f erp-domain/pom.xml -Dtest=ErpInvariantsSuiteIT,PayrollBatchPaymentIT,PeriodCloseLockIT test`
+- Log: `docs/ops_and_debug/LOGS/20260110T134100Z_task04_M4_focus_payroll.txt`
+- Exit: 0
+- Summary: Tests run 13, Failures 0, Errors 0, Skipped 0.
+
+### Notes
+- API evidence captured in focused log: payroll run status transitions and run detail output (`M4 API evidence ...` lines show journalEntryId after posting).
+- Journal linkage confirmed in `ErpInvariantsSuiteIT` for payroll runs (linked + balanced after posting).
+- `openapi.json` newline-only change observed during tests and reverted per contract policy.
+
 ### Task 03 — Milestone M1 (linkage contracts verification)
 - Command: `mvn -f erp-domain/pom.xml -DskipTests compile`
 - Log: `docs/ops_and_debug/LOGS/20260110T102714Z_task03_M1_compile.txt`
