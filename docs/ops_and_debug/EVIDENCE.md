@@ -467,6 +467,30 @@ Start: 2026-01-10T06:41:31Z
 - M3 assertion list and sample outputs added to `tasks/debugging/task-03-auditability-and-linkage-contracts.md`.
 - `openapi.json` newline-only change observed during tests and reverted per contract policy.
 
+### Task 03 — Final gates
+- Command: `mvn -f erp-domain/pom.xml -DskipTests compile`
+- Log: `docs/ops_and_debug/LOGS/20260110T105559Z_task03_final_compile.txt`
+- Exit: 0
+- Summary: BUILD SUCCESS
+
+- Command: `mvn -f erp-domain/pom.xml -Dcheckstyle.failOnViolation=false checkstyle:check`
+- Log: `docs/ops_and_debug/LOGS/20260110T105606Z_task03_final_checkstyle.txt`
+- Exit: 0
+- Summary: BUILD SUCCESS (violations: 30804)
+
+- Command: `mvn -f erp-domain/pom.xml test`
+- Log: `docs/ops_and_debug/LOGS/20260110T105616Z_task03_final_test.txt`
+- Exit: 0
+- Summary: Tests run 206, Failures 0, Errors 0, Skipped 4 (warnings: negative balances, invalid company ID format).
+
+- Command: `mvn -f erp-domain/pom.xml -Dtest=ReconciliationControlsIT,InventoryGlReconciliationIT test`
+- Log: `docs/ops_and_debug/LOGS/20260110T105721Z_task03_final_recon_inventory.txt`
+- Exit: 0
+- Summary: Tests run 4, Failures 0, Errors 0, Skipped 0 (warnings: dispatch debit/credit accounts not configured, invalid company ID format).
+
+### Notes
+- `openapi.json` newline-only change observed during tests and reverted per contract policy.
+
 ## Run 20260110T100511Z
 Start: 2026-01-10T10:05:11Z
 

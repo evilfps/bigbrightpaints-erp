@@ -13,7 +13,7 @@
 
 ## Repo / Worktree State
 - Worktree: `/home/realnigga/Desktop/CLI_BACKEND_epic04`
-- Branch: `debug-03-auditability-linkage` (Task 03 M3 complete, tip `e9b3dc6`)
+- Branch: `debug-03-auditability-linkage` (Task 03 final gates complete, tip `d08b612`)
 - Dirty: no
 
 ## Environment Setup
@@ -38,9 +38,8 @@
 - `openapi.json` newline-only change reverted per contract policy.
 - Task 03 M2 warnings: negative balances/invalid company ID format in fixtures; dispatch debit/credit accounts not configured (COGS postings skipped).
 - Task 03 M3 assertion list + sample outputs captured; `mvn test` warnings (negative balances/invalid company ID format) and focused test warnings (dispatch debit/credit accounts not configured) persisted.
+- Task 03 final gates completed; `openapi.json` newline-only change reverted after test runs.
 
 ## Resume Instructions (Post Epic 10)
-1. Task 03 M3 complete on `debug-03-auditability-linkage` at `e9b3dc6`.
-2. Run Task 03 final gates (compile/checkstyle/test + `ReconciliationControlsIT,InventoryGlReconciliationIT`) and log to `docs/ops_and_debug/LOGS/`.
-3. Update `docs/ops_and_debug/EVIDENCE.md`, `erp-domain/docs/STABILIZATION_LOG.md`, and `HYDRATION.md` with final gate results; commit.
-4. Push branch and prepare Task 03 completion report.
+1. Task 03 final gates complete on `debug-03-auditability-linkage` at `d08b612`.
+2. Push branch and prepare Task 03 completion report.
