@@ -1466,3 +1466,20 @@
 - Warnings/notes:
   - Fixture warnings persisted (negative balances, invalid company ID format).
   - `openapi.json` newline-only change reverted per contract policy.
+
+## 2026-01-11 (debug-04 M6 Orchestrator/outbox deep debug)
+- Changes:
+  - No code changes; reran orchestrator verification to capture evidence.
+- Commands run:
+  - `mvn -f erp-domain/pom.xml -DskipTests compile`
+  - `mvn -f erp-domain/pom.xml -Dcheckstyle.failOnViolation=false checkstyle:check`
+  - `mvn -f erp-domain/pom.xml test`
+  - `mvn -f erp-domain/pom.xml -Dtest=OrchestratorControllerIT,CommandDispatcherTest,IntegrationCoordinatorTest test`
+- Validation:
+  - `mvn -DskipTests compile` succeeded.
+  - Checkstyle reported 30807 violations; `failOnViolation=false` used for baseline visibility.
+  - `mvn test` succeeded: Tests run 214, Failures 0, Errors 0, Skipped 4.
+  - Focused orchestrator suite succeeded: Tests run 13, Failures 0, Errors 0, Skipped 0.
+- Warnings/notes:
+  - Fixture warnings persisted (negative balances, invalid company ID format).
+  - `openapi.json` newline-only change reverted per contract policy.

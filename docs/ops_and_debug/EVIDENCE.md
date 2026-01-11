@@ -1168,3 +1168,28 @@ Start: 2026-01-10T07:13:20Z
 ### Notes
 - RBAC + portal scoping evidence captured in `docs/ops_and_debug/LOGS/20260111T060002Z_task04_M5_focus_auth.txt` (`M5 API evidence ...` lines for role mismatch, cross-dealer, cross-company, unauth access).
 - `openapi.json` newline-only change observed during tests and reverted per contract policy.
+
+### Task 04 — Milestone M6 (Orchestrator/outbox deep debug) — 2026-01-11
+- Command: `mvn -f erp-domain/pom.xml -DskipTests compile`
+- Log: `docs/ops_and_debug/LOGS/20260111T060238Z_task04_M6_compile.txt`
+- Exit: 0
+- Summary: BUILD SUCCESS
+
+- Command: `mvn -f erp-domain/pom.xml -Dcheckstyle.failOnViolation=false checkstyle:check`
+- Log: `docs/ops_and_debug/LOGS/20260111T060249Z_task04_M6_checkstyle.txt`
+- Exit: 0
+- Summary: BUILD SUCCESS (violations: 30807)
+
+- Command: `mvn -f erp-domain/pom.xml test`
+- Log: `docs/ops_and_debug/LOGS/20260111T060309Z_task04_M6_test.txt`
+- Exit: 0
+- Summary: Tests run 214, Failures 0, Errors 0, Skipped 4 (warnings: negative balances, invalid company ID format).
+
+- Command: `mvn -f erp-domain/pom.xml -Dtest=OrchestratorControllerIT,CommandDispatcherTest,IntegrationCoordinatorTest test`
+- Log: `docs/ops_and_debug/LOGS/20260111T060525Z_task04_M6_focus_orchestrator.txt`
+- Exit: 0
+- Summary: Tests run 13, Failures 0, Errors 0, Skipped 0.
+
+### Notes
+- Orchestrator trace/health/outbox evidence captured in `docs/ops_and_debug/LOGS/20260111T060525Z_task04_M6_focus_orchestrator.txt` (`M6 API evidence ...` lines).
+- `openapi.json` newline-only change observed during tests and reverted per contract policy.
