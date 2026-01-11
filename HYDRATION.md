@@ -13,7 +13,7 @@
 ## Repo / Worktree State
 - Worktree: `/home/realnigga/Desktop/CLI_BACKEND_epic04`
 - Branch: `debug-06-security-rbac-boundaries`
-- Dirty: clean (after M1 commit)
+- Dirty: untracked logs present under `docs/ops_and_debug/LOGS` (pre-existing).
 
 ## Environment Setup
 - No new installs; Docker/Testcontainers working.
@@ -21,8 +21,8 @@
 ## Commands Run (Latest)
 - `mvn -f erp-domain/pom.xml -DskipTests compile` (PASS).
 - `mvn -f erp-domain/pom.xml -Dcheckstyle.failOnViolation=false checkstyle:check` (PASS; 29454 violations reported).
-- `mvn -f erp-domain/pom.xml test` (PASS; Tests run 204, Failures 0, Errors 0, Skipped 4).
-- `mvn -f erp-domain/pom.xml -Dtest=AuthControllerIT,AdminUserSecurityIT test` (PASS; Tests run 7, Failures 0, Errors 0, Skipped 0).
+- `mvn -f erp-domain/pom.xml test` (PASS; Tests run 206, Failures 0, Errors 0, Skipped 4).
+- `mvn -f erp-domain/pom.xml -Dtest=AdminUserSecurityIT,CompanyControllerIT test` (PASS; Tests run 8, Failures 0, Errors 0, Skipped 0).
 
 ## Warnings / Notes
 - Checkstyle baseline warnings (29454) persisted with failOnViolation=false.
@@ -32,7 +32,8 @@
 ## Current Task
 - Task 06 (security/RBAC + company boundaries) on `debug-06-security-rbac-boundaries`.
 - M1 complete + verified; commit `48bfbef9647b098de9a97e10a06270e17df07f5c`.
+- M2 complete + verified; commit `3fa23e3783c07a7e99b2d219926e543cba2c7cf6`.
 
 ## Resume Instructions (Task 06)
-1. Confirm M1 commit SHA and proceed to M2 in `tasks/debugging/task-06-security-rbac-and-company-boundaries.md`.
-2. Run M2 gates + focused tests, then update evidence/stabilization/hydration.
+1. Proceed to M3 in `tasks/debugging/task-06-security-rbac-and-company-boundaries.md` (dealer portal access boundaries).
+2. Run M3 gates + focused tests, then update evidence/stabilization/hydration and commit.
