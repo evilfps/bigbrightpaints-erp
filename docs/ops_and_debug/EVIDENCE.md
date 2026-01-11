@@ -18,3 +18,20 @@
   - `docs/ops_and_debug/LOGS/20260111T105559Z_task06_M1_checkstyle.txt`
   - `docs/ops_and_debug/LOGS/20260111T105615Z_task06_M1_test.txt`
   - `docs/ops_and_debug/LOGS/20260111T105823Z_task06_M1_focus_auth_admin.txt`
+
+## 2026-01-11 Task 06 M2 — Company boundary enforcement
+- Findings (company context drift):
+  - `CompanyContextFilter` favored JWT claims even when `X-Company-Id` was provided, preventing explicit company context switching for multi-company users.
+- Fixes (fail-closed):
+  - Prefer `X-Company-Id` when present and fall back to JWT claim only if the header is absent.
+  - Added CompanyControllerIT coverage for forbidden company switching and header-based company context selection.
+- Verification:
+  - `mvn -f erp-domain/pom.xml -DskipTests compile`
+  - `mvn -f erp-domain/pom.xml -Dcheckstyle.failOnViolation=false checkstyle:check`
+  - `mvn -f erp-domain/pom.xml test`
+  - `mvn -f erp-domain/pom.xml -Dtest=AdminUserSecurityIT,CompanyControllerIT test`
+- Logs:
+  - `docs/ops_and_debug/LOGS/20260111T111139Z_task06_M2_compile.txt`
+  - `docs/ops_and_debug/LOGS/20260111T111153Z_task06_M2_checkstyle.txt`
+  - `docs/ops_and_debug/LOGS/20260111T111212Z_task06_M2_test.txt`
+  - `docs/ops_and_debug/LOGS/20260111T111428Z_task06_M2_focus_admin_company.txt`

@@ -27,7 +27,7 @@ public class CompanyContextFilter extends OncePerRequestFilter {
         try {
             String companyId = request.getHeader("X-Company-Id");
             Object claimsAttr = request.getAttribute("jwtClaims");
-            if (claimsAttr instanceof Claims claims) {
+            if (companyId == null && claimsAttr instanceof Claims claims) {
                 companyId = claims.get("cid", String.class);
             }
             if (companyId != null) {

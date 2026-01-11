@@ -997,3 +997,21 @@
 - Warnings/notes:
   - Testcontainers auth config warnings, dynamic agent loading notices persisted.
   - Test logs include invalid company ID format, negative balance warnings, dispatch mapping warnings, sequence contention/duplicate key retries, and HTML-to-PDF CSS parse warnings; no failures.
+
+## 2026-01-11 (task-06 M2 — company boundary enforcement)
+- Changes:
+  - Company context now prefers `X-Company-Id` when present, with JWT claim fallback only when the header is absent.
+  - Added CompanyControllerIT coverage for forbidden company switching and header-based company context selection.
+- Commands run:
+  - `mvn -f erp-domain/pom.xml -DskipTests compile`
+  - `mvn -f erp-domain/pom.xml -Dcheckstyle.failOnViolation=false checkstyle:check`
+  - `mvn -f erp-domain/pom.xml test`
+  - `mvn -f erp-domain/pom.xml -Dtest=AdminUserSecurityIT,CompanyControllerIT test`
+- Validation:
+  - Compile succeeded (javac warnings about missing javax.annotation meta present).
+  - Checkstyle reported 29454 violations; `failOnViolation=false` used for baseline visibility.
+  - `mvn test` succeeded: Tests run 206, Failures 0, Errors 0, Skipped 4.
+  - Focused tests succeeded: Tests run 8, Failures 0, Errors 0, Skipped 0.
+- Warnings/notes:
+  - Testcontainers auth config warnings, dynamic agent loading notices persisted.
+  - Test logs include invalid company ID format, negative balance warnings, dispatch mapping warnings, sequence contention/duplicate key retries, and HTML-to-PDF CSS parse warnings; no failures.

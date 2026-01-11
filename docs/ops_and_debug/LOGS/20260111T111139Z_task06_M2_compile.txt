@@ -1,0 +1,34 @@
+[[1;34mINFO[m] Scanning for projects...
+[[1;34mINFO[m] 
+[[1;34mINFO[m] [1m-----------------< [0;36mcom.bigbrightpaints.erp:erp-domain[0;1m >-----------------[m
+[[1;34mINFO[m] [1mBuilding BigBright ERP Domain Service 0.1.0-SNAPSHOT[m
+[[1;34mINFO[m] [1m--------------------------------[ jar ]---------------------------------[m
+[[1;34mINFO[m] 
+[[1;34mINFO[m] [1m--- [0;32mjacoco-maven-plugin:0.8.12:prepare-agent[m [1m(default)[m @ [36merp-domain[0;1m ---[m
+[[1;34mINFO[m] argLine set to -javaagent:/home/realnigga/.m2/repository/org/jacoco/org.jacoco.agent/0.8.12/org.jacoco.agent-0.8.12-runtime.jar=destfile=/home/realnigga/Desktop/CLI_BACKEND_epic04/erp-domain/target/jacoco.exec,append=false
+[[1;34mINFO[m] 
+[[1;34mINFO[m] [1m--- [0;32mmaven-resources-plugin:3.3.1:resources[m [1m(default-resources)[m @ [36merp-domain[0;1m ---[m
+[[1;34mINFO[m] Copying 6 resources from src/main/resources to target/classes
+[[1;34mINFO[m] Copying 108 resources from src/main/resources to target/classes
+[[1;34mINFO[m] 
+[[1;34mINFO[m] [1m--- [0;32mmaven-compiler-plugin:3.13.0:compile[m [1m(default-compile)[m @ [36merp-domain[0;1m ---[m
+[[1;34mINFO[m] Recompiling the module because of [1mchanged source code[m.
+[[1;34mINFO[m] Compiling 497 source files with javac [debug parameters release 21] to target/classes
+[[1;33mWARNING[m] unknown enum constant javax.annotation.meta.When.MAYBE
+  reason: class file for javax.annotation.meta.When not found
+[[1;33mWARNING[m] unknown enum constant javax.annotation.meta.When.MAYBE
+  reason: class file for javax.annotation.meta.When not found
+[[1;33mWARNING[m] unknown enum constant javax.annotation.meta.When.MAYBE
+  reason: class file for javax.annotation.meta.When not found
+[[1;33mWARNING[m] unknown enum constant javax.annotation.meta.When.MAYBE
+  reason: class file for javax.annotation.meta.When not found
+[[1;33mWARNING[m] unknown enum constant javax.annotation.meta.When.MAYBE
+  reason: class file for javax.annotation.meta.When not found
+[[1;34mINFO[m] /home/realnigga/Desktop/CLI_BACKEND_epic04/erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingFacade.java: Some input files use or override a deprecated API.
+[[1;34mINFO[m] /home/realnigga/Desktop/CLI_BACKEND_epic04/erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingFacade.java: Recompile with -Xlint:deprecation for details.
+[[1;34mINFO[m] [1m------------------------------------------------------------------------[m
+[[1;34mINFO[m] [1;32mBUILD SUCCESS[m
+[[1;34mINFO[m] [1m------------------------------------------------------------------------[m
+[[1;34mINFO[m] Total time:  9.595 s
+[[1;34mINFO[m] Finished at: 2026-01-11T16:41:50+05:30
+[[1;34mINFO[m] [1m------------------------------------------------------------------------[m
