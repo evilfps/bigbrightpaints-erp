@@ -58,3 +58,18 @@
 
 ## Resume Instructions (Post Epic 10)
 1. Task 04 final gates complete on `debug-04-module-deep-debug` (code tip `0613c48`); ready to push and deliver completion report.
+
+## Update 2026-01-11 (Task 04 M1 rerun)
+- Branch: `debug-04-module-deep-debug`
+- Tip: `516ee00`
+- Dirty: no
+- Commands run:
+  - `mvn -f erp-domain/pom.xml -DskipTests compile` (PASS).
+  - `mvn -f erp-domain/pom.xml -Dcheckstyle.failOnViolation=false checkstyle:check` (PASS; 30807 violations).
+  - `mvn -f erp-domain/pom.xml test` (PASS; Tests run 214, Failures 0, Errors 0, Skipped 4).
+  - `mvn -f erp-domain/pom.xml -Dtest=ErpInvariantsSuiteIT,OrderFulfillmentE2ETest,DispatchConfirmationIT,DealerLedgerIT,SettlementE2ETest,GstInclusiveRoundingIT test` (PASS; Tests run 24, Failures 0, Errors 0, Skipped 0).
+- Notes:
+  - `openapi.json` newline-only change reverted per contract policy.
+- Resume instructions:
+  1. Continue Task 04 M2 (Purchasing/AP + Inventory deep debug) on `debug-04-module-deep-debug`.
+  2. Run required gates + focused tests, capture logs, update `docs/ops_and_debug/EVIDENCE.md`, `erp-domain/docs/STABILIZATION_LOG.md`, and `HYDRATION.md`, then commit `debug-04: M2 <summary>`.
