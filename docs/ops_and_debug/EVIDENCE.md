@@ -1143,3 +1143,28 @@ Start: 2026-01-10T07:13:20Z
 ### Notes
 - Payroll run status transitions + journal linkage evidence captured in `docs/ops_and_debug/LOGS/20260111T055434Z_task04_M4_focus_payroll.txt` (`M4 API evidence ...` lines with `journalEntryId`).
 - `openapi.json` newline-only change observed during tests and reverted per contract policy.
+
+### Task 04 — Milestone M5 (Admin/Auth/Dealer portal deep debug) — 2026-01-11
+- Command: `mvn -f erp-domain/pom.xml -DskipTests compile`
+- Log: `docs/ops_and_debug/LOGS/20260111T055714Z_task04_M5_compile.txt`
+- Exit: 0
+- Summary: BUILD SUCCESS
+
+- Command: `mvn -f erp-domain/pom.xml -Dcheckstyle.failOnViolation=false checkstyle:check`
+- Log: `docs/ops_and_debug/LOGS/20260111T055724Z_task04_M5_checkstyle.txt`
+- Exit: 0
+- Summary: BUILD SUCCESS (violations: 30807)
+
+- Command: `mvn -f erp-domain/pom.xml test`
+- Log: `docs/ops_and_debug/LOGS/20260111T055742Z_task04_M5_test.txt`
+- Exit: 0
+- Summary: Tests run 214, Failures 0, Errors 0, Skipped 4 (warnings: negative balances, invalid company ID format).
+
+- Command: `mvn -f erp-domain/pom.xml -Dtest=AuthControllerIT,AuthHardeningIT,MfaControllerIT,AdminUserSecurityIT test`
+- Log: `docs/ops_and_debug/LOGS/20260111T060002Z_task04_M5_focus_auth.txt`
+- Exit: 0
+- Summary: Tests run 12, Failures 0, Errors 0, Skipped 0.
+
+### Notes
+- RBAC + portal scoping evidence captured in `docs/ops_and_debug/LOGS/20260111T060002Z_task04_M5_focus_auth.txt` (`M5 API evidence ...` lines for role mismatch, cross-dealer, cross-company, unauth access).
+- `openapi.json` newline-only change observed during tests and reverted per contract policy.
