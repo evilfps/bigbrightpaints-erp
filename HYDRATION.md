@@ -12,23 +12,27 @@
 
 ## Repo / Worktree State
 - Worktree: `/home/realnigga/Desktop/CLI_BACKEND_epic04`
-- Branch: `epic-10-cross-module-traceability`
-- Dirty: clean
+- Branch: `debug-06-security-rbac-boundaries`
+- Dirty: clean (after M1 commit)
 
 ## Environment Setup
 - No new installs; Docker/Testcontainers working.
 
 ## Commands Run (Latest)
 - `mvn -f erp-domain/pom.xml -DskipTests compile` (PASS).
-- `mvn -f erp-domain/pom.xml -Dcheckstyle.failOnViolation=false checkstyle:check` (PASS; 29446 violations reported).
-- `mvn -f erp-domain/pom.xml test` (PASS; Tests run 202, Failures 0, Errors 0, Skipped 4).
-- `mvn -f erp-domain/pom.xml -Dtest=*FullCycle* test` (PASS; Tests run 2, Failures 0, Errors 0, Skipped 2).
+- `mvn -f erp-domain/pom.xml -Dcheckstyle.failOnViolation=false checkstyle:check` (PASS; 29454 violations reported).
+- `mvn -f erp-domain/pom.xml test` (PASS; Tests run 204, Failures 0, Errors 0, Skipped 4).
+- `mvn -f erp-domain/pom.xml -Dtest=AuthControllerIT,AdminUserSecurityIT test` (PASS; Tests run 7, Failures 0, Errors 0, Skipped 0).
 
 ## Warnings / Notes
-- Checkstyle baseline warnings (29446) persisted with failOnViolation=false.
+- Checkstyle baseline warnings (29454) persisted with failOnViolation=false.
 - Testcontainers auth config warnings and dynamic agent loading notices persisted.
 - Test logs include expected warnings (invalid company IDs, negative balances, dispatch mapping, sequence contention/duplicate key retries, HTML-to-PDF CSS parsing); no failures.
 
-## Resume Instructions (Post Epic 10)
-1. Epic 10 complete; no remaining milestones in scope.
-2. If new work is requested, branch from `epic-10-cross-module-traceability` at `c94755d70bcb5ba452ae64ddd7d8a6b96b50d392` and re-run hydration.
+## Current Task
+- Task 06 (security/RBAC + company boundaries) on `debug-06-security-rbac-boundaries`.
+- M1 complete + verified; commit pending `debug-06: M1 rbac alignment` (update SHA after commit).
+
+## Resume Instructions (Task 06)
+1. Confirm M1 commit SHA and proceed to M2 in `tasks/debugging/task-06-security-rbac-and-company-boundaries.md`.
+2. Run M2 gates + focused tests, then update evidence/stabilization/hydration.

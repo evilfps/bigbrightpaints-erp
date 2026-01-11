@@ -93,7 +93,7 @@ public class SalesController {
 
     /* Promotions */
     @GetMapping("/sales/promotions")
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SALES','ROLE_DEALER')")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SALES')")
     public ResponseEntity<ApiResponse<List<PromotionDto>>> promotions() {
         return ResponseEntity.ok(ApiResponse.success(salesService.listPromotions()));
     }

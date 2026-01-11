@@ -1,0 +1,25 @@
+# Task06 permission diagnosis 20260111T104814Z
+## whoami
+realnigga
+## pwd
+/home/realnigga/Desktop/CLI_BACKEND_epic04
+## git rev-parse --show-toplevel
+/home/realnigga/Desktop/CLI_BACKEND_epic04
+## git worktree list
+/home/realnigga/Desktop/CLI BACKEND                                         5f51a81 [epic-02-order-to-cash]
+/home/realnigga/Desktop/CLI BACKEND.worktrees/worktree-2026-01-03T19-22-08  5f51a81 [worktree-2026-01-03T19-22-08]
+/home/realnigga/Desktop/CLI_BACKEND_epic03                                  3f2370c [epic-03-production-stock]
+/home/realnigga/Desktop/CLI_BACKEND_epic04                                  1d712f5 [debug-05-reconciliation-period-controls]
+## ls -ld paths
+drwxr-xr-x 9 realnigga realnigga 4096 Jan  4 00:52 /home/realnigga/Desktop/CLI BACKEND
+drwxr-xr-x 9 realnigga realnigga 4096 Jan 11 13:21 /home/realnigga/Desktop/CLI BACKEND/.git
+drwxrwxr-x 5 realnigga realnigga 4096 Jan  4 01:55 /home/realnigga/Desktop/CLI BACKEND/.git/worktrees
+## stat .git
+  File: /home/realnigga/Desktop/CLI BACKEND/.git
+  Size: 4096      	Blocks: 8          IO Block: 4096   directory
+Device: 259,7	Inode: 6560950     Links: 9
+Access: (0755/drwxr-xr-x)  Uid: ( 1000/realnigga)   Gid: ( 1000/realnigga)
+Access: 2026-01-10 15:13:42.850996251 +0530
+Modify: 2026-01-11 13:21:54.081303815 +0530
+Change: 2026-01-11 13:21:54.081303815 +0530
+ Birth: 2026-01-03 23:14:43.577174859 +0530

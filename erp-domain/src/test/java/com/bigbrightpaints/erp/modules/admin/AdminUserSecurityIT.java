@@ -82,6 +82,48 @@ public class AdminUserSecurityIT extends AbstractIntegrationTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
     }
 
+    @Test
+    void dealer_role_is_blocked_from_sales_promotions() {
+        String token = login(DEALER_EMAIL, DEALER_PASSWORD, COMPANY);
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(token);
+
+        ResponseEntity<Map> response = rest.exchange(
+                "/api/v1/sales/promotions",
+                HttpMethod.GET,
+                new HttpEntity<>(headers),
+                Map.class);
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+    }
+
+    @Test
+    void dealer_role_is_blocked_from_dealer_admin_endpoints() {
+        String token = login(DEALER_EMAIL, DEALER_PASSWORD, COMPANY);
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(token);
+
+        ResponseEntity<Map> ledgerResp = rest.exchange(
+                "/api/v1/dealers/1/ledger",
+                HttpMethod.GET,
+                new HttpEntity<>(headers),
+                Map.class);
+        assertThat(ledgerResp.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+
+        ResponseEntity<Map> invoicesResp = rest.exchange(
+                "/api/v1/dealers/1/invoices",
+                HttpMethod.GET,
+                new HttpEntity<>(headers),
+                Map.class);
+        assertThat(invoicesResp.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+
+        ResponseEntity<Map> agingResp = rest.exchange(
+                "/api/v1/dealers/1/aging",
+                HttpMethod.GET,
+                new HttpEntity<>(headers),
+                Map.class);
+        assertThat(agingResp.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+    }
+
     private String login(String email, String password, String companyCode) {
         Map<String, Object> body = Map.of(
                 "email", email,

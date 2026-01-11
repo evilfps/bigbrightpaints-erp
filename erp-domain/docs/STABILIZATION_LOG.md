@@ -978,3 +978,22 @@
 - Warnings/notes:
   - Environment validation disabled; configuration health checks skipped.
   - Test logs include invalid company ID format and negative balance warnings (INV, CASH, EMP-ADV); no failures.
+
+## 2026-01-11 (task-06 M1 — RBAC alignment)
+- Changes:
+  - Removed dealer access to `/api/v1/sales/promotions` and `/api/v1/dealers/{dealerId}/ledger|invoices|aging` (dealer portal remains read-only at `/api/v1/dealer-portal/**`).
+  - Added AdminUserSecurityIT assertions for dealer access denial.
+  - Added `docs/API_PORTAL_MATRIX.md` to summarize portal/role mappings.
+- Commands run:
+  - `mvn -f erp-domain/pom.xml -DskipTests compile`
+  - `mvn -f erp-domain/pom.xml -Dcheckstyle.failOnViolation=false checkstyle:check`
+  - `mvn -f erp-domain/pom.xml test`
+  - `mvn -f erp-domain/pom.xml -Dtest=AuthControllerIT,AdminUserSecurityIT test`
+- Validation:
+  - Compile succeeded (javac warnings about missing javax.annotation meta present).
+  - Checkstyle reported 29454 violations; `failOnViolation=false` used for baseline visibility.
+  - `mvn test` succeeded: Tests run 204, Failures 0, Errors 0, Skipped 4.
+  - Focused tests succeeded: Tests run 7, Failures 0, Errors 0, Skipped 0.
+- Warnings/notes:
+  - Testcontainers auth config warnings, dynamic agent loading notices persisted.
+  - Test logs include invalid company ID format, negative balance warnings, dispatch mapping warnings, sequence contention/duplicate key retries, and HTML-to-PDF CSS parse warnings; no failures.
