@@ -1015,3 +1015,20 @@
 - Warnings/notes:
   - Testcontainers auth config warnings, dynamic agent loading notices persisted.
   - Test logs include invalid company ID format, negative balance warnings, dispatch mapping warnings, sequence contention/duplicate key retries, and HTML-to-PDF CSS parse warnings; no failures.
+
+## 2026-01-11 (task-06 M3 — dealer portal boundaries)
+- Changes:
+  - Added DealerPortalSecurityIT and DealerSecurityIT to assert dealer-only access to `/api/v1/dealer-portal/dashboard` and deny admin access.
+- Commands run:
+  - `mvn -f erp-domain/pom.xml -DskipTests compile`
+  - `mvn -f erp-domain/pom.xml -Dcheckstyle.failOnViolation=false checkstyle:check`
+  - `mvn -f erp-domain/pom.xml test`
+  - `mvn -f erp-domain/pom.xml -Dtest=DealerSecurityIT,DealerPortalSecurityIT test`
+- Validation:
+  - Compile succeeded (javac warnings about missing javax.annotation meta present).
+  - Checkstyle reported 29454 violations; `failOnViolation=false` used for baseline visibility.
+  - `mvn test` succeeded: Tests run 208, Failures 0, Errors 0, Skipped 4.
+  - Focused tests succeeded: Tests run 2, Failures 0, Errors 0, Skipped 0.
+- Warnings/notes:
+  - Testcontainers auth config warnings and dynamic agent loading notices persisted.
+  - Test logs include invalid company ID format, negative balance warnings, and dispatch mapping warnings; no failures.

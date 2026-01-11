@@ -1,0 +1,238 @@
+[[1;34mINFO[m] Scanning for projects...
+[[1;34mINFO[m] 
+[[1;34mINFO[m] [1m-----------------< [0;36mcom.bigbrightpaints.erp:erp-domain[0;1m >-----------------[m
+[[1;34mINFO[m] [1mBuilding BigBright ERP Domain Service 0.1.0-SNAPSHOT[m
+[[1;34mINFO[m] [1m--------------------------------[ jar ]---------------------------------[m
+[[1;34mINFO[m] 
+[[1;34mINFO[m] [1m--- [0;32mjacoco-maven-plugin:0.8.12:prepare-agent[m [1m(default)[m @ [36merp-domain[0;1m ---[m
+[[1;34mINFO[m] argLine set to -javaagent:/home/realnigga/.m2/repository/org/jacoco/org.jacoco.agent/0.8.12/org.jacoco.agent-0.8.12-runtime.jar=destfile=/home/realnigga/Desktop/CLI_BACKEND_epic04/erp-domain/target/jacoco.exec,append=false
+[[1;34mINFO[m] 
+[[1;34mINFO[m] [1m--- [0;32mmaven-resources-plugin:3.3.1:resources[m [1m(default-resources)[m @ [36merp-domain[0;1m ---[m
+[[1;34mINFO[m] Copying 6 resources from src/main/resources to target/classes
+[[1;34mINFO[m] Copying 108 resources from src/main/resources to target/classes
+[[1;34mINFO[m] 
+[[1;34mINFO[m] [1m--- [0;32mmaven-compiler-plugin:3.13.0:compile[m [1m(default-compile)[m @ [36merp-domain[0;1m ---[m
+[[1;34mINFO[m] Nothing to compile - all classes are up to date.
+[[1;34mINFO[m] 
+[[1;34mINFO[m] [1m--- [0;32mmaven-resources-plugin:3.3.1:testResources[m [1m(default-testResources)[m @ [36merp-domain[0;1m ---[m
+[[1;34mINFO[m] Copying 4 resources from src/test/resources to target/test-classes
+[[1;34mINFO[m] 
+[[1;34mINFO[m] [1m--- [0;32mmaven-compiler-plugin:3.13.0:testCompile[m [1m(default-testCompile)[m @ [36merp-domain[0;1m ---[m
+[[1;34mINFO[m] Nothing to compile - all classes are up to date.
+[[1;34mINFO[m] 
+[[1;34mINFO[m] [1m--- [0;32mmaven-surefire-plugin:3.2.5:test[m [1m(default-test)[m @ [36merp-domain[0;1m ---[m
+[[1;34mINFO[m] Using auto detected provider org.apache.maven.surefire.junitplatform.JUnitPlatformProvider
+[[1;34mINFO[m] 
+[[1;34mINFO[m] -------------------------------------------------------
+[[1;34mINFO[m]  T E S T S
+[[1;34mINFO[m] -------------------------------------------------------
+[[1;34mINFO[m] Running com.bigbrightpaints.erp.modules.sales.[1mDealerPortalSecurityIT[m
+16:56:25.425 [main] INFO org.testcontainers.images.PullPolicy -- Image pull policy will be performed by: DefaultPullPolicy()
+16:56:25.435 [main] INFO org.testcontainers.utility.ImageNameSubstitutor -- Image name substitution will be performed by: DefaultImageNameSubstitutor (composite of 'ConfigurationFileImageNameSubstitutor' and 'PrefixingImageNameSubstitutor')
+16:56:25.483 [main] INFO org.testcontainers.DockerClientFactory -- Testcontainers version: 1.20.2
+16:56:25.850 [main] INFO org.testcontainers.dockerclient.DockerClientProviderStrategy -- Loaded org.testcontainers.dockerclient.UnixSocketClientProviderStrategy from ~/.testcontainers.properties, will try it first
+16:56:26.394 [main] INFO org.testcontainers.dockerclient.DockerClientProviderStrategy -- Found Docker environment with local Unix socket (unix:///var/run/docker.sock)
+16:56:26.396 [main] INFO org.testcontainers.DockerClientFactory -- Docker host IP address is localhost
+16:56:26.420 [main] INFO org.testcontainers.DockerClientFactory -- Connected to docker: 
+  Server Version: 28.2.2
+  API Version: 1.50
+  Operating System: Ubuntu 24.04.3 LTS
+  Total Memory: 15614 MB
+16:56:26.468 [main] INFO tc.testcontainers/ryuk:0.9.0 -- Creating container for image: testcontainers/ryuk:0.9.0
+16:56:26.476 [main] INFO org.testcontainers.utility.RegistryAuthLocator -- Failure when attempting to lookup auth config. Please ignore if you don't have images in an authenticated registry. Details: (dockerImageName: testcontainers/ryuk:0.9.0, configFile: /home/realnigga/.docker/config.json, configEnv: DOCKER_AUTH_CONFIG). Falling back to docker-java default behaviour. Exception message: Status 404: No config supplied. Checked in order: /home/realnigga/.docker/config.json (file not found), DOCKER_AUTH_CONFIG (not set)
+16:56:26.656 [main] INFO tc.testcontainers/ryuk:0.9.0 -- Container testcontainers/ryuk:0.9.0 is starting: 3c6ee7bd60f2f357fd6f65d919912aa9bdf9d6625a5565d403592ad24319cc2d
+16:56:27.087 [main] INFO tc.testcontainers/ryuk:0.9.0 -- Container testcontainers/ryuk:0.9.0 started in PT0.618664596S
+16:56:27.095 [main] INFO org.testcontainers.utility.RyukResourceReaper -- Ryuk started - will monitor and terminate Testcontainers containers on JVM exit
+16:56:27.095 [main] INFO org.testcontainers.DockerClientFactory -- Checking the system...
+16:56:27.096 [main] INFO org.testcontainers.DockerClientFactory -- ✔︎ Docker server version should be at least 1.6.0
+16:56:27.097 [main] INFO tc.postgres:16-alpine -- Creating container for image: postgres:16-alpine
+16:56:27.122 [main] INFO tc.postgres:16-alpine -- Container postgres:16-alpine is starting: ecfbd348c47b0cd71d2b58c79128fcd0698976f99c85015efb50b3b4830225f0
+16:56:28.869 [main] INFO tc.postgres:16-alpine -- Container postgres:16-alpine started in PT1.772329561S
+16:56:28.871 [main] INFO tc.postgres:16-alpine -- Container is started (JDBC URL: jdbc:postgresql://localhost:32779/erp_domain_test?loggerLevel=OFF)
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::                (v3.3.4)
+
+2026-01-11 16:56:30 - Starting DealerPortalSecurityIT using Java 21.0.9 with PID 43108 (started by realnigga in /home/realnigga/Desktop/CLI_BACKEND_epic04/erp-domain)
+2026-01-11 16:56:30 - The following 1 profile is active: "test"
+2026-01-11 16:56:31 - Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+2026-01-11 16:56:32 - Finished Spring Data repository scanning in 242 ms. Found 60 JPA repository interfaces.
+2026-01-11 16:56:34 - Tomcat initialized with port 0 (http)
+2026-01-11 16:56:34 - Starting service [Tomcat]
+2026-01-11 16:56:34 - Starting Servlet engine: [Apache Tomcat/10.1.30]
+2026-01-11 16:56:34 - Initializing Spring embedded WebApplicationContext
+2026-01-11 16:56:34 - Root WebApplicationContext: initialization completed in 4615 ms
+2026-01-11 16:56:35 - HikariPool-1 - Starting...
+2026-01-11 16:56:36 - HikariPool-1 - Added connection org.postgresql.jdbc.PgConnection@2b4c26ec
+2026-01-11 16:56:36 - HikariPool-1 - Start completed.
+2026-01-11 16:56:36 - Database: jdbc:postgresql://localhost:32779/erp_domain_test (PostgreSQL 16.11)
+2026-01-11 16:56:36 - Schema history table "public"."flyway_schema_history" does not exist yet
+2026-01-11 16:56:36 - Successfully validated 100 migrations (execution time 00:00.075s)
+2026-01-11 16:56:36 - Creating Schema History table "public"."flyway_schema_history" ...
+2026-01-11 16:56:36 - Current version of schema "public": << Empty Schema >>
+2026-01-11 16:56:36 - Migrating schema "public" to version "1 - init core"
+2026-01-11 16:56:36 - Migrating schema "public" to version "2 - orchestrator tables"
+2026-01-11 16:56:36 - DB: extension "pgcrypto" already exists, skipping (SQL State: 42710 - Error Code: 0)
+2026-01-11 16:56:36 - Migrating schema "public" to version "3 - inventory tables"
+2026-01-11 16:56:36 - Migrating schema "public" to version "4 - sales tables"
+2026-01-11 16:56:36 - Migrating schema "public" to version "5 - accounting tables"
+2026-01-11 16:56:36 - Migrating schema "public" to version "6 - factory tables"
+2026-01-11 16:56:36 - Migrating schema "public" to version "7 - hr tables"
+2026-01-11 16:56:36 - Migrating schema "public" to version "8 - sales fulfillment extensions"
+2026-01-11 16:56:36 - Migrating schema "public" to version "9 - finished goods inventory"
+2026-01-11 16:56:36 - Migrating schema "public" to version "10 - sales order items"
+2026-01-11 16:56:36 - Migrating schema "public" to version "11 - finished goods accounts"
+2026-01-11 16:56:36 - Migrating schema "public" to version "12 - invoices"
+2026-01-11 16:56:36 - Migrating schema "public" to version "13 - mfa support"
+2026-01-11 16:56:36 - Migrating schema "public" to version "14 - user profile fields"
+2026-01-11 16:56:36 - Migrating schema "public" to version "15 - accounting role"
+2026-01-11 16:56:36 - Migrating schema "public" to version "16 - factory sales dealer roles"
+2026-01-11 16:56:36 - Migrating schema "public" to version "17 - dealer portal support"
+2026-01-11 16:56:36 - Migrating schema "public" to version "18 - production catalog"
+2026-01-11 16:56:36 - Migrating schema "public" to version "19 - production logs"
+2026-01-11 16:56:36 - Migrating schema "public" to version "20 - production product pricing"
+2026-01-11 16:56:36 - Migrating schema "public" to version "21 - sales gst and accounts"
+2026-01-11 16:56:36 - Migrating schema "public" to version "22 - dealer ledger entries"
+2026-01-11 16:56:36 - Migrating schema "public" to version "23 - user password history"
+2026-01-11 16:56:36 - Migrating schema "public" to version "24 - order auto approval state"
+2026-01-11 16:56:36 - Migrating schema "public" to version "25 - fill migration gap"
+2026-01-11 16:56:36 - DB: V25 placeholder migration applied to align version ordering.
+2026-01-11 16:56:36 - Migrating schema "public" to version "26 - invoice journal link"
+2026-01-11 16:56:37 - Migrating schema "public" to version "27 - raw material purchasing"
+2026-01-11 16:56:37 - Migrating schema "public" to version "28 - payroll run totals"
+2026-01-11 16:56:37 - Migrating schema "public" to version "29 - inventory movement journal link"
+2026-01-11 16:56:37 - DB: column "journal_entry_id" of relation "raw_material_movements" already exists, skipping (SQL State: 42701 - Error Code: 0)
+2026-01-11 16:56:37 - Migrating schema "public" to version "30 - company payroll account defaults"
+2026-01-11 16:56:37 - Migrating schema "public" to version "31 - raw material inventory account"
+2026-01-11 16:56:37 - Migrating schema "public" to version "32 - mfa recovery codes table"
+2026-01-11 16:56:37 - Migrating schema "public" to version "33 - audit logging tables"
+2026-01-11 16:56:37 - Migrating schema "public" to version "34 - company gst defaults"
+2026-01-11 16:56:37 - Migrating schema "public" to version "35 - entity versioning"
+2026-01-11 16:56:37 - DB: column "version" of relation "order_auto_approval_state" already exists, skipping (SQL State: 42701 - Error Code: 0)
+2026-01-11 16:56:37 - Migrating schema "public" to version "36 - number sequences"
+2026-01-11 16:56:37 - Migrating schema "public" to version "37 - password reset tokens"
+2026-01-11 16:56:37 - Migrating schema "public" to version "38 - consolidate roles"
+2026-01-11 16:56:37 - Migrating schema "public" to version "39 - accounting periods"
+2026-01-11 16:56:37 - Migrating schema "public" to version "40 - outbox retry backoff"
+2026-01-11 16:56:37 - Migrating schema "public" to version "41 - production log schema backfill"
+2026-01-11 16:56:37 - Migrating schema "public" to version "42 - placeholder"
+2026-01-11 16:56:37 - +----------+
+| ?column? |
++----------+
+| 1        |
++----------+
+
+2026-01-11 16:56:37 - Migrating schema "public" to version "43 - journal entry accounting period fk"
+2026-01-11 16:56:37 - Migrating schema "public" to version "44 - journal entry audit columns"
+2026-01-11 16:56:37 - Migrating schema "public" to version "45 - production logs alignment"
+2026-01-11 16:56:37 - DB: column "status" of relation "production_logs" already exists, skipping (SQL State: 42701 - Error Code: 0)
+2026-01-11 16:56:37 - DB: column "total_packed_quantity" of relation "production_logs" already exists, skipping (SQL State: 42701 - Error Code: 0)
+2026-01-11 16:56:37 - DB: column "wastage_quantity" of relation "production_logs" already exists, skipping (SQL State: 42701 - Error Code: 0)
+2026-01-11 16:56:37 - DB: column "material_cost_total" of relation "production_logs" already exists, skipping (SQL State: 42701 - Error Code: 0)
+2026-01-11 16:56:37 - DB: column "labor_cost_total" of relation "production_logs" already exists, skipping (SQL State: 42701 - Error Code: 0)
+2026-01-11 16:56:37 - DB: column "overhead_cost_total" of relation "production_logs" already exists, skipping (SQL State: 42701 - Error Code: 0)
+2026-01-11 16:56:37 - DB: column "unit_cost" of relation "production_logs" already exists, skipping (SQL State: 42701 - Error Code: 0)
+2026-01-11 16:56:37 - DB: column "sales_order_id" of relation "production_logs" already exists, skipping (SQL State: 42701 - Error Code: 0)
+2026-01-11 16:56:37 - DB: column "sales_order_number" of relation "production_logs" already exists, skipping (SQL State: 42701 - Error Code: 0)
+2026-01-11 16:56:37 - Migrating schema "public" to version "46 - packing records version"
+2026-01-11 16:56:37 - Migrating schema "public" to version "47 - partner settlement allocations"
+2026-01-11 16:56:37 - Migrating schema "public" to version "48 - settlement idempotency keys"
+2026-01-11 16:56:37 - Migrating schema "public" to version "49 - period locking and closing journal"
+2026-01-11 16:56:37 - Migrating schema "public" to version "50 - multi currency support"
+2026-01-11 16:56:37 - Migrating schema "public" to version "51 - auth lockout controls"
+2026-01-11 16:56:37 - Migrating schema "public" to version "52 - inventory non negative guards"
+2026-01-11 16:56:37 - Migrating schema "public" to version "53 - fx rate precision"
+2026-01-11 16:56:37 - Migrating schema "public" to version "54 - gst tax accounts"
+2026-01-11 16:56:37 - Migrating schema "public" to version "55 - sales order idempotency"
+2026-01-11 16:56:37 - Migrating schema "public" to version "56 - invoice purchase outstanding"
+2026-01-11 16:56:37 - Migrating schema "public" to version "57 - payroll run lines"
+2026-01-11 16:56:37 - Migrating schema "public" to version "58 - inventory reservation nullable"
+2026-01-11 16:56:37 - Migrating schema "public" to version "59 - invoice payment refs"
+2026-01-11 16:56:37 - Migrating schema "public" to version "60 - inventory adjustments"
+2026-01-11 16:56:37 - Migrating schema "public" to version "61 - token blacklist tables"
+2026-01-11 16:56:37 - Migrating schema "public" to version "62 - performance indexes"
+2026-01-11 16:56:37 - DB: relation "idx_invoices_dealer" already exists, skipping (SQL State: 42P07 - Error Code: 0)
+2026-01-11 16:56:37 - Migrating schema "public" to version "63 - account active flag"
+2026-01-11 16:56:37 - Migrating schema "public" to version "64 - dispatch confirmation"
+2026-01-11 16:56:37 - Migrating schema "public" to version "65 - performance accounting inventory indexes"
+2026-01-11 16:56:37 - DB: relation "idx_journal_lines_account_id" already exists, skipping (SQL State: 42P07 - Error Code: 0)
+2026-01-11 16:56:37 - Migrating schema "public" to version "66 - accounting journal unique constraint"
+2026-01-11 16:56:37 - Migrating schema "public" to version "67 - accounting journal indexes"
+2026-01-11 16:56:37 - Migrating schema "public" to version "68 - payroll idempotency key"
+2026-01-11 16:56:37 - Migrating schema "public" to version "69 - packaging size mappings and gst inventory"
+2026-01-11 16:56:38 - Migrating schema "public" to version "70 - accounting event store"
+2026-01-11 16:56:38 - Migrating schema "public" to version "71 - account hierarchy"
+2026-01-11 16:56:38 - Migrating schema "public" to version "72 - dealer ledger aging fields"
+2026-01-11 16:56:38 - Migrating schema "public" to version "73 - employee payroll enhancements"
+2026-01-11 16:56:38 - Migrating schema "public" to version "74 - attendance table"
+2026-01-11 16:56:38 - Migrating schema "public" to version "75 - sales order idempotency markers"
+2026-01-11 16:56:38 - Migrating schema "public" to version "76 - backfill order idempotency markers"
+2026-01-11 16:56:38 - DB: Backfill complete: 0 orders with invoice, 0 with sales journal, 0 with COGS journal
+2026-01-11 16:56:38 - Migrating schema "public" to version "77 - user must change password"
+2026-01-11 16:56:38 - Migrating schema "public" to version "78 - payroll enhancement"
+2026-01-11 16:56:38 - DB: column "public_id" of relation "payroll_runs" already exists, skipping (SQL State: 42701 - Error Code: 0)
+2026-01-11 16:56:38 - Migrating schema "public" to version "79 - payroll gl accounts"
+2026-01-11 16:56:38 - Migrating schema "public" to version "80 - bulk packaging"
+2026-01-11 16:56:38 - Migrating schema "public" to version "81 - material type"
+2026-01-11 16:56:38 - Migrating schema "public" to version "82 - system settings"
+2026-01-11 16:56:38 - Migrating schema "public" to version "83 - company default accounts"
+2026-01-11 16:56:38 - Migrating schema "public" to version "84 - set bbp defaults"
+2026-01-11 16:56:38 - Migrating schema "public" to version "85 - factory task sales order links"
+2026-01-11 16:56:38 - Migrating schema "public" to version "86 - shedlock"
+2026-01-11 16:56:38 - Migrating schema "public" to version "87 - credit limit override requests"
+2026-01-11 16:56:38 - Migrating schema "public" to version "88 - journal reference mappings"
+2026-01-11 16:56:38 - Migrating schema "public" to version "89 - packaging slip invoice link"
+2026-01-11 16:56:38 - Migrating schema "public" to version "90 - packaging slip invoice unique"
+2026-01-11 16:56:38 - Migrating schema "public" to version "91 - raw material purchase tax"
+2026-01-11 16:56:38 - Migrating schema "public" to version "92 - payroll run journal link backfill"
+2026-01-11 16:56:38 - Migrating schema "public" to version "93 - accounting performance indexes"
+2026-01-11 16:56:38 - Migrating schema "public" to version "94 - p2p performance indexes"
+2026-01-11 16:56:38 - Migrating schema "public" to version "95 - payroll run list indexes"
+2026-01-11 16:56:38 - Migrating schema "public" to version "96 - security permissions"
+2026-01-11 16:56:38 - Migrating schema "public" to version "97 - performance list indexes"
+2026-01-11 16:56:38 - Migrating schema "public" to version "98 - ledger journal link backfill"
+2026-01-11 16:56:38 - Migrating schema "public" to version "99 - production categories"
+2026-01-11 16:56:38 - Migrating schema "public" to version "100 - onboarding permissions"
+2026-01-11 16:56:38 - Successfully applied 100 migrations to schema "public", now at version v100 (execution time 00:01.400s)
+2026-01-11 16:56:38 - HHH000204: Processing PersistenceUnitInfo [name: default]
+2026-01-11 16:56:38 - HHH000412: Hibernate ORM core version 6.5.3.Final
+2026-01-11 16:56:38 - HHH000026: Second-level cache disabled
+2026-01-11 16:56:39 - No LoadTimeWeaver setup: ignoring JPA class transformer
+2026-01-11 16:56:42 - HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
+2026-01-11 16:56:42 - Initialized JPA EntityManagerFactory for persistence unit 'default'
+2026-01-11 16:56:43 - Hibernate is in classpath; If applicable, HQL parser will be used.
+2026-01-11 16:56:48 - Dispatch debit/credit accounts not configured; COGS postings for dispatch mapping will be skipped. Set erp.dispatch.debit-account-id and erp.dispatch.credit-account-id to enable dispatch journals.
+2026-01-11 16:56:49 - Order auto-approval enabled=false
+2026-01-11 16:56:49 - Exposing 3 endpoints beneath base path '/actuator'
+2026-01-11 16:56:51 - Tomcat started on port 41943 (http) with context path '/'
+2026-01-11 16:56:51 - Started DealerPortalSecurityIT in 21.958 seconds (process running for 27.466)
+2026-01-11 16:56:51 - Environment validation disabled; skipping configuration health checks
+2026-01-11 16:56:51 - Skipping critical fixture seeding: no companies present
+2026-01-11 16:56:52 - Initializing Spring DispatcherServlet 'dispatcherServlet'
+2026-01-11 16:56:52 - Initializing Servlet 'dispatcherServlet'
+2026-01-11 16:56:52 - Completed initialization in 2 ms
+[[1;34mINFO[m] [1;32mTests run: [0;1;32m1[m, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 28.37 s -- in com.bigbrightpaints.erp.modules.sales.[1mDealerPortalSecurityIT[m
+[[1;34mINFO[m] Running com.bigbrightpaints.erp.modules.sales.[1mDealerSecurityIT[m
+2026-01-11 16:56:54 - Access denied [8d8d14c8-cd28-4a4f-bec3-9027b7cfb504] - Path: /api/v1/dealer-portal/dashboard, User: admin-sec-portal@bbp.com
+[[1;34mINFO[m] [1;32mTests run: [0;1;32m1[m, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.941 s -- in com.bigbrightpaints.erp.modules.sales.[1mDealerSecurityIT[m
+[[1;34mINFO[m] 
+[[1;34mINFO[m] Results:
+[[1;34mINFO[m] 
+[[1;34mINFO[m] [1;32mTests run: 2, Failures: 0, Errors: 0, Skipped: 0[m
+[[1;34mINFO[m] 
+[[1;34mINFO[m] 
+[[1;34mINFO[m] [1m--- [0;32mjacoco-maven-plugin:0.8.12:report[m [1m(report)[m @ [36merp-domain[0;1m ---[m
+[[1;34mINFO[m] Loading execution data file /home/realnigga/Desktop/CLI_BACKEND_epic04/erp-domain/target/jacoco.exec
+[[1;34mINFO[m] Analyzed bundle 'BigBright ERP Domain Service' with 591 classes
+[[1;34mINFO[m] [1m------------------------------------------------------------------------[m
+[[1;34mINFO[m] [1;32mBUILD SUCCESS[m
+[[1;34mINFO[m] [1m------------------------------------------------------------------------[m
+[[1;34mINFO[m] Total time:  34.550 s
+[[1;34mINFO[m] Finished at: 2026-01-11T16:56:56+05:30
+[[1;34mINFO[m] [1m------------------------------------------------------------------------[m

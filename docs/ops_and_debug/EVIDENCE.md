@@ -35,3 +35,20 @@
   - `docs/ops_and_debug/LOGS/20260111T111153Z_task06_M2_checkstyle.txt`
   - `docs/ops_and_debug/LOGS/20260111T111212Z_task06_M2_test.txt`
   - `docs/ops_and_debug/LOGS/20260111T111428Z_task06_M2_focus_admin_company.txt`
+
+## 2026-01-11 Task 06 M3 — Dealer portal boundaries
+- Findings (dealer portal access gaps):
+  - No focused coverage asserting dealer portal access is limited to dealer users and denied for admin/sales roles.
+- Fixes (coverage only; no permission expansion):
+  - Added DealerPortalSecurityIT to assert dealer users can access `/api/v1/dealer-portal/dashboard` and receive their dealer context.
+  - Added DealerSecurityIT to assert admin users are forbidden from `/api/v1/dealer-portal/dashboard`.
+- Verification:
+  - `mvn -f erp-domain/pom.xml -DskipTests compile`
+  - `mvn -f erp-domain/pom.xml -Dcheckstyle.failOnViolation=false checkstyle:check`
+  - `mvn -f erp-domain/pom.xml test`
+  - `mvn -f erp-domain/pom.xml -Dtest=DealerSecurityIT,DealerPortalSecurityIT test`
+- Logs:
+  - `docs/ops_and_debug/LOGS/20260111T112314Z_task06_M3_compile.txt`
+  - `docs/ops_and_debug/LOGS/20260111T112327Z_task06_M3_checkstyle.txt`
+  - `docs/ops_and_debug/LOGS/20260111T112341Z_task06_M3_test.txt`
+  - `docs/ops_and_debug/LOGS/20260111T112620Z_task06_M3_focus_dealer_portal.txt`
