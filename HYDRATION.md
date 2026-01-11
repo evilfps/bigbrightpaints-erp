@@ -73,3 +73,19 @@
 - Resume instructions:
   1. Continue Task 04 M2 (Purchasing/AP + Inventory deep debug) on `debug-04-module-deep-debug`.
   2. Run required gates + focused tests, capture logs, update `docs/ops_and_debug/EVIDENCE.md`, `erp-domain/docs/STABILIZATION_LOG.md`, and `HYDRATION.md`, then commit `debug-04: M2 <summary>`.
+
+## Update 2026-01-11 (Task 04 M2 Purchasing/P2P + Inventory deep debug)
+- Branch: `debug-04-module-deep-debug`
+- Tip: `7435d72`
+- Dirty: no
+- Commands run:
+  - `mvn -f erp-domain/pom.xml -DskipTests compile` (PASS).
+  - `mvn -f erp-domain/pom.xml -Dcheckstyle.failOnViolation=false checkstyle:check` (PASS; 30807 violations).
+  - `mvn -f erp-domain/pom.xml test` (PASS; Tests run 214, Failures 0, Errors 0, Skipped 4).
+  - `mvn -f erp-domain/pom.xml -Dtest=ErpInvariantsSuiteIT,ProcureToPayE2ETest,SupplierStatementAgingIT,ReconciliationControlsIT test` (PASS; Tests run 14, Failures 0, Errors 0, Skipped 0).
+  - `mvn -f erp-domain/pom.xml -Dtest=InventoryGlReconciliationIT,DispatchConfirmationIT,LandedCostRevaluationIT,RevaluationCogsIT,ReconciliationControlsIT test` (PASS; Tests run 8, Failures 0, Errors 0, Skipped 0).
+- Notes:
+  - `openapi.json` newline-only change reverted per contract policy.
+- Resume instructions:
+  1. Continue Task 04 M3 (Factory/Production deep debug) on `debug-04-module-deep-debug`.
+  2. Run required gates + focused tests, capture logs, update `docs/ops_and_debug/EVIDENCE.md`, `erp-domain/docs/STABILIZATION_LOG.md`, and `HYDRATION.md`, then commit `debug-04: M3 <summary>`.
