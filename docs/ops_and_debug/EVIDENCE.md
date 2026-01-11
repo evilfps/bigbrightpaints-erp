@@ -1092,3 +1092,29 @@ Start: 2026-01-10T07:13:20Z
 - API evidence captured: supplier statement/aging + inventory valuation/reconciliation outputs in `docs/ops_and_debug/LOGS/20260111T053305Z_task04_M2_test.txt` (`M2 API evidence ...` lines).
 - SQL orphan checks: `raw_material_movements` missingJournal=0 (ERP-P2P + ERP-P2P-RET) and `inventory_movements` missingJournal=0 (INV-GL) in `docs/ops_and_debug/LOGS/20260111T053305Z_task04_M2_test.txt`.
 - `openapi.json` newline-only change observed during tests and reverted per contract policy.
+
+### Task 04 — Milestone M3 (Factory/Production deep debug) — 2026-01-11
+- Command: `mvn -f erp-domain/pom.xml -DskipTests compile`
+- Log: `docs/ops_and_debug/LOGS/20260111T054550Z_task04_M3_compile.txt`
+- Exit: 0
+- Summary: BUILD SUCCESS
+
+- Command: `mvn -f erp-domain/pom.xml -Dcheckstyle.failOnViolation=false checkstyle:check`
+- Log: `docs/ops_and_debug/LOGS/20260111T054600Z_task04_M3_checkstyle.txt`
+- Exit: 0
+- Summary: BUILD SUCCESS (violations: 30807)
+
+- Command: `mvn -f erp-domain/pom.xml test`
+- Log: `docs/ops_and_debug/LOGS/20260111T054616Z_task04_M3_test.txt`
+- Exit: 0
+- Summary: Tests run 214, Failures 0, Errors 0, Skipped 4 (warnings: negative balances, invalid company ID format).
+
+- Command: `mvn -f erp-domain/pom.xml -Dtest=ErpInvariantsSuiteIT,FactoryPackagingCostingIT,CompleteProductionCycleTest,WipToFinishedCostIT test`
+- Log: `docs/ops_and_debug/LOGS/20260111T054837Z_task04_M3_focus_production.txt`
+- Exit: 0
+- Summary: Tests run 18, Failures 0, Errors 0, Skipped 0.
+
+### Notes
+- M3 movement evidence (RM, packaging, inventory) captured in `docs/ops_and_debug/LOGS/20260111T054837Z_task04_M3_focus_production.txt` (`M3 evidence ...` lines).
+- SQL orphan checks: raw material production/packing and inventory movements missingReference=0 in `docs/ops_and_debug/LOGS/20260111T054837Z_task04_M3_focus_production.txt`.
+- `openapi.json` newline-only change observed during tests and reverted per contract policy.

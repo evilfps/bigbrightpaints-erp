@@ -53,6 +53,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -89,6 +90,7 @@ public class FactoryPackagingCostingIT extends AbstractIntegrationTest {
     @Autowired private SalesOrderRepository salesOrderRepository;
     @Autowired private SalesService salesService;
     @Autowired private JournalEntryRepository journalEntryRepository;
+    @Autowired private JdbcTemplate jdbcTemplate;
 
     private Company company;
     private Account wip;
@@ -267,6 +269,8 @@ public class FactoryPackagingCostingIT extends AbstractIntegrationTest {
                 "RECEIPT".equals(movement.getMovementType())
                         && packingSessionJournal.getId().equals(movement.getJournalEntryId())
                         && movement.getUnitCost().compareTo(expectedUnitCost) == 0);
+
+        assertNoProductionMovementOrphans(company);
     }
 
     private Account ensureAccount(String code, AccountType type) {
@@ -428,5 +432,68 @@ public class FactoryPackagingCostingIT extends AbstractIntegrationTest {
                 .map(l -> credit ? l.getCredit() : l.getDebit())
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         assertThat(actual).isEqualByComparingTo(expected);
+    }
+
+    private void assertNoProductionMovementOrphans(Company company) {
+        assertNoProductionLogMovementOrphans(company);
+        assertNoPackingMovementOrphans(company);
+        assertNoProductionInventoryMovementOrphans(company);
+    }
+
+    private void assertNoProductionLogMovementOrphans(Company company) {
+        String sql = """
+                select count(*)
+                from raw_material_movements rmm
+                join raw_materials rm on rm.id = rmm.raw_material_id
+                left join production_logs pl
+                  on pl.company_id = rm.company_id
+                 and pl.production_code = rmm.reference_id
+                where rm.company_id = ?
+                  and rmm.reference_type = 'PRODUCTION_LOG'
+                  and pl.id is null
+                """;
+        Integer orphanCount = jdbcTemplate.queryForObject(sql, Integer.class, company.getId());
+        int missing = orphanCount == null ? 0 : orphanCount;
+        System.out.println("M3 SQL orphan check raw_material_movements_production: company="
+                + company.getCode() + " missingReference=" + missing);
+        assertThat(missing).as("Raw material movements without production log reference").isZero();
+    }
+
+    private void assertNoPackingMovementOrphans(Company company) {
+        String sql = """
+                select count(*)
+                from raw_material_movements rmm
+                join raw_materials rm on rm.id = rmm.raw_material_id
+                left join production_logs pl
+                  on pl.company_id = rm.company_id
+                 and pl.production_code = split_part(rmm.reference_id, '-PACK-', 1)
+                where rm.company_id = ?
+                  and rmm.reference_type = 'PACKING_RECORD'
+                  and pl.id is null
+                """;
+        Integer orphanCount = jdbcTemplate.queryForObject(sql, Integer.class, company.getId());
+        int missing = orphanCount == null ? 0 : orphanCount;
+        System.out.println("M3 SQL orphan check raw_material_movements_pack: company="
+                + company.getCode() + " missingReference=" + missing);
+        assertThat(missing).as("Packaging movements without production log reference").isZero();
+    }
+
+    private void assertNoProductionInventoryMovementOrphans(Company company) {
+        String sql = """
+                select count(*)
+                from inventory_movements im
+                join finished_goods fg on fg.id = im.finished_good_id
+                left join production_logs pl
+                  on pl.company_id = fg.company_id
+                 and pl.production_code = im.reference_id
+                where fg.company_id = ?
+                  and im.reference_type = 'PRODUCTION_LOG'
+                  and pl.id is null
+                """;
+        Integer orphanCount = jdbcTemplate.queryForObject(sql, Integer.class, company.getId());
+        int missing = orphanCount == null ? 0 : orphanCount;
+        System.out.println("M3 SQL orphan check inventory_movements_production: company="
+                + company.getCode() + " missingReference=" + missing);
+        assertThat(missing).as("Inventory movements without production log reference").isZero();
     }
 }
