@@ -60,6 +60,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -81,6 +82,7 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
     );
 
     @Autowired private TestRestTemplate rest;
+    @Autowired private JdbcTemplate jdbcTemplate;
     @Autowired private CompanyRepository companyRepository;
     @Autowired private AccountRepository accountRepository;
     @Autowired private DealerRepository dealerRepository;
@@ -666,6 +668,7 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
 
         invariants.assertSubledgerReconciles(p2p.requireAccount("AP").getId(), entryDate);
         invariants.assertNoNegativeStock(company.getId(), material.getSku());
+        assertNoRawMaterialMovementOrphans(company);
     }
 
     @Test
@@ -744,6 +747,7 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         assertThat(payableDebit).isEqualByComparingTo(expectedTotal);
         assertThat(inventoryCredit).isEqualByComparingTo(expectedTotal);
+        assertNoRawMaterialMovementOrphans(company);
     }
 
     @Test
@@ -1119,6 +1123,30 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
         line.put("debit", debit);
         line.put("credit", credit);
         return line;
+    }
+
+    private void assertNoRawMaterialMovementOrphans(Company company) {
+        String sql = """
+                select count(*)
+                from raw_material_movements m
+                join raw_materials r on r.id = m.raw_material_id
+                where r.company_id = ?
+                  and m.reference_type in (?, ?)
+                  and m.journal_entry_id is null
+                """;
+        Integer orphanCount = jdbcTemplate.queryForObject(
+                sql,
+                Integer.class,
+                company.getId(),
+                InventoryReference.RAW_MATERIAL_PURCHASE,
+                InventoryReference.PURCHASE_RETURN
+        );
+        int missing = orphanCount == null ? 0 : orphanCount;
+        System.out.println("M2 SQL orphan check raw_material_movements: company="
+                + company.getCode() + " missingJournal=" + missing);
+        assertThat(missing)
+                .as("raw material movements should link to journals for purchases/returns")
+                .isZero();
     }
 
     private RawMaterial createRawMaterial(Company company, String sku, String name, Long inventoryAccountId) {

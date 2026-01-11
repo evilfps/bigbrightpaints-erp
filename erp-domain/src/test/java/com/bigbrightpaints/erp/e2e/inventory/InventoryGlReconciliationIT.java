@@ -27,6 +27,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
@@ -72,6 +73,9 @@ public class InventoryGlReconciliationIT extends AbstractIntegrationTest {
 
     @Autowired
     private com.bigbrightpaints.erp.modules.company.domain.CompanyRepository companyRepository;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     @BeforeEach
     void setCompanyContext() {
@@ -238,5 +242,24 @@ public class InventoryGlReconciliationIT extends AbstractIntegrationTest {
         assertThat(varianceDelta).isEqualByComparingTo(adjustmentDelta);
         assertThat(finishedGoodRepository.findById(finishedGood.getId()).orElseThrow().getCurrentStock())
                 .isEqualByComparingTo(new BigDecimal("135"));
+        assertNoInventoryMovementOrphans(company);
+    }
+
+    private void assertNoInventoryMovementOrphans(Company company) {
+        String sql = """
+                select count(*)
+                from inventory_movements m
+                join finished_goods f on f.id = m.finished_good_id
+                where f.company_id = ?
+                  and m.reference_type = 'ADJUSTMENT'
+                  and m.journal_entry_id is null
+                """;
+        Integer orphanCount = jdbcTemplate.queryForObject(sql, Integer.class, company.getId());
+        int missing = orphanCount == null ? 0 : orphanCount;
+        System.out.println("M2 SQL orphan check inventory_movements: company="
+                + company.getCode() + " missingJournal=" + missing);
+        assertThat(missing)
+                .as("inventory adjustments should link to journals")
+                .isZero();
     }
 }

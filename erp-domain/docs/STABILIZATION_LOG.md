@@ -1396,3 +1396,22 @@
 - Warnings/notes:
   - Fixture warnings persisted (negative balances, invalid company ID format).
   - `openapi.json` newline-only change reverted per contract policy.
+
+## 2026-01-11 (debug-04 M2 Purchasing/P2P + Inventory deep debug)
+- Changes:
+  - Added SQL orphan checks for raw material and inventory movement journal linkage in `ErpInvariantsSuiteIT` and `InventoryGlReconciliationIT`.
+- Commands run:
+  - `mvn -f erp-domain/pom.xml -DskipTests compile`
+  - `mvn -f erp-domain/pom.xml -Dcheckstyle.failOnViolation=false checkstyle:check`
+  - `mvn -f erp-domain/pom.xml test`
+  - `mvn -f erp-domain/pom.xml -Dtest=ErpInvariantsSuiteIT,ProcureToPayE2ETest,SupplierStatementAgingIT,ReconciliationControlsIT test`
+  - `mvn -f erp-domain/pom.xml -Dtest=InventoryGlReconciliationIT,DispatchConfirmationIT,LandedCostRevaluationIT,RevaluationCogsIT,ReconciliationControlsIT test`
+- Validation:
+  - `mvn -DskipTests compile` succeeded.
+  - Checkstyle reported 30807 violations; `failOnViolation=false` used for baseline visibility.
+  - `mvn test` succeeded: Tests run 214, Failures 0, Errors 0, Skipped 4.
+  - Focused purchasing suite succeeded: Tests run 14, Failures 0, Errors 0, Skipped 0.
+  - Focused inventory suite succeeded: Tests run 8, Failures 0, Errors 0, Skipped 0.
+- Warnings/notes:
+  - Fixture warnings persisted (negative balances, invalid company ID format).
+  - `openapi.json` newline-only change reverted per contract policy.

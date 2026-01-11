@@ -1061,3 +1061,34 @@ Start: 2026-01-10T07:13:20Z
 - API evidence captured in focused log: dealer ledger, dealer statement/aging, invoice list/detail (`M1 API evidence ...` lines).
 - Idempotency checks validated by `ErpInvariantsSuiteIT`: repeat order/dispatch/settlement returns same IDs and inventory movements unchanged on replay.
 - `openapi.json` newline-only change observed during tests and reverted per contract policy.
+
+### Task 04 — Milestone M2 (Purchasing/P2P + Inventory deep debug) — 2026-01-11
+- Command: `mvn -f erp-domain/pom.xml -DskipTests compile`
+- Log: `docs/ops_and_debug/LOGS/20260111T053234Z_task04_M2_compile.txt`
+- Exit: 0
+- Summary: BUILD SUCCESS
+
+- Command: `mvn -f erp-domain/pom.xml -Dcheckstyle.failOnViolation=false checkstyle:check`
+- Log: `docs/ops_and_debug/LOGS/20260111T053243Z_task04_M2_checkstyle.txt`
+- Exit: 0
+- Summary: BUILD SUCCESS (violations: 30807)
+
+- Command: `mvn -f erp-domain/pom.xml test`
+- Log: `docs/ops_and_debug/LOGS/20260111T053305Z_task04_M2_test.txt`
+- Exit: 0
+- Summary: Tests run 214, Failures 0, Errors 0, Skipped 4 (warnings: negative balances, invalid company ID format).
+
+- Command: `mvn -f erp-domain/pom.xml -Dtest=ErpInvariantsSuiteIT,ProcureToPayE2ETest,SupplierStatementAgingIT,ReconciliationControlsIT test`
+- Log: `docs/ops_and_debug/LOGS/20260111T053635Z_task04_M2_focus_p2p.txt`
+- Exit: 0
+- Summary: Tests run 14, Failures 0, Errors 0, Skipped 0.
+
+- Command: `mvn -f erp-domain/pom.xml -Dtest=InventoryGlReconciliationIT,DispatchConfirmationIT,LandedCostRevaluationIT,RevaluationCogsIT,ReconciliationControlsIT test`
+- Log: `docs/ops_and_debug/LOGS/20260111T053727Z_task04_M2_focus_inventory.txt`
+- Exit: 0
+- Summary: Tests run 8, Failures 0, Errors 0, Skipped 0.
+
+### Notes
+- API evidence captured: supplier statement/aging + inventory valuation/reconciliation outputs in `docs/ops_and_debug/LOGS/20260111T053305Z_task04_M2_test.txt` (`M2 API evidence ...` lines).
+- SQL orphan checks: `raw_material_movements` missingJournal=0 (ERP-P2P + ERP-P2P-RET) and `inventory_movements` missingJournal=0 (INV-GL) in `docs/ops_and_debug/LOGS/20260111T053305Z_task04_M2_test.txt`.
+- `openapi.json` newline-only change observed during tests and reverted per contract policy.
