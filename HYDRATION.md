@@ -149,3 +149,24 @@
 - Resume instructions:
   1. Run Task 04 final gates + all focused module suites.
   2. Capture logs, update `docs/ops_and_debug/EVIDENCE.md`, `erp-domain/docs/STABILIZATION_LOG.md`, and `HYDRATION.md`, then commit `debug-04: final gates`.
+
+## Update 2026-01-11 (Task 04 final gates)
+- Branch: `debug-04-module-deep-debug`
+- Tip: `10651e8`
+- Dirty: no
+- Commands run:
+  - `mvn -f erp-domain/pom.xml -DskipTests compile` (PASS).
+  - `mvn -f erp-domain/pom.xml -Dcheckstyle.failOnViolation=false checkstyle:check` (PASS; 30807 violations).
+  - `mvn -f erp-domain/pom.xml test` (PASS; Tests run 214, Failures 0, Errors 0, Skipped 4).
+  - `mvn -f erp-domain/pom.xml -Dtest=ErpInvariantsSuiteIT,OrderFulfillmentE2ETest,DispatchConfirmationIT,DealerLedgerIT,SettlementE2ETest,GstInclusiveRoundingIT test` (PASS; Tests run 24, Failures 0, Errors 0, Skipped 0).
+  - `mvn -f erp-domain/pom.xml -Dtest=ErpInvariantsSuiteIT,ProcureToPayE2ETest,SupplierStatementAgingIT,ReconciliationControlsIT test` (PASS; Tests run 14, Failures 0, Errors 0, Skipped 0).
+  - `mvn -f erp-domain/pom.xml -Dtest=InventoryGlReconciliationIT,DispatchConfirmationIT,LandedCostRevaluationIT,RevaluationCogsIT,ReconciliationControlsIT test` (PASS; Tests run 8, Failures 0, Errors 0, Skipped 0).
+  - `mvn -f erp-domain/pom.xml -Dtest=ErpInvariantsSuiteIT,FactoryPackagingCostingIT,CompleteProductionCycleTest,WipToFinishedCostIT test` (PASS; Tests run 18, Failures 0, Errors 0, Skipped 0).
+  - `mvn -f erp-domain/pom.xml -Dtest=ErpInvariantsSuiteIT,PayrollBatchPaymentIT,PeriodCloseLockIT test` (PASS; Tests run 13, Failures 0, Errors 0, Skipped 0).
+  - `mvn -f erp-domain/pom.xml -Dtest=AuthControllerIT,AuthHardeningIT,MfaControllerIT,AdminUserSecurityIT test` (PASS; Tests run 12, Failures 0, Errors 0, Skipped 0).
+  - `mvn -f erp-domain/pom.xml -Dtest=OrchestratorControllerIT,CommandDispatcherTest,IntegrationCoordinatorTest test` (PASS; Tests run 13, Failures 0, Errors 0, Skipped 0).
+- Notes:
+  - `openapi.json` newline-only change reverted per contract policy.
+- Resume instructions:
+  1. Push branch `debug-04-module-deep-debug`.
+  2. Deliver Task 04 completion report with log paths and summaries.
