@@ -397,6 +397,40 @@ Start: 2026-01-10T06:41:31Z
 - Status: GO
 - Blockers: none
 
+## Run 20260111T083046Z
+Start: 2026-01-11T08:33:45Z
+
+### Start condition
+- Branch: `debug-05-reconciliation-period-controls`
+- Commit: `85b7e71c3f1d2f816eebbc736c94b111dd1071e9`
+- Dirty worktree: no
+- Docker: available via Testcontainers (server 28.2.2)
+
+### Task 05 — Final gates (reconciliation + period controls)
+- Command: `mvn -f erp-domain/pom.xml -DskipTests compile`
+- Log: `docs/ops_and_debug/LOGS/20260111T083046Z_task05_final_compile.txt`
+- Exit: 0
+- Summary: BUILD SUCCESS
+
+- Command: `mvn -f erp-domain/pom.xml -Dcheckstyle.failOnViolation=false checkstyle:check`
+- Log: `docs/ops_and_debug/LOGS/20260111T083046Z_task05_final_checkstyle.txt`
+- Exit: 0
+- Summary: BUILD SUCCESS (violations: 30807)
+
+- Command: `mvn -f erp-domain/pom.xml test`
+- Log: `docs/ops_and_debug/LOGS/20260111T083046Z_task05_final_test.txt`
+- Exit: 0
+- Summary: Tests run 215, Failures 0, Errors 0, Skipped 4
+
+- Command: `mvn -f erp-domain/pom.xml -Dtest=ReconciliationControlsIT,InventoryGlReconciliationIT,PeriodCloseLockIT test`
+- Log: `docs/ops_and_debug/LOGS/20260111T083046Z_task05_final_focus_recon_period.txt`
+- Exit: 0
+- Summary: Tests run 8, Failures 0, Errors 0, Skipped 0
+
+### Go/No-Go
+- Status: GO
+- Blockers: none
+
 ### Task 04 — Milestone M1 (Sales/O2C deep debug)
 - Command: `mvn -f erp-domain/pom.xml -DskipTests compile`
 - Log: `docs/ops_and_debug/LOGS/20260110T131657Z_task04_M1_compile.txt`

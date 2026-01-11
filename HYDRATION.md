@@ -225,3 +225,21 @@
   1. Commit M3 changes with message `debug-05: M3 <summary>`.
   2. Run final gates + focused reconciliation tests for Task 05.
   3. Capture logs, update evidence/stabilization/hydration, and push `debug-05-reconciliation-period-controls`.
+
+## Update 2026-01-11 (Task 05 final gates)
+- Branch: `debug-05-reconciliation-period-controls`
+- Tip: pending commit (final gates)
+- Dirty: yes (pre-commit)
+- Commands run:
+  - `mvn -f erp-domain/pom.xml -DskipTests compile` (PASS).
+  - `mvn -f erp-domain/pom.xml -Dcheckstyle.failOnViolation=false checkstyle:check` (PASS; 30807 violations).
+  - `mvn -f erp-domain/pom.xml test` (PASS; Tests run 215, Failures 0, Errors 0, Skipped 4).
+  - `mvn -f erp-domain/pom.xml -Dtest=ReconciliationControlsIT,InventoryGlReconciliationIT,PeriodCloseLockIT test` (PASS; Tests run 8, Failures 0, Errors 0, Skipped 0).
+- Notes:
+  - Final gate logs captured under `docs/ops_and_debug/LOGS/20260111T083046Z_task05_final_*` and appended to `docs/ops_and_debug/EVIDENCE.md`.
+  - Fixture warnings persisted (invalid company ID format, negative balances, dispatch accounts not configured).
+  - `openapi.json` regenerated during tests and restored to repository state.
+- Resume instructions:
+  1. Commit final gate updates with message `debug-05: M3 final gates`.
+  2. Push `debug-05-reconciliation-period-controls`.
+  3. Deliver Task 05 completion report; next task is `tasks/debugging/task-06-security-rbac-and-company-boundaries.md`.
