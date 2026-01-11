@@ -87,6 +87,13 @@ class PeriodCloseLockIT extends AbstractIntegrationTest {
         assertThat(periodDto.get("status")).isEqualTo("CLOSED");
         Integer closingJeId = (Integer) periodDto.get("closingJournalEntryId");
         assertThat(closingJeId).isNotNull();
+        LocalDate periodEnd = parseDate(periodDto.get("endDate"));
+        Map<String, Object> nextPeriod = findPeriod(periodEnd.plusDays(1));
+        LocalDate nextStart = parseDate(nextPeriod.get("startDate"));
+        assertThat(nextStart).isEqualTo(periodEnd.plusDays(1));
+        assertThat(nextPeriod.get("status")).isEqualTo("OPEN");
+        System.out.println("M2 API evidence period close: " + closeResp.getBody());
+        System.out.println("M2 API evidence next period: " + nextPeriod);
 
         Long closingId = closingJeId.longValue();
         JournalEntry closing = journalEntryRepository.findById(closingId).orElseThrow();
@@ -107,6 +114,8 @@ class PeriodCloseLockIT extends AbstractIntegrationTest {
                 ), headers),
                 Map.class);
         assertThat(blocked.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        System.out.println("M2 API evidence locked posting blocked: status=" + blocked.getStatusCode()
+                + " body=" + blocked.getBody());
 
         // Reopen -> auto-reversal of closing JE and status OPEN
         ResponseEntity<Map> reopenResp = rest.exchange(
@@ -118,6 +127,7 @@ class PeriodCloseLockIT extends AbstractIntegrationTest {
         Map<String, Object> reopened = (Map<String, Object>) reopenResp.getBody().get("data");
         assertThat(reopened.get("status")).isEqualTo("OPEN");
         assertThat(reopened.get("closingJournalEntryId")).isNull();
+        System.out.println("M2 API evidence reopen: " + reopenResp.getBody());
 
         // Now posting succeeds
         ResponseEntity<Map> ok = rest.exchange("/api/v1/accounting/journal-entries",
@@ -132,6 +142,7 @@ class PeriodCloseLockIT extends AbstractIntegrationTest {
                 ), headers),
                 Map.class);
         assertThat(ok.getStatusCode()).isEqualTo(HttpStatus.OK);
+        System.out.println("M2 API evidence post-reopen: status=" + ok.getStatusCode() + " body=" + ok.getBody());
     }
 
     @Test
@@ -163,6 +174,8 @@ class PeriodCloseLockIT extends AbstractIntegrationTest {
 
         assertThat(blocked.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         assertThat(blocked.getBody().get("message").toString()).containsIgnoringCase("locked/closed");
+        System.out.println("M2 API evidence closed period blocked: status=" + blocked.getStatusCode()
+                + " body=" + blocked.getBody());
     }
 
     @Test
@@ -186,6 +199,8 @@ class PeriodCloseLockIT extends AbstractIntegrationTest {
 
         assertThat(reopenResp.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         assertThat(reopenResp.getBody().get("message").toString()).containsIgnoringCase("reason");
+        System.out.println("M2 API evidence reopen requires reason: status=" + reopenResp.getStatusCode()
+                + " body=" + reopenResp.getBody());
     }
 
     private Map<String, Object> line(Long accountId, BigDecimal debit, BigDecimal credit) {
@@ -212,25 +227,31 @@ class PeriodCloseLockIT extends AbstractIntegrationTest {
     }
 
     private Long currentPeriodId(LocalDate forDate) {
+        Map<String, Object> dto = findPeriod(forDate);
+        return ((Number) dto.get("id")).longValue();
+    }
+
+    private Map<String, Object> findPeriod(LocalDate forDate) {
         ResponseEntity<Map> resp = rest.exchange("/api/v1/accounting/periods",
                 HttpMethod.GET, new HttpEntity<>(headers), Map.class);
         List<Map<String, Object>> list = (List<Map<String, Object>>) resp.getBody().get("data");
         assertThat(list).isNotEmpty();
         for (Map<String, Object> dto : list) {
-            Object startObj = dto.get("startDate");
-            LocalDate start;
-            if (startObj instanceof List<?> arr && arr.size() == 3) {
-                start = LocalDate.of(((Number) arr.get(0)).intValue(),
-                        ((Number) arr.get(1)).intValue(),
-                        ((Number) arr.get(2)).intValue());
-            } else {
-                start = LocalDate.parse(startObj.toString());
-            }
+            LocalDate start = parseDate(dto.get("startDate"));
             if (start.getYear() == forDate.getYear() && start.getMonthValue() == forDate.getMonthValue()) {
-                return ((Number) dto.get("id")).longValue();
+                return dto;
             }
         }
         throw new AssertionError("No period found for date " + forDate);
+    }
+
+    private LocalDate parseDate(Object dateValue) {
+        if (dateValue instanceof List<?> arr && arr.size() == 3) {
+            return LocalDate.of(((Number) arr.get(0)).intValue(),
+                    ((Number) arr.get(1)).intValue(),
+                    ((Number) arr.get(2)).intValue());
+        }
+        return LocalDate.parse(dateValue.toString());
     }
 
     private Account ensureAccount(String code, String name, AccountType type) {

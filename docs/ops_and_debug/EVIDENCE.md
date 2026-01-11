@@ -1291,3 +1291,44 @@ Start: 2026-01-11T07:56:11Z
 ### Go/No-Go
 - Status: GO
 - Blockers: none
+
+## Run 20260111T081000Z
+Start: 2026-01-11T08:10:00Z
+
+### Start condition
+- Branch: `debug-05-reconciliation-period-controls`
+- Commit: `fe8e8e913db05450a35e3acd11db6275ca353829`
+- Dirty worktree: yes (PeriodCloseLockIT updates)
+- Docker: available via Testcontainers (server 28.2.2)
+
+### Task 05 — Milestone M2 (period lock/close/reopen)
+- Command: `mvn -f erp-domain/pom.xml -DskipTests compile`
+- Log: `docs/ops_and_debug/LOGS/20260111T081000Z_task05_M2_compile.txt`
+- Exit: 0
+- Summary: BUILD SUCCESS
+
+- Command: `mvn -f erp-domain/pom.xml -Dcheckstyle.failOnViolation=false checkstyle:check`
+- Log: `docs/ops_and_debug/LOGS/20260111T081000Z_task05_M2_checkstyle.txt`
+- Exit: 0
+- Summary: BUILD SUCCESS (violations: 30807)
+
+- Command: `mvn -f erp-domain/pom.xml test`
+- Log: `docs/ops_and_debug/LOGS/20260111T081000Z_task05_M2_test.txt`
+- Exit: 0
+- Summary: Tests run 215, Failures 0, Errors 0, Skipped 4
+
+- Command: `mvn -f erp-domain/pom.xml -Dtest=PeriodCloseLockIT test`
+- Log: `docs/ops_and_debug/LOGS/20260111T081000Z_task05_M2_focus_period.txt`
+- Exit: 0
+- Summary: Tests run 3, Failures 0, Errors 0, Skipped 0
+
+### Invariant / reconciliation assertions
+- Assertion: Period close sets status CLOSED and links closing journal; next period starts at month boundary.
+- Evidence: `docs/ops_and_debug/LOGS/20260111T081000Z_task05_M2_focus_period.txt` (M2 API evidence period close + next period)
+
+- Assertion: Locked/closed periods reject postings; reopen requires explicit reason and restores posting ability.
+- Evidence: `docs/ops_and_debug/LOGS/20260111T081000Z_task05_M2_focus_period.txt` (M2 API evidence blocked postings + reopen responses)
+
+### Go/No-Go
+- Status: GO
+- Blockers: none
