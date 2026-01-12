@@ -9,12 +9,13 @@
 - Epic 08: branch `epic-08-reconciliation-controls`, tip `afe04b5561d9d6510d61bce58640da2dfbec5010`.
 - Epic 09: branch `epic-09-operational-readiness`, tip `ca3851aea88ca5b791e65b896a1419a741283c49`.
 - Epic 10: branch `epic-10-cross-module-traceability`, tip `c94755d70bcb5ba452ae64ddd7d8a6b96b50d392`.
+- Audit investigation 07-08: branch `audit-inv-07-08`, commits `63352c5592b3f1d6c62c40f72e5b17d41803d0c1` (task-07), `381473579213e070e9b9ddfe8dee52012492e1a9` (task-08).
 
 ## Repo / Worktree State
 - Worktree: `/home/realnigga/Desktop/CLI_BACKEND_epic04`
-- Branch: `debug-07-performance-ops-evidence`
-- Tip: `0241c12f9192c0ed2b40f2cff7407785dc962f97`
-- Dirty: untracked logs present under `docs/ops_and_debug/LOGS` (pre-existing).
+- Branch: `audit-inv-07-08`
+- Tip: `381473579213e070e9b9ddfe8dee52012492e1a9`
+- Dirty: untracked logs present under `docs/ops_and_debug/LOGS` + `interview/` (pre-existing) and other untracked workspace artifacts.
 
 ## Environment Setup
 - No new installs; Docker/Testcontainers working.
@@ -24,6 +25,8 @@
 - `mvn -f erp-domain/pom.xml -Dcheckstyle.failOnViolation=false checkstyle:check` (PASS; 29454 violations reported).
 - `mvn -f erp-domain/pom.xml test` (PASS; Tests run 213, Failures 0, Errors 0, Skipped 4).
 - `mvn -f erp-domain/pom.xml -Dtest=PerformanceBudgetIT,PerformanceExplainIT,OrchestratorControllerIT,IntegrationCoordinatorTest test` (PASS; Tests run 16, Failures 0, Errors 0, Skipped 0).
+- `mvn -f erp-domain/pom.xml -DskipTests compile` (PASS; audit task 07 + 08).
+- `mvn -f erp-domain/pom.xml -Dcheckstyle.failOnViolation=false checkstyle:check` (PASS; 29454 violations reported; audit task 07 + 08).
 
 ## Warnings / Notes
 - Checkstyle baseline warnings (29454) persisted with failOnViolation=false.
@@ -36,8 +39,19 @@
 - M1 complete + verified; commit `6b3c89b8e283b6608151f11e99a91c1a538b10ab`.
 - M2 complete + verified; commit `9577ca5fb73c325c38e81a42dd17ec3dabef1811`.
 - M3 complete + verified; commit `fca29015fab211f7bca80546cf00f807c52b9e4c`.
-- Final verification complete; commit `0241c12f9192c0ed2b40f2cff7407785dc962f97`.
+- Final verification + hydration update complete; commit `ce4883d191fab8a5bbea1dd4925f4549989c127b`.
 
-## Resume Instructions (Task 07)
-1. Push branch `debug-07-performance-ops-evidence`.
-2. Produce Task 07 completion report (milestones, SHAs, files changed, test outputs, log paths, warnings, residual risks).
+## Current Task (Docs-only audit)
+- ERP logic audit program: Task-07 + Task-08 investigation complete on `audit-inv-07-08`.
+- Next recommended investigation: `tasks/erp_logic_audit/taskpack_investigation/task-01-o2c-logic-hunt.md`.
+
+## Commands Run (Audit)
+- `sed -n ... SCOPE.md` and `.codex/AGENTS.md` (scope + execution rules).
+- `sed -n ...` on repo docs required by the audit brief (module map, API matrix, stabilization log, debugging/predeploy tasks, ops evidence).
+- `git rev-parse --abbrev-ref HEAD` / `git rev-parse HEAD` / `git status --porcelain` (captured in audit report).
+
+## Resume Instructions (ERP logic audit)
+1. Stay on branch `audit-inv-07-08` (no worktrees).
+2. Open `tasks/erp_logic_audit/README.md` and follow the recommended order.
+3. Run the next investigation task: `tasks/erp_logic_audit/taskpack_investigation/task-01-o2c-logic-hunt.md`.
+4. Use read-only probes under `tasks/erp_logic_audit/EVIDENCE_QUERIES/` to confirm/deny leads before adding any new LF items.
