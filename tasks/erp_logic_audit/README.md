@@ -14,16 +14,16 @@ This folder contains **discovery + planning artifacts only** (no behavioral chan
 
 ## Run metadata (this audit run)
 - Repo: `CLI_BACKEND_epic04`
-- Branch: `debug-07-performance-ops-evidence`
-- HEAD SHA: `ce4883d191fab8a5bbea1dd4925f4549989c127b`
-- Git status: **DIRTY** (untracked logs under `docs/ops_and_debug/LOGS/` + `interview/` and this audit folder; do not delete)
+- Branch: `audit-inv-01-02`
+- HEAD SHA: `a0dfdf97a372fa63be015c9db5fec95e39ccea39`
+- Git status: **DIRTY** (untracked logs under `docs/ops_and_debug/LOGS/` + workspace artifacts like `interview/`; do not delete)
 
-## Investigation run report (Task-07 + Task-08)
-- Checked tenancy/RBAC entrypoints, dealer portal scope, and orchestrator trace access paths.
-- Checked idempotency/duplication controls for settlements, sales orders, and outbox backlog signals.
-- Confirmed new LFs: **LF-008** (orchestrator trace not company-scoped), **LF-009** (settlement idempotency uniqueness blocks multi-allocation).
-- New leads: none added this run.
-- Recommended next investigation: `tasks/erp_logic_audit/taskpack_investigation/task-01-o2c-logic-hunt.md`.
+## Investigation run report (Task-01 + Task-02)
+- Checked O2C chain-of-evidence: orders → slips → movements → invoices → AR + dealer ledger.
+- Checked P2P chain-of-evidence: purchases → RM receipts/returns → AP + supplier ledger.
+- Confirmed new LFs: none in this run.
+- New leads: **LEAD-010** (sales order idempotency key not enforced at DB), **LEAD-011** (purchase return idempotency relies on optional reference).
+- Recommended next investigation: `tasks/erp_logic_audit/taskpack_investigation/task-03-inventory-valuation-cogs-hunt.md`.
 
 ## AS-BUILT coverage summary (Phase 0 gate)
 - Portals/actors mapped: Admin, Accounting, Sales, Manufacturing/Factory, Dealer.
