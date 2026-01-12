@@ -237,3 +237,30 @@ Policy:
   - Restrict trace endpoint to admin/ops roles if appropriate.
 - Future-proof test suggestion:
   - Multi-company test: trace created in Company A is not readable by Company B (403/404).
+
+---
+
+## LF-009 — Settlement idempotency key uniqueness blocks multi-allocation settlements
+
+- Workflow + modules + portal: Dealer/Supplier settlements (`accounting`) — Accounting portal
+- ERP expectation:
+  - A settlement can allocate across multiple invoices/purchases under a single idempotency key, and retries must return the same allocation set.
+- As-built behavior:
+  - `AccountingService.settleDealerInvoices(...)` and `settleSupplierInvoices(...)` assign the same `idempotency_key` to every `PartnerSettlementAllocation` row in a settlement.
+  - Migration `V48__settlement_idempotency_keys.sql` creates a **unique** index on `(company_id, idempotency_key)` for `partner_settlement_allocations`.
+  - This makes multi-allocation settlements violate the unique index (or forces unique keys per row, breaking idempotent replay grouping).
+- Evidence:
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingService.java` (`settleDealerInvoices`, `settleSupplierInvoices`).
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/domain/PartnerSettlementAllocationRepository.java` (`findByCompanyAndIdempotencyKey` expects multiple rows).
+  - `erp-domain/src/main/resources/db/migration/V48__settlement_idempotency_keys.sql` (unique index).
+  - Probe(s):
+    - `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-08/SQL/03_partner_settlement_idempotency_index.sql`
+- Severity: **MED** (settlements can fail or require non-idempotent workarounds)
+- Repro steps (dev):
+  1) Create a dealer or supplier settlement request with **multiple allocations** and a single `idempotencyKey`.
+  2) Observe unique index violation on `partner_settlement_allocations` (or forced one-row behavior).
+- Fix direction (no implementation):
+  - Introduce a settlement header table keyed by `idempotency_key`, with allocation rows linked to it.
+  - Or widen the uniqueness scope to `(company_id, idempotency_key, invoice_id/purchase_id)` and enforce payload-match checks on replay.
+- Future-proof test suggestion:
+  - Integration test: multi-invoice settlement with a shared idempotency key, replayed safely without duplicates.
