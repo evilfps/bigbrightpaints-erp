@@ -26,6 +26,22 @@ bash tasks/erp_logic_audit/EVIDENCE_QUERIES/task-02/curl/01_p2p_accounting_repor
 bash tasks/erp_logic_audit/EVIDENCE_QUERIES/task-02/curl/02_p2p_purchases_gets.sh
 ```
 
+## Auth helper (admin JWT)
+
+```bash
+export BASE_URL=http://localhost:8080
+export COMPANY_CODE=<COMPANY_CODE>
+export ADMIN_EMAIL=<ADMIN_EMAIL>
+export ADMIN_PASSWORD=<ADMIN_PASSWORD>
+
+TOKEN=$(curl -sS -X POST -H 'Content-Type: application/json' \
+  -d "{\"email\":\"${ADMIN_EMAIL}\",\"password\":\"${ADMIN_PASSWORD}\",\"companyCode\":\"${COMPANY_CODE}\"}" \
+  "${BASE_URL}/api/v1/auth/login" | jq -r '.accessToken')
+```
+
+Note:
+- `/api/v1/reports/reconciliation-dashboard` requires `bankAccountId` as a query param; omit it and you will see a 400 response.
+
 Pass/Fail:
 - Accounting reports: **PASS** if AP tie-outs and checklist status align with ledger expectations.
 - Purchases list: **PASS** if purchase status + journal linkage look consistent for recent entries.
