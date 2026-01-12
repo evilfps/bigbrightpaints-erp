@@ -264,3 +264,36 @@ Policy:
   - Or widen the uniqueness scope to `(company_id, idempotency_key, invoice_id/purchase_id)` and enforce payload-match checks on replay.
 - Future-proof test suggestion:
   - Integration test: multi-invoice settlement with a shared idempotency key, replayed safely without duplicates.
+
+---
+
+## LF-010 — Purchase return retries without reference create duplicate journals and inventory movements
+
+- Workflow + modules + portal: P2P returns (`purchasing`, `accounting`, `inventory`) — Accounting portal
+- ERP expectation:
+  - Purchase returns must be idempotent; retried requests should not create duplicate AP and inventory reversals.
+- As-built behavior:
+  - `PurchasingService.recordPurchaseReturn` treats `referenceNumber` as optional and generates a new reference when omitted.
+  - `AccountingFacade.postPurchaseReturn` de-duplicates only by reference number, so each retry without a reference posts a new journal.
+  - Result: duplicate journals and raw material movements for identical retry payloads.
+- Evidence:
+  - Code:
+    - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/purchasing/service/PurchasingService.java:215` (reference generated when missing).
+    - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingFacade.java:381` (reference-only idempotency check).
+    - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/purchasing/dto/PurchaseReturnRequest.java` (`referenceNumber` optional).
+  - Runtime repro (BBP):
+    - `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-02/OUTPUTS/20260112T130652Z_lead11_return_resp_1.json`
+    - `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-02/OUTPUTS/20260112T130652Z_lead11_return_resp_2.json`
+    - `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-02/OUTPUTS/20260112T130652Z_lead11_journals_for_returns.txt`
+    - `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-02/OUTPUTS/20260112T130652Z_lead11_movements_for_returns.txt`
+- Severity: **MED** (retry duplicates can double-reverse inventory and AP)
+- Repro steps (dev):
+  1) POST `/api/v1/purchasing/raw-material-purchases/returns` twice with the same payload and no `referenceNumber`.
+  2) Observe two distinct references in the responses.
+  3) Query `journal_entries` and `raw_material_movements` for those references and confirm duplicates.
+- Fix direction (no implementation):
+  - Require a client-supplied idempotency key or `referenceNumber` on purchase returns.
+  - Enforce uniqueness at the data layer (e.g., `(company_id, reference_number)`), or derive a deterministic reference from the request payload + company.
+  - Store and replay idempotency keys at the service boundary to return existing journals on retries.
+- Future-proof test suggestion:
+  - Integration test: submit a purchase return twice without a reference and assert only one journal and movement set is created.

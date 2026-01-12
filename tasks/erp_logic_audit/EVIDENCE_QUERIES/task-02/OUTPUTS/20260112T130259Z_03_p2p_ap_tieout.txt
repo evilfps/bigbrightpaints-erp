@@ -1,0 +1,5 @@
+ gl_ap_balance | supplier_ledger_total | ap_variance 
+---------------+-----------------------+-------------
+             0 |                     0 |           0
+(1 row)
+

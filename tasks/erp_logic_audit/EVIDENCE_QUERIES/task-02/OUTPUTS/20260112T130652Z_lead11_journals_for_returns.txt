@@ -1,0 +1,6 @@
+ id |           reference_number           | entry_date | status 
+----+--------------------------------------+------------+--------
+  8 | PRN-BBP-AUDSUP-20260112T130652Z-0001 | 2026-01-12 | POSTED
+  9 | PRN-BBP-AUDSUP-20260112T130652Z-0002 | 2026-01-12 | POSTED
+(2 rows)
+

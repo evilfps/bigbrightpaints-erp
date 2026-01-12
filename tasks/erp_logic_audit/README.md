@@ -14,17 +14,16 @@ This folder contains **discovery + planning artifacts only** (no behavioral chan
 
 ## Run metadata (this audit run)
 - Repo: `CLI_BACKEND_epic04`
-- Branch: `audit-inv-01-02`
-- HEAD SHA: `225c16a2b4fd3616d9ee1a1208450332d1f0269e`
+- Branch: `audit-inv-03-evidence-and-inventory`
+- HEAD SHA: `14e07669337916a6d3974610c60ea4a9856207e3`
 - Git status: **DIRTY** (untracked logs under `docs/ops_and_debug/LOGS/` + workspace artifacts like `interview/`; do not delete)
 
-## Investigation run report (Task-01 + Task-02)
-- Re-ran O2C/P2P SQL probes for BBP (company_id=5); no missing JE links, no idempotency duplicates, AR/AP tie-outs at 0.00.
-- GET evidence for reports + checklist returned clean zero balances; reconciliation dashboard still requires `bankAccountId` (400 without it).
-- Dealer portal GETs verified with a fresh dealer login; portal scoped to dealer-only data.
-- Confirmed new LFs: none in this run.
-- New leads: none (existing **LEAD-010**/**LEAD-011** remain open).
-- Recommended next investigation: `tasks/erp_logic_audit/taskpack_investigation/task-03-inventory-valuation-cogs-hunt.md`.
+## Investigation run report (LEAD-010/011 evidence + Task-03)
+- Executed Task-01/02 RUN.md probes for BBP (company_id=5), plus targeted retries for LEAD-010/011.
+- LEAD-010 not confirmed: duplicate sales-order submission returned a duplicate-entry error; only one `sales_orders` row exists for the idempotency key.
+- LEAD-011 confirmed and promoted to **LF-010**: retrying purchase return without `referenceNumber` produced two posted returns (duplicate journals + movements).
+- Task-03 inventory valuation + COGS probes executed (SQL + accounting reports GETs); no new anomalies detected in BBP dataset.
+- Recommended next investigation: `tasks/erp_logic_audit/taskpack_investigation/task-04-production-costing-wip-hunt.md`.
 
 ## AS-BUILT coverage summary (Phase 0 gate)
 - Portals/actors mapped: Admin, Accounting, Sales, Manufacturing/Factory, Dealer.
@@ -46,6 +45,9 @@ Source: `tasks/erp_logic_audit/LOGIC_FLAWS.md`
 
 **MED severity**
 - LF-007 — Payroll run `idempotency_key` is globally unique (cross-company collision risk).
+- LF-008 — Orchestrator trace endpoint not company-scoped (trace leak).
+- LF-009 — Settlement idempotency key uniqueness blocks multi-allocation settlements.
+- LF-010 — Purchase return retries without reference duplicate journals/movements.
 
 Top “HIGH” list: currently 6 items (LF-001..LF-006).
 

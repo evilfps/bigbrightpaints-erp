@@ -1,0 +1,6 @@
+    category    | total_value 
+----------------+-------------
+ raw_materials  | 50.00000000
+ finished_goods |           0
+(2 rows)
+

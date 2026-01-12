@@ -1,0 +1,8 @@
+ finding_type | invoice_id | invoice_number | status | issue_date | journal_entry_id 
+--------------+------------+----------------+--------+------------+------------------
+(0 rows)
+
+ finding_type | slip_id | slip_number | status | dispatched_at | invoice_id | journal_entry_id | cogs_journal_entry_id 
+--------------+---------+-------------+--------+---------------+------------+------------------+-----------------------
+(0 rows)
+

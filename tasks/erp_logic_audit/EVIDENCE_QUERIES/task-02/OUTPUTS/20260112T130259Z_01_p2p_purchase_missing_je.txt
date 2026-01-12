@@ -1,0 +1,4 @@
+ finding_type | purchase_id | invoice_number | status | invoice_date | journal_entry_id 
+--------------+-------------+----------------+--------+--------------+------------------
+(0 rows)
+

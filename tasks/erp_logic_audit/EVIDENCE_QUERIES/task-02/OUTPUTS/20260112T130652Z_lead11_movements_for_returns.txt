@@ -1,0 +1,6 @@
+ id |             reference_id             | movement_type | quantity | unit_cost 
+----+--------------------------------------+---------------+----------+-----------
+  2 | PRN-BBP-AUDSUP-20260112T130652Z-0001 | RETURN        |   5.0000 |    5.0000
+  3 | PRN-BBP-AUDSUP-20260112T130652Z-0002 | RETURN        |   5.0000 |    5.0000
+(2 rows)
+

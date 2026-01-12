@@ -1,0 +1,7 @@
+== GET /api/v1/purchasing/raw-material-purchases
+{
+  "success": true,
+  "message": "Raw material purchases",
+  "data": [],
+  "timestamp": 1768222979.940943431
+}

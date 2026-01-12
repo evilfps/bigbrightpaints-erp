@@ -1,0 +1,81 @@
+== GET /api/v1/dealer-portal/dashboard
+{
+  "success": true,
+  "message": "Dealer dashboard",
+  "data": {
+    "dealerId": 4,
+    "dealerName": "Audit Dealer 20260112T130259Z",
+    "dealerCode": "AUDITDEALER20260112T130259Z",
+    "currentBalance": 0,
+    "creditLimit": 0.00,
+    "availableCredit": 0.00,
+    "totalOutstanding": 0,
+    "pendingInvoices": 0,
+    "agingBuckets": {
+      "current": 0,
+      "1-30 days": 0,
+      "31-60 days": 0,
+      "61-90 days": 0,
+      "90+ days": 0
+    }
+  },
+  "timestamp": 1768222980.162239323
+}
+== GET /api/v1/dealer-portal/orders
+{
+  "success": true,
+  "message": "Your orders",
+  "data": {
+    "dealerId": 4,
+    "dealerName": "Audit Dealer 20260112T130259Z",
+    "orderCount": 0,
+    "orders": []
+  },
+  "timestamp": 1768222980.175986908
+}
+== GET /api/v1/dealer-portal/invoices
+{
+  "success": true,
+  "message": "Your invoices",
+  "data": {
+    "dealerId": 4,
+    "dealerName": "Audit Dealer 20260112T130259Z",
+    "totalOutstanding": 0,
+    "invoiceCount": 0,
+    "invoices": []
+  },
+  "timestamp": 1768222980.188660765
+}
+== GET /api/v1/dealer-portal/ledger
+{
+  "success": true,
+  "message": "Your ledger",
+  "data": {
+    "entries": [],
+    "currentBalance": 0,
+    "dealerId": 4,
+    "dealerName": "Audit Dealer 20260112T130259Z"
+  },
+  "timestamp": 1768222980.204467642
+}
+== GET /api/v1/dealer-portal/aging
+{
+  "success": true,
+  "message": "Outstanding & aging",
+  "data": {
+    "dealerId": 4,
+    "dealerName": "Audit Dealer 20260112T130259Z",
+    "creditLimit": 0.00,
+    "totalOutstanding": 0,
+    "availableCredit": 0.00,
+    "agingBuckets": {
+      "current": 0,
+      "1-30 days": 0,
+      "31-60 days": 0,
+      "61-90 days": 0,
+      "90+ days": 0
+    },
+    "overdueInvoices": []
+  },
+  "timestamp": 1768222980.220509103
+}

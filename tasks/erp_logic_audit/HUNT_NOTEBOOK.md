@@ -19,8 +19,8 @@ Rules:
 | LEAD-007 | MED? | Operator | Raw material batch codes not enforced unique | Try create duplicate batch_code; check FIFO/traceability impact |
 | LEAD-008 | MED? | Auditor / Close | Inventory revaluation journals use `LocalDate.now()` | Revalue dated into closed period; inspect JE entry_date |
 | LEAD-009 | MED? | Operator / Auditor | AR/AP reconciliation depends on account code substrings | Change COA codes; verify recon returns false positives/negatives |
-| LEAD-010 | HIGH? | Backend / Operator | Sales order idempotency key not enforced at DB | Run duplicate idempotency query; attempt concurrent order creation |
-| LEAD-011 | MED? | Backend / Operator | Purchase return idempotency relies on optional reference | Retry purchase returns without reference; check for duplicates |
+| LEAD-010 | HIGH? | Backend / Operator | Sales order idempotency key not enforced at DB | Closed: duplicate attempt rejected; unique index present (see evidence) |
+| LEAD-011 | MED? | Backend / Operator | Purchase return idempotency relies on optional reference | Confirmed → LF-010 (duplicate returns created without reference) |
 
 ---
 
@@ -204,6 +204,7 @@ Rules:
 
 ## LEAD-010 — Sales order idempotency key not enforced at DB (concurrency duplicates possible)
 
+- Status: NOT CONFIRMED. Duplicate attempt returned a duplicate-entry error; only one row exists for the idempotency key.
 - Hypothesis:
   - Sales order creation relies on an application-level `findByCompanyAndIdempotencyKey` check without a unique constraint, so concurrent requests can create duplicate orders with the same idempotency key.
 - Why this matters (ERP expectation):
@@ -211,16 +212,21 @@ Rules:
 - Code anchors:
   - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/sales/service/SalesService.java` (`createOrder` uses `findByCompanyAndIdempotencyKey`).
   - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/sales/domain/SalesOrder.java` (`idempotency_key` has no uniqueness constraint).
+  - `erp-domain/src/main/resources/db/migration/V55__sales_order_idempotency.sql` (partial unique index on `sales_orders(company_id, idempotency_key)`).
 - Minimal probes:
   - SQL: `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-01/SQL/06_o2c_idempotency_duplicates.sql`.
   - Dev-only: concurrent POSTs to `/api/v1/sales/orders` with the same `idempotencyKey` and payload.
 - What would count as confirmed flaw:
   - Duplicate `sales_orders` rows sharing the same `idempotency_key` for a company.
+- Evidence collected:
+  - `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-01/OUTPUTS/20260112T130652Z_lead10_order_resp_1.json` (duplicate entry error).
+  - `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-01/OUTPUTS/20260112T130652Z_lead10_sales_orders_by_idempotency.txt` (single row).
 
 ---
 
 ## LEAD-011 — Purchase return idempotency relies on optional reference (retry duplicates possible)
 
+- Status: CONFIRMED → `LF-010` (duplicate returns created when `referenceNumber` omitted).
 - Hypothesis:
   - Purchase return requests without a stable `referenceNumber` generate a new reference on each call, allowing duplicate journals and movements on retries.
 - Why this matters (ERP expectation):
@@ -234,3 +240,8 @@ Rules:
   - SQL: `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-02/SQL/04_p2p_settlement_idempotency_duplicates.sql` (for duplicate idempotency signal) plus a targeted purchase return reference scan if needed.
 - What would count as confirmed flaw:
   - Duplicate purchase return journals/movements created from a retry without a stable reference.
+- Evidence collected:
+  - `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-02/OUTPUTS/20260112T130652Z_lead11_return_resp_1.json`
+  - `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-02/OUTPUTS/20260112T130652Z_lead11_return_resp_2.json`
+  - `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-02/OUTPUTS/20260112T130652Z_lead11_journals_for_returns.txt`
+  - `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-02/OUTPUTS/20260112T130652Z_lead11_movements_for_returns.txt`

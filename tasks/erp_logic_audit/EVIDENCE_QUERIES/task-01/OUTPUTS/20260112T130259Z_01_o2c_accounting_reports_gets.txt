@@ -1,0 +1,332 @@
+== GET /api/v1/reports/trial-balance
+{
+  "success": true,
+  "data": {
+    "rows": [
+      {
+        "accountId": 7005,
+        "code": "1000",
+        "name": "Cash",
+        "type": "ASSET",
+        "debit": 0.00,
+        "credit": 0
+      },
+      {
+        "accountId": 7006,
+        "code": "1100",
+        "name": "Accounts Receivable",
+        "type": "ASSET",
+        "debit": 0.00,
+        "credit": 0
+      },
+      {
+        "accountId": 7007,
+        "code": "1200",
+        "name": "Inventory",
+        "type": "ASSET",
+        "debit": 0.00,
+        "credit": 0
+      },
+      {
+        "accountId": 7008,
+        "code": "2000",
+        "name": "Accounts Payable",
+        "type": "LIABILITY",
+        "debit": 0,
+        "credit": 0.00
+      },
+      {
+        "accountId": 7009,
+        "code": "4000",
+        "name": "Revenue",
+        "type": "REVENUE",
+        "debit": 0,
+        "credit": 0.00
+      },
+      {
+        "accountId": 7010,
+        "code": "5000",
+        "name": "Cost of Goods Sold",
+        "type": "COGS",
+        "debit": 0.00,
+        "credit": 0
+      },
+      {
+        "accountId": 7011,
+        "code": "6000",
+        "name": "Operating Expenses",
+        "type": "EXPENSE",
+        "debit": 0.00,
+        "credit": 0
+      },
+      {
+        "accountId": 7013,
+        "code": "AR-AUDITDEALER20260112T124716Z",
+        "name": "Audit Dealer 20260112T124716Z Receivable",
+        "type": "ASSET",
+        "debit": 0.00,
+        "credit": 0
+      },
+      {
+        "accountId": 7012,
+        "code": "AR-AUDITDEALER20260112T180925",
+        "name": "Audit Dealer 20260112T180925 Receivable",
+        "type": "ASSET",
+        "debit": 0.00,
+        "credit": 0
+      }
+    ],
+    "totalDebit": 0.00,
+    "totalCredit": 0.00,
+    "balanced": true
+  },
+  "timestamp": 1768222979.660851775
+}
+== GET /api/v1/reports/inventory-valuation
+{
+  "success": true,
+  "data": {
+    "totalValue": 0,
+    "lowStockItems": 0
+  },
+  "timestamp": 1768222979.682865508
+}
+== GET /api/v1/reports/inventory-reconciliation
+{
+  "success": true,
+  "data": {
+    "physicalInventoryValue": 0,
+    "ledgerInventoryBalance": 0.00,
+    "variance": 0.00
+  },
+  "timestamp": 1768222979.711082337
+}
+== GET /api/v1/reports/balance-sheet
+{
+  "success": true,
+  "data": {
+    "totalAssets": 0.00,
+    "totalLiabilities": 0.00,
+    "totalEquity": 0.00
+  },
+  "timestamp": 1768222979.733093705
+}
+== GET /api/v1/reports/profit-loss
+{
+  "success": true,
+  "data": {
+    "revenue": 0.00,
+    "costOfGoodsSold": 0.00,
+    "grossProfit": 0.00,
+    "operatingExpenses": 0.00,
+    "netIncome": 0.00
+  },
+  "timestamp": 1768222979.754449738
+}
+== GET /api/v1/accounting/month-end/checklist
+{
+  "success": true,
+  "data": {
+    "period": {
+      "id": 8,
+      "year": 2026,
+      "month": 2,
+      "startDate": [
+        2026,
+        2,
+        1
+      ],
+      "endDate": [
+        2026,
+        2,
+        28
+      ],
+      "label": "February 2026",
+      "status": "OPEN",
+      "bankReconciled": false,
+      "bankReconciledAt": null,
+      "bankReconciledBy": null,
+      "inventoryCounted": false,
+      "inventoryCountedAt": null,
+      "inventoryCountedBy": null,
+      "closedAt": null,
+      "closedBy": null,
+      "closedReason": null,
+      "lockedAt": null,
+      "lockedBy": null,
+      "lockReason": null,
+      "reopenedAt": null,
+      "reopenedBy": null,
+      "reopenReason": null,
+      "closingJournalEntryId": null,
+      "checklistNotes": null
+    },
+    "items": [
+      {
+        "key": "bankReconciled",
+        "label": "Bank accounts reconciled",
+        "completed": false,
+        "detail": "Pending review"
+      },
+      {
+        "key": "inventoryCounted",
+        "label": "Inventory counted",
+        "completed": false,
+        "detail": "Awaiting stock count"
+      },
+      {
+        "key": "draftEntries",
+        "label": "Draft entries cleared",
+        "completed": true,
+        "detail": "All entries posted"
+      },
+      {
+        "key": "inventoryReconciled",
+        "label": "Inventory reconciled to GL",
+        "completed": true,
+        "detail": "Variance 0.00 within tolerance"
+      },
+      {
+        "key": "arReconciled",
+        "label": "AR reconciled to dealer ledger",
+        "completed": true,
+        "detail": "Variance 0.00 within tolerance"
+      },
+      {
+        "key": "apReconciled",
+        "label": "AP reconciled to supplier ledger",
+        "completed": true,
+        "detail": "Variance 0.00 within tolerance"
+      },
+      {
+        "key": "unbalancedJournals",
+        "label": "Unbalanced journals cleared",
+        "completed": true,
+        "detail": "All journals balanced"
+      },
+      {
+        "key": "unlinkedDocuments",
+        "label": "Documents linked to journals",
+        "completed": true,
+        "detail": "All documents linked"
+      },
+      {
+        "key": "unpostedDocuments",
+        "label": "Unposted documents cleared",
+        "completed": true,
+        "detail": "All documents posted"
+      }
+    ],
+    "readyToClose": false
+  },
+  "timestamp": 1768222979.803641828
+}
+== GET /api/v1/accounting/periods
+{
+  "success": true,
+  "data": [
+    {
+      "id": 8,
+      "year": 2026,
+      "month": 2,
+      "startDate": [
+        2026,
+        2,
+        1
+      ],
+      "endDate": [
+        2026,
+        2,
+        28
+      ],
+      "label": "February 2026",
+      "status": "OPEN",
+      "bankReconciled": false,
+      "bankReconciledAt": null,
+      "bankReconciledBy": null,
+      "inventoryCounted": false,
+      "inventoryCountedAt": null,
+      "inventoryCountedBy": null,
+      "closedAt": null,
+      "closedBy": null,
+      "closedReason": null,
+      "lockedAt": null,
+      "lockedBy": null,
+      "lockReason": null,
+      "reopenedAt": null,
+      "reopenedBy": null,
+      "reopenReason": null,
+      "closingJournalEntryId": null,
+      "checklistNotes": null
+    },
+    {
+      "id": 6,
+      "year": 2026,
+      "month": 1,
+      "startDate": [
+        2026,
+        1,
+        1
+      ],
+      "endDate": [
+        2026,
+        1,
+        31
+      ],
+      "label": "January 2026",
+      "status": "OPEN",
+      "bankReconciled": false,
+      "bankReconciledAt": null,
+      "bankReconciledBy": null,
+      "inventoryCounted": false,
+      "inventoryCountedAt": null,
+      "inventoryCountedBy": null,
+      "closedAt": null,
+      "closedBy": null,
+      "closedReason": null,
+      "lockedAt": null,
+      "lockedBy": null,
+      "lockReason": null,
+      "reopenedAt": null,
+      "reopenedBy": null,
+      "reopenReason": null,
+      "closingJournalEntryId": null,
+      "checklistNotes": null
+    },
+    {
+      "id": 7,
+      "year": 2025,
+      "month": 12,
+      "startDate": [
+        2025,
+        12,
+        1
+      ],
+      "endDate": [
+        2025,
+        12,
+        31
+      ],
+      "label": "December 2025",
+      "status": "OPEN",
+      "bankReconciled": false,
+      "bankReconciledAt": null,
+      "bankReconciledBy": null,
+      "inventoryCounted": false,
+      "inventoryCountedAt": null,
+      "inventoryCountedBy": null,
+      "closedAt": null,
+      "closedBy": null,
+      "closedReason": null,
+      "lockedAt": null,
+      "lockedBy": null,
+      "lockReason": null,
+      "reopenedAt": null,
+      "reopenedBy": null,
+      "reopenReason": null,
+      "closingJournalEntryId": null,
+      "checklistNotes": null
+    }
+  ],
+  "timestamp": 1768222979.821929644
+}

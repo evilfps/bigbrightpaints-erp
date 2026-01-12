@@ -1,0 +1,4 @@
+ finding_type | idempotency_key | order_count | min_order_id | max_order_id 
+--------------+-----------------+-------------+--------------+--------------
+(0 rows)
+
