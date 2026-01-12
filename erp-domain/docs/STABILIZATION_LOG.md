@@ -1114,3 +1114,20 @@
 - Warnings/notes:
   - Testcontainers auth config warnings, dynamic agent loading notices, and expected validation warnings persisted.
   - Evidence logs stored under `docs/ops_and_debug/LOGS/` (see Task 07 M3 entries in `docs/ops_and_debug/EVIDENCE.md`).
+
+## 2026-01-12 (task-07 final verification)
+- Changes:
+  - Ran final gates and focused suites for Task 07 completion evidence.
+- Commands run:
+  - `mvn -f erp-domain/pom.xml -DskipTests compile`
+  - `mvn -f erp-domain/pom.xml -Dcheckstyle.failOnViolation=false checkstyle:check`
+  - `mvn -f erp-domain/pom.xml test`
+  - `mvn -f erp-domain/pom.xml -Dtest=PerformanceBudgetIT,PerformanceExplainIT,OrchestratorControllerIT,IntegrationCoordinatorTest test`
+- Validation:
+  - Compile succeeded.
+  - Checkstyle reported 29454 violations; `failOnViolation=false` used for baseline visibility.
+  - `mvn test` succeeded: Tests run 213, Failures 0, Errors 0, Skipped 4.
+  - Focused tests succeeded: Tests run 16, Failures 0, Errors 0, Skipped 0.
+- Warnings/notes:
+  - Testcontainers auth config warnings and dynamic agent loading notices persisted.
+  - Test logs include expected invalid company ID, negative balance, and dispatch mapping warnings; no failures.
