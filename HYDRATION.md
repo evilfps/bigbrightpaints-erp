@@ -13,36 +13,37 @@
 ## Repo / Worktree State
 - Worktree: `/home/realnigga/Desktop/CLI_BACKEND_epic04`
 - Branch: `debug-07-performance-ops-evidence`
-- Tip: `9577ca5fb73c325c38e81a42dd17ec3dabef1811`
+- Tip: `fca29015fab211f7bca80546cf00f807c52b9e4c`
 - Dirty: untracked logs present under `docs/ops_and_debug/LOGS` (pre-existing).
 
 ## Environment Setup
 - No new installs; Docker/Testcontainers working.
 
 ## Commands Run (Latest)
-- `docker compose up -d --build` (initial attempt hit port 5432 conflict).
-- `DB_PORT=55432 docker compose up -d --build` (PASS).
-- `curl -fsS http://localhost:9090/actuator/health` (PASS).
-- `curl -fsS http://localhost:9090/actuator/health/readiness` (PASS).
-- `curl -fsS http://localhost:9090/actuator/health/liveness` (PASS).
+- `docker exec -e PGPASSWORD=erp erp_db psql -U erp -d erp_domain -c "SELECT status, dead_letter, COUNT(*) ..."` (PASS).
+- `docker exec -e PGPASSWORD=erp erp_db pg_dump -U erp -d erp_domain --format=custom --no-owner --no-acl -f /tmp/erp_domain.dump` (PASS).
+- `docker exec -e PGPASSWORD=erp erp_db dropdb -U erp --if-exists erp_domain_restore_test` (PASS).
+- `docker exec -e PGPASSWORD=erp erp_db createdb -U erp erp_domain_restore_test` (PASS).
+- `docker exec -e PGPASSWORD=erp erp_db pg_restore -U erp -d erp_domain_restore_test /tmp/erp_domain.dump` (PASS).
+- `docker exec -e PGPASSWORD=erp erp_db psql -U erp -d erp_domain_restore_test -c "SELECT COUNT(*) FROM flyway_schema_history;"` (PASS).
 - `mvn -f erp-domain/pom.xml -DskipTests compile` (PASS).
 - `mvn -f erp-domain/pom.xml -Dcheckstyle.failOnViolation=false checkstyle:check` (PASS; 29454 violations reported).
 - `mvn -f erp-domain/pom.xml test` (PASS; Tests run 213, Failures 0, Errors 0, Skipped 4).
+- `mvn -f erp-domain/pom.xml -Dtest=OrchestratorControllerIT,IntegrationCoordinatorTest test` (PASS; Tests run 8, Failures 0, Errors 0, Skipped 0).
 
 ## Warnings / Notes
 - Checkstyle baseline warnings (29454) persisted with failOnViolation=false.
 - Testcontainers auth config warnings and dynamic agent loading notices persisted.
 - Test logs include expected warnings (invalid company IDs, negative balances, dispatch mapping, sequence contention/duplicate key retries, HTML-to-PDF CSS parsing); no failures.
-- Compose boot required `DB_PORT=55432` due to port 5432 in use; `accounts_id_seq` reset via `setval` to avoid duplicate key.
+- Outbox queries returned zero pending/retrying/dead-letter events on seeded dataset; stuck retry count 0.
 
 ## Current Task
 - Task 07 (performance + ops evidence) on `debug-07-performance-ops-evidence`.
 - M1 complete + verified; commit `6b3c89b8e283b6608151f11e99a91c1a538b10ab`.
 - M2 complete + verified; commit `9577ca5fb73c325c38e81a42dd17ec3dabef1811`.
-- M3 pending.
+- M3 complete + verified; commit `fca29015fab211f7bca80546cf00f807c52b9e4c`.
 
 ## Resume Instructions (Task 07)
-1. Execute M3 deliverables (outbox safety checks + backup/restore evidence) and capture logs under `docs/ops_and_debug/LOGS`.
-2. Run M3 gates: compile, checkstyle, `mvn test`, plus focused tests (`-Dtest=OrchestratorControllerIT,IntegrationCoordinatorTest`).
-3. Update `docs/ops_and_debug/EVIDENCE.md`, `erp-domain/docs/STABILIZATION_LOG.md`, and `HYDRATION.md`, then commit `debug-07: M3 <summary>`.
-4. Run final verification gates + focused tests, push branch, and produce Task 07 completion report.
+1. Run final verification gates: compile, checkstyle, `mvn test`, plus focused tests (`-Dtest=PerformanceBudgetIT,PerformanceExplainIT,OrchestratorControllerIT,IntegrationCoordinatorTest` if task requires full focused set).
+2. Update `docs/ops_and_debug/EVIDENCE.md`, `erp-domain/docs/STABILIZATION_LOG.md`, and `HYDRATION.md` with final verification evidence.
+3. Commit final verification updates, push branch, and produce Task 07 completion report.
