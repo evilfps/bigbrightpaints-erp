@@ -1,0 +1,4 @@
+ movement_id | production_code | movement_type | quantity | unit_cost | journal_entry_id | batch_code | expected_reference | actual_reference 
+-------------+-----------------+---------------+----------+-----------+------------------+------------+--------------------+------------------
+(0 rows)
+

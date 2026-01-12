@@ -1,0 +1,4 @@
+ production_log_id | production_code | material_cost_total | movement_cost | delta 
+-------------------+-----------------+---------------------+---------------+-------
+(0 rows)
+

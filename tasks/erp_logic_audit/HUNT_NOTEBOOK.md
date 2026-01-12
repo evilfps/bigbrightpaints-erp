@@ -21,6 +21,7 @@ Rules:
 | LEAD-009 | MED? | Operator / Auditor | AR/AP reconciliation depends on account code substrings | Change COA codes; verify recon returns false positives/negatives |
 | LEAD-010 | HIGH? | Backend / Operator | Sales order idempotency key not enforced at DB | Closed: duplicate attempt rejected; unique index present (see evidence) |
 | LEAD-011 | MED? | Backend / Operator | Purchase return idempotency relies on optional reference | Confirmed → LF-010 (duplicate returns created without reference) |
+| LEAD-012 | MED? | Auditor / Operator | Production WIP postings unverified (no production logs) | Seed production log with labor/overhead + packing; rerun task-04 SQL |
 
 ---
 
@@ -245,3 +246,22 @@ Rules:
   - `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-02/OUTPUTS/20260112T130652Z_lead11_return_resp_2.json`
   - `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-02/OUTPUTS/20260112T130652Z_lead11_journals_for_returns.txt`
   - `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-02/OUTPUTS/20260112T130652Z_lead11_movements_for_returns.txt`
+
+---
+
+## LEAD-012 — Production WIP postings unverified (no production logs)
+
+- Hypothesis:
+  - WIP postings for production logs may drift (especially when labor/overhead are present), but the BBP dataset has no production logs to validate the posting chain.
+- Why this matters (ERP expectation):
+  - Production WIP should tie out between RM consumption, semi-finished receipt, packing, and wastage journals.
+- Evidence gap:
+  - `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-04/OUTPUTS/20260112T153126Z_09_production_gets.txt` shows zero production logs.
+  - Task-04 SQL probes return zero rows due to missing production data.
+- Code anchors:
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/factory/service/ProductionLogService.java` (material issue + semi-finished journals).
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/factory/service/PackingService.java` (WIP -> FG and wastage journals).
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingFacade.java` (`postMaterialConsumption`).
+- Next probes:
+  - Seed a production log with non-zero labor/overhead and at least one packing record.
+  - Re-run task-04 SQL probes to confirm WIP debit/credit alignment and journal linkage.

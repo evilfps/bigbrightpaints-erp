@@ -1,0 +1,4 @@
+ production_log_id | production_code | wastage_quantity | wastage_journal_id | reference_number 
+-------------------+-----------------+------------------+--------------------+------------------
+(0 rows)
+

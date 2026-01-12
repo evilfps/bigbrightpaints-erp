@@ -1,0 +1,4 @@
+ movement_id | reference_id | quantity | unit_cost | movement_value | journal_entry_id | journal_reference 
+-------------+--------------+----------+-----------+----------------+------------------+-------------------
+(0 rows)
+

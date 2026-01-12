@@ -1,0 +1,8 @@
+ finding_type | movement_id | product_code | reference_type | reference_id | movement_type | quantity | unit_cost | journal_entry_id | created_at 
+--------------+-------------+--------------+----------------+--------------+---------------+----------+-----------+------------------+------------
+(0 rows)
+
+ finding_type | movement_id | sku | reference_type | reference_id | movement_type | quantity | unit_cost | journal_entry_id | created_at 
+--------------+-------------+-----+----------------+--------------+---------------+----------+-----------+------------------+------------
+(0 rows)
+

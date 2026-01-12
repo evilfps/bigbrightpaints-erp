@@ -1,0 +1,12 @@
+== GET /api/v1/factory/production/logs
+{
+  "success": true,
+  "data": [],
+  "timestamp": 1768231938.966768278
+}
+== GET /api/v1/factory/unpacked-batches
+{
+  "success": true,
+  "data": [],
+  "timestamp": 1768231938.987469625
+}
