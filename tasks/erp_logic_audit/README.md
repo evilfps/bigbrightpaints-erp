@@ -15,7 +15,7 @@ This folder contains **discovery + planning artifacts only** (no behavioral chan
 ## Run metadata (this audit run)
 - Repo: `CLI_BACKEND_epic04`
 - Branch: `audit-inv-04-05-prod-tax`
-- HEAD SHA: `9030c9722c3ed01c9e62ef2eccf8d89108877971`
+- HEAD SHA: `c2293c3a44f63fb952ac9f96027014e7c60e28e3`
 - Git status: **DIRTY** (untracked logs under `docs/ops_and_debug/LOGS/` + workspace artifacts like `interview/`; do not delete)
 
 ## Investigation run report (LEAD-010/011 evidence + Task-03)
@@ -26,10 +26,10 @@ This folder contains **discovery + planning artifacts only** (no behavioral chan
 - Recommended next investigation: `tasks/erp_logic_audit/taskpack_investigation/task-04-production-costing-wip-hunt.md`.
 
 ## Investigation run report (Task-04 + Task-05)
-- Task-04 production/WIP probes executed (SQL + GET); BBP dataset has no production logs, so WIP/packing/wastage chain not verifiable; no orphan movements or valuation variance observed.
-- Task-05 tax/rounding probes executed; no invoice/header arithmetic or journal tax mismatches in BBP data; GST return endpoint blocked by missing tax account configuration (LEAD-013).
-- New leads logged: LEAD-012 (production WIP unverified), LEAD-013 (GST config blocker).
-- Recommended next investigation: `tasks/erp_logic_audit/taskpack_investigation/task-06-period-close-adjustments-hunt.md`, then re-run task-04 after seeding production logs and task-05 after GST accounts configured.
+- Task-04: seeded production chain (WIP + discount defaults, FG product, production log with labor/overhead, packing); SQL/GET probes confirmed LF-012 (WIP over-credit), LF-013 (status stale after packing), LF-014 (FG creation 500 when discount default missing).
+- Task-05: tax/rounding probes showed no invoice/journal mismatches; config health reported healthy while GST return failed with GST accounts unset → LF-011.
+- New lead logged: LEAD-015 (production log list/detail 500 due to lazy-load).
+- Recommended next investigation: `tasks/erp_logic_audit/taskpack_investigation/task-06-period-close-adjustments-hunt.md` and `tasks/erp_logic_audit/taskpack_investigation/task-09-ops-failure-modes-hunt.md`.
 
 ## AS-BUILT coverage summary (Phase 0 gate)
 - Portals/actors mapped: Admin, Accounting, Sales, Manufacturing/Factory, Dealer.
@@ -54,13 +54,17 @@ Source: `tasks/erp_logic_audit/LOGIC_FLAWS.md`
 - LF-008 — Orchestrator trace endpoint not company-scoped (trace leak).
 - LF-009 — Settlement idempotency key uniqueness blocks multi-allocation settlements.
 - LF-010 — Purchase return retries without reference duplicate journals/movements.
+- LF-011 — Config health ignores missing GST accounts; GST return fails.
+- LF-012 — WIP over-credited when labor/overhead included on production logs.
+- LF-013 — Production log status remains READY_TO_PACK after full packing.
+- LF-014 — Finished-good creation 500s when default discount account unset.
 
 Top “HIGH” list: currently 6 items (LF-001..LF-006).
 
 ## Leads pending confirmation (not yet LF items)
 Source: `tasks/erp_logic_audit/HUNT_NOTEBOOK.md`
 - LEAD-001..LEAD-009 (outstanding overwrite on create; RM stock clamp; double-dispatch confirm; payroll PF drift; inventory event posting risks; batch code uniqueness; revaluation date; recon code-substring footgun).
-- LEAD-012..LEAD-013 (production WIP probes blocked by missing data; GST return blocked by missing tax account config).
+- LEAD-015 (production log list/detail 500 due to lazy-load).
 
 ## Investigation taskpack (Phase 3)
 - Count: **9** tasks under `tasks/erp_logic_audit/taskpack_investigation/`.

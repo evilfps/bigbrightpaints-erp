@@ -12,18 +12,20 @@
 - Audit investigation 07-08: branch `audit-inv-07-08`, commits `63352c5592b3f1d6c62c40f72e5b17d41803d0c1` (task-07), `381473579213e070e9b9ddfe8dee52012492e1a9` (task-08).
 - Audit investigation 01-02: branch `audit-inv-01-02`, commits `2972890f8af382e3a17dcdf9378b87de9664ced4` (task-01), `a0dfdf97a372fa63be015c9db5fec95e39ccea39` (task-02), `edb3fd8a0fa08cbdf3b7ad93a0fd6570bc3ad1df` (task-02 evidence), `225c16a2b4fd3616d9ee1a1208450332d1f0269e` (task-01 evidence).
 - Audit investigation 03: branch `audit-inv-03-evidence-and-inventory`, commit `7abdc72d039d7f5d7fbaab6639bf2ee11aa72759` (LEAD-010/011 evidence + task-03 probes).
-- Audit investigation 04-05: branch `audit-inv-04-05-prod-tax`, commits `2b2d14f49f5fcfdd4c12e1649b10f76b1f7efdd6` (task-04 evidence) and `9030c9722c3ed01c9e62ef2eccf8d89108877971` (task-05 evidence).
+- Audit investigation 04-05: branch `audit-inv-04-05-prod-tax`, commits `1e0ecd39a48b9d4874d6d11c0d356849f4215d9e` (task-04 evidence) and `c2293c3a44f63fb952ac9f96027014e7c60e28e3` (task-05 evidence).
 
 ## Repo / Worktree State
 - Worktree: `/home/realnigga/Desktop/CLI_BACKEND_epic04`
 - Branch: `audit-inv-04-05-prod-tax`
-- Tip: `9030c9722c3ed01c9e62ef2eccf8d89108877971`
+- Tip: `c2293c3a44f63fb952ac9f96027014e7c60e28e3`
 - Dirty: untracked logs present under `docs/ops_and_debug/LOGS` + `interview/` (pre-existing), plus pending updates to `tasks/erp_logic_audit/README.md`, `tasks/erp_logic_audit/FINDINGS_INDEX.md`, and `HYDRATION.md`.
 
 ## Environment Setup
 - No new installs; Docker/Testcontainers working.
 
 ## Commands Run (Latest)
+- `docker compose up -d` (with `DB_PORT=55432`, `APP_PORT=8081`, `MANAGEMENT_PORT=19090`; PASS).
+- `curl http://localhost:19090/actuator/health` (UP).
 - `mvn -f erp-domain/pom.xml -DskipTests compile` (PASS; audit task 04 evidence gate).
 - `mvn -f erp-domain/pom.xml -Dcheckstyle.failOnViolation=false checkstyle:check` (PASS; audit task 04 evidence gate).
 - `mvn -f erp-domain/pom.xml -DskipTests compile` (PASS; audit task 05 evidence gate).
@@ -58,13 +60,12 @@
 - Test logs include expected warnings (invalid company IDs, negative balances, dispatch mapping, sequence contention/duplicate key retries, HTML-to-PDF CSS parsing); no failures.
 - Outbox queries returned zero pending/retrying/dead-letter events on seeded dataset; stuck retry count 0.
 - Audit tasks 01/02 + task-03 ran full test suite per AGENTS.md; all tests passed with 4 skipped.
-- Task-04 production/WIP probes returned no rows because BBP has no production logs; WIP chain remains unverified (LEAD-012).
-- Task-05 GST return endpoint failed for BBP due to missing GST tax account configuration (LEAD-013).
+- Task-04 production/WIP probes confirmed LF-012 (WIP over-credit), LF-013 (packing status stale), LF-014 (FG creation 500 when discount default missing); LEAD-015 logged for production log API 500s.
+- Task-05 GST return failed with GST accounts unset while config health reported healthy → LF-011.
 
 ## Current Task
 - ERP logic audit program: task-04 and task-05 evidence complete on `audit-inv-04-05-prod-tax`.
-- Next recommended investigation: `tasks/erp_logic_audit/taskpack_investigation/task-06-period-close-adjustments-hunt.md`.
-- Re-run task-04 after seeding production logs; re-run task-05 after GST tax accounts are configured.
+- Next recommended investigation: `tasks/erp_logic_audit/taskpack_investigation/task-06-period-close-adjustments-hunt.md` and `tasks/erp_logic_audit/taskpack_investigation/task-09-ops-failure-modes-hunt.md`.
 
 ## Commands Run (Audit)
 - `sed -n ... SCOPE.md` and `.codex/AGENTS.md` (scope + execution rules).
@@ -86,6 +87,11 @@
 - `bash tasks/erp_logic_audit/EVIDENCE_QUERIES/curl/01_accounting_reports_gets.sh` (task-04/task-05 accounting reports).
 - `bash tasks/erp_logic_audit/EVIDENCE_QUERIES/task-04/curl/01_production_gets.sh` (task-04 production GETs).
 - `bash tasks/erp_logic_audit/EVIDENCE_QUERIES/task-05/curl/01_tax_reports_gets.sh` (task-05 GST return GET).
+- `curl -X POST /api/v1/accounting/accounts` + `PUT /api/v1/accounting/default-accounts` (seed WIP + discount defaults).
+- `curl -X POST /api/v1/accounting/catalog/products` (seed FG product).
+- `curl -X POST /api/v1/factory/production/logs` + `POST /api/v1/factory/packing-records` (seed production log + packing).
+- `psql -v company_id=5 -f tasks/erp_logic_audit/EVIDENCE_QUERIES/task-04/SQL/{10_production_log_status,11_production_journal_lines}.sql` (production status + journal lines).
+- `psql -v company_id=5 -f tasks/erp_logic_audit/EVIDENCE_QUERIES/task-05/SQL/03_company_tax_accounts.sql` (GST config snapshot).
 - `curl http://localhost:8081/actuator/health` (service health).
 - `docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'` (container status).
 
