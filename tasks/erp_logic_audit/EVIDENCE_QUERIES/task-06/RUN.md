@@ -107,6 +107,8 @@ cat tasks/erp_logic_audit/EVIDENCE_QUERIES/task-06/OUTPUTS/20260113T084743Z_peri
 cat $(ls -t tasks/erp_logic_audit/EVIDENCE_QUERIES/task-06/OUTPUTS/*_period_close_response.json | head -n 1)
 ls tasks/erp_logic_audit/EVIDENCE_QUERIES/task-06/OUTPUTS
 git status -sb
+git add tasks/erp_logic_audit/EVIDENCE_QUERIES/task-06 tasks/erp_logic_audit/HUNT_NOTEBOOK.md tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/RUN.md
+git commit -m "audit-inv: task-06 period-close evidence + findings"
 ```
 - Notes:
   - `python` was not available; used `sed '$d'` + `jq` to parse `journal_open_response.json` after HTTP status append.
@@ -133,3 +135,52 @@ git status -sb
   - `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-06/OUTPUTS/20260113T084743Z_period_reopen_response.json`
   - `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-06/OUTPUTS/20260113T084847Z_period_close_request.json`
   - `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-06/OUTPUTS/20260113T084854Z_period_close_response.json`
+
+## Post-task verification + doc review
+
+```bash
+ps -ef | rg '[m]vn -f erp-domain/pom.xml test'
+ls
+ls -a
+cat .codex/AGENTS.md
+cat SCOPE.md
+git status -sb
+git diff --stat
+tail -n 80 tasks/erp_logic_audit/EVIDENCE_QUERIES/task-06/RUN.md
+head -n 40 tasks/erp_logic_audit/EVIDENCE_QUERIES/task-06/RUN.md
+tail -n 20 tasks/erp_logic_audit/EVIDENCE_QUERIES/task-06/RUN.md
+ls -1 tasks/erp_logic_audit/EVIDENCE_QUERIES/task-06/OUTPUTS | tail -n 20
+TS=$(date -u +"%Y%m%dT%H%M%SZ"); mvn -f erp-domain/pom.xml -DskipTests compile 2>&1 | tee "tasks/erp_logic_audit/EVIDENCE_QUERIES/task-06/OUTPUTS/${TS}_mvn_compile.txt"
+TS=$(date -u +"%Y%m%dT%H%M%SZ"); mvn -f erp-domain/pom.xml -Dcheckstyle.failOnViolation=false checkstyle:check 2>&1 | tee "tasks/erp_logic_audit/EVIDENCE_QUERIES/task-06/OUTPUTS/${TS}_mvn_checkstyle.txt"
+TS=$(date -u +"%Y%m%dT%H%M%SZ"); mvn -f erp-domain/pom.xml test 2>&1 | tee "tasks/erp_logic_audit/EVIDENCE_QUERIES/task-06/OUTPUTS/${TS}_mvn_test.txt"
+ls -t tasks/erp_logic_audit/EVIDENCE_QUERIES/task-06/OUTPUTS | head -n 6
+tail -n 40 tasks/erp_logic_audit/EVIDENCE_QUERIES/task-06/OUTPUTS/20260113T085754Z_mvn_test.txt
+tail -n 20 tasks/erp_logic_audit/EVIDENCE_QUERIES/task-06/OUTPUTS/20260113T085741Z_mvn_checkstyle.txt
+rg -n "Run Metadata|Leads|Task-09|Task-06|audit-inv-09-06-ops-close" tasks/erp_logic_audit/README.md
+sed -n '1,120p' tasks/erp_logic_audit/README.md
+rg -n "LEAD-014|LEAD-016" tasks/erp_logic_audit/FINDINGS_INDEX.md
+tail -n 80 HYDRATION.md
+head -n 80 HYDRATION.md
+```
+
+- Outputs captured:
+  - `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-06/OUTPUTS/20260113T085735Z_mvn_compile.txt`
+  - `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-06/OUTPUTS/20260113T085741Z_mvn_checkstyle.txt`
+  - `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-06/OUTPUTS/20260113T085754Z_mvn_test.txt`
+
+## Post-task doc updates (continued)
+
+```bash
+rg -n "Warnings / Notes" -n -C 2 HYDRATION.md
+sed -n '60,90p' HYDRATION.md
+tail -n 20 HYDRATION.md
+git diff -- tasks/erp_logic_audit/README.md
+git diff -- tasks/erp_logic_audit/FINDINGS_INDEX.md
+git status -sb
+git add HYDRATION.md tasks/erp_logic_audit/README.md tasks/erp_logic_audit/FINDINGS_INDEX.md tasks/erp_logic_audit/EVIDENCE_QUERIES/task-06/RUN.md tasks/erp_logic_audit/EVIDENCE_QUERIES/task-06/OUTPUTS/20260113T085735Z_mvn_compile.txt tasks/erp_logic_audit/EVIDENCE_QUERIES/task-06/OUTPUTS/20260113T085741Z_mvn_checkstyle.txt tasks/erp_logic_audit/EVIDENCE_QUERIES/task-06/OUTPUTS/20260113T085754Z_mvn_test.txt
+git commit -m "audit-inv: index/report updates (09-06)"
+git rev-parse HEAD
+git log --oneline -n 4
+git show --name-only --stat HEAD
+git status -sb
+```

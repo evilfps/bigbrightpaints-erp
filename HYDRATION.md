@@ -13,17 +13,21 @@
 - Audit investigation 01-02: branch `audit-inv-01-02`, commits `2972890f8af382e3a17dcdf9378b87de9664ced4` (task-01), `a0dfdf97a372fa63be015c9db5fec95e39ccea39` (task-02), `edb3fd8a0fa08cbdf3b7ad93a0fd6570bc3ad1df` (task-02 evidence), `225c16a2b4fd3616d9ee1a1208450332d1f0269e` (task-01 evidence).
 - Audit investigation 03: branch `audit-inv-03-evidence-and-inventory`, commit `7abdc72d039d7f5d7fbaab6639bf2ee11aa72759` (LEAD-010/011 evidence + task-03 probes).
 - Audit investigation 04-05: branch `audit-inv-04-05-prod-tax`, commits `1e0ecd39a48b9d4874d6d11c0d356849f4215d9e` (task-04 evidence) and `c2293c3a44f63fb952ac9f96027014e7c60e28e3` (task-05 evidence).
+- Audit investigation 09-06: branch `audit-inv-09-06-ops-close`, commits `1e0e9e7868dfe0fb0b8413c485785f89f9611d6e` (task-09 evidence) and `52b60d91ead0dc65a6b18025d97e281ea7a59d79` (task-06 evidence).
 
 ## Repo / Worktree State
 - Worktree: `/home/realnigga/Desktop/CLI_BACKEND_epic04`
-- Branch: `audit-inv-04-05-prod-tax`
-- Tip: `c2293c3a44f63fb952ac9f96027014e7c60e28e3`
-- Dirty: untracked logs present under `docs/ops_and_debug/LOGS` + `interview/` (pre-existing), plus pending updates to `tasks/erp_logic_audit/README.md`, `tasks/erp_logic_audit/FINDINGS_INDEX.md`, and `HYDRATION.md`.
+- Branch: `audit-inv-09-06-ops-close`
+- Tip: `52b60d91ead0dc65a6b18025d97e281ea7a59d79`
+- Dirty: untracked logs present under `docs/ops_and_debug/LOGS` + `interview/` (pre-existing).
 
 ## Environment Setup
 - No new installs; Docker/Testcontainers working.
 
 ## Commands Run (Latest)
+- `mvn -f erp-domain/pom.xml -DskipTests compile` (PASS; task-09/06 verification; `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-06/OUTPUTS/20260113T085735Z_mvn_compile.txt`).
+- `mvn -f erp-domain/pom.xml -Dcheckstyle.failOnViolation=false checkstyle:check` (PASS; 29454 violations reported; `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-06/OUTPUTS/20260113T085741Z_mvn_checkstyle.txt`).
+- `mvn -f erp-domain/pom.xml test` (PASS; Tests run 213, Failures 0, Errors 0, Skipped 4; `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-06/OUTPUTS/20260113T085754Z_mvn_test.txt`).
 - `docker compose up -d` (with `DB_PORT=55432`, `APP_PORT=8081`, `MANAGEMENT_PORT=19090`; PASS).
 - `curl http://localhost:19090/actuator/health` (UP).
 - `mvn -f erp-domain/pom.xml -DskipTests compile` (PASS; audit task 04 evidence gate).
@@ -54,23 +58,36 @@
 - `mvn -f erp-domain/pom.xml -DskipTests compile` (PASS; audit task 02).
 - `mvn -f erp-domain/pom.xml -Dcheckstyle.failOnViolation=false checkstyle:check` (PASS; 29454 violations reported; audit task 02).
 
+## Evidence Paths (Latest)
+- Task-09 outputs: `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/OUTPUTS/20260113T082939Z_actuator_health.json`, `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/OUTPUTS/20260113T082949Z_health_gets_app_port.txt`.
+- Task-06 outputs: `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-06/OUTPUTS/20260113T084648Z_period_lock_response.json`, `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-06/OUTPUTS/20260113T084715Z_journal_locked_override_response.json`, `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-06/OUTPUTS/20260113T084854Z_period_close_response.json`.
+- Verification gates: `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-06/OUTPUTS/20260113T085735Z_mvn_compile.txt`, `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-06/OUTPUTS/20260113T085741Z_mvn_checkstyle.txt`, `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-06/OUTPUTS/20260113T085754Z_mvn_test.txt`.
+
 ## Warnings / Notes
 - Checkstyle baseline warnings (29454) persisted with failOnViolation=false.
 - Testcontainers auth config warnings and dynamic agent loading notices persisted.
 - Test logs include expected warnings (invalid company IDs, negative balances, dispatch mapping, sequence contention/duplicate key retries, HTML-to-PDF CSS parsing); no failures.
 - Outbox queries returned zero pending/retrying/dead-letter events on seeded dataset; stuck retry count 0.
-- Audit tasks 01/02 + task-03 ran full test suite per AGENTS.md; all tests passed with 4 skipped.
+- Task-09: app-port actuator health returns 404; management port health is UP (LEAD-014).
+- Task-06: admin override did not bypass locked period posting; reopen required (LEAD-016).
 - Task-04 production/WIP probes confirmed LF-012 (WIP over-credit), LF-013 (packing status stale), LF-014 (FG creation 500 when discount default missing); LEAD-015 logged for production log API 500s.
 - Task-05 GST return failed with GST accounts unset while config health reported healthy → LF-011.
 
 ## Current Task
-- ERP logic audit program: task-04 and task-05 evidence complete on `audit-inv-04-05-prod-tax`.
-- Next recommended investigation: `tasks/erp_logic_audit/taskpack_investigation/task-06-period-close-adjustments-hunt.md` and `tasks/erp_logic_audit/taskpack_investigation/task-09-ops-failure-modes-hunt.md`.
+- ERP logic audit program: task-09 + task-06 evidence complete on `audit-inv-09-06-ops-close`.
+- Next recommended step: move to Phase 4 triage or fix taskpacks for confirmed LFs.
 
 ## Commands Run (Audit)
 - `sed -n ... SCOPE.md` and `.codex/AGENTS.md` (scope + execution rules).
 - `sed -n ...` on repo docs required by the audit brief (module map, API matrix, stabilization log, debugging/predeploy tasks, ops evidence).
 - `git rev-parse --abbrev-ref HEAD` / `git rev-parse HEAD` / `git status --porcelain` (captured in audit report).
+- `docker compose up -d` with `DB_PORT=55432`, `APP_PORT=8081`, `MANAGEMENT_PORT=19090` (task-09 runtime).
+- `docker compose ps` + `curl http://localhost:19090/actuator/health` + `curl http://localhost:8081/actuator/health` (ops probes).
+- `psql -v company_id=5 -f tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/SQL/*.sql` (task-09 ops SQL probes; no rows).
+- `bash tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/curl/*.sh` (task-09 ops GET probes).
+- `psql -v company_id=5 -f tasks/erp_logic_audit/EVIDENCE_QUERIES/task-06/SQL/*.sql` (task-06 period close SQL probes; no rows).
+- `bash tasks/erp_logic_audit/EVIDENCE_QUERIES/task-06/curl/*.sh` (task-06 accounting reports GET probes).
+- `curl -X POST /api/v1/accounting/journal-entries` + `POST /api/v1/accounting/periods/{id}/lock|reopen|close` (task-06 lock/close POST probes; outputs captured).
 - `psql -h localhost -p 55432 -U erp -d erp_domain -v company_id=5 -f tasks/erp_logic_audit/EVIDENCE_QUERIES/SQL/{06_inventory_valuation_fifo,07_inventory_control_vs_valuation,02_orphans_movements_without_journal,12_orphan_reservations,03_dispatch_slips_without_cogs_journal}.sql` (task-03 probes).
 - `bash tasks/erp_logic_audit/EVIDENCE_QUERIES/curl/01_accounting_reports_gets.sh` (task-03 accounting reports GETs).
 - Targeted POST repros for LEAD-010/011 (sales order idempotency + purchase return retry; outputs saved under task-01/task-02 OUTPUTS).
@@ -96,7 +113,7 @@
 - `docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'` (container status).
 
 ## Resume Instructions (ERP logic audit)
-1. Stay on branch `audit-inv-04-05-prod-tax` (no worktrees).
-2. Open `tasks/erp_logic_audit/README.md` and follow the recommended order.
-3. Run the next investigation task: `tasks/erp_logic_audit/taskpack_investigation/task-06-period-close-adjustments-hunt.md`.
-4. Re-run task-04 after seeding production logs and task-05 after GST accounts are configured.
+1. Stay on branch `audit-inv-09-06-ops-close` (no worktrees).
+2. Review `tasks/erp_logic_audit/README.md` and `tasks/erp_logic_audit/HUNT_NOTEBOOK.md` for LEAD-014/016 context.
+3. If continuing, decide whether to promote LEAD-014/016 or close them with additional probes.
+4. Start Phase 4/5 follow-ups under `tasks/erp_logic_audit/taskpack_fixes/` if fixes are approved.

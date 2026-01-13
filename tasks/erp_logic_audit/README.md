@@ -14,8 +14,8 @@ This folder contains **discovery + planning artifacts only** (no behavioral chan
 
 ## Run metadata (this audit run)
 - Repo: `CLI_BACKEND_epic04`
-- Branch: `audit-inv-04-05-prod-tax`
-- HEAD SHA: `c2293c3a44f63fb952ac9f96027014e7c60e28e3`
+- Branch: `audit-inv-09-06-ops-close`
+- HEAD SHA: `52b60d9`
 - Git status: **DIRTY** (untracked logs under `docs/ops_and_debug/LOGS/` + workspace artifacts like `interview/`; do not delete)
 
 ## Investigation run report (LEAD-010/011 evidence + Task-03)
@@ -30,6 +30,11 @@ This folder contains **discovery + planning artifacts only** (no behavioral chan
 - Task-05: tax/rounding probes showed no invoice/journal mismatches; config health reported healthy while GST return failed with GST accounts unset → LF-011.
 - New lead logged: LEAD-015 (production log list/detail 500 due to lazy-load).
 - Recommended next investigation: `tasks/erp_logic_audit/taskpack_investigation/task-06-period-close-adjustments-hunt.md` and `tasks/erp_logic_audit/taskpack_investigation/task-09-ops-failure-modes-hunt.md`.
+
+## Investigation run report (Task-09 + Task-06)
+- Task-09: ops failure-mode probes (health + outbox + drift SQL) executed; no new LFs. LEAD-014 added for actuator health app-port 404 vs management-port health.
+- Task-06: period lock/close probes executed (SQL + checklist + controlled POSTs). Posting into locked period blocked with/without override; close without force blocked by checklist. LEAD-016 added to confirm policy on admin override vs reopen.
+- Evidence: `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/OUTPUTS/20260113T082939Z_actuator_health.json`, `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-06/OUTPUTS/20260113T084648Z_period_lock_response.json`.
 
 ## AS-BUILT coverage summary (Phase 0 gate)
 - Portals/actors mapped: Admin, Accounting, Sales, Manufacturing/Factory, Dealer.
@@ -64,7 +69,9 @@ Top “HIGH” list: currently 6 items (LF-001..LF-006).
 ## Leads pending confirmation (not yet LF items)
 Source: `tasks/erp_logic_audit/HUNT_NOTEBOOK.md`
 - LEAD-001..LEAD-009 (outstanding overwrite on create; RM stock clamp; double-dispatch confirm; payroll PF drift; inventory event posting risks; batch code uniqueness; revaluation date; recon code-substring footgun).
+- LEAD-014 (actuator health app-port 404; management port required).
 - LEAD-015 (production log list/detail 500 due to lazy-load).
+- LEAD-016 (admin override does not bypass locked period posting).
 
 ## Investigation taskpack (Phase 3)
 - Count: **9** tasks under `tasks/erp_logic_audit/taskpack_investigation/`.
@@ -78,6 +85,7 @@ Source: `tasks/erp_logic_audit/HUNT_NOTEBOOK.md`
   7) `tasks/erp_logic_audit/taskpack_investigation/task-05-tax-rounding-and-reporting-hunt.md`
   8) `tasks/erp_logic_audit/taskpack_investigation/task-06-period-close-adjustments-hunt.md`
   9) `tasks/erp_logic_audit/taskpack_investigation/task-09-ops-failure-modes-hunt.md`
+- Phase 3 status: Task-01..Task-09 completed in current audit thread.
 
 ## Fix taskpack (Phase 5; planning only)
 - Count: **6** tasks under `tasks/erp_logic_audit/taskpack_fixes/`.
