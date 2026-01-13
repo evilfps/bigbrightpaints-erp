@@ -168,6 +168,8 @@ TS=$(date -u +"%Y%m%dT%H%M%SZ"); cat <<'EOF' > "tasks/erp_logic_audit/EVIDENCE_Q
 ls tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/OUTPUTS
 cat tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/RUN.md
 git status -sb
+git add tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09 tasks/erp_logic_audit/HUNT_NOTEBOOK.md
+git commit -m "audit-inv: task-09 ops failure modes evidence + findings"
 ```
 - Outputs captured:
   - `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/OUTPUTS/20260113T082846Z_compose_up.txt`

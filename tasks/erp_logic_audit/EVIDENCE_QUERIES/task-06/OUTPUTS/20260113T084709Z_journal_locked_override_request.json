@@ -1,0 +1,20 @@
+{
+  "referenceNumber": "AUD-T06-LOCK-OVERRIDE",
+  "entryDate": "2026-01-12",
+  "memo": "task-06 locked period override probe",
+  "adminOverride": true,
+  "lines": [
+    {
+      "accountId": 7005,
+      "description": "Audit debit",
+      "debit": 10.00,
+      "credit": 0.00
+    },
+    {
+      "accountId": 7009,
+      "description": "Audit credit",
+      "debit": 0.00,
+      "credit": 10.00
+    }
+  ]
+}

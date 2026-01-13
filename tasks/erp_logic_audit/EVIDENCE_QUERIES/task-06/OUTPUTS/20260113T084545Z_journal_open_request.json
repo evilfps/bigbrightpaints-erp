@@ -1,0 +1,20 @@
+{
+  "referenceNumber": "AUD-T06-OPEN-1",
+  "entryDate": "2026-01-10",
+  "memo": "task-06 period lock probe",
+  "adminOverride": false,
+  "lines": [
+    {
+      "accountId": 7005,
+      "description": "Audit debit",
+      "debit": 100.00,
+      "credit": 0.00
+    },
+    {
+      "accountId": 7009,
+      "description": "Audit credit",
+      "debit": 0.00,
+      "credit": 100.00
+    }
+  ]
+}
