@@ -27,6 +27,9 @@ Rules:
 | LEAD-015 | MED? | Operator / Auditor | Production log detail endpoint 500s (lazy load) | Closed → LF-015 |
 | LEAD-016 | LOW? | Auditor / Operator | Admin override does not bypass locked period posting | Closed: period lock requires reopen; admin override only affects date constraints |
 | LEAD-017 | MED? | Operator / Auditor | Unpacked batches endpoint 500s (lazy load) | Repro GET `/api/v1/factory/unpacked-batches`; capture logs + add transactional/fetch probe |
+| LEAD-COST-001 | HIGH | Auditor / Backend | Bulk packing: missing bulk ISSUE + movement↔journal link | Confirmed → LF-016 (see `tasks/erp_logic_audit/EVIDENCE_QUERIES/costing/OUTPUTS/20260113T105920Z_sql_01_bulk_pack_child_receipts_missing_journal.txt`; `tasks/erp_logic_audit/EVIDENCE_QUERIES/costing/OUTPUTS/20260113T105920Z_sql_02_bulk_pack_missing_bulk_issue_movement.txt`) |
+| LEAD-COST-002 | HIGH | Backend / Auditor | Bulk packing journal reference non-idempotent (duplicates on retry) | Confirmed → LF-017 (see `tasks/erp_logic_audit/EVIDENCE_QUERIES/costing/OUTPUTS/20260113T110014Z_sql_07_bulk_pack_recent_journals.txt`) |
+| LEAD-COST-005 | MED? | Auditor / Accounting | Wastage journal uses material-only valuation (labor/overhead excluded) | Closed (as-built: production unit_cost is material-only; see `tasks/erp_logic_audit/EVIDENCE_QUERIES/costing/OUTPUTS/20260113T105157Z_sql_05_wastage_journal_value_vs_cost_components.txt`) |
 
 ---
 
@@ -370,3 +373,57 @@ Rules:
   - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/factory/service/PackingService.java:190`
 - Next probes:
   - Wrap `listUnpackedBatches` in a transactional boundary or fetch-join product/brand, then re-run the GET.
+
+---
+
+## LEAD-COST-001 — Bulk packing writes child RECEIPTs but misses bulk ISSUE and journal linkage
+
+- Status: **CONFIRMED → LF-016**
+
+- Hypothesis:
+  - BulkPackingService records child FG RECEIPT movements but does not record the corresponding bulk ISSUE movement, and does not link movements to the created journal entry.
+- Why this matters (ERP expectation):
+  - Bulk-to-size conversion must be fully traceable: bulk stock decreases must have an auditable movement; and movements should link to the financial posting journal.
+- Evidence:
+  - Code anchors:
+    - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/factory/service/BulkPackingService.java`
+      - `pack(...)`: deducts bulk batch quantity + bulk FG stock directly (no ISSUE `inventory_movements` write).
+      - `createChildBatch(...)`: writes RECEIPT `inventory_movements` (`reference_type='PACKAGING'`, `reference_id='PACK-'||parent_batch_code`) with no `journal_entry_id`.
+      - `postPackagingJournal(...)`: posts journal entry and returns `journal.id()` without linking movements.
+  - SQL outputs (BBP company_id=5):
+    - `tasks/erp_logic_audit/EVIDENCE_QUERIES/costing/OUTPUTS/20260113T105920Z_sql_01_bulk_pack_child_receipts_missing_journal.txt` (child RECEIPT movements with `journal_entry_id` NULL)
+    - `tasks/erp_logic_audit/EVIDENCE_QUERIES/costing/OUTPUTS/20260113T105920Z_sql_02_bulk_pack_missing_bulk_issue_movement.txt` (0 ISSUE movements for the semantic pack reference)
+    - `tasks/erp_logic_audit/EVIDENCE_QUERIES/costing/OUTPUTS/20260113T105920Z_sql_04_bulk_pack_movements_vs_journals_linkage.txt` (journals exist but no movement linkage)
+  - API probe:
+    - `tasks/erp_logic_audit/EVIDENCE_QUERIES/costing/OUTPUTS/20260113T105824Z_bulk_pack_response_1.json`
+    - `tasks/erp_logic_audit/EVIDENCE_QUERIES/costing/OUTPUTS/20260113T105856Z_bulk_pack_response_2.json`
+
+---
+
+## LEAD-COST-002 — Bulk packing journal reference is non-deterministic (duplicates on retry)
+
+- Status: **CONFIRMED → LF-017**
+
+- Hypothesis:
+  - BulkPackingService uses `System.currentTimeMillis()` in journal references, allowing duplicate journals on retry.
+- Evidence:
+  - Code anchor:
+    - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/factory/service/BulkPackingService.java`
+      - `postPackagingJournal(...)`: `reference = "PACK-" + bulkBatch.getBatchCode() + "-" + System.currentTimeMillis()`
+  - SQL:
+    - `tasks/erp_logic_audit/EVIDENCE_QUERIES/costing/OUTPUTS/20260113T105920Z_sql_03_bulk_pack_journal_duplicates_by_semantic_reference.txt`
+    - `tasks/erp_logic_audit/EVIDENCE_QUERIES/costing/OUTPUTS/20260113T110014Z_sql_07_bulk_pack_recent_journals.txt`
+
+---
+
+## LEAD-COST-005 — Wastage valuation journal uses material-only cost (labor/overhead excluded)
+
+- Status: **CLOSED (as-built costing policy is material-only)**
+
+- Hypothesis:
+  - Wastage valuation journal uses only material cost and omits labor/overhead.
+- Evidence / rationale:
+  - `ProductionLogService` sets `postingCost = materialCost` and `unit_cost = postingCost / mixedQty` (labor/overhead are stored on the log but not capitalized into inventory valuation).
+  - `PackingService.postCompletionEntries(...)` computes wastage value using `materialUnitCost` (derived from material_cost_total / mixed_quantity).
+  - SQL snapshot shows `logged_unit_cost == material_unit_cost` for the most recent wastage log:
+    - `tasks/erp_logic_audit/EVIDENCE_QUERIES/costing/OUTPUTS/20260113T105157Z_sql_05_wastage_journal_value_vs_cost_components.txt`
