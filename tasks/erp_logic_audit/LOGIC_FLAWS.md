@@ -300,6 +300,33 @@ Policy:
 
 ---
 
+## LF-011 — Configuration health reports OK while GST return fails when GST accounts are unset
+
+- Workflow + modules + portal: Tax reporting/config (`accounting`, `reports`) — Accounting portal
+- ERP expectation:
+  - Configuration health should flag missing GST input/output accounts and GST return should surface a clear, actionable configuration error.
+- As-built behavior:
+  - `ConfigurationHealthService` validates production/raw material setup but does **not** validate `gst_input_tax_account_id` or `gst_output_tax_account_id`.
+  - `TaxService.generateGstReturn` calls `CompanyAccountingSettingsService.requireTaxAccounts`, which throws when GST accounts are null, leading to a generic invalid-state response.
+- Evidence:
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/core/health/ConfigurationHealthService.java:53`
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/CompanyAccountingSettingsService.java:52`
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/TaxService.java:36`
+  - `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-05/OUTPUTS/20260113T073400Z_tax_reports_gets.txt`
+  - `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-05/OUTPUTS/20260113T073455Z_03_company_tax_accounts.txt`
+- Severity: **MED** (tax reporting blocked + misleading health)
+- Repro steps (dev):
+  1) Ensure GST account IDs are null for the company.
+  2) GET `/api/v1/accounting/configuration/health` (returns healthy).
+  3) GET `/api/v1/accounting/gst/return` (fails with invalid state).
+- Fix direction (no implementation):
+  - Add GST account validation to configuration health.
+  - Return a specific validation error when GST accounts are missing (avoid generic state error).
+- Future-proof test suggestion:
+  - Integration test: missing GST accounts should make config health unhealthy and GST return should return a clear configuration error.
+
+---
+
 ## LF-012 — WIP is over-credited when labor/overhead are supplied on production logs
 
 - Workflow + modules + portal: Production/WIP (`factory`, `inventory`, `accounting`) — Factory/Accounting portals

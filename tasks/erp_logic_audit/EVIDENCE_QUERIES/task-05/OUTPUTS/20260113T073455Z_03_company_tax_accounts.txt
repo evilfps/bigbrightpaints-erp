@@ -1,0 +1,5 @@
+ company_id | company_code | gst_input_tax_account_id | gst_output_tax_account_id | gst_payable_account_id 
+------------+--------------+--------------------------+---------------------------+------------------------
+          5 | BBP          |                          |                           |                       
+(1 row)
+

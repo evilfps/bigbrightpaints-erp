@@ -1,0 +1,6 @@
+ id | code |       name        | timezone | base_currency | default_inventory_account_id 
+----+------+-------------------+----------+---------------+------------------------------
+  1 | OPS  | Ops Company       | UTC      | INR           |                         1200
+  5 | BBP  | Big Bright Paints | UTC      | INR           |                         7007
+(2 rows)
+

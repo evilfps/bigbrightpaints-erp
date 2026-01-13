@@ -1,0 +1,12 @@
+ finding_type | invoice_id | invoice_number | status | subtotal | tax_total | total_amount | delta 
+--------------+------------+----------------+--------+----------+-----------+--------------+-------
+(0 rows)
+
+ finding_type | invoice_id | invoice_number | total_amount | lines_total | delta 
+--------------+------------+----------------+--------------+-------------+-------
+(0 rows)
+
+ finding_type | sales_order_id | order_number | total_amount | lines_total | delta | gst_rounding_adjustment 
+--------------+----------------+--------------+--------------+-------------+-------+-------------------------
+(0 rows)
+

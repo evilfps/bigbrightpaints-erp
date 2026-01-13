@@ -1,0 +1,4 @@
+ invoice_id | invoice_number | issue_date | tax_total | journal_output_tax | delta 
+------------+----------------+------------+-----------+--------------------+-------
+(0 rows)
+

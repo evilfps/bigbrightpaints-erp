@@ -22,7 +22,7 @@ Rules:
 | LEAD-010 | HIGH? | Backend / Operator | Sales order idempotency key not enforced at DB | Closed: duplicate attempt rejected; unique index present (see evidence) |
 | LEAD-011 | MED? | Backend / Operator | Purchase return idempotency relies on optional reference | Confirmed → LF-010 (duplicate returns created without reference) |
 | LEAD-012 | MED? | Auditor / Operator | Production WIP postings unverified (no production logs) | Closed → LF-012 |
-| LEAD-013 | MED? | Auditor / Operator | GST return blocked by missing tax account config | Configure GST input/output accounts; re-run return + tax SQL |
+| LEAD-013 | MED? | Auditor / Operator | GST return blocked by missing tax account config | Closed → LF-011 |
 | LEAD-015 | MED? | Operator / Auditor | Production log detail endpoint 500s (lazy load) | Repro GET `/api/v1/factory/production/logs`; capture logs + add fetch/transaction probe |
 
 ---
@@ -278,6 +278,8 @@ Rules:
 
 ## LEAD-013 — GST return blocked by missing tax account config
 
+- Status: **CLOSED → LF-011**
+
 - Hypothesis:
   - BBP company lacks GST input/output tax account configuration, preventing GST return generation and masking tax/reporting checks.
 - Why this matters (ERP expectation):
@@ -291,6 +293,10 @@ Rules:
 - Next probes:
   - Configure GST input/output accounts for BBP and rerun task-05 SQL + `/api/v1/accounting/gst/return`.
   - Compare GST return output to journal lines for the same period.
+
+- Closure evidence:
+  - `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-05/OUTPUTS/20260113T073400Z_tax_reports_gets.txt`
+  - `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-05/OUTPUTS/20260113T073455Z_03_company_tax_accounts.txt`
 
 ## LEAD-015 — Production log detail endpoint fails with lazy-load error
 

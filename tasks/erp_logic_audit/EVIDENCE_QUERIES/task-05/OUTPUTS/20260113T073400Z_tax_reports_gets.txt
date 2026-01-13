@@ -1,0 +1,21 @@
+== GET /api/v1/accounting/configuration/health
+{
+  "success": true,
+  "message": "Configuration health report",
+  "data": {
+    "healthy": true,
+    "issues": []
+  },
+  "timestamp": 1768289641.081049544
+}
+== GET /api/v1/accounting/gst/return
+{
+  "success": false,
+  "message": "Invalid state",
+  "data": {
+    "traceId": "c323efa7-ccea-4059-98be-6460d6f93b93",
+    "code": "BUS_001",
+    "message": "Operation not allowed in current state"
+  },
+  "timestamp": 1768289641.128890745
+}

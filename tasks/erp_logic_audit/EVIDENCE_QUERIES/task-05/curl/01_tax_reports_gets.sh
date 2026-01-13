@@ -14,4 +14,5 @@ get() {
   curl -sS -H "${H_AUTH}" -H "${H_COMP}" "${BASE_URL}${path}" | jq .
 }
 
+get "/api/v1/accounting/configuration/health"
 get "/api/v1/accounting/gst/return"
