@@ -136,14 +136,15 @@ public class ProductionLogService {
         }
 
         MaterialIssueSummary issueSummary = issueMaterials(company, log, request.materials());
-        log.setMaterialCostTotal(issueSummary.totalCost());
-        BigDecimal totalCost = issueSummary.totalCost().add(laborCost).add(overheadCost);
-        log.setUnitCost(calculateUnitCost(totalCost, mixedQty));
+        BigDecimal materialCost = issueSummary.totalCost();
+        log.setMaterialCostTotal(materialCost);
+        BigDecimal postingCost = materialCost;
+        log.setUnitCost(calculateUnitCost(postingCost, mixedQty));
 
         ProductionLog saved = logRepository.save(log);
 
         postMaterialJournal(company, saved, product, issueSummary);
-        registerSemiFinishedBatch(company, saved, product, mixedQty, totalCost);
+        registerSemiFinishedBatch(company, saved, product, mixedQty, postingCost);
 
         return toDetailDto(saved);
     }

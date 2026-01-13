@@ -1,0 +1,5 @@
+ production_log_id |  production_code  | material_cost_total | labor_cost_total | overhead_cost_total | total_cost | wip_account_id | wip_debit_from_rm | wip_credit_from_semifg | wip_delta 
+-------------------+-------------------+---------------------+------------------+---------------------+------------+----------------+-------------------+------------------------+-----------
+                 2 | PROD-20260113-001 |               25.00 |             2.00 |                1.00 |      28.00 |           7016 |             25.00 |                  28.00 |     -3.00
+(1 row)
+
