@@ -1,0 +1,1 @@
+error while interpolating services.app.environment.JWT_SECRET: required variable JWT_SECRET is missing a value: Set JWT_SECRET to a 256-bit secret before starting

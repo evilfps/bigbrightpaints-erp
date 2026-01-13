@@ -1,0 +1,3 @@
+erp-domain/src/main/resources/application-dev.yml:42:management:
+erp-domain/src/main/resources/application-prod.yml:80:management:
+erp-domain/src/main/resources/application.yml:62:management:

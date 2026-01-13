@@ -1,0 +1,5 @@
+NAME             IMAGE                          COMMAND                  SERVICE    CREATED          STATUS                    PORTS
+erp_db           postgres:16-alpine             "docker-entrypoint.s…"   db         52 minutes ago   Up 52 minutes (healthy)   0.0.0.0:55432->5432/tcp, :::55432->5432/tcp
+erp_domain_app   cli_backend_epic04-app         "sh -c 'java $JAVA_O…"   app        19 seconds ago   Up 8 seconds              0.0.0.0:8081->8081/tcp, :::8081->8081/tcp, 0.0.0.0:19090->9090/tcp, :::19090->9090/tcp
+erp_mailhog      mailhog/mailhog:v1.0.1         "MailHog"                mailhog    5 days ago       Up 2 hours                0.0.0.0:1025->1025/tcp, :::1025->1025/tcp, 0.0.0.0:8025->8025/tcp, :::8025->8025/tcp
+erp_rabbit       rabbitmq:3-management-alpine   "docker-entrypoint.s…"   rabbitmq   5 days ago       Up 2 hours (healthy)      4369/tcp, 5671/tcp, 0.0.0.0:5672->5672/tcp, :::5672->5672/tcp, 15671/tcp, 15691-15692/tcp, 25672/tcp, 0.0.0.0:15672->15672/tcp, :::15672->15672/tcp

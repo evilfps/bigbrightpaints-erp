@@ -1,0 +1,148 @@
+docs/API_PORTAL_MATRIX.md:11:- `GET /api/integration/health`
+docs/API_PORTAL_MATRIX.md:12:- `GET /actuator/health` (+ subpaths)
+erp-domain/docs/FLYWAY_AUDIT_AND_STRATEGY.md:19:4) Verify schema via app health + basic endpoint smoke (see `docs/DEPLOY_CHECKLIST.md`).
+erp-domain/docs/FLYWAY_AUDIT_AND_STRATEGY.md:41:- Prod: take backups, deploy during a maintenance window, and verify `/actuator/health` plus recent `flyway_schema_history` entries.
+erp-domain/docs/ARCHITECTURE_REVIEW.md:15:  - admin, auth, rbac, company, portal, demo, orchestrator dashboards, integration health.
+erp-domain/docs/ARCHITECTURE_REVIEW.md:38:- JWT auth enforced via method-level security, with public auth endpoints and actuator health.
+docs/ops_and_debug/NEWCOMER_GUIDE.md:256:- `curl -s http://localhost:9090/actuator/health`
+docs/ops_and_debug/NEWCOMER_GUIDE.md:261:Smoke checks (health + docs + authenticated profile):
+docs/ops_and_debug/NEWCOMER_GUIDE.md:266:- Management/actuator: `9090`
+docs/ops_and_debug/NEWCOMER_GUIDE.md:311:### Boot issues: `/actuator/health` shows `DOWN`
+docs/ops_and_debug/EVIDENCE.md:83:## 2026-01-12 Task 07 M2 — Ops boot + health evidence
+docs/ops_and_debug/EVIDENCE.md:93:  - `docker compose up -d --build` (DB_PORT override + prod/seed profile) and `/actuator/health` + readiness/liveness checks.
+docs/ops_and_debug/EVIDENCE.md:94:  - Smoke checks: auth login + profile, reconciliation dashboard (bankAccountId=7005), inventory reconciliation, orchestrator health events/integrations.
+docs/ops_and_debug/EVIDENCE.md:107:  - `docs/ops_and_debug/LOGS/20260112_124015_task07_M2_actuator_health.json`
+docs/ops_and_debug/EVIDENCE.md:108:  - `docs/ops_and_debug/LOGS/20260112_124015_task07_M2_actuator_readiness.json`
+docs/ops_and_debug/EVIDENCE.md:109:  - `docs/ops_and_debug/LOGS/20260112_124015_task07_M2_actuator_liveness.json`
+erp-domain/docs/STABILIZATION_LOG.md:36:  - RabbitMQ/Kafka/SMTP endpoints may be required for full boot beyond health.
+erp-domain/docs/STABILIZATION_LOG.md:60:  - `curl http://localhost:9090/actuator/health`
+erp-domain/docs/STABILIZATION_LOG.md:65:  - Production profile health remained `DOWN` when dispatch mapping IDs were unset; readiness group in prod expects dispatch mapping configuration.
+erp-domain/docs/STABILIZATION_LOG.md:94:  - `curl http://localhost:9090/actuator/health`
+erp-domain/docs/STABILIZATION_LOG.md:728:## 2026-01-08 (epic-09 M3 — readiness/health hardening)
+erp-domain/docs/STABILIZATION_LOG.md:730:  - Added required config health indicator for JWT/encryption/license/mail settings.
+erp-domain/docs/STABILIZATION_LOG.md:731:  - Added `requiredConfig` to the readiness health group in prod config.
+erp-domain/docs/STABILIZATION_LOG.md:737:  - `curl --retry 10 --retry-connrefused --retry-delay 5 http://localhost:9090/actuator/health`
+erp-domain/docs/STABILIZATION_LOG.md:742:  - Docker compose boot succeeded with `DB_PORT=55432`; `/actuator/health` returned `{"status":"UP","groups":["liveness","readiness"]}`.
+erp-domain/docs/STABILIZATION_LOG.md:749:  - Added outbox retrying metrics/health counts for pending retry events.
+erp-domain/docs/STABILIZATION_LOG.md:756:  - `curl --retry 10 --retry-connrefused --retry-delay 5 http://localhost:9090/actuator/health`
+erp-domain/docs/STABILIZATION_LOG.md:761:  - Docker compose boot succeeded with `DB_PORT=55432`; `/actuator/health` returned `{"status":"UP","groups":["liveness","readiness"]}`.
+erp-domain/docs/STABILIZATION_LOG.md:763:  - Initial `/actuator/health` check hit connection reset while the container was still starting; retry succeeded.
+erp-domain/docs/STABILIZATION_LOG.md:769:  - Added operator smoke script for health/docs/authenticated profile checks.
+erp-domain/docs/STABILIZATION_LOG.md:776:  - `curl --retry 10 --retry-connrefused --retry-delay 5 http://localhost:9090/actuator/health`
+erp-domain/docs/STABILIZATION_LOG.md:781:  - Docker compose boot succeeded with `DB_PORT=55432`; `/actuator/health` returned `{"status":"UP","groups":["liveness","readiness"]}`.
+erp-domain/docs/STABILIZATION_LOG.md:843:  - `curl --retry 10 --retry-connrefused --retry-delay 5 http://localhost:9090/actuator/health`
+erp-domain/docs/STABILIZATION_LOG.md:851:  - Docker compose boot succeeded with `DB_PORT=55432`; `/actuator/health` returned `{"status":"UP","groups":["liveness","readiness"]}`.
+erp-domain/docs/STABILIZATION_LOG.md:867:  - `curl --retry 10 --retry-connrefused --retry-delay 5 http://localhost:9090/actuator/health`
+erp-domain/docs/STABILIZATION_LOG.md:873:  - Docker compose boot succeeded with `DB_PORT=55432`; `/actuator/health` returned `{"status":"UP","groups":["liveness","readiness"]}`.
+erp-domain/docs/STABILIZATION_LOG.md:979:  - Environment validation disabled; configuration health checks skipped.
+erp-domain/docs/STABILIZATION_LOG.md:1069:## 2026-01-12 (task-07 M2 — ops boot + health evidence)
+erp-domain/docs/STABILIZATION_LOG.md:1071:  - Captured Docker compose boot evidence and actuator health/readiness/liveness checks.
+erp-domain/docs/STABILIZATION_LOG.md:1077:  - `curl -fsS http://localhost:9090/actuator/health`
+erp-domain/docs/STABILIZATION_LOG.md:1078:  - `curl -fsS http://localhost:9090/actuator/health/readiness`
+erp-domain/docs/STABILIZATION_LOG.md:1079:  - `curl -fsS http://localhost:9090/actuator/health/liveness`
+erp-domain/docs/STABILIZATION_LOG.md:1084:  - Compose boot succeeded after shifting DB port; actuator health/readiness/liveness returned `UP`.
+docs/ops_and_debug/DEBUGGING_PLAN.md:250:### Level 4 — docker-compose boot + health/readiness + smoke calls
+docs/ops_and_debug/DEBUGGING_PLAN.md:256:- Health (liveness/readiness groups are exposed on the management port): `curl -fsS http://localhost:9090/actuator/health`
+docs/ops_and_debug/DEBUGGING_PLAN.md:260:- `docker compose ps` shows all services healthy (`erp_db`, `erp_rabbit`, `erp_domain_app`).
+docs/ops_and_debug/DEBUGGING_PLAN.md:261:- `/actuator/health` returns `status: UP` and advertises groups (readiness/liveness).
+docs/ops_and_debug/DEBUGGING_PLAN.md:262:- Smoke script completes: health OK, `/v3/api-docs` OK, authenticated profile OK.
+docs/ops_and_debug/DEBUGGING_PLAN.md:576:- Outbox health endpoints report accurate counts (pending/retrying/dead-letter).
+docs/ops_and_debug/DEBUGGING_PLAN.md:581:- Outbox backlog grows without processing (consumer down) and is not visible via health/metrics.
+docs/ops_and_debug/DEBUGGING_PLAN.md:590:  - Outbox health: `GET $BASE_URL/api/v1/orchestrator/health/events`
+docs/ops_and_debug/DEBUGGING_PLAN.md:591:  - Integration health: `GET $BASE_URL/api/v1/orchestrator/health/integrations`
+docs/ops_and_debug/DEBUGGING_PLAN.md:602:- Outbox health endpoints reflect reality (counts match DB).
+docs/ops_and_debug/DEBUGGING_PLAN.md:626:- `/actuator/health` is `UP` and readiness includes required config indicators in prod profile.
+docs/ops_and_debug/DEBUGGING_PLAN.md:629:- `curl -fsS http://localhost:9090/actuator/health`
+docs/ops_and_debug/DEBUGGING_PLAN.md:634:### Outbox health
+docs/ops_and_debug/DEBUGGING_PLAN.md:640:- API: `curl -fsS -H \"Authorization: Bearer $TOKEN\" -H \"X-Company-Id: $COMPANY\" \"$BASE_URL/api/v1/orchestrator/health/events\"`
+erp-domain/docs/API_NOTES.md:8:- `GET /api/integration/health`
+erp-domain/docs/API_NOTES.md:17:- `GET /api/v1/orchestrator/health/events`
+erp-domain/docs/API_NOTES.md:18:- `GET /api/v1/orchestrator/health/integrations`
+tasks/erp_logic_audit/taskpack_investigation/task-09-ops-failure-modes-hunt.md:4:- Workflows: config health, smoke checks, drift detection, backup/restore readiness.
+tasks/erp_logic_audit/taskpack_investigation/task-09-ops-failure-modes-hunt.md:15:- Configuration health evaluation:
+tasks/erp_logic_audit/taskpack_investigation/task-09-ops-failure-modes-hunt.md:16:  - `erp-domain/src/main/java/com/bigbrightpaints/erp/core/health/ConfigurationHealthService.java`
+tasks/erp_logic_audit/taskpack_investigation/task-09-ops-failure-modes-hunt.md:17:  - `erp-domain/src/main/java/com/bigbrightpaints/erp/core/health/ConfigurationHealthIndicator.java`
+tasks/erp_logic_audit/taskpack_investigation/task-09-ops-failure-modes-hunt.md:28:  - `bash tasks/erp_logic_audit/EVIDENCE_QUERIES/curl/00_health_gets.sh`
+tasks/erp_logic_audit/taskpack_investigation/task-09-ops-failure-modes-hunt.md:29:  - `bash tasks/erp_logic_audit/EVIDENCE_QUERIES/curl/03_orchestrator_health_gets.sh`
+tasks/erp_logic_audit/taskpack_investigation/task-09-ops-failure-modes-hunt.md:43:- “Health is UP” while config health reports missing critical defaults required for safe posting.
+erp-domain/docs/DEPLOY_CHECKLIST.md:43:  - Start app to re-run health checks and confirm `/actuator/health`.
+erp-domain/docs/DEPLOY_CHECKLIST.md:55:- `/actuator/health`
+erp-domain/docs/DEPLOY_CHECKLIST.md:56:- `/api/integration/health`
+erp-domain/docs/DEPLOY_CHECKLIST.md:57:- `/api/v1/orchestrator/health/integrations`
+erp-domain/docs/DEPLOY_CHECKLIST.md:58:- `/api/v1/orchestrator/health/events`
+erp-domain/docs/DEPLOY_CHECKLIST.md:63:- Health snapshot: `/api/v1/orchestrator/health/events` (pending/retrying/dead-letter counts).
+erp-domain/docs/DEPLOY_CHECKLIST.md:77:- Actuator endpoints enabled for `health`, `info`, `metrics`.
+tasks/erp_logic_audit/taskpack_investigation/task-07-tenancy-rbac-portal-entrypoints-hunt.md:33:- Orchestrator health endpoints (role reachability + headers):
+tasks/erp_logic_audit/taskpack_investigation/task-07-tenancy-rbac-portal-entrypoints-hunt.md:34:  - `bash tasks/erp_logic_audit/EVIDENCE_QUERIES/curl/03_orchestrator_health_gets.sh`
+tasks/erp_logic_audit/FINDINGS_INDEX.md:21:| LF-011 | Flaw | MED | Tax reporting/config | Accounting | `accounting`, `reports` | Config health misses GST account gaps; GST return fails | `tasks/erp_logic_audit/LOGIC_FLAWS.md`; `erp-domain/src/main/java/com/bigbrightpaints/erp/core/health/ConfigurationHealthService.java`; `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-05/OUTPUTS/20260113T073400Z_tax_reports_gets.txt` | Confirmed |
+tasks/erp_logic_audit/FINDINGS_INDEX.md:38:| LEAD-014 | Lead | LOW? | Ops readiness | Ops/SRE | `core`, `health` | Actuator health 404 on app port; management port required | `tasks/erp_logic_audit/HUNT_NOTEBOOK.md`; `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/OUTPUTS/20260113T082949Z_health_gets_app_port.txt` | Unconfirmed |
+tasks/erp_logic_audit/README.md:30:- Task-05: tax/rounding probes showed no invoice/journal mismatches; config health reported healthy while GST return failed with GST accounts unset → LF-011.
+tasks/erp_logic_audit/README.md:35:- Task-09: ops failure-mode probes (health + outbox + drift SQL) executed; no new LFs. LEAD-014 added for actuator health app-port 404 vs management-port health.
+tasks/erp_logic_audit/README.md:37:- Evidence: `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/OUTPUTS/20260113T082939Z_actuator_health.json`, `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-06/OUTPUTS/20260113T084648Z_period_lock_response.json`.
+tasks/erp_logic_audit/README.md:62:- LF-011 — Config health ignores missing GST accounts; GST return fails.
+tasks/erp_logic_audit/README.md:72:- LEAD-014 (actuator health app-port 404; management port required).
+tasks/erp_logic_audit/AS_BUILT_ERP_SPEC.md:36:  - `/actuator/**`, `/swagger/**`, `/v3/**` bypass this filter
+tasks/erp_logic_audit/LOGIC_FLAWS.md:303:## LF-011 — Configuration health reports OK while GST return fails when GST accounts are unset
+tasks/erp_logic_audit/LOGIC_FLAWS.md:307:  - Configuration health should flag missing GST input/output accounts and GST return should surface a clear, actionable configuration error.
+tasks/erp_logic_audit/LOGIC_FLAWS.md:312:  - `erp-domain/src/main/java/com/bigbrightpaints/erp/core/health/ConfigurationHealthService.java:53`
+tasks/erp_logic_audit/LOGIC_FLAWS.md:317:- Severity: **MED** (tax reporting blocked + misleading health)
+tasks/erp_logic_audit/LOGIC_FLAWS.md:320:  2) GET `/api/v1/accounting/configuration/health` (returns healthy).
+tasks/erp_logic_audit/LOGIC_FLAWS.md:323:  - Add GST account validation to configuration health.
+tasks/erp_logic_audit/LOGIC_FLAWS.md:326:  - Integration test: missing GST accounts should make config health unhealthy and GST return should return a clear configuration error.
+tasks/erp_logic_audit/HUNT_NOTEBOOK.md:26:| LEAD-014 | LOW? | SRE / Operator | Actuator health on app port 404s (management port required) | Repro with `BASE_URL=8081` and `/actuator/health` 404; validate management port and update ops probes |
+tasks/erp_logic_audit/HUNT_NOTEBOOK.md:303:## LEAD-014 — Actuator health endpoint only available on management port (app port returns 404)
+tasks/erp_logic_audit/HUNT_NOTEBOOK.md:306:  - Ops probes that target the app port for `/actuator/health` return 404 in prod profile because management endpoints are bound to the management port.
+tasks/erp_logic_audit/HUNT_NOTEBOOK.md:310:  - `/actuator/health` on app port 8081 returns 404 in probe output:
+tasks/erp_logic_audit/HUNT_NOTEBOOK.md:311:    - `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/OUTPUTS/20260113T082949Z_health_gets_app_port.txt`
+tasks/erp_logic_audit/HUNT_NOTEBOOK.md:312:  - `/actuator/health` on management port 19090 returns `UP`:
+tasks/erp_logic_audit/HUNT_NOTEBOOK.md:313:    - `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/OUTPUTS/20260113T082939Z_actuator_health.json`
+tasks/erp_logic_audit/HUNT_NOTEBOOK.md:315:  - Call `http://localhost:19090/actuator/health` and `.../readiness` for ops checks.
+tasks/erp_logic_audit/HUNT_NOTEBOOK.md:318:  - Ops scripts/docs hardcode app port for actuator endpoints in prod deployments (causing false health failures).
+tasks/erp_logic_audit/HUNT_PROGRAM.md:155:  - `/actuator/health` (liveness/readiness groups)
+tasks/erp_logic_audit/HUNT_PROGRAM.md:156:  - `/api/integration/health`
+tasks/erp_logic_audit/HUNT_PROGRAM.md:157:  - configuration health endpoints exposed in OpenAPI (e.g., accounting configuration health)
+tasks/erp_logic_audit/EVIDENCE_QUERIES/task-05/RUN.md:30:- Config health should reflect missing GST account configuration; **FAIL** if health is reported as OK while `/api/v1/accounting/gst/return` fails due to missing accounts.
+tasks/erp_logic_audit/EVIDENCE_QUERIES/task-08/RUN.md:23:bash tasks/erp_logic_audit/EVIDENCE_QUERIES/task-08/curl/01_outbox_health_gets.sh
+tasks/erp_logic_audit/EVIDENCE_QUERIES/task-08/RUN.md:27:- Outbox health: record `pendingEvents`, `retryingEvents`, `deadLetters` to correlate with SQL probes. Spikes require investigation.
+tasks/erp_logic_audit/EVIDENCE_QUERIES/task-07/RUN.md:22:bash tasks/erp_logic_audit/EVIDENCE_QUERIES/task-07/curl/02_orchestrator_health_gets.sh
+tasks/erp_logic_audit/EVIDENCE_QUERIES/task-07/RUN.md:27:- Orchestrator health GETs: **PASS** if endpoints are reachable only with authenticated tokens; record counts for backlog review.
+tasks/erp_logic_audit/EVIDENCE_QUERIES/lead-014/RUN.md:1:# LEAD-014 Evidence Run (Actuator health endpoint contract)
+tasks/erp_logic_audit/EVIDENCE_QUERIES/lead-014/RUN.md:4:Determine whether app-port `/actuator/health` 404 is expected by configuration/docs or indicates an ops defect.
+tasks/erp_logic_audit/EVIDENCE_QUERIES/lead-014/RUN.md:7:1) GET health on management port.
+tasks/erp_logic_audit/EVIDENCE_QUERIES/lead-014/RUN.md:8:2) GET health on app port.
+tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/RUN.md:25:bash tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/curl/01_health_gets.sh
+tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/RUN.md:26:bash tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/curl/02_orchestrator_health_gets.sh
+tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/RUN.md:31:- Health endpoints: **FAIL** if `/actuator/health` is UP while config health is missing required defaults for posting.
+tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/RUN.md:32:- Orchestrator health: **PASS** if counts are visible and stable; **REVIEW** on sustained pending/retrying/dead-letter spikes.
+tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/RUN.md:68:cat tasks/erp_logic_audit/EVIDENCE_QUERIES/curl/00_health_gets.sh
+tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/RUN.md:69:cat tasks/erp_logic_audit/EVIDENCE_QUERIES/curl/03_orchestrator_health_gets.sh
+tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/RUN.md:89:rg -n "/actuator/health" docs/ops_and_debug -g "*.md"
+tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/RUN.md:101:rg -n "actuator|management" erp-domain/src/main/java/com/bigbrightpaints/erp/core/security
+tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/RUN.md:112:cat <<'EOF' > tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/curl/01_health_gets.sh
+tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/RUN.md:113:cat <<'EOF' > tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/curl/02_orchestrator_health_gets.sh
+tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/RUN.md:116:chmod +x tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/curl/01_health_gets.sh tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/curl/02_orchestrator_health_gets.sh tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/curl/03_accounting_reports_gets.sh tasks/erp_logic_audit/EVIDENCE_QUERIES/task-06/curl/01_accounting_reports_gets.sh
+tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/RUN.md:121:TS=$(date -u +"%Y%m%dT%H%M%SZ"); curl -sS http://localhost:19090/actuator/health > "tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/OUTPUTS/${TS}_actuator_health.json"
+tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/RUN.md:122:TS=$(date -u +"%Y%m%dT%H%M%SZ"); curl -sS http://localhost:19090/actuator/health/readiness > "tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/OUTPUTS/${TS}_actuator_readiness.json"
+tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/RUN.md:123:TS=$(date -u +"%Y%m%dT%H%M%SZ"); curl -sS http://localhost:19090/actuator/health/liveness > "tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/OUTPUTS/${TS}_actuator_liveness.json"
+tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/RUN.md:124:TS=$(date -u +"%Y%m%dT%H%M%SZ"); curl -sS http://localhost:8081/api/integration/health > "tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/OUTPUTS/${TS}_integration_health.json"
+tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/RUN.md:125:TS=$(date -u +"%Y%m%dT%H%M%SZ"); BASE_URL=http://localhost:8081 bash tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/curl/01_health_gets.sh > "tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/OUTPUTS/${TS}_health_gets_app_port.txt"
+tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/RUN.md:127:TOKEN_FILE=$(ls -t tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/OUTPUTS/*_token.txt | head -n 1); TOKEN=$(cat "$TOKEN_FILE"); TS=$(date -u +"%Y%m%dT%H%M%SZ"); BASE_URL=http://localhost:8081 COMPANY_CODE=BBP TOKEN="$TOKEN" bash tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/curl/02_orchestrator_health_gets.sh > "tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/OUTPUTS/${TS}_orchestrator_health_gets.json"
+tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/RUN.md:140:cat tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/OUTPUTS/20260113T082939Z_actuator_health.json
+tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/RUN.md:141:cat tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/OUTPUTS/20260113T082940Z_actuator_readiness.json
+tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/RUN.md:142:cat tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/OUTPUTS/20260113T082940Z_actuator_liveness.json
+tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/RUN.md:143:cat tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/OUTPUTS/20260113T082943Z_integration_health.json
+tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/RUN.md:144:cat tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/OUTPUTS/20260113T082949Z_health_gets_app_port.txt
+tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/RUN.md:149:rg -n "dispatch" erp-domain/src/main/java/com/bigbrightpaints/erp/core/health
+tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/RUN.md:150:rg -n "Dispatch" erp-domain/src/main/java/com/bigbrightpaints/erp/core/health
+tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/RUN.md:160:TOKEN_FILE=$(ls -t tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/OUTPUTS/*_token.txt | head -n 1); TOKEN=$(cat "$TOKEN_FILE"); TS=$(date -u +"%Y%m%dT%H%M%SZ"); curl -sS -H "Authorization: Bearer ${TOKEN}" http://localhost:19090/actuator/health > "tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/OUTPUTS/${TS}_actuator_health_authed.json"
+tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/RUN.md:161:TS=$(date -u +"%Y%m%dT%H%M%SZ"); curl -sS -H "Authorization: Bearer ${TOKEN}" http://localhost:19090/actuator/health/readiness > "tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/OUTPUTS/${TS}_actuator_readiness_authed.json"
+tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/RUN.md:162:cat $(ls -t tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/OUTPUTS/*_actuator_health_authed.json | head -n 1)
+tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/RUN.md:163:cat $(ls -t tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/OUTPUTS/*_actuator_readiness_authed.json | head -n 1)
+tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/RUN.md:179:  - `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/OUTPUTS/20260113T082939Z_actuator_health.json`
+tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/RUN.md:180:  - `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/OUTPUTS/20260113T082940Z_actuator_liveness.json`
+tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/RUN.md:181:  - `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/OUTPUTS/20260113T082940Z_actuator_readiness.json`
+tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/RUN.md:182:  - `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/OUTPUTS/20260113T082943Z_integration_health.json`
+tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/RUN.md:183:  - `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/OUTPUTS/20260113T082949Z_health_gets_app_port.txt`
+tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/RUN.md:186:  - `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/OUTPUTS/20260113T083012Z_orchestrator_health_gets.json`
+tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/RUN.md:193:  - `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/OUTPUTS/20260113T083138Z_actuator_health_authed.json`
+tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/RUN.md:194:  - `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/OUTPUTS/20260113T083138Z_actuator_readiness_authed.json`

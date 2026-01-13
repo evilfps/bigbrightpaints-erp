@@ -23,7 +23,7 @@ Rules:
 | LEAD-011 | MED? | Backend / Operator | Purchase return idempotency relies on optional reference | Confirmed → LF-010 (duplicate returns created without reference) |
 | LEAD-012 | MED? | Auditor / Operator | Production WIP postings unverified (no production logs) | Closed → LF-012 |
 | LEAD-013 | MED? | Auditor / Operator | GST return blocked by missing tax account config | Closed → LF-011 |
-| LEAD-014 | LOW? | SRE / Operator | Actuator health on app port 404s (management port required) | Repro with `BASE_URL=8081` and `/actuator/health` 404; validate management port and update ops probes |
+| LEAD-014 | LOW? | SRE / Operator | Actuator health on app port 404s (management port required) | Closed: prod config binds actuator to management port; app-port 404 expected |
 | LEAD-015 | MED? | Operator / Auditor | Production log detail endpoint 500s (lazy load) | Repro GET `/api/v1/factory/production/logs`; capture logs + add fetch/transaction probe |
 | LEAD-016 | LOW? | Auditor / Operator | Admin override does not bypass locked period posting | Closed: period lock requires reopen; admin override only affects date constraints |
 
@@ -307,15 +307,17 @@ Rules:
 - Why this matters (ERP expectation):
   - Health probes should be reliable; using the wrong port can mask readiness issues or trigger false alarms.
 - Evidence:
-  - `/actuator/health` on app port 8081 returns 404 in probe output:
-    - `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/OUTPUTS/20260113T082949Z_health_gets_app_port.txt`
-  - `/actuator/health` on management port 19090 returns `UP`:
-    - `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/OUTPUTS/20260113T082939Z_actuator_health.json`
-- Next probes:
-  - Call `http://localhost:19090/actuator/health` and `.../readiness` for ops checks.
-  - Confirm whether curl probes should accept separate app vs management base URLs.
-- What would count as confirmed flaw:
-  - Ops scripts/docs hardcode app port for actuator endpoints in prod deployments (causing false health failures).
+  - `/actuator/health` on management port returns `UP`:
+    - `tasks/erp_logic_audit/EVIDENCE_QUERIES/lead-014/OUTPUTS/20260113T092137Z_health_management.txt`
+  - `/actuator/health` on app port returns 404:
+    - `tasks/erp_logic_audit/EVIDENCE_QUERIES/lead-014/OUTPUTS/20260113T092141Z_health_app.txt`
+  - Prod config binds management endpoints to a separate port:
+    - `tasks/erp_logic_audit/EVIDENCE_QUERIES/lead-014/OUTPUTS/20260113T092202Z_application_prod_yml_management.txt`
+  - Compose runs `SPRING_PROFILES_ACTIVE=prod` and maps `MANAGEMENT_PORT`:
+    - `tasks/erp_logic_audit/EVIDENCE_QUERIES/lead-014/OUTPUTS/20260113T092533Z_docker_compose_management.txt`
+    - `tasks/erp_logic_audit/EVIDENCE_QUERIES/lead-014/OUTPUTS/20260113T092547Z_docker_compose_profiles.txt`
+- Disposition:
+  - **CLOSED** — Expected behavior: prod profile binds actuator endpoints to the management port; app-port 404 is correct. Ops checks should target the management port.
 
 ## LEAD-015 — Production log detail endpoint fails with lazy-load error
 

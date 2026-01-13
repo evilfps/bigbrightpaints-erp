@@ -1,0 +1,1 @@
+error while interpolating services.app.environment.ERP_SECURITY_ENCRYPTION_KEY: required variable ERP_SECURITY_ENCRYPTION_KEY is missing a value: Set ERP_SECURITY_ENCRYPTION_KEY (32+ bytes) before starting

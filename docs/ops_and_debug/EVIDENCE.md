@@ -90,7 +90,7 @@
   - Prod license: `ERP_LICENSE_KEY` when `ERP_LICENSE_ENFORCE=true` (set `ERP_LICENSE_ENFORCE=false` for local boot if no key).
   - Optional: `ERP_DISPATCH_DEBIT_ACCOUNT_ID`, `ERP_DISPATCH_CREDIT_ACCOUNT_ID`, `DB_PORT`, `APP_PORT`, `MANAGEMENT_PORT`, `ERP_CORS_ALLOWED_ORIGINS`, `ERP_MAIL_FROM`, `ERP_MAIL_BASE_URL`.
 - Verification:
-  - `docker compose up -d --build` (DB_PORT override + prod/seed profile) and `/actuator/health` + readiness/liveness checks.
+- `docker compose up -d --build` (DB_PORT override + prod/seed profile) and **management-port** `/actuator/health` + readiness/liveness checks (app port does not expose actuator in prod).
   - Smoke checks: auth login + profile, reconciliation dashboard (bankAccountId=7005), inventory reconciliation, orchestrator health events/integrations.
   - `mvn -f erp-domain/pom.xml -DskipTests compile`
   - `mvn -f erp-domain/pom.xml -Dcheckstyle.failOnViolation=false checkstyle:check`

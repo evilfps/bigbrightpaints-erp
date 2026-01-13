@@ -1,0 +1,22 @@
+management:
+  server:
+    port: ${MANAGEMENT_SERVER_PORT:9090}
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+      cors:
+        allowed-origins: ${MANAGEMENT_CORS_ALLOWED_ORIGINS:https://ops.bigbrightpaints.com}
+        allowed-methods: GET
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      group:
+        liveness:
+          include: livenessState,ping
+        readiness:
+          include: readinessState,db,rabbit,requiredConfig,configuration,dispatchMapping
+      show-details: when_authorized
+  security:
+    enabled: true

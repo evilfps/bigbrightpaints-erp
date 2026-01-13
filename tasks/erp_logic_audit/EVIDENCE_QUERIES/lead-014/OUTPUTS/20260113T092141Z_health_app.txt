@@ -1,0 +1,2 @@
+{"type":"about:blank","title":"Not Found","status":404,"detail":"No static resource actuator/health.","instance":"/actuator/health","properties":null}
+HTTP_STATUS:404
