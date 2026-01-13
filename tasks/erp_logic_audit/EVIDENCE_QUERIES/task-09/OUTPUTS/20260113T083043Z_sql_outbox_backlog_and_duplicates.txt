@@ -1,0 +1,12 @@
+ status | dead_letter | event_count | oldest_created_at | newest_created_at 
+--------+-------------+-------------+-------------------+-------------------
+(0 rows)
+
+ id | aggregate_type | aggregate_id | event_type | status | retry_count | next_attempt_at | created_at | dead_letter | last_error_snip 
+----+----------------+--------------+------------+--------+-------------+-----------------+------------+-------------+-----------------
+(0 rows)
+
+ aggregate_type | aggregate_id | event_type | row_count | first_seen | last_seen 
+----------------+--------------+------------+-----------+------------+-----------
+(0 rows)
+

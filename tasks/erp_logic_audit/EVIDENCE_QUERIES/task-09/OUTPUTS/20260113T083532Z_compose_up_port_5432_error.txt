@@ -1,0 +1,1 @@
+Error response from daemon: failed to set up container networking: driver failed programming external connectivity on endpoint erp_db (4347637b44efd1cb42822ceeb6e034f31cc8f2451c4340df5ade20e7355815ec): failed to bind host port for 0.0.0.0:5432:172.18.0.2:5432/tcp: address already in use

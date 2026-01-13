@@ -1,0 +1,12 @@
+ finding_type | entity_id | reference_number | entry_date | created_at | period_id | year | month | status | cutoff_at 
+--------------+-----------+------------------+------------+------------+-----------+------+-------+--------+-----------
+(0 rows)
+
+ finding_type | invoice_id | invoice_number | status | issue_date | updated_at | period_id | year | month | period_status | cutoff_at 
+--------------+------------+----------------+--------+------------+------------+-----------+------+-------+---------------+-----------
+(0 rows)
+
+ finding_type | purchase_id | invoice_number | status | invoice_date | updated_at | period_id | year | month | period_status | cutoff_at 
+--------------+-------------+----------------+--------+--------------+------------+-----------+------+-------+---------------+-----------
+(0 rows)
+

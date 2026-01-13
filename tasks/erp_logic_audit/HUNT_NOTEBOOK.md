@@ -23,6 +23,7 @@ Rules:
 | LEAD-011 | MED? | Backend / Operator | Purchase return idempotency relies on optional reference | Confirmed → LF-010 (duplicate returns created without reference) |
 | LEAD-012 | MED? | Auditor / Operator | Production WIP postings unverified (no production logs) | Closed → LF-012 |
 | LEAD-013 | MED? | Auditor / Operator | GST return blocked by missing tax account config | Closed → LF-011 |
+| LEAD-014 | LOW? | SRE / Operator | Actuator health on app port 404s (management port required) | Repro with `BASE_URL=8081` and `/actuator/health` 404; validate management port and update ops probes |
 | LEAD-015 | MED? | Operator / Auditor | Production log detail endpoint 500s (lazy load) | Repro GET `/api/v1/factory/production/logs`; capture logs + add fetch/transaction probe |
 
 ---
@@ -297,6 +298,23 @@ Rules:
 - Closure evidence:
   - `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-05/OUTPUTS/20260113T073400Z_tax_reports_gets.txt`
   - `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-05/OUTPUTS/20260113T073455Z_03_company_tax_accounts.txt`
+
+## LEAD-014 — Actuator health endpoint only available on management port (app port returns 404)
+
+- Hypothesis:
+  - Ops probes that target the app port for `/actuator/health` return 404 in prod profile because management endpoints are bound to the management port.
+- Why this matters (ERP expectation):
+  - Health probes should be reliable; using the wrong port can mask readiness issues or trigger false alarms.
+- Evidence:
+  - `/actuator/health` on app port 8081 returns 404 in probe output:
+    - `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/OUTPUTS/20260113T082949Z_health_gets_app_port.txt`
+  - `/actuator/health` on management port 19090 returns `UP`:
+    - `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/OUTPUTS/20260113T082939Z_actuator_health.json`
+- Next probes:
+  - Call `http://localhost:19090/actuator/health` and `.../readiness` for ops checks.
+  - Confirm whether curl probes should accept separate app vs management base URLs.
+- What would count as confirmed flaw:
+  - Ops scripts/docs hardcode app port for actuator endpoints in prod deployments (causing false health failures).
 
 ## LEAD-015 — Production log detail endpoint fails with lazy-load error
 

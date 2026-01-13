@@ -1,0 +1,14 @@
+== /actuator/health
+{
+  "type": "about:blank",
+  "title": "Not Found",
+  "status": 404,
+  "detail": "No static resource actuator/health.",
+  "instance": "/actuator/health",
+  "properties": null
+}
+== /api/integration/health
+{
+  "status": "UP",
+  "timestamp": "2026-01-13T08:29:49.844592237Z"
+}

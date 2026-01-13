@@ -1,0 +1,8 @@
+ finding_type | journal_entry_id | reference_number | entry_date | dealer_id | status 
+--------------+------------------+------------------+------------+-----------+--------
+(0 rows)
+
+ finding_type | journal_entry_id | reference_number | entry_date | dealer_id | status 
+--------------+------------------+------------------+------------+-----------+--------
+(0 rows)
+
