@@ -1,0 +1,6 @@
+             pack_reference              | movement_type | movement_count | movements_missing_je_link | min_journal_entry_id | max_journal_entry_id 
+-----------------------------------------+---------------+----------------+---------------------------+----------------------+----------------------
+ PACK-PROD-20260113-004-e993a65696124669 | ISSUE         |              1 |                         0 |                   69 |                   69
+ PACK-PROD-20260113-004-e993a65696124669 | RECEIPT       |              1 |                         0 |                   69 |                   69
+(2 rows)
+

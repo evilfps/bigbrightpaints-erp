@@ -1,0 +1,14 @@
+ bulk_batch_id |    batch_code     | quantity_available | unit_cost | bulk_finished_good_id |       bulk_product_code        
+---------------+-------------------+--------------------+-----------+-----------------------+--------------------------------
+            12 | PROD-20260113-004 |              4.000 |    5.0000 |                     3 | AUDIT-FG-20260113T072208Z-BULK
+(1 row)
+
+ child_sku_id |        product_code        |           name            | current_stock 
+--------------+----------------------------+---------------------------+---------------
+            8 | FG-FIXTURE                 | Fixture Finished Good     |       150.000
+            6 | BBP-ENAMEL-WH-4L           | Enamel White 4L           |         0.000
+            5 | BBP-ENAMEL-WH-1L           | Enamel White 1L           |         0.000
+            4 | AUDIT-FG-20260113T072208Z  | Audit FG 20260113T072208Z |        16.000
+            2 | AUDIT-SKU-20260112T130652Z | Audit FG 20260112T130652Z |         0.000
+(5 rows)
+

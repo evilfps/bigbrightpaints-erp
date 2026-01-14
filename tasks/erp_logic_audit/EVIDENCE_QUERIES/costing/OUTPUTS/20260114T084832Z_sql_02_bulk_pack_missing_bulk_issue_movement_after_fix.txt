@@ -1,0 +1,4 @@
+ parent_batch_id | parent_batch_code | bulk_product_code | pack_reference | receipt_movements_for_pack_ref | receipt_qty_for_pack_ref | issue_movements_for_pack_ref | issue_qty_for_pack_ref 
+-----------------+-------------------+-------------------+----------------+--------------------------------+--------------------------+------------------------------+------------------------
+(0 rows)
+

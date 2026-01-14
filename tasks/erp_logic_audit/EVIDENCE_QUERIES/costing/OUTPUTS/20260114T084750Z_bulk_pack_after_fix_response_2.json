@@ -1,0 +1,2 @@
+{"success":true,"message":"Bulk packed into sizes","data":{"bulkBatchId":12,"bulkBatchCode":"PROD-20260113-004","volumeDeducted":1.000,"remainingBulkQuantity":3.000,"packagingCost":0,"childBatches":[{"id":23,"publicId":"4b21dfca-6b73-4555-9ac1-7b7c9ac99f21","batchCode":"BBP-FG-FGFIXTURE-202601-001","finishedGoodId":8,"finishedGoodCode":"FG-FIXTURE","finishedGoodName":"Fixture Finished Good","sizeLabel":"1L","quantity":1.000,"unitCost":5.0000,"totalValue":5.0000000}],"journalEntryId":69,"packedAt":1768380470.346600098},"timestamp":1768380470.347541384}
+HTTP_STATUS:200

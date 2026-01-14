@@ -1,0 +1,5 @@
+             pack_reference              | movement_count | movements_missing_je_link | journal_count 
+-----------------------------------------+----------------+---------------------------+---------------
+ PACK-PROD-20260113-004-e993a65696124669 |              2 |                         0 |             1
+(1 row)
+

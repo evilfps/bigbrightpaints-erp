@@ -1,0 +1,5 @@
+ child_sku_id | product_code 
+--------------+--------------
+            8 | FG-FIXTURE
+(1 row)
+

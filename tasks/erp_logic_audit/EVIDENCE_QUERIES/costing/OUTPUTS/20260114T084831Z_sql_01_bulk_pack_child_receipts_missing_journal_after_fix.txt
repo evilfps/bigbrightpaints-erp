@@ -1,0 +1,4 @@
+ movement_id | child_product_code | reference_type | reference_id | movement_type | quantity | unit_cost | journal_entry_id | created_at | child_batch_id | child_batch_code | parent_batch_id | parent_batch_code 
+-------------+--------------------+----------------+--------------+---------------+----------+-----------+------------------+------------+----------------+------------------+-----------------+-------------------
+(0 rows)
+

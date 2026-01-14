@@ -1,0 +1,19 @@
+{
+  "brandId": 2,
+  "productId": 3,
+  "batchSize": 5,
+  "unitOfMeasure": "KG",
+  "mixedQuantity": 5,
+  "producedAt": "2026-01-14",
+  "notes": "LF-016/017 bulk batch seed ${TS}",
+  "createdBy": "Evidence",
+  "laborCost": 0,
+  "overheadCost": 0,
+  "materials": [
+    {
+      "rawMaterialId": 1,
+      "quantity": 5,
+      "unitOfMeasure": "KG"
+    }
+  ]
+}
