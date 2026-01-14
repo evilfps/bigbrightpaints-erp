@@ -1,0 +1,4 @@
+ slip_id | slip_number | cogs_journal_entry_id | expected_cogs_reference | matched_journal_id | matched_reference 
+---------+-------------+-----------------------+-------------------------+--------------------+-------------------
+(0 rows)
+

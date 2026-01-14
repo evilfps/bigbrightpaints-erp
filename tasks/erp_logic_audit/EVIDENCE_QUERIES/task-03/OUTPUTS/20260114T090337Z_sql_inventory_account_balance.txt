@@ -1,0 +1,5 @@
+ company_id | company_code | default_inventory_account_id | inventory_account_name | inventory_account_balance 
+------------+--------------+------------------------------+------------------------+---------------------------
+          5 | BBP          |                         7007 | Inventory              |                     68.00
+(1 row)
+

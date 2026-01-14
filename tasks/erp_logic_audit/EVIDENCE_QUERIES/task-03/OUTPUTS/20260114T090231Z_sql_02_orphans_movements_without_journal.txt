@@ -1,0 +1,12 @@
+      finding_type      | movement_id |       product_code        | reference_type |      reference_id      | movement_type | quantity | unit_cost | journal_entry_id |          created_at           
+------------------------+-------------+---------------------------+----------------+------------------------+---------------+----------+-----------+------------------+-------------------------------
+ fg_movement_missing_je |          15 | AUDIT-FG-20260113T072208Z | PACKAGING      | PACK-PROD-20260113-003 | RECEIPT       |    1.000 |    5.0000 |                  | 2026-01-13 11:57:10.007023+00
+ fg_movement_missing_je |          14 | AUDIT-FG-20260113T072208Z | PACKAGING      | PACK-PROD-20260113-003 | RECEIPT       |    1.000 |    5.0000 |                  | 2026-01-13 11:57:09.942942+00
+ fg_movement_missing_je |          13 | AUDIT-FG-20260113T072208Z | PACKAGING      | PACK-PROD-20260113-003 | RECEIPT       |    1.000 |    5.0000 |                  | 2026-01-13 10:59:04.053531+00
+ fg_movement_missing_je |          12 | AUDIT-FG-20260113T072208Z | PACKAGING      | PACK-PROD-20260113-003 | RECEIPT       |    1.000 |    5.0000 |                  | 2026-01-13 10:58:44.69467+00
+(4 rows)
+
+ finding_type | movement_id | sku | reference_type | reference_id | movement_type | quantity | unit_cost | journal_entry_id | created_at 
+--------------+-------------+-----+----------------+--------------+---------------+----------+-----------+------------------+------------
+(0 rows)
+

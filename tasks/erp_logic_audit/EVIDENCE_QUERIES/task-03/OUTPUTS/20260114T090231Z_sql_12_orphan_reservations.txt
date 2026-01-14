@@ -1,0 +1,4 @@
+ reservation_id | reference_type | reference_id | status | quantity | reserved_quantity | fulfilled_quantity | created_at 
+----------------+----------------+--------------+--------+----------+-------------------+--------------------+------------
+(0 rows)
+
