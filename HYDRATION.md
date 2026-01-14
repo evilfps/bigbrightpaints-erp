@@ -288,7 +288,7 @@
 
 ## 2026-01-14 Phase 5 fix verification (LF-011..LF-015)
 - Branch: `fix-phase5-lead015-and-lf011-014`
-- Tip SHA: `TBD`
+- Tip SHA: `a8637150343cb010ac299f89c7d9a3cb24cb48c4`
 - Outcome: verified Phase 5 fixes for LF-011..LF-015; regression tests executed.
 - Commands executed:
   - `mvn -f erp-domain/pom.xml -DskipTests compile` (PASS)
