@@ -1,0 +1,81 @@
+            BigDecimal outstandingBalance = dealer.getOutstandingBalance() != null 
+                    ? dealer.getOutstandingBalance() 
+                    : BigDecimal.ZERO;
+            
+            BigDecimal dealerVariance = outstandingBalance.subtract(ledgerBalance);
+            if (dealerVariance.abs().compareTo(TOLERANCE) > 0) {
+                discrepancies.add(new DealerDiscrepancy(
+                        dealer.getId(),
+                        dealer.getCode(),
+                        dealer.getName(),
+                        outstandingBalance,
+                        ledgerBalance,
+                        dealerVariance
+                ));
+            }
+        }
+
+        log.info("AR Reconciliation: GL={}, DealerLedger={}, Variance={}, Reconciled={}",
+                totalArBalance, totalDealerLedgerBalance, variance, isReconciled);
+
+        return new ReconciliationResult(
+                totalArBalance,
+                totalDealerLedgerBalance,
+                variance,
+                isReconciled,
+                discrepancies,
+                arAccounts.size(),
+                dealers.size()
+        );
+    }
+
+    /**
+     * Reconcile AP GL account balance with sum of supplier ledger balances.
+     */
+    @Transactional(readOnly = true)
+    public SupplierReconciliationResult reconcileApWithSupplierLedger() {
+        Company company = companyContextService.requireCurrentCompany();
+
+        List<Account> apAccounts = accountRepository.findByCompanyOrderByCodeAsc(company).stream()
+                .filter(a -> a.getType() == AccountType.LIABILITY)
+                .filter(a -> a.getCode() != null &&
+                        (a.getCode().toUpperCase().contains("AP") ||
+                                a.getCode().toUpperCase().contains("PAYABLE")))
+                .toList();
+
+        BigDecimal totalApBalance = apAccounts.stream()
+                .map(Account::getBalance)
+                .filter(b -> b != null)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        List<Supplier> suppliers = supplierRepository.findByCompanyOrderByNameAsc(company);
+        List<Long> supplierIds = suppliers.stream().map(Supplier::getId).toList();
+
+        Map<Long, BigDecimal> supplierBalances = supplierLedgerRepository
+                .aggregateBalances(company, supplierIds)
+                .stream()
+                .collect(Collectors.toMap(SupplierBalanceView::supplierId, SupplierBalanceView::balance));
+
+        BigDecimal totalSupplierLedgerBalance = supplierBalances.values().stream()
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal variance = totalApBalance.subtract(totalSupplierLedgerBalance);
+        boolean isReconciled = variance.abs().compareTo(TOLERANCE) <= 0;
+
+        List<SupplierDiscrepancy> discrepancies = new ArrayList<>();
+
+        for (Supplier supplier : suppliers) {
+            BigDecimal ledgerBalance = supplierBalances.getOrDefault(supplier.getId(), BigDecimal.ZERO);
+            BigDecimal outstandingBalance = supplier.getOutstandingBalance() != null
+                    ? supplier.getOutstandingBalance()
+                    : BigDecimal.ZERO;
+
+            BigDecimal supplierVariance = outstandingBalance.subtract(ledgerBalance);
+            if (supplierVariance.abs().compareTo(TOLERANCE) > 0) {
+                discrepancies.add(new SupplierDiscrepancy(
+                        supplier.getId(),
+                        supplier.getCode(),
+                        supplier.getName(),
+                        outstandingBalance,
+                        ledgerBalance,
+                        supplierVariance

@@ -1,0 +1,81 @@
+@Service
+public class ReconciliationService {
+
+    private static final Logger log = LoggerFactory.getLogger(ReconciliationService.class);
+    private static final BigDecimal TOLERANCE = new BigDecimal("0.01");
+
+    private final CompanyContextService companyContextService;
+    private final AccountRepository accountRepository;
+    private final DealerRepository dealerRepository;
+    private final DealerLedgerRepository dealerLedgerRepository;
+    private final SupplierRepository supplierRepository;
+    private final SupplierLedgerRepository supplierLedgerRepository;
+    private final InventoryReservationRepository inventoryReservationRepository;
+    private final PackagingSlipRepository packagingSlipRepository;
+    private final SalesOrderRepository salesOrderRepository;
+    private final JournalEntryRepository journalEntryRepository;
+
+    public ReconciliationService(CompanyContextService companyContextService,
+                                  AccountRepository accountRepository,
+                                  DealerRepository dealerRepository,
+                                  DealerLedgerRepository dealerLedgerRepository,
+                                  SupplierRepository supplierRepository,
+                                  SupplierLedgerRepository supplierLedgerRepository,
+                                  InventoryReservationRepository inventoryReservationRepository,
+                                  PackagingSlipRepository packagingSlipRepository,
+                                  SalesOrderRepository salesOrderRepository,
+                                  JournalEntryRepository journalEntryRepository) {
+        this.companyContextService = companyContextService;
+        this.accountRepository = accountRepository;
+        this.dealerRepository = dealerRepository;
+        this.dealerLedgerRepository = dealerLedgerRepository;
+        this.supplierRepository = supplierRepository;
+        this.supplierLedgerRepository = supplierLedgerRepository;
+        this.inventoryReservationRepository = inventoryReservationRepository;
+        this.packagingSlipRepository = packagingSlipRepository;
+        this.salesOrderRepository = salesOrderRepository;
+        this.journalEntryRepository = journalEntryRepository;
+    }
+
+    /**
+     * Reconcile AR GL account balance with sum of dealer ledger balances.
+     * Returns discrepancies if any.
+     */
+    @Transactional(readOnly = true)
+    public ReconciliationResult reconcileArWithDealerLedger() {
+        Company company = companyContextService.requireCurrentCompany();
+        
+        // Get all AR accounts
+        List<Account> arAccounts = accountRepository.findByCompanyOrderByCodeAsc(company).stream()
+                .filter(a -> a.getType() == AccountType.ASSET)
+                .filter(a -> a.getCode() != null &&
+                        (a.getCode().toUpperCase().contains("AR") ||
+                                a.getCode().toUpperCase().contains("RECEIVABLE")))
+                .toList();
+
+        BigDecimal totalArBalance = arAccounts.stream()
+                .map(Account::getBalance)
+                .filter(b -> b != null)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        // Get all dealers with their ledger balances
+        List<Dealer> dealers = dealerRepository.findByCompanyOrderByNameAsc(company);
+        List<Long> dealerIds = dealers.stream().map(Dealer::getId).toList();
+        
+        Map<Long, BigDecimal> dealerBalances = dealerLedgerRepository
+                .aggregateBalances(company, dealerIds)
+                .stream()
+                .collect(Collectors.toMap(DealerBalanceView::dealerId, DealerBalanceView::balance));
+
+        BigDecimal totalDealerLedgerBalance = dealerBalances.values().stream()
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal variance = totalArBalance.subtract(totalDealerLedgerBalance);
+        boolean isReconciled = variance.abs().compareTo(TOLERANCE) <= 0;
+
+        List<DealerDiscrepancy> discrepancies = new ArrayList<>();
+        
+        // Check individual dealers
+        for (Dealer dealer : dealers) {
+            BigDecimal ledgerBalance = dealerBalances.getOrDefault(dealer.getId(), BigDecimal.ZERO);
+            BigDecimal outstandingBalance = dealer.getOutstandingBalance() != null 

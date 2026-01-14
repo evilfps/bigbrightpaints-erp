@@ -1,0 +1,10 @@
+  id  |              code              |                   name                   |   type    
+------+--------------------------------+------------------------------------------+-----------
+ 7030 | AP                             | Accounts Payable                         | LIABILITY
+ 7015 | AP-AUDSUP-20260112T130652Z     | Audit Supplier 20260112T130652Z Payable  | LIABILITY
+ 7029 | AR                             | Accounts Receivable                      | ASSET
+ 7013 | AR-AUDITDEALER20260112T124716Z | Audit Dealer 20260112T124716Z Receivable | ASSET
+ 7014 | AR-AUDITDEALER20260112T130259Z | Audit Dealer 20260112T130259Z Receivable | ASSET
+ 7012 | AR-AUDITDEALER20260112T180925  | Audit Dealer 20260112T180925 Receivable  | ASSET
+(6 rows)
+

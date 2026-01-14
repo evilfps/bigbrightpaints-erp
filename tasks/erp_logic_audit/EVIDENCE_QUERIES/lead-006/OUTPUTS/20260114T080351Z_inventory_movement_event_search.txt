@@ -1,0 +1,6 @@
+erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/event/InventoryMovementEvent.java:11:public record InventoryMovementEvent(
+erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/event/InventoryMovementEvent.java:80:        public InventoryMovementEvent build() {
+erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/event/InventoryMovementEvent.java:84:            return new InventoryMovementEvent(
+erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/event/InventoryAccountingEventListener.java:11:import com.bigbrightpaints.erp.modules.inventory.event.InventoryMovementEvent;
+erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/event/InventoryAccountingEventListener.java:154:    public void onInventoryMovement(InventoryMovementEvent event) {
+erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/event/InventoryAccountingEventListener.java:277:    private String buildIdempotentMovementReference(InventoryMovementEvent event) {

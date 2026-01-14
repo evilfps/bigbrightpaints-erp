@@ -1,0 +1,4 @@
+ journal_line_id | journal_entry_id | reference_number | journal_company_id | account_id | account_code | account_company_id 
+-----------------+------------------+------------------+--------------------+------------+--------------+--------------------
+(0 rows)
+

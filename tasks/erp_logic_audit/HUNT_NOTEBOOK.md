@@ -150,6 +150,8 @@ Rules:
 
 ## LEAD-005 — Inventory accounting events use `accountRepository.findById(...)` (potential cross-company account injection)
 
+- Status: **CLOSED** — No cross-company journal line/account mismatches observed in dataset.
+
 - Hypothesis:
   - Event-driven posting uses raw `account_id` values without verifying the account belongs to the event’s company, risking cross-company ledger contamination if IDs are misconfigured or forged in internal event creation.
 - Why this matters (ERP expectation):
@@ -167,10 +169,15 @@ Rules:
   - A journal entry exists for Company A with journal lines pointing to an account belonging to Company B.
 - Why tests might still pass:
   - Seed/test data likely uses a single company, and event account IDs are configured correctly.
+- Evidence:
+  - `tasks/erp_logic_audit/EVIDENCE_QUERIES/lead-005/OUTPUTS/20260114T080314Z_journal_line_account_company_mismatch.txt` (0 rows)
+  - `tasks/erp_logic_audit/EVIDENCE_QUERIES/lead-005/OUTPUTS/20260114T080336Z_inventory_accounting_event_listener_excerpt.txt`
 
 ---
 
 ## LEAD-006 — Inventory auto-posting is AFTER_COMMIT + REQUIRES_NEW; JE failure leaves inventory committed (drift-by-design)
+
+- Status: **CLOSED** — No inventory movement events are emitted in current code paths; no direct repro of after-commit drift.
 
 - Hypothesis:
   - Inventory operations can commit successfully, while the subsequent accounting auto-post fails and is caught/logged, leaving permanent inventory↔GL drift until manual repair.
@@ -188,6 +195,9 @@ Rules:
   - Repro shows committed inventory changes with missing JE after the handler logs an error.
 - Why tests might still pass:
   - Tests usually run on happy-path configs where accounting posting succeeds; failure modes aren’t asserted.
+- Evidence:
+  - `tasks/erp_logic_audit/EVIDENCE_QUERIES/lead-006/OUTPUTS/20260114T080351Z_inventory_movement_event_search.txt` (no publishers)
+  - `tasks/erp_logic_audit/EVIDENCE_QUERIES/lead-006/OUTPUTS/20260114T080403Z_orphans_movements_without_journal.txt` (legacy PACKAGING rows tied to LF-016)
 
 ---
 
@@ -218,6 +228,8 @@ Rules:
 
 ## LEAD-008 — Inventory revaluation journals use `LocalDate.now()` (period-close / cutoff risk)
 
+- Status: **CLOSED** — No revaluation event publishers found in current code paths.
+
 - Hypothesis:
   - Inventory revaluation postings ignore the business effective date (or source event date) and always post on “today”, potentially bypassing locked/closed periods or mis-stating cutoff.
 - Code anchors:
@@ -226,10 +238,14 @@ Rules:
   - Dev-only: backdate a physical count adjustment/revaluation into a prior period and verify journal date is “today”.
 - What would count as confirmed flaw:
   - JE entry date does not match the revaluation effective date and posts into a different period.
+- Evidence:
+  - `tasks/erp_logic_audit/EVIDENCE_QUERIES/lead-008/OUTPUTS/20260114T080355Z_inventory_reval_event_search.txt`
 
 ---
 
 ## LEAD-009 — AR/AP reconciliation depends on account code substrings (configuration “footgun”)
+
+- Status: **CLOSED** — Current COA uses AR/AP code conventions; reconciliation aligns with configured accounts.
 
 - Hypothesis:
   - Reconciliation chooses AR/AP accounts by `Account.code` containing “AR/RECEIVABLE” and “AP/PAYABLE”. If a company’s COA uses different code conventions, reconciliation becomes misleading.
@@ -241,6 +257,9 @@ Rules:
   - Dev-only: create a COA where AR/AP control accounts do not match these substrings and observe reconciliation behavior (expected: explicit config-driven selection; current: implicit substring).
 - What would count as confirmed flaw:
   - Reconciliation reports “reconciled” while ignoring the true control accounts, or reports variance due purely to code naming rather than balance.
+- Evidence:
+  - `tasks/erp_logic_audit/EVIDENCE_QUERIES/lead-009/OUTPUTS/20260114T080530Z_ar_ap_accounts.txt`
+  - `tasks/erp_logic_audit/EVIDENCE_QUERIES/lead-009/OUTPUTS/20260114T080539Z_reconciliation_service_ar_filter_excerpt.txt`
 
 ---
 

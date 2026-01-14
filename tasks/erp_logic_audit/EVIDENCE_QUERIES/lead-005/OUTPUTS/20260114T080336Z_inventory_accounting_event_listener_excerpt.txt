@@ -1,0 +1,51 @@
+        Company company = null;
+        try {
+            company = companyRepository.findById(event.companyId())
+                    .orElseThrow(() -> new IllegalStateException("Company not found: " + event.companyId()));
+
+            // Set company context for the accounting service
+            CompanyContextHolder.setCompanyId(company.getCode());
+
+            // Build idempotent reference from source event
+            String refNumber = buildIdempotentRevalReference(event);
+            
+            // Check if journal already exists (idempotency check)
+            if (journalEntryRepository.findByCompanyAndReferenceNumber(company, refNumber).isPresent()) {
+                log.info("Journal entry {} already exists, skipping duplicate", refNumber);
+                return;
+            }
+
+            // Get revaluation account (expense for decreases, income for increases)
+            Account revaluationAccount = getRevaluationAccount(company, event.reason());
+            Account inventoryAccount = accountRepository.findById(event.inventoryAccountId())
+                    .orElseThrow(() -> new IllegalStateException("Inventory account not found"));
+
+            String memo = buildRevaluationMemo(event);
+
+            List<JournalEntryRequest.JournalLineRequest> lines;
+            if (event.isIncrease()) {
+                // Increase: Debit Inventory, Credit Revaluation Gain
+                lines = List.of(
+                        new JournalEntryRequest.JournalLineRequest(
+                                inventoryAccount.getId(),
+                                "Inventory revaluation - " + event.itemName(),
+                                valueChange.abs(),
+                                BigDecimal.ZERO
+                        ),
+                        new JournalEntryRequest.JournalLineRequest(
+                                revaluationAccount.getId(),
+                                "Revaluation gain - " + event.reason(),
+                                BigDecimal.ZERO,
+                                valueChange.abs()
+                        )
+                );
+            } else {
+                // Decrease: Debit Revaluation Loss, Credit Inventory
+                lines = List.of(
+                        new JournalEntryRequest.JournalLineRequest(
+                                revaluationAccount.getId(),
+                                "Revaluation loss - " + event.reason(),
+                                valueChange.abs(),
+                                BigDecimal.ZERO
+                        ),
+                        new JournalEntryRequest.JournalLineRequest(

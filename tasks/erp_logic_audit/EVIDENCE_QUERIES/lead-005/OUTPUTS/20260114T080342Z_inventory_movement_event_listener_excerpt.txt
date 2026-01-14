@@ -1,0 +1,61 @@
+     * Handle inventory movements (receipts, issues, transfers)
+     */
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
+    public void onInventoryMovement(InventoryMovementEvent event) {
+        log.info("Processing inventory movement: {} {} - {} units @ {}",
+                event.movementType(), event.itemCode(), event.quantity(), event.unitCost());
+
+        if (event.totalCost().compareTo(BigDecimal.ZERO) == 0) {
+            log.debug("Zero cost movement, skipping journal entry");
+            return;
+        }
+
+        // Skip if accounts not specified (let caller handle GL posting)
+        if (event.sourceAccountId() == null || event.destinationAccountId() == null) {
+            log.debug("Source/destination accounts not specified, skipping auto-posting");
+            return;
+        }
+
+        try {
+            Company company = companyRepository.findById(event.companyId())
+                    .orElseThrow(() -> new IllegalStateException("Company not found"));
+
+            CompanyContextHolder.setCompanyId(company.getCode());
+
+            // Build idempotent reference from source event
+            String refNumber = buildIdempotentMovementReference(event);
+            
+            // Check if journal already exists (idempotency check)
+            if (journalEntryRepository.findByCompanyAndReferenceNumber(company, refNumber).isPresent()) {
+                log.info("Journal entry {} already exists, skipping duplicate", refNumber);
+                return;
+            }
+
+            String memo = String.format("%s: %s x %s @ %s",
+                    event.movementType(), event.itemCode(), event.quantity(), event.unitCost());
+
+            // Debit destination, Credit source
+            List<JournalEntryRequest.JournalLineRequest> lines = List.of(
+                    new JournalEntryRequest.JournalLineRequest(
+                            event.destinationAccountId(),
+                            memo,
+                            event.totalCost(),
+                            BigDecimal.ZERO
+                    ),
+                    new JournalEntryRequest.JournalLineRequest(
+                            event.sourceAccountId(),
+                            memo,
+                            BigDecimal.ZERO,
+                            event.totalCost()
+                    )
+            );
+
+            JournalEntryRequest request = new JournalEntryRequest(
+                    refNumber,
+                    event.movementDate(),
+                    event.memo() != null ? event.memo() : memo,
+                    null, null, false,
+                    lines
+            );
+
