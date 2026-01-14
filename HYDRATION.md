@@ -25,6 +25,12 @@
 - No new installs; Docker/Testcontainers working.
 
 ## Commands Run (Latest)
+- `DB_PORT=55432 APP_PORT=8081 MANAGEMENT_PORT=19090 JWT_SECRET=... ERP_SECURITY_ENCRYPTION_KEY=... SPRING_PROFILES_ACTIVE=prod,seed docker compose up -d --build` (app failed config validation; restarted with dev profile).
+- `DB_PORT=55432 APP_PORT=8081 MANAGEMENT_PORT=19090 JWT_SECRET=... ERP_SECURITY_ENCRYPTION_KEY=... SPRING_PROFILES_ACTIVE=dev docker compose up -d --no-deps --force-recreate app` (task-03/task-06 runtime).
+- `psql -h localhost -p 55432 -U erp -d erp_domain -v company_id=5 -f tasks/erp_logic_audit/EVIDENCE_QUERIES/SQL/{06_inventory_valuation_fifo,07_inventory_control_vs_valuation,02_orphans_movements_without_journal,12_orphan_reservations,03_dispatch_slips_without_cogs_journal}.sql` (task-03 large-data rerun).
+- `bash tasks/erp_logic_audit/EVIDENCE_QUERIES/curl/01_accounting_reports_gets.sh` (task-03 accounting reports GETs).
+- `psql -h localhost -p 55432 -U erp -d erp_domain -v company_id=5 -f tasks/erp_logic_audit/EVIDENCE_QUERIES/task-06/SQL/*.sql` (task-06 SQL probes rerun).
+- `bash tasks/erp_logic_audit/EVIDENCE_QUERIES/task-06/curl/01_accounting_reports_gets.sh` (task-06 accounting reports GETs).
 - `mvn -f erp-domain/pom.xml -DskipTests compile` (PASS; Phase 5 verification).
 - `mvn -f erp-domain/pom.xml checkstyle:check` (FAIL; 29479 violations reported; baseline).
 - `mvn -f erp-domain/pom.xml test` (PASS; Tests run 219, Failures 0, Errors 0, Skipped 4).
@@ -62,12 +68,16 @@
 - `mvn -f erp-domain/pom.xml -Dcheckstyle.failOnViolation=false checkstyle:check` (PASS; 29454 violations reported; audit task 02).
 
 ## Evidence Paths (Latest)
+- Task-03 outputs: `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-03/OUTPUTS/20260114T075752Z_06_inventory_valuation_fifo.txt`, `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-03/OUTPUTS/20260114T075752Z_07_inventory_control_vs_valuation.txt`, `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-03/OUTPUTS/20260114T075408Z_01_accounting_reports_gets.txt`.
+- Task-06 outputs: `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-06/OUTPUTS/20260114T075416Z_sql_orphans_documents_without_journal.txt`, `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-06/OUTPUTS/20260114T075416Z_sql_period_integrity.txt`, `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-06/OUTPUTS/20260114T075425Z_accounting_reports_gets.json`.
 - Phase 5 evidence: `tasks/erp_logic_audit/EVIDENCE_QUERIES/lead-015/OUTPUTS/`, `tasks/erp_logic_audit/EVIDENCE_QUERIES/lf-011/OUTPUTS/`, `tasks/erp_logic_audit/EVIDENCE_QUERIES/lf-012/OUTPUTS/`, `tasks/erp_logic_audit/EVIDENCE_QUERIES/lf-013/OUTPUTS/`, `tasks/erp_logic_audit/EVIDENCE_QUERIES/lf-014/OUTPUTS/`.
 - Task-09 outputs: `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/OUTPUTS/20260113T082939Z_actuator_health.json`, `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-09/OUTPUTS/20260113T082949Z_health_gets_app_port.txt`.
 - Task-06 outputs: `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-06/OUTPUTS/20260113T084648Z_period_lock_response.json`, `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-06/OUTPUTS/20260113T084715Z_journal_locked_override_response.json`, `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-06/OUTPUTS/20260113T084854Z_period_close_response.json`.
 - Verification gates: `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-06/OUTPUTS/20260113T085735Z_mvn_compile.txt`, `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-06/OUTPUTS/20260113T085741Z_mvn_checkstyle.txt`, `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-06/OUTPUTS/20260113T085754Z_mvn_test.txt`.
 
 ## Warnings / Notes
+- App boot under `SPRING_PROFILES_ACTIVE=prod,seed` failed config validation (GST accounts + production metadata); ran reconciliation probes on `SPRING_PROFILES_ACTIVE=dev` runtime.
+- Task-03 inventory reconciliation variance is 9130 (valuation 9183 vs ledger 53) → LEAD-018 logged.
 - Checkstyle baseline violations remain (29479); `checkstyle:check` fails as expected.
 - Testcontainers auth config warnings and dynamic agent loading notices persisted.
 - Test logs include expected warnings (invalid company IDs, negative balances, dispatch mapping, sequence contention/duplicate key retries, HTML-to-PDF CSS parsing); no failures.
@@ -78,8 +88,8 @@
 - Task-05 GST return failed with GST accounts unset while config health reported healthy → LF-011.
 
 ## Current Task
-- ERP logic audit program: Phase 5 fixes applied for LF-011..LF-015 on `fix-phase5-lead015-and-lf011-014`.
-- Next recommended step: review LEAD-017 (unpacked-batches lazy-load) and decide fix/triage.
+- ERP logic audit program: Phase 5 fixes applied for LF-011..LF-015 on `fix-phase5-lead015-and-lf011-014`; large-data reconciliation probes captured.
+- Next recommended step: review LEAD-018 inventory reconciliation variance (valuation vs ledger) and decide probe/fix path.
 
 ## Commands Run (Audit)
 - `sed -n ... SCOPE.md` and `.codex/AGENTS.md` (scope + execution rules).

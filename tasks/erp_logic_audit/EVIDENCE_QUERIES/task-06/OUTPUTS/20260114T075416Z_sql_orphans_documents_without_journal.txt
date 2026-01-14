@@ -1,0 +1,16 @@
+ finding_type | document_id | document_number | status | issue_date | journal_entry_id 
+--------------+-------------+-----------------+--------+------------+------------------
+(0 rows)
+
+ finding_type | document_id | document_number | status | invoice_date | journal_entry_id 
+--------------+-------------+-----------------+--------+--------------+------------------
+(0 rows)
+
+ finding_type | document_id | document_number | status | period_start | period_end | journal_entry_id | journal_entry_ref_id 
+--------------+-------------+-----------------+--------+--------------+------------+------------------+----------------------
+(0 rows)
+
+ finding_type | slip_id | slip_number | status | dispatched_at | invoice_id | journal_entry_id | cogs_journal_entry_id 
+--------------+---------+-------------+--------+---------------+------------+------------------+-----------------------
+(0 rows)
+

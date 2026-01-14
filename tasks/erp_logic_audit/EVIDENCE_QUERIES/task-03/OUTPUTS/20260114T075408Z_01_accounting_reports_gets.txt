@@ -1,0 +1,444 @@
+== GET /api/v1/reports/trial-balance
+{
+  "success": true,
+  "data": {
+    "rows": [
+      {
+        "accountId": 7005,
+        "code": "1000",
+        "name": "Cash",
+        "type": "ASSET",
+        "debit": 260.00,
+        "credit": 0
+      },
+      {
+        "accountId": 7006,
+        "code": "1100",
+        "name": "Accounts Receivable",
+        "type": "ASSET",
+        "debit": 0,
+        "credit": 150.00
+      },
+      {
+        "accountId": 7007,
+        "code": "1200",
+        "name": "Inventory",
+        "type": "ASSET",
+        "debit": 53.00,
+        "credit": 0
+      },
+      {
+        "accountId": 7008,
+        "code": "2000",
+        "name": "Accounts Payable",
+        "type": "LIABILITY",
+        "debit": 0,
+        "credit": 0.00
+      },
+      {
+        "accountId": 7009,
+        "code": "4000",
+        "name": "Revenue",
+        "type": "REVENUE",
+        "debit": 0,
+        "credit": 110.00
+      },
+      {
+        "accountId": 7010,
+        "code": "5000",
+        "name": "Cost of Goods Sold",
+        "type": "COGS",
+        "debit": 0.00,
+        "credit": 0
+      },
+      {
+        "accountId": 7011,
+        "code": "6000",
+        "name": "Operating Expenses",
+        "type": "EXPENSE",
+        "debit": 0.00,
+        "credit": 0
+      },
+      {
+        "accountId": 7017,
+        "code": "6100",
+        "name": "Sales Discounts",
+        "type": "EXPENSE",
+        "debit": 0.00,
+        "credit": 0
+      },
+      {
+        "accountId": 7030,
+        "code": "AP",
+        "name": "Accounts Payable",
+        "type": "LIABILITY",
+        "debit": 0,
+        "credit": 0.00
+      },
+      {
+        "accountId": 7015,
+        "code": "AP-AUDSUP-20260112T130652Z",
+        "name": "Audit Supplier 20260112T130652Z Payable",
+        "type": "LIABILITY",
+        "debit": 0,
+        "credit": 50.00
+      },
+      {
+        "accountId": 7029,
+        "code": "AR",
+        "name": "Accounts Receivable",
+        "type": "ASSET",
+        "debit": 0.00,
+        "credit": 0
+      },
+      {
+        "accountId": 7013,
+        "code": "AR-AUDITDEALER20260112T124716Z",
+        "name": "Audit Dealer 20260112T124716Z Receivable",
+        "type": "ASSET",
+        "debit": 0.00,
+        "credit": 0
+      },
+      {
+        "accountId": 7014,
+        "code": "AR-AUDITDEALER20260112T130259Z",
+        "name": "Audit Dealer 20260112T130259Z Receivable",
+        "type": "ASSET",
+        "debit": 0.00,
+        "credit": 0
+      },
+      {
+        "accountId": 7012,
+        "code": "AR-AUDITDEALER20260112T180925",
+        "name": "Audit Dealer 20260112T180925 Receivable",
+        "type": "ASSET",
+        "debit": 0.00,
+        "credit": 0
+      },
+      {
+        "accountId": 7028,
+        "code": "CASH",
+        "name": "Cash",
+        "type": "ASSET",
+        "debit": 0.00,
+        "credit": 0
+      },
+      {
+        "accountId": 7032,
+        "code": "COGS",
+        "name": "Cost of Goods Sold",
+        "type": "COGS",
+        "debit": 0.00,
+        "credit": 0
+      },
+      {
+        "accountId": 7034,
+        "code": "DISC",
+        "name": "Discounts",
+        "type": "EXPENSE",
+        "debit": 0.00,
+        "credit": 0
+      },
+      {
+        "accountId": 7018,
+        "code": "GST-IN",
+        "name": "GST Input Tax",
+        "type": "LIABILITY",
+        "debit": 0,
+        "credit": 0.00
+      },
+      {
+        "accountId": 7019,
+        "code": "GST-OUT",
+        "name": "GST Output Tax",
+        "type": "LIABILITY",
+        "debit": 0,
+        "credit": 0.00
+      },
+      {
+        "accountId": 7031,
+        "code": "INV",
+        "name": "Inventory",
+        "type": "ASSET",
+        "debit": 0.00,
+        "credit": 0
+      },
+      {
+        "accountId": 7033,
+        "code": "REV",
+        "name": "Revenue",
+        "type": "REVENUE",
+        "debit": 0,
+        "credit": 0.00
+      },
+      {
+        "accountId": 7035,
+        "code": "WIP",
+        "name": "Work in Progress",
+        "type": "ASSET",
+        "debit": 0.00,
+        "credit": 0
+      },
+      {
+        "accountId": 7016,
+        "code": "WIP-PROD",
+        "name": "Work In Progress",
+        "type": "ASSET",
+        "debit": 0,
+        "credit": 3.00
+      }
+    ],
+    "totalDebit": 313.00,
+    "totalCredit": 313.00,
+    "balanced": true
+  },
+  "timestamp": 1768377249.464140599
+}
+== GET /api/v1/reports/inventory-valuation
+{
+  "success": true,
+  "data": {
+    "totalValue": 9183.00000000,
+    "lowStockItems": 0
+  },
+  "timestamp": 1768377249.625797267
+}
+== GET /api/v1/reports/inventory-reconciliation
+{
+  "success": true,
+  "data": {
+    "physicalInventoryValue": 9183.00000000,
+    "ledgerInventoryBalance": 53.00,
+    "variance": 9130.00000000
+  },
+  "timestamp": 1768377249.734054002
+}
+== GET /api/v1/reports/balance-sheet
+{
+  "success": true,
+  "data": {
+    "totalAssets": 160.00,
+    "totalLiabilities": -50.00,
+    "totalEquity": 210.00
+  },
+  "timestamp": 1768377249.814819903
+}
+== GET /api/v1/reports/profit-loss
+{
+  "success": true,
+  "data": {
+    "revenue": -110.00,
+    "costOfGoodsSold": 0.00,
+    "grossProfit": -110.00,
+    "operatingExpenses": 0.00,
+    "netIncome": -110.00
+  },
+  "timestamp": 1768377249.885732640
+}
+== GET /api/v1/accounting/month-end/checklist
+{
+  "success": true,
+  "data": {
+    "period": {
+      "id": 8,
+      "year": 2026,
+      "month": 2,
+      "startDate": [
+        2026,
+        2,
+        1
+      ],
+      "endDate": [
+        2026,
+        2,
+        28
+      ],
+      "label": "February 2026",
+      "status": "OPEN",
+      "bankReconciled": false,
+      "bankReconciledAt": null,
+      "bankReconciledBy": null,
+      "inventoryCounted": false,
+      "inventoryCountedAt": null,
+      "inventoryCountedBy": null,
+      "closedAt": null,
+      "closedBy": null,
+      "closedReason": null,
+      "lockedAt": 1768234361.036299000,
+      "lockedBy": "admin@bbp.dev",
+      "lockReason": "audit lock test",
+      "reopenedAt": 1768234361.111591000,
+      "reopenedBy": "admin@bbp.dev",
+      "reopenReason": "audit reopen test",
+      "closingJournalEntryId": null,
+      "checklistNotes": null
+    },
+    "items": [
+      {
+        "key": "bankReconciled",
+        "label": "Bank accounts reconciled",
+        "completed": false,
+        "detail": "Pending review"
+      },
+      {
+        "key": "inventoryCounted",
+        "label": "Inventory counted",
+        "completed": false,
+        "detail": "Awaiting stock count"
+      },
+      {
+        "key": "draftEntries",
+        "label": "Draft entries cleared",
+        "completed": true,
+        "detail": "All entries posted"
+      },
+      {
+        "key": "inventoryReconciled",
+        "label": "Inventory reconciled to GL",
+        "completed": false,
+        "detail": "Variance 9130.00 exceeds tolerance"
+      },
+      {
+        "key": "arReconciled",
+        "label": "AR reconciled to dealer ledger",
+        "completed": true,
+        "detail": "Variance 0.00 within tolerance"
+      },
+      {
+        "key": "apReconciled",
+        "label": "AP reconciled to supplier ledger",
+        "completed": false,
+        "detail": "Variance -100.00 exceeds tolerance"
+      },
+      {
+        "key": "unbalancedJournals",
+        "label": "Unbalanced journals cleared",
+        "completed": true,
+        "detail": "All journals balanced"
+      },
+      {
+        "key": "unlinkedDocuments",
+        "label": "Documents linked to journals",
+        "completed": true,
+        "detail": "All documents linked"
+      },
+      {
+        "key": "unpostedDocuments",
+        "label": "Unposted documents cleared",
+        "completed": true,
+        "detail": "All documents posted"
+      }
+    ],
+    "readyToClose": false
+  },
+  "timestamp": 1768377250.278994709
+}
+== GET /api/v1/accounting/periods
+{
+  "success": true,
+  "data": [
+    {
+      "id": 8,
+      "year": 2026,
+      "month": 2,
+      "startDate": [
+        2026,
+        2,
+        1
+      ],
+      "endDate": [
+        2026,
+        2,
+        28
+      ],
+      "label": "February 2026",
+      "status": "OPEN",
+      "bankReconciled": false,
+      "bankReconciledAt": null,
+      "bankReconciledBy": null,
+      "inventoryCounted": false,
+      "inventoryCountedAt": null,
+      "inventoryCountedBy": null,
+      "closedAt": null,
+      "closedBy": null,
+      "closedReason": null,
+      "lockedAt": 1768234361.036299000,
+      "lockedBy": "admin@bbp.dev",
+      "lockReason": "audit lock test",
+      "reopenedAt": 1768234361.111591000,
+      "reopenedBy": "admin@bbp.dev",
+      "reopenReason": "audit reopen test",
+      "closingJournalEntryId": null,
+      "checklistNotes": null
+    },
+    {
+      "id": 6,
+      "year": 2026,
+      "month": 1,
+      "startDate": [
+        2026,
+        1,
+        1
+      ],
+      "endDate": [
+        2026,
+        1,
+        31
+      ],
+      "label": "January 2026",
+      "status": "OPEN",
+      "bankReconciled": false,
+      "bankReconciledAt": null,
+      "bankReconciledBy": null,
+      "inventoryCounted": false,
+      "inventoryCountedAt": null,
+      "inventoryCountedBy": null,
+      "closedAt": null,
+      "closedBy": null,
+      "closedReason": null,
+      "lockedAt": 1768296223.281272000,
+      "lockedBy": "admin@bbp.dev",
+      "lockReason": "lead-016 lock probe",
+      "reopenedAt": 1768296243.541249000,
+      "reopenedBy": "admin@bbp.dev",
+      "reopenReason": "lead-016 reopen after probe",
+      "closingJournalEntryId": null,
+      "checklistNotes": null
+    },
+    {
+      "id": 7,
+      "year": 2025,
+      "month": 12,
+      "startDate": [
+        2025,
+        12,
+        1
+      ],
+      "endDate": [
+        2025,
+        12,
+        31
+      ],
+      "label": "December 2025",
+      "status": "OPEN",
+      "bankReconciled": false,
+      "bankReconciledAt": null,
+      "bankReconciledBy": null,
+      "inventoryCounted": false,
+      "inventoryCountedAt": null,
+      "inventoryCountedBy": null,
+      "closedAt": null,
+      "closedBy": null,
+      "closedReason": null,
+      "lockedAt": null,
+      "lockedBy": null,
+      "lockReason": null,
+      "reopenedAt": null,
+      "reopenedBy": null,
+      "reopenReason": null,
+      "closingJournalEntryId": null,
+      "checklistNotes": null
+    }
+  ],
+  "timestamp": 1768377250.380881113
+}

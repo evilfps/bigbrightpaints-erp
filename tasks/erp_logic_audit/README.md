@@ -18,6 +18,12 @@ This folder contains **discovery + planning artifacts only** (no behavioral chan
 - HEAD SHA: `7b64620`
 - Git status: **DIRTY** (untracked logs under `docs/ops_and_debug/LOGS/` + workspace artifacts like `interview/`; do not delete)
 
+## Investigation run report (Task-03/06 large-data reconciliation)
+- Task-03 SQL + accounting reports GETs re-run after dev-profile seed; inventory valuation totals 9183 while inventory control ledger balance is 53 (variance 9130) → **LEAD-018** logged.
+- Orphan movement check returned FG RECEIPT movements missing `journal_entry_id` for PACKAGING references (consistent with LF-003 / prior bulk-pack linkage gap).
+- Task-06 SQL probes returned no orphan documents or period integrity violations; month-end checklist + periods remain OPEN.
+- Evidence: `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-03/OUTPUTS/20260114T075752Z_07_inventory_control_vs_valuation.txt`, `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-03/OUTPUTS/20260114T075408Z_01_accounting_reports_gets.txt`, `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-06/OUTPUTS/20260114T075416Z_sql_period_integrity.txt`.
+
 ## Investigation run report (LEAD-010/011 evidence + Task-03)
 - Executed Task-01/02 RUN.md probes for BBP (company_id=5), plus targeted retries for LEAD-010/011.
 - LEAD-010 not confirmed: duplicate sales-order submission returned a duplicate-entry error; only one `sales_orders` row exists for the idempotency key.
@@ -103,6 +109,7 @@ Source: `tasks/erp_logic_audit/HUNT_NOTEBOOK.md`
 - LEAD-014 (actuator health app-port 404; management port required).
 - LEAD-016 (admin override does not bypass locked period posting).
 - LEAD-017 (unpacked-batches 500 due to lazy-load).
+- LEAD-018 (inventory reconciliation variance: valuation vs ledger).
 
 ## Investigation taskpack (Phase 3)
 - Count: **9** tasks under `tasks/erp_logic_audit/taskpack_investigation/`.
