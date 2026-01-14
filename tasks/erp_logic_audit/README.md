@@ -44,10 +44,10 @@ This folder contains **discovery + planning artifacts only** (no behavioral chan
 
 ## Investigation run report (Task-08 idempotency stress)
 - Parallel idempotency probes executed for sales orders, payroll runs, purchase returns, and bulk pack (MOCK company).
-- Sales order + payroll run duplicate posts returned 409; conflicting payloads returned existing records (no rejection) → LEAD-020.
-- Purchase return retries with same reference reused journal entry but created 4 raw material movements → LEAD-019.
+- Sales order + payroll run duplicate posts returned 409; conflicting payloads returned existing records (no rejection) → confirmed **LF-023**.
+- Purchase return retries with same reference reused journal entry but still reduced RM stock on replay → confirmed **LF-022**.
 - Bulk pack idempotency OK (single ISSUE/RECEIPT in movement check).
-- Evidence: `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-08/OUTPUTS/20260114T081157Z_sales_order_conflict_response.json`, `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-08/OUTPUTS/20260114T081225Z_payroll_run_conflict_response.json`, `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-08/OUTPUTS/20260114T081253Z_sql_purchase_return_reference.txt`, `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-08/OUTPUTS/20260114T081326Z_sql_packaging_movements.txt`.
+- Evidence: `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-08/OUTPUTS/20260114T090838Z_sales_order_conflict_response.json`, `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-08/OUTPUTS/20260114T090855Z_payroll_run_conflict_response.json`, `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-08/OUTPUTS/20260114T090944Z_sql_purchase_return_reference.txt`, `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-08/OUTPUTS/20260114T090938Z_sql_raw_material_stock_after_return_2.txt`.
 
 ## Phase 5 fix run report (LEAD-015 + LF-011..LF-014)
 - LEAD-015 confirmed and promoted to **LF-015**; list/detail endpoints fixed with transactional boundaries + regression test.
@@ -133,13 +133,14 @@ Source: `tasks/erp_logic_audit/LOGIC_FLAWS.md`
 - LF-015 — Production log list/detail 500s due to lazy-load on brand/product.
 - LF-018 — Unpacked-batches endpoint 500 due to lazy-load.
 - LF-020 — Raw material batch codes not enforced unique.
+- LF-022 — Purchase return reference reuse duplicates RM movements.
+- LF-023 — Idempotency key conflict accepted (sales order + payroll).
 
 Top “HIGH” list: currently 8 items (LF-001..LF-006, LF-019, LF-021); LF-016..LF-017 fixed in Phase 5.
 
 ## Leads pending confirmation (not yet LF items)
 Source: `tasks/erp_logic_audit/HUNT_NOTEBOOK.md`
-- LEAD-019 (purchase return reference reuse duplicates RM movements).
-- LEAD-020 (idempotency key conflict accepted for sales order + payroll).
+- None (all current leads triaged).
 
 ## Investigation taskpack (Phase 3)
 - Count: **9** tasks under `tasks/erp_logic_audit/taskpack_investigation/`.

@@ -657,3 +657,50 @@ Policy:
 - Fix direction (no implementation):
   - Ensure all inventory-affecting events post to the inventory control account (including opening stock and adjustments).
   - Backfill missing GL impact for existing inventory and reconcile movement↔journal linkage.
+
+---
+
+## LF-022 — Purchase return reference reuse duplicates raw material movements
+
+- Workflow + modules + portal: Purchase returns (`purchasing`, `inventory`, `accounting`) — Purchasing portal
+- ERP expectation:
+  - Retries with the same `referenceNumber` must be idempotent across journals *and* inventory movements; replays should not change stock.
+- As-built behavior:
+  - Replaying the same purchase return reference reuses the journal entry but posts additional `raw_material_movements`, reducing stock on each replay.
+- Evidence:
+  - API responses (MOCK company_id=6):
+    - `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-08/OUTPUTS/20260114T090916Z_purchase_return_response_1.json`
+    - `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-08/OUTPUTS/20260114T090930Z_purchase_return_response_2.json`
+  - Stock drift:
+    - `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-08/OUTPUTS/20260114T090908Z_sql_raw_material_stock_before_return.txt`
+    - `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-08/OUTPUTS/20260114T090922Z_sql_raw_material_stock_after_return_1.txt`
+    - `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-08/OUTPUTS/20260114T090938Z_sql_raw_material_stock_after_return_2.txt`
+  - Movement duplication:
+    - `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-08/OUTPUTS/20260114T090944Z_sql_purchase_return_reference.txt`
+- Severity: **MED** (inventory drift without financial duplication)
+- Repro steps (dev):
+  1) POST `/api/v1/purchasing/raw-material-purchases/returns` with a fixed `referenceNumber`.
+  2) Replay the same payload with the same reference.
+  3) Query `raw_material_movements` for the reference and `raw_materials.current_stock`.
+- Fix direction (no implementation):
+  - Guard `recordPurchaseReturn` by reference for movements (return existing movement set), or enforce idempotency at the movement layer with a unique constraint.
+
+---
+
+## LF-023 — Idempotency key conflicts accepted (sales order + payroll run)
+
+- Workflow + modules + portal: Sales order creation + payroll runs (`sales`, `hr`) — Sales + HR portals
+- ERP expectation:
+  - Idempotency keys should be fail-closed: a conflicting payload must be rejected (409) or require a new key.
+- As-built behavior:
+  - Reusing the same idempotency key with a conflicting payload returns the existing record (HTTP 200), masking client errors.
+- Evidence:
+  - `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-08/OUTPUTS/20260114T090838Z_sales_order_conflict_response.json`
+  - `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-08/OUTPUTS/20260114T090855Z_payroll_run_conflict_response.json`
+- Severity: **MED** (client replay ambiguity; potential silent data mismatch)
+- Repro steps (dev):
+  1) POST `/api/v1/sales/orders` with `idempotencyKey=K1` and total A.
+  2) Replay with the same key but a different total B.
+  3) Observe HTTP 200 with the original order, not a rejection.
+- Fix direction (no implementation):
+  - Store a request signature/hash alongside idempotency key and reject mismatches.

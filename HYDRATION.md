@@ -265,3 +265,23 @@
   - `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-03/OUTPUTS/20260114T090230Z_sql_07_inventory_control_vs_valuation.txt`
   - `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-03/OUTPUTS/20260114T090237Z_accounting_reports_gets.txt`
   - `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-03/OUTPUTS/20260114T090337Z_sql_inventory_account_balance.txt`
+
+## 2026-01-14 LEAD-019/LEAD-020 confirmation (task-08 idempotency rerun)
+- Branch: `fix-phase5-lead015-and-lf011-014`
+- Tip SHA: `398ad30ed8582e717dfbbc03d6692b249f1c7fad`
+- Outcome: LEAD-019 confirmed → LF-022 (purchase return replay drifts RM stock); LEAD-020 confirmed → LF-023 (idempotency conflicts accepted).
+- Commands executed:
+  - `curl -X POST http://localhost:8081/api/v1/auth/login` (MOCK token)
+  - `psql -v company_id=6 -f tasks/erp_logic_audit/EVIDENCE_QUERIES/task-08/SQL/04_candidate_ids.sql`
+  - `curl -X POST http://localhost:8081/api/v1/sales/orders` (base + conflict payload)
+  - `curl -X POST http://localhost:8081/api/v1/hr/payroll-runs` (base + conflict payload)
+  - `curl -X POST http://localhost:8081/api/v1/purchasing/raw-material-purchases/returns` (twice, same reference)
+  - `psql -c "select id, sku, name, current_stock from raw_materials ..."` (stock before/after)
+  - `psql -v reference=... -f tasks/erp_logic_audit/EVIDENCE_QUERIES/task-08/SQL/07_purchase_return_reference_check.sql`
+- Evidence outputs:
+  - `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-08/OUTPUTS/20260114T090838Z_sales_order_conflict_response.json`
+  - `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-08/OUTPUTS/20260114T090855Z_payroll_run_conflict_response.json`
+  - `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-08/OUTPUTS/20260114T090908Z_sql_raw_material_stock_before_return.txt`
+  - `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-08/OUTPUTS/20260114T090922Z_sql_raw_material_stock_after_return_1.txt`
+  - `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-08/OUTPUTS/20260114T090938Z_sql_raw_material_stock_after_return_2.txt`
+  - `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-08/OUTPUTS/20260114T090944Z_sql_purchase_return_reference.txt`

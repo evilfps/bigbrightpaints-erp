@@ -28,8 +28,8 @@ Rules:
 | LEAD-016 | LOW? | Auditor / Operator | Admin override does not bypass locked period posting | Closed: period lock requires reopen; admin override only affects date constraints |
 | LEAD-017 | MED? | Operator / Auditor | Unpacked batches endpoint 500s (lazy load) | Confirmed → LF-018 |
 | LEAD-018 | HIGH | Auditor / Accounting | Inventory reconciliation variance (ledger vs valuation) | Confirmed → LF-021 (see `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-03/OUTPUTS/20260114T090230Z_sql_07_inventory_control_vs_valuation.txt`; `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-03/OUTPUTS/20260114T090237Z_accounting_reports_gets.txt`) |
-| LEAD-019 | MED? | Accounting / Inventory | Purchase return reference reuse duplicates RM movements | Re-run parallel return with same reference; compare `raw_material_movements` counts (task-08 OUTPUTS) |
-| LEAD-020 | MED? | Sales / HR | Idempotency key conflict accepted (sales order + payroll run) | Re-send conflicting payloads; confirm reject policy vs acceptance |
+| LEAD-019 | MED? | Accounting / Inventory | Purchase return reference reuse duplicates RM movements | Confirmed → LF-022 (see `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-08/OUTPUTS/20260114T090944Z_sql_purchase_return_reference.txt`; `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-08/OUTPUTS/20260114T090908Z_sql_raw_material_stock_before_return.txt`; `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-08/OUTPUTS/20260114T090938Z_sql_raw_material_stock_after_return_2.txt`) |
+| LEAD-020 | MED? | Sales / HR | Idempotency key conflict accepted (sales order + payroll run) | Confirmed → LF-023 (see `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-08/OUTPUTS/20260114T090838Z_sales_order_conflict_response.json`; `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-08/OUTPUTS/20260114T090855Z_payroll_run_conflict_response.json`) |
 | LEAD-COST-001 | HIGH | Auditor / Backend | Bulk packing: missing bulk ISSUE + movement↔journal link | Confirmed → LF-016 (see `tasks/erp_logic_audit/EVIDENCE_QUERIES/costing/OUTPUTS/20260113T105920Z_sql_01_bulk_pack_child_receipts_missing_journal.txt`; `tasks/erp_logic_audit/EVIDENCE_QUERIES/costing/OUTPUTS/20260113T105920Z_sql_02_bulk_pack_missing_bulk_issue_movement.txt`) |
 | LEAD-COST-002 | HIGH | Backend / Auditor | Bulk packing journal reference non-idempotent (duplicates on retry) | Confirmed → LF-017 (see `tasks/erp_logic_audit/EVIDENCE_QUERIES/costing/OUTPUTS/20260113T110014Z_sql_07_bulk_pack_recent_journals.txt`) |
 | LEAD-COST-005 | MED? | Auditor / Accounting | Wastage journal uses material-only valuation (labor/overhead excluded) | Closed (as-built: production unit_cost is material-only; see `tasks/erp_logic_audit/EVIDENCE_QUERIES/costing/OUTPUTS/20260113T105157Z_sql_05_wastage_journal_value_vs_cost_components.txt`) |
@@ -447,33 +447,35 @@ Rules:
 
 ## LEAD-019 — Purchase return reference reuse duplicates RM movements
 
+- Status: **CONFIRMED → LF-022**
 - Hypothesis:
   - Replaying a purchase return with the same `referenceNumber` reuses the journal entry but still posts new `raw_material_movements`, deducting inventory multiple times.
 - Why this matters (ERP expectation):
   - Retries must be idempotent across journals *and* inventory movements; duplicate movements create inventory drift without matching financial duplication.
 - Evidence:
-  - `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-08/OUTPUTS/20260114T081243Z_purchase_return_parallel_*.json` (all 200, same journal entry id 67).
-  - `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-08/OUTPUTS/20260114T081253Z_sql_purchase_return_reference.txt` (movement_count 4 for the same reference).
+  - `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-08/OUTPUTS/20260114T090916Z_purchase_return_response_1.json` (first return accepted; journal entry reused).
+  - `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-08/OUTPUTS/20260114T090930Z_purchase_return_response_2.json` (replay accepted).
+  - `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-08/OUTPUTS/20260114T090908Z_sql_raw_material_stock_before_return.txt` (stock 1496).
+  - `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-08/OUTPUTS/20260114T090922Z_sql_raw_material_stock_after_return_1.txt` (stock 1495).
+  - `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-08/OUTPUTS/20260114T090938Z_sql_raw_material_stock_after_return_2.txt` (stock 1494; drift on replay).
+  - `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-08/OUTPUTS/20260114T090944Z_sql_purchase_return_reference.txt` (movement_count 2 for the same reference).
 - Code anchors:
   - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/purchasing/service/PurchasingService.java` (`recordPurchaseReturn` still issues movements after journal dedup).
   - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingFacade.java` (`postPurchaseReturn` dedups on reference only).
-- Next probes:
-  - Capture `raw_materials.current_stock` before/after a replay to quantify inventory drift.
 
 ---
 
 ## LEAD-020 — Idempotency key conflict accepted (sales order + payroll run)
 
+- Status: **CONFIRMED → LF-023**
 - Hypothesis:
   - Reusing `idempotencyKey` with a conflicting payload returns the existing record instead of rejecting the request, violating fail-closed replay expectations.
 - Evidence:
-  - `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-08/OUTPUTS/20260114T081157Z_sales_order_conflict_response.json` (HTTP 200 with original totals after conflicting payload).
-  - `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-08/OUTPUTS/20260114T081225Z_payroll_run_conflict_response.json` (HTTP 200 with original totals after conflicting payload).
+  - `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-08/OUTPUTS/20260114T090838Z_sales_order_conflict_response.json` (HTTP 200 with original totals after conflicting payload).
+  - `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-08/OUTPUTS/20260114T090855Z_payroll_run_conflict_response.json` (HTTP 200 with original totals after conflicting payload).
 - Code anchors:
   - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/sales/service/SalesService.java` (`createOrder` returns existing by key without signature check).
   - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/hr/service/HrService.java` (`createPayrollRun` returns existing by key without signature check).
-- Next probes:
-  - Confirm expected behavior with product; extend conflict replay tests to settlements and dispatch confirmations.
 
 ---
 
