@@ -1,5 +1,7 @@
 package com.bigbrightpaints.erp.modules.purchasing.service;
 
+import com.bigbrightpaints.erp.core.exception.ApplicationException;
+import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.core.util.MoneyUtils;
 import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
@@ -39,6 +41,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 @Service
 public class PurchasingService {
@@ -231,6 +234,14 @@ public class PurchasingService {
                 ? request.referenceNumber().trim()
                 : referenceNumberService.purchaseReturnReference(company, supplier);
         LocalDate returnDate = request.returnDate() != null ? request.returnDate() : companyClock.today(company);
+        List<RawMaterialMovement> existingMovements = movementRepository
+                .findByRawMaterialCompanyAndReferenceTypeAndReferenceId(company,
+                        InventoryReference.PURCHASE_RETURN,
+                        reference);
+        if (!existingMovements.isEmpty()) {
+            return returnExistingPurchaseReturn(material, supplier, quantity, unitCost, totalAmount, reference,
+                    returnDate, memo, existingMovements);
+        }
 
         // Post journal FIRST before deducting stock
         JournalEntryDto entry = accountingFacade.postPurchaseReturn(
@@ -251,6 +262,78 @@ public class PurchasingService {
         List<RawMaterialMovement> movements = issueReturnFromBatches(material, quantity, unitCost, reference, entry.id());
         movementRepository.saveAll(movements);
         return entry;
+    }
+
+    private JournalEntryDto returnExistingPurchaseReturn(RawMaterial material,
+                                                         Supplier supplier,
+                                                         BigDecimal quantity,
+                                                         BigDecimal unitCost,
+                                                         BigDecimal totalAmount,
+                                                         String reference,
+                                                         LocalDate returnDate,
+                                                         String memo,
+                                                         List<RawMaterialMovement> existingMovements) {
+        validateReturnReplay(material, quantity, unitCost, reference, existingMovements);
+        JournalEntryDto entry = accountingFacade.postPurchaseReturn(
+                supplier.getId(),
+                reference,
+                returnDate,
+                memo,
+                Map.of(material.getInventoryAccountId(), totalAmount),
+                totalAmount
+        );
+        if (entry != null) {
+            Long entryId = entry.id();
+            boolean needsLink = existingMovements.stream()
+                    .anyMatch(movement -> movement.getJournalEntryId() == null
+                            || !movement.getJournalEntryId().equals(entryId));
+            if (needsLink) {
+                existingMovements.forEach(movement -> movement.setJournalEntryId(entryId));
+                movementRepository.saveAll(existingMovements);
+            }
+        }
+        return entry;
+    }
+
+    private void validateReturnReplay(RawMaterial material,
+                                      BigDecimal quantity,
+                                      BigDecimal unitCost,
+                                      String reference,
+                                      List<RawMaterialMovement> existingMovements) {
+        List<Long> materialIds = existingMovements.stream()
+                .map(movement -> movement.getRawMaterial().getId())
+                .distinct()
+                .toList();
+        if (materialIds.size() != 1 || !materialIds.get(0).equals(material.getId())) {
+            throwIdempotencyConflict(material, quantity, unitCost, reference);
+        }
+        BigDecimal existingQty = existingMovements.stream()
+                .map(RawMaterialMovement::getQuantity)
+                .filter(Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        if (existingQty.compareTo(quantity) != 0) {
+            throwIdempotencyConflict(material, quantity, unitCost, reference);
+        }
+        BigDecimal expectedCost = unitCost != null ? unitCost : BigDecimal.ZERO;
+        boolean unitCostMismatch = existingMovements.stream()
+                .map(RawMaterialMovement::getUnitCost)
+                .filter(Objects::nonNull)
+                .anyMatch(cost -> cost.compareTo(expectedCost) != 0);
+        if (unitCostMismatch) {
+            throwIdempotencyConflict(material, quantity, unitCost, reference);
+        }
+    }
+
+    private void throwIdempotencyConflict(RawMaterial material,
+                                          BigDecimal quantity,
+                                          BigDecimal unitCost,
+                                          String reference) {
+        throw new ApplicationException(ErrorCode.CONCURRENCY_CONFLICT,
+                "Purchase return reference already used with different payload")
+                .withDetail("reference", reference)
+                .withDetail("rawMaterialId", material.getId())
+                .withDetail("quantity", quantity)
+                .withDetail("unitCost", unitCost);
     }
 
     private List<RawMaterialMovement> issueReturnFromBatches(RawMaterial material,
