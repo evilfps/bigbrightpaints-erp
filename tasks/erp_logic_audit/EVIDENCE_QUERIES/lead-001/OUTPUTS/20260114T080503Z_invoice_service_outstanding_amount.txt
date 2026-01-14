@@ -1,0 +1,51 @@
+        BigDecimal computedSubtotal = BigDecimal.ZERO;
+        BigDecimal computedTax = BigDecimal.ZERO;
+        for (SalesOrderItem item : order.getItems()) {
+            InvoiceLine line = new InvoiceLine();
+            line.setInvoice(invoice);
+            line.setProductCode(item.getProductCode());
+            line.setDescription(item.getDescription());
+            line.setQuantity(item.getQuantity());
+            line.setUnitPrice(item.getUnitPrice());
+            BigDecimal lineSubtotal = item.getLineSubtotal() != null
+                    ? item.getLineSubtotal()
+                    : MoneyUtils.safeMultiply(item.getQuantity(), item.getUnitPrice());
+            BigDecimal lineTax = item.getGstAmount() != null ? item.getGstAmount() : BigDecimal.ZERO;
+            BigDecimal taxRate = item.getGstRate() != null ? item.getGstRate() : BigDecimal.ZERO;
+            line.setTaxRate(taxRate);
+            line.setLineTotal(lineSubtotal.add(lineTax));
+            computedSubtotal = computedSubtotal.add(lineSubtotal);
+            computedTax = computedTax.add(lineTax);
+            invoice.getLines().add(line);
+        }
+        BigDecimal subtotal = order.getSubtotalAmount() != null && order.getSubtotalAmount().compareTo(BigDecimal.ZERO) > 0
+                ? order.getSubtotalAmount()
+                : computedSubtotal;
+        BigDecimal taxTotal = order.getGstTotal() != null && order.getGstTotal().compareTo(BigDecimal.ZERO) > 0
+                ? order.getGstTotal()
+                : computedTax;
+        invoice.setSubtotal(subtotal);
+        invoice.setTaxTotal(taxTotal);
+        invoice.setTotalAmount(subtotal.add(taxTotal));
+        invoice.setOutstandingAmount(subtotal.add(taxTotal));
+        JournalEntry journalEntry = resolveInvoiceJournal(order, invoice);
+        if (journalEntry != null) {
+            invoice.setJournalEntry(journalEntry);
+            if (order.getSalesJournalEntryId() == null) {
+                order.setSalesJournalEntryId(journalEntry.getId());
+            }
+        }
+        Invoice saved = invoiceRepository.save(invoice);
+        dealerLedgerService.syncInvoiceLedger(saved, null);
+
+        return toDto(saved);
+    }
+
+    @Transactional
+    public List<InvoiceDto> listInvoices(int page, int size) {
+        Company company = companyContextService.requireCurrentCompany();
+        int safeSize = Math.max(1, Math.min(size, 200));
+        PageRequest pageable = PageRequest.of(Math.max(page, 0), safeSize);
+        Page<Long> invoiceIds = invoiceRepository.findIdsByCompanyOrderByIssueDateDescIdDesc(company, pageable);
+        List<Long> ids = invoiceIds.getContent();
+        if (ids.isEmpty()) {

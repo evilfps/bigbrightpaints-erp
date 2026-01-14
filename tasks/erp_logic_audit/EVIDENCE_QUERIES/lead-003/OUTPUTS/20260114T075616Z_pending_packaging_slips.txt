@@ -1,0 +1,5 @@
+ id |    slip_number    |       status       | sales_order_id 
+----+-------------------+--------------------+----------------
+  2 | BBP-PS-BBP-PS-001 | PENDING_PRODUCTION |              2
+(1 row)
+

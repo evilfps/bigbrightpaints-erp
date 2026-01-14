@@ -1,0 +1,56 @@
+    /**
+     * Get packaging slip by sales order ID.
+     */
+    @GetMapping("/order/{orderId}")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_FACTORY','ROLE_SALES')")
+    public ResponseEntity<ApiResponse<PackagingSlipDto>> getPackagingSlipByOrder(@PathVariable Long orderId) {
+        PackagingSlipDto slip = finishedGoodsService.getPackagingSlipByOrder(orderId);
+        return ResponseEntity.ok(ApiResponse.success(slip));
+    }
+
+    /**
+     * Confirm dispatch with actual shipped quantities.
+     * This is the final step - journals, inventory, and ledger updates happen here.
+     */
+    @PostMapping("/confirm")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_FACTORY') and hasAuthority('dispatch.confirm')")
+    public ResponseEntity<ApiResponse<DispatchConfirmationResponse>> confirmDispatch(
+            @Valid @RequestBody DispatchConfirmationRequest request,
+            Principal principal) {
+        String username = principal != null ? principal.getName() : "system";
+        DispatchConfirmRequest accountingRequest = new DispatchConfirmRequest(
+                request.packagingSlipId(),
+                null,
+                request.lines().stream()
+                        .map(line -> new DispatchConfirmRequest.DispatchLine(
+                                line.lineId(),
+                                null,
+                                line.shippedQuantity(),
+                                null,
+                                null,
+                                null,
+                                null,
+                                line.notes()))
+                        .toList(),
+                request.notes(),
+                username,
+                Boolean.FALSE,
+                request.overrideRequestId()
+        );
+        salesService.confirmDispatch(accountingRequest);
+        DispatchConfirmationResponse response = finishedGoodsService.confirmDispatch(request, username);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    /**
+     * Update packaging slip status (e.g., PENDING -> PACKING -> READY).
+     */
+    @PatchMapping("/slip/{slipId}/status")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_FACTORY')")
+    public ResponseEntity<ApiResponse<PackagingSlipDto>> updateSlipStatus(
+            @PathVariable Long slipId,
+            @RequestParam String status) {
+        PackagingSlipDto slip = finishedGoodsService.updateSlipStatus(slipId, status);
+        return ResponseEntity.ok(ApiResponse.success(slip));
+    }
+}

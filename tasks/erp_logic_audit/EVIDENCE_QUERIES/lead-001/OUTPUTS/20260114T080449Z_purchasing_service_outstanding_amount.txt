@@ -1,0 +1,41 @@
+            }
+            inventoryDebits.merge(inventoryAccountId, lineTotal, BigDecimal::add);
+        }
+
+        // Post journal FIRST to avoid orphan purchases if journal fails
+        String referenceNumber = referenceNumberService.purchaseReference(company, supplier, invoiceNumber);
+        JournalEntryDto entry = postPurchaseEntry(request, supplier, inventoryDebits, totalAmount, referenceNumber);
+        JournalEntry linkedJournal = null;
+        if (entry != null) {
+            linkedJournal = companyEntityLookup.requireJournalEntry(company, entry.id());
+        }
+
+        // Now create purchase with journal already linked
+        RawMaterialPurchase purchase = new RawMaterialPurchase();
+        purchase.setCompany(company);
+        purchase.setSupplier(supplier);
+        purchase.setInvoiceNumber(invoiceNumber);
+        purchase.setInvoiceDate(request.invoiceDate());
+        purchase.setMemo(clean(request.memo()));
+        purchase.setTotalAmount(totalAmount);
+        purchase.setOutstandingAmount(totalAmount);
+        purchase.setJournalEntry(linkedJournal);
+
+        // Process lines using already-locked materials
+        List<RawMaterialService.ReceiptResult> receipts = new ArrayList<>();
+        int lineIndex = 1;
+        for (RawMaterialPurchaseLineRequest lineRequest : request.lines()) {
+            RawMaterial rawMaterial = lockedMaterials.get(lineRequest.rawMaterialId());
+            BigDecimal quantity = positive(lineRequest.quantity(), "quantity");
+            BigDecimal costPerUnit = positive(lineRequest.costPerUnit(), "costPerUnit");
+            String unit = StringUtils.hasText(lineRequest.unit())
+                    ? lineRequest.unit().trim()
+                    : rawMaterial.getUnitType();
+            String batchCode = StringUtils.hasText(lineRequest.batchCode())
+                    ? lineRequest.batchCode().trim()
+                    : null;
+            BigDecimal lineTotal = MoneyUtils.safeMultiply(quantity, costPerUnit);
+
+            RawMaterialBatchRequest batchRequest = new RawMaterialBatchRequest(
+                    batchCode,
+                    quantity,

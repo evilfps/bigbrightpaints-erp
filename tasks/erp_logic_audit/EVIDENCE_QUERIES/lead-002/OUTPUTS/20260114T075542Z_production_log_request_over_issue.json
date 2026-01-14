@@ -1,0 +1,18 @@
+{
+  "brandId": 2,
+  "productId": 3,
+  "batchSize": 5,
+  "unitOfMeasure": "KG",
+  "mixedQuantity": 5,
+  "producedAt": "2026-01-13",
+  "createdBy": "Evidence",
+  "laborCost": 2.0,
+  "overheadCost": 1.0,
+  "materials": [
+    {
+      "rawMaterialId": 1,
+      "quantity": 5,
+      "unitOfMeasure": "KG"
+    }
+  ]
+}

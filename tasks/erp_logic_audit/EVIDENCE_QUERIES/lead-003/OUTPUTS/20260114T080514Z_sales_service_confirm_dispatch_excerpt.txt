@@ -1,0 +1,76 @@
+
+                InvoiceLine invLine = new InvoiceLine();
+                invLine.setProductCode(fg.getProductCode());
+                invLine.setDescription(lastItem.getDescription());
+                invLine.setQuantity(remainingToAllocate);
+                invLine.setUnitPrice(price);
+                invLine.setTaxRate(taxRate);
+                invLine.setLineTotal(lineTotal);
+                invoiceLines.add(invLine);
+            }
+        }
+
+        BigDecimal totalAmount = subtotal.add(taxTotal);
+        if (totalAmount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                    "No shippable quantity available for dispatch");
+        }
+
+        if (!Boolean.TRUE.equals(request.adminOverrideCreditLimit())) {
+            enforceDispatchCreditLimit(company, dealer, slip, order, totalAmount, request.overrideRequestId());
+        }
+
+        if (!alreadyDispatched) {
+            List<com.bigbrightpaints.erp.modules.inventory.dto.DispatchConfirmationRequest.LineConfirmation> confirmations =
+                    slip.getLines().stream()
+                            .map(line -> new com.bigbrightpaints.erp.modules.inventory.dto.DispatchConfirmationRequest.LineConfirmation(
+                                    line.getId(),
+                                    shipQtyByLineId.getOrDefault(line.getId(), BigDecimal.ZERO),
+                                    lineOverrides.get(line.getId()) != null
+                                            ? lineOverrides.get(line.getId()).notes()
+                                            : null))
+                            .toList();
+            finishedGoodsService.confirmDispatch(
+                    new com.bigbrightpaints.erp.modules.inventory.dto.DispatchConfirmationRequest(
+                            slip.getId(),
+                            confirmations,
+                            request.dispatchNotes(),
+                            request.confirmedBy(),
+                            request.overrideRequestId()
+                    ),
+                    request.confirmedBy() != null ? request.confirmedBy() : "system"
+            );
+        }
+
+        // Post inventory/COGS using slip line quantities (not reservation quantities)
+        Map<String, BigDecimal> costByPair = new HashMap<>();
+        Map<String, Long[]> accountsByPair = new HashMap<>();
+        for (var slipLine : slip.getLines()) {
+            BigDecimal shippedQty = slipLine.getShippedQuantity();
+            if (shippedQty == null) {
+                shippedQty = shipQtyByLineId.getOrDefault(slipLine.getId(), slipLine.getQuantity());
+            }
+            if (shippedQty == null || shippedQty.compareTo(BigDecimal.ZERO) <= 0) {
+                continue;
+            }
+            FinishedGood fg = slipLine.getFinishedGoodBatch().getFinishedGood();
+            if (fg == null) {
+                continue;
+            }
+            Long inventoryAccountId = fg.getValuationAccountId();
+            Long cogsAccountId = fg.getCogsAccountId();
+            if (inventoryAccountId == null || cogsAccountId == null) {
+                throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                        "Finished good " + fg.getProductCode() + " missing accounting configuration");
+            }
+            BigDecimal unitCost = slipLine.getUnitCost();
+            if (unitCost == null) {
+                unitCost = slipLine.getFinishedGoodBatch() != null
+                        ? slipLine.getFinishedGoodBatch().getUnitCost()
+                        : BigDecimal.ZERO;
+            }
+            if (unitCost == null) {
+                unitCost = BigDecimal.ZERO;
+            }
+            BigDecimal cost = unitCost.multiply(shippedQty);
+            if (cost.compareTo(BigDecimal.ZERO) <= 0) {

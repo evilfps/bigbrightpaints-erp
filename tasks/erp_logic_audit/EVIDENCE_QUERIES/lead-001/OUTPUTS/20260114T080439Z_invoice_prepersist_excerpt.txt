@@ -1,0 +1,41 @@
+
+    @OneToMany(mappedBy = "invoice", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
+    private List<InvoiceLine> lines = new ArrayList<>();
+
+    @ElementCollection
+    @CollectionTable(name = "invoice_payment_refs", joinColumns = @JoinColumn(name = "invoice_id"))
+    @Column(name = "payment_reference")
+    private Set<String> paymentReferences = new HashSet<>();
+
+    @PrePersist
+    public void prePersist() {
+        if (publicId == null) {
+            publicId = UUID.randomUUID();
+        }
+        Instant now = Instant.now();
+        if (createdAt == null) {
+            createdAt = now;
+        }
+        updatedAt = now;
+        if (outstandingAmount == null || outstandingAmount.compareTo(BigDecimal.ZERO) == 0) {
+            outstandingAmount = totalAmount != null ? totalAmount : BigDecimal.ZERO;
+        }
+    }
+
+    @PreUpdate
+    public void preUpdate() {
+        updatedAt = Instant.now();
+    }
+
+    public Long getId() { return id; }
+    public UUID getPublicId() { return publicId; }
+    public Company getCompany() { return company; }
+    public void setCompany(Company company) { this.company = company; }
+    public Dealer getDealer() { return dealer; }
+    public void setDealer(Dealer dealer) { this.dealer = dealer; }
+    public SalesOrder getSalesOrder() { return salesOrder; }
+    public void setSalesOrder(SalesOrder salesOrder) { this.salesOrder = salesOrder; }
+    public JournalEntry getJournalEntry() { return journalEntry; }
+    public void setJournalEntry(JournalEntry journalEntry) { this.journalEntry = journalEntry; }
+    public String getInvoiceNumber() { return invoiceNumber; }
+    public void setInvoiceNumber(String invoiceNumber) { this.invoiceNumber = invoiceNumber; }

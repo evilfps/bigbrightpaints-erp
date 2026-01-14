@@ -1,0 +1,2 @@
+{"success":true,"data":{"id":2,"publicId":"68b831ab-bbf9-4687-b933-189419743ca5","salesOrderId":2,"orderNumber":"BBP-2026-00001","dealerName":"Audit Dealer 20260112T130259Z","slipNumber":"BBP-PS-BBP-PS-001","status":"PENDING_PRODUCTION","createdAt":1768223212.902314000,"confirmedAt":null,"confirmedBy":null,"dispatchedAt":null,"dispatchNotes":null,"journalEntryId":null,"cogsJournalEntryId":null,"lines":[]},"timestamp":1768377407.827570034}
+HTTP_STATUS:200

@@ -36,6 +36,8 @@ Rules:
 
 ## LEAD-001 — Invoice/purchase `outstanding_amount` overwritten to `total_amount` when zero (migration + paid-at-creation risk)
 
+- Status: **CLOSED** — Creation paths always set outstanding to total; no API accepts `outstanding_amount=0` on create.
+
 - Hypothesis:
   - Creating an `Invoice` or `RawMaterialPurchase` with `outstanding_amount = 0` (already paid, migrated historical invoice, credit note, or forced “paid at creation”) will be silently overwritten to `total_amount` by `@PrePersist`.
 - Why this matters (ERP expectation):
@@ -51,10 +53,17 @@ Rules:
   - Repro shows `outstanding_amount` becomes non-zero despite explicit 0.
 - Why tests might still pass:
   - The app’s happy path likely never creates invoices/purchases with outstanding 0 at creation; it sets outstanding to total and only updates later.
+- Evidence:
+  - `tasks/erp_logic_audit/EVIDENCE_QUERIES/lead-001/OUTPUTS/20260114T080457Z_invoice_controller_excerpt.txt` (no create endpoint for invoices)
+  - `tasks/erp_logic_audit/EVIDENCE_QUERIES/lead-001/OUTPUTS/20260114T080503Z_invoice_service_outstanding_amount.txt`
+  - `tasks/erp_logic_audit/EVIDENCE_QUERIES/lead-001/OUTPUTS/20260114T080444Z_raw_material_purchase_request.txt`
+  - `tasks/erp_logic_audit/EVIDENCE_QUERIES/lead-001/OUTPUTS/20260114T080449Z_purchasing_service_outstanding_amount.txt`
 
 ---
 
 ## LEAD-002 — Raw material stock is “fail-open” (negative clamps to zero), unlike finished goods (throws)
+
+- Status: **CLOSED** — Over-issue is rejected with 400; stock stays unchanged.
 
 - Hypothesis:
   - Raw material stock can go negative in services, but the entity setter clamps it back to zero, hiding the error and allowing workflows to “succeed” while silently losing the deficit signal.
@@ -74,10 +83,16 @@ Rules:
   - Successful over-issue resulting in clamped stock, with movements recorded as if valid.
 - Why tests might still pass:
   - Golden-path tests may not include negative stock attempts or race conditions that create temporary negative balances.
+- Evidence:
+  - `tasks/erp_logic_audit/EVIDENCE_QUERIES/lead-002/OUTPUTS/20260114T075521Z_raw_material_stock.txt`
+  - `tasks/erp_logic_audit/EVIDENCE_QUERIES/lead-002/OUTPUTS/20260114T075548Z_production_log_over_issue_response.txt` (HTTP 400)
+  - `tasks/erp_logic_audit/EVIDENCE_QUERIES/lead-002/OUTPUTS/20260114T075558Z_raw_material_stock_after_over_issue.txt`
 
 ---
 
 ## LEAD-003 — `/api/v1/dispatch/confirm` appears to confirm dispatch twice (double side-effect risk)
+
+- Status: **CLOSED** — Controller double-call is guarded; `FinishedGoodsService.confirmDispatch` returns early once slip is DISPATCHED.
 
 - Hypothesis:
   - Dispatch confirm controller calls `SalesService.confirmDispatch(...)` and then calls `FinishedGoodsService.confirmDispatch(...)` directly, which may cause duplicate inventory/journal side effects if both paths perform confirmation logic.
@@ -96,6 +111,12 @@ Rules:
   - Duplicate movements and/or duplicate journals created from a single confirm action (or evidence that idempotency markers diverge between the two call paths).
 - Why tests might still pass:
   - Idempotency markers may currently prevent duplicates in the seeded scenarios, but this remains a regression trap if either path changes.
+- Evidence:
+  - `tasks/erp_logic_audit/EVIDENCE_QUERIES/lead-003/OUTPUTS/20260114T075616Z_pending_packaging_slips.txt`
+  - `tasks/erp_logic_audit/EVIDENCE_QUERIES/lead-003/OUTPUTS/20260114T075647Z_dispatch_slip_2.txt` (no lines in seed slip)
+  - `tasks/erp_logic_audit/EVIDENCE_QUERIES/lead-003/OUTPUTS/20260114T080510Z_dispatch_controller_confirm_excerpt.txt`
+  - `tasks/erp_logic_audit/EVIDENCE_QUERIES/lead-003/OUTPUTS/20260114T080514Z_sales_service_confirm_dispatch_excerpt.txt`
+  - `tasks/erp_logic_audit/EVIDENCE_QUERIES/lead-003/OUTPUTS/20260114T080518Z_finished_goods_confirm_dispatch_excerpt.txt`
 
 ---
 

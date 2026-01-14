@@ -1,0 +1,51 @@
+    public DispatchConfirmationResponse confirmDispatch(DispatchConfirmationRequest request, String username) {
+        Company company = companyContextService.requireCurrentCompany();
+        PackagingSlip slip = packagingSlipRepository.findAndLockByIdAndCompany(request.packagingSlipId(), company)
+                .orElseThrow(() -> new IllegalArgumentException("Packaging slip not found"));
+
+        if ("DISPATCHED".equalsIgnoreCase(slip.getStatus())) {
+            return buildDispatchConfirmationResponse(slip, company);
+        }
+
+        SalesOrder order = slip.getSalesOrder();
+        Map<Long, DispatchConfirmationRequest.LineConfirmation> confirmations = request.lines().stream()
+                .collect(Collectors.toMap(DispatchConfirmationRequest.LineConfirmation::lineId, l -> l));
+
+        List<DispatchConfirmationResponse.LineResult> lineResults = new ArrayList<>();
+        BigDecimal totalOrdered = BigDecimal.ZERO;
+        BigDecimal totalShipped = BigDecimal.ZERO;
+        BigDecimal totalBackorder = BigDecimal.ZERO;
+        BigDecimal totalCogsCost = BigDecimal.ZERO;
+        boolean hasBackorder = false;
+
+        List<InventoryReservation> reservationsToUpdate = new ArrayList<>();
+        Map<Long, List<InventoryReservation>> reservationsByBatch = new HashMap<>();
+        if (order != null) {
+            List<InventoryReservation> reservations = inventoryReservationRepository
+                    .findByFinishedGoodCompanyAndReferenceTypeAndReferenceId(
+                            company,
+                            InventoryReference.SALES_ORDER,
+                            order.getId().toString());
+            for (InventoryReservation reservation : reservations) {
+                if ("CANCELLED".equalsIgnoreCase(reservation.getStatus())) {
+                    continue;
+                }
+                FinishedGoodBatch batch = reservation.getFinishedGoodBatch();
+                if (batch == null || batch.getId() == null) {
+                    continue;
+                }
+                BigDecimal reservedQty = resolveReservedQuantity(reservation);
+                reservation.setReservedQuantity(reservedQty);
+                if (reservation.getFulfilledQuantity() == null) {
+                    reservation.setFulfilledQuantity(BigDecimal.ZERO);
+                }
+                reservationsByBatch
+                        .computeIfAbsent(batch.getId(), k -> new ArrayList<>())
+                        .add(reservation);
+                reservationsToUpdate.add(reservation);
+            }
+            for (List<InventoryReservation> batchReservations : reservationsByBatch.values()) {
+                batchReservations.sort(Comparator.comparing(InventoryReservation::getId, Comparator.nullsLast(Long::compareTo)));
+            }
+        }
+
