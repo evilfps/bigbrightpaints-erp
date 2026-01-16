@@ -373,7 +373,7 @@
 
 ## 2026-01-16 LF-019 payroll PF deduction + toggle
 - Branch: `fix-phase5-lead015-and-lf011-014` (commit `4578054`, plus follow-up payroll account automation/backfill).
-- Changes: PF deduction applied in payroll run lines/posting; company-level PF toggle; regression coverage; migration V104; auto-create payroll accounts with parent groups on posting; backfill PF toggle (V105) to off when no PF payable.
+- Changes: PF deduction applied in payroll run lines/posting; company-level PF toggle; regression coverage; migration V104; auto-create payroll accounts with parent groups on posting; backfill PF toggle (V105) to off when no PF payable; add PayrollAccountHierarchyIT to ensure existing payroll accounts are parented on posting.
 - Commands executed:
   - `mvn -f erp-domain/pom.xml -DskipTests compile` (PASS; javax.annotation warnings).
   - `mvn -f erp-domain/pom.xml -DskipTests compile` (PASS; javax.annotation warnings; rerun after payroll parent backfill tweak).
@@ -381,6 +381,8 @@
   - `mvn -f erp-domain/pom.xml test` (PASS; 235 tests, 4 skipped).
   - `mvn -f erp-domain/pom.xml -Dtest=PayrollPfDeductionRegressionIT test` (PASS; 2 tests).
   - `mvn -f erp-domain/pom.xml -Dtest=PayrollPfDeductionRegressionIT test` (PASS; 2 tests; rerun after payroll parent grouping).
+  - `mvn -f erp-domain/pom.xml -Dtest=PayrollAccountHierarchyIT test` (PASS; 1 test).
+  - `mvn -f erp-domain/pom.xml -Dtest=ErpInvariantsSuiteIT,PayrollBatchPaymentIT test` (PASS; 10 tests).
   - `JWT_SECRET=... ERP_SECURITY_ENCRYPTION_KEY=... docker compose up -d --build` (FAIL: port 5432 already in use).
   - `DB_PORT=55432 APP_PORT=8081 MANAGEMENT_PORT=9090 JWT_SECRET=... ERP_SECURITY_ENCRYPTION_KEY=... docker compose up -d --force-recreate` (app exits due to config validation).
   - `DB_PORT=55432 APP_PORT=8081 MANAGEMENT_PORT=9090 JWT_SECRET=... ERP_SECURITY_ENCRYPTION_KEY=... docker compose run -d --service-ports -e ERP_ENVIRONMENT_VALIDATION_ENABLED=false app` (app starts; readiness remains DOWN due to missing required config).
