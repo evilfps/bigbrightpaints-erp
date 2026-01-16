@@ -30,9 +30,21 @@ FROM orchestrator_audit
 WHERE trace_id = (SELECT trace_id FROM trace)
 ORDER BY timestamp;
 
+WITH company_b AS (
+    SELECT id
+    FROM companies
+    WHERE code = 'LF-008-B'
+),
+latest_trace AS (
+    SELECT trace_id
+    FROM orchestrator_audit
+    WHERE details = 'LF-008 trace'
+    ORDER BY id DESC
+    LIMIT 1
+)
 SELECT trace_id,
        company_id,
        event_type
 FROM orchestrator_audit
-WHERE trace_id = (SELECT trace_id FROM trace)
+WHERE trace_id = (SELECT trace_id FROM latest_trace)
   AND company_id = (SELECT id FROM company_b);

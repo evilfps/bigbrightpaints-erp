@@ -1,0 +1,24 @@
+                  indexname                  |                                                                                                              indexdef                                                                                                               
+---------------------------------------------+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ idx_partner_settlement_company              | CREATE INDEX idx_partner_settlement_company ON public.partner_settlement_allocations USING btree (company_id)
+ idx_partner_settlement_idempotency_invoice  | CREATE UNIQUE INDEX idx_partner_settlement_idempotency_invoice ON public.partner_settlement_allocations USING btree (company_id, idempotency_key, invoice_id) WHERE ((idempotency_key IS NOT NULL) AND (invoice_id IS NOT NULL))
+ idx_partner_settlement_idempotency_lookup   | CREATE INDEX idx_partner_settlement_idempotency_lookup ON public.partner_settlement_allocations USING btree (company_id, idempotency_key) WHERE (idempotency_key IS NOT NULL)
+ idx_partner_settlement_idempotency_purchase | CREATE UNIQUE INDEX idx_partner_settlement_idempotency_purchase ON public.partner_settlement_allocations USING btree (company_id, idempotency_key, purchase_id) WHERE ((idempotency_key IS NOT NULL) AND (purchase_id IS NOT NULL))
+ idx_partner_settlement_invoice              | CREATE INDEX idx_partner_settlement_invoice ON public.partner_settlement_allocations USING btree (company_id, invoice_id)
+ idx_partner_settlement_partner              | CREATE INDEX idx_partner_settlement_partner ON public.partner_settlement_allocations USING btree (company_id, partner_type, dealer_id, supplier_id)
+ idx_partner_settlement_purchase             | CREATE INDEX idx_partner_settlement_purchase ON public.partner_settlement_allocations USING btree (company_id, purchase_id)
+ partner_settlement_allocations_pkey         | CREATE UNIQUE INDEX partner_settlement_allocations_pkey ON public.partner_settlement_allocations USING btree (id)
+(8 rows)
+
+                       conname                        |                                                                                                   definition                                                                                                   
+------------------------------------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ chk_partner_settlement_partner                       | CHECK (((((partner_type)::text = 'DEALER'::text) AND (dealer_id IS NOT NULL) AND (supplier_id IS NULL)) OR (((partner_type)::text = 'SUPPLIER'::text) AND (supplier_id IS NOT NULL) AND (dealer_id IS NULL))))
+ partner_settlement_allocations_company_id_fkey       | FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
+ partner_settlement_allocations_dealer_id_fkey        | FOREIGN KEY (dealer_id) REFERENCES dealers(id) ON DELETE CASCADE
+ partner_settlement_allocations_invoice_id_fkey       | FOREIGN KEY (invoice_id) REFERENCES invoices(id) ON DELETE SET NULL
+ partner_settlement_allocations_journal_entry_id_fkey | FOREIGN KEY (journal_entry_id) REFERENCES journal_entries(id) ON DELETE CASCADE
+ partner_settlement_allocations_pkey                  | PRIMARY KEY (id)
+ partner_settlement_allocations_purchase_id_fkey      | FOREIGN KEY (purchase_id) REFERENCES raw_material_purchases(id) ON DELETE SET NULL
+ partner_settlement_allocations_supplier_id_fkey      | FOREIGN KEY (supplier_id) REFERENCES suppliers(id) ON DELETE CASCADE
+(8 rows)
+

@@ -6,6 +6,7 @@ import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryRequest;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingService;
+import com.bigbrightpaints.erp.modules.accounting.service.AccountHierarchyService;
 import com.bigbrightpaints.erp.modules.accounting.service.ReconciliationService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.purchasing.domain.Supplier;
@@ -32,6 +33,7 @@ class AccountingReportSignConventionRegressionIT extends AbstractIntegrationTest
     @Autowired private AccountRepository accountRepository;
     @Autowired private SupplierRepository supplierRepository;
     @Autowired private AccountingService accountingService;
+    @Autowired private AccountHierarchyService accountHierarchyService;
     @Autowired private ReportService reportService;
     @Autowired private ReconciliationService reconciliationService;
 
@@ -57,15 +59,27 @@ class AccountingReportSignConventionRegressionIT extends AbstractIntegrationTest
 
         BalanceSheetDto balanceSheet = reportService.balanceSheet();
         ProfitLossDto profitLoss = reportService.profitLoss();
+        AccountHierarchyService.BalanceSheetHierarchy balanceSheetHierarchy =
+                accountHierarchyService.getBalanceSheetHierarchy();
+        AccountHierarchyService.IncomeStatementHierarchy incomeStatementHierarchy =
+                accountHierarchyService.getIncomeStatementHierarchy();
 
         assertThat(balanceSheet.totalAssets()).isEqualByComparingTo(new BigDecimal("160.00"));
         assertThat(balanceSheet.totalLiabilities()).isEqualByComparingTo(new BigDecimal("60.00"));
         assertThat(balanceSheet.totalEquity()).isEqualByComparingTo(new BigDecimal("100.00"));
 
+        assertThat(balanceSheetHierarchy.totalAssets()).isEqualByComparingTo(balanceSheet.totalAssets());
+        assertThat(balanceSheetHierarchy.totalLiabilities()).isEqualByComparingTo(balanceSheet.totalLiabilities());
+
         assertThat(profitLoss.revenue()).isEqualByComparingTo(new BigDecimal("100.00"));
         assertThat(profitLoss.costOfGoodsSold()).isEqualByComparingTo(BigDecimal.ZERO);
         assertThat(profitLoss.operatingExpenses()).isEqualByComparingTo(BigDecimal.ZERO);
         assertThat(profitLoss.netIncome()).isEqualByComparingTo(new BigDecimal("100.00"));
+
+        assertThat(incomeStatementHierarchy.totalRevenue()).isEqualByComparingTo(profitLoss.revenue());
+        assertThat(incomeStatementHierarchy.totalCogs()).isEqualByComparingTo(profitLoss.costOfGoodsSold());
+        assertThat(incomeStatementHierarchy.totalExpenses()).isEqualByComparingTo(profitLoss.operatingExpenses());
+        assertThat(incomeStatementHierarchy.netIncome()).isEqualByComparingTo(profitLoss.netIncome());
 
         ReconciliationService.SupplierReconciliationResult apReconciliation =
                 reconciliationService.reconcileApWithSupplierLedger();

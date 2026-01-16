@@ -10,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.*;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -66,15 +67,18 @@ public class AccountHierarchyService {
 
         List<AccountNode> assets = buildTree(allAccounts.stream()
                 .filter(a -> a.getType() == AccountType.ASSET)
-                .collect(Collectors.toList()));
+                .collect(Collectors.toList()),
+                account -> normalizeBalance(account.getType(), account.getBalance()));
         
         List<AccountNode> liabilities = buildTree(allAccounts.stream()
                 .filter(a -> a.getType() == AccountType.LIABILITY)
-                .collect(Collectors.toList()));
+                .collect(Collectors.toList()),
+                account -> normalizeBalance(account.getType(), account.getBalance()));
         
         List<AccountNode> equity = buildTree(allAccounts.stream()
                 .filter(a -> a.getType() == AccountType.EQUITY)
-                .collect(Collectors.toList()));
+                .collect(Collectors.toList()),
+                account -> normalizeBalance(account.getType(), account.getBalance()));
 
         BigDecimal totalAssets = sumNodes(assets);
         BigDecimal totalLiabilities = sumNodes(liabilities);
@@ -96,15 +100,18 @@ public class AccountHierarchyService {
 
         List<AccountNode> revenue = buildTree(allAccounts.stream()
                 .filter(a -> a.getType() == AccountType.REVENUE)
-                .collect(Collectors.toList()));
+                .collect(Collectors.toList()),
+                account -> normalizeBalance(account.getType(), account.getBalance()));
         
         List<AccountNode> cogs = buildTree(allAccounts.stream()
                 .filter(a -> a.getType() == AccountType.COGS)
-                .collect(Collectors.toList()));
+                .collect(Collectors.toList()),
+                account -> normalizeBalance(account.getType(), account.getBalance()));
         
         List<AccountNode> expenses = buildTree(allAccounts.stream()
                 .filter(a -> a.getType() == AccountType.EXPENSE)
-                .collect(Collectors.toList()));
+                .collect(Collectors.toList()),
+                account -> normalizeBalance(account.getType(), account.getBalance()));
 
         BigDecimal totalRevenue = sumNodes(revenue);
         BigDecimal totalCogs = sumNodes(cogs);
@@ -125,6 +132,10 @@ public class AccountHierarchyService {
      * Build tree structure from flat list of accounts
      */
     private List<AccountNode> buildTree(List<Account> accounts) {
+        return buildTree(accounts, Account::getBalance);
+    }
+
+    private List<AccountNode> buildTree(List<Account> accounts, Function<Account, BigDecimal> balanceResolver) {
         Map<Long, AccountNode> nodeMap = new HashMap<>();
         List<AccountNode> roots = new ArrayList<>();
 
@@ -135,7 +146,7 @@ public class AccountHierarchyService {
                     account.getCode(),
                     account.getName(),
                     account.getType().name(),
-                    account.getBalance(),
+                    balanceResolver.apply(account),
                     account.getHierarchyLevel(),
                     account.getParent() != null ? account.getParent().getId() : null,
                     new ArrayList<>()
@@ -159,6 +170,12 @@ public class AccountHierarchyService {
         }
 
         return roots;
+    }
+
+    private BigDecimal normalizeBalance(AccountType type, BigDecimal balance) {
+        BigDecimal safeBalance = balance == null ? BigDecimal.ZERO : balance;
+        boolean debitNormal = type == null || type.isDebitNormalBalance();
+        return debitNormal ? safeBalance : safeBalance.negate();
     }
 
     /**

@@ -197,9 +197,10 @@
   - Orchestrator traces now persist `company_id`; trace reads are company-scoped + role-protected.
   - Settlement idempotency indexes widened to allow multi-allocation keys.
 - Evidence:
-  - Pending local DB access; run:
-    - `tasks/erp_logic_audit/EVIDENCE_QUERIES/lf-007/RUN.md`
-    - `tasks/erp_logic_audit/EVIDENCE_QUERIES/lf-008/RUN.md`
-    - `tasks/erp_logic_audit/EVIDENCE_QUERIES/lf-009/RUN.md`
+  - `tasks/erp_logic_audit/EVIDENCE_QUERIES/lf-007/OUTPUTS/20260116T092613Z_payroll_idempotency_cross_company.txt`
+  - `tasks/erp_logic_audit/EVIDENCE_QUERIES/lf-008/OUTPUTS/20260116T092619Z_orchestrator_audit_schema.txt`
+  - `tasks/erp_logic_audit/EVIDENCE_QUERIES/lf-008/OUTPUTS/20260116T092706Z_orchestrator_trace_company_scope.txt`
+  - `tasks/erp_logic_audit/EVIDENCE_QUERIES/lf-009/OUTPUTS/20260116T092713Z_settlement_idempotency_indexes.txt`
+  - `tasks/erp_logic_audit/EVIDENCE_QUERIES/lf-009/OUTPUTS/20260116T092713Z_settlement_multi_alloc_idempotency.txt`
 - Verification:
-  - `mvn -f erp-domain/pom.xml test` failed: Testcontainers JNA temp file permission / docker socket access in current environment.
+  - `mvn -f erp-domain/pom.xml test` (pass; 233 tests, 4 skipped).

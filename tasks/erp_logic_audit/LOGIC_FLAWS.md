@@ -231,7 +231,7 @@ Policy:
 - Regression test:
   - `erp-domain/src/test/java/com/bigbrightpaints/erp/regression/PayrollIdempotencyCompanyScopeRegressionIT.java`
 - Fix evidence (Phase 5):
-  - Pending local DB access; run `tasks/erp_logic_audit/EVIDENCE_QUERIES/lf-007/RUN.md`.
+  - `tasks/erp_logic_audit/EVIDENCE_QUERIES/lf-007/OUTPUTS/20260116T092613Z_payroll_idempotency_cross_company.txt`
 - Future-proof test suggestion:
   - Two-company test: same idempotency key allowed across companies; disallowed within same company.
 
@@ -267,7 +267,8 @@ Policy:
 - Regression test:
   - `erp-domain/src/test/java/com/bigbrightpaints/erp/regression/OrchestratorTraceCompanyScopeRegressionIT.java`
 - Fix evidence (Phase 5):
-  - Pending local DB access; run `tasks/erp_logic_audit/EVIDENCE_QUERIES/lf-008/RUN.md`.
+  - `tasks/erp_logic_audit/EVIDENCE_QUERIES/lf-008/OUTPUTS/20260116T092619Z_orchestrator_audit_schema.txt`
+  - `tasks/erp_logic_audit/EVIDENCE_QUERIES/lf-008/OUTPUTS/20260116T092706Z_orchestrator_trace_company_scope.txt`
 - Future-proof test suggestion:
   - Multi-company test: trace created in Company A is not readable by Company B (403/404).
 
@@ -302,7 +303,8 @@ Policy:
 - Regression test:
   - `erp-domain/src/test/java/com/bigbrightpaints/erp/regression/SettlementIdempotencyMultiAllocationRegressionIT.java`
 - Fix evidence (Phase 5):
-  - Pending local DB access; run `tasks/erp_logic_audit/EVIDENCE_QUERIES/lf-009/RUN.md`.
+  - `tasks/erp_logic_audit/EVIDENCE_QUERIES/lf-009/OUTPUTS/20260116T092713Z_settlement_idempotency_indexes.txt`
+  - `tasks/erp_logic_audit/EVIDENCE_QUERIES/lf-009/OUTPUTS/20260116T092713Z_settlement_multi_alloc_idempotency.txt`
 - Future-proof test suggestion:
   - Integration test: multi-invoice settlement with a shared idempotency key, replayed safely without duplicates.
 

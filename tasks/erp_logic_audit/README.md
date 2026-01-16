@@ -114,8 +114,13 @@ This folder contains **discovery + planning artifacts only** (no behavioral chan
 - LF-007: payroll idempotency is now company-scoped (removed global uniqueness); regression test added.
 - LF-008: orchestrator traces now persist `company_id` and trace reads enforce company scope + role; regression test added.
 - LF-009: settlement idempotency index widened to allow multi-allocation under one key (partial uniques + lookup index); regression test added.
-- Evidence outputs: pending local DB access; see `tasks/erp_logic_audit/EVIDENCE_QUERIES/lf-007/RUN.md`, `tasks/erp_logic_audit/EVIDENCE_QUERIES/lf-008/RUN.md`, `tasks/erp_logic_audit/EVIDENCE_QUERIES/lf-009/RUN.md`.
-- Verification gates: `mvn -f erp-domain/pom.xml test` failed due to Testcontainers JNA temp file permission + docker socket access (see HYDRATION).
+- Evidence outputs:
+  - `tasks/erp_logic_audit/EVIDENCE_QUERIES/lf-007/OUTPUTS/20260116T092613Z_payroll_idempotency_cross_company.txt`
+  - `tasks/erp_logic_audit/EVIDENCE_QUERIES/lf-008/OUTPUTS/20260116T092619Z_orchestrator_audit_schema.txt`
+  - `tasks/erp_logic_audit/EVIDENCE_QUERIES/lf-008/OUTPUTS/20260116T092706Z_orchestrator_trace_company_scope.txt`
+  - `tasks/erp_logic_audit/EVIDENCE_QUERIES/lf-009/OUTPUTS/20260116T092713Z_settlement_idempotency_indexes.txt`
+  - `tasks/erp_logic_audit/EVIDENCE_QUERIES/lf-009/OUTPUTS/20260116T092713Z_settlement_multi_alloc_idempotency.txt`
+- Verification gates: `mvn -f erp-domain/pom.xml test` (pass; 233 tests, 4 skipped).
 
 ## Lead closure sweep (LEAD-001..009, LEAD-017)
 - LEAD-001 closed (invoice/purchase creation paths always set outstanding to total).
@@ -205,5 +210,5 @@ Source: `tasks/erp_logic_audit/HUNT_NOTEBOOK.md`
 - Multi-company uniqueness guidelines: confirm remaining flows beyond payroll/settlements (LF-007 and broader).
 ## Latest audit tip
 - Branch: fix-phase5-lead015-and-lf011-014
-- Tip SHA: 1f88a3c
-- Lead dispositions: LF-007/LF-008/LF-009 fixed (Phase 5; evidence pending); LF-018 remains open (unpacked-batches lazy-load)
+- Tip SHA: 05e5a36
+- Lead dispositions: LF-007/LF-008/LF-009 fixed (Phase 5; evidence captured 2026-01-16); LF-018 remains open (unpacked-batches lazy-load)

@@ -1,0 +1,12 @@
+ id 
+----
+  4
+  5
+(2 rows)
+
+ company_id | id | invoice_id | idempotency_key 
+------------+----+------------+-----------------
+         16 |  4 |          5 | LF-009-IDEMP
+         16 |  5 |          6 | LF-009-IDEMP
+(2 rows)
+

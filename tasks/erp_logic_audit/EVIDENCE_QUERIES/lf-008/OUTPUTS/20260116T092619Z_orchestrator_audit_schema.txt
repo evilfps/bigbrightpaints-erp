@@ -1,0 +1,18 @@
+ column_name |        data_type         | is_nullable 
+-------------+--------------------------+-------------
+ id          | uuid                     | NO
+ trace_id    | character varying        | NO
+ event_type  | character varying        | NO
+ timestamp   | timestamp with time zone | NO
+ details     | text                     | NO
+ version     | bigint                   | NO
+ company_id  | bigint                   | YES
+(7 rows)
+
+              indexname               |                                                            indexdef                                                            
+--------------------------------------+--------------------------------------------------------------------------------------------------------------------------------
+ idx_orchestrator_audit_company_trace | CREATE INDEX idx_orchestrator_audit_company_trace ON public.orchestrator_audit USING btree (company_id, trace_id, "timestamp")
+ idx_orchestrator_audit_trace         | CREATE INDEX idx_orchestrator_audit_trace ON public.orchestrator_audit USING btree (trace_id, "timestamp")
+ orchestrator_audit_pkey              | CREATE UNIQUE INDEX orchestrator_audit_pkey ON public.orchestrator_audit USING btree (id)
+(3 rows)
+

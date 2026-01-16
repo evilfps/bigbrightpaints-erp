@@ -124,6 +124,6 @@ SELECT company_id,
        invoice_id,
        idempotency_key
 FROM partner_settlement_allocations
-WHERE company_id = (SELECT id FROM company)
+WHERE company_id = (SELECT id FROM companies WHERE code = 'LF-009')
   AND idempotency_key = 'LF-009-IDEMP'
 ORDER BY id;
