@@ -272,7 +272,14 @@ public class SalesService {
             SalesOrder order = existing.get();
             String storedSignature = order.getIdempotencyHash();
             if (!StringUtils.hasText(storedSignature)) {
-                order.setIdempotencyHash(requestSignature);
+                String legacySignature = buildLegacySalesOrderSignature(company, request);
+                String derivedSignature = buildSalesOrderSignature(order);
+                if (!derivedSignature.equals(legacySignature)) {
+                    throw new ApplicationException(ErrorCode.CONCURRENCY_CONFLICT,
+                            "Idempotency key already used with different payload")
+                            .withDetail("idempotencyKey", idempotencyKey);
+                }
+                order.setIdempotencyHash(legacySignature);
                 salesOrderRepository.save(order);
                 return toDto(order);
             }
@@ -476,6 +483,34 @@ public class SalesService {
                 .append('|').append(normalizeText(request.currency()))
                 .append('|').append(normalizeText(request.gstTreatment()))
                 .append('|').append(amountToken(request.gstRate()))
+                .append('|').append(normalizeText(request.notes()));
+        request.items().stream()
+                .sorted(orderRequestComparator())
+                .forEach(item -> signature.append('|')
+                        .append(normalizeText(item.productCode()))
+                        .append(':').append(amountToken(item.quantity()))
+                        .append(':').append(amountToken(item.unitPrice()))
+                        .append(':').append(amountToken(item.gstRate())));
+        return DigestUtils.sha256Hex(signature.toString());
+    }
+
+    private String buildLegacySalesOrderSignature(Company company, SalesOrderRequest request) {
+        GstTreatment gstTreatment = resolveGstTreatment(request.gstTreatment());
+        BigDecimal orderLevelRate = resolveOrderLevelRate(company, gstTreatment, request.gstRate());
+        String currency = request.currency() == null ? "INR" : request.currency();
+        return buildSalesOrderSignature(request, gstTreatment, orderLevelRate, currency);
+    }
+
+    private String buildSalesOrderSignature(SalesOrderRequest request,
+                                            GstTreatment gstTreatment,
+                                            BigDecimal orderLevelRate,
+                                            String currency) {
+        StringBuilder signature = new StringBuilder();
+        signature.append(request.dealerId() == null ? "null" : request.dealerId())
+                .append('|').append(amountToken(request.totalAmount()))
+                .append('|').append(normalizeText(currency))
+                .append('|').append(normalizeText(gstTreatment.name()))
+                .append('|').append(amountToken(orderLevelRate))
                 .append('|').append(normalizeText(request.notes()));
         request.items().stream()
                 .sorted(orderRequestComparator())

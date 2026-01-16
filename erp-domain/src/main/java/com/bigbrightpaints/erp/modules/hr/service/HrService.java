@@ -203,6 +203,12 @@ public class HrService {
                 PayrollRun run = existing.get();
                 String storedSignature = run.getIdempotencyHash();
                 if (!StringUtils.hasText(storedSignature)) {
+                    String derivedSignature = buildPayrollRunSignature(run);
+                    if (!derivedSignature.equals(requestSignature)) {
+                        throw new ApplicationException(ErrorCode.CONCURRENCY_CONFLICT,
+                                "Idempotency key already used with different payload")
+                                .withDetail("idempotencyKey", idempotencyKey);
+                    }
                     run.setIdempotencyHash(requestSignature);
                     payrollRunRepository.save(run);
                     return toDto(run);
