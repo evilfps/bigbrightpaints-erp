@@ -2,7 +2,6 @@ package com.bigbrightpaints.erp.regression;
 
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
-import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
@@ -107,21 +106,17 @@ class PayrollPfDeductionRegressionIT extends AbstractIntegrationTest {
                 .orElseThrow(() -> new AssertionError("Payroll journal missing: " + run.getJournalEntryId()));
         Account salaryExpense = requireAccount(company, "SALARY-EXP");
         Account salaryPayable = requireAccount(company, "SALARY-PAYABLE");
-        Account pfPayable = requireAccount(company, "PF-PAYABLE");
+        Account pfPayable = accountRepository.findByCompanyAndCodeIgnoreCase(company, "PF-PAYABLE").orElse(null);
 
         assertThat(sumDebits(journal, salaryExpense)).isEqualByComparingTo(new BigDecimal("20000.00"));
         assertThat(sumCredits(journal, salaryPayable)).isEqualByComparingTo(new BigDecimal("20000.00"));
-        assertThat(sumCredits(journal, pfPayable)).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(pfPayable).as("PF payable account should not be created when PF is disabled").isNull();
     }
 
     private Company seedCompany(String companyCode, boolean pfEnabled) {
         dataSeeder.ensureUser(ADMIN_EMAIL, ADMIN_PASSWORD, "LF-019 Admin", companyCode,
                 List.of("ROLE_ADMIN", "ROLE_ACCOUNTING"));
         Company company = companyRepository.findByCodeIgnoreCase(companyCode).orElseThrow();
-        ensureAccount(company, "SALARY-EXP", "Salary Expense", AccountType.EXPENSE);
-        ensureAccount(company, "WAGE-EXP", "Wage Expense", AccountType.EXPENSE);
-        ensureAccount(company, "SALARY-PAYABLE", "Salary Payable", AccountType.LIABILITY);
-        ensureAccount(company, "PF-PAYABLE", "Provident Fund Payable", AccountType.LIABILITY);
         company.setPfEnabled(pfEnabled);
         return companyRepository.save(company);
     }
@@ -219,18 +214,6 @@ class PayrollPfDeductionRegressionIT extends AbstractIntegrationTest {
                 HttpMethod.POST, new HttpEntity<>(headers), Map.class);
 
         return runId;
-    }
-
-    private Account ensureAccount(Company company, String code, String name, AccountType type) {
-        return accountRepository.findByCompanyAndCodeIgnoreCase(company, code)
-                .orElseGet(() -> {
-                    Account account = new Account();
-                    account.setCompany(company);
-                    account.setCode(code);
-                    account.setName(name);
-                    account.setType(type);
-                    return accountRepository.save(account);
-                });
     }
 
     private Account requireAccount(Company company, String code) {

@@ -4,6 +4,7 @@ import com.bigbrightpaints.erp.core.audit.AuditEvent;
 import com.bigbrightpaints.erp.core.audit.AuditService;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
+import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryRequest.JournalLineRequest;
@@ -14,6 +15,7 @@ import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.modules.hr.domain.*;
 import jakarta.transaction.Transactional;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
@@ -317,9 +319,9 @@ public class PayrollService {
         }
 
         // Find required accounts
-        Account salaryExpenseAccount = findAccountByCode(company, "SALARY-EXP");
-        Account wageExpenseAccount = findAccountByCode(company, "WAGE-EXP");
-        Account salaryPayableAccount = findAccountByCode(company, "SALARY-PAYABLE");
+        Account salaryExpenseAccount = ensureAccountByCode(company, "SALARY-EXP", "Salary Expense", AccountType.EXPENSE);
+        Account wageExpenseAccount = ensureAccountByCode(company, "WAGE-EXP", "Wage Expense", AccountType.EXPENSE);
+        Account salaryPayableAccount = ensureAccountByCode(company, "SALARY-PAYABLE", "Salary Payable", AccountType.LIABILITY);
 
         // Load payroll lines to calculate totals
         List<PayrollRunLine> runLines = payrollRunLineRepository.findByPayrollRun(run);
@@ -334,7 +336,7 @@ public class PayrollService {
             .reduce(BigDecimal.ZERO, BigDecimal::add);
         Account advanceAccount = null;
         if (totalAdvances.compareTo(BigDecimal.ZERO) > 0) {
-            advanceAccount = findAccountByCode(company, "EMP-ADV");
+            advanceAccount = ensureAccountByCode(company, "EMP-ADV", "Employee Advances", AccountType.ASSET);
         }
 
         BigDecimal totalPfDeduction = runLines.stream()
@@ -344,7 +346,7 @@ public class PayrollService {
 
         Account pfPayableAccount = null;
         if (totalPfDeduction.compareTo(BigDecimal.ZERO) > 0) {
-            pfPayableAccount = findAccountByCode(company, "PF-PAYABLE");
+            pfPayableAccount = ensureAccountByCode(company, "PF-PAYABLE", "Provident Fund Payable", AccountType.LIABILITY);
         }
 
         // Salary payable is net of advances and PF (advances are cleared via the advance account).
@@ -665,10 +667,22 @@ public class PayrollService {
         }
     }
 
-    private Account findAccountByCode(Company company, String code) {
-        return accountRepository.findByCompanyAndCodeIgnoreCase(company, code)
-            .orElseThrow(() -> new IllegalStateException("Account not found: " + code + 
-                ". Please create this account in Chart of Accounts."));
+    private Account ensureAccountByCode(Company company, String code, String name, AccountType type) {
+        Optional<Account> existing = accountRepository.findByCompanyAndCodeIgnoreCase(company, code);
+        if (existing.isPresent()) {
+            return existing.get();
+        }
+        Account account = new Account();
+        account.setCompany(company);
+        account.setCode(code);
+        account.setName(name);
+        account.setType(type);
+        try {
+            return accountRepository.save(account);
+        } catch (DataIntegrityViolationException ex) {
+            return accountRepository.findByCompanyAndCodeIgnoreCase(company, code)
+                .orElseThrow(() -> ex);
+        }
     }
 
     private String getCurrentUser() {

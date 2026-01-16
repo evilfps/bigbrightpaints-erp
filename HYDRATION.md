@@ -372,12 +372,13 @@
   - Prior full-suite failure due to `Unable to access lob stream` in `OrchestratorTraceCompanyScopeRegressionIT` resolved by mapping details as TEXT.
 
 ## 2026-01-16 LF-019 payroll PF deduction + toggle
-- Branch: `fix-phase5-lead015-and-lf011-014` (no commit yet).
-- Changes: PF deduction applied in payroll run lines/posting; company-level PF toggle; regression coverage; migration V104.
+- Branch: `fix-phase5-lead015-and-lf011-014` (commit `4578054`, plus follow-up payroll account automation/backfill).
+- Changes: PF deduction applied in payroll run lines/posting; company-level PF toggle; regression coverage; migration V104; auto-create payroll accounts on posting; backfill PF toggle (V105) to off when no PF payable.
 - Commands executed:
   - `mvn -f erp-domain/pom.xml -DskipTests compile` (PASS; javax.annotation warnings).
   - `mvn -f erp-domain/pom.xml -Dcheckstyle.failOnViolation=false checkstyle:check` (PASS; ~30024 warnings).
   - `mvn -f erp-domain/pom.xml test` (PASS; 235 tests, 4 skipped).
+  - `mvn -f erp-domain/pom.xml -Dtest=PayrollPfDeductionRegressionIT test` (PASS; 2 tests).
   - `JWT_SECRET=... ERP_SECURITY_ENCRYPTION_KEY=... docker compose up -d --build` (FAIL: port 5432 already in use).
   - `DB_PORT=55432 APP_PORT=8081 MANAGEMENT_PORT=9090 JWT_SECRET=... ERP_SECURITY_ENCRYPTION_KEY=... docker compose up -d --force-recreate` (app exits due to config validation).
   - `DB_PORT=55432 APP_PORT=8081 MANAGEMENT_PORT=9090 JWT_SECRET=... ERP_SECURITY_ENCRYPTION_KEY=... docker compose run -d --service-ports -e ERP_ENVIRONMENT_VALIDATION_ENABLED=false app` (app starts; readiness remains DOWN due to missing required config).

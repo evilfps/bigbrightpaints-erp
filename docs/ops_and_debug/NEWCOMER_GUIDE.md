@@ -195,6 +195,7 @@ In each flow:
 - PF toggle: company-level `pfEnabled` (default true) controls PF withholding.
   - On: monthly STAFF lines with gross >= 15000 deduct 12% PF (rounded to 0 decimals); posting credits `PF-PAYABLE` and reduces `SALARY-PAYABLE`.
   - Off: PF deduction stays zero and no `PF-PAYABLE` line is posted.
+- Payroll posting auto-creates missing payroll accounts (`SALARY-EXP`, `WAGE-EXP`, `SALARY-PAYABLE`, `EMP-ADV`, `PF-PAYABLE`) to keep workflows unblocked.
 
 ---
 
