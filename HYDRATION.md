@@ -332,3 +332,39 @@
   - Initial `mvn test` failed due to stale V99 migration artifact; resolved by `mvn clean` and rerun.
 - Current epic: Phase 5 LF-021/022/023 fixes complete.
 - Next milestone: update/commit HYDRATION + README metadata and address any remaining untracked evidence outputs if desired.
+
+## 2026-01-16 Phase 5 fixes (LF-007/LF-008/LF-009)
+- Branch: `fix-phase5-lead015-and-lf011-014`
+- Tip SHA: `1f88a3cc051341ecee1c18ac25f49fa51c81c554`
+- Commits: none yet (worktree dirty)
+- Changes:
+  - LF-007: payroll idempotency uniqueness scoped to company (entity + migration).
+  - LF-008: orchestrator audit now stores company_id and trace queries are company-scoped; trace endpoint role-guarded.
+  - LF-009: settlement idempotency index widened to allow multi-allocation keys.
+- Commands executed:
+  - `mvn -f erp-domain/pom.xml test` (FAIL: Testcontainers JNA temp file permission / docker socket access).
+  - `JNA_TMPDIR=/home/realnigga/Desktop/CLI_BACKEND_epic04/.tmp JAVA_TOOL_OPTIONS='-Djava.io.tmpdir=/home/realnigga/Desktop/CLI_BACKEND_epic04/.tmp' mvn -f erp-domain/pom.xml -Dtest=IdempotencyConflictRegressionIT test` (PASS).
+- Evidence:
+  - Pending local DB access; run `tasks/erp_logic_audit/EVIDENCE_QUERIES/lf-007/RUN.md`, `lf-008/RUN.md`, `lf-009/RUN.md`.
+- Warnings/stabilization:
+  - Full test suite still blocked without Docker/JNA tempdir configuration.
+  - Local `psql` to `localhost:55432` returns `psql: error:` (no DB connectivity in current environment).
+- Current epic: Phase 5 LF-007/008/009 fixes in progress (evidence + gates pending).
+- Next milestone: run evidence scripts + rerun full `mvn test` in an environment with DB + Docker access, then update docs with evidence paths.
+- Resume instructions:
+  1) Checkout `fix-phase5-lead015-and-lf011-014`.
+  2) Run `tasks/erp_logic_audit/EVIDENCE_QUERIES/lf-007/RUN.md`, `lf-008/RUN.md`, `lf-009/RUN.md`.
+  3) Rerun `mvn -f erp-domain/pom.xml test` (ensure Docker/Testcontainers works).
+  4) Update `tasks/erp_logic_audit/LOGIC_FLAWS.md`, `tasks/erp_logic_audit/README.md`, `docs/ops_and_debug/EVIDENCE.md` with evidence outputs and commit per LF.
+
+## 2026-01-16 Legacy idempotency guard follow-ups
+- Branch: `fix-phase5-lead015-and-lf011-014`
+- Outcome: legacy idempotency backfill now uses canonical signatures; audit trace LOB mapping avoids auto-commit failures.
+- Changes:
+  - Sales legacy missing-hash branch now stores canonical signature (not raw request) to avoid false conflicts.
+  - Orchestrator audit details mapped as TEXT (no LOB) to prevent Postgres large object auto-commit errors.
+- Commands executed:
+  - `JNA_TMPDIR=/home/realnigga/Desktop/CLI_BACKEND_epic04/.tmp JAVA_TOOL_OPTIONS='-Djava.io.tmpdir=/home/realnigga/Desktop/CLI_BACKEND_epic04/.tmp' mvn -f erp-domain/pom.xml -Dtest=OrchestratorTraceCompanyScopeRegressionIT test` (PASS)
+  - `JNA_TMPDIR=/home/realnigga/Desktop/CLI_BACKEND_epic04/.tmp JAVA_TOOL_OPTIONS='-Djava.io.tmpdir=/home/realnigga/Desktop/CLI_BACKEND_epic04/.tmp' mvn -f erp-domain/pom.xml test` (PASS; 233 tests, 4 skipped)
+- Notes:
+  - Prior full-suite failure due to `Unable to access lob stream` in `OrchestratorTraceCompanyScopeRegressionIT` resolved by mapping details as TEXT.
