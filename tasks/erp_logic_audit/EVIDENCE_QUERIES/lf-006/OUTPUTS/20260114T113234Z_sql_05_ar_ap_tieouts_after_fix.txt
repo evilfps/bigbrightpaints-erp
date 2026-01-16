@@ -1,0 +1,5 @@
+ gl_ar_balance | dealer_ledger_total | ar_variance | gl_ap_balance | supplier_ledger_total | ap_variance 
+---------------+---------------------+-------------+---------------+-----------------------+-------------
+          0.00 |                   0 |        0.00 |        130.00 |                130.00 |        0.00
+(1 row)
+

@@ -90,7 +90,7 @@ public class PayrollRun {
     @Column(name = "processed_by")
     private String processedBy;
 
-    @Column(name = "idempotency_key", unique = true)
+    @Column(name = "idempotency_key")
     private String idempotencyKey;
 
     @Column(name = "idempotency_hash", length = 64)

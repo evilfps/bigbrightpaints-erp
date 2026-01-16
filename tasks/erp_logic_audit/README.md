@@ -99,6 +99,24 @@ This folder contains **discovery + planning artifacts only** (no behavioral chan
 - Verification gates: `mvn -f erp-domain/pom.xml -DskipTests compile` (pass; javax.annotation.meta.When warnings), `mvn -f erp-domain/pom.xml -Dcheckstyle.failOnViolation=false checkstyle:check` (pass; 29910 warnings), `mvn -f erp-domain/pom.xml test` (pass; 224 tests, 4 skipped).
 - Verification gates rerun (2026-01-14): `mvn -f erp-domain/pom.xml -DskipTests compile` (pass), `mvn -f erp-domain/pom.xml -Dcheckstyle.failOnViolation=false checkstyle:check` (pass; 29651 warnings), `mvn -f erp-domain/pom.xml test` (pass; 220 tests, 4 skipped).
 
+## Phase 5 fix run report (LF-001/LF-002/LF-006)
+- LF-001: balance sheet + profit/loss now normalize credit-normal balances; equity derived from normalized assets minus liabilities.
+- LF-002: aged debtors buckets now use invoice outstanding amounts.
+- LF-006: AP reconciliation now normalizes GL liabilities by account type before tie-out.
+- Evidence outputs:
+  - `tasks/erp_logic_audit/EVIDENCE_QUERIES/lf-001/OUTPUTS/20260114T113219Z_accounting_reports_gets.txt`
+  - `tasks/erp_logic_audit/EVIDENCE_QUERIES/lf-002/OUTPUTS/20260114T113128Z_seed_invoice_for_aging.txt`
+  - `tasks/erp_logic_audit/EVIDENCE_QUERIES/lf-002/OUTPUTS/20260114T113227Z_aged_debtors_get.json`
+  - `tasks/erp_logic_audit/EVIDENCE_QUERIES/lf-006/OUTPUTS/20260114T113234Z_sql_05_ar_ap_tieouts_after_fix.txt`
+- Verification gates: `mvn -f erp-domain/pom.xml -DskipTests compile` (pass; javax.annotation.meta.When warnings), `mvn -f erp-domain/pom.xml -Dcheckstyle.failOnViolation=false checkstyle:check` (pass; 29919 warnings), `mvn -f erp-domain/pom.xml test` (pass; 226 tests, 4 skipped).
+
+## Phase 5 fix run report (LF-007/LF-008/LF-009)
+- LF-007: payroll idempotency is now company-scoped (removed global uniqueness); regression test added.
+- LF-008: orchestrator traces now persist `company_id` and trace reads enforce company scope + role; regression test added.
+- LF-009: settlement idempotency index widened to allow multi-allocation under one key (partial uniques + lookup index); regression test added.
+- Evidence outputs: pending local DB access; see `tasks/erp_logic_audit/EVIDENCE_QUERIES/lf-007/RUN.md`, `tasks/erp_logic_audit/EVIDENCE_QUERIES/lf-008/RUN.md`, `tasks/erp_logic_audit/EVIDENCE_QUERIES/lf-009/RUN.md`.
+- Verification gates: `mvn -f erp-domain/pom.xml test` failed due to Testcontainers JNA temp file permission + docker socket access (see HYDRATION).
+
 ## Lead closure sweep (LEAD-001..009, LEAD-017)
 - LEAD-001 closed (invoice/purchase creation paths always set outstanding to total).
 - LEAD-002 closed (over-issue rejected; stock unchanged).
@@ -123,21 +141,21 @@ This folder contains **discovery + planning artifacts only** (no behavioral chan
 Source: `tasks/erp_logic_audit/LOGIC_FLAWS.md`
 
 **HIGH severity**
-- LF-001 — Financial statements not sign-normalized; equity calc inconsistent with stored sign conventions.
-- LF-002 — Aged debtors ignores settlements (uses invoice total, not outstanding).
+- LF-001 — Financial statements not sign-normalized; equity calc inconsistent with stored sign conventions (fixed Phase 5).
+- LF-002 — Aged debtors ignores settlements (uses invoice total, not outstanding) (fixed Phase 5).
 - LF-003 — Finished-goods inventory movements never carry `journal_entry_id` (audit chain break).
 - LF-004 — FG valuation mixes `current_stock` with FIFO slices of `quantity_available` (reserved stock misvaluation).
 - LF-005 — Opening stock import updates inventory without a GL opening entry (systematic inventory↔GL drift).
-- LF-006 — AP reconciliation compares signed GL liabilities vs positive supplier ledger (sign mismatch).
+- LF-006 — AP reconciliation compares signed GL liabilities vs positive supplier ledger (sign mismatch) (fixed Phase 5).
 - LF-019 — Payroll PF deduction ignored in payroll run/posting.
 - LF-016 — Bulk-to-size packing missing bulk ISSUE movement + movement↔journal linkage (fixed Phase 5).
 - LF-017 — Bulk-to-size packing journals duplicate on retry (timestamp-based reference) (fixed Phase 5).
 - LF-021 — Inventory control ledger does not reconcile to inventory valuation (fixed Phase 5; backfill pending).
 
 **MED severity**
-- LF-007 — Payroll run `idempotency_key` is globally unique (cross-company collision risk).
-- LF-008 — Orchestrator trace endpoint not company-scoped (trace leak).
-- LF-009 — Settlement idempotency key uniqueness blocks multi-allocation settlements.
+- LF-007 — Payroll run `idempotency_key` is globally unique (cross-company collision risk) (fixed Phase 5).
+- LF-008 — Orchestrator trace endpoint not company-scoped (trace leak) (fixed Phase 5).
+- LF-009 — Settlement idempotency key uniqueness blocks multi-allocation settlements (fixed Phase 5).
 - LF-010 — Purchase return retries without reference duplicate journals/movements.
 - LF-011 — Config health ignores missing GST accounts; GST return fails (fixed Phase 5).
 - LF-012 — WIP over-credited when labor/overhead included on production logs (fixed Phase 5).
@@ -149,7 +167,7 @@ Source: `tasks/erp_logic_audit/LOGIC_FLAWS.md`
 - LF-022 — Purchase return reference reuse duplicates RM movements (fixed Phase 5).
 - LF-023 — Idempotency key conflict accepted (sales order + payroll) (fixed Phase 5).
 
-Top “HIGH” list: currently 7 items (LF-001..LF-006, LF-019); LF-016..LF-017, LF-021 fixed in Phase 5.
+Top “HIGH” list: currently 4 items (LF-003, LF-004, LF-005, LF-019).
 
 ## Leads pending confirmation (not yet LF items)
 Source: `tasks/erp_logic_audit/HUNT_NOTEBOOK.md`
@@ -181,12 +199,11 @@ Source: `tasks/erp_logic_audit/HUNT_NOTEBOOK.md`
 
 ## Blockers / decisions needed
 - Missing doc: `erp-domain/docs/ONBOARDING_GUIDE.md` is referenced by predeploy tasks but not present in repo (onboarding contract gap).
-- Accounting sign convention contract: confirm whether balances are stored signed by normal balance and how reports should present them (LF-001/LF-006).
 - Inventory valuation basis: confirm whether valuation should include reserved stock and which batch quantity field is authoritative (LF-004).
 - Movement↔journal linkage policy: decide which journal a movement must link to (COGS vs AR vs both) and backfill expectations (LF-003).
 - Opening balances policy: define the GL counterpart of opening stock (equity vs suspense/clearing) and whether import must fail-closed without it (LF-005).
-- Multi-company uniqueness guidelines: confirm the standard for idempotency keys and reference numbers across companies (LF-007 and broader).
+- Multi-company uniqueness guidelines: confirm remaining flows beyond payroll/settlements (LF-007 and broader).
 ## Latest audit tip
 - Branch: fix-phase5-lead015-and-lf011-014
-- Tip SHA: 15a7380
-- Lead dispositions: LF-021/LF-022/LF-023 fixed (Phase 5); LEAD-017 remains open (unpacked-batches lazy-load)
+- Tip SHA: 1f88a3c
+- Lead dispositions: LF-007/LF-008/LF-009 fixed (Phase 5; evidence pending); LF-018 remains open (unpacked-batches lazy-load)

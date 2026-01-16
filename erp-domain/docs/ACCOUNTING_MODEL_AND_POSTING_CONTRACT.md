@@ -30,6 +30,10 @@
 - Total debits must equal total credits in base currency.
 - Minor FX rounding deltas within tolerance may be absorbed into a single line.
 
+### Balance sign conventions
+- `accounts.balance` stores signed balances by normal balance (debit-normal positive, credit-normal negative).
+- Report outputs normalize balances for display by account type (credit-normal balances are shown as positive).
+
 ### Partner context
 - If a dealer or supplier control account is posted, dealerId/supplierId must be present and match.
 - Dealer and supplier ledger entries are recorded from the net AR/AP control lines.

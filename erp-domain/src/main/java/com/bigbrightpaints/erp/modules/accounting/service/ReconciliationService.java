@@ -163,8 +163,7 @@ public class ReconciliationService {
                 .toList();
 
         BigDecimal totalApBalance = apAccounts.stream()
-                .map(Account::getBalance)
-                .filter(b -> b != null)
+                .map(account -> normalizeBalance(account.getType(), account.getBalance()))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         List<Supplier> suppliers = supplierRepository.findByCompanyOrderByNameAsc(company);
@@ -214,6 +213,12 @@ public class ReconciliationService {
                 apAccounts.size(),
                 suppliers.size()
         );
+    }
+
+    private BigDecimal normalizeBalance(AccountType type, BigDecimal balance) {
+        BigDecimal safeBalance = balance == null ? BigDecimal.ZERO : balance;
+        boolean debitNormal = type == null || type.isDebitNormalBalance();
+        return debitNormal ? safeBalance : safeBalance.negate();
     }
 
     /**

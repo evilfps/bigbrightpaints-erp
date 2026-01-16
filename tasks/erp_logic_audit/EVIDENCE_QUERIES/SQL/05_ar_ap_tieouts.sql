@@ -2,7 +2,7 @@
 --   :company_id (numeric)
 --
 -- Purpose:
---   Tie-out GL control balances vs subledger totals (using as-built sign conventions in code).
+--   Tie-out GL control balances vs subledger totals (using normalized sign conventions in code).
 -- Reference:
 --   `ReconciliationService` in `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/ReconciliationService.java`
 
@@ -42,7 +42,6 @@ SELECT
   (SELECT COALESCE(SUM(balance), 0) FROM ar_accounts) AS gl_ar_balance,
   (SELECT total FROM dealer_ledger) AS dealer_ledger_total,
   (SELECT COALESCE(SUM(balance), 0) FROM ar_accounts) - (SELECT total FROM dealer_ledger) AS ar_variance,
-  (SELECT COALESCE(SUM(balance), 0) FROM ap_accounts) AS gl_ap_balance,
+  (SELECT COALESCE(SUM(-balance), 0) FROM ap_accounts) AS gl_ap_balance,
   (SELECT total FROM supplier_ledger) AS supplier_ledger_total,
-  (SELECT COALESCE(SUM(balance), 0) FROM ap_accounts) - (SELECT total FROM supplier_ledger) AS ap_variance;
-
+  (SELECT COALESCE(SUM(-balance), 0) FROM ap_accounts) - (SELECT total FROM supplier_ledger) AS ap_variance;

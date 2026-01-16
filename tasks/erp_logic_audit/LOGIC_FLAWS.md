@@ -36,6 +36,12 @@ Policy:
   - Normalize report outputs to report-friendly signs (e.g., convert credit-normal stored balances to positive amounts for display).
   - Compute equity using consistent basis (either sum of equity accounts with sign normalization, or net assets method using normalized liabilities).
   - Add invariant tests asserting that report totals reconcile to trial balance within tolerance.
+- Fix implemented (Phase 5):
+  - `ReportService.balanceSheet` and `ReportService.profitLoss` now normalize balances by account type (credit-normal inverted) and derive equity from normalized assets minus liabilities.
+- Regression test:
+  - `erp-domain/src/test/java/com/bigbrightpaints/erp/regression/AccountingReportSignConventionRegressionIT.java`
+- Fix evidence (Phase 5):
+  - `tasks/erp_logic_audit/EVIDENCE_QUERIES/lf-001/OUTPUTS/20260114T113219Z_accounting_reports_gets.txt`
 - Future-proof test suggestion:
   - Add a deterministic “mini-COA + postings” integration test that:
     - posts one revenue, one payable, one inventory journal
@@ -67,6 +73,13 @@ Policy:
 - Fix direction (no implementation):
   - Use `Invoice.outstandingAmount` (or ledger-derived outstanding) as the aging basis.
   - Ensure credit notes/returns reduce outstanding consistently.
+- Fix implemented (Phase 5):
+  - `ReportService.agedDebtors` now uses `Invoice.outstandingAmount` (falling back to total when null) for bucket values.
+- Regression test:
+  - `erp-domain/src/test/java/com/bigbrightpaints/erp/regression/AgedDebtorsOutstandingRegressionIT.java`
+- Fix evidence (Phase 5):
+  - `tasks/erp_logic_audit/EVIDENCE_QUERIES/lf-002/OUTPUTS/20260114T113128Z_seed_invoice_for_aging.txt`
+  - `tasks/erp_logic_audit/EVIDENCE_QUERIES/lf-002/OUTPUTS/20260114T113227Z_aged_debtors_get.json`
 - Future-proof test suggestion:
   - Integration test: invoice → partial settlement → aged debtors buckets decrease by settlement amount.
 
@@ -184,6 +197,12 @@ Policy:
 - Fix direction (no implementation):
   - Normalize one side to match the other (either invert GL liability balances for comparison, or store liabilities with consistent sign convention and update reporting).
   - Add reconciliation tests that assert AP tie-out passes for a golden P2P scenario.
+- Fix implemented (Phase 5):
+  - `ReconciliationService.reconcileApWithSupplierLedger` now normalizes GL liabilities by account type (credit-normal inverted) before comparing to supplier ledger totals.
+- Regression test:
+  - `erp-domain/src/test/java/com/bigbrightpaints/erp/regression/AccountingReportSignConventionRegressionIT.java`
+- Fix evidence (Phase 5):
+  - `tasks/erp_logic_audit/EVIDENCE_QUERIES/lf-006/OUTPUTS/20260114T113234Z_sql_05_ar_ap_tieouts_after_fix.txt`
 - Future-proof test suggestion:
   - Golden P2P E2E: purchase → payment → AP reconciliation within tolerance.
 
@@ -206,6 +225,13 @@ Policy:
 - Fix direction (no implementation):
   - Change uniqueness to `(company_id, idempotency_key)` semantics (schema + repository usage).
   - Add multi-company integration test for payroll idempotency isolation.
+- Fix implemented (Phase 5):
+  - Dropped global payroll idempotency uniqueness and rely on `(company_id, idempotency_key)` uniqueness.
+  - `PayrollRun.idempotency_key` is no longer marked unique in the entity.
+- Regression test:
+  - `erp-domain/src/test/java/com/bigbrightpaints/erp/regression/PayrollIdempotencyCompanyScopeRegressionIT.java`
+- Fix evidence (Phase 5):
+  - Pending local DB access; run `tasks/erp_logic_audit/EVIDENCE_QUERIES/lf-007/RUN.md`.
 - Future-proof test suggestion:
   - Two-company test: same idempotency key allowed across companies; disallowed within same company.
 
@@ -235,6 +261,13 @@ Policy:
   - Add `company_id` to `orchestrator_audit` and persist it on trace records.
   - Require company scoping on trace queries (use `CompanyContextService` or header validation).
   - Restrict trace endpoint to admin/ops roles if appropriate.
+- Fix implemented (Phase 5):
+  - `orchestrator_audit` now stores `company_id` and traces are queried by company.
+  - `TraceService.record` requires company code and `OrchestratorController` enforces role + company header on trace reads.
+- Regression test:
+  - `erp-domain/src/test/java/com/bigbrightpaints/erp/regression/OrchestratorTraceCompanyScopeRegressionIT.java`
+- Fix evidence (Phase 5):
+  - Pending local DB access; run `tasks/erp_logic_audit/EVIDENCE_QUERIES/lf-008/RUN.md`.
 - Future-proof test suggestion:
   - Multi-company test: trace created in Company A is not readable by Company B (403/404).
 
@@ -262,6 +295,14 @@ Policy:
 - Fix direction (no implementation):
   - Introduce a settlement header table keyed by `idempotency_key`, with allocation rows linked to it.
   - Or widen the uniqueness scope to `(company_id, idempotency_key, invoice_id/purchase_id)` and enforce payload-match checks on replay.
+- Fix implemented (Phase 5):
+  - Dropped the single-column unique index and replaced it with:
+    - non-unique lookup index on `(company_id, idempotency_key)`
+    - partial unique indexes on `(company_id, idempotency_key, invoice_id)` and `(company_id, idempotency_key, purchase_id)`
+- Regression test:
+  - `erp-domain/src/test/java/com/bigbrightpaints/erp/regression/SettlementIdempotencyMultiAllocationRegressionIT.java`
+- Fix evidence (Phase 5):
+  - Pending local DB access; run `tasks/erp_logic_audit/EVIDENCE_QUERIES/lf-009/RUN.md`.
 - Future-proof test suggestion:
   - Integration test: multi-invoice settlement with a shared idempotency key, replayed safely without duplicates.
 

@@ -179,3 +179,27 @@
   - `tasks/erp_logic_audit/EVIDENCE_QUERIES/task-08/OUTPUTS/20260114T105110Z_payroll_run_conflict_response.json`
 - Notes:
   - BBP seeded variance remains until opening stock entries are backfilled to GL.
+
+## 2026-01-14 LF-001/LF-002/LF-006 — Report sign normalization + aged debtors + AP reconciliation
+- Changes:
+  - Balance sheet and profit/loss now normalize credit-normal balances for reporting.
+  - Aged debtors buckets use invoice outstanding amounts.
+  - AP reconciliation normalizes GL liabilities before comparing to supplier ledger totals.
+- Evidence:
+  - `tasks/erp_logic_audit/EVIDENCE_QUERIES/lf-001/OUTPUTS/20260114T113219Z_accounting_reports_gets.txt`
+  - `tasks/erp_logic_audit/EVIDENCE_QUERIES/lf-002/OUTPUTS/20260114T113128Z_seed_invoice_for_aging.txt`
+  - `tasks/erp_logic_audit/EVIDENCE_QUERIES/lf-002/OUTPUTS/20260114T113227Z_aged_debtors_get.json`
+  - `tasks/erp_logic_audit/EVIDENCE_QUERIES/lf-006/OUTPUTS/20260114T113234Z_sql_05_ar_ap_tieouts_after_fix.txt`
+
+## 2026-01-16 LF-007/LF-008/LF-009 — Idempotency scoping + trace tenancy
+- Changes:
+  - Payroll idempotency scope aligned to `(company_id, idempotency_key)` (entity + migration).
+  - Orchestrator traces now persist `company_id`; trace reads are company-scoped + role-protected.
+  - Settlement idempotency indexes widened to allow multi-allocation keys.
+- Evidence:
+  - Pending local DB access; run:
+    - `tasks/erp_logic_audit/EVIDENCE_QUERIES/lf-007/RUN.md`
+    - `tasks/erp_logic_audit/EVIDENCE_QUERIES/lf-008/RUN.md`
+    - `tasks/erp_logic_audit/EVIDENCE_QUERIES/lf-009/RUN.md`
+- Verification:
+  - `mvn -f erp-domain/pom.xml test` failed: Testcontainers JNA temp file permission / docker socket access in current environment.

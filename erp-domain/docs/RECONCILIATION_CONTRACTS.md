@@ -10,10 +10,15 @@
 ## AR vs Dealer Ledger
 - AR control accounts (codes containing AR/RECEIVABLE) must match summed dealer ledger balances.
 - Dealer outstanding balances should align with ledger balances within tolerance.
+- GL balances are normalized by account type (credit-normal inverted) before comparison.
 
 ## AP vs Supplier Ledger
 - AP control accounts (codes containing AP/PAYABLE) must match summed supplier ledger balances.
 - Supplier outstanding balances should align with ledger balances within tolerance.
+- GL balances are normalized by account type (credit-normal inverted) before comparison.
+
+## Aged Debtors (AR aging)
+- Aging buckets must use invoice outstanding amounts as the source of truth (post-settlement).
 
 ## Period Close Controls
 - No unposted documents in the period window (draft invoices/purchases/payroll runs).

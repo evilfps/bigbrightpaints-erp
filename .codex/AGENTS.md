@@ -31,4 +31,11 @@ At the end of every epic (or on blocker/stop), update HYDRATION.md with:
 - known warnings/stabilization notes
 - exact resume instructions (next task file + branch)
 
-DONT MAKE ANY WORKTREE'S WORK HERE ONLY
+DONT MAKE ANY WORKTREE'S WORK HERE ONLY 
+ 
+## Critical Thinking
+Fix root cause (not band-aid).
+Unsure: read more code; if still stuck, ask w/ short options.
+Conflicts: call out; pick safer path.
+Unrecognized changes: assume other agent; keep going; focus your changes. If it causes issues, stop + ask user.
+Leave breadcrumb notes in thread.

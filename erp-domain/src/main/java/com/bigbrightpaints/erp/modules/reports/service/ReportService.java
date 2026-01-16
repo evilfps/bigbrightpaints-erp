@@ -79,8 +79,8 @@ public class ReportService {
     @Transactional(readOnly = true)
     public BalanceSheetDto balanceSheet() {
         Company company = companyContextService.requireCurrentCompany();
-        BigDecimal assets = aggregateAccountType(company, AccountType.ASSET);
-        BigDecimal liabilities = aggregateAccountType(company, AccountType.LIABILITY);
+        BigDecimal assets = aggregateAccountTypeNormalized(company, AccountType.ASSET);
+        BigDecimal liabilities = aggregateAccountTypeNormalized(company, AccountType.LIABILITY);
         BigDecimal equity = assets.subtract(liabilities);
         return new BalanceSheetDto(assets, liabilities, equity);
     }
@@ -88,10 +88,10 @@ public class ReportService {
     @Transactional(readOnly = true)
     public ProfitLossDto profitLoss() {
         Company company = companyContextService.requireCurrentCompany();
-        BigDecimal revenue = aggregateAccountType(company, AccountType.REVENUE);
-        BigDecimal cogs = aggregateAccountType(company, AccountType.COGS);
+        BigDecimal revenue = aggregateAccountTypeNormalized(company, AccountType.REVENUE);
+        BigDecimal cogs = aggregateAccountTypeNormalized(company, AccountType.COGS);
         BigDecimal grossProfit = revenue.subtract(cogs);
-        BigDecimal expenses = aggregateAccountType(company, AccountType.EXPENSE);
+        BigDecimal expenses = aggregateAccountTypeNormalized(company, AccountType.EXPENSE);
         BigDecimal netIncome = grossProfit.subtract(expenses);
         return new ProfitLossDto(revenue, cogs, grossProfit, expenses, netIncome);
     }
@@ -150,7 +150,8 @@ public class ReportService {
             if (dealer == null) {
                 continue;
             }
-            BigDecimal outstanding = Optional.ofNullable(invoice.getTotalAmount()).orElse(BigDecimal.ZERO);
+            BigDecimal outstanding = Optional.ofNullable(invoice.getOutstandingAmount())
+                    .orElse(Optional.ofNullable(invoice.getTotalAmount()).orElse(BigDecimal.ZERO));
             if (outstanding.compareTo(BigDecimal.ZERO) == 0) {
                 continue;
             }
@@ -258,11 +259,17 @@ public class ReportService {
         return new TrialBalanceDto(rows, totalDebit, totalCredit, balanced);
     }
 
-    private BigDecimal aggregateAccountType(Company company, AccountType type) {
+    private BigDecimal aggregateAccountTypeNormalized(Company company, AccountType type) {
         return accountRepository.findByCompanyOrderByCodeAsc(company).stream()
                 .filter(acc -> acc.getType() == type)
-                .map(Account::getBalance)
+                .map(acc -> normalizeBalance(acc.getType(), acc.getBalance()))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    private BigDecimal normalizeBalance(AccountType type, BigDecimal balance) {
+        BigDecimal safeBalance = safe(balance);
+        boolean debitNormal = type == null || type.isDebitNormalBalance();
+        return debitNormal ? safeBalance : safeBalance.negate();
     }
 
     private boolean isInventoryAccount(Account account) {
