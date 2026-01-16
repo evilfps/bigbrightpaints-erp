@@ -238,7 +238,11 @@ public class PayrollService {
             dailyRate = BigDecimal.ZERO;
         }
         BigDecimal dailyWage = employee.getDailyWage() != null ? employee.getDailyWage() : dailyRate;
-        BigDecimal hourlyRate = dailyRate.divide(employee.getStandardHoursPerDay(), 2, RoundingMode.HALF_UP);
+        BigDecimal hourlyRate = BigDecimal.ZERO;
+        BigDecimal standardHours = employee.getStandardHoursPerDay();
+        if (standardHours != null && standardHours.compareTo(BigDecimal.ZERO) > 0) {
+            hourlyRate = dailyRate.divide(standardHours, 2, RoundingMode.HALF_UP);
+        }
         line.setDailyWage(dailyWage);
         line.setDailyRate(dailyRate);
         line.setHourlyRate(hourlyRate);
@@ -564,8 +568,11 @@ public class PayrollService {
                     emp.getId(), BigDecimal.ZERO);
 
             BigDecimal basePay = emp.getDailyRate().multiply(presentDays);
-            BigDecimal hourlyRate = emp.getDailyRate().divide(
-                    emp.getStandardHoursPerDay(), 2, RoundingMode.HALF_UP);
+            BigDecimal hourlyRate = BigDecimal.ZERO;
+            BigDecimal standardHours = emp.getStandardHoursPerDay();
+            if (standardHours != null && standardHours.compareTo(BigDecimal.ZERO) > 0) {
+                hourlyRate = emp.getDailyRate().divide(standardHours, 2, RoundingMode.HALF_UP);
+            }
             BigDecimal otPay = hourlyRate.multiply(
                     emp.getOvertimeRateMultiplier()).multiply(otHours);
             BigDecimal netPay = basePay.add(otPay);

@@ -94,8 +94,8 @@ public class JournalEntry extends VersionedEntity {
     @Column(name = "fx_rate", precision = 19, scale = 6)
     private BigDecimal fxRate = BigDecimal.ONE;
 
-    @Column(name = "foreign_amount_total")
-    private Double foreignAmountTotal;
+    @Column(name = "foreign_amount_total", precision = 18, scale = 2)
+    private BigDecimal foreignAmountTotal;
 
     @OneToMany(mappedBy = "journalEntry", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<JournalLine> lines = new ArrayList<>();
@@ -174,6 +174,6 @@ public class JournalEntry extends VersionedEntity {
         }
         this.fxRate = fxRate;
     }
-    public Double getForeignAmountTotal() { return foreignAmountTotal; }
-    public void setForeignAmountTotal(Double foreignAmountTotal) { this.foreignAmountTotal = foreignAmountTotal; }
+    public BigDecimal getForeignAmountTotal() { return foreignAmountTotal; }
+    public void setForeignAmountTotal(BigDecimal foreignAmountTotal) { this.foreignAmountTotal = foreignAmountTotal; }
 }

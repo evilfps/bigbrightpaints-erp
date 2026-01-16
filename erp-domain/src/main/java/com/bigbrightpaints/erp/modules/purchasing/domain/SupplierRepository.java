@@ -26,6 +26,9 @@ public interface SupplierRepository extends JpaRepository<Supplier, Long> {
     Optional<Supplier> findByCompanyAndPayableAccount(Company company, Account payableAccount);
 
     List<Supplier> findAllByCompanyAndPayableAccount(Company company, Account payableAccount);
+    @Query("select s from Supplier s where s.company = :company and s.payableAccount.id in :accountIds")
+    List<Supplier> findAllByCompanyAndPayableAccountIdIn(@Param("company") Company company,
+                                                         @Param("accountIds") List<Long> accountIds);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select s from Supplier s where s.company = :company and s.id = :id")

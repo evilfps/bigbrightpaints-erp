@@ -244,7 +244,13 @@ public class ReconciliationService {
             }
             
             // Check if there's a corresponding packaging slip
-            Long orderId = Long.parseLong(refId);
+            Long orderId;
+            try {
+                orderId = Long.parseLong(refId);
+            } catch (NumberFormatException ex) {
+                log.warn("Skipping orphan reservation {} with non-numeric reference {}", reservation.getId(), refId);
+                continue;
+            }
             List<PackagingSlip> slips = packagingSlipRepository
                     .findAllByCompanyAndSalesOrderId(company, orderId);
             

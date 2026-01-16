@@ -63,11 +63,19 @@ public class TemporalBalanceService {
     public Map<Long, BigDecimal> getBalancesAsOfDate(List<Long> accountIds, LocalDate asOfDate) {
         Company company = companyContextService.requireCurrentCompany();
         Map<Long, BigDecimal> balances = new HashMap<>();
-        
-        for (Long accountId : accountIds) {
-            BigDecimal balance = eventRepository.findLastEventForAccountAsOfDate(company, accountId, asOfDate)
-                    .map(AccountingEvent::getBalanceAfter)
-                    .orElseGet(() -> getCurrentBalance(company, accountId));
+        if (accountIds == null || accountIds.isEmpty()) {
+            return balances;
+        }
+        List<Long> uniqueIds = accountIds.stream().filter(Objects::nonNull).distinct().toList();
+        Map<Long, BigDecimal> eventBalances = eventRepository
+                .findLastEventsForAccountsAsOfDate(company.getId(), uniqueIds, asOfDate)
+                .stream()
+                .collect(Collectors.toMap(AccountingEvent::getAccountId, AccountingEvent::getBalanceAfter, (a, b) -> a));
+        Map<Long, BigDecimal> currentBalances = accountRepository.findByCompanyAndIdIn(company, uniqueIds).stream()
+                .collect(Collectors.toMap(Account::getId, Account::getBalance));
+        for (Long accountId : uniqueIds) {
+            BigDecimal balance = eventBalances.getOrDefault(
+                    accountId, currentBalances.getOrDefault(accountId, BigDecimal.ZERO));
             balances.put(accountId, balance);
         }
         
@@ -80,15 +88,19 @@ public class TemporalBalanceService {
     public TrialBalanceSnapshot getTrialBalanceAsOf(LocalDate asOfDate) {
         Company company = companyContextService.requireCurrentCompany();
         List<Account> accounts = accountRepository.findByCompanyOrderByCodeAsc(company);
+        List<Long> accountIds = accounts.stream().map(Account::getId).toList();
+        Map<Long, BigDecimal> eventBalances = accountIds.isEmpty()
+                ? Map.of()
+                : eventRepository.findLastEventsForAccountsAsOfDate(company.getId(), accountIds, asOfDate)
+                        .stream()
+                        .collect(Collectors.toMap(AccountingEvent::getAccountId, AccountingEvent::getBalanceAfter, (a, b) -> a));
         
         List<TrialBalanceEntry> entries = new ArrayList<>();
         BigDecimal totalDebits = BigDecimal.ZERO;
         BigDecimal totalCredits = BigDecimal.ZERO;
         
         for (Account account : accounts) {
-            BigDecimal balance = eventRepository.findLastEventForAccountAsOfDate(company, account.getId(), asOfDate)
-                    .map(AccountingEvent::getBalanceAfter)
-                    .orElse(BigDecimal.ZERO);
+            BigDecimal balance = eventBalances.getOrDefault(account.getId(), BigDecimal.ZERO);
             
             if (balance.compareTo(BigDecimal.ZERO) != 0) {
                 boolean isDebit = account.getType().isDebitNormalBalance() 

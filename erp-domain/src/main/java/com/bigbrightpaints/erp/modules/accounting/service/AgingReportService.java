@@ -3,6 +3,7 @@ package com.bigbrightpaints.erp.modules.accounting.service;
 import com.bigbrightpaints.erp.modules.accounting.domain.DealerLedgerEntry;
 import com.bigbrightpaints.erp.modules.accounting.domain.DealerLedgerRepository;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
+import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
@@ -32,20 +33,24 @@ public class AgingReportService {
     private final DealerLedgerRepository dealerLedgerRepository;
     private final DealerRepository dealerRepository;
     private final CompanyContextService companyContextService;
+    private final CompanyClock companyClock;
 
     public AgingReportService(DealerLedgerRepository dealerLedgerRepository,
                               DealerRepository dealerRepository,
-                              CompanyContextService companyContextService) {
+                              CompanyContextService companyContextService,
+                              CompanyClock companyClock) {
         this.dealerLedgerRepository = dealerLedgerRepository;
         this.dealerRepository = dealerRepository;
         this.companyContextService = companyContextService;
+        this.companyClock = companyClock;
     }
 
     /**
      * Generate aged receivables report for all dealers
      */
     public AgedReceivablesReport getAgedReceivablesReport() {
-        return getAgedReceivablesReport(LocalDate.now());
+        Company company = companyContextService.requireCurrentCompany();
+        return getAgedReceivablesReport(companyClock.today(company));
     }
 
     public AgedReceivablesReport getAgedReceivablesReport(LocalDate asOfDate) {
@@ -88,7 +93,7 @@ public class AgingReportService {
                 .orElseThrow(() -> new IllegalArgumentException("Dealer not found"));
         
         List<DealerLedgerEntry> unpaid = dealerLedgerRepository.findUnpaidByDealer(company, dealer);
-        AgingBuckets buckets = calculateBuckets(unpaid, LocalDate.now());
+        AgingBuckets buckets = calculateBuckets(unpaid, companyClock.today(company));
         
         return new DealerAgingDetail(
                 dealer.getId(),
@@ -108,7 +113,7 @@ public class AgingReportService {
                 .orElseThrow(() -> new IllegalArgumentException("Dealer not found"));
         
         List<DealerLedgerEntry> unpaid = dealerLedgerRepository.findUnpaidByDealer(company, dealer);
-        LocalDate today = LocalDate.now();
+        LocalDate today = companyClock.today(company);
         
         List<AgingLineItem> lineItems = unpaid.stream()
                 .map(e -> new AgingLineItem(

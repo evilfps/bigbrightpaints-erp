@@ -2,8 +2,10 @@ package com.bigbrightpaints.erp.modules.hr.domain;
 
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import jakarta.persistence.LockModeType;
 
 import java.util.Collection;
 import java.time.LocalDate;
@@ -19,6 +21,10 @@ public interface PayrollRunRepository extends JpaRepository<PayrollRun, Long> {
     List<PayrollRun> findByCompanyAndRunTypeOrderByCreatedAtDesc(Company company, PayrollRun.RunType runType);
     
     Optional<PayrollRun> findByCompanyAndId(Company company, Long id);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT pr FROM PayrollRun pr WHERE pr.company = :company AND pr.id = :id")
+    Optional<PayrollRun> lockByCompanyAndId(@Param("company") Company company, @Param("id") Long id);
     
     Optional<PayrollRun> findByCompanyAndRunNumber(Company company, String runNumber);
     

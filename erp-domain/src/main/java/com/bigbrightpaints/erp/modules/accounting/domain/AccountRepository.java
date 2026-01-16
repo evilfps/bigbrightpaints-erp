@@ -16,10 +16,15 @@ public interface AccountRepository extends JpaRepository<Account, Long> {
     List<Account> findByCompanyOrderByCodeAsc(Company company);
     Optional<Account> findByCompanyAndId(Company company, Long id);
     Optional<Account> findByCompanyAndCodeIgnoreCase(Company company, String code);
+    List<Account> findByCompanyAndIdIn(Company company, List<Long> ids);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select a from Account a where a.company = :company and a.id = :id")
     Optional<Account> lockByCompanyAndId(@Param("company") Company company, @Param("id") Long id);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select a from Account a where a.company = :company and a.id in :ids order by a.id")
+    List<Account> lockByCompanyAndIdIn(@Param("company") Company company, @Param("ids") List<Long> ids);
 
     @Modifying(flushAutomatically = true)
     @Query("UPDATE Account a SET a.balance = a.balance + :delta WHERE a.company = :company AND a.id = :id")

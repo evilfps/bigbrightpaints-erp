@@ -54,10 +54,13 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.UUID;
 
 @Service
@@ -281,16 +284,33 @@ public class AccountingService {
                 .distinct()
                 .sorted()
                 .toList();
-        Map<Long, Account> lockedAccounts = new HashMap<>();
-        for (Long accountId : sortedAccountIds) {
-            Account account = accountRepository.lockByCompanyAndId(company, accountId)
-                    .orElseThrow(() -> new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE, "Account not found"));
-            lockedAccounts.put(accountId, account);
+        Map<Long, Account> lockedAccounts = sortedAccountIds.isEmpty()
+                ? Map.of()
+                : accountRepository.lockByCompanyAndIdIn(company, sortedAccountIds)
+                        .stream()
+                        .collect(Collectors.toMap(Account::getId, account -> account));
+        if (lockedAccounts.size() != sortedAccountIds.size()) {
+            Set<Long> missingIds = new HashSet<>(sortedAccountIds);
+            missingIds.removeAll(lockedAccounts.keySet());
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE, "Account not found")
+                    .withDetail("missingAccountIds", missingIds);
         }
         Dealer dealerContext = dealer;
         Supplier supplierContext = supplier;
+        Map<Long, List<Dealer>> dealerOwnersByAccount = sortedAccountIds.isEmpty()
+                ? Map.of()
+                : dealerRepository.findAllByCompanyAndReceivableAccountIdIn(company, sortedAccountIds)
+                        .stream()
+                        .filter(owner -> owner.getReceivableAccount() != null)
+                        .collect(Collectors.groupingBy(owner -> owner.getReceivableAccount().getId()));
+        Map<Long, List<Supplier>> supplierOwnersByAccount = sortedAccountIds.isEmpty()
+                ? Map.of()
+                : supplierRepository.findAllByCompanyAndPayableAccountIdIn(company, sortedAccountIds)
+                        .stream()
+                        .filter(owner -> owner.getPayableAccount() != null)
+                        .collect(Collectors.groupingBy(owner -> owner.getPayableAccount().getId()));
         for (Account account : lockedAccounts.values()) {
-            List<Dealer> dealerOwners = dealerRepository.findAllByCompanyAndReceivableAccount(company, account);
+            List<Dealer> dealerOwners = dealerOwnersByAccount.getOrDefault(account.getId(), List.of());
             if (!dealerOwners.isEmpty()) {
                 if (dealerContext == null) {
                     throw new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE,
@@ -301,7 +321,7 @@ public class AccountingService {
                             "Dealer receivable account " + account.getCode() + " requires matching dealer context");
                 }
             }
-            List<Supplier> supplierOwners = supplierRepository.findAllByCompanyAndPayableAccount(company, account);
+            List<Supplier> supplierOwners = supplierOwnersByAccount.getOrDefault(account.getId(), List.of());
             if (!supplierOwners.isEmpty()) {
                 if (supplierContext == null) {
                     throw new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE,
@@ -400,7 +420,7 @@ public class AccountingService {
         }
 
         if (foreignCurrency && totalForeignDebit.compareTo(BigDecimal.ZERO) > 0) {
-            entry.setForeignAmountTotal(totalForeignDebit.setScale(2, RoundingMode.HALF_UP).doubleValue());
+            entry.setForeignAmountTotal(totalForeignDebit.setScale(2, RoundingMode.HALF_UP));
         }
 
         if (duplicate.isPresent()) {
@@ -737,7 +757,8 @@ public class AccountingService {
     @Transactional
     public JournalEntryDto recordPayrollPayment(PayrollPaymentRequest request) {
         Company company = companyContextService.requireCurrentCompany();
-        PayrollRun run = companyEntityLookup.requirePayrollRun(company, request.payrollRunId());
+        PayrollRun run = payrollRunRepository.lockByCompanyAndId(company, request.payrollRunId())
+                .orElseThrow(() -> new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE, "Payroll run not found"));
         
         // Idempotency check: if already paid, return existing journal entry
         if ("PAID".equals(run.getStatus())) {

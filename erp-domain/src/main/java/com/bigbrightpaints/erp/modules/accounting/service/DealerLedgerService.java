@@ -92,8 +92,7 @@ public class DealerLedgerService extends AbstractPartnerLedgerService<Dealer, De
 
     @Override
     protected void updateOutstandingBalance(Dealer partner, BigDecimal balance) {
-        BigDecimal nonNegative = balance != null && balance.compareTo(BigDecimal.ZERO) > 0 ? balance : BigDecimal.ZERO;
-        partner.setOutstandingBalance(nonNegative);
+        partner.setOutstandingBalance(balance != null ? balance : BigDecimal.ZERO);
         dealerRepository.save(partner);
     }
 

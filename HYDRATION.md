@@ -394,3 +394,9 @@
   1) Stay on branch `fix-phase5-lead015-and-lf011-014`.
   2) If needed, stop runtime: `docker stop cli_backend_epic04-app-run-908ac469e23b`.
   3) For health UP, seed required config or run with a seeded profile; otherwise keep validation disabled.
+
+## 2026-01-16 Accounting robustness fixes (precision, parsing, locks, PDF)
+- Branch: `fix-phase5-lead015-and-lf011-014`.
+- Changes: BigDecimal for foreign totals; safer parsing; N+1 reductions for temporal balances and owner checks; company clock usage in statements/aging/event adjustment; PDF rendering for statements; negative balances preserved.
+- Commands executed:
+  - `mvn -f erp-domain/pom.xml -DskipTests compile` (PASS; javax.annotation warnings).

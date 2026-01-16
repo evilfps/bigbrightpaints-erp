@@ -6,14 +6,19 @@ import com.bigbrightpaints.erp.modules.accounting.dto.AgingSummaryResponse;
 import com.bigbrightpaints.erp.modules.accounting.dto.PartnerStatementResponse;
 import com.bigbrightpaints.erp.modules.accounting.dto.StatementTransactionDto;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
+import com.bigbrightpaints.erp.core.exception.ApplicationException;
+import com.bigbrightpaints.erp.core.exception.ErrorCode;
+import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.purchasing.domain.Supplier;
 import com.bigbrightpaints.erp.modules.purchasing.domain.SupplierRepository;
 import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
+import com.openhtmltopdf.pdfboxout.PdfRendererBuilder;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import java.io.ByteArrayOutputStream;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -28,25 +33,29 @@ public class StatementService {
     private final SupplierRepository supplierRepository;
     private final DealerLedgerRepository dealerLedgerRepository;
     private final SupplierLedgerRepository supplierLedgerRepository;
+    private final CompanyClock companyClock;
 
     public StatementService(CompanyContextService companyContextService,
                             DealerRepository dealerRepository,
                             SupplierRepository supplierRepository,
                             DealerLedgerRepository dealerLedgerRepository,
-                            SupplierLedgerRepository supplierLedgerRepository) {
+                            SupplierLedgerRepository supplierLedgerRepository,
+                            CompanyClock companyClock) {
         this.companyContextService = companyContextService;
         this.dealerRepository = dealerRepository;
         this.supplierRepository = supplierRepository;
         this.dealerLedgerRepository = dealerLedgerRepository;
         this.supplierLedgerRepository = supplierLedgerRepository;
+        this.companyClock = companyClock;
     }
 
     public PartnerStatementResponse dealerStatement(Long dealerId, LocalDate from, LocalDate to) {
         Company company = companyContextService.requireCurrentCompany();
         Dealer dealer = dealerRepository.findByCompanyAndId(company, dealerId)
                 .orElseThrow(() -> new IllegalArgumentException("Dealer not found"));
-        LocalDate start = from == null ? LocalDate.now().minusMonths(6) : from;
-        LocalDate end = to == null ? LocalDate.now() : to;
+        LocalDate today = companyClock.today(company);
+        LocalDate start = from == null ? today.minusMonths(6) : from;
+        LocalDate end = to == null ? today : to;
 
         BigDecimal opening = dealerLedgerRepository.findByCompanyAndDealerAndEntryDateBeforeOrderByEntryDateAsc(company, dealer, start)
                 .stream()
@@ -85,8 +94,9 @@ public class StatementService {
         Company company = companyContextService.requireCurrentCompany();
         Supplier supplier = supplierRepository.findByCompanyAndId(company, supplierId)
                 .orElseThrow(() -> new IllegalArgumentException("Supplier not found"));
-        LocalDate start = from == null ? LocalDate.now().minusMonths(6) : from;
-        LocalDate end = to == null ? LocalDate.now() : to;
+        LocalDate today = companyClock.today(company);
+        LocalDate start = from == null ? today.minusMonths(6) : from;
+        LocalDate end = to == null ? today : to;
 
         BigDecimal opening = supplierLedgerRepository.findByCompanyAndSupplierAndEntryDateBeforeOrderByEntryDateAsc(company, supplier, start)
                 .stream()
@@ -125,7 +135,7 @@ public class StatementService {
         Company company = companyContextService.requireCurrentCompany();
         Dealer dealer = dealerRepository.findByCompanyAndId(company, dealerId)
                 .orElseThrow(() -> new IllegalArgumentException("Dealer not found"));
-        LocalDate ref = asOf == null ? LocalDate.now() : asOf;
+        LocalDate ref = asOf == null ? companyClock.today(company) : asOf;
         List<int[]> buckets = parseBuckets(bucketParam);
         List<DealerLedgerEntry> entries = dealerLedgerRepository.findByCompanyAndDealerOrderByEntryDateAsc(company, dealer);
         BigDecimal balance = BigDecimal.ZERO;
@@ -146,7 +156,7 @@ public class StatementService {
                 Integer to = b.length > 1 ? b[1] : null;
                 boolean inBucket = age >= from && (to == null || age <= to);
                 if (inBucket) {
-                    bucketTotals[i] = bucketTotals[i].add(delta.max(BigDecimal.ZERO).add(delta.min(BigDecimal.ZERO))); // include sign
+                    bucketTotals[i] = bucketTotals[i].add(delta);
                     break;
                 }
             }
@@ -164,7 +174,7 @@ public class StatementService {
         Company company = companyContextService.requireCurrentCompany();
         Supplier supplier = supplierRepository.findByCompanyAndId(company, supplierId)
                 .orElseThrow(() -> new IllegalArgumentException("Supplier not found"));
-        LocalDate ref = asOf == null ? LocalDate.now() : asOf;
+        LocalDate ref = asOf == null ? companyClock.today(company) : asOf;
         List<int[]> buckets = parseBuckets(bucketParam);
         List<SupplierLedgerEntry> entries = supplierLedgerRepository.findByCompanyAndSupplierOrderByEntryDateAsc(company, supplier);
         BigDecimal balance = BigDecimal.ZERO;
@@ -185,7 +195,7 @@ public class StatementService {
                 Integer to = b.length > 1 ? b[1] : null;
                 boolean inBucket = age >= from && (to == null || age <= to);
                 if (inBucket) {
-                    bucketTotals[i] = bucketTotals[i].add(delta.max(BigDecimal.ZERO).add(delta.min(BigDecimal.ZERO)));
+                    bucketTotals[i] = bucketTotals[i].add(delta);
                     break;
                 }
             }
@@ -226,11 +236,28 @@ public class StatementService {
         List<int[]> buckets = new ArrayList<>();
         for (String part : parts) {
             String trimmed = part.trim();
-            if (trimmed.contains("-")) {
-                String[] range = trimmed.split("-");
-                buckets.add(new int[]{Integer.parseInt(range[0]), Integer.parseInt(range[1])});
-            } else {
-                buckets.add(new int[]{Integer.parseInt(trimmed)});
+            try {
+                if (trimmed.contains("-")) {
+                    String[] range = trimmed.split("-");
+                    if (range.length != 2) {
+                        throw new NumberFormatException("Invalid range: " + trimmed);
+                    }
+                    int from = Integer.parseInt(range[0].trim());
+                    int to = Integer.parseInt(range[1].trim());
+                    if (from < 0 || to < 0 || from > to) {
+                        throw new NumberFormatException("Invalid bucket bounds: " + trimmed);
+                    }
+                    buckets.add(new int[]{from, to});
+                } else {
+                    int bucketValue = Integer.parseInt(trimmed);
+                    if (bucketValue < 0) {
+                        throw new NumberFormatException("Negative bucket: " + trimmed);
+                    }
+                    buckets.add(new int[]{bucketValue});
+                }
+            } catch (NumberFormatException ex) {
+                throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                        "Invalid aging buckets format: " + bucketParam, ex);
             }
         }
         return buckets;
@@ -241,29 +268,72 @@ public class StatementService {
     }
 
     private byte[] buildStatementPdf(String title, PartnerStatementResponse stmt) {
-        StringBuilder sb = new StringBuilder();
-        sb.append(title).append("\n")
-                .append("Partner: ").append(stmt.partnerName()).append("\n")
-                .append("Period: ").append(stmt.fromDate()).append(" to ").append(stmt.toDate()).append("\n")
-                .append("Opening Balance: ").append(stmt.openingBalance()).append("\n")
-                .append("Closing Balance: ").append(stmt.closingBalance()).append("\n\n")
-                .append("Date,Reference,Description,Debit,Credit,Balance\n");
-        stmt.transactions().forEach(tx -> sb.append(tx.entryDate()).append(",")
-                .append(tx.referenceNumber()).append(",")
-                .append(tx.memo() != null ? tx.memo().replace(",", " ") : "").append(",")
-                .append(tx.debit()).append(",")
-                .append(tx.credit()).append(",")
-                .append(tx.runningBalance()).append("\n"));
-        return sb.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        StringBuilder html = new StringBuilder();
+        html.append("<html><head><style>")
+                .append("body{font-family:Arial, sans-serif;font-size:10pt;}")
+                .append("table{width:100%;border-collapse:collapse;}")
+                .append("th,td{border:1px solid #999;padding:4px;text-align:left;}")
+                .append("th{background:#f0f0f0;}")
+                .append("</style></head><body>");
+        html.append("<h2>").append(escapeHtml(title)).append("</h2>");
+        html.append("<p><strong>Partner:</strong> ").append(escapeHtml(stmt.partnerName())).append("<br/>");
+        html.append("<strong>Period:</strong> ").append(stmt.fromDate()).append(" to ").append(stmt.toDate()).append("<br/>");
+        html.append("<strong>Opening Balance:</strong> ").append(stmt.openingBalance()).append("<br/>");
+        html.append("<strong>Closing Balance:</strong> ").append(stmt.closingBalance()).append("</p>");
+        html.append("<table><thead><tr>")
+                .append("<th>Date</th><th>Reference</th><th>Description</th><th>Debit</th><th>Credit</th><th>Balance</th>")
+                .append("</tr></thead><tbody>");
+        stmt.transactions().forEach(tx -> html.append("<tr>")
+                .append("<td>").append(tx.entryDate()).append("</td>")
+                .append("<td>").append(escapeHtml(tx.referenceNumber())).append("</td>")
+                .append("<td>").append(escapeHtml(tx.memo())).append("</td>")
+                .append("<td>").append(tx.debit()).append("</td>")
+                .append("<td>").append(tx.credit()).append("</td>")
+                .append("<td>").append(tx.runningBalance()).append("</td>")
+                .append("</tr>"));
+        html.append("</tbody></table></body></html>");
+        return renderPdf(html.toString());
     }
 
     private byte[] buildAgingPdf(String title, AgingSummaryResponse aging) {
-        StringBuilder sb = new StringBuilder();
-        sb.append(title).append("\n")
-                .append("Partner: ").append(aging.partnerName()).append("\n")
-                .append("Bucket,Amount\n");
-        aging.buckets().forEach(b -> sb.append(b.label()).append(",").append(b.amount()).append("\n"));
-        sb.append("Total,").append(aging.totalOutstanding()).append("\n");
-        return sb.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        StringBuilder html = new StringBuilder();
+        html.append("<html><head><style>")
+                .append("body{font-family:Arial, sans-serif;font-size:10pt;}")
+                .append("table{width:100%;border-collapse:collapse;}")
+                .append("th,td{border:1px solid #999;padding:4px;text-align:left;}")
+                .append("th{background:#f0f0f0;}")
+                .append("</style></head><body>");
+        html.append("<h2>").append(escapeHtml(title)).append("</h2>");
+        html.append("<p><strong>Partner:</strong> ").append(escapeHtml(aging.partnerName())).append("</p>");
+        html.append("<table><thead><tr><th>Bucket</th><th>Amount</th></tr></thead><tbody>");
+        aging.buckets().forEach(b -> html.append("<tr>")
+                .append("<td>").append(escapeHtml(b.label())).append("</td>")
+                .append("<td>").append(b.amount()).append("</td>")
+                .append("</tr>"));
+        html.append("<tr><th>Total</th><th>").append(aging.totalOutstanding()).append("</th></tr>");
+        html.append("</tbody></table></body></html>");
+        return renderPdf(html.toString());
+    }
+
+    private byte[] renderPdf(String html) {
+        try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            PdfRendererBuilder builder = new PdfRendererBuilder();
+            builder.useFastMode();
+            builder.withHtmlContent(html, "");
+            builder.toStream(out);
+            builder.run();
+            return out.toByteArray();
+        } catch (Exception ex) {
+            throw new ApplicationException(ErrorCode.SYSTEM_INTERNAL_ERROR, "Failed to generate PDF", ex);
+        }
+    }
+
+    private String escapeHtml(String value) {
+        if (value == null) {
+            return "";
+        }
+        return value.replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;");
     }
 }

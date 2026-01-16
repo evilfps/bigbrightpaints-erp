@@ -222,7 +222,11 @@ public class PayrollCalculationService {
         }
 
         BigDecimal dailyRate = employee.getDailyRate() != null ? employee.getDailyRate() : BigDecimal.ZERO;
-        BigDecimal hourlyRate = dailyRate.divide(employee.getStandardHoursPerDay(), 2, RoundingMode.HALF_UP);
+        BigDecimal hourlyRate = BigDecimal.ZERO;
+        BigDecimal standardHours = employee.getStandardHoursPerDay();
+        if (standardHours != null && standardHours.compareTo(BigDecimal.ZERO) > 0) {
+            hourlyRate = dailyRate.divide(standardHours, 2, RoundingMode.HALF_UP);
+        }
 
         BigDecimal effectiveDays = presentDays.add(halfDays.multiply(new BigDecimal("0.5")));
         BigDecimal basePay = dailyRate.multiply(effectiveDays);

@@ -4,6 +4,9 @@ import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalLine;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
+import com.bigbrightpaints.erp.core.exception.ApplicationException;
+import com.bigbrightpaints.erp.core.exception.ErrorCode;
+import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
@@ -31,13 +34,16 @@ public class AccountingEventStore {
     private final AccountingEventRepository eventRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final ObjectMapper objectMapper;
+    private final CompanyClock companyClock;
 
     public AccountingEventStore(AccountingEventRepository eventRepository,
                                 ApplicationEventPublisher eventPublisher,
-                                ObjectMapper objectMapper) {
+                                ObjectMapper objectMapper,
+                                CompanyClock companyClock) {
         this.eventRepository = eventRepository;
         this.eventPublisher = eventPublisher;
         this.objectMapper = objectMapper;
+        this.companyClock = companyClock;
     }
 
     /**
@@ -156,7 +162,7 @@ public class AccountingEventStore {
         event.setAggregateType("Account");
         event.setSequenceNumber(eventRepository.getNextSequenceNumber(
                 UUID.nameUUIDFromBytes(("Account-" + account.getId()).getBytes())));
-        event.setEffectiveDate(LocalDate.now());
+        event.setEffectiveDate(companyClock.today(account.getCompany()));
         event.setAccountId(account.getId());
         event.setAccountCode(account.getCode());
         event.setBalanceBefore(oldBalance);
@@ -226,8 +232,8 @@ public class AccountingEventStore {
         try {
             return objectMapper.writeValueAsString(payload);
         } catch (JsonProcessingException e) {
-            log.warn("Failed to serialize event payload", e);
-            return "{}";
+            throw new ApplicationException(ErrorCode.SYSTEM_INTERNAL_ERROR,
+                    "Failed to serialize accounting event payload", e);
         }
     }
 

@@ -51,6 +51,19 @@ public interface AccountingEventRepository extends JpaRepository<AccountingEvent
             @Param("accountId") Long accountId,
             @Param("asOfDate") LocalDate asOfDate);
 
+    @Query(value = """
+        SELECT DISTINCT ON (account_id) *
+        FROM accounting_events
+        WHERE company_id = :companyId
+          AND account_id IN (:accountIds)
+          AND effective_date <= :asOfDate
+        ORDER BY account_id, effective_date DESC, event_timestamp DESC, sequence_number DESC
+        """, nativeQuery = true)
+    List<AccountingEvent> findLastEventsForAccountsAsOfDate(
+            @Param("companyId") Long companyId,
+            @Param("accountIds") List<Long> accountIds,
+            @Param("asOfDate") LocalDate asOfDate);
+
     // Account activity for a date range
     List<AccountingEvent> findByCompanyAndAccountIdAndEffectiveDateBetweenOrderByEventTimestampAsc(
             Company company, Long accountId, LocalDate startDate, LocalDate endDate);
