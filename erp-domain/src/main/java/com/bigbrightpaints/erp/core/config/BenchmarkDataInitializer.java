@@ -452,6 +452,8 @@ public class BenchmarkDataInitializer {
                     metadata.put("fgDiscountAccountId", accounts.get("DISC").getId());
                     metadata.put("fgTaxAccountId", accounts.get("GST_OUT").getId());
                     metadata.put("wastageAccountId", accounts.get("WASTAGE").getId());
+                    metadata.put("laborAppliedAccountId", accounts.get("LABOR").getId());
+                    metadata.put("overheadAppliedAccountId", accounts.get("OVERHEAD").getId());
                     product.setMetadata(metadata);
                     
                     return productRepository.save(product);

@@ -128,6 +128,11 @@ public class PackingService {
                     piecesCount,
                     log.getProductionCode() + "-PACK-" + lineIndex
             );
+
+            if (!packagingResult.mappingFound()) {
+                throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                        "Packaging BOM missing for size: " + line.packagingSize());
+            }
             
             PackingRecord record = new PackingRecord();
             record.setCompany(company);

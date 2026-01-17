@@ -88,6 +88,8 @@ public class CriticalPathSmokeTest extends AbstractIntegrationTest {
         ensureAccount(company, "ASSET-AR", "Accounts Receivable", AccountType.ASSET);
         ensureAccount(company, "ASSET-INV", "Inventory", AccountType.ASSET);
         ensureAccount(company, "EXP-COGS", "Cost of Goods Sold", AccountType.EXPENSE);
+        ensureAccount(company, "EXP-LABOR", "Direct Labor Applied", AccountType.EXPENSE);
+        ensureAccount(company, "EXP-OVERHEAD", "Overhead Applied", AccountType.EXPENSE);
         ensureAccount(company, "LIAB-GST", "GST Liability", AccountType.LIABILITY);
         ensureAccount(company, "DISC-SALES", "Sales Discounts", AccountType.EXPENSE);
         ensureAccount(company, "WIP-PROD", "Work In Progress", AccountType.ASSET);
@@ -423,6 +425,12 @@ public class CriticalPathSmokeTest extends AbstractIntegrationTest {
         Long taxId = accountRepository.findByCompanyAndCodeIgnoreCase(company, "LIAB-GST")
                 .map(Account::getId)
                 .orElse(null);
+        Long laborAppliedId = accountRepository.findByCompanyAndCodeIgnoreCase(company, "EXP-LABOR")
+                .map(Account::getId)
+                .orElse(null);
+        Long overheadAppliedId = accountRepository.findByCompanyAndCodeIgnoreCase(company, "EXP-OVERHEAD")
+                .map(Account::getId)
+                .orElse(null);
         return productRepository.findByCompanyAndSkuCode(company, skuCode)
                 .map(existing -> {
                     boolean dirty = false;
@@ -455,6 +463,14 @@ public class CriticalPathSmokeTest extends AbstractIntegrationTest {
                     }
                     if (taxId != null && metadata.get("fgTaxAccountId") == null) {
                         metadata.put("fgTaxAccountId", taxId);
+                        dirty = true;
+                    }
+                    if (laborAppliedId != null && metadata.get("laborAppliedAccountId") == null) {
+                        metadata.put("laborAppliedAccountId", laborAppliedId);
+                        dirty = true;
+                    }
+                    if (overheadAppliedId != null && metadata.get("overheadAppliedAccountId") == null) {
+                        metadata.put("overheadAppliedAccountId", overheadAppliedId);
                         dirty = true;
                     }
                     if (dirty) {
@@ -500,6 +516,12 @@ public class CriticalPathSmokeTest extends AbstractIntegrationTest {
                     }
                     if (taxId != null) {
                         metadata.put("fgTaxAccountId", taxId);
+                    }
+                    if (laborAppliedId != null) {
+                        metadata.put("laborAppliedAccountId", laborAppliedId);
+                    }
+                    if (overheadAppliedId != null) {
+                        metadata.put("overheadAppliedAccountId", overheadAppliedId);
                     }
                     p.setMetadata(metadata);
                     return productRepository.save(p);

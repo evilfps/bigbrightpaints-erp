@@ -91,6 +91,11 @@ public class BulkPackingService {
 
         validateBulkBatch(bulkBatch, company);
 
+        if (request.packagingMaterials() != null && !request.packagingMaterials().isEmpty()) {
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                    "Manual packaging materials are not supported; configure packaging BOM mappings instead");
+        }
+
         // 2. Calculate total volume needed from bulk
         BigDecimal totalVolume = calculateTotalVolume(request.packs());
         if (totalVolume.compareTo(bulkBatch.getQuantityAvailable()) > 0) {
@@ -102,11 +107,7 @@ public class BulkPackingService {
         // 3. Consume packaging materials (optional/manual override or BOM-based)
         String packagingReference = "BULK-PACK-" + bulkBatch.getBatchCode();
         PackagingCostSummary packagingCostSummary = new PackagingCostSummary(BigDecimal.ZERO, Map.of(), Map.of());
-        if (request.packagingMaterials() != null && !request.packagingMaterials().isEmpty()) {
-            packagingCostSummary = consumePackagingMaterials(company, request.packagingMaterials(), packagingReference);
-        } else {
-            packagingCostSummary = consumePackagingFromMappings(company, request.packs(), packagingReference);
-        }
+        packagingCostSummary = consumePackagingFromMappings(company, request.packs(), packagingReference);
         BigDecimal packagingCost = packagingCostSummary.totalCost();
 
         // 4. Calculate cost per unit for child batches
@@ -348,6 +349,11 @@ public class BulkPackingService {
                     piecesCount,
                     reference
             );
+
+            if (!result.mappingFound()) {
+                throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                        "Packaging BOM missing for size: " + sizeLabel);
+            }
 
             if (!result.isConsumed()) {
                 continue;

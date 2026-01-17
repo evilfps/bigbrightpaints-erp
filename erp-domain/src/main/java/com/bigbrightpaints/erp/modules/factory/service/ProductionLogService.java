@@ -143,6 +143,7 @@ public class ProductionLogService {
         ProductionLog saved = logRepository.save(log);
 
         postMaterialJournal(company, saved, product, issueSummary);
+        postLaborOverheadJournal(company, saved, product);
         registerSemiFinishedBatch(company, saved, product, mixedQty, totalCost);
 
         return toDetailDto(saved);
@@ -388,6 +389,36 @@ public class ProductionLogService {
         }
     }
 
+    private void postLaborOverheadJournal(Company company,
+                                          ProductionLog log,
+                                          ProductionProduct product) {
+        BigDecimal laborCost = nonNegative(log.getLaborCostTotal());
+        BigDecimal overheadCost = nonNegative(log.getOverheadCostTotal());
+        if (laborCost.compareTo(BigDecimal.ZERO) <= 0 && overheadCost.compareTo(BigDecimal.ZERO) <= 0) {
+            return;
+        }
+
+        Long wipAccountId = requireWipAccountId(product);
+        Long laborAppliedAccountId = null;
+        Long overheadAppliedAccountId = null;
+        if (laborCost.compareTo(BigDecimal.ZERO) > 0) {
+            laborAppliedAccountId = requireLaborAppliedAccountId(product);
+        }
+        if (overheadCost.compareTo(BigDecimal.ZERO) > 0) {
+            overheadAppliedAccountId = requireOverheadAppliedAccountId(product);
+        }
+
+        accountingFacade.postLaborOverheadApplied(
+                log.getProductionCode(),
+                resolveJournalDate(company, log),
+                wipAccountId,
+                laborAppliedAccountId,
+                overheadAppliedAccountId,
+                laborCost,
+                overheadCost
+        );
+    }
+
     private void linkRawMaterialMovementsToJournal(String referenceId, Long journalEntryId) {
         if (journalEntryId == null) {
             return;
@@ -414,6 +445,24 @@ public class ProductionLogService {
         if (accountId == null) {
             throw new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE,
                     "Product " + product.getProductName() + " missing wipAccountId metadata");
+        }
+        return accountId;
+    }
+
+    private Long requireLaborAppliedAccountId(ProductionProduct product) {
+        Long accountId = metadataLong(product, "laborAppliedAccountId");
+        if (accountId == null) {
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE,
+                    "Product " + product.getProductName() + " missing laborAppliedAccountId metadata");
+        }
+        return accountId;
+    }
+
+    private Long requireOverheadAppliedAccountId(ProductionProduct product) {
+        Long accountId = metadataLong(product, "overheadAppliedAccountId");
+        if (accountId == null) {
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE,
+                    "Product " + product.getProductName() + " missing overheadAppliedAccountId metadata");
         }
         return accountId;
     }

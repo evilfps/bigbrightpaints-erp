@@ -66,19 +66,6 @@ public class CostAllocationService {
 
         BigDecimal laborCost = request.laborCost() == null ? BigDecimal.ZERO : request.laborCost();
         BigDecimal overheadCost = request.overheadCost() == null ? BigDecimal.ZERO : request.overheadCost();
-        if (laborCost.compareTo(BigDecimal.ZERO) <= 0 && overheadCost.compareTo(BigDecimal.ZERO) <= 0) {
-            return new CostAllocationResponse(
-                    request.year(),
-                    request.month(),
-                    batches.size(),
-                    BigDecimal.ZERO,
-                    laborCost,
-                    overheadCost,
-                    BigDecimal.ZERO,
-                    List.of(),
-                    "Labor and overhead costs must be greater than zero to allocate"
-            );
-        }
 
         if (batches.isEmpty()) {
             return new CostAllocationResponse(
@@ -113,22 +100,35 @@ public class CostAllocationService {
             );
         }
 
-        // Calculate cost per liter
-        BigDecimal totalCosts = laborCost.add(overheadCost);
-        if (totalCosts.compareTo(BigDecimal.ZERO) <= 0) {
+        BigDecimal appliedLabor = batches.stream()
+                .map(ProductionLog::getLaborCostTotal)
+                .map(value -> value == null ? BigDecimal.ZERO : value)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal appliedOverhead = batches.stream()
+                .map(ProductionLog::getOverheadCostTotal)
+                .map(value -> value == null ? BigDecimal.ZERO : value)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal laborVariance = laborCost.subtract(appliedLabor);
+        BigDecimal overheadVariance = overheadCost.subtract(appliedOverhead);
+        BigDecimal totalVariance = laborVariance.add(overheadVariance);
+
+        if (laborVariance.compareTo(BigDecimal.ZERO) == 0 && overheadVariance.compareTo(BigDecimal.ZERO) == 0) {
             return new CostAllocationResponse(
                     request.year(),
                     request.month(),
                     batches.size(),
                     totalLitersProduced,
-                    laborCost,
-                    overheadCost,
+                    BigDecimal.ZERO,
+                    BigDecimal.ZERO,
                     BigDecimal.ZERO,
                     List.of(),
-                    "Total allocation costs must be greater than zero"
+                    "No labor/overhead variance to allocate for this period"
             );
         }
-        BigDecimal costPerLiter = totalCosts.divide(totalLitersProduced, 4, RoundingMode.HALF_UP);
+
+        BigDecimal variancePerLiter = totalVariance
+                .divide(totalLitersProduced, 4, RoundingMode.HALF_UP);
 
         // Find accounting accounts
         Account finishedGoodsAccount = requireAccount(company, request.finishedGoodsAccountId(), AccountType.ASSET);
@@ -136,27 +136,46 @@ public class CostAllocationService {
         Account overheadExpenseAccount = requireAccount(company, request.overheadExpenseAccountId(), AccountType.EXPENSE);
 
         List<Long> journalEntryIds = new ArrayList<>();
+        BigDecimal allocatedLabor = BigDecimal.ZERO;
+        BigDecimal allocatedOverhead = BigDecimal.ZERO;
 
-        // Allocate costs to each batch
-        for (ProductionLog batch : batches) {
+        List<ProductionLog> allocatable = batches.stream()
+                .filter(batch -> batch.getMixedQuantity() != null && batch.getMixedQuantity().compareTo(BigDecimal.ZERO) > 0)
+                .toList();
+        String periodKey = String.format("%04d%02d", request.year(), request.month());
+
+        // Allocate variance to each batch
+        for (int i = 0; i < allocatable.size(); i++) {
+            ProductionLog batch = allocatable.get(i);
+            boolean isLast = i == allocatable.size() - 1;
             BigDecimal batchLiters = batch.getMixedQuantity();
-            BigDecimal batchLaborCost = batchLiters
-                    .multiply(laborCost)
-                    .divide(totalLitersProduced, 4, RoundingMode.HALF_UP);
-            BigDecimal batchOverheadCost = batchLiters
-                    .multiply(overheadCost)
-                    .divide(totalLitersProduced, 4, RoundingMode.HALF_UP);
+            BigDecimal batchLaborVariance = isLast
+                    ? laborVariance.subtract(allocatedLabor)
+                    : batchLiters.multiply(laborVariance)
+                            .divide(totalLitersProduced, 4, RoundingMode.HALF_UP);
+            BigDecimal batchOverheadVariance = isLast
+                    ? overheadVariance.subtract(allocatedOverhead)
+                    : batchLiters.multiply(overheadVariance)
+                            .divide(totalLitersProduced, 4, RoundingMode.HALF_UP);
+            allocatedLabor = allocatedLabor.add(batchLaborVariance);
+            allocatedOverhead = allocatedOverhead.add(batchOverheadVariance);
 
             // Update production log
-            batch.setLaborCostTotal(batchLaborCost);
-            batch.setOverheadCostTotal(batchOverheadCost);
+            BigDecimal updatedLabor = (batch.getLaborCostTotal() == null ? BigDecimal.ZERO : batch.getLaborCostTotal())
+                    .add(batchLaborVariance);
+            BigDecimal updatedOverhead = (batch.getOverheadCostTotal() == null ? BigDecimal.ZERO : batch.getOverheadCostTotal())
+                    .add(batchOverheadVariance);
+            batch.setLaborCostTotal(updatedLabor);
+            batch.setOverheadCostTotal(updatedOverhead);
 
             // Recalculate unit cost (material + labor + overhead) / packed quantity
-            BigDecimal totalBatchCost = batch.getMaterialCostTotal()
-                    .add(batchLaborCost)
-                    .add(batchOverheadCost);
+            BigDecimal totalBatchCost = (batch.getMaterialCostTotal() == null ? BigDecimal.ZERO : batch.getMaterialCostTotal())
+                    .add(updatedLabor)
+                    .add(updatedOverhead);
 
-            BigDecimal packedQty = batch.getTotalPackedQuantity();
+            BigDecimal packedQty = batch.getTotalPackedQuantity() == null
+                    ? BigDecimal.ZERO
+                    : batch.getTotalPackedQuantity();
             BigDecimal newUnitCost = null;
             if (packedQty.compareTo(BigDecimal.ZERO) > 0) {
                 newUnitCost = totalBatchCost.divide(packedQty, 4, RoundingMode.HALF_UP);
@@ -168,16 +187,19 @@ public class CostAllocationService {
                 updateFinishedGoodBatchCosts(batch, newUnitCost);
             }
 
-            // Post journal entry to move costs from expense accounts to inventory
-            if (batchLaborCost.add(batchOverheadCost).compareTo(BigDecimal.ZERO) > 0) {
-                JournalEntryDto journalEntry = accountingFacade.postCostAllocation(
+            BigDecimal journalLabor = batchLaborVariance.setScale(2, RoundingMode.HALF_UP);
+            BigDecimal journalOverhead = batchOverheadVariance.setScale(2, RoundingMode.HALF_UP);
+            if (journalLabor.compareTo(BigDecimal.ZERO) != 0 || journalOverhead.compareTo(BigDecimal.ZERO) != 0) {
+                JournalEntryDto journalEntry = accountingFacade.postCostVarianceAllocation(
                         batch.getProductionCode(),
+                        periodKey,
+                        yearMonth.atEndOfMonth(),
                         finishedGoodsAccount.getId(),
                         payrollExpenseAccount.getId(),
                         overheadExpenseAccount.getId(),
-                        batchLaborCost,
-                        batchOverheadCost,
-                        request.notes() != null ? request.notes() : "Cost Allocation"
+                        journalLabor,
+                        journalOverhead,
+                        request.notes() != null ? request.notes() : "Cost variance allocation"
                 );
 
                 if (journalEntry != null) {
@@ -187,9 +209,9 @@ public class CostAllocationService {
         }
 
         String summary = String.format(
-                "Allocated %s in labor and %s in overhead across %d batches (%.2f liters)",
-                request.laborCost(),
-                request.overheadCost(),
+                "Allocated variance labor=%s overhead=%s across %d batches (%.2f liters)",
+                laborVariance,
+                overheadVariance,
                 batches.size(),
                 totalLitersProduced
         );
@@ -199,9 +221,9 @@ public class CostAllocationService {
                 request.month(),
                 batches.size(),
                 totalLitersProduced,
-                request.laborCost(),
-                request.overheadCost(),
-                costPerLiter,
+                laborVariance,
+                overheadVariance,
+                variancePerLiter,
                 journalEntryIds,
                 summary
         );

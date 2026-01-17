@@ -517,6 +517,105 @@ public class AccountingFacade {
     }
 
     /**
+     * Post labor/overhead applied journal entry (Dr WIP / Cr Labor Applied, Cr Overhead Applied).
+     *
+     * @param productionCode      the production log code
+     * @param entryDate           the journal entry date
+     * @param wipAccountId        the WIP account ID
+     * @param laborAppliedAccountId    the labor applied account ID
+     * @param overheadAppliedAccountId the overhead applied account ID
+     * @param laborCost           the labor cost to apply
+     * @param overheadCost        the overhead cost to apply
+     * @return the created journal entry DTO
+     */
+    @Transactional(isolation = Isolation.REPEATABLE_READ)
+    @Retryable(value = OptimisticLockingFailureException.class, maxAttempts = 3, backoff = @Backoff(delay = 100))
+    public JournalEntryDto postLaborOverheadApplied(String productionCode,
+                                                    LocalDate entryDate,
+                                                    Long wipAccountId,
+                                                    Long laborAppliedAccountId,
+                                                    Long overheadAppliedAccountId,
+                                                    BigDecimal laborCost,
+                                                    BigDecimal overheadCost) {
+        Objects.requireNonNull(productionCode, "Production code is required");
+        Objects.requireNonNull(wipAccountId, "WIP account ID is required");
+
+        BigDecimal laborAmount = laborCost != null ? laborCost : BigDecimal.ZERO;
+        BigDecimal overheadAmount = overheadCost != null ? overheadCost : BigDecimal.ZERO;
+        BigDecimal totalAmount = laborAmount.add(overheadAmount);
+
+        if (totalAmount.compareTo(BigDecimal.ZERO) <= 0) {
+            log.warn("Skipping labor/overhead applied journal for {} - zero amount", productionCode);
+            return null;
+        }
+
+        if (laborAmount.compareTo(BigDecimal.ZERO) > 0 && laborAppliedAccountId == null) {
+            throw new IllegalArgumentException("Labor applied account ID is required");
+        }
+        if (overheadAmount.compareTo(BigDecimal.ZERO) > 0 && overheadAppliedAccountId == null) {
+            throw new IllegalArgumentException("Overhead applied account ID is required");
+        }
+
+        Company company = companyContextService.requireCurrentCompany();
+
+        requireAccountById(company, wipAccountId, "WIP account");
+        if (laborAmount.compareTo(BigDecimal.ZERO) > 0) {
+            requireAccountById(company, laborAppliedAccountId, "Labor applied account");
+        }
+        if (overheadAmount.compareTo(BigDecimal.ZERO) > 0) {
+            requireAccountById(company, overheadAppliedAccountId, "Overhead applied account");
+        }
+
+        String reference = productionCode + "-LABOH";
+        Optional<JournalEntry> existing = journalEntryRepository.findByCompanyAndReferenceNumber(company, reference);
+        if (existing.isPresent()) {
+            log.info("Labor/overhead applied journal already exists for reference: {}", reference);
+            return existing.map(this::toSimpleDto).orElseThrow();
+        }
+
+        List<JournalEntryRequest.JournalLineRequest> lines = new ArrayList<>();
+        String memo = "Labor/overhead applied for " + productionCode;
+
+        lines.add(new JournalEntryRequest.JournalLineRequest(
+                wipAccountId,
+                "WIP labor/overhead " + productionCode,
+                totalAmount,
+                BigDecimal.ZERO));
+
+        if (laborAmount.compareTo(BigDecimal.ZERO) > 0) {
+            lines.add(new JournalEntryRequest.JournalLineRequest(
+                    laborAppliedAccountId,
+                    "Labor applied " + productionCode,
+                    BigDecimal.ZERO,
+                    laborAmount.abs()));
+        }
+
+        if (overheadAmount.compareTo(BigDecimal.ZERO) > 0) {
+            lines.add(new JournalEntryRequest.JournalLineRequest(
+                    overheadAppliedAccountId,
+                    "Overhead applied " + productionCode,
+                    BigDecimal.ZERO,
+                    overheadAmount.abs()));
+        }
+
+        LocalDate postingDate = entryDate != null ? entryDate : companyClock.today(company);
+
+        JournalEntryRequest request = new JournalEntryRequest(
+                reference,
+                postingDate,
+                memo,
+                null,
+                null,
+                Boolean.FALSE,
+                lines);
+
+        log.info("Posting labor/overhead applied journal: reference={}, amount={}",
+                reference, totalAmount);
+
+        return accountingService.createJournalEntry(request);
+    }
+
+    /**
      * Post cost allocation journal entry (Dr Finished Goods / Cr Labor/Overhead Expense).
      *
      * @param batchCode          the batch code for reference
@@ -684,6 +783,126 @@ public class AccountingFacade {
                 lines);
 
         log.info("Posting COGS journal: reference={}, cost={}", reference, cost);
+        return accountingService.createJournalEntry(request);
+    }
+
+    /**
+     * Post variance allocation journal entry (Dr/Cr Finished Goods / Cr/Dr Labor + Overhead Expense).
+     *
+     * @param batchCode              the batch code for reference
+     * @param periodKey              period key (e.g., 202501) for idempotency
+     * @param entryDate              entry date for the journal
+     * @param finishedGoodsAcctId    finished goods inventory account ID
+     * @param laborExpenseAcctId     labor expense account ID
+     * @param overheadExpenseAcctId  overhead expense account ID
+     * @param laborVariance          labor variance amount (actual - applied)
+     * @param overheadVariance       overhead variance amount (actual - applied)
+     * @param notes                  optional notes
+     * @return the created journal entry DTO
+     */
+    @Transactional(isolation = Isolation.REPEATABLE_READ)
+    @Retryable(value = OptimisticLockingFailureException.class, maxAttempts = 3, backoff = @Backoff(delay = 100))
+    public JournalEntryDto postCostVarianceAllocation(String batchCode,
+                                                      String periodKey,
+                                                      LocalDate entryDate,
+                                                      Long finishedGoodsAcctId,
+                                                      Long laborExpenseAcctId,
+                                                      Long overheadExpenseAcctId,
+                                                      BigDecimal laborVariance,
+                                                      BigDecimal overheadVariance,
+                                                      String notes) {
+        Objects.requireNonNull(batchCode, "Batch code is required");
+        Objects.requireNonNull(periodKey, "Period key is required");
+        Objects.requireNonNull(finishedGoodsAcctId, "Finished goods account ID is required");
+        Objects.requireNonNull(laborExpenseAcctId, "Labor expense account ID is required");
+        Objects.requireNonNull(overheadExpenseAcctId, "Overhead expense account ID is required");
+
+        BigDecimal laborAmount = laborVariance != null ? laborVariance : BigDecimal.ZERO;
+        BigDecimal overheadAmount = overheadVariance != null ? overheadVariance : BigDecimal.ZERO;
+        BigDecimal totalAmount = laborAmount.add(overheadAmount);
+
+        boolean hasLabor = laborAmount.compareTo(BigDecimal.ZERO) != 0;
+        boolean hasOverhead = overheadAmount.compareTo(BigDecimal.ZERO) != 0;
+        if (!hasLabor && !hasOverhead) {
+            log.info("Skipping variance allocation journal for {} - zero variance", batchCode);
+            return null;
+        }
+
+        Company company = companyContextService.requireCurrentCompany();
+
+        requireAccountById(company, finishedGoodsAcctId, "Finished goods account");
+        requireAccountById(company, laborExpenseAcctId, "Labor expense account");
+        requireAccountById(company, overheadExpenseAcctId, "Overhead expense account");
+
+        String reference = "CVAR-" + sanitize(batchCode) + "-" + periodKey;
+        Optional<JournalEntry> existing = journalEntryRepository.findByCompanyAndReferenceNumber(company, reference);
+        if (existing.isPresent()) {
+            log.info("Cost variance journal already exists for reference: {}", reference);
+            return existing.map(this::toSimpleDto).orElseThrow();
+        }
+
+        List<JournalEntryRequest.JournalLineRequest> lines = new ArrayList<>();
+        String memo = notes != null ? notes : "Cost variance allocation for " + batchCode;
+
+        if (totalAmount.compareTo(BigDecimal.ZERO) != 0) {
+            BigDecimal absTotal = totalAmount.abs();
+            if (totalAmount.compareTo(BigDecimal.ZERO) > 0) {
+                lines.add(new JournalEntryRequest.JournalLineRequest(
+                        finishedGoodsAcctId,
+                        "Underapplied labor/overhead",
+                        absTotal,
+                        BigDecimal.ZERO));
+            } else {
+                lines.add(new JournalEntryRequest.JournalLineRequest(
+                        finishedGoodsAcctId,
+                        "Overapplied labor/overhead",
+                        BigDecimal.ZERO,
+                        absTotal));
+            }
+        }
+
+        if (laborAmount.compareTo(BigDecimal.ZERO) > 0) {
+            lines.add(new JournalEntryRequest.JournalLineRequest(
+                    laborExpenseAcctId,
+                    "Labor variance allocated",
+                    BigDecimal.ZERO,
+                    laborAmount.abs()));
+        } else if (laborAmount.compareTo(BigDecimal.ZERO) < 0) {
+            lines.add(new JournalEntryRequest.JournalLineRequest(
+                    laborExpenseAcctId,
+                    "Labor variance allocated",
+                    laborAmount.abs(),
+                    BigDecimal.ZERO));
+        }
+
+        if (overheadAmount.compareTo(BigDecimal.ZERO) > 0) {
+            lines.add(new JournalEntryRequest.JournalLineRequest(
+                    overheadExpenseAcctId,
+                    "Overhead variance allocated",
+                    BigDecimal.ZERO,
+                    overheadAmount.abs()));
+        } else if (overheadAmount.compareTo(BigDecimal.ZERO) < 0) {
+            lines.add(new JournalEntryRequest.JournalLineRequest(
+                    overheadExpenseAcctId,
+                    "Overhead variance allocated",
+                    overheadAmount.abs(),
+                    BigDecimal.ZERO));
+        }
+
+        LocalDate postingDate = entryDate != null ? entryDate : companyClock.today(company);
+
+        JournalEntryRequest request = new JournalEntryRequest(
+                reference,
+                postingDate,
+                memo,
+                null,
+                null,
+                Boolean.FALSE,
+                lines);
+
+        log.info("Posting cost variance journal: reference={}, batch={}, amount={}",
+                reference, batchCode, totalAmount);
+
         return accountingService.createJournalEntry(request);
     }
 

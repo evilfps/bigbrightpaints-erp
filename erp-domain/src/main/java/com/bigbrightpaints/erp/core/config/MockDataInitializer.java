@@ -133,6 +133,8 @@ public class MockDataInitializer {
         map.put("GST_PAY", ensureAccount(company, "GST-PAY", "GST Payable", AccountType.LIABILITY, accountRepository));
         map.put("DISC", ensureAccount(company, "DISC", "Discounts", AccountType.EXPENSE, accountRepository));
         map.put("EXP", ensureAccount(company, "EXP", "Expenses", AccountType.EXPENSE, accountRepository));
+        map.put("LABOR", ensureAccount(company, "LABOR", "Direct Labor", AccountType.EXPENSE, accountRepository));
+        map.put("OVERHEAD", ensureAccount(company, "OVERHEAD", "Manufacturing Overhead", AccountType.EXPENSE, accountRepository));
         // WIP accounts for production - mixing and packing stages
         map.put("WIP_MIX", ensureAccount(company, "1170", "Work in Progress - Mixing", AccountType.ASSET, accountRepository));
         map.put("WIP_PACK", ensureAccount(company, "1180", "Work in Progress - Packing", AccountType.ASSET, accountRepository));
@@ -286,6 +288,8 @@ public class MockDataInitializer {
                     metadata.put("fgRevenueAccountId", accounts.get("REV").getId());
                     metadata.put("fgDiscountAccountId", accounts.get("DISC").getId());
                     metadata.put("fgTaxAccountId", accounts.get("GST_OUT").getId());
+                    metadata.put("laborAppliedAccountId", accounts.get("LABOR").getId());
+                    metadata.put("overheadAppliedAccountId", accounts.get("OVERHEAD").getId());
                     product.setMetadata(metadata);
                     return productRepository.save(product);
                 });
