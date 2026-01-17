@@ -294,6 +294,7 @@ public class PackingService {
         batch.setQuantityAvailable(quantity);
         batch.setUnitCost(totalUnitCost);
         batch.setManufacturedAt(log.getProducedAt());
+        batch.setBulk(true);  // Mark as bulk so it can be converted to sized FG via BulkPackingService
         if (semiFinished != null) {
             batch.setParentBatch(semiFinished.batch());
         }

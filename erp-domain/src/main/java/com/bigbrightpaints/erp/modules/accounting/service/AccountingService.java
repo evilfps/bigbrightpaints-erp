@@ -33,6 +33,7 @@ import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatch;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatchRepository;
 import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchaseRepository;
 import jakarta.persistence.EntityManager;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.context.ApplicationEventPublisher;
@@ -99,6 +100,13 @@ public class AccountingService {
     private final EntityManager entityManager;
     private final SystemSettingsService systemSettingsService;
     private final AuditService auditService;
+
+    /**
+     * When true, disables date validation for benchmark mode.
+     * This allows posting entries with any date regardless of past/future constraints.
+     */
+    @Value("${erp.benchmark.skip-date-validation:false}")
+    private boolean skipDateValidation;
 
     public AccountingService(CompanyContextService companyContextService,
                              AccountRepository accountRepository,
@@ -1767,6 +1775,10 @@ public class AccountingService {
     private void validateEntryDate(Company company, LocalDate entryDate, boolean overrideRequested, boolean overrideAuthorized) {
         if (entryDate == null) {
             throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT, "Entry date is required");
+        }
+        // Skip date validation in benchmark mode
+        if (skipDateValidation) {
+            return;
         }
         LocalDate today = currentDate(company);
         LocalDate oldestAllowed = today.minusDays(30);

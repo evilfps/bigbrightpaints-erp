@@ -70,9 +70,11 @@ public class MockDataInitializer {
             Dealer dealer = seedDealer(company, dealerRepository, accounts.get("AR"));
             Supplier supplier = seedSupplier(company, supplierRepository, accounts.get("AP"));
             ProductionBrand brand = seedBrand(company, brandRepository);
-            FinishedGood fg = seedFinishedGood(company, finishedGoodRepository, productRepository, accounts, brand, "FG-GST", "FIFO");
-            FinishedGood fgLifo = seedFinishedGood(company, finishedGoodRepository, productRepository, accounts, brand, "FG-LIFO", "LIFO");
-            FinishedGood fgKit = seedFinishedGood(company, finishedGoodRepository, productRepository, accounts, brand, "FG-KIT", "FIFO");
+            // Use WIP_PACK (1180) for finished goods that go through packing stage
+            Account wipPackAccount = accounts.get("WIP_PACK");
+            FinishedGood fg = seedFinishedGood(company, finishedGoodRepository, productRepository, accounts, brand, "FG-GST", "FIFO", wipPackAccount);
+            FinishedGood fgLifo = seedFinishedGood(company, finishedGoodRepository, productRepository, accounts, brand, "FG-LIFO", "LIFO", wipPackAccount);
+            FinishedGood fgKit = seedFinishedGood(company, finishedGoodRepository, productRepository, accounts, brand, "FG-KIT", "FIFO", wipPackAccount);
             seedRawMaterials(company, rawMaterialRepository, rawMaterialBatchRepository, accounts);
             seedBatches(batchRepository, finishedGoodRepository, fg, fgLifo, fgKit);
 
@@ -131,6 +133,9 @@ public class MockDataInitializer {
         map.put("GST_PAY", ensureAccount(company, "GST-PAY", "GST Payable", AccountType.LIABILITY, accountRepository));
         map.put("DISC", ensureAccount(company, "DISC", "Discounts", AccountType.EXPENSE, accountRepository));
         map.put("EXP", ensureAccount(company, "EXP", "Expenses", AccountType.EXPENSE, accountRepository));
+        // WIP accounts for production - mixing and packing stages
+        map.put("WIP_MIX", ensureAccount(company, "1170", "Work in Progress - Mixing", AccountType.ASSET, accountRepository));
+        map.put("WIP_PACK", ensureAccount(company, "1180", "Work in Progress - Packing", AccountType.ASSET, accountRepository));
 
         company.setGstInputTaxAccountId(map.get("GST_IN").getId());
         company.setGstOutputTaxAccountId(map.get("GST_OUT").getId());
@@ -238,7 +243,8 @@ public class MockDataInitializer {
                                           Map<String, Account> accounts,
                                           ProductionBrand brand,
                                           String sku,
-                                          String costingMethod) {
+                                          String costingMethod,
+                                          Account wipAccount) {
         FinishedGood fg = finishedGoodRepository.findByCompanyAndProductCode(company, sku)
                 .orElseGet(() -> {
                     FinishedGood f = new FinishedGood();
@@ -268,6 +274,19 @@ public class MockDataInitializer {
                     product.setGstRate(new BigDecimal("18.00"));
                     product.setMinDiscountPercent(BigDecimal.ZERO);
                     product.setMinSellingPrice(BigDecimal.ZERO);
+                    // Set metadata for production log journal entries
+                    Map<String, Object> metadata = new HashMap<>();
+                    // WIP account for production
+                    metadata.put("wipAccountId", wipAccount.getId());
+                    // Semi-finished goods use the same INV account
+                    metadata.put("semiFinishedAccountId", accounts.get("INV").getId());
+                    // Finished good account references (for semi-finished FG creation)
+                    metadata.put("fgValuationAccountId", accounts.get("INV").getId());
+                    metadata.put("fgCogsAccountId", accounts.get("COGS").getId());
+                    metadata.put("fgRevenueAccountId", accounts.get("REV").getId());
+                    metadata.put("fgDiscountAccountId", accounts.get("DISC").getId());
+                    metadata.put("fgTaxAccountId", accounts.get("GST_OUT").getId());
+                    product.setMetadata(metadata);
                     return productRepository.save(product);
                 });
         return fg;

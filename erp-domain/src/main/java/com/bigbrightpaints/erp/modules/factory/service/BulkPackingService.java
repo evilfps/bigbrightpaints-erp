@@ -185,6 +185,7 @@ public class BulkPackingService {
     /**
      * List available bulk batches for a finished good.
      */
+    @Transactional
     public List<BulkPackResponse.ChildBatchDto> listBulkBatches(Long finishedGoodId) {
         Company company = companyContextService.requireCurrentCompany();
         FinishedGood fg = finishedGoodRepository.findByCompanyAndId(company, finishedGoodId)
@@ -199,6 +200,7 @@ public class BulkPackingService {
     /**
      * List child batches created from a parent bulk batch.
      */
+    @Transactional
     public List<BulkPackResponse.ChildBatchDto> listChildBatches(Long parentBatchId) {
         Company company = companyContextService.requireCurrentCompany();
         FinishedGoodBatch parentBatch = finishedGoodBatchRepository.findById(parentBatchId)

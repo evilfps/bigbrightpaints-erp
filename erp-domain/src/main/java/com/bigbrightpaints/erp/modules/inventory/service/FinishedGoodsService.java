@@ -1,5 +1,6 @@
 package com.bigbrightpaints.erp.modules.inventory.service;
 
+import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.inventory.domain.*;
@@ -41,6 +42,7 @@ public class FinishedGoodsService {
     private final SalesOrderRepository salesOrderRepository;
     private final CompanyDefaultAccountsService companyDefaultAccountsService;
     private final org.springframework.context.ApplicationEventPublisher eventPublisher;
+    private final CompanyClock companyClock;
     private final Map<Long, CachedWac> wacCache = new ConcurrentHashMap<>();
     private static final long WAC_CACHE_MILLIS = 5 * 60 * 1000; // 5 minutes TTL
 
@@ -53,7 +55,8 @@ public class FinishedGoodsService {
                                 BatchNumberService batchNumberService,
                                 SalesOrderRepository salesOrderRepository,
                                 CompanyDefaultAccountsService companyDefaultAccountsService,
-                                org.springframework.context.ApplicationEventPublisher eventPublisher) {
+                                org.springframework.context.ApplicationEventPublisher eventPublisher,
+                                CompanyClock companyClock) {
         this.companyContextService = companyContextService;
         this.finishedGoodRepository = finishedGoodRepository;
         this.finishedGoodBatchRepository = finishedGoodBatchRepository;
@@ -64,6 +67,7 @@ public class FinishedGoodsService {
         this.salesOrderRepository = salesOrderRepository;
         this.companyDefaultAccountsService = companyDefaultAccountsService;
         this.eventPublisher = eventPublisher;
+        this.companyClock = companyClock;
     }
 
     public List<FinishedGoodDto> listFinishedGoods() {
@@ -505,7 +509,7 @@ public class FinishedGoodsService {
                 slip.setStatus("PARTIAL");
             }
             if (slip.getDispatchedAt() == null) {
-                slip.setDispatchedAt(Instant.now());
+                slip.setDispatchedAt(companyClock.now(slip.getCompany()));
             }
         } else {
             slip.setStatus(anyPending ? "PENDING_STOCK" : slip.getStatus());
@@ -736,8 +740,9 @@ public class FinishedGoodsService {
         hasBackorder = totalBackorder.compareTo(BigDecimal.ZERO) > 0;
         // Update slip status (always dispatched; backorders are tracked on a new slip)
         slip.setStatus("DISPATCHED");
-        slip.setDispatchedAt(Instant.now());
-        slip.setConfirmedAt(Instant.now());
+        Instant now = companyClock.now(company);
+        slip.setDispatchedAt(now);
+        slip.setConfirmedAt(now);
         slip.setConfirmedBy(username);
         slip.setDispatchNotes(request.notes());
         packagingSlipRepository.save(slip);
