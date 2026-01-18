@@ -13,8 +13,8 @@ explicit completion note exists.
 
 | LF | Evidence folder | Commit signals | Status |
 | --- | --- | --- | --- |
-| LF-001 | `tasks/erp_logic_audit/EVIDENCE_QUERIES/lf-001` | Audit log company resolution + auth login audit events; `AuthAuditIT` | Fixed (pending commit) |
-| LF-007 | `tasks/erp_logic_audit/EVIDENCE_QUERIES/lf-007` | Payroll idempotency scoped per company; `PayrollRunIdempotencyIT` | Fixed (pending commit) |
+| LF-001 | `tasks/erp_logic_audit/EVIDENCE_QUERIES/lf-001` | Audit log company resolution + auth login audit events; `AuthAuditIT` | Fixed |
+| LF-007 | `tasks/erp_logic_audit/EVIDENCE_QUERIES/lf-007` | Payroll idempotency scoped per company; `PayrollRunIdempotencyIT` | Fixed |
 | LF-008 | `tasks/erp_logic_audit/EVIDENCE_QUERIES/lf-008` | none found in commit messages | Evidence-only |
 | LF-009 | `tasks/erp_logic_audit/EVIDENCE_QUERIES/lf-009` | none found in commit messages | Evidence-only |
 | LF-011 | none | `73afde4` Fix LF-011 GST config health and validation; `a863715` LF-011..LF-015: mark fixed and log gates | Likely fixed |
