@@ -1,6 +1,8 @@
 package com.bigbrightpaints.erp.modules.auth.service;
 
 import com.bigbrightpaints.erp.core.notification.EmailService;
+import com.bigbrightpaints.erp.core.audit.AuditEvent;
+import com.bigbrightpaints.erp.core.audit.AuditService;
 import com.bigbrightpaints.erp.core.security.JwtProperties;
 import com.bigbrightpaints.erp.core.security.JwtTokenService;
 import com.bigbrightpaints.erp.core.security.TokenBlacklistService;
@@ -44,6 +46,7 @@ public class AuthService {
     private final PasswordService passwordService;
     private final EmailService emailService;
     private final TokenBlacklistService tokenBlacklistService;
+    private final AuditService auditService;
 
     public AuthService(AuthenticationManager authenticationManager,
                        JwtTokenService tokenService,
@@ -54,7 +57,8 @@ public class AuthService {
                        MfaService mfaService,
                        PasswordService passwordService,
                        EmailService emailService,
-                       TokenBlacklistService tokenBlacklistService) {
+                       TokenBlacklistService tokenBlacklistService,
+                       AuditService auditService) {
         this.authenticationManager = authenticationManager;
         this.tokenService = tokenService;
         this.refreshTokenService = refreshTokenService;
@@ -65,19 +69,23 @@ public class AuthService {
         this.passwordService = passwordService;
         this.emailService = emailService;
         this.tokenBlacklistService = tokenBlacklistService;
+        this.auditService = auditService;
     }
 
     public AuthResponse login(LoginRequest request) {
-        UserAccount user = userAccountRepository.findByEmailIgnoreCase(request.email())
-                .orElseThrow(() -> new IllegalArgumentException("Invalid credentials"));
-        enforceLock(user);
+        UserAccount user = null;
         try {
+            user = userAccountRepository.findByEmailIgnoreCase(request.email())
+                    .orElseThrow(() -> new IllegalArgumentException("Invalid credentials"));
+            enforceLock(user);
             Authentication authentication = authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(request.email(), request.password()));
             UserPrincipal principal = (UserPrincipal) authentication.getPrincipal();
             Company company = resolveCompanyForUser(principal.getUser(), request.companyCode());
             mfaService.verifyDuringLogin(principal.getUser(), request.mfaCode(), request.recoveryCode());
             resetLock(user);
+            auditService.logAuthSuccess(AuditEvent.LOGIN_SUCCESS, user.getEmail(),
+                    company.getCode(), Map.of("companyCode", company.getCode()));
             Map<String, Object> claims = new HashMap<>();
             claims.put("name", principal.getUser().getDisplayName());
             String accessToken = tokenService.generateAccessToken(principal.getUsername(), company.getCode(), claims);
@@ -86,7 +94,19 @@ public class AuthService {
             return new AuthResponse("Bearer", accessToken, refreshToken, properties.getAccessTokenTtlSeconds(),
                     company.getCode(), principal.getUser().getDisplayName(), user.isMustChangePassword());
         } catch (AuthenticationException ex) {
-            registerFailure(user);
+            if (user != null) {
+                registerFailure(user);
+            }
+            auditService.logAuthFailure(AuditEvent.LOGIN_FAILURE, request.email(),
+                    request.companyCode(), Map.of("reason", "Authentication failed"));
+            throw ex;
+        } catch (RuntimeException ex) {
+            String reason = ex.getMessage();
+            if (reason == null || reason.isBlank()) {
+                reason = "Login failed";
+            }
+            auditService.logAuthFailure(AuditEvent.LOGIN_FAILURE, request.email(),
+                    request.companyCode(), Map.of("reason", reason));
             throw ex;
         }
     }

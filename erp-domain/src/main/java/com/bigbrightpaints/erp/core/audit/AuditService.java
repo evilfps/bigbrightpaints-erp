@@ -1,6 +1,8 @@
 package com.bigbrightpaints.erp.core.audit;
 
 import com.bigbrightpaints.erp.core.security.CompanyContextHolder;
+import com.bigbrightpaints.erp.modules.company.domain.Company;
+import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,6 +31,8 @@ public class AuditService {
 
     @Autowired
     private AuditLogRepository auditLogRepository;
+    @Autowired
+    private CompanyRepository companyRepository;
 
     /**
      * Logs an audit event with full context.
@@ -36,6 +40,23 @@ public class AuditService {
     @Async
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void logEvent(AuditEvent event, AuditStatus status, Map<String, String> metadata) {
+        logEventInternal(event, status, metadata, null, null);
+    }
+
+    @Async
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void logAuthSuccess(AuditEvent event, String username, String companyCode, Map<String, String> metadata) {
+        logEventInternal(event, AuditStatus.SUCCESS, metadata, username, companyCode);
+    }
+
+    @Async
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void logAuthFailure(AuditEvent event, String username, String companyCode, Map<String, String> metadata) {
+        logEventInternal(event, AuditStatus.FAILURE, metadata, username, companyCode);
+    }
+
+    private void logEventInternal(AuditEvent event, AuditStatus status, Map<String, String> metadata,
+                                  String usernameOverride, String companyCodeOverride) {
         try {
             AuditLog.Builder builder = new AuditLog.Builder()
                 .eventType(event)
@@ -43,24 +64,29 @@ public class AuditService {
                 .timestamp(LocalDateTime.now());
 
             // Add user context
-            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-            if (auth != null && auth.isAuthenticated()) {
-                builder.username(auth.getName());
-                if (auth.getPrincipal() != null) {
-                    // Extract user ID if available
-                    builder.userId(auth.getName());
+            if (usernameOverride != null && !usernameOverride.isBlank()) {
+                builder.username(usernameOverride);
+                builder.userId(usernameOverride);
+            } else {
+                Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+                if (auth != null && auth.isAuthenticated()) {
+                    builder.username(auth.getName());
+                    if (auth.getPrincipal() != null) {
+                        // Extract user ID if available
+                        builder.userId(auth.getName());
+                    }
                 }
             }
 
             // Add company context
-            String companyIdStr = CompanyContextHolder.getCompanyId();
-            if (companyIdStr != null) {
-                try {
-                    Long companyId = Long.parseLong(companyIdStr);
-                    builder.companyId(companyId);
-                } catch (NumberFormatException e) {
-                    logger.warn("Invalid company ID format: {}", companyIdStr);
-                }
+            String companyIdStr = (companyCodeOverride != null && !companyCodeOverride.isBlank())
+                    ? companyCodeOverride
+                    : CompanyContextHolder.getCompanyId();
+            Long companyId = resolveCompanyId(companyIdStr);
+            if (companyId != null) {
+                builder.companyId(companyId);
+            } else if (companyIdStr != null) {
+                logger.warn("Invalid company ID format: {}", companyIdStr);
             }
 
             // Add request context
@@ -98,6 +124,18 @@ public class AuditService {
         } catch (Exception e) {
             // Don't let audit logging failures impact the main application
             logger.error("Failed to log audit event: {} - Status: {}", event, status, e);
+        }
+    }
+
+    private Long resolveCompanyId(String companyToken) {
+        if (companyToken == null || companyToken.isBlank()) {
+            return null;
+        }
+        try {
+            return Long.parseLong(companyToken);
+        } catch (NumberFormatException e) {
+            Company company = companyRepository.findByCodeIgnoreCase(companyToken).orElse(null);
+            return company != null ? company.getId() : null;
         }
     }
 
