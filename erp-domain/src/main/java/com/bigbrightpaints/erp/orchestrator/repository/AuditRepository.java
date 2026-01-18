@@ -6,4 +6,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface AuditRepository extends JpaRepository<AuditRecord, UUID> {
     List<AuditRecord> findByTraceIdOrderByTimestampAsc(String traceId);
+
+    List<AuditRecord> findByTraceIdAndCompanyIdOrderByTimestampAsc(String traceId, Long companyId);
 }

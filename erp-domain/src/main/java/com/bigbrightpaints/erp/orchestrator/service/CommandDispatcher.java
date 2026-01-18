@@ -53,7 +53,7 @@ public class CommandDispatcher {
                     "approvedBy", request.approvedBy(),
                     "totalAmount", request.totalAmount()));
         eventPublisherService.enqueue(event);
-        traceService.record(traceId, "ORDER_APPROVED", Map.of("orderId", request.orderId()));
+        traceService.record(traceId, "ORDER_APPROVED", companyId, Map.of("orderId", request.orderId()));
         return traceId;
     }
 
@@ -74,7 +74,7 @@ public class CommandDispatcher {
                         "awaitingProduction", result.awaitingProduction(),
                         "totalAmount", totalAmount));
         eventPublisherService.enqueue(event);
-        traceService.record(traceId, "ORDER_AUTO_APPROVED", Map.of("orderId", orderId));
+        traceService.record(traceId, "ORDER_AUTO_APPROVED", companyId, Map.of("orderId", orderId));
         return traceId;
     }
 
@@ -89,7 +89,7 @@ public class CommandDispatcher {
                         "awaitingProduction", result.awaitingProduction(),
                         "notes", request.notes()));
         eventPublisherService.enqueue(event);
-        traceService.record(traceId, "ORDER_FULFILLMENT_UPDATED", Map.of("orderId", orderId, "status", request.status()));
+        traceService.record(traceId, "ORDER_FULFILLMENT_UPDATED", companyId, Map.of("orderId", orderId, "status", request.status()));
         return traceId;
     }
 
@@ -109,7 +109,7 @@ public class CommandDispatcher {
         DomainEvent event = DomainEvent.of("ProductionBatchDispatchedEvent", companyId, userId, "Batch",
             request.batchId(), Map.of("dispatchedBy", request.requestedBy()));
         eventPublisherService.enqueue(event);
-        traceService.record(traceId, "BATCH_DISPATCHED", Map.of("batchId", request.batchId()));
+        traceService.record(traceId, "BATCH_DISPATCHED", companyId, Map.of("batchId", request.batchId()));
         return traceId;
     }
 
@@ -131,7 +131,7 @@ public class CommandDispatcher {
         DomainEvent event = DomainEvent.of("PayrollCompletedEvent", companyId, userId, "Payroll",
             request.payrollDate().toString(), Map.of("initiatedBy", request.initiatedBy()));
         eventPublisherService.enqueue(event);
-        traceService.record(traceId, "PAYROLL_COMPLETED", Map.of("payrollDate", request.payrollDate()));
+        traceService.record(traceId, "PAYROLL_COMPLETED", companyId, Map.of("payrollDate", request.payrollDate()));
         return traceId;
     }
 

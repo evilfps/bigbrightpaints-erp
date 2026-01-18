@@ -28,6 +28,9 @@ public class AuditRecord extends VersionedEntity {
     @Column(nullable = false)
     private Instant timestamp;
 
+    @Column(name = "company_id")
+    private Long companyId;
+
     @Lob
     @Column(nullable = false)
     private String details;
@@ -35,11 +38,12 @@ public class AuditRecord extends VersionedEntity {
     protected AuditRecord() {
     }
 
-    public AuditRecord(String traceId, String eventType, Instant timestamp, String details) {
+    public AuditRecord(String traceId, String eventType, Instant timestamp, String details, Long companyId) {
         this.traceId = traceId;
         this.eventType = eventType;
         this.timestamp = timestamp;
         this.details = details;
+        this.companyId = companyId;
     }
 
     public UUID getId() {
@@ -56,6 +60,10 @@ public class AuditRecord extends VersionedEntity {
 
     public Instant getTimestamp() {
         return timestamp;
+    }
+
+    public Long getCompanyId() {
+        return companyId;
     }
 
     public String getDetails() {

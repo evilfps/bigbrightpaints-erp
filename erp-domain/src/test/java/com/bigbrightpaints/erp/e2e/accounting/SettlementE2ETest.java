@@ -77,7 +77,7 @@ public class SettlementE2ETest extends AbstractIntegrationTest {
         dealer = ensureDealer();
         invoice = ensureInvoice();
         headers = authHeaders();
-        seedInvoicePosting();
+        seedInvoicePosting(invoice);
     }
 
     private HttpHeaders authHeaders() {
@@ -141,23 +141,24 @@ public class SettlementE2ETest extends AbstractIntegrationTest {
     /**
      * Seed a posted journal for the invoice to establish AR balance (Dr AR, Cr Revenue).
      */
-    private void seedInvoicePosting() {
+    private void seedInvoicePosting(Invoice target) {
+        BigDecimal amount = target.getTotalAmount() != null ? target.getTotalAmount() : BigDecimal.ZERO;
         Map<String, Object> arLine = Map.of(
                 "accountId", ar.getId(),
                 "description", "Invoice AR",
-                "debit", new BigDecimal("800.00"),
+                "debit", amount,
                 "credit", BigDecimal.ZERO
         );
         Map<String, Object> revLine = Map.of(
                 "accountId", revenue.getId(),
                 "description", "Revenue",
                 "debit", BigDecimal.ZERO,
-                "credit", new BigDecimal("800.00")
+                "credit", amount
         );
 
         Map<String, Object> payload = Map.of(
                 "entryDate", LocalDate.now(),
-                "referenceNumber", "INV-JE-" + System.currentTimeMillis(),
+                "referenceNumber", "INV-JE-" + target.getInvoiceNumber(),
                 "memo", "Seed invoice posting",
                 "dealerId", dealer.getId(),
                 "lines", List.of(arLine, revLine)
@@ -290,5 +291,50 @@ public class SettlementE2ETest extends AbstractIntegrationTest {
 
         List<PartnerSettlementAllocation> rows = allocationRepository.findByCompanyAndIdempotencyKey(company, idemKey);
         assertThat(rows).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("Dealer settlement idempotency allows multiple allocations per key")
+    void dealerSettlement_Idempotent_MultiAllocation() {
+        Invoice second = ensureInvoice();
+        dealer.setOutstandingBalance(new BigDecimal("1600.00"));
+        dealerRepository.save(dealer);
+        seedInvoicePosting(second);
+
+        String idemKey = "SETTLE-IDEM-MULTI-" + System.nanoTime();
+        Map<String, Object> allocationA = Map.of(
+                "invoiceId", invoice.getId(),
+                "appliedAmount", new BigDecimal("800.00")
+        );
+        Map<String, Object> allocationB = Map.of(
+                "invoiceId", second.getId(),
+                "appliedAmount", new BigDecimal("800.00")
+        );
+        Map<String, Object> payload = Map.of(
+                "dealerId", dealer.getId(),
+                "cashAccountId", cash.getId(),
+                "allocations", List.of(allocationA, allocationB),
+                "idempotencyKey", idemKey
+        );
+
+        ResponseEntity<Map> first = rest.exchange(
+                "/api/v1/accounting/settlements/dealers",
+                HttpMethod.POST,
+                new HttpEntity<>(payload, headers),
+                Map.class);
+        assertThat(first.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+        List<PartnerSettlementAllocation> rows = allocationRepository.findByCompanyAndIdempotencyKey(company, idemKey);
+        assertThat(rows).hasSize(2);
+
+        ResponseEntity<Map> secondCall = rest.exchange(
+                "/api/v1/accounting/settlements/dealers",
+                HttpMethod.POST,
+                new HttpEntity<>(payload, headers),
+                Map.class);
+        assertThat(secondCall.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+        rows = allocationRepository.findByCompanyAndIdempotencyKey(company, idemKey);
+        assertThat(rows).hasSize(2);
     }
 }

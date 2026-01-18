@@ -95,6 +95,7 @@ public class OrchestratorController {
     }
 
     @GetMapping("/traces/{traceId}")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<Map<String, Object>> trace(@PathVariable String traceId) {
         return ResponseEntity.ok(Map.of("traceId", traceId, "events", traceService.getTrace(traceId)));
     }
