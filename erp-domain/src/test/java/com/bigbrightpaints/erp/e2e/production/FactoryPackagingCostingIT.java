@@ -9,8 +9,12 @@ import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
 import com.bigbrightpaints.erp.modules.accounting.service.CompanyDefaultAccountsService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
+import com.bigbrightpaints.erp.modules.factory.domain.PackingRecord;
+import com.bigbrightpaints.erp.modules.factory.domain.PackingRecordRepository;
 import com.bigbrightpaints.erp.modules.factory.domain.PackagingSizeMapping;
 import com.bigbrightpaints.erp.modules.factory.domain.PackagingSizeMappingRepository;
+import com.bigbrightpaints.erp.modules.factory.domain.ProductionLog;
+import com.bigbrightpaints.erp.modules.factory.domain.ProductionLogRepository;
 import com.bigbrightpaints.erp.modules.factory.dto.PackingLineRequest;
 import com.bigbrightpaints.erp.modules.factory.dto.PackingRequest;
 import com.bigbrightpaints.erp.modules.factory.dto.ProductionLogDetailDto;
@@ -76,8 +80,10 @@ public class FactoryPackagingCostingIT extends AbstractIntegrationTest {
     @Autowired private RawMaterialRepository rawMaterialRepository;
     @Autowired private RawMaterialBatchRepository rawMaterialBatchRepository;
     @Autowired private PackagingSizeMappingRepository packagingSizeMappingRepository;
+    @Autowired private ProductionLogRepository productionLogRepository;
     @Autowired private ProductionLogService productionLogService;
     @Autowired private PackingService packingService;
+    @Autowired private PackingRecordRepository packingRecordRepository;
     @Autowired private FinishedGoodRepository finishedGoodRepository;
     @Autowired private FinishedGoodBatchRepository finishedGoodBatchRepository;
     @Autowired private InventoryMovementRepository inventoryMovementRepository;
@@ -199,6 +205,14 @@ public class FactoryPackagingCostingIT extends AbstractIntegrationTest {
         BigDecimal expectedUnitCost = fgBatch.getUnitCost(); // 55 production + 2.5 packaging = 57.5 per liter
         assertThat(expectedUnitCost).isEqualByComparingTo(new BigDecimal("57.5000"));
 
+        ProductionLog storedLog = productionLogRepository.findById(log.id()).orElseThrow();
+        PackingRecord packingRecord = packingRecordRepository
+                .findByCompanyAndProductionLogOrderByPackedDateAscIdAsc(company, storedLog)
+                .stream()
+                .findFirst()
+                .orElseThrow();
+        String packagingReference = productionCode + "-PACK-" + packingRecord.getId();
+
         JournalEntry rmJournal = requireJournal(company, productionCode + "-RM");
         assertBalanced(rmJournal);
         assertLineAmount(rmJournal, wip.getId(), new BigDecimal("5500.00"), false);
@@ -209,7 +223,7 @@ public class FactoryPackagingCostingIT extends AbstractIntegrationTest {
         assertLineAmount(semiFinishedJournal, fgInventory.getId(), new BigDecimal("5500.00"), false);
         assertLineAmount(semiFinishedJournal, wip.getId(), new BigDecimal("5500.00"), true);
 
-        JournalEntry packagingJournal = requireJournal(company, productionCode + "-PACK-1-PACKMAT");
+        JournalEntry packagingJournal = requireJournal(company, packagingReference + "-PACKMAT");
         assertBalanced(packagingJournal);
         assertLineAmount(packagingJournal, wip.getId(), new BigDecimal("250.00"), false);
         assertLineAmount(packagingJournal, packagingInventory.getId(), new BigDecimal("250.00"), true);
@@ -231,7 +245,6 @@ public class FactoryPackagingCostingIT extends AbstractIntegrationTest {
         assertThat(rmMovements).isNotEmpty();
         assertThat(rmMovements).allMatch(movement -> rmJournal.getId().equals(movement.getJournalEntryId()));
 
-        String packagingReference = productionCode + "-PACK-1";
         List<RawMaterialMovement> packagingMovements = rawMaterialMovementRepository
                 .findByReferenceTypeAndReferenceId(InventoryReference.PACKING_RECORD, packagingReference);
         assertThat(packagingMovements).isNotEmpty();

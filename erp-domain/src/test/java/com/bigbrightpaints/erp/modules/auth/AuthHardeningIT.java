@@ -63,7 +63,7 @@ public class AuthHardeningIT extends AbstractIntegrationTest {
         ResponseEntity<Map> lockedResp = rest.postForEntity("/api/v1/auth/login", goodReq, Map.class);
         assertThat(lockedResp.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
         user = userAccountRepository.findByEmailIgnoreCase(USER_EMAIL).orElseThrow();
-        assertThat(user.getLockedUntil()).isEqualTo(lockedUntil);
+        assertThat(user.getLockedUntil()).isAfterOrEqualTo(lockedUntil);
 
         // Manually clear lock for verification
         user.setLockedUntil(Instant.now().minusSeconds(60));

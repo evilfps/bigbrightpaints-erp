@@ -5,12 +5,15 @@ import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
+import com.bigbrightpaints.erp.modules.factory.domain.PackagingSizeMapping;
+import com.bigbrightpaints.erp.modules.factory.domain.PackagingSizeMappingRepository;
 import com.bigbrightpaints.erp.modules.factory.domain.ProductionLog;
 import com.bigbrightpaints.erp.modules.factory.domain.ProductionLogRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGood;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatch;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatchRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodRepository;
+import com.bigbrightpaints.erp.modules.inventory.domain.MaterialType;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterial;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatch;
@@ -55,9 +58,11 @@ public class CompleteProductionCycleTest extends AbstractIntegrationTest {
     @Autowired private FinishedGoodBatchRepository finishedGoodBatchRepository;
     @Autowired private RawMaterialBatchRepository rawMaterialBatchRepository;
     @Autowired private AccountRepository accountRepository;
+    @Autowired private PackagingSizeMappingRepository packagingSizeMappingRepository;
 
     private String authToken;
     private HttpHeaders headers;
+    private Company company;
 
     @BeforeEach
     void setup() {
@@ -65,7 +70,9 @@ public class CompleteProductionCycleTest extends AbstractIntegrationTest {
                 List.of("ROLE_ADMIN", "ROLE_FACTORY"));
         authToken = login();
         headers = createHeaders(authToken);
-        ensureTestAccounts();
+        company = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();
+        ensureTestAccounts(company);
+        ensurePackagingMappings(company);
     }
 
     private String login() {
@@ -86,10 +93,10 @@ public class CompleteProductionCycleTest extends AbstractIntegrationTest {
         return h;
     }
 
-    private void ensureTestAccounts() {
-        Company company = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();
+    private void ensureTestAccounts(Company company) {
         ensureAccount(company, "INV-RM", "Raw Material Inventory", AccountType.ASSET);
         ensureAccount(company, "INV-FG", "Finished Goods Inventory", AccountType.ASSET);
+        ensureAccount(company, "INV-PACK", "Packaging Inventory", AccountType.ASSET);
         ensureAccount(company, "WIP", "Work in Progress", AccountType.ASSET);
         ensureAccount(company, "COGS", "Cost of Goods Sold", AccountType.COGS);
         ensureAccount(company, "REV-FG", "Finished Goods Revenue", AccountType.REVENUE);
@@ -490,6 +497,75 @@ public class CompleteProductionCycleTest extends AbstractIntegrationTest {
                     rawMaterialBatchRepository.save(batch);
                     return saved;
                 });
+    }
+
+    private void ensurePackagingMappings(Company company) {
+        ensurePackagingMapping(company, "10L BUCKET", "PACK-10L-BUCKET", "10L Bucket", new BigDecimal("10"));
+        ensurePackagingMapping(company, "5L CAN", "PACK-5L-CAN", "5L Can", new BigDecimal("5"));
+        ensurePackagingMapping(company, "10L", "PACK-10L", "10L Pack", new BigDecimal("10"));
+        ensurePackagingMapping(company, "5L", "PACK-5L", "5L Pack", new BigDecimal("5"));
+    }
+
+    private void ensurePackagingMapping(Company company, String size, String sku, String name, BigDecimal litersPerUnit) {
+        List<PackagingSizeMapping> existing = packagingSizeMappingRepository
+                .findActiveByCompanyAndPackagingSizeIgnoreCase(company, size);
+        if (!existing.isEmpty()) {
+            Long materialId = existing.get(0).getRawMaterial().getId();
+            RawMaterial material = rawMaterialRepository.findById(materialId).orElseThrow();
+            topUpPackagingMaterial(material, new BigDecimal("1000"), new BigDecimal("1.50"));
+            return;
+        }
+        RawMaterial material = ensurePackagingMaterial(company, sku, name, new BigDecimal("1000"), new BigDecimal("1.50"));
+        PackagingSizeMapping mapping = new PackagingSizeMapping();
+        mapping.setCompany(company);
+        mapping.setPackagingSize(size);
+        mapping.setRawMaterial(material);
+        mapping.setUnitsPerPack(1);
+        mapping.setLitersPerUnit(litersPerUnit);
+        mapping.setActive(true);
+        packagingSizeMappingRepository.save(mapping);
+    }
+
+    private RawMaterial ensurePackagingMaterial(Company company, String sku, String name,
+                                                BigDecimal quantity, BigDecimal unitCost) {
+        Account packagingAccount = accountRepository.findByCompanyAndCodeIgnoreCase(company, "INV-PACK")
+                .orElseThrow();
+        RawMaterial material = rawMaterialRepository.findByCompanyAndSku(company, sku)
+                .orElseGet(() -> {
+                    RawMaterial rm = new RawMaterial();
+                    rm.setCompany(company);
+                    rm.setSku(sku);
+                    rm.setName(name);
+                    rm.setUnitType("UNIT");
+                    rm.setMaterialType(MaterialType.PACKAGING);
+                    rm.setInventoryAccountId(packagingAccount.getId());
+                    rm.setCurrentStock(BigDecimal.ZERO);
+                    return rawMaterialRepository.save(rm);
+                });
+
+        if (material.getInventoryAccountId() == null) {
+            material.setInventoryAccountId(packagingAccount.getId());
+        }
+        material.setMaterialType(MaterialType.PACKAGING);
+        material.setUnitType("UNIT");
+        topUpPackagingMaterial(material, quantity, unitCost);
+        return material;
+    }
+
+    private void topUpPackagingMaterial(RawMaterial material, BigDecimal quantity, BigDecimal unitCost) {
+        BigDecimal current = java.util.Optional.ofNullable(material.getCurrentStock()).orElse(BigDecimal.ZERO);
+        BigDecimal topUp = quantity != null ? quantity : BigDecimal.ZERO;
+        material.setCurrentStock(current.add(topUp));
+        RawMaterial saved = rawMaterialRepository.save(material);
+
+        RawMaterialBatch batch = new RawMaterialBatch();
+        batch.setRawMaterial(saved);
+        batch.setQuantity(topUp);
+        batch.setCostPerUnit(unitCost);
+        batch.setBatchCode("PACK-" + saved.getSku() + "-" + System.currentTimeMillis());
+        batch.setUnit(saved.getUnitType());
+        batch.setReceivedAt(Instant.now());
+        rawMaterialBatchRepository.save(batch);
     }
 
     private ProductionProduct createProduct(Company company, String skuCode, String name) {

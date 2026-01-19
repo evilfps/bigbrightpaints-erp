@@ -122,18 +122,6 @@ public class PackingService {
             // Resolve pieces count for packaging material consumption
             int piecesCount = resolvePiecesCountForLine(line, lineIndex);
             
-            // Consume packaging materials (buckets) - auto-deducts from RM stock
-            PackagingConsumptionResult packagingResult = packagingMaterialService.consumePackagingMaterial(
-                    line.packagingSize(),
-                    piecesCount,
-                    log.getProductionCode() + "-PACK-" + lineIndex
-            );
-
-            if (!packagingResult.mappingFound()) {
-                throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
-                        "Packaging BOM missing for size: " + line.packagingSize());
-            }
-            
             PackingRecord record = new PackingRecord();
             record.setCompany(company);
             record.setProductionLog(log);
@@ -145,6 +133,21 @@ public class PackingService {
             record.setPiecesPerBox(nullSafe(line.piecesPerBox()));
             record.setPackedDate(packedDate);
             record.setPackedBy(clean(request.packedBy()));
+
+            PackingRecord savedRecord = packingRecordRepository.save(record);
+            String packagingReference = log.getProductionCode() + "-PACK-" + savedRecord.getId();
+
+            // Consume packaging materials (buckets) - auto-deducts from RM stock
+            PackagingConsumptionResult packagingResult = packagingMaterialService.consumePackagingMaterial(
+                    line.packagingSize(),
+                    piecesCount,
+                    packagingReference
+            );
+
+            if (!packagingResult.mappingFound()) {
+                throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                        "Packaging BOM missing for size: " + line.packagingSize());
+            }
             
             // Track packaging cost and material
             if (packagingResult.isConsumed()) {
@@ -156,11 +159,8 @@ public class PackingService {
             if (packagingResult.isConsumed()
                     && !packagingResult.accountTotalsOrEmpty().isEmpty()
                     && packagingResult.totalCost().compareTo(BigDecimal.ZERO) > 0) {
-                String packagingReference = log.getProductionCode() + "-PACK-" + lineIndex;
                 postPackagingMaterialJournal(log, packagingResult, packedDate, packagingReference);
             }
-            
-            PackingRecord savedRecord = packingRecordRepository.save(record);
 
             SemiFinishedConsumption semiFinished = consumeSemiFinishedInventory(log, lineQuantity);
             FinishedGoodBatch batch = registerFinishedGoodBatch(log, finishedGood, savedRecord, lineQuantity, packedDate, packagingResult, semiFinished);
@@ -545,7 +545,10 @@ public class PackingService {
         // Only wastage journal is posted during completion
         if (wastageQty.compareTo(BigDecimal.ZERO) > 0) {
             BigDecimal materialUnitCost = calculateUnitCost(log.getMaterialCostTotal(), log.getMixedQuantity());
-            BigDecimal baseUnitCost = Optional.ofNullable(log.getUnitCost()).orElse(materialUnitCost);
+            BigDecimal baseUnitCost = Optional.ofNullable(log.getUnitCost()).orElse(BigDecimal.ZERO);
+            if (baseUnitCost.compareTo(BigDecimal.ZERO) <= 0) {
+                baseUnitCost = materialUnitCost;
+            }
             Long wipAccountId = requireWipAccountId(log.getProduct());
             LocalDate entryDate = resolveJournalDate(company, log);
             BigDecimal wastageValue = MoneyUtils.safeMultiply(baseUnitCost, wastageQty).setScale(2, RoundingMode.HALF_UP);

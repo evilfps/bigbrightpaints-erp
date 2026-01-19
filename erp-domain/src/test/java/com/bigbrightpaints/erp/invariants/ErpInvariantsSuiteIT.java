@@ -14,12 +14,15 @@ import com.bigbrightpaints.erp.modules.accounting.domain.SupplierLedgerRepositor
 import com.bigbrightpaints.erp.modules.accounting.service.TemporalBalanceService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
+import com.bigbrightpaints.erp.modules.factory.domain.PackagingSizeMapping;
+import com.bigbrightpaints.erp.modules.factory.domain.PackagingSizeMappingRepository;
 import com.bigbrightpaints.erp.modules.factory.domain.ProductionLogRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGood;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryMovement;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryMovementRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryReference;
+import com.bigbrightpaints.erp.modules.inventory.domain.MaterialType;
 import com.bigbrightpaints.erp.modules.inventory.domain.PackagingSlip;
 import com.bigbrightpaints.erp.modules.inventory.domain.PackagingSlipRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterial;
@@ -104,6 +107,7 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
     @Autowired private PartnerSettlementAllocationRepository settlementAllocationRepository;
     @Autowired private TemporalBalanceService temporalBalanceService;
     @Autowired private ProductionLogRepository productionLogRepository;
+    @Autowired private PackagingSizeMappingRepository packagingSizeMappingRepository;
 
     private CanonicalErpDatasetBuilder datasetBuilder;
     private ErpInvariantAssertions invariants;
@@ -721,6 +725,7 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
 
         ProductionBrand brand = ensureBrand(company, "PROD-BRAND", "Production Brand");
         ProductionProduct product = ensureProduct(company, brand, "PROD-FG-001", "Production Finish", prod);
+        ensurePackagingMapping(company, "10L");
 
         Map<String, Object> material1 = Map.of("rawMaterialId", rm1.getId(), "quantity", new BigDecimal("10"));
         Map<String, Object> material2 = Map.of("rawMaterialId", rm2.getId(), "quantity", new BigDecimal("5"));
@@ -1106,6 +1111,69 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
         batch.setReceivedAt(Instant.now());
         rawMaterialBatchRepository.save(batch);
         return saved;
+    }
+
+    private void ensurePackagingMapping(Company company, String size) {
+        List<PackagingSizeMapping> existing = packagingSizeMappingRepository
+                .findActiveByCompanyAndPackagingSizeIgnoreCase(company, size);
+        if (!existing.isEmpty()) {
+            Long materialId = existing.get(0).getRawMaterial().getId();
+            RawMaterial material = rawMaterialRepository.findById(materialId).orElseThrow();
+            topUpPackagingMaterial(material, new BigDecimal("200"), new BigDecimal("2.00"));
+            return;
+        }
+        String sku = "PACK-" + size;
+        RawMaterial material = createPackagingMaterialWithBatch(company, sku, "Packaging " + size,
+                new BigDecimal("200"), prod.requireAccount("INV").getId(), new BigDecimal("2.00"));
+
+        PackagingSizeMapping mapping = new PackagingSizeMapping();
+        mapping.setCompany(company);
+        mapping.setPackagingSize(size);
+        mapping.setRawMaterial(material);
+        mapping.setUnitsPerPack(1);
+        mapping.setLitersPerUnit(new BigDecimal(size.replace("L", "")));
+        mapping.setActive(true);
+        packagingSizeMappingRepository.save(mapping);
+    }
+
+    private RawMaterial createPackagingMaterialWithBatch(Company company, String sku, String name,
+                                                         BigDecimal stock, Long inventoryAccountId,
+                                                         BigDecimal unitCost) {
+        RawMaterial material = new RawMaterial();
+        material.setCompany(company);
+        material.setSku(sku);
+        material.setName(name);
+        material.setUnitType("UNIT");
+        material.setMaterialType(MaterialType.PACKAGING);
+        material.setCurrentStock(stock);
+        material.setInventoryAccountId(inventoryAccountId);
+        RawMaterial saved = rawMaterialRepository.save(material);
+
+        RawMaterialBatch batch = new RawMaterialBatch();
+        batch.setRawMaterial(saved);
+        batch.setQuantity(stock);
+        batch.setCostPerUnit(unitCost);
+        batch.setBatchCode("BATCH-" + sku);
+        batch.setUnit(saved.getUnitType());
+        batch.setReceivedAt(Instant.now());
+        rawMaterialBatchRepository.save(batch);
+        return saved;
+    }
+
+    private void topUpPackagingMaterial(RawMaterial material, BigDecimal quantity, BigDecimal unitCost) {
+        BigDecimal current = material.getCurrentStock() != null ? material.getCurrentStock() : BigDecimal.ZERO;
+        BigDecimal topUp = quantity != null ? quantity : BigDecimal.ZERO;
+        material.setCurrentStock(current.add(topUp));
+        RawMaterial saved = rawMaterialRepository.save(material);
+
+        RawMaterialBatch batch = new RawMaterialBatch();
+        batch.setRawMaterial(saved);
+        batch.setQuantity(topUp);
+        batch.setCostPerUnit(unitCost);
+        batch.setBatchCode("BATCH-" + saved.getSku() + "-" + System.currentTimeMillis());
+        batch.setUnit(saved.getUnitType());
+        batch.setReceivedAt(Instant.now());
+        rawMaterialBatchRepository.save(batch);
     }
 
     private ProductionBrand ensureBrand(Company company, String code, String name) {
