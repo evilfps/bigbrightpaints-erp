@@ -3,6 +3,8 @@ package com.bigbrightpaints.erp.modules.auth;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccount;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
 import com.bigbrightpaints.erp.test.AbstractIntegrationTest;
+import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
+import org.apache.hc.client5.http.impl.classic.HttpClients;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -13,8 +15,10 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
 
 import java.time.Instant;
+import java.time.Duration;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -34,8 +38,21 @@ public class AuthHardeningIT extends AbstractIntegrationTest {
 
     @BeforeEach
     void setup() {
+        configureRestTemplate();
         dataSeeder.ensureUser(USER_EMAIL, PASSWORD, "Lock Tester", COMPANY,
                 java.util.List.of("ROLE_ADMIN", "ROLE_ACCOUNTING"));
+    }
+
+    private void configureRestTemplate() {
+        CloseableHttpClient client = HttpClients.custom()
+                .disableAutomaticRetries()
+                .disableRedirectHandling()
+                .disableAuthCaching()
+                .build();
+        HttpComponentsClientHttpRequestFactory factory = new HttpComponentsClientHttpRequestFactory(client);
+        factory.setConnectTimeout(Duration.ofSeconds(10));
+        factory.setConnectionRequestTimeout(Duration.ofSeconds(10));
+        rest.getRestTemplate().setRequestFactory(factory);
     }
 
     @Test

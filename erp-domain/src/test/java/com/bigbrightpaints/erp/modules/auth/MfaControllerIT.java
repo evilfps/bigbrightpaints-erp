@@ -4,16 +4,20 @@ import com.bigbrightpaints.erp.modules.auth.domain.UserAccount;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
 import com.bigbrightpaints.erp.test.AbstractIntegrationTest;
 import com.bigbrightpaints.erp.test.support.TotpTestUtils;
+import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
+import org.apache.hc.client5.http.impl.classic.HttpClients;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.http.*;
+import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.time.Duration;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -31,11 +35,24 @@ public class MfaControllerIT extends AbstractIntegrationTest {
 
     @BeforeEach
     void seedUser() {
+        configureRestTemplate();
         UserAccount user = dataSeeder.ensureUser(USER_EMAIL, USER_PASSWORD, "MFA User", COMPANY_CODE, List.of("ROLE_ADMIN"));
         user.setMfaEnabled(false);
         user.setMfaSecret(null);
         user.setMfaRecoveryCodeHashes(List.of());
         userAccountRepository.save(user);
+    }
+
+    private void configureRestTemplate() {
+        CloseableHttpClient client = HttpClients.custom()
+                .disableAutomaticRetries()
+                .disableRedirectHandling()
+                .disableAuthCaching()
+                .build();
+        HttpComponentsClientHttpRequestFactory factory = new HttpComponentsClientHttpRequestFactory(client);
+        factory.setConnectTimeout(Duration.ofSeconds(10));
+        factory.setConnectionRequestTimeout(Duration.ofSeconds(10));
+        rest.getRestTemplate().setRequestFactory(factory);
     }
 
     @Test
