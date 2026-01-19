@@ -5,8 +5,8 @@
     <mirrors>
         <mirror>
             <id>central-gcs</id>
-            <name>Maven Central via GCS mirror</name>
-            <url>https://maven-central.storage-download.googleapis.com/maven2</url>
+            <name>Maven Central mirror (override via -Dmaven.mirror.url=...)</name>
+            <url>${maven.mirror.url}</url>
             <mirrorOf>central</mirrorOf>
         </mirror>
     </mirrors>

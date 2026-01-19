@@ -23,7 +23,20 @@ jobs:
 
       - name: Run tests (erp-domain)
         working-directory: erp-domain
-        run: mvn -B -ntp verify
+        run: |
+          set -euo pipefail
+          mirrors=(
+            "${MAVEN_MIRROR_PRIMARY:-https://repo.maven.apache.org/maven2}"
+            "${MAVEN_MIRROR_FALLBACK:-https://maven-central.storage-download.googleapis.com/maven2}"
+          )
+          for mirror in "${mirrors[@]}"; do
+            echo "Using Maven mirror: ${mirror}"
+            if mvn -B -ntp -Dmaven.mirror.url="${mirror}" verify; then
+              exit 0
+            fi
+            echo "Mirror failed: ${mirror}" >&2
+          done
+          exit 1
 
       - name: Upload JaCoCo report
         if: always()
