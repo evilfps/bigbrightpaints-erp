@@ -6,6 +6,7 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.web.client.RestTemplateCustomizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
+import org.springframework.http.client.BufferingClientHttpRequestFactory;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 
 import java.net.http.HttpClient;
@@ -27,7 +28,6 @@ public class TestBeansConfig {
                 .build();
         JdkClientHttpRequestFactory factory = new JdkClientHttpRequestFactory(client);
 
-        return restTemplate -> restTemplate.setRequestFactory(factory);
+        return restTemplate -> restTemplate.setRequestFactory(new BufferingClientHttpRequestFactory(factory));
     }
 }
-
