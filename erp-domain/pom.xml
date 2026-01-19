@@ -7,7 +7,7 @@
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
         <version>3.3.4</version>
-        <relativePath/>
+        <relativePath>.mvn/parent-poms/spring-boot-starter-parent-3.3.4.pom</relativePath>
     </parent>
 
     <groupId>com.bigbrightpaints.erp</groupId>
