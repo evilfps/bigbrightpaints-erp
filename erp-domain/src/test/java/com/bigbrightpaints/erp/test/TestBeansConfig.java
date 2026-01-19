@@ -6,10 +6,10 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.web.client.RestTemplateCustomizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
-import org.springframework.http.client.BufferingClientHttpRequestFactory;
-import org.springframework.http.client.JdkClientHttpRequestFactory;
+import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
+import org.apache.hc.client5.http.impl.classic.HttpClients;
+import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
 
-import java.net.http.HttpClient;
 import java.time.Duration;
 
 @TestConfiguration
@@ -23,11 +23,15 @@ public class TestBeansConfig {
 
     @Bean
     public RestTemplateCustomizer restTemplateCustomizer() {
-        HttpClient client = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(10))
+        CloseableHttpClient client = HttpClients.custom()
+                .disableAutomaticRetries()
+                .disableRedirectHandling()
+                .disableAuthCaching()
                 .build();
-        JdkClientHttpRequestFactory factory = new JdkClientHttpRequestFactory(client);
+        HttpComponentsClientHttpRequestFactory factory = new HttpComponentsClientHttpRequestFactory(client);
+        factory.setConnectTimeout(Duration.ofSeconds(10));
+        factory.setConnectionRequestTimeout(Duration.ofSeconds(10));
 
-        return restTemplate -> restTemplate.setRequestFactory(new BufferingClientHttpRequestFactory(factory));
+        return restTemplate -> restTemplate.setRequestFactory(factory);
     }
 }
