@@ -620,13 +620,12 @@ public class ProductionCatalogService {
         Map<String, Object> working = metadata == null ? new HashMap<>() : new HashMap<>(metadata);
         var defaults = companyDefaultAccountsService.requireDefaults();
 
-        Map<String, Long> defaultsMap = Map.of(
-                "fgValuationAccountId", defaults.inventoryAccountId(),
-                "fgCogsAccountId", defaults.cogsAccountId(),
-                "fgRevenueAccountId", defaults.revenueAccountId(),
-                "fgDiscountAccountId", defaults.discountAccountId(),
-                "fgTaxAccountId", defaults.taxAccountId()
-        );
+        Map<String, Long> defaultsMap = new HashMap<>();
+        defaultsMap.put("fgValuationAccountId", defaults.inventoryAccountId());
+        defaultsMap.put("fgCogsAccountId", defaults.cogsAccountId());
+        defaultsMap.put("fgRevenueAccountId", defaults.revenueAccountId());
+        defaultsMap.put("fgDiscountAccountId", defaults.discountAccountId());
+        defaultsMap.put("fgTaxAccountId", defaults.taxAccountId());
 
         for (String key : FINISHED_GOOD_ACCOUNT_KEYS) {
             Object candidate = working.get(key);

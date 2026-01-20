@@ -166,7 +166,11 @@ public class RawMaterialService {
     }
 
     public List<RawMaterialBatchDto> listBatches(Long rawMaterialId) {
-        RawMaterial material = requireMaterial(rawMaterialId);
+        // NOTE: This is a read-only operation. Avoid taking a PESSIMISTIC_WRITE lock here
+        // (which requires an active transaction) to prevent TransactionRequiredException.
+        Company company = companyContextService.requireCurrentCompany();
+        RawMaterial material = rawMaterialRepository.findByCompanyAndId(company, rawMaterialId)
+                .orElseThrow(() -> new IllegalArgumentException("Raw material not found"));
         return batchRepository.findByRawMaterial(material).stream()
                 .sorted(Comparator.comparing(RawMaterialBatch::getReceivedAt).reversed())
                 .map(this::toBatchDto)
@@ -234,6 +238,7 @@ public class RawMaterialService {
     }
 
     private RawMaterial requireMaterial(Long rawMaterialId) {
+        // This method is used by write flows (receipts/intake/adjustments). Keep locking semantics.
         Company company = companyContextService.requireCurrentCompany();
         return rawMaterialRepository.lockByCompanyAndId(company, rawMaterialId)
                 .orElseThrow(() -> new IllegalArgumentException("Raw material not found"));
@@ -399,9 +404,41 @@ public class RawMaterialService {
 
     private String resolveBatchCode(RawMaterial material, String requested) {
         if (StringUtils.hasText(requested)) {
-            return requested.trim();
+            String trimmed = requested.trim();
+            ensureBatchCodeUnique(material, trimmed);
+            return trimmed;
         }
-        return batchNumberService.nextRawMaterialBatchCode(material);
+        return nextUniqueBatchCode(material);
+    }
+
+    private String nextUniqueBatchCode(RawMaterial material) {
+        String candidate = batchNumberService.nextRawMaterialBatchCode(material);
+        int attempts = 0;
+        while (batchRepository.existsByRawMaterialAndBatchCode(material, candidate)) {
+            if (attempts++ > 10) {
+                throw new IllegalStateException("Unable to allocate unique batch code for raw material "
+                        + describeMaterial(material));
+            }
+            candidate = batchNumberService.nextRawMaterialBatchCode(material);
+        }
+        return candidate;
+    }
+
+    private void ensureBatchCodeUnique(RawMaterial material, String batchCode) {
+        if (batchRepository.existsByRawMaterialAndBatchCode(material, batchCode)) {
+            throw new IllegalArgumentException("Batch code already exists for raw material "
+                    + describeMaterial(material) + ": " + batchCode);
+        }
+    }
+
+    private String describeMaterial(RawMaterial material) {
+        if (StringUtils.hasText(material.getSku())) {
+            return material.getSku();
+        }
+        if (StringUtils.hasText(material.getName())) {
+            return material.getName();
+        }
+        return material.getId() != null ? material.getId().toString() : "unknown";
     }
 
     private String resolveReferenceNumber(RawMaterial material, ReceiptContext context, RawMaterialBatch batch) {

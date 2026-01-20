@@ -98,6 +98,7 @@ public class BulkPackingBomCostingIT extends AbstractIntegrationTest {
                         new BulkPackRequest.PackLine(child10.getId(), new BigDecimal("4"), "10L", "L")
                 ),
                 null,
+                null,
                 LocalDate.now(),
                 "packer",
                 null

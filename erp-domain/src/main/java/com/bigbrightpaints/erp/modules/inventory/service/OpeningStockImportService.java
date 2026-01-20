@@ -1,5 +1,14 @@
 package com.bigbrightpaints.erp.modules.inventory.service;
 
+import com.bigbrightpaints.erp.core.util.CompanyClock;
+import com.bigbrightpaints.erp.core.util.MoneyUtils;
+import com.bigbrightpaints.erp.modules.accounting.domain.Account;
+import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
+import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
+import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
+import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryRequest;
+import com.bigbrightpaints.erp.modules.accounting.service.AccountingService;
+import com.bigbrightpaints.erp.modules.accounting.service.ReferenceNumberService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGood;
@@ -32,6 +41,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -59,6 +69,10 @@ public class OpeningStockImportService {
     private final BatchNumberService batchNumberService;
     private final RawMaterialService rawMaterialService;
     private final FinishedGoodsService finishedGoodsService;
+    private final AccountingService accountingService;
+    private final AccountRepository accountRepository;
+    private final ReferenceNumberService referenceNumberService;
+    private final CompanyClock companyClock;
 
     public OpeningStockImportService(CompanyContextService companyContextService,
                                      RawMaterialRepository rawMaterialRepository,
@@ -69,7 +83,11 @@ public class OpeningStockImportService {
                                      InventoryMovementRepository inventoryMovementRepository,
                                      BatchNumberService batchNumberService,
                                      RawMaterialService rawMaterialService,
-                                     FinishedGoodsService finishedGoodsService) {
+                                     FinishedGoodsService finishedGoodsService,
+                                     AccountingService accountingService,
+                                     AccountRepository accountRepository,
+                                     ReferenceNumberService referenceNumberService,
+                                     CompanyClock companyClock) {
         this.companyContextService = companyContextService;
         this.rawMaterialRepository = rawMaterialRepository;
         this.rawMaterialBatchRepository = rawMaterialBatchRepository;
@@ -80,6 +98,10 @@ public class OpeningStockImportService {
         this.batchNumberService = batchNumberService;
         this.rawMaterialService = rawMaterialService;
         this.finishedGoodsService = finishedGoodsService;
+        this.accountingService = accountingService;
+        this.accountRepository = accountRepository;
+        this.referenceNumberService = referenceNumberService;
+        this.companyClock = companyClock;
     }
 
     @Transactional
@@ -95,6 +117,9 @@ public class OpeningStockImportService {
         int finishedGoodsCreated = 0;
         int finishedGoodBatchesCreated = 0;
         List<ImportError> errors = new ArrayList<>();
+        Map<Long, BigDecimal> inventoryTotals = new HashMap<>();
+        List<RawMaterialMovement> rawMovements = new ArrayList<>();
+        List<InventoryMovement> finishedMovements = new ArrayList<>();
 
         try (BufferedReader reader = new BufferedReader(
                 new InputStreamReader(file.getInputStream(), StandardCharsets.UTF_8));
@@ -118,24 +143,44 @@ public class OpeningStockImportService {
                     continue;
                 }
                 try {
+                    OpeningMovementResult movementResult;
                     if (row.type == StockType.RAW_MATERIAL) {
-                        boolean created = handleRawMaterial(company, row);
-                        if (created) {
+                        movementResult = handleRawMaterial(company, row);
+                        if (row.createdNew) {
                             rawMaterialsCreated++;
                         }
                         rawMaterialBatchesCreated++;
                     } else {
-                        boolean created = handleFinishedGood(company, row);
-                        if (created) {
+                        movementResult = handleFinishedGood(company, row);
+                        if (row.createdNew) {
                             finishedGoodsCreated++;
                         }
                         finishedGoodBatchesCreated++;
+                    }
+                    inventoryTotals.merge(movementResult.inventoryAccountId(), movementResult.amount(), BigDecimal::add);
+                    if (movementResult.rawMovement() != null) {
+                        rawMovements.add(movementResult.rawMovement());
+                    }
+                    if (movementResult.inventoryMovement() != null) {
+                        finishedMovements.add(movementResult.inventoryMovement());
                     }
                     rowsProcessed++;
                 } catch (IllegalArgumentException ex) {
                     errors.add(new ImportError(record.getRecordNumber(), ex.getMessage()));
                 } catch (Exception ex) {
                     errors.add(new ImportError(record.getRecordNumber(), "Unexpected error: " + ex.getMessage()));
+                }
+            }
+
+            Long journalEntryId = postOpeningStockJournal(company, inventoryTotals);
+            if (journalEntryId != null) {
+                rawMovements.forEach(movement -> movement.setJournalEntryId(journalEntryId));
+                finishedMovements.forEach(movement -> movement.setJournalEntryId(journalEntryId));
+                if (!rawMovements.isEmpty()) {
+                    rawMaterialMovementRepository.saveAll(rawMovements);
+                }
+                if (!finishedMovements.isEmpty()) {
+                    inventoryMovementRepository.saveAll(finishedMovements);
                 }
             }
 
@@ -152,7 +197,7 @@ public class OpeningStockImportService {
         }
     }
 
-    private boolean handleRawMaterial(Company company, OpeningRow row) {
+    private OpeningMovementResult handleRawMaterial(Company company, OpeningRow row) {
         RawMaterial material = resolveRawMaterial(company, row);
         String unit = firstNonBlank(row.unitType, row.unit, material.getUnitType());
         if (!StringUtils.hasText(unit)) {
@@ -160,9 +205,8 @@ public class OpeningStockImportService {
         }
         BigDecimal quantity = requirePositive(row.quantity, "quantity");
         BigDecimal unitCost = requirePositive(row.unitCost, "unit_cost");
-        String batchCode = StringUtils.hasText(row.batchCode)
-                ? row.batchCode.trim()
-                : batchNumberService.nextRawMaterialBatchCode(material);
+        Long inventoryAccountId = resolveInventoryAccountId(company, material);
+        String batchCode = resolveRawMaterialBatchCode(material, row.batchCode);
 
         RawMaterialBatch batch = new RawMaterialBatch();
         batch.setRawMaterial(material);
@@ -185,15 +229,20 @@ public class OpeningStockImportService {
         movement.setMovementType("RECEIPT");
         movement.setQuantity(quantity);
         movement.setUnitCost(unitCost);
-        rawMaterialMovementRepository.save(movement);
+        RawMaterialMovement savedMovement = rawMaterialMovementRepository.save(movement);
 
-        return row.createdNew;
+        return new OpeningMovementResult(
+                inventoryAccountId,
+                MoneyUtils.safeMultiply(quantity, unitCost),
+                savedMovement,
+                null);
     }
 
-    private boolean handleFinishedGood(Company company, OpeningRow row) {
+    private OpeningMovementResult handleFinishedGood(Company company, OpeningRow row) {
         FinishedGood finishedGood = resolveFinishedGood(company, row);
         BigDecimal quantity = requirePositive(row.quantity, "quantity");
         BigDecimal unitCost = requirePositive(row.unitCost, "unit_cost");
+        Long inventoryAccountId = resolveInventoryAccountId(company, finishedGood);
         Instant manufacturedAt = row.manufacturedDate != null
                 ? row.manufacturedDate.atStartOfDay(resolveZone(company)).toInstant()
                 : null;
@@ -222,9 +271,52 @@ public class OpeningStockImportService {
         movement.setMovementType("RECEIPT");
         movement.setQuantity(quantity);
         movement.setUnitCost(unitCost);
-        inventoryMovementRepository.save(movement);
+        InventoryMovement savedMovement = inventoryMovementRepository.save(movement);
 
-        return row.createdNew;
+        return new OpeningMovementResult(
+                inventoryAccountId,
+                MoneyUtils.safeMultiply(quantity, unitCost),
+                null,
+                savedMovement);
+    }
+
+    private String resolveRawMaterialBatchCode(RawMaterial material, String requested) {
+        if (StringUtils.hasText(requested)) {
+            String trimmed = requested.trim();
+            ensureRawMaterialBatchCodeUnique(material, trimmed);
+            return trimmed;
+        }
+        return nextUniqueRawMaterialBatchCode(material);
+    }
+
+    private String nextUniqueRawMaterialBatchCode(RawMaterial material) {
+        String candidate = batchNumberService.nextRawMaterialBatchCode(material);
+        int attempts = 0;
+        while (rawMaterialBatchRepository.existsByRawMaterialAndBatchCode(material, candidate)) {
+            if (attempts++ > 10) {
+                throw new IllegalStateException("Unable to allocate unique batch code for raw material "
+                        + describeMaterial(material));
+            }
+            candidate = batchNumberService.nextRawMaterialBatchCode(material);
+        }
+        return candidate;
+    }
+
+    private void ensureRawMaterialBatchCodeUnique(RawMaterial material, String batchCode) {
+        if (rawMaterialBatchRepository.existsByRawMaterialAndBatchCode(material, batchCode)) {
+            throw new IllegalArgumentException("Batch code already exists for raw material "
+                    + describeMaterial(material) + ": " + batchCode);
+        }
+    }
+
+    private String describeMaterial(RawMaterial material) {
+        if (StringUtils.hasText(material.getSku())) {
+            return material.getSku();
+        }
+        if (StringUtils.hasText(material.getName())) {
+            return material.getName();
+        }
+        return material.getId() != null ? material.getId().toString() : "unknown";
     }
 
     private RawMaterial resolveRawMaterial(Company company, OpeningRow row) {
@@ -312,10 +404,101 @@ public class OpeningStockImportService {
         return ZoneId.of(company.getTimezone() == null ? "UTC" : company.getTimezone());
     }
 
+    private Long resolveInventoryAccountId(Company company, RawMaterial material) {
+        Long accountId = material.getInventoryAccountId();
+        if (accountId == null) {
+            accountId = company.getDefaultInventoryAccountId();
+            if (accountId != null) {
+                material.setInventoryAccountId(accountId);
+            }
+        }
+        if (accountId == null) {
+            throw new IllegalStateException("Raw material " + material.getName() + " is missing an inventory account");
+        }
+        return accountId;
+    }
+
+    private Long resolveInventoryAccountId(Company company, FinishedGood finishedGood) {
+        Long accountId = finishedGood.getValuationAccountId();
+        if (accountId == null) {
+            accountId = company.getDefaultInventoryAccountId();
+            if (accountId != null) {
+                finishedGood.setValuationAccountId(accountId);
+            }
+        }
+        if (accountId == null) {
+            throw new IllegalStateException("Finished good " + finishedGood.getProductCode() + " is missing a valuation account");
+        }
+        return accountId;
+    }
+
+    private Long postOpeningStockJournal(Company company, Map<Long, BigDecimal> inventoryTotals) {
+        if (inventoryTotals == null || inventoryTotals.isEmpty()) {
+            return null;
+        }
+        List<JournalEntryRequest.JournalLineRequest> lines = new ArrayList<>();
+        BigDecimal total = BigDecimal.ZERO;
+        List<Map.Entry<Long, BigDecimal>> sortedEntries = inventoryTotals.entrySet().stream()
+                .sorted(Map.Entry.comparingByKey())
+                .toList();
+        for (Map.Entry<Long, BigDecimal> entry : sortedEntries) {
+            BigDecimal amount = entry.getValue() == null ? BigDecimal.ZERO : entry.getValue();
+            if (amount.compareTo(BigDecimal.ZERO) <= 0) {
+                continue;
+            }
+            total = total.add(amount);
+            lines.add(new JournalEntryRequest.JournalLineRequest(
+                    entry.getKey(),
+                    "Opening stock import",
+                    amount,
+                    BigDecimal.ZERO));
+        }
+        if (total.compareTo(BigDecimal.ZERO) <= 0) {
+            return null;
+        }
+        Account openingBalance = resolveOpeningBalanceAccount(company);
+        lines.add(new JournalEntryRequest.JournalLineRequest(
+                openingBalance.getId(),
+                "Opening stock offset",
+                BigDecimal.ZERO,
+                total));
+        String reference = referenceNumberService.openingStockReference(company);
+        JournalEntryDto journalEntry = accountingService.createJournalEntry(new JournalEntryRequest(
+                reference,
+                companyClock.today(company),
+                "Opening stock import",
+                null,
+                null,
+                Boolean.FALSE,
+                lines));
+        return journalEntry.id();
+    }
+
+    private Account resolveOpeningBalanceAccount(Company company) {
+        Account existing = accountRepository.findByCompanyAndCodeIgnoreCase(company, "OPEN-BAL").orElse(null);
+        if (existing != null) {
+            if (existing.getType() != AccountType.EQUITY) {
+                throw new IllegalStateException("Opening balance account OPEN-BAL must be an equity account");
+            }
+            return existing;
+        }
+        Account account = new Account();
+        account.setCompany(company);
+        account.setCode("OPEN-BAL");
+        account.setName("Opening Balance");
+        account.setType(AccountType.EQUITY);
+        return accountRepository.save(account);
+    }
+
     private enum StockType {
         RAW_MATERIAL,
         FINISHED_GOOD
     }
+
+    private record OpeningMovementResult(Long inventoryAccountId,
+                                         BigDecimal amount,
+                                         RawMaterialMovement rawMovement,
+                                         InventoryMovement inventoryMovement) {}
 
     private static final class OpeningRow {
         private final StockType type;

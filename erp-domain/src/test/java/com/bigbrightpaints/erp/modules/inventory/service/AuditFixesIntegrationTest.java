@@ -5,6 +5,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.bigbrightpaints.erp.core.security.CompanyContextHolder;
+import com.bigbrightpaints.erp.modules.accounting.domain.Account;
+import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
+import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGood;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatch;
@@ -28,6 +31,9 @@ import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterial;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialRepository;
 import com.bigbrightpaints.erp.test.AbstractIntegrationTest;
 import com.bigbrightpaints.erp.test.TestDataSeeder;
+import com.bigbrightpaints.erp.modules.inventory.dto.RawMaterialBatchRequest;
+import com.bigbrightpaints.erp.modules.purchasing.domain.Supplier;
+import com.bigbrightpaints.erp.modules.purchasing.domain.SupplierRepository;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
@@ -74,6 +80,12 @@ class AuditFixesIntegrationTest extends AbstractIntegrationTest {
 
     @Autowired
     private TestDataSeeder dataSeeder;
+
+    @Autowired
+    private SupplierRepository supplierRepository;
+
+    @Autowired
+    private AccountRepository accountRepository;
 
     @AfterEach
     void clearContext() {
@@ -202,5 +214,57 @@ class AuditFixesIntegrationTest extends AbstractIntegrationTest {
         assertEquals(BigDecimal.ZERO, refreshed.getReorderLevel());
         assertEquals(BigDecimal.ZERO, refreshed.getMinStock());
         assertEquals(BigDecimal.ZERO, refreshed.getMaxStock());
+    }
+
+    @Test
+    void rawMaterialBatchCodesMustBeUniquePerMaterial() {
+        Company company = dataSeeder.ensureCompany("RM-DUP", "Raw Material Dup Co");
+        CompanyContextHolder.setCompanyId(company.getCode());
+
+        Account inventory = new Account();
+        inventory.setCompany(company);
+        inventory.setCode("INV-DUP");
+        inventory.setName("Inventory");
+        inventory.setType(AccountType.ASSET);
+        inventory = accountRepository.save(inventory);
+
+        Account payable = new Account();
+        payable.setCompany(company);
+        payable.setCode("AP-DUP");
+        payable.setName("Accounts Payable");
+        payable.setType(AccountType.LIABILITY);
+        payable = accountRepository.save(payable);
+
+        Supplier supplier = new Supplier();
+        supplier.setCompany(company);
+        supplier.setCode("SUP-DUP");
+        supplier.setName("Dup Supplier");
+        supplier.setPayableAccount(payable);
+        supplier = supplierRepository.save(supplier);
+
+        var material = rawMaterialService.createRawMaterial(new RawMaterialRequest(
+                "Duplicate Test Material",
+                "RM-DUP-001",
+                "KG",
+                new BigDecimal("5"),
+                new BigDecimal("2"),
+                new BigDecimal("8"),
+                inventory.getId()
+        ));
+
+        RawMaterialBatchRequest request = new RawMaterialBatchRequest(
+                "DUP-BATCH-001",
+                new BigDecimal("10"),
+                "KG",
+                new BigDecimal("2.50"),
+                supplier.getId(),
+                null
+        );
+
+        rawMaterialService.createBatch(material.id(), request);
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> rawMaterialService.createBatch(material.id(), request));
+        assertTrue(ex.getMessage().contains("Batch code"));
     }
 }

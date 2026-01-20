@@ -24,6 +24,15 @@ public record BulkPackRequest(
     @Valid
     List<MaterialConsumption> packagingMaterials,
 
+    /**
+     * If true, do not consume packaging materials during this bulk-to-size operation.
+     *
+     * Intended for workflows where packaging was already consumed earlier (e.g. via
+     * `/api/v1/factory/packing-records`) and this call is only converting bulk FG into
+     * child sized SKUs for sales/dispatch.
+     */
+    Boolean skipPackagingConsumption,
+
     LocalDate packDate,
     String packedBy,
     String notes

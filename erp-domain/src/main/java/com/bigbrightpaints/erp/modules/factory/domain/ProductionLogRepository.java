@@ -23,7 +23,7 @@ public interface ProductionLogRepository extends JpaRepository<ProductionLog, Lo
     @Query("SELECT pl FROM ProductionLog pl WHERE pl.company = :company AND pl.id = :id")
     Optional<ProductionLog> lockByCompanyAndId(@Param("company") Company company, @Param("id") Long id);
 
-    @Modifying
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("UPDATE ProductionLog pl SET pl.totalPackedQuantity = pl.totalPackedQuantity + :quantity, " +
            "pl.wastageQuantity = pl.mixedQuantity - (pl.totalPackedQuantity + :quantity), " +
            "pl.updatedAt = CURRENT_TIMESTAMP " +

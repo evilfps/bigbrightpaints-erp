@@ -189,6 +189,7 @@ public class PackingService {
         return productionLogService.getLog(log.getId());
     }
 
+    @Transactional
     public List<UnpackedBatchDto> listUnpackedBatches() {
         Company company = companyContextService.requireCurrentCompany();
         List<ProductionLogStatus> statuses = List.of(ProductionLogStatus.READY_TO_PACK, ProductionLogStatus.PARTIAL_PACKED);

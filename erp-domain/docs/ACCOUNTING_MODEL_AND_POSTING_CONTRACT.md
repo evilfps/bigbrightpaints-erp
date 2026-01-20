@@ -45,6 +45,11 @@
 - JournalReferenceMapping resolves legacy references (for example SALE- to INV-).
 - Upstream flows must pass stable references (idempotencyKey or deterministic referenceNumber).
 
+### Opening balances (opening stock)
+- Opening stock import posts a single OPEN-STOCK journal entry.
+- Debit inventory control accounts (per item or company default) and credit OPEN-BAL equity.
+- Opening stock movements must carry the journal_entry_id for audit linkage.
+
 ### Linkage expectations
 - Posting services must persist the created journal entry ID on the source document.
 - Inventory movements created from a posting must carry journal_entry_id.

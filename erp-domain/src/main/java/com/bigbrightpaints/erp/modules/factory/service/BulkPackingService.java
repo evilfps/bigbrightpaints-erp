@@ -104,10 +104,12 @@ public class BulkPackingService {
                             bulkBatch.getQuantityAvailable(), totalVolume));
         }
 
-        // 3. Consume packaging materials (optional/manual override or BOM-based)
+        // 3. Consume packaging materials (BOM-based)
         String packagingReference = "BULK-PACK-" + bulkBatch.getBatchCode();
         PackagingCostSummary packagingCostSummary = new PackagingCostSummary(BigDecimal.ZERO, Map.of(), Map.of());
-        packagingCostSummary = consumePackagingFromMappings(company, request.packs(), packagingReference);
+        if (request.skipPackagingConsumption() == null || !request.skipPackagingConsumption()) {
+            packagingCostSummary = consumePackagingFromMappings(company, request.packs(), packagingReference);
+        }
         BigDecimal packagingCost = packagingCostSummary.totalCost();
 
         // 4. Calculate cost per unit for child batches

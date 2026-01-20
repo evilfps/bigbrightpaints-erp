@@ -31,6 +31,7 @@ import com.bigbrightpaints.erp.modules.sales.domain.*;
 import com.bigbrightpaints.erp.modules.sales.dto.*;
 import com.bigbrightpaints.erp.modules.sales.event.SalesOrderCreatedEvent;
 import jakarta.transaction.Transactional;
+import org.apache.commons.codec.digest.DigestUtils;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -265,9 +266,28 @@ public class SalesService {
     public SalesOrderDto createOrder(SalesOrderRequest request) {
         Company company = companyContextService.requireCurrentCompany();
         String idempotencyKey = request.resolveIdempotencyKey();
+        String requestSignature = buildSalesOrderSignature(request);
         Optional<SalesOrder> existing = salesOrderRepository.findByCompanyAndIdempotencyKey(company, idempotencyKey);
         if (existing.isPresent()) {
-            return toDto(existing.get());
+            SalesOrder order = existing.get();
+            String storedSignature = order.getIdempotencyHash();
+            if (!StringUtils.hasText(storedSignature)) {
+                String derivedSignature = buildSalesOrderSignature(order);
+                if (!derivedSignature.equals(requestSignature)) {
+                    throw new ApplicationException(ErrorCode.CONCURRENCY_CONFLICT,
+                            "Idempotency key already used with different payload")
+                            .withDetail("idempotencyKey", idempotencyKey);
+                }
+                order.setIdempotencyHash(requestSignature);
+                salesOrderRepository.save(order);
+                return toDto(order);
+            }
+            if (!storedSignature.equals(requestSignature)) {
+                throw new ApplicationException(ErrorCode.CONCURRENCY_CONFLICT,
+                        "Idempotency key already used with different payload")
+                        .withDetail("idempotencyKey", idempotencyKey);
+            }
+            return toDto(order);
         }
         GstTreatment gstTreatment = resolveGstTreatment(request.gstTreatment());
         BigDecimal orderLevelRate = resolveOrderLevelRate(company, gstTreatment, request.gstRate());
@@ -290,6 +310,7 @@ public class SalesService {
         order.setCurrency(request.currency() == null ? "INR" : request.currency());
         order.setNotes(request.notes());
         order.setIdempotencyKey(idempotencyKey);
+        order.setIdempotencyHash(requestSignature);
         OrderAmountSummary amounts = mapOrderItems(order, items, gstTreatment, orderLevelRate, gstInclusive);
         validateTotalAmount(request.totalAmount(), amounts.total());
         enforceCreditLimit(order.getDealer(), amounts.total());
@@ -312,6 +333,69 @@ public class SalesService {
 
         eventPublisher.publishEvent(new SalesOrderCreatedEvent(saved.getId(), company.getCode(), saved.getTotalAmount()));
         return toDto(saved);
+    }
+
+    private String buildSalesOrderSignature(SalesOrderRequest request) {
+        StringBuilder signature = new StringBuilder();
+        signature.append(request.dealerId() == null ? "null" : request.dealerId())
+                .append('|').append(amountToken(request.totalAmount()))
+                .append('|').append(normalizeText(request.currency()))
+                .append('|').append(normalizeText(request.gstTreatment()))
+                .append('|').append(amountToken(request.gstRate()))
+                .append('|').append(normalizeText(request.notes()));
+        request.items().stream()
+                .sorted(orderRequestComparator())
+                .forEach(item -> signature.append('|')
+                        .append(normalizeText(item.productCode()))
+                        .append(':').append(amountToken(item.quantity()))
+                        .append(':').append(amountToken(item.unitPrice()))
+                        .append(':').append(amountToken(item.gstRate())));
+        return DigestUtils.sha256Hex(signature.toString());
+    }
+
+    private String buildSalesOrderSignature(SalesOrder order) {
+        StringBuilder signature = new StringBuilder();
+        signature.append(order.getDealer() != null ? order.getDealer().getId() : "null")
+                .append('|').append(amountToken(order.getTotalAmount()))
+                .append('|').append(normalizeText(order.getCurrency()))
+                .append('|').append(normalizeText(order.getGstTreatment()))
+                .append('|').append(amountToken(order.getGstRate()))
+                .append('|').append(normalizeText(order.getNotes()));
+        order.getItems().stream()
+                .sorted(orderItemComparator())
+                .forEach(item -> signature.append('|')
+                        .append(normalizeText(item.getProductCode()))
+                        .append(':').append(amountToken(item.getQuantity()))
+                        .append(':').append(amountToken(item.getUnitPrice()))
+                        .append(':').append(amountToken(item.getGstRate())));
+        return DigestUtils.sha256Hex(signature.toString());
+    }
+
+    private Comparator<SalesOrderItemRequest> orderRequestComparator() {
+        return Comparator.comparing((SalesOrderItemRequest item) -> normalizeText(item.productCode()))
+                .thenComparing(item -> safeAmount(item.quantity()))
+                .thenComparing(item -> safeAmount(item.unitPrice()));
+    }
+
+    private Comparator<SalesOrderItem> orderItemComparator() {
+        return Comparator.comparing((SalesOrderItem item) -> normalizeText(item.getProductCode()))
+                .thenComparing(item -> safeAmount(item.getQuantity()))
+                .thenComparing(item -> safeAmount(item.getUnitPrice()));
+    }
+
+    private BigDecimal safeAmount(BigDecimal value) {
+        return value == null ? BigDecimal.ZERO : value;
+    }
+
+    private String amountToken(BigDecimal value) {
+        return safeAmount(value).stripTrailingZeros().toPlainString();
+    }
+
+    private String normalizeText(String value) {
+        if (!StringUtils.hasText(value)) {
+            return "";
+        }
+        return value.trim().toUpperCase();
     }
 
     @Transactional

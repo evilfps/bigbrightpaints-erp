@@ -93,6 +93,9 @@ public class PayrollRun {
     @Column(name = "idempotency_key")
     private String idempotencyKey;
 
+    @Column(name = "idempotency_hash", length = 64)
+    private String idempotencyHash;
+
     @Column(name = "created_by")
     private String createdBy;
 
@@ -191,6 +194,8 @@ public class PayrollRun {
     public void setProcessedBy(String processedBy) { this.processedBy = processedBy; }
     public String getIdempotencyKey() { return idempotencyKey; }
     public void setIdempotencyKey(String idempotencyKey) { this.idempotencyKey = idempotencyKey; }
+    public String getIdempotencyHash() { return idempotencyHash; }
+    public void setIdempotencyHash(String idempotencyHash) { this.idempotencyHash = idempotencyHash; }
 
     public enum RunType {
         WEEKLY,   // For labourers (every week)

@@ -7,8 +7,10 @@ import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.hr.domain.*;
 import com.bigbrightpaints.erp.modules.hr.dto.*;
+import org.apache.commons.codec.digest.DigestUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -193,10 +195,30 @@ public class HrService {
     public PayrollRunDto createPayrollRun(PayrollRunRequest request) {
         Company company = companyContextService.requireCurrentCompany();
         String idempotencyKey = request.idempotencyKey();
-        if (idempotencyKey != null) {
+        String requestSignature = null;
+        if (StringUtils.hasText(idempotencyKey)) {
+            requestSignature = buildPayrollRunSignature(request);
             Optional<PayrollRun> existing = payrollRunRepository.findByCompanyAndIdempotencyKey(company, idempotencyKey);
             if (existing.isPresent()) {
-                return toDto(existing.get());
+                PayrollRun run = existing.get();
+                String storedSignature = run.getIdempotencyHash();
+                if (!StringUtils.hasText(storedSignature)) {
+                    String derivedSignature = buildPayrollRunSignature(run);
+                    if (!derivedSignature.equals(requestSignature)) {
+                        throw new ApplicationException(ErrorCode.CONCURRENCY_CONFLICT,
+                                "Idempotency key already used with different payload")
+                                .withDetail("idempotencyKey", idempotencyKey);
+                    }
+                    run.setIdempotencyHash(requestSignature);
+                    payrollRunRepository.save(run);
+                    return toDto(run);
+                }
+                if (!storedSignature.equals(requestSignature)) {
+                    throw new ApplicationException(ErrorCode.CONCURRENCY_CONFLICT,
+                            "Idempotency key already used with different payload")
+                            .withDetail("idempotencyKey", idempotencyKey);
+                }
+                return toDto(run);
             }
         }
         PayrollRun run = new PayrollRun();
@@ -208,6 +230,7 @@ public class HrService {
         }
         run.setStatus("DRAFT");
         run.setIdempotencyKey(idempotencyKey);
+        run.setIdempotencyHash(requestSignature);
         PayrollRun savedRun = payrollRunRepository.save(run);
         return toDto(savedRun);
     }
@@ -226,6 +249,24 @@ public class HrService {
                 run.getTotalAmount(),
                 journalEntryId,
                 run.getIdempotencyKey());
+    }
+
+    private String buildPayrollRunSignature(PayrollRunRequest request) {
+        StringBuilder signature = new StringBuilder();
+        signature.append(request.runDate() != null ? request.runDate() : "")
+                .append('|').append(amountToken(request.totalAmount()));
+        return DigestUtils.sha256Hex(signature.toString());
+    }
+
+    private String buildPayrollRunSignature(PayrollRun run) {
+        StringBuilder signature = new StringBuilder();
+        signature.append(run.getRunDate() != null ? run.getRunDate() : "")
+                .append('|').append(amountToken(run.getTotalAmount()));
+        return DigestUtils.sha256Hex(signature.toString());
+    }
+
+    private String amountToken(BigDecimal value) {
+        return value == null ? "0" : value.stripTrailingZeros().toPlainString();
     }
 
     /* ===== Attendance Management ===== */

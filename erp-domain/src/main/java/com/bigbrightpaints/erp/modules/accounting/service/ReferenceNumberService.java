@@ -96,6 +96,12 @@ public class ReferenceNumberService {
         return generate(company, key, "inventory-adjustment");
     }
 
+    public String openingStockReference(Company company) {
+        String companyCode = sanitize(company != null ? company.getCode() : null);
+        String key = "OPEN-STOCK-%s".formatted(companyCode);
+        return generate(company, key, "opening-stock");
+    }
+
     public String reversalReference(String originalReference) {
         return originalReference + "-REV";
     }

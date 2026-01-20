@@ -64,6 +64,8 @@ public class ConfigurationHealthService {
     }
 
     private void validateCompany(Company company, List<ConfigurationIssue> issues) {
+        checkTaxAccounts(company, issues);
+
         Map<String, FinishedGood> finishedGoodsBySku = finishedGoodRepository.findByCompanyOrderByProductCodeAsc(company)
                 .stream()
                 .filter(fg -> StringUtils.hasText(fg.getProductCode()))
@@ -113,6 +115,15 @@ public class ConfigurationHealthService {
 
         finishedGoodsBySku.values().forEach(finishedGood ->
                 checkFinishedGoodAccounts(company, finishedGood, issues));
+    }
+
+    private void checkTaxAccounts(Company company, List<ConfigurationIssue> issues) {
+        if (company.getGstInputTaxAccountId() == null) {
+            issues.add(issue(company, "TAX_ACCOUNT", "GST_INPUT", "GST input tax account is not configured"));
+        }
+        if (company.getGstOutputTaxAccountId() == null) {
+            issues.add(issue(company, "TAX_ACCOUNT", "GST_OUTPUT", "GST output tax account is not configured"));
+        }
     }
 
     private void checkFinishedGoodAccounts(Company company,

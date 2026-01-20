@@ -1,0 +1,146 @@
+package com.bigbrightpaints.erp.regression;
+
+import com.bigbrightpaints.erp.core.security.CompanyContextHolder;
+import com.bigbrightpaints.erp.modules.accounting.domain.Account;
+import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
+import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
+import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
+import com.bigbrightpaints.erp.modules.company.domain.Company;
+import com.bigbrightpaints.erp.modules.inventory.domain.InventoryReference;
+import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterial;
+import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatch;
+import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatchRepository;
+import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovement;
+import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovementRepository;
+import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialRepository;
+import com.bigbrightpaints.erp.modules.purchasing.domain.Supplier;
+import com.bigbrightpaints.erp.modules.purchasing.domain.SupplierRepository;
+import com.bigbrightpaints.erp.modules.purchasing.dto.PurchaseReturnRequest;
+import com.bigbrightpaints.erp.modules.purchasing.service.PurchasingService;
+import com.bigbrightpaints.erp.test.AbstractIntegrationTest;
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.util.List;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+@DisplayName("Regression: Purchase return idempotency avoids duplicate movements")
+class PurchaseReturnIdempotencyRegressionIT extends AbstractIntegrationTest {
+
+    private static final String COMPANY_CODE = "LF-022";
+
+    @Autowired
+    private AccountRepository accountRepository;
+
+    @Autowired
+    private SupplierRepository supplierRepository;
+
+    @Autowired
+    private RawMaterialRepository rawMaterialRepository;
+
+    @Autowired
+    private RawMaterialBatchRepository rawMaterialBatchRepository;
+
+    @Autowired
+    private RawMaterialMovementRepository movementRepository;
+
+    @Autowired
+    private PurchasingService purchasingService;
+
+    private Company company;
+    private Supplier supplier;
+    private RawMaterial material;
+
+    @BeforeEach
+    void setUp() {
+        company = dataSeeder.ensureCompany(COMPANY_CODE, "LF-022 Materials");
+        CompanyContextHolder.setCompanyId(COMPANY_CODE);
+
+        Account inventory = ensureAccount(company, "INV-LF022", "Inventory", AccountType.ASSET);
+        Account payable = ensureAccount(company, "AP-LF022", "Accounts Payable", AccountType.LIABILITY);
+
+        supplier = supplierRepository.findByCompanyAndCodeIgnoreCase(company, "SUP-LF022")
+                .orElseGet(() -> {
+                    Supplier created = new Supplier();
+                    created.setCompany(company);
+                    created.setName("LF-022 Supplier");
+                    created.setCode("SUP-LF022");
+                    created.setPayableAccount(payable);
+                    created.setOutstandingBalance(BigDecimal.ZERO);
+                    return supplierRepository.save(created);
+                });
+
+        material = new RawMaterial();
+        material.setCompany(company);
+        material.setName("LF-022 Resin");
+        material.setSku("RM-LF022");
+        material.setUnitType("KG");
+        material.setInventoryAccountId(inventory.getId());
+        material.setCurrentStock(new BigDecimal("10.00"));
+        material = rawMaterialRepository.save(material);
+
+        RawMaterialBatch batch = new RawMaterialBatch();
+        batch.setRawMaterial(material);
+        batch.setBatchCode("RM-LF022-B1");
+        batch.setQuantity(new BigDecimal("10.00"));
+        batch.setUnit("KG");
+        batch.setCostPerUnit(new BigDecimal("5.00"));
+        rawMaterialBatchRepository.save(batch);
+    }
+
+    @AfterEach
+    void tearDown() {
+        CompanyContextHolder.clear();
+    }
+
+    @Test
+    void purchaseReturnReplayDoesNotDuplicateMovements() {
+        PurchaseReturnRequest request = new PurchaseReturnRequest(
+                supplier.getId(),
+                material.getId(),
+                new BigDecimal("4.00"),
+                new BigDecimal("5.00"),
+                "PR-LF022-001",
+                LocalDate.of(2026, 1, 14),
+                "Damaged"
+        );
+
+        JournalEntryDto first = purchasingService.recordPurchaseReturn(request);
+        BigDecimal stockAfterFirst = rawMaterialRepository.findById(material.getId()).orElseThrow().getCurrentStock();
+        List<RawMaterialMovement> movements = movementRepository
+                .findByRawMaterialCompanyAndReferenceTypeAndReferenceId(company,
+                        InventoryReference.PURCHASE_RETURN,
+                        "PR-LF022-001");
+        assertThat(movements).hasSize(1);
+        assertThat(movements).allMatch(movement -> movement.getJournalEntryId() != null);
+
+        JournalEntryDto second = purchasingService.recordPurchaseReturn(request);
+        BigDecimal stockAfterSecond = rawMaterialRepository.findById(material.getId()).orElseThrow().getCurrentStock();
+        List<RawMaterialMovement> movementsAfter = movementRepository
+                .findByRawMaterialCompanyAndReferenceTypeAndReferenceId(company,
+                        InventoryReference.PURCHASE_RETURN,
+                        "PR-LF022-001");
+
+        assertThat(second.id()).isEqualTo(first.id());
+        assertThat(stockAfterSecond).isEqualByComparingTo(stockAfterFirst);
+        assertThat(movementsAfter).hasSize(movements.size());
+        assertThat(movementsAfter).allMatch(movement -> movement.getJournalEntryId().equals(first.id()));
+    }
+
+    private Account ensureAccount(Company company, String code, String name, AccountType type) {
+        return accountRepository.findByCompanyAndCodeIgnoreCase(company, code)
+                .orElseGet(() -> {
+                    Account account = new Account();
+                    account.setCompany(company);
+                    account.setCode(code);
+                    account.setName(name);
+                    account.setType(type);
+                    return accountRepository.save(account);
+                });
+    }
+}

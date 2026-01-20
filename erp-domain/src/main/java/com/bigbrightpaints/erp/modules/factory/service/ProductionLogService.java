@@ -255,6 +255,7 @@ public class ProductionLogService {
         return finishedGoodBatchRepository.save(batch);
     }
 
+    @Transactional
     public List<ProductionLogDto> recentLogs() {
         Company company = companyContextService.requireCurrentCompany();
         return logRepository.findTop25ByCompanyOrderByProducedAtDesc(company).stream()
@@ -262,6 +263,7 @@ public class ProductionLogService {
                 .toList();
     }
 
+    @Transactional
     public ProductionLogDetailDto getLog(Long id) {
         Company company = companyContextService.requireCurrentCompany();
         ProductionLog log = companyEntityLookup.requireProductionLog(company, id);

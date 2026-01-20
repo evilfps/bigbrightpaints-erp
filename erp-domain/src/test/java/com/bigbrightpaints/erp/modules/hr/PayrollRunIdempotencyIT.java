@@ -1,6 +1,8 @@
 package com.bigbrightpaints.erp.modules.hr;
 
 import com.bigbrightpaints.erp.core.security.CompanyContextHolder;
+import com.bigbrightpaints.erp.core.exception.ApplicationException;
+import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.hr.domain.PayrollRunRepository;
 import com.bigbrightpaints.erp.modules.hr.dto.PayrollRunDto;
@@ -16,6 +18,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @DisplayName("HR: Payroll run idempotency scope")
 public class PayrollRunIdempotencyIT extends AbstractIntegrationTest {
@@ -52,6 +55,16 @@ public class PayrollRunIdempotencyIT extends AbstractIntegrationTest {
                 key
         ));
         assertThat(runA2.id()).isEqualTo(runA1.id());
+
+        assertThatThrownBy(() -> hrService.createPayrollRun(new PayrollRunRequest(
+                runDate,
+                new BigDecimal("1750.00"),
+                "Payroll run A updated",
+                key
+        )))
+                .isInstanceOf(ApplicationException.class)
+                .extracting(ex -> ((ApplicationException) ex).getErrorCode())
+                .isEqualTo(ErrorCode.CONCURRENCY_CONFLICT);
 
         CompanyContextHolder.setCompanyId(companyB.getCode());
         PayrollRunDto runB1 = hrService.createPayrollRun(new PayrollRunRequest(
