@@ -37,6 +37,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -166,6 +167,33 @@ class IntegrationCoordinatorTest {
         verify(finishedGoodsService, never()).reserveForOrder(any());
         verify(salesService, never()).updateStatus(eq(ORDER_ID), anyString());
         verify(salesService, never()).confirmDispatch(any());
+    }
+
+    @Test
+    void autoApproveOrderSkipsWorkWhenAlreadyCompleted() {
+        state.markInventoryReserved();
+        state.markOrderStatusUpdated();
+        state.markCompleted();
+
+        IntegrationCoordinator.AutoApprovalResult result =
+                integrationCoordinator.autoApproveOrder(String.valueOf(ORDER_ID), null, COMPANY_ID);
+
+        assertThat(result.orderStatus()).isEqualTo("READY_TO_SHIP");
+        assertThat(result.awaitingProduction()).isFalse();
+        verify(finishedGoodsService, never()).reserveForOrder(any());
+        verify(salesService, never()).updateStatus(eq(ORDER_ID), anyString());
+    }
+
+    @Test
+    void autoApproveOrderRetrySkipsReservationAfterPartialProgress() {
+        state.markInventoryReserved();
+        IntegrationCoordinator.AutoApprovalResult result =
+                integrationCoordinator.autoApproveOrder(String.valueOf(ORDER_ID), null, COMPANY_ID);
+
+        assertThat(result.orderStatus()).isEqualTo("READY_TO_SHIP");
+        assertThat(result.awaitingProduction()).isFalse();
+        verify(finishedGoodsService, never()).reserveForOrder(any());
+        verify(salesService, times(1)).updateStatus(ORDER_ID, "READY_TO_SHIP");
     }
 
     @Test

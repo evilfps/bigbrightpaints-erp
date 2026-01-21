@@ -529,6 +529,11 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
                 .isEqualTo(invoice.getJournalEntry().getId());
 
         invariants.assertJournalBalanced(creditNote.getId());
+
+        Invoice refreshed = invoiceRepository.findById(invoiceId)
+                .orElseThrow(() -> new AssertionError("Invoice missing after credit note"));
+        assertThat(refreshed.getOutstandingAmount()).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(refreshed.getStatus()).isEqualTo("VOID");
     }
 
     @Test

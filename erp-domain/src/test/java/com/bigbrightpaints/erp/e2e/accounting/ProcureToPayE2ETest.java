@@ -30,6 +30,7 @@ import org.springframework.http.ResponseEntity;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.YearMonth;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -64,6 +65,13 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
         headers = authHeaders();
         inventory = ensureAccount("INV-P2P-E2E", "P2P Inventory", AccountType.ASSET);
         cash = ensureAccount("CASH-P2P-E2E", "P2P Cash", AccountType.ASSET);
+        Account gstInput = ensureAccount("GST-IN-P2P-E2E", "GST Input Tax", AccountType.ASSET);
+        Account gstOutput = ensureAccount("GST-OUT-P2P-E2E", "GST Output Tax", AccountType.LIABILITY);
+        if (company.getGstInputTaxAccountId() == null || company.getGstOutputTaxAccountId() == null) {
+            company.setGstInputTaxAccountId(gstInput.getId());
+            company.setGstOutputTaxAccountId(gstOutput.getId());
+            companyRepository.save(company);
+        }
     }
 
     @Test
@@ -133,6 +141,55 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
 
         RawMaterialPurchase purchase = purchaseRepository.findById(purchaseId).orElseThrow();
         assertThat(purchase.getOutstandingAmount()).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(purchase.getStatus()).isEqualTo("PAID");
+    }
+
+    @Test
+    @DisplayName("Debit note clears purchase outstanding and sets status to PAID")
+    void purchaseDebitNoteClearsOutstanding() {
+        LocalDate entryDate = TestDateUtils.safeDate(company);
+        Long supplierId = createSupplier("P2P Debit Supplier", "DN-" + shortSuffix());
+        Long rawMaterialId = createRawMaterial("Debit Note Material", "RM-DN-" + shortSuffix(), inventory.getId());
+
+        BigDecimal quantity = new BigDecimal("5");
+        BigDecimal costPerUnit = new BigDecimal("20.00");
+
+        Map<String, Object> line = new HashMap<>();
+        line.put("rawMaterialId", rawMaterialId);
+        line.put("quantity", quantity);
+        line.put("costPerUnit", costPerUnit);
+
+        String invoiceNumber = "INV-DN-" + shortSuffix();
+        Map<String, Object> purchaseReq = new HashMap<>();
+        purchaseReq.put("supplierId", supplierId);
+        purchaseReq.put("invoiceNumber", invoiceNumber);
+        purchaseReq.put("invoiceDate", entryDate);
+        purchaseReq.put("lines", List.of(line));
+
+        ResponseEntity<Map> purchaseResp = rest.exchange(
+                "/api/v1/purchasing/raw-material-purchases",
+                HttpMethod.POST,
+                new HttpEntity<>(purchaseReq, headers),
+                Map.class);
+        assertThat(purchaseResp.getStatusCode()).isEqualTo(HttpStatus.OK);
+        Map<String, Object> purchaseData = (Map<String, Object>) purchaseResp.getBody().get("data");
+        Long purchaseId = ((Number) purchaseData.get("id")).longValue();
+
+        Map<String, Object> debitNoteReq = new HashMap<>();
+        debitNoteReq.put("purchaseId", purchaseId);
+        debitNoteReq.put("referenceNumber", "DN-" + shortSuffix());
+        debitNoteReq.put("memo", "Debit note test");
+
+        ResponseEntity<Map> debitResp = rest.exchange(
+                "/api/v1/accounting/debit-notes",
+                HttpMethod.POST,
+                new HttpEntity<>(debitNoteReq, headers),
+                Map.class);
+        assertThat(debitResp.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+        RawMaterialPurchase purchase = purchaseRepository.findById(purchaseId).orElseThrow();
+        assertThat(purchase.getOutstandingAmount()).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(purchase.getStatus()).isEqualTo("PAID");
     }
 
     @Test
@@ -195,6 +252,60 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
         assertThat(movement.getJournalEntryId()).isNotNull();
     }
 
+    @Test
+    @DisplayName("GST return includes input tax from purchase flow")
+    void gstReturnIncludesInputTaxFromPurchases() {
+        LocalDate entryDate = TestDateUtils.safeDate(company);
+        YearMonth period = YearMonth.from(entryDate);
+        Long supplierId = createSupplier("GST Supplier", "GST-" + shortSuffix());
+        Long rawMaterialId = createRawMaterial("GST Raw Material", "RM-GST-" + shortSuffix(), inventory.getId());
+
+        ResponseEntity<Map> beforeResp = rest.exchange(
+                "/api/v1/accounting/gst/return?period=" + period,
+                HttpMethod.GET,
+                new HttpEntity<>(headers),
+                Map.class);
+        assertThat(beforeResp.getStatusCode())
+                .withFailMessage("GST return failed: %s", beforeResp.getBody())
+                .isEqualTo(HttpStatus.OK);
+        Map<String, Object> beforeData = (Map<String, Object>) beforeResp.getBody().get("data");
+        BigDecimal beforeInput = amount(beforeData, "inputTax");
+
+        BigDecimal quantity = new BigDecimal("5");
+        BigDecimal costPerUnit = new BigDecimal("100.00");
+        BigDecimal taxAmount = new BigDecimal("90.00");
+
+        Map<String, Object> line = new HashMap<>();
+        line.put("rawMaterialId", rawMaterialId);
+        line.put("quantity", quantity);
+        line.put("costPerUnit", costPerUnit);
+
+        Map<String, Object> purchaseReq = new HashMap<>();
+        purchaseReq.put("supplierId", supplierId);
+        purchaseReq.put("invoiceNumber", "INV-GST-" + shortSuffix());
+        purchaseReq.put("invoiceDate", entryDate);
+        purchaseReq.put("taxAmount", taxAmount);
+        purchaseReq.put("lines", List.of(line));
+
+        ResponseEntity<Map> purchaseResp = rest.exchange(
+                "/api/v1/purchasing/raw-material-purchases",
+                HttpMethod.POST,
+                new HttpEntity<>(purchaseReq, headers),
+                Map.class);
+        assertThat(purchaseResp.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+        ResponseEntity<Map> afterResp = rest.exchange(
+                "/api/v1/accounting/gst/return?period=" + period,
+                HttpMethod.GET,
+                new HttpEntity<>(headers),
+                Map.class);
+        assertThat(afterResp.getStatusCode()).isEqualTo(HttpStatus.OK);
+        Map<String, Object> afterData = (Map<String, Object>) afterResp.getBody().get("data");
+        BigDecimal afterInput = amount(afterData, "inputTax");
+
+        assertThat(afterInput.subtract(beforeInput)).isEqualByComparingTo(taxAmount);
+    }
+
     private Long createSupplier(String name, String code) {
         Map<String, Object> req = Map.of(
                 "name", name,
@@ -242,6 +353,20 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
                     account.setType(type);
                     return accountRepository.save(account);
                 });
+    }
+
+    private BigDecimal amount(Map<String, Object> data, String field) {
+        if (data == null) {
+            return BigDecimal.ZERO;
+        }
+        Object value = data.get(field);
+        if (value instanceof Number) {
+            return new BigDecimal(value.toString());
+        }
+        if (value instanceof String str && !str.isBlank()) {
+            return new BigDecimal(str);
+        }
+        return BigDecimal.ZERO;
     }
 
     private HttpHeaders authHeaders() {

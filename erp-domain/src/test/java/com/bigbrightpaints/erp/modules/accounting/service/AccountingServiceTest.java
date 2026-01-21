@@ -4,7 +4,9 @@ import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
+import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
+import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriod;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriodStatus;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriodRepository;
@@ -25,6 +27,7 @@ import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatchReposit
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatchRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovementRepository;
 import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchaseRepository;
+import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchase;
 import com.bigbrightpaints.erp.modules.purchasing.domain.SupplierRepository;
 import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
@@ -141,7 +144,7 @@ class AccountingServiceTest {
         );
         company = new Company();
         company.setBaseCurrency("INR");
-        when(companyContextService.requireCurrentCompany()).thenReturn(company);
+        lenient().when(companyContextService.requireCurrentCompany()).thenReturn(company);
         lenient().when(systemSettingsService.isPeriodLockEnforced()).thenReturn(true);
         lenient().when(accountingPeriodService.requireOpenPeriod(any(), any())).thenReturn(new AccountingPeriod());
         lenient().when(dealerRepository.findAllByCompanyAndReceivableAccount(any(), any())).thenReturn(List.of());
@@ -275,6 +278,180 @@ class AccountingServiceTest {
         assertThatThrownBy(() -> accountingService.createJournalEntry(request))
                 .isInstanceOf(ApplicationException.class)
                 .hasMessageContaining("Dealer Test Dealer is missing a receivable account");
+    }
+
+    @Test
+    void createJournalEntry_rejectsArWithoutDealerContext() {
+        LocalDate today = LocalDate.of(2024, 4, 6);
+        when(companyClock.today(company)).thenReturn(today);
+        when(journalEntryRepository.findByCompanyAndReferenceNumber(eq(company), eq("AR-NO-DEALER")))
+                .thenReturn(Optional.empty());
+
+        Account ar = new Account();
+        ReflectionTestUtils.setField(ar, "id", 1L);
+        ar.setCompany(company);
+        ar.setCode("AR-100");
+        ar.setName("Accounts Receivable");
+        ar.setType(AccountType.ASSET);
+
+        Account revenue = new Account();
+        ReflectionTestUtils.setField(revenue, "id", 2L);
+        revenue.setCompany(company);
+        revenue.setCode("REV-100");
+        revenue.setName("Revenue");
+        revenue.setType(AccountType.REVENUE);
+
+        when(accountRepository.lockByCompanyAndId(eq(company), eq(1L))).thenReturn(Optional.of(ar));
+        when(accountRepository.lockByCompanyAndId(eq(company), eq(2L))).thenReturn(Optional.of(revenue));
+
+        JournalEntryRequest request = new JournalEntryRequest(
+                "AR-NO-DEALER",
+                today,
+                "AR without dealer",
+                null,
+                null,
+                Boolean.FALSE,
+                List.of(
+                        new JournalEntryRequest.JournalLineRequest(1L, "AR", new BigDecimal("100.00"), BigDecimal.ZERO),
+                        new JournalEntryRequest.JournalLineRequest(2L, "Revenue", BigDecimal.ZERO, new BigDecimal("100.00"))
+                )
+        );
+
+        assertThatThrownBy(() -> accountingService.createJournalEntry(request))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("dealer context");
+    }
+
+    @Test
+    void createJournalEntry_rejectsApWithoutSupplierContext() {
+        LocalDate today = LocalDate.of(2024, 4, 7);
+        when(companyClock.today(company)).thenReturn(today);
+        when(journalEntryRepository.findByCompanyAndReferenceNumber(eq(company), eq("AP-NO-SUPPLIER")))
+                .thenReturn(Optional.empty());
+
+        Account ap = new Account();
+        ReflectionTestUtils.setField(ap, "id", 3L);
+        ap.setCompany(company);
+        ap.setCode("AP-200");
+        ap.setName("Accounts Payable");
+        ap.setType(AccountType.LIABILITY);
+
+        Account inventory = new Account();
+        ReflectionTestUtils.setField(inventory, "id", 4L);
+        inventory.setCompany(company);
+        inventory.setCode("INV-200");
+        inventory.setName("Inventory");
+        inventory.setType(AccountType.ASSET);
+
+        when(accountRepository.lockByCompanyAndId(eq(company), eq(3L))).thenReturn(Optional.of(ap));
+        when(accountRepository.lockByCompanyAndId(eq(company), eq(4L))).thenReturn(Optional.of(inventory));
+
+        JournalEntryRequest request = new JournalEntryRequest(
+                "AP-NO-SUPPLIER",
+                today,
+                "AP without supplier",
+                null,
+                null,
+                Boolean.FALSE,
+                List.of(
+                        new JournalEntryRequest.JournalLineRequest(4L, "Inventory", new BigDecimal("50.00"), BigDecimal.ZERO),
+                        new JournalEntryRequest.JournalLineRequest(3L, "AP", BigDecimal.ZERO, new BigDecimal("50.00"))
+                )
+        );
+
+        assertThatThrownBy(() -> accountingService.createJournalEntry(request))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("supplier context");
+    }
+
+    @Test
+    void createJournalEntry_rejectsMixedArAp() {
+        LocalDate today = LocalDate.of(2024, 4, 8);
+        when(companyClock.today(company)).thenReturn(today);
+        when(journalEntryRepository.findByCompanyAndReferenceNumber(eq(company), eq("AR-AP-MIX")))
+                .thenReturn(Optional.empty());
+
+        Account ar = new Account();
+        ReflectionTestUtils.setField(ar, "id", 5L);
+        ar.setCompany(company);
+        ar.setCode("AR-300");
+        ar.setName("Accounts Receivable");
+        ar.setType(AccountType.ASSET);
+
+        Account ap = new Account();
+        ReflectionTestUtils.setField(ap, "id", 6L);
+        ap.setCompany(company);
+        ap.setCode("AP-300");
+        ap.setName("Accounts Payable");
+        ap.setType(AccountType.LIABILITY);
+
+        when(accountRepository.lockByCompanyAndId(eq(company), eq(5L))).thenReturn(Optional.of(ar));
+        when(accountRepository.lockByCompanyAndId(eq(company), eq(6L))).thenReturn(Optional.of(ap));
+
+        JournalEntryRequest request = new JournalEntryRequest(
+                "AR-AP-MIX",
+                today,
+                "AR/AP mix",
+                null,
+                null,
+                Boolean.FALSE,
+                List.of(
+                        new JournalEntryRequest.JournalLineRequest(5L, "AR", new BigDecimal("25.00"), BigDecimal.ZERO),
+                        new JournalEntryRequest.JournalLineRequest(6L, "AP", BigDecimal.ZERO, new BigDecimal("25.00"))
+                )
+        );
+
+        assertThatThrownBy(() -> accountingService.createJournalEntry(request))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("combine AR and AP");
+    }
+
+    @Test
+    void createJournalEntry_allowsNonArApWithoutCounterparty() {
+        LocalDate today = LocalDate.of(2024, 4, 9);
+        when(companyClock.today(company)).thenReturn(today);
+        when(journalEntryRepository.findByCompanyAndReferenceNumber(eq(company), eq("NO-AR-AP")))
+                .thenReturn(Optional.empty());
+        AccountingPeriod period = new AccountingPeriod();
+        period.setYear(today.getYear());
+        period.setMonth(today.getMonthValue());
+        when(accountingPeriodService.requireOpenPeriod(company, today)).thenReturn(period);
+
+        Account cash = new Account();
+        ReflectionTestUtils.setField(cash, "id", 7L);
+        cash.setCompany(company);
+        cash.setCode("CASH");
+        cash.setName("Cash");
+        cash.setType(AccountType.ASSET);
+
+        Account revenue = new Account();
+        ReflectionTestUtils.setField(revenue, "id", 8L);
+        revenue.setCompany(company);
+        revenue.setCode("REV-200");
+        revenue.setName("Revenue");
+        revenue.setType(AccountType.REVENUE);
+
+        when(accountRepository.lockByCompanyAndId(eq(company), eq(7L))).thenReturn(Optional.of(cash));
+        when(accountRepository.lockByCompanyAndId(eq(company), eq(8L))).thenReturn(Optional.of(revenue));
+        when(journalEntryRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(accountRepository.updateBalanceAtomic(eq(company), any(), any())).thenReturn(1);
+
+        JournalEntryRequest request = new JournalEntryRequest(
+                "NO-AR-AP",
+                today,
+                "Cash sale",
+                null,
+                null,
+                Boolean.FALSE,
+                List.of(
+                        new JournalEntryRequest.JournalLineRequest(7L, "Cash", new BigDecimal("10.00"), BigDecimal.ZERO),
+                        new JournalEntryRequest.JournalLineRequest(8L, "Revenue", BigDecimal.ZERO, new BigDecimal("10.00"))
+                )
+        );
+
+        JournalEntryDto result = accountingService.createJournalEntry(request);
+        assertThat(result).isNotNull();
+        assertThat(result.referenceNumber()).isEqualTo("NO-AR-AP");
     }
 
     @Test
@@ -425,6 +602,42 @@ class AccountingServiceTest {
 
         verify(accountRepository).updateBalanceAtomic(eq(company), eq(1L), eq(new BigDecimal("80.00")));
         verify(accountRepository).updateBalanceAtomic(eq(company), eq(2L), eq(new BigDecimal("-80.00")));
+    }
+
+    @Test
+    void updatePurchaseStatus_setsPaidWhenOutstandingZero() {
+        RawMaterialPurchase purchase = new RawMaterialPurchase();
+        purchase.setTotalAmount(new BigDecimal("120.00"));
+        purchase.setOutstandingAmount(BigDecimal.ZERO);
+        purchase.setStatus("POSTED");
+
+        accountingService.updatePurchaseStatus(purchase);
+
+        assertThat(purchase.getStatus()).isEqualTo("PAID");
+    }
+
+    @Test
+    void updatePurchaseStatus_setsPartialWhenOutstandingBetween() {
+        RawMaterialPurchase purchase = new RawMaterialPurchase();
+        purchase.setTotalAmount(new BigDecimal("120.00"));
+        purchase.setOutstandingAmount(new BigDecimal("50.00"));
+        purchase.setStatus("POSTED");
+
+        accountingService.updatePurchaseStatus(purchase);
+
+        assertThat(purchase.getStatus()).isEqualTo("PARTIAL");
+    }
+
+    @Test
+    void updatePurchaseStatus_setsPostedWhenOutstandingEqualsTotal() {
+        RawMaterialPurchase purchase = new RawMaterialPurchase();
+        purchase.setTotalAmount(new BigDecimal("120.00"));
+        purchase.setOutstandingAmount(new BigDecimal("120.00"));
+        purchase.setStatus("POSTED");
+
+        accountingService.updatePurchaseStatus(purchase);
+
+        assertThat(purchase.getStatus()).isEqualTo("POSTED");
     }
 
     @Test

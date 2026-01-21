@@ -8,14 +8,16 @@ no new flows are introduced.
 Source: `RawMaterialPurchase`, `PurchasingService`.
 
 States (string values stored on `RawMaterialPurchase.status`):
-- `POSTED`: default status on creation.
-
-Derived state (not persisted):
-- "SETTLED": `outstandingAmount` reaches zero after settlement allocations.
+- `POSTED`: default status on creation (fully outstanding).
+- `PARTIAL`: outstanding reduced but not zero.
+- `PAID`: outstanding cleared to zero.
 
 Transitions (current behavior):
 - Create purchase -> `POSTED`, `outstandingAmount = totalAmount`.
 - Supplier settlement reduces `outstandingAmount` by applied + discount + write-off + FX adjustment.
+  - outstanding == 0 -> `PAID`
+  - 0 < outstanding < total -> `PARTIAL`
+  - outstanding == total -> `POSTED`
 
 ## Raw Material Movement Types
 Source: `RawMaterialService`, `PurchasingService`.

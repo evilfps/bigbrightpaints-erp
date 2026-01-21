@@ -49,6 +49,8 @@ public class CreditDebitNoteIT extends AbstractIntegrationTest {
     private Company company;
     private Account ar;
     private Account rev;
+    private Account ap;
+    private Account inventory;
     private Dealer dealer;
     private Invoice invoice;
 
@@ -59,6 +61,8 @@ public class CreditDebitNoteIT extends AbstractIntegrationTest {
         company = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();
         ar = ensureAccount("AR", "Accounts Receivable", AccountType.ASSET);
         rev = ensureAccount("REV", "Revenue", AccountType.REVENUE);
+        ap = ensureAccount("AP", "Accounts Payable", AccountType.LIABILITY);
+        inventory = ensureAccount("INV", "Inventory", AccountType.ASSET);
         dealer = ensureDealer();
         invoice = ensureInvoice();
         headers = authHeaders();
@@ -179,5 +183,63 @@ public class CreditDebitNoteIT extends AbstractIntegrationTest {
         BigDecimal debits = note.getLines().stream().map(l -> l.getDebit()).reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal credits = note.getLines().stream().map(l -> l.getCredit()).reduce(BigDecimal.ZERO, BigDecimal::add);
         assertThat(debits).isEqualByComparingTo(credits);
+
+        Invoice refreshed = invoiceRepository.findById(invoice.getId()).orElseThrow();
+        assertThat(refreshed.getOutstandingAmount()).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(refreshed.getStatus()).isEqualTo("VOID");
+    }
+
+    @Test
+    @DisplayName("Journal entry with AR account requires dealer context")
+    void journalEntry_requiresDealerForAr() {
+        Map<String, Object> arLine = Map.of(
+                "accountId", ar.getId(),
+                "description", "AR line",
+                "debit", new BigDecimal("250.00"),
+                "credit", BigDecimal.ZERO
+        );
+        Map<String, Object> revLine = Map.of(
+                "accountId", rev.getId(),
+                "description", "Revenue",
+                "debit", BigDecimal.ZERO,
+                "credit", new BigDecimal("250.00")
+        );
+        Map<String, Object> payload = Map.of(
+                "entryDate", LocalDate.now(),
+                "referenceNumber", "AR-NO-DEALER-" + System.currentTimeMillis(),
+                "memo", "AR without dealer",
+                "lines", List.of(arLine, revLine)
+        );
+
+        ResponseEntity<Map> resp = rest.exchange("/api/v1/accounting/journal-entries",
+                HttpMethod.POST, new HttpEntity<>(payload, headers), Map.class);
+        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+    }
+
+    @Test
+    @DisplayName("Journal entry with AP account requires supplier context")
+    void journalEntry_requiresSupplierForAp() {
+        Map<String, Object> invLine = Map.of(
+                "accountId", inventory.getId(),
+                "description", "Inventory",
+                "debit", new BigDecimal("300.00"),
+                "credit", BigDecimal.ZERO
+        );
+        Map<String, Object> apLine = Map.of(
+                "accountId", ap.getId(),
+                "description", "AP line",
+                "debit", BigDecimal.ZERO,
+                "credit", new BigDecimal("300.00")
+        );
+        Map<String, Object> payload = Map.of(
+                "entryDate", LocalDate.now(),
+                "referenceNumber", "AP-NO-SUPPLIER-" + System.currentTimeMillis(),
+                "memo", "AP without supplier",
+                "lines", List.of(invLine, apLine)
+        );
+
+        ResponseEntity<Map> resp = rest.exchange("/api/v1/accounting/journal-entries",
+                HttpMethod.POST, new HttpEntity<>(payload, headers), Map.class);
+        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
     }
 }

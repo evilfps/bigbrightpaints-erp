@@ -64,6 +64,8 @@ public class ConfigurationHealthService {
     }
 
     private void validateCompany(Company company, List<ConfigurationIssue> issues) {
+        checkBaseCurrency(company, issues);
+        checkDefaultAccounts(company, issues);
         checkTaxAccounts(company, issues);
 
         Map<String, FinishedGood> finishedGoodsBySku = finishedGoodRepository.findByCompanyOrderByProductCodeAsc(company)
@@ -123,6 +125,32 @@ public class ConfigurationHealthService {
         }
         if (company.getGstOutputTaxAccountId() == null) {
             issues.add(issue(company, "TAX_ACCOUNT", "GST_OUTPUT", "GST output tax account is not configured"));
+        }
+    }
+
+    private void checkBaseCurrency(Company company, List<ConfigurationIssue> issues) {
+        if (!StringUtils.hasText(company.getBaseCurrency())) {
+            issues.add(issue(company, "BASE_CURRENCY", "BASE", "Base currency is not configured"));
+        }
+    }
+
+    private void checkDefaultAccounts(Company company, List<ConfigurationIssue> issues) {
+        List<String> missing = new ArrayList<>();
+        if (company.getDefaultInventoryAccountId() == null) {
+            missing.add("defaultInventoryAccountId");
+        }
+        if (company.getDefaultCogsAccountId() == null) {
+            missing.add("defaultCogsAccountId");
+        }
+        if (company.getDefaultRevenueAccountId() == null) {
+            missing.add("defaultRevenueAccountId");
+        }
+        if (company.getDefaultTaxAccountId() == null) {
+            missing.add("defaultTaxAccountId");
+        }
+        if (!missing.isEmpty()) {
+            issues.add(issue(company, "DEFAULT_ACCOUNTS", "COMPANY_DEFAULTS",
+                    "Missing default account IDs: " + String.join(", ", missing)));
         }
     }
 

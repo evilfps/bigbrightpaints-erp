@@ -69,6 +69,7 @@ Transitions (current behavior):
   - outstanding == 0 -> `PAID`
   - 0 < outstanding < total -> `PARTIAL`
 - Void -> `VOID`
+- Credit note (full reversal) -> `VOID`
 
 ## Dealer Ledger Payment Statuses
 Source: `DealerLedgerEntry.paymentStatus`.

@@ -298,7 +298,15 @@ public class AccountingService {
         }
         Dealer dealerContext = dealer;
         Supplier supplierContext = supplier;
+        boolean hasReceivableAccount = false;
+        boolean hasPayableAccount = false;
         for (Account account : lockedAccounts.values()) {
+            if (isReceivableAccount(account)) {
+                hasReceivableAccount = true;
+            }
+            if (isPayableAccount(account)) {
+                hasPayableAccount = true;
+            }
             List<Dealer> dealerOwners = dealerRepository.findAllByCompanyAndReceivableAccount(company, account);
             if (!dealerOwners.isEmpty()) {
                 if (dealerContext == null) {
@@ -322,15 +330,17 @@ public class AccountingService {
                 }
             }
         }
-        if (dealerContext == null || supplierContext == null) {
-            for (Account account : lockedAccounts.values()) {
-                if (dealerContext == null && isReceivableAccount(account)) {
-                    requireGenericSubledgerOverride("AR", request);
-                }
-                if (supplierContext == null && isPayableAccount(account)) {
-                    requireGenericSubledgerOverride("AP", request);
-                }
-            }
+        if (hasReceivableAccount && hasPayableAccount) {
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                    "Journal entry cannot combine AR and AP accounts; split into separate entries");
+        }
+        if (hasReceivableAccount && dealerContext == null) {
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                    "Posting to AR requires a dealer context");
+        }
+        if (hasPayableAccount && supplierContext == null) {
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                    "Posting to AP requires a supplier context");
         }
         BigDecimal totalBaseDebit = BigDecimal.ZERO;
         BigDecimal totalBaseCredit = BigDecimal.ZERO;
@@ -1505,6 +1515,7 @@ public class AccountingService {
                 }
                 BigDecimal currentOutstanding = MoneyUtils.zeroIfNull(purchase.getOutstandingAmount());
                 purchase.setOutstandingAmount(currentOutstanding.subtract(cleared).max(BigDecimal.ZERO));
+                updatePurchaseStatus(purchase);
                 touchedPurchases.add(purchase);
             }
 
@@ -2078,6 +2089,61 @@ public class AccountingService {
         }
     }
 
+    private void applyCreditNoteToInvoice(Invoice invoice, BigDecimal creditAmount, String reference, LocalDate entryDate) {
+        if (invoice == null) {
+            return;
+        }
+        if (!StringUtils.hasText(reference)) {
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT, "Credit note reference is required");
+        }
+        BigDecimal amount = MoneyUtils.zeroIfNull(creditAmount);
+        if (amount.compareTo(BigDecimal.ZERO) <= 0) {
+            return;
+        }
+        if (invoice.getPaymentReferences().contains(reference)) {
+            dealerLedgerService.syncInvoiceLedger(invoice, entryDate);
+            return;
+        }
+        if ("VOID".equalsIgnoreCase(invoice.getStatus()) || "REVERSED".equalsIgnoreCase(invoice.getStatus())) {
+            throw new ApplicationException(ErrorCode.BUSINESS_INVALID_STATE,
+                    "Invoice " + invoice.getInvoiceNumber() + " is void; cannot apply credit note");
+        }
+        invoiceSettlementPolicy.applyPayment(invoice, amount, reference);
+        if (amount.compareTo(MoneyUtils.zeroIfNull(invoice.getTotalAmount())) >= 0
+                && invoice.getOutstandingAmount() != null
+                && invoice.getOutstandingAmount().compareTo(BigDecimal.ZERO) <= 0) {
+            invoice.setStatus(InvoiceSettlementPolicy.InvoiceStatus.VOID.name());
+        }
+        dealerLedgerService.syncInvoiceLedger(invoice, entryDate);
+    }
+
+    private void applyDebitNoteToPurchase(RawMaterialPurchase purchase) {
+        if (purchase == null) {
+            return;
+        }
+        purchase.setOutstandingAmount(BigDecimal.ZERO);
+        updatePurchaseStatus(purchase);
+    }
+
+    void updatePurchaseStatus(RawMaterialPurchase purchase) {
+        if (purchase == null) {
+            return;
+        }
+        String status = purchase.getStatus();
+        if (status != null && ("VOID".equalsIgnoreCase(status) || "REVERSED".equalsIgnoreCase(status))) {
+            return;
+        }
+        BigDecimal total = MoneyUtils.zeroIfNull(purchase.getTotalAmount());
+        BigDecimal outstanding = MoneyUtils.zeroIfNull(purchase.getOutstandingAmount());
+        if (outstanding.compareTo(BigDecimal.ZERO) <= 0) {
+            purchase.setStatus("PAID");
+        } else if (total.compareTo(BigDecimal.ZERO) > 0 && outstanding.compareTo(total) < 0) {
+            purchase.setStatus("PARTIAL");
+        } else {
+            purchase.setStatus("POSTED");
+        }
+    }
+
     private boolean isTokenMatch(String value, String token) {
         if (!StringUtils.hasText(value)) {
             return false;
@@ -2147,7 +2213,8 @@ public class AccountingService {
     @Transactional
     public JournalEntryDto postCreditNote(CreditNoteRequest request) {
         Company company = companyContextService.requireCurrentCompany();
-        Invoice invoice = companyEntityLookup.requireInvoice(company, request.invoiceId());
+        Invoice invoice = invoiceRepository.lockByCompanyAndId(company, request.invoiceId())
+                .orElseThrow(() -> new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE, "Invoice not found"));
         JournalEntry source = invoice.getJournalEntry();
         if (source == null) {
             throw new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE,
@@ -2155,11 +2222,21 @@ public class AccountingService {
         }
         String reference = resolveJournalReference(company,
                 StringUtils.hasText(request.idempotencyKey()) ? request.idempotencyKey() : request.referenceNumber());
+        LocalDate entryDate = request.entryDate() != null ? request.entryDate() : currentDate(company);
+        BigDecimal creditAmount = MoneyUtils.zeroIfNull(invoice.getTotalAmount());
+        BigDecimal outstanding = MoneyUtils.zeroIfNull(invoice.getOutstandingAmount());
+        if (creditAmount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT, "Credit note amount must be positive");
+        }
         Optional<JournalEntry> existing = journalEntryRepository.findByCompanyAndReferenceNumber(company, reference);
         if (existing.isPresent()) {
+            applyCreditNoteToInvoice(invoice, creditAmount, reference, entryDate);
             return toDto(existing.get());
         }
-        LocalDate entryDate = request.entryDate() != null ? request.entryDate() : currentDate(company);
+        if (creditAmount.compareTo(outstanding) > 0) {
+            throw new ApplicationException(ErrorCode.BUSINESS_INVALID_STATE,
+                    "Credit note exceeds outstanding amount for invoice " + invoice.getInvoiceNumber());
+        }
         String memo = StringUtils.hasText(request.memo())
                 ? request.memo().trim()
                 : "Credit note for invoice " + invoice.getInvoiceNumber();
@@ -2186,13 +2263,15 @@ public class AccountingService {
         saved.setCorrectionType(JournalCorrectionType.REVERSAL);
         saved.setCorrectionReason("CREDIT_NOTE");
         journalEntryRepository.save(saved);
+        applyCreditNoteToInvoice(invoice, creditAmount, reference, entryDate);
         return toDto(saved);
     }
 
     @Transactional
     public JournalEntryDto postDebitNote(DebitNoteRequest request) {
         Company company = companyContextService.requireCurrentCompany();
-        RawMaterialPurchase purchase = companyEntityLookup.requireRawMaterialPurchase(company, request.purchaseId());
+        RawMaterialPurchase purchase = rawMaterialPurchaseRepository.lockByCompanyAndId(company, request.purchaseId())
+                .orElseThrow(() -> new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE, "Raw material purchase not found"));
         JournalEntry source = purchase.getJournalEntry();
         if (source == null) {
             throw new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE,
@@ -2200,11 +2279,21 @@ public class AccountingService {
         }
         String reference = resolveJournalReference(company,
                 StringUtils.hasText(request.idempotencyKey()) ? request.idempotencyKey() : request.referenceNumber());
+        LocalDate entryDate = request.entryDate() != null ? request.entryDate() : currentDate(company);
+        BigDecimal debitAmount = MoneyUtils.zeroIfNull(purchase.getTotalAmount());
+        BigDecimal outstanding = MoneyUtils.zeroIfNull(purchase.getOutstandingAmount());
+        if (debitAmount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT, "Debit note amount must be positive");
+        }
         Optional<JournalEntry> existing = journalEntryRepository.findByCompanyAndReferenceNumber(company, reference);
         if (existing.isPresent()) {
+            applyDebitNoteToPurchase(purchase);
             return toDto(existing.get());
         }
-        LocalDate entryDate = request.entryDate() != null ? request.entryDate() : currentDate(company);
+        if (debitAmount.compareTo(outstanding) > 0) {
+            throw new ApplicationException(ErrorCode.BUSINESS_INVALID_STATE,
+                    "Debit note exceeds outstanding amount for purchase " + purchase.getInvoiceNumber());
+        }
         String memo = StringUtils.hasText(request.memo())
                 ? request.memo().trim()
                 : "Debit note for purchase " + purchase.getInvoiceNumber();
@@ -2231,6 +2320,7 @@ public class AccountingService {
         saved.setCorrectionType(JournalCorrectionType.REVERSAL);
         saved.setCorrectionReason("DEBIT_NOTE");
         journalEntryRepository.save(saved);
+        applyDebitNoteToPurchase(purchase);
         return toDto(saved);
     }
 

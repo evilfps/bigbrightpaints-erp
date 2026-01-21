@@ -182,14 +182,14 @@ class HighImpactRegressionIT extends AbstractIntegrationTest {
                 "FX-JE-" + UUID.randomUUID(),
                 LocalDate.now(),
                 "Multi-currency journal entry",
-                dealerA.getId(),
-                supplierA.getId(),
+                null,
+                null,
                 Boolean.FALSE,
                 List.of(
-                        new JournalEntryRequest.JournalLineRequest(accountsA.get("AR").getId(), "AR Debit USD", usdDebit1, BigDecimal.ZERO, usdDebit1),
+                        new JournalEntryRequest.JournalLineRequest(accountsA.get("CASH").getId(), "Cash Debit USD", usdDebit1, BigDecimal.ZERO, usdDebit1),
                         new JournalEntryRequest.JournalLineRequest(accountsA.get("REV").getId(), "Revenue Credit USD", BigDecimal.ZERO, usdCredit1, usdCredit1),
-                        new JournalEntryRequest.JournalLineRequest(accountsA.get("CASH").getId(), "Cash Debit USD", usdDebit2, BigDecimal.ZERO, usdDebit2),
-                        new JournalEntryRequest.JournalLineRequest(accountsA.get("AP").getId(), "AP Credit USD", BigDecimal.ZERO, usdCredit2, usdCredit2)
+                        new JournalEntryRequest.JournalLineRequest(accountsA.get("INV").getId(), "Inventory Debit USD", usdDebit2, BigDecimal.ZERO, usdDebit2),
+                        new JournalEntryRequest.JournalLineRequest(accountsA.get("REVAL").getId(), "Revaluation Credit USD", BigDecimal.ZERO, usdCredit2, usdCredit2)
                 ),
                 "USD",
                 fxRate
@@ -215,10 +215,10 @@ class HighImpactRegressionIT extends AbstractIntegrationTest {
                 .as("foreignAmountTotal should reflect total foreign debits")
                 .isEqualTo(usdDebit1.add(usdDebit2).doubleValue());
 
-        // Verify AR account balance reflects base conversion
-        Account arAccount = accountRepository.findById(accountsA.get("AR").getId()).orElseThrow();
-        assertThat(arAccount.getBalance())
-                .as("AR account balance should reflect base currency conversion")
+        // Verify cash account balance reflects base conversion
+        Account cashAccount = accountRepository.findById(accountsA.get("CASH").getId()).orElseThrow();
+        assertThat(cashAccount.getBalance())
+                .as("Cash account balance should reflect base currency conversion")
                 .isGreaterThanOrEqualTo(inrDebit1);
     }
 
