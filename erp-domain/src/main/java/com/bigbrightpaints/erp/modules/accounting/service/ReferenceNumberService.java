@@ -6,11 +6,14 @@ import com.bigbrightpaints.erp.core.service.NumberSequenceService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.purchasing.domain.Supplier;
 import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.ZoneId;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
+import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -20,6 +23,7 @@ import org.springframework.util.StringUtils;
 public class ReferenceNumberService {
 
     private static final int DEFAULT_PADDING = 4;
+    private static final int JOURNAL_REFERENCE_MAX = 64;
     private static final Logger log = LoggerFactory.getLogger(ReferenceNumberService.class);
 
     private final NumberSequenceService numberSequenceService;
@@ -79,9 +83,30 @@ public class ReferenceNumberService {
     }
 
     public String purchaseReference(Company company, Supplier supplier, String invoiceNumber) {
+        String companyCode = sanitize(company != null ? company.getCode() : null);
         String supplierCode = sanitize(supplier != null ? supplier.getCode() : null);
         String invoicePart = sanitize(invoiceNumber);
-        String key = "RMP-%s-%s-%s".formatted(company.getCode(), supplierCode, invoicePart);
+        int maxKeyLength = maxJournalKeyLength();
+
+        String key = "RMP-%s-%s-%s".formatted(companyCode, supplierCode, invoicePart);
+        if (key.length() > maxKeyLength) {
+            int maxInvoiceLength = maxKeyLength - ("RMP-" + companyCode + "-" + supplierCode + "-").length();
+            invoicePart = compactToken(invoicePart, maxInvoiceLength);
+            key = "RMP-%s-%s-%s".formatted(companyCode, supplierCode, invoicePart);
+        }
+        if (key.length() > maxKeyLength) {
+            int maxSupplierLength = maxKeyLength - ("RMP-" + companyCode + "-" + invoicePart + "-").length();
+            supplierCode = compactToken(supplierCode, maxSupplierLength);
+            key = "RMP-%s-%s-%s".formatted(companyCode, supplierCode, invoicePart);
+        }
+        if (key.length() > maxKeyLength) {
+            int maxCompanyLength = maxKeyLength - ("RMP-" + supplierCode + "-" + invoicePart + "-").length();
+            companyCode = compactToken(companyCode, maxCompanyLength);
+            key = "RMP-%s-%s-%s".formatted(companyCode, supplierCode, invoicePart);
+        }
+        if (key.length() > maxKeyLength) {
+            key = "RMP-" + hashToken(companyCode + "-" + supplierCode + "-" + invoicePart);
+        }
         return generate(company, key, "purchase");
     }
 
@@ -128,6 +153,35 @@ public class ReferenceNumberService {
     private String formatted(String key, long sequence) {
         String format = "%s-%0" + DEFAULT_PADDING + "d";
         return format.formatted(key, sequence);
+    }
+
+    private int maxJournalKeyLength() {
+        return JOURNAL_REFERENCE_MAX - 1 - DEFAULT_PADDING;
+    }
+
+    private String compactToken(String token, int maxLength) {
+        String normalized = sanitize(token);
+        if (maxLength <= 0) {
+            return hashToken(normalized);
+        }
+        if (normalized.length() <= maxLength) {
+            return normalized;
+        }
+        String hash = hashToken(normalized);
+        int keep = maxLength - (hash.length() + 1);
+        if (keep <= 0) {
+            return hash.length() > maxLength ? hash.substring(0, maxLength) : hash;
+        }
+        return normalized.substring(0, keep) + "-" + hash;
+    }
+
+    private String hashToken(String token) {
+        String normalized = sanitize(token);
+        String digest = UUID.nameUUIDFromBytes(normalized.getBytes(StandardCharsets.UTF_8))
+                .toString()
+                .replace("-", "")
+                .toUpperCase(Locale.ROOT);
+        return digest.substring(0, 8);
     }
 
     private void auditReference(Company company, String key, String reference, String category) {

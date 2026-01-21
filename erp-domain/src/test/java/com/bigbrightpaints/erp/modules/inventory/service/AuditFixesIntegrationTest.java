@@ -175,6 +175,164 @@ class AuditFixesIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void dispatchUsesFifoAcrossBatches() {
+        Company company = dataSeeder.ensureCompany("DISP-FIFO", "Dispatch FIFO");
+
+        FinishedGood fg = new FinishedGood();
+        fg.setCompany(company);
+        fg.setProductCode("FG-FIFO");
+        fg.setName("Blue Paint FIFO");
+        fg.setUnit("UNIT");
+        fg.setCostingMethod("FIFO");
+        fg.setCurrentStock(new BigDecimal("8"));
+        fg.setReservedStock(new BigDecimal("8"));
+        fg.setValuationAccountId(100L);
+        fg.setCogsAccountId(200L);
+        fg = finishedGoodRepository.saveAndFlush(fg);
+
+        FinishedGoodBatch batch1 = new FinishedGoodBatch();
+        batch1.setFinishedGood(fg);
+        batch1.setBatchCode("BATCH-1");
+        batch1.setQuantityTotal(new BigDecimal("5"));
+        batch1.setQuantityAvailable(new BigDecimal("5"));
+        batch1.setUnitCost(new BigDecimal("5"));
+        batch1.setManufacturedAt(Instant.now().minusSeconds(3600));
+        batch1 = finishedGoodBatchRepository.saveAndFlush(batch1);
+
+        FinishedGoodBatch batch2 = new FinishedGoodBatch();
+        batch2.setFinishedGood(fg);
+        batch2.setBatchCode("BATCH-2");
+        batch2.setQuantityTotal(new BigDecimal("5"));
+        batch2.setQuantityAvailable(new BigDecimal("5"));
+        batch2.setUnitCost(new BigDecimal("7"));
+        batch2.setManufacturedAt(Instant.now());
+        batch2 = finishedGoodBatchRepository.saveAndFlush(batch2);
+
+        SalesOrder order = dataSeeder.ensureSalesOrder(company.getCode(), "SO-FIFO-" + UUID.randomUUID(), new BigDecimal("100"));
+
+        PackagingSlip slip = new PackagingSlip();
+        slip.setCompany(company);
+        slip.setSalesOrder(order);
+        slip.setSlipNumber("PS-FIFO-" + UUID.randomUUID());
+        slip.setStatus("PENDING");
+
+        PackagingSlipLine line1 = new PackagingSlipLine();
+        line1.setPackagingSlip(slip);
+        line1.setFinishedGoodBatch(batch1);
+        line1.setOrderedQuantity(new BigDecimal("5"));
+        line1.setQuantity(new BigDecimal("5"));
+        line1.setUnitCost(batch1.getUnitCost());
+        slip.getLines().add(line1);
+
+        PackagingSlipLine line2 = new PackagingSlipLine();
+        line2.setPackagingSlip(slip);
+        line2.setFinishedGoodBatch(batch2);
+        line2.setOrderedQuantity(new BigDecimal("3"));
+        line2.setQuantity(new BigDecimal("3"));
+        line2.setUnitCost(batch2.getUnitCost());
+        slip.getLines().add(line2);
+
+        slip = packagingSlipRepository.saveAndFlush(slip);
+
+        InventoryReservation reservation1 = new InventoryReservation();
+        reservation1.setFinishedGood(fg);
+        reservation1.setFinishedGoodBatch(batch1);
+        reservation1.setReferenceType(InventoryReference.SALES_ORDER);
+        reservation1.setReferenceId(order.getId().toString());
+        reservation1.setQuantity(new BigDecimal("5"));
+        reservation1.setReservedQuantity(new BigDecimal("5"));
+        reservation1.setStatus("RESERVED");
+        inventoryReservationRepository.save(reservation1);
+
+        InventoryReservation reservation2 = new InventoryReservation();
+        reservation2.setFinishedGood(fg);
+        reservation2.setFinishedGoodBatch(batch2);
+        reservation2.setReferenceType(InventoryReference.SALES_ORDER);
+        reservation2.setReferenceId(order.getId().toString());
+        reservation2.setQuantity(new BigDecimal("3"));
+        reservation2.setReservedQuantity(new BigDecimal("3"));
+        reservation2.setStatus("RESERVED");
+        inventoryReservationRepository.save(reservation2);
+
+        List<DispatchPosting> postings = finishedGoodsService.markSlipDispatched(order.getId(), slip);
+
+        BigDecimal expectedCost = new BigDecimal("5").multiply(new BigDecimal("5"))
+                .add(new BigDecimal("7").multiply(new BigDecimal("3")));
+        assertEquals(1, postings.size());
+        assertEquals(0, postings.getFirst().cost().compareTo(expectedCost));
+    }
+
+    @Test
+    void dispatchUsesWeightedAverageCostWhenConfigured() {
+        Company company = dataSeeder.ensureCompany("DISP-WAC", "Dispatch WAC");
+
+        FinishedGood fg = new FinishedGood();
+        fg.setCompany(company);
+        fg.setProductCode("FG-WAC");
+        fg.setName("Blue Paint WAC");
+        fg.setUnit("UNIT");
+        fg.setCostingMethod("WEIGHTED_AVERAGE");
+        fg.setCurrentStock(new BigDecimal("4"));
+        fg.setReservedStock(new BigDecimal("4"));
+        fg.setValuationAccountId(100L);
+        fg.setCogsAccountId(200L);
+        fg = finishedGoodRepository.saveAndFlush(fg);
+
+        FinishedGoodBatch batch1 = new FinishedGoodBatch();
+        batch1.setFinishedGood(fg);
+        batch1.setBatchCode("WAC-1");
+        batch1.setQuantityTotal(new BigDecimal("10"));
+        batch1.setQuantityAvailable(new BigDecimal("10"));
+        batch1.setUnitCost(new BigDecimal("10"));
+        batch1.setManufacturedAt(Instant.now().minusSeconds(7200));
+        batch1 = finishedGoodBatchRepository.saveAndFlush(batch1);
+
+        FinishedGoodBatch batch2 = new FinishedGoodBatch();
+        batch2.setFinishedGood(fg);
+        batch2.setBatchCode("WAC-2");
+        batch2.setQuantityTotal(new BigDecimal("10"));
+        batch2.setQuantityAvailable(new BigDecimal("10"));
+        batch2.setUnitCost(new BigDecimal("20"));
+        batch2.setManufacturedAt(Instant.now().minusSeconds(3600));
+        batch2 = finishedGoodBatchRepository.saveAndFlush(batch2);
+
+        SalesOrder order = dataSeeder.ensureSalesOrder(company.getCode(), "SO-WAC-" + UUID.randomUUID(), new BigDecimal("100"));
+
+        PackagingSlip slip = new PackagingSlip();
+        slip.setCompany(company);
+        slip.setSalesOrder(order);
+        slip.setSlipNumber("PS-WAC-" + UUID.randomUUID());
+        slip.setStatus("PENDING");
+
+        PackagingSlipLine line = new PackagingSlipLine();
+        line.setPackagingSlip(slip);
+        line.setFinishedGoodBatch(batch1);
+        line.setOrderedQuantity(new BigDecimal("4"));
+        line.setQuantity(new BigDecimal("4"));
+        line.setUnitCost(batch1.getUnitCost());
+        slip.getLines().add(line);
+
+        slip = packagingSlipRepository.saveAndFlush(slip);
+
+        InventoryReservation reservation = new InventoryReservation();
+        reservation.setFinishedGood(fg);
+        reservation.setFinishedGoodBatch(batch1);
+        reservation.setReferenceType(InventoryReference.SALES_ORDER);
+        reservation.setReferenceId(order.getId().toString());
+        reservation.setQuantity(new BigDecimal("4"));
+        reservation.setReservedQuantity(new BigDecimal("4"));
+        reservation.setStatus("RESERVED");
+        inventoryReservationRepository.save(reservation);
+
+        List<DispatchPosting> postings = finishedGoodsService.markSlipDispatched(order.getId(), slip);
+
+        BigDecimal expectedWac = new BigDecimal("15");
+        BigDecimal expectedCost = expectedWac.multiply(new BigDecimal("4"));
+        assertEquals(1, postings.size());
+        assertEquals(0, postings.getFirst().cost().compareTo(expectedCost));
+    }
+
+    @Test
     void getOrderWithItemsIsScopedToCurrentCompany() {
         Company companyA = dataSeeder.ensureCompany("COMP-A", "Company A");
         Company companyB = dataSeeder.ensureCompany("COMP-B", "Company B");

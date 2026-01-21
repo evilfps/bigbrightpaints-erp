@@ -472,6 +472,8 @@ public class FinishedGoodsService {
             if (fg.getValuationAccountId() == null || fg.getCogsAccountId() == null) {
                 throw new IllegalStateException("Finished good " + fg.getProductCode() + " missing accounting configuration");
             }
+            // Resolve cost before mutating quantities so WAC reflects pre-dispatch average.
+            BigDecimal unitCost = resolveDispatchUnitCost(fg, batch);
             BigDecimal reserved = fg.getReservedStock() == null ? BigDecimal.ZERO : fg.getReservedStock();
             BigDecimal newReserved = reserved.subtract(shipQty).max(BigDecimal.ZERO);
             fg.setReservedStock(newReserved);
@@ -482,7 +484,6 @@ public class FinishedGoodsService {
                 batch.setQuantityAvailable(updatedAvailable);
                 batchesToSave.add(batch);
             }
-            BigDecimal unitCost = batch != null ? batch.getUnitCost() : BigDecimal.ZERO;
             recordMovement(fg, batch, InventoryReference.SALES_ORDER, salesOrderId.toString(), "DISPATCH", shipQty, unitCost);
 
             String postingKey = fg.getValuationAccountId() + ":" + fg.getCogsAccountId();
@@ -679,13 +680,7 @@ public class FinishedGoodsService {
             line.setShippedQuantity(shipped);
             line.setBackorderQuantity(backorder);
             line.setNotes(conf.notes());
-            BigDecimal unitCost = batch.getUnitCost();
-            if (unitCost == null) {
-                unitCost = line.getUnitCost();
-            }
-            if (unitCost == null) {
-                unitCost = BigDecimal.ZERO;
-            }
+            BigDecimal unitCost = resolveDispatchUnitCost(fg, batch);
             line.setUnitCost(unitCost);
 
             // Update inventory if actually shipping
@@ -1152,6 +1147,7 @@ public class FinishedGoodsService {
         String method = finishedGood.getCostingMethod() == null ? "FIFO" : finishedGood.getCostingMethod().trim().toUpperCase();
         return switch (method) {
             case "LIFO" -> finishedGoodBatchRepository.findAllocatableBatchesLIFO(finishedGood);
+            case "WAC", "WEIGHTED_AVERAGE", "WEIGHTED-AVERAGE" -> finishedGoodBatchRepository.findAllocatableBatchesFIFO(finishedGood);
             default -> finishedGoodBatchRepository.findAllocatableBatchesFIFO(finishedGood);
         };
     }
@@ -1187,6 +1183,19 @@ public class FinishedGoodsService {
         movement.setQuantity(quantity);
         movement.setUnitCost(unitCost);
         inventoryMovementRepository.save(movement);
+    }
+
+    private BigDecimal resolveDispatchUnitCost(FinishedGood finishedGood, FinishedGoodBatch batch) {
+        if (finishedGood == null) {
+            return BigDecimal.ZERO;
+        }
+        String method = finishedGood.getCostingMethod() == null
+                ? "FIFO"
+                : finishedGood.getCostingMethod().trim().toUpperCase();
+        if ("WAC".equals(method) || "WEIGHTED_AVERAGE".equals(method) || "WEIGHTED-AVERAGE".equals(method)) {
+            return weightedAverageCost(finishedGood);
+        }
+        return batch != null && batch.getUnitCost() != null ? batch.getUnitCost() : BigDecimal.ZERO;
     }
 
     private String resolveBatchCode(FinishedGood finishedGood, String provided, Instant manufacturedAt) {
