@@ -10,6 +10,7 @@ import com.bigbrightpaints.erp.modules.inventory.dto.FinishedGoodBatchRequest;
 import com.bigbrightpaints.erp.modules.inventory.service.FinishedGoodsService;
 import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -46,6 +47,22 @@ public class FactoryService {
     @Transactional
     public ProductionPlanDto createPlan(ProductionPlanRequest request) {
         Company company = companyContextService.requireCurrentCompany();
+        String planNumber = request.planNumber();
+        if (StringUtils.hasText(planNumber)) {
+            String normalized = planNumber.trim();
+            return planRepository.findByCompanyAndPlanNumber(company, normalized)
+                    .map(this::toDto)
+                    .orElseGet(() -> {
+                        ProductionPlan plan = new ProductionPlan();
+                        plan.setCompany(company);
+                        plan.setPlanNumber(normalized);
+                        plan.setProductName(request.productName());
+                        plan.setQuantity(request.quantity());
+                        plan.setPlannedDate(request.plannedDate());
+                        plan.setNotes(request.notes());
+                        return toDto(planRepository.save(plan));
+                    });
+        }
         ProductionPlan plan = new ProductionPlan();
         plan.setCompany(company);
         plan.setPlanNumber(request.planNumber());
@@ -101,13 +118,23 @@ public class FactoryService {
     @Transactional
     public ProductionBatchDto logBatch(Long planId, ProductionBatchRequest request) {
         Company company = companyContextService.requireCurrentCompany();
+        if (StringUtils.hasText(request.batchNumber())) {
+            String normalized = request.batchNumber().trim();
+            return batchRepository.findByCompanyAndBatchNumber(company, normalized)
+                    .map(this::toDto)
+                    .orElseGet(() -> logBatchInternal(company, planId, request, normalized));
+        }
+        return logBatchInternal(company, planId, request, null);
+    }
+
+    private ProductionBatchDto logBatchInternal(Company company, Long planId, ProductionBatchRequest request, String normalizedBatchNumber) {
         ProductionBatch batch = new ProductionBatch();
         batch.setCompany(company);
         ProductionPlan plan = planId != null ? requirePlan(planId) : null;
         if (plan != null) {
             batch.setPlan(plan);
         }
-        batch.setBatchNumber(request.batchNumber());
+        batch.setBatchNumber(normalizedBatchNumber != null ? normalizedBatchNumber : request.batchNumber());
         batch.setQuantityProduced(request.quantityProduced());
         batch.setLoggedBy(request.loggedBy());
         batch.setNotes(request.notes());
@@ -142,9 +169,19 @@ public class FactoryService {
     @Transactional
     public FactoryTaskDto createTask(FactoryTaskRequest request) {
         Company company = companyContextService.requireCurrentCompany();
+        if (request.salesOrderId() != null && StringUtils.hasText(request.title())) {
+            String normalized = request.title().trim();
+            return taskRepository.findByCompanyAndSalesOrderIdAndTitleIgnoreCase(company, request.salesOrderId(), normalized)
+                    .map(this::toDto)
+                    .orElseGet(() -> createTaskInternal(company, request, normalized));
+        }
+        return createTaskInternal(company, request, null);
+    }
+
+    private FactoryTaskDto createTaskInternal(Company company, FactoryTaskRequest request, String normalizedTitle) {
         FactoryTask task = new FactoryTask();
         task.setCompany(company);
-        task.setTitle(request.title());
+        task.setTitle(normalizedTitle != null ? normalizedTitle : request.title());
         task.setDescription(request.description());
         task.setAssignee(request.assignee());
         if (request.status() != null) {

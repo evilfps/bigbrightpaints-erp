@@ -43,9 +43,6 @@ public class CommandDispatcher {
         String traceId = workflowService.startWorkflow("order-approval");
         InventoryReservationResult reservation = integrationCoordinator.reserveInventory(request.orderId(), companyId);
         boolean awaitingProduction = reservation != null && !reservation.shortages().isEmpty();
-        if (awaitingProduction) {
-            integrationCoordinator.queueProduction(request.orderId(), companyId);
-        }
         String orderStatus = awaitingProduction ? "PENDING_PRODUCTION" : "READY_TO_SHIP";
         DomainEvent event = DomainEvent.of("OrderApprovedEvent", companyId, userId, "Order", request.orderId(),
             Map.of("orderStatus", orderStatus,

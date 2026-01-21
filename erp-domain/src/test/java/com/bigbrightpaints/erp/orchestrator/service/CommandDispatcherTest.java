@@ -59,7 +59,7 @@ class CommandDispatcherTest {
 
         assertThat(traceId).isEqualTo("trace-123");
         verify(policyEnforcer).checkOrderApprovalPermissions("user-1", "COMP");
-        verify(integrationCoordinator).queueProduction("101", "COMP");
+        verify(integrationCoordinator).reserveInventory("101", "COMP");
 
         ArgumentCaptor<DomainEvent> eventCaptor = ArgumentCaptor.forClass(DomainEvent.class);
         verify(eventPublisherService).enqueue(eventCaptor.capture());
