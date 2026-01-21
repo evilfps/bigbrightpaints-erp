@@ -10,6 +10,11 @@ boot.err
 
 # Editor/OS specific
 .DS_Store
+.idea/
+erp-domain/.classpath
+erp-domain/.project
+erp-domain/.factorypath
+erp-domain/.settings/
 
 # Misc
 backup-$
@@ -55,5 +60,10 @@ login.json
 # Internal docs (not for repo)
 CRITICAL_BUGS_REPORT.md
 plan.md
+
+# Local investigations
+docs/ops_and_debug/
+interview/
+tasks/erp_logic_audit/
 
 # Large generated files
