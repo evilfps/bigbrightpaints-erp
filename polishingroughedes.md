@@ -361,6 +361,14 @@ Add entries here as work progresses:
 - **Test Results:** Not run (documentation-only change).
 - **Next Actions:** None.
 
+### Step 7: Unblock paid invoice/purchase credit/debit notes and re-verify
+- **Timestamp:** 2026-01-21 21:34
+- **Context:** review feedback, regression fix, verification
+- **Description:** Removed the new outstanding-amount guard so credit/debit notes can be posted after full payment, switched invoice credit settlement to use the settlement policy, added E2E coverage for paid invoices/purchases, and fixed a test optimistic-locking failure by reloading the invoice before updates.
+- **Changes Made:** Updated `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingService.java`; added/adjusted tests in `erp-domain/src/test/java/com/bigbrightpaints/erp/e2e/accounting/CreditDebitNoteIT.java` and `erp-domain/src/test/java/com/bigbrightpaints/erp/e2e/accounting/ProcureToPayE2ETest.java`.
+- **Test Results:** `mvn -B -ntp clean verify` from repo root failed (no POM); re-ran `mvn -B -ntp clean verify` in `erp-domain` (pass; 247 tests, 4 skipped).
+- **Next Actions:** Stage and commit the paid-invoice/purchase credit/debit note fixes.
+
 - Date:
 - What changed:
 - Tests added/updated:

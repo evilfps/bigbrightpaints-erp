@@ -193,6 +193,79 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
     }
 
     @Test
+    @DisplayName("Debit note allowed after purchase is fully settled")
+    void purchaseDebitNoteAllowedAfterSettlement() {
+        LocalDate entryDate = TestDateUtils.safeDate(company);
+        Long supplierId = createSupplier("P2P Paid Supplier", "DN-PAID-" + shortSuffix());
+        Long rawMaterialId = createRawMaterial("Paid Debit Material", "RM-DN-PAID-" + shortSuffix(), inventory.getId());
+
+        BigDecimal quantity = new BigDecimal("4");
+        BigDecimal costPerUnit = new BigDecimal("25.00");
+        BigDecimal totalAmount = quantity.multiply(costPerUnit);
+
+        Map<String, Object> line = new HashMap<>();
+        line.put("rawMaterialId", rawMaterialId);
+        line.put("quantity", quantity);
+        line.put("costPerUnit", costPerUnit);
+
+        String invoiceNumber = "INV-PAID-" + shortSuffix();
+        Map<String, Object> purchaseReq = new HashMap<>();
+        purchaseReq.put("supplierId", supplierId);
+        purchaseReq.put("invoiceNumber", invoiceNumber);
+        purchaseReq.put("invoiceDate", entryDate);
+        purchaseReq.put("lines", List.of(line));
+
+        ResponseEntity<Map> purchaseResp = rest.exchange(
+                "/api/v1/purchasing/raw-material-purchases",
+                HttpMethod.POST,
+                new HttpEntity<>(purchaseReq, headers),
+                Map.class);
+        assertThat(purchaseResp.getStatusCode()).isEqualTo(HttpStatus.OK);
+        Map<String, Object> purchaseData = (Map<String, Object>) purchaseResp.getBody().get("data");
+        Long purchaseId = ((Number) purchaseData.get("id")).longValue();
+
+        Map<String, Object> allocation = Map.of(
+                "purchaseId", purchaseId,
+                "appliedAmount", totalAmount
+        );
+        String settlementRef = "SET-PAID-" + shortSuffix();
+        Map<String, Object> settlementReq = new HashMap<>();
+        settlementReq.put("supplierId", supplierId);
+        settlementReq.put("cashAccountId", cash.getId());
+        settlementReq.put("settlementDate", entryDate);
+        settlementReq.put("referenceNumber", settlementRef);
+        settlementReq.put("idempotencyKey", settlementRef);
+        settlementReq.put("allocations", List.of(allocation));
+
+        ResponseEntity<Map> settleResp = rest.exchange(
+                "/api/v1/accounting/settlements/suppliers",
+                HttpMethod.POST,
+                new HttpEntity<>(settlementReq, headers),
+                Map.class);
+        assertThat(settleResp.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+        RawMaterialPurchase paidPurchase = purchaseRepository.findById(purchaseId).orElseThrow();
+        assertThat(paidPurchase.getOutstandingAmount()).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(paidPurchase.getStatus()).isEqualTo("PAID");
+
+        Map<String, Object> debitNoteReq = new HashMap<>();
+        debitNoteReq.put("purchaseId", purchaseId);
+        debitNoteReq.put("referenceNumber", "DN-PAID-" + shortSuffix());
+        debitNoteReq.put("memo", "Debit note after settlement");
+
+        ResponseEntity<Map> debitResp = rest.exchange(
+                "/api/v1/accounting/debit-notes",
+                HttpMethod.POST,
+                new HttpEntity<>(debitNoteReq, headers),
+                Map.class);
+        assertThat(debitResp.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+        RawMaterialPurchase refreshed = purchaseRepository.findById(purchaseId).orElseThrow();
+        assertThat(refreshed.getOutstandingAmount()).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(refreshed.getStatus()).isEqualTo("PAID");
+    }
+
+    @Test
     @DisplayName("Purchase return reduces stock and records movement")
     void purchaseReturnReducesStock() {
         LocalDate entryDate = TestDateUtils.safeDate(company);

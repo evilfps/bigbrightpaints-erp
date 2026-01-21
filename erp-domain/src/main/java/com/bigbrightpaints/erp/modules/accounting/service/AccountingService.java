@@ -2108,7 +2108,7 @@ public class AccountingService {
             throw new ApplicationException(ErrorCode.BUSINESS_INVALID_STATE,
                     "Invoice " + invoice.getInvoiceNumber() + " is void; cannot apply credit note");
         }
-        invoiceSettlementPolicy.applyPayment(invoice, amount, reference);
+        invoiceSettlementPolicy.applySettlement(invoice, amount, reference);
         if (amount.compareTo(MoneyUtils.zeroIfNull(invoice.getTotalAmount())) >= 0
                 && invoice.getOutstandingAmount() != null
                 && invoice.getOutstandingAmount().compareTo(BigDecimal.ZERO) <= 0) {
@@ -2224,7 +2224,6 @@ public class AccountingService {
                 StringUtils.hasText(request.idempotencyKey()) ? request.idempotencyKey() : request.referenceNumber());
         LocalDate entryDate = request.entryDate() != null ? request.entryDate() : currentDate(company);
         BigDecimal creditAmount = MoneyUtils.zeroIfNull(invoice.getTotalAmount());
-        BigDecimal outstanding = MoneyUtils.zeroIfNull(invoice.getOutstandingAmount());
         if (creditAmount.compareTo(BigDecimal.ZERO) <= 0) {
             throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT, "Credit note amount must be positive");
         }
@@ -2232,10 +2231,6 @@ public class AccountingService {
         if (existing.isPresent()) {
             applyCreditNoteToInvoice(invoice, creditAmount, reference, entryDate);
             return toDto(existing.get());
-        }
-        if (creditAmount.compareTo(outstanding) > 0) {
-            throw new ApplicationException(ErrorCode.BUSINESS_INVALID_STATE,
-                    "Credit note exceeds outstanding amount for invoice " + invoice.getInvoiceNumber());
         }
         String memo = StringUtils.hasText(request.memo())
                 ? request.memo().trim()
@@ -2281,7 +2276,6 @@ public class AccountingService {
                 StringUtils.hasText(request.idempotencyKey()) ? request.idempotencyKey() : request.referenceNumber());
         LocalDate entryDate = request.entryDate() != null ? request.entryDate() : currentDate(company);
         BigDecimal debitAmount = MoneyUtils.zeroIfNull(purchase.getTotalAmount());
-        BigDecimal outstanding = MoneyUtils.zeroIfNull(purchase.getOutstandingAmount());
         if (debitAmount.compareTo(BigDecimal.ZERO) <= 0) {
             throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT, "Debit note amount must be positive");
         }
@@ -2289,10 +2283,6 @@ public class AccountingService {
         if (existing.isPresent()) {
             applyDebitNoteToPurchase(purchase);
             return toDto(existing.get());
-        }
-        if (debitAmount.compareTo(outstanding) > 0) {
-            throw new ApplicationException(ErrorCode.BUSINESS_INVALID_STATE,
-                    "Debit note exceeds outstanding amount for purchase " + purchase.getInvoiceNumber());
         }
         String memo = StringUtils.hasText(request.memo())
                 ? request.memo().trim()

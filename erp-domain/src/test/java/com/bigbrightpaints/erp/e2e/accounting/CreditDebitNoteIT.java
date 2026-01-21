@@ -190,6 +190,30 @@ public class CreditDebitNoteIT extends AbstractIntegrationTest {
     }
 
     @Test
+    @DisplayName("Credit note allowed on fully paid invoice")
+    void creditNote_allowsPaidInvoice() {
+        Invoice paidInvoice = invoiceRepository.findById(invoice.getId()).orElseThrow();
+        paidInvoice.setOutstandingAmount(BigDecimal.ZERO);
+        paidInvoice.setStatus("PAID");
+        invoiceRepository.save(paidInvoice);
+
+        String ref = "CN-PAID-" + System.currentTimeMillis();
+        Map<String, Object> payload = Map.of(
+                "invoiceId", invoice.getId(),
+                "referenceNumber", ref,
+                "memo", "Credit note for paid invoice"
+        );
+
+        ResponseEntity<Map> resp = rest.exchange("/api/v1/accounting/credit-notes",
+                HttpMethod.POST, new HttpEntity<>(payload, headers), Map.class);
+        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+        Invoice refreshed = invoiceRepository.findById(invoice.getId()).orElseThrow();
+        assertThat(refreshed.getOutstandingAmount()).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(refreshed.getStatus()).isEqualTo("VOID");
+    }
+
+    @Test
     @DisplayName("Journal entry with AR account requires dealer context")
     void journalEntry_requiresDealerForAr() {
         Map<String, Object> arLine = Map.of(
