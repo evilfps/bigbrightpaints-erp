@@ -369,6 +369,14 @@ Add entries here as work progresses:
 - **Test Results:** `mvn -B -ntp clean verify` (repo root; failed: no POM); `cd erp-domain && mvn -B -ntp clean verify` (pass; 247 tests, 4 skipped).
 - **Next Actions:** None.
 
+### Step 8: Preserve credit balances and prevent duplicate debit notes
+- **Timestamp:** 2026-01-21 22:32
+- **Context:** review feedback, accounting flows, verification
+- **Description:** Restored credit note behavior to preserve negative outstanding for over-credits, marked debit-note purchases as VOID, and blocked duplicate debit notes after a reversal is posted.
+- **Changes Made:** Updated `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingService.java`; updated tests in `erp-domain/src/test/java/com/bigbrightpaints/erp/e2e/accounting/CreditDebitNoteIT.java` and `erp-domain/src/test/java/com/bigbrightpaints/erp/e2e/accounting/ProcureToPayE2ETest.java`; committed as `03febb8`.
+- **Test Results:** `cd erp-domain && mvn -B -ntp clean verify` (pass; 247 tests, 4 skipped).
+- **Next Actions:** Push branch and re-review for any remaining findings.
+
 - Date:
 - What changed:
 - Tests added/updated:
