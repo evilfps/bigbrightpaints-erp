@@ -68,8 +68,9 @@ Add validation in `createJournalEntry` (or equivalent service layer entry point)
 
 - [ ] Not started
 - [ ] In progress
-- [ ] Done
+- [x] Done
 - Notes/decisions:
+  - Reject mixed AR/AP journals; require dealer for AR and supplier for AP based on account type.
 
 ---
 
@@ -136,8 +137,9 @@ Record decision here:
 
 - [ ] Not started
 - [ ] In progress
-- [ ] Done
+- [x] Done
 - Notes/decisions:
+  - Full credit notes set invoice status to `VOID` with outstanding reduced to zero.
 
 ---
 
@@ -172,8 +174,9 @@ Mirror invoice behavior:
 
 - [ ] Not started
 - [ ] In progress
-- [ ] Done
+- [x] Done
 - Notes:
+  - Purchase status aligns to outstanding (PAID/PARTIAL/POSTED) after settlement and debit notes.
 
 ---
 
@@ -225,7 +228,7 @@ Reversing an invoice ideally reverses its linked **COGS entry** and any **paymen
 
 - [ ] Not started
 - [ ] In progress
-- [ ] Done
+- [x] Done
 - Notes/decision (A vs B):
   - Option A for v1: document manual cascade steps; use `/api/v1/accounting/journal-entries/{entryId}/cascade-reverse` and include related COGS/payment entry IDs (COGS via `sales_orders.cogs_journal_entry_id` or `packaging_slips.cogs_journal_entry_id`). Payments/settlements must be reversed separately if not reference-linked.
 ---
@@ -270,8 +273,9 @@ Critical configs must exist in production:
 
 - [ ] Not started
 - [ ] In progress
-- [ ] Done
+- [x] Done
 - Notes:
+  - Configuration health checks now validate base currency and default account mappings in addition to tax setup.
 
 ---
 
@@ -348,6 +352,14 @@ Add entries here as work progresses:
 - **Changes Made:** Stashed unrelated local mods via `git stash push -m "wip unrelated local mods" -- erp-domain/src/main/java/com/bigbrightpaints/erp/modules/sales/service/SalesService.java erp-domain/src/test/java/com/bigbrightpaints/erp/modules/sales/service/SalesServiceTest.java erp-domain/src/test/java/com/bigbrightpaints/erp/orchestrator/service/IntegrationCoordinatorTest.java erp-domain/src/test/java/com/bigbrightpaints/erp/e2e/accounting/CriticalAccountingAxesIT.java`; restored `erp-domain/src/test/java/com/bigbrightpaints/erp/orchestrator/service/IntegrationCoordinatorTest.java` via `git checkout stash@{0} -- erp-domain/src/test/java/com/bigbrightpaints/erp/orchestrator/service/IntegrationCoordinatorTest.java`; committed hardening changes as `414a47a`.
 - **Test Results:** `mvn -B -ntp clean verify` (fail: JaCoCo branch coverage 0.30 < 0.31 for `com.bigbrightpaints.erp.orchestrator.service`); re-run `mvn -B -ntp clean verify` (pass; 245 tests, 4 skipped).
 - **Next Actions:** None pending; ready for review.
+
+### Step 6: Restore progress log after accidental overwrite
+- **Timestamp:** 2026-01-21 21:11
+- **Context:** documentation correction
+- **Description:** Reverted the accidental reset of this log and re-applied the completion status markers so progress visibility remains accurate.
+- **Changes Made:** `git revert 0b9efd4` (commit `3ffd6c0`); updated status checkboxes and notes in Sections 1-5.
+- **Test Results:** Not run (documentation-only change).
+- **Next Actions:** None.
 
 - Date:
 - What changed:
