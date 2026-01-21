@@ -190,7 +190,7 @@ public class CreditDebitNoteIT extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("Credit note allowed on fully paid invoice")
+    @DisplayName("Credit note on fully paid invoice records credit balance")
     void creditNote_allowsPaidInvoice() {
         Invoice paidInvoice = invoiceRepository.findById(invoice.getId()).orElseThrow();
         paidInvoice.setOutstandingAmount(BigDecimal.ZERO);
@@ -209,7 +209,7 @@ public class CreditDebitNoteIT extends AbstractIntegrationTest {
         assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.OK);
 
         Invoice refreshed = invoiceRepository.findById(invoice.getId()).orElseThrow();
-        assertThat(refreshed.getOutstandingAmount()).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(refreshed.getOutstandingAmount()).isEqualByComparingTo(paidInvoice.getTotalAmount().negate());
         assertThat(refreshed.getStatus()).isEqualTo("VOID");
     }
 

@@ -2108,10 +2108,13 @@ public class AccountingService {
             throw new ApplicationException(ErrorCode.BUSINESS_INVALID_STATE,
                     "Invoice " + invoice.getInvoiceNumber() + " is void; cannot apply credit note");
         }
-        invoiceSettlementPolicy.applySettlement(invoice, amount, reference);
+        BigDecimal currentOutstanding = MoneyUtils.zeroIfNull(invoice.getOutstandingAmount());
+        BigDecimal newOutstanding = currentOutstanding.subtract(amount);
+        invoice.setOutstandingAmount(newOutstanding);
+        invoice.getPaymentReferences().add(reference);
+        invoiceSettlementPolicy.updateStatusFromOutstanding(invoice, newOutstanding);
         if (amount.compareTo(MoneyUtils.zeroIfNull(invoice.getTotalAmount())) >= 0
-                && invoice.getOutstandingAmount() != null
-                && invoice.getOutstandingAmount().compareTo(BigDecimal.ZERO) <= 0) {
+                && newOutstanding.compareTo(BigDecimal.ZERO) <= 0) {
             invoice.setStatus(InvoiceSettlementPolicy.InvoiceStatus.VOID.name());
         }
         dealerLedgerService.syncInvoiceLedger(invoice, entryDate);
@@ -2122,6 +2125,7 @@ public class AccountingService {
             return;
         }
         purchase.setOutstandingAmount(BigDecimal.ZERO);
+        purchase.setStatus("VOID");
         updatePurchaseStatus(purchase);
     }
 
@@ -2267,10 +2271,18 @@ public class AccountingService {
         Company company = companyContextService.requireCurrentCompany();
         RawMaterialPurchase purchase = rawMaterialPurchaseRepository.lockByCompanyAndId(company, request.purchaseId())
                 .orElseThrow(() -> new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE, "Raw material purchase not found"));
+        if ("VOID".equalsIgnoreCase(purchase.getStatus()) || "REVERSED".equalsIgnoreCase(purchase.getStatus())) {
+            throw new ApplicationException(ErrorCode.BUSINESS_INVALID_STATE,
+                    "Purchase " + purchase.getInvoiceNumber() + " is void; cannot apply debit note");
+        }
         JournalEntry source = purchase.getJournalEntry();
         if (source == null) {
             throw new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE,
                     "Purchase " + purchase.getInvoiceNumber() + " has no posted journal to reverse");
+        }
+        if (source.getReversalEntry() != null) {
+            throw new ApplicationException(ErrorCode.BUSINESS_INVALID_STATE,
+                    "Purchase " + purchase.getInvoiceNumber() + " already has a debit note reversal");
         }
         String reference = resolveJournalReference(company,
                 StringUtils.hasText(request.idempotencyKey()) ? request.idempotencyKey() : request.referenceNumber());

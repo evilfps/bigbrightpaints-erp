@@ -145,7 +145,7 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("Debit note clears purchase outstanding and sets status to PAID")
+    @DisplayName("Debit note clears purchase outstanding and sets status to VOID")
     void purchaseDebitNoteClearsOutstanding() {
         LocalDate entryDate = TestDateUtils.safeDate(company);
         Long supplierId = createSupplier("P2P Debit Supplier", "DN-" + shortSuffix());
@@ -189,7 +189,19 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
 
         RawMaterialPurchase purchase = purchaseRepository.findById(purchaseId).orElseThrow();
         assertThat(purchase.getOutstandingAmount()).isEqualByComparingTo(BigDecimal.ZERO);
-        assertThat(purchase.getStatus()).isEqualTo("PAID");
+        assertThat(purchase.getStatus()).isEqualTo("VOID");
+
+        Map<String, Object> duplicateReq = new HashMap<>();
+        duplicateReq.put("purchaseId", purchaseId);
+        duplicateReq.put("referenceNumber", "DN-DUP-" + shortSuffix());
+        duplicateReq.put("memo", "Second debit note should fail");
+
+        ResponseEntity<Map> duplicateResp = rest.exchange(
+                "/api/v1/accounting/debit-notes",
+                HttpMethod.POST,
+                new HttpEntity<>(duplicateReq, headers),
+                Map.class);
+        assertThat(duplicateResp.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
     }
 
     @Test
@@ -262,7 +274,7 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
 
         RawMaterialPurchase refreshed = purchaseRepository.findById(purchaseId).orElseThrow();
         assertThat(refreshed.getOutstandingAmount()).isEqualByComparingTo(BigDecimal.ZERO);
-        assertThat(refreshed.getStatus()).isEqualTo("PAID");
+        assertThat(refreshed.getStatus()).isEqualTo("VOID");
     }
 
     @Test
