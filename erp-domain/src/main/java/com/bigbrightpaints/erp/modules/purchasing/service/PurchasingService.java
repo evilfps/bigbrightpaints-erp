@@ -109,15 +109,31 @@ public class PurchasingService {
     }
 
     public List<RawMaterialPurchaseResponse> listPurchases() {
+        return listPurchases(null);
+    }
+
+    public List<RawMaterialPurchaseResponse> listPurchases(Long supplierId) {
         Company company = companyContextService.requireCurrentCompany();
-        return purchaseRepository.findByCompanyWithLinesOrderByInvoiceDateDesc(company).stream()
+        Supplier supplier = supplierId != null ? companyEntityLookup.requireSupplier(company, supplierId) : null;
+        List<RawMaterialPurchase> purchases = supplier == null
+                ? purchaseRepository.findByCompanyWithLinesOrderByInvoiceDateDesc(company)
+                : purchaseRepository.findByCompanyAndSupplierWithLinesOrderByInvoiceDateDesc(company, supplier);
+        return purchases.stream()
                 .map(this::toResponse)
                 .toList();
     }
 
     public List<PurchaseOrderResponse> listPurchaseOrders() {
+        return listPurchaseOrders(null);
+    }
+
+    public List<PurchaseOrderResponse> listPurchaseOrders(Long supplierId) {
         Company company = companyContextService.requireCurrentCompany();
-        return purchaseOrderRepository.findByCompanyWithLinesOrderByOrderDateDesc(company).stream()
+        Supplier supplier = supplierId != null ? companyEntityLookup.requireSupplier(company, supplierId) : null;
+        List<PurchaseOrder> orders = supplier == null
+                ? purchaseOrderRepository.findByCompanyWithLinesOrderByOrderDateDesc(company)
+                : purchaseOrderRepository.findByCompanyAndSupplierWithLinesOrderByOrderDateDesc(company, supplier);
+        return orders.stream()
                 .map(this::toPurchaseOrderResponse)
                 .toList();
     }
@@ -191,8 +207,16 @@ public class PurchasingService {
     }
 
     public List<GoodsReceiptResponse> listGoodsReceipts() {
+        return listGoodsReceipts(null);
+    }
+
+    public List<GoodsReceiptResponse> listGoodsReceipts(Long supplierId) {
         Company company = companyContextService.requireCurrentCompany();
-        return goodsReceiptRepository.findByCompanyWithLinesOrderByReceiptDateDesc(company).stream()
+        Supplier supplier = supplierId != null ? companyEntityLookup.requireSupplier(company, supplierId) : null;
+        List<GoodsReceipt> receipts = supplier == null
+                ? goodsReceiptRepository.findByCompanyWithLinesOrderByReceiptDateDesc(company)
+                : goodsReceiptRepository.findByCompanyAndSupplierWithLinesOrderByReceiptDateDesc(company, supplier);
+        return receipts.stream()
                 .map(this::toGoodsReceiptResponse)
                 .toList();
     }

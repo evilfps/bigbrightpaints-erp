@@ -63,13 +63,18 @@ public class DataInitializer {
             return;
         }
         List<AccountSeed> seeds = List.of(
-                new AccountSeed("1000", "Cash", AccountType.ASSET),
-                new AccountSeed("1100", "Accounts Receivable", AccountType.ASSET),
-                new AccountSeed("1200", "Inventory", AccountType.ASSET),
-                new AccountSeed("2000", "Accounts Payable", AccountType.LIABILITY),
-                new AccountSeed("4000", "Revenue", AccountType.REVENUE),
-                new AccountSeed("5000", "Cost of Goods Sold", AccountType.COGS),
-                new AccountSeed("6000", "Operating Expenses", AccountType.EXPENSE)
+                new AccountSeed("CASH", "Cash", AccountType.ASSET),
+                new AccountSeed("AR", "Accounts Receivable", AccountType.ASSET),
+                new AccountSeed("AP", "Accounts Payable", AccountType.LIABILITY),
+                new AccountSeed("INV", "Inventory", AccountType.ASSET),
+                new AccountSeed("COGS", "Cost of Goods Sold", AccountType.COGS),
+                new AccountSeed("REV", "Revenue", AccountType.REVENUE),
+                new AccountSeed("GST-IN", "GST Input Tax", AccountType.ASSET),
+                new AccountSeed("GST-OUT", "GST Output Tax", AccountType.LIABILITY),
+                new AccountSeed("GST-PAY", "GST Payable", AccountType.LIABILITY),
+                new AccountSeed("DISC", "Discounts", AccountType.EXPENSE),
+                new AccountSeed("WIP", "Work in Progress", AccountType.ASSET),
+                new AccountSeed("OPEX", "Operating Expenses", AccountType.EXPENSE)
         );
         for (AccountSeed seed : seeds) {
             accountRepository.findByCompanyAndCodeIgnoreCase(company, seed.code())
@@ -89,20 +94,36 @@ public class DataInitializer {
                                           AccountRepository accountRepository) {
         // Only set if missing to avoid overriding user-configured values
         if (company.getDefaultInventoryAccountId() == null) {
-            accountRepository.findByCompanyAndCodeIgnoreCase(company, "1200")
+            accountRepository.findByCompanyAndCodeIgnoreCase(company, "INV")
                     .ifPresent(a -> company.setDefaultInventoryAccountId(a.getId()));
         }
         if (company.getDefaultCogsAccountId() == null) {
-            accountRepository.findByCompanyAndCodeIgnoreCase(company, "5000")
+            accountRepository.findByCompanyAndCodeIgnoreCase(company, "COGS")
                     .ifPresent(a -> company.setDefaultCogsAccountId(a.getId()));
         }
         if (company.getDefaultRevenueAccountId() == null) {
-            accountRepository.findByCompanyAndCodeIgnoreCase(company, "4000")
+            accountRepository.findByCompanyAndCodeIgnoreCase(company, "REV")
                     .ifPresent(a -> company.setDefaultRevenueAccountId(a.getId()));
         }
+        if (company.getDefaultDiscountAccountId() == null) {
+            accountRepository.findByCompanyAndCodeIgnoreCase(company, "DISC")
+                    .ifPresent(a -> company.setDefaultDiscountAccountId(a.getId()));
+        }
         if (company.getDefaultTaxAccountId() == null) {
-            accountRepository.findByCompanyAndCodeIgnoreCase(company, "2000")
+            accountRepository.findByCompanyAndCodeIgnoreCase(company, "GST-OUT")
                     .ifPresent(a -> company.setDefaultTaxAccountId(a.getId()));
+        }
+        if (company.getGstInputTaxAccountId() == null) {
+            accountRepository.findByCompanyAndCodeIgnoreCase(company, "GST-IN")
+                    .ifPresent(a -> company.setGstInputTaxAccountId(a.getId()));
+        }
+        if (company.getGstOutputTaxAccountId() == null) {
+            accountRepository.findByCompanyAndCodeIgnoreCase(company, "GST-OUT")
+                    .ifPresent(a -> company.setGstOutputTaxAccountId(a.getId()));
+        }
+        if (company.getGstPayableAccountId() == null) {
+            accountRepository.findByCompanyAndCodeIgnoreCase(company, "GST-PAY")
+                    .ifPresent(a -> company.setGstPayableAccountId(a.getId()));
         }
         companyRepository.save(company);
     }

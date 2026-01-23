@@ -127,9 +127,10 @@ public class AccountingController {
     @Timed(value = "erp.accounting.journal_entries.list", description = "List journal entries")
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
     public ResponseEntity<ApiResponse<List<JournalEntryDto>>> journalEntries(@RequestParam(required = false) Long dealerId,
+                                                                             @RequestParam(required = false) Long supplierId,
                                                                              @RequestParam(defaultValue = "0") int page,
                                                                              @RequestParam(defaultValue = "100") int size) {
-        return ResponseEntity.ok(ApiResponse.success(accountingService.listJournalEntries(dealerId, page, size)));
+        return ResponseEntity.ok(ApiResponse.success(accountingService.listJournalEntries(dealerId, supplierId, page, size)));
     }
 
     @PostMapping("/journal-entries")

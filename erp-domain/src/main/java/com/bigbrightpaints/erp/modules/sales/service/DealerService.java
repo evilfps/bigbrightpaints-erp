@@ -114,14 +114,19 @@ public class DealerService {
         List<Long> dealerIds = matches.stream().map(Dealer::getId).toList();
         var balances = dealerLedgerService.currentBalances(dealerIds);
         return matches.stream()
-                .map(dealer -> new DealerLookupResponse(
-                        dealer.getId(),
-                        dealer.getPublicId(),
-                        dealer.getName(),
-                        dealer.getCode(),
-                        balances.getOrDefault(dealer.getId(), BigDecimal.ZERO),
-                        dealer.getCreditLimit()
-                ))
+                .map(dealer -> {
+                    Account receivableAccount = dealer.getReceivableAccount();
+                    return new DealerLookupResponse(
+                            dealer.getId(),
+                            dealer.getPublicId(),
+                            dealer.getName(),
+                            dealer.getCode(),
+                            balances.getOrDefault(dealer.getId(), BigDecimal.ZERO),
+                            dealer.getCreditLimit(),
+                            receivableAccount != null ? receivableAccount.getId() : null,
+                            receivableAccount != null ? receivableAccount.getCode() : null
+                    );
+                })
                 .toList();
     }
 
@@ -231,6 +236,7 @@ public class DealerService {
     }
 
     private DealerResponse toResponse(Dealer dealer, String portalEmail, String generatedPassword, BigDecimal outstandingBalance) {
+        Account receivableAccount = dealer.getReceivableAccount();
         return new DealerResponse(
                 dealer.getId(),
                 dealer.getPublicId(),
@@ -241,6 +247,8 @@ public class DealerService {
                 dealer.getAddress(),
                 dealer.getCreditLimit(),
                 outstandingBalance,
+                receivableAccount != null ? receivableAccount.getId() : null,
+                receivableAccount != null ? receivableAccount.getCode() : null,
                 portalEmail,
                 generatedPassword
         );

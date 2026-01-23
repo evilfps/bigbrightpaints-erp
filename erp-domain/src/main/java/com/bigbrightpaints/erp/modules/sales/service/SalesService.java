@@ -34,6 +34,8 @@ import com.bigbrightpaints.erp.modules.sales.dto.*;
 import com.bigbrightpaints.erp.modules.sales.event.SalesOrderCreatedEvent;
 import jakarta.transaction.Transactional;
 import org.apache.commons.codec.digest.DigestUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -58,6 +60,7 @@ import java.util.stream.Collectors;
 
 @Service
 public class SalesService {
+    private static final Logger log = LoggerFactory.getLogger(SalesService.class);
     private static final BigDecimal MAX_GST_RATE = new BigDecimal("28.00");
     private static final BigDecimal DISPATCH_TOTAL_TOLERANCE = new BigDecimal("0.01");
 
@@ -246,12 +249,25 @@ public class SalesService {
 
     /* Sales Orders */
     public List<SalesOrderDto> listOrders(String status, int page, int size) {
+        return listOrders(status, null, page, size);
+    }
+
+    public List<SalesOrderDto> listOrders(String status, Long dealerId, int page, int size) {
         Company company = companyContextService.requireCurrentCompany();
         int safeSize = Math.max(1, Math.min(size, 200));
         PageRequest pageable = PageRequest.of(Math.max(page, 0), safeSize);
-        Page<Long> orderIds = (status == null || status.isBlank())
-                ? salesOrderRepository.findIdsByCompanyOrderByCreatedAtDescIdDesc(company, pageable)
-                : salesOrderRepository.findIdsByCompanyAndStatusOrderByCreatedAtDescIdDesc(company, status, pageable);
+        Dealer dealer = dealerId != null ? requireDealer(company, dealerId) : null;
+        Page<Long> orderIds;
+        if (status == null || status.isBlank()) {
+            orderIds = dealer == null
+                    ? salesOrderRepository.findIdsByCompanyOrderByCreatedAtDescIdDesc(company, pageable)
+                    : salesOrderRepository.findIdsByCompanyAndDealerOrderByCreatedAtDescIdDesc(company, dealer, pageable);
+        } else {
+            orderIds = dealer == null
+                    ? salesOrderRepository.findIdsByCompanyAndStatusOrderByCreatedAtDescIdDesc(company, status, pageable)
+                    : salesOrderRepository.findIdsByCompanyAndDealerAndStatusOrderByCreatedAtDescIdDesc(
+                            company, dealer, status, pageable);
+        }
         List<Long> ids = orderIds.getContent();
         if (ids.isEmpty()) {
             return List.of();
@@ -261,10 +277,23 @@ public class SalesService {
     }
 
     public List<SalesOrderDto> listOrders(String status) {
+        return listOrders(status, null);
+    }
+
+    public List<SalesOrderDto> listOrders(String status, Long dealerId) {
         Company company = companyContextService.requireCurrentCompany();
-        List<SalesOrder> orders = (status == null || status.isBlank())
-                ? salesOrderRepository.findByCompanyOrderByCreatedAtDesc(company)
-                : salesOrderRepository.findByCompanyAndStatusOrderByCreatedAtDesc(company, status);
+        Dealer dealer = dealerId != null ? requireDealer(company, dealerId) : null;
+        List<SalesOrder> orders;
+        if (status == null || status.isBlank()) {
+            orders = dealer == null
+                    ? salesOrderRepository.findByCompanyOrderByCreatedAtDesc(company)
+                    : salesOrderRepository.findByCompanyAndDealerOrderByCreatedAtDesc(company, dealer);
+        } else {
+            orders = dealer == null
+                    ? salesOrderRepository.findByCompanyAndStatusOrderByCreatedAtDesc(company, status)
+                    : salesOrderRepository.findByCompanyAndDealerAndStatusOrderByCreatedAtDesc(
+                            company, dealer, status);
+        }
         return orders.stream().map(this::toDto).toList();
     }
 
@@ -521,6 +550,21 @@ public class SalesService {
             return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
         }
         return value.setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private PackagingSlip selectMostRecentSlip(List<PackagingSlip> slips, Long orderId) {
+        Comparator<PackagingSlip> byCreatedAt = Comparator.comparing(
+                PackagingSlip::getCreatedAt,
+                Comparator.nullsLast(Comparator.naturalOrder()));
+        Comparator<PackagingSlip> byId = Comparator.comparing(
+                PackagingSlip::getId,
+                Comparator.nullsLast(Comparator.naturalOrder()));
+        PackagingSlip selected = slips.stream()
+                .max(byCreatedAt.thenComparing(byId))
+                .orElseThrow(() -> new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE,
+                        "Packing slip not found for order " + orderId));
+        log.warn("Multiple packing slips found for order {}; using slip {}", orderId, selected.getId());
+        return selected;
     }
 
     private SalesOrderDto toDto(SalesOrder order) {
@@ -1108,11 +1152,8 @@ public class SalesService {
                 throw new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE,
                         "Packing slip not found for order " + request.orderId());
             }
-            if (slips.size() > 1) {
-                throw new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE,
-                        "Multiple packing slips found for order; provide packingSlipId");
-            }
-            Long slipId = slips.get(0).getId();
+            PackagingSlip selected = slips.size() == 1 ? slips.get(0) : selectMostRecentSlip(slips, request.orderId());
+            Long slipId = selected.getId();
             slip = packagingSlipRepository.findAndLockByIdAndCompany(slipId, company)
                     .orElseThrow(() -> new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE,
                             "Packing slip not found for order " + request.orderId()));
@@ -1214,11 +1255,13 @@ public class SalesService {
             remainingQtyByProduct.merge(item.getProductCode(), qty, BigDecimal::add);
         }
         Map<Long, BigDecimal> revenueByAccount = new HashMap<>();
+        Map<Long, BigDecimal> discountByAccount = new HashMap<>();
         Map<Long, BigDecimal> taxByAccount = new HashMap<>();
         List<InvoiceLine> invoiceLines = new ArrayList<>();
         BigDecimal subtotal = BigDecimal.ZERO;
         BigDecimal taxTotal = BigDecimal.ZERO;
         Long gstOutputAccountId = null;
+        CompanyDefaultAccountsService.DefaultAccounts defaults = companyDefaultAccountsService.getDefaults();
 
         for (var slipLine : slip.getLines()) {
             DispatchConfirmRequest.DispatchLine override = lineOverrides.get(slipLine.getId());
@@ -1387,12 +1430,30 @@ public class SalesService {
                 BigDecimal lineNet = amounts.net();
                 BigDecimal lineTax = amounts.tax();
                 BigDecimal lineTotal = amounts.total();
+                LineAmounts grossAmounts = computeDispatchLineAmounts(lineGross, BigDecimal.ZERO, taxRate, taxInclusive);
+                BigDecimal grossNet = grossAmounts.net();
+                BigDecimal discountNet = currency(grossNet.subtract(lineNet));
+                if (discountNet.compareTo(BigDecimal.ZERO) < 0
+                        && MoneyUtils.withinTolerance(grossNet, lineNet, DISPATCH_TOTAL_TOLERANCE)) {
+                    discountNet = BigDecimal.ZERO;
+                }
 
                 subtotal = subtotal.add(lineNet);
                 taxTotal = taxTotal.add(lineTax);
 
                 if (fg.getRevenueAccountId() != null) {
-                    revenueByAccount.merge(fg.getRevenueAccountId(), lineNet, BigDecimal::add);
+                    revenueByAccount.merge(fg.getRevenueAccountId(), grossNet, BigDecimal::add);
+                }
+                if (discountNet.compareTo(BigDecimal.ZERO) > 0) {
+                    Long discountAccountId = resolveDiscountAccountId(fg, defaults);
+                    if (discountAccountId == null) {
+                        throw new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE,
+                                "Discount account is required when a dispatch discount is applied")
+                                .withDetail("productCode", fg.getProductCode())
+                                .withDetail("packingSlipLineId", slipLine.getId())
+                                .withDetail("discountAmount", discountNet);
+                    }
+                    discountByAccount.merge(discountAccountId, discountNet, BigDecimal::add);
                 }
                 if (lineTax.compareTo(BigDecimal.ZERO) > 0) {
                     if (gstOutputAccountId == null) {
@@ -1473,11 +1534,29 @@ public class SalesService {
                 BigDecimal lineNet = amounts.net();
                 BigDecimal lineTax = amounts.tax();
                 BigDecimal lineTotal = amounts.total();
+                LineAmounts grossAmounts = computeDispatchLineAmounts(lineGross, BigDecimal.ZERO, taxRate, taxInclusive);
+                BigDecimal grossNet = grossAmounts.net();
+                BigDecimal discountNet = currency(grossNet.subtract(lineNet));
+                if (discountNet.compareTo(BigDecimal.ZERO) < 0
+                        && MoneyUtils.withinTolerance(grossNet, lineNet, DISPATCH_TOTAL_TOLERANCE)) {
+                    discountNet = BigDecimal.ZERO;
+                }
 
                 subtotal = subtotal.add(lineNet);
                 taxTotal = taxTotal.add(lineTax);
                 if (fg.getRevenueAccountId() != null) {
-                    revenueByAccount.merge(fg.getRevenueAccountId(), lineNet, BigDecimal::add);
+                    revenueByAccount.merge(fg.getRevenueAccountId(), grossNet, BigDecimal::add);
+                }
+                if (discountNet.compareTo(BigDecimal.ZERO) > 0) {
+                    Long discountAccountId = resolveDiscountAccountId(fg, defaults);
+                    if (discountAccountId == null) {
+                        throw new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE,
+                                "Discount account is required when a dispatch discount is applied")
+                                .withDetail("productCode", fg.getProductCode())
+                                .withDetail("packingSlipLineId", slipLine.getId())
+                                .withDetail("discountAmount", discountNet);
+                    }
+                    discountByAccount.merge(discountAccountId, discountNet, BigDecimal::add);
                 }
                 if (lineTax.compareTo(BigDecimal.ZERO) > 0) {
                     if (gstOutputAccountId == null) {
@@ -1663,6 +1742,9 @@ public class SalesService {
             for (var entry : revenueByAccount.entrySet()) {
                 arPostings.add(toPosting(entry.getKey(), "Revenue for dispatch " + slipNumber, BigDecimal.ZERO, entry.getValue()));
             }
+            for (var entry : discountByAccount.entrySet()) {
+                arPostings.add(toPosting(entry.getKey(), "Discount for dispatch " + slipNumber, entry.getValue(), BigDecimal.ZERO));
+            }
             for (var entry : taxByAccount.entrySet()) {
                 arPostings.add(toPosting(entry.getKey(), "Tax for dispatch " + slipNumber, BigDecimal.ZERO, entry.getValue()));
             }
@@ -1673,6 +1755,7 @@ public class SalesService {
                     "Dispatch " + slipNumber,
                     revenueByAccount,
                     taxByAccount,
+                    discountByAccount.isEmpty() ? null : discountByAccount,
                     totalAmount,
                     invoiceNumber
             );
@@ -1816,6 +1899,13 @@ public class SalesService {
                 .map(Account::getName)
                 .orElse("Account " + accountId);
         return new DispatchConfirmResponse.AccountPostingDto(accountId, name, debit, credit);
+    }
+
+    private Long resolveDiscountAccountId(FinishedGood finishedGood, CompanyDefaultAccountsService.DefaultAccounts defaults) {
+        if (finishedGood != null && finishedGood.getDiscountAccountId() != null) {
+            return finishedGood.getDiscountAccountId();
+        }
+        return defaults != null ? defaults.discountAccountId() : null;
     }
 
     private LineAmounts computeDispatchLineAmounts(BigDecimal gross,

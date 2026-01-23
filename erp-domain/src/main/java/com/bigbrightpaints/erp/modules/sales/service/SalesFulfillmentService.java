@@ -122,12 +122,16 @@ public class SalesFulfillmentService {
         }
 
         try {
+            Long slipId = null;
             // Step 1: Reserve inventory (if not already reserved)
             if (options.reserveInventory()) {
                 InventoryReservationResult reservation = finishedGoodsService.reserveForOrder(order);
                 result.reservation(reservation);
+                if (reservation != null && reservation.packagingSlip() != null) {
+                    slipId = reservation.packagingSlip().id();
+                }
                 
-                if (!reservation.shortages().isEmpty()) {
+                if (reservation != null && !reservation.shortages().isEmpty()) {
                     log.warn("Order {} has shortages: {}", orderNumber, reservation.shortages());
                     if (!options.allowPartialFulfillment()) {
                         result.status(FulfillmentStatus.PENDING_INVENTORY);
@@ -138,9 +142,15 @@ public class SalesFulfillmentService {
             }
 
             if (options.issueInvoice()) {
-                var dispatchResponse = salesService.confirmDispatch(
-                        new DispatchConfirmRequest(null, orderId, null, null, null, Boolean.FALSE, null)
-                );
+                DispatchConfirmRequest dispatchRequest = new DispatchConfirmRequest(
+                        slipId,
+                        slipId != null ? null : orderId,
+                        null,
+                        null,
+                        null,
+                        Boolean.FALSE,
+                        null);
+                var dispatchResponse = salesService.confirmDispatch(dispatchRequest);
                 List<DispatchPosting> dispatches = dispatchResponse.cogsPostings().stream()
                         .map(p -> new DispatchPosting(p.inventoryAccountId(), p.cogsAccountId(), p.cost()))
                         .toList();
@@ -255,14 +265,26 @@ public class SalesFulfillmentService {
                     .entryDate(options.entryDate())
                     .build();
         }
+        boolean reserveInventory = options.reserveInventory();
+        boolean postSalesJournal = options.postSalesJournal();
+        boolean changed = false;
+        if (!reserveInventory) {
+            log.warn("Fulfillment requires inventory reservation; forcing reserveInventory=true.");
+            reserveInventory = true;
+            changed = true;
+        }
         // DEFENSIVE: If issuing invoice, NEVER post sales journal separately
         // Invoice will handle AR/Revenue/Tax posting
-        if (options.issueInvoice() && options.postSalesJournal()) {
+        if (postSalesJournal) {
             log.warn("Conflicting options: issueInvoice=true AND postSalesJournal=true. " +
                      "Invoice owns AR/Revenue posting. Disabling postSalesJournal.");
+            postSalesJournal = false;
+            changed = true;
+        }
+        if (changed) {
             return FulfillmentOptions.builder()
-                    .reserveInventory(options.reserveInventory())
-                    .postSalesJournal(false) // FORCE disable - invoice will handle it
+                    .reserveInventory(reserveInventory)
+                    .postSalesJournal(postSalesJournal)
                     .postCogsJournal(options.postCogsJournal())
                     .issueInvoice(true)
                     .allowPartialFulfillment(options.allowPartialFulfillment())

@@ -17,6 +17,11 @@ public interface PurchaseOrderRepository extends JpaRepository<PurchaseOrder, Lo
     @Query("select po from PurchaseOrder po where po.company = :company order by po.orderDate desc")
     List<PurchaseOrder> findByCompanyWithLinesOrderByOrderDateDesc(@Param("company") Company company);
 
+    @EntityGraph(attributePaths = {"supplier", "lines", "lines.rawMaterial"})
+    @Query("select po from PurchaseOrder po where po.company = :company and po.supplier = :supplier order by po.orderDate desc")
+    List<PurchaseOrder> findByCompanyAndSupplierWithLinesOrderByOrderDateDesc(@Param("company") Company company,
+                                                                              @Param("supplier") Supplier supplier);
+
     Optional<PurchaseOrder> findByCompanyAndId(Company company, Long id);
     Optional<PurchaseOrder> findByCompanyAndOrderNumberIgnoreCase(Company company, String orderNumber);
 

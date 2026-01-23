@@ -131,6 +131,34 @@ public class AccountingFacade {
                                             Map<Long, BigDecimal> taxLines,
                                             BigDecimal totalAmount,
                                             String referenceNumber) {
+        return postSalesJournal(dealerId, orderNumber, entryDate, memo, revenueLines, taxLines, null, totalAmount, referenceNumber);
+    }
+
+    /**
+     * Post sales journal entry with optional discount lines (Dr AR + Discount / Cr Revenue + Tax).
+     *
+     * @param dealerId         the dealer ID
+     * @param orderNumber      the sales order number
+     * @param entryDate        the journal entry date (null = current date)
+     * @param memo             the journal memo
+     * @param revenueLines     map of revenue account ID to amount
+     * @param taxLines         map of tax account ID to amount
+     * @param discountLines    map of discount account ID to amount (debit)
+     * @param totalAmount      the total receivable amount
+     * @param referenceNumber  optional custom reference (null = auto-generated)
+     * @return the created journal entry DTO
+     */
+    @Transactional(isolation = Isolation.REPEATABLE_READ)
+    @Retryable(value = OptimisticLockingFailureException.class, maxAttempts = 3, backoff = @Backoff(delay = 100))
+    public JournalEntryDto postSalesJournal(Long dealerId,
+                                            String orderNumber,
+                                            LocalDate entryDate,
+                                            String memo,
+                                            Map<Long, BigDecimal> revenueLines,
+                                            Map<Long, BigDecimal> taxLines,
+                                            Map<Long, BigDecimal> discountLines,
+                                            BigDecimal totalAmount,
+                                            String referenceNumber) {
         Objects.requireNonNull(dealerId, "Dealer ID is required");
         Objects.requireNonNull(orderNumber, "Order number is required");
         Objects.requireNonNull(totalAmount, "Total amount is required");
@@ -172,6 +200,24 @@ public class AccountingFacade {
                 totalAmount.abs(),
                 BigDecimal.ZERO));
 
+        // Dr: Discount accounts (contra revenue)
+        if (discountLines != null) {
+            discountLines.forEach((accountId, amount) -> {
+                if (amount.compareTo(BigDecimal.ZERO) > 0) {
+                    if (accountId == null) {
+                        throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                                "Discount account is required for discount lines")
+                                .withDetail("orderNumber", orderNumber);
+                    }
+                    lines.add(new JournalEntryRequest.JournalLineRequest(
+                            accountId,
+                            resolvedMemo,
+                            amount.abs(),
+                            BigDecimal.ZERO));
+                }
+            });
+        }
+
         // Cr: Revenue accounts
         if (revenueLines != null) {
             revenueLines.forEach((accountId, amount) -> {
@@ -199,11 +245,13 @@ public class AccountingFacade {
         }
 
         // Validate balance
+        BigDecimal totalDebits = calculateTotalDebits(lines);
         BigDecimal totalCredits = calculateTotalCredits(lines);
-        if (totalAmount.subtract(totalCredits).abs().compareTo(BALANCE_TOLERANCE) > 0) {
+        if (totalDebits.subtract(totalCredits).abs().compareTo(BALANCE_TOLERANCE) > 0) {
             throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
                     "Sales journal does not balance")
                     .withDetail("totalAmount", totalAmount)
+                    .withDetail("totalDebits", totalDebits)
                     .withDetail("totalCredits", totalCredits);
         }
 
@@ -1344,6 +1392,13 @@ public class AccountingFacade {
     private BigDecimal calculateTotalCredits(List<JournalEntryRequest.JournalLineRequest> lines) {
         return lines.stream()
                 .map(JournalEntryRequest.JournalLineRequest::credit)
+                .filter(Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    private BigDecimal calculateTotalDebits(List<JournalEntryRequest.JournalLineRequest> lines) {
+        return lines.stream()
+                .map(JournalEntryRequest.JournalLineRequest::debit)
                 .filter(Objects::nonNull)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
     }

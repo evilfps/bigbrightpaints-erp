@@ -191,7 +191,11 @@ public class AccountingService {
 
     /* Journal Entries */
     @Transactional(propagation = Propagation.SUPPORTS)
-    public List<JournalEntryDto> listJournalEntries(Long dealerId, int page, int size) {
+    public List<JournalEntryDto> listJournalEntries(Long dealerId, Long supplierId, int page, int size) {
+        if (dealerId != null && supplierId != null) {
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                    "Only one of dealerId or supplierId can be provided");
+        }
         Company company = companyContextService.requireCurrentCompany();
         int safeSize = Math.max(1, Math.min(size, 200));
         PageRequest pageable = PageRequest.of(Math.max(page, 0), safeSize);
@@ -199,6 +203,9 @@ public class AccountingService {
         if (dealerId != null) {
             Dealer dealer = requireDealer(company, dealerId);
             entries = journalEntryRepository.findByCompanyAndDealerOrderByEntryDateDescIdDesc(company, dealer, pageable).getContent();
+        } else if (supplierId != null) {
+            Supplier supplier = requireSupplier(company, supplierId);
+            entries = journalEntryRepository.findByCompanyAndSupplierOrderByEntryDateDescIdDesc(company, supplier, pageable).getContent();
         } else {
             entries = journalEntryRepository.findByCompanyOrderByEntryDateDescIdDesc(company, pageable).getContent();
         }
@@ -206,7 +213,7 @@ public class AccountingService {
     }
 
     public List<JournalEntryDto> listJournalEntries(Long dealerId) {
-        return listJournalEntries(dealerId, 0, 100);
+        return listJournalEntries(dealerId, null, 0, 100);
     }
 
     public List<JournalEntryDto> listJournalEntriesByReferencePrefix(String prefix) {
@@ -222,6 +229,10 @@ public class AccountingService {
             auditMetadata.put("requestedReference", request.referenceNumber());
         }
         try {
+        if (request == null) {
+            throw new ApplicationException(ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD,
+                    "Journal entry request is required");
+        }
         Company company = companyContextService.requireCurrentCompany();
         List<JournalEntryRequest.JournalLineRequest> lines = request.lines();
         if (company.getId() != null) {
@@ -1680,8 +1691,8 @@ public class AccountingService {
 
         // Cash is what actually moves: applied minus concessions, adjusted for FX gain/loss lines
         BigDecimal cashAmount = totalApplied
-                .add(totalFxGain)      // gain is a credit line, reduce cash debit to balance
-                .subtract(totalFxLoss) // loss is a debit line, reduce cash needed accordingly
+                .add(totalFxLoss)      // loss increases cash paid
+                .subtract(totalFxGain) // gain reduces cash paid
                 .subtract(totalDiscount)
                 .subtract(totalWriteOff);
         if (cashAmount.compareTo(BigDecimal.ZERO) < 0) {

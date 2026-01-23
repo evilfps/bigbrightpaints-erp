@@ -13,6 +13,8 @@ public record DealerResponse(
         String address,
         BigDecimal creditLimit,
         BigDecimal outstandingBalance,
+        Long receivableAccountId,
+        String receivableAccountCode,
         String portalEmail,
         String generatedPassword
 ) {}

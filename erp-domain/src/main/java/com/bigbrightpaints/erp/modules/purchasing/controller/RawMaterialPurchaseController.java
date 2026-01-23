@@ -25,8 +25,8 @@ public class RawMaterialPurchaseController {
 
     @GetMapping
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
-    public ResponseEntity<ApiResponse<List<RawMaterialPurchaseResponse>>> listPurchases() {
-        return ResponseEntity.ok(ApiResponse.success("Raw material purchases", purchasingService.listPurchases()));
+    public ResponseEntity<ApiResponse<List<RawMaterialPurchaseResponse>>> listPurchases(@RequestParam(required = false) Long supplierId) {
+        return ResponseEntity.ok(ApiResponse.success("Raw material purchases", purchasingService.listPurchases(supplierId)));
     }
 
     @GetMapping("/{id}")

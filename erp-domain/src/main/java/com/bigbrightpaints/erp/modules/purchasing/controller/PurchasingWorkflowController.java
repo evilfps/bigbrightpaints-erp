@@ -25,8 +25,8 @@ public class PurchasingWorkflowController {
 
     @GetMapping("/purchase-orders")
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
-    public ResponseEntity<ApiResponse<List<PurchaseOrderResponse>>> listPurchaseOrders() {
-        return ResponseEntity.ok(ApiResponse.success("Purchase orders", purchasingService.listPurchaseOrders()));
+    public ResponseEntity<ApiResponse<List<PurchaseOrderResponse>>> listPurchaseOrders(@RequestParam(required = false) Long supplierId) {
+        return ResponseEntity.ok(ApiResponse.success("Purchase orders", purchasingService.listPurchaseOrders(supplierId)));
     }
 
     @GetMapping("/purchase-orders/{id}")
@@ -44,8 +44,8 @@ public class PurchasingWorkflowController {
 
     @GetMapping("/goods-receipts")
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
-    public ResponseEntity<ApiResponse<List<GoodsReceiptResponse>>> listGoodsReceipts() {
-        return ResponseEntity.ok(ApiResponse.success("Goods receipts", purchasingService.listGoodsReceipts()));
+    public ResponseEntity<ApiResponse<List<GoodsReceiptResponse>>> listGoodsReceipts(@RequestParam(required = false) Long supplierId) {
+        return ResponseEntity.ok(ApiResponse.success("Goods receipts", purchasingService.listGoodsReceipts(supplierId)));
     }
 
     @GetMapping("/goods-receipts/{id}")

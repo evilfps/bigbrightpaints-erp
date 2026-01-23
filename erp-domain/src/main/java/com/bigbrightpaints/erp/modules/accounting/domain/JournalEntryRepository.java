@@ -2,6 +2,7 @@ package com.bigbrightpaints.erp.modules.accounting.domain;
 
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
+import com.bigbrightpaints.erp.modules.purchasing.domain.Supplier;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -24,6 +25,7 @@ public interface JournalEntryRepository extends JpaRepository<JournalEntry, Long
     @EntityGraph(attributePaths = {"lines", "lines.account"})
     Page<JournalEntry> findByCompanyOrderByEntryDateDescIdDesc(Company company, Pageable pageable);
     Page<JournalEntry> findByCompanyAndDealerOrderByEntryDateDescIdDesc(Company company, Dealer dealer, Pageable pageable);
+    Page<JournalEntry> findByCompanyAndSupplierOrderByEntryDateDescIdDesc(Company company, Supplier supplier, Pageable pageable);
     @EntityGraph(attributePaths = {"lines", "lines.account"})
     Optional<JournalEntry> findById(Long id);
     Optional<JournalEntry> findByCompanyAndId(Company company, Long id);

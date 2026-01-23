@@ -5,6 +5,7 @@ import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.service.DealerLedgerService;
+import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
@@ -53,6 +54,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import java.lang.reflect.Field;
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -147,6 +149,8 @@ class SalesServiceTest {
         when(finishedGoodsService.reserveForOrder(any()))
                 .thenReturn(new InventoryReservationResult(null, List.of()));
         when(companyDefaultAccountsService.requireDefaults())
+                .thenReturn(new CompanyDefaultAccountsService.DefaultAccounts(1L, 2L, 3L, 4L, 5L));
+        when(companyDefaultAccountsService.getDefaults())
                 .thenReturn(new CompanyDefaultAccountsService.DefaultAccounts(1L, 2L, 3L, 4L, 5L));
         company = new Company();
         company.setCode("COMP");
@@ -366,6 +370,146 @@ class SalesServiceTest {
     }
 
     @Test
+    void confirmDispatchPostsDiscountLines() {
+        Dealer dealer = dealerWithCreditLimit(42L, BigDecimal.valueOf(1000));
+        Account receivable = new Account();
+        receivable.setName("AR");
+        setField(receivable, "id", 900L);
+        dealer.setReceivableAccount(receivable);
+
+        SalesOrder order = new SalesOrder();
+        setField(order, "id", 10L);
+        order.setCompany(company);
+        order.setDealer(dealer);
+        order.setOrderNumber("SO-10");
+        order.setStatus("READY_TO_SHIP");
+        order.setTotalAmount(BigDecimal.valueOf(90));
+
+        SalesOrderItem item = new SalesOrderItem();
+        setField(item, "id", 1L);
+        item.setSalesOrder(order);
+        item.setProductCode("SKU-D");
+        item.setDescription("Desc");
+        item.setQuantity(BigDecimal.ONE);
+        item.setUnitPrice(BigDecimal.valueOf(100));
+        item.setGstRate(BigDecimal.ZERO);
+        order.getItems().add(item);
+
+        FinishedGood finishedGood = buildFinishedGood("SKU-D");
+        finishedGood.setCurrentStock(BigDecimal.ONE);
+        finishedGood.setRevenueAccountId(3L);
+        finishedGood.setDiscountAccountId(4L);
+        finishedGood.setValuationAccountId(11L);
+        finishedGood.setCogsAccountId(12L);
+
+        FinishedGoodBatch batch = new FinishedGoodBatch();
+        batch.setFinishedGood(finishedGood);
+        batch.setBatchCode("B-1");
+        batch.setQuantityTotal(BigDecimal.ONE);
+        batch.setQuantityAvailable(BigDecimal.ONE);
+        batch.setUnitCost(BigDecimal.ZERO);
+
+        PackagingSlip slip = new PackagingSlip();
+        setField(slip, "id", 55L);
+        slip.setCompany(company);
+        slip.setSalesOrder(order);
+        slip.setSlipNumber("PS-55");
+        slip.setStatus("PENDING");
+
+        PackagingSlipLine slipLine = new PackagingSlipLine();
+        setField(slipLine, "id", 99L);
+        slipLine.setPackagingSlip(slip);
+        slipLine.setFinishedGoodBatch(batch);
+        slipLine.setOrderedQuantity(BigDecimal.ONE);
+        slipLine.setQuantity(BigDecimal.ONE);
+        slipLine.setUnitCost(BigDecimal.ZERO);
+        slip.getLines().add(slipLine);
+
+        when(packagingSlipRepository.findAndLockByIdAndCompany(55L, company)).thenReturn(Optional.of(slip));
+        when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 10L)).thenReturn(List.of(slip));
+        when(companyEntityLookup.requireSalesOrder(company, 10L)).thenReturn(order);
+        when(dealerRepository.lockByCompanyAndId(company, dealer.getId())).thenReturn(Optional.of(dealer));
+        when(invoiceNumberService.nextInvoiceNumber(company)).thenReturn("INV-55");
+        when(invoiceRepository.save(ArgumentMatchers.any(Invoice.class))).thenAnswer(invocation -> {
+            Invoice invoice = invocation.getArgument(0);
+            setField(invoice, "id", 777L);
+            return invoice;
+        });
+        when(salesOrderRepository.save(ArgumentMatchers.any(SalesOrder.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(packagingSlipRepository.save(ArgumentMatchers.any(PackagingSlip.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(accountRepository.findById(ArgumentMatchers.anyLong())).thenReturn(Optional.empty());
+        when(finishedGoodRepository.findByCompanyAndProductCode(company, "SKU-D")).thenReturn(Optional.of(finishedGood));
+
+        JournalEntryDto journalEntryDto = new JournalEntryDto(
+                501L,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+        );
+        when(accountingFacade.postSalesJournal(
+                anyLong(),
+                anyString(),
+                any(),
+                anyString(),
+                anyMap(),
+                anyMap(),
+                anyMap(),
+                any(),
+                anyString()
+        )).thenReturn(journalEntryDto);
+
+        DispatchConfirmRequest request = new DispatchConfirmRequest(
+                55L,
+                null,
+                List.of(new DispatchConfirmRequest.DispatchLine(99L, null, BigDecimal.ONE, null, new BigDecimal("10"), null, null, null)),
+                null,
+                "admin",
+                Boolean.TRUE,
+                null);
+        salesService.confirmDispatch(request);
+
+        ArgumentCaptor<Map<Long, BigDecimal>> revenueCaptor = ArgumentCaptor.forClass(Map.class);
+        ArgumentCaptor<Map<Long, BigDecimal>> taxCaptor = ArgumentCaptor.forClass(Map.class);
+        ArgumentCaptor<Map<Long, BigDecimal>> discountCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(accountingFacade).postSalesJournal(
+                eq(dealer.getId()),
+                eq(order.getOrderNumber()),
+                any(),
+                anyString(),
+                revenueCaptor.capture(),
+                taxCaptor.capture(),
+                discountCaptor.capture(),
+                eq(new BigDecimal("90.00")),
+                eq("INV-55")
+        );
+
+        assertEquals(new BigDecimal("100.00"), revenueCaptor.getValue().get(3L));
+        assertEquals(new BigDecimal("10.00"), discountCaptor.getValue().get(4L));
+        assertEquals(0, taxCaptor.getValue().size());
+    }
+
+    @Test
     void confirmDispatchSkipsArPostingWhenOrderAlreadyHasJournal() {
         Dealer dealer = dealerWithCreditLimit(42L, BigDecimal.valueOf(1000));
         Account receivable = new Account();
@@ -449,6 +593,7 @@ class SalesServiceTest {
                 ArgumentMatchers.anyString(),
                 ArgumentMatchers.any(),
                 ArgumentMatchers.anyString(),
+                ArgumentMatchers.anyMap(),
                 ArgumentMatchers.anyMap(),
                 ArgumentMatchers.anyMap(),
                 ArgumentMatchers.any(),

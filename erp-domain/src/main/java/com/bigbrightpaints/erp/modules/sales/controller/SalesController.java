@@ -26,13 +26,13 @@ public class SalesController {
 
     /* Dealers alias - frontend calls /sales/dealers, backend has /dealers */
     @GetMapping("/sales/dealers")
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SALES')")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SALES','ROLE_ACCOUNTING')")
     public ResponseEntity<ApiResponse<List<DealerResponse>>> listDealers() {
         return ResponseEntity.ok(ApiResponse.success("Dealer directory", dealerService.listDealers()));
     }
 
     @GetMapping("/sales/dealers/search")
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SALES')")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SALES','ROLE_ACCOUNTING')")
     public ResponseEntity<ApiResponse<List<DealerLookupResponse>>> searchDealers(@RequestParam(defaultValue = "") String query) {
         return ResponseEntity.ok(ApiResponse.success(dealerService.search(query)));
     }
@@ -40,11 +40,12 @@ public class SalesController {
     /* Sales Orders */
     @GetMapping("/sales/orders")
     @Timed(value = "erp.sales.orders.list", description = "List sales orders")
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SALES','ROLE_FACTORY')")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SALES','ROLE_FACTORY','ROLE_ACCOUNTING')")
     public ResponseEntity<ApiResponse<List<SalesOrderDto>>> orders(@RequestParam(required = false) String status,
+                                                                   @RequestParam(required = false) Long dealerId,
                                                                    @RequestParam(defaultValue = "0") int page,
                                                                    @RequestParam(defaultValue = "100") int size) {
-        return ResponseEntity.ok(ApiResponse.success(salesService.listOrders(status, page, size)));
+        return ResponseEntity.ok(ApiResponse.success(salesService.listOrders(status, dealerId, page, size)));
     }
 
     @PostMapping("/sales/orders")

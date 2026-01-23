@@ -9,5 +9,7 @@ public record DealerLookupResponse(
         String name,
         String code,
         BigDecimal outstandingBalance,
-        BigDecimal creditLimit
+        BigDecimal creditLimit,
+        Long receivableAccountId,
+        String receivableAccountCode
 ) {}

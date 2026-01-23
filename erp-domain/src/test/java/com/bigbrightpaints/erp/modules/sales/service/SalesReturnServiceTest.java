@@ -113,7 +113,10 @@ class SalesReturnServiceTest {
         line.setProductCode("FG-1");
         line.setQuantity(new BigDecimal("2"));
         line.setUnitPrice(new BigDecimal("100"));
-        line.setLineTotal(new BigDecimal("220")); // includes tax
+        line.setDiscountAmount(new BigDecimal("20"));
+        line.setTaxableAmount(new BigDecimal("180"));
+        line.setTaxAmount(new BigDecimal("18"));
+        line.setLineTotal(new BigDecimal("198")); // net + tax
         setField(line, "id", 55L);
         invoice.getLines().add(line);
 
@@ -181,12 +184,13 @@ class SalesReturnServiceTest {
                 eq(dealer.getId()),
                 eq("INV-1"),
                 returnLinesCaptor.capture(),
-                argThat(total -> total.compareTo(new BigDecimal("110")) == 0),
+                argThat(total -> total.compareTo(new BigDecimal("99")) == 0),
                 eq("Damaged goods")
         );
         Map<Long, BigDecimal> capturedReturnLines = returnLinesCaptor.getValue();
-        assertThat(capturedReturnLines.get(700L)).isEqualByComparingTo("100");
-        assertThat(capturedReturnLines.get(800L)).isEqualByComparingTo("10");
+        assertThat(capturedReturnLines.get(710L)).isEqualByComparingTo("100");
+        assertThat(capturedReturnLines.get(700L)).isEqualByComparingTo("-10");
+        assertThat(capturedReturnLines.get(800L)).isEqualByComparingTo("9");
 
         verify(accountingFacade).postInventoryAdjustment(
                 eq("SALES_RETURN_COGS"),

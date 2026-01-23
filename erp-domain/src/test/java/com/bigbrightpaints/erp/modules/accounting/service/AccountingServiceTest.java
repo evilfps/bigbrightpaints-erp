@@ -18,6 +18,7 @@ import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryReversalRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.SettlementAllocationRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.SettlementPaymentRequest;
+import com.bigbrightpaints.erp.modules.accounting.dto.SupplierSettlementRequest;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.hr.domain.PayrollRunLineRepository;
@@ -29,6 +30,7 @@ import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovementRepos
 import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchaseRepository;
 import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchase;
 import com.bigbrightpaints.erp.modules.purchasing.domain.SupplierRepository;
+import com.bigbrightpaints.erp.modules.purchasing.domain.Supplier;
 import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.PartnerSettlementAllocationRepository;
@@ -37,6 +39,7 @@ import com.bigbrightpaints.erp.core.audit.AuditService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
@@ -51,7 +54,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -865,6 +870,98 @@ class AccountingServiceTest {
     }
 
     @Test
+    void settleSupplierInvoices_cashAmountAccountsForDiscountAndFxGain() {
+        AccountingService service = spy(accountingService);
+
+        Supplier supplier = new Supplier();
+        supplier.setName("Supplier");
+        Account payable = new Account();
+        payable.setCompany(company);
+        payable.setCode("AP");
+        payable.setType(AccountType.LIABILITY);
+        ReflectionTestUtils.setField(payable, "id", 10L);
+        supplier.setPayableAccount(payable);
+        ReflectionTestUtils.setField(supplier, "id", 1L);
+
+        Account cash = new Account();
+        cash.setCompany(company);
+        cash.setCode("CASH");
+        ReflectionTestUtils.setField(cash, "id", 20L);
+
+        Account discount = new Account();
+        discount.setCompany(company);
+        discount.setCode("DISC");
+        ReflectionTestUtils.setField(discount, "id", 21L);
+
+        Account fxGain = new Account();
+        fxGain.setCompany(company);
+        fxGain.setCode("FXGAIN");
+        ReflectionTestUtils.setField(fxGain, "id", 22L);
+
+        RawMaterialPurchase purchase = new RawMaterialPurchase();
+        purchase.setCompany(company);
+        purchase.setSupplier(supplier);
+        purchase.setOutstandingAmount(new BigDecimal("200.00"));
+        ReflectionTestUtils.setField(purchase, "id", 2L);
+
+        when(supplierRepository.lockByCompanyAndId(eq(company), eq(1L))).thenReturn(Optional.of(supplier));
+        when(rawMaterialPurchaseRepository.lockByCompanyAndId(eq(company), eq(2L))).thenReturn(Optional.of(purchase));
+        when(settlementAllocationRepository.findByCompanyAndIdempotencyKey(any(), any())).thenReturn(List.of());
+        when(companyEntityLookup.requireAccount(eq(company), eq(20L))).thenReturn(cash);
+        when(companyEntityLookup.requireAccount(eq(company), eq(21L))).thenReturn(discount);
+        when(companyEntityLookup.requireAccount(eq(company), eq(22L))).thenReturn(fxGain);
+
+        JournalEntryDto journalEntryDto = stubEntry(55L);
+        ArgumentCaptor<JournalEntryRequest> journalCaptor = ArgumentCaptor.forClass(JournalEntryRequest.class);
+        doReturn(journalEntryDto).when(service).createJournalEntry(journalCaptor.capture());
+        when(companyEntityLookup.requireJournalEntry(eq(company), eq(55L))).thenReturn(new com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry());
+
+        SettlementAllocationRequest allocation = new SettlementAllocationRequest(
+                null,
+                2L,
+                new BigDecimal("100.00"),
+                new BigDecimal("10.00"),
+                BigDecimal.ZERO,
+                new BigDecimal("5.00"),
+                "settle");
+
+        SupplierSettlementRequest request = new SupplierSettlementRequest(
+                1L,
+                20L,
+                21L,
+                null,
+                22L,
+                null,
+                LocalDate.of(2024, 4, 9),
+                "REF-AP-1",
+                "Supplier settlement",
+                "IDEMP-AP-1",
+                Boolean.FALSE,
+                List.of(allocation)
+        );
+
+        service.settleSupplierInvoices(request);
+
+        JournalEntryRequest captured = journalCaptor.getValue();
+        JournalEntryRequest.JournalLineRequest cashLine = captured.lines().stream()
+                .filter(line -> line.accountId().equals(20L))
+                .findFirst()
+                .orElseThrow();
+        JournalEntryRequest.JournalLineRequest discountLine = captured.lines().stream()
+                .filter(line -> line.accountId().equals(21L))
+                .findFirst()
+                .orElseThrow();
+        JournalEntryRequest.JournalLineRequest fxGainLine = captured.lines().stream()
+                .filter(line -> line.accountId().equals(22L))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(cashLine.credit()).isEqualByComparingTo("85.00");
+        assertThat(discountLine.credit()).isEqualByComparingTo("10.00");
+        assertThat(fxGainLine.credit()).isEqualByComparingTo("5.00");
+    }
+
+    @Test
     void settleDealerInvoices_requiresPaymentsToMatchCash() {
         // Setup company/dealer/invoice
         Dealer dealer = new Dealer();
@@ -926,5 +1023,35 @@ class AccountingServiceTest {
                 .isInstanceOf(ApplicationException.class)
                 .hasMessageContaining("Payment total")
                 .hasMessageContaining("must equal net cash required");
+    }
+
+    private JournalEntryDto stubEntry(long id) {
+        return new JournalEntryDto(
+                id,
+                null,
+                null,
+                LocalDate.now(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                List.of(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+        );
     }
 }

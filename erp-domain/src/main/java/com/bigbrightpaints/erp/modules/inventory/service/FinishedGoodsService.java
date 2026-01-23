@@ -11,6 +11,8 @@ import com.bigbrightpaints.erp.modules.sales.domain.SalesOrderRepository;
 import com.bigbrightpaints.erp.modules.accounting.service.CompanyDefaultAccountsService;
 import com.bigbrightpaints.erp.modules.factory.event.PackagingSlipEvent;
 import jakarta.transaction.Transactional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -31,6 +33,8 @@ import java.util.stream.Collectors;
 
 @Service
 public class FinishedGoodsService {
+
+    private static final Logger log = LoggerFactory.getLogger(FinishedGoodsService.class);
 
     private final CompanyContextService companyContextService;
     private final FinishedGoodRepository finishedGoodRepository;
@@ -226,14 +230,17 @@ public class FinishedGoodsService {
         SalesOrder managedOrder = salesOrderRepository.findWithItemsByCompanyAndId(company, order.getId())
                 .orElseThrow(() -> new IllegalArgumentException("Sales order not found: " + order.getId()));
         List<PackagingSlip> existingSlips = packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, order.getId());
-        if (existingSlips.size() > 1) {
-            throw new IllegalArgumentException("Multiple packaging slips found for order; provide packingSlipId");
+        PackagingSlip slip;
+        if (existingSlips.isEmpty()) {
+            slip = createSlip(managedOrder);
+        } else if (existingSlips.size() == 1) {
+            slip = existingSlips.get(0);
+        } else {
+            slip = selectMostRecentSlip(existingSlips, managedOrder.getId());
         }
-        PackagingSlip slip = existingSlips.isEmpty()
-                ? createSlip(order)
-                : existingSlips.get(0);
 
         if ("CANCELLED".equalsIgnoreCase(slip.getStatus())) {
+            releaseReservationsForOrder(managedOrder.getId());
             slip.getLines().clear();
             slip.setStatus("PENDING");
             packagingSlipRepository.save(slip);
@@ -384,10 +391,8 @@ public class FinishedGoodsService {
         if (slips.isEmpty()) {
             throw new IllegalArgumentException("Packaging slip not found for order " + salesOrderId);
         }
-        if (slips.size() > 1) {
-            throw new IllegalArgumentException("Multiple packaging slips found for order; provide packingSlipId");
-        }
-        Long slipId = slips.get(0).getId();
+        PackagingSlip selected = slips.size() == 1 ? slips.get(0) : selectMostRecentSlip(slips, salesOrderId);
+        Long slipId = selected.getId();
         PackagingSlip slip = packagingSlipRepository.findAndLockByIdAndCompany(slipId, company)
                 .orElseThrow(() -> new IllegalArgumentException("Packaging slip not found for order " + salesOrderId));
         return markSlipDispatched(salesOrderId, slip);
@@ -1118,6 +1123,20 @@ public class FinishedGoodsService {
             slipQuantities.remove(item.getProductCode());
         }
         return slipQuantities.isEmpty();
+    }
+
+    private PackagingSlip selectMostRecentSlip(List<PackagingSlip> slips, Long orderId) {
+        Comparator<PackagingSlip> byCreatedAt = Comparator.comparing(
+                PackagingSlip::getCreatedAt,
+                Comparator.nullsLast(Comparator.naturalOrder()));
+        Comparator<PackagingSlip> byId = Comparator.comparing(
+                PackagingSlip::getId,
+                Comparator.nullsLast(Comparator.naturalOrder()));
+        PackagingSlip selected = slips.stream()
+                .max(byCreatedAt.thenComparing(byId))
+                .orElseThrow(() -> new IllegalArgumentException("Packaging slip not found for order " + orderId));
+        log.warn("Multiple packaging slips found for order {}; using slip {}", orderId, selected.getId());
+        return selected;
     }
 
     private List<InventoryReservation> rebuildReservationsFromSlip(PackagingSlip slip, Long salesOrderId) {

@@ -17,6 +17,11 @@ public interface GoodsReceiptRepository extends JpaRepository<GoodsReceipt, Long
     @Query("select gr from GoodsReceipt gr where gr.company = :company order by gr.receiptDate desc")
     List<GoodsReceipt> findByCompanyWithLinesOrderByReceiptDateDesc(@Param("company") Company company);
 
+    @EntityGraph(attributePaths = {"supplier", "purchaseOrder", "lines", "lines.rawMaterial"})
+    @Query("select gr from GoodsReceipt gr where gr.company = :company and gr.supplier = :supplier order by gr.receiptDate desc")
+    List<GoodsReceipt> findByCompanyAndSupplierWithLinesOrderByReceiptDateDesc(@Param("company") Company company,
+                                                                               @Param("supplier") Supplier supplier);
+
     Optional<GoodsReceipt> findByCompanyAndId(Company company, Long id);
     Optional<GoodsReceipt> findByCompanyAndReceiptNumberIgnoreCase(Company company, String receiptNumber);
 

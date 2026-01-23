@@ -125,14 +125,24 @@ public class SalesReturnService {
             BigDecimal quantity = requirePositive(lineRequest.quantity(), "lines.quantity");
             FinishedGood finishedGood = lockFinishedGood(company, invoiceLine.getProductCode());
 
-            Long revenueAccountId = finishedGood.getDiscountAccountId() != null
-                    ? finishedGood.getDiscountAccountId()
-                    : finishedGood.getRevenueAccountId();
-            if (revenueAccountId != null) {
-                BigDecimal baseAmount = currency(MoneyUtils.safeMultiply(perUnitBase(invoiceLine), quantity));
-                if (baseAmount.compareTo(BigDecimal.ZERO) > 0) {
-                    returnLines.merge(revenueAccountId, baseAmount, BigDecimal::add);
+            Long revenueAccountId = finishedGood.getRevenueAccountId();
+            if (revenueAccountId == null) {
+                throw new IllegalStateException("Finished good " + finishedGood.getProductCode()
+                        + " missing revenue account for sales return");
+            }
+            BigDecimal baseAmount = currency(MoneyUtils.safeMultiply(perUnitBase(invoiceLine), quantity));
+            BigDecimal discountAmount = currency(MoneyUtils.safeMultiply(perUnitDiscount(invoiceLine), quantity));
+            BigDecimal grossAmount = baseAmount.add(discountAmount);
+            if (grossAmount.compareTo(BigDecimal.ZERO) > 0) {
+                returnLines.merge(revenueAccountId, grossAmount, BigDecimal::add);
+            }
+            if (discountAmount.compareTo(BigDecimal.ZERO) > 0) {
+                Long discountAccountId = finishedGood.getDiscountAccountId();
+                if (discountAccountId == null) {
+                    throw new IllegalStateException("Discount account is required when return line has a discount for "
+                            + finishedGood.getProductCode());
                 }
+                returnLines.merge(discountAccountId, discountAmount.negate(), BigDecimal::add);
             }
 
             BigDecimal taxPerUnit = perUnitTax(invoiceLine);
@@ -221,6 +231,15 @@ public class SalesReturnService {
         BigDecimal discount = MoneyUtils.zeroIfNull(line.getDiscountAmount());
         BigDecimal net = gross.subtract(discount);
         return MoneyUtils.safeDivide(net, quantity, 4, RoundingMode.HALF_UP);
+    }
+
+    private BigDecimal perUnitDiscount(InvoiceLine line) {
+        BigDecimal quantity = line.getQuantity();
+        if (quantity == null || quantity.compareTo(BigDecimal.ZERO) <= 0) {
+            return BigDecimal.ZERO;
+        }
+        BigDecimal discount = MoneyUtils.zeroIfNull(line.getDiscountAmount());
+        return MoneyUtils.safeDivide(discount, quantity, 4, RoundingMode.HALF_UP);
     }
 
     private BigDecimal currency(BigDecimal value) {

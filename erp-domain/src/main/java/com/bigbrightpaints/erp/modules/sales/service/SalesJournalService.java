@@ -15,6 +15,7 @@ import com.bigbrightpaints.erp.modules.accounting.service.CompanyDefaultAccounts
 import com.bigbrightpaints.erp.modules.accounting.service.CompanyAccountingSettingsService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -104,8 +105,10 @@ public class SalesJournalService {
         // Build revenue and tax line maps
         Map<Long, BigDecimal> revenueLines = new LinkedHashMap<>();
         Map<Long, BigDecimal> taxLines = new LinkedHashMap<>();
+        Map<Long, BigDecimal> discountLines = new LinkedHashMap<>();
         Map<String, ProductAccounts> accountCache = new LinkedHashMap<>();
         Long gstOutputAccountId = null;
+        boolean gstInclusive = order.isGstInclusive();
 
         for (SalesOrderItem item : items) {
             String productCode = item.getProductCode();
@@ -120,12 +123,29 @@ public class SalesJournalService {
             BigDecimal lineSubtotal = item.getLineSubtotal() != null
                     ? item.getLineSubtotal()
                     : MoneyUtils.safeMultiply(item.getQuantity(), item.getUnitPrice());
+            BigDecimal lineTax = item.getGstAmount() != null ? item.getGstAmount() : BigDecimal.ZERO;
+            BigDecimal lineGross = MoneyUtils.safeMultiply(item.getQuantity(), item.getUnitPrice());
+            BigDecimal discountBase = gstInclusive ? lineSubtotal.add(lineTax) : lineSubtotal;
+            BigDecimal lineDiscount = lineGross.subtract(discountBase);
+            if (lineDiscount.compareTo(BigDecimal.ZERO) < 0) {
+                lineDiscount = BigDecimal.ZERO;
+            } else {
+                lineDiscount = currency(lineDiscount);
+            }
+            BigDecimal grossNet = currency(lineSubtotal.add(lineDiscount));
 
-            if (lineSubtotal != null && lineSubtotal.compareTo(BigDecimal.ZERO) > 0) {
-                revenueLines.merge(accounts.revenueAccountId(), lineSubtotal, BigDecimal::add);
+            if (grossNet.compareTo(BigDecimal.ZERO) > 0) {
+                revenueLines.merge(accounts.revenueAccountId(), grossNet, BigDecimal::add);
             }
 
-            BigDecimal lineTax = item.getGstAmount() != null ? item.getGstAmount() : BigDecimal.ZERO;
+            if (lineDiscount.compareTo(BigDecimal.ZERO) > 0) {
+                Long discountAccountId = accounts.discountAccountId();
+                if (discountAccountId == null) {
+                    throw new IllegalStateException("Discount account is required when a discount is applied for product " + productCode);
+                }
+                discountLines.merge(discountAccountId, lineDiscount, BigDecimal::add);
+            }
+
             if (lineTax.compareTo(BigDecimal.ZERO) > 0) {
                 if (gstOutputAccountId == null) {
                     gstOutputAccountId = companyAccountingSettingsService.requireTaxAccounts().outputTaxAccountId();
@@ -144,7 +164,9 @@ public class SalesJournalService {
         // Balance adjustment if needed (rounding differences)
         BigDecimal totalCredits = revenueLines.values().stream().reduce(BigDecimal.ZERO, BigDecimal::add)
                 .add(taxLines.values().stream().reduce(BigDecimal.ZERO, BigDecimal::add));
-        BigDecimal delta = journalAmount.abs().subtract(totalCredits);
+        BigDecimal totalDiscount = discountLines.values().stream().reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal expectedCredits = journalAmount.abs().add(totalDiscount);
+        BigDecimal delta = expectedCredits.subtract(totalCredits);
 
         if (delta.compareTo(BigDecimal.ZERO) != 0) {
             if (delta.abs().compareTo(ROUNDING_TOLERANCE) > 0) {
@@ -169,6 +191,7 @@ public class SalesJournalService {
                 resolvedMemo,
                 revenueLines,
                 taxLines,
+                discountLines.isEmpty() ? null : discountLines,
                 journalAmount,
                 resolvedReference
         );
@@ -181,30 +204,37 @@ public class SalesJournalService {
                                             FinishedGoodAccountingProfile profile) {
         Long revenueAccountId = profile != null ? profile.revenueAccountId() : null;
         Long taxAccountId = profile != null ? profile.taxAccountId() : null;
-        if (revenueAccountId != null && taxAccountId != null) {
-            return new ProductAccounts(revenueAccountId, taxAccountId);
+        Long discountAccountId = profile != null ? profile.discountAccountId() : null;
+        ProductionProduct product = null;
+        if (revenueAccountId == null || taxAccountId == null || discountAccountId == null) {
+            product = productionProductRepository.findByCompanyAndSkuCode(company, productCode)
+                    .orElseThrow(() -> new IllegalStateException("Product " + productCode + " missing finished good and metadata account mapping"));
         }
-        ProductionProduct product = productionProductRepository.findByCompanyAndSkuCode(company, productCode)
-                .orElseThrow(() -> new IllegalStateException("Product " + productCode + " missing finished good and metadata account mapping"));
-        if (revenueAccountId == null) {
+        if (revenueAccountId == null && product != null) {
             revenueAccountId = metadataLong(product, "fgRevenueAccountId");
         }
-        if (taxAccountId == null) {
+        if (taxAccountId == null && product != null) {
             taxAccountId = metadataLong(product, "fgTaxAccountId");
         }
-        if (revenueAccountId == null || taxAccountId == null) {
-            var defaults = companyDefaultAccountsService.requireDefaults();
+        if (discountAccountId == null && product != null) {
+            discountAccountId = metadataLong(product, "fgDiscountAccountId");
+        }
+        if (revenueAccountId == null || taxAccountId == null || discountAccountId == null) {
+            var defaults = companyDefaultAccountsService.getDefaults();
             if (revenueAccountId == null) {
                 revenueAccountId = defaults.revenueAccountId();
             }
             if (taxAccountId == null) {
                 taxAccountId = defaults.taxAccountId();
             }
+            if (discountAccountId == null) {
+                discountAccountId = defaults.discountAccountId();
+            }
         }
         if (revenueAccountId == null || taxAccountId == null) {
             throw new IllegalStateException("Company default revenue/tax accounts are not configured for product " + productCode);
         }
-        return new ProductAccounts(revenueAccountId, taxAccountId);
+        return new ProductAccounts(revenueAccountId, taxAccountId, discountAccountId);
     }
 
     private Long metadataLong(ProductionProduct product, String key) {
@@ -225,6 +255,13 @@ public class SalesJournalService {
         return null;
     }
 
-    private record ProductAccounts(Long revenueAccountId, Long taxAccountId) {}
+    private BigDecimal currency(BigDecimal value) {
+        if (value == null) {
+            return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+        }
+        return value.setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private record ProductAccounts(Long revenueAccountId, Long taxAccountId, Long discountAccountId) {}
 
 }

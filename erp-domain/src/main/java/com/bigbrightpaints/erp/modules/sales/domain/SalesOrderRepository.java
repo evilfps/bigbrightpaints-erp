@@ -32,6 +32,17 @@ public interface SalesOrderRepository extends JpaRepository<SalesOrder, Long> {
                                                                    @Param("status") String status,
                                                                    Pageable pageable);
 
+    @Query("select o.id from SalesOrder o where o.company = :company and o.dealer = :dealer order by o.createdAt desc, o.id desc")
+    Page<Long> findIdsByCompanyAndDealerOrderByCreatedAtDescIdDesc(@Param("company") Company company,
+                                                                   @Param("dealer") Dealer dealer,
+                                                                   Pageable pageable);
+
+    @Query("select o.id from SalesOrder o where o.company = :company and o.dealer = :dealer and o.status = :status order by o.createdAt desc, o.id desc")
+    Page<Long> findIdsByCompanyAndDealerAndStatusOrderByCreatedAtDescIdDesc(@Param("company") Company company,
+                                                                            @Param("dealer") Dealer dealer,
+                                                                            @Param("status") String status,
+                                                                            Pageable pageable);
+
     @EntityGraph(attributePaths = {"items", "dealer"})
     @Query("select o from SalesOrder o where o.company = :company and o.id in :ids order by o.createdAt desc, o.id desc")
     List<SalesOrder> findByCompanyAndIdInOrderByCreatedAtDescIdDesc(@Param("company") Company company,
@@ -49,4 +60,7 @@ public interface SalesOrderRepository extends JpaRepository<SalesOrder, Long> {
 
     @EntityGraph(attributePaths = {"items"})
     List<SalesOrder> findByCompanyAndDealerOrderByCreatedAtDesc(Company company, Dealer dealer);
+
+    @EntityGraph(attributePaths = {"items"})
+    List<SalesOrder> findByCompanyAndDealerAndStatusOrderByCreatedAtDesc(Company company, Dealer dealer, String status);
 }
