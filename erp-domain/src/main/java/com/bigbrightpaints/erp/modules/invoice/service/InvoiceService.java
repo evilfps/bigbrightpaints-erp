@@ -112,18 +112,13 @@ public class InvoiceService {
             line.setDescription(item.getDescription());
             line.setQuantity(item.getQuantity());
             line.setUnitPrice(item.getUnitPrice());
-            BigDecimal lineGross = MoneyUtils.safeMultiply(item.getQuantity(), item.getUnitPrice());
             BigDecimal lineSubtotal = item.getLineSubtotal() != null
                     ? item.getLineSubtotal()
                     : MoneyUtils.safeMultiply(item.getQuantity(), item.getUnitPrice());
             BigDecimal lineTax = item.getGstAmount() != null ? item.getGstAmount() : BigDecimal.ZERO;
             BigDecimal taxRate = item.getGstRate() != null ? item.getGstRate() : BigDecimal.ZERO;
             line.setTaxRate(taxRate);
-            BigDecimal discount = lineGross.subtract(lineSubtotal);
-            if (discount.compareTo(BigDecimal.ZERO) < 0) {
-                discount = BigDecimal.ZERO;
-            }
-            line.setDiscountAmount(discount);
+            line.setDiscountAmount(BigDecimal.ZERO);
             line.setTaxableAmount(lineSubtotal);
             line.setTaxAmount(lineTax);
             line.setLineTotal(lineSubtotal.add(lineTax));
