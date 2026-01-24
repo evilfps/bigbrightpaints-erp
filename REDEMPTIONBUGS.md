@@ -29,6 +29,10 @@
   - Risk: dispatch is blocked for multi-invoice orders.
   - Locations: `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/sales/service/SalesService.java:1165`, `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/sales/dto/DispatchConfirmRequest.java:6`
   - Suggestion: add optional `invoiceId` to the request and route selection through confirm dispatch.
+- R-009 Sales order idempotency hash can change when numeric fields are equivalent but formatted with different scales (e.g., `1` vs `1.0` in quantity/price/total), allowing duplicate orders when auto-hash is used.
+  - Risk: duplicate order creation if clients send semantically identical payloads with different numeric scales and omit explicit idempotency key.
+  - Location: `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/sales/dto/SalesOrderRequest.java:19`
+  - Suggestion: normalize `BigDecimal` values before hashing (e.g., stripTrailingZeros + plain string) or enforce explicit idempotency keys.
 
 ## Async cross-module run
 - Command: `mvn -B -ntp verify` (async via `nohup`, log `/tmp/ci-verify.log`)

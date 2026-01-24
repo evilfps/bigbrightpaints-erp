@@ -1,61 +1,67 @@
 package com.bigbrightpaints.erp.modules.sales.dto;
 
-import org.junit.jupiter.api.Test;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.math.BigDecimal;
 import java.util.List;
-
-import static org.assertj.core.api.Assertions.assertThat;
+import org.junit.jupiter.api.Test;
 
 class SalesOrderRequestTest {
 
-    @Test
-    void resolveIdempotencyKey_isDeterministicForSamePayload() {
-        SalesOrderItemRequest item = new SalesOrderItemRequest(
-                "SKU-1",
-                "Desc",
-                new BigDecimal("2"),
-                new BigDecimal("10.00"),
-                null
-        );
-        SalesOrderRequest req1 = new SalesOrderRequest(
-                1L,
-                new BigDecimal("20.00"),
-                "INR",
-                "Note",
-                List.of(item),
-                "NONE",
-                null,
-                false,
-                null
-        );
-        SalesOrderRequest req2 = new SalesOrderRequest(
-                1L,
-                new BigDecimal("20.00"),
-                "INR",
-                "Note",
-                List.of(item),
-                "NONE",
-                null,
-                false,
-                null
-        );
-
-        assertThat(req1.resolveIdempotencyKey()).isEqualTo(req2.resolveIdempotencyKey());
+    private SalesOrderRequest requestWithIdempotency(String key, String currency, String productCode, BigDecimal quantity) {
+        SalesOrderItemRequest item = new SalesOrderItemRequest(productCode, "Item", quantity, new BigDecimal("10"), null);
+        return new SalesOrderRequest(1L, new BigDecimal("100"), currency, null, List.of(item),
+                "NONE", BigDecimal.ZERO, false, key);
     }
 
     @Test
-    void resolveIdempotencyKey_changesWhenItemsChange() {
-        SalesOrderItemRequest item1 = new SalesOrderItemRequest(
-                "SKU-1", "Desc", new BigDecimal("2"), new BigDecimal("10.00"), null);
-        SalesOrderItemRequest item2 = new SalesOrderItemRequest(
-                "SKU-1", "Desc", new BigDecimal("3"), new BigDecimal("10.00"), null);
+    void resolveIdempotencyKey_prefersExplicitKeyTrimmed() {
+        SalesOrderRequest request = requestWithIdempotency("  KEY-123  ", "INR", "FG-1", new BigDecimal("2"));
+        assertThat(request.resolveIdempotencyKey()).isEqualTo("KEY-123");
+    }
 
-        SalesOrderRequest req1 = new SalesOrderRequest(
-                1L, new BigDecimal("20.00"), "INR", "Note", List.of(item1), "NONE", null, false, null);
-        SalesOrderRequest req2 = new SalesOrderRequest(
-                1L, new BigDecimal("30.00"), "INR", "Note", List.of(item2), "NONE", null, false, null);
+    @Test
+    void resolveIdempotencyKey_blankKey_usesHash() {
+        SalesOrderRequest request = requestWithIdempotency(" ", "INR", "FG-1", new BigDecimal("2"));
+        assertThat(request.resolveIdempotencyKey()).isNotBlank();
+        assertThat(request.resolveIdempotencyKey()).hasSize(64);
+    }
 
-        assertThat(req1.resolveIdempotencyKey()).isNotEqualTo(req2.resolveIdempotencyKey());
+    @Test
+    void resolveIdempotencyKey_sameInput_sameHash() {
+        SalesOrderRequest one = requestWithIdempotency(null, "INR", "FG-1", new BigDecimal("2"));
+        SalesOrderRequest two = requestWithIdempotency(null, "INR", "FG-1", new BigDecimal("2"));
+        assertThat(one.resolveIdempotencyKey()).isEqualTo(two.resolveIdempotencyKey());
+    }
+
+    @Test
+    void resolveIdempotencyKey_currencyNormalized() {
+        SalesOrderRequest one = requestWithIdempotency(null, "inr", "FG-1", new BigDecimal("2"));
+        SalesOrderRequest two = requestWithIdempotency(null, "INR", "FG-1", new BigDecimal("2"));
+        assertThat(one.resolveIdempotencyKey()).isEqualTo(two.resolveIdempotencyKey());
+    }
+
+    @Test
+    void resolveIdempotencyKey_productCodeNormalized() {
+        SalesOrderRequest one = requestWithIdempotency(null, "INR", " fg-1 ", new BigDecimal("2"));
+        SalesOrderRequest two = requestWithIdempotency(null, "INR", "FG-1", new BigDecimal("2"));
+        assertThat(one.resolveIdempotencyKey()).isEqualTo(two.resolveIdempotencyKey());
+    }
+
+    @Test
+    void resolveIdempotencyKey_quantityChange_changesHash() {
+        SalesOrderRequest one = requestWithIdempotency(null, "INR", "FG-1", new BigDecimal("2"));
+        SalesOrderRequest two = requestWithIdempotency(null, "INR", "FG-1", new BigDecimal("3"));
+        assertThat(one.resolveIdempotencyKey()).isNotEqualTo(two.resolveIdempotencyKey());
+    }
+
+    @Test
+    void resolveIdempotencyKey_nullDealerId_stable() {
+        SalesOrderItemRequest item = new SalesOrderItemRequest("FG-1", "Item", new BigDecimal("1"), new BigDecimal("10"), null);
+        SalesOrderRequest one = new SalesOrderRequest(null, new BigDecimal("100"), "INR", null, List.of(item),
+                "NONE", BigDecimal.ZERO, false, null);
+        SalesOrderRequest two = new SalesOrderRequest(null, new BigDecimal("100"), "INR", null, List.of(item),
+                "NONE", BigDecimal.ZERO, false, null);
+        assertThat(one.resolveIdempotencyKey()).isEqualTo(two.resolveIdempotencyKey());
     }
 }

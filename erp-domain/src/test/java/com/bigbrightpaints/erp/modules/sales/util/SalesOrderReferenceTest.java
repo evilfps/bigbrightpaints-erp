@@ -48,4 +48,11 @@ class SalesOrderReferenceTest {
         order.setOrderNumber("so-9");
         assertThat(SalesOrderReference.normalizeOrderNumber(order)).isEqualTo("SO-9");
     }
+
+    @Test
+    void normalizeOrderNumber_orderObjectUsesIdWhenMissingNumber() {
+        SalesOrder order = new SalesOrder();
+        order.setOrderNumber(null);
+        assertThat(SalesOrderReference.normalizeOrderNumber(order)).isEqualTo("UNKNOWN");
+    }
 }

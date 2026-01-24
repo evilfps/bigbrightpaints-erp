@@ -64,6 +64,13 @@ class DashboardWindowTest {
     }
 
     @Test
+    void resolve_windowZeroDays_defaultsToOneDay() {
+        DashboardWindow window = DashboardWindow.resolve("0d", null, "UTC", null);
+        int days = (int) ChronoUnit.DAYS.between(window.start(), window.end()) + 1;
+        assertThat(days).isEqualTo(1);
+    }
+
+    @Test
     void resolve_timezoneFallbackUsesFallback() {
         DashboardWindow window = DashboardWindow.resolve("7d", null, "Not/AZone", "UTC");
         assertThat(window.zone()).isEqualTo(ZoneId.of("UTC"));

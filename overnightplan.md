@@ -192,4 +192,5 @@ Create a never-ending, exhaustive hardening loop that validates every module, ev
 - Staging boot (prod+seed + validation enabled): required `ERP_LICENSE_KEY` and dispatch account envs; added `V111__backfill_production_product_metadata.sql` + base currency seeding, then reran successfully (config health checks passed); login + dealer list verified.
 - Async verify rerun: BUILD SUCCESS (268 run, 0 failures, 0 errors, 4 skipped, 07:38).
 - Added 50 targeted unit tests for core utilities/DTOs + references; ran `mvn -B -ntp -Dtest=MoneyUtilsTest,PasswordUtilsTest,SystemRoleTest,SalesOrderReferenceTest,DashboardWindowTest,CompanyContextHolderTest,ApiResponseTest,PageResponseTest test` → BUILD SUCCESS.
-- Bug hunt pass: scanned auth/password policy + sales reference utilities; no new reproducible issues beyond existing open item R-006.
+- Bug hunt pass: scanned auth/password policy + sales reference utilities; flagged idempotency hash scale sensitivity (R-009) in addition to existing open item R-006.
+- Added 25 more targeted unit/regression checks and ran `mvn -B -ntp -Dtest=PasswordPolicyTest,SalesOrderRequestTest,ErrorResponseTest,DomainEventTest,InventoryReferenceTest,ApiResponseTest,PageResponseTest,SalesOrderReferenceTest,DashboardWindowTest test` → BUILD SUCCESS.

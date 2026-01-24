@@ -22,4 +22,11 @@ class PageResponseTest {
         assertThat(response.page()).isEqualTo(1);
         assertThat(response.size()).isEqualTo(10);
     }
+
+    @Test
+    void of_zeroElements_hasZeroPages() {
+        PageResponse<Integer> response = PageResponse.of(List.of(), 0, 0, 10);
+        assertThat(response.totalPages()).isEqualTo(0);
+        assertThat(response.content()).isEmpty();
+    }
 }

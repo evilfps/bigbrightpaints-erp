@@ -32,4 +32,13 @@ class ApiResponseTest {
         assertThat(response.data()).isNull();
         assertThat(response.timestamp()).isNotNull();
     }
+
+    @Test
+    void failure_withMessageAndData() {
+        ApiResponse<String> response = ApiResponse.failure("bad", "payload");
+        assertThat(response.success()).isFalse();
+        assertThat(response.message()).isEqualTo("bad");
+        assertThat(response.data()).isEqualTo("payload");
+        assertThat(response.timestamp()).isNotNull();
+    }
 }
