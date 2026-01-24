@@ -16,7 +16,9 @@ import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryMovementRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryReference;
 import com.bigbrightpaints.erp.modules.inventory.domain.PackagingSlip;
+import com.bigbrightpaints.erp.modules.inventory.domain.PackagingSlipLine;
 import com.bigbrightpaints.erp.modules.inventory.domain.PackagingSlipRepository;
+import com.bigbrightpaints.erp.modules.inventory.domain.PackagingSlipLineRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryReservation;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryReservationRepository;
 import com.bigbrightpaints.erp.modules.invoice.domain.InvoiceRepository;
@@ -61,6 +63,7 @@ public class OrderFulfillmentE2ETest extends AbstractIntegrationTest {
     @Autowired private DealerRepository dealerRepository;
     @Autowired private SalesOrderRepository salesOrderRepository;
     @Autowired private PackagingSlipRepository packagingSlipRepository;
+    @Autowired private PackagingSlipLineRepository packagingSlipLineRepository;
     @Autowired private InventoryMovementRepository inventoryMovementRepository;
     @Autowired private InvoiceRepository invoiceRepository;
     @Autowired private JournalEntryRepository journalEntryRepository;
@@ -580,6 +583,60 @@ public class OrderFulfillmentE2ETest extends AbstractIntegrationTest {
                 .stream()
                 .filter(m -> "DISPATCH".equalsIgnoreCase(m.getMovementType()))
                 .forEach(m -> assertThat(m.getJournalEntryId()).isEqualTo(cogsJournalId));
+    }
+
+    @Test
+    @DisplayName("Partial dispatch invoices shipped qty and creates backorder slip")
+    void partialDispatch_invoicesShippedQty_andCreatesBackorderSlip() {
+        Company company = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();
+
+        Dealer dealer = createDealer(company, "DISPATCH-PARTIAL", "Dispatch Partial Dealer", new BigDecimal("500000"));
+        FinishedGood fg = createFinishedGood(company, "FG-DISPATCH-PARTIAL", new BigDecimal("15"));
+
+        BigDecimal orderedQty = new BigDecimal("10");
+        BigDecimal unitPrice = new BigDecimal("1000.00");
+        Long orderId = createOrder(dealer, fg, orderedQty, unitPrice);
+
+        PackagingSlip slip = packagingSlipRepository.findByCompanyAndSalesOrderId(company, orderId).orElseThrow();
+        PackagingSlipLine line = packagingSlipLineRepository.findByPackagingSlipId(slip.getId()).getFirst();
+        BigDecimal shippedQty = orderedQty.subtract(new BigDecimal("3"));
+
+        Map<String, Object> dispatchReq = new java.util.HashMap<>();
+        dispatchReq.put("orderId", orderId);
+        dispatchReq.put("confirmedBy", "e2e");
+        dispatchReq.put("lines", List.of(Map.of(
+                "lineId", line.getId(),
+                "shipQty", shippedQty
+        )));
+
+        ResponseEntity<Map> response = rest.exchange("/api/v1/sales/dispatch/confirm",
+                HttpMethod.POST, new HttpEntity<>(dispatchReq, headers), Map.class);
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        Map<?, ?> data = requireData(response, "partial dispatch");
+        Long invoiceId = ((Number) data.get("finalInvoiceId")).longValue();
+
+        var invoice = invoiceRepository.findByCompanyAndId(company, invoiceId).orElseThrow();
+        BigDecimal expectedTotal = unitPrice.multiply(shippedQty);
+        assertThat(invoice.getTotalAmount()).isEqualByComparingTo(expectedTotal);
+
+        List<PackagingSlip> slips = packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, orderId);
+        assertThat(slips.size()).isGreaterThanOrEqualTo(2);
+        PackagingSlip backorderSlip = slips.stream()
+                .filter(s -> "BACKORDER".equalsIgnoreCase(s.getStatus()))
+                .findFirst()
+                .orElseThrow();
+        BigDecimal backorderQty = packagingSlipLineRepository.findByPackagingSlipId(backorderSlip.getId()).stream()
+                .map(l -> l.getOrderedQuantity() != null ? l.getOrderedQuantity() : l.getQuantity())
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        assertThat(backorderQty).isEqualByComparingTo(orderedQty.subtract(shippedQty));
+
+        BigDecimal dispatchedQty = inventoryMovementRepository
+                .findByReferenceTypeAndReferenceIdOrderByCreatedAtAsc(InventoryReference.SALES_ORDER, orderId.toString())
+                .stream()
+                .filter(m -> "DISPATCH".equalsIgnoreCase(m.getMovementType()))
+                .map(m -> m.getQuantity() != null ? m.getQuantity() : BigDecimal.ZERO)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        assertThat(dispatchedQty).isEqualByComparingTo(shippedQty);
     }
 
     @Test
