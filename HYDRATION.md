@@ -3,7 +3,7 @@
 ## Overnight Runner State
 - Branch: `accounting-correctness-v1`
 - Current epic/milestone pointer: `tasks/task-00.md → EPIC 01 → Milestone 02` (pending)
-- Last commit SHA: `fe23b736c982849bb0879c50aa53e2904cc55d9f`
+- Last commit SHA: `4692e368a58c5d5d0a7646306915a176a9f81130`
 - Next actions: start EPIC 01 / Milestone 02 (endpoint equivalence) while async verify runs.
 - Working tree status: pre-existing diffs present (unrelated); avoid touching unrelated files.
 
@@ -30,7 +30,7 @@
 - EPIC 00 / Milestone 02 — Tighten invariant coverage (PASS): `25673232fd12ae5b8490df154a89cdd575cfd593`.
 - EPIC 01 / Milestone 01 — Dispatch idempotency + partial recovery (PASS): `d4c231a4b9555c09740f3c3313a35826017889c3`.
 - EPIC 01 / Milestone 02 — Endpoint equivalence + idempotency (PASS): `fe23b736c982849bb0879c50aa53e2904cc55d9f`.
-- EPIC 01 / Milestone 03 — COGS cost accuracy + traceability (PASS): `TBD` (post-commit).
+- EPIC 01 / Milestone 03 — COGS cost accuracy + traceability (PASS): `4692e368a58c5d5d0a7646306915a176a9f81130`.
 
 ## Open Findings (bugs / security issues / logic flaws)
 - HIGH — Inventory accounting domain events appear unused (risk: future double-posting if wired later): `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/event/InventoryAccountingEventListener.java`, `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/event/InventoryMovementEvent.java`, `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/event/InventoryValuationChangedEvent.java`.
