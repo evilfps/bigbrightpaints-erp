@@ -2,20 +2,20 @@
 
 ## Overnight Runner State
 - Branch: `accounting-correctness-v1`
-- Current epic/milestone pointer: `tasks/task-00.md → EPIC A → Milestone 02` (pending: golden path trace)
-- Last commit SHA: `70fe5360ceb6e44dbf38d934099243cd6a04e251`
-- Next actions: start EPIC A / Milestone 02 (golden path trace), continue async verify triage (log empty).
+- Current epic/milestone pointer: `tasks/task-00.md → EPIC A → Milestone 03` (pending: idempotency + reference evidence)
+- Last commit SHA: `6356459d76a7f0c2fb1bbedaf69b79b2f49a6072`
+- Next actions: start EPIC A / Milestone 03 (idempotency/reference evidence), continue async verify triage (log empty).
 - Working tree status: pre-existing diffs present (unrelated); avoid touching unrelated files.
 
 ## Current State
 - Worktree: `/home/realnigga/Desktop/CLI_BACKEND_epic04`
 - Branch: `accounting-correctness-v1`
-- Current milestone pointer: `tasks/task-00.md → EPIC A → Milestone 02` (pending: golden path trace)
+- Current milestone pointer: `tasks/task-00.md → EPIC A → Milestone 03` (pending: idempotency + reference evidence)
 - Working tree: pre-existing diffs present; proceeding without touching unrelated changes.
 
 ## Async Verify
 - Command: `nohup bash -lc 'cd erp-domain && mvn -B -ntp verify' > /tmp/task00-verify.log 2>&1 & echo $! > /tmp/task00-verify.pid`
-- PID: `62676` (latest attempt)
+- PID: `64079` (latest attempt)
 - Log: `/tmp/task00-verify.log`
 - Status: FINISHED early (log empty; no BUILD SUCCESS/FAILURE)
 - Last observed: `/tmp/task00-verify.log` has 0 lines; background PID exits immediately.
@@ -33,9 +33,11 @@
 - EPIC 01 / Milestone 03 — COGS cost accuracy + traceability (PASS): `4692e368a58c5d5d0a7646306915a176a9f81130`.
 - EPIC 01 / Milestone 04 — Partial dispatch + multiple slips (PASS): `745cd91d60f3e033b1da420fd7ba6f2c0068e385`.
 - EPIC A / Milestone A1 — Evidence map skeleton (PASS): `70fe5360ceb6e44dbf38d934099243cd6a04e251`.
+- EPIC A / Milestone A2 — Golden path trace (PASS): `6356459d76a7f0c2fb1bbedaf69b79b2f49a6072`.
 
 ## Evidence Pack
 - EPIC A / Milestone A1 trace map: `docs/cross-module-trace-map.md`
+- EPIC A / Milestone A2 golden path trace: `docs/cross-module-trace-map.md`
 
 ## Open Findings (bugs / security issues / logic flaws)
 - HIGH — Inventory accounting domain events appear unused (risk: future double-posting if wired later): `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/event/InventoryAccountingEventListener.java`, `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/event/InventoryMovementEvent.java`, `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/event/InventoryValuationChangedEvent.java`.
@@ -84,9 +86,10 @@
 - 2026-01-25: `cd erp-domain && mvn -B -ntp -Dtest=OrderFulfillmentE2ETest#partialDispatch_invoicesShippedQty_andCreatesBackorderSlip test` (PASS) — Tests run: 1, Failures: 0, Errors: 0, Skipped: 0. (rerun x2)
 - 2026-01-25: `cd erp-domain && mvn -B -ntp -Dtest=OrderFulfillmentE2ETest,CriticalAccountingAxesIT test` (PASS) — Tests run: 22, Failures: 0, Errors: 0, Skipped: 0.
 - 2026-01-25: `cd erp-domain && mvn -B -ntp -Dtest=ApplicationSmokeTest,CriticalPathSmokeTest test` (PASS) — Tests run: 14, Failures: 0, Errors: 0, Skipped: 0.
+- 2026-01-25: `cd erp-domain && mvn -B -ntp -Dtest=OrderFulfillmentE2ETest,ErpInvariantsSuiteIT test` (PASS) — Tests run: 21, Failures: 0, Errors: 0, Skipped: 0.
 
 ## Next Actions (explicit)
-1. Begin EPIC A / Milestone 02: add golden path trace (dispatch → invoice → journals → ledger).
+1. Begin EPIC A / Milestone 03: add idempotency + reference evidence by event.
 2. Re-attempt async verify (`/tmp/task00-verify.log`) and record results (log currently empty).
 
 ## Historical (prior work references)
