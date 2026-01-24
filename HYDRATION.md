@@ -1,6 +1,54 @@
 # HYDRATION
 
-## Completed Epics
+## Current State
+- Worktree: `/home/realnigga/Desktop/CLI_BACKEND_epic04`
+- Branch: `accounting-correctness-v1`
+- Current milestone pointer: `tasks/task-00.md → EPIC 00 → Milestone 01` (no failures observed; triage not triggered)
+- Working tree: pre-existing diffs present; proceeding without touching unrelated changes.
+
+## Async Verify
+- Command: `nohup bash -lc 'cd erp-domain && mvn -B -ntp verify' > /tmp/task00-verify.log 2>&1 & echo $! > /tmp/task00-verify.pid`
+- PID: `27360`
+- Log: `/tmp/task00-verify.log`
+- Status: FINISHED (started 2026-01-25T01:18:39+05:30)
+- Last observed: BUILD SUCCESS; Tests run: 394, Failures: 0, Errors: 0, Skipped: 4.
+
+## Triage Commands
+- First failing test in log: `grep -nE "FAILURE|ERROR|Failed" /tmp/task00-verify.log`
+- Surefire TXT scan: `grep -nH -E "FAILURE|ERROR|Caused by" erp-domain/target/surefire-reports/*.txt`
+- Surefire XML scan: `grep -nH -E "<failure|<error" erp-domain/target/surefire-reports/*.xml`
+
+## Completed Milestones (with commit SHAs)
+- None for Task 00 yet (docs/spec changes are uncommitted in this worktree).
+
+## Open Findings (bugs / security issues / logic flaws)
+- HIGH — Inventory accounting domain events appear unused (risk: future double-posting if wired later): `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/event/InventoryAccountingEventListener.java`, `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/event/InventoryMovementEvent.java`, `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/event/InventoryValuationChangedEvent.java`.
+- HIGH — `journal_reference_mappings` does not enforce uniqueness on `(company_id, canonical_reference)` but repository assumes single-row Optional (risk: runtime failure): `erp-domain/src/main/resources/db/migration/V88__journal_reference_mappings.sql`, `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/domain/JournalReferenceMappingRepository.java`.
+- MEDIUM — GST-inclusive rounding deltas can be misclassified as “discount” in legacy journal/invoice flows (risk: wrong discount postings): `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/sales/service/SalesJournalService.java`, `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/invoice/service/InvoiceService.java`.
+- MEDIUM — `InventoryAccountingEventListener` uses `LocalDate.now()` instead of company timezone / event date for valuation re-posting (period correctness risk): `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/event/InventoryAccountingEventListener.java`.
+- MEDIUM — Tenant guard: `CompanyContextFilter.validateCompanyAccess(...)` allows company selection for unauthenticated requests and for non-`UserPrincipal` principals (requires audit of public endpoints): `erp-domain/src/main/java/com/bigbrightpaints/erp/core/security/CompanyContextFilter.java`.
+- LOW — Sales dispatch posting uses invoice number as a journal reference (canonical reference is order-number-based); safe today but increases idempotency complexity: `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/sales/service/SalesService.java:1751`.
+- LOW/MEDIUM — Duplicate dispatch confirmation entry points and multiple inventory dispatch implementations increase drift risk:
+  - Endpoints: `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/sales/controller/SalesController.java` (`/api/v1/sales/dispatch/confirm`) and `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/controller/DispatchController.java` (`/api/v1/dispatch/confirm`)
+  - Inventory flow variants: `FinishedGoodsService.markSlipDispatched(...)` vs `FinishedGoodsService.confirmDispatch(...)` (`erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/service/FinishedGoodsService.java`)
+
+## Decisions Log
+- Treat `POST /api/v1/sales/dispatch/confirm` (`SalesService.confirmDispatch(...)`) as the authoritative cross-module flow for shipped-quantity accounting (AR/Revenue/Tax + COGS + invoice creation).
+- Keep changes “stabilization only”: fixes and tests, no new endpoints/workflows.
+- Prefer strengthening invariants/tests over widening tolerances (posting tolerances remain strict).
+- Proceed with Task 00 despite pre-existing worktree diffs; avoid unrelated edits and isolate milestone changes.
+- Baseline async verify passed; Milestone 01 triage not triggered.
+
+## Test Status Log
+- 2026-01-24: `cd erp-domain && mvn -B -ntp verify` (PASS) — Tests run: 394, Failures: 0, Errors: 0, Skipped: 4; JaCoCo gates met.
+- 2026-01-25: `cd erp-domain && mvn -B -ntp verify` (PASS) — Tests run: 394, Failures: 0, Errors: 0, Skipped: 4; JaCoCo gates met.
+- 2026-01-25: `nohup bash -lc 'cd erp-domain && mvn -B -ntp verify' > /tmp/task00-verify.log 2>&1 & echo $! > /tmp/task00-verify.pid` (PASS) — PID 27360; Tests run: 394, Failures: 0, Errors: 0, Skipped: 4.
+
+## Next Actions (explicit)
+1. Mark EPIC 00 Milestone 00 complete with a commit.
+2. Acknowledge Milestone 01 as not triggered; proceed to Milestone 02 (tighten invariant coverage).
+
+## Historical (prior work references)
 - Epic 03: branch `epic-03-production-stock`, tip `3f2370c38c0152153369507159e5ae26ca1fa048`.
 - Epic 04: branch `epic-04-p2p-ap`, tip `c5dd42334a397b1137d821bd81f50b1504debca4`.
 - Epic 05: branch `epic-05-hire-to-pay`, tip `dd1589c00634f9a122ebc9d35caf5114ada1f561`.
@@ -9,37 +57,3 @@
 - Epic 08: branch `epic-08-reconciliation-controls`, tip `afe04b5561d9d6510d61bce58640da2dfbec5010`.
 - Epic 09: branch `epic-09-operational-readiness`, tip `ca3851aea88ca5b791e65b896a1419a741283c49`.
 - Epic 10: branch `epic-10-cross-module-traceability`, tip `c94755d70bcb5ba452ae64ddd7d8a6b96b50d392`.
-- LF-19: branch `pr-coverage-lf-clean`, tip `b6da95f3e637677564b06f9633807f19af8dfab4`.
-- LF-001/LF-007: branch `pr-coverage-lf-clean`, tip `a87918f33cb57a2b4f8b0ab1ba2bd3d69b6f40c8`.
-- LF-008/LF-009: branch `pr-coverage-lf-clean`, tip `61f699c04841df291f68ce606a9a4004d396c664`.
-
-## Repo / Worktree State
-- Worktree: `/home/realnigga/Desktop/CLI_BACKEND_epic04`
-- Branch: `pr-coverage-lf-clean`
-- Dirty: untracked `.idea/`, `docs/`, `interview/`, `tasks/erp_logic_audit/`, and IDE metadata under `erp-domain/`
-
-## Environment Setup
-- No new installs; Docker/Testcontainers working.
-
-## Commands Run (Latest)
-- `mvn -Dtest=TraceServiceIT,SettlementE2ETest test` (PASS).
-
-## Warnings / Notes
-- Testcontainers auth config warnings and dynamic agent loading notices persisted.
-- Test logs include expected warnings (invalid company IDs, negative balances, dispatch mapping); no failures.
-- Added `tasks/lf-tracker.md` to map LF IDs to evidence/commit signals; needs confirmation for evidence-only items.
-
-## Latest Update (2026-01-23)
-- Fixed GST draft test data to keep draft journal entries balanced so cross-suite invariant checks do not fail.
-  - File: `erp-domain/src/test/java/com/bigbrightpaints/erp/e2e/accounting/ProcureToPayE2ETest.java` (added offset debit line in `gstReturnIgnoresDraftEntries`).
-- Targeted test run after fix (PASS):
-  - `cd erp-domain && JAVA_TOOL_OPTIONS='-Djava.io.tmpdir=/tmp -Djna.tmpdir=/tmp' mvn -B -ntp -Dtest=ProcureToPayE2ETest,BusinessLogicRegressionTest,CriticalAccountingAxesIT test`
-- Full suite run (PASS):
-  - `cd erp-domain && JAVA_TOOL_OPTIONS='-Djava.io.tmpdir=/tmp -Djna.tmpdir=/tmp' mvn -B -ntp verify`
-  - Note: `nohup` backgrounding did not persist in this environment; ran verify in a live TTY session (session id 68399).
-
-## Resume Instructions (Post Epic 10)
-1. LF-19 complete on `pr-coverage-lf-clean` at `b6da95f3e637677564b06f9633807f19af8dfab4`.
-2. LF-001/LF-007 complete on `pr-coverage-lf-clean` at `a87918f33cb57a2b4f8b0ab1ba2bd3d69b6f40c8`.
-3. LF-008/LF-009 complete on `pr-coverage-lf-clean` at `61f699c04841df291f68ce606a9a4004d396c664`.
-4. If new work is requested, branch from `pr-coverage-lf-clean` and re-run hydration.
