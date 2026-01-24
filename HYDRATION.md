@@ -2,9 +2,9 @@
 
 ## Overnight Runner State
 - Branch: `accounting-correctness-v1`
-- Current epic/milestone pointer: `tasks/task-00.md → EPIC 01 → Milestone 01` (pending)
-- Last commit SHA: `1320f76b0b70bfc233ef38cfe2d76fdb0159b93e`
-- Next actions: start EPIC 01 / Milestone 01 implementation + tests (dispatch idempotency + partial recovery).
+- Current epic/milestone pointer: `tasks/task-00.md → EPIC 01 → Milestone 02` (pending)
+- Last commit SHA: `d4c231a4b9555c09740f3c3313a35826017889c3`
+- Next actions: start EPIC 01 / Milestone 02 (endpoint equivalence) while async verify runs.
 - Working tree status: pre-existing diffs present (unrelated); avoid touching unrelated files.
 
 ## Current State
@@ -28,7 +28,7 @@
 ## Completed Milestones (with commit SHAs)
 - EPIC 00 / Milestone 00 — Baseline async verify (PASS): `025eb146ee99712b6dabd3ddd5becac697237f60` (verify + hydration kickoff), `1034d5ff3eea8a62b6baa8f748015f177a35c2a3` (record baseline state).
 - EPIC 00 / Milestone 02 — Tighten invariant coverage (PASS): `25673232fd12ae5b8490df154a89cdd575cfd593`.
-- EPIC 01 / Milestone 01 — Dispatch idempotency + partial recovery (PASS): `TBD` (post-commit).
+- EPIC 01 / Milestone 01 — Dispatch idempotency + partial recovery (PASS): `d4c231a4b9555c09740f3c3313a35826017889c3`.
 
 ## Open Findings (bugs / security issues / logic flaws)
 - HIGH — Inventory accounting domain events appear unused (risk: future double-posting if wired later): `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/event/InventoryAccountingEventListener.java`, `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/event/InventoryMovementEvent.java`, `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/event/InventoryValuationChangedEvent.java`.
@@ -69,9 +69,9 @@
 - 2026-01-25: `nohup bash -lc 'cd erp-domain && mvn -B -ntp -Dtest=ErpInvariantsSuiteIT,CriticalAccountingAxesIT test' > /tmp/task00-m02-tests-4.log 2>&1 & echo $! > /tmp/task00-m02-tests-4.pid` (PASS) — PID 37799; Tests run: 19, Failures: 0, Errors: 0, Skipped: 0.
 
 ## Next Actions (explicit)
-1. Begin EPIC 01 / Milestone 01: audit `SalesService.confirmDispatch(...)` for partial-state recovery.
-2. Add/extend idempotency tests for dispatch confirm.
-3. Run `cd erp-domain && mvn -B -ntp -Dtest=OrderFulfillmentE2ETest,ErpInvariantsSuiteIT test` and start async verify.
+1. Begin EPIC 01 / Milestone 02: enforce endpoint equivalence between `/sales/dispatch/confirm` and `/dispatch/confirm`.
+2. Add/extend E2E test that calls both endpoints for same slip and asserts no duplicate postings.
+3. Monitor async verify (`/tmp/task00-verify.log`) and record results.
 
 ## Historical (prior work references)
 - Epic 03: branch `epic-03-production-stock`, tip `3f2370c38c0152153369507159e5ae26ca1fa048`.
