@@ -45,6 +45,38 @@ Purpose: evidence‑backed mapping of business events across inventory → sales
 - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/sales/service/SalesReturnService.java` → `processReturn(...)`, `postCogsReversal(...)`
 - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingFacade.java` → `postSalesReturn(...)`, `postInventoryAdjustment(...)`
 
+## Golden Path Trace (Order‑to‑Cash)
+
+Evidence test:
+- `erp-domain/src/test/java/com/bigbrightpaints/erp/invariants/ErpInvariantsSuiteIT.java` → `orderToCash_goldenPath()`
+
+Trace steps (from test sequence):
+1) Order create (idempotent)
+   - Endpoint: `POST /api/v1/sales/orders`
+   - Controller → service: `SalesController.createOrder(...)` → `SalesService.createOrder(...)`
+   - Tables: `sales_orders`, `sales_order_items`
+   - Idempotency: `idempotencyKey` in request (`"O2C-ORDER-001"` in test)
+2) Order confirm
+   - Endpoint: `POST /api/v1/sales/orders/{id}/confirm`
+   - Controller → service: `SalesController.confirmOrder(...)` → `SalesService.confirmOrder(...)`
+   - Tables: `sales_orders` (status update)
+3) Dispatch confirm → invoice + journals + inventory
+   - Endpoint: `POST /api/v1/sales/dispatch/confirm`
+   - Controller → service: `SalesController.confirmDispatch(...)` → `SalesService.confirmDispatch(...)`
+   - Artifacts asserted in test:
+     - Invoice + AR journal link (`invoices`, `journal_entries`)
+     - COGS journal link on slip (`packaging_slips`)
+     - Inventory movements (`inventory_movements`)
+     - Dealer ledger entries created (`dealer_ledger_entries`)
+   - Idempotency check: dispatch replay preserves invoice/journal IDs and movement set
+4) Settlement (dealer)
+   - Endpoint: `POST /api/v1/accounting/settlements/dealers`
+   - Controller → service: `AccountingController.settleDealer(...)` → `AccountingService.settleDealerInvoices(...)`
+   - Artifacts asserted in test:
+     - Settlement journal balanced (`journal_entries`)
+     - Dealer ledger entries updated to PAID (`dealer_ledger_entries`)
+   - Idempotency check: settlement replay returns same journal entry
+
 ## Reference / Idempotency Sources
 - Canonical reference rules: `erp-domain/src/main/resources/db/migration/V88__journal_reference_mappings.sql`
 - Journal dedupe: `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/JournalReferenceResolver.java`
