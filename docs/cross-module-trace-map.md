@@ -77,6 +77,37 @@ Trace steps (from test sequence):
      - Dealer ledger entries updated to PAID (`dealer_ledger_entries`)
    - Idempotency check: settlement replay returns same journal entry
 
+## Idempotency & Reference Scheme (Evidence by Event)
+
+- Sales AR journal (dispatch/invoice)
+  - Canonical reference: `SalesOrderReference.invoiceReference(...)` → `INV-<orderNumber>`  
+    `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/sales/util/SalesOrderReference.java`
+  - Resolver: `JournalReferenceResolver.findExistingEntry(...)` checks direct + legacy + canonical  
+    `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/JournalReferenceResolver.java`
+  - Mapping table + legacy remap (`SALE-` → `INV-`):  
+    `erp-domain/src/main/resources/db/migration/V88__journal_reference_mappings.sql`
+
+- COGS journal (dispatch)
+  - Reference in accounting: `COGS-<referenceId>`  
+    `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingFacade.java`
+  - Dispatch path supplies slip number as referenceId (SalesService confirm path).
+
+- Sales return
+  - Credit note reference: `CRN-<invoiceNumber>` and duplicate check by reference  
+    `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingFacade.java`
+
+- Dealer receipt / settlement
+  - Idempotency key stored on `partner_settlement_allocations.idempotency_key`  
+    `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/domain/PartnerSettlementAllocation.java`
+  - Index scope (non‑unique):  
+    `erp-domain/src/main/resources/db/migration/V102__partner_settlement_idempotency_scope.sql`
+  - Usage: `AccountingService.recordDealerReceipt(...)` / `settleDealerInvoices(...)` checks existing rows by idempotency key.
+
+- Inventory movements (dispatch/return)
+  - Reference fields: `reference_type` + `reference_id`  
+    `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/domain/InventoryMovement.java`
+  - No unique constraint declared on entity; confirm DB constraints in migrations if needed.
+
 ## Reference / Idempotency Sources
 - Canonical reference rules: `erp-domain/src/main/resources/db/migration/V88__journal_reference_mappings.sql`
 - Journal dedupe: `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/JournalReferenceResolver.java`
