@@ -3,7 +3,7 @@
 ## Current State
 - Worktree: `/home/realnigga/Desktop/CLI_BACKEND_epic04`
 - Branch: `accounting-correctness-v1`
-- Current milestone pointer: `tasks/task-00.md → EPIC 00 → Milestone 01` (no failures observed; triage not triggered)
+- Current milestone pointer: `tasks/task-00.md → EPIC 00 → Milestone 02` (pending: tighten invariant coverage)
 - Working tree: pre-existing diffs present; proceeding without touching unrelated changes.
 
 ## Async Verify
@@ -19,7 +19,7 @@
 - Surefire XML scan: `grep -nH -E "<failure|<error" erp-domain/target/surefire-reports/*.xml`
 
 ## Completed Milestones (with commit SHAs)
-- None for Task 00 yet (docs/spec changes are uncommitted in this worktree).
+- EPIC 00 / Milestone 00 — Baseline async verify (PASS): `025eb146ee99712b6dabd3ddd5becac697237f60`.
 
 ## Open Findings (bugs / security issues / logic flaws)
 - HIGH — Inventory accounting domain events appear unused (risk: future double-posting if wired later): `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/event/InventoryAccountingEventListener.java`, `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/event/InventoryMovementEvent.java`, `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/event/InventoryValuationChangedEvent.java`.
@@ -45,8 +45,9 @@
 - 2026-01-25: `nohup bash -lc 'cd erp-domain && mvn -B -ntp verify' > /tmp/task00-verify.log 2>&1 & echo $! > /tmp/task00-verify.pid` (PASS) — PID 27360; Tests run: 394, Failures: 0, Errors: 0, Skipped: 4.
 
 ## Next Actions (explicit)
-1. Mark EPIC 00 Milestone 00 complete with a commit.
-2. Acknowledge Milestone 01 as not triggered; proceed to Milestone 02 (tighten invariant coverage).
+1. Begin EPIC 00 Milestone 02: extend invariant assertions (no behavior changes).
+2. Run `cd erp-domain && mvn -B -ntp -Dtest=ErpInvariantsSuiteIT,CriticalAccountingAxesIT test` (3x for flake check).
+3. Start async full-suite gate after Milestone 02 changes.
 
 ## Historical (prior work references)
 - Epic 03: branch `epic-03-production-stock`, tip `3f2370c38c0152153369507159e5ae26ca1fa048`.
