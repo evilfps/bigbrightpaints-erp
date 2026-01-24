@@ -26,13 +26,19 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
 public class SalesReturnService {
+
+    private static final String SALES_RETURN_REFERENCE = "SALES_RETURN";
 
     private final CompanyContextService companyContextService;
     private final FinishedGoodRepository finishedGoodRepository;
@@ -69,10 +75,59 @@ public class SalesReturnService {
         if (dealer == null || dealer.getReceivableAccount() == null) {
             throw new IllegalStateException("Invoice is missing dealer receivable context");
         }
+        boolean gstInclusive = invoice.getSalesOrder() != null && invoice.getSalesOrder().isGstInclusive();
         Map<Long, InvoiceLine> invoiceLines = invoice.getLines().stream()
                 .collect(Collectors.toMap(InvoiceLine::getId, line -> line));
         if (request.lines() == null || request.lines().isEmpty()) {
             throw new IllegalArgumentException("Return lines are required");
+        }
+
+        Map<Long, BigDecimal> existingReturnsByFg = loadReturnMovements(invoice.getInvoiceNumber());
+        Map<Long, BigDecimal> requestedReturnQtyByFg = new LinkedHashMap<>();
+        Map<Long, BigDecimal> invoicedQtyByFg = new LinkedHashMap<>();
+        Map<String, FinishedGood> finishedGoodsByCode = new HashMap<>();
+        Map<Long, FinishedGood> finishedGoodsById = new HashMap<>();
+        Set<String> returnProductCodes = new HashSet<>();
+
+        for (SalesReturnRequest.ReturnLine lineRequest : request.lines()) {
+            InvoiceLine invoiceLine = invoiceLines.get(lineRequest.invoiceLineId());
+            if (invoiceLine == null) {
+                throw new IllegalArgumentException("Invoice line not found: " + lineRequest.invoiceLineId());
+            }
+            BigDecimal quantity = requirePositive(lineRequest.quantity(), "lines.quantity");
+            if (quantity.compareTo(invoiceLine.getQuantity()) > 0) {
+                throw new IllegalArgumentException("Return quantity exceeds invoiced amount for " + invoiceLine.getProductCode());
+            }
+            returnProductCodes.add(invoiceLine.getProductCode());
+            FinishedGood finishedGood = finishedGoodsByCode.computeIfAbsent(
+                    invoiceLine.getProductCode(),
+                    code -> lockFinishedGood(company, code)
+            );
+            finishedGoodsById.putIfAbsent(finishedGood.getId(), finishedGood);
+            requestedReturnQtyByFg.merge(finishedGood.getId(), quantity, BigDecimal::add);
+        }
+
+        for (InvoiceLine invoiceLine : invoice.getLines()) {
+            if (!returnProductCodes.contains(invoiceLine.getProductCode())) {
+                continue;
+            }
+            FinishedGood finishedGood = finishedGoodsByCode.computeIfAbsent(
+                    invoiceLine.getProductCode(),
+                    code -> lockFinishedGood(company, code)
+            );
+            finishedGoodsById.putIfAbsent(finishedGood.getId(), finishedGood);
+            BigDecimal invoicedQty = invoiceLine.getQuantity() != null ? invoiceLine.getQuantity() : BigDecimal.ZERO;
+            invoicedQtyByFg.merge(finishedGood.getId(), invoicedQty, BigDecimal::add);
+        }
+
+        for (Map.Entry<Long, BigDecimal> entry : requestedReturnQtyByFg.entrySet()) {
+            BigDecimal invoicedQty = invoicedQtyByFg.getOrDefault(entry.getKey(), BigDecimal.ZERO);
+            BigDecimal priorReturnedQty = existingReturnsByFg.getOrDefault(entry.getKey(), BigDecimal.ZERO);
+            if (priorReturnedQty.add(entry.getValue()).compareTo(invoicedQty) > 0) {
+                FinishedGood finishedGood = finishedGoodsById.get(entry.getKey());
+                String productCode = finishedGood != null ? finishedGood.getProductCode() : entry.getKey().toString();
+                throw new IllegalArgumentException("Return quantity exceeds remaining invoiced amount for " + productCode);
+            }
         }
 
         BigDecimal receivableCredit = BigDecimal.ZERO;
@@ -93,7 +148,10 @@ public class SalesReturnService {
             if (quantity.compareTo(invoiceLine.getQuantity()) > 0) {
                 throw new IllegalArgumentException("Return quantity exceeds invoiced amount for " + invoiceLine.getProductCode());
             }
-            FinishedGood finishedGood = lockFinishedGood(company, invoiceLine.getProductCode());
+            FinishedGood finishedGood = finishedGoodsByCode.computeIfAbsent(
+                    invoiceLine.getProductCode(),
+                    code -> lockFinishedGood(company, code)
+            );
 
             BigDecimal baseAmount = currency(MoneyUtils.safeMultiply(perUnitBase(invoiceLine), quantity));
             BigDecimal taxPerUnit = perUnitTax(invoiceLine);
@@ -123,7 +181,10 @@ public class SalesReturnService {
                 continue;
             }
             BigDecimal quantity = requirePositive(lineRequest.quantity(), "lines.quantity");
-            FinishedGood finishedGood = lockFinishedGood(company, invoiceLine.getProductCode());
+            FinishedGood finishedGood = finishedGoodsByCode.computeIfAbsent(
+                    invoiceLine.getProductCode(),
+                    code -> lockFinishedGood(company, code)
+            );
 
             Long revenueAccountId = finishedGood.getRevenueAccountId();
             if (revenueAccountId == null) {
@@ -131,7 +192,7 @@ public class SalesReturnService {
                         + " missing revenue account for sales return");
             }
             BigDecimal baseAmount = currency(MoneyUtils.safeMultiply(perUnitBase(invoiceLine), quantity));
-            BigDecimal discountAmount = currency(MoneyUtils.safeMultiply(perUnitDiscount(invoiceLine), quantity));
+            BigDecimal discountAmount = currency(MoneyUtils.safeMultiply(perUnitDiscount(invoiceLine, gstInclusive), quantity));
             BigDecimal grossAmount = baseAmount.add(discountAmount);
             if (grossAmount.compareTo(BigDecimal.ZERO) > 0) {
                 returnLines.merge(revenueAccountId, grossAmount, BigDecimal::add);
@@ -193,7 +254,7 @@ public class SalesReturnService {
         InventoryMovement movement = new InventoryMovement();
         movement.setFinishedGood(fg);
         movement.setFinishedGoodBatch(savedBatch);
-        movement.setReferenceType("SALES_RETURN");
+        movement.setReferenceType(SALES_RETURN_REFERENCE);
         movement.setReferenceId(invoiceNumber);
         movement.setMovementType("RETURN");
         movement.setQuantity(quantity);
@@ -233,12 +294,21 @@ public class SalesReturnService {
         return MoneyUtils.safeDivide(net, quantity, 4, RoundingMode.HALF_UP);
     }
 
-    private BigDecimal perUnitDiscount(InvoiceLine line) {
+    private BigDecimal perUnitDiscount(InvoiceLine line, boolean gstInclusive) {
         BigDecimal quantity = line.getQuantity();
         if (quantity == null || quantity.compareTo(BigDecimal.ZERO) <= 0) {
             return BigDecimal.ZERO;
         }
         BigDecimal discount = MoneyUtils.zeroIfNull(line.getDiscountAmount());
+        if (gstInclusive && discount.compareTo(BigDecimal.ZERO) > 0) {
+            BigDecimal rate = line.getTaxRate() != null ? line.getTaxRate() : BigDecimal.ZERO;
+            if (rate.compareTo(BigDecimal.ZERO) > 0) {
+                BigDecimal divisor = BigDecimal.ONE.add(rate.divide(new BigDecimal("100"), 6, RoundingMode.HALF_UP));
+                if (divisor.compareTo(BigDecimal.ZERO) > 0) {
+                    discount = discount.divide(divisor, 6, RoundingMode.HALF_UP);
+                }
+            }
+        }
         return MoneyUtils.safeDivide(discount, quantity, 4, RoundingMode.HALF_UP);
     }
 
@@ -305,6 +375,27 @@ public class SalesReturnService {
                 .filter(mv -> "DISPATCH".equalsIgnoreCase(mv.getMovementType()))
                 .filter(mv -> mv.getFinishedGood() != null)
                 .collect(Collectors.groupingBy(mv -> mv.getFinishedGood().getId(), LinkedHashMap::new, Collectors.toList()));
+    }
+
+    private Map<Long, BigDecimal> loadReturnMovements(String invoiceNumber) {
+        if (invoiceNumber == null) {
+            return Map.of();
+        }
+        List<InventoryMovement> movements = inventoryMovementRepository
+                .findByReferenceTypeAndReferenceIdOrderByCreatedAtAsc(SALES_RETURN_REFERENCE, invoiceNumber);
+        if (movements == null || movements.isEmpty()) {
+            return Map.of();
+        }
+        Map<Long, BigDecimal> totals = new LinkedHashMap<>();
+        for (InventoryMovement movement : movements) {
+            FinishedGood finishedGood = movement.getFinishedGood();
+            if (finishedGood == null || finishedGood.getId() == null) {
+                continue;
+            }
+            BigDecimal quantity = movement.getQuantity() != null ? movement.getQuantity() : BigDecimal.ZERO;
+            totals.merge(finishedGood.getId(), quantity, BigDecimal::add);
+        }
+        return totals;
     }
 
     private BigDecimal resolveReturnUnitCost(FinishedGood finishedGood,

@@ -958,10 +958,8 @@ public class FinishedGoodsService {
         // First try to find an existing slip
         List<PackagingSlip> slips = packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, salesOrderId);
         if (!slips.isEmpty()) {
-            if (slips.size() > 1) {
-                throw new IllegalArgumentException("Multiple packaging slips found for order; provide packingSlipId");
-            }
-            Long slipId = slips.get(0).getId();
+            PackagingSlip selected = slips.size() == 1 ? slips.get(0) : selectMostRecentSlip(slips, salesOrderId);
+            Long slipId = selected.getId();
             PackagingSlip slip = packagingSlipRepository.findByIdAndCompany(slipId, company)
                     .orElseThrow(() -> new IllegalArgumentException("Packaging slip not found"));
             return toSlipDto(slip);

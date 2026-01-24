@@ -129,21 +129,20 @@ public class SalesJournalService {
             BigDecimal lineDiscount = lineGross.subtract(discountBase);
             if (lineDiscount.compareTo(BigDecimal.ZERO) < 0) {
                 lineDiscount = BigDecimal.ZERO;
-            } else {
-                lineDiscount = currency(lineDiscount);
             }
-            BigDecimal grossNet = currency(lineSubtotal.add(lineDiscount));
+            BigDecimal discountNet = normalizeDiscountNet(lineDiscount, item.getGstRate(), gstInclusive);
+            BigDecimal grossNet = currency(lineSubtotal.add(discountNet));
 
             if (grossNet.compareTo(BigDecimal.ZERO) > 0) {
                 revenueLines.merge(accounts.revenueAccountId(), grossNet, BigDecimal::add);
             }
 
-            if (lineDiscount.compareTo(BigDecimal.ZERO) > 0) {
+            if (discountNet.compareTo(BigDecimal.ZERO) > 0) {
                 Long discountAccountId = accounts.discountAccountId();
                 if (discountAccountId == null) {
                     throw new IllegalStateException("Discount account is required when a discount is applied for product " + productCode);
                 }
-                discountLines.merge(discountAccountId, lineDiscount, BigDecimal::add);
+                discountLines.merge(discountAccountId, discountNet, BigDecimal::add);
             }
 
             if (lineTax.compareTo(BigDecimal.ZERO) > 0) {
@@ -253,6 +252,22 @@ public class SalesJournalService {
             }
         }
         return null;
+    }
+
+    private BigDecimal normalizeDiscountNet(BigDecimal discount, BigDecimal taxRate, boolean gstInclusive) {
+        BigDecimal normalized = discount != null ? discount : BigDecimal.ZERO;
+        if (!gstInclusive || normalized.compareTo(BigDecimal.ZERO) <= 0) {
+            return currency(normalized);
+        }
+        BigDecimal rate = taxRate != null ? taxRate : BigDecimal.ZERO;
+        if (rate.compareTo(BigDecimal.ZERO) <= 0) {
+            return currency(normalized);
+        }
+        BigDecimal divisor = BigDecimal.ONE.add(rate.divide(new BigDecimal("100"), 6, RoundingMode.HALF_UP));
+        if (divisor.compareTo(BigDecimal.ZERO) == 0) {
+            return currency(normalized);
+        }
+        return currency(normalized.divide(divisor, 6, RoundingMode.HALF_UP));
     }
 
     private BigDecimal currency(BigDecimal value) {
