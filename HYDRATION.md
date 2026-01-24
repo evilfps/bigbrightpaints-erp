@@ -2,20 +2,20 @@
 
 ## Overnight Runner State
 - Branch: `accounting-correctness-v1`
-- Current epic/milestone pointer: `tasks/task-00.md → EPIC C → Milestone 01` (pending: rounding helper inventory)
-- Last commit SHA: `5fc120c92076a51a56b88f64c8d3b0927ce8cff8`
-- Next actions: start EPIC C / Milestone 01 (rounding/tax helper inventory), continue async verify triage (log empty).
+- Current epic/milestone pointer: `tasks/task-00.md → EPIC C → Milestone 02` (pending: balance/rounding assertions)
+- Last commit SHA: `06966b4d54e01a15455a1bcab0665286ff25c66b`
+- Next actions: start EPIC C / Milestone 02 (balance/rounding assertions), continue async verify triage (log empty).
 - Working tree status: pre-existing diffs present (unrelated); avoid touching unrelated files.
 
 ## Current State
 - Worktree: `/home/realnigga/Desktop/CLI_BACKEND_epic04`
 - Branch: `accounting-correctness-v1`
-- Current milestone pointer: `tasks/task-00.md → EPIC C → Milestone 01` (pending: rounding helper inventory)
+- Current milestone pointer: `tasks/task-00.md → EPIC C → Milestone 02` (pending: balance/rounding assertions)
 - Working tree: pre-existing diffs present; proceeding without touching unrelated changes.
 
 ## Async Verify
 - Command: `nohup bash -lc 'cd erp-domain && mvn -B -ntp verify' > /tmp/task00-verify.log 2>&1 & echo $! > /tmp/task00-verify.pid`
-- PID: `70861` (latest attempt)
+- PID: `72355` (latest attempt)
 - Log: `/tmp/task00-verify.log`
 - Status: FINISHED early (log empty; no BUILD SUCCESS/FAILURE)
 - Last observed: `/tmp/task00-verify.log` has 0 lines; background PID exits immediately.
@@ -38,6 +38,7 @@
 - EPIC B / Milestone B1 — Idempotency inventory (PASS): `3d099eb6eea55e606c0c53e1862446de37b21375`.
 - EPIC B / Milestone B2 — Retry/partial failure tests (PASS): `41c5a3d0a69b9fd3a7f14fbe25b1e7de0ef7f2e7`.
 - EPIC B / Milestone B3 — Duplicate posting hardening (PASS): `5fc120c92076a51a56b88f64c8d3b0927ce8cff8`.
+- EPIC C / Milestone C1 — Rounding/tax inventory (PASS): `06966b4d54e01a15455a1bcab0665286ff25c66b`.
 
 ## Evidence Pack
 - EPIC A / Milestone A1 trace map: `docs/cross-module-trace-map.md`
@@ -46,6 +47,7 @@
 - EPIC B / Milestone B1 idempotency inventory: `docs/idempotency-inventory.md`
 - EPIC B / Milestone B2 retry/partial failure tests: `erp-domain/src/test/java/com/bigbrightpaints/erp/e2e/accounting/SettlementE2ETest.java`
 - EPIC B / Milestone B3 duplicate mapping guard: `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/JournalReferenceResolver.java`
+- EPIC C / Milestone C1 rounding/tax inventory: `docs/rounding-tax-inventory.md`
 
 ## Open Findings (bugs / security issues / logic flaws)
 - HIGH — Inventory accounting domain events appear unused (risk: future double-posting if wired later): `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/event/InventoryAccountingEventListener.java`, `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/event/InventoryMovementEvent.java`, `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/event/InventoryValuationChangedEvent.java`.
@@ -99,9 +101,10 @@
 - 2026-01-25: `cd erp-domain && mvn -B -ntp -Dtest=ErpInvariantsSuiteIT test` (PASS) — Tests run: 9, Failures: 0, Errors: 0, Skipped: 0. (EPIC B1)
 - 2026-01-25: `cd erp-domain && mvn -B -ntp -Dtest=OrderFulfillmentE2ETest,DispatchConfirmationIT,SettlementE2ETest test` (PASS) — Tests run: 21, Failures: 0, Errors: 0, Skipped: 0.
 - 2026-01-25: `cd erp-domain && mvn -B -ntp -Dtest=IdempotencyConflictRegressionIT,ErpInvariantsSuiteIT test` (PASS) — Tests run: 11, Failures: 0, Errors: 0, Skipped: 0.
+- 2026-01-25: `cd erp-domain && mvn -B -ntp -Dtest=GstInclusiveRoundingIT test` (PASS) — Tests run: 2, Failures: 0, Errors: 0, Skipped: 0.
 
 ## Next Actions (explicit)
-1. Begin EPIC C / Milestone 01: rounding helper inventory + consolidation plan.
+1. Begin EPIC C / Milestone 02: add balance/rounding assertions (property-style).
 2. Re-attempt async verify (`/tmp/task00-verify.log`) and record results (log currently empty).
 
 ## Historical (prior work references)
