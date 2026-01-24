@@ -3,7 +3,7 @@
 ## Overnight Runner State
 - Branch: `accounting-correctness-v1`
 - Current epic/milestone pointer: `tasks/task-00.md → EPIC 01 → Milestone 02` (pending)
-- Last commit SHA: `d4c231a4b9555c09740f3c3313a35826017889c3`
+- Last commit SHA: `bc3238c077ec9ad06aad2e6b5a9c1d2ac7ffce63`
 - Next actions: start EPIC 01 / Milestone 02 (endpoint equivalence) while async verify runs.
 - Working tree status: pre-existing diffs present (unrelated); avoid touching unrelated files.
 
@@ -15,10 +15,10 @@
 
 ## Async Verify
 - Command: `nohup bash -lc 'cd erp-domain && mvn -B -ntp verify' > /tmp/task00-verify.log 2>&1 & echo $! > /tmp/task00-verify.pid`
-- PID: `48739`
+- PID: `49580` (latest attempt)
 - Log: `/tmp/task00-verify.log`
-- Status: RUNNING (started 2026-01-25T02:17:50+05:30)
-- Last observed: verify started; log shows Maven startup lines.
+- Status: FINISHED early (log only shows Maven startup lines; no BUILD SUCCESS/FAILURE)
+- Last observed: `/tmp/task00-verify.log` has 5 lines (startup only); background PID exits immediately.
 
 ## Triage Commands
 - First failing test in log: `grep -nE "FAILURE|ERROR|Failed" /tmp/task00-verify.log`
@@ -55,6 +55,7 @@
 ## Test Status Log
 - 2026-01-24: Task 00 plan expansion commit (docs-only); tests not run.
 - 2026-01-25: `cd erp-domain && mvn -B -ntp -Dtest=OrderFulfillmentE2ETest,ErpInvariantsSuiteIT test` (PASS) — Tests run: 18, Failures: 0, Errors: 0, Skipped: 0.
+- 2026-01-25: Async verify attempt exited early (log only startup lines; no success/failure output). Blocker logged.
 - 2026-01-24: `cd erp-domain && mvn -B -ntp verify` (PASS) — Tests run: 394, Failures: 0, Errors: 0, Skipped: 4; JaCoCo gates met.
 - 2026-01-25: `cd erp-domain && mvn -B -ntp verify` (PASS) — Tests run: 394, Failures: 0, Errors: 0, Skipped: 4; JaCoCo gates met.
 - 2026-01-25: `nohup bash -lc 'cd erp-domain && mvn -B -ntp verify' > /tmp/task00-verify.log 2>&1 & echo $! > /tmp/task00-verify.pid` (PASS) — PID 27360; Tests run: 394, Failures: 0, Errors: 0, Skipped: 4.
