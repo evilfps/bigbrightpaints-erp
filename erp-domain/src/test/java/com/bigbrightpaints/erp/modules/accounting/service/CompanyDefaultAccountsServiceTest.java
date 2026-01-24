@@ -1,0 +1,224 @@
+package com.bigbrightpaints.erp.modules.accounting.service;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
+import com.bigbrightpaints.erp.modules.accounting.domain.Account;
+import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
+import com.bigbrightpaints.erp.modules.company.domain.Company;
+import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
+import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
+import java.lang.reflect.Field;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
+
+class CompanyDefaultAccountsServiceTest {
+
+    private CompanyContextService companyContextService;
+    private CompanyEntityLookup companyEntityLookup;
+    private CompanyRepository companyRepository;
+    private CompanyDefaultAccountsService service;
+    private Company company;
+
+    @BeforeEach
+    void setUp() {
+        companyContextService = Mockito.mock(CompanyContextService.class);
+        companyEntityLookup = Mockito.mock(CompanyEntityLookup.class);
+        companyRepository = Mockito.mock(CompanyRepository.class);
+        service = new CompanyDefaultAccountsService(companyContextService, companyEntityLookup, companyRepository);
+        company = new Company();
+        company.setCode("BBP");
+        when(companyContextService.requireCurrentCompany()).thenReturn(company);
+    }
+
+    @Test
+    void requireDefaults_missingInventory_throws() {
+        company.setDefaultCogsAccountId(2L);
+        company.setDefaultRevenueAccountId(3L);
+        company.setDefaultTaxAccountId(4L);
+        assertThatThrownBy(() -> service.requireDefaults())
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("BBP");
+    }
+
+    @Test
+    void requireDefaults_missingCogs_throws() {
+        company.setDefaultInventoryAccountId(1L);
+        company.setDefaultRevenueAccountId(3L);
+        company.setDefaultTaxAccountId(4L);
+        assertThatThrownBy(() -> service.requireDefaults())
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("BBP");
+    }
+
+    @Test
+    void requireDefaults_missingRevenue_throws() {
+        company.setDefaultInventoryAccountId(1L);
+        company.setDefaultCogsAccountId(2L);
+        company.setDefaultTaxAccountId(4L);
+        assertThatThrownBy(() -> service.requireDefaults())
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("BBP");
+    }
+
+    @Test
+    void requireDefaults_missingTax_throws() {
+        company.setDefaultInventoryAccountId(1L);
+        company.setDefaultCogsAccountId(2L);
+        company.setDefaultRevenueAccountId(3L);
+        assertThatThrownBy(() -> service.requireDefaults())
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("BBP");
+    }
+
+    @Test
+    void requireDefaults_allSet_returnsDefaults() {
+        company.setDefaultInventoryAccountId(1L);
+        company.setDefaultCogsAccountId(2L);
+        company.setDefaultRevenueAccountId(3L);
+        company.setDefaultDiscountAccountId(5L);
+        company.setDefaultTaxAccountId(4L);
+        CompanyDefaultAccountsService.DefaultAccounts defaults = service.requireDefaults();
+        assertThat(defaults.inventoryAccountId()).isEqualTo(1L);
+        assertThat(defaults.cogsAccountId()).isEqualTo(2L);
+        assertThat(defaults.revenueAccountId()).isEqualTo(3L);
+        assertThat(defaults.discountAccountId()).isEqualTo(5L);
+        assertThat(defaults.taxAccountId()).isEqualTo(4L);
+    }
+
+    @Test
+    void getDefaults_returnsSnapshot() {
+        company.setDefaultInventoryAccountId(10L);
+        company.setDefaultCogsAccountId(20L);
+        company.setDefaultRevenueAccountId(30L);
+        company.setDefaultDiscountAccountId(40L);
+        company.setDefaultTaxAccountId(50L);
+        CompanyDefaultAccountsService.DefaultAccounts defaults = service.getDefaults();
+        assertThat(defaults.inventoryAccountId()).isEqualTo(10L);
+        assertThat(defaults.cogsAccountId()).isEqualTo(20L);
+        assertThat(defaults.revenueAccountId()).isEqualTo(30L);
+        assertThat(defaults.discountAccountId()).isEqualTo(40L);
+        assertThat(defaults.taxAccountId()).isEqualTo(50L);
+    }
+
+    @Test
+    void updateDefaults_setsInventoryAccount() {
+        Account inventory = account(11L, AccountType.ASSET, "INV");
+        when(companyEntityLookup.requireAccount(company, 11L)).thenReturn(inventory);
+        CompanyDefaultAccountsService.DefaultAccounts defaults = service.updateDefaults(11L, null, null, null, null);
+        assertThat(defaults.inventoryAccountId()).isEqualTo(11L);
+        verify(companyRepository).save(company);
+    }
+
+    @Test
+    void updateDefaults_rejectsInventoryWrongType() {
+        Account inventory = account(12L, AccountType.REVENUE, "REV");
+        when(companyEntityLookup.requireAccount(company, 12L)).thenReturn(inventory);
+        assertThatThrownBy(() -> service.updateDefaults(12L, null, null, null, null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("inventory");
+    }
+
+    @Test
+    void updateDefaults_setsCogsAccount() {
+        Account cogs = account(21L, AccountType.COGS, "COGS");
+        when(companyEntityLookup.requireAccount(company, 21L)).thenReturn(cogs);
+        CompanyDefaultAccountsService.DefaultAccounts defaults = service.updateDefaults(null, 21L, null, null, null);
+        assertThat(defaults.cogsAccountId()).isEqualTo(21L);
+        verify(companyRepository).save(company);
+    }
+
+    @Test
+    void updateDefaults_rejectsCogsWrongType() {
+        Account cogs = account(22L, AccountType.ASSET, "INV");
+        when(companyEntityLookup.requireAccount(company, 22L)).thenReturn(cogs);
+        assertThatThrownBy(() -> service.updateDefaults(null, 22L, null, null, null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("COGS");
+    }
+
+    @Test
+    void updateDefaults_setsRevenueAccount() {
+        Account revenue = account(31L, AccountType.REVENUE, "REV");
+        when(companyEntityLookup.requireAccount(company, 31L)).thenReturn(revenue);
+        CompanyDefaultAccountsService.DefaultAccounts defaults = service.updateDefaults(null, null, 31L, null, null);
+        assertThat(defaults.revenueAccountId()).isEqualTo(31L);
+        verify(companyRepository).save(company);
+    }
+
+    @Test
+    void updateDefaults_rejectsRevenueWrongType() {
+        Account revenue = account(32L, AccountType.COGS, "COGS");
+        when(companyEntityLookup.requireAccount(company, 32L)).thenReturn(revenue);
+        assertThatThrownBy(() -> service.updateDefaults(null, null, 32L, null, null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("revenue");
+    }
+
+    @Test
+    void updateDefaults_allowsDiscountRevenue() {
+        Account discount = account(41L, AccountType.REVENUE, "DISC");
+        when(companyEntityLookup.requireAccount(company, 41L)).thenReturn(discount);
+        CompanyDefaultAccountsService.DefaultAccounts defaults = service.updateDefaults(null, null, null, 41L, null);
+        assertThat(defaults.discountAccountId()).isEqualTo(41L);
+        verify(companyRepository).save(company);
+    }
+
+    @Test
+    void updateDefaults_allowsDiscountExpense() {
+        Account discount = account(42L, AccountType.EXPENSE, "DISC");
+        when(companyEntityLookup.requireAccount(company, 42L)).thenReturn(discount);
+        CompanyDefaultAccountsService.DefaultAccounts defaults = service.updateDefaults(null, null, null, 42L, null);
+        assertThat(defaults.discountAccountId()).isEqualTo(42L);
+        verify(companyRepository).save(company);
+    }
+
+    @Test
+    void updateDefaults_rejectsDiscountWrongType() {
+        Account discount = account(43L, AccountType.ASSET, "INV");
+        when(companyEntityLookup.requireAccount(company, 43L)).thenReturn(discount);
+        assertThatThrownBy(() -> service.updateDefaults(null, null, null, 43L, null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Discount");
+    }
+
+    @Test
+    void updateDefaults_setsTaxAccount() {
+        Account tax = account(51L, AccountType.LIABILITY, "GST-OUT");
+        when(companyEntityLookup.requireAccount(company, 51L)).thenReturn(tax);
+        CompanyDefaultAccountsService.DefaultAccounts defaults = service.updateDefaults(null, null, null, null, 51L);
+        assertThat(defaults.taxAccountId()).isEqualTo(51L);
+        verify(companyRepository).save(company);
+    }
+
+    @Test
+    void updateDefaults_rejectsTaxWrongType() {
+        Account tax = account(52L, AccountType.ASSET, "INV");
+        when(companyEntityLookup.requireAccount(company, 52L)).thenReturn(tax);
+        assertThatThrownBy(() -> service.updateDefaults(null, null, null, null, 52L))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("tax");
+    }
+
+    private Account account(Long id, AccountType type, String code) {
+        Account account = new Account();
+        account.setType(type);
+        account.setCode(code);
+        setId(account, id);
+        return account;
+    }
+
+    private void setId(Account account, Long id) {
+        try {
+            Field field = Account.class.getDeclaredField("id");
+            field.setAccessible(true);
+            field.set(account, id);
+        } catch (NoSuchFieldException | IllegalAccessException ex) {
+            throw new IllegalStateException(ex);
+        }
+    }
+}
