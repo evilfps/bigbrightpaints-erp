@@ -90,6 +90,7 @@ public class BulkPackingService {
                         "Bulk batch not found: " + request.bulkBatchId()));
 
         validateBulkBatch(bulkBatch, company);
+        int totalPacks = resolveTotalPacks(request.packs());
 
         if (request.packagingMaterials() != null && !request.packagingMaterials().isEmpty()) {
             throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
@@ -114,9 +115,6 @@ public class BulkPackingService {
 
         // 4. Calculate cost per unit for child batches
         BigDecimal bulkUnitCost = bulkBatch.getUnitCost();
-        int totalPacks = request.packs().stream()
-                .mapToInt(p -> p.quantity().intValue())
-                .sum();
         BigDecimal fallbackPackagingCostPerUnit = totalPacks > 0 
                 ? packagingCost.divide(BigDecimal.valueOf(totalPacks), 6, COST_ROUNDING)
                 : BigDecimal.ZERO;
@@ -239,6 +237,33 @@ public class BulkPackingService {
         return total;
     }
 
+    private int resolveTotalPacks(List<BulkPackRequest.PackLine> packs) {
+        int totalPacks = 0;
+        for (BulkPackRequest.PackLine line : packs) {
+            int lineCount = requireWholePackCount(line.quantity(), line.childSkuId());
+            try {
+                totalPacks = Math.addExact(totalPacks, lineCount);
+            } catch (ArithmeticException ex) {
+                throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                        "Pack quantity is too large for child SKU " + line.childSkuId());
+            }
+        }
+        return totalPacks;
+    }
+
+    private int requireWholePackCount(BigDecimal quantity, Long childSkuId) {
+        if (quantity == null) {
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                    "Pack quantity is required for child SKU " + childSkuId);
+        }
+        try {
+            return quantity.intValueExact();
+        } catch (ArithmeticException ex) {
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                    "Pack quantity must be a whole number for child SKU " + childSkuId);
+        }
+    }
+
     private BigDecimal extractSizeInLiters(String sizeLabel, String unit) {
         // Try to extract numeric size from label like "1L", "4L", "20L"
         String label = sizeLabel != null ? sizeLabel.trim().toUpperCase() : "";
@@ -354,7 +379,7 @@ public class BulkPackingService {
         int lineIndex = 0;
         for (BulkPackRequest.PackLine line : packs) {
             int currentIndex = lineIndex++;
-            int piecesCount = line.quantity().intValue();
+            int piecesCount = requireWholePackCount(line.quantity(), line.childSkuId());
             if (piecesCount <= 0) {
                 continue;
             }

@@ -44,6 +44,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verify;
 
@@ -85,7 +86,7 @@ class SalesReturnServiceTest {
         company = new Company();
         company.setTimezone("UTC");
         when(companyContextService.requireCurrentCompany()).thenReturn(company);
-        when(companyAccountingSettingsService.requireTaxAccounts())
+        lenient().when(companyAccountingSettingsService.requireTaxAccounts())
                 .thenReturn(new CompanyAccountingSettingsService.TaxAccountConfiguration(900L, 800L, null));
     }
 
@@ -151,6 +152,10 @@ class SalesReturnServiceTest {
                 InventoryReference.SALES_ORDER,
                 "99")
         ).thenReturn(List.of(dispatchMovement));
+        when(inventoryMovementRepository.findByReferenceTypeAndReferenceIdOrderByCreatedAtAsc(
+                eq("SALES_RETURN"),
+                eq("INV-1")
+        )).thenReturn(List.of());
 
         JournalEntryDto salesReturnEntry = stubEntry(100L);
         when(accountingFacade.postSalesReturn(
@@ -326,6 +331,10 @@ class SalesReturnServiceTest {
                 InventoryReference.SALES_ORDER,
                 "101")
         ).thenReturn(List.of(dispatchMovement));
+        when(inventoryMovementRepository.findByReferenceTypeAndReferenceIdOrderByCreatedAtAsc(
+                eq("SALES_RETURN"),
+                eq("INV-2")
+        )).thenReturn(List.of());
 
         when(accountingFacade.postSalesReturn(
                 anyLong(),
