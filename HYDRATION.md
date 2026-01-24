@@ -3,22 +3,22 @@
 ## Overnight Runner State
 - Branch: `accounting-correctness-v1`
 - Current epic/milestone pointer: `tasks/task-00.md → EPIC 01 → Milestone 01` (pending)
-- Last commit SHA: `25673232fd12ae5b8490df154a89cdd575cfd593`
-- Next actions: expand `tasks/task-00.md` per cross-module mandate; commit/push plan; start EPIC 01 / Milestone 01 implementation + tests.
+- Last commit SHA: `1320f76b0b70bfc233ef38cfe2d76fdb0159b93e`
+- Next actions: start EPIC 01 / Milestone 01 implementation + tests (dispatch idempotency + partial recovery).
 - Working tree status: pre-existing diffs present (unrelated); avoid touching unrelated files.
 
 ## Current State
 - Worktree: `/home/realnigga/Desktop/CLI_BACKEND_epic04`
 - Branch: `accounting-correctness-v1`
-- Current milestone pointer: `tasks/task-00.md → EPIC 01 → Milestone 01` (pending: dispatch confirm idempotency)
+- Current milestone pointer: `tasks/task-00.md → EPIC 01 → Milestone 02` (pending: endpoint equivalence)
 - Working tree: pre-existing diffs present; proceeding without touching unrelated changes.
 
 ## Async Verify
 - Command: `nohup bash -lc 'cd erp-domain && mvn -B -ntp verify' > /tmp/task00-verify.log 2>&1 & echo $! > /tmp/task00-verify.pid`
-- PID: `39125`
+- PID: `48739`
 - Log: `/tmp/task00-verify.log`
-- Status: FINISHED (started 2026-01-25T01:45:24+05:30)
-- Last observed: BUILD SUCCESS; Tests run: 394, Failures: 0, Errors: 0, Skipped: 4.
+- Status: RUNNING (started 2026-01-25T02:17:50+05:30)
+- Last observed: verify started; log shows Maven startup lines.
 
 ## Triage Commands
 - First failing test in log: `grep -nE "FAILURE|ERROR|Failed" /tmp/task00-verify.log`
@@ -28,6 +28,7 @@
 ## Completed Milestones (with commit SHAs)
 - EPIC 00 / Milestone 00 — Baseline async verify (PASS): `025eb146ee99712b6dabd3ddd5becac697237f60` (verify + hydration kickoff), `1034d5ff3eea8a62b6baa8f748015f177a35c2a3` (record baseline state).
 - EPIC 00 / Milestone 02 — Tighten invariant coverage (PASS): `25673232fd12ae5b8490df154a89cdd575cfd593`.
+- EPIC 01 / Milestone 01 — Dispatch idempotency + partial recovery (PASS): `TBD` (post-commit).
 
 ## Open Findings (bugs / security issues / logic flaws)
 - HIGH — Inventory accounting domain events appear unused (risk: future double-posting if wired later): `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/event/InventoryAccountingEventListener.java`, `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/event/InventoryMovementEvent.java`, `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/event/InventoryValuationChangedEvent.java`.
@@ -48,8 +49,12 @@
 - Baseline async verify passed; Milestone 01 triage not triggered.
 - Milestone 02 tests failed due to LazyInitialization in `ErpInvariantsSuiteIT`; fix by fetching AR journal reference via repository.
 - Milestone 02 assertions added for dispatch linkage, AR reference uniqueness, and GST tax accounts.
+- Task 00 plan expanded to cross-module audit EPICs A–F (docs-only change).
+- Dispatch confirm now rehydrates missing slip/order journal + invoice links when artifacts already exist (no inventory mutation).
 
 ## Test Status Log
+- 2026-01-24: Task 00 plan expansion commit (docs-only); tests not run.
+- 2026-01-25: `cd erp-domain && mvn -B -ntp -Dtest=OrderFulfillmentE2ETest,ErpInvariantsSuiteIT test` (PASS) — Tests run: 18, Failures: 0, Errors: 0, Skipped: 0.
 - 2026-01-24: `cd erp-domain && mvn -B -ntp verify` (PASS) — Tests run: 394, Failures: 0, Errors: 0, Skipped: 4; JaCoCo gates met.
 - 2026-01-25: `cd erp-domain && mvn -B -ntp verify` (PASS) — Tests run: 394, Failures: 0, Errors: 0, Skipped: 4; JaCoCo gates met.
 - 2026-01-25: `nohup bash -lc 'cd erp-domain && mvn -B -ntp verify' > /tmp/task00-verify.log 2>&1 & echo $! > /tmp/task00-verify.pid` (PASS) — PID 27360; Tests run: 394, Failures: 0, Errors: 0, Skipped: 4.

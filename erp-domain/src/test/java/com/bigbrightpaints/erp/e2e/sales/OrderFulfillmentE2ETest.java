@@ -5,14 +5,20 @@ import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
 import com.bigbrightpaints.erp.modules.accounting.domain.DealerLedgerEntry;
 import com.bigbrightpaints.erp.modules.accounting.domain.DealerLedgerRepository;
+import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGood;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatch;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatchRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodRepository;
+import com.bigbrightpaints.erp.modules.inventory.domain.InventoryMovementRepository;
+import com.bigbrightpaints.erp.modules.inventory.domain.InventoryReference;
+import com.bigbrightpaints.erp.modules.inventory.domain.PackagingSlip;
+import com.bigbrightpaints.erp.modules.inventory.domain.PackagingSlipRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryReservation;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryReservationRepository;
+import com.bigbrightpaints.erp.modules.invoice.domain.InvoiceRepository;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionBrand;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionBrandRepository;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionProduct;
@@ -53,6 +59,10 @@ public class OrderFulfillmentE2ETest extends AbstractIntegrationTest {
     @Autowired private FinishedGoodBatchRepository finishedGoodBatchRepository;
     @Autowired private DealerRepository dealerRepository;
     @Autowired private SalesOrderRepository salesOrderRepository;
+    @Autowired private PackagingSlipRepository packagingSlipRepository;
+    @Autowired private InventoryMovementRepository inventoryMovementRepository;
+    @Autowired private InvoiceRepository invoiceRepository;
+    @Autowired private JournalEntryRepository journalEntryRepository;
     @Autowired private InventoryReservationRepository inventoryReservationRepository;
     @Autowired private DealerLedgerRepository dealerLedgerRepository;
     @Autowired private AccountRepository accountRepository;
@@ -371,6 +381,87 @@ public class OrderFulfillmentE2ETest extends AbstractIntegrationTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         Map<?, ?> data = requireData(response, "dispatch order");
         assertThat(data.get("finalInvoiceId")).isNotNull();
+    }
+
+    @Test
+    @DisplayName("Dispatch confirm is idempotent and restores missing slip/order links")
+    void dispatchConfirm_idempotent_andRestoresArtifacts() {
+        Company company = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();
+
+        Dealer dealer = createDealer(company, "DISPATCH-IDEMPOTENT", "Dispatch Idempotent Dealer", new BigDecimal("500000"));
+        FinishedGood fg = createFinishedGood(company, "FG-DISPATCH-IDEMPOTENT", new BigDecimal("50"));
+
+        Long orderId = createOrder(dealer, fg, new BigDecimal("5"), new BigDecimal("1000.00"));
+
+        Map<String, Object> dispatchReq = Map.of(
+                "orderId", orderId,
+                "confirmedBy", "e2e"
+        );
+
+        ResponseEntity<Map> first = rest.exchange("/api/v1/sales/dispatch/confirm",
+                HttpMethod.POST, new HttpEntity<>(dispatchReq, headers), Map.class);
+        assertThat(first.getStatusCode()).isEqualTo(HttpStatus.OK);
+        Map<?, ?> firstData = requireData(first, "dispatch order (first)");
+        Long invoiceId = ((Number) firstData.get("finalInvoiceId")).longValue();
+        Long arJournalId = ((Number) firstData.get("arJournalEntryId")).longValue();
+
+        PackagingSlip slip = packagingSlipRepository.findByCompanyAndSalesOrderId(company, orderId).orElseThrow();
+        Long slipId = slip.getId();
+        Long cogsJournalId = slip.getCogsJournalEntryId();
+        assertThat(cogsJournalId).isNotNull();
+        assertThat(slip.getJournalEntryId()).isEqualTo(arJournalId);
+        assertThat(slip.getInvoiceId()).isEqualTo(invoiceId);
+
+        long dispatchMovementsBefore = inventoryMovementRepository
+                .findByReferenceTypeAndReferenceIdOrderByCreatedAtAsc(InventoryReference.SALES_ORDER, orderId.toString())
+                .stream()
+                .filter(m -> "DISPATCH".equalsIgnoreCase(m.getMovementType()))
+                .count();
+
+        // Simulate partial artifact loss: clear slip + order links only
+        slip.setInvoiceId(null);
+        slip.setJournalEntryId(null);
+        slip.setCogsJournalEntryId(null);
+        packagingSlipRepository.save(slip);
+
+        SalesOrder order = salesOrderRepository.findById(orderId).orElseThrow();
+        order.setFulfillmentInvoiceId(null);
+        order.setSalesJournalEntryId(null);
+        order.setCogsJournalEntryId(null);
+        salesOrderRepository.save(order);
+
+        ResponseEntity<Map> second = rest.exchange("/api/v1/sales/dispatch/confirm",
+                HttpMethod.POST, new HttpEntity<>(dispatchReq, headers), Map.class);
+        assertThat(second.getStatusCode()).isEqualTo(HttpStatus.OK);
+        Map<?, ?> secondData = requireData(second, "dispatch order (retry)");
+        Long invoiceId2 = ((Number) secondData.get("finalInvoiceId")).longValue();
+        Long arJournalId2 = ((Number) secondData.get("arJournalEntryId")).longValue();
+        assertThat(invoiceId2).isEqualTo(invoiceId);
+        assertThat(arJournalId2).isEqualTo(arJournalId);
+
+        PackagingSlip slipAfter = packagingSlipRepository.findById(slipId).orElseThrow();
+        assertThat(slipAfter.getInvoiceId()).isEqualTo(invoiceId);
+        assertThat(slipAfter.getJournalEntryId()).isEqualTo(arJournalId);
+        assertThat(slipAfter.getCogsJournalEntryId()).isEqualTo(cogsJournalId);
+
+        SalesOrder orderAfter = salesOrderRepository.findById(orderId).orElseThrow();
+        assertThat(orderAfter.getFulfillmentInvoiceId()).isEqualTo(invoiceId);
+        assertThat(orderAfter.getSalesJournalEntryId()).isEqualTo(arJournalId);
+        assertThat(orderAfter.getCogsJournalEntryId()).isEqualTo(cogsJournalId);
+
+        long dispatchMovementsAfter = inventoryMovementRepository
+                .findByReferenceTypeAndReferenceIdOrderByCreatedAtAsc(InventoryReference.SALES_ORDER, orderId.toString())
+                .stream()
+                .filter(m -> "DISPATCH".equalsIgnoreCase(m.getMovementType()))
+                .count();
+        assertThat(dispatchMovementsAfter).isEqualTo(dispatchMovementsBefore);
+
+        String invoiceNumber = invoiceRepository.findByCompanyAndId(company, invoiceId).orElseThrow().getInvoiceNumber();
+        assertThat(journalEntryRepository.findByCompanyAndReferenceNumber(company, invoiceNumber))
+                .isPresent()
+                .get()
+                .extracting(entry -> entry.getId())
+                .isEqualTo(arJournalId);
     }
 
     @Test

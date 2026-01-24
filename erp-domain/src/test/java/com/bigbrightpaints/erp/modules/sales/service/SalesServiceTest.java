@@ -101,6 +101,8 @@ class SalesServiceTest {
     @Mock
     private AccountingFacade accountingFacade;
     @Mock
+    private com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository journalEntryRepository;
+    @Mock
     private InvoiceNumberService invoiceNumberService;
     @Mock
     private InvoiceRepository invoiceRepository;
@@ -138,6 +140,7 @@ class SalesServiceTest {
                 finishedGoodsService,
                 accountingService,
                 accountingFacade,
+                journalEntryRepository,
                 invoiceNumberService,
                 invoiceRepository,
                 factoryTaskRepository,

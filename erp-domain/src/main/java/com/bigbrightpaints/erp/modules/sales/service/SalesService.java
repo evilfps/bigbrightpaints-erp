@@ -8,6 +8,8 @@ import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.core.util.MoneyUtils;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
+import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
+import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
@@ -81,6 +83,7 @@ public class SalesService {
     private final FinishedGoodsService finishedGoodsService;
     private final AccountingService accountingService;
     private final AccountingFacade accountingFacade;
+    private final JournalEntryRepository journalEntryRepository;
     private final InvoiceNumberService invoiceNumberService;
     private final InvoiceRepository invoiceRepository;
     private final FactoryTaskRepository factoryTaskRepository;
@@ -106,6 +109,7 @@ public class SalesService {
                         FinishedGoodsService finishedGoodsService,
                         AccountingService accountingService,
                         AccountingFacade accountingFacade,
+                        JournalEntryRepository journalEntryRepository,
                         InvoiceNumberService invoiceNumberService,
                         InvoiceRepository invoiceRepository,
                         FactoryTaskRepository factoryTaskRepository,
@@ -130,6 +134,7 @@ public class SalesService {
         this.finishedGoodsService = finishedGoodsService;
         this.accountingService = accountingService;
         this.accountingFacade = accountingFacade;
+        this.journalEntryRepository = journalEntryRepository;
         this.invoiceNumberService = invoiceNumberService;
         this.invoiceRepository = invoiceRepository;
         this.factoryTaskRepository = factoryTaskRepository;
@@ -1203,20 +1208,59 @@ public class SalesService {
             if (existingJeId == null && existingInvoice != null && existingInvoice.getJournalEntry() != null) {
                 existingJeId = existingInvoice.getJournalEntry().getId();
             }
+            Long existingCogsJournalId = slip.getCogsJournalEntryId();
+            if (existingCogsJournalId == null && StringUtils.hasText(slipNumber)) {
+                String cogsReference = buildCogsReference(slipNumber);
+                existingCogsJournalId = journalEntryRepository.findByCompanyAndReferenceNumber(company, cogsReference)
+                        .map(JournalEntry::getId)
+                        .orElse(null);
+            }
             boolean hasInvoice = existingInvoiceId != null;
             boolean hasArJournal = existingJeId != null;
-            boolean hasCogsJournal = slip.getCogsJournalEntryId() != null
+            boolean hasCogsJournal = existingCogsJournalId != null
                     || (slipNumber != null && accountingFacade.hasCogsJournalFor(slipNumber));
             if (hasInvoice && hasArJournal && hasCogsJournal) {
                 if (existingInvoice != null) {
                     dealerLedgerService.syncInvoiceLedger(existingInvoice, null);
                 }
+                boolean slipUpdated = false;
+                if (slip.getInvoiceId() == null && existingInvoiceId != null) {
+                    slip.setInvoiceId(existingInvoiceId);
+                    slipUpdated = true;
+                }
+                if (slip.getJournalEntryId() == null && existingJeId != null) {
+                    slip.setJournalEntryId(existingJeId);
+                    slipUpdated = true;
+                }
+                if (slip.getCogsJournalEntryId() == null && existingCogsJournalId != null) {
+                    slip.setCogsJournalEntryId(existingCogsJournalId);
+                    slipUpdated = true;
+                }
+                if (slipUpdated) {
+                    packagingSlipRepository.save(slip);
+                }
+                boolean orderUpdated = false;
+                if (order.getSalesJournalEntryId() == null && existingJeId != null) {
+                    order.setSalesJournalEntryId(existingJeId);
+                    orderUpdated = true;
+                }
+                if (order.getCogsJournalEntryId() == null && existingCogsJournalId != null) {
+                    order.setCogsJournalEntryId(existingCogsJournalId);
+                    orderUpdated = true;
+                }
+                if (order.getFulfillmentInvoiceId() == null && existingInvoiceId != null) {
+                    order.setFulfillmentInvoiceId(existingInvoiceId);
+                    orderUpdated = true;
+                }
                 String nextStatus = resolveOrderStatusAfterDispatch(company, order);
                 if (!nextStatus.equalsIgnoreCase(order.getStatus())) {
                     order.setStatus(nextStatus);
+                    orderUpdated = true;
+                }
+                if (orderUpdated) {
                     salesOrderRepository.save(order);
                 }
-                logDispatchAudit(slip, order, existingInvoice, existingJeId, slip.getCogsJournalEntryId(),
+                logDispatchAudit(slip, order, existingInvoice, existingJeId, existingCogsJournalId,
                         existingInvoice != null ? existingInvoice.getTotalAmount() : null, true);
                 return new DispatchConfirmResponse(slip.getId(), salesOrderId, existingInvoiceId, existingJeId, List.of(), true, List.of());
             }
@@ -1889,6 +1933,17 @@ public class SalesService {
         }
         metadata.put("alreadyDispatched", Boolean.toString(alreadyDispatched));
         auditService.logSuccess(AuditEvent.DISPATCH_CONFIRMED, metadata);
+    }
+
+    private String buildCogsReference(String slipNumber) {
+        return "COGS-" + normalizeReferenceToken(slipNumber);
+    }
+
+    private String normalizeReferenceToken(String value) {
+        if (!StringUtils.hasText(value)) {
+            return "GEN";
+        }
+        return value.replaceAll("[^A-Za-z0-9-]", "").toUpperCase();
     }
 
     private DispatchConfirmResponse.AccountPostingDto toPosting(Long accountId, String label, BigDecimal debit, BigDecimal credit) {
