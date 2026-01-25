@@ -15,7 +15,7 @@
 
 ## Async Verify
 - Command: `scripts/task00_async_verify.sh` (setsid background; writes exit code)
-- PID: `89472` (latest attempt)
+- PID: `103161` (latest attempt)
 - Log: `/tmp/task00-verify.log`
 - Exit: `/tmp/task00-verify.exit`
 - Status: FINISHED (exit 0, BUILD SUCCESS; Tests run: 419, Failures: 0, Errors: 0, Skipped: 4).
@@ -246,6 +246,17 @@
 - 2026-01-25: `scripts/task00_async_verify.sh` (PASS) — PID 81739; exit 0; BUILD SUCCESS; Tests run: 419, Failures: 0, Errors: 0, Skipped: 4.
 - 2026-01-25: `cd erp-domain && mvn -B -ntp -Dtest=ApplicationSmokeTest,CriticalPathSmokeTest test` (PASS) — Tests run: 14, Failures: 0, Errors: 0, Skipped: 0.
 - 2026-01-25: `scripts/task00_async_verify.sh` (PASS) — PID 89472; exit 0; BUILD SUCCESS; Tests run: 419, Failures: 0, Errors: 0, Skipped: 4.
+- 2026-01-25: `cd erp-domain && mvn -B -ntp -Dtest=ErpInvariantsSuiteIT test` (PASS) — Tests run: 9, Failures: 0, Errors: 0, Skipped: 0. (EPIC 08 M01 run 1)
+- 2026-01-25: `cd erp-domain && mvn -B -ntp -Dtest=OrderFulfillmentE2ETest,DispatchConfirmationIT test` (PASS) — Tests run: 15, Failures: 0, Errors: 0, Skipped: 0. (EPIC 08 M01 run 1)
+- 2026-01-25: `cd erp-domain && mvn -B -ntp -Dtest=CriticalAccountingAxesIT,ProcureToPayE2ETest,SettlementE2ETest test` (PASS) — Tests run: 35, Failures: 0, Errors: 0, Skipped: 0. (EPIC 08 M01 run 1)
+- 2026-01-25: `cd erp-domain && mvn -B -ntp -Dtest=BusinessLogicRegressionTest,IdempotencyConflictRegressionIT test` (PASS) — Tests run: 9, Failures: 0, Errors: 0, Skipped: 0. (EPIC 08 M01 run 1)
+- 2026-01-25: `cd erp-domain && mvn -B -ntp -Dtest=PerformanceBudgetIT,PerformanceExplainIT test` (PASS) — Tests run: 3, Failures: 0, Errors: 0, Skipped: 0. (EPIC 08 M01 run 1)
+- 2026-01-25: `cd erp-domain && mvn -B -ntp -Dtest=ErpInvariantsSuiteIT test` (PASS) — Tests run: 9, Failures: 0, Errors: 0, Skipped: 0. (EPIC 08 M01 run 2)
+- 2026-01-25: `cd erp-domain && mvn -B -ntp -Dtest=OrderFulfillmentE2ETest,DispatchConfirmationIT test` (PASS) — Tests run: 15, Failures: 0, Errors: 0, Skipped: 0. (EPIC 08 M01 run 2)
+- 2026-01-25: `cd erp-domain && mvn -B -ntp -Dtest=CriticalAccountingAxesIT,ProcureToPayE2ETest,SettlementE2ETest test` (PASS) — Tests run: 35, Failures: 0, Errors: 0, Skipped: 0. (EPIC 08 M01 run 2)
+- 2026-01-25: `cd erp-domain && mvn -B -ntp -Dtest=BusinessLogicRegressionTest,IdempotencyConflictRegressionIT test` (PASS) — Tests run: 9, Failures: 0, Errors: 0, Skipped: 0. (EPIC 08 M01 run 2)
+- 2026-01-25: `cd erp-domain && mvn -B -ntp -Dtest=PerformanceBudgetIT,PerformanceExplainIT test` (PASS) — Tests run: 3, Failures: 0, Errors: 0, Skipped: 0. (EPIC 08 M01 run 2)
+- 2026-01-25: `scripts/task00_async_verify.sh` (PASS) — PID 103161; exit 0; BUILD SUCCESS; Tests run: 419, Failures: 0, Errors: 0, Skipped: 4.
 
 ## Next Actions (explicit)
 1. Start EPIC 08 / Milestone 01: regression matrix.
