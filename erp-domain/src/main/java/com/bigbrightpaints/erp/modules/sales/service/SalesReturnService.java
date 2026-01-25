@@ -403,6 +403,9 @@ public class SalesReturnService {
                                              Map<Long, java.util.List<InventoryMovement>> dispatchMovements,
                                              InvoiceLine invoiceLine) {
         java.util.List<InventoryMovement> movements = dispatchMovements.getOrDefault(finishedGood.getId(), java.util.List.of());
+        if (movements.isEmpty()) {
+            throw new IllegalArgumentException("Return requires dispatch cost layers for " + finishedGood.getProductCode());
+        }
         BigDecimal remaining = quantity;
         BigDecimal costTotal = BigDecimal.ZERO;
         for (InventoryMovement mv : movements) {
@@ -421,11 +424,10 @@ public class SalesReturnService {
                 break;
             }
         }
-        if (costTotal.compareTo(BigDecimal.ZERO) > 0 && quantity.compareTo(BigDecimal.ZERO) > 0) {
-            return MoneyUtils.safeDivide(costTotal, quantity, 4, RoundingMode.HALF_UP);
+        if (remaining.compareTo(BigDecimal.ZERO) > 0) {
+            throw new IllegalArgumentException("Return quantity exceeds dispatched quantity for " + finishedGood.getProductCode());
         }
-        // Fallback to sale price if no cost history found
-        return invoiceLine.getUnitPrice();
+        return MoneyUtils.safeDivide(costTotal, quantity, 4, RoundingMode.HALF_UP);
     }
 
     private BigDecimal requirePositive(BigDecimal value, String field) {
