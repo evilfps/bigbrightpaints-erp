@@ -2,20 +2,20 @@
 
 ## Overnight Runner State
 - Branch: `accounting-correctness-v1`
-- Current epic/milestone pointer: `tasks/task-00.md → EPIC 06 → Milestone 03` (performance + query plan budget)
-- Last commit SHA: `b2fcaa45e91faf0f693941d12c971dc4be1c2e4c`
-- Next actions: start EPIC 06 / Milestone 03.
+- Current epic/milestone pointer: `tasks/task-00.md → EPIC 07 → Milestone 01` (accounting mental model docs)
+- Last commit SHA: `009609bf63a59924218266aed1b3d715104e04cf`
+- Next actions: start EPIC 07 / Milestone 01.
 - Working tree status: pre-existing diffs present (unrelated); avoid touching unrelated files.
 
 ## Current State
 - Worktree: `/home/realnigga/Desktop/CLI_BACKEND_epic04`
 - Branch: `accounting-correctness-v1`
-- Current milestone pointer: `tasks/task-00.md → EPIC 06 → Milestone 03` (performance + query plan budget)
+- Current milestone pointer: `tasks/task-00.md → EPIC 07 → Milestone 01` (accounting mental model docs)
 - Working tree: pre-existing diffs present; proceeding without touching unrelated changes.
 
 ## Async Verify
 - Command: `scripts/task00_async_verify.sh` (setsid background; writes exit code)
-- PID: `76264` (latest attempt)
+- PID: `81739` (latest attempt)
 - Log: `/tmp/task00-verify.log`
 - Exit: `/tmp/task00-verify.exit`
 - Status: FINISHED (exit 0, BUILD SUCCESS; Tests run: 419, Failures: 0, Errors: 0, Skipped: 4).
@@ -67,6 +67,7 @@
 - EPIC 05 / Milestone 04 — Inventory event journaling guard (PASS): `b1384dc7630ea4c85cd1abab5a935c4eb3c6e53b`.
 - EPIC 06 / Milestone 01 — Endpoint inventory + duplication map (PASS): `02973ee7ba26ef6ccbc1c560d75b495b6e1f1746`.
 - EPIC 06 / Milestone 02 — Data integrity audit for critical endpoints (PASS): `b2fcaa45e91faf0f693941d12c971dc4be1c2e4c`.
+- EPIC 06 / Milestone 03 — Performance + query plan budget (PASS): `009609bf63a59924218266aed1b3d715104e04cf`.
 
 ## Evidence Pack
 - EPIC A / Milestone A1 trace map: `docs/cross-module-trace-map.md`
@@ -91,6 +92,7 @@
 - EPIC 05 / Milestone 04 inventory event guard: `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/event/InventoryAccountingEventListener.java`, `erp-domain/src/test/java/com/bigbrightpaints/erp/regression/InventoryAccountingEventListenerIT.java`
 - EPIC 06 / Milestone 01 endpoint inventory map: `docs/endpoint-inventory.md`
 - EPIC 06 / Milestone 02 inventory movement scoping: `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/domain/InventoryMovementRepository.java`, `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/service/FinishedGoodsService.java`, `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/sales/service/SalesReturnService.java`, `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/sales/service/SalesReturnServiceTest.java`
+- EPIC 06 / Milestone 03 performance results: `docs/performance-budget-results.md`
 
 ## Open Findings (bugs / security issues / logic flaws)
 - MEDIUM — Inventory accounting events are now gated behind `erp.inventory.accounting.events.enabled` (default off); enabling requires removal of overlapping manual postings to avoid double-posting: `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/event/InventoryAccountingEventListener.java`, `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/event/InventoryMovementEvent.java`, `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/event/InventoryValuationChangedEvent.java`.
@@ -239,9 +241,10 @@
 - 2026-01-25: `cd erp-domain && mvn -B -ntp -Dtest=ErpInvariantsSuiteIT,OrderFulfillmentE2ETest,ProcureToPayE2ETest,SettlementE2ETest test` (PASS) — Tests run: 47, Failures: 0, Errors: 0, Skipped: 0.
 - 2026-01-25: `scripts/task00_async_verify.sh` (PASS) — PID 76264; exit 0; BUILD SUCCESS; Tests run: 419, Failures: 0, Errors: 0, Skipped: 4.
 - 2026-01-25: `cd erp-domain && mvn -B -ntp -Dtest=PerformanceBudgetIT,PerformanceExplainIT test` (PASS) — Tests run: 3, Failures: 0, Errors: 0, Skipped: 0.
+- 2026-01-25: `scripts/task00_async_verify.sh` (PASS) — PID 81739; exit 0; BUILD SUCCESS; Tests run: 419, Failures: 0, Errors: 0, Skipped: 4.
 
 ## Next Actions (explicit)
-1. Start EPIC 06 / Milestone 03: performance + query plan budget.
+1. Start EPIC 07 / Milestone 01: accounting mental model docs.
 
 ## Historical (prior work references)
 - Epic 03: branch `epic-03-production-stock`, tip `3f2370c38c0152153369507159e5ae26ca1fa048`.

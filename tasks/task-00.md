@@ -884,7 +884,7 @@ Milestone 02 — Data integrity audit for critical endpoints **COMPLETED** — c
 - Rollback/recovery notes:
   - If a bug requires schema change, introduce migration + backfill plan; do not silently “ignore” bad data.
 
-Milestone 03 — Performance + query plan budget
+Milestone 03 — Performance + query plan budget **COMPLETED** — commit `009609bf63a59924218266aed1b3d715104e04cf`
 - Implementation steps:
   - Run performance suites and fix any regression introduced during Task 00:
     - remove N+1 hotspots,
