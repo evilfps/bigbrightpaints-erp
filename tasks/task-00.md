@@ -687,7 +687,7 @@ Scope:
 
 Milestones:
 
-Milestone 01 — Purchase tax allocation + exact balance (zero tolerance)
+Milestone 01 — Purchase tax allocation + exact balance (zero tolerance) **COMPLETED** — commit `8ec59e6963ae985433b4db915d796e5cd740ea94`
 - Implementation steps:
   - Audit tax paths and rounding:
     - `AccountingFacade.postPurchaseJournal(...)` enforces `inventoryTotal + taxTotal == totalAmount` exactly.
