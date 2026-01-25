@@ -2,20 +2,20 @@
 
 ## Overnight Runner State
 - Branch: `accounting-correctness-v1`
-- Current epic/milestone pointer: `tasks/task-00.md → EPIC D → Milestone 01` (cross-company tampering tests)
-- Last commit SHA: `83104237f5c2c7a8bcb551a9534d3024d8861e9c`
-- Next actions: start EPIC D / Milestone 01 (cross-company tampering tests), continue async verify triage (log empty).
+- Current epic/milestone pointer: `tasks/task-00.md → EPIC D → Milestone 02` (period lock + posting bypass tests)
+- Last commit SHA: `e31d90fdbc1b1f5b13a007baf539c116bc2ff5da`
+- Next actions: start EPIC D / Milestone 02 (period lock + posting bypass tests), continue async verify triage (log empty).
 - Working tree status: pre-existing diffs present (unrelated); avoid touching unrelated files.
 
 ## Current State
 - Worktree: `/home/realnigga/Desktop/CLI_BACKEND_epic04`
 - Branch: `accounting-correctness-v1`
-- Current milestone pointer: `tasks/task-00.md → EPIC D → Milestone 01` (cross-company tampering tests)
+- Current milestone pointer: `tasks/task-00.md → EPIC D → Milestone 02` (period lock + posting bypass tests)
 - Working tree: pre-existing diffs present; proceeding without touching unrelated changes.
 
 ## Async Verify
 - Command: `nohup bash -lc 'cd erp-domain && mvn -B -ntp verify' > /tmp/task00-verify.log 2>&1 & echo $! > /tmp/task00-verify.pid`
-- PID: `102684` (latest attempt)
+- PID: `105462` (latest attempt)
 - Log: `/tmp/task00-verify.log`
 - Status: FINISHED early (log empty; no BUILD SUCCESS/FAILURE)
 - Last observed: `/tmp/task00-verify.log` has 0 lines; background PID exits immediately.
@@ -41,6 +41,7 @@
 - EPIC C / Milestone C1 — Rounding/tax inventory (PASS): `06966b4d54e01a15455a1bcab0665286ff25c66b`.
 - EPIC C / Milestone C2 — Balance + rounding assertions (PASS): `7d8a2cb2436921add18066205cbbcbd02b2ae3eb`.
 - EPIC C / Milestone C3 — Standardize tax computation usage (PASS): `83104237f5c2c7a8bcb551a9534d3024d8861e9c`.
+- EPIC D / Milestone D1 — Cross-company tampering tests (PASS): `e31d90fdbc1b1f5b13a007baf539c116bc2ff5da`.
 
 ## Evidence Pack
 - EPIC A / Milestone A1 trace map: `docs/cross-module-trace-map.md`
@@ -52,6 +53,7 @@
 - EPIC C / Milestone C1 rounding/tax inventory: `docs/rounding-tax-inventory.md`
 - EPIC C / Milestone C2 balance/rounding assertions: `erp-domain/src/test/java/com/bigbrightpaints/erp/invariants/ErpInvariantsSuiteIT.java`
 - EPIC C / Milestone C3 rounding source-of-truth: `erp-domain/src/main/java/com/bigbrightpaints/erp/core/util/MoneyUtils.java`
+- EPIC D / Milestone D1 cross-company tampering tests: `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/admin/AdminUserSecurityIT.java`
 
 ## Open Findings (bugs / security issues / logic flaws)
 - HIGH — Inventory accounting domain events appear unused (risk: future double-posting if wired later): `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/event/InventoryAccountingEventListener.java`, `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/event/InventoryMovementEvent.java`, `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/event/InventoryValuationChangedEvent.java`.
@@ -74,6 +76,7 @@
 - Milestone 02 assertions added for dispatch linkage, AR reference uniqueness, and GST tax accounts.
 - EPIC C / Milestone 02 adds invoice/line net+tax==total and zero-discount assertions in golden path.
 - EPIC C / Milestone 03 centralizes currency rounding via `MoneyUtils.roundCurrency` in Sales/Invoice journals.
+- EPIC D / Milestone 01 adds cross-company header tampering tests (admin endpoints) to fail closed.
 - Task 00 plan expanded to cross-module audit EPICs A–F (docs-only change).
 - Dispatch confirm now rehydrates missing slip/order journal + invoice links when artifacts already exist (no inventory mutation).
 - Added endpoint-equivalence E2E coverage for `/sales/dispatch/confirm` and `/dispatch/confirm`.
@@ -112,10 +115,14 @@
 - 2026-01-25: `nohup bash -lc 'cd erp-domain && mvn -B -ntp verify' > /tmp/task00-verify.log 2>&1 & echo $! > /tmp/task00-verify.pid` (FINISHED early) — PID 100537; log empty; no BUILD SUCCESS/FAILURE.
 - 2026-01-25: `cd erp-domain && mvn -B -ntp -Dtest=GstInclusiveRoundingIT,CriticalAccountingAxesIT test` (PASS) — Tests run: 12, Failures: 0, Errors: 0, Skipped: 0. (EPIC C3)
 - 2026-01-25: `nohup bash -lc 'cd erp-domain && mvn -B -ntp verify' > /tmp/task00-verify.log 2>&1 & echo $! > /tmp/task00-verify.pid` (FINISHED early) — PID 102684; log empty; no BUILD SUCCESS/FAILURE.
+- 2026-01-25: `cd erp-domain && mvn -B -ntp -Dtest=AdminUserSecurityIT test` (PASS) — Tests run: 5, Failures: 0, Errors: 0, Skipped: 0. (EPIC D1)
+- 2026-01-25: `cd erp-domain && mvn -B -ntp -Dtest=*Security*Test,*Auth*Test test` (FAIL) — No tests matching pattern; surefire failIfNoSpecifiedTests triggered.
+- 2026-01-25: `cd erp-domain && mvn -B -ntp -Dtest=*Security*IT,*Auth*IT test` (PASS) — Tests run: 9, Failures: 0, Errors: 0, Skipped: 0.
+- 2026-01-25: `nohup bash -lc 'cd erp-domain && mvn -B -ntp verify' > /tmp/task00-verify.log 2>&1 & echo $! > /tmp/task00-verify.pid` (FINISHED early) — PID 105462; log empty; no BUILD SUCCESS/FAILURE.
 
 ## Next Actions (explicit)
-1. Begin EPIC D / Milestone 01: cross-company tampering tests (fail closed).
-2. Continue async verify triage (`/tmp/task00-verify.log` still empty after PID 102684).
+1. Begin EPIC D / Milestone 02: period lock + posting bypass tests.
+2. Continue async verify triage (`/tmp/task00-verify.log` still empty after PID 105462).
 
 ## Historical (prior work references)
 - Epic 03: branch `epic-03-production-stock`, tip `3f2370c38c0152153369507159e5ae26ca1fa048`.
