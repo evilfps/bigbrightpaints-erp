@@ -101,6 +101,9 @@ public class SalesReturnCreditNoteE2EIT extends AbstractIntegrationTest {
     @DisplayName("Invoice -> sales return -> credit note journal + inventory reconciliation")
     void salesReturn_postsCreditNoteAndRestocksInventory() {
         seedDispatchMovement();
+        BigDecimal startingStock = finishedGoodRepository.findById(finishedGood.getId())
+                .orElseThrow()
+                .getCurrentStock();
         Map<String, Object> payload = Map.of(
                 "invoiceId", invoice.getId(),
                 "reason", "Damaged goods",
@@ -147,7 +150,7 @@ public class SalesReturnCreditNoteE2EIT extends AbstractIntegrationTest {
         assertThat(taxDebit).isEqualByComparingTo("9.50");
 
         FinishedGood refreshed = finishedGoodRepository.findById(finishedGood.getId()).orElseThrow();
-        assertThat(refreshed.getCurrentStock()).isEqualByComparingTo("1.00");
+        assertThat(refreshed.getCurrentStock()).isEqualByComparingTo(startingStock.add(new BigDecimal("1.00")));
 
         List<InventoryMovement> returnMovements = inventoryMovementRepository
                 .findByReferenceTypeAndReferenceIdOrderByCreatedAtAsc("SALES_RETURN", invoice.getInvoiceNumber());
@@ -169,6 +172,70 @@ public class SalesReturnCreditNoteE2EIT extends AbstractIntegrationTest {
                 .map(line -> Optional.ofNullable(line.getCredit()).orElse(BigDecimal.ZERO))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         assertThat(cogsDebits).isEqualByComparingTo(cogsCredits);
+    }
+
+    @Test
+    @DisplayName("Sales return with mixed discounts posts correct revenue/tax/discount lines")
+    void salesReturn_mixedDiscounts_postsCorrectLines() {
+        Invoice mixedInvoice = ensureInvoiceWithMixedDiscounts();
+        InvoiceLine discountedLine = mixedInvoice.getLines().get(0);
+        InvoiceLine fullPriceLine = mixedInvoice.getLines().get(1);
+
+        seedDispatchMovement(new BigDecimal("2.00"), new BigDecimal("50.00"));
+        BigDecimal startingStock = finishedGoodRepository.findById(finishedGood.getId())
+                .orElseThrow()
+                .getCurrentStock();
+
+        Map<String, Object> payload = Map.of(
+                "invoiceId", mixedInvoice.getId(),
+                "reason", "Mixed discount return",
+                "lines", List.of(
+                        Map.of(
+                                "invoiceLineId", discountedLine.getId(),
+                                "quantity", new BigDecimal("1.00")
+                        ),
+                        Map.of(
+                                "invoiceLineId", fullPriceLine.getId(),
+                                "quantity", new BigDecimal("1.00")
+                        )
+                )
+        );
+
+        ResponseEntity<Map> response = rest.exchange(
+                "/api/v1/accounting/sales/returns",
+                HttpMethod.POST,
+                new HttpEntity<>(payload, headers),
+                Map.class
+        );
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        Map<?, ?> data = (Map<?, ?>) response.getBody().get("data");
+        Long entryId = ((Number) data.get("id")).longValue();
+
+        JournalEntry entry = journalEntryRepository.findById(entryId).orElseThrow();
+        assertThat(sumAccount(entry, ar.getId(), false)).isEqualByComparingTo("159.50");
+        assertThat(sumAccount(entry, revenue.getId(), true)).isEqualByComparingTo("150.00");
+        assertThat(sumAccount(entry, discount.getId(), false)).isEqualByComparingTo("5.00");
+        assertThat(sumAccount(entry, gstOutput.getId(), true)).isEqualByComparingTo("14.50");
+
+        FinishedGood refreshed = finishedGoodRepository.findById(finishedGood.getId()).orElseThrow();
+        assertThat(refreshed.getCurrentStock()).isEqualByComparingTo(startingStock.add(new BigDecimal("2.00")));
+
+        List<InventoryMovement> returnMovements = inventoryMovementRepository
+                .findByReferenceTypeAndReferenceIdOrderByCreatedAtAsc("SALES_RETURN", mixedInvoice.getInvoiceNumber());
+        assertThat(returnMovements).hasSize(2);
+        BigDecimal totalReturned = returnMovements.stream()
+                .map(mv -> Optional.ofNullable(mv.getQuantity()).orElse(BigDecimal.ZERO))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        assertThat(totalReturned).isEqualByComparingTo("2.00");
+
+        String cogsReference = "CRN-" + mixedInvoice.getInvoiceNumber() + "-COGS-0";
+        JournalEntry cogsEntry = journalEntryRepository
+                .findByCompanyAndReferenceNumber(company, cogsReference)
+                .flatMap(existing -> journalEntryRepository.findById(existing.getId()))
+                .orElseThrow();
+        assertThat(sumAccount(cogsEntry, inventory.getId(), true)).isEqualByComparingTo("100.00");
+        assertThat(sumAccount(cogsEntry, cogs.getId(), false)).isEqualByComparingTo("100.00");
     }
 
     @Test
@@ -207,13 +274,17 @@ public class SalesReturnCreditNoteE2EIT extends AbstractIntegrationTest {
     }
 
     private void seedDispatchMovement() {
+        seedDispatchMovement(new BigDecimal("1"), new BigDecimal("50.00"));
+    }
+
+    private void seedDispatchMovement(BigDecimal quantity, BigDecimal unitCost) {
         InventoryMovement dispatchMovement = new InventoryMovement();
         dispatchMovement.setFinishedGood(finishedGood);
         dispatchMovement.setReferenceType(InventoryReference.SALES_ORDER);
         dispatchMovement.setReferenceId(salesOrder.getId().toString());
         dispatchMovement.setMovementType("DISPATCH");
-        dispatchMovement.setQuantity(new BigDecimal("1"));
-        dispatchMovement.setUnitCost(new BigDecimal("50.00"));
+        dispatchMovement.setQuantity(quantity);
+        dispatchMovement.setUnitCost(unitCost);
         inventoryMovementRepository.save(dispatchMovement);
     }
 
@@ -318,6 +389,47 @@ public class SalesReturnCreditNoteE2EIT extends AbstractIntegrationTest {
         line.setTaxRate(new BigDecimal("10.00"));
         line.setLineTotal(new BigDecimal("209.00"));
         inv.getLines().add(line);
+        return invoiceRepository.save(inv);
+    }
+
+    private Invoice ensureInvoiceWithMixedDiscounts() {
+        Invoice inv = new Invoice();
+        inv.setCompany(company);
+        inv.setDealer(dealer);
+        inv.setSalesOrder(salesOrder);
+        inv.setInvoiceNumber("SRN-INV-MIX-" + System.currentTimeMillis());
+        inv.setStatus("POSTED");
+        inv.setSubtotal(new BigDecimal("240.00"));
+        inv.setTaxTotal(new BigDecimal("24.00"));
+        inv.setTotalAmount(new BigDecimal("264.00"));
+        inv.setOutstandingAmount(new BigDecimal("264.00"));
+        inv.setIssueDate(LocalDate.now());
+        inv.setDueDate(LocalDate.now().plusDays(14));
+
+        InvoiceLine line1 = new InvoiceLine();
+        line1.setInvoice(inv);
+        line1.setProductCode(finishedGood.getProductCode());
+        line1.setQuantity(new BigDecimal("2.00"));
+        line1.setUnitPrice(new BigDecimal("100.00"));
+        line1.setDiscountAmount(new BigDecimal("10.00"));
+        line1.setTaxableAmount(new BigDecimal("190.00"));
+        line1.setTaxAmount(new BigDecimal("19.00"));
+        line1.setTaxRate(new BigDecimal("10.00"));
+        line1.setLineTotal(new BigDecimal("209.00"));
+        inv.getLines().add(line1);
+
+        InvoiceLine line2 = new InvoiceLine();
+        line2.setInvoice(inv);
+        line2.setProductCode(finishedGood.getProductCode());
+        line2.setQuantity(new BigDecimal("1.00"));
+        line2.setUnitPrice(new BigDecimal("50.00"));
+        line2.setDiscountAmount(BigDecimal.ZERO);
+        line2.setTaxableAmount(new BigDecimal("50.00"));
+        line2.setTaxAmount(new BigDecimal("5.00"));
+        line2.setTaxRate(new BigDecimal("10.00"));
+        line2.setLineTotal(new BigDecimal("55.00"));
+        inv.getLines().add(line2);
+
         return invoiceRepository.save(inv);
     }
 

@@ -2,20 +2,20 @@
 
 ## Overnight Runner State
 - Branch: `accounting-correctness-v1`
-- Current epic/milestone pointer: `tasks/task-00.md → EPIC 02 → Milestone 03` (returns/credit notes correctness)
-- Last commit SHA: `29cf824944b40c84ce6b30be4b2865cd4e251519`
-- Next actions: begin EPIC 02 / Milestone 03, continue async verify triage (log empty; PID 145616).
+- Current epic/milestone pointer: `tasks/task-00.md → EPIC 02 → Milestone 04` (mixed tax rates + zero-rated items)
+- Last commit SHA: `20f4af1292ff743783b1257b3017b44b81bec1d2`
+- Next actions: begin EPIC 02 / Milestone 04, continue async verify triage (log empty; PID 150858).
 - Working tree status: pre-existing diffs present (unrelated); avoid touching unrelated files.
 
 ## Current State
 - Worktree: `/home/realnigga/Desktop/CLI_BACKEND_epic04`
 - Branch: `accounting-correctness-v1`
-- Current milestone pointer: `tasks/task-00.md → EPIC 02 → Milestone 03` (returns/credit notes correctness)
+- Current milestone pointer: `tasks/task-00.md → EPIC 02 → Milestone 04` (mixed tax rates + zero-rated items)
 - Working tree: pre-existing diffs present; proceeding without touching unrelated changes.
 
 ## Async Verify
 - Command: `nohup bash -lc 'cd erp-domain && mvn -B -ntp verify' > /tmp/task00-verify.log 2>&1 & echo $! > /tmp/task00-verify.pid`
-- PID: `145616` (latest attempt)
+- PID: `150858` (latest attempt)
 - Log: `/tmp/task00-verify.log`
 - Status: FINISHED early (log empty; no BUILD SUCCESS/FAILURE)
 - Last observed: `/tmp/task00-verify.log` has 0 lines; background PID exits immediately.
@@ -51,7 +51,8 @@
 - EPIC F / Milestone F1 — Regression run order + evidence recording (PASS): `2b6d4ab0fb70b7bd55891da41df7f3c15b6f8ed7`.
 - EPIC F / Milestone F2 — Flake guard reruns (PASS): `d75042d2699b9a21fc9b9dc7078c0133dc7df380`.
 - EPIC 02 / Milestone 01 — GST treatments (PASS): `29cf824944b40c84ce6b30be4b2865cd4e251519`.
-- EPIC 02 / Milestone 02 — Inclusive vs exclusive + rounding edge cases (PASS): `TBD`.
+- EPIC 02 / Milestone 02 — Inclusive vs exclusive + rounding edge cases (PASS): `20f4af1292ff743783b1257b3017b44b81bec1d2`.
+- EPIC 02 / Milestone 03 — Returns/credit notes correctness (PASS): `TBD`.
 
 ## Evidence Pack
 - EPIC A / Milestone A1 trace map: `docs/cross-module-trace-map.md`
@@ -103,6 +104,7 @@
 - EPIC E / Milestone E2 tolerates duplicate journal reference mappings via deterministic selection.
 - Task 00 plan expanded to cross-module audit EPICs A–F (docs-only change).
 - EPIC 02 / Milestone 02 avoids phantom GST-inclusive discounts by tolerating rounding deltas in invoice/journal discount extraction.
+- EPIC 02 / Milestone 03 adds mixed-discount return coverage and asserts inventory restock deltas instead of absolute stock.
 - Dispatch confirm now rehydrates missing slip/order journal + invoice links when artifacts already exist (no inventory mutation).
 - Added endpoint-equivalence E2E coverage for `/sales/dispatch/confirm` and `/dispatch/confirm`.
 - Added dispatch COGS assertions: slip unit cost totals match COGS journal and movements link to journal.
@@ -179,10 +181,15 @@
 - 2026-01-25: `nohup bash -lc 'cd erp-domain && mvn -B -ntp verify' > /tmp/task00-verify.log 2>&1 & echo $! > /tmp/task00-verify.pid` (FINISHED early) — PID 141209; log empty; no BUILD SUCCESS/FAILURE.
 - 2026-01-25: `cd erp-domain && mvn -B -ntp -Dtest=GstInclusiveRoundingIT,OrderFulfillmentE2ETest,SalesJournalServiceTest,InvoiceServiceTest test` (PASS) — Tests run: 22, Failures: 0, Errors: 0, Skipped: 0.
 - 2026-01-25: `nohup bash -lc 'cd erp-domain && mvn -B -ntp verify' > /tmp/task00-verify.log 2>&1 & echo $! > /tmp/task00-verify.pid` (FINISHED early) — PID 145616; log empty; no BUILD SUCCESS/FAILURE.
+- 2026-01-25: `cd erp-domain && mvn -B -ntp -Dtest=SalesReturnCreditNoteE2EIT,CriticalAccountingAxesIT test` (FAIL) — SalesReturnCreditNoteE2EIT stock assertion used absolute value; expected 1.00, got 3.00.
+- 2026-01-25: `cd erp-domain && mvn -B -ntp -Dtest=SalesReturnCreditNoteE2EIT#salesReturn_postsCreditNoteAndRestocksInventory test` (PASS) — rerun 1 after fix.
+- 2026-01-25: `cd erp-domain && mvn -B -ntp -Dtest=SalesReturnCreditNoteE2EIT#salesReturn_postsCreditNoteAndRestocksInventory test` (PASS) — rerun 2 after fix.
+- 2026-01-25: `cd erp-domain && mvn -B -ntp -Dtest=SalesReturnCreditNoteE2EIT,CriticalAccountingAxesIT test` (PASS) — Tests run: 13, Failures: 0, Errors: 0, Skipped: 0.
+- 2026-01-25: `nohup bash -lc 'cd erp-domain && mvn -B -ntp verify' > /tmp/task00-verify.log 2>&1 & echo $! > /tmp/task00-verify.pid` (FINISHED early) — PID 150858; log empty; no BUILD SUCCESS/FAILURE.
 
 ## Next Actions (explicit)
-1. Begin EPIC 02 / Milestone 03: returns/credit notes correctness.
-2. Continue async verify triage (`/tmp/task00-verify.log` still empty after PID 145616).
+1. Begin EPIC 02 / Milestone 04: mixed tax rates + zero-rated items.
+2. Continue async verify triage (`/tmp/task00-verify.log` still empty after PID 150858).
 
 ## Historical (prior work references)
 - Epic 03: branch `epic-03-production-stock`, tip `3f2370c38c0152153369507159e5ae26ca1fa048`.
