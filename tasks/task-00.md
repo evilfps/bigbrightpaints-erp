@@ -913,7 +913,7 @@ Scope:
 
 Milestones:
 
-Milestone 01 — Write the accounting “mental model” docs
+Milestone 01 — Write the accounting “mental model” docs **COMPLETED** — commit `e2be5a472e184fc04255164c30a3bfce0c37f586`
 - Implementation steps:
   - Document:
     - O2C: SalesOrder → PackagingSlip → Dispatch → InventoryMovement → COGS Journal → AR/Revenue/Tax Journal → Invoice → Dealer ledger.
