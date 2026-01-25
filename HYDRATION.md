@@ -4,7 +4,7 @@
 - Branch: `accounting-correctness-v1`
 - Current epic/milestone pointer: `Task 00 COMPLETE`
 - Last commit SHA: `a027d1fbd46e678467d3ca45bd2154cce02ac32e`
-- Next actions: monitor async verify, commit & push return lookup scoping fix.
+- Next actions: monitor async verify; record exit + update status.
 - Working tree status: pre-existing diffs present (unrelated); avoid touching unrelated files.
 
 ## Current State
@@ -15,7 +15,7 @@
 
 ## Async Verify
 - Command: `scripts/task00_async_verify.sh` (setsid background; writes exit code)
-- PID: `166051` (latest attempt)
+- PID: `202980` (latest attempt)
 - Log: `/tmp/task00-verify.log`
 - Exit: `/tmp/task00-verify.exit`
 - Status: RUNNING (started via `scripts/task00_async_verify.sh`).
@@ -202,6 +202,7 @@
 - 2026-01-25: `cd erp-domain && mvn -B -ntp -Dtest=IdempotencyConflictRegressionIT test` (PASS) — Tests run: 2, Failures: 0, Errors: 0, Skipped: 0. (EPIC E2)
 - 2026-01-25: `cd erp-domain && mvn -B -ntp -Dtest=SalesReturnServiceTest,SalesReturnCreditNoteE2EIT,ErpInvariantsSuiteIT,SettlementE2ETest test` (PASS) — Tests run: 26, Failures: 0, Errors: 0, Skipped: 0.
 - 2026-01-25: `cd erp-domain && mvn -B -ntp -Dtest=SalesReturnServiceTest test` (PASS) — Tests run: 4, Failures: 0, Errors: 0, Skipped: 0.
+- 2026-01-25: `scripts/task00_async_verify.sh` (RUNNING) — PID 202980; log `/tmp/task00-verify.log`.
 - 2026-01-25: `nohup bash -lc 'cd erp-domain && mvn -B -ntp verify' > /tmp/task00-verify.log 2>&1 & echo $! > /tmp/task00-verify.pid` (FINISHED early) — PID 124084; log empty; no BUILD SUCCESS/FAILURE.
 - 2026-01-25: `cd erp-domain && mvn -B -ntp -Dtest=BusinessLogicRegressionTest,IdempotencyConflictRegressionIT test` (PASS) — Tests run: 9, Failures: 0, Errors: 0, Skipped: 0.
 - 2026-01-25: `cd erp-domain && mvn -B -ntp -Dtest=PerformanceBudgetIT,PerformanceExplainIT test` (PASS) — Tests run: 3, Failures: 0, Errors: 0, Skipped: 0.
