@@ -702,7 +702,7 @@ Milestone 01 — Purchase tax allocation + exact balance (zero tolerance) **COMP
 - Rollback/recovery notes:
   - If legacy fixtures break, update fixtures to reflect corrected accounting and document the delta.
 
-Milestone 02 — Purchase returns + supplier settlements (idempotency + integrity)
+Milestone 02 — Purchase returns + supplier settlements (idempotency + integrity) **COMPLETED** — commit `f74478a9eec6ee1897a8d62a3ad211041e1f7f55`
 - Implementation steps:
   - Ensure purchase returns reverse inventory + input GST correctly and are idempotent (`recordPurchaseReturn(...)` checks existing movements).
   - Ensure supplier settlements:

@@ -2,15 +2,15 @@
 
 ## Overnight Runner State
 - Branch: `accounting-correctness-v1`
-- Current epic/milestone pointer: `tasks/task-00.md → EPIC 03 → Milestone 02` (purchase returns + supplier settlements idempotency)
+- Current epic/milestone pointer: `tasks/task-00.md → EPIC 04 → Milestone 01` (tenant boundary & authorization audit)
 - Last commit SHA: `f74478a9eec6ee1897a8d62a3ad211041e1f7f55`
-- Next actions: monitor async verify (PID 24102) while proceeding with next safe-work item.
+- Next actions: start EPIC 04 / Milestone 01.
 - Working tree status: pre-existing diffs present (unrelated); avoid touching unrelated files.
 
 ## Current State
 - Worktree: `/home/realnigga/Desktop/CLI_BACKEND_epic04`
 - Branch: `accounting-correctness-v1`
-- Current milestone pointer: `tasks/task-00.md → EPIC 03 → Milestone 02` (purchase returns + supplier settlements idempotency)
+- Current milestone pointer: `tasks/task-00.md → EPIC 04 → Milestone 01` (tenant boundary & authorization audit)
 - Working tree: pre-existing diffs present; proceeding without touching unrelated changes.
 
 ## Async Verify
@@ -18,7 +18,7 @@
 - PID: `24102` (latest attempt)
 - Log: `/tmp/task00-verify.log`
 - Exit: `/tmp/task00-verify.exit`
-- Status: RUNNING (log non-empty; exit pending).
+- Status: FINISHED (exit 0; BUILD SUCCESS).
 
 ## Triage Commands
 - First failing test in log: `grep -nE "FAILURE|ERROR|Failed" /tmp/task00-verify.log`
@@ -58,6 +58,7 @@
 - EPIC 02 / Milestone 04 — Mixed tax rates + zero-rated items (PASS): `52fd14ea969e15c25dd23df961d43fc433181ab6`.
 - EPIC 02 / Milestone 04 — Tests: `cd erp-domain && mvn -B -ntp -Dtest=OrderFulfillmentE2ETest,CriticalAccountingAxesIT test` (PASS).
 - EPIC 03 / Milestone 01 — Purchase tax allocation + exact balance (PASS): `8ec59e6963ae985433b4db915d796e5cd740ea94`.
+- EPIC 03 / Milestone 02 — Purchase returns + supplier settlements (PASS): `f74478a9eec6ee1897a8d62a3ad211041e1f7f55`.
 
 ## Evidence Pack
 - EPIC A / Milestone A1 trace map: `docs/cross-module-trace-map.md`
@@ -199,10 +200,10 @@
 - 2026-01-25: `cd erp-domain && mvn -B -ntp -Dtest=ProcureToPayE2ETest,CriticalAccountingAxesIT test` (PASS) — Tests run: 25, Failures: 0, Errors: 0, Skipped: 0.
 - 2026-01-25: `scripts/task00_async_verify.sh` (PASS) — PID 19849; exit 0; BUILD SUCCESS; Tests run: 415, Failures: 0, Errors: 0, Skipped: 4.
 - 2026-01-25: `cd erp-domain && mvn -B -ntp -Dtest=SettlementE2ETest,PurchaseReturnIdempotencyRegressionIT,ProcureToPayE2ETest test` (PASS) — Tests run: 25, Failures: 0, Errors: 0, Skipped: 0.
+- 2026-01-25: `scripts/task00_async_verify.sh` (PASS) — PID 24102; exit 0; BUILD SUCCESS; Tests run: 415, Failures: 0, Errors: 0, Skipped: 4.
 
 ## Next Actions (explicit)
-1. Monitor async verify (PID 24102).
-2. Continue EPIC 03 / Milestone 02: purchase returns + supplier settlements idempotency.
+1. Continue EPIC 04 / Milestone 01: tenant boundary & authorization audit.
 
 ## Historical (prior work references)
 - Epic 03: branch `epic-03-production-stock`, tip `3f2370c38c0152153369507159e5ae26ca1fa048`.
