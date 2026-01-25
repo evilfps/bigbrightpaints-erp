@@ -3,8 +3,8 @@
 ## Overnight Runner State
 - Branch: `accounting-correctness-v1`
 - Current epic/milestone pointer: `tasks/task-00.md → EPIC 03 → Milestone 02` (purchase returns + supplier settlements idempotency)
-- Last commit SHA: `8ec59e6963ae985433b4db915d796e5cd740ea94`
-- Next actions: start EPIC 03 / Milestone 02.
+- Last commit SHA: `f74478a9eec6ee1897a8d62a3ad211041e1f7f55`
+- Next actions: monitor async verify (PID 24102) while proceeding with next safe-work item.
 - Working tree status: pre-existing diffs present (unrelated); avoid touching unrelated files.
 
 ## Current State
@@ -15,10 +15,10 @@
 
 ## Async Verify
 - Command: `scripts/task00_async_verify.sh` (setsid background; writes exit code)
-- PID: `19849` (latest attempt)
+- PID: `24102` (latest attempt)
 - Log: `/tmp/task00-verify.log`
 - Exit: `/tmp/task00-verify.exit`
-- Status: FINISHED (exit 0; BUILD SUCCESS).
+- Status: RUNNING (log non-empty; exit pending).
 
 ## Triage Commands
 - First failing test in log: `grep -nE "FAILURE|ERROR|Failed" /tmp/task00-verify.log`
@@ -198,9 +198,11 @@
 - 2026-01-25: `scripts/task00_async_verify.sh` (PASS) — PID 15219; exit 0; BUILD SUCCESS; Tests run: 413, Failures: 0, Errors: 0, Skipped: 4.
 - 2026-01-25: `cd erp-domain && mvn -B -ntp -Dtest=ProcureToPayE2ETest,CriticalAccountingAxesIT test` (PASS) — Tests run: 25, Failures: 0, Errors: 0, Skipped: 0.
 - 2026-01-25: `scripts/task00_async_verify.sh` (PASS) — PID 19849; exit 0; BUILD SUCCESS; Tests run: 415, Failures: 0, Errors: 0, Skipped: 4.
+- 2026-01-25: `cd erp-domain && mvn -B -ntp -Dtest=SettlementE2ETest,PurchaseReturnIdempotencyRegressionIT,ProcureToPayE2ETest test` (PASS) — Tests run: 25, Failures: 0, Errors: 0, Skipped: 0.
 
 ## Next Actions (explicit)
-1. Continue EPIC 03 / Milestone 02: purchase returns + supplier settlements idempotency.
+1. Monitor async verify (PID 24102).
+2. Continue EPIC 03 / Milestone 02: purchase returns + supplier settlements idempotency.
 
 ## Historical (prior work references)
 - Epic 03: branch `epic-03-production-stock`, tip `3f2370c38c0152153369507159e5ae26ca1fa048`.
