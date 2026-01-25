@@ -854,7 +854,7 @@ Scope:
 
 Milestones:
 
-Milestone 01 — Endpoint inventory + duplication map
+Milestone 01 — Endpoint inventory + duplication map **COMPLETED** — commit `02973ee7ba26ef6ccbc1c560d75b495b6e1f1746`
 - Implementation steps:
   - Generate and commit an endpoint inventory table (in docs, not code) grouping paths by module and marking duplicates/aliases.
   - Identify high-risk duplicates (two endpoints performing same mutation, e.g., dispatch confirm).
