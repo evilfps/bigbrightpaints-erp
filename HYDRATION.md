@@ -15,7 +15,7 @@
 
 ## Async Verify
 - Command: `scripts/task00_async_verify.sh` (setsid background; writes exit code)
-- PID: `15219` (latest attempt)
+- PID: `19849` (latest attempt)
 - Log: `/tmp/task00-verify.log`
 - Exit: `/tmp/task00-verify.exit`
 - Status: RUNNING (log non-empty; BUILD SUCCESS pending).
@@ -194,11 +194,13 @@
 - 2026-01-25: `nohup bash -lc 'cd erp-domain && mvn -B -ntp verify' > /tmp/task00-verify.log 2>&1 & echo $! > /tmp/task00-verify.pid` (FINISHED early) — PID 150858; log empty; no BUILD SUCCESS/FAILURE.
 - 2026-01-25: `scripts/task00_async_verify.sh` (PASS) — PID 10955; exit 0; BUILD SUCCESS; Tests run: 412, Failures: 0, Errors: 0, Skipped: 4.
 - 2026-01-25: `cd erp-domain && mvn -B -ntp -Dtest=OrderFulfillmentE2ETest,CriticalAccountingAxesIT test` (PASS) — Tests run: 23, Failures: 0, Errors: 0, Skipped: 0.
-- 2026-01-25: `scripts/task00_async_verify.sh` (RUNNING) — PID 15219; log non-empty; exit pending.
+- 2026-01-25: `scripts/task00_async_verify.sh` (PASS) — PID 15219; exit 0; BUILD SUCCESS; Tests run: 413, Failures: 0, Errors: 0, Skipped: 4.
+- 2026-01-25: `cd erp-domain && mvn -B -ntp -Dtest=ProcureToPayE2ETest,CriticalAccountingAxesIT test` (PASS) — Tests run: 25, Failures: 0, Errors: 0, Skipped: 0.
+- 2026-01-25: `scripts/task00_async_verify.sh` (RUNNING) — PID 19849; log non-empty; exit pending.
 
 ## Next Actions (explicit)
-1. Monitor async verify (PID 15219).
-2. Begin EPIC 03 / Milestone 01: purchase tax allocation + exact balance.
+1. Monitor async verify (PID 19849).
+2. Continue EPIC 03 / Milestone 01: purchase tax allocation + exact balance.
 
 ## Historical (prior work references)
 - Epic 03: branch `epic-03-production-stock`, tip `3f2370c38c0152153369507159e5ae26ca1fa048`.

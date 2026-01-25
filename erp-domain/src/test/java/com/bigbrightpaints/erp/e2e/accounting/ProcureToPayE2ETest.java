@@ -32,6 +32,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.HashMap;
@@ -150,6 +151,97 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
         RawMaterialPurchase purchase = purchaseRepository.findById(purchaseId).orElseThrow();
         assertThat(purchase.getOutstandingAmount()).isEqualByComparingTo(BigDecimal.ZERO);
         assertThat(purchase.getStatus()).isEqualTo("PAID");
+    }
+
+    @Test
+    @DisplayName("Purchase tax computed balances inventory + tax to payable")
+    void purchaseComputedTax_BalancesJournalTotals() {
+        LocalDate entryDate = TestDateUtils.safeDate(company);
+        Long supplierId = createSupplier("P2P Tax Computed Supplier", "P2P-TAX-C-" + shortSuffix());
+        Long rawMaterialId = createRawMaterial("P2P Tax Material", "RM-TAX-C-" + shortSuffix(), inventory.getId());
+
+        BigDecimal quantity = new BigDecimal("5");
+        BigDecimal costPerUnit = new BigDecimal("100.00");
+        BigDecimal taxRate = new BigDecimal("18.00");
+        BigDecimal expectedInventory = costPerUnit.multiply(quantity);
+        BigDecimal expectedTax = expectedInventory.multiply(taxRate)
+                .divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP);
+        BigDecimal expectedTotal = expectedInventory.add(expectedTax);
+
+        PurchaseWorkflowIds workflow = createPurchaseOrderAndReceipt(supplierId, rawMaterialId, quantity, costPerUnit, entryDate);
+
+        Map<String, Object> line = new HashMap<>();
+        line.put("rawMaterialId", rawMaterialId);
+        line.put("quantity", quantity);
+        line.put("costPerUnit", costPerUnit);
+        line.put("taxRate", taxRate);
+        line.put("taxInclusive", false);
+
+        Map<String, Object> purchaseReq = new HashMap<>();
+        purchaseReq.put("supplierId", supplierId);
+        purchaseReq.put("invoiceNumber", "INV-TAX-C-" + shortSuffix());
+        purchaseReq.put("invoiceDate", entryDate);
+        purchaseReq.put("purchaseOrderId", workflow.purchaseOrderId());
+        purchaseReq.put("goodsReceiptId", workflow.goodsReceiptId());
+        purchaseReq.put("lines", List.of(line));
+
+        ResponseEntity<Map> purchaseResp = rest.exchange(
+                "/api/v1/purchasing/raw-material-purchases",
+                HttpMethod.POST,
+                new HttpEntity<>(purchaseReq, headers),
+                Map.class);
+        assertThat(purchaseResp.getStatusCode()).isEqualTo(HttpStatus.OK);
+        Map<String, Object> purchaseData = (Map<String, Object>) purchaseResp.getBody().get("data");
+        Long purchaseId = ((Number) purchaseData.get("id")).longValue();
+
+        RawMaterialPurchase purchase = purchaseRepository.findById(purchaseId).orElseThrow();
+        assertThat(purchase.getTaxAmount()).isEqualByComparingTo(expectedTax);
+        assertThat(purchase.getTotalAmount()).isEqualByComparingTo(expectedTotal);
+        assertPurchaseJournalTotals(purchase.getJournalEntry().getId(), expectedInventory, expectedTax, expectedTotal);
+    }
+
+    @Test
+    @DisplayName("Purchase tax provided balances inventory + tax to payable")
+    void purchaseProvidedTax_BalancesJournalTotals() {
+        LocalDate entryDate = TestDateUtils.safeDate(company);
+        Long supplierId = createSupplier("P2P Tax Provided Supplier", "P2P-TAX-P-" + shortSuffix());
+        Long rawMaterialId = createRawMaterial("P2P Tax Provided Material", "RM-TAX-P-" + shortSuffix(), inventory.getId());
+
+        BigDecimal quantity = new BigDecimal("4");
+        BigDecimal costPerUnit = new BigDecimal("125.00");
+        BigDecimal expectedInventory = costPerUnit.multiply(quantity);
+        BigDecimal providedTax = new BigDecimal("91.11");
+        BigDecimal expectedTotal = expectedInventory.add(providedTax);
+
+        PurchaseWorkflowIds workflow = createPurchaseOrderAndReceipt(supplierId, rawMaterialId, quantity, costPerUnit, entryDate);
+
+        Map<String, Object> line = new HashMap<>();
+        line.put("rawMaterialId", rawMaterialId);
+        line.put("quantity", quantity);
+        line.put("costPerUnit", costPerUnit);
+
+        Map<String, Object> purchaseReq = new HashMap<>();
+        purchaseReq.put("supplierId", supplierId);
+        purchaseReq.put("invoiceNumber", "INV-TAX-P-" + shortSuffix());
+        purchaseReq.put("invoiceDate", entryDate);
+        purchaseReq.put("purchaseOrderId", workflow.purchaseOrderId());
+        purchaseReq.put("goodsReceiptId", workflow.goodsReceiptId());
+        purchaseReq.put("taxAmount", providedTax);
+        purchaseReq.put("lines", List.of(line));
+
+        ResponseEntity<Map> purchaseResp = rest.exchange(
+                "/api/v1/purchasing/raw-material-purchases",
+                HttpMethod.POST,
+                new HttpEntity<>(purchaseReq, headers),
+                Map.class);
+        assertThat(purchaseResp.getStatusCode()).isEqualTo(HttpStatus.OK);
+        Map<String, Object> purchaseData = (Map<String, Object>) purchaseResp.getBody().get("data");
+        Long purchaseId = ((Number) purchaseData.get("id")).longValue();
+
+        RawMaterialPurchase purchase = purchaseRepository.findById(purchaseId).orElseThrow();
+        assertThat(purchase.getTaxAmount()).isEqualByComparingTo(providedTax);
+        assertThat(purchase.getTotalAmount()).isEqualByComparingTo(expectedTotal);
+        assertPurchaseJournalTotals(purchase.getJournalEntry().getId(), expectedInventory, providedTax, expectedTotal);
     }
 
     @Test
@@ -897,6 +989,46 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
                     account.setType(type);
                     return accountRepository.save(account);
                 });
+    }
+
+    private void assertPurchaseJournalTotals(Long journalEntryId,
+                                             BigDecimal expectedInventory,
+                                             BigDecimal expectedTax,
+                                             BigDecimal expectedTotal) {
+        JournalEntry entry = journalEntryRepository.findById(journalEntryId).orElseThrow();
+        Long gstInputId = company.getGstInputTaxAccountId();
+
+        BigDecimal inventoryDebit = sumDebits(entry, inventory.getId());
+        BigDecimal taxDebit = sumDebits(entry, gstInputId);
+        BigDecimal creditTotal = sumCredits(entry);
+
+        assertThat(inventoryDebit).isEqualByComparingTo(expectedInventory);
+        assertThat(taxDebit).isEqualByComparingTo(expectedTax);
+        assertThat(creditTotal).isEqualByComparingTo(expectedTotal);
+        assertThat(inventoryDebit.add(taxDebit)).isEqualByComparingTo(expectedTotal);
+    }
+
+    private BigDecimal sumDebits(JournalEntry entry, Long accountId) {
+        if (entry == null || entry.getLines() == null || accountId == null) {
+            return BigDecimal.ZERO;
+        }
+        return entry.getLines().stream()
+                .filter(line -> line.getAccount() != null && accountId.equals(line.getAccount().getId()))
+                .map(line -> safeAmount(line.getDebit()))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    private BigDecimal sumCredits(JournalEntry entry) {
+        if (entry == null || entry.getLines() == null) {
+            return BigDecimal.ZERO;
+        }
+        return entry.getLines().stream()
+                .map(line -> safeAmount(line.getCredit()))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    private BigDecimal safeAmount(BigDecimal value) {
+        return value != null ? value : BigDecimal.ZERO;
     }
 
     private BigDecimal amount(Map<String, Object> data, String field) {
