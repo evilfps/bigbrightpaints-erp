@@ -410,6 +410,56 @@ public class SettlementE2ETest extends AbstractIntegrationTest {
     }
 
     @Test
+    @DisplayName("Dealer settlement idempotency rejects conflicting payload")
+    void dealerSettlement_IdempotencyKeyConflictRejected() {
+        String idemKey = "SETTLE-CONFLICT-" + UUID.randomUUID();
+        Map<String, Object> allocation = Map.of(
+                "invoiceId", invoice.getId(),
+                "appliedAmount", new BigDecimal("200.00")
+        );
+        Map<String, Object> payload = Map.of(
+                "dealerId", dealer.getId(),
+                "cashAccountId", cash.getId(),
+                "allocations", List.of(allocation),
+                "idempotencyKey", idemKey
+        );
+
+        ResponseEntity<Map> first = rest.exchange(
+                "/api/v1/accounting/settlements/dealers",
+                HttpMethod.POST,
+                new HttpEntity<>(payload, headers),
+                Map.class);
+        assertThat(first.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+        Invoice second = ensureInvoice();
+        seedInvoicePosting(second);
+
+        Map<String, Object> conflictAllocation = Map.of(
+                "invoiceId", second.getId(),
+                "appliedAmount", new BigDecimal("200.00")
+        );
+        Map<String, Object> conflictPayload = Map.of(
+                "dealerId", dealer.getId(),
+                "cashAccountId", cash.getId(),
+                "allocations", List.of(conflictAllocation),
+                "idempotencyKey", idemKey
+        );
+
+        ResponseEntity<Map> conflict = rest.exchange(
+                "/api/v1/accounting/settlements/dealers",
+                HttpMethod.POST,
+                new HttpEntity<>(conflictPayload, headers),
+                Map.class);
+        assertThat(conflict.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+
+        List<PartnerSettlementAllocation> rows = allocationRepository.findByCompanyAndIdempotencyKey(company, idemKey);
+        assertThat(rows).hasSize(1);
+
+        Invoice secondAfter = invoiceRepository.findById(second.getId()).orElseThrow();
+        assertThat(secondAfter.getOutstandingAmount()).isEqualByComparingTo(new BigDecimal("800.00"));
+    }
+
+    @Test
     @DisplayName("Dealer settlement rejects over-application")
     void dealerSettlement_OverApplicationRejected() {
         String idemKey = "SETTLE-OVER-" + UUID.randomUUID();

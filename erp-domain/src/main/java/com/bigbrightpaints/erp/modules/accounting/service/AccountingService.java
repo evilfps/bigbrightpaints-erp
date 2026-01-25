@@ -1259,6 +1259,7 @@ public class AccountingService {
         if (StringUtils.hasText(trimmedIdempotencyKey)) {
             List<PartnerSettlementAllocation> existing = settlementAllocationRepository.findByCompanyAndIdempotencyKey(company, trimmedIdempotencyKey);
             if (!existing.isEmpty()) {
+                validateSettlementIdempotencyKey(trimmedIdempotencyKey, PartnerType.DEALER, dealer.getId(), existing, allocations);
                 JournalEntry entry = existing.get(0).getJournalEntry();
                 BigDecimal applied = existing.stream().map(PartnerSettlementAllocation::getAllocationAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
                 BigDecimal discountSum = existing.stream().map(PartnerSettlementAllocation::getDiscountAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
@@ -1557,6 +1558,7 @@ public class AccountingService {
         if (StringUtils.hasText(trimmedIdempotencyKey)) {
             List<PartnerSettlementAllocation> existing = settlementAllocationRepository.findByCompanyAndIdempotencyKey(company, trimmedIdempotencyKey);
             if (!existing.isEmpty()) {
+                validateSettlementIdempotencyKey(trimmedIdempotencyKey, PartnerType.SUPPLIER, supplier.getId(), existing, allocations);
                 JournalEntry entry = existing.get(0).getJournalEntry();
                 BigDecimal applied = existing.stream().map(PartnerSettlementAllocation::getAllocationAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
                 BigDecimal discountSum = existing.stream().map(PartnerSettlementAllocation::getDiscountAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
@@ -2857,6 +2859,91 @@ public class AccountingService {
                     .append("; ");
         }
         return sb.toString().trim();
+    }
+
+    private void validateSettlementIdempotencyKey(String idempotencyKey,
+                                                  PartnerType partnerType,
+                                                  Long partnerId,
+                                                  List<PartnerSettlementAllocation> existing,
+                                                  List<SettlementAllocationRequest> allocations) {
+        boolean partnerMismatch = existing.stream().anyMatch(row -> {
+            if (partnerType == PartnerType.DEALER) {
+                return row.getDealer() == null || !Objects.equals(row.getDealer().getId(), partnerId);
+            }
+            if (partnerType == PartnerType.SUPPLIER) {
+                return row.getSupplier() == null || !Objects.equals(row.getSupplier().getId(), partnerId);
+            }
+            return true;
+        });
+        if (partnerMismatch) {
+            throw new ApplicationException(ErrorCode.CONCURRENCY_CONFLICT, "Idempotency key already used for another partner")
+                    .withDetail("idempotencyKey", idempotencyKey);
+        }
+
+        Map<String, Integer> existingSignatures = allocationSignatureCountsFromRows(existing);
+        Map<String, Integer> requestSignatures = allocationSignatureCountsFromRequests(allocations);
+        if (!existingSignatures.equals(requestSignatures)) {
+            throw new ApplicationException(ErrorCode.CONCURRENCY_CONFLICT, "Idempotency key already used for a different settlement payload")
+                    .withDetail("idempotencyKey", idempotencyKey);
+        }
+    }
+
+    private Map<String, Integer> allocationSignatureCountsFromRows(List<PartnerSettlementAllocation> allocations) {
+        Map<String, Integer> counts = new HashMap<>();
+        for (PartnerSettlementAllocation allocation : allocations) {
+            String signature = allocationSignature(
+                    allocation.getInvoice() != null ? allocation.getInvoice().getId() : null,
+                    allocation.getPurchase() != null ? allocation.getPurchase().getId() : null,
+                    allocation.getAllocationAmount(),
+                    allocation.getDiscountAmount(),
+                    allocation.getWriteOffAmount(),
+                    allocation.getFxDifferenceAmount(),
+                    allocation.getMemo()
+            );
+            counts.merge(signature, 1, Integer::sum);
+        }
+        return counts;
+    }
+
+    private Map<String, Integer> allocationSignatureCountsFromRequests(List<SettlementAllocationRequest> allocations) {
+        Map<String, Integer> counts = new HashMap<>();
+        for (SettlementAllocationRequest allocation : allocations) {
+            String signature = allocationSignature(
+                    allocation.invoiceId(),
+                    allocation.purchaseId(),
+                    allocation.appliedAmount(),
+                    allocation.discountAmount(),
+                    allocation.writeOffAmount(),
+                    allocation.fxAdjustment(),
+                    allocation.memo()
+            );
+            counts.merge(signature, 1, Integer::sum);
+        }
+        return counts;
+    }
+
+    private String allocationSignature(Long invoiceId,
+                                       Long purchaseId,
+                                       BigDecimal appliedAmount,
+                                       BigDecimal discountAmount,
+                                       BigDecimal writeOffAmount,
+                                       BigDecimal fxAdjustment,
+                                       String memo) {
+        return "inv=" + (invoiceId != null ? invoiceId : "null")
+                + "|pur=" + (purchaseId != null ? purchaseId : "null")
+                + "|applied=" + normalizeSignatureAmount(appliedAmount)
+                + "|discount=" + normalizeSignatureAmount(discountAmount)
+                + "|writeOff=" + normalizeSignatureAmount(writeOffAmount)
+                + "|fx=" + normalizeSignatureAmount(fxAdjustment)
+                + "|memo=" + normalizeMemo(memo);
+    }
+
+    private String normalizeSignatureAmount(BigDecimal value) {
+        return MoneyUtils.zeroIfNull(value).stripTrailingZeros().toPlainString();
+    }
+
+    private String normalizeMemo(String memo) {
+        return StringUtils.hasText(memo) ? memo.trim() : "";
     }
 
     private void adjustLandedCostValuation(RawMaterialPurchase purchase, BigDecimal landedAmount) {
