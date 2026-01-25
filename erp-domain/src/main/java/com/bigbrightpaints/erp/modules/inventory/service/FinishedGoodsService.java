@@ -248,7 +248,7 @@ public class FinishedGoodsService {
 
         if (!slip.getLines().isEmpty()) {
             if ("BACKORDER".equalsIgnoreCase(slip.getStatus())) {
-                return new InventoryReservationResult(toSlipDto(slip), List.of());
+                return reserveForBackorder(managedOrder, slip);
             }
             if (slipLinesMatchOrder(slip, managedOrder)) {
                 updateSlipStatusBasedOnAvailability(slip, List.of());
@@ -276,6 +276,56 @@ public class FinishedGoodsService {
         packagingSlipRepository.save(slip);
         // Soft reservation only: do not throw on shortages; caller can choose to dispatch partial/backorder
         updateSlipStatusBasedOnAvailability(slip, shortages);
+        return new InventoryReservationResult(toSlipDto(slip), List.copyOf(shortages));
+    }
+
+    private InventoryReservationResult reserveForBackorder(SalesOrder order, PackagingSlip slip) {
+        Company company = companyContextService.requireCurrentCompany();
+        List<InventoryReservation> reservations = inventoryReservationRepository
+                .findByFinishedGoodCompanyAndReferenceTypeAndReferenceId(
+                        company,
+                        InventoryReference.SALES_ORDER,
+                        order.getId().toString());
+        if (reservations.isEmpty() && slip.getLines() != null && !slip.getLines().isEmpty()) {
+            reservations = rebuildReservationsFromSlip(slip, order.getId());
+        }
+
+        Map<String, BigDecimal> coveredByProduct = new HashMap<>();
+        for (InventoryReservation reservation : reservations) {
+            if ("CANCELLED".equalsIgnoreCase(reservation.getStatus())) {
+                continue;
+            }
+            FinishedGood fg = reservation.getFinishedGood();
+            if (fg == null || fg.getProductCode() == null) {
+                continue;
+            }
+            BigDecimal covered = safeQuantity(reservation.getReservedQuantity())
+                    .add(safeQuantity(reservation.getFulfilledQuantity()));
+            if (covered.compareTo(BigDecimal.ZERO) <= 0) {
+                continue;
+            }
+            coveredByProduct.merge(fg.getProductCode(), covered, BigDecimal::add);
+        }
+
+        List<InventoryShortage> shortages = new ArrayList<>();
+        for (SalesOrderItem item : order.getItems()) {
+            BigDecimal orderedQty = safeQuantity(item.getQuantity());
+            BigDecimal coveredQty = coveredByProduct.getOrDefault(item.getProductCode(), BigDecimal.ZERO);
+            BigDecimal missingQty = orderedQty.subtract(coveredQty).max(BigDecimal.ZERO);
+            if (missingQty.compareTo(BigDecimal.ZERO) <= 0) {
+                continue;
+            }
+            FinishedGood finishedGood = lockFinishedGood(order.getCompany(), item.getProductCode());
+            SalesOrderItem synthetic = new SalesOrderItem();
+            synthetic.setProductCode(item.getProductCode());
+            synthetic.setQuantity(missingQty);
+            allocateItem(order, slip, finishedGood, synthetic, shortages);
+        }
+
+        if (!shortages.isEmpty()) {
+            slip.setStatus("BACKORDER");
+        }
+        packagingSlipRepository.save(slip);
         return new InventoryReservationResult(toSlipDto(slip), List.copyOf(shortages));
     }
 

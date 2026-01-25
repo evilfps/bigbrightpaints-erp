@@ -150,6 +150,35 @@ class FinishedGoodsServiceTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void reserveForOrderAllocatesShortagesWhenBackorderSlipExists() {
+        Company company = seedCompany("BACKORDER-ALLOC");
+        FinishedGood fg = createFinishedGood(company, "FG-ALLOC", new BigDecimal("10"), new BigDecimal("5"), "FIFO");
+        FinishedGoodBatch reservedBatch = createBatch(fg, "BATCH-ALLOC-RES", new BigDecimal("5"), BigDecimal.ZERO, new BigDecimal("8"));
+        FinishedGoodBatch availableBatch = createBatch(fg, "BATCH-ALLOC-AVAIL", new BigDecimal("5"), new BigDecimal("5"), new BigDecimal("9"));
+        SalesOrder order = createOrder(company, "SO-ALLOC-" + UUID.randomUUID(), fg.getProductCode(), new BigDecimal("10"));
+        PackagingSlip slip = createSlip(company, order, "BACKORDER", reservedBatch, new BigDecimal("5"));
+        createReservation(order, fg, reservedBatch, new BigDecimal("5"));
+
+        FinishedGoodsService.InventoryReservationResult result = finishedGoodsService.reserveForOrder(order);
+
+        assertThat(result.shortages()).isEmpty();
+        PackagingSlip refreshed = packagingSlipRepository.findByIdAndCompany(slip.getId(), company).orElseThrow();
+        assertThat(refreshed.getStatus()).isEqualTo("BACKORDER");
+        assertThat(refreshed.getLines()).hasSize(2);
+        List<InventoryReservation> reservations = inventoryReservationRepository
+                .findByFinishedGoodCompanyAndReferenceTypeAndReferenceId(
+                        company, InventoryReference.SALES_ORDER, order.getId().toString());
+        BigDecimal totalReserved = reservations.stream()
+                .filter(r -> !"CANCELLED".equalsIgnoreCase(r.getStatus()))
+                .map(r -> r.getReservedQuantity() != null ? r.getReservedQuantity() : BigDecimal.ZERO)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        assertThat(totalReserved).isEqualByComparingTo(new BigDecimal("10"));
+        assertThat(reservations)
+                .anyMatch(r -> r.getFinishedGoodBatch() != null &&
+                        r.getFinishedGoodBatch().getId().equals(availableBatch.getId()));
+    }
+
+    @Test
     void previewUsesReservedForOrder() {
         Company company = seedCompany("PREVIEW-RES");
         FinishedGood fg = createFinishedGood(company, "FG-PREV", new BigDecimal("5"), new BigDecimal("5"), "FIFO");
