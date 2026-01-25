@@ -2,20 +2,20 @@
 
 ## Overnight Runner State
 - Branch: `accounting-correctness-v1`
-- Current epic/milestone pointer: `tasks/task-00.md → EPIC D → Milestone 03` (dispatch confirm tampering)
-- Last commit SHA: `e97d187871069993813912d0bdd2967c04746e9a`
-- Next actions: start EPIC D / Milestone 03 (dispatch confirm tampering), continue async verify triage (log empty).
+- Current epic/milestone pointer: `tasks/task-00.md → EPIC D → Milestone D4` (settlement duplication + over-application guard)
+- Last commit SHA: `cfc824c489f04805398022dccf063c43eaea4741`
+- Next actions: start EPIC D / Milestone D4 (settlement duplication + over-application guard), continue async verify triage (log empty; PID 112925).
 - Working tree status: pre-existing diffs present (unrelated); avoid touching unrelated files.
 
 ## Current State
 - Worktree: `/home/realnigga/Desktop/CLI_BACKEND_epic04`
 - Branch: `accounting-correctness-v1`
-- Current milestone pointer: `tasks/task-00.md → EPIC D → Milestone 03` (dispatch confirm tampering)
+- Current milestone pointer: `tasks/task-00.md → EPIC D → Milestone D4` (settlement duplication + over-application guard)
 - Working tree: pre-existing diffs present; proceeding without touching unrelated changes.
 
 ## Async Verify
 - Command: `nohup bash -lc 'cd erp-domain && mvn -B -ntp verify' > /tmp/task00-verify.log 2>&1 & echo $! > /tmp/task00-verify.pid`
-- PID: `111218` (latest attempt)
+- PID: `112925` (latest attempt)
 - Log: `/tmp/task00-verify.log`
 - Status: FINISHED early (log empty; no BUILD SUCCESS/FAILURE)
 - Last observed: `/tmp/task00-verify.log` has 0 lines; background PID exits immediately.
@@ -43,6 +43,7 @@
 - EPIC C / Milestone C3 — Standardize tax computation usage (PASS): `83104237f5c2c7a8bcb551a9534d3024d8861e9c`.
 - EPIC D / Milestone D1 — Cross-company tampering tests (PASS): `e31d90fdbc1b1f5b13a007baf539c116bc2ff5da`.
 - EPIC D / Milestone D2 — Period lock + reopen idempotency (PASS): `e97d187871069993813912d0bdd2967c04746e9a`.
+- EPIC D / Milestone D3 — Dispatch confirm tampering + duplicate prevention (PASS): `cfc824c489f04805398022dccf063c43eaea4741`.
 
 ## Evidence Pack
 - EPIC A / Milestone A1 trace map: `docs/cross-module-trace-map.md`
@@ -56,6 +57,7 @@
 - EPIC C / Milestone C3 rounding source-of-truth: `erp-domain/src/main/java/com/bigbrightpaints/erp/core/util/MoneyUtils.java`
 - EPIC D / Milestone D1 cross-company tampering tests: `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/admin/AdminUserSecurityIT.java`
 - EPIC D / Milestone D2 period lock + reopen idempotency: `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingPeriodService.java`, `erp-domain/src/test/java/com/bigbrightpaints/erp/e2e/accounting/PeriodCloseLockIT.java`
+- EPIC D / Milestone D3 dispatch confirm evidence: `docs/cross-module-trace-map.md`
 
 ## Open Findings (bugs / security issues / logic flaws)
 - HIGH — Inventory accounting domain events appear unused (risk: future double-posting if wired later): `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/event/InventoryAccountingEventListener.java`, `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/event/InventoryMovementEvent.java`, `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/event/InventoryValuationChangedEvent.java`.
@@ -80,6 +82,7 @@
 - EPIC C / Milestone 03 centralizes currency rounding via `MoneyUtils.roundCurrency` in Sales/Invoice journals.
 - EPIC D / Milestone 01 adds cross-company header tampering tests (admin endpoints) to fail closed.
 - EPIC D / Milestone 02 makes period reopen reversal idempotent to avoid duplicate reference failures.
+- EPIC D / Milestone D3 recorded dispatch confirm idempotency + endpoint-equivalence evidence in trace map.
 - Task 00 plan expanded to cross-module audit EPICs A–F (docs-only change).
 - Dispatch confirm now rehydrates missing slip/order journal + invoice links when artifacts already exist (no inventory mutation).
 - Added endpoint-equivalence E2E coverage for `/sales/dispatch/confirm` and `/dispatch/confirm`.
@@ -127,10 +130,12 @@
 - 2026-01-25: `cd erp-domain && mvn -B -ntp -Dtest=PeriodCloseLockIT#reversalBlockedWhenPeriodClosed test` (PASS) — Tests run: 1, Failures: 0, Errors: 0, Skipped: 0. (rerun 2)
 - 2026-01-25: `cd erp-domain && mvn -B -ntp -Dtest=PeriodCloseLockIT test` (PASS) — Tests run: 4, Failures: 0, Errors: 0, Skipped: 0.
 - 2026-01-25: `nohup bash -lc 'cd erp-domain && mvn -B -ntp verify' > /tmp/task00-verify.log 2>&1 & echo $! > /tmp/task00-verify.pid` (FINISHED early) — PID 111218; log empty; no BUILD SUCCESS/FAILURE.
+- 2026-01-25: `cd erp-domain && mvn -B -ntp -Dtest=OrderFulfillmentE2ETest,DispatchConfirmationIT test` (PASS) — Tests run: 14, Failures: 0, Errors: 0, Skipped: 0. (EPIC D3)
+- 2026-01-25: `nohup bash -lc 'cd erp-domain && mvn -B -ntp verify' > /tmp/task00-verify.log 2>&1 & echo $! > /tmp/task00-verify.pid` (FINISHED early) — PID 112925; log empty; no BUILD SUCCESS/FAILURE.
 
 ## Next Actions (explicit)
-1. Begin EPIC D / Milestone 03: dispatch confirm tampering + duplicate prevention.
-2. Continue async verify triage (`/tmp/task00-verify.log` still empty after PID 111218).
+1. Begin EPIC D / Milestone D4: settlement duplication + over-application guard.
+2. Continue async verify triage (`/tmp/task00-verify.log` still empty after PID 112925).
 
 ## Historical (prior work references)
 - Epic 03: branch `epic-03-production-stock`, tip `3f2370c38c0152153369507159e5ae26ca1fa048`.
