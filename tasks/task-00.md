@@ -627,7 +627,7 @@ Milestone 01 — GST treatments: `NONE` / `PER_ITEM` / `ORDER_TOTAL`
 - Rollback/recovery notes:
   - If totals change in fixtures, update fixtures only when the new behavior is demonstrably more correct.
 
-Milestone 02 — Inclusive vs exclusive + rounding edge cases (no phantom discounts)
+Milestone 02 — Inclusive vs exclusive + rounding edge cases (no phantom discounts) **COMPLETED** — commit `20f4af1292ff743783b1257b3017b44b81bec1d2`
 - Implementation steps:
   - Ensure GST-inclusive math does not create “discount” from rounding deltas in `InvoiceService` / `SalesJournalService`.
   - Align discount/tax extraction rules used across invoice/journal paths.
@@ -640,7 +640,7 @@ Milestone 02 — Inclusive vs exclusive + rounding edge cases (no phantom discou
 - Rollback/recovery notes:
   - If edge cases remain, document them in `HYDRATION.md` with concrete numbers and add regression tests.
 
-Milestone 03 — Returns/credit notes correctness (GST + discount + COGS reversal)
+Milestone 03 — Returns/credit notes correctness (GST + discount + COGS reversal) **COMPLETED** — commit `8bc3edc3edcd8abf703b24c5d1f20be2c7caf1f4`
 - Implementation steps:
   - Ensure sales returns:
     - reverse revenue + output GST using invoice line fields,
