@@ -3,7 +3,7 @@
 ## Overnight Runner State
 - Branch: `predeploy-blockers-v1`
 - Current epic/milestone pointer: `Task 01 / EPIC 00 / Milestone 01 (regression tests: settlements/returns; remaining: FinishedGoodsService + IntegrationCoordinator)`
-- Last commit SHA: `e5948aa09d9dbf8b17c762fc44394e8e0ab0652f`
+- Last commit SHA: `bd48320d64fd83a6bfda7b82e01ffa764fb40e5a`
 - Next actions: monitor async verify PID 239563; finish EPIC 00 / Milestone 01 tests for FinishedGoodsService + IntegrationCoordinator; proceed to EPIC 01.
 - Working tree status: pre-existing diffs present (unrelated); avoid touching unrelated files.
 
