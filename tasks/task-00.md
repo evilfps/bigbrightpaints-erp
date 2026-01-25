@@ -778,7 +778,7 @@ Scope:
 
 Milestones:
 
-Milestone 01 — Inventory all posting paths + divergences
+Milestone 01 — Inventory all posting paths + divergences **COMPLETED** — commit `cc6c9b982e778ef32efd8826e7e7578abc6095fd`
 - Implementation steps:
   - Produce a list of every call site that posts journals and classify it:
     - uses `AccountingFacade` (preferred),
