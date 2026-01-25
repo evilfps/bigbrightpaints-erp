@@ -149,6 +149,17 @@ class IntegrationCoordinatorTest {
     }
 
     @Test
+    void updateFulfillmentDispatchAcceptedAsShipped() {
+        IntegrationCoordinator.AutoApprovalResult result =
+                integrationCoordinator.updateFulfillment(String.valueOf(ORDER_ID), "DISPATCHED", COMPANY_ID);
+
+        assertThat(result.orderStatus()).isEqualTo("SHIPPED");
+        assertThat(state.isOrderStatusUpdated()).isTrue();
+        assertThat(state.isCompleted()).isTrue();
+        verify(salesService).updateStatus(ORDER_ID, "SHIPPED");
+    }
+
+    @Test
     void autoApproveOrderRetriesWithoutReplayingReservation() {
         state.markInventoryReserved();
         state.markOrderStatusUpdated();
