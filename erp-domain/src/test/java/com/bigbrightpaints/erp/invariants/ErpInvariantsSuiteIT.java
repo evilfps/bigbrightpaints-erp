@@ -262,6 +262,18 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
 
         Invoice invoice = invoiceRepository.findById(invoiceId)
                 .orElseThrow(() -> new AssertionError("Invoice missing for O2C flow"));
+        BigDecimal invoiceSubtotal = invoice.getSubtotal() != null ? invoice.getSubtotal() : BigDecimal.ZERO;
+        BigDecimal invoiceTax = invoice.getTaxTotal() != null ? invoice.getTaxTotal() : BigDecimal.ZERO;
+        BigDecimal invoiceTotal = invoice.getTotalAmount() != null ? invoice.getTotalAmount() : BigDecimal.ZERO;
+        assertThat(invoiceSubtotal.add(invoiceTax)).isEqualByComparingTo(invoiceTotal);
+        for (InvoiceLine line : invoice.getLines()) {
+            BigDecimal lineNet = line.getTaxableAmount() != null ? line.getTaxableAmount() : BigDecimal.ZERO;
+            BigDecimal lineTax = line.getTaxAmount() != null ? line.getTaxAmount() : BigDecimal.ZERO;
+            BigDecimal lineTotal = line.getLineTotal() != null ? line.getLineTotal() : BigDecimal.ZERO;
+            assertThat(lineNet.add(lineTax)).isEqualByComparingTo(lineTotal);
+            BigDecimal discount = line.getDiscountAmount() != null ? line.getDiscountAmount() : BigDecimal.ZERO;
+            assertThat(discount).isEqualByComparingTo(BigDecimal.ZERO);
+        }
         JournalEntry arJournal = journalEntryRepository.findById(arJournalId)
                 .orElseThrow(() -> new AssertionError("AR journal missing for dispatch " + arJournalId));
         String arReference = arJournal.getReferenceNumber();
