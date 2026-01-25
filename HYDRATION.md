@@ -2,20 +2,20 @@
 
 ## Overnight Runner State
 - Branch: `accounting-correctness-v1`
-- Current epic/milestone pointer: `tasks/task-00.md → EPIC E → Milestone E1` (constraint vs repository assumption review)
-- Last commit SHA: `8769f33d713e2f5f9861bae53306af0914ddd0ac`
-- Next actions: start EPIC E / Milestone E1 (constraint vs repository assumption review), continue async verify triage (log empty; PID 120112).
+- Current epic/milestone pointer: `tasks/task-00.md → EPIC E → Milestone E2` (align constraints or code)
+- Last commit SHA: `0ba598ce6d41916fa8afcc1d3b30f76161334fef`
+- Next actions: start EPIC E / Milestone E2 (align constraints or code), continue async verify triage (log empty; PID 122239).
 - Working tree status: pre-existing diffs present (unrelated); avoid touching unrelated files.
 
 ## Current State
 - Worktree: `/home/realnigga/Desktop/CLI_BACKEND_epic04`
 - Branch: `accounting-correctness-v1`
-- Current milestone pointer: `tasks/task-00.md → EPIC E → Milestone E1` (constraint vs repository assumption review)
+- Current milestone pointer: `tasks/task-00.md → EPIC E → Milestone E2` (align constraints or code)
 - Working tree: pre-existing diffs present; proceeding without touching unrelated changes.
 
 ## Async Verify
 - Command: `nohup bash -lc 'cd erp-domain && mvn -B -ntp verify' > /tmp/task00-verify.log 2>&1 & echo $! > /tmp/task00-verify.pid`
-- PID: `120112` (latest attempt)
+- PID: `122239` (latest attempt)
 - Log: `/tmp/task00-verify.log`
 - Status: FINISHED early (log empty; no BUILD SUCCESS/FAILURE)
 - Last observed: `/tmp/task00-verify.log` has 0 lines; background PID exits immediately.
@@ -46,6 +46,7 @@
 - EPIC D / Milestone D3 — Dispatch confirm tampering + duplicate prevention (PASS): `cfc824c489f04805398022dccf063c43eaea4741`.
 - EPIC D / Milestone D4 — Settlement duplication + over-application guard (PASS): `db5ad9f76423f6a8c125646a164881055d48fbdd`.
 - EPIC D / Milestone D5 — Returns require dispatch cost layers (PASS): `8769f33d713e2f5f9861bae53306af0914ddd0ac`.
+- EPIC E / Milestone E1 — Constraint vs repository assumption review (PASS): `0ba598ce6d41916fa8afcc1d3b30f76161334fef`.
 
 ## Evidence Pack
 - EPIC A / Milestone A1 trace map: `docs/cross-module-trace-map.md`
@@ -62,6 +63,7 @@
 - EPIC D / Milestone D3 dispatch confirm evidence: `docs/cross-module-trace-map.md`
 - EPIC D / Milestone D4 settlement guard tests + policy: `erp-domain/src/test/java/com/bigbrightpaints/erp/e2e/accounting/SettlementE2ETest.java`, `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/invoice/service/InvoiceSettlementPolicy.java`, `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingService.java`
 - EPIC D / Milestone D5 return cost-layer guard: `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/sales/service/SalesReturnService.java`, `erp-domain/src/test/java/com/bigbrightpaints/erp/e2e/sales/SalesReturnCreditNoteE2EIT.java`
+- EPIC E / Milestone E1 constraint mismatch list: `docs/constraint-mismatch-notes.md`
 
 ## Open Findings (bugs / security issues / logic flaws)
 - HIGH — Inventory accounting domain events appear unused (risk: future double-posting if wired later): `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/event/InventoryAccountingEventListener.java`, `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/event/InventoryMovementEvent.java`, `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/event/InventoryValuationChangedEvent.java`.
@@ -73,6 +75,9 @@
 - LOW/MEDIUM — Duplicate dispatch confirmation entry points and multiple inventory dispatch implementations increase drift risk:
   - Endpoints: `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/sales/controller/SalesController.java` (`/api/v1/sales/dispatch/confirm`) and `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/controller/DispatchController.java` (`/api/v1/dispatch/confirm`)
   - Inventory flow variants: `FinishedGoodsService.markSlipDispatched(...)` vs `FinishedGoodsService.confirmDispatch(...)` (`erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/service/FinishedGoodsService.java`)
+- MEDIUM — Packaging slips allow multiple per sales order, but repository exposes Optional `findByCompanyAndSalesOrderId`/`findAndLockBySalesOrderId` (risk: multi-slip ambiguity): `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/domain/PackagingSlipRepository.java`, `erp-domain/src/main/resources/db/migration/V9__finished_goods_inventory.sql`.
+- MEDIUM — Invoices allow multiple per sales order, but repository exposes Optional `findByCompanyAndSalesOrderId`/`lockByCompanyAndSalesOrderId` (risk: partial invoice ambiguity): `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/invoice/domain/InvoiceRepository.java`, `erp-domain/src/main/resources/db/migration/V12__invoices.sql`.
+- LOW/MEDIUM — Inventory movements lack uniqueness on reference/movement fields; idempotency relies on service guards only: `erp-domain/src/main/resources/db/migration/V9__finished_goods_inventory.sql`, `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/domain/InventoryMovementRepository.java`.
 
 ## Decisions Log
 - Treat `POST /api/v1/sales/dispatch/confirm` (`SalesService.confirmDispatch(...)`) as the authoritative cross-module flow for shipped-quantity accounting (AR/Revenue/Tax + COGS + invoice creation).
@@ -89,6 +94,7 @@
 - EPIC D / Milestone D3 recorded dispatch confirm idempotency + endpoint-equivalence evidence in trace map.
 - EPIC D / Milestone D4 enforces settlement over-application guard and idempotent settlement references.
 - EPIC D / Milestone D5 rejects sales returns without matching dispatch cost layers.
+- EPIC E / Milestone E1 recorded constraint vs repository mismatch list for key tables.
 - Task 00 plan expanded to cross-module audit EPICs A–F (docs-only change).
 - Dispatch confirm now rehydrates missing slip/order journal + invoice links when artifacts already exist (no inventory mutation).
 - Added endpoint-equivalence E2E coverage for `/sales/dispatch/confirm` and `/dispatch/confirm`.
@@ -144,10 +150,12 @@
 - 2026-01-25: `cd erp-domain && mvn -B -ntp -Dtest=SalesReturnCreditNoteE2EIT test` (FAIL) — SalesReturnCreditNoteE2EIT.salesReturn_withoutDispatchCostLayers_rejected expected stock 0.00 but was 1.000 (test isolation).
 - 2026-01-25: `cd erp-domain && mvn -B -ntp -Dtest=SalesReturnCreditNoteE2EIT test` (PASS) — Tests run: 2, Failures: 0, Errors: 0, Skipped: 0. (EPIC D5)
 - 2026-01-25: `nohup bash -lc 'cd erp-domain && mvn -B -ntp verify' > /tmp/task00-verify.log 2>&1 & echo $! > /tmp/task00-verify.pid` (FINISHED early) — PID 120112; log empty; no BUILD SUCCESS/FAILURE.
+- 2026-01-25: `cd erp-domain && mvn -B -ntp -Dtest=ErpInvariantsSuiteIT test` (PASS) — Tests run: 9, Failures: 0, Errors: 0, Skipped: 0. (EPIC E1)
+- 2026-01-25: `nohup bash -lc 'cd erp-domain && mvn -B -ntp verify' > /tmp/task00-verify.log 2>&1 & echo $! > /tmp/task00-verify.pid` (FINISHED early) — PID 122239; log empty; no BUILD SUCCESS/FAILURE.
 
 ## Next Actions (explicit)
-1. Begin EPIC E / Milestone E1: constraint vs repository assumption review.
-2. Continue async verify triage (`/tmp/task00-verify.log` still empty after PID 120112).
+1. Begin EPIC E / Milestone E2: align constraints or code.
+2. Continue async verify triage (`/tmp/task00-verify.log` still empty after PID 122239).
 
 ## Historical (prior work references)
 - Epic 03: branch `epic-03-production-stock`, tip `3f2370c38c0152153369507159e5ae26ca1fa048`.
