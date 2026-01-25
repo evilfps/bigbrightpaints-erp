@@ -29,6 +29,8 @@ public class SalesControllerIT extends AbstractIntegrationTest {
     private static final String COMPANY_CODE = "ACME";
     private static final String ADMIN_EMAIL = "admin@bbp.com";
     private static final String ADMIN_PASSWORD = "admin123";
+    private static final String SALES_EMAIL = "sales@bbp.com";
+    private static final String SALES_PASSWORD = "sales123";
     private static final String TEST_SKU = "SKU-TEST-001";
 
     @Autowired private TestRestTemplate rest;
@@ -41,6 +43,7 @@ public class SalesControllerIT extends AbstractIntegrationTest {
     @BeforeEach
     void seed() {
         dataSeeder.ensureUser(ADMIN_EMAIL, ADMIN_PASSWORD, "Admin", COMPANY_CODE, List.of("ROLE_ADMIN", "ROLE_SALES"));
+        dataSeeder.ensureUser(SALES_EMAIL, SALES_PASSWORD, "Sales User", COMPANY_CODE, List.of("ROLE_SALES"));
         ensureProductAndFinishedGood();
     }
 
@@ -89,9 +92,13 @@ public class SalesControllerIT extends AbstractIntegrationTest {
     }
 
     private String loginToken() {
+        return loginToken(ADMIN_EMAIL, ADMIN_PASSWORD);
+    }
+
+    private String loginToken(String email, String password) {
         Map<String, Object> req = Map.of(
-                "email", ADMIN_EMAIL,
-                "password", ADMIN_PASSWORD,
+                "email", email,
+                "password", password,
                 "companyCode", COMPANY_CODE
         );
         return (String) rest.postForEntity("/api/v1/auth/login", req, Map.class).getBody().get("accessToken");
@@ -149,5 +156,30 @@ public class SalesControllerIT extends AbstractIntegrationTest {
         assertThat(listResp.getStatusCode()).isEqualTo(HttpStatus.OK);
         List<?> list = (List<?>) listResp.getBody().get("data");
         assertThat(list).isNotEmpty();
+    }
+
+    @Test
+    void dispatch_confirm_requires_permission() {
+        String token = loginToken(SALES_EMAIL, SALES_PASSWORD);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(token);
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.set("X-Company-Id", COMPANY_CODE);
+
+        Map<String, Object> line = Map.of(
+                "shipQty", new BigDecimal("1.00")
+        );
+        Map<String, Object> payload = Map.of(
+                "packingSlipId", 9999,
+                "lines", List.of(line)
+        );
+
+        ResponseEntity<Map> response = rest.exchange(
+                "/api/v1/sales/dispatch/confirm",
+                HttpMethod.POST,
+                new HttpEntity<>(payload, headers),
+                Map.class);
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
     }
 }
