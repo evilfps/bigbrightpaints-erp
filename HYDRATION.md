@@ -1,27 +1,27 @@
 # HYDRATION
 
 ## Overnight Runner State
-- Branch: `accounting-correctness-v1`
-- Current epic/milestone pointer: `Task 00 COMPLETE`
-- Last commit SHA: `a027d1fbd46e678467d3ca45bd2154cce02ac32e`
-- Next actions: monitor async verify; record exit + update status.
+- Branch: `predeploy-blockers-v1`
+- Current epic/milestone pointer: `Task 01 / EPIC 00 / Milestone 01 (regression tests: settlements/returns; remaining: FinishedGoodsService + IntegrationCoordinator)`
+- Last commit SHA: `e5948aa09d9dbf8b17c762fc44394e8e0ab0652f`
+- Next actions: monitor async verify PID 239563; finish EPIC 00 / Milestone 01 tests for FinishedGoodsService + IntegrationCoordinator; proceed to EPIC 01.
 - Working tree status: pre-existing diffs present (unrelated); avoid touching unrelated files.
 
 ## Current State
 - Worktree: `/home/realnigga/Desktop/CLI_BACKEND_epic04`
-- Branch: `accounting-correctness-v1`
-- Current milestone pointer: `Task 00 COMPLETE`
+- Branch: `predeploy-blockers-v1`
+- Current milestone pointer: `Task 01 / EPIC 00 / Milestone 01 (settlement/return regressions)`
 - Working tree: pre-existing diffs present; proceeding without touching unrelated changes.
 
 ## Async Verify
-- Command: `scripts/task00_async_verify.sh` (setsid background; writes exit code)
-- PID: `202980` (latest attempt)
-- Log: `/tmp/task00-verify.log`
-- Exit: `/tmp/task00-verify.exit`
-- Status: RUNNING (started via `scripts/task00_async_verify.sh`).
+- Command: `setsid bash -lc "set +e; echo '[task01] verify start $(date -Is)'; cd '/home/realnigga/Desktop/CLI_BACKEND_epic04/erp-domain' && mvn -B -ntp verify; status=$?; echo '[task01] verify exit $status $(date -Is)'; echo $status > /tmp/task01-verify.exit" >> /tmp/task01-verify.log 2>&1 < /dev/null & echo $! > /tmp/task01-verify.pid`
+- PID: `239563` (latest attempt)
+- Log: `/tmp/task01-verify.log`
+- Exit: `/tmp/task01-verify.exit`
+- Status: RUNNING
 
 ## Triage Commands
-- First failing test in log: `grep -nE "FAILURE|ERROR|Failed" /tmp/task00-verify.log`
+- First failing test in log: `grep -nE "FAILURE|ERROR|Failed" /tmp/task01-verify.log`
 - Surefire TXT scan: `grep -nH -E "FAILURE|ERROR|Caused by" erp-domain/target/surefire-reports/*.txt`
 - Surefire XML scan: `grep -nH -E "<failure|<error" erp-domain/target/surefire-reports/*.xml`
 
@@ -100,6 +100,7 @@
 - EPIC 07 / Milestone 01 accounting mental model: `docs/accounting-mental-model.md`
 
 ## Open Findings (bugs / security issues / logic flaws)
+- MEDIUM — Task01 async verify attempt via `nohup` ended immediately with empty log (PID `220820`, `/tmp/task01-verify.log` at time of check). Switched to `setsid` runner for reliable async verify artifacts.
 - MEDIUM — Inventory accounting events are now gated behind `erp.inventory.accounting.events.enabled` (default off); enabling requires removal of overlapping manual postings to avoid double-posting: `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/event/InventoryAccountingEventListener.java`, `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/event/InventoryMovementEvent.java`, `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/event/InventoryValuationChangedEvent.java`.
 - MEDIUM — `journal_reference_mappings` does not enforce uniqueness on `(company_id, canonical_reference)`; resolver now searches mappings to find a real journal entry but ambiguity remains without a uniqueness constraint: `erp-domain/src/main/resources/db/migration/V88__journal_reference_mappings.sql`, `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/JournalReferenceResolver.java`.
 - MEDIUM — `InventoryAccountingEventListener` uses `LocalDate.now()` instead of company timezone / event date for valuation re-posting (period correctness risk): `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/event/InventoryAccountingEventListener.java`.
@@ -149,6 +150,8 @@
 - Sales return lookup now scopes to exact invoice reference or `invoiceNumber:` prefix to avoid cross-invoice contamination.
 
 ## Test Status Log
+- 2026-01-26: `cd erp-domain && mvn -B -ntp -Dtest=SalesReturnServiceTest,SettlementE2ETest test` (PASS) — Tests run: 16, Failures: 0, Errors: 0, Skipped: 0.
+- 2026-01-25: `nohup bash -lc 'cd erp-domain && mvn -B -ntp verify' > /tmp/task01-verify.log 2>&1 & echo $! > /tmp/task01-verify.pid` (RUNNING) — PID 220820.
 - 2026-01-24: Task 00 plan expansion commit (docs-only); tests not run.
 - 2026-01-25: `cd erp-domain && mvn -B -ntp -Dtest=OrderFulfillmentE2ETest,ErpInvariantsSuiteIT test` (PASS) — Tests run: 18, Failures: 0, Errors: 0, Skipped: 0.
 - 2026-01-25: Async verify attempt exited early (log only startup lines; no success/failure output). Blocker logged.

@@ -87,6 +87,7 @@ public class SalesReturnService {
         Map<Long, BigDecimal> requestedReturnQtyByLine = new LinkedHashMap<>();
         Map<Long, BigDecimal> requestedReturnQtyByFg = new LinkedHashMap<>();
         Map<Long, BigDecimal> invoicedQtyByFg = new LinkedHashMap<>();
+        Map<Long, List<Long>> invoiceLineIdsByFg = new LinkedHashMap<>();
         Map<String, FinishedGood> finishedGoodsByCode = new HashMap<>();
         Map<Long, FinishedGood> finishedGoodsById = new HashMap<>();
         Set<String> returnProductCodes = new HashSet<>();
@@ -121,10 +122,64 @@ public class SalesReturnService {
             finishedGoodsById.putIfAbsent(finishedGood.getId(), finishedGood);
             BigDecimal invoicedQty = invoiceLine.getQuantity() != null ? invoiceLine.getQuantity() : BigDecimal.ZERO;
             invoicedQtyByFg.merge(finishedGood.getId(), invoicedQty, BigDecimal::add);
+            if (invoiceLine.getId() != null) {
+                invoiceLineIdsByFg.computeIfAbsent(finishedGood.getId(), id -> new java.util.ArrayList<>())
+                        .add(invoiceLine.getId());
+            }
         }
 
         ReturnMovementSummary existingReturns = loadReturnMovements(company, invoice.getInvoiceNumber());
         Map<Long, BigDecimal> existingReturnsByLine = existingReturns.byInvoiceLineId();
+        Map<Long, BigDecimal> legacyReturnsByLine = new LinkedHashMap<>();
+        Map<Long, BigDecimal> legacyReturnsByFg = new LinkedHashMap<>();
+        Map<Long, BigDecimal> existingReturnsByFg = existingReturns.byFinishedGoodId();
+        existingReturnsByFg.forEach(legacyReturnsByFg::put);
+        for (Map.Entry<Long, BigDecimal> entry : existingReturnsByLine.entrySet()) {
+            InvoiceLine invoiceLine = invoiceLines.get(entry.getKey());
+            if (invoiceLine == null || invoiceLine.getProductCode() == null) {
+                continue;
+            }
+            if (!returnProductCodes.contains(invoiceLine.getProductCode())) {
+                continue;
+            }
+            FinishedGood finishedGood = finishedGoodsByCode.get(invoiceLine.getProductCode());
+            if (finishedGood == null || finishedGood.getId() == null) {
+                continue;
+            }
+            legacyReturnsByFg.merge(finishedGood.getId(), entry.getValue().negate(), BigDecimal::add);
+        }
+        for (Map.Entry<Long, BigDecimal> entry : legacyReturnsByFg.entrySet()) {
+            BigDecimal remainingLegacy = entry.getValue();
+            if (remainingLegacy == null || remainingLegacy.compareTo(BigDecimal.ZERO) <= 0) {
+                continue;
+            }
+            List<Long> lineIds = invoiceLineIdsByFg.getOrDefault(entry.getKey(), List.of());
+            if (lineIds.isEmpty()) {
+                continue;
+            }
+            java.util.List<Long> orderedLineIds = new java.util.ArrayList<>(lineIds);
+            orderedLineIds.sort(java.util.Comparator.naturalOrder());
+            for (Long lineId : orderedLineIds) {
+                InvoiceLine invoiceLine = invoiceLines.get(lineId);
+                if (invoiceLine == null) {
+                    continue;
+                }
+                BigDecimal lineQty = invoiceLine.getQuantity() != null ? invoiceLine.getQuantity() : BigDecimal.ZERO;
+                BigDecimal lineReturned = existingReturnsByLine.getOrDefault(lineId, BigDecimal.ZERO);
+                BigDecimal lineRemaining = lineQty.subtract(lineReturned);
+                if (lineRemaining.compareTo(BigDecimal.ZERO) <= 0) {
+                    continue;
+                }
+                BigDecimal allocate = remainingLegacy.min(lineRemaining);
+                if (allocate.compareTo(BigDecimal.ZERO) > 0) {
+                    legacyReturnsByLine.merge(lineId, allocate, BigDecimal::add);
+                    remainingLegacy = remainingLegacy.subtract(allocate);
+                }
+                if (remainingLegacy.compareTo(BigDecimal.ZERO) <= 0) {
+                    break;
+                }
+            }
+        }
         for (Map.Entry<Long, BigDecimal> entry : requestedReturnQtyByLine.entrySet()) {
             InvoiceLine invoiceLine = invoiceLines.get(entry.getKey());
             if (invoiceLine == null) {
@@ -132,12 +187,15 @@ public class SalesReturnService {
             }
             BigDecimal invoicedQty = invoiceLine.getQuantity() != null ? invoiceLine.getQuantity() : BigDecimal.ZERO;
             BigDecimal priorReturnedQty = existingReturnsByLine.getOrDefault(entry.getKey(), BigDecimal.ZERO);
+            BigDecimal legacyReturnedQty = legacyReturnsByLine.getOrDefault(entry.getKey(), BigDecimal.ZERO);
+            if (legacyReturnedQty.compareTo(BigDecimal.ZERO) > 0) {
+                priorReturnedQty = priorReturnedQty.add(legacyReturnedQty);
+            }
             if (priorReturnedQty.add(entry.getValue()).compareTo(invoicedQty) > 0) {
                 throw new IllegalArgumentException("Return quantity exceeds remaining invoiced amount for " + invoiceLine.getProductCode());
             }
         }
 
-        Map<Long, BigDecimal> existingReturnsByFg = existingReturns.byFinishedGoodId();
         for (Map.Entry<Long, BigDecimal> entry : requestedReturnQtyByFg.entrySet()) {
             BigDecimal invoicedQty = invoicedQtyByFg.getOrDefault(entry.getKey(), BigDecimal.ZERO);
             BigDecimal priorReturnedQty = existingReturnsByFg.getOrDefault(entry.getKey(), BigDecimal.ZERO);
@@ -457,14 +515,19 @@ public class SalesReturnService {
             if (finishedGood == null || finishedGood.getId() == null) {
                 continue;
             }
-            BigDecimal quantity = movement.getQuantity() != null ? movement.getQuantity() : BigDecimal.ZERO;
-            totalsByFinishedGood.merge(finishedGood.getId(), quantity, BigDecimal::add);
-
             String referenceId = movement.getReferenceId();
-            if (referenceId == null || referenceId.equals(normalized)) {
+            if (referenceId != null) {
+                referenceId = referenceId.trim();
+            }
+            if (referenceId == null || referenceId.isEmpty()) {
                 continue;
             }
-            if (!referenceId.startsWith(prefix)) {
+            if (!referenceId.equals(normalized) && !referenceId.startsWith(prefix)) {
+                continue;
+            }
+            BigDecimal quantity = movement.getQuantity() != null ? movement.getQuantity() : BigDecimal.ZERO;
+            totalsByFinishedGood.merge(finishedGood.getId(), quantity, BigDecimal::add);
+            if (referenceId.equals(normalized)) {
                 continue;
             }
             String lineIdText = referenceId.substring(prefix.length()).trim();

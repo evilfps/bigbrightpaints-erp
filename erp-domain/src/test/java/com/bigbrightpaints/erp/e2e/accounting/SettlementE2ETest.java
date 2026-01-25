@@ -231,6 +231,10 @@ public class SettlementE2ETest extends AbstractIntegrationTest {
                         && r.getDiscountAmount().compareTo(new BigDecimal("50.00")) == 0
                         && r.getWriteOffAmount().compareTo(new BigDecimal("20.00")) == 0
                         && r.getFxDifferenceAmount().compareTo(new BigDecimal("-10.00")) == 0);
+
+        Invoice refreshed = invoiceRepository.findById(invoice.getId()).orElseThrow();
+        assertThat(refreshed.getOutstandingAmount()).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(refreshed.getStatus()).isEqualTo("PAID");
     }
 
     @Test

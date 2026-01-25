@@ -255,6 +255,8 @@ class SalesReturnServiceTest {
         InventoryMovement priorReturn = new InventoryMovement();
         priorReturn.setFinishedGood(fg);
         priorReturn.setQuantity(new BigDecimal("1.5"));
+        priorReturn.setReferenceType("SALES_RETURN");
+        priorReturn.setReferenceId("INV-1");
 
         when(companyEntityLookup.requireInvoice(company, 10L)).thenReturn(invoice);
         when(finishedGoodRepository.lockByCompanyAndProductCode(company, "FG-1")).thenReturn(Optional.of(fg));
@@ -343,6 +345,129 @@ class SalesReturnServiceTest {
         assertThatThrownBy(() -> salesReturnService.processReturn(request))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("remaining invoiced amount");
+    }
+
+    @Test
+    void processReturn_rejectsLegacyReturnOverLine() {
+        Dealer dealer = new Dealer();
+        dealer.setCompany(company);
+        dealer.setName("Retail Partner");
+        Account receivable = new Account();
+        setField(receivable, "id", 70L);
+        dealer.setReceivableAccount(receivable);
+        setField(dealer, "id", 7L);
+
+        Invoice invoice = new Invoice();
+        invoice.setCompany(company);
+        invoice.setDealer(dealer);
+        invoice.setInvoiceNumber("INV-1");
+        setField(invoice, "id", 10L);
+
+        InvoiceLine firstLine = new InvoiceLine();
+        firstLine.setInvoice(invoice);
+        firstLine.setProductCode("FG-1");
+        firstLine.setQuantity(new BigDecimal("1"));
+        setField(firstLine, "id", 55L);
+        invoice.getLines().add(firstLine);
+
+        InvoiceLine secondLine = new InvoiceLine();
+        secondLine.setInvoice(invoice);
+        secondLine.setProductCode("FG-1");
+        secondLine.setQuantity(new BigDecimal("1"));
+        setField(secondLine, "id", 56L);
+        invoice.getLines().add(secondLine);
+
+        FinishedGood fg = new FinishedGood();
+        fg.setCompany(company);
+        fg.setProductCode("FG-1");
+        setField(fg, "id", 21L);
+
+        InventoryMovement priorReturn = new InventoryMovement();
+        priorReturn.setFinishedGood(fg);
+        priorReturn.setQuantity(new BigDecimal("1"));
+        priorReturn.setReferenceType("SALES_RETURN");
+        priorReturn.setReferenceId("INV-1");
+
+        when(companyEntityLookup.requireInvoice(company, 10L)).thenReturn(invoice);
+        when(finishedGoodRepository.lockByCompanyAndProductCode(company, "FG-1")).thenReturn(Optional.of(fg));
+        when(inventoryMovementRepository.findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdOrderByCreatedAtAsc(
+                eq(company),
+                eq("SALES_RETURN"),
+                eq("INV-1")
+        )).thenReturn(List.of(priorReturn));
+        when(inventoryMovementRepository.findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdStartingWithOrderByCreatedAtAsc(
+                eq(company),
+                eq("SALES_RETURN"),
+                eq("INV-1:")
+        )).thenReturn(List.of());
+
+        SalesReturnRequest request = new SalesReturnRequest(
+                10L,
+                "Legacy return",
+                List.of(new SalesReturnRequest.ReturnLine(55L, new BigDecimal("1")))
+        );
+
+        assertThatThrownBy(() -> salesReturnService.processReturn(request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("remaining invoiced amount");
+    }
+
+    @Test
+    void processReturn_ignoresUnrelatedInvoicePrefixMovements() {
+        Dealer dealer = new Dealer();
+        dealer.setCompany(company);
+        dealer.setName("Retail Partner");
+        Account receivable = new Account();
+        setField(receivable, "id", 70L);
+        dealer.setReceivableAccount(receivable);
+        setField(dealer, "id", 7L);
+
+        Invoice invoice = new Invoice();
+        invoice.setCompany(company);
+        invoice.setDealer(dealer);
+        invoice.setInvoiceNumber("INV-1");
+        setField(invoice, "id", 10L);
+
+        InvoiceLine line = new InvoiceLine();
+        line.setInvoice(invoice);
+        line.setProductCode("FG-1");
+        line.setQuantity(new BigDecimal("1"));
+        setField(line, "id", 55L);
+        invoice.getLines().add(line);
+
+        FinishedGood fg = new FinishedGood();
+        fg.setCompany(company);
+        fg.setProductCode("FG-1");
+        setField(fg, "id", 21L);
+
+        InventoryMovement unrelatedReturn = new InventoryMovement();
+        unrelatedReturn.setFinishedGood(fg);
+        unrelatedReturn.setQuantity(new BigDecimal("1"));
+        unrelatedReturn.setReferenceType("SALES_RETURN");
+        unrelatedReturn.setReferenceId("INV-10:999");
+
+        when(companyEntityLookup.requireInvoice(company, 10L)).thenReturn(invoice);
+        when(finishedGoodRepository.lockByCompanyAndProductCode(company, "FG-1")).thenReturn(Optional.of(fg));
+        when(inventoryMovementRepository.findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdOrderByCreatedAtAsc(
+                eq(company),
+                eq("SALES_RETURN"),
+                eq("INV-1")
+        )).thenReturn(List.of());
+        when(inventoryMovementRepository.findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdStartingWithOrderByCreatedAtAsc(
+                eq(company),
+                eq("SALES_RETURN"),
+                eq("INV-1:")
+        )).thenReturn(List.of(unrelatedReturn));
+
+        SalesReturnRequest request = new SalesReturnRequest(
+                10L,
+                "Prefix safety",
+                List.of(new SalesReturnRequest.ReturnLine(55L, new BigDecimal("1")))
+        );
+
+        assertThatThrownBy(() -> salesReturnService.processReturn(request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("dispatch cost layers");
     }
 
     @Test
