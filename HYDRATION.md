@@ -2,23 +2,23 @@
 
 ## Overnight Runner State
 - Branch: `accounting-correctness-v1`
-- Current epic/milestone pointer: `tasks/task-00.md → EPIC 02 → Milestone 04` (mixed tax rates + zero-rated items)
-- Last commit SHA: `8bc3edc3edcd8abf703b24c5d1f20be2c7caf1f4`
-- Next actions: begin EPIC 02 / Milestone 04 (mixed tax rates + zero-rated items).
+- Current epic/milestone pointer: `tasks/task-00.md → EPIC 03 → Milestone 01` (purchase tax allocation + exact balance)
+- Last commit SHA: `b9704a72f5bf1292f7c3248bd8829acfcbed0721`
+- Next actions: monitor async verify (PID 15219), then start EPIC 03 / Milestone 01.
 - Working tree status: pre-existing diffs present (unrelated); avoid touching unrelated files.
 
 ## Current State
 - Worktree: `/home/realnigga/Desktop/CLI_BACKEND_epic04`
 - Branch: `accounting-correctness-v1`
-- Current milestone pointer: `tasks/task-00.md → EPIC 02 → Milestone 04` (mixed tax rates + zero-rated items)
+- Current milestone pointer: `tasks/task-00.md → EPIC 03 → Milestone 01` (purchase tax allocation + exact balance)
 - Working tree: pre-existing diffs present; proceeding without touching unrelated changes.
 
 ## Async Verify
 - Command: `scripts/task00_async_verify.sh` (setsid background; writes exit code)
-- PID: `10955` (latest attempt)
+- PID: `15219` (latest attempt)
 - Log: `/tmp/task00-verify.log`
 - Exit: `/tmp/task00-verify.exit`
-- Status: FINISHED (exit 0; BUILD SUCCESS).
+- Status: RUNNING (log non-empty; BUILD SUCCESS pending).
 
 ## Triage Commands
 - First failing test in log: `grep -nE "FAILURE|ERROR|Failed" /tmp/task00-verify.log`
@@ -55,6 +55,8 @@
 - EPIC 02 / Milestone 02 — Tests: `cd erp-domain && mvn -B -ntp -Dtest=GstInclusiveRoundingIT,OrderFulfillmentE2ETest,SalesJournalServiceTest,InvoiceServiceTest test` (PASS).
 - EPIC 02 / Milestone 03 — Returns/credit notes correctness (PASS): `8bc3edc3edcd8abf703b24c5d1f20be2c7caf1f4`.
 - EPIC 02 / Milestone 03 — Tests: `cd erp-domain && mvn -B -ntp -Dtest=SalesReturnCreditNoteE2EIT,CriticalAccountingAxesIT test` (PASS); `cd erp-domain && mvn -B -ntp -Dtest=SalesReturnCreditNoteE2EIT#salesReturn_postsCreditNoteAndRestocksInventory test` (PASS x2).
+- EPIC 02 / Milestone 04 — Mixed tax rates + zero-rated items (PASS): `b9704a72f5bf1292f7c3248bd8829acfcbed0721`.
+- EPIC 02 / Milestone 04 — Tests: `cd erp-domain && mvn -B -ntp -Dtest=OrderFulfillmentE2ETest,CriticalAccountingAxesIT test` (PASS).
 
 ## Evidence Pack
 - EPIC A / Milestone A1 trace map: `docs/cross-module-trace-map.md`
@@ -191,9 +193,12 @@
 - 2026-01-25: `cd erp-domain && mvn -B -ntp -Dtest=SalesReturnCreditNoteE2EIT,CriticalAccountingAxesIT test` (PASS) — Tests run: 13, Failures: 0, Errors: 0, Skipped: 0.
 - 2026-01-25: `nohup bash -lc 'cd erp-domain && mvn -B -ntp verify' > /tmp/task00-verify.log 2>&1 & echo $! > /tmp/task00-verify.pid` (FINISHED early) — PID 150858; log empty; no BUILD SUCCESS/FAILURE.
 - 2026-01-25: `scripts/task00_async_verify.sh` (PASS) — PID 10955; exit 0; BUILD SUCCESS; Tests run: 412, Failures: 0, Errors: 0, Skipped: 4.
+- 2026-01-25: `cd erp-domain && mvn -B -ntp -Dtest=OrderFulfillmentE2ETest,CriticalAccountingAxesIT test` (PASS) — Tests run: 23, Failures: 0, Errors: 0, Skipped: 0.
+- 2026-01-25: `scripts/task00_async_verify.sh` (RUNNING) — PID 15219; log non-empty; exit pending.
 
 ## Next Actions (explicit)
-1. Begin EPIC 02 / Milestone 04: mixed tax rates + zero-rated items.
+1. Monitor async verify (PID 15219).
+2. Begin EPIC 03 / Milestone 01: purchase tax allocation + exact balance.
 
 ## Historical (prior work references)
 - Epic 03: branch `epic-03-production-stock`, tip `3f2370c38c0152153369507159e5ae26ca1fa048`.

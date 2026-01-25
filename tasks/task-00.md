@@ -658,7 +658,7 @@ Milestone 03 — Returns/credit notes correctness (GST + discount + COGS reversa
 - Rollback/recovery notes:
   - If return semantics touch persisted state, require a backward-compatible migration plan before landing.
 
-Milestone 04 — Mixed tax rates + zero-rated items
+Milestone 04 — Mixed tax rates + zero-rated items **COMPLETED** — commit `b9704a72f5bf1292f7c3248bd8829acfcbed0721`
 - Implementation steps:
   - Validate that mixed `SalesOrderItem.gstRate` values are handled consistently across order + dispatch + invoice + journal.
   - Ensure zero-rated items do not create GST postings.

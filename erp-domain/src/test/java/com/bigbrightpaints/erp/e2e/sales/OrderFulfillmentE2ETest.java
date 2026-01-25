@@ -39,6 +39,7 @@ import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.http.*;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -690,6 +691,86 @@ public class OrderFulfillmentE2ETest extends AbstractIntegrationTest {
 
         BigDecimal afterOutput = gstOutputTax();
         assertThat(afterOutput.subtract(beforeOutput)).isEqualByComparingTo(expectedTax);
+    }
+
+    @Test
+    @DisplayName("Dispatch with mixed GST rates posts tax only for taxable lines")
+    void dispatchWithMixedGstRates_PostsTaxForTaxableLinesOnly() {
+        Company company = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();
+
+        Dealer dealer = createDealer(company, "GST-MIX-DEALER", "GST Mix Dealer", new BigDecimal("500000"));
+        BigDecimal taxedRate = new BigDecimal("18.00");
+        BigDecimal taxedPrice = new BigDecimal("120.00");
+        BigDecimal zeroPrice = new BigDecimal("80.00");
+        BigDecimal taxedQty = new BigDecimal("2");
+        BigDecimal zeroQty = new BigDecimal("3");
+
+        FinishedGood taxed = createFinishedGood(company, "FG-GST-MIX-TAX", new BigDecimal("100"), taxedPrice, taxedRate);
+        FinishedGood zero = createFinishedGood(company, "FG-GST-MIX-ZERO", new BigDecimal("100"), zeroPrice, BigDecimal.ZERO);
+
+        Map<String, Object> taxedItem = Map.of(
+                "productCode", taxed.getProductCode(),
+                "description", "Taxed item",
+                "quantity", taxedQty,
+                "unitPrice", taxedPrice,
+                "gstRate", taxedRate
+        );
+        Map<String, Object> zeroItem = Map.of(
+                "productCode", zero.getProductCode(),
+                "description", "Zero-rated item",
+                "quantity", zeroQty,
+                "unitPrice", zeroPrice,
+                "gstRate", BigDecimal.ZERO
+        );
+
+        BigDecimal taxedSubtotal = taxedPrice.multiply(taxedQty);
+        BigDecimal zeroSubtotal = zeroPrice.multiply(zeroQty);
+        BigDecimal expectedTax = taxedSubtotal.multiply(taxedRate)
+                .divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP);
+        BigDecimal expectedTotal = taxedSubtotal.add(zeroSubtotal).add(expectedTax);
+
+        Map<String, Object> orderReq = new java.util.HashMap<>();
+        orderReq.put("dealerId", dealer.getId());
+        orderReq.put("totalAmount", expectedTotal);
+        orderReq.put("currency", "INR");
+        orderReq.put("items", List.of(taxedItem, zeroItem));
+        orderReq.put("gstTreatment", "PER_ITEM");
+        orderReq.put("gstRate", null);
+
+        ResponseEntity<Map> orderResp = rest.exchange("/api/v1/sales/orders",
+                HttpMethod.POST, new HttpEntity<>(orderReq, headers), Map.class);
+        Map<?, ?> orderData = requireData(orderResp, "create mixed GST order");
+        Long orderId = ((Number) orderData.get("id")).longValue();
+
+        BigDecimal beforeOutput = gstOutputTax();
+
+        Map<String, Object> dispatchReq = Map.of(
+                "orderId", orderId,
+                "confirmedBy", "e2e"
+        );
+
+        ResponseEntity<Map> dispatchResp = rest.exchange("/api/v1/sales/dispatch/confirm",
+                HttpMethod.POST, new HttpEntity<>(dispatchReq, headers), Map.class);
+        Map<?, ?> dispatchData = requireData(dispatchResp, "dispatch mixed GST order");
+        Long invoiceId = ((Number) dispatchData.get("finalInvoiceId")).longValue();
+
+        BigDecimal afterOutput = gstOutputTax();
+        assertThat(afterOutput.subtract(beforeOutput)).isEqualByComparingTo(expectedTax);
+
+        var invoice = invoiceRepository.findByCompanyAndId(company, invoiceId).orElseThrow();
+        assertThat(invoice.getTotalAmount()).isEqualByComparingTo(expectedTotal);
+
+        var taxedLine = invoice.getLines().stream()
+                .filter(line -> taxed.getProductCode().equals(line.getProductCode()))
+                .findFirst()
+                .orElseThrow();
+        var zeroLine = invoice.getLines().stream()
+                .filter(line -> zero.getProductCode().equals(line.getProductCode()))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(taxedLine.getTaxAmount()).isEqualByComparingTo(expectedTax);
+        assertThat(zeroLine.getTaxAmount()).isEqualByComparingTo(new BigDecimal("0.00"));
     }
 
     // Helper methods
