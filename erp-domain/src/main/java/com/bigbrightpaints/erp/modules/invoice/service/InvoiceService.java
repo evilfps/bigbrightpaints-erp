@@ -182,10 +182,7 @@ public class InvoiceService {
     }
 
     private BigDecimal currency(BigDecimal value) {
-        if (value == null) {
-            return BigDecimal.ZERO.setScale(2, java.math.RoundingMode.HALF_UP);
-        }
-        return value.setScale(2, java.math.RoundingMode.HALF_UP);
+        return MoneyUtils.roundCurrency(value);
     }
 
     @Transactional

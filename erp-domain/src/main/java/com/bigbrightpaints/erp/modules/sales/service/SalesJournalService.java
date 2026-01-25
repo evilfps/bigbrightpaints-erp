@@ -271,10 +271,7 @@ public class SalesJournalService {
     }
 
     private BigDecimal currency(BigDecimal value) {
-        if (value == null) {
-            return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
-        }
-        return value.setScale(2, RoundingMode.HALF_UP);
+        return MoneyUtils.roundCurrency(value);
     }
 
     private record ProductAccounts(Long revenueAccountId, Long taxAccountId, Long discountAccountId) {}

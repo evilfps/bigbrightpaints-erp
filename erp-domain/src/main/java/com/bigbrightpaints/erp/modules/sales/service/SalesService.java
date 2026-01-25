@@ -551,10 +551,7 @@ public class SalesService {
     }
 
     private BigDecimal currency(BigDecimal value) {
-        if (value == null) {
-            return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
-        }
-        return value.setScale(2, RoundingMode.HALF_UP);
+        return MoneyUtils.roundCurrency(value);
     }
 
     private PackagingSlip selectMostRecentSlip(List<PackagingSlip> slips, Long orderId) {

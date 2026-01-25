@@ -30,6 +30,13 @@ public final class MoneyUtils {
         return dividend.divide(divisor, scale, roundingMode);
     }
 
+    public static BigDecimal roundCurrency(BigDecimal value) {
+        if (value == null) {
+            return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+        }
+        return value.setScale(2, RoundingMode.HALF_UP);
+    }
+
     public static boolean withinTolerance(BigDecimal left, BigDecimal right, BigDecimal tolerance) {
         BigDecimal difference = zeroIfNull(left).subtract(zeroIfNull(right)).abs();
         BigDecimal allowedDelta = zeroIfNull(tolerance);
