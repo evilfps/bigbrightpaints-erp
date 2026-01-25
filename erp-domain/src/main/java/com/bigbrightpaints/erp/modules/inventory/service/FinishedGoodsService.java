@@ -544,6 +544,21 @@ public class FinishedGoodsService {
         SalesOrder order = slip.getSalesOrder();
         String dealerName = order.getDealer() != null ? order.getDealer().getName() : null;
         String dealerCode = order.getDealer() != null ? order.getDealer().getCode() : null;
+        Map<Long, BigDecimal> reservedByBatch = inventoryReservationRepository
+                .findByFinishedGoodCompanyAndReferenceTypeAndReferenceId(
+                        company,
+                        InventoryReference.SALES_ORDER,
+                        order.getId().toString())
+                .stream()
+                .filter(reservation -> reservation.getFinishedGoodBatch() != null)
+                .collect(Collectors.groupingBy(
+                        reservation -> reservation.getFinishedGoodBatch().getId(),
+                        Collectors.mapping(
+                                reservation -> reservation.getReservedQuantity() != null
+                                        ? reservation.getReservedQuantity()
+                                        : reservation.getQuantity(),
+                                Collectors.reducing(BigDecimal.ZERO, BigDecimal::add)
+                        )));
 
         List<DispatchPreviewDto.LinePreview> linePreviews = new ArrayList<>();
         BigDecimal totalOrdered = BigDecimal.ZERO;
@@ -555,6 +570,8 @@ public class FinishedGoodsService {
             
             BigDecimal ordered = line.getOrderedQuantity() != null ? line.getOrderedQuantity() : line.getQuantity();
             BigDecimal available = batch.getQuantityAvailable() != null ? batch.getQuantityAvailable() : BigDecimal.ZERO;
+            BigDecimal reservedForOrder = reservedByBatch.getOrDefault(batch.getId(), BigDecimal.ZERO);
+            available = available.add(reservedForOrder);
             BigDecimal suggestedShip = ordered.min(available);
             boolean hasShortage = available.compareTo(ordered) < 0;
             BigDecimal unitCost = line.getUnitCost() != null ? line.getUnitCost() : BigDecimal.ZERO;
