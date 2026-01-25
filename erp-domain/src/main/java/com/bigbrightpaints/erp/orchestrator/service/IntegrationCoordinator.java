@@ -319,6 +319,7 @@ public class IntegrationCoordinator {
                 case "READY_TO_SHIP":
                     return autoApproveOrder(orderId, null, companyId);
                 case "SHIPPED":
+                case "DISPATCHED":
                     salesService.updateStatus(id, "SHIPPED");
                     OrderAutoApprovalState approvalState = lockAutoApprovalState(companyId, id);
                     approvalState.markOrderStatusUpdated();
