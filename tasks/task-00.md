@@ -747,7 +747,7 @@ Milestone 01 — Tenant boundary & authorization audit (fail closed) **COMPLETED
 - Rollback/recovery notes:
   - If service accounts need access, introduce explicit, audited allow‑lists; avoid blanket allows.
 
-Milestone 02 — Business-logic bypass + idempotency audit (tamper-proof)
+Milestone 02 — Business-logic bypass + idempotency audit (tamper-proof) **COMPLETED** — commit `560c731dc6b6c32973fb1536095cf28050641369`
 - Implementation steps:
   - Attempt to reproduce:
     - double posting via repeated dispatch confirms,
