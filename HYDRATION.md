@@ -2,20 +2,20 @@
 
 ## Overnight Runner State
 - Branch: `predeploy-blockers-v1`
-- Current epic/milestone pointer: `Task 01 / EPIC 01 / Milestone 02 (fail closed on zero dispatch cost)`
-- Last commit SHA: `9e3f8ccb613b63e58411a9fddab1dff86a53054f`
-- Next actions: monitor async verify PID 278297; implement EPIC 01 / Milestone 02; update HYDRATION + push.
+- Current epic/milestone pointer: `Task 01 / EPIC 02 / Milestone 03 (backorder reservation consistency)`
+- Last commit SHA: `f3f558b3a0bcb8002c69c2dd0b7674dc9b8bd1d6`
+- Next actions: monitor async verify PID 280762; start EPIC 02 / Milestone 03; update HYDRATION + push.
 - Working tree status: pre-existing diffs present (unrelated); avoid touching unrelated files.
 
 ## Current State
 - Worktree: `/home/realnigga/Desktop/CLI_BACKEND_epic04`
 - Branch: `predeploy-blockers-v1`
-- Current milestone pointer: `Task 01 / EPIC 01 / Milestone 02 (fail closed on zero dispatch cost)`
+- Current milestone pointer: `Task 01 / EPIC 02 / Milestone 03 (backorder reservation consistency)`
 - Working tree: pre-existing diffs present; proceeding without touching unrelated changes.
 
 ## Async Verify
-- Command: `nohup bash -lc 'echo "[task01] verify start $(date -Is)"; cd erp-domain && mvn -B -ntp verify; status=$?; echo "[task01] verify exit $status $(date -Is)"; echo $status > /tmp/task01-verify.exit' > /tmp/task01-verify.log 2>&1 & echo $! > /tmp/task01-verify.pid`
-- PID: `278297` (latest attempt)
+- Command: `setsid bash -lc "set +e; echo '[task01] verify start $(date -Is)'; cd '/home/realnigga/Desktop/CLI_BACKEND_epic04/erp-domain' && mvn -B -ntp verify; status=$?; echo '[task01] verify exit $status $(date -Is)'; echo $status > /tmp/task01-verify.exit" >> /tmp/task01-verify.log 2>&1 < /dev/null & echo $! > /tmp/task01-verify.pid`
+- PID: `280762` (latest attempt)
 - Log: `/tmp/task01-verify.log`
 - Exit: `/tmp/task01-verify.exit`
 - Status: RUNNING
@@ -28,6 +28,7 @@
 ## Completed Milestones (with commit SHAs)
 - EPIC 00 / Milestone 01 — Regression tests for dispatch/reservations/orchestrator (PASS): `259a5664ee418105ad340cda3b454f998a5ef1de`.
 - EPIC 01 / Milestone 01 — WAC uses on-hand quantity (PASS): `6910f4036539364e3a2c32918e6b911c9b2f60cb`.
+- EPIC 01 / Milestone 02 — Fail closed on zero dispatch cost (PASS): `f3f558b3a0bcb8002c69c2dd0b7674dc9b8bd1d6`.
 - EPIC 02 / Milestone 01 — Guard terminal slip status transitions (PASS): `3ca9a1fc638a48ce4d99ee9d2d1cfb79045b49bc`.
 - EPIC 02 / Milestone 02 — Backorder cancellation clears reservations (PASS): `6f3db68594bde7a26bd978e162c2fd4f187eac4b`.
 - EPIC 03 / Milestone 01 — Dispatch preview includes reserved allocations (PASS): `61c95d050a1f24260d8827fced9b6f9580baad0b`.
@@ -106,7 +107,7 @@
 - EPIC 07 / Milestone 01 accounting mental model: `docs/accounting-mental-model.md`
 
 ## Open Findings (bugs / security issues / logic flaws)
-- MEDIUM — Task01 async verify attempt via `nohup` ended immediately with empty log (PID `220820`, `/tmp/task01-verify.log` at time of check). Switched to `setsid` runner for reliable async verify artifacts.
+- MEDIUM — Task01 async verify attempts via `nohup` ended with empty log and no exit update (PIDs `220820`, `278297`; `/tmp/task01-verify.log` only start line). Using `setsid` runner for reliable async verify artifacts.
 - MEDIUM — Inventory accounting events are now gated behind `erp.inventory.accounting.events.enabled` (default off); enabling requires removal of overlapping manual postings to avoid double-posting: `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/event/InventoryAccountingEventListener.java`, `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/event/InventoryMovementEvent.java`, `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/event/InventoryValuationChangedEvent.java`.
 - MEDIUM — `journal_reference_mappings` does not enforce uniqueness on `(company_id, canonical_reference)`; resolver now searches mappings to find a real journal entry but ambiguity remains without a uniqueness constraint: `erp-domain/src/main/resources/db/migration/V88__journal_reference_mappings.sql`, `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/JournalReferenceResolver.java`.
 - MEDIUM — `InventoryAccountingEventListener` uses `LocalDate.now()` instead of company timezone / event date for valuation re-posting (period correctness risk): `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/event/InventoryAccountingEventListener.java`.
@@ -156,6 +157,7 @@
 - Sales return lookup now scopes to exact invoice reference or `invoiceNumber:` prefix to avoid cross-invoice contamination.
 
 ## Test Status Log
+- 2026-01-26: `cd erp-domain && mvn -B -ntp -Dtest=FinishedGoodsServiceTest#dispatchRejectsZeroCostWhenOnHandExists test` (PASS) — Tests run: 1, Failures: 0, Errors: 0, Skipped: 0.
 - 2026-01-26: `cd erp-domain && mvn -B -ntp -Dtest=FinishedGoodsServiceTest,IntegrationCoordinatorTest test` (PASS) — Tests run: 13, Failures: 0, Errors: 0, Skipped: 0.
 - 2026-01-26: `cd erp-domain && mvn -B -ntp -Dtest=SalesReturnServiceTest,SettlementE2ETest test` (PASS) — Tests run: 16, Failures: 0, Errors: 0, Skipped: 0.
 - 2026-01-25: `nohup bash -lc 'cd erp-domain && mvn -B -ntp verify' > /tmp/task01-verify.log 2>&1 & echo $! > /tmp/task01-verify.pid` (RUNNING) — PID 220820.
