@@ -75,12 +75,15 @@ public class InvoiceSettlementPolicy {
         if (isVoid(invoice)) {
             throw new IllegalStateException("Cannot settle a void invoice");
         }
+        if (reference != null && !reference.isBlank() && invoice.getPaymentReferences().contains(reference)) {
+            return; // idempotent reprocessing
+        }
         BigDecimal currentOutstanding = invoice.getOutstandingAmount() != null 
                 ? invoice.getOutstandingAmount() : BigDecimal.ZERO;
-        BigDecimal newOutstanding = currentOutstanding.subtract(clearedAmount);
-        if (newOutstanding.compareTo(BigDecimal.ZERO) < 0) {
-            newOutstanding = BigDecimal.ZERO;
+        if (clearedAmount.compareTo(currentOutstanding) > 0) {
+            throw new IllegalArgumentException("Settlement exceeds outstanding amount");
         }
+        BigDecimal newOutstanding = currentOutstanding.subtract(clearedAmount);
         invoice.setOutstandingAmount(newOutstanding);
         if (reference != null && !reference.isBlank()) {
             invoice.getPaymentReferences().add(reference);

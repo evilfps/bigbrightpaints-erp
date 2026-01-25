@@ -410,6 +410,78 @@ public class SettlementE2ETest extends AbstractIntegrationTest {
     }
 
     @Test
+    @DisplayName("Dealer settlement rejects over-application")
+    void dealerSettlement_OverApplicationRejected() {
+        String idemKey = "SETTLE-OVER-" + UUID.randomUUID();
+        Map<String, Object> allocation = Map.of(
+                "invoiceId", invoice.getId(),
+                "appliedAmount", new BigDecimal("900.00")
+        );
+        Map<String, Object> payload = Map.of(
+                "dealerId", dealer.getId(),
+                "cashAccountId", cash.getId(),
+                "allocations", List.of(allocation),
+                "idempotencyKey", idemKey
+        );
+
+        ResponseEntity<Map> response = rest.exchange(
+                "/api/v1/accounting/settlements/dealers",
+                HttpMethod.POST,
+                new HttpEntity<>(payload, headers),
+                Map.class);
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+
+        Invoice refreshed = invoiceRepository.findById(invoice.getId()).orElseThrow();
+        assertThat(refreshed.getOutstandingAmount()).isEqualByComparingTo(new BigDecimal("800.00"));
+        assertThat(allocationRepository.findByCompanyAndIdempotencyKey(company, idemKey)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("Dealer settlement cannot be applied twice with a new idempotency key")
+    void dealerSettlement_DuplicateApplicationRejected() {
+        String firstKey = "SETTLE-DUP-" + UUID.randomUUID();
+        Map<String, Object> allocation = Map.of(
+                "invoiceId", invoice.getId(),
+                "appliedAmount", new BigDecimal("800.00")
+        );
+        Map<String, Object> payload = Map.of(
+                "dealerId", dealer.getId(),
+                "cashAccountId", cash.getId(),
+                "allocations", List.of(allocation),
+                "idempotencyKey", firstKey
+        );
+
+        ResponseEntity<Map> first = rest.exchange(
+                "/api/v1/accounting/settlements/dealers",
+                HttpMethod.POST,
+                new HttpEntity<>(payload, headers),
+                Map.class);
+        assertThat(first.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+        Invoice afterFirst = invoiceRepository.findById(invoice.getId()).orElseThrow();
+        assertThat(afterFirst.getOutstandingAmount()).isEqualByComparingTo(BigDecimal.ZERO);
+
+        String secondKey = "SETTLE-DUP-" + UUID.randomUUID();
+        Map<String, Object> secondPayload = Map.of(
+                "dealerId", dealer.getId(),
+                "cashAccountId", cash.getId(),
+                "allocations", List.of(allocation),
+                "idempotencyKey", secondKey
+        );
+
+        ResponseEntity<Map> second = rest.exchange(
+                "/api/v1/accounting/settlements/dealers",
+                HttpMethod.POST,
+                new HttpEntity<>(secondPayload, headers),
+                Map.class);
+        assertThat(second.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+
+        Invoice afterSecond = invoiceRepository.findById(invoice.getId()).orElseThrow();
+        assertThat(afterSecond.getOutstandingAmount()).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(allocationRepository.findByCompanyAndIdempotencyKey(company, secondKey)).isEmpty();
+    }
+
+    @Test
     @DisplayName("Dealer settlement idempotency allows multiple allocations per key")
     void dealerSettlement_Idempotent_MultiAllocation() {
         Invoice second = ensureInvoice();
