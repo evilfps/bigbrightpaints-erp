@@ -6,6 +6,7 @@ import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalLine;
+import com.bigbrightpaints.erp.modules.accounting.domain.PartnerSettlementAllocationRepository;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryReference;
@@ -57,6 +58,7 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
     @Autowired private RawMaterialMovementRepository rawMaterialMovementRepository;
     @Autowired private JournalEntryRepository journalEntryRepository;
     @Autowired private RawMaterialPurchaseRepository purchaseRepository;
+    @Autowired private PartnerSettlementAllocationRepository settlementAllocationRepository;
 
     private HttpHeaders headers;
     private Company company;
@@ -148,9 +150,18 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
                 Map.class);
         assertThat(settleResp.getStatusCode()).isEqualTo(HttpStatus.OK);
 
+        ResponseEntity<Map> settleRepeat = rest.exchange(
+                "/api/v1/accounting/settlements/suppliers",
+                HttpMethod.POST,
+                new HttpEntity<>(settlementReq, headers),
+                Map.class);
+        assertThat(settleRepeat.getStatusCode()).isEqualTo(HttpStatus.OK);
+
         RawMaterialPurchase purchase = purchaseRepository.findById(purchaseId).orElseThrow();
         assertThat(purchase.getOutstandingAmount()).isEqualByComparingTo(BigDecimal.ZERO);
         assertThat(purchase.getStatus()).isEqualTo("PAID");
+        assertThat(settlementAllocationRepository.findByCompanyAndIdempotencyKey(company, settlementRef))
+                .hasSize(1);
     }
 
     @Test

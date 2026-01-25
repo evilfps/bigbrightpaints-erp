@@ -141,15 +141,19 @@ class PurchaseReturnIdempotencyRegressionIT extends AbstractIntegrationTest {
 
         JournalEntryDto first = purchasingService.recordPurchaseReturn(request);
         BigDecimal stockAfterFirst = rawMaterialRepository.findById(material.getId()).orElseThrow().getCurrentStock();
+        RawMaterialPurchase purchaseAfterFirst = purchaseRepository.findById(purchase.getId()).orElseThrow();
         List<RawMaterialMovement> movements = movementRepository
                 .findByRawMaterialCompanyAndReferenceTypeAndReferenceId(company,
                         InventoryReference.PURCHASE_RETURN,
                         "PR-LF022-001");
         assertThat(movements).hasSize(1);
         assertThat(movements).allMatch(movement -> movement.getJournalEntryId() != null);
+        assertThat(purchaseAfterFirst.getOutstandingAmount()).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(purchaseAfterFirst.getStatus()).isEqualTo("VOID");
 
         JournalEntryDto second = purchasingService.recordPurchaseReturn(request);
         BigDecimal stockAfterSecond = rawMaterialRepository.findById(material.getId()).orElseThrow().getCurrentStock();
+        RawMaterialPurchase purchaseAfterSecond = purchaseRepository.findById(purchase.getId()).orElseThrow();
         List<RawMaterialMovement> movementsAfter = movementRepository
                 .findByRawMaterialCompanyAndReferenceTypeAndReferenceId(company,
                         InventoryReference.PURCHASE_RETURN,
@@ -159,6 +163,8 @@ class PurchaseReturnIdempotencyRegressionIT extends AbstractIntegrationTest {
         assertThat(stockAfterSecond).isEqualByComparingTo(stockAfterFirst);
         assertThat(movementsAfter).hasSize(movements.size());
         assertThat(movementsAfter).allMatch(movement -> movement.getJournalEntryId().equals(first.id()));
+        assertThat(purchaseAfterSecond.getOutstandingAmount()).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(purchaseAfterSecond.getStatus()).isEqualTo("VOID");
     }
 
     private Account ensureAccount(Company company, String code, String name, AccountType type) {
