@@ -977,13 +977,13 @@ Milestone 02 — Final “domino” gate (full suite twice) **COMPLETED** — co
   - If flake appears, quarantine by fixing nondeterminism (time, ordering, concurrency) rather than disabling tests.
 
 ## Production Readiness Checklist (final gate)
-- [ ] No new endpoints/features introduced; stabilization + unification only.
-- [ ] Dispatch confirm idempotent across both endpoints; links slip ↔ invoice ↔ journals.
-- [ ] Journals always balance (zero tolerance) for sales/purchases/returns/settlements/adjustments.
-- [ ] GST return matches journal lines for configured GST input/output accounts.
-- [ ] Period lock rules enforced; reversals behave correctly.
-- [ ] Security: cross-company access attempts fail closed; high-risk endpoints require proper authority.
-- [ ] Performance budgets pass (`PerformanceBudgetIT`, `PerformanceExplainIT`).
-- [ ] Docs exist for frontend/help pages and match tests/code.
-- [ ] Full suite passes twice: `cd erp-domain && mvn -B -ntp verify`
-- [ ] `SCOPE.md` + `HYDRATION.md` updated with final decisions, findings, and commit SHAs.
+- [x] No new endpoints/features introduced; stabilization + unification only.
+- [x] Dispatch confirm idempotent across both endpoints; links slip ↔ invoice ↔ journals.
+- [x] Journals always balance (zero tolerance) for sales/purchases/returns/settlements/adjustments.
+- [x] GST return matches journal lines for configured GST input/output accounts.
+- [x] Period lock rules enforced; reversals behave correctly.
+- [x] Security: cross-company access attempts fail closed; high-risk endpoints require proper authority.
+- [x] Performance budgets pass (`PerformanceBudgetIT`, `PerformanceExplainIT`).
+- [x] Docs exist for frontend/help pages and match tests/code.
+- [x] Full suite passes twice: `cd erp-domain && mvn -B -ntp verify`
+- [x] `SCOPE.md` + `HYDRATION.md` updated with final decisions, findings, and commit SHAs.
