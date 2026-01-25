@@ -479,6 +479,7 @@ public class FinishedGoodsService {
             }
             // Resolve cost before mutating quantities so WAC reflects pre-dispatch average.
             BigDecimal unitCost = resolveDispatchUnitCost(fg, batch);
+            requireNonZeroDispatchCost(fg, unitCost, shipQty);
             BigDecimal reserved = fg.getReservedStock() == null ? BigDecimal.ZERO : fg.getReservedStock();
             BigDecimal newReserved = reserved.subtract(shipQty).max(BigDecimal.ZERO);
             fg.setReservedStock(newReserved);
@@ -704,6 +705,7 @@ public class FinishedGoodsService {
             line.setBackorderQuantity(backorder);
             line.setNotes(conf.notes());
             BigDecimal unitCost = resolveDispatchUnitCost(fg, batch);
+            requireNonZeroDispatchCost(fg, unitCost, shipped);
             line.setUnitCost(unitCost);
 
             // Update inventory if actually shipping
@@ -1247,6 +1249,26 @@ public class FinishedGoodsService {
             return weightedAverageCost(finishedGood);
         }
         return batch != null && batch.getUnitCost() != null ? batch.getUnitCost() : BigDecimal.ZERO;
+    }
+
+    private void requireNonZeroDispatchCost(FinishedGood finishedGood, BigDecimal unitCost, BigDecimal shippedQuantity) {
+        if (finishedGood == null || shippedQuantity == null) {
+            return;
+        }
+        if (shippedQuantity.compareTo(BigDecimal.ZERO) <= 0) {
+            return;
+        }
+        BigDecimal resolved = unitCost != null ? unitCost : BigDecimal.ZERO;
+        if (resolved.compareTo(BigDecimal.ZERO) != 0) {
+            return;
+        }
+        BigDecimal current = finishedGood.getCurrentStock() != null ? finishedGood.getCurrentStock() : BigDecimal.ZERO;
+        BigDecimal reserved = finishedGood.getReservedStock() != null ? finishedGood.getReservedStock() : BigDecimal.ZERO;
+        BigDecimal onHand = current.max(reserved);
+        if (onHand.compareTo(BigDecimal.ZERO) > 0) {
+            String code = finishedGood.getProductCode() != null ? finishedGood.getProductCode() : finishedGood.getName();
+            throw new IllegalStateException("Dispatch cost is zero for FG " + code + " with on-hand stock");
+        }
     }
 
     @Transactional

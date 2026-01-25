@@ -29,6 +29,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @Transactional
 class FinishedGoodsServiceTest extends AbstractIntegrationTest {
@@ -77,6 +78,20 @@ class FinishedGoodsServiceTest extends AbstractIntegrationTest {
                 .findFirst()
                 .orElseThrow();
         assertThat(dispatchMovement.getUnitCost()).isEqualByComparingTo(new BigDecimal("25"));
+    }
+
+    @Test
+    void dispatchRejectsZeroCostWhenOnHandExists() {
+        Company company = seedCompany("WAC-ZERO");
+        FinishedGood fg = createFinishedGood(company, "FG-ZERO", new BigDecimal("5"), new BigDecimal("5"), "FIFO");
+        FinishedGoodBatch batch = createBatch(fg, "BATCH-ZERO", new BigDecimal("5"), BigDecimal.ZERO, BigDecimal.ZERO);
+        SalesOrder order = createOrder(company, "SO-ZERO-" + UUID.randomUUID(), fg.getProductCode(), new BigDecimal("5"));
+        PackagingSlip slip = createSlip(company, order, "RESERVED", batch, new BigDecimal("5"));
+        createReservation(order, fg, batch, new BigDecimal("5"));
+
+        assertThatThrownBy(() -> finishedGoodsService.markSlipDispatched(order.getId(), slip))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Dispatch cost is zero");
     }
 
     @Test
