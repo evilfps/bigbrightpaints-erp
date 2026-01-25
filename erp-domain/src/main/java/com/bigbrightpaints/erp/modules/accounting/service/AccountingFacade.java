@@ -8,6 +8,8 @@ import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
+import com.bigbrightpaints.erp.modules.accounting.domain.JournalReferenceMapping;
+import com.bigbrightpaints.erp.modules.accounting.domain.JournalReferenceMappingRepository;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.PayrollPaymentRequest;
@@ -76,6 +78,7 @@ public class AccountingFacade {
     private final CompanyEntityLookup companyEntityLookup;
     private final CompanyAccountingSettingsService companyAccountingSettingsService;
     private final JournalReferenceResolver journalReferenceResolver;
+    private final JournalReferenceMappingRepository journalReferenceMappingRepository;
 
     // Thread-safe account cache with TTL to reduce DB queries
     private final Map<String, CachedAccount> accountCache = new ConcurrentHashMap<>();
@@ -96,7 +99,8 @@ public class AccountingFacade {
                             CompanyClock companyClock,
                             CompanyEntityLookup companyEntityLookup,
                             CompanyAccountingSettingsService companyAccountingSettingsService,
-                            JournalReferenceResolver journalReferenceResolver) {
+                            JournalReferenceResolver journalReferenceResolver,
+                            JournalReferenceMappingRepository journalReferenceMappingRepository) {
         this.companyContextService = companyContextService;
         this.accountRepository = accountRepository;
         this.accountingService = accountingService;
@@ -108,6 +112,7 @@ public class AccountingFacade {
         this.companyEntityLookup = companyEntityLookup;
         this.companyAccountingSettingsService = companyAccountingSettingsService;
         this.journalReferenceResolver = journalReferenceResolver;
+        this.journalReferenceMappingRepository = journalReferenceMappingRepository;
     }
 
     /**
@@ -188,7 +193,9 @@ public class AccountingFacade {
         }
         if (existing.isPresent()) {
             log.info("Sales journal already exists for reference: {}", reference);
-            return toSimpleDto(existing.get());
+            JournalEntry entry = existing.get();
+            ensureSalesJournalReferenceMapping(company, entry, canonicalReference);
+            return toSimpleDto(entry);
         }
 
         // Build journal lines
@@ -271,7 +278,12 @@ public class AccountingFacade {
         log.info("Posting sales journal: reference={}, dealer={}, amount={}",
                 reference, dealer.getName(), totalAmount);
 
-        return accountingService.createJournalEntry(request);
+        JournalEntryDto created = accountingService.createJournalEntry(request);
+        if (created != null && created.id() != null) {
+            JournalEntry entry = companyEntityLookup.requireJournalEntry(company, created.id());
+            ensureSalesJournalReferenceMapping(company, entry, canonicalReference);
+        }
+        return created;
     }
 
     /**
@@ -1361,6 +1373,26 @@ public class AccountingFacade {
     }
 
     // ===== Helper Methods =====
+
+    private void ensureSalesJournalReferenceMapping(Company company, JournalEntry entry, String canonicalReference) {
+        if (company == null || entry == null || !StringUtils.hasText(canonicalReference)) {
+            return;
+        }
+        String legacyReference = entry.getReferenceNumber();
+        if (!StringUtils.hasText(legacyReference) || legacyReference.equalsIgnoreCase(canonicalReference)) {
+            return;
+        }
+        if (journalReferenceMappingRepository.findByCompanyAndLegacyReferenceIgnoreCase(company, legacyReference).isPresent()) {
+            return;
+        }
+        JournalReferenceMapping mapping = new JournalReferenceMapping();
+        mapping.setCompany(company);
+        mapping.setLegacyReference(legacyReference.trim());
+        mapping.setCanonicalReference(canonicalReference.trim());
+        mapping.setEntityType("JOURNAL_ENTRY");
+        mapping.setEntityId(entry.getId());
+        journalReferenceMappingRepository.save(mapping);
+    }
 
     private Supplier requireSupplier(Company company, Long supplierId) {
         try {

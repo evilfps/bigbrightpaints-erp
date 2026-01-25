@@ -38,29 +38,15 @@ public class JournalReferenceResolver {
         }
         List<JournalReferenceMapping> legacyMappings = journalReferenceMappingRepository
                 .findAllByCompanyAndLegacyReferenceIgnoreCase(company, trimmed);
-        Optional<JournalReferenceMapping> legacy = selectMapping(legacyMappings, "legacy", trimmed);
-        if (legacy.isPresent()) {
-            String canonical = legacy.get().getCanonicalReference();
-            if (StringUtils.hasText(canonical) && !canonical.equalsIgnoreCase(trimmed)) {
-                Optional<JournalEntry> canonicalEntry = journalEntryRepository
-                        .findByCompanyAndReferenceNumber(company, canonical);
-                if (canonicalEntry.isPresent()) {
-                    return canonicalEntry;
-                }
-            }
+        Optional<JournalEntry> legacyEntry = findEntryByMappings(company, legacyMappings, true, "legacy", trimmed);
+        if (legacyEntry.isPresent()) {
+            return legacyEntry;
         }
         List<JournalReferenceMapping> canonicalMappings = journalReferenceMappingRepository
                 .findAllByCompanyAndCanonicalReferenceIgnoreCase(company, trimmed);
-        Optional<JournalReferenceMapping> canonical = selectMapping(canonicalMappings, "canonical", trimmed);
-        if (canonical.isPresent()) {
-            String legacyRef = canonical.get().getLegacyReference();
-            if (StringUtils.hasText(legacyRef) && !legacyRef.equalsIgnoreCase(trimmed)) {
-                Optional<JournalEntry> legacyEntry = journalEntryRepository
-                        .findByCompanyAndReferenceNumber(company, legacyRef);
-                if (legacyEntry.isPresent()) {
-                    return legacyEntry;
-                }
-            }
+        Optional<JournalEntry> canonicalEntry = findEntryByMappings(company, canonicalMappings, false, "canonical", trimmed);
+        if (canonicalEntry.isPresent()) {
+            return canonicalEntry;
         }
         return Optional.empty();
     }
@@ -69,21 +55,33 @@ public class JournalReferenceResolver {
         return findExistingEntry(company, reference).isPresent();
     }
 
-    private Optional<JournalReferenceMapping> selectMapping(List<JournalReferenceMapping> mappings,
-                                                            String kind,
-                                                            String reference) {
+    private Optional<JournalEntry> findEntryByMappings(Company company,
+                                                       List<JournalReferenceMapping> mappings,
+                                                       boolean useCanonicalReference,
+                                                       String kind,
+                                                       String reference) {
         if (mappings == null || mappings.isEmpty()) {
             return Optional.empty();
         }
-        if (mappings.size() == 1) {
-            return Optional.of(mappings.get(0));
+        if (mappings.size() > 1) {
+            logger.warn("Multiple journal reference mappings for {} reference '{}'; attempting resolution", kind, reference);
         }
         Comparator<JournalReferenceMapping> comparator = Comparator
                 .comparing(JournalReferenceMapping::getCreatedAt, Comparator.nullsLast(Comparator.naturalOrder()))
                 .thenComparing(JournalReferenceMapping::getId, Comparator.nullsLast(Comparator.naturalOrder()));
-        JournalReferenceMapping selected = mappings.stream().max(comparator).orElse(mappings.get(0));
-        logger.warn("Multiple journal reference mappings for {} reference '{}'; using id={} createdAt={}",
-                kind, reference, selected.getId(), selected.getCreatedAt());
-        return Optional.of(selected);
+        List<JournalReferenceMapping> ordered = mappings.stream()
+                .sorted(comparator.reversed())
+                .toList();
+        for (JournalReferenceMapping mapping : ordered) {
+            String candidate = useCanonicalReference ? mapping.getCanonicalReference() : mapping.getLegacyReference();
+            if (!StringUtils.hasText(candidate) || candidate.equalsIgnoreCase(reference)) {
+                continue;
+            }
+            Optional<JournalEntry> entry = journalEntryRepository.findByCompanyAndReferenceNumber(company, candidate.trim());
+            if (entry.isPresent()) {
+                return entry;
+            }
+        }
+        return Optional.empty();
     }
 }
