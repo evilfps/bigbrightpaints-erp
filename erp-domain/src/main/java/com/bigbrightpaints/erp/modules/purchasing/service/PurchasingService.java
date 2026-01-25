@@ -1059,11 +1059,11 @@ public class PurchasingService {
                                         RawMaterial material,
                                         BigDecimal returnQuantity) {
         if (purchase == null || material == null || returnQuantity == null) {
-            return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+            return currency(BigDecimal.ZERO);
         }
         BigDecimal purchaseTax = MoneyUtils.zeroIfNull(purchase.getTaxAmount());
         if (purchaseTax.compareTo(BigDecimal.ZERO) <= 0) {
-            return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+            return currency(BigDecimal.ZERO);
         }
         BigDecimal materialLineTotal = purchase.getLines().stream()
                 .filter(line -> line.getRawMaterial() != null
@@ -1078,7 +1078,7 @@ public class PurchasingService {
                 .filter(Objects::nonNull)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         if (materialLineTotal.compareTo(BigDecimal.ZERO) <= 0 || materialLineQty.compareTo(BigDecimal.ZERO) <= 0) {
-            return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+            return currency(BigDecimal.ZERO);
         }
         boolean hasCompleteLineTaxData = purchase.getLines().stream()
                 .map(RawMaterialPurchaseLine::getTaxAmount)
@@ -1091,7 +1091,7 @@ public class PurchasingService {
                     .filter(Objects::nonNull)
                     .reduce(BigDecimal.ZERO, BigDecimal::add);
             if (materialLineTax.compareTo(BigDecimal.ZERO) <= 0) {
-                return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+                return currency(BigDecimal.ZERO);
             }
             BigDecimal taxPerUnit = materialLineTax.divide(materialLineQty, 6, RoundingMode.HALF_UP);
             return currency(taxPerUnit.multiply(returnQuantity));
@@ -1102,7 +1102,7 @@ public class PurchasingService {
                 .filter(Objects::nonNull)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         if (inventoryTotal.compareTo(BigDecimal.ZERO) <= 0) {
-            return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+            return currency(BigDecimal.ZERO);
         }
         BigDecimal allocationRatio = materialLineTotal.divide(inventoryTotal, 6, RoundingMode.HALF_UP);
         BigDecimal allocatedTax = purchaseTax.multiply(allocationRatio);
@@ -1125,10 +1125,7 @@ public class PurchasingService {
     }
 
     private BigDecimal currency(BigDecimal value) {
-        if (value == null) {
-            return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
-        }
-        return value.setScale(2, RoundingMode.HALF_UP);
+        return MoneyUtils.roundCurrency(value);
     }
 
     private void updatePurchaseStatus(RawMaterialPurchase purchase) {

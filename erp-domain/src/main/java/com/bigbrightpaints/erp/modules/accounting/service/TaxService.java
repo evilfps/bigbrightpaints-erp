@@ -1,6 +1,7 @@
 package com.bigbrightpaints.erp.modules.accounting.service;
 
 import com.bigbrightpaints.erp.core.util.CompanyClock;
+import com.bigbrightpaints.erp.core.util.MoneyUtils;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalLine;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalLineRepository;
 import com.bigbrightpaints.erp.modules.accounting.dto.GstReturnDto;
@@ -41,8 +42,8 @@ public class TaxService {
 
         var taxConfig = companyAccountingSettingsService.requireTaxAccounts();
 
-        BigDecimal outputTax = roundCurrency(sumTax(company, taxConfig.outputTaxAccountId(), start, end, true));
-        BigDecimal inputTax = roundCurrency(sumTax(company, taxConfig.inputTaxAccountId(), start, end, false));
+        BigDecimal outputTax = MoneyUtils.roundCurrency(sumTax(company, taxConfig.outputTaxAccountId(), start, end, true));
+        BigDecimal inputTax = MoneyUtils.roundCurrency(sumTax(company, taxConfig.inputTaxAccountId(), start, end, false));
 
         GstReturnDto dto = new GstReturnDto();
         dto.setPeriod(target);
@@ -50,7 +51,7 @@ public class TaxService {
         dto.setPeriodEnd(end);
         dto.setOutputTax(outputTax);
         dto.setInputTax(inputTax);
-        dto.setNetPayable(roundCurrency(outputTax.subtract(inputTax)));
+        dto.setNetPayable(MoneyUtils.roundCurrency(outputTax.subtract(inputTax)));
         return dto;
     }
 
@@ -73,10 +74,4 @@ public class TaxService {
         return value == null ? BigDecimal.ZERO : value;
     }
 
-    private BigDecimal roundCurrency(BigDecimal value) {
-        if (value == null) {
-            return BigDecimal.ZERO.setScale(2, java.math.RoundingMode.HALF_UP);
-        }
-        return value.setScale(2, java.math.RoundingMode.HALF_UP);
-    }
 }
