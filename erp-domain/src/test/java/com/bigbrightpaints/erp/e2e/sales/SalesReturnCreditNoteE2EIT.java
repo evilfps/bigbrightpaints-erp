@@ -153,7 +153,7 @@ public class SalesReturnCreditNoteE2EIT extends AbstractIntegrationTest {
         assertThat(refreshed.getCurrentStock()).isEqualByComparingTo(startingStock.add(new BigDecimal("1.00")));
 
         List<InventoryMovement> returnMovements = inventoryMovementRepository
-                .findByReferenceTypeAndReferenceIdOrderByCreatedAtAsc("SALES_RETURN", invoice.getInvoiceNumber());
+                .findByReferenceTypeAndReferenceIdStartingWithOrderByCreatedAtAsc("SALES_RETURN", invoice.getInvoiceNumber());
         assertThat(returnMovements).hasSize(1);
         InventoryMovement returnMovement = returnMovements.get(0);
         assertThat(returnMovement.getMovementType()).isEqualTo("RETURN");
@@ -222,7 +222,7 @@ public class SalesReturnCreditNoteE2EIT extends AbstractIntegrationTest {
         assertThat(refreshed.getCurrentStock()).isEqualByComparingTo(startingStock.add(new BigDecimal("2.00")));
 
         List<InventoryMovement> returnMovements = inventoryMovementRepository
-                .findByReferenceTypeAndReferenceIdOrderByCreatedAtAsc("SALES_RETURN", mixedInvoice.getInvoiceNumber());
+                .findByReferenceTypeAndReferenceIdStartingWithOrderByCreatedAtAsc("SALES_RETURN", mixedInvoice.getInvoiceNumber());
         assertThat(returnMovements).hasSize(2);
         BigDecimal totalReturned = returnMovements.stream()
                 .map(mv -> Optional.ofNullable(mv.getQuantity()).orElse(BigDecimal.ZERO))
@@ -266,7 +266,7 @@ public class SalesReturnCreditNoteE2EIT extends AbstractIntegrationTest {
         assertThat(refreshed.getCurrentStock()).isEqualByComparingTo(startingStock);
 
         List<InventoryMovement> returnMovements = inventoryMovementRepository
-                .findByReferenceTypeAndReferenceIdOrderByCreatedAtAsc("SALES_RETURN", invoice.getInvoiceNumber());
+                .findByReferenceTypeAndReferenceIdStartingWithOrderByCreatedAtAsc("SALES_RETURN", invoice.getInvoiceNumber());
         assertThat(returnMovements).isEmpty();
 
         String returnReference = "CRN-" + invoice.getInvoiceNumber();

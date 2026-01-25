@@ -12,4 +12,13 @@ public interface InventoryMovementRepository extends JpaRepository<InventoryMove
             Company company,
             String referenceType,
             String referenceId);
+
+    List<InventoryMovement> findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdStartingWithOrderByCreatedAtAsc(
+            Company company,
+            String referenceType,
+            String referenceId);
+
+    List<InventoryMovement> findByReferenceTypeAndReferenceIdStartingWithOrderByCreatedAtAsc(
+            String referenceType,
+            String referenceId);
 }

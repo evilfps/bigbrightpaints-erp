@@ -153,7 +153,7 @@ class SalesReturnServiceTest {
                 eq(InventoryReference.SALES_ORDER),
                 eq("99"))
         ).thenReturn(List.of(dispatchMovement));
-        when(inventoryMovementRepository.findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdOrderByCreatedAtAsc(
+        when(inventoryMovementRepository.findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdStartingWithOrderByCreatedAtAsc(
                 eq(company),
                 eq("SALES_RETURN"),
                 eq("INV-1")
@@ -253,7 +253,7 @@ class SalesReturnServiceTest {
 
         when(companyEntityLookup.requireInvoice(company, 10L)).thenReturn(invoice);
         when(finishedGoodRepository.lockByCompanyAndProductCode(company, "FG-1")).thenReturn(Optional.of(fg));
-        when(inventoryMovementRepository.findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdOrderByCreatedAtAsc(
+        when(inventoryMovementRepository.findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdStartingWithOrderByCreatedAtAsc(
                 eq(company),
                 eq("SALES_RETURN"),
                 eq("INV-1")
@@ -262,6 +262,66 @@ class SalesReturnServiceTest {
         SalesReturnRequest request = new SalesReturnRequest(
                 10L,
                 "Damaged goods",
+                List.of(new SalesReturnRequest.ReturnLine(55L, new BigDecimal("1")))
+        );
+
+        assertThatThrownBy(() -> salesReturnService.processReturn(request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("remaining invoiced amount");
+    }
+
+    @Test
+    void processReturn_rejectsDuplicateProductLineOverReturn() {
+        Dealer dealer = new Dealer();
+        dealer.setCompany(company);
+        dealer.setName("Retail Partner");
+        Account receivable = new Account();
+        setField(receivable, "id", 70L);
+        dealer.setReceivableAccount(receivable);
+        setField(dealer, "id", 7L);
+
+        Invoice invoice = new Invoice();
+        invoice.setCompany(company);
+        invoice.setDealer(dealer);
+        invoice.setInvoiceNumber("INV-1");
+        setField(invoice, "id", 10L);
+
+        InvoiceLine firstLine = new InvoiceLine();
+        firstLine.setInvoice(invoice);
+        firstLine.setProductCode("FG-1");
+        firstLine.setQuantity(new BigDecimal("1"));
+        setField(firstLine, "id", 55L);
+        invoice.getLines().add(firstLine);
+
+        InvoiceLine secondLine = new InvoiceLine();
+        secondLine.setInvoice(invoice);
+        secondLine.setProductCode("FG-1");
+        secondLine.setQuantity(new BigDecimal("1"));
+        setField(secondLine, "id", 56L);
+        invoice.getLines().add(secondLine);
+
+        FinishedGood fg = new FinishedGood();
+        fg.setCompany(company);
+        fg.setProductCode("FG-1");
+        setField(fg, "id", 21L);
+
+        InventoryMovement priorReturn = new InventoryMovement();
+        priorReturn.setFinishedGood(fg);
+        priorReturn.setQuantity(new BigDecimal("1"));
+        priorReturn.setReferenceType("SALES_RETURN");
+        priorReturn.setReferenceId("INV-1:55");
+
+        when(companyEntityLookup.requireInvoice(company, 10L)).thenReturn(invoice);
+        when(finishedGoodRepository.lockByCompanyAndProductCode(company, "FG-1")).thenReturn(Optional.of(fg));
+        when(inventoryMovementRepository.findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdStartingWithOrderByCreatedAtAsc(
+                eq(company),
+                eq("SALES_RETURN"),
+                eq("INV-1")
+        )).thenReturn(List.of(priorReturn));
+
+        SalesReturnRequest request = new SalesReturnRequest(
+                10L,
+                "Duplicate line return",
                 List.of(new SalesReturnRequest.ReturnLine(55L, new BigDecimal("1")))
         );
 
@@ -335,7 +395,7 @@ class SalesReturnServiceTest {
                 eq(InventoryReference.SALES_ORDER),
                 eq("101"))
         ).thenReturn(List.of(dispatchMovement));
-        when(inventoryMovementRepository.findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdOrderByCreatedAtAsc(
+        when(inventoryMovementRepository.findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdStartingWithOrderByCreatedAtAsc(
                 eq(company),
                 eq("SALES_RETURN"),
                 eq("INV-2")

@@ -39,6 +39,7 @@ import java.util.stream.Collectors;
 public class SalesReturnService {
 
     private static final String SALES_RETURN_REFERENCE = "SALES_RETURN";
+    private static final String SALES_RETURN_LINE_SEPARATOR = ":";
     private static final BigDecimal DISCOUNT_TOLERANCE = new BigDecimal("0.02");
 
     private final CompanyContextService companyContextService;
@@ -83,6 +84,7 @@ public class SalesReturnService {
             throw new IllegalArgumentException("Return lines are required");
         }
 
+        Map<Long, BigDecimal> requestedReturnQtyByLine = new LinkedHashMap<>();
         Map<Long, BigDecimal> requestedReturnQtyByFg = new LinkedHashMap<>();
         Map<Long, BigDecimal> invoicedQtyByFg = new LinkedHashMap<>();
         Map<String, FinishedGood> finishedGoodsByCode = new HashMap<>();
@@ -98,6 +100,7 @@ public class SalesReturnService {
             if (quantity.compareTo(invoiceLine.getQuantity()) > 0) {
                 throw new IllegalArgumentException("Return quantity exceeds invoiced amount for " + invoiceLine.getProductCode());
             }
+            requestedReturnQtyByLine.merge(invoiceLine.getId(), quantity, BigDecimal::add);
             returnProductCodes.add(invoiceLine.getProductCode());
             FinishedGood finishedGood = finishedGoodsByCode.computeIfAbsent(
                     invoiceLine.getProductCode(),
@@ -120,7 +123,21 @@ public class SalesReturnService {
             invoicedQtyByFg.merge(finishedGood.getId(), invoicedQty, BigDecimal::add);
         }
 
-        Map<Long, BigDecimal> existingReturnsByFg = loadReturnMovements(company, invoice.getInvoiceNumber());
+        ReturnMovementSummary existingReturns = loadReturnMovements(company, invoice.getInvoiceNumber());
+        Map<Long, BigDecimal> existingReturnsByLine = existingReturns.byInvoiceLineId();
+        for (Map.Entry<Long, BigDecimal> entry : requestedReturnQtyByLine.entrySet()) {
+            InvoiceLine invoiceLine = invoiceLines.get(entry.getKey());
+            if (invoiceLine == null) {
+                continue;
+            }
+            BigDecimal invoicedQty = invoiceLine.getQuantity() != null ? invoiceLine.getQuantity() : BigDecimal.ZERO;
+            BigDecimal priorReturnedQty = existingReturnsByLine.getOrDefault(entry.getKey(), BigDecimal.ZERO);
+            if (priorReturnedQty.add(entry.getValue()).compareTo(invoicedQty) > 0) {
+                throw new IllegalArgumentException("Return quantity exceeds remaining invoiced amount for " + invoiceLine.getProductCode());
+            }
+        }
+
+        Map<Long, BigDecimal> existingReturnsByFg = existingReturns.byFinishedGoodId();
         for (Map.Entry<Long, BigDecimal> entry : requestedReturnQtyByFg.entrySet()) {
             BigDecimal invoicedQty = invoicedQtyByFg.getOrDefault(entry.getKey(), BigDecimal.ZERO);
             BigDecimal priorReturnedQty = existingReturnsByFg.getOrDefault(entry.getKey(), BigDecimal.ZERO);
@@ -166,7 +183,7 @@ public class SalesReturnService {
             restockFinishedGood(
                     finishedGood,
                     quantity,
-                    invoice.getInvoiceNumber(),
+                    buildReturnReference(invoice.getInvoiceNumber(), invoiceLine.getId()),
                     restockUnitCost
             );
         }
@@ -407,28 +424,64 @@ public class SalesReturnService {
                 .collect(Collectors.groupingBy(mv -> mv.getFinishedGood().getId(), LinkedHashMap::new, Collectors.toList()));
     }
 
-    private Map<Long, BigDecimal> loadReturnMovements(Company company, String invoiceNumber) {
-        if (invoiceNumber == null) {
-            return Map.of();
+    private ReturnMovementSummary loadReturnMovements(Company company, String invoiceNumber) {
+        String normalized = invoiceNumber != null ? invoiceNumber.trim() : null;
+        if (normalized == null || normalized.isEmpty()) {
+            return ReturnMovementSummary.empty();
         }
         List<InventoryMovement> movements = inventoryMovementRepository
-                .findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdOrderByCreatedAtAsc(
+                .findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdStartingWithOrderByCreatedAtAsc(
                         company,
                         SALES_RETURN_REFERENCE,
-                        invoiceNumber);
+                        normalized);
         if (movements == null || movements.isEmpty()) {
-            return Map.of();
+            return ReturnMovementSummary.empty();
         }
-        Map<Long, BigDecimal> totals = new LinkedHashMap<>();
+        Map<Long, BigDecimal> totalsByLine = new LinkedHashMap<>();
+        Map<Long, BigDecimal> totalsByFinishedGood = new LinkedHashMap<>();
+        String prefix = normalized + SALES_RETURN_LINE_SEPARATOR;
         for (InventoryMovement movement : movements) {
             FinishedGood finishedGood = movement.getFinishedGood();
             if (finishedGood == null || finishedGood.getId() == null) {
                 continue;
             }
             BigDecimal quantity = movement.getQuantity() != null ? movement.getQuantity() : BigDecimal.ZERO;
-            totals.merge(finishedGood.getId(), quantity, BigDecimal::add);
+            totalsByFinishedGood.merge(finishedGood.getId(), quantity, BigDecimal::add);
+
+            String referenceId = movement.getReferenceId();
+            if (referenceId == null || referenceId.equals(normalized)) {
+                continue;
+            }
+            if (!referenceId.startsWith(prefix)) {
+                continue;
+            }
+            String lineIdText = referenceId.substring(prefix.length()).trim();
+            if (lineIdText.isEmpty()) {
+                continue;
+            }
+            try {
+                Long lineId = Long.parseLong(lineIdText);
+                totalsByLine.merge(lineId, quantity, BigDecimal::add);
+            } catch (NumberFormatException ignored) {
+                // ignore invalid line ids
+            }
         }
-        return totals;
+        return new ReturnMovementSummary(totalsByLine, totalsByFinishedGood);
+    }
+
+    private String buildReturnReference(String invoiceNumber, Long invoiceLineId) {
+        String normalized = invoiceNumber != null ? invoiceNumber.trim() : null;
+        if (normalized == null || normalized.isEmpty() || invoiceLineId == null) {
+            return normalized;
+        }
+        return normalized + SALES_RETURN_LINE_SEPARATOR + invoiceLineId;
+    }
+
+    private record ReturnMovementSummary(Map<Long, BigDecimal> byInvoiceLineId,
+                                         Map<Long, BigDecimal> byFinishedGoodId) {
+        private static ReturnMovementSummary empty() {
+            return new ReturnMovementSummary(Map.of(), Map.of());
+        }
     }
 
     private BigDecimal resolveReturnUnitCost(FinishedGood finishedGood,

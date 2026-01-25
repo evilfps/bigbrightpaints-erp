@@ -1340,8 +1340,15 @@ public class AccountingService {
                             String.format("Cannot settle invoice %s in %s with settlement currency %s", invoice.getInvoiceNumber(), invoice.getCurrency(), settlementCurrency));
                 }
 
-                // open-item tracking: reduce outstanding by applied receivable clearance
-                BigDecimal cleared = applied;
+                // open-item tracking: reduce outstanding by cleared amount (applied + adjustments)
+                BigDecimal cleared = applied.add(discount).add(writeOff).add(fxAdjustment);
+                if (cleared.compareTo(BigDecimal.ZERO) < 0) {
+                    cleared = BigDecimal.ZERO;
+                }
+                BigDecimal currentOutstanding = MoneyUtils.zeroIfNull(invoice.getOutstandingAmount());
+                if (cleared.compareTo(currentOutstanding) > 0 && applied.compareTo(currentOutstanding) <= 0) {
+                    cleared = currentOutstanding;
+                }
                 // Use centralized policy for settlement - handles status transitions
                 String settlementRef = trimmedIdempotencyKey + "-INV-" + invoice.getId();
                 invoiceSettlementPolicy.applySettlement(invoice, cleared, settlementRef);

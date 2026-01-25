@@ -4,7 +4,7 @@
 - Branch: `accounting-correctness-v1`
 - Current epic/milestone pointer: `Task 00 COMPLETE`
 - Last commit SHA: `a027d1fbd46e678467d3ca45bd2154cce02ac32e`
-- Next actions: none (Task 00 complete).
+- Next actions: monitor async verify, commit & push settlement/return fixes.
 - Working tree status: pre-existing diffs present (unrelated); avoid touching unrelated files.
 
 ## Current State
@@ -15,10 +15,10 @@
 
 ## Async Verify
 - Command: `scripts/task00_async_verify.sh` (setsid background; writes exit code)
-- PID: `109871` (latest attempt)
+- PID: `166051` (latest attempt)
 - Log: `/tmp/task00-verify.log`
 - Exit: `/tmp/task00-verify.exit`
-- Status: FINISHED (exit 0, BUILD SUCCESS; Tests run: 419, Failures: 0, Errors: 0, Skipped: 4).
+- Status: RUNNING (started via `scripts/task00_async_verify.sh`).
 
 ## Triage Commands
 - First failing test in log: `grep -nE "FAILURE|ERROR|Failed" /tmp/task00-verify.log`
@@ -145,6 +145,7 @@
 - Settlement idempotency keys are now bound to partner + allocation payload; conflicting reuse is rejected to prevent tampering.
 - Posting-path inventory captured; direct `createJournalEntry(...)` call sites now documented with keep/migrate decisions.
 - EPIC 06 / Milestone 02 scopes inventory movement lookups by company for dispatch linking and sales returns to prevent cross-company leakage.
+- Dealer settlement now clears invoice outstanding using applied + discount/write-off + FX adjustment (capped to outstanding when applied already covers it); sales return movements include invoice-line reference ids to enforce per-line return limits.
 
 ## Test Status Log
 - 2026-01-24: Task 00 plan expansion commit (docs-only); tests not run.
@@ -198,6 +199,7 @@
 - 2026-01-25: `cd erp-domain && mvn -B -ntp -Dtest=ErpInvariantsSuiteIT test` (PASS) — Tests run: 9, Failures: 0, Errors: 0, Skipped: 0. (EPIC E1)
 - 2026-01-25: `nohup bash -lc 'cd erp-domain && mvn -B -ntp verify' > /tmp/task00-verify.log 2>&1 & echo $! > /tmp/task00-verify.pid` (FINISHED early) — PID 122239; log empty; no BUILD SUCCESS/FAILURE.
 - 2026-01-25: `cd erp-domain && mvn -B -ntp -Dtest=IdempotencyConflictRegressionIT test` (PASS) — Tests run: 2, Failures: 0, Errors: 0, Skipped: 0. (EPIC E2)
+- 2026-01-25: `cd erp-domain && mvn -B -ntp -Dtest=SalesReturnServiceTest,SalesReturnCreditNoteE2EIT,ErpInvariantsSuiteIT,SettlementE2ETest test` (PASS) — Tests run: 26, Failures: 0, Errors: 0, Skipped: 0.
 - 2026-01-25: `nohup bash -lc 'cd erp-domain && mvn -B -ntp verify' > /tmp/task00-verify.log 2>&1 & echo $! > /tmp/task00-verify.pid` (FINISHED early) — PID 124084; log empty; no BUILD SUCCESS/FAILURE.
 - 2026-01-25: `cd erp-domain && mvn -B -ntp -Dtest=BusinessLogicRegressionTest,IdempotencyConflictRegressionIT test` (PASS) — Tests run: 9, Failures: 0, Errors: 0, Skipped: 0.
 - 2026-01-25: `cd erp-domain && mvn -B -ntp -Dtest=PerformanceBudgetIT,PerformanceExplainIT test` (PASS) — Tests run: 3, Failures: 0, Errors: 0, Skipped: 0.

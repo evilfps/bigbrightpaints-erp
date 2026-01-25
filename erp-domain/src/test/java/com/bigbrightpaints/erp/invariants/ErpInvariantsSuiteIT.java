@@ -483,7 +483,7 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
                 .isPresent();
 
         List<InventoryMovement> returnMovements =
-                inventoryMovementRepository.findByReferenceTypeAndReferenceIdOrderByCreatedAtAsc(
+                inventoryMovementRepository.findByReferenceTypeAndReferenceIdStartingWithOrderByCreatedAtAsc(
                         "SALES_RETURN",
                         invoice.getInvoiceNumber());
         BigDecimal returnedQuantity = returnMovements.stream()
