@@ -69,6 +69,7 @@ Trace steps (from test sequence):
      - Inventory movements (`inventory_movements`)
      - Dealer ledger entries created (`dealer_ledger_entries`)
    - Idempotency check: dispatch replay preserves invoice/journal IDs and movement set
+   - Evidence tests: `OrderFulfillmentE2ETest.dispatchConfirm_idempotent_andRestoresArtifacts`, `OrderFulfillmentE2ETest.dispatchEndpoints_areEquivalent`, `DispatchConfirmationIT`
 4) Settlement (dealer)
    - Endpoint: `POST /api/v1/accounting/settlements/dealers`
    - Controller → service: `AccountingController.settleDealer(...)` → `AccountingService.settleDealerInvoices(...)`
