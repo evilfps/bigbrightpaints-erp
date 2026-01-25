@@ -2,20 +2,20 @@
 
 ## Overnight Runner State
 - Branch: `accounting-correctness-v1`
-- Current epic/milestone pointer: `tasks/task-00.md → EPIC 05 → Milestone 03` (rounding standardization)
-- Last commit SHA: `077510684e7dadda7f55fdad6a9975124ff5b437`
-- Next actions: start EPIC 05 / Milestone 03.
+- Current epic/milestone pointer: `tasks/task-00.md → EPIC 05 → Milestone 04` (inventory event journaling)
+- Last commit SHA: `b0f34b6a1a7fbebf1432a7fb222e5a503989c71b`
+- Next actions: start EPIC 05 / Milestone 04.
 - Working tree status: pre-existing diffs present (unrelated); avoid touching unrelated files.
 
 ## Current State
 - Worktree: `/home/realnigga/Desktop/CLI_BACKEND_epic04`
 - Branch: `accounting-correctness-v1`
-- Current milestone pointer: `tasks/task-00.md → EPIC 05 → Milestone 03` (rounding standardization)
+- Current milestone pointer: `tasks/task-00.md → EPIC 05 → Milestone 04` (inventory event journaling)
 - Working tree: pre-existing diffs present; proceeding without touching unrelated changes.
 
 ## Async Verify
 - Command: `scripts/task00_async_verify.sh` (setsid background; writes exit code)
-- PID: `46454` (latest attempt)
+- PID: `53139` (latest attempt)
 - Log: `/tmp/task00-verify.log`
 - Exit: `/tmp/task00-verify.exit`
 - Status: FINISHED (exit 0, BUILD SUCCESS; Tests run: 418, Failures: 0, Errors: 0, Skipped: 4).
@@ -63,6 +63,7 @@
 - EPIC 04 / Milestone 02 — Business-logic bypass + idempotency audit (PASS): `560c731dc6b6c32973fb1536095cf28050641369`.
 - EPIC 05 / Milestone 01 — Inventory all posting paths + divergences (PASS): `cc6c9b982e778ef32efd8826e7e7578abc6095fd`.
 - EPIC 05 / Milestone 02 — Canonical reference consistency + uniqueness (PASS): `077510684e7dadda7f55fdad6a9975124ff5b437`.
+- EPIC 05 / Milestone 03 — Rounding standardization (PASS): `b0f34b6a1a7fbebf1432a7fb222e5a503989c71b`.
 
 ## Evidence Pack
 - EPIC A / Milestone A1 trace map: `docs/cross-module-trace-map.md`
@@ -83,6 +84,7 @@
 - EPIC E / Milestone E2 journal reference tolerance: `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/JournalReferenceResolver.java`
 - EPIC 05 / Milestone 01 posting path inventory: `docs/posting-path-inventory.md`
 - EPIC 05 / Milestone 02 canonical reference mapping guard: `erp-domain/src/test/java/com/bigbrightpaints/erp/regression/JournalReferenceMappingRegressionIT.java`
+- EPIC 05 / Milestone 03 rounding standardization: `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/TaxService.java`, `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/purchasing/service/PurchasingService.java`
 
 ## Open Findings (bugs / security issues / logic flaws)
 - HIGH — Inventory accounting domain events appear unused (risk: future double-posting if wired later): `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/event/InventoryAccountingEventListener.java`, `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/event/InventoryMovementEvent.java`, `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/event/InventoryValuationChangedEvent.java`.
@@ -116,6 +118,7 @@
 - EPIC E / Milestone E1 recorded constraint vs repository mismatch list for key tables.
 - EPIC E / Milestone E2 tolerates duplicate journal reference mappings via deterministic selection.
 - EPIC 05 / Milestone 02 ensures sales journals create legacy→canonical mappings and resolver scans mappings to locate the actual journal entry when duplicates exist.
+- EPIC 05 / Milestone 03 standardizes GST rounding outputs via `MoneyUtils.roundCurrency` in `TaxService` and purchase return tax flows.
 - Task 00 plan expanded to cross-module audit EPICs A–F (docs-only change).
 - EPIC 02 / Milestone 02 avoids phantom GST-inclusive discounts by tolerating rounding deltas in invoice/journal discount extraction.
 - EPIC 02 / Milestone 03 adds mixed-discount return coverage and asserts inventory restock deltas instead of absolute stock.
@@ -219,9 +222,11 @@
 - 2026-01-25: `cd erp-domain && mvn -B -ntp -Dtest=CriticalPathSmokeTest,CriticalAccountingAxesIT test` (PASS) — Tests run: 19, Failures: 0, Errors: 0, Skipped: 0.
 - 2026-01-25: `cd erp-domain && mvn -B -ntp -Dtest=IdempotencyConflictRegressionIT,JournalReferenceMappingRegressionIT test` (PASS) — Tests run: 3, Failures: 0, Errors: 0, Skipped: 0.
 - 2026-01-25: `scripts/task00_async_verify.sh` (PASS) — PID 46454; exit 0; BUILD SUCCESS; Tests run: 418, Failures: 0, Errors: 0, Skipped: 4.
+- 2026-01-25: `cd erp-domain && mvn -B -ntp -Dtest=GstInclusiveRoundingIT,CriticalAccountingAxesIT test` (PASS) — Tests run: 15, Failures: 0, Errors: 0, Skipped: 0.
+- 2026-01-25: `scripts/task00_async_verify.sh` (PASS) — PID 53139; exit 0; BUILD SUCCESS; Tests run: 418, Failures: 0, Errors: 0, Skipped: 4.
 
 ## Next Actions (explicit)
-1. Start EPIC 05 / Milestone 03: rounding standardization.
+1. Start EPIC 05 / Milestone 04: inventory event journaling decision + guard.
 
 ## Historical (prior work references)
 - Epic 03: branch `epic-03-production-stock`, tip `3f2370c38c0152153369507159e5ae26ca1fa048`.

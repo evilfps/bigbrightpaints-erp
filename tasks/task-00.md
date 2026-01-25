@@ -813,7 +813,7 @@ Milestone 02 — Canonical reference consistency + uniqueness **COMPLETED** — 
 - Rollback/recovery notes:
   - If migration required, keep it backward-compatible and document rollback steps (no destructive migrations without plan).
 
-Milestone 03 — Rounding standardization (single source of truth)
+Milestone 03 — Rounding standardization (single source of truth) **COMPLETED** — commit `b0f34b6a1a7fbebf1432a7fb222e5a503989c71b`
 - Implementation steps:
   - Consolidate currency rounding semantics (2dp, HALF_UP) to a single helper (keep minimal diff).
   - Ensure all GST computations use the same intermediate scale strategy (avoid drift between order/invoice/journal).
