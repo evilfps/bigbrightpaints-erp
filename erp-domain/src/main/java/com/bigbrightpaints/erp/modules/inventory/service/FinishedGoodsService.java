@@ -637,6 +637,13 @@ public class FinishedGoodsService {
         }
         packagingSlipRepository.save(slip);
 
+        boolean hasBackorder = slip.getLines().stream()
+                .map(line -> safeQuantity(line.getBackorderQuantity()))
+                .anyMatch(qty -> qty.compareTo(BigDecimal.ZERO) > 0);
+        if (hasBackorder) {
+            createBackorderSlip(slip);
+        }
+
         return postingBuilders.values().stream()
                 .map(DispatchPostingBuilder::build)
                 .toList();
@@ -905,7 +912,7 @@ public class FinishedGoodsService {
         // Handle backorders - create new slip if needed
         Long backorderSlipId = null;
         if (hasBackorder) {
-            backorderSlipId = createBackorderSlip(slip, lineResults);
+            backorderSlipId = createBackorderSlip(slip);
         }
 
         return new DispatchConfirmationResponse(
@@ -1060,13 +1067,27 @@ public class FinishedGoodsService {
     /**
      * Create a backorder slip for items that couldn't be shipped.
      */
-    private Long createBackorderSlip(PackagingSlip originalSlip, List<DispatchConfirmationResponse.LineResult> lineResults) {
-        List<DispatchConfirmationResponse.LineResult> backorderLines = lineResults.stream()
-                .filter(l -> l.backorderQuantity().compareTo(BigDecimal.ZERO) > 0)
-                .toList();
-
-        if (backorderLines.isEmpty()) {
+    private Long createBackorderSlip(PackagingSlip originalSlip) {
+        if (originalSlip == null || originalSlip.getSalesOrder() == null) {
             return null;
+        }
+        boolean hasBackorder = originalSlip.getLines().stream()
+                .map(line -> safeQuantity(line.getBackorderQuantity()))
+                .anyMatch(qty -> qty.compareTo(BigDecimal.ZERO) > 0);
+        if (!hasBackorder) {
+            return null;
+        }
+
+        Long existingId = packagingSlipRepository.findAllByCompanyAndSalesOrderId(
+                        originalSlip.getCompany(),
+                        originalSlip.getSalesOrder().getId())
+                .stream()
+                .filter(existing -> "BACKORDER".equalsIgnoreCase(existing.getStatus()))
+                .map(PackagingSlip::getId)
+                .findFirst()
+                .orElse(null);
+        if (existingId != null) {
+            return existingId;
         }
 
         PackagingSlip backorderSlip = new PackagingSlip();

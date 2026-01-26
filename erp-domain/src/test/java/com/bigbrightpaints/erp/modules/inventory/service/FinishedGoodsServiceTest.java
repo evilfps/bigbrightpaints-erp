@@ -304,6 +304,27 @@ class FinishedGoodsServiceTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void markSlipDispatched_createsBackorderSlipForPartialShipment() {
+        Company company = seedCompany("DISPATCH-BO");
+        FinishedGood fg = createFinishedGood(company, "FG-BO", new BigDecimal("5"), new BigDecimal("10"), "FIFO");
+        FinishedGoodBatch batch = createBatch(fg, "BATCH-BO", new BigDecimal("10"), BigDecimal.ZERO, new BigDecimal("7"));
+        SalesOrder order = createOrder(company, "SO-BO-" + UUID.randomUUID(), fg.getProductCode(), new BigDecimal("10"));
+        PackagingSlip slip = createSlip(company, order, "RESERVED", batch, new BigDecimal("10"));
+        createReservation(order, fg, batch, new BigDecimal("10"));
+
+        finishedGoodsService.markSlipDispatched(order.getId(), slip);
+
+        List<PackagingSlip> slips = packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, order.getId());
+        PackagingSlip backorderSlip = slips.stream()
+                .filter(existing -> "BACKORDER".equalsIgnoreCase(existing.getStatus()))
+                .findFirst()
+                .orElseThrow();
+        assertThat(backorderSlip.getLines()).hasSize(1);
+        PackagingSlipLine boLine = backorderSlip.getLines().getFirst();
+        assertThat(boLine.getQuantity()).isEqualByComparingTo(new BigDecimal("5"));
+    }
+
+    @Test
     void previewUsesReservedForOrder() {
         Company company = seedCompany("PREVIEW-RES");
         FinishedGood fg = createFinishedGood(company, "FG-PREV", new BigDecimal("5"), new BigDecimal("5"), "FIFO");
