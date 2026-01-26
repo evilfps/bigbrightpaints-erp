@@ -9,6 +9,8 @@ import com.bigbrightpaints.erp.core.security.TokenBlacklistService;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccount;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
 import com.bigbrightpaints.erp.modules.auth.domain.UserPrincipal;
+import com.bigbrightpaints.erp.modules.auth.exception.InvalidMfaException;
+import com.bigbrightpaints.erp.modules.auth.exception.MfaRequiredException;
 import com.bigbrightpaints.erp.modules.auth.web.AuthResponse;
 import com.bigbrightpaints.erp.modules.auth.web.ForgotPasswordRequest;
 import com.bigbrightpaints.erp.modules.auth.web.LoginRequest;
@@ -101,6 +103,9 @@ public class AuthService {
                     request.companyCode(), Map.of("reason", "Authentication failed"));
             throw ex;
         } catch (RuntimeException ex) {
+            if (user != null && isMfaFailure(ex)) {
+                registerFailure(user);
+            }
             String reason = ex.getMessage();
             if (reason == null || reason.isBlank()) {
                 reason = "Login failed";
@@ -113,13 +118,13 @@ public class AuthService {
 
     // Forgot Password
     public void forgotPassword(ForgotPasswordRequest request) {
-        UserAccount user = userAccountRepository.findByEmailIgnoreCase(request.email())
-            .orElseThrow(() -> new IllegalArgumentException("User not found"));
-        String resetToken = UUID.randomUUID().toString();
-        user.setResetToken(resetToken);
-        user.setResetExpiry(Instant.now().plus(Duration.ofHours(1)));
-        userAccountRepository.save(user);
-        emailService.sendPasswordResetEmail(user.getEmail(), user.getDisplayName(), resetToken);
+        userAccountRepository.findByEmailIgnoreCase(request.email()).ifPresent(user -> {
+            String resetToken = UUID.randomUUID().toString();
+            user.setResetToken(resetToken);
+            user.setResetExpiry(Instant.now().plus(Duration.ofHours(1)));
+            userAccountRepository.save(user);
+            emailService.sendPasswordResetEmail(user.getEmail(), user.getDisplayName(), resetToken);
+        });
     }
 
     public Map<String, Object> resetPassword(ResetPasswordRequest request) {
@@ -171,6 +176,10 @@ public class AuthService {
             throw new IllegalArgumentException("User not assigned to company: " + companyCode);
         }
         return company;
+    }
+
+    private boolean isMfaFailure(RuntimeException ex) {
+        return ex instanceof InvalidMfaException || ex instanceof MfaRequiredException;
     }
 
     public void logout(String refreshToken, String accessToken, String userEmail) {
