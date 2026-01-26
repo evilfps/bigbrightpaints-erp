@@ -4,6 +4,7 @@ import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
+import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.modules.factory.domain.FactoryTask;
 import com.bigbrightpaints.erp.modules.factory.domain.FactoryTaskRepository;
 import com.bigbrightpaints.erp.modules.factory.domain.ProductionBatch;
@@ -35,7 +36,6 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
 import java.time.LocalDate;
-import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -61,6 +61,7 @@ public class PortalInsightsService {
     private final LeaveRequestRepository leaveRequestRepository;
     private final PayrollRunRepository payrollRunRepository;
     private final AccountRepository accountRepository;
+    private final CompanyClock companyClock;
 
     public PortalInsightsService(CompanyContextService companyContextService,
                                  SalesOrderRepository salesOrderRepository,
@@ -74,7 +75,8 @@ public class PortalInsightsService {
                                  FinishedGoodRepository finishedGoodRepository,
                                  LeaveRequestRepository leaveRequestRepository,
                                  PayrollRunRepository payrollRunRepository,
-                                 AccountRepository accountRepository) {
+                                 AccountRepository accountRepository,
+                                 CompanyClock companyClock) {
         this.companyContextService = companyContextService;
         this.salesOrderRepository = salesOrderRepository;
         this.dealerRepository = dealerRepository;
@@ -88,6 +90,7 @@ public class PortalInsightsService {
         this.leaveRequestRepository = leaveRequestRepository;
         this.payrollRunRepository = payrollRunRepository;
         this.accountRepository = accountRepository;
+        this.companyClock = companyClock;
     }
 
     public DashboardInsights dashboard() {
@@ -148,8 +151,9 @@ public class PortalInsightsService {
         List<FinishedGood> finishedGoods = finishedGoodRepository.findByCompanyOrderByProductCodeAsc(company);
         List<Account> accounts = accountRepository.findByCompanyOrderByCodeAsc(company);
 
+        Instant now = companyClock.now(company);
         double productionVelocity = ratio(
-                batches.stream().filter(batch -> batch.getProducedAt().isAfter(Instant.now().minus(7, ChronoUnit.DAYS))).count(),
+                batches.stream().filter(batch -> batch.getProducedAt().isAfter(now.minus(7, ChronoUnit.DAYS))).count(),
                 Math.max(plans.size(), 1)
         ) * 100;
         double logisticsSla = ratio(
@@ -216,7 +220,7 @@ public class PortalInsightsService {
                 ))
                 .toList();
 
-        LocalDate today = LocalDate.now(ZoneOffset.UTC);
+        LocalDate today = companyClock.today(company);
         List<WorkforceInsights.UpcomingMoment> moments = new ArrayList<>();
         payrollRuns.stream()
                 .filter(run -> !run.getRunDate().isBefore(today))
@@ -279,7 +283,7 @@ public class PortalInsightsService {
     }
 
     private BigDecimal sumWithin(List<SalesOrder> orders, int days) {
-        Instant cutoff = Instant.now().minus(days, ChronoUnit.DAYS);
+        Instant cutoff = companyClock.now(company).minus(days, ChronoUnit.DAYS);
         return orders.stream()
                 .filter(order -> order.getCreatedAt() != null && order.getCreatedAt().isAfter(cutoff))
                 .map(SalesOrder::getTotalAmount)

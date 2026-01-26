@@ -8,6 +8,7 @@ import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryRequest.Journa
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
+import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.modules.factory.dto.BulkPackRequest;
 import com.bigbrightpaints.erp.modules.factory.dto.BulkPackResponse;
 import com.bigbrightpaints.erp.modules.factory.dto.PackagingConsumptionResult;
@@ -52,6 +53,7 @@ public class BulkPackingService {
     private final AccountingService accountingService;
     private final BatchNumberService batchNumberService;
     private final PackagingMaterialService packagingMaterialService;
+    private final CompanyClock companyClock;
 
     public BulkPackingService(CompanyContextService companyContextService,
                               FinishedGoodRepository finishedGoodRepository,
@@ -62,7 +64,8 @@ public class BulkPackingService {
                               RawMaterialMovementRepository rawMaterialMovementRepository,
                               AccountingService accountingService,
                               BatchNumberService batchNumberService,
-                              PackagingMaterialService packagingMaterialService) {
+                              PackagingMaterialService packagingMaterialService,
+                              CompanyClock companyClock) {
         this.companyContextService = companyContextService;
         this.finishedGoodRepository = finishedGoodRepository;
         this.finishedGoodBatchRepository = finishedGoodBatchRepository;
@@ -73,6 +76,7 @@ public class BulkPackingService {
         this.accountingService = accountingService;
         this.batchNumberService = batchNumberService;
         this.packagingMaterialService = packagingMaterialService;
+        this.companyClock = companyClock;
     }
 
     private record PackagingCostSummary(BigDecimal totalCost,
@@ -122,7 +126,7 @@ public class BulkPackingService {
                 : BigDecimal.ZERO;
 
         // 5. Create child batches for each size SKU
-        LocalDate packDate = request.packDate() != null ? request.packDate() : LocalDate.now();
+        LocalDate packDate = request.packDate() != null ? request.packDate() : companyClock.today(company);
         List<FinishedGoodBatch> childBatches = new ArrayList<>();
         BigDecimal totalChildValue = BigDecimal.ZERO;
 
