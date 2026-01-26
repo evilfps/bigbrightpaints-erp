@@ -481,9 +481,12 @@ public class FinishedGoodsService {
             if (ordered == null) {
                 ordered = BigDecimal.ZERO;
             }
-            slipLine.setShippedQuantity(BigDecimal.ZERO);
-            slipLine.setBackorderQuantity(ordered);
-            remainingByLine.put(slipLine, ordered);
+            BigDecimal shippedSoFar = safeQuantity(slipLine.getShippedQuantity());
+            if (shippedSoFar.compareTo(BigDecimal.ZERO) <= 0 && slipLine.getShippedQuantity() == null) {
+                slipLine.setShippedQuantity(BigDecimal.ZERO);
+            }
+            BigDecimal remaining = ordered.subtract(shippedSoFar).max(BigDecimal.ZERO);
+            remainingByLine.put(slipLine, remaining);
         }
 
         List<InventoryReservation> reservations = inventoryReservationRepository

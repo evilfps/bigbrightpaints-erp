@@ -1091,12 +1091,25 @@ public class AccountingFacade {
                     .withDetail("dealerId", dealerId);
         }
 
-        // Generate a unique reference number per return (avoid invoice-level de-duplication)
-        String reference = resolveSalesReturnReference(company, "CRN-" + sanitize(invoiceNumber));
-        Optional<JournalEntry> existing = journalEntryRepository.findByCompanyAndReferenceNumber(company, reference);
+        String baseReference = "CRN-" + sanitize(invoiceNumber);
+        String hashReference = buildSalesReturnHashReference(
+                invoiceNumber,
+                dealer.getId(),
+                returnLines,
+                totalAmount,
+                reason
+        );
+        Optional<JournalEntry> existing = journalReferenceResolver.findExistingEntry(company, hashReference);
         if (existing.isPresent()) {
-            log.info("Sales return journal already exists for reference: {}", reference);
+            log.info("Sales return journal already exists for reference: {}", existing.get().getReferenceNumber());
             return toSimpleDto(existing.get());
+        }
+
+        String reference = resolveSalesReturnReference(company, baseReference);
+        Optional<JournalEntry> existingByRef = journalEntryRepository.findByCompanyAndReferenceNumber(company, reference);
+        if (existingByRef.isPresent()) {
+            log.info("Sales return journal already exists for reference: {}", reference);
+            return toSimpleDto(existingByRef.get());
         }
 
         // Build journal lines
@@ -1138,7 +1151,12 @@ public class AccountingFacade {
         log.info("Posting sales return journal: reference={}, dealer={}, amount={}",
                 reference, dealer.getName(), totalAmount);
 
-        return accountingService.createJournalEntry(request);
+        JournalEntryDto created = accountingService.createJournalEntry(request);
+        JournalEntry persisted = journalEntryRepository.findByCompanyAndReferenceNumber(company, reference).orElse(null);
+        if (persisted != null) {
+            ensureSalesReturnReferenceMapping(company, hashReference, reference, persisted.getId());
+        }
+        return created;
     }
 
     /**
@@ -1447,6 +1465,35 @@ public class AccountingFacade {
         return value.replaceAll("[^A-Za-z0-9-]", "").toUpperCase();
     }
 
+    private String buildSalesReturnHashReference(String invoiceNumber,
+                                                 Long dealerId,
+                                                 Map<Long, BigDecimal> returnLines,
+                                                 BigDecimal totalAmount,
+                                                 String reason) {
+        String base = "CRN-" + sanitize(invoiceNumber);
+        StringBuilder fingerprint = new StringBuilder();
+        fingerprint.append(base)
+                .append("|dealer=").append(dealerId != null ? dealerId : "NA")
+                .append("|total=").append(normalizeDecimal(totalAmount))
+                .append("|reason=").append(reason != null ? reason.trim() : "");
+        if (returnLines != null && !returnLines.isEmpty()) {
+            returnLines.entrySet().stream()
+                    .sorted(Map.Entry.comparingByKey())
+                    .forEach(entry -> fingerprint
+                            .append("|acc=").append(entry.getKey())
+                            .append(":").append(normalizeDecimal(entry.getValue())));
+        }
+        String hash = org.apache.commons.codec.digest.DigestUtils.sha256Hex(fingerprint.toString());
+        return base + "-H" + hash.substring(0, 12);
+    }
+
+    private String normalizeDecimal(BigDecimal value) {
+        if (value == null) {
+            return "0";
+        }
+        return value.stripTrailingZeros().toPlainString();
+    }
+
     private String resolveSalesReturnReference(Company company, String baseReference) {
         if (!StringUtils.hasText(baseReference)) {
             return "CRN-GEN";
@@ -1478,6 +1525,26 @@ public class AccountingFacade {
             }
         }
         return prefix + (maxIndex + 1);
+    }
+
+    private void ensureSalesReturnReferenceMapping(Company company,
+                                                   String legacyReference,
+                                                   String canonicalReference,
+                                                   Long entryId) {
+        if (company == null || !StringUtils.hasText(legacyReference) || !StringUtils.hasText(canonicalReference)) {
+            return;
+        }
+        if (journalReferenceMappingRepository
+                .findByCompanyAndLegacyReferenceIgnoreCase(company, legacyReference.trim()).isPresent()) {
+            return;
+        }
+        JournalReferenceMapping mapping = new JournalReferenceMapping();
+        mapping.setCompany(company);
+        mapping.setLegacyReference(legacyReference.trim());
+        mapping.setCanonicalReference(canonicalReference.trim());
+        mapping.setEntityType("JOURNAL_ENTRY");
+        mapping.setEntityId(entryId);
+        journalReferenceMappingRepository.save(mapping);
     }
 
     private JournalEntryDto toSimpleDto(JournalEntry entry) {
