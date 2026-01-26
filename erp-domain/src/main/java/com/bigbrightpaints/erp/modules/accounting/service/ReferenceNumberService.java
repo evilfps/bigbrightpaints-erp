@@ -83,6 +83,11 @@ public class ReferenceNumberService {
     }
 
     public String purchaseReference(Company company, Supplier supplier, String invoiceNumber) {
+        String key = purchaseReferenceKey(company, supplier, invoiceNumber);
+        return generate(company, key, "purchase");
+    }
+
+    public String purchaseReferenceKey(Company company, Supplier supplier, String invoiceNumber) {
         String companyCode = sanitize(company != null ? company.getCode() : null);
         String supplierCode = sanitize(supplier != null ? supplier.getCode() : null);
         String invoicePart = sanitize(invoiceNumber);
@@ -107,7 +112,7 @@ public class ReferenceNumberService {
         if (key.length() > maxKeyLength) {
             key = "RMP-" + hashToken(companyCode + "-" + supplierCode + "-" + invoicePart);
         }
-        return generate(company, key, "purchase");
+        return key;
     }
 
     public String purchaseReturnReference(Company company, Supplier supplier) {

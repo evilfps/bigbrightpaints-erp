@@ -340,6 +340,18 @@ public class AccountingFacade {
                     .withDetail("supplierName", supplier.getName());
         }
 
+        String baseReference = referenceNumberService.purchaseReferenceKey(company, supplier, invoiceNumber);
+        Optional<JournalEntry> existingByBase = journalReferenceResolver.findExistingEntry(company, baseReference);
+        if (existingByBase.isPresent()) {
+            return toSimpleDto(existingByBase.get());
+        }
+        Optional<JournalEntry> legacyByPrefix = journalEntryRepository
+                .findFirstByCompanyAndReferenceNumberStartingWith(company, baseReference + "-");
+        if (legacyByPrefix.isPresent()) {
+            ensurePurchaseReferenceMapping(company, baseReference, legacyByPrefix.get());
+            return toSimpleDto(legacyByPrefix.get());
+        }
+
         // Generate reference number
         String reference = StringUtils.hasText(referenceNumber)
                 ? referenceNumber.trim()
@@ -417,7 +429,10 @@ public class AccountingFacade {
         log.info("Posting purchase journal: reference={}, supplier={}, amount={}",
                 reference, supplier.getName(), totalAmount);
 
-        return accountingService.createJournalEntry(request);
+        JournalEntryDto entry = accountingService.createJournalEntry(request);
+        JournalEntry saved = companyEntityLookup.requireJournalEntry(company, entry.id());
+        ensurePurchaseReferenceMapping(company, baseReference, saved);
+        return entry;
     }
 
     /**
@@ -1406,6 +1421,26 @@ public class AccountingFacade {
         mapping.setLegacyReference(legacyReference.trim());
         mapping.setCanonicalReference(canonicalReference.trim());
         mapping.setEntityType("JOURNAL_ENTRY");
+        mapping.setEntityId(entry.getId());
+        journalReferenceMappingRepository.save(mapping);
+    }
+
+    private void ensurePurchaseReferenceMapping(Company company, String baseReference, JournalEntry entry) {
+        if (company == null || entry == null || !StringUtils.hasText(baseReference)) {
+            return;
+        }
+        String canonicalReference = entry.getReferenceNumber();
+        if (!StringUtils.hasText(canonicalReference)) {
+            return;
+        }
+        if (journalReferenceMappingRepository.findByCompanyAndLegacyReferenceIgnoreCase(company, baseReference).isPresent()) {
+            return;
+        }
+        JournalReferenceMapping mapping = new JournalReferenceMapping();
+        mapping.setCompany(company);
+        mapping.setLegacyReference(baseReference.trim());
+        mapping.setCanonicalReference(canonicalReference.trim());
+        mapping.setEntityType("PURCHASE_JOURNAL");
         mapping.setEntityId(entry.getId());
         journalReferenceMappingRepository.save(mapping);
     }

@@ -468,6 +468,7 @@ public class FinishedGoodsService {
         Map<Long, BigDecimal> slipLineQtyByBatch = new HashMap<>();
         Map<Long, List<PackagingSlipLine>> slipLinesByBatch = new HashMap<>();
         Map<PackagingSlipLine, BigDecimal> remainingByLine = new HashMap<>();
+        Map<Long, BigDecimal> remainingByBatch = new HashMap<>();
         for (var slipLine : slip.getLines()) {
             FinishedGoodBatch batch = slipLine.getFinishedGoodBatch();
             if (batch != null && slipLine.getQuantity() != null) {
@@ -488,6 +489,7 @@ public class FinishedGoodsService {
             BigDecimal remaining = ordered.subtract(shippedSoFar).max(BigDecimal.ZERO);
             remainingByLine.put(slipLine, remaining);
         }
+        remainingByBatch.putAll(slipLineQtyByBatch);
 
         List<InventoryReservation> reservations = inventoryReservationRepository
                 .findByFinishedGoodCompanyAndReferenceTypeAndReferenceId(
@@ -510,29 +512,32 @@ public class FinishedGoodsService {
         Map<String, DispatchPostingBuilder> postingBuilders = new HashMap<>();
         List<FinishedGoodBatch> batchesToSave = new ArrayList<>();
         for (InventoryReservation reservation : reservations) {
-            // Use slip line quantity if available (supports overrides), fallback to reservation
-            BigDecimal requested;
-            if (reservation.getFinishedGoodBatch() != null && 
-                slipLineQtyByBatch.containsKey(reservation.getFinishedGoodBatch().getId())) {
-                requested = slipLineQtyByBatch.get(reservation.getFinishedGoodBatch().getId());
-            } else {
-                requested = reservation.getReservedQuantity() != null ? reservation.getReservedQuantity() : reservation.getQuantity();
-            }
-            if (requested == null) {
-                requested = BigDecimal.ZERO;
-            }
-            FinishedGood fg = lockedGoods.get(reservation.getFinishedGood().getId());
             FinishedGoodBatch batch = reservation.getFinishedGoodBatch();
-            BigDecimal current = fg.getCurrentStock() == null ? BigDecimal.ZERO : fg.getCurrentStock();
-            BigDecimal shipQty = requested;
-            if (current.compareTo(shipQty) < 0) {
-                shipQty = current;
+            Long batchId = batch != null ? batch.getId() : null;
+            if (batchId == null || !remainingByBatch.containsKey(batchId)) {
+                continue;
             }
+            // Use slip line quantity if available (supports overrides), fallback to reservation
+            BigDecimal reservedQty = reservation.getReservedQuantity() != null
+                    ? reservation.getReservedQuantity()
+                    : reservation.getQuantity();
+            if (reservedQty == null) {
+                reservedQty = BigDecimal.ZERO;
+            }
+            BigDecimal batchRemaining = remainingByBatch.getOrDefault(batchId, BigDecimal.ZERO);
+            BigDecimal requested = reservedQty.min(batchRemaining);
+            BigDecimal shipQty = requested;
+            FinishedGood fg = lockedGoods.get(reservation.getFinishedGood().getId());
             // If nothing to ship, skip but keep reservation for future dispatch
             if (shipQty.compareTo(BigDecimal.ZERO) <= 0) {
                 reservation.setStatus("BACKORDER");
                 continue;
             }
+            BigDecimal current = fg.getCurrentStock() == null ? BigDecimal.ZERO : fg.getCurrentStock();
+            if (current.compareTo(shipQty) < 0) {
+                shipQty = current;
+            }
+            remainingByBatch.put(batchId, batchRemaining.subtract(shipQty).max(BigDecimal.ZERO));
             reservation.setFulfilledQuantity(shipQty);
             if (shipQty.compareTo(requested) >= 0) {
                 reservation.setStatus("FULFILLED");
@@ -607,11 +612,7 @@ public class FinishedGoodsService {
         boolean anyPending = reservations.stream()
                 .anyMatch(r -> !"FULFILLED".equalsIgnoreCase(r.getStatus()) && !"CANCELLED".equalsIgnoreCase(r.getStatus()));
         if (anyShipped) {
-            if (!anyPending) {
-                slip.setStatus("DISPATCHED");
-            } else {
-                slip.setStatus("PARTIAL");
-            }
+            slip.setStatus("DISPATCHED");
             if (slip.getDispatchedAt() == null) {
                 slip.setDispatchedAt(companyClock.now(slip.getCompany()));
             }
@@ -743,12 +744,16 @@ public class FinishedGoodsService {
 
         List<InventoryReservation> reservationsToUpdate = new ArrayList<>();
         Map<Long, List<InventoryReservation>> reservationsByBatch = new HashMap<>();
+        Map<Long, BigDecimal> reservedByBatch = new HashMap<>();
         if (order != null) {
             List<InventoryReservation> reservations = inventoryReservationRepository
                     .findByFinishedGoodCompanyAndReferenceTypeAndReferenceId(
                             company,
                             InventoryReference.SALES_ORDER,
                             order.getId().toString());
+            if (reservations.isEmpty()) {
+                reservations = rebuildReservationsFromSlip(slip, order.getId());
+            }
             for (InventoryReservation reservation : reservations) {
                 if ("CANCELLED".equalsIgnoreCase(reservation.getStatus())) {
                     continue;
@@ -766,6 +771,7 @@ public class FinishedGoodsService {
                         .computeIfAbsent(batch.getId(), k -> new ArrayList<>())
                         .add(reservation);
                 reservationsToUpdate.add(reservation);
+                reservedByBatch.merge(batch.getId(), reservedQty, BigDecimal::add);
             }
             for (List<InventoryReservation> batchReservations : reservationsByBatch.values()) {
                 batchReservations.sort(Comparator.comparing(InventoryReservation::getId, Comparator.nullsLast(Long::compareTo)));
@@ -818,6 +824,13 @@ public class FinishedGoodsService {
                 BigDecimal currentStock = fg.getCurrentStock() != null ? fg.getCurrentStock() : BigDecimal.ZERO;
                 if (currentStock.compareTo(shipped) < 0) {
                     throw new IllegalStateException("Insufficient current stock for FG " + fg.getProductCode() + ": available=" + currentStock + ", requested=" + shipped);
+                }
+                if (batch.getId() != null) {
+                    BigDecimal batchReserved = reservedByBatch.getOrDefault(batch.getId(), BigDecimal.ZERO);
+                    requireSufficientQuantity(batchReserved, shipped,
+                            "Reserved quantity insufficient for batch " + batch.getBatchCode()
+                                    + " FG " + fg.getProductCode());
+                    reservedByBatch.put(batch.getId(), batchReserved.subtract(shipped).max(BigDecimal.ZERO));
                 }
                 BigDecimal reservedStock = safeQuantity(fg.getReservedStock());
                 requireSufficientQuantity(reservedStock, shipped,
@@ -1117,8 +1130,14 @@ public class FinishedGoodsService {
         if ("DISPATCHED".equalsIgnoreCase(slip.getStatus())) {
             throw new IllegalStateException("Cannot update status of dispatched slip");
         }
-        
-        slip.setStatus(newStatus.toUpperCase());
+        if (!StringUtils.hasText(newStatus)) {
+            throw new IllegalArgumentException("Slip status is required");
+        }
+        String normalized = newStatus.trim().toUpperCase();
+        if ("DISPATCHED".equalsIgnoreCase(normalized)) {
+            throw new IllegalStateException("Use dispatch confirmation to mark a slip as dispatched");
+        }
+        slip.setStatus(normalized);
         packagingSlipRepository.save(slip);
         return toSlipDto(slip);
     }
@@ -1135,46 +1154,100 @@ public class FinishedGoodsService {
             throw new IllegalStateException("Only BACKORDER slips can be canceled");
         }
 
-        Map<Long, FinishedGood> lockedGoods = new HashMap<>();
-        List<FinishedGoodBatch> batchesToSave = new ArrayList<>();
-        for (PackagingSlipLine line : slip.getLines()) {
-            FinishedGoodBatch batch = line.getFinishedGoodBatch();
-            FinishedGood fg = batch.getFinishedGood();
-            lockedGoods.computeIfAbsent(fg.getId(), id -> lockFinishedGood(company, id));
-
-            BigDecimal qty = line.getOrderedQuantity() != null ? line.getOrderedQuantity() : line.getQuantity();
-            if (qty == null) {
-                qty = BigDecimal.ZERO;
-            }
-            // Release reserved stock and batch availability for the unshipped backorder quantity
-            BigDecimal reserved = fg.getReservedStock() != null ? fg.getReservedStock() : BigDecimal.ZERO;
-            fg.setReservedStock(reserved.subtract(qty).max(BigDecimal.ZERO));
-
-            BigDecimal available = batch.getQuantityAvailable() != null ? batch.getQuantityAvailable() : BigDecimal.ZERO;
-            batch.setQuantityAvailable(available.add(qty));
-            batchesToSave.add(batch);
-        }
-        if (!lockedGoods.isEmpty()) {
-            finishedGoodRepository.saveAll(lockedGoods.values());
-        }
-        if (!batchesToSave.isEmpty()) {
-            finishedGoodBatchRepository.saveAll(batchesToSave);
-        }
         List<InventoryReservation> reservations = inventoryReservationRepository
                 .findByFinishedGoodCompanyAndReferenceTypeAndReferenceId(
                         company,
                         InventoryReference.SALES_ORDER,
                         slip.getSalesOrder().getId().toString());
-        if (!reservations.isEmpty()) {
+        Map<Long, BigDecimal> remainingByBatch = new HashMap<>();
+        for (PackagingSlipLine line : slip.getLines()) {
+            FinishedGoodBatch batch = line.getFinishedGoodBatch();
+            if (batch == null || batch.getId() == null) {
+                continue;
+            }
+            BigDecimal qty = line.getBackorderQuantity();
+            if (qty == null || qty.compareTo(BigDecimal.ZERO) <= 0) {
+                qty = line.getOrderedQuantity() != null ? line.getOrderedQuantity() : line.getQuantity();
+            }
+            if (qty == null) {
+                qty = BigDecimal.ZERO;
+            }
+            if (qty.compareTo(BigDecimal.ZERO) > 0) {
+                remainingByBatch.merge(batch.getId(), qty, BigDecimal::add);
+            }
+        }
+
+        Map<Long, FinishedGood> lockedGoods = new HashMap<>();
+        Map<Long, FinishedGoodBatch> lockedBatches = new HashMap<>();
+        Map<Long, BigDecimal> cancelledByBatch = new HashMap<>();
+        Map<Long, BigDecimal> cancelledByFg = new HashMap<>();
+        List<InventoryReservation> reservationsToUpdate = new ArrayList<>();
+
+        if (!reservations.isEmpty() && !remainingByBatch.isEmpty()) {
             for (InventoryReservation reservation : reservations) {
-                if ("CANCELLED".equalsIgnoreCase(reservation.getStatus()) ||
-                        "FULFILLED".equalsIgnoreCase(reservation.getStatus())) {
+                if ("CANCELLED".equalsIgnoreCase(reservation.getStatus())) {
                     continue;
                 }
-                reservation.setStatus("CANCELLED");
-                reservation.setReservedQuantity(BigDecimal.ZERO);
+                FinishedGoodBatch batch = reservation.getFinishedGoodBatch();
+                if (batch == null || batch.getId() == null) {
+                    continue;
+                }
+                BigDecimal remaining = remainingByBatch.get(batch.getId());
+                if (remaining == null || remaining.compareTo(BigDecimal.ZERO) <= 0) {
+                    continue;
+                }
+                BigDecimal reservedQty = resolveReservedQuantity(reservation);
+                if (reservedQty.compareTo(BigDecimal.ZERO) <= 0) {
+                    continue;
+                }
+                BigDecimal cancelQty = remaining.min(reservedQty);
+                reservation.setReservedQuantity(reservedQty.subtract(cancelQty).max(BigDecimal.ZERO));
+                BigDecimal fulfilled = safeQuantity(reservation.getFulfilledQuantity());
+                if (reservation.getReservedQuantity().compareTo(BigDecimal.ZERO) <= 0
+                        && fulfilled.compareTo(BigDecimal.ZERO) <= 0) {
+                    reservation.setStatus("CANCELLED");
+                }
+                reservationsToUpdate.add(reservation);
+
+                remainingByBatch.put(batch.getId(), remaining.subtract(cancelQty).max(BigDecimal.ZERO));
+                cancelledByBatch.merge(batch.getId(), cancelQty, BigDecimal::add);
+
+                FinishedGood fg = batch.getFinishedGood();
+                if (fg != null && fg.getId() != null) {
+                    cancelledByFg.merge(fg.getId(), cancelQty, BigDecimal::add);
+                    lockedGoods.computeIfAbsent(fg.getId(), id -> lockFinishedGood(company, id));
+                }
+                lockedBatches.computeIfAbsent(batch.getId(), id -> finishedGoodBatchRepository.lockById(id)
+                        .orElse(batch));
             }
-            inventoryReservationRepository.saveAll(reservations);
+        }
+
+        if (!reservationsToUpdate.isEmpty()) {
+            updateReservationStatuses(reservationsToUpdate);
+            inventoryReservationRepository.saveAll(reservationsToUpdate);
+        }
+
+        if (!cancelledByBatch.isEmpty()) {
+            for (Map.Entry<Long, BigDecimal> entry : cancelledByBatch.entrySet()) {
+                FinishedGoodBatch batch = lockedBatches.get(entry.getKey());
+                if (batch == null) {
+                    continue;
+                }
+                BigDecimal available = safeQuantity(batch.getQuantityAvailable());
+                batch.setQuantityAvailable(available.add(entry.getValue()));
+            }
+            finishedGoodBatchRepository.saveAll(lockedBatches.values());
+        }
+        if (!cancelledByFg.isEmpty()) {
+            for (Map.Entry<Long, BigDecimal> entry : cancelledByFg.entrySet()) {
+                FinishedGood fg = lockedGoods.get(entry.getKey());
+                if (fg == null) {
+                    continue;
+                }
+                BigDecimal reserved = safeQuantity(fg.getReservedStock());
+                fg.setReservedStock(reserved.subtract(entry.getValue()).max(BigDecimal.ZERO));
+            }
+            finishedGoodRepository.saveAll(lockedGoods.values());
         }
 
         slip.setStatus("CANCELLED");
@@ -1294,10 +1367,19 @@ public class FinishedGoodsService {
             throw new IllegalStateException("No packaging slip lines available to rebuild reservations for order " + salesOrderId);
         }
         List<InventoryReservation> rebuilt = new ArrayList<>();
+        Map<Long, FinishedGood> touchedGoods = new HashMap<>();
+        Map<Long, FinishedGoodBatch> touchedBatches = new HashMap<>();
         for (PackagingSlipLine line : slip.getLines()) {
             FinishedGoodBatch batch = line.getFinishedGoodBatch();
             if (batch == null || batch.getFinishedGood() == null) {
                 throw new IllegalStateException("Cannot rebuild reservation without a finished good batch");
+            }
+            FinishedGood fg = batch.getFinishedGood();
+            if (fg.getId() != null) {
+                touchedGoods.computeIfAbsent(fg.getId(), id -> lockFinishedGood(slip.getCompany(), id));
+            }
+            if (batch.getId() != null) {
+                touchedBatches.computeIfAbsent(batch.getId(), id -> finishedGoodBatchRepository.lockById(id).orElse(batch));
             }
             InventoryReservation reservation = new InventoryReservation();
             reservation.setFinishedGood(batch.getFinishedGood());
@@ -1310,7 +1392,27 @@ public class FinishedGoodsService {
             reservation.setStatus("RESERVED");
             rebuilt.add(reservation);
         }
-        return inventoryReservationRepository.saveAll(rebuilt);
+        List<InventoryReservation> saved = inventoryReservationRepository.saveAll(rebuilt);
+        if (!touchedGoods.isEmpty()) {
+            for (FinishedGood fg : touchedGoods.values()) {
+                BigDecimal reservedTotal = inventoryReservationRepository.findByFinishedGood(fg).stream()
+                        .map(this::resolveReservedQuantity)
+                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+                fg.setReservedStock(reservedTotal);
+            }
+            finishedGoodRepository.saveAll(touchedGoods.values());
+        }
+        if (!touchedBatches.isEmpty()) {
+            for (FinishedGoodBatch batch : touchedBatches.values()) {
+                BigDecimal reservedForBatch = inventoryReservationRepository.findByFinishedGoodBatch(batch).stream()
+                        .map(this::resolveReservedQuantity)
+                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+                BigDecimal total = safeQuantity(batch.getQuantityTotal());
+                batch.setQuantityAvailable(total.subtract(reservedForBatch).max(BigDecimal.ZERO));
+            }
+            finishedGoodBatchRepository.saveAll(touchedBatches.values());
+        }
+        return saved;
     }
 
     private List<FinishedGoodBatch> selectBatchesByCostingMethod(FinishedGood finishedGood) {

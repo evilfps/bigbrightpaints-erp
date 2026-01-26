@@ -9,6 +9,7 @@ import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalLine;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
+import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.modules.inventory.domain.*;
 import com.bigbrightpaints.erp.modules.accounting.service.DealerLedgerService;
 import com.bigbrightpaints.erp.modules.reports.dto.*;
@@ -48,6 +49,7 @@ public class ReportService {
     private final InvoiceRepository invoiceRepository;
     private final ProductionLogRepository productionLogRepository;
     private final CompanyEntityLookup companyEntityLookup;
+    private final CompanyClock companyClock;
     private static final BigDecimal BALANCE_TOLERANCE = new BigDecimal("0.01");
 
     public ReportService(CompanyContextService companyContextService,
@@ -61,7 +63,8 @@ public class ReportService {
                          JournalEntryRepository journalEntryRepository,
                          InvoiceRepository invoiceRepository,
                          ProductionLogRepository productionLogRepository,
-                         CompanyEntityLookup companyEntityLookup) {
+                         CompanyEntityLookup companyEntityLookup,
+                         CompanyClock companyClock) {
         this.companyContextService = companyContextService;
         this.accountRepository = accountRepository;
         this.rawMaterialRepository = rawMaterialRepository;
@@ -74,6 +77,7 @@ public class ReportService {
         this.invoiceRepository = invoiceRepository;
         this.productionLogRepository = productionLogRepository;
         this.companyEntityLookup = companyEntityLookup;
+        this.companyClock = companyClock;
     }
 
     @Transactional(readOnly = true)
@@ -146,11 +150,15 @@ public class ReportService {
     public List<AgedDebtorDto> agedDebtors() {
         Company company = companyContextService.requireCurrentCompany();
         List<Invoice> invoices = invoiceRepository.findByCompanyOrderByIssueDateDesc(company);
-        LocalDate today = LocalDate.now();
+        LocalDate today = companyClock.today(company);
         Map<Dealer, AgedBucket> buckets = new java.util.LinkedHashMap<>();
         for (Invoice invoice : invoices) {
             Dealer dealer = invoice.getDealer();
             if (dealer == null) {
+                continue;
+            }
+            String status = invoice.getStatus() != null ? invoice.getStatus().toUpperCase(Locale.ROOT) : null;
+            if (status == null || "DRAFT".equals(status) || "VOID".equals(status) || "REVERSED".equals(status)) {
                 continue;
             }
             BigDecimal outstanding = invoice.getOutstandingAmount();

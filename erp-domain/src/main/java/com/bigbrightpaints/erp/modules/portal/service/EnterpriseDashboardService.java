@@ -671,11 +671,19 @@ public class EnterpriseDashboardService {
     }
 
     private boolean isOutstanding(Invoice invoice) {
-        return invoice != null
-                && invoice.getOutstandingAmount() != null
-                && invoice.getOutstandingAmount().compareTo(ZERO) > 0
-                && !"VOID".equalsIgnoreCase(invoice.getStatus())
-                && !"REVERSED".equalsIgnoreCase(invoice.getStatus());
+        if (invoice == null || invoice.getOutstandingAmount() == null) {
+            return false;
+        }
+        if (invoice.getOutstandingAmount().compareTo(ZERO) <= 0) {
+            return false;
+        }
+        String status = invoice.getStatus();
+        if (status == null) {
+            return false;
+        }
+        return !"VOID".equalsIgnoreCase(status)
+                && !"REVERSED".equalsIgnoreCase(status)
+                && !"DRAFT".equalsIgnoreCase(status);
     }
 
     private BigDecimal sumInvoices(List<Invoice> invoices, java.util.function.Function<Invoice, BigDecimal> extractor) {

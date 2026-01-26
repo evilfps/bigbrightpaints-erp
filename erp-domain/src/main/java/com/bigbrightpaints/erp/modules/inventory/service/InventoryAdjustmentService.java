@@ -15,6 +15,8 @@ import com.bigbrightpaints.erp.modules.inventory.domain.InventoryAdjustmentRepos
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryAdjustmentType;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryMovement;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryMovementRepository;
+import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatch;
+import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatchRepository;
 import com.bigbrightpaints.erp.modules.inventory.dto.InventoryAdjustmentDto;
 import com.bigbrightpaints.erp.modules.inventory.dto.InventoryAdjustmentLineDto;
 import com.bigbrightpaints.erp.modules.inventory.dto.InventoryAdjustmentRequest;
@@ -42,6 +44,7 @@ public class InventoryAdjustmentService {
     private final FinishedGoodRepository finishedGoodRepository;
     private final InventoryAdjustmentRepository adjustmentRepository;
     private final InventoryMovementRepository inventoryMovementRepository;
+    private final FinishedGoodBatchRepository finishedGoodBatchRepository;
     private final AccountingFacade accountingFacade;
     private final ReferenceNumberService referenceNumberService;
     private final CompanyClock companyClock;
@@ -50,6 +53,7 @@ public class InventoryAdjustmentService {
                                       FinishedGoodRepository finishedGoodRepository,
                                       InventoryAdjustmentRepository adjustmentRepository,
                                       InventoryMovementRepository inventoryMovementRepository,
+                                      FinishedGoodBatchRepository finishedGoodBatchRepository,
                                       AccountingFacade accountingFacade,
                                       ReferenceNumberService referenceNumberService,
                                       CompanyClock companyClock) {
@@ -57,6 +61,7 @@ public class InventoryAdjustmentService {
         this.finishedGoodRepository = finishedGoodRepository;
         this.adjustmentRepository = adjustmentRepository;
         this.inventoryMovementRepository = inventoryMovementRepository;
+        this.finishedGoodBatchRepository = finishedGoodBatchRepository;
         this.accountingFacade = accountingFacade;
         this.referenceNumberService = referenceNumberService;
         this.companyClock = companyClock;
@@ -134,8 +139,10 @@ public class InventoryAdjustmentService {
         BigDecimal quantity = requirePositive(lineRequest.quantity(), "quantity");
         BigDecimal unitCost = requirePositive(lineRequest.unitCost(), "unitCost");
         BigDecimal currentStock = finishedGood.getCurrentStock() == null ? BigDecimal.ZERO : finishedGood.getCurrentStock();
-        if (currentStock.compareTo(quantity) < 0) {
-            throw new IllegalArgumentException("Insufficient stock for " + finishedGood.getProductCode());
+        BigDecimal reservedStock = safeQuantity(finishedGood.getReservedStock());
+        BigDecimal available = currentStock.subtract(reservedStock);
+        if (available.compareTo(quantity) < 0) {
+            throw new IllegalArgumentException("Insufficient available stock for " + finishedGood.getProductCode());
         }
         InventoryAdjustmentLine line = new InventoryAdjustmentLine();
         line.setAdjustment(adjustment);
@@ -154,6 +161,7 @@ public class InventoryAdjustmentService {
             BigDecimal currentStock = finishedGood.getCurrentStock() == null ? BigDecimal.ZERO : finishedGood.getCurrentStock();
             finishedGood.setCurrentStock(currentStock.subtract(line.getQuantity()));
             finishedGoodRepository.save(finishedGood);
+            adjustBatchQuantities(finishedGood, line.getQuantity());
 
             InventoryMovement movement = new InventoryMovement();
             movement.setFinishedGood(finishedGood);
@@ -166,6 +174,40 @@ public class InventoryAdjustmentService {
             return movement;
         }).toList();
         return movements;
+    }
+
+    private void adjustBatchQuantities(FinishedGood finishedGood, BigDecimal quantity) {
+        if (quantity == null || quantity.compareTo(BigDecimal.ZERO) <= 0) {
+            return;
+        }
+        BigDecimal remaining = quantity;
+        for (FinishedGoodBatch batch : selectBatchesByCostingMethod(finishedGood)) {
+            if (remaining.compareTo(BigDecimal.ZERO) <= 0) {
+                break;
+            }
+            BigDecimal available = safeQuantity(batch.getQuantityAvailable());
+            if (available.compareTo(BigDecimal.ZERO) <= 0) {
+                continue;
+            }
+            BigDecimal delta = available.min(remaining);
+            BigDecimal total = safeQuantity(batch.getQuantityTotal());
+            batch.setQuantityAvailable(available.subtract(delta));
+            batch.setQuantityTotal(total.subtract(delta));
+            finishedGoodBatchRepository.save(batch);
+            remaining = remaining.subtract(delta);
+        }
+        if (remaining.compareTo(BigDecimal.ZERO) > 0) {
+            throw new IllegalStateException("Insufficient batch availability for " + finishedGood.getProductCode());
+        }
+    }
+
+    private List<FinishedGoodBatch> selectBatchesByCostingMethod(FinishedGood finishedGood) {
+        String method = finishedGood.getCostingMethod() == null ? "FIFO" : finishedGood.getCostingMethod().trim().toUpperCase();
+        return switch (method) {
+            case "LIFO" -> finishedGoodBatchRepository.findAllocatableBatchesLIFO(finishedGood);
+            case "WAC", "WEIGHTED_AVERAGE", "WEIGHTED-AVERAGE" -> finishedGoodBatchRepository.findAllocatableBatchesFIFO(finishedGood);
+            default -> finishedGoodBatchRepository.findAllocatableBatchesFIFO(finishedGood);
+        };
     }
 
     private InventoryAdjustmentDto toDto(InventoryAdjustment adjustment) {
@@ -197,6 +239,10 @@ public class InventoryAdjustmentService {
             throw new IllegalArgumentException(field + " must be greater than zero");
         }
         return value;
+    }
+
+    private BigDecimal safeQuantity(BigDecimal value) {
+        return value != null ? value : BigDecimal.ZERO;
     }
 
     private String memoFor(InventoryAdjustment adjustment, String reason) {

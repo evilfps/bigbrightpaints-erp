@@ -630,12 +630,12 @@ public class AccountingPeriodService {
 
     private ChecklistDiagnostics evaluateChecklistDiagnostics(Company company, AccountingPeriod period) {
         ReconciliationSummaryDto inventory = reportService.inventoryReconciliation();
-        ReconciliationService.ReconciliationResult ar = reconciliationService.reconcileArWithDealerLedger();
-        ReconciliationService.SupplierReconciliationResult ap = reconciliationService.reconcileApWithSupplierLedger();
+        ReconciliationService.PeriodReconciliationResult periodReconciliation = reconciliationService
+                .reconcileSubledgersForPeriod(period.getStartDate(), period.getEndDate());
         long unbalancedJournals = countUnbalancedJournals(company, period);
         long unlinkedDocuments = countUnlinkedDocuments(company, period);
         long unpostedDocuments = countUnpostedDocuments(company, period);
-        return new ChecklistDiagnostics(inventory, ar, ap, unpostedDocuments, unlinkedDocuments, unbalancedJournals);
+        return new ChecklistDiagnostics(inventory, periodReconciliation, unpostedDocuments, unlinkedDocuments, unbalancedJournals);
     }
 
     private long countUnbalancedJournals(Company company, AccountingPeriod period) {
@@ -708,8 +708,7 @@ public class AccountingPeriodService {
 
     private record ChecklistDiagnostics(
             ReconciliationSummaryDto inventory,
-            ReconciliationService.ReconciliationResult ar,
-            ReconciliationService.SupplierReconciliationResult ap,
+            ReconciliationService.PeriodReconciliationResult periodReconciliation,
             long unpostedDocuments,
             long unlinkedDocuments,
             long unbalancedJournals
@@ -723,19 +722,19 @@ public class AccountingPeriodService {
         }
 
         boolean arReconciled() {
-            return ar != null && ar.isReconciled();
+            return periodReconciliation != null && periodReconciliation.arReconciled();
         }
 
         BigDecimal arVariance() {
-            return ar != null ? ar.variance() : BigDecimal.ZERO;
+            return periodReconciliation != null ? periodReconciliation.arVariance() : BigDecimal.ZERO;
         }
 
         boolean apReconciled() {
-            return ap != null && ap.isReconciled();
+            return periodReconciliation != null && periodReconciliation.apReconciled();
         }
 
         BigDecimal apVariance() {
-            return ap != null ? ap.variance() : BigDecimal.ZERO;
+            return periodReconciliation != null ? periodReconciliation.apVariance() : BigDecimal.ZERO;
         }
 
         private boolean varianceWithinTolerance(BigDecimal variance) {

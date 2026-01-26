@@ -520,16 +520,23 @@ public class PayrollService {
         BigDecimal totalNetPay = BigDecimal.ZERO;
 
         Map<Long, BigDecimal> presentDaysByEmployee = new HashMap<>();
+        Map<Long, BigDecimal> holidayDaysByEmployee = new HashMap<>();
         Map<Long, BigDecimal> overtimeHoursByEmployee = new HashMap<>();
+        Map<Long, BigDecimal> doubleOtHoursByEmployee = new HashMap<>();
         for (Attendance att : attendance) {
             Long employeeId = att.getEmployee().getId();
             if (att.getStatus() == Attendance.AttendanceStatus.PRESENT) {
                 presentDaysByEmployee.merge(employeeId, BigDecimal.ONE, BigDecimal::add);
             } else if (att.getStatus() == Attendance.AttendanceStatus.HALF_DAY) {
                 presentDaysByEmployee.merge(employeeId, new BigDecimal("0.5"), BigDecimal::add);
+            } else if (att.getStatus() == Attendance.AttendanceStatus.HOLIDAY) {
+                holidayDaysByEmployee.merge(employeeId, BigDecimal.ONE, BigDecimal::add);
             }
             if (att.getOvertimeHours() != null) {
                 overtimeHoursByEmployee.merge(employeeId, att.getOvertimeHours(), BigDecimal::add);
+            }
+            if (att.getDoubleOvertimeHours() != null) {
+                doubleOtHoursByEmployee.merge(employeeId, att.getDoubleOvertimeHours(), BigDecimal::add);
             }
         }
 
@@ -538,13 +545,20 @@ public class PayrollService {
                     emp.getId(), BigDecimal.ZERO);
             BigDecimal otHours = overtimeHoursByEmployee.getOrDefault(
                     emp.getId(), BigDecimal.ZERO);
+            BigDecimal doubleOtHours = doubleOtHoursByEmployee.getOrDefault(
+                    emp.getId(), BigDecimal.ZERO);
+            BigDecimal holidayDays = holidayDaysByEmployee.getOrDefault(
+                    emp.getId(), BigDecimal.ZERO);
 
-            BigDecimal basePay = emp.getDailyRate().multiply(presentDays);
+            BigDecimal baseDays = presentDays.add(holidayDays);
+            BigDecimal basePay = emp.getDailyRate().multiply(baseDays);
             BigDecimal hourlyRate = emp.getDailyRate().divide(
                     emp.getStandardHoursPerDay(), 2, RoundingMode.HALF_UP);
             BigDecimal otPay = hourlyRate.multiply(
                     emp.getOvertimeRateMultiplier()).multiply(otHours);
-            BigDecimal netPay = basePay.add(otPay);
+            BigDecimal doubleOtPay = hourlyRate.multiply(
+                    emp.getDoubleOtRateMultiplier()).multiply(doubleOtHours);
+            BigDecimal netPay = basePay.add(otPay).add(doubleOtPay);
 
             BigDecimal daysWorkedExact = presentDays;
             int daysWorked = daysWorkedExact.setScale(0, RoundingMode.HALF_UP).intValue();
@@ -554,7 +568,7 @@ public class PayrollService {
             ));
 
             totalBasePay = totalBasePay.add(basePay);
-            totalOtPay = totalOtPay.add(otPay);
+            totalOtPay = totalOtPay.add(otPay).add(doubleOtPay);
             totalNetPay = totalNetPay.add(netPay);
         }
 
@@ -583,14 +597,20 @@ public class PayrollService {
         Map<Long, BigDecimal> presentDaysByEmployee = new HashMap<>();
         Map<Long, BigDecimal> halfDaysByEmployee = new HashMap<>();
         Map<Long, BigDecimal> absentDaysByEmployee = new HashMap<>();
+        Map<Long, BigDecimal> holidayDaysByEmployee = new HashMap<>();
+        Map<Long, BigDecimal> leaveDaysByEmployee = new HashMap<>();
         for (Attendance att : attendance) {
             Long employeeId = att.getEmployee().getId();
             switch (att.getStatus()) {
-                case PRESENT, HOLIDAY -> presentDaysByEmployee.merge(
+                case PRESENT -> presentDaysByEmployee.merge(
                         employeeId, BigDecimal.ONE, BigDecimal::add);
                 case HALF_DAY -> presentDaysByEmployee.merge(
                         employeeId, new BigDecimal("0.5"), BigDecimal::add);
                 case ABSENT -> absentDaysByEmployee.merge(
+                        employeeId, BigDecimal.ONE, BigDecimal::add);
+                case HOLIDAY -> holidayDaysByEmployee.merge(
+                        employeeId, BigDecimal.ONE, BigDecimal::add);
+                case LEAVE -> leaveDaysByEmployee.merge(
                         employeeId, BigDecimal.ONE, BigDecimal::add);
                 default -> {
                 }
@@ -607,22 +627,14 @@ public class PayrollService {
                     emp.getId(), BigDecimal.ZERO);
             BigDecimal absentDays = absentDaysByEmployee.getOrDefault(
                     emp.getId(), BigDecimal.ZERO);
+            BigDecimal holidayDays = holidayDaysByEmployee.getOrDefault(
+                    emp.getId(), BigDecimal.ZERO);
 
-            BigDecimal grossPay = emp.getMonthlySalary() != null
-                    ? emp.getMonthlySalary()
-                    : BigDecimal.ZERO;
-            // Deduct for absences
-            if (absentDays.compareTo(BigDecimal.ZERO) > 0) {
-                BigDecimal dailyRate = emp.getDailyRate();
-                grossPay = grossPay.subtract(dailyRate.multiply(absentDays));
-            }
-            if (halfDays.compareTo(BigDecimal.ZERO) > 0) {
-                BigDecimal dailyRate = emp.getDailyRate();
-                BigDecimal halfDayDeduction = dailyRate
-                        .multiply(halfDays)
-                        .multiply(new BigDecimal("0.5"));
-                grossPay = grossPay.subtract(halfDayDeduction);
-            }
+            BigDecimal dailyRate = emp.getDailyRate();
+            BigDecimal baseDays = presentDays.add(halfDays.multiply(new BigDecimal("0.5")));
+            BigDecimal basePay = dailyRate.multiply(baseDays);
+            BigDecimal holidayPay = dailyRate.multiply(holidayDays);
+            BigDecimal grossPay = basePay.add(holidayPay);
 
             // Statutory deductions are not applied in the summary flow
             BigDecimal pfDeduction = BigDecimal.ZERO;
