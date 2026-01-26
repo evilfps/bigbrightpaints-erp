@@ -965,6 +965,12 @@ public class FinishedGoodsService {
     }
 
     private BigDecimal resolveReservedQuantity(InventoryReservation reservation) {
+        String status = reservation.getStatus();
+        if (status != null) {
+            if ("CANCELLED".equalsIgnoreCase(status) || "FULFILLED".equalsIgnoreCase(status)) {
+                return BigDecimal.ZERO;
+            }
+        }
         BigDecimal reserved = reservation.getReservedQuantity();
         if (reserved == null || reserved.compareTo(BigDecimal.ZERO) <= 0) {
             reserved = reservation.getQuantity();
