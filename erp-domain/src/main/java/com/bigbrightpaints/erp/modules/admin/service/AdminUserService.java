@@ -99,7 +99,7 @@ public class AdminUserService {
     
     private void createDealerForUser(UserAccount user, Company company) {
         // Check if dealer already exists for this user
-        if (dealerRepository.findByPortalUserEmail(user.getEmail()).isPresent()) {
+        if (dealerRepository.findByCompanyAndPortalUserEmail(company, user.getEmail()).isPresent()) {
             return;
         }
         

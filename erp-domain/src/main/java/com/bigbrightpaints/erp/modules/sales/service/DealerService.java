@@ -29,13 +29,17 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.UUID;
 
 @Service
 public class DealerService {
 
     private static final int DEALER_SEARCH_LIMIT = 10;
     private static final SecureRandom RANDOM = new SecureRandom();
+    private static final String LOWER = "abcdefghijklmnopqrstuvwxyz";
+    private static final String UPPER = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    private static final String DIGITS = "0123456789";
+    private static final String SPECIAL = "!@#$%^&*";
+    private static final String ALL = LOWER + UPPER + DIGITS + SPECIAL;
 
     private final DealerRepository dealerRepository;
     private final CompanyContextService companyContextService;
@@ -69,22 +73,31 @@ public class DealerService {
         Company company = companyContextService.requireCurrentCompany();
         String dealerCode = generateDealerCode(request.name(), company);
 
+        String contactEmail = request.contactEmail().trim();
+        dealerRepository.findByCompanyAndPortalUserEmail(company, contactEmail)
+                .ifPresent(existing -> {
+                    throw new IllegalArgumentException("Dealer already exists for this portal user");
+                });
+
         Dealer dealer = new Dealer();
         dealer.setCompany(company);
         dealer.setName(request.name().trim());
+        dealer.setCompanyName(request.companyName().trim());
         dealer.setCode(dealerCode);
-        dealer.setEmail(request.contactEmail().trim());
+        dealer.setEmail(contactEmail);
         dealer.setPhone(request.contactPhone().trim());
         dealer.setAddress(request.address());
         dealer.setCreditLimit(request.creditLimit() != null ? request.creditLimit() : dealer.getCreditLimit());
 
         dealer = dealerRepository.save(dealer);
 
-        String portalEmail = resolvePortalEmail(request.contactEmail().trim(), dealerCode);
-        String rawPassword = generateRandomPassword();
-
-        UserAccount portalUser = new UserAccount(portalEmail, passwordEncoder.encode(rawPassword), dealer.getName());
-        portalUser.setMustChangePassword(true);
+        String rawPassword = null;
+        UserAccount portalUser = userAccountRepository.findByEmailIgnoreCase(contactEmail).orElse(null);
+        if (portalUser == null) {
+            rawPassword = generateRandomPassword();
+            portalUser = new UserAccount(contactEmail, passwordEncoder.encode(rawPassword), dealer.getName());
+            portalUser.setMustChangePassword(true);
+        }
         portalUser.getRoles().add(roleService.ensureRoleExists("ROLE_DEALER"));
         portalUser.getCompanies().add(company);
         portalUser = userAccountRepository.save(portalUser);
@@ -95,8 +108,10 @@ public class DealerService {
         dealer.setReceivableAccount(receivableAccount);
         dealer = dealerRepository.save(dealer);
 
-        emailService.sendUserCredentialsEmail(portalEmail, dealer.getName(), rawPassword);
-        return toResponse(dealer, portalEmail);
+        if (rawPassword != null) {
+            emailService.sendUserCredentialsEmail(contactEmail, dealer.getName(), rawPassword);
+        }
+        return toResponse(dealer, portalUser.getEmail());
     }
 
     @Transactional
@@ -145,6 +160,9 @@ public class DealerService {
         
         if (request.name() != null && !request.name().isBlank()) {
             dealer.setName(request.name().trim());
+        }
+        if (request.companyName() != null && !request.companyName().isBlank()) {
+            dealer.setCompanyName(request.companyName().trim());
         }
         if (request.contactEmail() != null && !request.contactEmail().isBlank()) {
             dealer.setEmail(request.contactEmail().trim());
@@ -211,13 +229,6 @@ public class DealerService {
         return accountRepository.save(account);
     }
 
-    private String resolvePortalEmail(String requestedEmail, String dealerCode) {
-        if (!userAccountRepository.findByEmailIgnoreCase(requestedEmail).isPresent()) {
-            return requestedEmail;
-        }
-        return dealerCode.toLowerCase(Locale.ROOT) + "@dealers.local";
-    }
-
     private String generateDealerCode(String input, Company company) {
         String normalized = Normalizer.normalize(input, Normalizer.Form.NFD)
                 .replaceAll("\\p{M}", "")
@@ -233,7 +244,21 @@ public class DealerService {
     }
 
     private String generateRandomPassword() {
-        return UUID.randomUUID().toString().replace("-", "").substring(0, 12) + RANDOM.nextInt(10);
+        int length = 12;
+        List<Character> chars = new ArrayList<>();
+        chars.add(LOWER.charAt(RANDOM.nextInt(LOWER.length())));
+        chars.add(UPPER.charAt(RANDOM.nextInt(UPPER.length())));
+        chars.add(DIGITS.charAt(RANDOM.nextInt(DIGITS.length())));
+        chars.add(SPECIAL.charAt(RANDOM.nextInt(SPECIAL.length())));
+        for (int i = chars.size(); i < length; i++) {
+            chars.add(ALL.charAt(RANDOM.nextInt(ALL.length())));
+        }
+        java.util.Collections.shuffle(chars, RANDOM);
+        StringBuilder sb = new StringBuilder(length);
+        for (char c : chars) {
+            sb.append(c);
+        }
+        return sb.toString();
     }
 
     private DealerResponse toResponse(Dealer dealer, String portalEmail) {
@@ -248,6 +273,7 @@ public class DealerService {
                 dealer.getPublicId(),
                 dealer.getCode(),
                 dealer.getName(),
+                dealer.getCompanyName(),
                 dealer.getEmail(),
                 dealer.getPhone(),
                 dealer.getAddress(),

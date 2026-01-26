@@ -1,0 +1,2 @@
+ALTER TABLE dealers
+    ADD COLUMN IF NOT EXISTS company_name VARCHAR(255);

@@ -34,6 +34,9 @@ public class Dealer extends VersionedEntity {
     @Column(nullable = false)
     private String code;
 
+    @Column(name = "company_name")
+    private String companyName;
+
     private String email;
     private String phone;
     private String address;
@@ -77,6 +80,8 @@ public class Dealer extends VersionedEntity {
     public void setName(String name) { this.name = name; }
     public String getCode() { return code; }
     public void setCode(String code) { this.code = code; }
+    public String getCompanyName() { return companyName; }
+    public void setCompanyName(String companyName) { this.companyName = companyName; }
     public String getEmail() { return email; }
     public void setEmail(String email) { this.email = email; }
     public String getPhone() { return phone; }

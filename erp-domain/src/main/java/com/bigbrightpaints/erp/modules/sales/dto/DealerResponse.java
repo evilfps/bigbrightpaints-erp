@@ -8,6 +8,7 @@ public record DealerResponse(
         UUID publicId,
         String code,
         String name,
+        String companyName,
         String email,
         String phone,
         String address,
