@@ -163,7 +163,7 @@ public class BulkPackingService {
         Long journalEntryId = postPackagingJournal(company, bulkBatch, childBatches,
                 totalVolume, packagingCostSummary, packDate, request.notes());
         if (journalEntryId != null) {
-            linkPackagingMovementsToJournal(packagingReference, journalEntryId);
+            linkPackagingMovementsToJournal(company, packagingReference, journalEntryId);
         }
 
         // 8. Build response
@@ -434,12 +434,12 @@ public class BulkPackingService {
         return sizeInLiters.stripTrailingZeros().toPlainString() + "L";
     }
 
-    private void linkPackagingMovementsToJournal(String referenceId, Long journalEntryId) {
+    private void linkPackagingMovementsToJournal(Company company, String referenceId, Long journalEntryId) {
         if (journalEntryId == null) {
             return;
         }
         List<RawMaterialMovement> movements = rawMaterialMovementRepository
-                .findByReferenceTypeAndReferenceId(InventoryReference.PACKING_RECORD, referenceId);
+                .findByRawMaterialCompanyAndReferenceTypeAndReferenceId(company, InventoryReference.PACKING_RECORD, referenceId);
         if (movements.isEmpty()) {
             return;
         }

@@ -520,16 +520,16 @@ public class PackingService {
 
         JournalEntryDto entry = accountingService.createJournalEntry(request);
         if (entry != null) {
-            linkPackagingMovementsToJournal(referenceId, entry.id());
+            linkPackagingMovementsToJournal(log.getCompany(), referenceId, entry.id());
         }
     }
 
-    private void linkPackagingMovementsToJournal(String referenceId, Long journalEntryId) {
+    private void linkPackagingMovementsToJournal(Company company, String referenceId, Long journalEntryId) {
         if (journalEntryId == null) {
             return;
         }
         List<RawMaterialMovement> movements = rawMaterialMovementRepository
-                .findByReferenceTypeAndReferenceId(InventoryReference.PACKING_RECORD, referenceId);
+                .findByRawMaterialCompanyAndReferenceTypeAndReferenceId(company, InventoryReference.PACKING_RECORD, referenceId);
         if (movements.isEmpty()) {
             return;
         }
