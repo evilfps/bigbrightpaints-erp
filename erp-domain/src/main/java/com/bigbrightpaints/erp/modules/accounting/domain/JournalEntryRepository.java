@@ -45,6 +45,8 @@ public interface JournalEntryRepository extends JpaRepository<JournalEntry, Long
     long countByCompanyAndEntryDateBetweenAndStatusIn(Company company, LocalDate start, LocalDate end, Collection<String> statuses);
     @EntityGraph(attributePaths = {"lines", "lines.account"})
     List<JournalEntry> findByCompanyAndEntryDateBetweenOrderByEntryDateAsc(Company company, LocalDate start, LocalDate end);
+    @EntityGraph(attributePaths = {"lines", "lines.account"})
+    List<JournalEntry> findByCompanyAndEntryDateAfterOrderByEntryDateAsc(Company company, LocalDate end);
 
     @EntityGraph(attributePaths = {"lines"})
     List<JournalEntry> findAll();

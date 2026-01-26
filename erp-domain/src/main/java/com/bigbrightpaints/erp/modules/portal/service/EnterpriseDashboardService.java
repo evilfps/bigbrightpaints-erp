@@ -108,6 +108,8 @@ public class EnterpriseDashboardService {
 
         List<JournalEntry> journalEntries = journalEntryRepository.findByCompanyAndEntryDateBetweenOrderByEntryDateAsc(
                 company, range.start(), range.end());
+        List<JournalEntry> entriesAfterWindow = journalEntryRepository.findByCompanyAndEntryDateAfterOrderByEntryDateAsc(
+                company, range.end());
         BigDecimal cogs = computeCogs(journalEntries);
 
         List<Account> accounts = accountRepository.findByCompanyOrderByCodeAsc(company);
@@ -121,7 +123,8 @@ public class EnterpriseDashboardService {
         InventoryValuationDto inventoryValuation = reportService.inventoryValuation();
         BigDecimal inventoryValue = inventoryValuation.totalValue();
 
-        BigDecimal inventoryTurns = computeInventoryTurns(accounts, journalEntries, cogs, company.getDefaultInventoryAccountId());
+        BigDecimal inventoryTurns = computeInventoryTurns(accounts, journalEntries, entriesAfterWindow, cogs,
+                company.getDefaultInventoryAccountId());
 
         List<SalesOrder> orders = salesOrderRepository.findByCompanyOrderByCreatedAtDesc(company);
         BigDecimal bookedBacklog = orders.stream()
@@ -273,6 +276,7 @@ public class EnterpriseDashboardService {
 
     private BigDecimal computeInventoryTurns(List<Account> accounts,
                                              List<JournalEntry> entries,
+                                             List<JournalEntry> entriesAfterWindow,
                                              BigDecimal cogs,
                                              Long defaultInventoryAccountId) {
         List<Account> inventoryAccounts = accounts.stream()
@@ -284,10 +288,10 @@ public class EnterpriseDashboardService {
         Map<Long, Account> inventoryById = inventoryAccounts.stream()
                 .filter(account -> account.getId() != null)
                 .collect(Collectors.toMap(Account::getId, account -> account));
-        BigDecimal ending = inventoryById.values().stream()
+        BigDecimal currentBalance = inventoryById.values().stream()
                 .map(Account::getBalance)
                 .reduce(ZERO, BigDecimal::add);
-        BigDecimal netChange = ZERO;
+        BigDecimal netChangeWithinWindow = ZERO;
         for (JournalEntry entry : entries) {
             if (!"POSTED".equalsIgnoreCase(entry.getStatus())) {
                 continue;
@@ -295,12 +299,25 @@ public class EnterpriseDashboardService {
             for (JournalLine line : entry.getLines()) {
                 Account account = line.getAccount();
                 if (account != null && account.getId() != null && inventoryById.containsKey(account.getId())) {
-                    netChange = netChange.add(safe(line.getDebit()).subtract(safe(line.getCredit())));
+                    netChangeWithinWindow = netChangeWithinWindow.add(safe(line.getDebit()).subtract(safe(line.getCredit())));
                 }
             }
         }
-        BigDecimal beginning = ending.subtract(netChange);
-        BigDecimal average = beginning.add(ending).divide(BigDecimal.valueOf(2), 4, RoundingMode.HALF_UP);
+        BigDecimal netChangeAfterWindow = ZERO;
+        for (JournalEntry entry : entriesAfterWindow) {
+            if (!"POSTED".equalsIgnoreCase(entry.getStatus())) {
+                continue;
+            }
+            for (JournalLine line : entry.getLines()) {
+                Account account = line.getAccount();
+                if (account != null && account.getId() != null && inventoryById.containsKey(account.getId())) {
+                    netChangeAfterWindow = netChangeAfterWindow.add(safe(line.getDebit()).subtract(safe(line.getCredit())));
+                }
+            }
+        }
+        BigDecimal endingAtWindow = currentBalance.subtract(netChangeAfterWindow);
+        BigDecimal beginning = endingAtWindow.subtract(netChangeWithinWindow);
+        BigDecimal average = beginning.add(endingAtWindow).divide(BigDecimal.valueOf(2), 4, RoundingMode.HALF_UP);
         if (average.compareTo(ZERO) <= 0) {
             return null;
         }

@@ -701,6 +701,18 @@ public class SalesService {
                         item.setLineTotal(currency(lineSubtotal.add(share)));
                     }
                 }
+                if (gstInclusive && !items.isEmpty()) {
+                    BigDecimal lineSubtotalSum = items.stream()
+                            .map(SalesOrderItem::getLineSubtotal)
+                            .reduce(BigDecimal.ZERO, BigDecimal::add);
+                    BigDecimal subtotalDelta = subtotal.subtract(lineSubtotalSum);
+                    if (subtotalDelta.compareTo(BigDecimal.ZERO) != 0) {
+                        SalesOrderItem lastItem = items.get(items.size() - 1);
+                        BigDecimal adjustedSubtotal = currency(lastItem.getLineSubtotal().add(subtotalDelta));
+                        lastItem.setLineSubtotal(adjustedSubtotal);
+                        lastItem.setLineTotal(currency(adjustedSubtotal.add(lastItem.getGstAmount())));
+                    }
+                }
             } else {
                 for (SalesOrderItem item : items) {
                     item.setGstRate(rate);

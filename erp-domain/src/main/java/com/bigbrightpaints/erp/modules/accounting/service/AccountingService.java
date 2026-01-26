@@ -3038,20 +3038,21 @@ public class AccountingService {
     }
 
     private void revalueFinishedBatches(List<FinishedGoodBatch> batches, BigDecimal delta) {
-        FinishedGoodBatch target = batches.stream()
-                .sorted(Comparator.comparing(FinishedGoodBatch::getManufacturedAt, Comparator.nullsLast(Comparator.naturalOrder())))
-                .findFirst()
-                .orElse(null);
-        if (target == null) {
+        BigDecimal totalQty = batches.stream()
+                .map(batch -> batch.getQuantityTotal() == null ? BigDecimal.ZERO : batch.getQuantityTotal())
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        if (totalQty.compareTo(BigDecimal.ZERO) <= 0) {
             return;
         }
-        BigDecimal qty = target.getQuantityTotal() == null ? BigDecimal.ZERO : target.getQuantityTotal();
-        if (qty.compareTo(BigDecimal.ZERO) <= 0) {
-            return;
+        BigDecimal deltaPerUnit = delta.divide(totalQty, 6, RoundingMode.HALF_UP);
+        for (FinishedGoodBatch batch : batches) {
+            BigDecimal qty = batch.getQuantityTotal() == null ? BigDecimal.ZERO : batch.getQuantityTotal();
+            if (qty.compareTo(BigDecimal.ZERO) <= 0) {
+                continue;
+            }
+            batch.setUnitCost(batch.getUnitCost().add(deltaPerUnit));
+            finishedGoodBatchRepository.save(batch);
         }
-        BigDecimal deltaPerUnit = delta.divide(qty, 6, RoundingMode.HALF_UP);
-        target.setUnitCost(target.getUnitCost().add(deltaPerUnit));
-        finishedGoodBatchRepository.save(target);
     }
 
 }

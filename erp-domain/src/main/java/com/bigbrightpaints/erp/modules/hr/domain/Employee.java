@@ -127,7 +127,10 @@ public class Employee extends VersionedEntity {
     public void setDailyWage(BigDecimal dailyWage) { this.dailyWage = dailyWage; }
     public PaymentSchedule getPaymentSchedule() { return paymentSchedule; }
     public void setPaymentSchedule(PaymentSchedule paymentSchedule) { this.paymentSchedule = paymentSchedule; }
-    public Integer getWorkingDaysPerMonth() { return workingDaysPerMonth != null ? workingDaysPerMonth : 26; }
+    public Integer getWorkingDaysPerMonth() {
+        int resolved = workingDaysPerMonth != null ? workingDaysPerMonth : 26;
+        return Math.max(1, resolved);
+    }
     public void setWorkingDaysPerMonth(Integer workingDaysPerMonth) { this.workingDaysPerMonth = workingDaysPerMonth; }
     public Integer getWeeklyOffDays() { return weeklyOffDays != null ? weeklyOffDays : 1; }
     public void setWeeklyOffDays(Integer weeklyOffDays) { this.weeklyOffDays = weeklyOffDays; }
@@ -143,7 +146,10 @@ public class Employee extends VersionedEntity {
     public void setOvertimeRateMultiplier(BigDecimal overtimeRateMultiplier) { this.overtimeRateMultiplier = overtimeRateMultiplier; }
     public BigDecimal getDoubleOtRateMultiplier() { return doubleOtRateMultiplier != null ? doubleOtRateMultiplier : new BigDecimal("2.0"); }
     public void setDoubleOtRateMultiplier(BigDecimal doubleOtRateMultiplier) { this.doubleOtRateMultiplier = doubleOtRateMultiplier; }
-    public BigDecimal getStandardHoursPerDay() { return standardHoursPerDay != null ? standardHoursPerDay : new BigDecimal("8"); }
+    public BigDecimal getStandardHoursPerDay() {
+        BigDecimal resolved = standardHoursPerDay != null ? standardHoursPerDay : new BigDecimal("8");
+        return resolved.compareTo(BigDecimal.ZERO) > 0 ? resolved : BigDecimal.ONE;
+    }
     public void setStandardHoursPerDay(BigDecimal standardHoursPerDay) { this.standardHoursPerDay = standardHoursPerDay; }
 
     public String getFullName() {

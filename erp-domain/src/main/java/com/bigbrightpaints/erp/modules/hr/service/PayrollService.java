@@ -546,9 +546,11 @@ public class PayrollService {
                     emp.getOvertimeRateMultiplier()).multiply(otHours);
             BigDecimal netPay = basePay.add(otPay);
 
+            BigDecimal daysWorkedExact = presentDays;
+            int daysWorked = daysWorkedExact.setScale(0, RoundingMode.HALF_UP).intValue();
             employeePay.add(new EmployeeWeeklyPayDto(
                 emp.getId(), emp.getFullName(), emp.getDailyRate(),
-                presentDays.intValue(), otHours, basePay, otPay, netPay
+                daysWorked, daysWorkedExact, otHours, basePay, otPay, netPay
             ));
 
             totalBasePay = totalBasePay.add(basePay);
@@ -579,6 +581,7 @@ public class PayrollService {
         BigDecimal totalNet = BigDecimal.ZERO;
 
         Map<Long, BigDecimal> presentDaysByEmployee = new HashMap<>();
+        Map<Long, BigDecimal> halfDaysByEmployee = new HashMap<>();
         Map<Long, BigDecimal> absentDaysByEmployee = new HashMap<>();
         for (Attendance att : attendance) {
             Long employeeId = att.getEmployee().getId();
@@ -592,10 +595,15 @@ public class PayrollService {
                 default -> {
                 }
             }
+            if (att.getStatus() == Attendance.AttendanceStatus.HALF_DAY) {
+                halfDaysByEmployee.merge(employeeId, BigDecimal.ONE, BigDecimal::add);
+            }
         }
 
         for (Employee emp : staff) {
             BigDecimal presentDays = presentDaysByEmployee.getOrDefault(
+                    emp.getId(), BigDecimal.ZERO);
+            BigDecimal halfDays = halfDaysByEmployee.getOrDefault(
                     emp.getId(), BigDecimal.ZERO);
             BigDecimal absentDays = absentDaysByEmployee.getOrDefault(
                     emp.getId(), BigDecimal.ZERO);
@@ -608,6 +616,13 @@ public class PayrollService {
                 BigDecimal dailyRate = emp.getDailyRate();
                 grossPay = grossPay.subtract(dailyRate.multiply(absentDays));
             }
+            if (halfDays.compareTo(BigDecimal.ZERO) > 0) {
+                BigDecimal dailyRate = emp.getDailyRate();
+                BigDecimal halfDayDeduction = dailyRate
+                        .multiply(halfDays)
+                        .multiply(new BigDecimal("0.5"));
+                grossPay = grossPay.subtract(halfDayDeduction);
+            }
 
             // Statutory deductions are not applied in the summary flow
             BigDecimal pfDeduction = BigDecimal.ZERO;
@@ -616,7 +631,9 @@ public class PayrollService {
 
             employeePay.add(new EmployeeMonthlyPayDto(
                 emp.getId(), emp.getFullName(), emp.getMonthlySalary(),
-                presentDays.intValue(), absentDays.intValue(),
+                presentDays.setScale(0, RoundingMode.HALF_UP).intValue(),
+                absentDays.setScale(0, RoundingMode.HALF_UP).intValue(),
+                presentDays, halfDays, absentDays,
                 grossPay, pfDeduction, netPay
             ));
 
@@ -721,7 +738,7 @@ public class PayrollService {
 
     public record EmployeeWeeklyPayDto(
         Long employeeId, String name, BigDecimal dailyRate,
-        int daysWorked, BigDecimal overtimeHours,
+        int daysWorked, BigDecimal daysWorkedExact, BigDecimal overtimeHours,
         BigDecimal basePay, BigDecimal overtimePay, BigDecimal netPay
     ) {}
 
@@ -734,6 +751,7 @@ public class PayrollService {
     public record EmployeeMonthlyPayDto(
         Long employeeId, String name, BigDecimal monthlySalary,
         int presentDays, int absentDays,
+        BigDecimal presentDaysExact, BigDecimal halfDaysExact, BigDecimal absentDaysExact,
         BigDecimal grossPay, BigDecimal pfDeduction, BigDecimal netPay
     ) {}
 }

@@ -25,6 +25,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Service for converting bulk FG batches into sized child batches.
@@ -264,25 +266,41 @@ public class BulkPackingService {
         }
     }
 
+    static final Pattern SIZE_LABEL_PATTERN = Pattern.compile("([0-9]+(?:\\.[0-9]+)?)\\s*(ML|L|LTR|LITRE|LITER)");
+
     private BigDecimal extractSizeInLiters(String sizeLabel, String unit) {
-        // Try to extract numeric size from label like "1L", "4L", "20L"
-        String label = sizeLabel != null ? sizeLabel.trim().toUpperCase() : "";
-        if (label.endsWith("L")) {
-            try {
-                return new BigDecimal(label.substring(0, label.length() - 1));
-            } catch (NumberFormatException ignored) {}
+        BigDecimal fromLabel = parseSizeInLiters(sizeLabel);
+        if (fromLabel != null) {
+            return fromLabel;
         }
-        // Try from unit
-        if (unit != null) {
-            String u = unit.trim().toUpperCase();
-            if (u.endsWith("L")) {
-                try {
-                    return new BigDecimal(u.substring(0, u.length() - 1));
-                } catch (NumberFormatException ignored) {}
-            }
+        BigDecimal fromUnit = parseSizeInLiters(unit);
+        if (fromUnit != null) {
+            return fromUnit;
         }
-        // Default to 1 if can't parse
-        return BigDecimal.ONE;
+        throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                "Unable to parse size label for bulk pack: " + sizeLabel);
+    }
+
+    static BigDecimal parseSizeInLiters(String label) {
+        if (!StringUtils.hasText(label)) {
+            return null;
+        }
+        String normalized = label.trim().toUpperCase();
+        Matcher matcher = SIZE_LABEL_PATTERN.matcher(normalized);
+        if (!matcher.find()) {
+            return null;
+        }
+        BigDecimal value;
+        try {
+            value = new BigDecimal(matcher.group(1));
+        } catch (NumberFormatException ex) {
+            return null;
+        }
+        String unit = matcher.group(2);
+        if ("ML".equals(unit)) {
+            return value.divide(new BigDecimal("1000"), 6, RoundingMode.HALF_UP);
+        }
+        return value;
     }
 
     private PackagingCostSummary consumePackagingMaterials(Company company,
