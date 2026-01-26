@@ -240,9 +240,9 @@ public class PurchasingService {
                 .ifPresent(existing -> {
                     throw new IllegalArgumentException("Receipt number already used for this company");
                 });
-        if (goodsReceiptRepository.existsByPurchaseOrder(purchaseOrder)) {
+        if ("CLOSED".equalsIgnoreCase(purchaseOrder.getStatus())) {
             throw new ApplicationException(ErrorCode.BUSINESS_CONSTRAINT_VIOLATION,
-                    "Goods receipt already recorded for this purchase order")
+                    "Purchase order is already closed")
                     .withDetail("purchaseOrderId", purchaseOrder.getId());
         }
 
@@ -260,6 +260,31 @@ public class PurchasingService {
             orderLinesByMaterial.put(materialId, line);
         }
 
+        Map<Long, BigDecimal> alreadyReceived = new HashMap<>();
+        for (GoodsReceipt existingReceipt : goodsReceiptRepository.findByPurchaseOrder(purchaseOrder)) {
+            for (GoodsReceiptLine existingLine : existingReceipt.getLines()) {
+                RawMaterial existingMaterial = existingLine.getRawMaterial();
+                if (existingMaterial == null || existingMaterial.getId() == null) {
+                    continue;
+                }
+                alreadyReceived.merge(existingMaterial.getId(), existingLine.getQuantity(), BigDecimal::add);
+            }
+        }
+        boolean hasRemaining = false;
+        for (Map.Entry<Long, PurchaseOrderLine> entry : orderLinesByMaterial.entrySet()) {
+            BigDecimal ordered = entry.getValue().getQuantity();
+            BigDecimal received = alreadyReceived.getOrDefault(entry.getKey(), BigDecimal.ZERO);
+            if (ordered.subtract(received).compareTo(BigDecimal.ZERO) > 0) {
+                hasRemaining = true;
+                break;
+            }
+        }
+        if (!hasRemaining) {
+            throw new ApplicationException(ErrorCode.BUSINESS_CONSTRAINT_VIOLATION,
+                    "Purchase order already fully received")
+                    .withDetail("purchaseOrderId", purchaseOrder.getId());
+        }
+
         GoodsReceipt receipt = new GoodsReceipt();
         receipt.setCompany(company);
         receipt.setSupplier(supplier);
@@ -268,8 +293,9 @@ public class PurchasingService {
         receipt.setReceiptDate(request.receiptDate());
         receipt.setMemo(clean(request.memo()));
 
-        boolean matchesOrder = true;
+        boolean fullyReceived = true;
         Set<Long> receiptMaterialIds = new HashSet<>();
+        Map<Long, BigDecimal> receiptQuantities = new HashMap<>();
         for (GoodsReceiptLineRequest lineRequest : request.lines()) {
             RawMaterial rawMaterial = requireMaterial(company, lineRequest.rawMaterialId());
             PurchaseOrderLine orderLine = orderLinesByMaterial.get(rawMaterial.getId());
@@ -284,15 +310,25 @@ public class PurchasingService {
                         .withDetail("rawMaterialId", rawMaterial.getId());
             }
             BigDecimal quantity = positive(lineRequest.quantity(), "quantity");
-            if (quantity.compareTo(orderLine.getQuantity()) > 0) {
+            BigDecimal alreadyQty = alreadyReceived.getOrDefault(rawMaterial.getId(), BigDecimal.ZERO);
+            BigDecimal remainingQty = orderLine.getQuantity().subtract(alreadyQty);
+            if (remainingQty.compareTo(BigDecimal.ZERO) <= 0) {
+                throw new ApplicationException(ErrorCode.BUSINESS_CONSTRAINT_VIOLATION,
+                        "Raw material already fully received for this purchase order")
+                        .withDetail("rawMaterialId", rawMaterial.getId());
+            }
+            if (quantity.compareTo(remainingQty) > 0) {
                 throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
-                        "Goods receipt quantity exceeds purchase order quantity")
+                        "Goods receipt quantity exceeds remaining purchase order quantity")
                         .withDetail("rawMaterialId", rawMaterial.getId())
                         .withDetail("orderQuantity", orderLine.getQuantity())
+                        .withDetail("alreadyReceivedQuantity", alreadyQty)
+                        .withDetail("remainingQuantity", remainingQty)
                         .withDetail("receiptQuantity", quantity);
             }
-            if (quantity.compareTo(orderLine.getQuantity()) != 0) {
-                matchesOrder = false;
+            receiptQuantities.put(rawMaterial.getId(), quantity);
+            if (quantity.add(alreadyQty).compareTo(orderLine.getQuantity()) != 0) {
+                fullyReceived = false;
             }
 
             BigDecimal costPerUnit = positive(lineRequest.costPerUnit(), "costPerUnit");
@@ -323,15 +359,40 @@ public class PurchasingService {
             receipt.getLines().add(line);
         }
 
-        if (receiptMaterialIds.size() != orderLinesByMaterial.size()) {
-            matchesOrder = false;
+        for (Map.Entry<Long, PurchaseOrderLine> entry : orderLinesByMaterial.entrySet()) {
+            BigDecimal totalReceived = alreadyReceived.getOrDefault(entry.getKey(), BigDecimal.ZERO)
+                    .add(receiptQuantities.getOrDefault(entry.getKey(), BigDecimal.ZERO));
+            if (totalReceived.compareTo(entry.getValue().getQuantity()) != 0) {
+                fullyReceived = false;
+            }
         }
 
-        if (!matchesOrder) {
+        if (!fullyReceived) {
             receipt.setStatus("PARTIAL");
             purchaseOrder.setStatus("PARTIAL");
         } else {
             purchaseOrder.setStatus("RECEIVED");
+        }
+
+        for (GoodsReceiptLine line : receipt.getLines()) {
+            RawMaterial rawMaterial = line.getRawMaterial();
+            RawMaterialBatchRequest batchRequest = new RawMaterialBatchRequest(
+                    line.getBatchCode(),
+                    line.getQuantity(),
+                    line.getUnit(),
+                    line.getCostPerUnit(),
+                    supplier.getId(),
+                    line.getNotes()
+            );
+            RawMaterialService.ReceiptContext context = new RawMaterialService.ReceiptContext(
+                    InventoryReference.GOODS_RECEIPT,
+                    receiptNumber,
+                    "Goods receipt " + receiptNumber,
+                    false
+            );
+            RawMaterialService.ReceiptResult receiptResult = rawMaterialService.recordReceipt(rawMaterial.getId(), batchRequest, context);
+            line.setRawMaterialBatch(receiptResult.batch());
+            line.setBatchCode(receiptResult.batch().getBatchCode());
         }
 
         GoodsReceipt savedReceipt = goodsReceiptRepository.saveAndFlush(receipt);
@@ -390,6 +451,7 @@ public class PurchasingService {
         Map<Long, BigDecimal> receiptQuantities = new HashMap<>();
         Map<Long, BigDecimal> receiptUnitCosts = new HashMap<>();
         Map<Long, String> receiptUnits = new HashMap<>();
+        Map<Long, GoodsReceiptLine> receiptLinesByMaterial = new HashMap<>();
         for (GoodsReceiptLine line : goodsReceipt.getLines()) {
             if (line.getRawMaterial() == null || line.getRawMaterial().getId() == null) {
                 continue;
@@ -403,6 +465,7 @@ public class PurchasingService {
             receiptQuantities.put(materialId, line.getQuantity());
             receiptUnitCosts.put(materialId, line.getCostPerUnit());
             receiptUnits.put(materialId, line.getUnit());
+            receiptLinesByMaterial.put(materialId, line);
         }
 
         boolean taxProvided = request.taxAmount() != null;
@@ -586,28 +649,38 @@ public class PurchasingService {
             String batchCode = lineCalc.batchCode();
             BigDecimal lineTotal = lineCalc.lineNet();
 
-            RawMaterialBatchRequest batchRequest = new RawMaterialBatchRequest(
-                    batchCode,
-                    quantity,
-                    unit,
-                    costPerUnit,
-                    supplier.getId(),
-                    lineCalc.notes()
-            );
-            RawMaterialService.ReceiptContext context = new RawMaterialService.ReceiptContext(
-                    InventoryReference.RAW_MATERIAL_PURCHASE,
-                    invoiceReference(invoiceNumber, lineIndex++),
-                    purchaseMemo(request.memo(), invoiceNumber, batchCode),
-                    false
-            );
-            RawMaterialService.ReceiptResult receipt = rawMaterialService.recordReceipt(rawMaterial.getId(), batchRequest, context);
-            receipts.add(receipt);
+            GoodsReceiptLine receiptLine = receiptLinesByMaterial.get(rawMaterial.getId());
+            RawMaterialBatch batch = receiptLine != null ? receiptLine.getRawMaterialBatch() : null;
+            String lineReference = invoiceReference(invoiceNumber, lineIndex++);
+            if (batch == null) {
+                RawMaterialBatchRequest batchRequest = new RawMaterialBatchRequest(
+                        batchCode,
+                        quantity,
+                        unit,
+                        costPerUnit,
+                        supplier.getId(),
+                        lineCalc.notes()
+                );
+                RawMaterialService.ReceiptContext context = new RawMaterialService.ReceiptContext(
+                        InventoryReference.RAW_MATERIAL_PURCHASE,
+                        lineReference,
+                        purchaseMemo(request.memo(), invoiceNumber, batchCode),
+                        false
+                );
+                RawMaterialService.ReceiptResult receipt = rawMaterialService.recordReceipt(rawMaterial.getId(), batchRequest, context);
+                receipts.add(receipt);
+                batch = receipt.batch();
+                if (receiptLine != null) {
+                    receiptLine.setRawMaterialBatch(batch);
+                    receiptLine.setBatchCode(batch.getBatchCode());
+                }
+            }
 
             RawMaterialPurchaseLine line = new RawMaterialPurchaseLine();
             line.setPurchase(purchase);
             line.setRawMaterial(rawMaterial);
-            line.setRawMaterialBatch(receipt.batch());
-            line.setBatchCode(receipt.batch().getBatchCode());
+            line.setRawMaterialBatch(batch);
+            line.setBatchCode(batch != null ? batch.getBatchCode() : batchCode);
             line.setQuantity(quantity);
             line.setUnit(unit);
             line.setCostPerUnit(costPerUnit);
@@ -630,12 +703,26 @@ public class PurchasingService {
                         movement.setJournalEntryId(entryId);
                         movementRepository.save(movement);
                     });
+            List<RawMaterialMovement> receiptMovements = movementRepository
+                    .findByRawMaterialCompanyAndReferenceTypeAndReferenceId(company,
+                            InventoryReference.GOODS_RECEIPT,
+                            goodsReceipt.getReceiptNumber());
+            for (RawMaterialMovement movement : receiptMovements) {
+                if (movement.getJournalEntryId() == null || !movement.getJournalEntryId().equals(entryId)) {
+                    movement.setJournalEntryId(entryId);
+                    movementRepository.save(movement);
+                }
+            }
         }
         goodsReceipt.setStatus("INVOICED");
         goodsReceiptRepository.save(goodsReceipt);
         if ("RECEIVED".equalsIgnoreCase(purchaseOrder.getStatus())) {
-            purchaseOrder.setStatus("CLOSED");
-            purchaseOrderRepository.save(purchaseOrder);
+            boolean allInvoiced = goodsReceiptRepository.findByPurchaseOrder(purchaseOrder).stream()
+                    .allMatch(gr -> "INVOICED".equalsIgnoreCase(gr.getStatus()));
+            if (allInvoiced) {
+                purchaseOrder.setStatus("CLOSED");
+                purchaseOrderRepository.save(purchaseOrder);
+            }
         }
         return toResponse(purchase);
     }
