@@ -321,6 +321,7 @@
 - 2026-01-27: markSlipDispatched now creates backorder slips for partial shipments; backorder slip creation is idempotent. `cd erp-domain && mvn -B -ntp -Dtest=FinishedGoodsServiceTest test` (PASS) — Tests run: 14, Failures: 0, Errors: 0, Skipped: 0.
 - 2026-01-27: Updated FactoryPackagingCostingIT to use company-scoped raw-material journal lookup and adjusted HighImpactRegressionIT inventory revaluation expectations to account for multi-batch distribution. `cd erp-domain && mvn -B -ntp -Dtest=FactoryPackagingCostingIT,HighImpactRegressionIT test` (PASS) — Tests run: 12, Failures: 0, Errors: 0, Skipped: 0.
 - 2026-01-27: Attendance and payroll calculations now use CompanyClock timezone; payroll runs reuse existing idempotency keys to avoid duplicate runs and return summaries from persisted runs. Tests not run (logic-only change).
+- 2026-01-27: Payroll run default runDate now uses CompanyClock to align with company timezone. Tests not run (logic-only change).
 
 ## Next Actions (explicit)
 1. Task 00 complete; no further actions queued.

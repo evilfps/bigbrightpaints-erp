@@ -80,7 +80,7 @@ public class PayrollService {
         run.setPeriodStart(request.periodStart());
         run.setPeriodEnd(request.periodEnd());
         LocalDate runDate = request.periodEnd() != null ? request.periodEnd() : request.periodStart();
-        run.setRunDate(runDate != null ? runDate : LocalDate.now());
+        run.setRunDate(runDate != null ? runDate : companyClock.today(company));
         run.setRunNumber(generateRunNumber(company, request.runType(), request.periodStart()));
         run.setCreatedBy(currentUser);
         run.setRemarks(request.remarks());
