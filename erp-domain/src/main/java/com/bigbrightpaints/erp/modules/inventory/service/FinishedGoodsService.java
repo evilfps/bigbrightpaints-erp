@@ -5,6 +5,8 @@ import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.inventory.domain.*;
 import com.bigbrightpaints.erp.modules.inventory.dto.*;
+import com.bigbrightpaints.erp.modules.inventory.event.InventoryMovementEvent;
+import com.bigbrightpaints.erp.modules.inventory.event.InventoryValuationChangedEvent;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrder;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrderItem;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrderRepository;
@@ -1069,6 +1071,19 @@ public class FinishedGoodsService {
     }
 
     /**
+     * Read-only dispatcher-friendly response builder (no inventory mutation).
+     *
+     * CODE-RED: used to avoid double-calling confirmDispatch from controllers.
+     */
+    @Transactional
+    public DispatchConfirmationResponse getDispatchConfirmation(Long packagingSlipId) {
+        Company company = companyContextService.requireCurrentCompany();
+        PackagingSlip slip = packagingSlipRepository.findByIdAndCompany(packagingSlipId, company)
+                .orElseThrow(() -> new IllegalArgumentException("Packaging slip not found"));
+        return buildDispatchConfirmationResponse(slip, company);
+    }
+
+    /**
      * Create a backorder slip for items that couldn't be shipped.
      */
     private Long createBackorderSlip(PackagingSlip originalSlip) {
@@ -1493,7 +1508,64 @@ public class FinishedGoodsService {
         movement.setMovementType(movementType);
         movement.setQuantity(quantity);
         movement.setUnitCost(unitCost);
-        inventoryMovementRepository.save(movement);
+        InventoryMovement saved = inventoryMovementRepository.save(movement);
+        publishMovementEventIfSupported(finishedGood, saved, referenceType, referenceId, movementType, quantity, unitCost);
+    }
+
+    private void publishMovementEventIfSupported(FinishedGood finishedGood,
+                                                 InventoryMovement movement,
+                                                 String referenceType,
+                                                 String referenceId,
+                                                 String movementType,
+                                                 BigDecimal quantity,
+                                                 BigDecimal unitCost) {
+        InventoryMovementEvent.MovementType eventType = switch (movementType) {
+            case "RECEIPT" -> InventoryMovementEvent.MovementType.RECEIPT;
+            case "DISPATCH" -> InventoryMovementEvent.MovementType.ISSUE;
+            default -> null;
+        };
+        if (eventType == null || finishedGood == null || movement == null) {
+            return;
+        }
+        BigDecimal safeQty = safeQuantity(quantity);
+        BigDecimal safeCost = unitCost != null ? unitCost : BigDecimal.ZERO;
+        String referenceNumber;
+        if (StringUtils.hasText(referenceType) && StringUtils.hasText(referenceId)) {
+            referenceNumber = referenceType + "-" + referenceId;
+        } else if (StringUtils.hasText(referenceId)) {
+            referenceNumber = referenceId;
+        } else {
+            referenceNumber = referenceType;
+        }
+        Long relatedId = parseLongOrNull(referenceId);
+        InventoryMovementEvent event = InventoryMovementEvent.builder()
+                .companyId(finishedGood.getCompany() != null ? finishedGood.getCompany().getId() : null)
+                .movementType(eventType)
+                .inventoryType(InventoryValuationChangedEvent.InventoryType.FINISHED_GOOD)
+                .itemId(finishedGood.getId())
+                .itemCode(finishedGood.getProductCode())
+                .itemName(finishedGood.getName())
+                .quantity(safeQty)
+                .unitCost(safeCost)
+                .totalCost(safeQty.multiply(safeCost))
+                .movementId(movement.getId())
+                .referenceNumber(referenceNumber)
+                .movementDate(companyClock.today(finishedGood.getCompany()))
+                .relatedEntityId(relatedId)
+                .relatedEntityType(referenceType)
+                .build();
+        eventPublisher.publishEvent(event);
+    }
+
+    private Long parseLongOrNull(String value) {
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        try {
+            return Long.parseLong(value.trim());
+        } catch (NumberFormatException ex) {
+            return null;
+        }
     }
 
     private BigDecimal resolveDispatchUnitCost(FinishedGood finishedGood, FinishedGoodBatch batch) {

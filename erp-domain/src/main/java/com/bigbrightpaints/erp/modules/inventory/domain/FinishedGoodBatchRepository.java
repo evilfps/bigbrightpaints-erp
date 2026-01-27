@@ -15,6 +15,14 @@ public interface FinishedGoodBatchRepository extends JpaRepository<FinishedGoodB
     List<FinishedGoodBatch> findByFinishedGoodOrderByManufacturedAtAsc(FinishedGood finishedGood);
     List<FinishedGoodBatch> findByFinishedGood_ValuationAccountId(Long valuationAccountId);
 
+    @Query("""
+            select b from FinishedGoodBatch b
+            where b.finishedGood.company = :company
+              and b.finishedGood.valuationAccountId = :valuationAccountId
+            """)
+    List<FinishedGoodBatch> findByCompanyAndValuationAccountId(@Param("company") Company company,
+                                                               @Param("valuationAccountId") Long valuationAccountId);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
             select b from FinishedGoodBatch b

@@ -172,7 +172,7 @@ public class BulkPackingService {
         InventoryMovement bulkIssue = new InventoryMovement();
         bulkIssue.setFinishedGood(bulkFg);
         bulkIssue.setFinishedGoodBatch(bulkBatch);
-        bulkIssue.setReferenceType("PACKAGING");
+        bulkIssue.setReferenceType(InventoryReference.PACKING_RECORD);
         bulkIssue.setReferenceId(packReference);
         bulkIssue.setMovementType("ISSUE");
         bulkIssue.setQuantity(totalVolume);
@@ -509,7 +509,7 @@ public class BulkPackingService {
         InventoryMovement movement = new InventoryMovement();
         movement.setFinishedGood(childFg);
         movement.setFinishedGoodBatch(savedBatch);
-        movement.setReferenceType("PACKAGING");
+        movement.setReferenceType(InventoryReference.PACKING_RECORD);
         movement.setReferenceId(packReference);
         movement.setMovementType("RECEIPT");
         movement.setQuantity(line.quantity());

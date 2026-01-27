@@ -12,6 +12,7 @@ public record DispatchConfirmRequest(
         String dispatchNotes,
         String confirmedBy,
         Boolean adminOverrideCreditLimit,
+        String overrideReason,
         Long overrideRequestId
 ) {
     public record DispatchLine(

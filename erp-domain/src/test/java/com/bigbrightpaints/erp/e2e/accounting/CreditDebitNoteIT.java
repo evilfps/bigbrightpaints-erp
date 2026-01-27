@@ -142,7 +142,7 @@ public class CreditDebitNoteIT extends AbstractIntegrationTest {
         );
         Map<String, Object> payload = Map.of(
                 "entryDate", LocalDate.now(),
-                "referenceNumber", "INV-JE-" + System.currentTimeMillis(),
+                "referenceNumber", "MANUAL-INV-JE-" + System.currentTimeMillis(),
                 "memo", "Seed invoice posting",
                 "dealerId", dealer.getId(),
                 "lines", List.of(arLine, revLine)

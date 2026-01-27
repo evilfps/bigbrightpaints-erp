@@ -159,9 +159,6 @@ public class InventoryAccountingEventListener {
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
     public void onInventoryMovement(InventoryMovementEvent event) {
-        log.info("Processing inventory movement: {} {} - {} units @ {}",
-                event.movementType(), event.itemCode(), event.quantity(), event.unitCost());
-
         if (event.totalCost().compareTo(BigDecimal.ZERO) == 0) {
             log.debug("Zero cost movement, skipping journal entry");
             return;
@@ -172,6 +169,9 @@ public class InventoryAccountingEventListener {
             log.debug("Source/destination accounts not specified, skipping auto-posting");
             return;
         }
+
+        log.info("Processing inventory movement: {} {} - {} units @ {}",
+                event.movementType(), event.itemCode(), event.quantity(), event.unitCost());
 
         try {
             Company company = companyRepository.findById(event.companyId())
@@ -286,7 +286,10 @@ public class InventoryAccountingEventListener {
         String referencePrefix = (referenceNumber == null || referenceNumber.isBlank())
                 ? String.format("INV-%s-%s", event.movementType(), event.itemCode())
                 : referenceNumber.trim();
-        String eventFingerprint = String.format("%s|%d|%s|%s|%d|%s|%s|%s|%s|%s|%d|%d|%s|%d",
+        if (event.movementId() != null) {
+            return String.format("%s-MOV-%d", referencePrefix, event.movementId());
+        }
+        String eventFingerprint = String.format("%s|%d|%s|%s|%d|%s|%s|%s|%s|%s|%d|%d|%s|%d|%s",
             referencePrefix,
             event.companyId(),
             event.movementType(),
@@ -300,7 +303,8 @@ public class InventoryAccountingEventListener {
             event.sourceAccountId() != null ? event.sourceAccountId() : 0,
             event.destinationAccountId() != null ? event.destinationAccountId() : 0,
             event.relatedEntityType() != null ? event.relatedEntityType() : "",
-            event.relatedEntityId() != null ? event.relatedEntityId() : 0);
+            event.relatedEntityId() != null ? event.relatedEntityId() : 0,
+            event.itemName() != null ? event.itemName() : "");
         String hash = sha256Hex(eventFingerprint, 16); // 16 hex chars = 64 bits
         return String.format("%s-%s", referencePrefix, hash);
     }

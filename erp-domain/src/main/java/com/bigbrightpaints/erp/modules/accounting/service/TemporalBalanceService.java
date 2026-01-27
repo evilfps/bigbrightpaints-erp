@@ -42,7 +42,8 @@ public class TemporalBalanceService {
      */
     public BigDecimal getBalanceAsOfDate(Long accountId, LocalDate asOfDate) {
         Company company = companyContextService.requireCurrentCompany();
-        return eventRepository.findLastEventForAccountAsOfDate(company, accountId, asOfDate)
+        return eventRepository.findFirstByCompanyAndAccountIdAndEffectiveDateLessThanEqualOrderByEffectiveDateDescEventTimestampDescSequenceNumberDesc(
+                        company, accountId, asOfDate)
                 .map(AccountingEvent::getBalanceAfter)
                 .orElseGet(() -> getCurrentBalance(company, accountId));
     }
@@ -52,7 +53,8 @@ public class TemporalBalanceService {
      */
     public BigDecimal getBalanceAsOfTimestamp(Long accountId, Instant asOf) {
         Company company = companyContextService.requireCurrentCompany();
-        return eventRepository.findLastEventForAccountAsOf(company, accountId, asOf)
+        return eventRepository.findFirstByCompanyAndAccountIdAndEventTimestampLessThanEqualOrderByEventTimestampDescSequenceNumberDesc(
+                        company, accountId, asOf)
                 .map(AccountingEvent::getBalanceAfter)
                 .orElseGet(() -> getCurrentBalance(company, accountId));
     }
@@ -65,7 +67,8 @@ public class TemporalBalanceService {
         Map<Long, BigDecimal> balances = new HashMap<>();
         
         for (Long accountId : accountIds) {
-            BigDecimal balance = eventRepository.findLastEventForAccountAsOfDate(company, accountId, asOfDate)
+            BigDecimal balance = eventRepository.findFirstByCompanyAndAccountIdAndEffectiveDateLessThanEqualOrderByEffectiveDateDescEventTimestampDescSequenceNumberDesc(
+                            company, accountId, asOfDate)
                     .map(AccountingEvent::getBalanceAfter)
                     .orElseGet(() -> getCurrentBalance(company, accountId));
             balances.put(accountId, balance);
@@ -86,7 +89,8 @@ public class TemporalBalanceService {
         BigDecimal totalCredits = BigDecimal.ZERO;
         
         for (Account account : accounts) {
-            BigDecimal balance = eventRepository.findLastEventForAccountAsOfDate(company, account.getId(), asOfDate)
+            BigDecimal balance = eventRepository.findFirstByCompanyAndAccountIdAndEffectiveDateLessThanEqualOrderByEffectiveDateDescEventTimestampDescSequenceNumberDesc(
+                            company, account.getId(), asOfDate)
                     .map(AccountingEvent::getBalanceAfter)
                     .orElse(BigDecimal.ZERO);
             
@@ -124,7 +128,7 @@ public class TemporalBalanceService {
                 .orElseThrow(() -> new IllegalArgumentException("Account not found"));
         
         // Get opening balance (balance as of day before start)
-        BigDecimal openingBalance = eventRepository.findLastEventForAccountAsOfDate(
+        BigDecimal openingBalance = eventRepository.findFirstByCompanyAndAccountIdAndEffectiveDateLessThanEqualOrderByEffectiveDateDescEventTimestampDescSequenceNumberDesc(
                 company, accountId, startDate.minusDays(1))
                 .map(AccountingEvent::getBalanceAfter)
                 .orElse(BigDecimal.ZERO);

@@ -60,6 +60,7 @@ import java.util.Comparator;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -70,6 +71,36 @@ public class SalesService {
     private static final Logger log = LoggerFactory.getLogger(SalesService.class);
     private static final BigDecimal MAX_GST_RATE = new BigDecimal("28.00");
     private static final BigDecimal DISPATCH_TOTAL_TOLERANCE = new BigDecimal("0.01");
+    private static final Set<String> WORKFLOW_ONLY_STATUSES = Set.of(
+            "BOOKED",
+            "RESERVED",
+            "PENDING_PRODUCTION",
+            "PENDING_INVENTORY",
+            "CONFIRMED",
+            "CANCELLED",
+            "SHIPPED",
+            "FULFILLED",
+            "COMPLETED"
+    );
+    private static final Set<String> MANUAL_STATUSES = Set.of(
+            "ON_HOLD",
+            "REJECTED",
+            "CLOSED"
+    );
+    private static final Set<String> VALID_ORDER_STATUSES = Set.of(
+            "BOOKED",
+            "RESERVED",
+            "PENDING_PRODUCTION",
+            "PENDING_INVENTORY",
+            "CONFIRMED",
+            "CANCELLED",
+            "SHIPPED",
+            "FULFILLED",
+            "COMPLETED",
+            "ON_HOLD",
+            "REJECTED",
+            "CLOSED"
+    );
 
     private final CompanyContextService companyContextService;
     private final DealerRepository dealerRepository;
@@ -531,11 +562,21 @@ public class SalesService {
         order.setGstInclusive(gstInclusive);
         OrderAmountSummary amounts = mapOrderItems(order, items, gstTreatment, orderLevelRate, gstInclusive);
         validateTotalAmount(request.totalAmount(), amounts.total());
+        enforceCreditLimit(order.getDealer(), amounts.total());
         salesOrderRepository.save(order);
         FinishedGoodsService.InventoryReservationResult reservationResult = finishedGoodsService.reserveForOrder(order);
         if (reservationResult != null) {
             boolean noShortages = reservationResult.shortages() == null || reservationResult.shortages().isEmpty();
             order.setStatus(noShortages ? "RESERVED" : "PENDING_PRODUCTION");
+            if (noShortages) {
+                cancelPendingFactoryTasksForOrder(order);
+            } else {
+                Long packagingSlipId = reservationResult.packagingSlip() != null
+                        ? reservationResult.packagingSlip().id()
+                        : null;
+                cancelPendingFactoryTasksForOrder(order);
+                createShortageTasksForOrder(order.getCompany(), order, reservationResult.shortages(), packagingSlipId);
+            }
         }
         return toDto(order);
     }
@@ -581,6 +622,30 @@ public class SalesService {
     @Transactional
     public SalesOrderDto updateStatus(Long id, String status) {
         SalesOrder order = requireOrder(id);
+        String normalized = normalizeOrderStatus(status);
+        if (!VALID_ORDER_STATUSES.contains(normalized)) {
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                    "Unknown order status " + normalized);
+        }
+        if (WORKFLOW_ONLY_STATUSES.contains(normalized)) {
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                    "Status " + normalized + " cannot be set directly; use the workflow endpoints");
+        }
+        if (!MANUAL_STATUSES.contains(normalized)) {
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                    "Status " + normalized + " cannot be set directly");
+        }
+        assertOrderMutable(order, "update status");
+        if (normalized.equalsIgnoreCase(order.getStatus())) {
+            return toDto(order);
+        }
+        order.setStatus(normalized);
+        return toDto(order);
+    }
+
+    @Transactional
+    public SalesOrderDto updateStatusInternal(Long id, String status) {
+        SalesOrder order = requireOrder(id);
         order.setStatus(status);
         return toDto(order);
     }
@@ -622,6 +687,13 @@ public class SalesService {
                         "Cannot " + action + " order with dispatched slips");
             }
         }
+    }
+
+    private String normalizeOrderStatus(String status) {
+        if (!StringUtils.hasText(status)) {
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT, "Status is required");
+        }
+        return status.trim().toUpperCase(Locale.ROOT);
     }
 
     public SalesOrder getOrderWithItems(Long id) {
@@ -1028,6 +1100,27 @@ public class SalesService {
         factoryTaskRepository.saveAll(tasks);
     }
 
+    private void cancelPendingFactoryTasksForOrder(SalesOrder order) {
+        if (order == null || order.getId() == null) {
+            return;
+        }
+        List<FactoryTask> tasks = factoryTaskRepository.findByCompanyAndSalesOrderId(order.getCompany(), order.getId());
+        if (tasks.isEmpty()) {
+            return;
+        }
+        boolean updated = false;
+        for (FactoryTask task : tasks) {
+            String status = task.getStatus();
+            if (status == null || "PENDING".equalsIgnoreCase(status)) {
+                task.setStatus("CANCELLED");
+                updated = true;
+            }
+        }
+        if (updated) {
+            factoryTaskRepository.saveAll(tasks);
+        }
+    }
+
     private record PricedOrderLine(ProductionProduct product,
                                    String description,
                                    BigDecimal quantity,
@@ -1303,6 +1396,7 @@ public class SalesService {
                 }
             }
         }
+        boolean hasRequestedOverrides = lineOverrides.values().stream().anyMatch(this::isDispatchOverrideApplied);
         Map<Long, BigDecimal> shipQtyByLineId = new HashMap<>();
 
         SalesOrder order = requireOrder(salesOrderId);
@@ -1321,6 +1415,14 @@ public class SalesService {
             }
         }
         boolean alreadyDispatched = "DISPATCHED".equalsIgnoreCase(slip.getStatus());
+        String overrideReason = null;
+        if (!alreadyDispatched && hasRequestedOverrides) {
+            if (!StringUtils.hasText(request.overrideReason())) {
+                throw new ApplicationException(ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD,
+                        "overrideReason is required when dispatch overrides are applied");
+            }
+            overrideReason = request.overrideReason().trim();
+        }
         if (alreadyDispatched) {
             Long existingInvoiceId = existingInvoice != null ? existingInvoice.getId() : slip.getInvoiceId();
             Long existingJeId = slip.getJournalEntryId();
@@ -1380,7 +1482,7 @@ public class SalesService {
                     salesOrderRepository.save(order);
                 }
                 logDispatchAudit(slip, order, existingInvoice, existingJeId, existingCogsJournalId,
-                        existingInvoice != null ? existingInvoice.getTotalAmount() : null, true);
+                        existingInvoice != null ? existingInvoice.getTotalAmount() : null, true, false, null);
                 return new DispatchConfirmResponse(slip.getId(), salesOrderId, existingInvoiceId, existingJeId, List.of(), true, List.of());
             }
         }
@@ -1769,6 +1871,10 @@ public class SalesService {
         }
 
         if (!alreadyDispatched) {
+            String dispatchNotes = request.dispatchNotes();
+            if (overrideReason != null) {
+                dispatchNotes = formatDispatchNotesWithOverrideReason(dispatchNotes, overrideReason);
+            }
             List<com.bigbrightpaints.erp.modules.inventory.dto.DispatchConfirmationRequest.LineConfirmation> confirmations =
                     slip.getLines().stream()
                             .map(line -> new com.bigbrightpaints.erp.modules.inventory.dto.DispatchConfirmationRequest.LineConfirmation(
@@ -1782,7 +1888,7 @@ public class SalesService {
                     new com.bigbrightpaints.erp.modules.inventory.dto.DispatchConfirmationRequest(
                             slip.getId(),
                             confirmations,
-                            request.dispatchNotes(),
+                            dispatchNotes,
                             request.confirmedBy(),
                             request.overrideRequestId()
                     ),
@@ -1979,7 +2085,7 @@ public class SalesService {
         }
         salesOrderRepository.save(order);
 
-        logDispatchAudit(slip, order, invoice, arJournalEntryId, cogsJournalId, totalAmount, alreadyDispatched);
+        logDispatchAudit(slip, order, invoice, arJournalEntryId, cogsJournalId, totalAmount, alreadyDispatched, hasRequestedOverrides, overrideReason);
         return new DispatchConfirmResponse(
                 slip.getId(),
                 salesOrderId,
@@ -2024,7 +2130,9 @@ public class SalesService {
                                   Long arJournalEntryId,
                                   Long cogsJournalEntryId,
                                   BigDecimal totalAmount,
-                                  boolean alreadyDispatched) {
+                                  boolean alreadyDispatched,
+                                  boolean hasOverrides,
+                                  String overrideReason) {
         Map<String, String> metadata = new HashMap<>();
         if (slip != null && slip.getId() != null) {
             metadata.put("packingSlipId", slip.getId().toString());
@@ -2051,7 +2159,36 @@ public class SalesService {
             metadata.put("dispatchTotal", totalAmount.toPlainString());
         }
         metadata.put("alreadyDispatched", Boolean.toString(alreadyDispatched));
+        metadata.put("dispatchOverridesApplied", Boolean.toString(hasOverrides));
+        if (StringUtils.hasText(overrideReason)) {
+            metadata.put("dispatchOverrideReason", overrideReason.trim());
+        }
         auditService.logSuccess(AuditEvent.DISPATCH_CONFIRMED, metadata);
+    }
+
+    private boolean isDispatchOverrideApplied(DispatchConfirmRequest.DispatchLine line) {
+        if (line == null) {
+            return false;
+        }
+        return line.priceOverride() != null
+                || line.discount() != null
+                || line.taxRate() != null
+                || line.taxInclusive() != null;
+    }
+
+    private String formatDispatchNotesWithOverrideReason(String dispatchNotes, String overrideReason) {
+        String base = StringUtils.hasText(dispatchNotes) ? dispatchNotes.trim() : "";
+        String reason = StringUtils.hasText(overrideReason) ? overrideReason.trim() : "";
+        if (!StringUtils.hasText(reason)) {
+            return base;
+        }
+        String combined = base.isEmpty()
+                ? "Override reason: " + reason
+                : base + " | Override reason: " + reason;
+        if (combined.length() > 1000) {
+            combined = combined.substring(0, 1000);
+        }
+        return combined;
     }
 
     private String buildCogsReference(String slipNumber) {

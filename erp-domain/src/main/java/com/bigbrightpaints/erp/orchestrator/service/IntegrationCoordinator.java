@@ -136,7 +136,7 @@ public class IntegrationCoordinator {
             } else {
                 log.info("Reserved inventory for order {}", id);
             }
-            salesService.updateStatus(id, "RESERVED");
+            salesService.updateStatusInternal(id, "RESERVED");
             return reservation;
         });
     }
@@ -157,23 +157,8 @@ public class IntegrationCoordinator {
 
     @Transactional
     public Long createAccountingEntry(String orderId, String companyId) {
-        return withCompanyContext(companyId, () -> {
-            Long id = parseNumericId(orderId);
-            if (id == null) {
-                return null;
-            }
-            SalesOrder order = salesService.getOrderWithItems(id);
-            Long entryId = salesJournalService.postSalesJournal(
-                    order,
-                    null,
-                    SalesOrderReference.invoiceReference(order),
-                    LocalDate.now(),
-                    "Sales order " + order.getOrderNumber());
-            if (entryId != null && order.getSalesJournalEntryId() == null) {
-                order.setSalesJournalEntryId(entryId);
-            }
-            return entryId;
-        });
+        throw new IllegalStateException(
+                "Order-truth journal posting is disabled (CODE-RED). Use dispatch confirmation for invoicing/posting.");
     }
 
     private void postCogsEntry(SalesOrder order, List<FinishedGoodsService.DispatchPosting> postings) {
@@ -264,7 +249,7 @@ public class IntegrationCoordinator {
                     awaitingProduction.set(false);
                 }
                 if (!state.isOrderStatusUpdated()) {
-                    salesService.updateStatus(numericId, awaitingProduction.get() ? "PENDING_PRODUCTION" : "READY_TO_SHIP");
+                    salesService.updateStatusInternal(numericId, awaitingProduction.get() ? "PENDING_PRODUCTION" : "READY_TO_SHIP");
                     state.markOrderStatusUpdated();
                 }
                 log.info("Auto-approved order {} for company {}; awaitingProduction={}", orderId, normalizedCompanyId, awaitingProduction.get());
@@ -309,18 +294,18 @@ public class IntegrationCoordinator {
             String status = requestedStatus == null ? "" : requestedStatus.trim().toUpperCase();
             switch (status) {
                 case "PROCESSING":
-                    salesService.updateStatus(id, "PROCESSING");
+                    salesService.updateStatusInternal(id, "PROCESSING");
                     return new AutoApprovalResult("PROCESSING", false);
                 case "CANCELLED":
                     OrderAutoApprovalState state = lockAutoApprovalState(companyId, id);
                     state.markFailed("Cancelled");
-                    salesService.updateStatus(id, "CANCELLED");
+                    salesService.updateStatusInternal(id, "CANCELLED");
                     return new AutoApprovalResult("CANCELLED", false);
                 case "READY_TO_SHIP":
                     return autoApproveOrder(orderId, null, companyId);
                 case "SHIPPED":
                 case "DISPATCHED":
-                    salesService.updateStatus(id, "SHIPPED");
+                    salesService.updateStatusInternal(id, "SHIPPED");
                     OrderAutoApprovalState approvalState = lockAutoApprovalState(companyId, id);
                     approvalState.markOrderStatusUpdated();
                     approvalState.markCompleted();

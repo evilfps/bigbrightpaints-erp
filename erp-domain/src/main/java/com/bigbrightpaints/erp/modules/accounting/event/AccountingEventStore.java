@@ -197,7 +197,8 @@ public class AccountingEventStore {
      * Replay events to reconstruct account balance at a point in time
      */
     public BigDecimal replayBalanceAsOf(Company company, Long accountId, Instant asOf) {
-        return eventRepository.findLastEventForAccountAsOf(company, accountId, asOf)
+        return eventRepository.findFirstByCompanyAndAccountIdAndEventTimestampLessThanEqualOrderByEventTimestampDescSequenceNumberDesc(
+                        company, accountId, asOf)
                 .map(AccountingEvent::getBalanceAfter)
                 .orElse(BigDecimal.ZERO);
     }
@@ -206,7 +207,8 @@ public class AccountingEventStore {
      * Replay events to reconstruct account balance as of a date
      */
     public BigDecimal replayBalanceAsOfDate(Company company, Long accountId, LocalDate asOfDate) {
-        return eventRepository.findLastEventForAccountAsOfDate(company, accountId, asOfDate)
+        return eventRepository.findFirstByCompanyAndAccountIdAndEffectiveDateLessThanEqualOrderByEffectiveDateDescEventTimestampDescSequenceNumberDesc(
+                        company, accountId, asOfDate)
                 .map(AccountingEvent::getBalanceAfter)
                 .orElse(BigDecimal.ZERO);
     }

@@ -1074,7 +1074,7 @@ class AccountingServiceTest {
         when(companyEntityLookup.requireAccount(eq(company), eq(11L))).thenReturn(inventory);
         when(companyEntityLookup.requireAccount(eq(company), eq(12L))).thenReturn(reval);
         when(journalEntryRepository.findByCompanyAndReferenceNumber(eq(company), any())).thenReturn(Optional.empty());
-        when(finishedGoodBatchRepository.findByFinishedGood_ValuationAccountId(eq(11L)))
+        when(finishedGoodBatchRepository.findByCompanyAndValuationAccountId(eq(company), eq(11L)))
                 .thenReturn(List.of(batch1, batch2));
 
         JournalEntryDto journalEntryDto = stubEntry(77L);

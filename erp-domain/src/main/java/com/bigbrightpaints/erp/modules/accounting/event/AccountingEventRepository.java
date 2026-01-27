@@ -24,32 +24,16 @@ public interface AccountingEventRepository extends JpaRepository<AccountingEvent
     Long getNextSequenceNumber(@Param("aggregateId") UUID aggregateId);
 
     // Temporal queries - balance at a point in time
-    @Query("""
-        SELECT e FROM AccountingEvent e 
-        WHERE e.company = :company 
-        AND e.accountId = :accountId 
-        AND e.eventTimestamp <= :asOf
-        ORDER BY e.eventTimestamp DESC, e.sequenceNumber DESC
-        LIMIT 1
-        """)
-    Optional<AccountingEvent> findLastEventForAccountAsOf(
-            @Param("company") Company company,
-            @Param("accountId") Long accountId,
-            @Param("asOf") Instant asOf);
+    Optional<AccountingEvent> findFirstByCompanyAndAccountIdAndEventTimestampLessThanEqualOrderByEventTimestampDescSequenceNumberDesc(
+            Company company,
+            Long accountId,
+            Instant asOf);
 
     // Get balance at end of a specific date
-    @Query("""
-        SELECT e FROM AccountingEvent e 
-        WHERE e.company = :company 
-        AND e.accountId = :accountId 
-        AND e.effectiveDate <= :asOfDate
-        ORDER BY e.effectiveDate DESC, e.eventTimestamp DESC, e.sequenceNumber DESC
-        LIMIT 1
-        """)
-    Optional<AccountingEvent> findLastEventForAccountAsOfDate(
-            @Param("company") Company company,
-            @Param("accountId") Long accountId,
-            @Param("asOfDate") LocalDate asOfDate);
+    Optional<AccountingEvent> findFirstByCompanyAndAccountIdAndEffectiveDateLessThanEqualOrderByEffectiveDateDescEventTimestampDescSequenceNumberDesc(
+            Company company,
+            Long accountId,
+            LocalDate asOfDate);
 
     // Account activity for a date range
     List<AccountingEvent> findByCompanyAndAccountIdAndEffectiveDateBetweenOrderByEventTimestampAsc(

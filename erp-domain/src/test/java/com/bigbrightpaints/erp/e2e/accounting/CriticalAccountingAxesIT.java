@@ -43,6 +43,7 @@ import com.bigbrightpaints.erp.modules.sales.domain.SalesOrderRepository;
 import com.bigbrightpaints.erp.modules.sales.dto.SalesOrderItemRequest;
 import com.bigbrightpaints.erp.modules.sales.dto.SalesOrderRequest;
 import com.bigbrightpaints.erp.modules.sales.service.SalesService;
+import com.bigbrightpaints.erp.modules.sales.util.SalesOrderReference;
 import com.bigbrightpaints.erp.modules.purchasing.domain.Supplier;
 import com.bigbrightpaints.erp.modules.purchasing.domain.SupplierRepository;
 import com.bigbrightpaints.erp.modules.reports.dto.TrialBalanceDto;
@@ -364,7 +365,7 @@ class CriticalAccountingAxesIT extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("Sales journal remains idempotent across canonical and invoice references")
+    @DisplayName("Sales journal idempotency keeps canonical references stable while honoring explicit invoice references")
     @Transactional
     void salesJournalIdempotentAcrossReferenceVariants() {
         LocalDate today = LocalDate.now();
@@ -383,7 +384,20 @@ class CriticalAccountingAxesIT extends AbstractIntegrationTest {
                 total,
                 null);
 
+        String canonicalReference = SalesOrderReference.invoiceReference(orderNumber);
         JournalEntryDto second = accountingFacade.postSalesJournal(
+                dealer.getId(),
+                orderNumber,
+                today,
+                "Idempotent sale",
+                Map.of(accounts.get("REV").getId(), base),
+                Map.of(accounts.get("GST_OUT").getId(), tax),
+                total,
+                canonicalReference);
+
+        assertThat(second.id()).isEqualTo(first.id());
+
+        JournalEntryDto third = accountingFacade.postSalesJournal(
                 dealer.getId(),
                 orderNumber,
                 today,
@@ -393,7 +407,7 @@ class CriticalAccountingAxesIT extends AbstractIntegrationTest {
                 total,
                 "INV-" + UUID.randomUUID());
 
-        assertThat(second.id()).isEqualTo(first.id());
+        assertThat(third.id()).isNotEqualTo(first.id());
     }
 
     @Test

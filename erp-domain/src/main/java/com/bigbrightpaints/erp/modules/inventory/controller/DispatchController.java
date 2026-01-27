@@ -114,10 +114,11 @@ public class DispatchController {
                 request.notes(),
                 username,
                 Boolean.FALSE,
+                null,
                 request.overrideRequestId()
         );
         salesService.confirmDispatch(accountingRequest);
-        DispatchConfirmationResponse response = finishedGoodsService.confirmDispatch(request, username);
+        DispatchConfirmationResponse response = finishedGoodsService.getDispatchConfirmation(request.packagingSlipId());
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 

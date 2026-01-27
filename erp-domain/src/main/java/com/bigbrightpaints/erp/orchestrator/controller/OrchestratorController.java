@@ -29,13 +29,19 @@ public class OrchestratorController {
     private final CommandDispatcher commandDispatcher;
     private final TraceService traceService;
     private final boolean orderDispatchEnabled;
+    private final boolean payrollEnabled;
+    private final boolean factoryDispatchEnabled;
 
     public OrchestratorController(CommandDispatcher commandDispatcher,
                                   TraceService traceService,
-                                  @Value("${orchestrator.order-dispatch.enabled:false}") boolean orderDispatchEnabled) {
+                                  @Value("${orchestrator.order-dispatch.enabled:false}") boolean orderDispatchEnabled,
+                                  @Value("${orchestrator.payroll.enabled:false}") boolean payrollEnabled,
+                                  @Value("${orchestrator.factory-dispatch.enabled:false}") boolean factoryDispatchEnabled) {
         this.commandDispatcher = commandDispatcher;
         this.traceService = traceService;
         this.orderDispatchEnabled = orderDispatchEnabled;
+        this.payrollEnabled = payrollEnabled;
+        this.factoryDispatchEnabled = factoryDispatchEnabled;
     }
 
     @PostMapping("/orders/{orderId}/approve")
@@ -65,6 +71,12 @@ public class OrchestratorController {
                                                          @Valid @RequestBody DispatchRequest request,
                                                          @RequestHeader("X-Company-Id") String companyId,
                                                          Principal principal) {
+        if (!factoryDispatchEnabled) {
+            return ResponseEntity.status(HttpStatus.GONE)
+                    .body(Map.of(
+                            "message", "Orchestrator factory dispatch is disabled (CODE-RED).",
+                            "canonicalPath", "/api/v1/factory"));
+        }
         DispatchRequest normalized = new DispatchRequest(batchId,
                 request.requestedBy(),
                 request.postingAmount());
@@ -97,6 +109,12 @@ public class OrchestratorController {
     public ResponseEntity<Map<String, Object>> runPayroll(@Valid @RequestBody PayrollRunRequest request,
                                                            @RequestHeader("X-Company-Id") String companyId,
                                                            Principal principal) {
+        if (!payrollEnabled) {
+            return ResponseEntity.status(HttpStatus.GONE)
+                    .body(Map.of(
+                            "message", "Orchestrator payroll run is disabled (CODE-RED).",
+                            "canonicalPath", "/api/v1/hr/payroll-runs"));
+        }
         String traceId = commandDispatcher.runPayroll(request, companyId, principal.getName());
         return ResponseEntity.accepted().body(Map.of("traceId", traceId));
     }

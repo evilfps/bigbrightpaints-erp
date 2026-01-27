@@ -760,6 +760,7 @@ public class AccountingService {
             if (invoice.getDealer() == null || !invoice.getDealer().getId().equals(dealer.getId())) {
                 throw new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE, "Invoice does not belong to the dealer");
             }
+            enforceSettlementCurrency(company, invoice);
             BigDecimal currentOutstanding = MoneyUtils.zeroIfNull(invoice.getOutstandingAmount());
             if (applied.compareTo(currentOutstanding) > 0) {
                 throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
@@ -834,7 +835,83 @@ public class AccountingService {
                 Boolean.FALSE,
                 lines
         );
-        return createJournalEntry(payload);
+        JournalEntryDto entryDto = createJournalEntry(payload);
+        JournalEntry entry = companyEntityLookup.requireJournalEntry(company, entryDto.id());
+        String idempotencyKey = entry.getReferenceNumber();
+        List<PartnerSettlementAllocation> existing = settlementAllocationRepository
+                .findByCompanyAndIdempotencyKey(company, idempotencyKey);
+        if (!existing.isEmpty()) {
+            return entryDto;
+        }
+        LocalDate entryDate = entry.getEntryDate();
+        List<Invoice> openInvoices = invoiceRepository.lockOpenInvoicesForSettlement(company, dealer);
+        if (openInvoices.isEmpty()) {
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                    "No open invoices available to allocate the receipt");
+        }
+        BigDecimal totalOutstanding = BigDecimal.ZERO;
+        for (Invoice invoice : openInvoices) {
+            BigDecimal outstanding = MoneyUtils.zeroIfNull(invoice.getOutstandingAmount());
+            if (outstanding.compareTo(BigDecimal.ZERO) > 0) {
+                totalOutstanding = totalOutstanding.add(outstanding);
+            }
+        }
+        if (totalOutstanding.add(ALLOCATION_TOLERANCE).compareTo(total) < 0) {
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                    "Receipt amount exceeds total outstanding balance")
+                    .withDetail("outstandingTotal", totalOutstanding)
+                    .withDetail("receiptAmount", total);
+        }
+        BigDecimal remaining = total;
+        List<PartnerSettlementAllocation> settlementRows = new ArrayList<>();
+        List<Invoice> touchedInvoices = new ArrayList<>();
+        for (Invoice invoice : openInvoices) {
+            BigDecimal currentOutstanding = MoneyUtils.zeroIfNull(invoice.getOutstandingAmount());
+            if (currentOutstanding.compareTo(BigDecimal.ZERO) <= 0) {
+                continue;
+            }
+            if (remaining.compareTo(BigDecimal.ZERO) <= 0) {
+                break;
+            }
+            BigDecimal applied = remaining.min(currentOutstanding);
+            if (applied.compareTo(BigDecimal.ZERO) <= 0) {
+                continue;
+            }
+            enforceSettlementCurrency(company, invoice);
+            String settlementRef = idempotencyKey + "-INV-" + invoice.getId();
+            invoiceSettlementPolicy.applySettlement(invoice, applied, settlementRef);
+            dealerLedgerService.syncInvoiceLedger(invoice, entryDate);
+            touchedInvoices.add(invoice);
+
+            PartnerSettlementAllocation row = new PartnerSettlementAllocation();
+            row.setCompany(company);
+            row.setPartnerType(PartnerType.DEALER);
+            row.setDealer(dealer);
+            row.setInvoice(invoice);
+            row.setJournalEntry(entry);
+            row.setSettlementDate(entryDate);
+            row.setAllocationAmount(applied);
+            row.setDiscountAmount(BigDecimal.ZERO);
+            row.setWriteOffAmount(BigDecimal.ZERO);
+            row.setFxDifferenceAmount(BigDecimal.ZERO);
+            row.setIdempotencyKey(idempotencyKey);
+            if (invoice.getCurrency() != null) {
+                row.setCurrency(invoice.getCurrency());
+            }
+            row.setMemo(request.memo());
+            settlementRows.add(row);
+            remaining = remaining.subtract(applied);
+        }
+        if (remaining.abs().compareTo(ALLOCATION_TOLERANCE) > 0) {
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                    "Receipt amount could not be fully allocated")
+                    .withDetail("remaining", remaining);
+        }
+        if (!touchedInvoices.isEmpty()) {
+            invoiceRepository.saveAll(touchedInvoices);
+        }
+        settlementAllocationRepository.saveAll(settlementRows);
+        return entryDto;
     }
 
     @Transactional
@@ -1984,6 +2061,20 @@ public class AccountingService {
         }
     }
 
+    private void enforceSettlementCurrency(Company company, Invoice invoice) {
+        if (company == null || invoice == null) {
+            return;
+        }
+        String settlementCurrency = company.getBaseCurrency();
+        if (StringUtils.hasText(settlementCurrency)
+                && invoice.getCurrency() != null
+                && !invoice.getCurrency().equalsIgnoreCase(settlementCurrency)) {
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                    String.format("Cannot settle invoice %s in %s with settlement currency %s",
+                            invoice.getInvoiceNumber(), invoice.getCurrency(), settlementCurrency));
+        }
+    }
+
     private void validateEntryDate(Company company, LocalDate entryDate, boolean overrideRequested, boolean overrideAuthorized) {
         if (entryDate == null) {
             throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT, "Entry date is required");
@@ -2685,19 +2776,31 @@ public class AccountingService {
     @Transactional
     public JournalEntryDto writeOffBadDebt(BadDebtWriteOffRequest request) {
         Company company = companyContextService.requireCurrentCompany();
-        Invoice invoice = companyEntityLookup.requireInvoice(company, request.invoiceId());
+        Invoice invoice = invoiceRepository.lockByCompanyAndId(company, request.invoiceId())
+                .orElseThrow(() -> new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE, "Invoice not found"));
         Dealer dealer = invoice.getDealer();
         Account ar = requireDealerReceivable(dealer);
         String reference = resolveJournalReference(company,
                 StringUtils.hasText(request.idempotencyKey()) ? request.idempotencyKey() : request.referenceNumber());
         Optional<JournalEntry> existing = journalEntryRepository.findByCompanyAndReferenceNumber(company, reference);
         if (existing.isPresent()) {
-            return toDto(existing.get());
+            JournalEntry existingEntry = existing.get();
+            BigDecimal postedAmount = calculateEntryTotal(existingEntry);
+            applyBadDebtSettlement(invoice, postedAmount, reference, existingEntry.getEntryDate());
+            return toDto(existingEntry);
         }
         Account expense = requireAccount(company, request.expenseAccountId());
         LocalDate entryDate = request.entryDate() != null ? request.entryDate() : currentDate(company);
         String memo = StringUtils.hasText(request.memo()) ? request.memo().trim() : "Bad debt write-off for invoice " + invoice.getInvoiceNumber();
-        BigDecimal amount = request.amount();
+        BigDecimal outstanding = MoneyUtils.zeroIfNull(invoice.getOutstandingAmount());
+        BigDecimal amount = request.amount() != null ? request.amount() : outstanding;
+        amount = requirePositive(amount, "amount");
+        if (amount.compareTo(outstanding) > 0) {
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                    "Bad debt write-off exceeds invoice outstanding amount")
+                    .withDetail("outstanding", outstanding)
+                    .withDetail("requested", amount);
+        }
 
         JournalEntryDto je = createJournalEntry(new JournalEntryRequest(
                 reference,
@@ -2711,7 +2814,20 @@ public class AccountingService {
                         new JournalEntryRequest.JournalLineRequest(ar.getId(), memo, BigDecimal.ZERO, amount)
                 )
         ));
+        JournalEntry saved = companyEntityLookup.requireJournalEntry(company, je.id());
+        BigDecimal postedAmount = calculateEntryTotal(saved);
+        applyBadDebtSettlement(invoice, postedAmount, reference, entryDate);
         return je;
+    }
+
+    private void applyBadDebtSettlement(Invoice invoice, BigDecimal amount, String reference, LocalDate entryDate) {
+        if (invoice == null || amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
+            return;
+        }
+        String settlementRef = reference + "-BADDEBT";
+        invoiceSettlementPolicy.applySettlement(invoice, amount, settlementRef);
+        dealerLedgerService.syncInvoiceLedger(invoice, entryDate);
+        invoiceRepository.save(invoice);
     }
 
     /* Landed cost allocation */
@@ -2779,13 +2895,7 @@ public class AccountingService {
         ));
         // Find batches for proportional revaluation
         List<FinishedGoodBatch> revalBatches = finishedGoodBatchRepository
-                .findByFinishedGood_ValuationAccountId(inventoryAccount.getId());
-        if (revalBatches.isEmpty()) {
-            revalBatches = finishedGoodBatchRepository.findAll().stream()
-                    .filter(b -> b.getFinishedGood() != null)
-                    .filter(b -> Objects.equals(b.getFinishedGood().getValuationAccountId(), inventoryAccount.getId()))
-                    .toList();
-        }
+                .findByCompanyAndValuationAccountId(company, inventoryAccount.getId());
         if (!revalBatches.isEmpty()) {
             revalueFinishedBatches(revalBatches, delta);
         }

@@ -72,4 +72,15 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select i from Invoice i where i.company = :company and i.id = :id")
     Optional<Invoice> lockByCompanyAndId(@Param("company") Company company, @Param("id") Long id);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            select i from Invoice i
+            where i.company = :company
+              and i.dealer = :dealer
+              and i.outstandingAmount > 0
+              and (i.status is null or i.status not in ('VOID','REVERSED','DRAFT'))
+            order by case when i.dueDate is null then 1 else 0 end, i.dueDate, i.issueDate, i.id
+            """)
+    List<Invoice> lockOpenInvoicesForSettlement(@Param("company") Company company, @Param("dealer") Dealer dealer);
 }

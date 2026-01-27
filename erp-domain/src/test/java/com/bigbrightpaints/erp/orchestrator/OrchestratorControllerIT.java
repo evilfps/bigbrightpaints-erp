@@ -99,7 +99,7 @@ public class OrchestratorControllerIT extends AbstractIntegrationTest {
     }
 
     @Test
-    void payroll_run_creates_payroll_entry() {
+    void payroll_run_is_disabled_by_default_in_code_red() {
         String token = loginToken();
         HttpHeaders headers = authHeaders(token);
         long beforeRuns = payrollRunRepository.count();
@@ -118,9 +118,11 @@ public class OrchestratorControllerIT extends AbstractIntegrationTest {
                 new HttpEntity<>(body, headers),
                 Map.class);
 
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.ACCEPTED);
-        assertThat(response.getBody()).containsKey("traceId");
-        assertThat(payrollRunRepository.count()).isGreaterThan(beforeRuns);
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.GONE);
+        assertThat(response.getBody()).containsKey("message");
+        assertThat(response.getBody()).containsKey("canonicalPath");
+        assertThat(response.getBody().get("canonicalPath")).isEqualTo("/api/v1/hr/payroll-runs");
+        assertThat(payrollRunRepository.count()).isEqualTo(beforeRuns);
     }
 
     private String loginToken() {

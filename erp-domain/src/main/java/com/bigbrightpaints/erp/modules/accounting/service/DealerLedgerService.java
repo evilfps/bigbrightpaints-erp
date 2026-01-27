@@ -186,8 +186,11 @@ public class DealerLedgerService extends AbstractPartnerLedgerService<Dealer, De
 
     private String resolvePaymentStatus(Invoice invoice, BigDecimal total, BigDecimal outstanding) {
         if (invoice != null && invoice.getStatus() != null) {
-            if ("VOID".equalsIgnoreCase(invoice.getStatus()) || "REVERSED".equalsIgnoreCase(invoice.getStatus())) {
-                return "PAID";
+            if ("VOID".equalsIgnoreCase(invoice.getStatus())) {
+                return "VOID";
+            }
+            if ("REVERSED".equalsIgnoreCase(invoice.getStatus())) {
+                return "REVERSED";
             }
         }
         if (outstanding.compareTo(BigDecimal.ZERO) <= 0) {

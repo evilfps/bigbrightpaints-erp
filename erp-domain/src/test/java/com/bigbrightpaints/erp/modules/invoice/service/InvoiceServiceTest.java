@@ -1,7 +1,7 @@
 package com.bigbrightpaints.erp.modules.invoice.service;
 
+import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
-import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
 import com.bigbrightpaints.erp.modules.accounting.service.DealerLedgerService;
 import com.bigbrightpaints.erp.modules.accounting.service.JournalReferenceResolver;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
@@ -9,17 +9,15 @@ import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.invoice.domain.Invoice;
 import com.bigbrightpaints.erp.modules.invoice.domain.InvoiceRepository;
 import com.bigbrightpaints.erp.modules.invoice.dto.InvoiceDto;
-import com.bigbrightpaints.erp.modules.inventory.domain.PackagingSlipRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.PackagingSlip;
+import com.bigbrightpaints.erp.modules.inventory.domain.PackagingSlipRepository;
 import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrder;
-import com.bigbrightpaints.erp.modules.sales.domain.SalesOrderItem;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrderRepository;
 import com.bigbrightpaints.erp.modules.sales.dto.DispatchConfirmRequest;
 import com.bigbrightpaints.erp.modules.sales.dto.DispatchConfirmResponse;
 import com.bigbrightpaints.erp.modules.sales.service.SalesJournalService;
 import com.bigbrightpaints.erp.modules.sales.service.SalesService;
-import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -31,9 +29,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -84,7 +81,7 @@ class InvoiceServiceTest {
     }
 
     @Test
-    void issueInvoiceForOrder_setsSalesJournalEntryIdOnOrder() {
+    void issueInvoiceForOrder_failsWhenNoSlipExists() {
         Long orderId = 44L;
         when(companyContextService.requireCurrentCompany()).thenReturn(company);
         when(invoiceRepository.findAllByCompanyAndSalesOrderId(company, orderId)).thenReturn(List.of());
@@ -95,38 +92,25 @@ class InvoiceServiceTest {
         order.setDealer(dealer);
         order.setOrderNumber("SO-44");
         order.setCurrency("INR");
-        order.setSubtotalAmount(new BigDecimal("100.00"));
-
-        SalesOrderItem item = new SalesOrderItem();
-        item.setProductCode("SKU-1");
-        item.setDescription("Paint");
-        item.setQuantity(BigDecimal.ONE);
-        item.setUnitPrice(new BigDecimal("100.00"));
-        item.setLineSubtotal(new BigDecimal("100.00"));
-        order.getItems().add(item);
 
         when(salesService.getOrderWithItems(orderId)).thenReturn(order);
-        when(invoiceNumberService.nextInvoiceNumber(company)).thenReturn("INV-44");
-        when(journalReferenceResolver.findExistingEntry(eq(company), anyString())).thenReturn(Optional.empty());
-        when(salesJournalService.postSalesJournal(eq(order), any(), anyString(), any(), anyString())).thenReturn(100L);
+        when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, orderId)).thenReturn(List.of());
 
-        JournalEntry entry = new JournalEntry();
-        ReflectionTestUtils.setField(entry, "id", 100L);
-        when(companyEntityLookup.requireJournalEntry(company, 100L)).thenReturn(entry);
+        assertThrows(ApplicationException.class, () -> invoiceService.issueInvoiceForOrder(orderId));
 
-        when(invoiceRepository.save(any(Invoice.class))).thenAnswer(invocation -> invocation.getArgument(0));
-
-        InvoiceDto dto = invoiceService.issueInvoiceForOrder(orderId);
-
-        assertThat(order.getSalesJournalEntryId()).isEqualTo(100L);
-        assertThat(dto.journalEntryId()).isEqualTo(100L);
+        verifyNoInteractions(invoiceNumberService);
+        verifyNoInteractions(salesJournalService);
     }
 
     @Test
-    void issueInvoiceForOrder_ignoresInclusiveRoundingDeltaForDiscounts() {
+    void issueInvoiceForOrder_returnsExistingInvoiceWhenAlreadyExists() {
         Long orderId = 55L;
         when(companyContextService.requireCurrentCompany()).thenReturn(company);
-        when(invoiceRepository.findAllByCompanyAndSalesOrderId(company, orderId)).thenReturn(List.of());
+        Invoice existingInvoice = new Invoice();
+        ReflectionTestUtils.setField(existingInvoice, "id", 123L);
+        existingInvoice.setCompany(company);
+        existingInvoice.setInvoiceNumber("INV-55");
+        when(invoiceRepository.findAllByCompanyAndSalesOrderId(company, orderId)).thenReturn(List.of(existingInvoice));
 
         Dealer dealer = new Dealer();
         SalesOrder order = new SalesOrder();
@@ -134,35 +118,18 @@ class InvoiceServiceTest {
         order.setDealer(dealer);
         order.setOrderNumber("SO-55");
         order.setCurrency("INR");
-        order.setGstInclusive(true);
-        order.setSubtotalAmount(new BigDecimal("84.75"));
-        order.setGstTotal(new BigDecimal("15.25"));
-        order.setTotalAmount(new BigDecimal("100.00"));
-
-        SalesOrderItem item = new SalesOrderItem();
-        item.setProductCode("SKU-1");
-        item.setDescription("Paint");
-        item.setQuantity(BigDecimal.ONE);
-        item.setUnitPrice(new BigDecimal("100.01"));
-        item.setLineSubtotal(new BigDecimal("84.75"));
-        item.setGstAmount(new BigDecimal("15.25"));
-        item.setGstRate(new BigDecimal("18.00"));
-        order.getItems().add(item);
+        ReflectionTestUtils.setField(order, "id", orderId);
 
         when(salesService.getOrderWithItems(orderId)).thenReturn(order);
-        when(invoiceNumberService.nextInvoiceNumber(company)).thenReturn("INV-55");
-        when(journalReferenceResolver.findExistingEntry(eq(company), anyString())).thenReturn(Optional.empty());
-        when(salesJournalService.postSalesJournal(eq(order), any(), anyString(), any(), anyString())).thenReturn(null);
-        when(invoiceRepository.save(any(Invoice.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        PackagingSlip slip = new PackagingSlip();
+        ReflectionTestUtils.setField(slip, "id", 99L);
+        when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, orderId)).thenReturn(List.of(slip));
 
-        invoiceService.issueInvoiceForOrder(orderId);
+        InvoiceDto dto = invoiceService.issueInvoiceForOrder(orderId);
 
-        ArgumentCaptor<Invoice> invoiceCaptor = ArgumentCaptor.forClass(Invoice.class);
-        verify(invoiceRepository).save(invoiceCaptor.capture());
-        Invoice saved = invoiceCaptor.getValue();
-
-        assertThat(saved.getLines()).hasSize(1);
-        assertThat(saved.getLines().get(0).getDiscountAmount()).isEqualByComparingTo("0.00");
+        assertThat(order.getFulfillmentInvoiceId()).isEqualTo(123L);
+        assertThat(dto.id()).isEqualTo(123L);
+        assertThat(slip.getInvoiceId()).isEqualTo(123L);
     }
 
     @Test

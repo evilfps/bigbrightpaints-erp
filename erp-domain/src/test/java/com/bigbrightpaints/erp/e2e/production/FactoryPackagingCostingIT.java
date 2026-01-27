@@ -191,6 +191,7 @@ public class FactoryPackagingCostingIT extends AbstractIntegrationTest {
                 null,
                 null,
                 false,
+                null,
                 null
         ));
 

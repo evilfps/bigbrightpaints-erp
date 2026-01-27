@@ -18,7 +18,6 @@ import com.bigbrightpaints.erp.modules.inventory.domain.PackagingSlip;
 import com.bigbrightpaints.erp.modules.inventory.domain.PackagingSlipRepository;
 import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrder;
-import com.bigbrightpaints.erp.modules.sales.domain.SalesOrderItem;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrderRepository;
 import com.bigbrightpaints.erp.modules.sales.dto.DispatchConfirmRequest;
 import com.bigbrightpaints.erp.modules.sales.dto.DispatchConfirmResponse;
@@ -29,6 +28,7 @@ import jakarta.transaction.Transactional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -38,8 +38,6 @@ import java.util.Optional;
 
 @Service
 public class InvoiceService {
-
-    private static final BigDecimal ROUNDING_TOLERANCE = new BigDecimal("0.05");
 
     private final CompanyContextService companyContextService;
     private final InvoiceRepository invoiceRepository;
@@ -112,6 +110,7 @@ public class InvoiceService {
                     null,
                     null,
                     Boolean.FALSE,
+                    null,
                     null
             ));
             if (response == null || response.finalInvoiceId() == null) {
@@ -120,70 +119,8 @@ public class InvoiceService {
             }
             return getInvoice(response.finalInvoiceId());
         }
-        Invoice invoice = new Invoice();
-        invoice.setCompany(order.getCompany());
-        invoice.setDealer(order.getDealer());
-        invoice.setSalesOrder(order);
-        invoice.setInvoiceNumber(invoiceNumberService.nextInvoiceNumber(order.getCompany()));
-        invoice.setCurrency(order.getCurrency());
-        invoice.setIssueDate(currentDate(order.getCompany()));
-        invoice.setDueDate(invoice.getIssueDate().plusDays(15));
-        invoice.setStatus("ISSUED");
-        invoice.setNotes("Auto-issued for order " + order.getOrderNumber());
-
-        BigDecimal computedSubtotal = BigDecimal.ZERO;
-        BigDecimal computedTax = BigDecimal.ZERO;
-        boolean gstInclusive = order.isGstInclusive();
-        for (SalesOrderItem item : order.getItems()) {
-            InvoiceLine line = new InvoiceLine();
-            line.setInvoice(invoice);
-            line.setProductCode(item.getProductCode());
-            line.setDescription(item.getDescription());
-            line.setQuantity(item.getQuantity());
-            line.setUnitPrice(item.getUnitPrice());
-            BigDecimal lineSubtotal = item.getLineSubtotal() != null
-                    ? item.getLineSubtotal()
-                    : MoneyUtils.safeMultiply(item.getQuantity(), item.getUnitPrice());
-            BigDecimal lineTax = item.getGstAmount() != null ? item.getGstAmount() : BigDecimal.ZERO;
-            BigDecimal lineGross = MoneyUtils.safeMultiply(item.getQuantity(), item.getUnitPrice());
-            BigDecimal discountBase = gstInclusive ? lineSubtotal.add(lineTax) : lineSubtotal;
-            BigDecimal lineDiscount = MoneyUtils.positiveCurrencyDelta(lineGross, discountBase, ROUNDING_TOLERANCE);
-            BigDecimal taxRate = item.getGstRate() != null ? item.getGstRate() : BigDecimal.ZERO;
-            line.setTaxRate(taxRate);
-            line.setDiscountAmount(currency(lineDiscount));
-            line.setTaxableAmount(lineSubtotal);
-            line.setTaxAmount(lineTax);
-            line.setLineTotal(lineSubtotal.add(lineTax));
-            computedSubtotal = computedSubtotal.add(lineSubtotal);
-            computedTax = computedTax.add(lineTax);
-            invoice.getLines().add(line);
-        }
-        BigDecimal subtotal = order.getSubtotalAmount() != null && order.getSubtotalAmount().compareTo(BigDecimal.ZERO) > 0
-                ? order.getSubtotalAmount()
-                : computedSubtotal;
-        BigDecimal taxTotal = order.getGstTotal() != null && order.getGstTotal().compareTo(BigDecimal.ZERO) > 0
-                ? order.getGstTotal()
-                : computedTax;
-        invoice.setSubtotal(subtotal);
-        invoice.setTaxTotal(taxTotal);
-        invoice.setTotalAmount(subtotal.add(taxTotal));
-        invoice.setOutstandingAmount(subtotal.add(taxTotal));
-        JournalEntry journalEntry = resolveInvoiceJournal(order, invoice);
-        if (journalEntry != null) {
-            invoice.setJournalEntry(journalEntry);
-            if (order.getSalesJournalEntryId() == null) {
-                order.setSalesJournalEntryId(journalEntry.getId());
-            }
-        }
-        Invoice saved = invoiceRepository.save(invoice);
-        if (saved.getId() != null && order.getFulfillmentInvoiceId() == null) {
-            order.setFulfillmentInvoiceId(saved.getId());
-            salesOrderRepository.save(order);
-        }
-        linkInvoiceToPackagingSlip(order, saved);
-        dealerLedgerService.syncInvoiceLedger(saved, null);
-
-        return toDto(saved);
+        throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                "Packing slip is required before issuing an invoice; issue invoices per dispatch");
     }
 
     private void linkInvoiceToPackagingSlip(SalesOrder order, Invoice invoice) {
@@ -264,9 +201,16 @@ public class InvoiceService {
 
     private JournalEntry resolveInvoiceJournal(SalesOrder order, Invoice invoice) {
         Company company = order.getCompany();
-        String reference = SalesOrderReference.invoiceReference(order);
+        String reference = resolveInvoiceReference(order, invoice);
         Optional<JournalEntry> existing = journalReferenceResolver.findExistingEntry(company, reference);
         return existing.orElseGet(() -> createInvoiceJournal(order, invoice, reference));
+    }
+
+    private String resolveInvoiceReference(SalesOrder order, Invoice invoice) {
+        if (invoice != null && StringUtils.hasText(invoice.getInvoiceNumber())) {
+            return invoice.getInvoiceNumber().trim();
+        }
+        return SalesOrderReference.invoiceReference(order);
     }
 
     private JournalEntry createInvoiceJournal(SalesOrder order, Invoice invoice, String reference) {

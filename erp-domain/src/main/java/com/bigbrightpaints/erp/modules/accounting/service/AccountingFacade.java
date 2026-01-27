@@ -37,9 +37,11 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -66,6 +68,44 @@ public class AccountingFacade {
     private static final Logger log = LoggerFactory.getLogger(AccountingFacade.class);
     private static final BigDecimal BALANCE_TOLERANCE = BigDecimal.ZERO;
     private static final long CACHE_TTL_MILLIS = 5 * 60 * 1000; // 5 minutes
+
+    public static final String MANUAL_REFERENCE_PREFIX = "MANUAL-";
+    private static final Set<String> RESERVED_REFERENCE_PREFIXES = Set.of(
+            "JRN-",
+            "INV-",
+            "SALE-",
+            "COGS-",
+            "RMP-",
+            "PRN-",
+            "PAYROLL-",
+            "RM-",
+            "ADJ-",
+            "OPEN-STOCK-",
+            "CAL-",
+            "INVJ-",
+            "RCPT-",
+            "SUP-",
+            "COST-ALLOC-",
+            "CRN-",
+            "DBN-",
+            "DISPATCH-"
+    );
+
+    public static boolean isReservedReferenceNamespace(String referenceNumber) {
+        if (!StringUtils.hasText(referenceNumber)) {
+            return false;
+        }
+        String normalized = referenceNumber.trim().toUpperCase(Locale.ROOT);
+        if (normalized.startsWith(MANUAL_REFERENCE_PREFIX)) {
+            return false;
+        }
+        for (String prefix : RESERVED_REFERENCE_PREFIXES) {
+            if (normalized.startsWith(prefix)) {
+                return true;
+            }
+        }
+        return false;
+    }
 
     private final CompanyContextService companyContextService;
     private final AccountRepository accountRepository;
@@ -188,7 +228,7 @@ public class AccountingFacade {
 
         // Check for duplicate (canonical reference first, then legacy SALE- prefix)
         Optional<JournalEntry> existing = journalReferenceResolver.findExistingEntry(company, reference);
-        if (existing.isEmpty() && !reference.equalsIgnoreCase(canonicalReference)) {
+        if (existing.isEmpty() && !StringUtils.hasText(referenceNumber)) {
             existing = journalReferenceResolver.findExistingEntry(company, canonicalReference);
         }
         if (existing.isPresent()) {

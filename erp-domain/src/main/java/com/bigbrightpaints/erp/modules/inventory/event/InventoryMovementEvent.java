@@ -20,6 +20,7 @@ public record InventoryMovementEvent(
         BigDecimal totalCost,
         Long sourceAccountId,      // Account to credit (e.g., Inventory)
         Long destinationAccountId, // Account to debit (e.g., COGS, WIP)
+        Long movementId,           // Stable inventory movement id for idempotency
         String referenceNumber,
         LocalDate movementDate,
         String memo,
@@ -54,6 +55,7 @@ public record InventoryMovementEvent(
         private BigDecimal totalCost = BigDecimal.ZERO;
         private Long sourceAccountId;
         private Long destinationAccountId;
+        private Long movementId;
         private String referenceNumber;
         private LocalDate movementDate;
         private String memo;
@@ -71,6 +73,7 @@ public record InventoryMovementEvent(
         public Builder totalCost(BigDecimal cost) { this.totalCost = cost; return this; }
         public Builder sourceAccountId(Long id) { this.sourceAccountId = id; return this; }
         public Builder destinationAccountId(Long id) { this.destinationAccountId = id; return this; }
+        public Builder movementId(Long id) { this.movementId = id; return this; }
         public Builder referenceNumber(String ref) { this.referenceNumber = ref; return this; }
         public Builder movementDate(LocalDate date) { this.movementDate = date; return this; }
         public Builder memo(String memo) { this.memo = memo; return this; }
@@ -83,7 +86,7 @@ public record InventoryMovementEvent(
             }
             return new InventoryMovementEvent(
                     companyId, movementType, inventoryType, itemId, itemCode, itemName,
-                    quantity, unitCost, totalCost, sourceAccountId, destinationAccountId,
+                    quantity, unitCost, totalCost, sourceAccountId, destinationAccountId, movementId,
                     referenceNumber, movementDate != null ? movementDate : LocalDate.now(),
                     memo, relatedEntityId, relatedEntityType, Instant.now()
             );

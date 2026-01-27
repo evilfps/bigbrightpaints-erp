@@ -2,6 +2,7 @@ package com.bigbrightpaints.erp.modules.portal.service;
 
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
+import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
@@ -165,15 +166,15 @@ public class PortalInsightsService {
                 Math.max(slips.size(), 1)
         ) * 100;
 
-        BigDecimal inventoryValue = finishedGoodBatchRepository.sumAvailableValueByCompany(company);
-        if (inventoryValue == null) {
-            inventoryValue = BigDecimal.ZERO;
-        }
-        BigDecimal workingCapital = inventoryValue.add(
-                accounts.stream()
-                        .map(Account::getBalance)
-                        .reduce(BigDecimal.ZERO, BigDecimal::add)
-        );
+        BigDecimal assetTotal = accounts.stream()
+                .filter(account -> account.getType() == AccountType.ASSET)
+                .map(Account::getBalance)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal liabilityTotal = accounts.stream()
+                .filter(account -> account.getType() == AccountType.LIABILITY)
+                .map(Account::getBalance)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal workingCapital = assetTotal.add(liabilityTotal);
 
         OperationsInsights.OperationsSummary summary = new OperationsInsights.OperationsSummary(
                 round(productionVelocity),

@@ -67,7 +67,7 @@ public class DealerLedgerEntry extends VersionedEntity {
     private String invoiceNumber;
 
     @Column(name = "payment_status")
-    private String paymentStatus = "UNPAID"; // UNPAID, PARTIAL, PAID
+    private String paymentStatus = "UNPAID"; // UNPAID, PARTIAL, PAID, VOID, REVERSED
 
     @Column(name = "amount_paid")
     private BigDecimal amountPaid = BigDecimal.ZERO;
@@ -206,9 +206,13 @@ public class DealerLedgerEntry extends VersionedEntity {
         if (asOfDate == null) {
             return false;
         }
-        return dueDate != null
-                && asOfDate.isAfter(dueDate)
-                && !"PAID".equals(paymentStatus);
+        if (dueDate == null || !asOfDate.isAfter(dueDate)) {
+            return false;
+        }
+        String status = paymentStatus != null ? paymentStatus : "";
+        return !"PAID".equalsIgnoreCase(status)
+                && !"VOID".equalsIgnoreCase(status)
+                && !"REVERSED".equalsIgnoreCase(status);
     }
 
     public long getDaysOverdue(LocalDate asOfDate) {

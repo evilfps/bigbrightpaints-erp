@@ -240,7 +240,7 @@ class SalesServiceTest {
         when(packagingSlipRepository.findAndLockByIdAndCompany(55L, company)).thenReturn(Optional.of(slip));
         when(companyEntityLookup.requireSalesOrder(company, 10L)).thenReturn(cancelled);
 
-        DispatchConfirmRequest request = new DispatchConfirmRequest(null, 10L, List.of(), null, null, false, null);
+        DispatchConfirmRequest request = new DispatchConfirmRequest(null, 10L, List.of(), null, null, false, null, null);
 
         assertThrows(ApplicationException.class, () -> salesService.confirmDispatch(request));
     }
@@ -302,7 +302,7 @@ class SalesServiceTest {
         when(dealerRepository.lockByCompanyAndId(company, dealer.getId())).thenReturn(Optional.of(dealer));
         when(dealerLedgerService.currentBalance(dealer.getId())).thenReturn(BigDecimal.ZERO);
 
-        DispatchConfirmRequest request = new DispatchConfirmRequest(55L, null, List.of(), null, "admin", Boolean.FALSE, null);
+        DispatchConfirmRequest request = new DispatchConfirmRequest(55L, null, List.of(), null, "admin", Boolean.FALSE, null, null);
 
         assertThrows(CreditLimitExceededException.class, () -> salesService.confirmDispatch(request));
     }
@@ -374,7 +374,7 @@ class SalesServiceTest {
         when(packagingSlipRepository.save(ArgumentMatchers.any(PackagingSlip.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(accountRepository.findById(ArgumentMatchers.anyLong())).thenReturn(Optional.empty());
 
-        DispatchConfirmRequest request = new DispatchConfirmRequest(55L, null, List.of(), null, "admin", Boolean.TRUE, null);
+        DispatchConfirmRequest request = new DispatchConfirmRequest(55L, null, List.of(), null, "admin", Boolean.TRUE, null, null);
         DispatchConfirmResponse response = salesService.confirmDispatch(request);
 
         assertEquals(55L, response.packingSlipId());
@@ -500,6 +500,7 @@ class SalesServiceTest {
                 null,
                 "admin",
                 Boolean.TRUE,
+                "Discount override for test",
                 null);
         salesService.confirmDispatch(request);
 
@@ -521,6 +522,35 @@ class SalesServiceTest {
         assertEquals(new BigDecimal("100.00"), revenueCaptor.getValue().get(3L));
         assertEquals(new BigDecimal("10.00"), discountCaptor.getValue().get(4L));
         assertEquals(0, taxCaptor.getValue().size());
+    }
+
+    @Test
+    void confirmDispatchRequiresOverrideReasonWhenOverridesProvided() {
+        SalesOrder order = new SalesOrder();
+        setField(order, "id", 10L);
+        order.setCompany(company);
+        order.setStatus("READY_TO_SHIP");
+
+        PackagingSlip slip = new PackagingSlip();
+        setField(slip, "id", 55L);
+        slip.setCompany(company);
+        slip.setSalesOrder(order);
+        slip.setStatus("PENDING");
+
+        when(packagingSlipRepository.findAndLockByIdAndCompany(55L, company)).thenReturn(Optional.of(slip));
+        when(companyEntityLookup.requireSalesOrder(company, 10L)).thenReturn(order);
+
+        DispatchConfirmRequest request = new DispatchConfirmRequest(
+                55L,
+                null,
+                List.of(new DispatchConfirmRequest.DispatchLine(99L, null, BigDecimal.ONE, null, new BigDecimal("10"), null, null, null)),
+                null,
+                "admin",
+                Boolean.TRUE,
+                null,
+                null);
+
+        assertThrows(ApplicationException.class, () -> salesService.confirmDispatch(request));
     }
 
     @Test
@@ -599,7 +629,7 @@ class SalesServiceTest {
         when(packagingSlipRepository.save(ArgumentMatchers.any(PackagingSlip.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(accountRepository.findById(ArgumentMatchers.anyLong())).thenReturn(Optional.empty());
 
-        DispatchConfirmRequest request = new DispatchConfirmRequest(55L, null, List.of(), null, "admin", Boolean.TRUE, null);
+        DispatchConfirmRequest request = new DispatchConfirmRequest(55L, null, List.of(), null, "admin", Boolean.TRUE, null, null);
         salesService.confirmDispatch(request);
 
         verify(accountingFacade, never()).postSalesJournal(

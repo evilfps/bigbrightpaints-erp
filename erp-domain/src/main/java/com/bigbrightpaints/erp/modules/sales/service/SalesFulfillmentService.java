@@ -153,6 +153,7 @@ public class SalesFulfillmentService {
                         null,
                         null,
                         Boolean.FALSE,
+                        null,
                         null);
                 var dispatchResponse = salesService.confirmDispatch(dispatchRequest);
                 List<DispatchPosting> dispatches = dispatchResponse.cogsPostings().stream()
@@ -377,7 +378,7 @@ public class SalesFulfillmentService {
     public InventoryReservationResult reserveForOrder(Long orderId) {
         SalesOrder order = salesService.getOrderWithItems(orderId);
         InventoryReservationResult result = finishedGoodsService.reserveForOrder(order);
-        salesService.updateStatus(orderId, result.shortages().isEmpty() ? "RESERVED" : "PENDING_INVENTORY");
+        salesService.updateStatusInternal(orderId, result.shortages().isEmpty() ? "RESERVED" : "PENDING_INVENTORY");
         return result;
     }
 
@@ -388,7 +389,7 @@ public class SalesFulfillmentService {
     public DispatchResult dispatchOrder(Long orderId) {
         SalesOrder order = salesService.getOrderWithItems(orderId);
         var response = salesService.confirmDispatch(
-                new DispatchConfirmRequest(null, orderId, null, null, null, Boolean.FALSE, null)
+                new DispatchConfirmRequest(null, orderId, null, null, null, Boolean.FALSE, null, null)
         );
         List<DispatchPosting> dispatches = response.cogsPostings().stream()
                 .map(p -> new DispatchPosting(p.inventoryAccountId(), p.cogsAccountId(), p.cost()))

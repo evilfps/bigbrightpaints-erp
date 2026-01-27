@@ -32,6 +32,7 @@ import org.springframework.transaction.support.AbstractPlatformTransactionManage
 import org.springframework.transaction.support.DefaultTransactionStatus;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -130,9 +131,9 @@ class IntegrationCoordinatorTest {
         assertThat(state.isOrderStatusUpdated()).isTrue();
         assertThat(state.isCompleted()).isTrue();
 
-        verify(salesService).updateStatus(ORDER_ID, "RESERVED");
-        verify(salesService).updateStatus(ORDER_ID, "READY_TO_SHIP");
-        verify(salesService, never()).updateStatus(ORDER_ID, "SHIPPED");
+        verify(salesService).updateStatusInternal(ORDER_ID, "RESERVED");
+        verify(salesService).updateStatusInternal(ORDER_ID, "READY_TO_SHIP");
+        verify(salesService, never()).updateStatusInternal(ORDER_ID, "SHIPPED");
         verify(salesService, never()).confirmDispatch(any());
     }
 
@@ -145,7 +146,7 @@ class IntegrationCoordinatorTest {
         assertThat(result.awaitingProduction()).isFalse();
         assertThat(state.getStatus()).isEqualToIgnoringCase("FAILED");
         assertThat(state.getLastError()).isEqualTo("Cancelled");
-        verify(salesService).updateStatus(ORDER_ID, "CANCELLED");
+        verify(salesService).updateStatusInternal(ORDER_ID, "CANCELLED");
     }
 
     @Test
@@ -156,7 +157,7 @@ class IntegrationCoordinatorTest {
         assertThat(result.orderStatus()).isEqualTo("SHIPPED");
         assertThat(state.isOrderStatusUpdated()).isTrue();
         assertThat(state.isCompleted()).isTrue();
-        verify(salesService).updateStatus(ORDER_ID, "SHIPPED");
+        verify(salesService).updateStatusInternal(ORDER_ID, "SHIPPED");
     }
 
     @Test
@@ -176,7 +177,7 @@ class IntegrationCoordinatorTest {
         assertThat(state.isCompleted()).isTrue();
 
         verify(finishedGoodsService, never()).reserveForOrder(any());
-        verify(salesService, never()).updateStatus(eq(ORDER_ID), anyString());
+        verify(salesService, never()).updateStatusInternal(eq(ORDER_ID), anyString());
         verify(salesService, never()).confirmDispatch(any());
     }
 
@@ -192,7 +193,7 @@ class IntegrationCoordinatorTest {
         assertThat(result.orderStatus()).isEqualTo("READY_TO_SHIP");
         assertThat(result.awaitingProduction()).isFalse();
         verify(finishedGoodsService, never()).reserveForOrder(any());
-        verify(salesService, never()).updateStatus(eq(ORDER_ID), anyString());
+        verify(salesService, never()).updateStatusInternal(eq(ORDER_ID), anyString());
     }
 
     @Test
@@ -204,7 +205,7 @@ class IntegrationCoordinatorTest {
         assertThat(result.orderStatus()).isEqualTo("READY_TO_SHIP");
         assertThat(result.awaitingProduction()).isFalse();
         verify(finishedGoodsService, never()).reserveForOrder(any());
-        verify(salesService, times(1)).updateStatus(ORDER_ID, "READY_TO_SHIP");
+        verify(salesService, times(1)).updateStatusInternal(ORDER_ID, "READY_TO_SHIP");
     }
 
     @Test
@@ -232,15 +233,9 @@ class IntegrationCoordinatorTest {
     }
 
     @Test
-    void createAccountingEntryStoresOrderJournalId() {
-        order.setOrderNumber("SO-42");
-        when(salesService.getOrderWithItems(ORDER_ID)).thenReturn(order);
-        when(salesJournalService.postSalesJournal(eq(order), any(), anyString(), any(), anyString())).thenReturn(555L);
-
-        Long journalId = integrationCoordinator.createAccountingEntry(String.valueOf(ORDER_ID), COMPANY_ID);
-
-        assertThat(journalId).isEqualTo(555L);
-        assertThat(order.getSalesJournalEntryId()).isEqualTo(555L);
+    void createAccountingEntryFailsClosedInCodeRed() {
+        assertThrows(IllegalStateException.class, () ->
+                integrationCoordinator.createAccountingEntry(String.valueOf(ORDER_ID), COMPANY_ID));
     }
 
     private static class NoOpTransactionManager extends AbstractPlatformTransactionManager {

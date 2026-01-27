@@ -158,7 +158,7 @@ public class SettlementE2ETest extends AbstractIntegrationTest {
 
         Map<String, Object> payload = Map.of(
                 "entryDate", LocalDate.now(),
-                "referenceNumber", "INV-JE-" + target.getInvoiceNumber(),
+                "referenceNumber", "MANUAL-INV-JE-" + target.getInvoiceNumber(),
                 "memo", "Seed invoice posting",
                 "dealerId", dealer.getId(),
                 "lines", List.of(arLine, revLine)
