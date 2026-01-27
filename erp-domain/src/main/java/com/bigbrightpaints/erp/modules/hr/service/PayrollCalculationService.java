@@ -285,9 +285,9 @@ public class PayrollCalculationService {
         String type;
         
         if (schedule == Employee.PaymentSchedule.WEEKLY) {
-            endDate = today.getDayOfWeek() == DayOfWeek.SATURDAY 
-                    ? today.minusDays(1) 
-                    : today.with(TemporalAdjusters.previousOrSame(DayOfWeek.FRIDAY));
+            endDate = today.getDayOfWeek() == DayOfWeek.SATURDAY
+                    ? today
+                    : today.with(TemporalAdjusters.previousOrSame(DayOfWeek.SATURDAY));
             startDate = endDate.minusDays(5);
             type = "WEEKLY";
         } else {
