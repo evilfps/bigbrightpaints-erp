@@ -10,6 +10,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -28,6 +29,7 @@ import java.util.*;
 public class AccountingEventStore {
 
     private static final Logger log = LoggerFactory.getLogger(AccountingEventStore.class);
+    private static final int MAX_SEQUENCE_RETRIES = 5;
 
     private final AccountingEventRepository eventRepository;
     private final ApplicationEventPublisher eventPublisher;
@@ -77,7 +79,7 @@ public class AccountingEventStore {
         entryPayload.put("totalDebit", totalDebit);
         entryPayload.put("totalCredit", totalCredit);
         entryEvent.setPayload(serializePayload(entryPayload));
-        events.add(eventRepository.save(entryEvent));
+        events.add(saveWithSequenceRetry(entryEvent, entryEvent.getAggregateId()));
 
         // Individual line events (for balance tracking)
         for (JournalLine line : entry.getLines()) {
@@ -92,8 +94,8 @@ public class AccountingEventStore {
                     : AccountingEventType.ACCOUNT_CREDIT_POSTED);
             lineEvent.setAggregateId(UUID.nameUUIDFromBytes(("Account-" + account.getId()).getBytes()));
             lineEvent.setAggregateType("Account");
-            lineEvent.setSequenceNumber(eventRepository.getNextSequenceNumber(
-                    UUID.nameUUIDFromBytes(("Account-" + account.getId()).getBytes())));
+            UUID lineAggregateId = UUID.nameUUIDFromBytes(("Account-" + account.getId()).getBytes());
+            lineEvent.setSequenceNumber(eventRepository.getNextSequenceNumber(lineAggregateId));
             lineEvent.setEffectiveDate(entry.getEntryDate());
             lineEvent.setAccountId(account.getId());
             lineEvent.setAccountCode(account.getCode());
@@ -106,7 +108,7 @@ public class AccountingEventStore {
             lineEvent.setDescription(line.getDescription());
             lineEvent.setUserId(userId);
             lineEvent.setCorrelationId(correlationId);
-            events.add(eventRepository.save(lineEvent));
+            events.add(saveWithSequenceRetry(lineEvent, lineAggregateId));
         }
 
         // Publish for any listeners (cache invalidation, etc.)
@@ -144,7 +146,7 @@ public class AccountingEventStore {
         payload.put("reason", reason != null ? reason : "");
         event.setPayload(serializePayload(payload));
 
-        return eventRepository.save(event);
+        return saveWithSequenceRetry(event, event.getAggregateId());
     }
 
     /**
@@ -158,8 +160,8 @@ public class AccountingEventStore {
         event.setEventType(AccountingEventType.BALANCE_CORRECTION);
         event.setAggregateId(UUID.nameUUIDFromBytes(("Account-" + account.getId()).getBytes()));
         event.setAggregateType("Account");
-        event.setSequenceNumber(eventRepository.getNextSequenceNumber(
-                UUID.nameUUIDFromBytes(("Account-" + account.getId()).getBytes())));
+        UUID aggregateId = UUID.nameUUIDFromBytes(("Account-" + account.getId()).getBytes());
+        event.setSequenceNumber(eventRepository.getNextSequenceNumber(aggregateId));
         event.setEffectiveDate(companyClock.today(account.getCompany()));
         event.setAccountId(account.getId());
         event.setAccountCode(account.getCode());
@@ -168,7 +170,27 @@ public class AccountingEventStore {
         event.setDescription(reason);
         event.setUserId(getCurrentUserId());
 
-        return eventRepository.save(event);
+        return saveWithSequenceRetry(event, aggregateId);
+    }
+
+    private AccountingEvent saveWithSequenceRetry(AccountingEvent event, UUID aggregateId) {
+        DataIntegrityViolationException lastError = null;
+        for (int attempt = 1; attempt <= MAX_SEQUENCE_RETRIES; attempt++) {
+            try {
+                if (attempt > 1) {
+                    Long next = eventRepository.getNextSequenceNumber(aggregateId);
+                    event.setSequenceNumber(next);
+                }
+                return eventRepository.save(event);
+            } catch (DataIntegrityViolationException ex) {
+                lastError = ex;
+                log.warn("Sequence contention for aggregate {} on attempt {}/{}", aggregateId, attempt, MAX_SEQUENCE_RETRIES);
+            }
+        }
+        if (lastError != null) {
+            throw lastError;
+        }
+        throw new IllegalStateException("Failed to persist accounting event for aggregate " + aggregateId);
     }
 
     /**
