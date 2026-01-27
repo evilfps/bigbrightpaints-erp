@@ -356,3 +356,4 @@
 - 2026-01-27: Sales order idempotency now handles concurrent inserts by reconciling existing orders on unique constraint conflicts (SalesService). Tests not run (logic-only change).
 - 2026-01-27: Packing now consumes semi-finished wastage, reduces batch totals on consumption, invalidates WAC on packing, and uses unique pack references for bulk packaging; packaging BOM omission no longer hard-fails when optional (PackingService, BulkPackingService). Tests not run (logic-only change).
 - 2026-01-27: Sales order updates now re-sync inventory reservations/packaging slips, preserve currency defaults, and disallow delete/cancel once dispatched or posted (SalesService). Tests not run (logic-only change).
+- 2026-01-27: Dealer/supplier aging now buckets open balances against invoice dates (credits applied FIFO to invoices) and uses due dates when available (StatementService). Tests not run (logic-only change).

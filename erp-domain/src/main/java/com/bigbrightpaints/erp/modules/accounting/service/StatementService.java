@@ -139,23 +139,51 @@ public class StatementService {
         for (int i = 0; i < bucketTotals.length; i++) bucketTotals[i] = BigDecimal.ZERO;
 
         entries.sort(Comparator.comparing(DealerLedgerEntry::getEntryDate).thenComparing(DealerLedgerEntry::getId));
+        List<AgingLine> openInvoices = new ArrayList<>();
+        BigDecimal creditPool = BigDecimal.ZERO;
         for (DealerLedgerEntry e : entries) {
             if (e.getEntryDate().isAfter(ref)) {
                 break;
             }
             BigDecimal delta = safe(e.getDebit()).subtract(safe(e.getCredit()));
             balance = balance.add(delta);
-            long age = java.time.temporal.ChronoUnit.DAYS.between(e.getEntryDate(), ref);
+            if (delta.compareTo(BigDecimal.ZERO) > 0) {
+                openInvoices.add(new AgingLine(resolveAgingDate(e), delta));
+            } else if (delta.compareTo(BigDecimal.ZERO) < 0) {
+                creditPool = creditPool.add(delta.abs());
+            }
+        }
+        if (creditPool.compareTo(BigDecimal.ZERO) > 0) {
+            openInvoices.sort(Comparator.comparing(AgingLine::date));
+            for (int i = 0; i < openInvoices.size() && creditPool.compareTo(BigDecimal.ZERO) > 0; i++) {
+                AgingLine line = openInvoices.get(i);
+                BigDecimal applied = creditPool.min(line.amount());
+                BigDecimal remaining = line.amount().subtract(applied);
+                openInvoices.set(i, new AgingLine(line.date(), remaining));
+                creditPool = creditPool.subtract(applied);
+            }
+        }
+        for (AgingLine line : openInvoices) {
+            if (line.amount().compareTo(BigDecimal.ZERO) <= 0) {
+                continue;
+            }
+            long age = java.time.temporal.ChronoUnit.DAYS.between(line.date(), ref);
+            if (age < 0) {
+                age = 0;
+            }
             for (int i = 0; i < buckets.size(); i++) {
                 int[] b = buckets.get(i);
                 int from = b[0];
                 Integer to = b.length > 1 ? b[1] : null;
                 boolean inBucket = age >= from && (to == null || age <= to);
                 if (inBucket) {
-                    bucketTotals[i] = bucketTotals[i].add(delta.max(BigDecimal.ZERO).add(delta.min(BigDecimal.ZERO))); // include sign
+                    bucketTotals[i] = bucketTotals[i].add(line.amount());
                     break;
                 }
             }
+        }
+        if (creditPool.compareTo(BigDecimal.ZERO) > 0 && bucketTotals.length > 0) {
+            bucketTotals[0] = bucketTotals[0].subtract(creditPool);
         }
         List<AgingBucketDto> bucketDtos = new ArrayList<>();
         for (int i = 0; i < buckets.size(); i++) {
@@ -178,23 +206,51 @@ public class StatementService {
         for (int i = 0; i < bucketTotals.length; i++) bucketTotals[i] = BigDecimal.ZERO;
 
         entries.sort(Comparator.comparing(SupplierLedgerEntry::getEntryDate).thenComparing(SupplierLedgerEntry::getId));
+        List<AgingLine> openInvoices = new ArrayList<>();
+        BigDecimal creditPool = BigDecimal.ZERO;
         for (SupplierLedgerEntry e : entries) {
             if (e.getEntryDate().isAfter(ref)) {
                 break;
             }
             BigDecimal delta = safe(e.getCredit()).subtract(safe(e.getDebit()));
             balance = balance.add(delta);
-            long age = java.time.temporal.ChronoUnit.DAYS.between(e.getEntryDate(), ref);
+            if (delta.compareTo(BigDecimal.ZERO) > 0) {
+                openInvoices.add(new AgingLine(e.getEntryDate(), delta));
+            } else if (delta.compareTo(BigDecimal.ZERO) < 0) {
+                creditPool = creditPool.add(delta.abs());
+            }
+        }
+        if (creditPool.compareTo(BigDecimal.ZERO) > 0) {
+            openInvoices.sort(Comparator.comparing(AgingLine::date));
+            for (int i = 0; i < openInvoices.size() && creditPool.compareTo(BigDecimal.ZERO) > 0; i++) {
+                AgingLine line = openInvoices.get(i);
+                BigDecimal applied = creditPool.min(line.amount());
+                BigDecimal remaining = line.amount().subtract(applied);
+                openInvoices.set(i, new AgingLine(line.date(), remaining));
+                creditPool = creditPool.subtract(applied);
+            }
+        }
+        for (AgingLine line : openInvoices) {
+            if (line.amount().compareTo(BigDecimal.ZERO) <= 0) {
+                continue;
+            }
+            long age = java.time.temporal.ChronoUnit.DAYS.between(line.date(), ref);
+            if (age < 0) {
+                age = 0;
+            }
             for (int i = 0; i < buckets.size(); i++) {
                 int[] b = buckets.get(i);
                 int from = b[0];
                 Integer to = b.length > 1 ? b[1] : null;
                 boolean inBucket = age >= from && (to == null || age <= to);
                 if (inBucket) {
-                    bucketTotals[i] = bucketTotals[i].add(delta.max(BigDecimal.ZERO).add(delta.min(BigDecimal.ZERO)));
+                    bucketTotals[i] = bucketTotals[i].add(line.amount());
                     break;
                 }
             }
+        }
+        if (creditPool.compareTo(BigDecimal.ZERO) > 0 && bucketTotals.length > 0) {
+            bucketTotals[0] = bucketTotals[0].subtract(creditPool);
         }
         List<AgingBucketDto> bucketDtos = new ArrayList<>();
         for (int i = 0; i < buckets.size(); i++) {
@@ -240,6 +296,16 @@ public class StatementService {
             }
         }
         return buckets;
+    }
+
+    private LocalDate resolveAgingDate(DealerLedgerEntry entry) {
+        if (entry == null) {
+            return LocalDate.now();
+        }
+        return entry.getDueDate() != null ? entry.getDueDate() : entry.getEntryDate();
+    }
+
+    private record AgingLine(LocalDate date, BigDecimal amount) {
     }
 
     private BigDecimal safe(BigDecimal val) {
