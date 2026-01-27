@@ -39,6 +39,7 @@ import org.apache.commons.codec.digest.DigestUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -306,11 +307,22 @@ public class SalesService {
         return orders.stream().map(this::toDto).toList();
     }
 
-    @org.springframework.transaction.annotation.Transactional(isolation = Isolation.REPEATABLE_READ)
     public SalesOrderDto createOrder(SalesOrderRequest request) {
         Company company = companyContextService.requireCurrentCompany();
         String idempotencyKey = request.resolveIdempotencyKey();
         String requestSignature = buildSalesOrderSignature(request);
+        try {
+            return createOrderTransactional(company, request, idempotencyKey, requestSignature);
+        } catch (DataIntegrityViolationException ex) {
+            return resolveIdempotentOrder(company, idempotencyKey, requestSignature, ex);
+        }
+    }
+
+    @org.springframework.transaction.annotation.Transactional(isolation = Isolation.REPEATABLE_READ)
+    private SalesOrderDto createOrderTransactional(Company company,
+                                                   SalesOrderRequest request,
+                                                   String idempotencyKey,
+                                                   String requestSignature) {
         Optional<SalesOrder> existing = salesOrderRepository.findByCompanyAndIdempotencyKey(company, idempotencyKey);
         if (existing.isPresent()) {
             SalesOrder order = existing.get();
@@ -378,6 +390,36 @@ public class SalesService {
 
         eventPublisher.publishEvent(new SalesOrderCreatedEvent(saved.getId(), company.getCode(), saved.getTotalAmount()));
         return toDto(saved);
+    }
+
+    @Transactional
+    private SalesOrderDto resolveIdempotentOrder(Company company,
+                                                 String idempotencyKey,
+                                                 String requestSignature,
+                                                 DataIntegrityViolationException rootCause) {
+        Optional<SalesOrder> existing = salesOrderRepository.findByCompanyAndIdempotencyKey(company, idempotencyKey);
+        if (existing.isEmpty()) {
+            throw rootCause;
+        }
+        SalesOrder order = existing.get();
+        String storedSignature = order.getIdempotencyHash();
+        if (!StringUtils.hasText(storedSignature)) {
+            String derivedSignature = buildSalesOrderSignature(order);
+            if (!derivedSignature.equals(requestSignature)) {
+                throw new ApplicationException(ErrorCode.CONCURRENCY_CONFLICT,
+                        "Idempotency key already used with different payload")
+                        .withDetail("idempotencyKey", idempotencyKey);
+            }
+            order.setIdempotencyHash(requestSignature);
+            salesOrderRepository.save(order);
+            return toDto(order);
+        }
+        if (!storedSignature.equals(requestSignature)) {
+            throw new ApplicationException(ErrorCode.CONCURRENCY_CONFLICT,
+                    "Idempotency key already used with different payload")
+                    .withDetail("idempotencyKey", idempotencyKey);
+        }
+        return toDto(order);
     }
 
     private String buildSalesOrderSignature(SalesOrderRequest request) {
