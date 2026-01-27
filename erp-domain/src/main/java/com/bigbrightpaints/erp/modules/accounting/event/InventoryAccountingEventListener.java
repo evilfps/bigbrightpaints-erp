@@ -92,8 +92,8 @@ public class InventoryAccountingEventListener {
 
             // Get revaluation account (expense for decreases, income for increases)
             Account revaluationAccount = getRevaluationAccount(company, event.reason());
-            Account inventoryAccount = accountRepository.findById(event.inventoryAccountId())
-                    .orElseThrow(() -> new IllegalStateException("Inventory account not found"));
+            Account inventoryAccount = accountRepository.findByCompanyAndId(company, event.inventoryAccountId())
+                    .orElseThrow(() -> new IllegalStateException("Inventory account not found for company"));
 
             String memo = buildRevaluationMemo(event);
 
@@ -286,15 +286,20 @@ public class InventoryAccountingEventListener {
             return event.referenceNumber();
         }
         // Fallback: SHA-256 hash of all event fields (collision-resistant)
-        String eventFingerprint = String.format("%s|%s|%s|%s|%s|%s|%d|%d",
+        String eventFingerprint = String.format("%d|%s|%s|%d|%s|%s|%s|%s|%s|%d|%d|%s|%d",
+            event.companyId(),
             event.movementType(),
+            event.inventoryType(),
+            event.itemId() != null ? event.itemId() : 0,
             event.itemCode(),
             event.quantity(),
             event.unitCost(),
             event.totalCost(),
             event.movementDate(),
             event.sourceAccountId() != null ? event.sourceAccountId() : 0,
-            event.destinationAccountId() != null ? event.destinationAccountId() : 0);
+            event.destinationAccountId() != null ? event.destinationAccountId() : 0,
+            event.relatedEntityType() != null ? event.relatedEntityType() : "",
+            event.relatedEntityId() != null ? event.relatedEntityId() : 0);
         String hash = sha256Hex(eventFingerprint, 16); // 16 hex chars = 64 bits
         return String.format("INV-%s-%s-%s", event.movementType(), event.itemCode(), hash);
     }
