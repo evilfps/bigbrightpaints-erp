@@ -18,6 +18,7 @@ import com.bigbrightpaints.erp.modules.hr.domain.LeaveRequestRepository;
 import com.bigbrightpaints.erp.modules.hr.domain.PayrollRun;
 import com.bigbrightpaints.erp.modules.hr.domain.PayrollRunRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGood;
+import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatchRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.PackagingSlip;
 import com.bigbrightpaints.erp.modules.inventory.domain.PackagingSlipRepository;
@@ -58,6 +59,7 @@ public class PortalInsightsService {
     private final FactoryTaskRepository factoryTaskRepository;
     private final RawMaterialRepository rawMaterialRepository;
     private final FinishedGoodRepository finishedGoodRepository;
+    private final FinishedGoodBatchRepository finishedGoodBatchRepository;
     private final LeaveRequestRepository leaveRequestRepository;
     private final PayrollRunRepository payrollRunRepository;
     private final AccountRepository accountRepository;
@@ -73,6 +75,7 @@ public class PortalInsightsService {
                                  FactoryTaskRepository factoryTaskRepository,
                                  RawMaterialRepository rawMaterialRepository,
                                  FinishedGoodRepository finishedGoodRepository,
+                                 FinishedGoodBatchRepository finishedGoodBatchRepository,
                                  LeaveRequestRepository leaveRequestRepository,
                                  PayrollRunRepository payrollRunRepository,
                                  AccountRepository accountRepository,
@@ -87,6 +90,7 @@ public class PortalInsightsService {
         this.factoryTaskRepository = factoryTaskRepository;
         this.rawMaterialRepository = rawMaterialRepository;
         this.finishedGoodRepository = finishedGoodRepository;
+        this.finishedGoodBatchRepository = finishedGoodBatchRepository;
         this.leaveRequestRepository = leaveRequestRepository;
         this.payrollRunRepository = payrollRunRepository;
         this.accountRepository = accountRepository;
@@ -161,13 +165,10 @@ public class PortalInsightsService {
                 Math.max(slips.size(), 1)
         ) * 100;
 
-        BigDecimal inventoryValue = finishedGoods.stream()
-                .map(fg -> {
-                    BigDecimal current = fg.getCurrentStock() != null ? fg.getCurrentStock() : BigDecimal.ZERO;
-                    BigDecimal reserved = fg.getReservedStock() != null ? fg.getReservedStock() : BigDecimal.ZERO;
-                    return current.subtract(reserved).max(BigDecimal.ZERO);
-                })
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal inventoryValue = finishedGoodBatchRepository.sumAvailableValueByCompany(company);
+        if (inventoryValue == null) {
+            inventoryValue = BigDecimal.ZERO;
+        }
         BigDecimal workingCapital = inventoryValue.add(
                 accounts.stream()
                         .map(Account::getBalance)

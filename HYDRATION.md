@@ -359,3 +359,4 @@
 - 2026-01-27: Dealer/supplier aging now buckets open balances against invoice dates (credits applied FIFO to invoices) and uses due dates when available (StatementService). Tests not run (logic-only change).
 - 2026-01-27: Leave requests now require an employee and ignore cancelled/rejected overlaps (HrService, LeaveRequestRepository). Tests not run (logic-only change).
 - 2026-01-27: Weekly payroll preview now aligns its date range with actual weekly payroll (PayrollCalculationService). Tests not run (logic-only change).
+- 2026-01-27: Working capital KPI now uses available inventory value (batch qty * cost) instead of unit counts (PortalInsightsService, FinishedGoodBatchRepository). Tests not run (logic-only change).

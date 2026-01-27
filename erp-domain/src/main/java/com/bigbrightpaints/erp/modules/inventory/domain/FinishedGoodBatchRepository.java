@@ -1,5 +1,6 @@
 package com.bigbrightpaints.erp.modules.inventory.domain;
 
+import com.bigbrightpaints.erp.modules.company.domain.Company;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
@@ -50,6 +51,13 @@ public interface FinishedGoodBatchRepository extends JpaRepository<FinishedGoodB
               and b.quantityTotal > 0
             """)
     BigDecimal calculateWeightedAverageCost(@Param("finishedGood") FinishedGood finishedGood);
+
+    @Query("""
+            select coalesce(sum(b.quantityAvailable * b.unitCost), 0)
+            from FinishedGoodBatch b
+            where b.finishedGood.company = :company
+            """)
+    BigDecimal sumAvailableValueByCompany(@Param("company") Company company);
 
     // Bulk packaging support
     @Lock(LockModeType.PESSIMISTIC_WRITE)
