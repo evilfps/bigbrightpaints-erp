@@ -31,3 +31,8 @@
 - Payroll: idempotency, attendance windows, advances/deductions.
 - Manufacturing: WIP journals, packing journals, cost allocation month boundaries.
 
+## Verification Log
+- 2026-01-27: EPIC 01 / M01.0 verified.
+  - Code: `SalesService.confirmDispatch` now resolves invoices per packaging slip; backorder dispatch creates a new invoice.
+  - Tests: `OrderFulfillmentE2ETest.partialDispatch_invoicesShippedQty_andCreatesBackorderSlip`.
+  - Command: `scripts/verify_local.sh`.
