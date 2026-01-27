@@ -42,6 +42,8 @@ public interface DealerLedgerRepository extends JpaRepository<DealerLedgerEntry,
                                                                                         Dealer dealer,
                                                                                         java.time.LocalDate before);
 
+    java.util.Optional<DealerLedgerEntry> findFirstByCompanyAndDealerOrderByEntryDateDescIdDesc(Company company, Dealer dealer);
+
     // Aging report queries
     @Query("SELECT e FROM DealerLedgerEntry e WHERE e.company = :company AND e.dealer = :dealer " +
            "AND e.paymentStatus != 'PAID' AND e.invoiceNumber IS NOT NULL ORDER BY e.dueDate ASC")

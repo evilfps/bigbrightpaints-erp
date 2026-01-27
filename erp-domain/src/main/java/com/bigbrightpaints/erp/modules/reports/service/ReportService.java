@@ -6,6 +6,8 @@ import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
+import com.bigbrightpaints.erp.modules.accounting.domain.DealerLedgerEntry;
+import com.bigbrightpaints.erp.modules.accounting.domain.DealerLedgerRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalLine;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
@@ -45,6 +47,7 @@ public class ReportService {
     private final FinishedGoodBatchRepository finishedGoodBatchRepository;
     private final DealerRepository dealerRepository;
     private final DealerLedgerService dealerLedgerService;
+    private final DealerLedgerRepository dealerLedgerRepository;
     private final JournalEntryRepository journalEntryRepository;
     private final InvoiceRepository invoiceRepository;
     private final ProductionLogRepository productionLogRepository;
@@ -60,6 +63,7 @@ public class ReportService {
                          FinishedGoodBatchRepository finishedGoodBatchRepository,
                          DealerRepository dealerRepository,
                          DealerLedgerService dealerLedgerService,
+                         DealerLedgerRepository dealerLedgerRepository,
                          JournalEntryRepository journalEntryRepository,
                          InvoiceRepository invoiceRepository,
                          ProductionLogRepository productionLogRepository,
@@ -73,6 +77,7 @@ public class ReportService {
         this.finishedGoodBatchRepository = finishedGoodBatchRepository;
         this.dealerRepository = dealerRepository;
         this.dealerLedgerService = dealerLedgerService;
+        this.dealerLedgerRepository = dealerLedgerRepository;
         this.journalEntryRepository = journalEntryRepository;
         this.invoiceRepository = invoiceRepository;
         this.productionLogRepository = productionLogRepository;
@@ -140,8 +145,16 @@ public class ReportService {
         return dealers.stream()
                 .map(dealer -> {
                     BigDecimal outstanding = balances.getOrDefault(dealer.getId(), BigDecimal.ZERO);
-                    return new AccountStatementEntryDto(dealer.getName(), companyClock.today(company),
-                            "SO-" + dealer.getCode(), outstanding, BigDecimal.ZERO, outstanding);
+                    DealerLedgerEntry latest = dealerLedgerRepository
+                            .findFirstByCompanyAndDealerOrderByEntryDateDescIdDesc(company, dealer)
+                            .orElse(null);
+                    LocalDate entryDate = latest != null ? latest.getEntryDate() : companyClock.today(company);
+                    String reference = latest != null && latest.getReferenceNumber() != null
+                            ? latest.getReferenceNumber()
+                            : "BALANCE";
+                    BigDecimal debit = latest != null ? safe(latest.getDebit()) : outstanding;
+                    BigDecimal credit = latest != null ? safe(latest.getCredit()) : BigDecimal.ZERO;
+                    return new AccountStatementEntryDto(dealer.getName(), entryDate, reference, debit, credit, outstanding);
                 })
                 .toList();
     }
