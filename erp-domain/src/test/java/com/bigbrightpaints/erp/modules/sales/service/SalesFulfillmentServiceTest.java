@@ -145,7 +145,7 @@ class SalesFulfillmentServiceTest {
                 .reserveInventory(false)
                 .postSalesJournal(false)
                 .postCogsJournal(true)
-                .issueInvoice(false)
+                .issueInvoice(true)
                 .build();
 
         fulfillmentService.fulfillOrder(3L, options);
@@ -153,6 +153,28 @@ class SalesFulfillmentServiceTest {
         verify(salesService).confirmDispatch(any());
         verify(finishedGoodsService, never()).markSlipDispatched(anyLong());
         verify(accountingFacade, never()).postCogsJournal(anyString(), any(), any(), anyString(), any());
+    }
+
+    @Test
+    void rejectsFulfillmentWithoutDispatchInvoice() {
+        SalesOrder order = new SalesOrder();
+        setField(order, "id", 4L);
+        order.setOrderNumber("SO-4");
+        order.setStatus("BOOKED");
+        order.setTotalAmount(new BigDecimal("120"));
+
+        when(salesService.getOrderWithItems(4L)).thenReturn(order);
+
+        var options = SalesFulfillmentService.FulfillmentOptions.builder()
+                .reserveInventory(true)
+                .postSalesJournal(false)
+                .postCogsJournal(false)
+                .issueInvoice(false)
+                .build();
+
+        org.junit.jupiter.api.Assertions.assertThrows(
+                com.bigbrightpaints.erp.core.exception.ApplicationException.class,
+                () -> fulfillmentService.fulfillOrder(4L, options));
     }
 
     private void setField(Object target, String name, Object value) {

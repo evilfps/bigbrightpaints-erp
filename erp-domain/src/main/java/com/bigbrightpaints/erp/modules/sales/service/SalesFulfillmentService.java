@@ -3,6 +3,8 @@ package com.bigbrightpaints.erp.modules.sales.service;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryRequest;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
+import com.bigbrightpaints.erp.core.exception.ApplicationException;
+import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.modules.inventory.service.FinishedGoodsService;
 import com.bigbrightpaints.erp.modules.inventory.service.FinishedGoodsService.DispatchPosting;
@@ -260,15 +262,8 @@ public class SalesFulfillmentService {
      */
     private FulfillmentOptions validateAndNormalizeOptions(FulfillmentOptions options) {
         if (!options.issueInvoice()) {
-            log.warn("Fulfillment now requires dispatch confirmation; forcing issueInvoice=true and disabling manual journals.");
-            return FulfillmentOptions.builder()
-                    .reserveInventory(options.reserveInventory())
-                    .postSalesJournal(false)
-                    .postCogsJournal(false)
-                    .issueInvoice(true)
-                    .allowPartialFulfillment(options.allowPartialFulfillment())
-                    .entryDate(options.entryDate())
-                    .build();
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                    "Fulfillment requires dispatch confirmation; issueInvoice must be true");
         }
         boolean reserveInventory = options.reserveInventory();
         boolean postSalesJournal = options.postSalesJournal();
