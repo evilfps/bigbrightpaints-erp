@@ -360,3 +360,4 @@
 - 2026-01-27: Leave requests now require an employee and ignore cancelled/rejected overlaps (HrService, LeaveRequestRepository). Tests not run (logic-only change).
 - 2026-01-27: Weekly payroll preview now aligns its date range with actual weekly payroll (PayrollCalculationService). Tests not run (logic-only change).
 - 2026-01-27: Working capital KPI now uses available inventory value (batch qty * cost) instead of unit counts (PortalInsightsService, FinishedGoodBatchRepository). Tests not run (logic-only change).
+- 2026-01-27: Production log codes now use company timezone and serialize generation per company to prevent collisions (ProductionLogService, CompanyRepository). Tests not run (logic-only change).

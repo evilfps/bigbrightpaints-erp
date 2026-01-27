@@ -2,11 +2,13 @@ package com.bigbrightpaints.erp.modules.factory.service;
 
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
+import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.core.util.MoneyUtils;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
+import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.factory.domain.ProductionLog;
 import com.bigbrightpaints.erp.modules.factory.domain.ProductionLogMaterial;
@@ -59,33 +61,39 @@ public class ProductionLogService {
     private static final RoundingMode COST_ROUNDING = RoundingMode.HALF_UP;
 
     private final CompanyContextService companyContextService;
+    private final CompanyRepository companyRepository;
     private final ProductionLogRepository logRepository;
     private final RawMaterialRepository rawMaterialRepository;
     private final RawMaterialBatchRepository rawMaterialBatchRepository;
     private final RawMaterialMovementRepository rawMaterialMovementRepository;
     private final AccountingFacade accountingFacade;
     private final CompanyEntityLookup companyEntityLookup;
+    private final CompanyClock companyClock;
     private final FinishedGoodRepository finishedGoodRepository;
     private final FinishedGoodBatchRepository finishedGoodBatchRepository;
     private final InventoryMovementRepository inventoryMovementRepository;
 
     public ProductionLogService(CompanyContextService companyContextService,
+                                CompanyRepository companyRepository,
                                 ProductionLogRepository logRepository,
                                 RawMaterialRepository rawMaterialRepository,
                                 RawMaterialBatchRepository rawMaterialBatchRepository,
                                 RawMaterialMovementRepository rawMaterialMovementRepository,
                                 AccountingFacade accountingFacade,
                                 CompanyEntityLookup companyEntityLookup,
+                                CompanyClock companyClock,
                                 FinishedGoodRepository finishedGoodRepository,
                                 FinishedGoodBatchRepository finishedGoodBatchRepository,
                                 InventoryMovementRepository inventoryMovementRepository) {
         this.companyContextService = companyContextService;
+        this.companyRepository = companyRepository;
         this.logRepository = logRepository;
         this.rawMaterialRepository = rawMaterialRepository;
         this.rawMaterialBatchRepository = rawMaterialBatchRepository;
         this.rawMaterialMovementRepository = rawMaterialMovementRepository;
         this.accountingFacade = accountingFacade;
         this.companyEntityLookup = companyEntityLookup;
+        this.companyClock = companyClock;
         this.finishedGoodRepository = finishedGoodRepository;
         this.finishedGoodBatchRepository = finishedGoodBatchRepository;
         this.inventoryMovementRepository = inventoryMovementRepository;
@@ -94,6 +102,9 @@ public class ProductionLogService {
     @Transactional
     public ProductionLogDetailDto createLog(ProductionLogRequest request) {
         Company company = companyContextService.requireCurrentCompany();
+        if (company.getId() != null) {
+            companyRepository.lockById(company.getId());
+        }
         ProductionBrand brand = companyEntityLookup.requireProductionBrand(company, request.brandId());
         ProductionProduct product = companyEntityLookup.requireProductionProduct(company, request.productId());
         if (!product.getBrand().getId().equals(brand.getId())) {
@@ -509,7 +520,8 @@ public class ProductionLogService {
     private record MaterialConsumption(ProductionLogMaterial material, BigDecimal totalCost, Long inventoryAccountId) {}
 
     private String nextProductionCode(Company company) {
-        String prefix = "PROD-" + CODE_DATE.format(LocalDate.now(ZoneOffset.UTC));
+        LocalDate today = companyClock.today(company);
+        String prefix = "PROD-" + CODE_DATE.format(today);
         return logRepository.findTopByCompanyAndProductionCodeStartingWithOrderByProductionCodeDesc(company, prefix)
                 .map(ProductionLog::getProductionCode)
                 .map(existing -> incrementCode(existing, prefix))
