@@ -144,6 +144,59 @@ public class JournalEntryE2ETest extends AbstractIntegrationTest {
     }
 
     @Test
+    @DisplayName("Journal Entry: Reserved reference prefixes are rejected unless prefixed with MANUAL-")
+    void journalEntry_ReservedReferencePrefix_RejectedUnlessManual() {
+        Company company = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();
+        Account cashAccount = accountRepository.findByCompanyAndCodeIgnoreCase(company, "CASH").orElseThrow();
+        Account revenueAccount = accountRepository.findByCompanyAndCodeIgnoreCase(company, "REVENUE").orElseThrow();
+
+        BigDecimal amount = new BigDecimal("100.00");
+
+        Map<String, Object> debitLine = Map.of(
+                "accountId", cashAccount.getId(),
+                "debit", amount,
+                "credit", BigDecimal.ZERO,
+                "description", "Cash received"
+        );
+
+        Map<String, Object> creditLine = Map.of(
+                "accountId", revenueAccount.getId(),
+                "debit", BigDecimal.ZERO,
+                "credit", amount,
+                "description", "Revenue earned"
+        );
+
+        String reservedRef = "INV-RESERVED-" + System.currentTimeMillis();
+        Map<String, Object> reservedReq = Map.of(
+                "entryDate", LocalDate.now(),
+                "referenceNumber", reservedRef,
+                "memo", "Should be rejected: reserved prefix",
+                "lines", List.of(debitLine, creditLine)
+        );
+
+        ResponseEntity<Map> reservedResp = rest.exchange("/api/v1/accounting/journal-entries",
+                HttpMethod.POST, new HttpEntity<>(reservedReq, headers), Map.class);
+
+        assertThat(reservedResp.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+
+        String manualRef = "MANUAL-" + reservedRef;
+        Map<String, Object> manualReq = Map.of(
+                "entryDate", LocalDate.now(),
+                "referenceNumber", manualRef,
+                "memo", "Allowed: MANUAL- namespace",
+                "lines", List.of(debitLine, creditLine)
+        );
+
+        ResponseEntity<Map> manualResp = rest.exchange("/api/v1/accounting/journal-entries",
+                HttpMethod.POST, new HttpEntity<>(manualReq, headers), Map.class);
+
+        assertThat(manualResp.getStatusCode()).isEqualTo(HttpStatus.OK);
+        Map<?, ?> data = (Map<?, ?>) manualResp.getBody().get("data");
+        assertThat(data).isNotNull();
+        assertThat(data.get("referenceNumber")).isEqualTo(manualRef);
+    }
+
+    @Test
     @DisplayName("Trial Balance: After Many Transactions Balances")
     void trialBalance_AfterManyTransactions_Balances() {
         Company company = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();
