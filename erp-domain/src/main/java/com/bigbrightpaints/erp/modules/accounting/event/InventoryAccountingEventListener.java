@@ -282,11 +282,12 @@ public class InventoryAccountingEventListener {
      * Uses source reference if available, otherwise builds deterministic SHA-256 hash from event data.
      */
     private String buildIdempotentMovementReference(InventoryMovementEvent event) {
-        if (event.referenceNumber() != null && !event.referenceNumber().isBlank()) {
-            return event.referenceNumber();
-        }
-        // Fallback: SHA-256 hash of all event fields (collision-resistant)
-        String eventFingerprint = String.format("%d|%s|%s|%d|%s|%s|%s|%s|%s|%d|%d|%s|%d",
+        String referenceNumber = event.referenceNumber();
+        String referencePrefix = (referenceNumber == null || referenceNumber.isBlank())
+                ? String.format("INV-%s-%s", event.movementType(), event.itemCode())
+                : referenceNumber.trim();
+        String eventFingerprint = String.format("%s|%d|%s|%s|%d|%s|%s|%s|%s|%s|%d|%d|%s|%d",
+            referencePrefix,
             event.companyId(),
             event.movementType(),
             event.inventoryType(),
@@ -301,7 +302,7 @@ public class InventoryAccountingEventListener {
             event.relatedEntityType() != null ? event.relatedEntityType() : "",
             event.relatedEntityId() != null ? event.relatedEntityId() : 0);
         String hash = sha256Hex(eventFingerprint, 16); // 16 hex chars = 64 bits
-        return String.format("INV-%s-%s-%s", event.movementType(), event.itemCode(), hash);
+        return String.format("%s-%s", referencePrefix, hash);
     }
 
     /**
