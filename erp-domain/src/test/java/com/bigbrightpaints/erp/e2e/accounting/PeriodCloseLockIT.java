@@ -3,6 +3,12 @@ package com.bigbrightpaints.erp.e2e.accounting;
 import com.bigbrightpaints.erp.modules.accounting.domain.*;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
+import com.bigbrightpaints.erp.modules.purchasing.domain.GoodsReceipt;
+import com.bigbrightpaints.erp.modules.purchasing.domain.GoodsReceiptRepository;
+import com.bigbrightpaints.erp.modules.purchasing.domain.PurchaseOrder;
+import com.bigbrightpaints.erp.modules.purchasing.domain.PurchaseOrderRepository;
+import com.bigbrightpaints.erp.modules.purchasing.domain.Supplier;
+import com.bigbrightpaints.erp.modules.purchasing.domain.SupplierRepository;
 import com.bigbrightpaints.erp.test.support.TestDateUtils;
 import com.bigbrightpaints.erp.test.AbstractIntegrationTest;
 import org.junit.jupiter.api.BeforeEach;
@@ -35,6 +41,9 @@ class PeriodCloseLockIT extends AbstractIntegrationTest {
     @Autowired private CompanyRepository companyRepository;
     @Autowired private AccountRepository accountRepository;
     @Autowired private JournalEntryRepository journalEntryRepository;
+    @Autowired private SupplierRepository supplierRepository;
+    @Autowired private PurchaseOrderRepository purchaseOrderRepository;
+    @Autowired private GoodsReceiptRepository goodsReceiptRepository;
 
     private HttpHeaders headers;
     private Company company;
@@ -132,6 +141,26 @@ class PeriodCloseLockIT extends AbstractIntegrationTest {
                 ), headers),
                 Map.class);
         assertThat(ok.getStatusCode()).isEqualTo(HttpStatus.OK);
+    }
+
+    @Test
+    @DisplayName("Close period fails when uninvoiced goods receipts exist")
+    void closePeriodRejectsUninvoicedReceipts() {
+        LocalDate today = TestDateUtils.safeDate(company);
+        ensurePeriodOpen(today);
+        GoodsReceipt receipt = createUninvoicedGoodsReceipt(today);
+
+        Long periodId = currentPeriodId(today);
+        ResponseEntity<Map> closeResp = rest.exchange(
+                "/api/v1/accounting/periods/" + periodId + "/close",
+                HttpMethod.POST,
+                new HttpEntity<>(Map.of("note", "Attempt close", "force", true), headers),
+                Map.class);
+
+        assertThat(closeResp.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(closeResp.getBody().get("message").toString())
+                .containsIgnoringCase("goods receipts");
+        cleanupReceipt(receipt);
     }
 
     @Test
@@ -279,7 +308,47 @@ class PeriodCloseLockIT extends AbstractIntegrationTest {
                     account.setName(name);
                     account.setType(type);
                     return accountRepository.save(account);
-                });
+        });
+    }
+
+    private GoodsReceipt createUninvoicedGoodsReceipt(LocalDate receiptDate) {
+        Supplier supplier = new Supplier();
+        supplier.setCompany(company);
+        supplier.setCode("SUP-UNINV-" + System.nanoTime());
+        supplier.setName("Uninvoiced Supplier");
+        Supplier savedSupplier = supplierRepository.save(supplier);
+
+        PurchaseOrder purchaseOrder = new PurchaseOrder();
+        purchaseOrder.setCompany(company);
+        purchaseOrder.setSupplier(savedSupplier);
+        purchaseOrder.setOrderNumber("PO-UNINV-" + System.nanoTime());
+        purchaseOrder.setOrderDate(receiptDate);
+        PurchaseOrder savedOrder = purchaseOrderRepository.save(purchaseOrder);
+
+        GoodsReceipt receipt = new GoodsReceipt();
+        receipt.setCompany(company);
+        receipt.setSupplier(savedSupplier);
+        receipt.setPurchaseOrder(savedOrder);
+        receipt.setReceiptNumber("GRN-UNINV-" + System.nanoTime());
+        receipt.setReceiptDate(receiptDate);
+        receipt.setStatus("RECEIVED");
+        return goodsReceiptRepository.save(receipt);
+    }
+
+    private void ensurePeriodOpen(LocalDate referenceDate) {
+        Long periodId = currentPeriodId(referenceDate);
+        rest.exchange(
+                "/api/v1/accounting/periods/" + periodId + "/reopen",
+                HttpMethod.POST,
+                new HttpEntity<>(Map.of("reason", "Ensure open for test"), headers),
+                Map.class);
+    }
+
+    private void cleanupReceipt(GoodsReceipt receipt) {
+        if (receipt == null) {
+            return;
+        }
+        goodsReceiptRepository.delete(receipt);
     }
 
     private HttpHeaders authHeaders() {

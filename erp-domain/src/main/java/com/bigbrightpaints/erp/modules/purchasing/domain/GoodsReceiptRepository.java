@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
@@ -29,6 +30,8 @@ public interface GoodsReceiptRepository extends JpaRepository<GoodsReceipt, Long
     List<GoodsReceipt> findByPurchaseOrder(PurchaseOrder purchaseOrder);
 
     boolean existsByPurchaseOrder(PurchaseOrder purchaseOrder);
+
+    long countByCompanyAndReceiptDateBetweenAndStatusNot(Company company, LocalDate startDate, LocalDate endDate, String status);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select gr from GoodsReceipt gr where gr.company = :company and gr.id = :id")

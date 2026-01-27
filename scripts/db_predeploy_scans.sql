@@ -98,7 +98,20 @@ where run_number is null
    or period_end is null
 order by company_id, payroll_run_id;
 
--- 6) Orders with multiple invoices where fulfillment marker is not deterministic (ambiguous backfill risk)
+-- 6) Goods receipts without supplier invoices (uninvoiced GRNs)
+select
+  gr.company_id,
+  gr.id as goods_receipt_id,
+  gr.receipt_number,
+  gr.receipt_date,
+  gr.status,
+  gr.supplier_id,
+  gr.purchase_order_id
+from goods_receipts gr
+where coalesce(upper(gr.status), '') <> 'INVOICED'
+order by gr.company_id, gr.receipt_date, gr.id;
+
+-- 7) Orders with multiple invoices where fulfillment marker is not deterministic (ambiguous backfill risk)
 with per_order as (
   select
     so.company_id,

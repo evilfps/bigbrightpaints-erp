@@ -17,6 +17,7 @@ import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.hr.domain.PayrollRun;
 import com.bigbrightpaints.erp.modules.hr.domain.PayrollRunRepository;
 import com.bigbrightpaints.erp.modules.invoice.domain.InvoiceRepository;
+import com.bigbrightpaints.erp.modules.purchasing.domain.GoodsReceiptRepository;
 import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchaseRepository;
 import com.bigbrightpaints.erp.modules.reports.dto.ReconciliationSummaryDto;
 import com.bigbrightpaints.erp.modules.reports.service.ReportService;
@@ -49,6 +50,7 @@ public class AccountingPeriodService {
     private final ReportService reportService;
     private final ReconciliationService reconciliationService;
     private final InvoiceRepository invoiceRepository;
+    private final GoodsReceiptRepository goodsReceiptRepository;
     private final RawMaterialPurchaseRepository rawMaterialPurchaseRepository;
     private final PayrollRunRepository payrollRunRepository;
 
@@ -62,6 +64,7 @@ public class AccountingPeriodService {
                                    ReportService reportService,
                                    ReconciliationService reconciliationService,
                                    InvoiceRepository invoiceRepository,
+                                   GoodsReceiptRepository goodsReceiptRepository,
                                    RawMaterialPurchaseRepository rawMaterialPurchaseRepository,
                                    PayrollRunRepository payrollRunRepository) {
         this.accountingPeriodRepository = accountingPeriodRepository;
@@ -74,6 +77,7 @@ public class AccountingPeriodService {
         this.reportService = reportService;
         this.reconciliationService = reconciliationService;
         this.invoiceRepository = invoiceRepository;
+        this.goodsReceiptRepository = goodsReceiptRepository;
         this.rawMaterialPurchaseRepository = rawMaterialPurchaseRepository;
         this.payrollRunRepository = payrollRunRepository;
     }
@@ -100,6 +104,7 @@ public class AccountingPeriodService {
             return toDto(period);
         }
         boolean force = request != null && Boolean.TRUE.equals(request.force());
+        assertNoUninvoicedReceipts(company, period);
         if (!force) {
             assertChecklistComplete(company, period);
         }
@@ -505,6 +510,14 @@ public class AccountingPeriodService {
         }
     }
 
+    private void assertNoUninvoicedReceipts(Company company, AccountingPeriod period) {
+        long uninvoicedReceipts = countUninvoicedReceipts(company, period);
+        if (uninvoicedReceipts > 0) {
+            throw new IllegalStateException("Un-invoiced goods receipts exist in this period (" +
+                    uninvoicedReceipts + ")");
+        }
+    }
+
     private AccountingPeriodDto toDto(AccountingPeriod period) {
         return new AccountingPeriodDto(
                 period.getId(),
@@ -560,6 +573,7 @@ public class AccountingPeriodService {
         boolean unbalancedCleared = diagnostics.unbalancedJournals() == 0;
         boolean unlinkedCleared = diagnostics.unlinkedDocuments() == 0;
         boolean unpostedCleared = diagnostics.unpostedDocuments() == 0;
+        boolean receiptsCleared = diagnostics.uninvoicedReceipts() == 0;
         String inventoryDetail = inventoryReconciled
                 ? "Variance " + formatVariance(diagnostics.inventoryVariance()) + " within tolerance"
                 : "Variance " + formatVariance(diagnostics.inventoryVariance()) + " exceeds tolerance";
@@ -611,6 +625,11 @@ public class AccountingPeriodService {
                         unlinkedCleared,
                         unlinkedCleared ? "All documents linked" : diagnostics.unlinkedDocuments() + " missing journal links"),
                 new MonthEndChecklistItemDto(
+                        "uninvoicedReceipts",
+                        "Goods receipts invoiced",
+                        receiptsCleared,
+                        receiptsCleared ? "All receipts invoiced" : diagnostics.uninvoicedReceipts() + " receipts awaiting invoice"),
+                new MonthEndChecklistItemDto(
                         "unpostedDocuments",
                         "Unposted documents cleared",
                         unpostedCleared,
@@ -624,6 +643,7 @@ public class AccountingPeriodService {
                 && apReconciled
                 && unbalancedCleared
                 && unlinkedCleared
+                && receiptsCleared
                 && unpostedCleared;
         return new MonthEndChecklistDto(toDto(period), items, ready);
     }
@@ -635,7 +655,8 @@ public class AccountingPeriodService {
         long unbalancedJournals = countUnbalancedJournals(company, period);
         long unlinkedDocuments = countUnlinkedDocuments(company, period);
         long unpostedDocuments = countUnpostedDocuments(company, period);
-        return new ChecklistDiagnostics(inventory, periodReconciliation, unpostedDocuments, unlinkedDocuments, unbalancedJournals);
+        long uninvoicedReceipts = countUninvoicedReceipts(company, period);
+        return new ChecklistDiagnostics(inventory, periodReconciliation, unpostedDocuments, unlinkedDocuments, unbalancedJournals, uninvoicedReceipts);
     }
 
     private long countUnbalancedJournals(Company company, AccountingPeriod period) {
@@ -679,6 +700,14 @@ public class AccountingPeriodService {
         return invoiceDrafts + purchaseUnposted + payrollUnposted;
     }
 
+    private long countUninvoicedReceipts(Company company, AccountingPeriod period) {
+        return goodsReceiptRepository.countByCompanyAndReceiptDateBetweenAndStatusNot(
+                company,
+                period.getStartDate(),
+                period.getEndDate(),
+                "INVOICED");
+    }
+
     private long countUnlinkedDocuments(Company company, AccountingPeriod period) {
         long invoiceUnlinked = invoiceRepository.countByCompanyAndIssueDateBetweenAndStatusNotAndJournalEntryIsNull(
                 company,
@@ -711,7 +740,8 @@ public class AccountingPeriodService {
             ReconciliationService.PeriodReconciliationResult periodReconciliation,
             long unpostedDocuments,
             long unlinkedDocuments,
-            long unbalancedJournals
+            long unbalancedJournals,
+            long uninvoicedReceipts
     ) {
         boolean inventoryReconciled() {
             return varianceWithinTolerance(inventoryVariance());
