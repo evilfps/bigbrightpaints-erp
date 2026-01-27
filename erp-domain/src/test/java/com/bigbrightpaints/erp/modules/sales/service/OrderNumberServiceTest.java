@@ -20,6 +20,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.SimpleTransactionStatus;
 
 @ExtendWith(MockitoExtension.class)
 class OrderNumberServiceTest {
@@ -28,13 +30,16 @@ class OrderNumberServiceTest {
     private OrderSequenceRepository orderSequenceRepository;
     @Mock
     private AuditService auditService;
+    @Mock
+    private PlatformTransactionManager txManager;
 
     private OrderNumberService orderNumberService;
 
     @BeforeEach
     void setup() {
-        orderNumberService = new OrderNumberService(orderSequenceRepository, auditService);
-        when(orderSequenceRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(txManager.getTransaction(any())).thenReturn(new SimpleTransactionStatus());
+        orderNumberService = new OrderNumberService(orderSequenceRepository, auditService, txManager);
+        when(orderSequenceRepository.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
     }
 
     @Test
@@ -57,8 +62,8 @@ class OrderNumberServiceTest {
         assertThat(orderNumber1).startsWith("C1-");
         assertThat(orderNumber2).startsWith("C2-");
         assertThat(orderNumber1).isNotEqualTo(orderNumber2);
-        verify(orderSequenceRepository).save(seq1);
-        verify(orderSequenceRepository).save(seq2);
+        verify(orderSequenceRepository).saveAndFlush(seq1);
+        verify(orderSequenceRepository).saveAndFlush(seq2);
         verify(auditService, times(2)).logSuccess(eq(AuditEvent.ORDER_NUMBER_GENERATED), anyMap());
     }
 }

@@ -443,9 +443,15 @@ public class PayrollService {
             line.setPaymentReference(paymentReference);
             
             // Deduct advance from employee if applicable
-            if (line.getAdvances().compareTo(BigDecimal.ZERO) > 0) {
+            BigDecimal advances = line.getAdvances() != null ? line.getAdvances() : BigDecimal.ZERO;
+            if (advances.compareTo(BigDecimal.ZERO) > 0) {
                 Employee emp = line.getEmployee();
-                emp.setAdvanceBalance(emp.getAdvanceBalance().subtract(line.getAdvances()));
+                BigDecimal currentBalance = emp.getAdvanceBalance() != null ? emp.getAdvanceBalance() : BigDecimal.ZERO;
+                BigDecimal newBalance = currentBalance.subtract(advances);
+                if (newBalance.compareTo(BigDecimal.ZERO) < 0) {
+                    newBalance = BigDecimal.ZERO;
+                }
+                emp.setAdvanceBalance(newBalance);
                 employeeRepository.save(emp);
             }
         }

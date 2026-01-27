@@ -330,10 +330,14 @@ public class PayrollCalculationService {
     @Transactional
     public void recordAdvancePayment(Long employeeId, BigDecimal amount) {
         Company company = companyContextService.requireCurrentCompany();
+        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("Advance amount must be positive");
+        }
         Employee employee = employeeRepository.findByCompanyAndId(company, employeeId)
                 .orElseThrow(() -> new IllegalArgumentException("Employee not found"));
-        
-        BigDecimal newBalance = employee.getAdvanceBalance().add(amount);
+
+        BigDecimal currentBalance = employee.getAdvanceBalance() != null ? employee.getAdvanceBalance() : BigDecimal.ZERO;
+        BigDecimal newBalance = currentBalance.add(amount);
         employee.setAdvanceBalance(newBalance);
         employeeRepository.save(employee);
         
