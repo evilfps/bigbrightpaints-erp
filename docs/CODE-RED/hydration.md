@@ -15,6 +15,7 @@
    - No batch quantity goes negative.
    - Dispatch cannot ship more than reserved/available.
    - COGS is computed from dispatch unit cost (FIFO/WAC) deterministically.
+   - Packing converts bulk liters -> size SKUs using per-product variants + BOM (no legacy fallback).
 
 4) Timezone invariants
    - Business dates use CompanyClock + company timezone.
@@ -30,7 +31,7 @@
 - Sales: order idempotency, reservation, partial dispatch, invoice amounts, journal uniqueness.
 - Purchasing: GRN partials, invoice posting, purchase return.
 - Payroll: idempotency, attendance windows, advances/deductions.
-- Manufacturing: WIP journals, packing journals, cost allocation month boundaries.
+- Manufacturing: WIP journals, packing journals, bulk->size conversion, BOM enforcement, packing idempotency, cost allocation month boundaries.
 
 ## Verification Log
 - 2026-01-27: EPIC 01 / M01.0 verified.

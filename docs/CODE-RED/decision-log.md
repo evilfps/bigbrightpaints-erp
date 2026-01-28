@@ -58,3 +58,17 @@ Rationale:
 
 Enforcement:
 - ZoneId.systemDefault() is forbidden in business logic (gate via review + scan).
+
+## 2026-01-28 - Manufacturing & Packaging Canonical Flow (Bulk -> Size SKUs)
+Decision:
+- Bulk batches (SKU-BULK) are the only source for size SKUs.
+- Packing is batch-based and uses per-product variants + BOM (no legacy size-only mappings).
+- Packing is deterministic, idempotent, and posts conversion journals via AccountingFacade.
+
+Rationale:
+- Removes ambiguous bulk/size mapping and ensures traceable, auditable cost flow.
+- Aligns inventory and accounting with real factory operations.
+
+Enforcement:
+- Hard cutover to the canonical flow defined in `docs/CODE-RED/packaging-flow.md`.
+- Packing fails closed if any variant or BOM is missing.

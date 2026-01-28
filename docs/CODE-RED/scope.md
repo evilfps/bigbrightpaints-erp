@@ -26,12 +26,17 @@
    - WIP postings and packing postings are deterministic and auditable.
    - Company timezone is used for all period boundaries.
 
-5) Module Boundaries (organization only)
+5) Manufacturing & Packaging (Bulk -> Size SKUs)
+   - Bulk batches are the only source for finished pack sizes.
+   - Packing converts bulk liters to size SKUs using per-product variants + BOM (no legacy mapping fallback).
+   - Canonical flow: `docs/CODE-RED/packaging-flow.md`.
+
+6) Module Boundaries (organization only)
    - Accounting owns postings.
    - Sales/Inventory/HR/Purchasing emit requests/events but do not mutate ledger directly.
    - Forbidden cross-calls are removed or routed through facades.
 
-6) Schema convergence
+7) Schema convergence
    - Eliminate schema drift via convergence migrations (no IF NOT EXISTS reliance).
    - Backfills must be deterministic.
 
@@ -39,4 +44,3 @@
 - New UI features
 - New accounting features beyond correctness (e.g., GRNI accrual), unless required to prevent ledger corruption
 - New integrations unless they replace unsafe existing ones
-

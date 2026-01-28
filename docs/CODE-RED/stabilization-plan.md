@@ -1,3 +1,4 @@
+
 # CODE-RED Stabilization Plan (V1)
 
 Constraints (non-negotiable):
@@ -128,18 +129,29 @@ Evidence artifacts
 - DB scans:
   - `scripts/db_predeploy_scans.sql`
 
-## EPIC 03 - Manufacturing/WIP + Cost Allocation (Deterministic)
+## EPIC 03 - Manufacturing/WIP + Packaging Canonicalization (Bulk -> Size SKUs)
 
 Milestones
-- M03.1: Route all factory postings through AccountingFacade (no direct AccountingService posting)
-- M03.2: Fix timezone boundary bugs (CompanyClock everywhere)
+- M03.0: Define per-product packaging variants + BOM (hard cutover)
+  - Add product_packaging_variants + product_packaging_components tables.
+  - Variants and BOM are required for packing (fail closed).
+  - Canonical flow: `docs/CODE-RED/packaging-flow.md`.
+- M03.1: Hard cutover packing algorithm to bulk -> size SKUs
+  - Packing is batch-based, deterministic, idempotent, and uses BOM.
+  - Remove legacy packaging size mapping endpoints and code paths.
+- M03.2: Route all factory postings through AccountingFacade (no direct AccountingService posting)
+- M03.3: Fix timezone boundary bugs (CompanyClock everywhere)
 
 Acceptance criteria
+- Packing converts bulk liters to size SKUs using per-product variants + BOM (no legacy fallback).
+- Packing is deterministic and idempotent; bulk batch identity is preserved.
 - WIP journals always balance; no posting bypasses accounting policy.
 - Month boundary calculations use company timezone, not server timezone.
 
 Evidence artifacts
 - Tests:
+  - `erp-domain/src/test/java/com/bigbrightpaints/erp/e2e/production/CR_BulkPackingVariantIT.java`
+  - `erp-domain/src/test/java/com/bigbrightpaints/erp/e2e/production/CR_PackagingBOMRoundingIT.java`
   - `erp-domain/src/test/java/com/bigbrightpaints/erp/e2e/production/CostAllocationVariancePolicyIT.java`
   - `erp-domain/src/test/java/com/bigbrightpaints/erp/e2e/accounting/WipToFinishedCostIT.java`
 
