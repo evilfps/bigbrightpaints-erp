@@ -19,6 +19,11 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -36,6 +41,7 @@ public class JournalEntryE2ETest extends AbstractIntegrationTest {
     @Autowired private CompanyRepository companyRepository;
     @Autowired private AccountRepository accountRepository;
     @Autowired private JournalEntryRepository journalEntryRepository;
+    @Autowired private JournalReferenceMappingRepository journalReferenceMappingRepository;
     @Autowired private JournalLineRepository journalLineRepository;
     @Autowired private DealerRepository dealerRepository;
     @Autowired private SupplierRepository supplierRepository;
@@ -200,6 +206,90 @@ public class JournalEntryE2ETest extends AbstractIntegrationTest {
         Map<?, ?> retryData = (Map<?, ?>) retryResp.getBody().get("data");
         assertThat(((Number) retryData.get("id")).longValue())
                 .isEqualTo(((Number) data.get("id")).longValue());
+    }
+
+    @Test
+    @DisplayName("Journal Entry: Manual idempotency is concurrency-safe")
+    void journalEntry_ManualIdempotencyKey_ConcurrencySafe() throws Exception {
+        Company company = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();
+        Account cashAccount = accountRepository.findByCompanyAndCodeIgnoreCase(company, "CASH").orElseThrow();
+        Account revenueAccount = accountRepository.findByCompanyAndCodeIgnoreCase(company, "REVENUE").orElseThrow();
+
+        BigDecimal amount = new BigDecimal("250.00");
+
+        Map<String, Object> debitLine = Map.of(
+                "accountId", cashAccount.getId(),
+                "debit", amount,
+                "credit", BigDecimal.ZERO,
+                "description", "Concurrent cash received"
+        );
+
+        Map<String, Object> creditLine = Map.of(
+                "accountId", revenueAccount.getId(),
+                "debit", BigDecimal.ZERO,
+                "credit", amount,
+                "description", "Concurrent revenue earned"
+        );
+
+        String manualRef = "MANUAL-CONCURRENT-" + System.currentTimeMillis();
+        String memo = "Concurrent manual idempotency " + manualRef;
+        Map<String, Object> manualReq = Map.of(
+                "entryDate", LocalDate.now(),
+                "referenceNumber", manualRef,
+                "memo", memo,
+                "lines", List.of(debitLine, creditLine)
+        );
+
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch start = new CountDownLatch(1);
+
+        Future<ResponseEntity<Map>> first = executor.submit(() -> {
+            ready.countDown();
+            start.await(5, TimeUnit.SECONDS);
+            HttpHeaders threadHeaders = new HttpHeaders();
+            threadHeaders.putAll(headers);
+            return rest.exchange("/api/v1/accounting/journal-entries",
+                    HttpMethod.POST, new HttpEntity<>(manualReq, threadHeaders), Map.class);
+        });
+
+        Future<ResponseEntity<Map>> second = executor.submit(() -> {
+            ready.countDown();
+            start.await(5, TimeUnit.SECONDS);
+            HttpHeaders threadHeaders = new HttpHeaders();
+            threadHeaders.putAll(headers);
+            return rest.exchange("/api/v1/accounting/journal-entries",
+                    HttpMethod.POST, new HttpEntity<>(manualReq, threadHeaders), Map.class);
+        });
+
+        ready.await(5, TimeUnit.SECONDS);
+        start.countDown();
+
+        ResponseEntity<Map> resp1 = first.get(10, TimeUnit.SECONDS);
+        ResponseEntity<Map> resp2 = second.get(10, TimeUnit.SECONDS);
+        executor.shutdownNow();
+
+        assertThat(resp1.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(resp2.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+        Map<?, ?> data1 = (Map<?, ?>) resp1.getBody().get("data");
+        Map<?, ?> data2 = (Map<?, ?>) resp2.getBody().get("data");
+        Long id1 = ((Number) data1.get("id")).longValue();
+        Long id2 = ((Number) data2.get("id")).longValue();
+        assertThat(id1).isEqualTo(id2);
+
+        List<JournalReferenceMapping> mappings = journalReferenceMappingRepository
+                .findAllByCompanyAndLegacyReferenceIgnoreCase(company, manualRef);
+        assertThat(mappings).hasSize(1);
+        JournalReferenceMapping mapping = mappings.get(0);
+        assertThat(mapping.getEntityId()).isEqualTo(id1);
+        assertThat(mapping.getCanonicalReference()).isNotBlank();
+        assertThat(journalEntryRepository.findByCompanyAndId(company, id1)).isPresent();
+
+        long memoCount = journalEntryRepository.findAll().stream()
+                .filter(entry -> memo.equals(entry.getMemo()))
+                .count();
+        assertThat(memoCount).isEqualTo(1);
     }
 
     @Test

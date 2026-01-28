@@ -2086,6 +2086,24 @@ public class AccountingService {
             if (existing.isPresent()) {
                 return toDto(existing.get());
             }
+            // Reserve the idempotency key FIRST (reserve-first pattern) to make manual journal creation
+            // concurrency-safe. The INSERT ... ON CONFLICT DO NOTHING is atomic and avoids a
+            // check-then-insert race while ensuring no journal is created before the key is reserved.
+            int reserved = journalReferenceMappingRepository.reserveManualReference(
+                    company.getId(),
+                    key,
+                    reservedManualReference(key),
+                    "JOURNAL_ENTRY"
+            );
+            if (reserved == 0) {
+                Optional<JournalEntry> already = journalReferenceResolver.findExistingEntry(company, key);
+                if (already.isPresent()) {
+                    return toDto(already.get());
+                }
+                throw new ApplicationException(ErrorCode.INTERNAL_CONCURRENCY_FAILURE,
+                        "Manual journal idempotency key already reserved but entry not found")
+                        .withDetail("referenceNumber", key);
+            }
         }
         JournalEntryDto created = createJournalEntry(new JournalEntryRequest(
                 null,
@@ -2099,23 +2117,25 @@ public class AccountingService {
                 request.fxRate()
         ));
         if (StringUtils.hasText(key) && created != null && StringUtils.hasText(created.referenceNumber())) {
-            try {
-                JournalReferenceMapping mapping = new JournalReferenceMapping();
-                mapping.setCompany(company);
-                mapping.setLegacyReference(key);
-                mapping.setCanonicalReference(created.referenceNumber());
-                mapping.setEntityType("JOURNAL_ENTRY");
-                mapping.setEntityId(created.id());
-                journalReferenceMappingRepository.save(mapping);
-            } catch (DataIntegrityViolationException ex) {
-                Optional<JournalEntry> existing = journalReferenceResolver.findExistingEntry(company, key);
-                if (existing.isPresent()) {
-                    return toDto(existing.get());
-                }
-                throw ex;
-            }
+            JournalReferenceMapping mapping = journalReferenceMappingRepository
+                    .findByCompanyAndLegacyReferenceIgnoreCase(company, key)
+                    .orElseThrow(() -> new ApplicationException(ErrorCode.INTERNAL_CONCURRENCY_FAILURE,
+                            "Manual journal idempotency reservation missing")
+                            .withDetail("referenceNumber", key));
+            mapping.setCanonicalReference(created.referenceNumber());
+            mapping.setEntityId(created.id());
+            journalReferenceMappingRepository.save(mapping);
         }
         return created;
+    }
+
+    private String reservedManualReference(String idempotencyKey) {
+        if (!StringUtils.hasText(idempotencyKey)) {
+            return "RESERVED";
+        }
+        String hash = org.springframework.util.DigestUtils.md5DigestAsHex(
+                idempotencyKey.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        return "RESERVED-" + hash;
     }
 
     private void enforceSettlementCurrency(Company company, Invoice invoice) {

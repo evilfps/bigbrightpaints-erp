@@ -71,3 +71,7 @@
   - Code: All business dates use `CompanyClock`/`CompanyTime`; removed system clock/timezone usage across services/domains. `CostAllocationService` now uses company timezone for month boundaries.
   - Gate: `scripts/time_api_scan.sh` (wired into CI and `scripts/verify_local.sh`).
   - Command: `scripts/verify_local.sh`.
+- 2026-01-28: EPIC 05 / M05.2 verified.
+  - Code: `AccountingService.createManualJournalEntry` now reserves idempotency keys via `JournalReferenceMappingRepository.reserveManualReference` before journal creation; concurrent requests return the same journal entry.
+  - Tests: `JournalEntryE2ETest.journalEntry_ManualIdempotencyKey_ConcurrencySafe`.
+  - Command: `scripts/verify_local.sh`.
