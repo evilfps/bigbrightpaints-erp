@@ -306,9 +306,7 @@ public class CriticalPathSmokeTest extends AbstractIntegrationTest {
                 "description", "Test credit"
         );
 
-        // FIX: Add required referenceNumber field
         Map<String, Object> jeRequest = Map.of(
-                "referenceNumber", "TEST-JE-" + System.currentTimeMillis(),
                 "entryDate", LocalDate.now(),
                 "memo", "Critical Path Test Entry",
                 "lines", List.of(debitLine, creditLine)

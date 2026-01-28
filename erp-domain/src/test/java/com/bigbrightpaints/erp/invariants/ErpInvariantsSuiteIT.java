@@ -170,7 +170,6 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
 
         Map<String, Object> payload = new HashMap<>();
         payload.put("entryDate", entryDate);
-        payload.put("referenceNumber", "R2R-JE-001");
         payload.put("memo", "R2R adjustment entry");
         payload.put("lines", List.of(
                 journalLine(r2r.requireAccount("CASH"), new BigDecimal("100.00"), BigDecimal.ZERO, "Cash"),

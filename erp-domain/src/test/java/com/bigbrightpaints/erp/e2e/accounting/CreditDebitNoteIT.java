@@ -142,7 +142,6 @@ public class CreditDebitNoteIT extends AbstractIntegrationTest {
         );
         Map<String, Object> payload = Map.of(
                 "entryDate", LocalDate.now(),
-                "referenceNumber", "MANUAL-INV-JE-" + System.currentTimeMillis(),
                 "memo", "Seed invoice posting",
                 "dealerId", dealer.getId(),
                 "lines", List.of(arLine, revLine)
@@ -303,7 +302,6 @@ public class CreditDebitNoteIT extends AbstractIntegrationTest {
         );
         Map<String, Object> payload = Map.of(
                 "entryDate", LocalDate.now(),
-                "referenceNumber", "AR-NO-DEALER-" + System.currentTimeMillis(),
                 "memo", "AR without dealer",
                 "lines", List.of(arLine, revLine)
         );
@@ -330,7 +328,6 @@ public class CreditDebitNoteIT extends AbstractIntegrationTest {
         );
         Map<String, Object> payload = Map.of(
                 "entryDate", LocalDate.now(),
-                "referenceNumber", "AP-NO-SUPPLIER-" + System.currentTimeMillis(),
                 "memo", "AP without supplier",
                 "lines", List.of(invLine, apLine)
         );

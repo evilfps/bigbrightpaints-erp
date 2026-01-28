@@ -166,7 +166,7 @@ Evidence artifacts
 ## EPIC 05 - Manual Journal Policy + Period Locks (Fail Closed)
 
 Milestones
-- M05.1: Manual journal entry API must not accept caller-supplied reference numbers (system-generated only).
+- M05.1 (DONE): Manual journal entry API must not accept caller-supplied reference numbers (system-generated only).
 - M05.2: Memo/why required for manual entries.
 - M05.3: Accounting event store is either wired or explicitly removed from claims
   - Wire `AccountingEventStore.recordJournalEntryPosted` inside `AccountingService.createJournalEntry` or remove replay claims.

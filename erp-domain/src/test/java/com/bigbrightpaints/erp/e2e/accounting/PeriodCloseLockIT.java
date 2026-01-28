@@ -105,7 +105,6 @@ class PeriodCloseLockIT extends AbstractIntegrationTest {
         ResponseEntity<Map> blocked = rest.exchange("/api/v1/accounting/journal-entries",
                 HttpMethod.POST,
                 new HttpEntity<>(Map.of(
-                        "referenceNumber", "LOCKED-BLOCK-" + System.nanoTime(),
                         "entryDate", lockedDate,
                         "memo", "Should fail",
                         "adminOverride", false,
@@ -132,7 +131,6 @@ class PeriodCloseLockIT extends AbstractIntegrationTest {
         ResponseEntity<Map> ok = rest.exchange("/api/v1/accounting/journal-entries",
                 HttpMethod.POST,
                 new HttpEntity<>(Map.of(
-                        "referenceNumber", "AFTER-REOPEN",
                         "entryDate", today,
                         "memo", "Adjustment after reopen",
                         "adminOverride", false,
@@ -179,7 +177,6 @@ class PeriodCloseLockIT extends AbstractIntegrationTest {
         ResponseEntity<Map> blocked = rest.exchange("/api/v1/accounting/journal-entries",
                 HttpMethod.POST,
                 new HttpEntity<>(Map.of(
-                        "referenceNumber", "CLOSED-ADMIN-BLOCK",
                         "entryDate", today,
                         "memo", "Admin override should fail",
                         "adminOverride", true,
@@ -266,7 +263,6 @@ class PeriodCloseLockIT extends AbstractIntegrationTest {
         ResponseEntity<Map> resp = rest.exchange("/api/v1/accounting/journal-entries",
                 HttpMethod.POST,
                 new HttpEntity<>(Map.of(
-                        "referenceNumber", "PL-SEED-" + date.toString() + "-" + System.nanoTime(),
                         "entryDate", date,
                         "memo", "Seed P&L",
                         "adminOverride", false,

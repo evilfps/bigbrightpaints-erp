@@ -252,7 +252,6 @@ public class BusinessLogicRegressionTest extends AbstractIntegrationTest {
 
         Map<String, Object> jeRequest = Map.of(
                 "entryDate", LocalDate.now(),
-                "referenceNumber", "JE-REG-" + System.currentTimeMillis(),
                 "memo", "Test sale",
                 "dealerId", dealer.getId(),
                 "lines", List.of(debitLine, creditLine)
@@ -291,7 +290,6 @@ public class BusinessLogicRegressionTest extends AbstractIntegrationTest {
 
         Map<String, Object> jeRequest = Map.of(
                 "entryDate", LocalDate.now(),
-                "referenceNumber", "JE-REG-" + System.currentTimeMillis(),
                 "memo", "Inventory purchase",
                 "lines", List.of(debitLine, creditLine)
         );
@@ -323,7 +321,6 @@ public class BusinessLogicRegressionTest extends AbstractIntegrationTest {
 
         Map<String, Object> jeRequest = Map.of(
                 "entryDate", LocalDate.now(),
-                "referenceNumber", "JE-REG-" + System.currentTimeMillis(),
                 "memo", "Test entry",
                 "lines", List.of(debitLine, creditLine)
         );

@@ -117,7 +117,6 @@ public class JournalEntryE2ETest extends AbstractIntegrationTest {
 
         Map<String, Object> jeRequest = Map.of(
                 "entryDate", LocalDate.now(),
-                "referenceNumber", "JE-E2E-" + System.currentTimeMillis(),
                 "memo", "Test balanced entry",
                 "lines", List.of(debitLine, creditLine)
         );
@@ -144,8 +143,8 @@ public class JournalEntryE2ETest extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("Journal Entry: Reserved reference prefixes are rejected unless prefixed with MANUAL-")
-    void journalEntry_ReservedReferencePrefix_RejectedUnlessManual() {
+    @DisplayName("Journal Entry: Manual reference numbers are rejected; system reference is generated")
+    void journalEntry_ManualReferenceRejected_SystemGenerated() {
         Company company = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();
         Account cashAccount = accountRepository.findByCompanyAndCodeIgnoreCase(company, "CASH").orElseThrow();
         Account revenueAccount = accountRepository.findByCompanyAndCodeIgnoreCase(company, "REVENUE").orElseThrow();
@@ -170,7 +169,7 @@ public class JournalEntryE2ETest extends AbstractIntegrationTest {
         Map<String, Object> reservedReq = Map.of(
                 "entryDate", LocalDate.now(),
                 "referenceNumber", reservedRef,
-                "memo", "Should be rejected: reserved prefix",
+                "memo", "Should be rejected: manual reference not allowed",
                 "lines", List.of(debitLine, creditLine)
         );
 
@@ -183,17 +182,26 @@ public class JournalEntryE2ETest extends AbstractIntegrationTest {
         Map<String, Object> manualReq = Map.of(
                 "entryDate", LocalDate.now(),
                 "referenceNumber", manualRef,
-                "memo", "Allowed: MANUAL- namespace",
+                "memo", "Should be rejected: manual reference not allowed",
                 "lines", List.of(debitLine, creditLine)
         );
 
         ResponseEntity<Map> manualResp = rest.exchange("/api/v1/accounting/journal-entries",
                 HttpMethod.POST, new HttpEntity<>(manualReq, headers), Map.class);
 
-        assertThat(manualResp.getStatusCode()).isEqualTo(HttpStatus.OK);
-        Map<?, ?> data = (Map<?, ?>) manualResp.getBody().get("data");
+        assertThat(manualResp.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+
+        Map<String, Object> systemReq = Map.of(
+                "entryDate", LocalDate.now(),
+                "memo", "System-generated reference",
+                "lines", List.of(debitLine, creditLine)
+        );
+        ResponseEntity<Map> systemResp = rest.exchange("/api/v1/accounting/journal-entries",
+                HttpMethod.POST, new HttpEntity<>(systemReq, headers), Map.class);
+        assertThat(systemResp.getStatusCode()).isEqualTo(HttpStatus.OK);
+        Map<?, ?> data = (Map<?, ?>) systemResp.getBody().get("data");
         assertThat(data).isNotNull();
-        assertThat(data.get("referenceNumber")).isEqualTo(manualRef);
+        assertThat(((String) data.get("referenceNumber"))).startsWith("JRN-");
     }
 
     @Test
@@ -277,10 +285,8 @@ public class JournalEntryE2ETest extends AbstractIntegrationTest {
         BigDecimal revenueBefore = revenueAccount.getBalance();
         BigDecimal expenseBefore = expenseAccount.getBalance();
 
-        String baseRef = "JE-CASCADE-" + System.currentTimeMillis();
         Map<String, Object> baseReq = Map.of(
                 "entryDate", LocalDate.now(),
-                "referenceNumber", baseRef,
                 "memo", "Base entry",
                 "lines", List.of(
                         Map.of("accountId", cashAccount.getId(), "debit", new BigDecimal("100.00"), "credit", BigDecimal.ZERO),
@@ -293,7 +299,6 @@ public class JournalEntryE2ETest extends AbstractIntegrationTest {
 
         Map<String, Object> relatedReq = Map.of(
                 "entryDate", LocalDate.now(),
-                "referenceNumber", baseRef + "-COGS",
                 "memo", "Related entry",
                 "lines", List.of(
                         Map.of("accountId", expenseAccount.getId(), "debit", new BigDecimal("60.00"), "credit", BigDecimal.ZERO),
@@ -307,7 +312,8 @@ public class JournalEntryE2ETest extends AbstractIntegrationTest {
         Map<String, Object> reversalReq = Map.of(
                 "reversalDate", LocalDate.now(),
                 "reason", "Cascade reversal test",
-                "memo", "Cascade reversal"
+                "memo", "Cascade reversal",
+                "relatedEntryIds", List.of(relatedEntryId)
         );
         ResponseEntity<Map> reversalResp = rest.exchange(
                 "/api/v1/accounting/journal-entries/" + baseEntryId + "/cascade-reverse",
@@ -399,7 +405,6 @@ public class JournalEntryE2ETest extends AbstractIntegrationTest {
 
         Map<String, Object> jeRequest = Map.of(
                 "entryDate", LocalDate.now(),
-                "referenceNumber", "JE-E2E-" + System.currentTimeMillis(),
                 "memo", "Dealer payment",
                 "dealerId", dealer.getId(),
                 "lines", List.of(debitLine, creditLine)
@@ -439,7 +444,6 @@ public class JournalEntryE2ETest extends AbstractIntegrationTest {
 
         Map<String, Object> purchaseRequest = Map.of(
                 "entryDate", LocalDate.now(),
-                "referenceNumber", "JE-E2E-PO-" + System.currentTimeMillis(),
                 "memo", "Supplier purchase",
                 "supplierId", supplier.getId(),
                 "lines", List.of(purchaseDebit, purchaseCredit)
@@ -465,7 +469,6 @@ public class JournalEntryE2ETest extends AbstractIntegrationTest {
 
         Map<String, Object> jeRequest = Map.of(
                 "entryDate", LocalDate.now(),
-                "referenceNumber", "JE-E2E-" + System.currentTimeMillis(),
                 "memo", "Supplier payment",
                 "supplierId", supplier.getId(),
                 "lines", List.of(debitLine, creditLine)
@@ -516,7 +519,6 @@ public class JournalEntryE2ETest extends AbstractIntegrationTest {
 
         Map<String, Object> jeRequest = Map.of(
                 "entryDate", LocalDate.now(),
-                "referenceNumber", "JE-E2E-" + System.currentTimeMillis(),
                 "memo", "Test balanced entry",
                 "lines", List.of(debitLine, creditLine)
         );

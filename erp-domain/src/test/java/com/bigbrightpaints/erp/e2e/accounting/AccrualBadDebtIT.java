@@ -161,7 +161,6 @@ public class AccrualBadDebtIT extends AbstractIntegrationTest {
         );
         Map<String, Object> payload = Map.of(
                 "entryDate", LocalDate.now(),
-                "referenceNumber", "ACCR-INV-JE-" + System.currentTimeMillis(),
                 "memo", "Seed invoice posting",
                 "dealerId", dealer.getId(),
                 "lines", List.of(arLine, revLine)

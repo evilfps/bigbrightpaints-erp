@@ -138,7 +138,6 @@ class StatementAgingIT extends AbstractIntegrationTest {
         ResponseEntity<Map> resp = rest.exchange("/api/v1/accounting/journal-entries",
                 HttpMethod.POST,
                 new HttpEntity<>(Map.of(
-                        "referenceNumber", reference,
                         "entryDate", date,
                         "memo", reference,
                         "dealerId", dealer.getId(),

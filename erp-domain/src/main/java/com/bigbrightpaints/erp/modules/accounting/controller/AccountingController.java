@@ -138,10 +138,10 @@ public class AccountingController {
     @PostMapping("/journal-entries")
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
     public ResponseEntity<ApiResponse<JournalEntryDto>> createJournalEntry(@Valid @RequestBody JournalEntryRequest request) {
-        if (AccountingFacade.isReservedReferenceNamespace(request != null ? request.referenceNumber() : null)) {
+        if (request != null && org.springframework.util.StringUtils.hasText(request.referenceNumber())) {
             throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
-                    "Reference number is reserved for system journals; use MANUAL-... or omit referenceNumber")
-                    .withDetail("referenceNumber", request != null ? request.referenceNumber() : null);
+                    "Manual journal entries must not include referenceNumber; it is system-generated")
+                    .withDetail("referenceNumber", request.referenceNumber());
         }
         return ResponseEntity.ok(ApiResponse.success("Journal entry posted", accountingService.createJournalEntry(request)));
     }
