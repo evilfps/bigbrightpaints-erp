@@ -51,3 +51,6 @@
   - Code: `AccountingPeriodService.closePeriod` blocks closing when uninvoiced goods receipts exist; month-end checklist now reports uninvoiced receipts.
   - Tests: `PeriodCloseLockIT.closePeriodRejectsUninvoicedReceipts`.
   - Command: `scripts/verify_local.sh`.
+- 2026-01-28: EPIC 00 / M00.2 verified.
+  - Code: CODE-RED scripts no longer hard-depend on `rg`; CI now runs schema drift scan + triage steps.
+  - Tests: `scripts/schema_drift_scan.sh`, `scripts/triage_tests.sh`.
