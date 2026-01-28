@@ -54,3 +54,7 @@
 - 2026-01-28: EPIC 00 / M00.2 verified.
   - Code: CODE-RED scripts no longer hard-depend on `rg`; CI now runs schema drift scan + triage steps.
   - Tests: `scripts/schema_drift_scan.sh`, `scripts/triage_tests.sh`.
+- 2026-01-28: EPIC 01 / M01.4 verified.
+  - Code: `SalesService.confirmDispatch` fails closed when multiple slips exist for an order and no `packingSlipId` is provided.
+  - Tests: `SalesServiceTest.confirmDispatchRequiresPackingSlipIdWhenMultipleSlipsExist`.
+  - Command: `mvn -B -ntp -Dtest=SalesServiceTest test`.
