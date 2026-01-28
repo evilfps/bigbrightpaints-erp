@@ -9,6 +9,12 @@ REPORT_DIRS=(
 )
 
 found_any=false
+if command -v rg >/dev/null 2>&1; then
+  SEARCH_TOOL="rg"
+else
+  SEARCH_TOOL="grep"
+fi
+
 for dir in "${REPORT_DIRS[@]}"; do
   if [[ ! -d "$dir" ]]; then
     continue
@@ -24,9 +30,15 @@ for dir in "${REPORT_DIRS[@]}"; do
     while IFS= read -r line; do
       echo "$line"
     done < <(
-      rg -n "<testsuite " "${xmls[@]}" \
-        | rg -n "failures=\\\"[1-9]|errors=\\\"[1-9]" \
-        || true
+      if [[ "$SEARCH_TOOL" == "rg" ]]; then
+        rg -n "<testsuite " "${xmls[@]}" \
+          | rg -n "failures=\\\"[1-9]|errors=\\\"[1-9]" \
+          || true
+      else
+        grep -n -E "<testsuite " "${xmls[@]}" \
+          | grep -E "failures=\\\"[1-9]|errors=\\\"[1-9]" \
+          || true
+      fi
     )
   fi
 
@@ -34,7 +46,17 @@ for dir in "${REPORT_DIRS[@]}"; do
   txts=("$dir"/*.txt)
   if [[ -e "${txts[0]}" ]]; then
     for f in "${txts[@]}"; do
-      if rg -q "<<< FAILURE!|<<< ERROR!" "$f"; then
+      has_failure=false
+      if [[ "$SEARCH_TOOL" == "rg" ]]; then
+        if rg -q "<<< FAILURE!|<<< ERROR!" "$f"; then
+          has_failure=true
+        fi
+      else
+        if grep -q -E "<<< FAILURE!|<<< ERROR!" "$f"; then
+          has_failure=true
+        fi
+      fi
+      if [[ "$has_failure" == "true" ]]; then
         echo
         echo "[triage] $f (last 120 lines)"
         tail -n 120 "$f"
@@ -46,4 +68,3 @@ done
 if [[ "$found_any" != "true" ]]; then
   echo "[triage] no surefire/failsafe reports found (run tests first)"
 fi
-

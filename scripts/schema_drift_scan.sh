@@ -11,7 +11,14 @@ if [[ ! -d "$MIGRATIONS_DIR" ]]; then
   exit 2
 fi
 
+if command -v rg >/dev/null 2>&1; then
+  SEARCH_TOOL="rg"
+else
+  SEARCH_TOOL="grep"
+fi
+
 echo "[schema_drift_scan] scanning: $MIGRATIONS_DIR"
+echo "[schema_drift_scan] using: $SEARCH_TOOL"
 
 findings=0
 
@@ -20,7 +27,12 @@ scan_pattern() {
   local pattern="$2"
   echo
   echo "[schema_drift_scan] $label"
-  if rg -n --glob '*.sql' "$pattern" "$MIGRATIONS_DIR" >/tmp/schema_drift_scan.tmp 2>/dev/null; then
+  if [[ "$SEARCH_TOOL" == "rg" ]]; then
+    rg -n --glob '*.sql' "$pattern" "$MIGRATIONS_DIR" >/tmp/schema_drift_scan.tmp 2>/dev/null || true
+  else
+    grep -RIn --include='*.sql' -e "$pattern" "$MIGRATIONS_DIR" >/tmp/schema_drift_scan.tmp 2>/dev/null || true
+  fi
+  if [[ -s /tmp/schema_drift_scan.tmp ]]; then
     cat /tmp/schema_drift_scan.tmp
     findings=1
   else
@@ -39,19 +51,39 @@ echo "[schema_drift_scan] UPDATE + FROM backfills (review determinism)"
 update_files=()
 while IFS= read -r f; do
   update_files+=("$f")
-done < <(rg -l --glob '*.sql' "(?i)\\bUPDATE\\b" "$MIGRATIONS_DIR" || true)
+done < <(
+  if [[ "$SEARCH_TOOL" == "rg" ]]; then
+    rg -l --glob '*.sql' -i "\\bUPDATE\\b" "$MIGRATIONS_DIR" || true
+  else
+    grep -RIl --include='*.sql' -i -e "UPDATE" "$MIGRATIONS_DIR" || true
+  fi
+)
 
 if [[ "${#update_files[@]}" -eq 0 ]]; then
   echo "  (none)"
 else
   flagged=false
   for f in "${update_files[@]}"; do
-    if rg -q "(?i)\\bFROM\\b" "$f"; then
+    has_from=false
+    if [[ "$SEARCH_TOOL" == "rg" ]]; then
+      if rg -q -i "\\bFROM\\b" "$f"; then
+        has_from=true
+      fi
+    else
+      if grep -qi -e "FROM" "$f"; then
+        has_from=true
+      fi
+    fi
+    if [[ "$has_from" == "true" ]]; then
       flagged=true
       findings=1
       echo "  $f"
       # Show a small excerpt around UPDATE statements.
-      rg -n --glob '*.sql' "(?i)\\bUPDATE\\b|(?i)\\bFROM\\b" "$f" | head -n 30 || true
+      if [[ "$SEARCH_TOOL" == "rg" ]]; then
+        rg -n --glob '*.sql' -i "\\bUPDATE\\b|\\bFROM\\b" "$f" | head -n 30 || true
+      else
+        grep -n -i -E "UPDATE|FROM" "$f" | head -n 30 || true
+      fi
       echo "  ---"
     fi
   done
