@@ -2,18 +2,20 @@ package com.bigbrightpaints.erp.modules.hr.service;
 
 import com.bigbrightpaints.erp.core.audit.AuditEvent;
 import com.bigbrightpaints.erp.core.audit.AuditService;
+import com.bigbrightpaints.erp.core.exception.ApplicationException;
+import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
-import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryRequest.JournalLineRequest;
-import com.bigbrightpaints.erp.modules.accounting.service.AccountingService;
+import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.modules.hr.domain.*;
 import jakarta.transaction.Transactional;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
@@ -35,7 +37,7 @@ public class PayrollService {
     private final PayrollRunLineRepository payrollRunLineRepository;
     private final EmployeeRepository employeeRepository;
     private final AttendanceRepository attendanceRepository;
-    private final AccountingService accountingService;
+    private final AccountingFacade accountingFacade;
     private final AccountRepository accountRepository;
     private final CompanyContextService companyContextService;
     private final CompanyEntityLookup companyEntityLookup;
@@ -46,7 +48,7 @@ public class PayrollService {
                           PayrollRunLineRepository payrollRunLineRepository,
                           EmployeeRepository employeeRepository,
                           AttendanceRepository attendanceRepository,
-                          AccountingService accountingService,
+                          AccountingFacade accountingFacade,
                           AccountRepository accountRepository,
                           CompanyContextService companyContextService,
                           CompanyEntityLookup companyEntityLookup,
@@ -56,7 +58,7 @@ public class PayrollService {
         this.payrollRunLineRepository = payrollRunLineRepository;
         this.employeeRepository = employeeRepository;
         this.attendanceRepository = attendanceRepository;
-        this.accountingService = accountingService;
+        this.accountingFacade = accountingFacade;
         this.accountRepository = accountRepository;
         this.companyContextService = companyContextService;
         this.companyEntityLookup = companyEntityLookup;
@@ -72,6 +74,28 @@ public class PayrollService {
     @Transactional
     public PayrollRunDto createPayrollRun(CreatePayrollRunRequest request) {
         Company company = companyContextService.requireCurrentCompany();
+        if (request == null) {
+            throw new ApplicationException(ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD,
+                    "Payroll run request is required");
+        }
+        if (request.runType() == null) {
+            throw new ApplicationException(ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD,
+                    "Payroll run type is required");
+        }
+        if (request.periodStart() == null || request.periodEnd() == null) {
+            throw new ApplicationException(ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD,
+                    "Payroll period start/end dates are required");
+        }
+        if (request.periodEnd().isBefore(request.periodStart())) {
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                    "Payroll period end date cannot be before start date");
+        }
+        String idempotencyKey = buildIdempotencyKey(request);
+        Optional<PayrollRun> existing = payrollRunRepository.findByCompanyAndIdempotencyKey(company, idempotencyKey);
+        if (existing.isPresent()) {
+            return toDto(existing.get());
+        }
+
         String currentUser = getCurrentUser();
 
         PayrollRun run = new PayrollRun();
@@ -84,9 +108,18 @@ public class PayrollService {
         run.setRunNumber(generateRunNumber(company, request.runType(), request.periodStart()));
         run.setCreatedBy(currentUser);
         run.setRemarks(request.remarks());
+        run.setIdempotencyKey(idempotencyKey);
 
-        run = payrollRunRepository.save(run);
-        return toDto(run);
+        try {
+            run = payrollRunRepository.save(run);
+            return toDto(run);
+        } catch (DataIntegrityViolationException ex) {
+            Optional<PayrollRun> concurrent = payrollRunRepository.findByCompanyAndIdempotencyKey(company, idempotencyKey);
+            if (concurrent.isPresent()) {
+                return toDto(concurrent.get());
+            }
+            throw ex;
+        }
     }
 
     /**
@@ -364,17 +397,8 @@ public class PayrollService {
         if (postingDate == null || postingDate.isAfter(today)) {
             postingDate = today;
         }
-        JournalEntryRequest journalRequest = new JournalEntryRequest(
-            "PAYROLL-" + run.getRunNumber(),    // referenceNumber
-            postingDate,                         // entryDate
-            "Payroll - " + run.getRunNumber(),   // memo
-            null,                                // dealerId
-            null,                                // supplierId
-            false,                               // adminOverride
-            lines                                // lines
-        );
-
-        JournalEntryDto journal = accountingService.createJournalEntry(journalRequest);
+        String memo = "Payroll - " + run.getRunNumber();
+        JournalEntryDto journal = accountingFacade.postPayrollRun(run.getRunNumber(), postingDate, memo, lines);
 
         // Update run status
         run.setJournalEntryId(journal.id());
@@ -679,6 +703,14 @@ public class PayrollService {
     }
 
     // ===== HELPER METHODS =====
+
+    private String buildIdempotencyKey(CreatePayrollRunRequest request) {
+        return "PAYROLL:%s:%s:%s".formatted(
+                request.runType().name(),
+                request.periodStart(),
+                request.periodEnd()
+        );
+    }
 
     private String generateRunNumber(Company company, PayrollRun.RunType runType, LocalDate periodStart) {
         String prefix = runType == PayrollRun.RunType.WEEKLY ? "PR-W" : "PR-M";

@@ -151,9 +151,9 @@ Evidence artifacts
 ## EPIC 04 - HR / Payroll Canonicalization (Single Path)
 
 Milestones
-- M04.0 (BLOCKER): Enforce payroll run idempotency on the public payroll API (set and use `payroll_runs.idempotency_key`)
-- M04.1: Canonical payroll run creation and idempotency key (company + runType + period)
-- M04.2: Posting owned by AccountingFacade only; disable/route alternate posting paths
+- M04.0 (DONE): Enforce payroll run idempotency on the public payroll API (set and use `payroll_runs.idempotency_key`)
+- M04.1 (DONE): Canonical payroll run creation and idempotency key (company + runType + period)
+- M04.2 (DONE): Posting owned by AccountingFacade only; disable/route alternate posting paths
 
 Acceptance criteria
 - Payroll run cannot be duplicated for the same scope (idempotent).

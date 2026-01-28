@@ -1415,6 +1415,30 @@ public class AccountingFacade {
     /**
      * Record payroll payment via AccountingService wrapper.
      */
+    public JournalEntryDto postPayrollRun(String runNumber, LocalDate postingDate, String memo,
+                                          List<JournalEntryRequest.JournalLineRequest> lines) {
+        if (!StringUtils.hasText(runNumber)) {
+            throw new ApplicationException(ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD,
+                    "Payroll run number is required for posting");
+        }
+        Company company = companyContextService.requireCurrentCompany();
+        LocalDate entryDate = postingDate != null ? postingDate : companyClock.today(company);
+        String resolvedMemo = StringUtils.hasText(memo) ? memo : "Payroll - " + runNumber;
+        JournalEntryRequest request = new JournalEntryRequest(
+                "PAYROLL-" + runNumber,
+                entryDate,
+                resolvedMemo,
+                null,
+                null,
+                false,
+                lines
+        );
+        return accountingService.createJournalEntry(request);
+    }
+
+    /**
+     * Record payroll payment via AccountingService wrapper.
+     */
     public JournalEntryDto recordPayrollPayment(PayrollPaymentRequest request) {
         return accountingService.recordPayrollPayment(request);
     }
