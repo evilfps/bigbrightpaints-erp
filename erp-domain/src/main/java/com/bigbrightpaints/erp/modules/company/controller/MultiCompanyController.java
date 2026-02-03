@@ -1,6 +1,5 @@
 package com.bigbrightpaints.erp.modules.company.controller;
 
-import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.dto.CompanyDto;
 import com.bigbrightpaints.erp.modules.company.service.CompanyService;
 import com.bigbrightpaints.erp.shared.dto.ApiResponse;
@@ -39,15 +38,8 @@ public class MultiCompanyController {
         if (!member) {
             throw new AccessDeniedException("Not allowed to access company");
         }
-        Company company = companyService.findByCode(request.companyCode());
-        return ResponseEntity.ok(ApiResponse.success("Switched company",
-                new CompanyDto(
-                        company.getId(),
-                        company.getPublicId(),
-                        company.getName(),
-                        company.getCode(),
-                        company.getTimezone(),
-                        company.getDefaultGstRate())));
+        CompanyDto company = companyService.switchCompany(request.companyCode(), principal.getUser().getCompanies());
+        return ResponseEntity.ok(ApiResponse.success("Switched company", company));
     }
 
     public record SwitchCompanyRequest(@NotBlank String companyCode) {}

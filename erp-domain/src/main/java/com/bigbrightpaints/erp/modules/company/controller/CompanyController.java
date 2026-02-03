@@ -45,7 +45,8 @@ public class CompanyController {
         if (principal == null || principal.getUser().getCompanies().stream().noneMatch(c -> c.getId().equals(id))) {
             throw new org.springframework.security.access.AccessDeniedException("Not allowed to update company");
         }
-        return ResponseEntity.ok(ApiResponse.success("Company updated", companyService.update(id, request)));
+        return ResponseEntity.ok(ApiResponse.success("Company updated",
+                companyService.update(id, request, principal.getUser().getCompanies())));
     }
 
     @DeleteMapping("/{id}")

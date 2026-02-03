@@ -30,6 +30,7 @@ Purpose: a single, concrete list of **P0** items that block a safe enterprise de
   - Status (2026-02-03): ✅ Wildcard rejected + https enforced (localhost http allowed); tests: `SystemSettingsServiceCorsTest`.
 - Company membership enforcement must not depend only on controllers:
   - Any multi-company “switch” and any company update/delete path must enforce membership in the service layer too (defense-in-depth).
+  - Status (2026-02-03): ✅ service-layer membership checks for switch/update/delete; tests: `CompanyServiceTest`.
 - Identity vocabulary must be unambiguous (prevent future tenant isolation bugs):
   - `companyCode` is the tenant context string; reserve `companyId` for numeric DB ids.
   - Deprecate misleading header/claim/DTO names where `companyId` actually means `companyCode` (backward compatible parsing window).
