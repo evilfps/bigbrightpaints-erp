@@ -1,5 +1,18 @@
 # Decision Log (CODE-RED)
 
+## 2026-02-03 - COGS Slip-Scoped Truth + Movement Linkage
+Decision:
+- COGS journals are slip-scoped only (`COGS-<slipNumber>`); order-level COGS posting is disabled.
+- Dispatch inventory movements link to slips via `inventory_movements.packing_slip_id` and are linked to the slip’s COGS journal.
+
+Rationale:
+- Prevents duplicate COGS journals across order-level helpers and enforces correct linkage when multiple slips exist.
+
+Enforcement:
+- `SalesService.confirmDispatch(...)` links movements by slip id and only sets order-level COGS for single-slip orders.
+- `SalesFulfillmentService` disables order-level COGS posting and resolves COGS journals from slips.
+- `V120__inventory_movements_packaging_slip_id.sql` adds the slip linkage column; tests: `OrderFulfillmentE2ETest.dispatchConfirm_idempotent_andRestoresArtifacts`, `OrderFulfillmentE2ETest.partialDispatch_invoicesShippedQty_andCreatesBackorderSlip`, `SalesFulfillmentServiceTest.forcesOrderLevelCogsPostingDisabled`.
+
 ## 2026-02-03 - Sales Journal Canonical Reference + Alias Mapping
 Decision:
 - Dispatch-truth AR/Revenue journals use `INV-<orderNumber>` when a single slip exists, and

@@ -29,6 +29,9 @@ public class InventoryMovement extends VersionedEntity {
     @Column(name = "reference_id", nullable = false)
     private String referenceId;
 
+    @Column(name = "packing_slip_id")
+    private Long packingSlipId;
+
     @Column(name = "movement_type", nullable = false)
     private String movementType;
 
@@ -60,6 +63,8 @@ public class InventoryMovement extends VersionedEntity {
     public void setReferenceType(String referenceType) { this.referenceType = referenceType; }
     public String getReferenceId() { return referenceId; }
     public void setReferenceId(String referenceId) { this.referenceId = referenceId; }
+    public Long getPackingSlipId() { return packingSlipId; }
+    public void setPackingSlipId(Long packingSlipId) { this.packingSlipId = packingSlipId; }
     public String getMovementType() { return movementType; }
     public void setMovementType(String movementType) { this.movementType = movementType; }
     public BigDecimal getQuantity() { return quantity; }

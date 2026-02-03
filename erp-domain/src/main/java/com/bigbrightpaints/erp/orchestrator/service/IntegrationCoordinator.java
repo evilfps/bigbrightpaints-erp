@@ -7,7 +7,6 @@ import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.modules.accounting.dto.AccountDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
-import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.PayrollPaymentRequest;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
@@ -169,63 +168,6 @@ public class IntegrationCoordinator {
     public Long createAccountingEntry(String orderId, String companyId) {
         throw new IllegalStateException(
                 "Order-truth journal posting is disabled (CODE-RED). Use dispatch confirmation for invoicing/posting.");
-    }
-
-    private void postCogsEntry(SalesOrder order, List<FinishedGoodsService.DispatchPosting> postings) {
-        if (postings == null || postings.isEmpty()) {
-            return;
-        }
-        String orderNumber = order.getOrderNumber();
-        Long dealerId = order.getDealer() != null ? order.getDealer().getId() : null;
-        Map<String, BigDecimal> costByPair = new HashMap<>();
-        Map<String, Long[]> accountsByPair = new HashMap<>();
-        for (int index = 0; index < postings.size(); index++) {
-            FinishedGoodsService.DispatchPosting posting = postings.get(index);
-            if (posting.cogsAccountId() == null || posting.inventoryAccountId() == null) {
-                log.warn("Skipping COGS posting for order {} idx {} due to missing account mapping (cogsAccountId={}, inventoryAccountId={})",
-                        orderNumber, index, posting.cogsAccountId(), posting.inventoryAccountId());
-                continue;
-            }
-            BigDecimal cost = posting.cost();
-            if (cost == null || cost.compareTo(BigDecimal.ZERO) <= 0) {
-                log.warn("Skipping COGS posting for order {} idx {} because cost is null/zero (value={})", orderNumber, index, cost);
-                continue;
-            }
-            String key = posting.cogsAccountId() + ":" + posting.inventoryAccountId();
-            costByPair.merge(key, cost, BigDecimal::add);
-            accountsByPair.putIfAbsent(key, new Long[]{posting.cogsAccountId(), posting.inventoryAccountId()});
-        }
-        if (costByPair.isEmpty()) {
-            return;
-        }
-        List<JournalEntryRequest.JournalLineRequest> lines = new java.util.ArrayList<>();
-        for (Map.Entry<String, BigDecimal> entry : costByPair.entrySet()) {
-            BigDecimal cost = entry.getValue();
-            if (cost == null || cost.compareTo(BigDecimal.ZERO) <= 0) {
-                continue;
-            }
-            Long[] accounts = accountsByPair.get(entry.getKey());
-            lines.add(new JournalEntryRequest.JournalLineRequest(
-                    accounts[0],
-                    "COGS posting for order " + orderNumber,
-                    cost,
-                    BigDecimal.ZERO));
-            lines.add(new JournalEntryRequest.JournalLineRequest(
-                    accounts[1],
-                    "Inventory relief for order " + orderNumber,
-                    BigDecimal.ZERO,
-                    cost));
-        }
-        if (lines.isEmpty()) {
-            return;
-        }
-        accountingFacade.postCogsJournal(
-                orderNumber,
-                dealerId,
-                companyClock.today(order.getCompany()),
-                "COGS posting for order " + orderNumber,
-                lines
-        );
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)

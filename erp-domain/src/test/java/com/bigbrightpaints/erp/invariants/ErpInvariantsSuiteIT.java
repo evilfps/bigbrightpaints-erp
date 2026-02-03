@@ -979,7 +979,21 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
             assertThat(advanceDebit).isEqualByComparingTo(BigDecimal.ZERO);
         }
 
-        Map<String, Object> markPaidReq = Map.of("paymentReference", "PAYROLL-PAY-001");
+        String paymentReference = "PAYROLL-PAY-" + runId;
+        Account cashAccount = accountRepository.findByCompanyAndCodeIgnoreCase(company, "CASH")
+                .orElseThrow(() -> new AssertionError("Cash account missing"));
+        Account salaryExpenseAccount = accountRepository.findByCompanyAndCodeIgnoreCase(company, "SALARY-EXP")
+                .orElseThrow(() -> new AssertionError("Salary expense account missing"));
+        Map<String, Object> paymentReq = new HashMap<>();
+        paymentReq.put("payrollRunId", runId);
+        paymentReq.put("cashAccountId", cashAccount.getId());
+        paymentReq.put("expenseAccountId", salaryExpenseAccount.getId());
+        paymentReq.put("amount", totalNetPay);
+        paymentReq.put("referenceNumber", paymentReference);
+        rest.exchange("/api/v1/accounting/payroll/payments",
+                HttpMethod.POST, new HttpEntity<>(paymentReq, headers), Map.class);
+
+        Map<String, Object> markPaidReq = Map.of("paymentReference", paymentReference);
         rest.exchange("/api/v1/payroll/runs/" + runId + "/mark-paid",
                 HttpMethod.POST, new HttpEntity<>(markPaidReq, headers), Map.class);
 

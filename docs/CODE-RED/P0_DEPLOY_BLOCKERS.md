@@ -43,6 +43,7 @@ Purpose: a single, concrete list of **P0** items that block a safe enterprise de
 - Orchestrator “lightweight dispatch” endpoints (`/api/v1/orchestrator/dispatch*`) are hard deprecated (always 410 + canonicalPath).
 - Sales COGS posting must be single-truth:
   - COGS/Inventory relief must only be posted by dispatch-confirm (per-slip reference), not by any alternate “order fulfillment” helper.
+  - Status (2026-02-03): ✅ slip-scoped COGS enforced + order-level posting disabled; tests: `OrderFulfillmentE2ETest.dispatchConfirm_idempotent_andRestoresArtifacts`, `OrderFulfillmentE2ETest.partialDispatch_invoicesShippedQty_andCreatesBackorderSlip`, `SalesFulfillmentServiceTest.forcesOrderLevelCogsPostingDisabled`.
 - Sales AR/Revenue posting must be single-truth:
   - Sales journals must dedupe across the canonical dispatch reference (`INV-<orderNumber>` for single-slip, `INV-<orderNumber>-<slipNumber>` for multi-slip) and any custom invoice-number reference.
   - Dispatch confirm must not create a second AR/Revenue journal if the canonical dispatch reference already exists (even if not linked on the order).

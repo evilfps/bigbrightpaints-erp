@@ -8,6 +8,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
+import com.bigbrightpaints.erp.modules.inventory.domain.PackagingSlipRepository;
 import com.bigbrightpaints.erp.modules.inventory.service.FinishedGoodsService;
 import com.bigbrightpaints.erp.modules.invoice.dto.InvoiceDto;
 import com.bigbrightpaints.erp.modules.invoice.service.InvoiceService;
@@ -36,6 +37,8 @@ class SalesFulfillmentServiceTest {
     @Mock
     private FinishedGoodsService finishedGoodsService;
     @Mock
+    private PackagingSlipRepository packagingSlipRepository;
+    @Mock
     private SalesJournalService salesJournalService;
     @Mock
     private AccountingFacade accountingFacade;
@@ -52,6 +55,7 @@ class SalesFulfillmentServiceTest {
                 salesService,
                 salesOrderRepository,
                 finishedGoodsService,
+                packagingSlipRepository,
                 salesJournalService,
                 accountingFacade,
                 invoiceService,
@@ -125,7 +129,7 @@ class SalesFulfillmentServiceTest {
     }
 
     @Test
-    void skipsCogsPostingWhenReferenceAlreadyExists() {
+    void forcesOrderLevelCogsPostingDisabled() {
         SalesOrder order = new SalesOrder();
         setField(order, "id", 3L);
         order.setOrderNumber("SO-3");

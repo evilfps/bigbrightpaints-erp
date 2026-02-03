@@ -420,10 +420,11 @@ public class OrderFulfillmentE2ETest extends AbstractIntegrationTest {
         assertThat(slip.getInvoiceId()).isEqualTo(invoiceId);
 
         long dispatchMovementsBefore = inventoryMovementRepository
-                .findByReferenceTypeAndReferenceIdOrderByCreatedAtAsc(InventoryReference.SALES_ORDER, orderId.toString())
-                .stream()
-                .filter(m -> "DISPATCH".equalsIgnoreCase(m.getMovementType()))
-                .count();
+                .findByFinishedGood_CompanyAndPackingSlipIdAndMovementTypeIgnoreCaseOrderByCreatedAtAsc(
+                        company,
+                        slipId,
+                        "DISPATCH")
+                .size();
 
         // Simulate partial artifact loss: clear slip + order links only
         slip.setInvoiceId(null);
@@ -457,10 +458,11 @@ public class OrderFulfillmentE2ETest extends AbstractIntegrationTest {
         assertThat(orderAfter.getCogsJournalEntryId()).isEqualTo(cogsJournalId);
 
         long dispatchMovementsAfter = inventoryMovementRepository
-                .findByReferenceTypeAndReferenceIdOrderByCreatedAtAsc(InventoryReference.SALES_ORDER, orderId.toString())
-                .stream()
-                .filter(m -> "DISPATCH".equalsIgnoreCase(m.getMovementType()))
-                .count();
+                .findByFinishedGood_CompanyAndPackingSlipIdAndMovementTypeIgnoreCaseOrderByCreatedAtAsc(
+                        company,
+                        slipId,
+                        "DISPATCH")
+                .size();
         assertThat(dispatchMovementsAfter).isEqualTo(dispatchMovementsBefore);
 
         String invoiceNumber = invoiceRepository.findByCompanyAndId(company, invoiceId).orElseThrow().getInvoiceNumber();
@@ -469,6 +471,12 @@ public class OrderFulfillmentE2ETest extends AbstractIntegrationTest {
                 .get()
                 .extracting(entry -> entry.getId())
                 .isEqualTo(arJournalId);
+        String cogsReference = "COGS-" + slip.getSlipNumber();
+        assertThat(journalReferenceResolver.findExistingEntry(company, cogsReference))
+                .isPresent()
+                .get()
+                .extracting(entry -> entry.getId())
+                .isEqualTo(cogsJournalId);
     }
 
     @Test
@@ -508,10 +516,11 @@ public class OrderFulfillmentE2ETest extends AbstractIntegrationTest {
         assertThat(cogsJournalId).isNotNull();
 
         long dispatchMovementsBefore = inventoryMovementRepository
-                .findByReferenceTypeAndReferenceIdOrderByCreatedAtAsc(InventoryReference.SALES_ORDER, orderId.toString())
-                .stream()
-                .filter(m -> "DISPATCH".equalsIgnoreCase(m.getMovementType()))
-                .count();
+                .findByFinishedGood_CompanyAndPackingSlipIdAndMovementTypeIgnoreCaseOrderByCreatedAtAsc(
+                        company,
+                        slip.getId(),
+                        "DISPATCH")
+                .size();
 
         Map<String, Object> salesDispatchReq = Map.of(
                 "orderId", orderId,
@@ -531,10 +540,11 @@ public class OrderFulfillmentE2ETest extends AbstractIntegrationTest {
         assertThat(afterSales.getCogsJournalEntryId()).isEqualTo(cogsJournalId);
 
         long dispatchMovementsAfter = inventoryMovementRepository
-                .findByReferenceTypeAndReferenceIdOrderByCreatedAtAsc(InventoryReference.SALES_ORDER, orderId.toString())
-                .stream()
-                .filter(m -> "DISPATCH".equalsIgnoreCase(m.getMovementType()))
-                .count();
+                .findByFinishedGood_CompanyAndPackingSlipIdAndMovementTypeIgnoreCaseOrderByCreatedAtAsc(
+                        company,
+                        slip.getId(),
+                        "DISPATCH")
+                .size();
         assertThat(dispatchMovementsAfter).isEqualTo(dispatchMovementsBefore);
     }
 
@@ -582,9 +592,10 @@ public class OrderFulfillmentE2ETest extends AbstractIntegrationTest {
         assertThat(totalCredits).isEqualByComparingTo(expectedCost);
 
         inventoryMovementRepository
-                .findByReferenceTypeAndReferenceIdOrderByCreatedAtAsc(InventoryReference.SALES_ORDER, orderId.toString())
-                .stream()
-                .filter(m -> "DISPATCH".equalsIgnoreCase(m.getMovementType()))
+                .findByFinishedGood_CompanyAndPackingSlipIdAndMovementTypeIgnoreCaseOrderByCreatedAtAsc(
+                        company,
+                        slip.getId(),
+                        "DISPATCH")
                 .forEach(m -> assertThat(m.getJournalEntryId()).isEqualTo(cogsJournalId));
     }
 
@@ -656,6 +667,25 @@ public class OrderFulfillmentE2ETest extends AbstractIntegrationTest {
         PackagingSlip refreshedBackorder = packagingSlipRepository.findById(backorderSlip.getId()).orElseThrow();
         assertThat(refreshedBackorder.getStatus()).isEqualTo("DISPATCHED");
         assertThat(refreshedBackorder.getInvoiceId()).isEqualTo(backorderInvoiceId);
+        PackagingSlip refreshedOriginal = packagingSlipRepository.findById(slip.getId()).orElseThrow();
+        Long originalCogsJournalId = refreshedOriginal.getCogsJournalEntryId();
+        Long backorderCogsJournalId = refreshedBackorder.getCogsJournalEntryId();
+        assertThat(originalCogsJournalId).isNotNull();
+        assertThat(backorderCogsJournalId).isNotNull();
+        assertThat(backorderCogsJournalId).isNotEqualTo(originalCogsJournalId);
+
+        inventoryMovementRepository
+                .findByFinishedGood_CompanyAndPackingSlipIdAndMovementTypeIgnoreCaseOrderByCreatedAtAsc(
+                        company,
+                        refreshedOriginal.getId(),
+                        "DISPATCH")
+                .forEach(m -> assertThat(m.getJournalEntryId()).isEqualTo(originalCogsJournalId));
+        inventoryMovementRepository
+                .findByFinishedGood_CompanyAndPackingSlipIdAndMovementTypeIgnoreCaseOrderByCreatedAtAsc(
+                        company,
+                        refreshedBackorder.getId(),
+                        "DISPATCH")
+                .forEach(m -> assertThat(m.getJournalEntryId()).isEqualTo(backorderCogsJournalId));
 
         BigDecimal dispatchedQty = inventoryMovementRepository
                 .findByReferenceTypeAndReferenceIdOrderByCreatedAtAsc(InventoryReference.SALES_ORDER, orderId.toString())

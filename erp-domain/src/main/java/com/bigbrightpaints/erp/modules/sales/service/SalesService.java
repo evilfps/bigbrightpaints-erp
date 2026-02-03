@@ -1455,12 +1455,13 @@ public class SalesService {
                 if (slipUpdated) {
                     packagingSlipRepository.save(slip);
                 }
+                boolean singleSlipForOrder = hasSingleSlipForOrder(company, order);
                 boolean orderUpdated = false;
                 if (order.getSalesJournalEntryId() == null && existingJeId != null) {
                     order.setSalesJournalEntryId(existingJeId);
                     orderUpdated = true;
                 }
-                if (order.getCogsJournalEntryId() == null && existingCogsJournalId != null) {
+                if (order.getCogsJournalEntryId() == null && existingCogsJournalId != null && singleSlipForOrder) {
                     order.setCogsJournalEntryId(existingCogsJournalId);
                     orderUpdated = true;
                 }
@@ -1475,6 +1476,9 @@ public class SalesService {
                 }
                 if (orderUpdated) {
                     salesOrderRepository.save(order);
+                }
+                if (existingCogsJournalId != null) {
+                    finishedGoodsService.linkDispatchMovementsToJournal(slip.getId(), existingCogsJournalId);
                 }
                 logDispatchAudit(slip, order, existingInvoice, existingJeId, existingCogsJournalId,
                         existingInvoice != null ? existingInvoice.getTotalAmount() : null, true, false, null);
@@ -1989,7 +1993,7 @@ public class SalesService {
             }
         }
         if (cogsJournalId != null) {
-            finishedGoodsService.linkDispatchMovementsToJournal(order.getId(), cogsJournalId);
+            finishedGoodsService.linkDispatchMovementsToJournal(slip.getId(), cogsJournalId);
         }
 
         String invoiceNumber = existingInvoice != null
@@ -2077,7 +2081,7 @@ public class SalesService {
         if (arJournalEntryId != null && order.getSalesJournalEntryId() == null && singleSlipForOrder) {
             order.setSalesJournalEntryId(arJournalEntryId);
         }
-        if (cogsJournalId != null && order.getCogsJournalEntryId() == null) {
+        if (cogsJournalId != null && order.getCogsJournalEntryId() == null && singleSlipForOrder) {
             order.setCogsJournalEntryId(cogsJournalId);
         }
         if (invoice.getId() != null && order.getFulfillmentInvoiceId() == null) {

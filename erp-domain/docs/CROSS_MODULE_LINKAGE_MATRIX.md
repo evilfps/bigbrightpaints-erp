@@ -98,6 +98,7 @@ Linkage keys observed in entities (primary keys, FK columns, and reference field
 - `dealer_ledger_entries.invoice_number` -> `invoices.invoice_number`.
 - `partner_settlement_allocations.invoice_id` -> `invoices.id`; `partner_settlement_allocations.journal_entry_id` -> `journal_entries.id`.
 - `packaging_slip_lines.packaging_slip_id` -> `packaging_slips.id`; `packaging_slip_lines.finished_good_batch_id` -> `finished_good_batches.id`.
+- `inventory_movements.packing_slip_id` -> `packaging_slips.id` (dispatch movement linkage).
 - `inventory_movements.reference_type=SALES_ORDER` and `inventory_reservations.reference_type=SALES_ORDER` use `reference_id = sales_orders.id` (InventoryReference.SALES_ORDER).
 
 ### Procure-to-Pay (P2P)

@@ -49,7 +49,7 @@ public class OrchestratorIdempotencyService {
         try {
             String traceId = traceIdSupplier.get();
             OrchestratorCommand command = new OrchestratorCommand(company.getId(), commandName, key, requestHash, traceId);
-            commandRepository.save(command);
+            commandRepository.saveAndFlush(command);
             return new CommandLease(traceId, command, true);
         } catch (DataIntegrityViolationException ex) {
             OrchestratorCommand existing = commandRepository.lockByScope(company.getId(), commandName, key)
@@ -78,7 +78,6 @@ public class OrchestratorIdempotencyService {
             return;
         }
         command.markSuccess();
-        commandRepository.save(command);
     }
 
     public void markFailed(OrchestratorCommand command, RuntimeException ex) {
@@ -90,7 +89,6 @@ public class OrchestratorIdempotencyService {
             message = ex != null ? ex.getClass().getSimpleName() : "FAILED";
         }
         command.markFailed(message);
-        commandRepository.save(command);
     }
 
     private String normalizeKey(String idempotencyKey) {
@@ -120,4 +118,3 @@ public class OrchestratorIdempotencyService {
         }
     }
 }
-

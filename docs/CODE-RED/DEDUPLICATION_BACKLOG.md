@@ -32,6 +32,7 @@ Reference docs:
   - Additional P0 guard: forbid any alternate COGS posting path that can double-post with a different reference namespace.
     - Risk: `SalesFulfillmentService` can post COGS by order number, while dispatch confirm posts COGS by slip number.
     - Action: remove/prod-gate non-canonical COGS posting and standardize COGS idempotency reference to per-slip (`COGS-<slipNumber>`).
+    - Status (2026-02-03): ✅ order-level COGS posting disabled; slip-scoped COGS linkage enforced; tests: `OrderFulfillmentE2ETest.dispatchCogs_matchesSlipUnitCosts_andLinksMovements`, `OrderFulfillmentE2ETest.partialDispatch_invoicesShippedQty_andCreatesBackorderSlip`, `SalesFulfillmentServiceTest.forcesOrderLevelCogsPostingDisabled`.
   - Additional P0 guard: forbid AR/Revenue double-posting when a canonical dispatch sales journal already exists.
     - Risk: dispatch confirm may provide `invoiceNumber` and unintentionally create a second AR/Revenue journal even if the canonical dispatch
       reference already exists (`INV-<orderNumber>` for single-slip, `INV-<orderNumber>-<slipNumber>` for multi-slip).

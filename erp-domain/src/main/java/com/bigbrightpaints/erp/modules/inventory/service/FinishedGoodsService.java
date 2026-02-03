@@ -226,7 +226,7 @@ public class FinishedGoodsService {
         wacCache.remove(finishedGood.getId());
 
         recordMovement(finishedGood, savedBatch, InventoryReference.MANUFACTURING_ORDER, savedBatch.getPublicId().toString(),
-                "RECEIPT", quantity, unitCost);
+                "RECEIPT", quantity, unitCost, null);
 
         return toBatchDto(savedBatch);
     }
@@ -406,7 +406,7 @@ public class FinishedGoodsService {
 
             // Record release movement
             recordMovement(fg, batch, InventoryReference.SALES_ORDER, orderId.toString(),
-                    "RELEASE", reservedQty, batch != null ? batch.getUnitCost() : BigDecimal.ZERO);
+                    "RELEASE", reservedQty, batch != null ? batch.getUnitCost() : BigDecimal.ZERO, null);
 
             reservation.setStatus("CANCELLED");
             reservation.setReservedQuantity(BigDecimal.ZERO);
@@ -589,7 +589,7 @@ public class FinishedGoodsService {
                 batch.setQuantityTotal(batchTotal.subtract(shipQty));
                 batchesToSave.add(batch);
             }
-            recordMovement(fg, batch, InventoryReference.SALES_ORDER, salesOrderId.toString(), "DISPATCH", shipQty, unitCost);
+            recordMovement(fg, batch, InventoryReference.SALES_ORDER, salesOrderId.toString(), "DISPATCH", shipQty, unitCost, slip.getId());
 
             String postingKey = fg.getValuationAccountId() + ":" + fg.getCogsAccountId();
             postingBuilders
@@ -877,7 +877,7 @@ public class FinishedGoodsService {
                 totalCogsCost = totalCogsCost.add(shipped.multiply(unitCost));
 
                 recordMovement(fg, batch, InventoryReference.SALES_ORDER, order.getId().toString(), 
-                        "DISPATCH", shipped, unitCost);
+                        "DISPATCH", shipped, unitCost, slip.getId());
             }
 
             if (shipped.compareTo(BigDecimal.ZERO) > 0) {
@@ -1368,7 +1368,7 @@ public class FinishedGoodsService {
             reservation.setStatus("RESERVED");
             inventoryReservationRepository.save(reservation);
 
-            recordMovement(finishedGood, batch, InventoryReference.SALES_ORDER, order.getId().toString(), "RESERVE", allocation, batch.getUnitCost());
+            recordMovement(finishedGood, batch, InventoryReference.SALES_ORDER, order.getId().toString(), "RESERVE", allocation, batch.getUnitCost(), null);
             remaining = remaining.subtract(allocation);
         }
 
@@ -1496,12 +1496,14 @@ public class FinishedGoodsService {
                                 String referenceId,
                                 String movementType,
                                 BigDecimal quantity,
-                                BigDecimal unitCost) {
+                                BigDecimal unitCost,
+                                Long packingSlipId) {
         InventoryMovement movement = new InventoryMovement();
         movement.setFinishedGood(finishedGood);
         movement.setFinishedGoodBatch(batch);
         movement.setReferenceType(referenceType);
         movement.setReferenceId(referenceId);
+        movement.setPackingSlipId(packingSlipId);
         movement.setMovementType(movementType);
         movement.setQuantity(quantity);
         movement.setUnitCost(unitCost);
@@ -1599,16 +1601,16 @@ public class FinishedGoodsService {
     }
 
     @Transactional
-    public void linkDispatchMovementsToJournal(Long salesOrderId, Long journalEntryId) {
-        if (salesOrderId == null || journalEntryId == null) {
+    public void linkDispatchMovementsToJournal(Long packingSlipId, Long journalEntryId) {
+        if (packingSlipId == null || journalEntryId == null) {
             return;
         }
         Company company = companyContextService.requireCurrentCompany();
         List<InventoryMovement> movements = inventoryMovementRepository
-                .findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdOrderByCreatedAtAsc(
+                .findByFinishedGood_CompanyAndPackingSlipIdAndMovementTypeIgnoreCaseOrderByCreatedAtAsc(
                         company,
-                        InventoryReference.SALES_ORDER,
-                        salesOrderId.toString());
+                        packingSlipId,
+                        "DISPATCH");
         if (movements.isEmpty()) {
             return;
         }
