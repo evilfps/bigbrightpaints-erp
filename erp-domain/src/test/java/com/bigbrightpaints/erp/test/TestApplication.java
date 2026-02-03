@@ -11,6 +11,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 @SpringBootApplication
 @EnableConfigurationProperties({JwtProperties.class, EmailProperties.class})
 @ComponentScan(basePackages = {
+        "com.bigbrightpaints.erp.controller",
         "com.bigbrightpaints.erp.core",
         "com.bigbrightpaints.erp.modules",
         "com.bigbrightpaints.erp.orchestrator",

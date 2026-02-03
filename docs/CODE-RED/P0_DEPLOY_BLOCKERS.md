@@ -13,11 +13,13 @@ Purpose: a single, concrete list of **P0** items that block a safe enterprise de
   - Add tests for header spoofing attempts on orchestrator endpoints.
   - Status (2026-02-03): ✅ company header/claim mismatch fails closed; tests: `OrchestratorControllerIT`.
 - Orchestrator health endpoints must require ops/admin authorization in non-dev environments.
+  - Status (2026-02-03): ✅ admin-only in prod; tests: `CR_HealthEndpointProdHardeningIT`.
 - Company context must not be header-only for unauthenticated requests:
   - Fix: do not set `CompanyContextHolder` from `X-Company-Id` unless the request is authenticated (JWT `cid`).
   - Status (2026-02-03): ✅ unauthenticated headers ignored; authenticated requests require company claim (fail closed).
 - Public health surfaces must be intentional:
   - `/api/integration/health` should be secured (prefer actuator health) or proven safe as an unauthenticated surface.
+  - Status (2026-02-03): ✅ endpoint secured (ROLE_ADMIN); tests: `CR_HealthEndpointProdHardeningIT`.
 - Actuator + docs must be prod-hardened (public attack surface):
   - Prod stance: do not expose Swagger/OpenAPI (`/swagger-ui/**`, `/v3/**`) unless explicitly secured on a management port.
   - Actuator exposure must be minimal (prefer `health` + `info` only) and must not leak details.
