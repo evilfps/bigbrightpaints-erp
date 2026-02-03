@@ -1,6 +1,6 @@
 # CODE-RED P0 Deploy Blockers (Must Fix or Prod-Gate)
 
-Last updated: 2026-02-02
+Last updated: 2026-02-03
 
 Purpose: a single, concrete list of **P0** items that block a safe enterprise deploy. For details, see:
 - `docs/CODE-RED/plan-v2.md`
@@ -19,9 +19,11 @@ Purpose: a single, concrete list of **P0** items that block a safe enterprise de
 - Actuator + docs must be prod-hardened (public attack surface):
   - Prod stance: do not expose Swagger/OpenAPI (`/swagger-ui/**`, `/v3/**`) unless explicitly secured on a management port.
   - Actuator exposure must be minimal (prefer `health` + `info` only) and must not leak details.
+  - Status (2026-02-03): ✅ Swagger/OpenAPI disabled in prod, actuator info env disabled; tests: `CR_SwaggerProdHardeningIT`, `CR_ActuatorProdHardeningIT`.
 - CORS must be safe by default:
   - Reject wildcard origins (`*`) in settings when credentials are enabled; prefer explicit HTTPS origins.
   - Add tests for invalid origin updates + regression tests for preflight behavior.
+  - Status (2026-02-03): ✅ Wildcard rejected + https enforced (localhost http allowed); tests: `SystemSettingsServiceCorsTest`.
 - Company membership enforcement must not depend only on controllers:
   - Any multi-company “switch” and any company update/delete path must enforce membership in the service layer too (defense-in-depth).
 - Identity vocabulary must be unambiguous (prevent future tenant isolation bugs):

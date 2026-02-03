@@ -9,10 +9,14 @@ import com.bigbrightpaints.erp.modules.admin.dto.SystemSettingsUpdateRequest;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.stream.Collectors;
 import java.util.Map;
+import java.net.URI;
 
 /**
  * Holds runtime-tunable settings that can be updated via the admin API.
@@ -35,10 +39,11 @@ public class SystemSettingsService {
     private static final String KEY_MAIL_BASE_URL = "mail.base-url";
     private static final String KEY_SEND_CREDS = "mail.send-credentials";
     private static final String KEY_SEND_RESET = "mail.send-password-reset";
+    private static final Set<String> LOOPBACK_HOSTS = Set.of("localhost", "127.0.0.1", "::1");
 
     public SystemSettingsService(EmailProperties emailProperties,
                                  SystemSettingsRepository settingsRepository,
-                                 @Value("${erp.cors.allowed-origins:http://localhost:3002,http://192.168.1.8:3002}") String corsOrigins,
+                                 @Value("${erp.cors.allowed-origins:http://localhost:3002}") String corsOrigins,
                                  @Value("${erp.auto-approval.enabled:true}") boolean autoApprovalEnabled,
                                  @Value("${erp.period-lock.enforced:true}") boolean periodLockEnforced) {
         this.emailProperties = emailProperties;
@@ -71,8 +76,9 @@ public class SystemSettingsService {
         if (origins == null || origins.isEmpty()) {
             return;
         }
+        List<String> normalizedOrigins = validateOrigins(origins);
         allowedOrigins.clear();
-        allowedOrigins.addAll(origins.stream().map(String::trim).filter(s -> !s.isBlank()).toList());
+        allowedOrigins.addAll(normalizedOrigins);
         settingsRepository.save(new SystemSetting(KEY_ALLOWED_ORIGINS, String.join(",", allowedOrigins)));
     }
 
@@ -158,10 +164,69 @@ public class SystemSettingsService {
         if (corsOrigins == null || corsOrigins.isBlank()) {
             return List.of();
         }
-        return Arrays.stream(corsOrigins.split(","))
+        return validateOrigins(Arrays.stream(corsOrigins.split(","))
                 .map(String::trim)
                 .filter(s -> !s.isBlank())
-                .collect(Collectors.toList());
+                .collect(Collectors.toList()));
+    }
+
+    private List<String> validateOrigins(List<String> origins) {
+        if (origins == null || origins.isEmpty()) {
+            return List.of();
+        }
+        List<String> invalidOrigins = new ArrayList<>();
+        Set<String> normalizedOrigins = new LinkedHashSet<>();
+        for (String rawOrigin : origins) {
+            if (rawOrigin == null || rawOrigin.isBlank()) {
+                continue;
+            }
+            String origin = rawOrigin.trim();
+            if (origin.contains("*")) {
+                invalidOrigins.add(origin);
+                continue;
+            }
+            URI uri;
+            try {
+                uri = URI.create(origin);
+            } catch (IllegalArgumentException ex) {
+                invalidOrigins.add(origin);
+                continue;
+            }
+            String scheme = uri.getScheme();
+            String host = uri.getHost();
+            if (scheme == null || host == null) {
+                invalidOrigins.add(origin);
+                continue;
+            }
+            if (uri.getUserInfo() != null || uri.getQuery() != null || uri.getFragment() != null) {
+                invalidOrigins.add(origin);
+                continue;
+            }
+            String path = uri.getPath();
+            if (path != null && !path.isEmpty() && !"/".equals(path)) {
+                invalidOrigins.add(origin);
+                continue;
+            }
+            String normalizedScheme = scheme.toLowerCase(Locale.ROOT);
+            String normalizedHost = host.toLowerCase(Locale.ROOT);
+            boolean httpsAllowed = "https".equals(normalizedScheme);
+            boolean httpLocalAllowed = "http".equals(normalizedScheme) && LOOPBACK_HOSTS.contains(normalizedHost);
+            if (!httpsAllowed && !httpLocalAllowed) {
+                invalidOrigins.add(origin);
+                continue;
+            }
+            String normalizedOrigin = normalizedScheme + "://" + normalizedHost;
+            if (uri.getPort() != -1) {
+                normalizedOrigin = normalizedOrigin + ":" + uri.getPort();
+            }
+            normalizedOrigins.add(normalizedOrigin);
+        }
+        if (!invalidOrigins.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "Invalid CORS origins (must be https, without wildcards; http allowed only for localhost): "
+                            + invalidOrigins);
+        }
+        return new ArrayList<>(normalizedOrigins);
     }
 
     private boolean parseBool(String value) {
