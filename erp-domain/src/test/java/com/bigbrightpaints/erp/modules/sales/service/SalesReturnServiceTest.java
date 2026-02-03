@@ -18,9 +18,9 @@ import com.bigbrightpaints.erp.modules.inventory.service.BatchNumberService;
 import com.bigbrightpaints.erp.modules.inventory.service.FinishedGoodsService;
 import com.bigbrightpaints.erp.modules.invoice.domain.Invoice;
 import com.bigbrightpaints.erp.modules.invoice.domain.InvoiceLine;
+import com.bigbrightpaints.erp.modules.invoice.domain.InvoiceRepository;
 import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrder;
-import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -65,11 +65,11 @@ class SalesReturnServiceTest {
     @Mock
     private AccountingFacade accountingFacade;
     @Mock
-    private CompanyEntityLookup companyEntityLookup;
-    @Mock
     private CompanyAccountingSettingsService companyAccountingSettingsService;
     @Mock
     private FinishedGoodsService finishedGoodsService;
+    @Mock
+    private InvoiceRepository invoiceRepository;
 
     private SalesReturnService salesReturnService;
     private Company company;
@@ -83,7 +83,7 @@ class SalesReturnServiceTest {
                 inventoryMovementRepository,
                 batchNumberService,
                 accountingFacade,
-                companyEntityLookup,
+                invoiceRepository,
                 companyAccountingSettingsService,
                 finishedGoodsService
         );
@@ -136,7 +136,7 @@ class SalesReturnServiceTest {
         fg.setTaxAccountId(800L);
         setField(fg, "id", 21L);
 
-        when(companyEntityLookup.requireInvoice(company, 10L)).thenReturn(invoice);
+        when(invoiceRepository.lockByCompanyAndId(company, 10L)).thenReturn(Optional.of(invoice));
         when(finishedGoodRepository.lockByCompanyAndProductCode(company, "FG-1")).thenReturn(Optional.of(fg));
         when(finishedGoodRepository.lockByCompanyAndId(company, 21L)).thenReturn(Optional.of(fg));
         when(finishedGoodRepository.findByCompanyAndId(company, 21L)).thenReturn(Optional.of(fg));
@@ -262,7 +262,7 @@ class SalesReturnServiceTest {
         priorReturn.setReferenceType("SALES_RETURN");
         priorReturn.setReferenceId("INV-1");
 
-        when(companyEntityLookup.requireInvoice(company, 10L)).thenReturn(invoice);
+        when(invoiceRepository.lockByCompanyAndId(company, 10L)).thenReturn(Optional.of(invoice));
         when(finishedGoodRepository.lockByCompanyAndProductCode(company, "FG-1")).thenReturn(Optional.of(fg));
         when(inventoryMovementRepository.findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdOrderByCreatedAtAsc(
                 eq(company),
@@ -327,7 +327,7 @@ class SalesReturnServiceTest {
         priorReturn.setReferenceType("SALES_RETURN");
         priorReturn.setReferenceId("INV-1:55");
 
-        when(companyEntityLookup.requireInvoice(company, 10L)).thenReturn(invoice);
+        when(invoiceRepository.lockByCompanyAndId(company, 10L)).thenReturn(Optional.of(invoice));
         when(finishedGoodRepository.lockByCompanyAndProductCode(company, "FG-1")).thenReturn(Optional.of(fg));
         when(inventoryMovementRepository.findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdOrderByCreatedAtAsc(
                 eq(company),
@@ -392,7 +392,7 @@ class SalesReturnServiceTest {
         priorReturn.setReferenceType("SALES_RETURN");
         priorReturn.setReferenceId("INV-1");
 
-        when(companyEntityLookup.requireInvoice(company, 10L)).thenReturn(invoice);
+        when(invoiceRepository.lockByCompanyAndId(company, 10L)).thenReturn(Optional.of(invoice));
         when(finishedGoodRepository.lockByCompanyAndProductCode(company, "FG-1")).thenReturn(Optional.of(fg));
         when(inventoryMovementRepository.findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdOrderByCreatedAtAsc(
                 eq(company),
@@ -450,7 +450,7 @@ class SalesReturnServiceTest {
         unrelatedReturn.setReferenceType("SALES_RETURN");
         unrelatedReturn.setReferenceId("INV-10:999");
 
-        when(companyEntityLookup.requireInvoice(company, 10L)).thenReturn(invoice);
+        when(invoiceRepository.lockByCompanyAndId(company, 10L)).thenReturn(Optional.of(invoice));
         when(finishedGoodRepository.lockByCompanyAndProductCode(company, "FG-1")).thenReturn(Optional.of(fg));
         when(inventoryMovementRepository.findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdOrderByCreatedAtAsc(
                 eq(company),
@@ -518,7 +518,7 @@ class SalesReturnServiceTest {
         fg.setTaxAccountId(800L);
         setField(fg, "id", 22L);
 
-        when(companyEntityLookup.requireInvoice(company, 20L)).thenReturn(invoice);
+        when(invoiceRepository.lockByCompanyAndId(company, 20L)).thenReturn(Optional.of(invoice));
         when(finishedGoodRepository.lockByCompanyAndProductCode(company, "FG-2")).thenReturn(Optional.of(fg));
         when(finishedGoodRepository.lockByCompanyAndId(company, 22L)).thenReturn(Optional.of(fg));
         when(finishedGoodRepository.findByCompanyAndId(company, 22L)).thenReturn(Optional.of(fg));

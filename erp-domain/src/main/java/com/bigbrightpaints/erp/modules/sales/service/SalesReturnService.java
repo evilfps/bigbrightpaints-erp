@@ -1,7 +1,6 @@
 package com.bigbrightpaints.erp.modules.sales.service;
 
 import com.bigbrightpaints.erp.core.util.CompanyTime;
-import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.core.util.MoneyUtils;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.SalesReturnRequest;
@@ -20,6 +19,7 @@ import com.bigbrightpaints.erp.modules.inventory.service.BatchNumberService;
 import com.bigbrightpaints.erp.modules.inventory.service.FinishedGoodsService;
 import com.bigbrightpaints.erp.modules.invoice.domain.Invoice;
 import com.bigbrightpaints.erp.modules.invoice.domain.InvoiceLine;
+import com.bigbrightpaints.erp.modules.invoice.domain.InvoiceRepository;
 import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
@@ -54,7 +54,7 @@ public class SalesReturnService {
     private final InventoryMovementRepository inventoryMovementRepository;
     private final BatchNumberService batchNumberService;
     private final AccountingFacade accountingFacade;
-    private final CompanyEntityLookup companyEntityLookup;
+    private final InvoiceRepository invoiceRepository;
     private final CompanyAccountingSettingsService companyAccountingSettingsService;
     private final FinishedGoodsService finishedGoodsService;
 
@@ -64,7 +64,7 @@ public class SalesReturnService {
                               InventoryMovementRepository inventoryMovementRepository,
                               BatchNumberService batchNumberService,
                               AccountingFacade accountingFacade,
-                              CompanyEntityLookup companyEntityLookup,
+                              InvoiceRepository invoiceRepository,
                               CompanyAccountingSettingsService companyAccountingSettingsService,
                               FinishedGoodsService finishedGoodsService) {
         this.companyContextService = companyContextService;
@@ -73,7 +73,7 @@ public class SalesReturnService {
         this.inventoryMovementRepository = inventoryMovementRepository;
         this.batchNumberService = batchNumberService;
         this.accountingFacade = accountingFacade;
-        this.companyEntityLookup = companyEntityLookup;
+        this.invoiceRepository = invoiceRepository;
         this.companyAccountingSettingsService = companyAccountingSettingsService;
         this.finishedGoodsService = finishedGoodsService;
     }
@@ -81,7 +81,8 @@ public class SalesReturnService {
     @Transactional
     public JournalEntryDto processReturn(SalesReturnRequest request) {
         Company company = companyContextService.requireCurrentCompany();
-        Invoice invoice = companyEntityLookup.requireInvoice(company, request.invoiceId());
+        Invoice invoice = invoiceRepository.lockByCompanyAndId(company, request.invoiceId())
+                .orElseThrow(() -> new IllegalArgumentException("Invoice not found: id=" + request.invoiceId()));
         Dealer dealer = invoice.getDealer();
         if (dealer == null || dealer.getReceivableAccount() == null) {
             throw new IllegalStateException("Invoice is missing dealer receivable context");

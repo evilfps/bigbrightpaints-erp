@@ -1,5 +1,17 @@
 # Decision Log (CODE-RED)
 
+## 2026-02-04 - Credit Note Idempotency Is Mandatory (Reference or Idempotency Key)
+Decision:
+- Credit note creation requires an idempotency key or explicit reference number; replays are mismatch-safe (409 on payload drift).
+- Credit note idempotency keys are mapped via `journal_reference_mappings` for auditability.
+
+Rationale:
+- Prevents duplicate credit journals under retries/concurrency and preserves a single auditable credit entry.
+
+Enforcement:
+- `AccountingService.postCreditNote(...)` reserves idempotency before posting and validates replay payloads.
+- Tests: `CR_SalesReturnCreditNoteIdempotencyTest`, `CreditDebitNoteIT`.
+
 ## 2026-02-03 - Orchestrator Audit/Outbox Identifiers + Mismatch-Safe Idempotency
 Decision:
 - Orchestrator outbox and audit records persist `traceId`, `requestId`, and `idempotencyKey` as first-class columns.

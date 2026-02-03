@@ -81,6 +81,7 @@ public class AccountingService {
     private static final String ENTITY_TYPE_DEALER_RECEIPT = "DEALER_RECEIPT";
     private static final String ENTITY_TYPE_DEALER_RECEIPT_SPLIT = "DEALER_RECEIPT_SPLIT";
     private static final String ENTITY_TYPE_DEALER_SETTLEMENT = "DEALER_SETTLEMENT";
+    private static final String ENTITY_TYPE_CREDIT_NOTE = "CREDIT_NOTE";
 
     private final CompanyContextService companyContextService;
     private final AccountRepository accountRepository;
@@ -2359,6 +2360,58 @@ public class AccountingService {
         }
     }
 
+    private void validateCreditNoteIdempotency(String idempotencyKey,
+                                               Invoice invoice,
+                                               JournalEntry source,
+                                               JournalEntry entry,
+                                               BigDecimal requestedAmount,
+                                               BigDecimal totalAmount) {
+        if (entry == null) {
+            throw new ApplicationException(ErrorCode.CONCURRENCY_CONFLICT,
+                    "Idempotency key already used but credit note journal is missing")
+                    .withDetail("idempotencyKey", idempotencyKey);
+        }
+        if (invoice != null && invoice.getDealer() != null && entry.getDealer() != null
+                && !Objects.equals(entry.getDealer().getId(), invoice.getDealer().getId())) {
+            throw new ApplicationException(ErrorCode.CONCURRENCY_CONFLICT,
+                    "Idempotency key already used for another dealer")
+                    .withDetail("idempotencyKey", idempotencyKey);
+        }
+        if (source != null && entry.getReversalOf() != null
+                && !Objects.equals(entry.getReversalOf().getId(), source.getId())) {
+            throw new ApplicationException(ErrorCode.CONCURRENCY_CONFLICT,
+                    "Idempotency key already used for another invoice reversal")
+                    .withDetail("idempotencyKey", idempotencyKey);
+        }
+        if (source != null && entry.getReversalOf() == null && invoice != null
+                && !invoice.getPaymentReferences().contains(entry.getReferenceNumber())) {
+            throw new ApplicationException(ErrorCode.CONCURRENCY_CONFLICT,
+                    "Idempotency key already used for another invoice")
+                    .withDetail("idempotencyKey", idempotencyKey);
+        }
+        BigDecimal existingAmount = calculateEntryTotal(entry);
+        BigDecimal expectedAmount = requestedAmount != null ? roundCurrency(requestedAmount) : existingAmount;
+        if (existingAmount.compareTo(expectedAmount) != 0) {
+            throw new ApplicationException(ErrorCode.CONCURRENCY_CONFLICT,
+                    "Idempotency key already used with a different credit amount")
+                    .withDetail("idempotencyKey", idempotencyKey)
+                    .withDetail("existingAmount", existingAmount)
+                    .withDetail("requestedAmount", expectedAmount);
+        }
+        if (source != null && totalAmount != null && totalAmount.compareTo(BigDecimal.ZERO) > 0) {
+            BigDecimal ratio = expectedAmount.divide(totalAmount, 6, RoundingMode.HALF_UP);
+            List<JournalEntryRequest.JournalLineRequest> expectedLines =
+                    buildScaledReversalLines(source, ratio, "Credit note reversal - ");
+            Map<JournalLineSignature, Integer> existingLines = lineSignatureCounts(entry.getLines());
+            Map<JournalLineSignature, Integer> expected = lineSignatureCountsFromRequests(expectedLines);
+            if (!existingLines.equals(expected)) {
+                throw new ApplicationException(ErrorCode.CONCURRENCY_CONFLICT,
+                        "Idempotency key already used for a different credit note payload")
+                        .withDetail("idempotencyKey", idempotencyKey);
+            }
+        }
+    }
+
     private void validateDealerSettlementAllocations(List<SettlementAllocationRequest> allocations) {
         if (allocations == null) {
             return;
@@ -3235,15 +3288,17 @@ public class AccountingService {
             throw new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE,
                     "Invoice " + invoice.getInvoiceNumber() + " has no posted journal to reverse");
         }
-        String reference = resolveJournalReference(company,
-                StringUtils.hasText(request.idempotencyKey()) ? request.idempotencyKey() : request.referenceNumber());
+        String referenceNumber = StringUtils.hasText(request.referenceNumber()) ? request.referenceNumber().trim() : null;
+        String idempotencyKey = resolveReceiptIdempotencyKey(request.idempotencyKey(), referenceNumber, "credit note");
+        String reference = StringUtils.hasText(referenceNumber) ? referenceNumber : idempotencyKey;
         LocalDate entryDate = request.entryDate() != null ? request.entryDate() : currentDate(company);
-        Optional<JournalEntry> existing = journalEntryRepository.findByCompanyAndReferenceNumber(company, reference);
-        if (existing.isPresent()) {
-            BigDecimal existingAmount = calculateEntryTotal(existing.get());
+        JournalEntry existingEntry = findExistingEntry(company, reference, idempotencyKey);
+        if (existingEntry != null) {
+            BigDecimal existingAmount = calculateEntryTotal(existingEntry);
             BigDecimal totalCredited = totalNoteAmount(company, source, "CREDIT_NOTE");
-            applyCreditNoteToInvoice(invoice, existingAmount, totalCredited, reference, entryDate);
-            return toDto(existing.get());
+            validateCreditNoteIdempotency(idempotencyKey, invoice, source, existingEntry, request.amount(), invoice.getTotalAmount());
+            applyCreditNoteToInvoice(invoice, existingAmount, totalCredited, existingEntry.getReferenceNumber(), entryDate);
+            return toDto(existingEntry);
         }
         BigDecimal totalAmount = MoneyUtils.zeroIfNull(invoice.getTotalAmount());
         if (totalAmount.compareTo(BigDecimal.ZERO) <= 0) {
@@ -3266,6 +3321,20 @@ public class AccountingService {
                     .withDetail("remaining", remaining)
                     .withDetail("requested", creditAmount);
         }
+        IdempotencyReservation reservation = reserveReferenceMapping(company, idempotencyKey, reference, ENTITY_TYPE_CREDIT_NOTE);
+        if (!reservation.leader()) {
+            JournalEntry awaited = awaitJournalEntry(company, reference, idempotencyKey);
+            if (awaited != null) {
+                BigDecimal existingAmount = calculateEntryTotal(awaited);
+                BigDecimal totalCredited = totalNoteAmount(company, source, "CREDIT_NOTE");
+                validateCreditNoteIdempotency(idempotencyKey, invoice, source, awaited, request.amount(), invoice.getTotalAmount());
+                applyCreditNoteToInvoice(invoice, existingAmount, totalCredited, awaited.getReferenceNumber(), entryDate);
+                return toDto(awaited);
+            }
+            throw new ApplicationException(ErrorCode.INTERNAL_CONCURRENCY_FAILURE,
+                    "Credit note idempotency key is reserved but journal entry not found")
+                    .withDetail("idempotencyKey", idempotencyKey);
+        }
         String memo = StringUtils.hasText(request.memo())
                 ? request.memo().trim()
                 : "Credit note for invoice " + invoice.getInvoiceNumber();
@@ -3287,9 +3356,10 @@ public class AccountingService {
         saved.setCorrectionType(JournalCorrectionType.REVERSAL);
         saved.setCorrectionReason("CREDIT_NOTE");
         journalEntryRepository.save(saved);
+        linkReferenceMapping(company, idempotencyKey, saved, ENTITY_TYPE_CREDIT_NOTE);
         BigDecimal postedAmount = calculateEntryTotal(saved);
         BigDecimal totalCredited = creditedSoFar.add(postedAmount);
-        applyCreditNoteToInvoice(invoice, postedAmount, totalCredited, reference, entryDate);
+        applyCreditNoteToInvoice(invoice, postedAmount, totalCredited, saved.getReferenceNumber(), entryDate);
         return toDto(saved);
     }
 

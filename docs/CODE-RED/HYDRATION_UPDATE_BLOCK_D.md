@@ -22,3 +22,14 @@
   - `bash scripts/verify_local.sh`
 - Notes:
   - Full `verify_local` gate passed (schema/flyway/time scans + mvn verify).
+
+- Scope: Block D (P0) Dealer AR safety — sales return + credit note idempotency (commit 3).
+- Changes:
+  - Sales returns now lock invoices to prevent duplicate inventory/journal side effects under retry.
+  - Credit notes require idempotency key or reference and enforce mismatch-safe reserve-first idempotency.
+  - Credit note replays use stored journal lines; mismatched payloads fail closed.
+- Tests:
+  - `mvn -B -ntp -Dtest=CR_SalesReturnCreditNoteIdempotencyTest,SalesReturnServiceTest,CreditDebitNoteIT test`
+  - `bash scripts/verify_local.sh`
+- Notes:
+  - Full `verify_local` gate passed (schema/flyway/time scans + mvn verify).
