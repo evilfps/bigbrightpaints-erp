@@ -15,6 +15,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.config.Customizer;
+import org.springframework.beans.factory.annotation.Value;
 
 @Configuration
 @EnableMethodSecurity
@@ -23,13 +24,16 @@ public class SecurityConfig {
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final CompanyContextFilter companyContextFilter;
     private final UserAccountDetailsService userDetailsService;
+    private final boolean swaggerPublic;
 
     public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter,
                           CompanyContextFilter companyContextFilter,
-                          UserAccountDetailsService userDetailsService) {
+                          UserAccountDetailsService userDetailsService,
+                          @Value("${erp.security.swagger-public:true}") boolean swaggerPublic) {
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
         this.companyContextFilter = companyContextFilter;
         this.userDetailsService = userDetailsService;
+        this.swaggerPublic = swaggerPublic;
     }
 
     /**
@@ -49,19 +53,24 @@ public class SecurityConfig {
             .formLogin(AbstractHttpConfigurer::disable)
             .logout(AbstractHttpConfigurer::disable)
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-            .authorizeHttpRequests(registry -> registry
-                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                .requestMatchers(
-                    "/api/v1/auth/login",
-                    "/api/v1/auth/refresh-token",
-                    "/api/v1/auth/password/forgot",
-                    "/api/v1/auth/password/reset",
-                    "/swagger-ui/**",
-                    "/v3/api-docs/**",
-                    "/v3/api-docs.yaml"
-                ).permitAll()
-                .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
-                .anyRequest().authenticated())
+            .authorizeHttpRequests(registry -> {
+                registry.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        .requestMatchers(
+                                "/api/v1/auth/login",
+                                "/api/v1/auth/refresh-token",
+                                "/api/v1/auth/password/forgot",
+                                "/api/v1/auth/password/reset"
+                        ).permitAll();
+                if (swaggerPublic) {
+                    registry.requestMatchers(
+                            "/swagger-ui/**",
+                            "/v3/api-docs/**",
+                            "/v3/api-docs.yaml"
+                    ).permitAll();
+                }
+                registry.requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
+                        .anyRequest().authenticated();
+            })
             .userDetailsService(userDetailsService)
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
             .addFilterAfter(companyContextFilter, JwtAuthenticationFilter.class);

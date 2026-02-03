@@ -98,6 +98,7 @@ erp:
     validation:
       enabled: false
   security:
+    swagger-public: true
     mfa:
       # Master code functionality removed for security - use recovery codes only
     notifications:

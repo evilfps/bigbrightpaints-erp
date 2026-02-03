@@ -30,6 +30,11 @@ spring:
   mvc:
     cors:
       enabled: true
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
 server:
   port: ${SERVER_PORT:8081}
   tomcat:
@@ -54,6 +59,8 @@ erp:
       enabled: true
       health-indicator:
         enabled: true
+  security:
+    swagger-public: false
   licensing:
     product-id: ${ERP_LICENSE_PRODUCT_ID:31720}
     license-key: ${ERP_LICENSE_KEY}
