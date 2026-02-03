@@ -149,7 +149,7 @@ public class IntegrationCoordinator {
             } else {
                 log.info("Reserved inventory for order {}", id);
             }
-            salesService.updateStatusInternal(id, "RESERVED");
+            salesService.updateOrchestratorWorkflowStatus(id, "RESERVED");
             return reservation;
         });
     }
@@ -205,7 +205,8 @@ public class IntegrationCoordinator {
                     awaitingProduction.set(false);
                 }
                 if (!state.isOrderStatusUpdated()) {
-                    salesService.updateStatusInternal(numericId, awaitingProduction.get() ? "PENDING_PRODUCTION" : "READY_TO_SHIP");
+                    salesService.updateOrchestratorWorkflowStatus(numericId,
+                            awaitingProduction.get() ? "PENDING_PRODUCTION" : "READY_TO_SHIP");
                     state.markOrderStatusUpdated();
                 }
                 log.info("Auto-approved order {} for company {}; awaitingProduction={}", orderId, normalizedCompanyId, awaitingProduction.get());
@@ -251,22 +252,28 @@ public class IntegrationCoordinator {
             String status = requestedStatus == null ? "" : requestedStatus.trim().toUpperCase();
             switch (status) {
                 case "PROCESSING":
-                    salesService.updateStatusInternal(id, "PROCESSING");
+                    salesService.updateOrchestratorWorkflowStatus(id, "PROCESSING");
                     return new AutoApprovalResult("PROCESSING", false);
                 case "CANCELLED":
                     OrderAutoApprovalState state = lockAutoApprovalState(companyId, id);
                     state.markFailed("Cancelled");
-                    salesService.updateStatusInternal(id, "CANCELLED");
+                    salesService.cancelOrder(id, "Cancelled");
                     return new AutoApprovalResult("CANCELLED", false);
                 case "READY_TO_SHIP":
                     return autoApproveOrder(orderId, null, companyId);
                 case "SHIPPED":
                 case "DISPATCHED":
-                    throw new ApplicationException(
-                            ErrorCode.BUSINESS_INVALID_STATE,
-                            "Orchestrator cannot mark orders SHIPPED/DISPATCHED. Use the canonical dispatch confirm endpoint."
-                    ).withDetail("canonicalPath", "/api/v1/sales/dispatch/confirm")
-                            .withDetail("requestedStatus", requestedStatus);
+                case "FULFILLED":
+                case "COMPLETED":
+                    if (!salesService.hasDispatchConfirmation(id)) {
+                        throw new ApplicationException(
+                                ErrorCode.BUSINESS_INVALID_STATE,
+                                "Orchestrator cannot mark orders SHIPPED/DISPATCHED. Use the canonical dispatch confirm endpoint."
+                        ).withDetail("canonicalPath", "/api/v1/sales/dispatch/confirm")
+                                .withDetail("requestedStatus", requestedStatus);
+                    }
+                    SalesOrder order = salesService.getOrderWithItems(id);
+                    return new AutoApprovalResult(order.getStatus(), false);
                 default:
                     throw new IllegalArgumentException("Unsupported fulfillment status: " + requestedStatus);
             }

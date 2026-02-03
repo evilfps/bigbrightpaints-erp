@@ -1,6 +1,6 @@
 # Orchestrator “Strong Arm” Contract (CODE-RED)
 
-Last updated: 2026-02-02
+Last updated: 2026-02-04
 
 Goal: keep the orchestrator as a marketable differentiator (automation + observability) **without** turning it into a
 parallel truth source that can corrupt inventory/accounting.
@@ -49,9 +49,9 @@ Allowed:
 Allowed (restricted):
 - `/api/v1/orchestrator/orders/{orderId}/fulfillment`
   - Allowed statuses: `PROCESSING`, `CANCELLED`, `READY_TO_SHIP`
-  - Forbidden statuses: `SHIPPED`, `DISPATCHED`
-    - Reason: these bypass slip→invoice→journals→ledger linkage.
-    - Enforcement: fail-closed with a business invalid-state error + a canonicalPath hint.
+  - Terminal status requests (`SHIPPED`, `DISPATCHED`, `FULFILLED`, `COMPLETED`) are **read-only**:
+    - If dispatch truth exists, return the current order status (no mutation).
+    - If dispatch truth does **not** exist, fail-closed with a business invalid-state error + a canonicalPath hint.
 
 ### Factory dispatch / payroll run (CODE-RED default: disabled)
 
@@ -99,7 +99,8 @@ What exists now (CODE-RED baseline)
 - Orchestrator write commands require `Idempotency-Key` and reserve `(company, commandName, idempotencyKey)` in `orchestrator_commands`.
 - Outbox rows now include `company_id` (`orchestrator_outbox.company_id`) for tenant scoping and postmortems.
 - Trace/audit details are stored as JSON (not `Map.toString()`), and trace writes require a valid company.
- - Status-bypass attempts to set `SHIPPED/DISPATCHED` are fail-closed with canonicalPath hints (dispatch truth).
+ - Status-bypass attempts to set terminal fulfillment statuses are fail-closed unless dispatch truth exists.
+ - Orchestrator fulfillment updates route through SalesService workflow guards (no direct status setters).
 
 Target event envelope (future hardening; not all fields exist today):
 - `commandId` / `idempotencyKey` (caller-provided or server-derived)
@@ -119,6 +120,8 @@ CODE-RED note:
 
 P0 tests (must pass before enabling orchestrator command flags):
 - Orchestrator cannot set `SHIPPED/DISPATCHED` via fulfillment update.
+ - Orchestrator fulfillment updates allow non-terminal transitions (`PROCESSING`, `READY_TO_SHIP`) only when dispatch truth is absent.
+ - Terminal fulfillment requests are read-only when dispatch truth exists.
 - `X-Company-Id` mismatch is rejected (403).
 - Orchestrator health endpoints require admin/ops auth.
 - Orchestrator idempotency: same `Idempotency-Key` replays return the same `traceId` and do not enqueue duplicate outbox events.

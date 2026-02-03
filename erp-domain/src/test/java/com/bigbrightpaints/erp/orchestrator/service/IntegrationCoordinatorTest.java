@@ -145,9 +145,9 @@ class IntegrationCoordinatorTest {
         assertThat(state.isOrderStatusUpdated()).isTrue();
         assertThat(state.isCompleted()).isTrue();
 
-        verify(salesService).updateStatusInternal(ORDER_ID, "RESERVED");
-        verify(salesService).updateStatusInternal(ORDER_ID, "READY_TO_SHIP");
-        verify(salesService, never()).updateStatusInternal(ORDER_ID, "SHIPPED");
+        verify(salesService).updateOrchestratorWorkflowStatus(ORDER_ID, "RESERVED");
+        verify(salesService).updateOrchestratorWorkflowStatus(ORDER_ID, "READY_TO_SHIP");
+        verify(salesService, never()).updateOrchestratorWorkflowStatus(ORDER_ID, "SHIPPED");
         verify(salesService, never()).confirmDispatch(any());
     }
 
@@ -160,14 +160,39 @@ class IntegrationCoordinatorTest {
         assertThat(result.awaitingProduction()).isFalse();
         assertThat(state.getStatus()).isEqualToIgnoringCase("FAILED");
         assertThat(state.getLastError()).isEqualTo("Cancelled");
-        verify(salesService).updateStatusInternal(ORDER_ID, "CANCELLED");
+        verify(salesService).cancelOrder(ORDER_ID, "Cancelled");
     }
 
     @Test
     void updateFulfillmentDispatchFailsClosed() {
         assertThrows(ApplicationException.class,
                 () -> integrationCoordinator.updateFulfillment(String.valueOf(ORDER_ID), "DISPATCHED", COMPANY_ID));
-        verify(salesService, never()).updateStatusInternal(eq(ORDER_ID), anyString());
+        verify(salesService).hasDispatchConfirmation(ORDER_ID);
+        verify(salesService, never()).updateOrchestratorWorkflowStatus(eq(ORDER_ID), anyString());
+    }
+
+    @Test
+    void updateFulfillmentDispatchAcknowledgesWhenDispatchConfirmed() {
+        order.setStatus("SHIPPED");
+        when(salesService.hasDispatchConfirmation(ORDER_ID)).thenReturn(true);
+        when(salesService.getOrderWithItems(ORDER_ID)).thenReturn(order);
+
+        IntegrationCoordinator.AutoApprovalResult result =
+                integrationCoordinator.updateFulfillment(String.valueOf(ORDER_ID), "DISPATCHED", COMPANY_ID);
+
+        assertThat(result.orderStatus()).isEqualTo("SHIPPED");
+        assertThat(result.awaitingProduction()).isFalse();
+        verify(salesService, never()).updateOrchestratorWorkflowStatus(eq(ORDER_ID), anyString());
+    }
+
+    @Test
+    void updateFulfillmentProcessingAllowedWhenNoDispatchTruth() {
+        IntegrationCoordinator.AutoApprovalResult result =
+                integrationCoordinator.updateFulfillment(String.valueOf(ORDER_ID), "PROCESSING", COMPANY_ID);
+
+        assertThat(result.orderStatus()).isEqualTo("PROCESSING");
+        assertThat(result.awaitingProduction()).isFalse();
+        verify(salesService).updateOrchestratorWorkflowStatus(ORDER_ID, "PROCESSING");
     }
 
     @Test
@@ -187,7 +212,7 @@ class IntegrationCoordinatorTest {
         assertThat(state.isCompleted()).isTrue();
 
         verify(finishedGoodsService, never()).reserveForOrder(any());
-        verify(salesService, never()).updateStatusInternal(eq(ORDER_ID), anyString());
+        verify(salesService, never()).updateOrchestratorWorkflowStatus(eq(ORDER_ID), anyString());
         verify(salesService, never()).confirmDispatch(any());
     }
 
@@ -203,7 +228,7 @@ class IntegrationCoordinatorTest {
         assertThat(result.orderStatus()).isEqualTo("READY_TO_SHIP");
         assertThat(result.awaitingProduction()).isFalse();
         verify(finishedGoodsService, never()).reserveForOrder(any());
-        verify(salesService, never()).updateStatusInternal(eq(ORDER_ID), anyString());
+        verify(salesService, never()).updateOrchestratorWorkflowStatus(eq(ORDER_ID), anyString());
     }
 
     @Test
@@ -215,7 +240,7 @@ class IntegrationCoordinatorTest {
         assertThat(result.orderStatus()).isEqualTo("READY_TO_SHIP");
         assertThat(result.awaitingProduction()).isFalse();
         verify(finishedGoodsService, never()).reserveForOrder(any());
-        verify(salesService, times(1)).updateStatusInternal(ORDER_ID, "READY_TO_SHIP");
+        verify(salesService, times(1)).updateOrchestratorWorkflowStatus(ORDER_ID, "READY_TO_SHIP");
     }
 
     @Test

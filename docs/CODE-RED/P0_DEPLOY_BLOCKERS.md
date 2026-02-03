@@ -39,7 +39,10 @@ Purpose: a single, concrete list of **P0** items that block a safe enterprise de
 ## P0 - Workflow “Truth” (Status Must Not Bypass Financial/Inventory Truth)
 - Orchestrator must not be able to mark orders `SHIPPED/DISPATCHED` without the canonical dispatch chain:
   slip → invoice → journals → ledger updates (`SalesService.confirmDispatch`).
-- Status-only fulfillment updates to `SHIPPED/DISPATCHED` are now fail-closed in orchestrator code (no bypass path).
+- Status-only fulfillment requests for `SHIPPED/DISPATCHED` are fail-closed unless dispatch truth exists (then read-only).
+  - Status (2026-02-04): ✅ dispatch-truth gate + read-only terminal responses; tests:
+    `OrchestratorControllerIT.fulfillment_rejects_shipped_status_updates_without_dispatch_confirmation`,
+    `IntegrationCoordinatorTest.updateFulfillmentDispatchAcknowledgesWhenDispatchConfirmed`.
 - Orchestrator “lightweight dispatch” endpoints (`/api/v1/orchestrator/dispatch*`) are hard deprecated (always 410 + canonicalPath).
 - Sales COGS posting must be single-truth:
   - COGS/Inventory relief must only be posted by dispatch-confirm (per-slip reference), not by any alternate “order fulfillment” helper.
@@ -50,6 +53,8 @@ Purpose: a single, concrete list of **P0** items that block a safe enterprise de
   - Status (2026-02-03): ✅ canonical sales journal reference enforced with invoice-number alias mapping + mismatch-safe idempotency; tests: `CriticalAccountingAxesIT.salesJournalIdempotentAcrossReferenceVariants`, `CriticalAccountingAxesIT.salesJournalIdempotencyRejectsMismatchedAliasPayload`, `CriticalAccountingAxesIT.salesJournalConcurrentDedupesAcrossReferences`.
 - Orchestrator “non-final” status writes must still be guarded:
   - `PROCESSING/CANCELLED/READY_TO_SHIP` updates must respect the sales state machine and must not be free-form status setters.
+  - Status (2026-02-04): ✅ routes through SalesService guards; tests:
+    `IntegrationCoordinatorTest.updateFulfillmentProcessingAllowedWhenNoDispatchTruth`.
 - Mutating/nondeterministic “finder” endpoints must not exist (read-only GET must have no side effects and must fail-closed on ambiguity).
   - Status (2026-02-03): ✅ `/api/v1/dispatch/order/{orderId}` is now read-only + fails closed on ambiguity; tests: `CR_DispatchOrderLookupReadOnlyIT` (other finder endpoints still under review).
 - Packaging slip status updates must enforce a real state machine (no free-form statuses that skip reservation/inventory unwind).

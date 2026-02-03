@@ -87,6 +87,12 @@ public class SalesService {
             "REJECTED",
             "CLOSED"
     );
+    private static final Set<String> ORCHESTRATOR_WORKFLOW_STATUSES = Set.of(
+            "PROCESSING",
+            "READY_TO_SHIP",
+            "PENDING_PRODUCTION",
+            "RESERVED"
+    );
     private static final Set<String> VALID_ORDER_STATUSES = Set.of(
             "BOOKED",
             "RESERVED",
@@ -651,6 +657,32 @@ public class SalesService {
     }
 
     @Transactional
+    public void updateOrchestratorWorkflowStatus(Long id, String status) {
+        SalesOrder order = requireOrder(id);
+        String normalized = normalizeOrchestratorStatus(status);
+        if (!ORCHESTRATOR_WORKFLOW_STATUSES.contains(normalized)) {
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                    "Status " + normalized + " cannot be set by orchestrator");
+        }
+        assertOrderMutable(order, "update fulfillment");
+        if (normalized.equalsIgnoreCase(order.getStatus())) {
+            return;
+        }
+        order.setStatus(normalized);
+    }
+
+    @Transactional(readOnly = true)
+    public boolean hasDispatchConfirmation(Long id) {
+        SalesOrder order = requireOrder(id);
+        Company company = companyContextService.requireCurrentCompany();
+        List<PackagingSlip> slips = packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, order.getId());
+        if (slips == null || slips.isEmpty()) {
+            return false;
+        }
+        return slips.stream().anyMatch(this::hasDispatchTruth);
+    }
+
+    @Transactional
     public void attachTraceId(Long id, String traceId) {
         SalesOrder order = requireOrder(id);
         order.setTraceId(traceId);
@@ -694,6 +726,24 @@ public class SalesService {
             throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT, "Status is required");
         }
         return status.trim().toUpperCase(Locale.ROOT);
+    }
+
+    private String normalizeOrchestratorStatus(String status) {
+        if (!StringUtils.hasText(status)) {
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT, "Status is required");
+        }
+        return status.trim().toUpperCase(Locale.ROOT);
+    }
+
+    private boolean hasDispatchTruth(PackagingSlip slip) {
+        if (slip == null || !"DISPATCHED".equalsIgnoreCase(slip.getStatus())) {
+            return false;
+        }
+        boolean hasInvoice = slip.getInvoiceId() != null;
+        boolean hasArJournal = slip.getJournalEntryId() != null;
+        boolean hasCogsJournal = slip.getCogsJournalEntryId() != null
+                || (StringUtils.hasText(slip.getSlipNumber()) && accountingFacade.hasCogsJournalFor(slip.getSlipNumber()));
+        return hasInvoice && hasArJournal && hasCogsJournal;
     }
 
     public SalesOrder getOrderWithItems(Long id) {
