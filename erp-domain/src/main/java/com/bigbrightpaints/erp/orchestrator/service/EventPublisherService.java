@@ -61,7 +61,15 @@ public class EventPublisherService {
         try {
             String payload = objectMapper.writeValueAsString(event);
             Long companyId = companyContextService.requireCurrentCompany().getId();
-            OutboxEvent outboxEvent = new OutboxEvent(event.entity(), event.entityId(), event.eventType(), payload, companyId);
+            OutboxEvent outboxEvent = new OutboxEvent(
+                    event.entity(),
+                    event.entityId(),
+                    event.eventType(),
+                    payload,
+                    companyId,
+                    event.traceId(),
+                    event.requestId(),
+                    event.idempotencyKey());
             outboxEventRepository.save(outboxEvent);
         } catch (JsonProcessingException e) {
             throw new IllegalStateException("Failed to serialize event", e);

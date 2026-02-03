@@ -1,5 +1,22 @@
 # Decision Log (CODE-RED)
 
+## 2026-02-03 - Orchestrator Audit/Outbox Identifiers + Mismatch-Safe Idempotency
+Decision:
+- Orchestrator outbox and audit records persist `traceId`, `requestId`, and `idempotencyKey` as first-class columns.
+- Orchestrator command idempotency is mismatch-safe: same key + different payload fails closed with 409.
+- `X-Request-Id` is accepted for external orchestration calls; when absent, `requestId` defaults to the idempotency key.
+
+Rationale:
+- Enables postmortems without parsing payload JSON blobs and guarantees stable end-to-end identifiers.
+- Prevents replay-based double posting or conflicting side effects under retries.
+
+Enforcement:
+- `V121__orchestrator_audit_outbox_identifiers.sql` adds columns + indexes to `orchestrator_outbox` and `orchestrator_audit`.
+- `DomainEvent` includes `traceId/requestId/idempotencyKey`; `CommandDispatcher` normalizes `requestId` and passes identifiers
+  to `TraceService` and outbox.
+- Tests: `OrchestratorControllerIT.approve_order_is_idempotent_and_audited`,
+  `OrchestratorControllerIT.approve_order_rejects_idempotency_mismatch`.
+
 ## 2026-02-03 - COGS Slip-Scoped Truth + Movement Linkage
 Decision:
 - COGS journals are slip-scoped only (`COGS-<slipNumber>`); order-level COGS posting is disabled.

@@ -8,4 +8,8 @@ public interface AuditRepository extends JpaRepository<AuditRecord, UUID> {
     List<AuditRecord> findByTraceIdOrderByTimestampAsc(String traceId);
 
     List<AuditRecord> findByTraceIdAndCompanyIdOrderByTimestampAsc(String traceId, Long companyId);
+
+    List<AuditRecord> findByCompanyIdAndRequestIdOrderByTimestampAsc(Long companyId, String requestId);
+
+    List<AuditRecord> findByCompanyIdAndIdempotencyKeyOrderByTimestampAsc(Long companyId, String idempotencyKey);
 }

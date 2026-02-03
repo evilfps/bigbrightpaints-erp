@@ -49,6 +49,15 @@ public class OutboxEvent extends VersionedEntity {
     @Column(name = "company_id")
     private Long companyId;
 
+    @Column(name = "trace_id")
+    private String traceId;
+
+    @Column(name = "request_id")
+    private String requestId;
+
+    @Column(name = "idempotency_key")
+    private String idempotencyKey;
+
     @Column(nullable = false)
     private Instant createdAt;
 
@@ -84,6 +93,14 @@ public class OutboxEvent extends VersionedEntity {
         this.companyId = companyId;
     }
 
+    public OutboxEvent(String aggregateType, String aggregateId, String eventType, String payload, Long companyId,
+                       String traceId, String requestId, String idempotencyKey) {
+        this(aggregateType, aggregateId, eventType, payload, companyId);
+        this.traceId = traceId;
+        this.requestId = requestId;
+        this.idempotencyKey = idempotencyKey;
+    }
+
     public UUID getId() {
         return id;
     }
@@ -110,6 +127,18 @@ public class OutboxEvent extends VersionedEntity {
 
     public Long getCompanyId() {
         return companyId;
+    }
+
+    public String getTraceId() {
+        return traceId;
+    }
+
+    public String getRequestId() {
+        return requestId;
+    }
+
+    public String getIdempotencyKey() {
+        return idempotencyKey;
     }
 
     public Instant getCreatedAt() {

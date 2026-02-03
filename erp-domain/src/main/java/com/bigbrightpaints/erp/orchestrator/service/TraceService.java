@@ -32,9 +32,25 @@ public class TraceService {
     }
 
     public void record(String traceId, String eventType, String companyCode, Map<String, Object> details) {
+        record(traceId, eventType, companyCode, details, null, null);
+    }
+
+    public void record(String traceId,
+                       String eventType,
+                       String companyCode,
+                       Map<String, Object> details,
+                       String requestId,
+                       String idempotencyKey) {
         Company company = requireCompany(companyCode);
         String payload = serializeDetails(details);
-        AuditRecord record = new AuditRecord(traceId, eventType, CompanyTime.now(company), payload, company.getId());
+        AuditRecord record = new AuditRecord(
+                traceId,
+                eventType,
+                CompanyTime.now(company),
+                payload,
+                company.getId(),
+                requestId,
+                idempotencyKey);
         auditRepository.save(record);
     }
 

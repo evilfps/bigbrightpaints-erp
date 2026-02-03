@@ -1,6 +1,6 @@
 # Orchestrator “Strong Arm” Contract (CODE-RED)
 
-Last updated: 2026-02-04
+Last updated: 2026-02-03
 
 Goal: keep the orchestrator as a marketable differentiator (automation + observability) **without** turning it into a
 parallel truth source that can corrupt inventory/accounting.
@@ -97,13 +97,15 @@ Minimum guarantees for marketing-safe “enterprise automation”:
 
 What exists now (CODE-RED baseline)
 - Orchestrator write commands require `Idempotency-Key` and reserve `(company, commandName, idempotencyKey)` in `orchestrator_commands`.
-- Outbox rows now include `company_id` (`orchestrator_outbox.company_id`) for tenant scoping and postmortems.
+- Outbox rows include `company_id` for tenant scoping and now persist `traceId/requestId/idempotencyKey` for queryable postmortems.
+- Audit records store `traceId` plus `requestId/idempotencyKey` as first-class columns (no JSON parsing required).
 - Trace/audit details are stored as JSON (not `Map.toString()`), and trace writes require a valid company.
  - Status-bypass attempts to set terminal fulfillment statuses are fail-closed unless dispatch truth exists.
  - Orchestrator fulfillment updates route through SalesService workflow guards (no direct status setters).
 
-Target event envelope (future hardening; not all fields exist today):
-- `commandId` / `idempotencyKey` (caller-provided or server-derived)
+Target event envelope (future hardening; some fields now exist):
+- `commandId`
+- `idempotencyKey` + `requestId` + `traceId` (caller-provided or server-derived)
 - `companyId`
 - `userId`
 - `entity` + `entityId`

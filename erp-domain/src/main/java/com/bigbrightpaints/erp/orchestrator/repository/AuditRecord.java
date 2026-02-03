@@ -31,6 +31,12 @@ public class AuditRecord extends VersionedEntity {
     @Column(name = "company_id")
     private Long companyId;
 
+    @Column(name = "request_id")
+    private String requestId;
+
+    @Column(name = "idempotency_key")
+    private String idempotencyKey;
+
     @Lob
     @Column(nullable = false)
     private String details;
@@ -38,12 +44,15 @@ public class AuditRecord extends VersionedEntity {
     protected AuditRecord() {
     }
 
-    public AuditRecord(String traceId, String eventType, Instant timestamp, String details, Long companyId) {
+    public AuditRecord(String traceId, String eventType, Instant timestamp, String details, Long companyId,
+                       String requestId, String idempotencyKey) {
         this.traceId = traceId;
         this.eventType = eventType;
         this.timestamp = timestamp;
         this.details = details;
         this.companyId = companyId;
+        this.requestId = requestId;
+        this.idempotencyKey = idempotencyKey;
     }
 
     public UUID getId() {
@@ -64,6 +73,14 @@ public class AuditRecord extends VersionedEntity {
 
     public Long getCompanyId() {
         return companyId;
+    }
+
+    public String getRequestId() {
+        return requestId;
+    }
+
+    public String getIdempotencyKey() {
+        return idempotencyKey;
     }
 
     public String getDetails() {

@@ -58,7 +58,10 @@ class EventPublisherServiceTest {
                 "user-1",
                 "SalesOrder",
                 "42",
-                Map.of("ok", true)
+                Map.of("ok", true),
+                "trace-1",
+                "req-1",
+                "idem-1"
         );
         when(objectMapper.writeValueAsString(event)).thenReturn("{\"ok\":true}");
 
@@ -71,6 +74,9 @@ class EventPublisherServiceTest {
         assertThat(saved.getAggregateId()).isEqualTo("42");
         assertThat(saved.getEventType()).isEqualTo("OrderApprovedEvent");
         assertThat(saved.getPayload()).isEqualTo("{\"ok\":true}");
+        assertThat(saved.getTraceId()).isEqualTo("trace-1");
+        assertThat(saved.getRequestId()).isEqualTo("req-1");
+        assertThat(saved.getIdempotencyKey()).isEqualTo("idem-1");
         assertThat(saved.getStatus()).isEqualTo(OutboxEvent.Status.PENDING);
     }
 
@@ -78,7 +84,8 @@ class EventPublisherServiceTest {
     void enqueue_failsClosedWhenSerializationFails() throws Exception {
         EventPublisherService service = new EventPublisherService(outboxEventRepository, rabbitTemplate, companyContextService, objectMapper, null);
 
-        DomainEvent event = DomainEvent.of("X", "COMP", "user-1", "Entity", "1", Map.of());
+        DomainEvent event = DomainEvent.of("X", "COMP", "user-1", "Entity", "1", Map.of(),
+                "trace-2", "req-2", "idem-2");
         when(objectMapper.writeValueAsString(event)).thenThrow(new JsonProcessingException("boom") {});
 
         assertThrows(IllegalStateException.class, () -> service.enqueue(event));

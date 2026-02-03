@@ -75,7 +75,7 @@ class CommandDispatcherTest {
                 ArgumentMatchers.any()))
                 .thenReturn(new OrchestratorIdempotencyService.CommandLease("trace-123", command, true));
 
-        String traceId = commandDispatcher.approveOrder(request, "idem-1", "COMP", "user-1");
+        String traceId = commandDispatcher.approveOrder(request, "idem-1", "req-1", "COMP", "user-1");
 
         assertThat(traceId).isEqualTo("trace-123");
         verify(policyEnforcer).checkOrderApprovalPermissions("user-1", "COMP");
@@ -87,6 +87,9 @@ class CommandDispatcherTest {
         assertThat(published.eventType()).isEqualTo("OrderApprovedEvent");
         assertThat(published.companyId()).isEqualTo("COMP");
         assertThat(published.userId()).isEqualTo("user-1");
+        assertThat(published.traceId()).isEqualTo("trace-123");
+        assertThat(published.requestId()).isEqualTo("req-1");
+        assertThat(published.idempotencyKey()).isEqualTo("idem-1");
         @SuppressWarnings("unchecked")
         Map<String, Object> payload = (Map<String, Object>) published.payload();
         assertThat(payload)
@@ -101,7 +104,9 @@ class CommandDispatcherTest {
                 ArgumentMatchers.eq("ORDER_APPROVED"),
                 ArgumentMatchers.eq("COMP"),
                 ArgumentMatchers.<Map<String, Object>>argThat(map ->
-                        "101".equals(map.get("orderId")) && "idem-1".equals(map.get("idempotencyKey"))));
+                        "101".equals(map.get("orderId")) && "idem-1".equals(map.get("idempotencyKey"))),
+                ArgumentMatchers.eq("req-1"),
+                ArgumentMatchers.eq("idem-1"));
 
         verify(idempotencyService).markSuccess(command);
     }
@@ -126,7 +131,7 @@ class CommandDispatcherTest {
                 ArgumentMatchers.any()))
                 .thenReturn(new OrchestratorIdempotencyService.CommandLease("trace-456", command, true));
 
-        assertThatThrownBy(() -> disabledDispatcher.dispatchBatch(request, "idem-2", "COMP", "user-1"))
+        assertThatThrownBy(() -> disabledDispatcher.dispatchBatch(request, "idem-2", "req-2", "COMP", "user-1"))
                 .isInstanceOf(OrchestratorFeatureDisabledException.class);
 
         verify(integrationCoordinator, never()).updateProductionStatus(ArgumentMatchers.anyString(), ArgumentMatchers.anyString());
@@ -139,7 +144,9 @@ class CommandDispatcherTest {
                 ArgumentMatchers.eq("ORCH_COMMAND_DENIED"),
                 ArgumentMatchers.eq("COMP"),
                 ArgumentMatchers.<Map<String, Object>>argThat(map ->
-                        "ORCH.FACTORY.BATCH.DISPATCH".equals(map.get("commandName"))));
+                        "ORCH.FACTORY.BATCH.DISPATCH".equals(map.get("commandName"))),
+                ArgumentMatchers.eq("req-2"),
+                ArgumentMatchers.eq("idem-2"));
         verify(idempotencyService).markFailed(ArgumentMatchers.eq(command), ArgumentMatchers.any(RuntimeException.class));
     }
 
@@ -163,7 +170,7 @@ class CommandDispatcherTest {
                 ArgumentMatchers.any()))
                 .thenReturn(new OrchestratorIdempotencyService.CommandLease("trace-789", command, true));
 
-        assertThatThrownBy(() -> disabledDispatcher.runPayroll(request, "idem-3", "COMP", "user-1"))
+        assertThatThrownBy(() -> disabledDispatcher.runPayroll(request, "idem-3", "req-3", "COMP", "user-1"))
                 .isInstanceOf(OrchestratorFeatureDisabledException.class);
 
         verify(integrationCoordinator, never()).syncEmployees(ArgumentMatchers.anyString());
@@ -176,7 +183,42 @@ class CommandDispatcherTest {
                 ArgumentMatchers.eq("ORCH_COMMAND_DENIED"),
                 ArgumentMatchers.eq("COMP"),
                 ArgumentMatchers.<Map<String, Object>>argThat(map ->
-                        "ORCH.PAYROLL.RUN".equals(map.get("commandName"))));
+                        "ORCH.PAYROLL.RUN".equals(map.get("commandName"))),
+                ArgumentMatchers.eq("req-3"),
+                ArgumentMatchers.eq("idem-3"));
         verify(idempotencyService).markFailed(ArgumentMatchers.eq(command), ArgumentMatchers.any(RuntimeException.class));
+    }
+
+    @Test
+    void autoApproveOrderUsesIdempotencyAndRecordsIdentifiers() {
+        OrchestratorCommand command = new OrchestratorCommand(1L, "ORCH.ORDER.AUTO_APPROVE", "auto-1", "hash", "trace-999");
+        when(idempotencyService.start(
+                ArgumentMatchers.eq("ORCH.ORDER.AUTO_APPROVE"),
+                ArgumentMatchers.eq("auto-1"),
+                ArgumentMatchers.any(),
+                ArgumentMatchers.any()))
+                .thenReturn(new OrchestratorIdempotencyService.CommandLease("trace-999", command, true));
+        IntegrationCoordinator.AutoApprovalResult result = new IntegrationCoordinator.AutoApprovalResult("READY_TO_SHIP", false);
+        when(integrationCoordinator.autoApproveOrder("101", new BigDecimal("5000"), "COMP")).thenReturn(result);
+
+        String traceId = commandDispatcher.autoApproveOrder("101", new BigDecimal("5000"), "COMP", "auto-1", "req-9");
+
+        assertThat(traceId).isEqualTo("trace-999");
+        ArgumentCaptor<DomainEvent> eventCaptor = ArgumentCaptor.forClass(DomainEvent.class);
+        verify(eventPublisherService).enqueue(eventCaptor.capture());
+        DomainEvent published = eventCaptor.getValue();
+        assertThat(published.eventType()).isEqualTo("OrderAutoApprovedEvent");
+        assertThat(published.traceId()).isEqualTo("trace-999");
+        assertThat(published.requestId()).isEqualTo("req-9");
+        assertThat(published.idempotencyKey()).isEqualTo("auto-1");
+        verify(traceService).record(
+                ArgumentMatchers.eq("trace-999"),
+                ArgumentMatchers.eq("ORDER_AUTO_APPROVED"),
+                ArgumentMatchers.eq("COMP"),
+                ArgumentMatchers.<Map<String, Object>>argThat(map ->
+                        "101".equals(map.get("orderId")) && "auto-1".equals(map.get("idempotencyKey"))),
+                ArgumentMatchers.eq("req-9"),
+                ArgumentMatchers.eq("auto-1"));
+        verify(idempotencyService).markSuccess(command);
     }
 }

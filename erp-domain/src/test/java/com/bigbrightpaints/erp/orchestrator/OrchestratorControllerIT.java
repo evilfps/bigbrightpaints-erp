@@ -8,12 +8,14 @@ import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
 import com.bigbrightpaints.erp.modules.hr.domain.PayrollRunRepository;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrder;
 import com.bigbrightpaints.erp.orchestrator.repository.OutboxEventRepository;
+import com.bigbrightpaints.erp.orchestrator.repository.AuditRepository;
 import com.bigbrightpaints.erp.test.AbstractIntegrationTest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.http.*;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -33,6 +35,8 @@ public class OrchestratorControllerIT extends AbstractIntegrationTest {
     private TestRestTemplate rest;
     @Autowired
     private OutboxEventRepository outboxEventRepository;
+    @Autowired
+    private AuditRepository auditRepository;
     @Autowired
     private PayrollRunRepository payrollRunRepository;
     @Autowired
@@ -98,6 +102,86 @@ public class OrchestratorControllerIT extends AbstractIntegrationTest {
         assertThat(approveResponse.getStatusCode()).isEqualTo(HttpStatus.ACCEPTED);
         assertThat(approveResponse.getBody()).containsKey("traceId");
         assertThat(outboxEventRepository.count()).isEqualTo(before + 1);
+    }
+
+    @Test
+    @Transactional
+    void approve_order_is_idempotent_and_audited() {
+        String token = loginToken();
+        HttpHeaders headers = authHeaders(token);
+        String idempotencyKey = "idem-" + UUID.randomUUID();
+        String requestId = "req-" + UUID.randomUUID();
+        headers.add("Idempotency-Key", idempotencyKey);
+        headers.add("X-Request-Id", requestId);
+        long outboxBefore = outboxEventRepository.count();
+
+        Map<String, Object> body = Map.of(
+                "orderId", String.valueOf(seededOrderId),
+                "approvedBy", "orch@bbp.com",
+                "totalAmount", new BigDecimal("5000")
+        );
+
+        ResponseEntity<Map> firstResponse = rest.exchange(
+                "/api/v1/orchestrator/orders/" + seededOrderId + "/approve",
+                HttpMethod.POST,
+                new HttpEntity<>(body, headers),
+                Map.class);
+
+        ResponseEntity<Map> secondResponse = rest.exchange(
+                "/api/v1/orchestrator/orders/" + seededOrderId + "/approve",
+                HttpMethod.POST,
+                new HttpEntity<>(body, headers),
+                Map.class);
+
+        assertThat(firstResponse.getStatusCode()).isEqualTo(HttpStatus.ACCEPTED);
+        assertThat(secondResponse.getStatusCode()).isEqualTo(HttpStatus.ACCEPTED);
+        String traceId = (String) firstResponse.getBody().get("traceId");
+        assertThat(secondResponse.getBody().get("traceId")).isEqualTo(traceId);
+        assertThat(outboxEventRepository.count()).isEqualTo(outboxBefore + 1);
+
+        Long companyId = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow().getId();
+        assertThat(outboxEventRepository.findByCompanyIdAndRequestId(companyId, requestId))
+                .allMatch(event -> requestId.equals(event.getRequestId())
+                        && idempotencyKey.equals(event.getIdempotencyKey())
+                        && traceId.equals(event.getTraceId()));
+        assertThat(auditRepository.findByCompanyIdAndRequestIdOrderByTimestampAsc(companyId, requestId))
+                .allMatch(record -> idempotencyKey.equals(record.getIdempotencyKey())
+                        && traceId.equals(record.getTraceId()));
+    }
+
+    @Test
+    void approve_order_rejects_idempotency_mismatch() {
+        String token = loginToken();
+        HttpHeaders headers = authHeaders(token);
+        String idempotencyKey = "idem-" + UUID.randomUUID();
+        headers.add("Idempotency-Key", idempotencyKey);
+
+        Map<String, Object> body = Map.of(
+                "orderId", String.valueOf(seededOrderId),
+                "approvedBy", "orch@bbp.com",
+                "totalAmount", new BigDecimal("5000")
+        );
+
+        Map<String, Object> mismatchBody = Map.of(
+                "orderId", String.valueOf(seededOrderId),
+                "approvedBy", "orch@bbp.com",
+                "totalAmount", new BigDecimal("6000")
+        );
+
+        ResponseEntity<Map> firstResponse = rest.exchange(
+                "/api/v1/orchestrator/orders/" + seededOrderId + "/approve",
+                HttpMethod.POST,
+                new HttpEntity<>(body, headers),
+                Map.class);
+
+        ResponseEntity<String> secondResponse = rest.exchange(
+                "/api/v1/orchestrator/orders/" + seededOrderId + "/approve",
+                HttpMethod.POST,
+                new HttpEntity<>(mismatchBody, headers),
+                String.class);
+
+        assertThat(firstResponse.getStatusCode()).isEqualTo(HttpStatus.ACCEPTED);
+        assertThat(secondResponse.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
     }
 
     @Test

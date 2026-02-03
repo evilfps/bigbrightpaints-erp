@@ -1,6 +1,6 @@
 # CODE-RED P0 Deploy Blockers (Must Fix or Prod-Gate)
 
-Last updated: 2026-02-04
+Last updated: 2026-02-03
 
 Purpose: a single, concrete list of **P0** items that block a safe enterprise deploy. For details, see:
 - `docs/CODE-RED/plan-v2.md`
@@ -74,9 +74,13 @@ Purpose: a single, concrete list of **P0** items that block a safe enterprise de
   - Packaging slips must not duplicate per order under concurrency (guard at DB and service layer).
 - Idempotency must be mismatch-safe:
   - If a replay hits an existing reference but payload differs materially (amount/accounts), fail closed with a conflict (no silent reuse).
+- Status (2026-02-03): ✅ orchestrator boundary enforces mismatch-safe idempotency (409 on replay); tests:
+  `OrchestratorControllerIT.approve_order_rejects_idempotency_mismatch`.
 - Observability must be enterprise-grade for every privileged write:
   - Standardize `requestId/traceId/correlationId/idempotencyKey/referenceNumber` so we can audit “who did what” end-to-end across modules.
   - Outbox/audit must be queryable by these identifiers without parsing payload JSON.
+- Status (2026-02-03): ✅ orchestrator audit/outbox store `requestId/traceId/idempotencyKey` columns; tests:
+  `OrchestratorControllerIT.approve_order_is_idempotent_and_audited`.
 
 ## P0 - Accounting Correctness (Enterprise Grade)
 - Payroll payments must clear Salary Payable (no double-expensing).

@@ -16,6 +16,9 @@ import java.util.HexFormat;
 import java.util.function.Supplier;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.util.StringUtils;
 
 @Service
@@ -27,15 +30,20 @@ public class OrchestratorIdempotencyService {
     private final OrchestratorCommandRepository commandRepository;
     private final CompanyContextService companyContextService;
     private final ObjectMapper hashMapper;
+    private final TransactionTemplate txTemplate;
 
     public OrchestratorIdempotencyService(OrchestratorCommandRepository commandRepository,
                                          CompanyContextService companyContextService,
-                                         ObjectMapper objectMapper) {
+                                         ObjectMapper objectMapper,
+                                         PlatformTransactionManager txManager) {
         this.commandRepository = commandRepository;
         this.companyContextService = companyContextService;
         this.hashMapper = objectMapper.copy()
                 .configure(MapperFeature.SORT_PROPERTIES_ALPHABETICALLY, true)
                 .configure(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS, true);
+        TransactionTemplate template = new TransactionTemplate(txManager);
+        template.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        this.txTemplate = template;
     }
 
     public CommandLease start(String commandName,
@@ -47,29 +55,33 @@ public class OrchestratorIdempotencyService {
         String requestHash = hashRequest(company.getId(), commandName, requestPayload);
 
         try {
-            String traceId = traceIdSupplier.get();
-            OrchestratorCommand command = new OrchestratorCommand(company.getId(), commandName, key, requestHash, traceId);
-            commandRepository.saveAndFlush(command);
-            return new CommandLease(traceId, command, true);
+            return txTemplate.execute(status -> {
+                String traceId = traceIdSupplier.get();
+                OrchestratorCommand command = new OrchestratorCommand(company.getId(), commandName, key, requestHash, traceId);
+                commandRepository.saveAndFlush(command);
+                return new CommandLease(traceId, command, true);
+            });
         } catch (DataIntegrityViolationException ex) {
-            OrchestratorCommand existing = commandRepository.lockByScope(company.getId(), commandName, key)
-                    .orElseThrow(() -> new IllegalStateException("Idempotency reservation exists but command row not found"));
+            return txTemplate.execute(status -> {
+                OrchestratorCommand existing = commandRepository.lockByScope(company.getId(), commandName, key)
+                        .orElseThrow(() -> new IllegalStateException("Idempotency reservation exists but command row not found"));
 
-            if (!requestHash.equals(existing.getRequestHash())) {
-                throw new ApplicationException(
-                        ErrorCode.CONCURRENCY_CONFLICT,
-                        "Idempotency key already used with different payload"
-                ).withDetail("commandName", commandName)
-                        .withDetail("idempotencyKey", key);
-            }
+                if (!requestHash.equals(existing.getRequestHash())) {
+                    throw new ApplicationException(
+                            ErrorCode.CONCURRENCY_CONFLICT,
+                            "Idempotency key already used with different payload"
+                    ).withDetail("commandName", commandName)
+                            .withDetail("idempotencyKey", key);
+                }
 
-            if (existing.getStatus() == OrchestratorCommand.Status.FAILED) {
-                existing.markRetry();
-                commandRepository.save(existing);
-                return new CommandLease(existing.getTraceId(), existing, true);
-            }
+                if (existing.getStatus() == OrchestratorCommand.Status.FAILED) {
+                    existing.markRetry();
+                    commandRepository.save(existing);
+                    return new CommandLease(existing.getTraceId(), existing, true);
+                }
 
-            return new CommandLease(existing.getTraceId(), existing, false);
+                return new CommandLease(existing.getTraceId(), existing, false);
+            });
         }
     }
 

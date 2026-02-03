@@ -18,6 +18,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 @Service
 public class CommandDispatcher {
@@ -47,8 +48,13 @@ public class CommandDispatcher {
     }
 
     @Transactional
-    public String approveOrder(ApproveOrderRequest request, String idempotencyKey, String companyId, String userId) {
+    public String approveOrder(ApproveOrderRequest request,
+                               String idempotencyKey,
+                               String requestId,
+                               String companyId,
+                               String userId) {
         policyEnforcer.checkOrderApprovalPermissions(userId, companyId);
+        String normalizedRequestId = normalizeRequestId(requestId, idempotencyKey);
         OrchestratorIdempotencyService.CommandLease lease = idempotencyService.start(
                 "ORCH.ORDER.APPROVE",
                 idempotencyKey,
@@ -67,9 +73,15 @@ public class CommandDispatcher {
                         "awaitingProduction", awaitingProduction,
                         "approvedBy", request.approvedBy(),
                         "totalAmount", request.totalAmount(),
-                        "traceId", traceId));
+                        "traceId", traceId,
+                        "idempotencyKey", idempotencyKey),
+                traceId,
+                normalizedRequestId,
+                idempotencyKey);
             eventPublisherService.enqueue(event);
-            traceService.record(traceId, "ORDER_APPROVED", companyId, Map.of("orderId", request.orderId(), "idempotencyKey", idempotencyKey));
+            traceService.record(traceId, "ORDER_APPROVED", companyId,
+                    Map.of("orderId", request.orderId(), "idempotencyKey", idempotencyKey),
+                    normalizedRequestId, idempotencyKey);
             idempotencyService.markSuccess(lease.command());
             return traceId;
         } catch (RuntimeException ex) {
@@ -79,26 +91,54 @@ public class CommandDispatcher {
     }
 
     @Transactional
-    public String autoApproveOrder(String orderId, BigDecimal totalAmount, String companyId) {
-        String traceId = workflowService.startWorkflow("order-auto-approval");
-        IntegrationCoordinator.AutoApprovalResult result =
-                integrationCoordinator.autoApproveOrder(orderId, totalAmount, companyId);
-        DomainEvent event = DomainEvent.of("OrderAutoApprovedEvent", companyId, "system", "Order", orderId,
-                Map.of("orderStatus", result.orderStatus(),
-                        "awaitingProduction", result.awaitingProduction(),
-                        "totalAmount", totalAmount));
-        eventPublisherService.enqueue(event);
-        traceService.record(traceId, "ORDER_AUTO_APPROVED", companyId, Map.of("orderId", orderId));
-        return traceId;
+    public String autoApproveOrder(String orderId,
+                                   BigDecimal totalAmount,
+                                   String companyId,
+                                   String idempotencyKey,
+                                   String requestId) {
+        String normalizedRequestId = normalizeRequestId(requestId, idempotencyKey);
+        OrchestratorIdempotencyService.CommandLease lease = idempotencyService.start(
+                "ORCH.ORDER.AUTO_APPROVE",
+                idempotencyKey,
+                Map.of("orderId", orderId, "totalAmount", totalAmount),
+                () -> workflowService.startWorkflow("order-auto-approval"));
+        if (!lease.shouldExecute()) {
+            return lease.traceId();
+        }
+        try {
+            String traceId = lease.traceId();
+            IntegrationCoordinator.AutoApprovalResult result =
+                    integrationCoordinator.autoApproveOrder(orderId, totalAmount, companyId);
+            DomainEvent event = DomainEvent.of("OrderAutoApprovedEvent", companyId, "system", "Order", orderId,
+                    Map.of("orderStatus", result.orderStatus(),
+                            "awaitingProduction", result.awaitingProduction(),
+                            "totalAmount", totalAmount,
+                            "traceId", traceId,
+                            "idempotencyKey", idempotencyKey),
+                    traceId,
+                    normalizedRequestId,
+                    idempotencyKey);
+            eventPublisherService.enqueue(event);
+            traceService.record(traceId, "ORDER_AUTO_APPROVED", companyId,
+                    Map.of("orderId", orderId, "idempotencyKey", idempotencyKey),
+                    normalizedRequestId, idempotencyKey);
+            idempotencyService.markSuccess(lease.command());
+            return traceId;
+        } catch (RuntimeException ex) {
+            idempotencyService.markFailed(lease.command(), ex);
+            throw ex;
+        }
     }
 
     @Transactional
     public String updateOrderFulfillment(String orderId,
                                          OrderFulfillmentRequest request,
                                          String idempotencyKey,
+                                         String requestId,
                                          String companyId,
                                          String userId) {
         policyEnforcer.checkOrderApprovalPermissions(userId, companyId);
+        String normalizedRequestId = normalizeRequestId(requestId, idempotencyKey);
         OrchestratorIdempotencyService.CommandLease lease = idempotencyService.start(
                 "ORCH.ORDER.FULFILLMENT.UPDATE",
                 idempotencyKey,
@@ -116,13 +156,18 @@ public class CommandDispatcher {
             payload.put("awaitingProduction", result.awaitingProduction());
             payload.put("notes", request.notes());
             payload.put("traceId", traceId);
+            payload.put("idempotencyKey", idempotencyKey);
             DomainEvent event = DomainEvent.of("OrderFulfillmentUpdated", companyId, userId, "Order", orderId,
-                    payload);
+                    payload,
+                    traceId,
+                    normalizedRequestId,
+                    idempotencyKey);
             eventPublisherService.enqueue(event);
             traceService.record(traceId, "ORDER_FULFILLMENT_UPDATED", companyId, Map.of(
                     "orderId", orderId,
                     "status", request.status(),
-                    "idempotencyKey", idempotencyKey));
+                    "idempotencyKey", idempotencyKey),
+                    normalizedRequestId, idempotencyKey);
             idempotencyService.markSuccess(lease.command());
             return traceId;
         } catch (RuntimeException ex) {
@@ -132,8 +177,13 @@ public class CommandDispatcher {
     }
 
     @Transactional(noRollbackFor = OrchestratorFeatureDisabledException.class)
-    public String dispatchBatch(DispatchRequest request, String idempotencyKey, String companyId, String userId) {
+    public String dispatchBatch(DispatchRequest request,
+                                String idempotencyKey,
+                                String requestId,
+                                String companyId,
+                                String userId) {
         policyEnforcer.checkDispatchPermissions(userId, companyId);
+        String normalizedRequestId = normalizeRequestId(requestId, idempotencyKey);
         OrchestratorIdempotencyService.CommandLease lease = idempotencyService.start(
                 "ORCH.FACTORY.BATCH.DISPATCH",
                 idempotencyKey,
@@ -143,7 +193,8 @@ public class CommandDispatcher {
             return lease.traceId();
         }
         if (!featureFlags.isFactoryDispatchEnabled()) {
-            recordDeniedCommand(lease, "ORCH.FACTORY.BATCH.DISPATCH", companyId, userId, idempotencyKey,
+            recordDeniedCommand(lease, "ORCH.FACTORY.BATCH.DISPATCH", companyId, userId,
+                    idempotencyKey, normalizedRequestId,
                     "/api/v1/factory", "Orchestrator factory dispatch is disabled (CODE-RED).",
                     "Batch", request.batchId());
             throw new OrchestratorFeatureDisabledException(
@@ -162,9 +213,15 @@ public class CommandDispatcher {
                     companyId,
                     request.postingAmount());
             DomainEvent event = DomainEvent.of("ProductionBatchDispatchedEvent", companyId, userId, "Batch",
-                request.batchId(), Map.of("dispatchedBy", request.requestedBy(), "traceId", traceId));
+                request.batchId(), Map.of("dispatchedBy", request.requestedBy(), "traceId", traceId,
+                        "idempotencyKey", idempotencyKey),
+                traceId,
+                normalizedRequestId,
+                idempotencyKey);
             eventPublisherService.enqueue(event);
-            traceService.record(traceId, "BATCH_DISPATCHED", companyId, Map.of("batchId", request.batchId(), "idempotencyKey", idempotencyKey));
+            traceService.record(traceId, "BATCH_DISPATCHED", companyId,
+                    Map.of("batchId", request.batchId(), "idempotencyKey", idempotencyKey),
+                    normalizedRequestId, idempotencyKey);
             idempotencyService.markSuccess(lease.command());
             return traceId;
         } catch (RuntimeException ex) {
@@ -174,8 +231,13 @@ public class CommandDispatcher {
     }
 
     @Transactional(noRollbackFor = OrchestratorFeatureDisabledException.class)
-    public String runPayroll(PayrollRunRequest request, String idempotencyKey, String companyId, String userId) {
+    public String runPayroll(PayrollRunRequest request,
+                             String idempotencyKey,
+                             String requestId,
+                             String companyId,
+                             String userId) {
         policyEnforcer.checkPayrollPermissions(userId, companyId);
+        String normalizedRequestId = normalizeRequestId(requestId, idempotencyKey);
         OrchestratorIdempotencyService.CommandLease lease = idempotencyService.start(
                 "ORCH.PAYROLL.RUN",
                 idempotencyKey,
@@ -185,7 +247,8 @@ public class CommandDispatcher {
             return lease.traceId();
         }
         if (!featureFlags.isPayrollEnabled()) {
-            recordDeniedCommand(lease, "ORCH.PAYROLL.RUN", companyId, userId, idempotencyKey,
+            recordDeniedCommand(lease, "ORCH.PAYROLL.RUN", companyId, userId,
+                    idempotencyKey, normalizedRequestId,
                     "/api/v1/payroll/runs", "Orchestrator payroll run is disabled (CODE-RED).",
                     "Payroll", request.payrollDate() != null ? request.payrollDate().toString() : null);
             throw new OrchestratorFeatureDisabledException(
@@ -206,9 +269,15 @@ public class CommandDispatcher {
                     request.creditAccountId(),
                     companyId);
             DomainEvent event = DomainEvent.of("PayrollCompletedEvent", companyId, userId, "Payroll",
-                request.payrollDate().toString(), Map.of("initiatedBy", request.initiatedBy(), "traceId", traceId));
+                request.payrollDate().toString(), Map.of("initiatedBy", request.initiatedBy(), "traceId", traceId,
+                        "idempotencyKey", idempotencyKey),
+                traceId,
+                normalizedRequestId,
+                idempotencyKey);
             eventPublisherService.enqueue(event);
-            traceService.record(traceId, "PAYROLL_COMPLETED", companyId, Map.of("payrollDate", request.payrollDate(), "idempotencyKey", idempotencyKey));
+            traceService.record(traceId, "PAYROLL_COMPLETED", companyId,
+                    Map.of("payrollDate", request.payrollDate(), "idempotencyKey", idempotencyKey),
+                    normalizedRequestId, idempotencyKey);
             idempotencyService.markSuccess(lease.command());
             return traceId;
         } catch (RuntimeException ex) {
@@ -241,6 +310,7 @@ public class CommandDispatcher {
                                      String companyId,
                                      String userId,
                                      String idempotencyKey,
+                                     String requestId,
                                      String canonicalPath,
                                      String message,
                                      String entity,
@@ -253,7 +323,8 @@ public class CommandDispatcher {
         payload.put("idempotencyKey", idempotencyKey);
         payload.put("traceId", traceId);
         DomainEvent event = DomainEvent.of("OrchestratorCommandDenied", companyId, userId,
-                entity, entityId != null ? entityId : commandName, payload);
+                entity, entityId != null ? entityId : commandName, payload,
+                traceId, requestId, idempotencyKey);
         eventPublisherService.enqueue(event);
         traceService.record(traceId, "ORCH_COMMAND_DENIED", companyId, Map.of(
                 "commandName", commandName,
@@ -262,7 +333,14 @@ public class CommandDispatcher {
                 "idempotencyKey", idempotencyKey,
                 "entity", entity,
                 "entityId", entityId
-        ));
+        ), requestId, idempotencyKey);
         idempotencyService.markFailed(lease.command(), new RuntimeException(message));
+    }
+
+    private String normalizeRequestId(String requestId, String idempotencyKey) {
+        if (StringUtils.hasText(requestId)) {
+            return requestId.trim();
+        }
+        return idempotencyKey;
     }
 }

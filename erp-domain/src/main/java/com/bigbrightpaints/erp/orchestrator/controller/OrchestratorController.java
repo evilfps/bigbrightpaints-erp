@@ -43,9 +43,11 @@ public class OrchestratorController {
     public ResponseEntity<Map<String, Object>> approveOrder(@PathVariable String orderId,
                                                              @Valid @RequestBody ApproveOrderRequest request,
                                                              @org.springframework.web.bind.annotation.RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
+                                                             @org.springframework.web.bind.annotation.RequestHeader(value = "X-Request-Id", required = false) String requestId,
                                                              Principal principal) {
         ApproveOrderRequest normalized = new ApproveOrderRequest(orderId, request.approvedBy(), request.totalAmount());
-        String traceId = commandDispatcher.approveOrder(normalized, requireIdempotencyKey(idempotencyKey), requireCompanyCode(), principal.getName());
+        String traceId = commandDispatcher.approveOrder(normalized, requireIdempotencyKey(idempotencyKey),
+                requestId, requireCompanyCode(), principal.getName());
         return ResponseEntity.accepted().body(Map.of("traceId", traceId));
     }
 
@@ -54,9 +56,10 @@ public class OrchestratorController {
     public ResponseEntity<Map<String, Object>> fulfillOrder(@PathVariable String orderId,
                                                              @Valid @RequestBody OrderFulfillmentRequest request,
                                                              @org.springframework.web.bind.annotation.RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
+                                                             @org.springframework.web.bind.annotation.RequestHeader(value = "X-Request-Id", required = false) String requestId,
                                                              Principal principal) {
         String traceId = commandDispatcher.updateOrderFulfillment(orderId, request, requireIdempotencyKey(idempotencyKey),
-                requireCompanyCode(), principal.getName());
+                requestId, requireCompanyCode(), principal.getName());
         return ResponseEntity.accepted().body(Map.of("traceId", traceId));
     }
 
@@ -65,11 +68,13 @@ public class OrchestratorController {
     public ResponseEntity<Map<String, Object>> dispatch(@PathVariable String batchId,
                                                          @Valid @RequestBody DispatchRequest request,
                                                          @org.springframework.web.bind.annotation.RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
+                                                         @org.springframework.web.bind.annotation.RequestHeader(value = "X-Request-Id", required = false) String requestId,
                                                          Principal principal) {
         DispatchRequest normalized = new DispatchRequest(batchId,
                 request.requestedBy(),
                 request.postingAmount());
-        String traceId = commandDispatcher.dispatchBatch(normalized, requireIdempotencyKey(idempotencyKey), requireCompanyCode(), principal.getName());
+        String traceId = commandDispatcher.dispatchBatch(normalized, requireIdempotencyKey(idempotencyKey),
+                requestId, requireCompanyCode(), principal.getName());
         return ResponseEntity.accepted().body(Map.of("traceId", traceId));
     }
 
@@ -95,8 +100,10 @@ public class OrchestratorController {
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING') and hasAuthority('payroll.run')")
     public ResponseEntity<Map<String, Object>> runPayroll(@Valid @RequestBody PayrollRunRequest request,
                                                            @org.springframework.web.bind.annotation.RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
+                                                           @org.springframework.web.bind.annotation.RequestHeader(value = "X-Request-Id", required = false) String requestId,
                                                            Principal principal) {
-        String traceId = commandDispatcher.runPayroll(request, requireIdempotencyKey(idempotencyKey), requireCompanyCode(), principal.getName());
+        String traceId = commandDispatcher.runPayroll(request, requireIdempotencyKey(idempotencyKey),
+                requestId, requireCompanyCode(), principal.getName());
         return ResponseEntity.accepted().body(Map.of("traceId", traceId));
     }
 

@@ -2,6 +2,7 @@ package com.bigbrightpaints.erp.orchestrator.service;
 
 import com.bigbrightpaints.erp.modules.sales.event.SalesOrderCreatedEvent;
 import com.bigbrightpaints.erp.modules.sales.service.SalesService;
+import com.bigbrightpaints.erp.core.security.CompanyContextHolder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -34,11 +35,25 @@ public class OrderAutoApprovalListener {
             log.info("Auto-approval disabled; skipping for order {}", event.orderId());
             return;
         }
-        String traceId = commandDispatcher.autoApproveOrder(
-                String.valueOf(event.orderId()),
-                event.totalAmount(),
-                event.companyCode());
-        salesService.attachTraceId(event.orderId(), traceId);
-        log.info("Auto-approved order {} with trace {}", event.orderId(), traceId);
+        String previousCompany = CompanyContextHolder.getCompanyCode();
+        CompanyContextHolder.setCompanyCode(event.companyCode());
+        try {
+            String idempotencyKey = "AUTO-APPROVE-" + event.orderId();
+            String requestId = idempotencyKey;
+            String traceId = commandDispatcher.autoApproveOrder(
+                    String.valueOf(event.orderId()),
+                    event.totalAmount(),
+                    event.companyCode(),
+                    idempotencyKey,
+                    requestId);
+            salesService.attachTraceId(event.orderId(), traceId);
+            log.info("Auto-approved order {} with trace {}", event.orderId(), traceId);
+        } finally {
+            if (previousCompany != null) {
+                CompanyContextHolder.setCompanyCode(previousCompany);
+            } else {
+                CompanyContextHolder.clear();
+            }
+        }
     }
 }

@@ -34,19 +34,22 @@ class OrderAutoApprovalListenerTest {
 
         listener.onOrderCreated(new SalesOrderCreatedEvent(42L, "COMP", new BigDecimal("100.00")));
 
-        verify(commandDispatcher, never()).autoApproveOrder(eq("42"), eq(new BigDecimal("100.00")), eq("COMP"));
+        verify(commandDispatcher, never()).autoApproveOrder(eq("42"), eq(new BigDecimal("100.00")), eq("COMP"),
+                eq("AUTO-APPROVE-42"), eq("AUTO-APPROVE-42"));
         verify(salesService, never()).attachTraceId(eq(42L), anyString());
     }
 
     @Test
     void onOrderCreated_autoApprovesAndAttachesTraceIdWhenEnabled() {
         when(systemSettingsService.isAutoApprovalEnabled()).thenReturn(true);
-        when(commandDispatcher.autoApproveOrder("42", new BigDecimal("100.00"), "COMP")).thenReturn("trace-123");
+        when(commandDispatcher.autoApproveOrder("42", new BigDecimal("100.00"), "COMP",
+                "AUTO-APPROVE-42", "AUTO-APPROVE-42")).thenReturn("trace-123");
         OrderAutoApprovalListener listener = new OrderAutoApprovalListener(commandDispatcher, salesService, systemSettingsService);
 
         listener.onOrderCreated(new SalesOrderCreatedEvent(42L, "COMP", new BigDecimal("100.00")));
 
-        verify(commandDispatcher).autoApproveOrder("42", new BigDecimal("100.00"), "COMP");
+        verify(commandDispatcher).autoApproveOrder("42", new BigDecimal("100.00"), "COMP",
+                "AUTO-APPROVE-42", "AUTO-APPROVE-42");
         verify(salesService).attachTraceId(42L, "trace-123");
     }
 }

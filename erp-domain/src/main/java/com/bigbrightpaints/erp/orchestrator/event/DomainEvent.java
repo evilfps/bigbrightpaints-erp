@@ -12,11 +12,15 @@ public record DomainEvent(
     String entity,
     String entityId,
     Instant timestamp,
+    String traceId,
+    String requestId,
+    String idempotencyKey,
     Object payload
 ) {
     public static DomainEvent of(String eventType, String companyId, String userId, String entity,
-                                 String entityId, Object payload) {
+                                 String entityId, Object payload, String traceId,
+                                 String requestId, String idempotencyKey) {
         return new DomainEvent(UUID.randomUUID(), eventType, companyId, userId, entity, entityId,
-            CompanyTime.now(), payload);
+            CompanyTime.now(), traceId, requestId, idempotencyKey, payload);
     }
 }
