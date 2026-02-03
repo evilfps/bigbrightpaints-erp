@@ -94,6 +94,9 @@ management:
       cors:
         allowed-origins: ${MANAGEMENT_CORS_ALLOWED_ORIGINS:https://ops.bigbrightpaints.com}
         allowed-methods: GET
+  info:
+    env:
+      enabled: false
   endpoint:
     health:
       probes:
