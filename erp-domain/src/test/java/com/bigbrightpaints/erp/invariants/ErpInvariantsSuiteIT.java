@@ -1277,6 +1277,7 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
         grReq.put("purchaseOrderId", purchaseOrderId);
         grReq.put("receiptNumber", "GRN-" + System.nanoTime());
         grReq.put("receiptDate", entryDate);
+        grReq.put("idempotencyKey", "GRN-IDEMP-" + System.nanoTime());
         grReq.put("lines", List.of(grLine));
 
         ResponseEntity<Map> grResp = rest.exchange(

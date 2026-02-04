@@ -41,6 +41,12 @@ public class GoodsReceipt extends VersionedEntity {
     @Column(name = "receipt_date", nullable = false)
     private LocalDate receiptDate;
 
+    @Column(name = "idempotency_key", length = 128)
+    private String idempotencyKey;
+
+    @Column(name = "idempotency_hash", length = 64)
+    private String idempotencyHash;
+
     @Column(nullable = false)
     private String status = "RECEIVED";
 
@@ -85,6 +91,10 @@ public class GoodsReceipt extends VersionedEntity {
     public void setReceiptNumber(String receiptNumber) { this.receiptNumber = receiptNumber; }
     public LocalDate getReceiptDate() { return receiptDate; }
     public void setReceiptDate(LocalDate receiptDate) { this.receiptDate = receiptDate; }
+    public String getIdempotencyKey() { return idempotencyKey; }
+    public void setIdempotencyKey(String idempotencyKey) { this.idempotencyKey = idempotencyKey; }
+    public String getIdempotencyHash() { return idempotencyHash; }
+    public void setIdempotencyHash(String idempotencyHash) { this.idempotencyHash = idempotencyHash; }
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
     public String getMemo() { return memo; }

@@ -25,9 +25,13 @@ public interface GoodsReceiptRepository extends JpaRepository<GoodsReceipt, Long
 
     Optional<GoodsReceipt> findByCompanyAndId(Company company, Long id);
     Optional<GoodsReceipt> findByCompanyAndReceiptNumberIgnoreCase(Company company, String receiptNumber);
+    Optional<GoodsReceipt> findByCompanyAndIdempotencyKey(Company company, String idempotencyKey);
 
     @EntityGraph(attributePaths = {"lines", "lines.rawMaterial"})
     List<GoodsReceipt> findByPurchaseOrder(PurchaseOrder purchaseOrder);
+
+    @EntityGraph(attributePaths = {"supplier", "purchaseOrder", "lines", "lines.rawMaterial"})
+    Optional<GoodsReceipt> findWithLinesByCompanyAndIdempotencyKey(Company company, String idempotencyKey);
 
     boolean existsByPurchaseOrder(PurchaseOrder purchaseOrder);
 

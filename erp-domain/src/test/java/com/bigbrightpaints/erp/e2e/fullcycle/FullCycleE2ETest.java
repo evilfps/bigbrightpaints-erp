@@ -260,6 +260,7 @@ public class FullCycleE2ETest extends AbstractIntegrationTest {
                 "purchaseOrderId", purchaseOrderId,
                 "receiptNumber", "GRN-" + shortSuffix(),
                 "receiptDate", entryDate.toString(),
+                "idempotencyKey", "GRN-IDEMP-" + shortSuffix(),
                 "lines", List.of(grLine)
         );
         ResponseEntity<Map> grResp = rest.exchange(

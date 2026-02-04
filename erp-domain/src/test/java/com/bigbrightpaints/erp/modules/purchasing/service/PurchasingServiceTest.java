@@ -7,6 +7,7 @@ import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
+import com.bigbrightpaints.erp.modules.accounting.service.AccountingPeriodService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterial;
@@ -30,6 +31,7 @@ import com.bigbrightpaints.erp.modules.purchasing.dto.RawMaterialPurchaseLineReq
 import com.bigbrightpaints.erp.modules.purchasing.dto.RawMaterialPurchaseRequest;
 import com.bigbrightpaints.erp.modules.accounting.service.ReferenceNumberService;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -81,6 +83,10 @@ class PurchasingServiceTest {
     private ReferenceNumberService referenceNumberService;
     @Mock
     private CompanyClock companyClock;
+    @Mock
+    private AccountingPeriodService accountingPeriodService;
+    @Mock
+    private PlatformTransactionManager transactionManager;
 
     private PurchasingService purchasingService;
     private Company company;
@@ -103,7 +109,9 @@ class PurchasingServiceTest {
                 journalEntryRepository,
                 companyEntityLookup,
                 referenceNumberService,
-                companyClock
+                companyClock,
+                accountingPeriodService,
+                transactionManager
         );
 
         company = new Company();

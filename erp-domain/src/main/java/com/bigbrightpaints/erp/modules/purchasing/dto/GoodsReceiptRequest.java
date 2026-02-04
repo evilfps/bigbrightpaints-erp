@@ -13,5 +13,6 @@ public record GoodsReceiptRequest(
         @NotBlank String receiptNumber,
         @NotNull LocalDate receiptDate,
         String memo,
+        String idempotencyKey,
         @NotEmpty List<@Valid GoodsReceiptLineRequest> lines
 ) {}

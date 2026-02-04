@@ -9,6 +9,7 @@ import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
+import com.bigbrightpaints.erp.modules.accounting.service.AccountingPeriodService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryReference;
@@ -45,7 +46,11 @@ import com.bigbrightpaints.erp.modules.purchasing.dto.RawMaterialPurchaseRequest
 import com.bigbrightpaints.erp.modules.purchasing.dto.RawMaterialPurchaseResponse;
 import com.bigbrightpaints.erp.modules.purchasing.dto.PurchaseReturnRequest;
 import jakarta.transaction.Transactional;
+import org.apache.commons.codec.digest.DigestUtils;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
@@ -79,6 +84,8 @@ public class PurchasingService {
     private final CompanyEntityLookup companyEntityLookup;
     private final ReferenceNumberService referenceNumberService;
     private final CompanyClock companyClock;
+    private final AccountingPeriodService accountingPeriodService;
+    private final TransactionTemplate transactionTemplate;
 
     public PurchasingService(CompanyContextService companyContextService,
                              RawMaterialPurchaseRepository purchaseRepository,
@@ -92,7 +99,9 @@ public class PurchasingService {
                              JournalEntryRepository journalEntryRepository,
                              CompanyEntityLookup companyEntityLookup,
                              ReferenceNumberService referenceNumberService,
-                             CompanyClock companyClock) {
+                             CompanyClock companyClock,
+                             AccountingPeriodService accountingPeriodService,
+                             PlatformTransactionManager transactionManager) {
         this.companyContextService = companyContextService;
         this.purchaseRepository = purchaseRepository;
         this.purchaseOrderRepository = purchaseOrderRepository;
@@ -106,6 +115,8 @@ public class PurchasingService {
         this.companyEntityLookup = companyEntityLookup;
         this.referenceNumberService = referenceNumberService;
         this.companyClock = companyClock;
+        this.accountingPeriodService = accountingPeriodService;
+        this.transactionTemplate = new TransactionTemplate(transactionManager);
     }
 
     public List<RawMaterialPurchaseResponse> listPurchases() {
@@ -228,9 +239,52 @@ public class PurchasingService {
         return toGoodsReceiptResponse(receipt);
     }
 
-    @Transactional
     public GoodsReceiptResponse createGoodsReceipt(GoodsReceiptRequest request) {
+        if (request == null || request.lines() == null || request.lines().isEmpty()) {
+            throw new IllegalArgumentException("Goods receipt lines are required");
+        }
         Company company = companyContextService.requireCurrentCompany();
+        String idempotencyKey = normalizeIdempotencyKey(request.idempotencyKey());
+        if (!StringUtils.hasText(idempotencyKey)) {
+            throw new ApplicationException(ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD,
+                    "Idempotency key is required for goods receipts");
+        }
+        List<GoodsReceiptLineRequest> sortedLines = request.lines().stream()
+                .sorted(Comparator.comparing(GoodsReceiptLineRequest::rawMaterialId))
+                .toList();
+        String requestSignature = buildGoodsReceiptSignature(request, sortedLines);
+        GoodsReceipt existing = goodsReceiptRepository.findWithLinesByCompanyAndIdempotencyKey(company, idempotencyKey)
+                .orElse(null);
+        if (existing != null) {
+            assertIdempotencyMatch(existing, requestSignature, idempotencyKey);
+            return toGoodsReceiptResponse(existing);
+        }
+
+        LocalDate receiptDate = request.receiptDate();
+        if (receiptDate == null) {
+            throw new ApplicationException(ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD,
+                    "Receipt date is required");
+        }
+        accountingPeriodService.requireOpenPeriod(company, receiptDate);
+
+        try {
+            return transactionTemplate.execute(status ->
+                    createGoodsReceiptInternal(request, company, idempotencyKey, requestSignature));
+        } catch (RuntimeException ex) {
+            if (!isDataIntegrityViolation(ex)) {
+                throw ex;
+            }
+            GoodsReceipt concurrent = goodsReceiptRepository.findWithLinesByCompanyAndIdempotencyKey(company, idempotencyKey)
+                    .orElseThrow(() -> ex);
+            assertIdempotencyMatch(concurrent, requestSignature, idempotencyKey);
+            return toGoodsReceiptResponse(concurrent);
+        }
+    }
+
+    private GoodsReceiptResponse createGoodsReceiptInternal(GoodsReceiptRequest request,
+                                                           Company company,
+                                                           String idempotencyKey,
+                                                           String requestSignature) {
         PurchaseOrder purchaseOrder = purchaseOrderRepository.lockByCompanyAndId(company, request.purchaseOrderId())
                 .orElseThrow(() -> new IllegalArgumentException("Purchase order not found"));
         Supplier supplier = purchaseOrder.getSupplier();
@@ -292,6 +346,8 @@ public class PurchasingService {
         receipt.setReceiptNumber(receiptNumber);
         receipt.setReceiptDate(request.receiptDate());
         receipt.setMemo(clean(request.memo()));
+        receipt.setIdempotencyKey(idempotencyKey);
+        receipt.setIdempotencyHash(requestSignature);
 
         boolean fullyReceived = true;
         Set<Long> receiptMaterialIds = new HashSet<>();
@@ -1238,6 +1294,67 @@ public class PurchasingService {
         } else {
             purchase.setStatus("POSTED");
         }
+    }
+
+    private String normalizeIdempotencyKey(String raw) {
+        return StringUtils.hasText(raw) ? raw.trim() : null;
+    }
+
+    private void assertIdempotencyMatch(GoodsReceipt receipt,
+                                        String expectedSignature,
+                                        String idempotencyKey) {
+        String storedSignature = receipt.getIdempotencyHash();
+        if (StringUtils.hasText(storedSignature)) {
+            if (!storedSignature.equals(expectedSignature)) {
+                throw new ApplicationException(ErrorCode.CONCURRENCY_CONFLICT,
+                        "Idempotency key already used with different payload")
+                        .withDetail("idempotencyKey", idempotencyKey)
+                        .withDetail("receiptNumber", receipt.getReceiptNumber());
+            }
+            return;
+        }
+        receipt.setIdempotencyHash(expectedSignature);
+        goodsReceiptRepository.save(receipt);
+    }
+
+    private String buildGoodsReceiptSignature(GoodsReceiptRequest request,
+                                              List<GoodsReceiptLineRequest> sortedLines) {
+        StringBuilder signature = new StringBuilder();
+        signature.append(request.purchaseOrderId() != null ? request.purchaseOrderId() : "")
+                .append('|').append(normalizeToken(request.receiptNumber()))
+                .append('|').append(request.receiptDate() != null ? request.receiptDate() : "")
+                .append('|').append(normalizeToken(request.memo()));
+        for (GoodsReceiptLineRequest line : sortedLines) {
+            signature.append('|').append(line.rawMaterialId() != null ? line.rawMaterialId() : "")
+                    .append(':').append(normalizeToken(line.batchCode()))
+                    .append(':').append(normalizeAmount(line.quantity()))
+                    .append(':').append(normalizeToken(line.unit()))
+                    .append(':').append(normalizeAmount(line.costPerUnit()))
+                    .append(':').append(normalizeToken(line.notes()));
+        }
+        return DigestUtils.sha256Hex(signature.toString());
+    }
+
+    private String normalizeToken(String value) {
+        return value != null ? value.trim() : "";
+    }
+
+    private String normalizeAmount(BigDecimal value) {
+        if (value == null) {
+            return "";
+        }
+        return value.stripTrailingZeros().toPlainString();
+    }
+
+    private boolean isDataIntegrityViolation(Throwable error) {
+        Throwable cursor = error;
+        while (cursor != null) {
+            if (cursor instanceof DataIntegrityViolationException) {
+                return true;
+            }
+            cursor = cursor.getCause();
+        }
+        return false;
     }
 
     private String invoiceReference(String invoiceNumber, int lineIndex) {

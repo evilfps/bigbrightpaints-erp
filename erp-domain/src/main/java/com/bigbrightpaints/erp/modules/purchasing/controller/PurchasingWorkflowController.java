@@ -1,5 +1,7 @@
 package com.bigbrightpaints.erp.modules.purchasing.controller;
 
+import com.bigbrightpaints.erp.core.exception.ApplicationException;
+import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.modules.purchasing.dto.GoodsReceiptRequest;
 import com.bigbrightpaints.erp.modules.purchasing.dto.GoodsReceiptResponse;
 import com.bigbrightpaints.erp.modules.purchasing.dto.PurchaseOrderRequest;
@@ -10,6 +12,7 @@ import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.util.StringUtils;
 
 import java.util.List;
 
@@ -57,7 +60,38 @@ public class PurchasingWorkflowController {
     @PostMapping("/goods-receipts")
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
     public ResponseEntity<ApiResponse<GoodsReceiptResponse>> createGoodsReceipt(
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
             @Valid @RequestBody GoodsReceiptRequest request) {
-        return ResponseEntity.ok(ApiResponse.success("Goods receipt recorded", purchasingService.createGoodsReceipt(request)));
+        GoodsReceiptRequest resolved = applyIdempotencyKey(request, idempotencyKey);
+        return ResponseEntity.ok(ApiResponse.success("Goods receipt recorded", purchasingService.createGoodsReceipt(resolved)));
+    }
+
+    private GoodsReceiptRequest applyIdempotencyKey(GoodsReceiptRequest request, String headerKey) {
+        if (request == null) {
+            throw new ApplicationException(ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD,
+                    "Goods receipt request is required");
+        }
+        String bodyKey = request.idempotencyKey();
+        if (StringUtils.hasText(bodyKey)) {
+            if (StringUtils.hasText(headerKey) && !bodyKey.trim().equals(headerKey.trim())) {
+                throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                        "Idempotency key mismatch between header and request body")
+                        .withDetail("headerKey", headerKey)
+                        .withDetail("bodyKey", bodyKey);
+            }
+            return request;
+        }
+        if (!StringUtils.hasText(headerKey)) {
+            throw new ApplicationException(ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD,
+                    "Idempotency-Key header is required");
+        }
+        return new GoodsReceiptRequest(
+                request.purchaseOrderId(),
+                request.receiptNumber(),
+                request.receiptDate(),
+                request.memo(),
+                headerKey.trim(),
+                request.lines()
+        );
     }
 }

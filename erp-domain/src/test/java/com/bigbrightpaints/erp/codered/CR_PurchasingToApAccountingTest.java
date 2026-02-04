@@ -3,16 +3,23 @@ package com.bigbrightpaints.erp.codered;
 import com.bigbrightpaints.erp.codered.support.CoderedConcurrencyHarness;
 import com.bigbrightpaints.erp.codered.support.CoderedDbAssertions;
 import com.bigbrightpaints.erp.codered.support.CoderedRetry;
+import com.bigbrightpaints.erp.core.exception.ApplicationException;
+import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.security.CompanyContextHolder;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
+import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriod;
+import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriodRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
+import com.bigbrightpaints.erp.modules.accounting.dto.AccountingPeriodCloseRequest;
+import com.bigbrightpaints.erp.modules.accounting.service.AccountingPeriodService;
 import com.bigbrightpaints.erp.modules.accounting.service.ReconciliationService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryReference;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterial;
+import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovementRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialRepository;
 import com.bigbrightpaints.erp.modules.purchasing.domain.GoodsReceipt;
 import com.bigbrightpaints.erp.modules.purchasing.domain.GoodsReceiptRepository;
@@ -47,13 +54,17 @@ import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class CR_PurchasingToApAccountingTest extends AbstractIntegrationTest {
 
     @Autowired private CompanyRepository companyRepository;
     @Autowired private AccountRepository accountRepository;
+    @Autowired private AccountingPeriodService accountingPeriodService;
+    @Autowired private AccountingPeriodRepository accountingPeriodRepository;
     @Autowired private SupplierRepository supplierRepository;
     @Autowired private RawMaterialRepository rawMaterialRepository;
+    @Autowired private RawMaterialMovementRepository movementRepository;
     @Autowired private PurchaseOrderRepository purchaseOrderRepository;
     @Autowired private GoodsReceiptRepository goodsReceiptRepository;
     @Autowired private RawMaterialPurchaseRepository purchaseRepository;
@@ -80,6 +91,7 @@ class CR_PurchasingToApAccountingTest extends AbstractIntegrationTest {
         String orderNumber = "PO-" + shortId();
         String receiptNumber = "GRN-" + shortId();
         String invoiceNumber = "INV-" + shortId();
+        String grnIdempotencyKey = "GRN-IDEMP-" + shortId();
 
         CompanyContextHolder.setCompanyId(companyCode);
         PurchaseOrderResponse po = purchasingService.createPurchaseOrder(new PurchaseOrderRequest(
@@ -100,6 +112,7 @@ class CR_PurchasingToApAccountingTest extends AbstractIntegrationTest {
                 receiptNumber,
                 today,
                 "CODE-RED GRN",
+                grnIdempotencyKey,
                 List.of(new GoodsReceiptLineRequest(
                         rm.getId(),
                         "RM-BATCH-" + shortId(),
@@ -176,6 +189,7 @@ class CR_PurchasingToApAccountingTest extends AbstractIntegrationTest {
         String orderNumber = "PO-" + shortId();
         String receiptNumber = "GRN-" + shortId();
         String invoiceNumber = "INV-" + shortId();
+        String grnIdempotencyKey = "GRN-IDEMP-" + shortId();
 
         CompanyContextHolder.setCompanyId(companyCode);
         PurchaseOrderResponse po = purchasingService.createPurchaseOrder(new PurchaseOrderRequest(
@@ -196,6 +210,7 @@ class CR_PurchasingToApAccountingTest extends AbstractIntegrationTest {
                 receiptNumber,
                 today,
                 "CODE-RED GRN",
+                grnIdempotencyKey,
                 List.of(new GoodsReceiptLineRequest(
                         rm.getId(),
                         "RM-BATCH-" + shortId(),
@@ -274,6 +289,186 @@ class CR_PurchasingToApAccountingTest extends AbstractIntegrationTest {
                 receiptNumber,
                 journalId
         );
+    }
+
+    @Test
+    void grnIdempotency_replayReturnsSameReceipt_andMovementsNotDuplicated() {
+        String companyCode = "CR-GRN-IDEMP-" + shortId();
+        Company company = bootstrapCompany(companyCode);
+        Map<String, Account> accounts = ensurePurchasingAccounts(company);
+
+        Supplier supplier = ensureSupplier(company, accounts.get("AP"));
+        RawMaterial rm = ensureRawMaterial(company, accounts.get("RM_INV"));
+
+        LocalDate today = TestDateUtils.safeDate(company);
+        String orderNumber = "PO-" + shortId();
+        String receiptNumber = "GRN-" + shortId();
+        String idempotencyKey = "GRN-IDEMP-" + shortId();
+
+        CompanyContextHolder.setCompanyId(companyCode);
+        PurchaseOrderResponse po = purchasingService.createPurchaseOrder(new PurchaseOrderRequest(
+                supplier.getId(),
+                orderNumber,
+                today,
+                "CODE-RED PO",
+                List.of(new PurchaseOrderLineRequest(
+                        rm.getId(),
+                        new BigDecimal("10"),
+                        rm.getUnitType(),
+                        new BigDecimal("12.50"),
+                        "RM line"))
+        ));
+
+        GoodsReceiptRequest request = new GoodsReceiptRequest(
+                po.id(),
+                receiptNumber,
+                today,
+                "CODE-RED GRN",
+                idempotencyKey,
+                List.of(new GoodsReceiptLineRequest(
+                        rm.getId(),
+                        "RM-BATCH-" + shortId(),
+                        new BigDecimal("10"),
+                        rm.getUnitType(),
+                        new BigDecimal("12.50"),
+                        "GRN line"))
+        );
+
+        GoodsReceiptResponse first = purchasingService.createGoodsReceipt(request);
+        int movementCount = movementRepository.findByRawMaterialCompanyAndReferenceTypeAndReferenceId(
+                company,
+                InventoryReference.RAW_MATERIAL_PURCHASE,
+                receiptNumber
+        ).size();
+
+        GoodsReceiptResponse second = purchasingService.createGoodsReceipt(request);
+        int movementCountAfter = movementRepository.findByRawMaterialCompanyAndReferenceTypeAndReferenceId(
+                company,
+                InventoryReference.RAW_MATERIAL_PURCHASE,
+                receiptNumber
+        ).size();
+
+        assertThat(second.id()).as("idempotent grn").isEqualTo(first.id());
+        assertThat(movementCountAfter).as("movements stable on replay").isEqualTo(movementCount);
+    }
+
+    @Test
+    void grnIdempotency_mismatchReturnsConflict() {
+        String companyCode = "CR-GRN-MISMATCH-" + shortId();
+        Company company = bootstrapCompany(companyCode);
+        Map<String, Account> accounts = ensurePurchasingAccounts(company);
+
+        Supplier supplier = ensureSupplier(company, accounts.get("AP"));
+        RawMaterial rm = ensureRawMaterial(company, accounts.get("RM_INV"));
+
+        LocalDate today = TestDateUtils.safeDate(company);
+        String orderNumber = "PO-" + shortId();
+        String receiptNumber = "GRN-" + shortId();
+        String idempotencyKey = "GRN-IDEMP-" + shortId();
+
+        CompanyContextHolder.setCompanyId(companyCode);
+        PurchaseOrderResponse po = purchasingService.createPurchaseOrder(new PurchaseOrderRequest(
+                supplier.getId(),
+                orderNumber,
+                today,
+                "CODE-RED PO",
+                List.of(new PurchaseOrderLineRequest(
+                        rm.getId(),
+                        new BigDecimal("5"),
+                        rm.getUnitType(),
+                        new BigDecimal("8.75"),
+                        "RM line"))
+        ));
+
+        GoodsReceiptRequest request = new GoodsReceiptRequest(
+                po.id(),
+                receiptNumber,
+                today,
+                "CODE-RED GRN",
+                idempotencyKey,
+                List.of(new GoodsReceiptLineRequest(
+                        rm.getId(),
+                        "RM-BATCH-" + shortId(),
+                        new BigDecimal("5"),
+                        rm.getUnitType(),
+                        new BigDecimal("8.75"),
+                        "GRN line"))
+        );
+        purchasingService.createGoodsReceipt(request);
+
+        GoodsReceiptRequest mismatch = new GoodsReceiptRequest(
+                po.id(),
+                receiptNumber,
+                today,
+                "CODE-RED GRN",
+                idempotencyKey,
+                List.of(new GoodsReceiptLineRequest(
+                        rm.getId(),
+                        "RM-BATCH-" + shortId(),
+                        new BigDecimal("4"),
+                        rm.getUnitType(),
+                        new BigDecimal("8.75"),
+                        "GRN line"))
+        );
+
+        assertThatThrownBy(() -> purchasingService.createGoodsReceipt(mismatch))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Idempotency key already used")
+                .satisfies(error -> assertThat(((ApplicationException) error).getErrorCode())
+                        .isEqualTo(ErrorCode.CONCURRENCY_CONFLICT));
+    }
+
+    @Test
+    void grnClosedPeriodRejected() {
+        String companyCode = "CR-GRN-CLOSED-" + shortId();
+        Company company = bootstrapCompany(companyCode);
+        Map<String, Account> accounts = ensurePurchasingAccounts(company);
+
+        Supplier supplier = ensureSupplier(company, accounts.get("AP"));
+        RawMaterial rm = ensureRawMaterial(company, accounts.get("RM_INV"));
+
+        LocalDate receiptDate = TestDateUtils.safeDate(company).withDayOfMonth(1);
+        String orderNumber = "PO-" + shortId();
+        String receiptNumber = "GRN-" + shortId();
+        String idempotencyKey = "GRN-IDEMP-" + shortId();
+
+        CompanyContextHolder.setCompanyId(companyCode);
+        accountingPeriodService.listPeriods();
+        AccountingPeriod period = accountingPeriodRepository.findByCompanyAndYearAndMonth(
+                company, receiptDate.getYear(), receiptDate.getMonthValue()).orElseThrow();
+        accountingPeriodService.closePeriod(period.getId(), new AccountingPeriodCloseRequest(true, "CODE-RED close"));
+
+        PurchaseOrderResponse po = purchasingService.createPurchaseOrder(new PurchaseOrderRequest(
+                supplier.getId(),
+                orderNumber,
+                receiptDate,
+                "CODE-RED PO",
+                List.of(new PurchaseOrderLineRequest(
+                        rm.getId(),
+                        new BigDecimal("3"),
+                        rm.getUnitType(),
+                        new BigDecimal("9.50"),
+                        "RM line"))
+        ));
+
+        GoodsReceiptRequest request = new GoodsReceiptRequest(
+                po.id(),
+                receiptNumber,
+                receiptDate,
+                "CODE-RED GRN",
+                idempotencyKey,
+                List.of(new GoodsReceiptLineRequest(
+                        rm.getId(),
+                        "RM-BATCH-" + shortId(),
+                        new BigDecimal("3"),
+                        rm.getUnitType(),
+                        new BigDecimal("9.50"),
+                        "GRN line"))
+        );
+
+        assertThatThrownBy(() -> purchasingService.createGoodsReceipt(request))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("locked/closed");
     }
 
     private Company bootstrapCompany(String companyCode) {
