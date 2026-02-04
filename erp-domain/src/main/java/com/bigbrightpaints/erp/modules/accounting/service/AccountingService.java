@@ -81,6 +81,8 @@ public class AccountingService {
     private static final String ENTITY_TYPE_DEALER_RECEIPT = "DEALER_RECEIPT";
     private static final String ENTITY_TYPE_DEALER_RECEIPT_SPLIT = "DEALER_RECEIPT_SPLIT";
     private static final String ENTITY_TYPE_DEALER_SETTLEMENT = "DEALER_SETTLEMENT";
+    private static final String ENTITY_TYPE_SUPPLIER_PAYMENT = "SUPPLIER_PAYMENT";
+    private static final String ENTITY_TYPE_SUPPLIER_SETTLEMENT = "SUPPLIER_SETTLEMENT";
     private static final String ENTITY_TYPE_CREDIT_NOTE = "CREDIT_NOTE";
 
     private final CompanyContextService companyContextService;
@@ -1374,9 +1376,33 @@ public class AccountingService {
         String memo = StringUtils.hasText(request.memo())
                 ? request.memo().trim()
                 : "Payment to supplier " + supplier.getName();
-        String reference = StringUtils.hasText(request.referenceNumber())
-                ? request.referenceNumber().trim()
-                : referenceNumberService.supplierPaymentReference(company, supplier);
+        String idempotencyKey = resolveReceiptIdempotencyKey(request.idempotencyKey(), request.referenceNumber(), "supplier payment");
+        String reference = resolveSupplierPaymentReference(company, supplier, request.referenceNumber(), idempotencyKey);
+        IdempotencyReservation reservation = reserveReferenceMapping(company, idempotencyKey, reference, ENTITY_TYPE_SUPPLIER_PAYMENT);
+
+        if (!reservation.leader()) {
+            JournalEntry existingEntry = awaitJournalEntry(company, reference, idempotencyKey);
+            List<PartnerSettlementAllocation> existingAllocations = awaitAllocations(company, idempotencyKey);
+            if (!existingAllocations.isEmpty()) {
+                JournalEntry entry = existingEntry != null ? existingEntry : existingAllocations.getFirst().getJournalEntry();
+                validateSupplierPaymentIdempotency(idempotencyKey, supplier, cashAccount, payableAccount, amount, memo,
+                        entry, existingAllocations, allocations);
+                return toDto(entry);
+            }
+            throw new ApplicationException(ErrorCode.INTERNAL_CONCURRENCY_FAILURE,
+                    "Supplier payment idempotency key is reserved but allocation not found")
+                    .withDetail("idempotencyKey", idempotencyKey);
+        }
+
+        List<PartnerSettlementAllocation> existingAllocations = settlementAllocationRepository
+                .findByCompanyAndIdempotencyKey(company, idempotencyKey);
+        if (!existingAllocations.isEmpty()) {
+            JournalEntry entry = existingAllocations.getFirst().getJournalEntry();
+            validateSupplierPaymentIdempotency(idempotencyKey, supplier, cashAccount, payableAccount, amount, memo,
+                    entry, existingAllocations, allocations);
+            return toDto(entry);
+        }
+
         JournalEntryRequest payload = new JournalEntryRequest(
                 reference,
                 currentDate(company),
@@ -1391,12 +1417,15 @@ public class AccountingService {
         );
         JournalEntryDto entryDto = createJournalEntry(payload);
         JournalEntry entry = companyEntityLookup.requireJournalEntry(company, entryDto.id());
-        String idempotencyKey = entry.getReferenceNumber();
-        List<PartnerSettlementAllocation> existing = settlementAllocationRepository
+        linkReferenceMapping(company, idempotencyKey, entry, ENTITY_TYPE_SUPPLIER_PAYMENT);
+        existingAllocations = settlementAllocationRepository
                 .findByCompanyAndIdempotencyKey(company, idempotencyKey);
-        if (!existing.isEmpty()) {
+        if (!existingAllocations.isEmpty()) {
+            validateSupplierPaymentIdempotency(idempotencyKey, supplier, cashAccount, payableAccount, amount, memo,
+                    entry, existingAllocations, allocations);
             return entryDto;
         }
+
         LocalDate entryDate = entry.getEntryDate();
         List<PartnerSettlementAllocation> settlementRows = new ArrayList<>();
         List<RawMaterialPurchase> touchedPurchases = new ArrayList<>();
@@ -1444,10 +1473,22 @@ public class AccountingService {
             row.setMemo(allocation.memo());
             settlementRows.add(row);
         }
+        try {
+            settlementAllocationRepository.saveAll(settlementRows);
+        } catch (DataIntegrityViolationException ex) {
+            List<PartnerSettlementAllocation> concurrent = settlementAllocationRepository
+                    .findByCompanyAndIdempotencyKey(company, idempotencyKey);
+            if (!concurrent.isEmpty()) {
+                JournalEntry existingEntry = concurrent.getFirst().getJournalEntry();
+                validateSupplierPaymentIdempotency(idempotencyKey, supplier, cashAccount, payableAccount, amount, memo,
+                        existingEntry, concurrent, allocations);
+                return toDto(existingEntry);
+            }
+            throw ex;
+        }
         if (!touchedPurchases.isEmpty()) {
             rawMaterialPurchaseRepository.saveAll(touchedPurchases);
         }
-        settlementAllocationRepository.saveAll(settlementRows);
         return entryDto;
     }
 
@@ -1648,9 +1689,7 @@ public class AccountingService {
     @Transactional
     public PartnerSettlementResponse settleSupplierInvoices(SupplierSettlementRequest request) {
         Company company = companyContextService.requireCurrentCompany();
-        String trimmedIdempotencyKey = StringUtils.hasText(request.idempotencyKey())
-                ? request.idempotencyKey().trim()
-                : (StringUtils.hasText(request.referenceNumber()) ? request.referenceNumber().trim() : buildSupplierSettlementIdempotencyKey(request));
+        String trimmedIdempotencyKey = resolveReceiptIdempotencyKey(request.idempotencyKey(), request.referenceNumber(), "supplier settlement");
         Supplier supplier = supplierRepository.lockByCompanyAndId(company, request.supplierId())
                 .orElseThrow(() -> new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE, "Supplier not found"));
         Account payableAccount = requireSupplierPayable(supplier);
@@ -1659,52 +1698,44 @@ public class AccountingService {
         if (allocations == null || allocations.isEmpty()) {
             throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT, "At least one allocation is required");
         }
-        if (StringUtils.hasText(trimmedIdempotencyKey)) {
-            List<PartnerSettlementAllocation> existing = settlementAllocationRepository.findByCompanyAndIdempotencyKey(company, trimmedIdempotencyKey);
-            if (!existing.isEmpty()) {
-                validateSettlementIdempotencyKey(trimmedIdempotencyKey, PartnerType.SUPPLIER, supplier.getId(), existing, allocations);
-                JournalEntry entry = existing.get(0).getJournalEntry();
-                BigDecimal applied = existing.stream().map(PartnerSettlementAllocation::getAllocationAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
-                BigDecimal discountSum = existing.stream().map(PartnerSettlementAllocation::getDiscountAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
-                BigDecimal writeOffSum = existing.stream().map(PartnerSettlementAllocation::getWriteOffAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
-                BigDecimal fxGainSum = existing.stream()
-                        .map(PartnerSettlementAllocation::getFxDifferenceAmount)
-                        .filter(v -> v.compareTo(BigDecimal.ZERO) > 0)
-                        .reduce(BigDecimal.ZERO, BigDecimal::add);
-                BigDecimal fxLossSum = existing.stream()
-                        .map(PartnerSettlementAllocation::getFxDifferenceAmount)
-                        .filter(v -> v.compareTo(BigDecimal.ZERO) < 0)
-                        .map(BigDecimal::abs)
-                        .reduce(BigDecimal.ZERO, BigDecimal::add);
-                return new PartnerSettlementResponse(
-                        toDto(entry),
-                        applied,
-                        null,
-                        discountSum,
-                        writeOffSum,
-                        fxGainSum,
-                        fxLossSum,
-                        existing.stream()
-                                .map(row -> new PartnerSettlementResponse.Allocation(
-                                        row.getInvoice() != null ? row.getInvoice().getId() : null,
-                                        row.getPurchase() != null ? row.getPurchase().getId() : null,
-                                        row.getAllocationAmount(),
-                                        row.getDiscountAmount(),
-                                        row.getWriteOffAmount(),
-                                        row.getFxDifferenceAmount(),
-                                        row.getMemo()
-                                ))
-                                .toList()
-                );
+        SettlementTotals totals = computeSettlementTotals(allocations);
+        String memo = StringUtils.hasText(request.memo())
+                ? request.memo().trim()
+                : "Settlement to supplier " + supplier.getName();
+        String reference = resolveSupplierSettlementReference(company, supplier, request, trimmedIdempotencyKey);
+        IdempotencyReservation reservation = reserveReferenceMapping(company, trimmedIdempotencyKey, reference, ENTITY_TYPE_SUPPLIER_SETTLEMENT);
+        SettlementLineDraft lineDraft = buildSupplierSettlementLines(company, request, payableAccount, cashAccount, totals, memo);
+
+        if (!reservation.leader()) {
+            JournalEntry existingEntry = awaitJournalEntry(company, reference, trimmedIdempotencyKey);
+            List<PartnerSettlementAllocation> existingAllocations = awaitAllocations(company, trimmedIdempotencyKey);
+            if (!existingAllocations.isEmpty()) {
+                JournalEntry entry = existingEntry != null ? existingEntry : existingAllocations.getFirst().getJournalEntry();
+                validateSettlementIdempotencyKey(trimmedIdempotencyKey, PartnerType.SUPPLIER, supplier.getId(), existingAllocations, allocations);
+                validateSupplierSettlementJournalLines(trimmedIdempotencyKey, supplier, memo, entry, lineDraft.lines());
+                return buildSupplierSettlementResponse(existingAllocations);
             }
+            throw new ApplicationException(ErrorCode.INTERNAL_CONCURRENCY_FAILURE,
+                    "Supplier settlement idempotency key is reserved but allocation not found")
+                    .withDetail("idempotencyKey", trimmedIdempotencyKey);
         }
+
+        List<PartnerSettlementAllocation> existingAllocations = settlementAllocationRepository
+                .findByCompanyAndIdempotencyKey(company, trimmedIdempotencyKey);
+        if (!existingAllocations.isEmpty()) {
+            JournalEntry entry = existingAllocations.getFirst().getJournalEntry();
+            validateSettlementIdempotencyKey(trimmedIdempotencyKey, PartnerType.SUPPLIER, supplier.getId(), existingAllocations, allocations);
+            validateSupplierSettlementJournalLines(trimmedIdempotencyKey, supplier, memo, entry, lineDraft.lines());
+            return buildSupplierSettlementResponse(existingAllocations);
+        }
+
         LocalDate entryDate = request.settlementDate() != null ? request.settlementDate() : currentDate(company);
 
-        BigDecimal totalApplied = BigDecimal.ZERO;
-        BigDecimal totalDiscount = BigDecimal.ZERO;
-        BigDecimal totalWriteOff = BigDecimal.ZERO;
-        BigDecimal totalFxGain = BigDecimal.ZERO;
-        BigDecimal totalFxLoss = BigDecimal.ZERO;
+        BigDecimal totalApplied = totals.totalApplied();
+        BigDecimal totalDiscount = totals.totalDiscount();
+        BigDecimal totalWriteOff = totals.totalWriteOff();
+        BigDecimal totalFxGain = totals.totalFxGain();
+        BigDecimal totalFxLoss = totals.totalFxLoss();
         List<PartnerSettlementAllocation> settlementRows = new ArrayList<>();
         List<RawMaterialPurchase> touchedPurchases = new ArrayList<>();
 
@@ -1721,15 +1752,6 @@ public class AccountingService {
             BigDecimal discount = normalizeNonNegative(allocation.discountAmount(), "discountAmount");
             BigDecimal writeOff = normalizeNonNegative(allocation.writeOffAmount(), "writeOffAmount");
             BigDecimal fxAdjustment = MoneyUtils.zeroIfNull(allocation.fxAdjustment());
-
-            totalApplied = totalApplied.add(applied);
-            totalDiscount = totalDiscount.add(discount);
-            totalWriteOff = totalWriteOff.add(writeOff);
-            if (fxAdjustment.compareTo(BigDecimal.ZERO) > 0) {
-                totalFxGain = totalFxGain.add(fxAdjustment);
-            } else if (fxAdjustment.compareTo(BigDecimal.ZERO) < 0) {
-                totalFxLoss = totalFxLoss.add(fxAdjustment.abs());
-            }
 
             RawMaterialPurchase purchase = null;
             if (allocation.purchaseId() != null) {
@@ -1768,85 +1790,6 @@ public class AccountingService {
             settlementRows.add(row);
         }
 
-        // Validate required accounts before loading them
-        if (totalDiscount.compareTo(BigDecimal.ZERO) > 0 && request.discountAccountId() == null) {
-            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE, "Discount account is required when a discount is applied");
-        }
-        if (totalWriteOff.compareTo(BigDecimal.ZERO) > 0 && request.writeOffAccountId() == null) {
-            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE, "Write-off account is required when a write-off is applied");
-        }
-        if (totalFxGain.compareTo(BigDecimal.ZERO) > 0 && request.fxGainAccountId() == null) {
-            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE, "FX gain account is required when FX gain is provided");
-        }
-        if (totalFxLoss.compareTo(BigDecimal.ZERO) > 0 && request.fxLossAccountId() == null) {
-            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE, "FX loss account is required when FX loss is provided");
-        }
-
-        Account discountAccount = totalDiscount.compareTo(BigDecimal.ZERO) > 0
-                ? requireAccount(company, request.discountAccountId())
-                : null;
-        Account writeOffAccount = totalWriteOff.compareTo(BigDecimal.ZERO) > 0
-                ? requireAccount(company, request.writeOffAccountId())
-                : null;
-        Account fxGainAccount = totalFxGain.compareTo(BigDecimal.ZERO) > 0
-                ? requireAccount(company, request.fxGainAccountId())
-                : null;
-        Account fxLossAccount = totalFxLoss.compareTo(BigDecimal.ZERO) > 0
-                ? requireAccount(company, request.fxLossAccountId())
-                : null;
-
-        // Cash is what actually moves: applied minus concessions, adjusted for FX gain/loss lines
-        BigDecimal cashAmount = totalApplied
-                .add(totalFxLoss)      // loss increases cash paid
-                .subtract(totalFxGain) // gain reduces cash paid
-                .subtract(totalDiscount)
-                .subtract(totalWriteOff);
-        if (cashAmount.compareTo(BigDecimal.ZERO) < 0) {
-            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
-                    "Calculated cash amount cannot be negative. Adjust discount/write-off/FX values.");
-        }
-
-        String memo = StringUtils.hasText(request.memo())
-                ? request.memo().trim()
-                : "Settlement to supplier " + supplier.getName();
-        String reference = StringUtils.hasText(request.referenceNumber())
-                ? request.referenceNumber().trim()
-                : referenceNumberService.supplierPaymentReference(company, supplier);
-
-        List<JournalEntryRequest.JournalLineRequest> lines = new ArrayList<>();
-        lines.add(new JournalEntryRequest.JournalLineRequest(payableAccount.getId(), memo, totalApplied, BigDecimal.ZERO));
-        if (totalFxLoss.compareTo(BigDecimal.ZERO) > 0) {
-            lines.add(new JournalEntryRequest.JournalLineRequest(
-                    fxLossAccount.getId(),
-                    "FX loss on settlement",
-                    totalFxLoss,
-                    BigDecimal.ZERO));
-        }
-        if (cashAmount.compareTo(BigDecimal.ZERO) > 0) {
-            lines.add(new JournalEntryRequest.JournalLineRequest(cashAccount.getId(), memo, BigDecimal.ZERO, cashAmount));
-        }
-        if (totalDiscount.compareTo(BigDecimal.ZERO) > 0) {
-            lines.add(new JournalEntryRequest.JournalLineRequest(
-                    discountAccount.getId(),
-                    "Settlement discount received",
-                    BigDecimal.ZERO,
-                    totalDiscount));
-        }
-        if (totalWriteOff.compareTo(BigDecimal.ZERO) > 0) {
-            lines.add(new JournalEntryRequest.JournalLineRequest(
-                    writeOffAccount.getId(),
-                    "Settlement write-off",
-                    BigDecimal.ZERO,
-                    totalWriteOff));
-        }
-        if (totalFxGain.compareTo(BigDecimal.ZERO) > 0) {
-            lines.add(new JournalEntryRequest.JournalLineRequest(
-                    fxGainAccount.getId(),
-                    "FX gain on settlement",
-                    BigDecimal.ZERO,
-                    totalFxGain));
-        }
-
         JournalEntryDto journalEntryDto = createJournalEntry(new JournalEntryRequest(
                 reference,
                 entryDate,
@@ -1854,17 +1797,30 @@ public class AccountingService {
                 null,
                 supplier.getId(),
                 request.adminOverride(),
-                lines
+                lineDraft.lines()
         ));
 
         JournalEntry journalEntry = companyEntityLookup.requireJournalEntry(company, journalEntryDto.id());
+        linkReferenceMapping(company, trimmedIdempotencyKey, journalEntry, ENTITY_TYPE_SUPPLIER_SETTLEMENT);
         for (PartnerSettlementAllocation allocation : settlementRows) {
             allocation.setJournalEntry(journalEntry);
+        }
+        try {
+            settlementAllocationRepository.saveAll(settlementRows);
+        } catch (DataIntegrityViolationException ex) {
+            List<PartnerSettlementAllocation> concurrent = settlementAllocationRepository
+                    .findByCompanyAndIdempotencyKey(company, trimmedIdempotencyKey);
+            if (!concurrent.isEmpty()) {
+                JournalEntry existingEntry = concurrent.getFirst().getJournalEntry();
+                validateSettlementIdempotencyKey(trimmedIdempotencyKey, PartnerType.SUPPLIER, supplier.getId(), concurrent, allocations);
+                validateSupplierSettlementJournalLines(trimmedIdempotencyKey, supplier, memo, existingEntry, lineDraft.lines());
+                return buildSupplierSettlementResponse(concurrent);
+            }
+            throw ex;
         }
         if (!touchedPurchases.isEmpty()) {
             rawMaterialPurchaseRepository.saveAll(touchedPurchases);
         }
-        settlementAllocationRepository.saveAll(settlementRows);
 
         List<PartnerSettlementResponse.Allocation> allocationSummaries = settlementRows.stream()
                 .map(row -> new PartnerSettlementResponse.Allocation(
@@ -1894,7 +1850,7 @@ public class AccountingService {
         }
         auditMetadata.put("allocationCount", Integer.toString(settlementRows.size()));
         auditMetadata.put("totalApplied", totalApplied.toPlainString());
-        auditMetadata.put("cashAmount", cashAmount.toPlainString());
+        auditMetadata.put("cashAmount", lineDraft.cashAmount().toPlainString());
         auditMetadata.put("totalDiscount", totalDiscount.toPlainString());
         auditMetadata.put("totalWriteOff", totalWriteOff.toPlainString());
         auditMetadata.put("totalFxGain", totalFxGain.toPlainString());
@@ -1904,7 +1860,7 @@ public class AccountingService {
         return new PartnerSettlementResponse(
                 journalEntryDto,
                 totalApplied,
-                cashAmount,
+                lineDraft.cashAmount(),
                 totalDiscount,
                 totalWriteOff,
                 totalFxGain,
@@ -2156,6 +2112,42 @@ public class AccountingService {
         return referenceNumberService.dealerReceiptReference(company, dealer);
     }
 
+    private String resolveSupplierPaymentReference(Company company,
+                                                   Supplier supplier,
+                                                   String providedReference,
+                                                   String idempotencyKey) {
+        if (StringUtils.hasText(providedReference)) {
+            return providedReference.trim();
+        }
+        if (company != null && StringUtils.hasText(idempotencyKey)) {
+            String key = idempotencyKey.trim();
+            Optional<JournalReferenceMapping> mapping = journalReferenceMappingRepository
+                    .findByCompanyAndLegacyReferenceIgnoreCase(company, key);
+            if (mapping.isPresent() && StringUtils.hasText(mapping.get().getCanonicalReference())) {
+                return mapping.get().getCanonicalReference().trim();
+            }
+        }
+        return referenceNumberService.supplierPaymentReference(company, supplier);
+    }
+
+    private String resolveSupplierSettlementReference(Company company,
+                                                      Supplier supplier,
+                                                      SupplierSettlementRequest request,
+                                                      String idempotencyKey) {
+        if (request != null && StringUtils.hasText(request.referenceNumber())) {
+            return request.referenceNumber().trim();
+        }
+        if (company != null && StringUtils.hasText(idempotencyKey)) {
+            String key = idempotencyKey.trim();
+            Optional<JournalReferenceMapping> mapping = journalReferenceMappingRepository
+                    .findByCompanyAndLegacyReferenceIgnoreCase(company, key);
+            if (mapping.isPresent() && StringUtils.hasText(mapping.get().getCanonicalReference())) {
+                return mapping.get().getCanonicalReference().trim();
+            }
+        }
+        return referenceNumberService.supplierPaymentReference(company, supplier);
+    }
+
     private IdempotencyReservation reserveReferenceMapping(Company company,
                                                            String idempotencyKey,
                                                            String canonicalReference,
@@ -2331,6 +2323,44 @@ public class AccountingService {
         }
     }
 
+    private void validateSupplierPaymentIdempotency(String idempotencyKey,
+                                                    Supplier supplier,
+                                                    Account cashAccount,
+                                                    Account payableAccount,
+                                                    BigDecimal amount,
+                                                    String memo,
+                                                    JournalEntry entry,
+                                                    List<PartnerSettlementAllocation> existingAllocations,
+                                                    List<SettlementAllocationRequest> allocations) {
+        validateSettlementIdempotencyKey(idempotencyKey, PartnerType.SUPPLIER, supplier.getId(), existingAllocations, allocations);
+        if (entry == null) {
+            throw new ApplicationException(ErrorCode.CONCURRENCY_CONFLICT,
+                    "Idempotency key already used but journal entry is missing")
+                    .withDetail("idempotencyKey", idempotencyKey);
+        }
+        if (entry.getSupplier() == null || !Objects.equals(entry.getSupplier().getId(), supplier.getId())) {
+            throw new ApplicationException(ErrorCode.CONCURRENCY_CONFLICT,
+                    "Idempotency key already used for another supplier")
+                    .withDetail("idempotencyKey", idempotencyKey);
+        }
+        if (StringUtils.hasText(memo) && !Objects.equals(entry.getMemo(), memo)) {
+            throw new ApplicationException(ErrorCode.CONCURRENCY_CONFLICT,
+                    "Idempotency key already used with a different memo")
+                    .withDetail("idempotencyKey", idempotencyKey);
+        }
+        List<JournalEntryRequest.JournalLineRequest> expectedLines = List.of(
+                new JournalEntryRequest.JournalLineRequest(payableAccount.getId(), memo, amount, BigDecimal.ZERO),
+                new JournalEntryRequest.JournalLineRequest(cashAccount.getId(), memo, BigDecimal.ZERO, amount)
+        );
+        Map<JournalLineSignature, Integer> existingLines = lineSignatureCounts(entry.getLines());
+        Map<JournalLineSignature, Integer> expected = lineSignatureCountsFromRequests(expectedLines);
+        if (!existingLines.equals(expected)) {
+            throw new ApplicationException(ErrorCode.CONCURRENCY_CONFLICT,
+                    "Idempotency key already used for a different supplier payment payload")
+                    .withDetail("idempotencyKey", idempotencyKey);
+        }
+    }
+
     private void validateSettlementJournalLines(String idempotencyKey,
                                                 Dealer dealer,
                                                 String memo,
@@ -2344,6 +2374,35 @@ public class AccountingService {
         if (entry.getDealer() == null || !Objects.equals(entry.getDealer().getId(), dealer.getId())) {
             throw new ApplicationException(ErrorCode.CONCURRENCY_CONFLICT,
                     "Idempotency key already used for another dealer")
+                    .withDetail("idempotencyKey", idempotencyKey);
+        }
+        if (StringUtils.hasText(memo) && !Objects.equals(entry.getMemo(), memo)) {
+            throw new ApplicationException(ErrorCode.CONCURRENCY_CONFLICT,
+                    "Idempotency key already used with a different memo")
+                    .withDetail("idempotencyKey", idempotencyKey);
+        }
+        Map<JournalLineSignature, Integer> existingLines = lineSignatureCounts(entry.getLines());
+        Map<JournalLineSignature, Integer> expected = lineSignatureCountsFromRequests(expectedLines);
+        if (!existingLines.equals(expected)) {
+            throw new ApplicationException(ErrorCode.CONCURRENCY_CONFLICT,
+                    "Idempotency key already used for a different settlement payload")
+                    .withDetail("idempotencyKey", idempotencyKey);
+        }
+    }
+
+    private void validateSupplierSettlementJournalLines(String idempotencyKey,
+                                                        Supplier supplier,
+                                                        String memo,
+                                                        JournalEntry entry,
+                                                        List<JournalEntryRequest.JournalLineRequest> expectedLines) {
+        if (entry == null) {
+            throw new ApplicationException(ErrorCode.CONCURRENCY_CONFLICT,
+                    "Idempotency key already used but journal entry is missing")
+                    .withDetail("idempotencyKey", idempotencyKey);
+        }
+        if (entry.getSupplier() == null || !Objects.equals(entry.getSupplier().getId(), supplier.getId())) {
+            throw new ApplicationException(ErrorCode.CONCURRENCY_CONFLICT,
+                    "Idempotency key already used for another supplier")
                     .withDetail("idempotencyKey", idempotencyKey);
         }
         if (StringUtils.hasText(memo) && !Objects.equals(entry.getMemo(), memo)) {
@@ -2559,6 +2618,89 @@ public class AccountingService {
         return new SettlementLineDraft(lines, cashAmount);
     }
 
+    private SettlementLineDraft buildSupplierSettlementLines(Company company,
+                                                            SupplierSettlementRequest request,
+                                                            Account payableAccount,
+                                                            Account cashAccount,
+                                                            SettlementTotals totals,
+                                                            String memo) {
+        if (totals == null) {
+            totals = new SettlementTotals(BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO);
+        }
+        if (totals.totalDiscount().compareTo(BigDecimal.ZERO) > 0 && request.discountAccountId() == null) {
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE, "Discount account is required when a discount is applied");
+        }
+        if (totals.totalWriteOff().compareTo(BigDecimal.ZERO) > 0 && request.writeOffAccountId() == null) {
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE, "Write-off account is required when a write-off is applied");
+        }
+        if (totals.totalFxGain().compareTo(BigDecimal.ZERO) > 0 && request.fxGainAccountId() == null) {
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE, "FX gain account is required when FX gain is provided");
+        }
+        if (totals.totalFxLoss().compareTo(BigDecimal.ZERO) > 0 && request.fxLossAccountId() == null) {
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE, "FX loss account is required when FX loss is provided");
+        }
+
+        Account discountAccount = totals.totalDiscount().compareTo(BigDecimal.ZERO) > 0
+                ? requireAccount(company, request.discountAccountId())
+                : null;
+        Account writeOffAccount = totals.totalWriteOff().compareTo(BigDecimal.ZERO) > 0
+                ? requireAccount(company, request.writeOffAccountId())
+                : null;
+        Account fxGainAccount = totals.totalFxGain().compareTo(BigDecimal.ZERO) > 0
+                ? requireAccount(company, request.fxGainAccountId())
+                : null;
+        Account fxLossAccount = totals.totalFxLoss().compareTo(BigDecimal.ZERO) > 0
+                ? requireAccount(company, request.fxLossAccountId())
+                : null;
+
+        // Cash is what actually moves: applied minus concessions, adjusted for FX gain/loss lines
+        BigDecimal cashAmount = totals.totalApplied()
+                .add(totals.totalFxLoss())      // loss increases cash paid
+                .subtract(totals.totalFxGain()) // gain reduces cash paid
+                .subtract(totals.totalDiscount())
+                .subtract(totals.totalWriteOff());
+        if (cashAmount.compareTo(BigDecimal.ZERO) < 0) {
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                    "Calculated cash amount cannot be negative. Adjust discount/write-off/FX values.");
+        }
+
+        List<JournalEntryRequest.JournalLineRequest> lines = new ArrayList<>();
+        lines.add(new JournalEntryRequest.JournalLineRequest(payableAccount.getId(), memo, totals.totalApplied(), BigDecimal.ZERO));
+        if (totals.totalFxLoss().compareTo(BigDecimal.ZERO) > 0) {
+            lines.add(new JournalEntryRequest.JournalLineRequest(
+                    fxLossAccount.getId(),
+                    "FX loss on settlement",
+                    totals.totalFxLoss(),
+                    BigDecimal.ZERO));
+        }
+        if (cashAmount.compareTo(BigDecimal.ZERO) > 0) {
+            lines.add(new JournalEntryRequest.JournalLineRequest(cashAccount.getId(), memo, BigDecimal.ZERO, cashAmount));
+        }
+        if (totals.totalDiscount().compareTo(BigDecimal.ZERO) > 0) {
+            lines.add(new JournalEntryRequest.JournalLineRequest(
+                    discountAccount.getId(),
+                    "Settlement discount received",
+                    BigDecimal.ZERO,
+                    totals.totalDiscount()));
+        }
+        if (totals.totalWriteOff().compareTo(BigDecimal.ZERO) > 0) {
+            lines.add(new JournalEntryRequest.JournalLineRequest(
+                    writeOffAccount.getId(),
+                    "Settlement write-off",
+                    BigDecimal.ZERO,
+                    totals.totalWriteOff()));
+        }
+        if (totals.totalFxGain().compareTo(BigDecimal.ZERO) > 0) {
+            lines.add(new JournalEntryRequest.JournalLineRequest(
+                    fxGainAccount.getId(),
+                    "FX gain on settlement",
+                    BigDecimal.ZERO,
+                    totals.totalFxGain()));
+        }
+
+        return new SettlementLineDraft(lines, cashAmount);
+    }
+
     private PartnerSettlementResponse buildDealerSettlementResponse(List<PartnerSettlementAllocation> existing) {
         if (existing == null || existing.isEmpty()) {
             throw new ApplicationException(ErrorCode.INTERNAL_CONCURRENCY_FAILURE,
@@ -2586,6 +2728,52 @@ public class AccountingService {
                 toDto(entry),
                 applied,
                 null,
+                discountSum,
+                writeOffSum,
+                fxGainSum,
+                fxLossSum,
+                existing.stream()
+                        .map(row -> new PartnerSettlementResponse.Allocation(
+                                row.getInvoice() != null ? row.getInvoice().getId() : null,
+                                row.getPurchase() != null ? row.getPurchase().getId() : null,
+                                row.getAllocationAmount(),
+                                row.getDiscountAmount(),
+                                row.getWriteOffAmount(),
+                                row.getFxDifferenceAmount(),
+                                row.getMemo()
+                        ))
+                        .toList()
+        );
+    }
+
+    private PartnerSettlementResponse buildSupplierSettlementResponse(List<PartnerSettlementAllocation> existing) {
+        if (existing == null || existing.isEmpty()) {
+            throw new ApplicationException(ErrorCode.INTERNAL_CONCURRENCY_FAILURE,
+                    "Settlement allocations missing for idempotent response");
+        }
+        JournalEntry entry = existing.getFirst().getJournalEntry();
+        BigDecimal applied = existing.stream().map(PartnerSettlementAllocation::getAllocationAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal discountSum = existing.stream().map(PartnerSettlementAllocation::getDiscountAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal writeOffSum = existing.stream().map(PartnerSettlementAllocation::getWriteOffAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal fxGainSum = existing.stream()
+                .map(PartnerSettlementAllocation::getFxDifferenceAmount)
+                .filter(v -> v.compareTo(BigDecimal.ZERO) > 0)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal fxLossSum = existing.stream()
+                .map(PartnerSettlementAllocation::getFxDifferenceAmount)
+                .filter(v -> v.compareTo(BigDecimal.ZERO) < 0)
+                .map(BigDecimal::abs)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal cashAmount = applied
+                .add(fxLossSum)
+                .subtract(fxGainSum)
+                .subtract(discountSum)
+                .subtract(writeOffSum);
+
+        return new PartnerSettlementResponse(
+                toDto(entry),
+                applied,
+                cashAmount,
                 discountSum,
                 writeOffSum,
                 fxGainSum,

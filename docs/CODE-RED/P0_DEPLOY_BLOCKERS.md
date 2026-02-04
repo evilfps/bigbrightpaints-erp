@@ -85,6 +85,11 @@ Purpose: a single, concrete list of **P0** items that block a safe enterprise de
 - Dealer receipts/settlements must be idempotent (caller idempotency key enforced; allocations deterministic).
   - Status (2026-02-04): ✅ dealer receipt idempotency reserve-first + mismatch-safe; tests: `CR_DealerReceiptSettlementAuditTrailTest`.
   - Status (2026-02-04): ✅ dealer settlement idempotency reserve-first + allocation uniqueness; tests: `CR_DealerReceiptSettlementAuditTrailTest`, `AccountingServiceTest`.
+- Supplier payments/settlements must be idempotent (caller idempotency key enforced; allocations deterministic).
+  - Status (2026-02-04): ✅ supplier payment/settlement reserve-first + mismatch-safe; tests:
+    `CR_PurchasingToApAccountingTest.supplierPayment_idempotencyConcurrent_singleJournalAndAllocations`,
+    `CR_PurchasingToApAccountingTest.supplierSettlement_idempotencyReplay_doesNotDoubleReduceOutstanding`,
+    `CR_PurchasingToApAccountingTest.supplierSettlement_idempotencyMismatch_conflicts`.
 - Sales returns/credit notes must be retry-safe and mismatch-safe (no duplicate credit journals or return movements).
   - Status (2026-02-04): ✅ sales return invoice lock + credit note reserve-first idempotency; tests: `CR_SalesReturnCreditNoteIdempotencyTest`, `SalesReturnServiceTest`, `CreditDebitNoteIT`.
 - Add DB uniqueness where needed to prevent duplicate reservations/batches under concurrency.

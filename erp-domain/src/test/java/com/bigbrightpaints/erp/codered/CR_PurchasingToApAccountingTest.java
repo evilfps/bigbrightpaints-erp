@@ -12,7 +12,15 @@ import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriod;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriodRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
+import com.bigbrightpaints.erp.modules.accounting.domain.PartnerSettlementAllocation;
+import com.bigbrightpaints.erp.modules.accounting.domain.PartnerSettlementAllocationRepository;
 import com.bigbrightpaints.erp.modules.accounting.dto.AccountingPeriodCloseRequest;
+import com.bigbrightpaints.erp.modules.accounting.dto.PartnerSettlementResponse;
+import com.bigbrightpaints.erp.modules.accounting.dto.SettlementAllocationRequest;
+import com.bigbrightpaints.erp.modules.accounting.dto.SupplierPaymentRequest;
+import com.bigbrightpaints.erp.modules.accounting.dto.SupplierSettlementRequest;
+import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
+import com.bigbrightpaints.erp.modules.accounting.service.AccountingService;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingPeriodService;
 import com.bigbrightpaints.erp.modules.accounting.service.ReconciliationService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
@@ -62,6 +70,8 @@ class CR_PurchasingToApAccountingTest extends AbstractIntegrationTest {
     @Autowired private AccountRepository accountRepository;
     @Autowired private AccountingPeriodService accountingPeriodService;
     @Autowired private AccountingPeriodRepository accountingPeriodRepository;
+    @Autowired private AccountingService accountingService;
+    @Autowired private PartnerSettlementAllocationRepository settlementAllocationRepository;
     @Autowired private SupplierRepository supplierRepository;
     @Autowired private RawMaterialRepository rawMaterialRepository;
     @Autowired private RawMaterialMovementRepository movementRepository;
@@ -471,6 +481,193 @@ class CR_PurchasingToApAccountingTest extends AbstractIntegrationTest {
                 .hasMessageContaining("locked/closed");
     }
 
+    @Test
+    void supplierPayment_idempotencyConcurrent_singleJournalAndAllocations() {
+        String companyCode = "CR-SUP-PAY-IDEMP-" + shortId();
+        Company company = bootstrapCompany(companyCode);
+        Map<String, Account> accounts = ensurePurchasingAccounts(company);
+        Account cash = ensureAccount(company, "CASH", "Cash", AccountType.ASSET);
+
+        Supplier supplier = ensureSupplier(company, accounts.get("AP"));
+        RawMaterial rm = ensureRawMaterial(company, accounts.get("RM_INV"));
+        LocalDate today = TestDateUtils.safeDate(company);
+
+        CompanyContextHolder.setCompanyId(companyCode);
+        RawMaterialPurchaseResponse purchase = createPurchaseFlow(supplier, rm, today);
+        CompanyContextHolder.clear();
+
+        BigDecimal amount = purchase.totalAmount();
+        SettlementAllocationRequest allocation = new SettlementAllocationRequest(
+                null,
+                purchase.id(),
+                amount,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                "supplier payment");
+        String idempotencyKey = "SUP-PAY-IDEMP-" + shortId();
+        SupplierPaymentRequest request = new SupplierPaymentRequest(
+                supplier.getId(),
+                cash.getId(),
+                amount,
+                "PAY-" + shortId(),
+                "Supplier payment",
+                idempotencyKey,
+                List.of(allocation)
+        );
+
+        CoderedConcurrencyHarness.RunResult<JournalEntryDto> result = CoderedConcurrencyHarness.run(
+                3,
+                3,
+                Duration.ofSeconds(45),
+                threadIndex -> () -> {
+                    CompanyContextHolder.setCompanyId(companyCode);
+                    try {
+                        return accountingService.recordSupplierPayment(request);
+                    } finally {
+                        CompanyContextHolder.clear();
+                    }
+                },
+                CoderedRetry::isRetryable
+        );
+
+        List<JournalEntryDto> successes = result.outcomes().stream()
+                .filter(outcome -> outcome instanceof CoderedConcurrencyHarness.Outcome.Success<?>)
+                .map(outcome -> ((CoderedConcurrencyHarness.Outcome.Success<JournalEntryDto>) outcome).value())
+                .toList();
+        assertThat(successes).as("payment succeeds").isNotEmpty();
+        Long journalId = successes.getFirst().id();
+        assertThat(successes)
+                .as("idempotent supplier payment returns the same journal")
+                .allMatch(dto -> dto.id() != null && dto.id().equals(journalId));
+
+        List<PartnerSettlementAllocation> allocations =
+                settlementAllocationRepository.findByCompanyAndIdempotencyKey(company, idempotencyKey);
+        assertThat(allocations).as("single allocation row").hasSize(1);
+        RawMaterialPurchase saved = purchaseRepository.findById(purchase.id()).orElseThrow();
+        assertThat(saved.getOutstandingAmount()).as("outstanding reduced once").isEqualByComparingTo(BigDecimal.ZERO);
+    }
+
+    @Test
+    void supplierSettlement_idempotencyReplay_doesNotDoubleReduceOutstanding() {
+        String companyCode = "CR-SUP-SETTLE-IDEMP-" + shortId();
+        Company company = bootstrapCompany(companyCode);
+        Map<String, Account> accounts = ensurePurchasingAccounts(company);
+        Account cash = ensureAccount(company, "CASH", "Cash", AccountType.ASSET);
+
+        Supplier supplier = ensureSupplier(company, accounts.get("AP"));
+        RawMaterial rm = ensureRawMaterial(company, accounts.get("RM_INV"));
+        LocalDate today = TestDateUtils.safeDate(company);
+
+        CompanyContextHolder.setCompanyId(companyCode);
+        RawMaterialPurchaseResponse purchase = createPurchaseFlow(supplier, rm, today);
+
+        BigDecimal amount = purchase.totalAmount();
+        SettlementAllocationRequest allocation = new SettlementAllocationRequest(
+                null,
+                purchase.id(),
+                amount,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                "supplier settlement");
+        String idempotencyKey = "SUP-SETTLE-IDEMP-" + shortId();
+        SupplierSettlementRequest request = new SupplierSettlementRequest(
+                supplier.getId(),
+                cash.getId(),
+                null,
+                null,
+                null,
+                null,
+                today,
+                "SET-" + shortId(),
+                "Supplier settlement",
+                idempotencyKey,
+                Boolean.FALSE,
+                List.of(allocation)
+        );
+
+        PartnerSettlementResponse first = accountingService.settleSupplierInvoices(request);
+        PartnerSettlementResponse replay = accountingService.settleSupplierInvoices(request);
+        assertThat(replay.journalEntry().id()).as("idempotent replay returns same journal")
+                .isEqualTo(first.journalEntry().id());
+
+        RawMaterialPurchase saved = purchaseRepository.findById(purchase.id()).orElseThrow();
+        assertThat(saved.getOutstandingAmount()).as("outstanding reduced once").isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(settlementAllocationRepository.findByCompanyAndIdempotencyKey(company, idempotencyKey))
+                .as("single allocation row")
+                .hasSize(1);
+    }
+
+    @Test
+    void supplierSettlement_idempotencyMismatch_conflicts() {
+        String companyCode = "CR-SUP-SETTLE-MISMATCH-" + shortId();
+        Company company = bootstrapCompany(companyCode);
+        Map<String, Account> accounts = ensurePurchasingAccounts(company);
+        Account cash = ensureAccount(company, "CASH", "Cash", AccountType.ASSET);
+
+        Supplier supplier = ensureSupplier(company, accounts.get("AP"));
+        RawMaterial rm = ensureRawMaterial(company, accounts.get("RM_INV"));
+        LocalDate today = TestDateUtils.safeDate(company);
+
+        CompanyContextHolder.setCompanyId(companyCode);
+        RawMaterialPurchaseResponse purchase = createPurchaseFlow(supplier, rm, today);
+
+        SettlementAllocationRequest allocation = new SettlementAllocationRequest(
+                null,
+                purchase.id(),
+                purchase.totalAmount(),
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                "supplier settlement");
+        String idempotencyKey = "SUP-SETTLE-IDEMP-" + shortId();
+        SupplierSettlementRequest request = new SupplierSettlementRequest(
+                supplier.getId(),
+                cash.getId(),
+                null,
+                null,
+                null,
+                null,
+                today,
+                "SET-" + shortId(),
+                "Supplier settlement",
+                idempotencyKey,
+                Boolean.FALSE,
+                List.of(allocation)
+        );
+        accountingService.settleSupplierInvoices(request);
+
+        SettlementAllocationRequest mismatchAllocation = new SettlementAllocationRequest(
+                null,
+                purchase.id(),
+                purchase.totalAmount().subtract(new BigDecimal("1.00")),
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                "supplier settlement");
+        SupplierSettlementRequest mismatch = new SupplierSettlementRequest(
+                supplier.getId(),
+                cash.getId(),
+                null,
+                null,
+                null,
+                null,
+                today,
+                "SET-" + shortId(),
+                "Supplier settlement",
+                idempotencyKey,
+                Boolean.FALSE,
+                List.of(mismatchAllocation)
+        );
+
+        assertThatThrownBy(() -> accountingService.settleSupplierInvoices(mismatch))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Idempotency key already used")
+                .satisfies(error -> assertThat(((ApplicationException) error).getErrorCode())
+                        .isEqualTo(ErrorCode.CONCURRENCY_CONFLICT));
+    }
+
     private Company bootstrapCompany(String companyCode) {
         dataSeeder.ensureCompany(companyCode, companyCode + " Ltd");
         CompanyContextHolder.setCompanyId(companyCode);
@@ -547,6 +744,60 @@ class CR_PurchasingToApAccountingTest extends AbstractIntegrationTest {
                     rm.setCurrentStock(BigDecimal.ZERO);
                     return rawMaterialRepository.save(rm);
                 });
+    }
+
+    private RawMaterialPurchaseResponse createPurchaseFlow(Supplier supplier, RawMaterial rm, LocalDate entryDate) {
+        String orderNumber = "PO-" + shortId();
+        String receiptNumber = "GRN-" + shortId();
+        String invoiceNumber = "INV-" + shortId();
+        String grnIdempotencyKey = "GRN-IDEMP-" + shortId();
+
+        PurchaseOrderResponse po = purchasingService.createPurchaseOrder(new PurchaseOrderRequest(
+                supplier.getId(),
+                orderNumber,
+                entryDate,
+                "CODE-RED PO",
+                List.of(new PurchaseOrderLineRequest(
+                        rm.getId(),
+                        new BigDecimal("10"),
+                        rm.getUnitType(),
+                        new BigDecimal("12.50"),
+                        "RM line"))
+        ));
+
+        GoodsReceiptResponse grn = purchasingService.createGoodsReceipt(new GoodsReceiptRequest(
+                po.id(),
+                receiptNumber,
+                entryDate,
+                "CODE-RED GRN",
+                grnIdempotencyKey,
+                List.of(new GoodsReceiptLineRequest(
+                        rm.getId(),
+                        "RM-BATCH-" + shortId(),
+                        new BigDecimal("10"),
+                        rm.getUnitType(),
+                        new BigDecimal("12.50"),
+                        "GRN line"))
+        ));
+
+        return purchasingService.createPurchase(new RawMaterialPurchaseRequest(
+                supplier.getId(),
+                invoiceNumber,
+                entryDate,
+                "CODE-RED Purchase",
+                po.id(),
+                grn.id(),
+                null,
+                List.of(new RawMaterialPurchaseLineRequest(
+                        rm.getId(),
+                        null,
+                        new BigDecimal("10"),
+                        rm.getUnitType(),
+                        new BigDecimal("12.50"),
+                        null,
+                        null,
+                        "Invoice line"))
+        ));
     }
 
     private static String shortId() {

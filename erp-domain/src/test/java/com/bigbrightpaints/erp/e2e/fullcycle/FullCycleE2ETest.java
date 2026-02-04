@@ -193,9 +193,11 @@ public class FullCycleE2ETest extends AbstractIntegrationTest {
 
         // 4. Settle supplier (payment)
         Long purchaseId = ((Number) requireData(purchaseResp, "purchase").get("id")).longValue();
+        String settlementKey = "SET-" + shortSuffix();
         Map<String, Object> settleReq = Map.of(
                 "supplierId", supplier.getId(),
                 "cashAccountId", accountRepository.findByCompanyAndCodeIgnoreCase(company, "CASH").get().getId(),
+                "idempotencyKey", settlementKey,
                 "allocations", List.of(Map.of("purchaseId", purchaseId, "appliedAmount", new BigDecimal("500")))
         );
         ResponseEntity<Map> settleResp = rest.exchange("/api/v1/accounting/settlements/suppliers", HttpMethod.POST,

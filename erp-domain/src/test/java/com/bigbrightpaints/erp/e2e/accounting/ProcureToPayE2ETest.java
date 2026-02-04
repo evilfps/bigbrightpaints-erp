@@ -405,7 +405,9 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
         paymentReq.put("supplierId", supplierId);
         paymentReq.put("cashAccountId", cash.getId());
         paymentReq.put("amount", totalAmount);
-        paymentReq.put("referenceNumber", "PAY-" + shortSuffix());
+        String paymentRef = "PAY-" + shortSuffix();
+        paymentReq.put("referenceNumber", paymentRef);
+        paymentReq.put("idempotencyKey", paymentRef);
         paymentReq.put("memo", "Supplier payment allocation");
         paymentReq.put("allocations", List.of(allocation));
 

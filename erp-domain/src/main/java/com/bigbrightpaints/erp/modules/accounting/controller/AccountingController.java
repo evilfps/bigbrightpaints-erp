@@ -209,14 +209,20 @@ public class AccountingController {
 
     @PostMapping("/suppliers/payments")
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
-    public ResponseEntity<ApiResponse<JournalEntryDto>> recordSupplierPayment(@Valid @RequestBody SupplierPaymentRequest request) {
-        return ResponseEntity.ok(ApiResponse.success("Supplier payment recorded", accountingService.recordSupplierPayment(request)));
+    public ResponseEntity<ApiResponse<JournalEntryDto>> recordSupplierPayment(
+            @Valid @RequestBody SupplierPaymentRequest request,
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
+        SupplierPaymentRequest resolved = applyIdempotencyKey(request, idempotencyKey);
+        return ResponseEntity.ok(ApiResponse.success("Supplier payment recorded", accountingService.recordSupplierPayment(resolved)));
     }
 
     @PostMapping("/settlements/suppliers")
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
-    public ResponseEntity<ApiResponse<PartnerSettlementResponse>> settleSupplier(@Valid @RequestBody SupplierSettlementRequest request) {
-        return ResponseEntity.ok(ApiResponse.success("Settlement recorded", accountingService.settleSupplierInvoices(request)));
+    public ResponseEntity<ApiResponse<PartnerSettlementResponse>> settleSupplier(
+            @Valid @RequestBody SupplierSettlementRequest request,
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
+        SupplierSettlementRequest resolved = applyIdempotencyKey(request, idempotencyKey);
+        return ResponseEntity.ok(ApiResponse.success("Settlement recorded", accountingService.settleSupplierInvoices(resolved)));
     }
 
     @PostMapping("/credit-notes")
@@ -268,6 +274,47 @@ public class AccountingController {
                 request.referenceNumber(),
                 request.memo(),
                 idempotencyKey
+        );
+    }
+
+    private SupplierPaymentRequest applyIdempotencyKey(SupplierPaymentRequest request, String idempotencyKey) {
+        if (request == null) {
+            return request;
+        }
+        if (StringUtils.hasText(request.idempotencyKey()) || !StringUtils.hasText(idempotencyKey)) {
+            return request;
+        }
+        return new SupplierPaymentRequest(
+                request.supplierId(),
+                request.cashAccountId(),
+                request.amount(),
+                request.referenceNumber(),
+                request.memo(),
+                idempotencyKey,
+                request.allocations()
+        );
+    }
+
+    private SupplierSettlementRequest applyIdempotencyKey(SupplierSettlementRequest request, String idempotencyKey) {
+        if (request == null) {
+            return request;
+        }
+        if (StringUtils.hasText(request.idempotencyKey()) || !StringUtils.hasText(idempotencyKey)) {
+            return request;
+        }
+        return new SupplierSettlementRequest(
+                request.supplierId(),
+                request.cashAccountId(),
+                request.discountAccountId(),
+                request.writeOffAccountId(),
+                request.fxGainAccountId(),
+                request.fxLossAccountId(),
+                request.settlementDate(),
+                request.referenceNumber(),
+                request.memo(),
+                idempotencyKey,
+                request.adminOverride(),
+                request.allocations()
         );
     }
 

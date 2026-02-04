@@ -13,6 +13,7 @@ public record SupplierPaymentRequest(
         @NotNull @DecimalMin(value = "0.01") BigDecimal amount,
         String referenceNumber,
         String memo,
+        String idempotencyKey,
         @NotEmpty(message = "Allocations are required for supplier payments; use settlement endpoints or include allocations")
         List<@Valid SettlementAllocationRequest> allocations) {
 }
