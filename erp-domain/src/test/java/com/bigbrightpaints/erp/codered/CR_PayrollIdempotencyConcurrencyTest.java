@@ -3,6 +3,8 @@ package com.bigbrightpaints.erp.codered;
 import com.bigbrightpaints.erp.codered.support.CoderedConcurrencyHarness;
 import com.bigbrightpaints.erp.codered.support.CoderedDbAssertions;
 import com.bigbrightpaints.erp.codered.support.CoderedRetry;
+import com.bigbrightpaints.erp.core.exception.ApplicationException;
+import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.security.CompanyContextHolder;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
@@ -104,8 +106,68 @@ class CR_PayrollIdempotencyConcurrencyTest extends AbstractIntegrationTest {
     }
 
     @Test
-    void payrollPosting_isIdempotentBlockedAfterPosting_andUsesAccountingFacadeReference() {
+    void payrollPosting_isIdempotent_andCreatesExpensePayableLines() {
         String companyCode = "CR-PAY-POST-" + shortId();
+        Company company = bootstrapCompany(companyCode);
+        ensurePayrollAccounts(company);
+
+        LocalDate anchor = TestDateUtils.safeDate(company);
+        LocalDate start = anchor.minusDays(30);
+        LocalDate end = anchor.minusDays(1);
+
+        CompanyContextHolder.setCompanyId(companyCode);
+        var runDto = payrollService.createPayrollRun(new PayrollService.CreatePayrollRunRequest(
+                PayrollRun.RunType.MONTHLY,
+                start,
+                end,
+                "CODE-RED monthly payroll"
+        ));
+        CompanyContextHolder.clear();
+
+        PayrollRun run = payrollRunRepository.findByCompanyAndId(company, runDto.id()).orElseThrow();
+        run.setStatus(PayrollRun.PayrollStatus.APPROVED);
+        payrollRunRepository.save(run);
+        seedMinimalPayrollLines(company, run, BigDecimal.valueOf(1000), BigDecimal.valueOf(100));
+
+        CompanyContextHolder.setCompanyId(companyCode);
+        var posted = payrollService.postPayrollToAccounting(run.getId());
+        CompanyContextHolder.clear();
+
+        PayrollRun postedRun = payrollRunRepository.findByCompanyAndId(company, posted.id()).orElseThrow();
+        assertThat(postedRun.getStatus()).isEqualTo(PayrollRun.PayrollStatus.POSTED);
+        assertThat(postedRun.getJournalEntryId()).isNotNull();
+
+        JournalEntry journal = journalEntryRepository.findById(postedRun.getJournalEntryId()).orElseThrow();
+        assertThat(journal.getReferenceNumber())
+                .as("Payroll posting uses AccountingFacade PAYROLL-* reference namespace")
+                .startsWith("PAYROLL-");
+        CoderedDbAssertions.assertBalancedJournal(journalEntryRepository, journal.getId());
+
+        CompanyContextHolder.setCompanyId(companyCode);
+        var reposted = payrollService.postPayrollToAccounting(run.getId());
+        CompanyContextHolder.clear();
+
+        PayrollRun repostedRun = payrollRunRepository.findByCompanyAndId(company, reposted.id()).orElseThrow();
+        assertThat(repostedRun.getJournalEntryId()).isEqualTo(postedRun.getJournalEntryId());
+
+        JournalEntry reloaded = journalEntryRepository.findById(postedRun.getJournalEntryId()).orElseThrow();
+        assertThat(reloaded.getLines()).anySatisfy(line -> {
+            assertThat(line.getAccount().getCode()).isEqualTo("SALARY-EXP");
+            assertThat(line.getDebit()).isEqualByComparingTo("2000.00");
+        });
+        assertThat(reloaded.getLines()).anySatisfy(line -> {
+            assertThat(line.getAccount().getCode()).isEqualTo("SALARY-PAYABLE");
+            assertThat(line.getCredit()).isEqualByComparingTo("1800.00");
+        });
+        assertThat(reloaded.getLines()).anySatisfy(line -> {
+            assertThat(line.getAccount().getCode()).isEqualTo("EMP-ADV");
+            assertThat(line.getCredit()).isEqualByComparingTo("200.00");
+        });
+    }
+
+    @Test
+    void payrollPosting_mismatchConflictOnReplay() {
+        String companyCode = "CR-PAY-POST-MISMATCH-" + shortId();
         Company company = bootstrapCompany(companyCode);
         ensurePayrollAccounts(company);
 
@@ -128,22 +190,19 @@ class CR_PayrollIdempotencyConcurrencyTest extends AbstractIntegrationTest {
         seedMinimalPayrollLines(company, run, BigDecimal.valueOf(1000));
 
         CompanyContextHolder.setCompanyId(companyCode);
-        var posted = payrollService.postPayrollToAccounting(run.getId());
+        payrollService.postPayrollToAccounting(run.getId());
         CompanyContextHolder.clear();
 
-        PayrollRun postedRun = payrollRunRepository.findByCompanyAndId(company, posted.id()).orElseThrow();
-        assertThat(postedRun.getStatus()).isEqualTo(PayrollRun.PayrollStatus.POSTED);
-        assertThat(postedRun.getJournalEntryId()).isNotNull();
-
-        JournalEntry journal = journalEntryRepository.findById(postedRun.getJournalEntryId()).orElseThrow();
-        assertThat(journal.getReferenceNumber())
-                .as("Payroll posting uses AccountingFacade PAYROLL-* reference namespace")
-                .startsWith("PAYROLL-");
-        CoderedDbAssertions.assertBalancedJournal(journalEntryRepository, journal.getId());
+        List<PayrollRunLine> lines = payrollRunLineRepository.findByPayrollRun(run);
+        PayrollRunLine first = lines.get(0);
+        first.setGrossPay(first.getGrossPay().add(BigDecimal.valueOf(250)));
+        payrollRunLineRepository.save(first);
 
         CompanyContextHolder.setCompanyId(companyCode);
         assertThatThrownBy(() -> payrollService.postPayrollToAccounting(run.getId()))
-                .isInstanceOf(IllegalStateException.class);
+                .isInstanceOf(ApplicationException.class)
+                .extracting(ex -> ((ApplicationException) ex).getErrorCode())
+                .isEqualTo(ErrorCode.BUSINESS_DUPLICATE_ENTRY);
         CompanyContextHolder.clear();
     }
 
@@ -294,30 +353,40 @@ class CR_PayrollIdempotencyConcurrencyTest extends AbstractIntegrationTest {
     }
 
     private void seedMinimalPayrollLines(Company company, PayrollRun run, BigDecimal perEmployeeGross) {
+        seedMinimalPayrollLines(company, run, perEmployeeGross, BigDecimal.ZERO);
+    }
+
+    private void seedMinimalPayrollLines(Company company, PayrollRun run, BigDecimal perEmployeeGross, BigDecimal advanceDeduction) {
         Employee a = ensureEmployee(company, "A", perEmployeeGross);
         Employee b = ensureEmployee(company, "B", perEmployeeGross);
+
+        BigDecimal netPay = perEmployeeGross.subtract(advanceDeduction);
 
         PayrollRunLine lineA = new PayrollRunLine();
         lineA.setPayrollRun(run);
         lineA.setEmployee(a);
         lineA.setGrossPay(perEmployeeGross);
-        lineA.setNetPay(perEmployeeGross);
-        lineA.setLineTotal(perEmployeeGross);
+        lineA.setAdvanceDeduction(advanceDeduction);
+        lineA.setTotalDeductions(advanceDeduction);
+        lineA.setNetPay(netPay);
+        lineA.setLineTotal(netPay);
         lineA.setName(a.getFullName());
         lineA.setDaysWorked(1);
         lineA.setDailyWage(BigDecimal.ZERO);
-        lineA.setAdvances(BigDecimal.ZERO);
+        lineA.setAdvances(advanceDeduction);
 
         PayrollRunLine lineB = new PayrollRunLine();
         lineB.setPayrollRun(run);
         lineB.setEmployee(b);
         lineB.setGrossPay(perEmployeeGross);
-        lineB.setNetPay(perEmployeeGross);
-        lineB.setLineTotal(perEmployeeGross);
+        lineB.setAdvanceDeduction(advanceDeduction);
+        lineB.setTotalDeductions(advanceDeduction);
+        lineB.setNetPay(netPay);
+        lineB.setLineTotal(netPay);
         lineB.setName(b.getFullName());
         lineB.setDaysWorked(1);
         lineB.setDailyWage(BigDecimal.ZERO);
-        lineB.setAdvances(BigDecimal.ZERO);
+        lineB.setAdvances(advanceDeduction);
 
         payrollRunLineRepository.saveAll(List.of(lineA, lineB));
     }

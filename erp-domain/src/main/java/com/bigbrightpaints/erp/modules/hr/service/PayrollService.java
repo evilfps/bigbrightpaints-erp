@@ -365,10 +365,11 @@ public class PayrollService {
     @Transactional
     public PayrollRunDto postPayrollToAccounting(Long payrollRunId) {
         Company company = companyContextService.requireCurrentCompany();
-        PayrollRun run = payrollRunRepository.findByCompanyAndId(company, payrollRunId)
-            .orElseThrow(() -> new IllegalArgumentException("Payroll run not found"));
+        PayrollRun run = companyEntityLookup.lockPayrollRun(company, payrollRunId);
+        boolean hasJournal = run.getJournalEntryId() != null;
+        boolean statusPosted = run.getStatus() == PayrollRun.PayrollStatus.POSTED;
 
-        if (run.getStatus() != PayrollRun.PayrollStatus.APPROVED) {
+        if (!statusPosted && !hasJournal && run.getStatus() != PayrollRun.PayrollStatus.APPROVED) {
             throw new IllegalStateException("Can only post approved payroll");
         }
 
@@ -432,50 +433,77 @@ public class PayrollService {
         String memo = "Payroll - " + (runNumber != null ? runNumber : "RUN");
         JournalEntryDto journal = accountingFacade.postPayrollRun(runNumber, run.getId(), postingDate, memo, lines);
 
-        // Update run status
-        run.setJournalEntryId(journal.id());
-        run.setJournalEntry(companyEntityLookup.requireJournalEntry(company, journal.id()));
-        run.setStatus(PayrollRun.PayrollStatus.POSTED);
-        run.setPostedBy(getCurrentUser());
-        run.setPostedAt(CompanyTime.now(company));
-
-        // Link attendance records to this payroll run
-        for (PayrollRunLine line : runLines) {
-            attendanceRepository.findByEmployeeAndAttendanceDateBetween(
-                line.getEmployee(), run.getPeriodStart(), run.getPeriodEnd()
-            ).forEach(att -> {
-                att.setPayrollRunId(run.getId());
-                attendanceRepository.save(att);
-            });
+        if (hasJournal && run.getJournalEntryId() != null && !run.getJournalEntryId().equals(journal.id())) {
+            throw new ApplicationException(ErrorCode.CONCURRENCY_CONFLICT,
+                    "Payroll run already linked to a different posting journal")
+                    .withDetail("payrollRunId", run.getId())
+                    .withDetail("journalEntryId", run.getJournalEntryId())
+                    .withDetail("postedJournalEntryId", journal.id());
         }
 
-        payrollRunRepository.save(run);
-        Map<String, String> auditMetadata = new HashMap<>();
-        if (run.getId() != null) {
-            auditMetadata.put("payrollRunId", run.getId().toString());
+        boolean updated = false;
+        if (run.getJournalEntryId() == null) {
+            run.setJournalEntryId(journal.id());
+            updated = true;
         }
-        if (run.getRunNumber() != null) {
-            auditMetadata.put("runNumber", run.getRunNumber());
+        if (run.getJournalEntry() == null) {
+            run.setJournalEntry(companyEntityLookup.requireJournalEntry(company, journal.id()));
+            updated = true;
         }
-        if (run.getRunType() != null) {
-            auditMetadata.put("runType", run.getRunType().name());
+        if (run.getStatus() != PayrollRun.PayrollStatus.POSTED) {
+            run.setStatus(PayrollRun.PayrollStatus.POSTED);
+            if (run.getPostedBy() == null) {
+                run.setPostedBy(getCurrentUser());
+            }
+            if (run.getPostedAt() == null) {
+                run.setPostedAt(CompanyTime.now(company));
+            }
+            updated = true;
         }
-        if (run.getPeriodStart() != null) {
-            auditMetadata.put("periodStart", run.getPeriodStart().toString());
+
+        if (!statusPosted) {
+            // Link attendance records to this payroll run
+            for (PayrollRunLine line : runLines) {
+                attendanceRepository.findByEmployeeAndAttendanceDateBetween(
+                    line.getEmployee(), run.getPeriodStart(), run.getPeriodEnd()
+                ).forEach(att -> {
+                    att.setPayrollRunId(run.getId());
+                    attendanceRepository.save(att);
+                });
+            }
         }
-        if (run.getPeriodEnd() != null) {
-            auditMetadata.put("periodEnd", run.getPeriodEnd().toString());
+
+        if (updated) {
+            payrollRunRepository.save(run);
         }
-        if (journal != null && journal.id() != null) {
-            auditMetadata.put("journalEntryId", journal.id().toString());
+        if (!statusPosted) {
+            Map<String, String> auditMetadata = new HashMap<>();
+            if (run.getId() != null) {
+                auditMetadata.put("payrollRunId", run.getId().toString());
+            }
+            if (run.getRunNumber() != null) {
+                auditMetadata.put("runNumber", run.getRunNumber());
+            }
+            if (run.getRunType() != null) {
+                auditMetadata.put("runType", run.getRunType().name());
+            }
+            if (run.getPeriodStart() != null) {
+                auditMetadata.put("periodStart", run.getPeriodStart().toString());
+            }
+            if (run.getPeriodEnd() != null) {
+                auditMetadata.put("periodEnd", run.getPeriodEnd().toString());
+            }
+            if (journal != null && journal.id() != null) {
+                auditMetadata.put("journalEntryId", journal.id().toString());
+            }
+            if (postingDate != null) {
+                auditMetadata.put("postingDate", postingDate.toString());
+            }
+            auditMetadata.put("totalGrossPay", totalGrossPay.toPlainString());
+            auditMetadata.put("totalAdvances", totalAdvances.toPlainString());
+            auditMetadata.put("netPayable", salaryPayableAmount.toPlainString());
+            auditService.logSuccess(AuditEvent.PAYROLL_POSTED, auditMetadata);
         }
-        if (postingDate != null) {
-            auditMetadata.put("postingDate", postingDate.toString());
-        }
-        auditMetadata.put("totalGrossPay", totalGrossPay.toPlainString());
-        auditMetadata.put("totalAdvances", totalAdvances.toPlainString());
-        auditMetadata.put("netPayable", salaryPayableAmount.toPlainString());
-        auditService.logSuccess(AuditEvent.PAYROLL_POSTED, auditMetadata);
         return toDto(run);
     }
 

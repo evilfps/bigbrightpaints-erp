@@ -109,6 +109,10 @@ Purpose: a single, concrete list of **P0** items that block a safe enterprise de
   `OrchestratorControllerIT.approve_order_is_idempotent_and_audited`.
 
 ## P0 - Accounting Correctness (Enterprise Grade)
+- Payroll posting must be canonical and idempotent (expense + payable only; mismatch-safe reference).
+  - Status (2026-02-04): ✅ AccountingFacade posting enforced; tests:
+    `CR_PayrollIdempotencyConcurrencyTest.payrollPosting_isIdempotent_andCreatesExpensePayableLines`,
+    `CR_PayrollIdempotencyConcurrencyTest.payrollPosting_mismatchConflictOnReplay`.
 - Payroll payments must clear Salary Payable (no double-expensing).
   - `POST /api/v1/accounting/payroll/payments` now requires POSTED runs, posts **Dr SALARY-PAYABLE / Cr CASH**, and stores `payroll_runs.payment_journal_entry_id`.
   - HR `POST /api/v1/payroll/runs/{id}/mark-paid` is blocked unless a payment journal exists (prevents “PAID with no payment evidence”).
