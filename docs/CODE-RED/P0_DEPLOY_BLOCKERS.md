@@ -75,6 +75,8 @@ Purpose: a single, concrete list of **P0** items that block a safe enterprise de
 - Inventory adjustments must be retry-safe and use the adjustment date for posting:
   - `Idempotency-Key` required; mismatch-safe on replay; journal entry date must equal `adjustmentDate`.
   - Status (2026-02-04): ✅ idempotency + date enforcement; tests: `CR_INV_AdjustmentIdempotencyTest`.
+- Inventory→GL automation must be OFF in prod unless it is outbox-backed (no silent drift).
+  - Status (2026-02-04): ✅ disabled in prod config; test: `CR_InventoryGlAutomationProdOffIT`.
 - Dealer receipts/settlements must be idempotent (caller idempotency key enforced; allocations deterministic).
   - Status (2026-02-04): ✅ dealer receipt idempotency reserve-first + mismatch-safe; tests: `CR_DealerReceiptSettlementAuditTrailTest`.
   - Status (2026-02-04): ✅ dealer settlement idempotency reserve-first + allocation uniqueness; tests: `CR_DealerReceiptSettlementAuditTrailTest`, `AccountingServiceTest`.

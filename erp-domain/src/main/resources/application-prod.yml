@@ -84,6 +84,10 @@ erp:
   dispatch:
     debit-account-id: ${ERP_DISPATCH_DEBIT_ACCOUNT_ID}
     credit-account-id: ${ERP_DISPATCH_CREDIT_ACCOUNT_ID}
+  inventory:
+    accounting:
+      events:
+        enabled: false
 management:
   server:
     port: ${MANAGEMENT_SERVER_PORT:9090}
