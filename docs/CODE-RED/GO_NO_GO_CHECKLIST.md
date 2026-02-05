@@ -43,11 +43,13 @@ Production config safety (safe subset mode allowed)
 Smoke + soak
 - Run `erp-domain/scripts/ops_smoke.sh` successfully.
 - Actuator readiness is green: `GET /actuator/health/readiness` (DB + required config + broker).
-- Integration health surfaces are **not** public:
-  - `GET /api/integration/health` requires admin/ops auth.
-- Orchestrator health endpoints are reachable with an authorized token:
-  - `GET /api/v1/orchestrator/health/integrations`
-  - `GET /api/v1/orchestrator/health/events`
+- Integration health surfaces are **not** public and must return `status=UP` for ops/admin:
+  - `GET /api/integration/health` (authorized token required).
+- Orchestrator health endpoints are reachable with an authorized token and return expected fields:
+  - `GET /api/v1/orchestrator/health/integrations` (expects `orders`, `plans`, `accounts`, `employees`)
+  - `GET /api/v1/orchestrator/health/events` (expects `pendingEvents`, `retryingEvents`, `deadLetters`)
+- Outbox health is stable during soak:
+  - `deadLetters == 0` and `retryingEvents` is not growing unbounded.
 - Monitor logs/outbox health for at least one business cycle (dispatch + settlement) without errors or retries piling up.
 
 ## NO-GO (Any One Blocks Shipping)
@@ -74,6 +76,10 @@ Operational risk
 - Public attack surface is unintentionally open:
   - Swagger/OpenAPI or detailed actuator endpoints are reachable without auth in prod.
   - CORS allows wildcard origins with credentials.
+- Health/monitoring visibility is missing or incomplete:
+  - `/actuator/health` or `/actuator/health/readiness` is not green.
+  - `/api/integration/health` or `/api/v1/orchestrator/health/*` is unreachable with ops/admin auth.
+  - Outbox health does not expose pending/retrying/dead-letter counts.
 - Enterprise auditability is missing:
   - the system cannot link a critical write (dispatch/payment/journal) back to a stable requestId/traceId/user without parsing payloads.
 

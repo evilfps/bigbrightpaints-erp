@@ -109,7 +109,37 @@ Fail if: any smoke step fails.
 
 ---
 
-## 7) Production Deploy (After Staging Is Green)
+## 7) Staging Monitoring + Soak Gate
+
+1) Confirm health endpoints are reachable and return expected fields.
+Command: `curl -fsS "$BASE_URL/actuator/health"`
+Expected: HTTP 200 with `"status":"UP"`.
+Fail if: non-200 or missing status.
+
+Command: `curl -fsS -H "Authorization: Bearer $OPS_TOKEN" "$BASE_URL/api/integration/health"`
+Expected: HTTP 200 with `"status":"UP"` and a `timestamp`.
+Fail if: non-200 or missing status/timestamp.
+
+Command: `curl -fsS -H "Authorization: Bearer $OPS_TOKEN" "$BASE_URL/api/v1/orchestrator/health/integrations"`
+Expected: HTTP 200 with keys `orders`, `plans`, `accounts`, `employees`.
+Fail if: non-200 or missing keys.
+
+Command: `curl -fsS -H "Authorization: Bearer $OPS_TOKEN" "$BASE_URL/api/v1/orchestrator/health/events"`
+Expected: HTTP 200 with keys `pendingEvents`, `retryingEvents`, `deadLetters`.
+Fail if: non-200 or missing keys.
+
+2) Validate outbox health is stable.
+Expected: `deadLetters == 0` and `retryingEvents` is not growing unbounded.
+Fail if: dead letters > 0 or retry backlog grows during soak.
+
+3) Soak the system for at least one business cycle.
+Command (example log scan): `rg -n \"ERROR|Exception|dead_letter\" logs/erp-backend.log`
+Expected: no new error spikes in posting/idempotency/outbox during the soak window.
+Fail if: new error bursts or repeated idempotency conflicts appear.
+
+---
+
+## 8) Production Deploy (After Staging Is Green)
 
 1) Deploy the release artifact to production using the standard deploy pipeline.
 Expected: app boots cleanly; Flyway validates without errors.
@@ -122,7 +152,7 @@ Fail if: any rows are returned or the command exits non-zero.
 
 ---
 
-## 8) Documentation Evidence (Required)
+## 9) Documentation Evidence (Required)
 
 1) Attach the release evidence to the release ticket:
 - `expected_migration_count` and `expected_max_version`
