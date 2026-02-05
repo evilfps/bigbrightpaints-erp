@@ -152,7 +152,33 @@ Fail if: any rows are returned or the command exits non-zero.
 
 ---
 
-## 9) Documentation Evidence (Required)
+## 9) Rollback Procedure + Audit Trail (App-First)
+
+1) Roll back the application to the previous release artifact via the standard deploy pipeline.
+Expected: app boots cleanly and health endpoints return `UP`.
+Fail if: rollback cannot be completed or health is not green.
+
+2) Disable risky feature flags in production config (orchestrator/packing/inventory→GL) if not already disabled.
+Expected: risky paths are gated immediately after rollback.
+Fail if: any unsafe path remains reachable in prod.
+
+3) Re-run predeploy scans after rollback.
+Command: `psql "$PROD_DATABASE_URL" -f scripts/db_predeploy_scans.sql`
+Expected: zero rows or only pre-existing, previously accepted findings (record explicitly).
+Fail if: new findings appear after rollback.
+
+4) Capture the incident audit trail for every rollback.
+Command (example log scan): `rg -n \"requestId|traceId|idempotencyKey\" logs/erp-backend.log`
+Command (trace lookup): `curl -fsS -H "Authorization: Bearer $OPS_TOKEN" "$BASE_URL/api/v1/orchestrator/traces/$TRACE_ID"`
+Expected: incident record includes `requestId`, `traceId`, `idempotencyKey`, user, endpoint, and time window.
+Fail if: identifiers cannot be recovered from logs/traces/audit tables.
+
+5) Do not run ad-hoc SQL under pressure.
+If repair is needed, create a controlled plan (admin-only repair endpoint or forward migration) and execute it with audit.
+
+---
+
+## 10) Documentation Evidence (Required)
 
 1) Attach the release evidence to the release ticket:
 - `expected_migration_count` and `expected_max_version`

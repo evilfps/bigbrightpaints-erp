@@ -89,4 +89,5 @@ If something is wrong after deploy:
 1) Roll back the application first.
 2) Disable risky feature flags (orchestrator/packing/inventory→GL) if needed.
 3) Re-run `scripts/db_predeploy_scans.sql` to assess impact.
-4) Do not run ad-hoc manual SQL “fixes” under pressure; use an audited repair plan.
+4) Capture incident identifiers (requestId/traceId/idempotencyKey) and preserve logs/traces.
+5) Do not run ad-hoc manual SQL “fixes” under pressure; use an audited repair plan.
