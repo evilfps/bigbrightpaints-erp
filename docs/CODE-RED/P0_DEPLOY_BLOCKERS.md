@@ -166,4 +166,7 @@ Purpose: a single, concrete list of **P0** items that block a safe enterprise de
   - Status (2026-02-05): ✅ forward-only convergence migrations with data guards.
 - Add a staging deploy gate for Flyway history drift:
   - DB `flyway_schema_history` count and max version must match repo expectations.
+  - Status (2026-02-05): ✅ `scripts/db_predeploy_scans.sql` includes Flyway history count/max check.
+- Predeploy scans must flag convergence drift in journaling/event uniqueness and consolidated indexes.
+  - Status (2026-02-05): ✅ `scripts/db_predeploy_scans.sql` checks canonical constraints/indexes.
 - Ensure prod mail config is correct (prod uses `SMTP_*` placeholders; `SMTP_PASSWORD` must not be left as `changeme`).

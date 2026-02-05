@@ -22,6 +22,7 @@ Database safety
 - Flyway migrations apply cleanly on staging; no checksum surprises.
 - Flyway is forward-only: no edits to already-applied migrations (checksum drift is **NO-GO** unless proven safe and repaired).
 - Flyway history matches repo expectations on staging (count + max version; see `docs/CODE-RED/release-plan.md`).
+- Predeploy scans also validate convergence drift (journal/event uniqueness + consolidated indexes); any rows are NO-GO.
 
 Production config safety (safe subset mode allowed)
 - `JWT_SECRET` is set to a non-default value; DB credentials and SMTP credentials are production values (no placeholders like `changeme`).

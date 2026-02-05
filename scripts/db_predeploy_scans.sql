@@ -301,3 +301,130 @@ full join snapshot_lines sl
 where abs(coalesce(e.expected_debit, 0) - coalesce(sl.snap_debit, 0)) > 0.01
    or abs(coalesce(e.expected_credit, 0) - coalesce(sl.snap_credit, 0)) > 0.01
 order by company_id, accounting_period_id, account_id;
+
+-- 12) Flyway history mismatch vs repo expectations (NO-GO)
+-- Update expected values on each release commit.
+with expected as (
+  select 131::int as expected_count, 131::int as expected_max_version
+),
+actual as (
+  select
+    count(*)::int as actual_count,
+    max(version)::int as actual_max_version
+  from flyway_schema_history
+  where success = true
+)
+select
+  expected.expected_count,
+  expected.expected_max_version,
+  actual.actual_count,
+  actual.actual_max_version
+from expected, actual
+where actual.actual_count <> expected.expected_count
+   or actual.actual_max_version <> expected.expected_max_version;
+
+-- 13) Journal reference uniqueness drift (extra constraints/indexes) (NO-GO)
+with canonical as (
+  select c.conindid as index_oid
+  from pg_constraint c
+  join pg_class t on t.oid = c.conrelid
+  join pg_namespace n on n.oid = t.relnamespace
+  where n.nspname = 'public'
+    and t.relname = 'journal_entries'
+    and c.conname = 'uk_journal_company_reference'
+),
+extra_constraints as (
+  select c.conname
+  from pg_constraint c
+  join pg_class t on t.oid = c.conrelid
+  join pg_namespace n on n.oid = t.relnamespace
+  join unnest(c.conkey) with ordinality as cols(attnum, ord) on true
+  join pg_attribute a on a.attrelid = t.oid and a.attnum = cols.attnum
+  where n.nspname = 'public'
+    and t.relname = 'journal_entries'
+    and c.contype = 'u'
+  group by c.conname
+  having array_agg(a.attname::text order by a.attname) = array['company_id', 'reference_number']
+     and c.conname <> 'uk_journal_company_reference'
+),
+extra_indexes as (
+  select idx.oid as index_oid, idx.relname
+  from pg_index i
+  join pg_class idx on idx.oid = i.indexrelid
+  join pg_class t on t.oid = i.indrelid
+  join pg_namespace n on n.oid = t.relnamespace
+  join unnest(i.indkey) with ordinality as cols(attnum, ord) on true
+  join pg_attribute a on a.attrelid = t.oid and a.attnum = cols.attnum
+  where n.nspname = 'public'
+    and t.relname = 'journal_entries'
+    and i.indisunique
+  group by idx.oid, idx.relname
+  having array_agg(a.attname::text order by a.attname) = array['company_id', 'reference_number']
+)
+select 'journal_entries' as table_name, 'missing_constraint' as kind, 'uk_journal_company_reference' as name
+where not exists (select 1 from canonical)
+union all
+select 'journal_entries', 'constraint', conname from extra_constraints
+union all
+select 'journal_entries', 'index', ei.relname
+from extra_indexes ei
+left join canonical c on c.index_oid = ei.index_oid
+where c.index_oid is null;
+
+-- 14) Accounting events uniqueness drift (extra constraints/indexes) (NO-GO)
+with canonical as (
+  select c.conindid as index_oid
+  from pg_constraint c
+  join pg_class t on t.oid = c.conrelid
+  join pg_namespace n on n.oid = t.relnamespace
+  where n.nspname = 'public'
+    and t.relname = 'accounting_events'
+    and c.conname = 'uk_aggregate_sequence'
+),
+extra_constraints as (
+  select c.conname
+  from pg_constraint c
+  join pg_class t on t.oid = c.conrelid
+  join pg_namespace n on n.oid = t.relnamespace
+  join unnest(c.conkey) with ordinality as cols(attnum, ord) on true
+  join pg_attribute a on a.attrelid = t.oid and a.attnum = cols.attnum
+  where n.nspname = 'public'
+    and t.relname = 'accounting_events'
+    and c.contype = 'u'
+  group by c.conname
+  having array_agg(a.attname::text order by a.attname) = array['aggregate_id', 'sequence_number']
+     and c.conname <> 'uk_aggregate_sequence'
+),
+extra_indexes as (
+  select idx.oid as index_oid, idx.relname
+  from pg_index i
+  join pg_class idx on idx.oid = i.indexrelid
+  join pg_class t on t.oid = i.indrelid
+  join pg_namespace n on n.oid = t.relnamespace
+  join unnest(i.indkey) with ordinality as cols(attnum, ord) on true
+  join pg_attribute a on a.attrelid = t.oid and a.attnum = cols.attnum
+  where n.nspname = 'public'
+    and t.relname = 'accounting_events'
+    and i.indisunique
+  group by idx.oid, idx.relname
+  having array_agg(a.attname::text order by a.attname) = array['aggregate_id', 'sequence_number']
+)
+select 'accounting_events' as table_name, 'missing_constraint' as kind, 'uk_aggregate_sequence' as name
+where not exists (select 1 from canonical)
+union all
+select 'accounting_events', 'constraint', conname from extra_constraints
+union all
+select 'accounting_events', 'index', ei.relname
+from extra_indexes ei
+left join canonical c on c.index_oid = ei.index_oid
+where c.index_oid is null
+union all
+select 'accounting_events', 'index', 'idx_acct_events_aggregate'
+where to_regclass('idx_acct_events_aggregate') is not null;
+
+-- 15) Index consolidation drift (NO-GO)
+select 'index' as kind, 'idx_finished_goods_stock' as name
+where to_regclass('idx_finished_goods_stock') is not null
+union all
+select 'index', 'idx_finished_good_batches_quantity'
+where to_regclass('idx_finished_good_batches_quantity') is not null;
