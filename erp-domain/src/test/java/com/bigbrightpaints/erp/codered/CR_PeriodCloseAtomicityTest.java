@@ -12,6 +12,7 @@ import com.bigbrightpaints.erp.modules.accounting.dto.AccountingPeriodCloseReque
 import com.bigbrightpaints.erp.modules.accounting.dto.AccountingPeriodDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.AccountingPeriodReopenRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryRequest;
+import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingPeriodService;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingService;
 import com.bigbrightpaints.erp.modules.accounting.service.PeriodCloseHook;
@@ -23,6 +24,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -39,6 +41,9 @@ import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 
 @org.springframework.context.annotation.Import(CR_PeriodCloseAtomicityTest.CloseHookConfig.class)
 class CR_PeriodCloseAtomicityTest extends AbstractIntegrationTest {
@@ -50,6 +55,7 @@ class CR_PeriodCloseAtomicityTest extends AbstractIntegrationTest {
     @Autowired private CompanyRepository companyRepository;
     @Autowired private JdbcTemplate jdbcTemplate;
     @Autowired private TestPeriodCloseHook closeHook;
+    @SpyBean private AccountingFacade accountingFacade;
 
     @AfterEach
     void clearCompanyContext() {
@@ -147,6 +153,14 @@ class CR_PeriodCloseAtomicityTest extends AbstractIntegrationTest {
             assertThat(second.status()).isEqualTo("CLOSED");
             assertThat(second.closingJournalEntryId()).isEqualTo(first.closingJournalEntryId());
             assertThat(countClosingJournals(company, period)).isEqualTo(1);
+            verify(accountingFacade).postSimpleJournal(
+                    eq(closingReference(period)),
+                    any(LocalDate.class),
+                    any(String.class),
+                    any(Long.class),
+                    any(Long.class),
+                    any(BigDecimal.class),
+                    eq(true));
 
             AccountingPeriodDto reopened = accountingPeriodService.reopenPeriod(
                     period.getId(),
@@ -159,6 +173,10 @@ class CR_PeriodCloseAtomicityTest extends AbstractIntegrationTest {
                     new AccountingPeriodReopenRequest("CODE-RED reopen retry"));
             assertThat(reopenedAgain.status()).isEqualTo("OPEN");
             assertThat(reopenedAgain.closingJournalEntryId()).isNull();
+            verify(accountingFacade).reverseClosingEntryForPeriodReopen(
+                    any(JournalEntry.class),
+                    any(AccountingPeriod.class),
+                    eq("CODE-RED reopen"));
 
             JournalEntry closing = journalEntryRepository.findByCompanyAndReferenceNumber(
                     company, closingReference(period)).orElseThrow();

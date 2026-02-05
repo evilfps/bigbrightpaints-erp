@@ -5,6 +5,7 @@ import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
+import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriod;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
@@ -1512,6 +1513,15 @@ public class AccountingFacade {
      */
     public JournalEntryDto recordPayrollPayment(PayrollPaymentRequest request) {
         return accountingService.recordPayrollPayment(request);
+    }
+
+    /**
+     * Reverse period-close journal via canonical accounting boundary.
+     */
+    public JournalEntryDto reverseClosingEntryForPeriodReopen(JournalEntry entry,
+                                                              AccountingPeriod period,
+                                                              String reason) {
+        return accountingService.reverseClosingEntryForPeriodReopen(entry, period, reason);
     }
 
     /**

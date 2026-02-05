@@ -172,7 +172,11 @@ Purpose: a single, concrete list of **P0** items that block a safe enterprise de
     `CR_PeriodCloseDriftScansTest.predeployScans_detectMissingSnapshot`,
     `CR_PeriodCloseDriftScansTest.predeployScans_detectSnapshotTotalsMismatch`.
 - Fix FIFO valuation to use remaining/available quantities (not total quantities) so depleted batches don’t inflate valuation.
+  - Status (2026-02-05): ✅ FIFO valuation now prices from `quantity_available`; test:
+    `InventoryValuationServiceTest.currentSnapshot_fifoUsesRemainingBatchQuantity`.
 - Period-close postings must not bypass accounting posting boundaries (no direct account balance mutation outside `AccountingFacade`/`AccountingService` invariants).
+  - Status (2026-02-05): ✅ period close/reopen now route through `AccountingFacade` boundary; test:
+    `CR_PeriodCloseAtomicityTest.closeAndReopen_areIdempotent`.
 
 ## P0 - Deploy Gates / Flyway Discipline
 - Flyway must be forward-only: do not edit applied migrations; repair only when it is known-safe.
@@ -184,3 +188,6 @@ Purpose: a single, concrete list of **P0** items that block a safe enterprise de
 - Predeploy scans must flag convergence drift in journaling/event uniqueness and consolidated indexes.
   - Status (2026-02-05): ✅ `scripts/db_predeploy_scans.sql` checks canonical constraints/indexes.
 - Ensure prod mail config is correct (prod uses `SMTP_*` placeholders; `SMTP_PASSWORD` must not be left as `changeme`).
+  - Status (2026-02-05): ✅ prod profile fails fast on invalid SMTP password; tests:
+    `SmtpPropertiesValidatorTest.validateSmtp_rejectsMissingPassword`,
+    `SmtpPropertiesValidatorTest.validateSmtp_rejectsDefaultPlaceholderPassword`.

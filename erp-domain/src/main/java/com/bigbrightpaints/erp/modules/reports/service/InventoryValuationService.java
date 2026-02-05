@@ -237,7 +237,7 @@ public class InventoryValuationService {
         }
         List<FinishedGoodBatch> batches = finishedGoodBatchRepository.findByFinishedGoodOrderByManufacturedAtAsc(finishedGood);
         return consumeValuation(remaining, batches.stream()
-                .map(batch -> new CostSlice(batch.getQuantityTotal(), batch.getUnitCost()))
+                .map(batch -> new CostSlice(safe(batch.getQuantityAvailable()), batch.getUnitCost()))
                 .toList());
     }
 

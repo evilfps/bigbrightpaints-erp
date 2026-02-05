@@ -11,7 +11,6 @@ import com.bigbrightpaints.erp.modules.accounting.dto.AccountingPeriodLockReques
 import com.bigbrightpaints.erp.modules.accounting.dto.AccountingPeriodDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.AccountingPeriodReopenRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
-import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.MonthEndChecklistDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.MonthEndChecklistItemDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.MonthEndChecklistUpdateRequest;
@@ -57,7 +56,7 @@ public class AccountingPeriodService {
     private final GoodsReceiptRepository goodsReceiptRepository;
     private final RawMaterialPurchaseRepository rawMaterialPurchaseRepository;
     private final PayrollRunRepository payrollRunRepository;
-    private final ObjectProvider<AccountingService> accountingServiceProvider;
+    private final ObjectProvider<AccountingFacade> accountingFacadeProvider;
     private final PeriodCloseHook periodCloseHook;
     private final AccountingPeriodSnapshotService snapshotService;
 
@@ -74,7 +73,7 @@ public class AccountingPeriodService {
                                    GoodsReceiptRepository goodsReceiptRepository,
                                    RawMaterialPurchaseRepository rawMaterialPurchaseRepository,
                                    PayrollRunRepository payrollRunRepository,
-                                   ObjectProvider<AccountingService> accountingServiceProvider,
+                                   ObjectProvider<AccountingFacade> accountingFacadeProvider,
                                    PeriodCloseHook periodCloseHook,
                                    AccountingPeriodSnapshotService snapshotService) {
         this.accountingPeriodRepository = accountingPeriodRepository;
@@ -90,7 +89,7 @@ public class AccountingPeriodService {
         this.goodsReceiptRepository = goodsReceiptRepository;
         this.rawMaterialPurchaseRepository = rawMaterialPurchaseRepository;
         this.payrollRunRepository = payrollRunRepository;
-        this.accountingServiceProvider = accountingServiceProvider;
+        this.accountingFacadeProvider = accountingFacadeProvider;
         this.periodCloseHook = periodCloseHook;
         this.snapshotService = snapshotService;
     }
@@ -364,28 +363,20 @@ public class AccountingPeriodService {
         boolean profit = netIncome.compareTo(BigDecimal.ZERO) > 0;
         Long debitAccountId = profit ? periodResult.getId() : retained.getId();
         Long creditAccountId = profit ? retained.getId() : periodResult.getId();
-        String debitDesc = profit ? "Close P&L to retained earnings" : "Close P&L loss to retained earnings";
-        String creditDesc = profit ? "Transfer profit to retained earnings" : "Transfer loss to period result";
-
         LocalDate entryDate = period.getEndDate();
         LocalDate today = companyClock.today(company);
         if (entryDate.isAfter(today)) {
             entryDate = today;
         }
-        JournalEntryRequest request = new JournalEntryRequest(
+        AccountingFacade accountingFacade = accountingFacadeProvider.getObject();
+        JournalEntryDto posted = accountingFacade.postSimpleJournal(
                 reference,
                 entryDate,
                 memo,
-                null,
-                null,
-                Boolean.TRUE,
-                List.of(
-                        new JournalEntryRequest.JournalLineRequest(debitAccountId, debitDesc, amount, BigDecimal.ZERO),
-                        new JournalEntryRequest.JournalLineRequest(creditAccountId, creditDesc, BigDecimal.ZERO, amount)
-                )
-        );
-        AccountingService accountingService = accountingServiceProvider.getObject();
-        JournalEntryDto posted = accountingService.createJournalEntry(request);
+                debitAccountId,
+                creditAccountId,
+                amount,
+                true);
         return journalEntryRepository.findByCompanyAndId(company, posted.id())
                 .orElseThrow(() -> new ApplicationException(ErrorCode.SYSTEM_INTERNAL_ERROR,
                         "Closing journal entry not found after posting"));
@@ -413,8 +404,8 @@ public class AccountingPeriodService {
         if ("REVERSED".equals(status) || "VOIDED".equals(status) || closing.getReversalEntry() != null) {
             return;
         }
-        AccountingService accountingService = accountingServiceProvider.getObject();
-        accountingService.reverseClosingEntryForPeriodReopen(closing, period, reason);
+        AccountingFacade accountingFacade = accountingFacadeProvider.getObject();
+        accountingFacade.reverseClosingEntryForPeriodReopen(closing, period, reason);
     }
 
     @Transactional
