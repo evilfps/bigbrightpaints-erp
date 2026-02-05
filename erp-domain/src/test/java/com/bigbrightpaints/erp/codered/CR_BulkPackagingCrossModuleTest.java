@@ -1,6 +1,8 @@
 package com.bigbrightpaints.erp.codered;
 
+import com.bigbrightpaints.erp.codered.support.CoderedConcurrencyHarness;
 import com.bigbrightpaints.erp.codered.support.CoderedDbAssertions;
+import com.bigbrightpaints.erp.codered.support.CoderedRetry;
 import com.bigbrightpaints.erp.core.security.CompanyContextHolder;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
@@ -43,6 +45,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.HashMap;
@@ -272,8 +275,210 @@ class CR_BulkPackagingCrossModuleTest extends AbstractIntegrationTest {
         assertThat(inventoryMovements).as("no packing inventory movements").isZero();
     }
 
+    @Test
+    void bulkPack_idempotentRetry_doesNotDoubleConsumeOrPost() {
+        String companyCode = "CR-BULK-IDEMP-" + shortId();
+        Company company = bootstrapCompany(companyCode, "UTC");
+        Map<String, Account> accounts = ensureFactoryAccounts(company);
+
+        ProductionProduct bulkProduct = ensureProductionProduct(company, accounts, "CR-BULK-" + shortId());
+        ProductionLog log = createProductionLog(company, bulkProduct, "PROD-" + shortId(), new BigDecimal("10"));
+        seedSemiFinishedBatch(company, companyCode, accounts, bulkProduct.getSkuCode(), log.getProductionCode(), new BigDecimal("10"));
+
+        LocalDate packingDate = TestDateUtils.safeDate(company);
+        CompanyContextHolder.setCompanyId(companyCode);
+        packingService.recordPacking(new PackingRequest(
+                log.getId(),
+                packingDate,
+                "codered",
+                List.of(new PackingLineRequest("1L", new BigDecimal("10"), 10, null, null))
+        ));
+        CompanyContextHolder.clear();
+
+        FinishedGood bulkFg = finishedGoodRepository.findByCompanyAndProductCode(company, bulkProduct.getSkuCode())
+                .orElseThrow();
+        FinishedGoodBatch bulkBatch = finishedGoodBatchRepository.findAvailableBulkBatches(bulkFg).stream()
+                .findFirst()
+                .orElseThrow();
+
+        RawMaterial bucket = ensurePackagingMaterial(company, accounts.get("PACK_INV"), new BigDecimal("20"));
+        ensureRawMaterialBatch(bucket, new BigDecimal("20"), new BigDecimal("2.00"));
+        ensurePackagingSizeMapping(company, bucket, "1L");
+        ensurePackagingSizeMapping(company, bucket, "4L");
+
+        FinishedGood childOne = ensureFinishedGood(company, "CR-CHILD-1L-" + shortId(), accounts.get("FG_INV"), accounts);
+        FinishedGood childFour = ensureFinishedGood(company, "CR-CHILD-4L-" + shortId(), accounts.get("FG_INV"), accounts);
+
+        String idempotencyKey = "BULK-IDEMP-" + shortId();
+        BulkPackRequest request = new BulkPackRequest(
+                bulkBatch.getId(),
+                List.of(
+                        new BulkPackRequest.PackLine(childOne.getId(), new BigDecimal("2"), "1L", "L"),
+                        new BulkPackRequest.PackLine(childFour.getId(), new BigDecimal("2"), "4L", "L")
+                ),
+                null,
+                false,
+                packingDate,
+                "codered",
+                "CODE-RED bulk pack idempotent",
+                idempotencyKey
+        );
+
+        CompanyContextHolder.setCompanyId(companyCode);
+        BulkPackResponse first = bulkPackingService.pack(request);
+        String packReference = resolvePackReference(company);
+        int inventoryMovements = countInventoryMovements(company, packReference);
+        int rawMovements = countRawMaterialMovements(company, packReference);
+        BigDecimal bulkRemaining = finishedGoodBatchRepository.findById(bulkBatch.getId()).orElseThrow().getQuantityAvailable();
+        BigDecimal packagingRemaining = rawMaterialRepository.findById(bucket.getId()).orElseThrow().getCurrentStock();
+
+        BulkPackResponse second = bulkPackingService.pack(request);
+        CompanyContextHolder.clear();
+
+        assertThat(second.journalEntryId()).as("same journal on retry").isEqualTo(first.journalEntryId());
+        assertThat(countInventoryMovements(company, packReference)).as("no extra inventory movements")
+                .isEqualTo(inventoryMovements);
+        assertThat(countRawMaterialMovements(company, packReference)).as("no extra packaging movements")
+                .isEqualTo(rawMovements);
+        assertThat(finishedGoodBatchRepository.findById(bulkBatch.getId()).orElseThrow().getQuantityAvailable())
+                .as("bulk quantity unchanged on retry")
+                .isEqualByComparingTo(bulkRemaining);
+        assertThat(rawMaterialRepository.findById(bucket.getId()).orElseThrow().getCurrentStock())
+                .as("packaging stock unchanged on retry")
+                .isEqualByComparingTo(packagingRemaining);
+    }
+
+    @Test
+    void bulkPack_idempotentConcurrent_returnsSameJournal() {
+        String companyCode = "CR-BULK-CONC-" + shortId();
+        Company company = bootstrapCompany(companyCode, "UTC");
+        Map<String, Account> accounts = ensureFactoryAccounts(company);
+
+        ProductionProduct bulkProduct = ensureProductionProduct(company, accounts, "CR-BULK-" + shortId());
+        ProductionLog log = createProductionLog(company, bulkProduct, "PROD-" + shortId(), new BigDecimal("10"));
+        seedSemiFinishedBatch(company, companyCode, accounts, bulkProduct.getSkuCode(), log.getProductionCode(), new BigDecimal("10"));
+
+        LocalDate packingDate = TestDateUtils.safeDate(company);
+        CompanyContextHolder.setCompanyId(companyCode);
+        packingService.recordPacking(new PackingRequest(
+                log.getId(),
+                packingDate,
+                "codered",
+                List.of(new PackingLineRequest("1L", new BigDecimal("10"), 10, null, null))
+        ));
+        CompanyContextHolder.clear();
+
+        FinishedGood bulkFg = finishedGoodRepository.findByCompanyAndProductCode(company, bulkProduct.getSkuCode())
+                .orElseThrow();
+        FinishedGoodBatch bulkBatch = finishedGoodBatchRepository.findAvailableBulkBatches(bulkFg).stream()
+                .findFirst()
+                .orElseThrow();
+
+        RawMaterial bucket = ensurePackagingMaterial(company, accounts.get("PACK_INV"), new BigDecimal("20"));
+        ensureRawMaterialBatch(bucket, new BigDecimal("20"), new BigDecimal("2.00"));
+        ensurePackagingSizeMapping(company, bucket, "1L");
+        ensurePackagingSizeMapping(company, bucket, "4L");
+
+        FinishedGood childOne = ensureFinishedGood(company, "CR-CHILD-1L-" + shortId(), accounts.get("FG_INV"), accounts);
+        FinishedGood childFour = ensureFinishedGood(company, "CR-CHILD-4L-" + shortId(), accounts.get("FG_INV"), accounts);
+
+        BulkPackRequest request = new BulkPackRequest(
+                bulkBatch.getId(),
+                List.of(
+                        new BulkPackRequest.PackLine(childOne.getId(), new BigDecimal("2"), "1L", "L"),
+                        new BulkPackRequest.PackLine(childFour.getId(), new BigDecimal("2"), "4L", "L")
+                ),
+                null,
+                false,
+                packingDate,
+                "codered",
+                "CODE-RED bulk pack concurrency",
+                "BULK-CONC-" + shortId()
+        );
+
+        var result = CoderedConcurrencyHarness.run(
+                2,
+                3,
+                Duration.ofSeconds(30),
+                threadIndex -> () -> {
+                    CompanyContextHolder.setCompanyId(companyCode);
+                    try {
+                        return bulkPackingService.pack(request);
+                    } finally {
+                        CompanyContextHolder.clear();
+                    }
+                },
+                CoderedRetry::isRetryable
+        );
+
+        assertThat(result.outcomes())
+                .allMatch(outcome -> outcome instanceof CoderedConcurrencyHarness.Outcome.Success<?>);
+
+        List<Long> journalIds = result.outcomes().stream()
+                .map(outcome -> ((CoderedConcurrencyHarness.Outcome.Success<BulkPackResponse>) outcome).value())
+                .map(BulkPackResponse::journalEntryId)
+                .distinct()
+                .toList();
+        assertThat(journalIds).as("single journal for concurrent pack").hasSize(1);
+
+        String packReference = resolvePackReference(company);
+        assertThat(countInventoryMovements(company, packReference)).as("single pack inventory movement set")
+                .isEqualTo(3);
+        assertThat(countRawMaterialMovements(company, packReference)).as("single packaging movement set")
+                .isEqualTo(2);
+    }
+
     private List<FinishedGoodBatch> freshenedChildBatches(FinishedGoodBatch bulkBatch) {
         return finishedGoodBatchRepository.findByParentBatch(bulkBatch);
+    }
+
+    private String resolvePackReference(Company company) {
+        return jdbcTemplate.queryForObject(
+                """
+                select distinct im.reference_id
+                from inventory_movements im
+                join finished_goods fg on fg.id = im.finished_good_id
+                where fg.company_id = ?
+                  and im.reference_type = ?
+                """,
+                String.class,
+                company.getId(),
+                InventoryReference.PACKING_RECORD
+        );
+    }
+
+    private int countInventoryMovements(Company company, String reference) {
+        return jdbcTemplate.queryForObject(
+                """
+                select count(*)
+                from inventory_movements im
+                join finished_goods fg on fg.id = im.finished_good_id
+                where fg.company_id = ?
+                  and im.reference_type = ?
+                  and im.reference_id = ?
+                """,
+                Integer.class,
+                company.getId(),
+                InventoryReference.PACKING_RECORD,
+                reference
+        );
+    }
+
+    private int countRawMaterialMovements(Company company, String reference) {
+        return jdbcTemplate.queryForObject(
+                """
+                select count(*)
+                from raw_material_movements rm
+                join raw_materials r on r.id = rm.raw_material_id
+                where r.company_id = ?
+                  and rm.reference_type = ?
+                  and rm.reference_id = ?
+                """,
+                Integer.class,
+                company.getId(),
+                InventoryReference.PACKING_RECORD,
+                reference
+        );
     }
 
     private Company bootstrapCompany(String companyCode, String timezone) {

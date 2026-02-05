@@ -108,13 +108,13 @@ public class BulkPackingService {
                 .orElseThrow(() -> new ApplicationException(ErrorCode.BUSINESS_ENTITY_NOT_FOUND,
                         "Bulk batch not found: " + request.bulkBatchId()));
 
-        validateBulkBatch(bulkBatch, company);
-        int totalPacks = resolveTotalPacks(request.packs());
         String packReference = buildPackReference(bulkBatch, request);
         BulkPackResponse idempotent = resolveIdempotentPack(company, bulkBatch, packReference);
         if (idempotent != null) {
             return idempotent;
         }
+        validateBulkBatch(bulkBatch, company);
+        int totalPacks = resolveTotalPacks(request.packs());
 
         if (request.packagingMaterials() != null && !request.packagingMaterials().isEmpty()) {
             throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
@@ -222,7 +222,15 @@ public class BulkPackingService {
         List<InventoryMovement> movements = inventoryMovementRepository
                 .findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdOrderByCreatedAtAsc(
                         company, InventoryReference.PACKING_RECORD, packReference);
+        List<RawMaterialMovement> rawMovements = rawMaterialMovementRepository
+                .findByRawMaterialCompanyAndReferenceTypeAndReferenceId(
+                        company, InventoryReference.PACKING_RECORD, packReference);
         if (movements.isEmpty()) {
+            if (!rawMovements.isEmpty()) {
+                throw new ApplicationException(ErrorCode.INTERNAL_CONCURRENCY_FAILURE,
+                        "Partial bulk pack detected for reference " + packReference
+                                + " (packaging movements exist without inventory movements)");
+            }
             return null;
         }
         BigDecimal volumeDeducted = movements.stream()
@@ -230,10 +238,6 @@ public class BulkPackingService {
                 .map(InventoryMovement::getQuantity)
                 .filter(qty -> qty != null && qty.compareTo(BigDecimal.ZERO) > 0)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-        List<RawMaterialMovement> rawMovements = rawMaterialMovementRepository
-                .findByRawMaterialCompanyAndReferenceTypeAndReferenceId(
-                        company, InventoryReference.PACKING_RECORD, packReference);
         BigDecimal packagingCost = rawMovements.stream()
                 .map(movement -> safe(movement.getQuantity()).multiply(safe(movement.getUnitCost())))
                 .reduce(BigDecimal.ZERO, BigDecimal::add)
@@ -284,7 +288,23 @@ public class BulkPackingService {
                 ? request.idempotencyKey().trim().toUpperCase()
                 : "";
         String hash = sha256Hex(fingerprint + "|" + idempotencyKey, 12);
-        return "PACK-" + batchCode + "-" + hash;
+        return trimReference("PACK-", batchCode, hash, 64);
+    }
+
+    private String trimReference(String prefix, String batchCode, String hash, int maxLength) {
+        String safePrefix = StringUtils.hasText(prefix) ? prefix : "";
+        String safeBatch = StringUtils.hasText(batchCode) ? batchCode : "";
+        String safeHash = StringUtils.hasText(hash) ? hash : "";
+        String base = safePrefix + safeBatch + "-" + safeHash;
+        if (base.length() <= maxLength) {
+            return base;
+        }
+        int maxBatchLen = maxLength - safePrefix.length() - 1 - safeHash.length();
+        if (maxBatchLen <= 0) {
+            return safePrefix + safeHash;
+        }
+        String trimmedBatch = safeBatch.length() > maxBatchLen ? safeBatch.substring(0, maxBatchLen) : safeBatch;
+        return safePrefix + trimmedBatch + "-" + safeHash;
     }
 
     private String sha256Hex(String input, int length) {

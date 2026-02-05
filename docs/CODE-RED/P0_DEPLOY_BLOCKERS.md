@@ -67,6 +67,9 @@ Purpose: a single, concrete list of **P0** items that block a safe enterprise de
   - Status (2026-02-04): ✅ service-layer gating added; tests: `CommandDispatcherTest.dispatchBatchFailsClosedWhenFactoryDispatchDisabled`, `CommandDispatcherTest.runPayrollFailsClosedWhenPayrollDisabled`, `IntegrationCoordinatorTest.updateProductionStatusFailsClosedWhenFactoryDispatchDisabled`, `IntegrationCoordinatorTest.generatePayrollFailsClosedWhenPayrollDisabled`, `IntegrationCoordinatorTest.recordPayrollPaymentFailsClosedWhenPayrollDisabled`.
 - Manufacturing/packing endpoints must be retry-safe at the API boundary (double-click/network/orchestrator retries must not double-consume or double-post).
   - Bulk pack reference must be deterministic (no `System.currentTimeMillis()`); retries must not double-consume packaging.
+    - Status (2026-02-05): ✅ deterministic reference + idempotent retry/concurrency; tests:
+      `CR_BulkPackagingCrossModuleTest.bulkPack_idempotentRetry_doesNotDoubleConsumeOrPost`,
+      `CR_BulkPackagingCrossModuleTest.bulkPack_idempotentConcurrent_returnsSameJournal`.
   - Packing record retries must not double-consume packaging or double-post journals.
   - Opening stock import must have an import idempotency key; retry must not create new batches/movements/journals.
     - Status (2026-02-04): ✅ opening stock import idempotent + prod gated; tests: `CR_OpeningStockImportIdempotencyIT`, `CR_OpeningStockImportProdGatingIT`.
