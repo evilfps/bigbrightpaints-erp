@@ -1,11 +1,17 @@
 package com.bigbrightpaints.erp.modules.production.service;
 
+import com.bigbrightpaints.erp.core.audit.AuditEvent;
+import com.bigbrightpaints.erp.core.audit.AuditService;
+import com.bigbrightpaints.erp.core.exception.ApplicationException;
+import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterial;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialRepository;
 import com.bigbrightpaints.erp.modules.accounting.service.CompanyDefaultAccountsService;
+import com.bigbrightpaints.erp.modules.production.domain.CatalogImport;
+import com.bigbrightpaints.erp.modules.production.domain.CatalogImportRepository;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionBrand;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionBrandRepository;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionProduct;
@@ -25,7 +31,10 @@ import jakarta.transaction.Transactional;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
 import org.apache.commons.csv.CSVRecord;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -34,6 +43,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -77,28 +87,99 @@ public class ProductionCatalogService {
     private final RawMaterialRepository rawMaterialRepository;
     private final CompanyEntityLookup companyEntityLookup;
     private final CompanyDefaultAccountsService companyDefaultAccountsService;
+    private final CatalogImportRepository catalogImportRepository;
+    private final AuditService auditService;
+    private final TransactionTemplate transactionTemplate;
 
     public ProductionCatalogService(CompanyContextService companyContextService,
                                     ProductionBrandRepository brandRepository,
                                     ProductionProductRepository productRepository,
                                     RawMaterialRepository rawMaterialRepository,
                                     CompanyEntityLookup companyEntityLookup,
-                                    CompanyDefaultAccountsService companyDefaultAccountsService) {
+                                    CompanyDefaultAccountsService companyDefaultAccountsService,
+                                    CatalogImportRepository catalogImportRepository,
+                                    AuditService auditService,
+                                    PlatformTransactionManager transactionManager) {
         this.companyContextService = companyContextService;
         this.brandRepository = brandRepository;
         this.productRepository = productRepository;
         this.rawMaterialRepository = rawMaterialRepository;
         this.companyEntityLookup = companyEntityLookup;
         this.companyDefaultAccountsService = companyDefaultAccountsService;
+        this.catalogImportRepository = catalogImportRepository;
+        this.auditService = auditService;
+        this.transactionTemplate = new TransactionTemplate(transactionManager);
     }
 
-    @Transactional
     public CatalogImportResponse importCatalog(MultipartFile file) {
+        return importCatalog(file, null);
+    }
+
+    public CatalogImportResponse importCatalog(MultipartFile file, String idempotencyKey) {
         Company company = companyContextService.requireCurrentCompany();
         if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("CSV file is required");
         }
+        String fileHash = sha256Hex(file);
+        String normalizedKey = normalizeIdempotencyKey(idempotencyKey, fileHash);
 
+        CatalogImport existing = catalogImportRepository.findByCompanyAndIdempotencyKey(company, normalizedKey)
+                .orElse(null);
+        if (existing != null) {
+            assertIdempotencyMatch(existing, fileHash, normalizedKey);
+            return toResponse(existing);
+        }
+
+        try {
+            CatalogImportResponse response = transactionTemplate.execute(status ->
+                    importCatalogInternal(company, file, normalizedKey, fileHash));
+            if (response == null) {
+                throw new IllegalStateException("Catalog import failed to return a response");
+            }
+            return response;
+        } catch (RuntimeException ex) {
+            if (!isDataIntegrityViolation(ex)) {
+                throw ex;
+            }
+            CatalogImport concurrent = catalogImportRepository.findByCompanyAndIdempotencyKey(company, normalizedKey)
+                    .orElseThrow(() -> ex);
+            assertIdempotencyMatch(concurrent, fileHash, normalizedKey);
+            return toResponse(concurrent);
+        }
+    }
+
+    private CatalogImportResponse importCatalogInternal(Company company,
+                                                        MultipartFile file,
+                                                        String idempotencyKey,
+                                                        String fileHash) {
+        CatalogImport record = new CatalogImport();
+        record.setCompany(company);
+        record.setIdempotencyKey(idempotencyKey);
+        record.setIdempotencyHash(fileHash);
+        record.setFileHash(fileHash);
+        record.setFileName(file.getOriginalFilename());
+        record = catalogImportRepository.saveAndFlush(record);
+
+        CatalogImportResponse response = processCatalogImport(company, file);
+        record.setRowsProcessed(response.rowsProcessed());
+        record.setBrandsCreated(response.brandsCreated());
+        record.setProductsCreated(response.productsCreated());
+        record.setProductsUpdated(response.productsUpdated());
+        record.setRawMaterialsSeeded(response.rawMaterialsSeeded());
+        record.setErrorsJson(serializeErrors(response.errors()));
+        catalogImportRepository.save(record);
+
+        Map<String, String> auditMetadata = new HashMap<>();
+        auditMetadata.put("operation", "catalog-import");
+        auditMetadata.put("idempotencyKey", idempotencyKey);
+        auditMetadata.put("fileHash", fileHash);
+        auditMetadata.put("rowsProcessed", Integer.toString(response.rowsProcessed()));
+        auditService.logSuccess(AuditEvent.DATA_CREATE, auditMetadata);
+
+        return response;
+    }
+
+    private CatalogImportResponse processCatalogImport(Company company, MultipartFile file) {
         AtomicInteger rows = new AtomicInteger();
         AtomicInteger brandsCreated = new AtomicInteger();
         AtomicInteger productsCreated = new AtomicInteger();
@@ -662,6 +743,92 @@ public class ProductionCatalogService {
             }
         }
         return false;
+    }
+
+    private String normalizeIdempotencyKey(String idempotencyKey, String fileHash) {
+        String trimmed = StringUtils.hasText(idempotencyKey) ? idempotencyKey.trim() : null;
+        String resolved = StringUtils.hasText(trimmed) ? trimmed : fileHash;
+        if (!StringUtils.hasText(resolved)) {
+            throw new ApplicationException(ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD,
+                    "Idempotency key is required for catalog imports");
+        }
+        if (resolved.length() > 128) {
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                    "Idempotency key exceeds 128 characters");
+        }
+        return resolved;
+    }
+
+    private void assertIdempotencyMatch(CatalogImport record, String expectedHash, String idempotencyKey) {
+        String storedSignature = StringUtils.hasText(record.getIdempotencyHash())
+                ? record.getIdempotencyHash()
+                : record.getFileHash();
+        if (StringUtils.hasText(storedSignature)) {
+            if (!storedSignature.equals(expectedHash)) {
+                throw new ApplicationException(ErrorCode.CONCURRENCY_CONFLICT,
+                        "Idempotency key already used with different payload")
+                        .withDetail("idempotencyKey", idempotencyKey);
+            }
+            return;
+        }
+        record.setIdempotencyHash(expectedHash);
+        catalogImportRepository.save(record);
+    }
+
+    private CatalogImportResponse toResponse(CatalogImport record) {
+        List<CatalogImportResponse.ImportError> errors = deserializeErrors(record.getErrorsJson());
+        return new CatalogImportResponse(
+                record.getRowsProcessed(),
+                record.getBrandsCreated(),
+                record.getProductsCreated(),
+                record.getProductsUpdated(),
+                record.getRawMaterialsSeeded(),
+                errors
+        );
+    }
+
+    private String serializeErrors(List<CatalogImportResponse.ImportError> errors) {
+        if (errors == null || errors.isEmpty()) {
+            return null;
+        }
+        try {
+            return OBJECT_MAPPER.writeValueAsString(errors);
+        } catch (Exception ex) {
+            return null;
+        }
+    }
+
+    private List<CatalogImportResponse.ImportError> deserializeErrors(String errorsJson) {
+        if (!StringUtils.hasText(errorsJson)) {
+            return List.of();
+        }
+        try {
+            return OBJECT_MAPPER.readValue(errorsJson, new TypeReference<List<CatalogImportResponse.ImportError>>() {});
+        } catch (Exception ex) {
+            return List.of();
+        }
+    }
+
+    private boolean isDataIntegrityViolation(Throwable error) {
+        Throwable cursor = error;
+        while (cursor != null) {
+            if (cursor instanceof DataIntegrityViolationException) {
+                return true;
+            }
+            cursor = cursor.getCause();
+        }
+        return false;
+    }
+
+    private String sha256Hex(MultipartFile file) {
+        try {
+            byte[] bytes = file.getBytes();
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(bytes);
+            return java.util.HexFormat.of().formatHex(hash);
+        } catch (Exception ex) {
+            return Integer.toHexString(file.getOriginalFilename() != null ? file.getOriginalFilename().hashCode() : 0);
+        }
     }
 
     private record BrandResolution(ProductionBrand brand, boolean created) {}

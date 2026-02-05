@@ -79,6 +79,8 @@ Purpose: a single, concrete list of **P0** items that block a safe enterprise de
     - Status (2026-02-04): ✅ opening stock import idempotent + prod gated; tests: `CR_OpeningStockImportIdempotencyIT`, `CR_OpeningStockImportProdGatingIT`.
   - Catalog imports must resolve entities deterministically within company scope (no duplicate SKUs when `sku_code` is blank; cross-tenant brand IDs rejected).
     - Status (2026-02-05): ✅ deterministic resolution for sku-less imports + cross-tenant brand ID rejection; test: `CR_CatalogImportDeterminismIT`.
+  - Catalog imports must be idempotent and mismatch-safe (same key + different file → 409).
+    - Status (2026-02-05): ✅ catalog import idempotency record + mismatch guard; test: `CR_CatalogImportIdempotencyIT`.
   - Production log `producedAt` must use the company timezone (no UTC drift for local date/time inputs).
     - Status (2026-02-05): ✅ company timezone enforced; tests: `CR_MfgProducedAtTimezoneTest`.
 - Manual raw material intake must be disabled by default and require idempotency key when enabled (fail closed with canonical path).
