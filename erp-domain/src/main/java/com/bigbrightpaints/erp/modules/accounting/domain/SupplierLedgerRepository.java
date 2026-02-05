@@ -29,6 +29,13 @@ public interface SupplierLedgerRepository extends JpaRepository<SupplierLedgerEn
                                                        @Param("end") java.time.LocalDate end);
 
     @Query("select new com.bigbrightpaints.erp.modules.accounting.dto.SupplierBalanceView(e.supplier.id, coalesce(sum(e.credit - e.debit), 0)) " +
+            "from SupplierLedgerEntry e where e.company = :company and e.supplier.id in :supplierIds " +
+            "and e.entryDate <= :end group by e.supplier.id")
+    List<SupplierBalanceView> aggregateBalancesUpTo(@Param("company") Company company,
+                                                    @Param("supplierIds") Collection<Long> supplierIds,
+                                                    @Param("end") java.time.LocalDate end);
+
+    @Query("select new com.bigbrightpaints.erp.modules.accounting.dto.SupplierBalanceView(e.supplier.id, coalesce(sum(e.credit - e.debit), 0)) " +
             "from SupplierLedgerEntry e where e.company = :company and e.supplier = :supplier group by e.supplier.id")
     Optional<SupplierBalanceView> aggregateBalance(@Param("company") Company company,
                                                    @Param("supplier") Supplier supplier);

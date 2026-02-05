@@ -4,6 +4,11 @@ import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
+import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriod;
+import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriodRepository;
+import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriodSnapshot;
+import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriodSnapshotRepository;
+import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriodStatus;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.DealerLedgerEntry;
@@ -12,7 +17,6 @@ import com.bigbrightpaints.erp.modules.accounting.domain.JournalLine;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
-import com.bigbrightpaints.erp.modules.inventory.domain.*;
 import com.bigbrightpaints.erp.modules.accounting.service.DealerLedgerService;
 import com.bigbrightpaints.erp.modules.reports.dto.*;
 import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
@@ -42,10 +46,8 @@ public class ReportService {
 
     private final CompanyContextService companyContextService;
     private final AccountRepository accountRepository;
-    private final RawMaterialRepository rawMaterialRepository;
-    private final RawMaterialBatchRepository rawMaterialBatchRepository;
-    private final FinishedGoodRepository finishedGoodRepository;
-    private final FinishedGoodBatchRepository finishedGoodBatchRepository;
+    private final AccountingPeriodRepository accountingPeriodRepository;
+    private final AccountingPeriodSnapshotRepository snapshotRepository;
     private final DealerRepository dealerRepository;
     private final DealerLedgerService dealerLedgerService;
     private final DealerLedgerRepository dealerLedgerRepository;
@@ -54,14 +56,13 @@ public class ReportService {
     private final ProductionLogRepository productionLogRepository;
     private final CompanyEntityLookup companyEntityLookup;
     private final CompanyClock companyClock;
+    private final InventoryValuationService inventoryValuationService;
     private static final BigDecimal BALANCE_TOLERANCE = new BigDecimal("0.01");
 
     public ReportService(CompanyContextService companyContextService,
                          AccountRepository accountRepository,
-                         RawMaterialRepository rawMaterialRepository,
-                         RawMaterialBatchRepository rawMaterialBatchRepository,
-                         FinishedGoodRepository finishedGoodRepository,
-                         FinishedGoodBatchRepository finishedGoodBatchRepository,
+                         AccountingPeriodRepository accountingPeriodRepository,
+                         AccountingPeriodSnapshotRepository snapshotRepository,
                          DealerRepository dealerRepository,
                          DealerLedgerService dealerLedgerService,
                          DealerLedgerRepository dealerLedgerRepository,
@@ -69,13 +70,12 @@ public class ReportService {
                          InvoiceRepository invoiceRepository,
                          ProductionLogRepository productionLogRepository,
                          CompanyEntityLookup companyEntityLookup,
-                         CompanyClock companyClock) {
+                         CompanyClock companyClock,
+                         InventoryValuationService inventoryValuationService) {
         this.companyContextService = companyContextService;
         this.accountRepository = accountRepository;
-        this.rawMaterialRepository = rawMaterialRepository;
-        this.rawMaterialBatchRepository = rawMaterialBatchRepository;
-        this.finishedGoodRepository = finishedGoodRepository;
-        this.finishedGoodBatchRepository = finishedGoodBatchRepository;
+        this.accountingPeriodRepository = accountingPeriodRepository;
+        this.snapshotRepository = snapshotRepository;
         this.dealerRepository = dealerRepository;
         this.dealerLedgerService = dealerLedgerService;
         this.dealerLedgerRepository = dealerLedgerRepository;
@@ -84,6 +84,7 @@ public class ReportService {
         this.productionLogRepository = productionLogRepository;
         this.companyEntityLookup = companyEntityLookup;
         this.companyClock = companyClock;
+        this.inventoryValuationService = inventoryValuationService;
     }
 
     @Transactional(readOnly = true)
@@ -134,8 +135,27 @@ public class ReportService {
     @Transactional(readOnly = true)
     public InventoryValuationDto inventoryValuation() {
         Company company = companyContextService.requireCurrentCompany();
-        InventoryTotals totals = computeInventoryTotals(company);
-        return new InventoryValuationDto(totals.totalValue(), totals.lowStock());
+        InventoryValuationService.InventorySnapshot snapshot = inventoryValuationService.currentSnapshot(company);
+        return new InventoryValuationDto(snapshot.totalValue(), snapshot.lowStockItems());
+    }
+
+    @Transactional(readOnly = true)
+    public InventoryValuationDto inventoryValuationAsOf(LocalDate asOfDate) {
+        Company company = companyContextService.requireCurrentCompany();
+        if (asOfDate == null) {
+            InventoryValuationService.InventorySnapshot snapshot = inventoryValuationService.currentSnapshot(company);
+            return new InventoryValuationDto(snapshot.totalValue(), snapshot.lowStockItems());
+        }
+        AccountingPeriod period = accountingPeriodRepository.findByCompanyAndYearAndMonth(
+                company, asOfDate.getYear(), asOfDate.getMonthValue()).orElse(null);
+        if (period != null && period.getStatus() == AccountingPeriodStatus.CLOSED) {
+            AccountingPeriodSnapshot snapshot = snapshotRepository.findByCompanyAndPeriod(company, period).orElse(null);
+            if (snapshot != null) {
+                return new InventoryValuationDto(snapshot.getInventoryTotalValue(), snapshot.getInventoryLowStock());
+            }
+        }
+        InventoryValuationService.InventorySnapshot snapshot = inventoryValuationService.snapshotAsOf(company, asOfDate);
+        return new InventoryValuationDto(snapshot.totalValue(), snapshot.lowStockItems());
     }
 
     @Transactional(readOnly = true)
@@ -208,7 +228,7 @@ public class ReportService {
     @Transactional(readOnly = true)
     public ReconciliationSummaryDto inventoryReconciliation() {
         Company company = companyContextService.requireCurrentCompany();
-        InventoryTotals totals = computeInventoryTotals(company);
+        InventoryValuationService.InventorySnapshot totals = inventoryValuationService.currentSnapshot(company);
         BigDecimal ledgerBalance = resolveInventoryLedgerBalance(company);
         BigDecimal variance = totals.totalValue().subtract(ledgerBalance);
         return new ReconciliationSummaryDto(totals.totalValue(), ledgerBalance, variance);
@@ -248,7 +268,7 @@ public class ReportService {
     public ReconciliationDashboardDto reconciliationDashboard(Long bankAccountId, BigDecimal statementBalance) {
         Company company = companyContextService.requireCurrentCompany();
         Account bankAccount = companyEntityLookup.requireAccount(company, bankAccountId);
-        InventoryTotals totals = computeInventoryTotals(company);
+        InventoryValuationService.InventorySnapshot totals = inventoryValuationService.currentSnapshot(company);
         BigDecimal ledgerInventoryBalance = resolveInventoryLedgerBalance(company);
         BigDecimal physicalInventoryValue = totals.totalValue();
         BigDecimal inventoryVariance = physicalInventoryValue.subtract(ledgerInventoryBalance);
@@ -313,96 +333,6 @@ public class ReportService {
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
-    private InventoryTotals computeInventoryTotals(Company company) {
-        BigDecimal totalValue = BigDecimal.ZERO;
-        long lowStock = 0;
-        List<RawMaterial> materials = rawMaterialRepository.findByCompanyOrderByNameAsc(company);
-        for (RawMaterial material : materials) {
-            totalValue = totalValue.add(valueFromRawMaterial(material));
-            if (material.getCurrentStock().compareTo(material.getReorderLevel()) < 0) {
-                lowStock++;
-            }
-        }
-        List<FinishedGood> finishedGoods = finishedGoodRepository.findByCompanyOrderByProductCodeAsc(company);
-        for (FinishedGood finishedGood : finishedGoods) {
-            totalValue = totalValue.add(valueFromFinishedGood(finishedGood));
-            if (finishedGood.getReservedStock() != null
-                    && finishedGood.getCurrentStock().compareTo(finishedGood.getReservedStock()) < 0) {
-                lowStock++;
-            }
-        }
-        return new InventoryTotals(totalValue, lowStock);
-    }
-
-    private BigDecimal valueFromRawMaterial(RawMaterial material) {
-        BigDecimal remaining = Optional.ofNullable(material.getCurrentStock()).orElse(BigDecimal.ZERO);
-        if (remaining.compareTo(BigDecimal.ZERO) <= 0) {
-            return BigDecimal.ZERO;
-        }
-        if (isWeightedAverage(material.getCostingMethod())) {
-            BigDecimal avgCost = rawMaterialBatchRepository.calculateWeightedAverageCost(material);
-            if (avgCost == null) {
-                return BigDecimal.ZERO;
-            }
-            return remaining.multiply(avgCost);
-        }
-        List<RawMaterialBatch> batches = rawMaterialBatchRepository.findByRawMaterial(material).stream()
-                .sorted((a, b) -> a.getReceivedAt().compareTo(b.getReceivedAt()))
-                .toList();
-        return consumeValuation(remaining, batches.stream()
-                .map(batch -> new CostSlice(batch.getQuantity(), batch.getCostPerUnit()))
-                .toList());
-    }
-
-    private BigDecimal valueFromFinishedGood(FinishedGood finishedGood) {
-        BigDecimal remaining = Optional.ofNullable(finishedGood.getCurrentStock()).orElse(BigDecimal.ZERO);
-        if (remaining.compareTo(BigDecimal.ZERO) <= 0) {
-            return BigDecimal.ZERO;
-        }
-        if (isWeightedAverage(finishedGood.getCostingMethod())) {
-            BigDecimal avgCost = finishedGoodBatchRepository.calculateWeightedAverageCost(finishedGood);
-            if (avgCost == null) {
-                return BigDecimal.ZERO;
-            }
-            return remaining.multiply(avgCost);
-        }
-        List<FinishedGoodBatch> batches = finishedGoodBatchRepository.findByFinishedGoodOrderByManufacturedAtAsc(finishedGood);
-        return consumeValuation(remaining, batches.stream()
-                .map(batch -> new CostSlice(batch.getQuantityTotal(), batch.getUnitCost()))
-                .toList());
-    }
-
-    private BigDecimal consumeValuation(BigDecimal required, List<CostSlice> slices) {
-        BigDecimal remaining = required;
-        BigDecimal total = BigDecimal.ZERO;
-        for (CostSlice slice : slices) {
-            if (remaining.compareTo(BigDecimal.ZERO) <= 0) {
-                break;
-            }
-            BigDecimal qty = Optional.ofNullable(slice.quantity()).orElse(BigDecimal.ZERO);
-            if (qty.compareTo(BigDecimal.ZERO) <= 0) {
-                continue;
-            }
-            BigDecimal used = qty.min(remaining);
-            total = total.add(used.multiply(Optional.ofNullable(slice.cost()).orElse(BigDecimal.ZERO)));
-            remaining = remaining.subtract(used);
-        }
-        if (remaining.compareTo(BigDecimal.ZERO) > 0) {
-            BigDecimal lastCost = slices.isEmpty()
-                    ? BigDecimal.ZERO
-                    : Optional.ofNullable(slices.get(slices.size() - 1).cost()).orElse(BigDecimal.ZERO);
-            total = total.add(remaining.multiply(lastCost));
-        }
-        return total;
-    }
-
-    private boolean isWeightedAverage(String method) {
-        if (method == null) {
-            return false;
-        }
-        String normalized = method.trim().toUpperCase();
-        return "WAC".equals(normalized) || "WEIGHTED_AVERAGE".equals(normalized) || "WEIGHTED-AVERAGE".equals(normalized);
-    }
 
     private CashCategory classify(Account account) {
         AccountType type = account != null ? account.getType() : null;
@@ -454,10 +384,6 @@ public class ReportService {
         private BigDecimal sixty = BigDecimal.ZERO;
         private BigDecimal ninety = BigDecimal.ZERO;
     }
-
-    private record InventoryTotals(BigDecimal totalValue, long lowStock) {}
-
-    private record CostSlice(BigDecimal quantity, BigDecimal cost) {}
 
     @Transactional(readOnly = true)
     public List<WastageReportDto> wastageReport() {

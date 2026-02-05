@@ -23,7 +23,7 @@ import java.util.*;
 
 /**
  * Event store for accounting domain events.
- * Provides append-only event storage with replay capability.
+ * Append-only audit log; closed-period truth relies on journals + snapshots, not replay.
  */
 @Service
 public class AccountingEventStore {

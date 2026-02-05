@@ -134,6 +134,9 @@ Purpose: a single, concrete list of **P0** items that block a safe enterprise de
     `CR_PurchasingToApAccountingTest.periodChecklist_flagsPostedishPurchaseMissingJournalLink`.
 - Closed-period reporting must use **period-end snapshots** as the source of truth.
   - Fix: persist period-end snapshots at close, and make report paths read snapshots for CLOSED periods.
+  - Status (2026-02-05): ✅ snapshots persisted + closed-period reports read snapshots; tests:
+    `CR_PeriodCloseSnapshotsTest.trialBalanceAsOf_usesSnapshotForClosedPeriod`,
+    `CR_PeriodCloseSnapshotsTest.inventoryValuationAsOf_usesSnapshotForClosedPeriod`.
 - Fix FIFO valuation to use remaining/available quantities (not total quantities) so depleted batches don’t inflate valuation.
 - Period-close postings must not bypass accounting posting boundaries (no direct account balance mutation outside `AccountingFacade`/`AccountingService` invariants).
 

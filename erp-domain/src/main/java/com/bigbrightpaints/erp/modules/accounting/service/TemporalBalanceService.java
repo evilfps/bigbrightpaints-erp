@@ -2,6 +2,13 @@ package com.bigbrightpaints.erp.modules.accounting.service;
 
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
+import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriod;
+import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriodRepository;
+import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriodSnapshot;
+import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriodSnapshotRepository;
+import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriodStatus;
+import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriodTrialBalanceLine;
+import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriodTrialBalanceLineRepository;
 import com.bigbrightpaints.erp.modules.accounting.event.AccountingEvent;
 import com.bigbrightpaints.erp.modules.accounting.event.AccountingEventRepository;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
@@ -18,8 +25,8 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 /**
- * Service for temporal balance queries - "what was the balance on date X?"
- * Uses event sourcing data to reconstruct historical state.
+ * Service for temporal balance queries. Closed periods rely on snapshots; open periods
+ * can fall back to event data for exploratory views.
  */
 @Service
 @Transactional(readOnly = true)
@@ -28,13 +35,22 @@ public class TemporalBalanceService {
     private final AccountingEventRepository eventRepository;
     private final AccountRepository accountRepository;
     private final CompanyContextService companyContextService;
+    private final AccountingPeriodRepository accountingPeriodRepository;
+    private final AccountingPeriodSnapshotRepository snapshotRepository;
+    private final AccountingPeriodTrialBalanceLineRepository snapshotLineRepository;
 
     public TemporalBalanceService(AccountingEventRepository eventRepository,
                                   AccountRepository accountRepository,
-                                  CompanyContextService companyContextService) {
+                                  CompanyContextService companyContextService,
+                                  AccountingPeriodRepository accountingPeriodRepository,
+                                  AccountingPeriodSnapshotRepository snapshotRepository,
+                                  AccountingPeriodTrialBalanceLineRepository snapshotLineRepository) {
         this.eventRepository = eventRepository;
         this.accountRepository = accountRepository;
         this.companyContextService = companyContextService;
+        this.accountingPeriodRepository = accountingPeriodRepository;
+        this.snapshotRepository = snapshotRepository;
+        this.snapshotLineRepository = snapshotLineRepository;
     }
 
     /**
@@ -42,6 +58,12 @@ public class TemporalBalanceService {
      */
     public BigDecimal getBalanceAsOfDate(Long accountId, LocalDate asOfDate) {
         Company company = companyContextService.requireCurrentCompany();
+        AccountingPeriodSnapshot snapshot = resolveClosedSnapshot(company, asOfDate);
+        if (snapshot != null) {
+            return snapshotLineRepository.findBySnapshotAndAccountId(snapshot, accountId)
+                    .map(line -> safe(line.getDebit()).subtract(safe(line.getCredit())))
+                    .orElse(BigDecimal.ZERO);
+        }
         return eventRepository.findFirstByCompanyAndAccountIdAndEffectiveDateLessThanEqualOrderByEffectiveDateDescEventTimestampDescSequenceNumberDesc(
                         company, accountId, asOfDate)
                 .map(AccountingEvent::getBalanceAfter)
@@ -64,6 +86,25 @@ public class TemporalBalanceService {
      */
     public Map<Long, BigDecimal> getBalancesAsOfDate(List<Long> accountIds, LocalDate asOfDate) {
         Company company = companyContextService.requireCurrentCompany();
+        AccountingPeriodSnapshot snapshot = resolveClosedSnapshot(company, asOfDate);
+        if (snapshot != null) {
+            Map<Long, BigDecimal> balances = new HashMap<>();
+            List<AccountingPeriodTrialBalanceLine> lines = snapshotLineRepository
+                    .findBySnapshotOrderByAccountCodeAsc(snapshot);
+            Map<Long, BigDecimal> snapshotBalances = lines.stream()
+                    .filter(line -> line.getAccountId() != null)
+                    .collect(Collectors.toMap(
+                            AccountingPeriodTrialBalanceLine::getAccountId,
+                            line -> safe(line.getDebit()).subtract(safe(line.getCredit())),
+                            BigDecimal::add));
+            for (Long accountId : accountIds) {
+                if (accountId == null) {
+                    continue;
+                }
+                balances.put(accountId, snapshotBalances.getOrDefault(accountId, BigDecimal.ZERO));
+            }
+            return balances;
+        }
         Map<Long, BigDecimal> balances = new HashMap<>();
         
         for (Long accountId : accountIds) {
@@ -82,6 +123,26 @@ public class TemporalBalanceService {
      */
     public TrialBalanceSnapshot getTrialBalanceAsOf(LocalDate asOfDate) {
         Company company = companyContextService.requireCurrentCompany();
+        AccountingPeriodSnapshot snapshot = resolveClosedSnapshot(company, asOfDate);
+        if (snapshot != null) {
+            List<AccountingPeriodTrialBalanceLine> lines = snapshotLineRepository
+                    .findBySnapshotOrderByAccountCodeAsc(snapshot);
+            List<TrialBalanceEntry> entries = lines.stream()
+                    .map(line -> new TrialBalanceEntry(
+                            line.getAccountId(),
+                            line.getAccountCode(),
+                            line.getAccountName(),
+                            line.getAccountType() != null ? line.getAccountType().name() : null,
+                            safe(line.getDebit()),
+                            safe(line.getCredit())
+                    ))
+                    .collect(Collectors.toList());
+            return new TrialBalanceSnapshot(
+                    snapshot.getAsOfDate(),
+                    entries,
+                    safe(snapshot.getTrialBalanceTotalDebit()),
+                    safe(snapshot.getTrialBalanceTotalCredit()));
+        }
         List<Account> accounts = accountRepository.findByCompanyOrderByCodeAsc(company);
         
         List<TrialBalanceEntry> entries = new ArrayList<>();
@@ -190,6 +251,22 @@ public class TemporalBalanceService {
         return accountRepository.findByCompanyAndId(company, accountId)
                 .map(Account::getBalance)
                 .orElse(BigDecimal.ZERO);
+    }
+
+    private AccountingPeriodSnapshot resolveClosedSnapshot(Company company, LocalDate asOfDate) {
+        if (company == null || asOfDate == null) {
+            return null;
+        }
+        Optional<AccountingPeriod> period = accountingPeriodRepository
+                .findByCompanyAndYearAndMonth(company, asOfDate.getYear(), asOfDate.getMonthValue());
+        if (period.isEmpty() || period.get().getStatus() != AccountingPeriodStatus.CLOSED) {
+            return null;
+        }
+        return snapshotRepository.findByCompanyAndPeriod(company, period.get()).orElse(null);
+    }
+
+    private BigDecimal safe(BigDecimal value) {
+        return value == null ? BigDecimal.ZERO : value;
     }
 
     // DTOs for temporal queries

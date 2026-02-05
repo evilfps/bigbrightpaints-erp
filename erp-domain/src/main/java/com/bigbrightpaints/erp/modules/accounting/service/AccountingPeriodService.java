@@ -59,6 +59,7 @@ public class AccountingPeriodService {
     private final PayrollRunRepository payrollRunRepository;
     private final ObjectProvider<AccountingService> accountingServiceProvider;
     private final PeriodCloseHook periodCloseHook;
+    private final AccountingPeriodSnapshotService snapshotService;
 
     public AccountingPeriodService(AccountingPeriodRepository accountingPeriodRepository,
                                    CompanyContextService companyContextService,
@@ -74,7 +75,8 @@ public class AccountingPeriodService {
                                    RawMaterialPurchaseRepository rawMaterialPurchaseRepository,
                                    PayrollRunRepository payrollRunRepository,
                                    ObjectProvider<AccountingService> accountingServiceProvider,
-                                   PeriodCloseHook periodCloseHook) {
+                                   PeriodCloseHook periodCloseHook,
+                                   AccountingPeriodSnapshotService snapshotService) {
         this.accountingPeriodRepository = accountingPeriodRepository;
         this.companyContextService = companyContextService;
         this.journalEntryRepository = journalEntryRepository;
@@ -90,6 +92,7 @@ public class AccountingPeriodService {
         this.payrollRunRepository = payrollRunRepository;
         this.accountingServiceProvider = accountingServiceProvider;
         this.periodCloseHook = periodCloseHook;
+        this.snapshotService = snapshotService;
     }
 
     public List<AccountingPeriodDto> listPeriods() {
@@ -112,7 +115,11 @@ public class AccountingPeriodService {
         AccountingPeriod period = accountingPeriodRepository.lockByCompanyAndId(company, periodId)
                 .orElseThrow(() -> new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE,
                         "Accounting period not found"));
-        if (period.getStatus() == AccountingPeriodStatus.CLOSED || period.getStatus() == AccountingPeriodStatus.LOCKED) {
+        if (period.getStatus() == AccountingPeriodStatus.CLOSED) {
+            snapshotService.captureSnapshot(company, period, resolveCurrentUsername());
+            return toDto(period);
+        }
+        if (period.getStatus() == AccountingPeriodStatus.LOCKED) {
             return toDto(period);
         }
         periodCloseHook.onPeriodCloseLocked(company, period);
@@ -131,8 +138,9 @@ public class AccountingPeriodService {
             JournalEntry closingJe = postClosingJournal(company, period, netIncome, note);
             closingJournalId = closingJe.getId();
         }
-        Instant now = CompanyTime.now(company);
         String user = resolveCurrentUsername();
+        snapshotService.captureSnapshot(company, period, user);
+        Instant now = CompanyTime.now(company);
         period.setStatus(AccountingPeriodStatus.CLOSED);
         period.setClosedAt(now);
         period.setClosedBy(user);
@@ -212,6 +220,7 @@ public class AccountingPeriodService {
                     .ifPresent(closing -> reverseClosingJournalIfNeeded(closing, period, request.reason()));
             period.setClosingJournalEntryId(null);
         }
+        snapshotService.deleteSnapshotForPeriod(company, period);
         return toDto(accountingPeriodRepository.save(period));
     }
 

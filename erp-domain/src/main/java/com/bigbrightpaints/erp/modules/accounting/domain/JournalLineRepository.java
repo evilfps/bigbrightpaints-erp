@@ -36,4 +36,16 @@ public interface JournalLineRepository extends JpaRepository<JournalLine, Long> 
     List<Object[]> summarizeByAccountType(@Param("company") Company company,
                                           @Param("start") LocalDate start,
                                           @Param("end") LocalDate end);
+
+    @Query("""
+            select line.account.id, sum(line.debit), sum(line.credit)
+            from JournalLine line
+            join line.journalEntry entry
+            where entry.company = :company
+              and entry.status = 'POSTED'
+              and entry.entryDate <= :end
+            group by line.account.id
+            """)
+    List<Object[]> summarizeByAccountUpTo(@Param("company") Company company,
+                                          @Param("end") LocalDate end);
 }

@@ -2,7 +2,10 @@ package com.bigbrightpaints.erp.modules.inventory.domain;
 
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
+import java.time.Instant;
 import java.util.List;
 
 public interface InventoryMovementRepository extends JpaRepository<InventoryMovement, Long> {
@@ -31,4 +34,14 @@ public interface InventoryMovementRepository extends JpaRepository<InventoryMove
     List<InventoryMovement> findByReferenceTypeAndReferenceIdStartingWithOrderByCreatedAtAsc(
             String referenceType,
             String referenceId);
+
+    @Query("""
+            select m from InventoryMovement m
+            join fetch m.finishedGood fg
+            left join fetch m.finishedGoodBatch batch
+            where fg.company = :company
+              and m.createdAt >= :cutoff
+            """)
+    List<InventoryMovement> findByCompanyCreatedAtOnOrAfter(@Param("company") Company company,
+                                                            @Param("cutoff") Instant cutoff);
 }

@@ -10,7 +10,7 @@ import java.util.UUID;
 
 /**
  * Event store entity for accounting domain events.
- * Enables full audit trail and temporal queries (balance at any point in time).
+ * This is an audit/diagnostic log and is not the source-of-truth for closed-period reporting.
  */
 @Entity
 @Table(name = "accounting_events", indexes = {

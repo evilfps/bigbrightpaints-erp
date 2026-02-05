@@ -44,7 +44,11 @@ public class ReportController {
     }
 
     @GetMapping("/reports/inventory-valuation")
-    public ResponseEntity<ApiResponse<InventoryValuationDto>> inventoryValuation() {
+    public ResponseEntity<ApiResponse<InventoryValuationDto>> inventoryValuation(@RequestParam(required = false) String date) {
+        if (date != null && !date.isBlank()) {
+            return ResponseEntity.ok(ApiResponse.success(
+                    reportService.inventoryValuationAsOf(java.time.LocalDate.parse(date))));
+        }
         return ResponseEntity.ok(ApiResponse.success(reportService.inventoryValuation()));
     }
 
