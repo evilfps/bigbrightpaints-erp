@@ -52,7 +52,7 @@ Smoke + soak
 ## NO-GO (Any One Blocks Shipping)
 
 Predeploy scans
-- `scripts/db_predeploy_scans.sql` returns any rows (unlinked slips/invoices/journals, duplicates, negative stock, etc.).
+- `scripts/db_predeploy_scans.sql` returns any rows (unlinked slips/invoices/journals, duplicates, negative stock, closed-period drift/missing snapshots/late postings, etc.).
 
 Workflow truth mismatch
 - Any reachable endpoint can:

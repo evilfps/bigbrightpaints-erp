@@ -189,3 +189,115 @@ join journal_entries je
 where ia.journal_entry_id is not null
   and ia.adjustment_date <> je.entry_date
 order by ia.company_id, ia.id;
+
+-- 9) Closed periods missing snapshots (NO-GO)
+select
+  p.company_id,
+  p.id as accounting_period_id,
+  p.year,
+  p.month,
+  p.start_date,
+  p.end_date,
+  p.closed_at
+from accounting_periods p
+left join accounting_period_snapshots s
+  on s.accounting_period_id = p.id
+ and s.company_id = p.company_id
+where p.status = 'CLOSED'
+  and s.id is null
+order by p.company_id, p.end_date, p.id;
+
+-- 10) Posted journals dated inside CLOSED periods after the period was closed (NO-GO)
+select
+  p.company_id,
+  p.id as accounting_period_id,
+  p.start_date,
+  p.end_date,
+  p.closed_at,
+  je.id as journal_entry_id,
+  je.reference_number,
+  je.entry_date,
+  je.posted_at,
+  je.created_at
+from accounting_periods p
+join journal_entries je
+  on je.company_id = p.company_id
+ and je.status = 'POSTED'
+ and je.entry_date between p.start_date and p.end_date
+where p.status = 'CLOSED'
+  and p.closed_at is not null
+  and coalesce(je.posted_at, je.created_at) > (p.closed_at at time zone 'UTC')
+order by p.company_id, p.end_date, je.id;
+
+-- 11) Closed-period drift: snapshot lines differ from as-of journal balances (NO-GO)
+with snapshot_periods as (
+  select p.id, p.company_id, p.end_date
+  from accounting_periods p
+  join accounting_period_snapshots s
+    on s.accounting_period_id = p.id
+   and s.company_id = p.company_id
+  where p.status = 'CLOSED'
+),
+balances as (
+  select
+    sp.id as period_id,
+    sp.company_id as company_id,
+    jl.account_id as account_id,
+    coalesce(sum(jl.debit), 0) as debit_sum,
+    coalesce(sum(jl.credit), 0) as credit_sum
+  from snapshot_periods sp
+  join journal_entries je
+    on je.company_id = sp.company_id
+   and je.status = 'POSTED'
+   and je.entry_date <= sp.end_date
+  join journal_lines jl
+    on jl.journal_entry_id = je.id
+  group by sp.id, sp.company_id, jl.account_id
+),
+expected as (
+  select
+    period_id,
+    company_id,
+    account_id,
+    case
+      when (debit_sum - credit_sum) >= 0
+        then (debit_sum - credit_sum)
+      else 0
+    end as expected_debit,
+    case
+      when (debit_sum - credit_sum) < 0
+        then (credit_sum - debit_sum)
+      else 0
+    end as expected_credit
+  from balances
+),
+snapshot_lines as (
+  select
+    s.accounting_period_id as period_id,
+    s.company_id,
+    l.account_id,
+    coalesce(l.debit, 0) as snap_debit,
+    coalesce(l.credit, 0) as snap_credit
+  from accounting_period_snapshots s
+  join accounting_period_trial_balance_lines l
+    on l.snapshot_id = s.id
+  join snapshot_periods sp
+    on sp.id = s.accounting_period_id
+   and sp.company_id = s.company_id
+)
+select
+  coalesce(sl.company_id, e.company_id) as company_id,
+  coalesce(sl.period_id, e.period_id) as accounting_period_id,
+  coalesce(sl.account_id, e.account_id) as account_id,
+  coalesce(sl.snap_debit, 0) as snap_debit,
+  coalesce(sl.snap_credit, 0) as snap_credit,
+  coalesce(e.expected_debit, 0) as expected_debit,
+  coalesce(e.expected_credit, 0) as expected_credit
+from expected e
+full join snapshot_lines sl
+  on sl.period_id = e.period_id
+ and sl.company_id = e.company_id
+ and sl.account_id = e.account_id
+where abs(coalesce(e.expected_debit, 0) - coalesce(sl.snap_debit, 0)) > 0.01
+   or abs(coalesce(e.expected_credit, 0) - coalesce(sl.snap_credit, 0)) > 0.01
+order by company_id, accounting_period_id, account_id;
