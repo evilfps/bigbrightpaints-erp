@@ -365,6 +365,19 @@ Enforcement:
 - Report selection is centralized and blocks closed-period reads without snapshots.
 - Tests cover snapshot selection + metadata on closed periods.
 
+## 2026-02-05 - Cash-Flow Uses Cash/Bank Movements Only (Direct Method)
+Decision:
+- Cash-flow is a direct-method cash movement summary.
+- Only cash/bank/wallet/UPI asset accounts are included; non-cash lines are excluded.
+
+Rationale:
+- Summing all journal lines nets to ~0 on balanced books and masks real cash movement.
+- Cash-flow must reflect actual cash movement, not balanced ledger totals.
+
+Enforcement:
+- Cash-flow report filters to cash/bank accounts only.
+- Test: `CR_Reports_CashFlow_NotZeroByConstructionIT`.
+
 ## 2026-02-01 - AccountingEventStore Is Not Accounting Truth
 Decision:
 - `accounting_events` / `AccountingEventStore` is **not** a source-of-truth for temporal accounting.

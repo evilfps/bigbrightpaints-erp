@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -48,4 +49,17 @@ public interface JournalLineRepository extends JpaRepository<JournalLine, Long> 
             """)
     List<Object[]> summarizeByAccountUpTo(@Param("company") Company company,
                                           @Param("end") LocalDate end);
+
+    @Query("""
+            select coalesce(sum(line.debit), 0) - coalesce(sum(line.credit), 0)
+            from JournalLine line
+            join line.journalEntry entry
+            where entry.company = :company
+              and entry.status = 'POSTED'
+              and line.account.id = :accountId
+              and entry.entryDate <= :end
+            """)
+    BigDecimal netBalanceUpTo(@Param("company") Company company,
+                              @Param("accountId") Long accountId,
+                              @Param("end") LocalDate end);
 }

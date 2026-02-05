@@ -561,7 +561,7 @@ public class AccountingController {
         return ResponseEntity.ok(csv);
     }
 
-    // ==================== TEMPORAL QUERIES (Event Sourcing) ====================
+    // ==================== TEMPORAL QUERIES (Snapshots + Journal Lines) ====================
 
     @GetMapping("/accounts/{accountId}/balance/as-of")
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")

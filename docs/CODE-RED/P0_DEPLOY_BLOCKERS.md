@@ -153,6 +153,10 @@ Purpose: a single, concrete list of **P0** items that block a safe enterprise de
     `CR_PeriodCloseSnapshotsTest.trialBalanceAsOf_usesSnapshotForClosedPeriod`,
     `CR_PeriodCloseSnapshotsTest.balanceSheetAsOf_usesSnapshotForClosedPeriod`,
     `CR_PeriodCloseSnapshotsTest.inventoryValuationAsOf_usesSnapshotForClosedPeriod`.
+- As-of reporting must be deterministic and cash-flow must reflect actual cash movements.
+  - Status (2026-02-05): ✅ as-of trial balance stable + cash-flow uses cash accounts; tests:
+    `CR_Reports_AsOfBalancesStable_AfterLatePostingIT.trialBalanceAsOf_isStableAfterLatePosting`,
+    `CR_Reports_CashFlow_NotZeroByConstructionIT.cashFlow_netChangeReflectsCashMovement`.
 - Closed-period drift must be blocked by predeploy scans (missing snapshots / late postings / snapshot mismatch).
   - Status (2026-02-05): ✅ drift scans + tests:
     `CR_PeriodCloseDriftScansTest.predeployScans_areCleanForClosedPeriod`,

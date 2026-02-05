@@ -143,13 +143,11 @@ public class ReportService {
                 continue;
             }
             for (JournalLine line : entry.getLines()) {
-                BigDecimal delta = safe(line.getDebit()).subtract(safe(line.getCredit()));
-                CashCategory category = classify(line.getAccount());
-                switch (category) {
-                    case OPERATING -> operating = operating.add(delta);
-                    case INVESTING -> investing = investing.add(delta);
-                    case FINANCING -> financing = financing.add(delta);
+                if (!isCashAccount(line.getAccount())) {
+                    continue;
                 }
+                BigDecimal delta = safe(line.getDebit()).subtract(safe(line.getCredit()));
+                operating = operating.add(delta);
             }
         }
         BigDecimal net = operating.add(investing).add(financing);
@@ -422,6 +420,17 @@ public class ReportService {
         return account.getName().toLowerCase(Locale.ROOT).contains("inventory");
     }
 
+    private boolean isCashAccount(Account account) {
+        if (account == null || account.getType() != AccountType.ASSET) {
+            return false;
+        }
+        String label = (account.getCode() + " " + account.getName()).toLowerCase(Locale.ROOT);
+        return label.contains("cash")
+                || label.contains("bank")
+                || label.contains("wallet")
+                || label.contains("upi");
+    }
+
     private BigDecimal resolveInventoryLedgerBalance(Company company) {
         Long defaultInventoryAccountId = company.getDefaultInventoryAccountId();
         if (defaultInventoryAccountId != null) {
@@ -435,17 +444,6 @@ public class ReportService {
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
-
-    private CashCategory classify(Account account) {
-        AccountType type = account != null ? account.getType() : null;
-        if (type == null) {
-            return CashCategory.OPERATING;
-        }
-        if (type == AccountType.LIABILITY || type == AccountType.EQUITY) {
-            return CashCategory.FINANCING;
-        }
-        return CashCategory.OPERATING;
-    }
 
     private BigDecimal safe(BigDecimal value) {
         return value == null ? BigDecimal.ZERO : value;
@@ -473,10 +471,6 @@ public class ReportService {
                 type,
                 debit,
                 credit);
-    }
-
-    private enum CashCategory {
-        OPERATING, INVESTING, FINANCING
     }
 
     private record TrialBalanceLine(

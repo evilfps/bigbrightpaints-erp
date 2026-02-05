@@ -9,8 +9,12 @@ import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriodSnapsho
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriodStatus;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriodTrialBalanceLine;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriodTrialBalanceLineRepository;
-import com.bigbrightpaints.erp.modules.accounting.event.AccountingEvent;
-import com.bigbrightpaints.erp.modules.accounting.event.AccountingEventRepository;
+import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
+import com.bigbrightpaints.erp.modules.accounting.domain.JournalLine;
+import com.bigbrightpaints.erp.modules.accounting.domain.JournalLineRepository;
+import com.bigbrightpaints.erp.core.exception.ApplicationException;
+import com.bigbrightpaints.erp.core.exception.ErrorCode;
+import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import org.springframework.stereotype.Service;
@@ -19,38 +23,39 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
-import java.time.LocalTime;
-import java.time.ZoneId;
 import java.util.*;
 import java.util.stream.Collectors;
 
 /**
  * Service for temporal balance queries. Closed periods rely on snapshots; open periods
- * can fall back to event data for exploratory views.
+ * use journal lines for deterministic as-of views.
  */
 @Service
 @Transactional(readOnly = true)
 public class TemporalBalanceService {
 
-    private final AccountingEventRepository eventRepository;
     private final AccountRepository accountRepository;
     private final CompanyContextService companyContextService;
     private final AccountingPeriodRepository accountingPeriodRepository;
     private final AccountingPeriodSnapshotRepository snapshotRepository;
     private final AccountingPeriodTrialBalanceLineRepository snapshotLineRepository;
+    private final JournalLineRepository journalLineRepository;
+    private final CompanyClock companyClock;
 
-    public TemporalBalanceService(AccountingEventRepository eventRepository,
-                                  AccountRepository accountRepository,
+    public TemporalBalanceService(AccountRepository accountRepository,
                                   CompanyContextService companyContextService,
                                   AccountingPeriodRepository accountingPeriodRepository,
                                   AccountingPeriodSnapshotRepository snapshotRepository,
-                                  AccountingPeriodTrialBalanceLineRepository snapshotLineRepository) {
-        this.eventRepository = eventRepository;
+                                  AccountingPeriodTrialBalanceLineRepository snapshotLineRepository,
+                                  JournalLineRepository journalLineRepository,
+                                  CompanyClock companyClock) {
         this.accountRepository = accountRepository;
         this.companyContextService = companyContextService;
         this.accountingPeriodRepository = accountingPeriodRepository;
         this.snapshotRepository = snapshotRepository;
         this.snapshotLineRepository = snapshotLineRepository;
+        this.journalLineRepository = journalLineRepository;
+        this.companyClock = companyClock;
     }
 
     /**
@@ -64,10 +69,7 @@ public class TemporalBalanceService {
                     .map(line -> safe(line.getDebit()).subtract(safe(line.getCredit())))
                     .orElse(BigDecimal.ZERO);
         }
-        return eventRepository.findFirstByCompanyAndAccountIdAndEffectiveDateLessThanEqualOrderByEffectiveDateDescEventTimestampDescSequenceNumberDesc(
-                        company, accountId, asOfDate)
-                .map(AccountingEvent::getBalanceAfter)
-                .orElseGet(() -> getCurrentBalance(company, accountId));
+        return journalLineRepository.netBalanceUpTo(company, accountId, asOfDate);
     }
 
     /**
@@ -75,10 +77,8 @@ public class TemporalBalanceService {
      */
     public BigDecimal getBalanceAsOfTimestamp(Long accountId, Instant asOf) {
         Company company = companyContextService.requireCurrentCompany();
-        return eventRepository.findFirstByCompanyAndAccountIdAndEventTimestampLessThanEqualOrderByEventTimestampDescSequenceNumberDesc(
-                        company, accountId, asOf)
-                .map(AccountingEvent::getBalanceAfter)
-                .orElseGet(() -> getCurrentBalance(company, accountId));
+        LocalDate asOfDate = companyClock.dateForInstant(company, asOf);
+        return getBalanceAsOfDate(accountId, asOfDate);
     }
 
     /**
@@ -105,17 +105,15 @@ public class TemporalBalanceService {
             }
             return balances;
         }
-        Map<Long, BigDecimal> balances = new HashMap<>();
-        
+        Map<Long, BigDecimal> balances = summarizeBalances(company, asOfDate);
+        Map<Long, BigDecimal> filtered = new HashMap<>();
         for (Long accountId : accountIds) {
-            BigDecimal balance = eventRepository.findFirstByCompanyAndAccountIdAndEffectiveDateLessThanEqualOrderByEffectiveDateDescEventTimestampDescSequenceNumberDesc(
-                            company, accountId, asOfDate)
-                    .map(AccountingEvent::getBalanceAfter)
-                    .orElseGet(() -> getCurrentBalance(company, accountId));
-            balances.put(accountId, balance);
+            if (accountId == null) {
+                continue;
+            }
+            filtered.put(accountId, balances.getOrDefault(accountId, BigDecimal.ZERO));
         }
-        
-        return balances;
+        return filtered;
     }
 
     /**
@@ -148,13 +146,9 @@ public class TemporalBalanceService {
         List<TrialBalanceEntry> entries = new ArrayList<>();
         BigDecimal totalDebits = BigDecimal.ZERO;
         BigDecimal totalCredits = BigDecimal.ZERO;
-        
+        Map<Long, BigDecimal> balances = summarizeBalances(company, asOfDate);
         for (Account account : accounts) {
-            BigDecimal balance = eventRepository.findFirstByCompanyAndAccountIdAndEffectiveDateLessThanEqualOrderByEffectiveDateDescEventTimestampDescSequenceNumberDesc(
-                            company, account.getId(), asOfDate)
-                    .map(AccountingEvent::getBalanceAfter)
-                    .orElse(BigDecimal.ZERO);
-            
+            BigDecimal balance = balances.getOrDefault(account.getId(), BigDecimal.ZERO);
             if (balance.compareTo(BigDecimal.ZERO) != 0) {
                 boolean isDebit = account.getType().isDebitNormalBalance() 
                         ? balance.compareTo(BigDecimal.ZERO) > 0
@@ -189,39 +183,39 @@ public class TemporalBalanceService {
                 .orElseThrow(() -> new IllegalArgumentException("Account not found"));
         
         // Get opening balance (balance as of day before start)
-        BigDecimal openingBalance = eventRepository.findFirstByCompanyAndAccountIdAndEffectiveDateLessThanEqualOrderByEffectiveDateDescEventTimestampDescSequenceNumberDesc(
-                company, accountId, startDate.minusDays(1))
-                .map(AccountingEvent::getBalanceAfter)
-                .orElse(BigDecimal.ZERO);
+        BigDecimal openingBalance = journalLineRepository.netBalanceUpTo(
+                company, accountId, startDate.minusDays(1));
         
         // Get all movements in the period
-        List<AccountingEvent> movements = eventRepository
-                .findByCompanyAndAccountIdAndEffectiveDateBetweenOrderByEventTimestampAsc(
-                        company, accountId, startDate, endDate);
+        List<JournalLine> movements = journalLineRepository
+                .findLinesForAccountBetween(company, accountId, startDate, endDate);
         
-        List<AccountMovement> movementList = movements.stream()
-                .map(e -> new AccountMovement(
-                        e.getEffectiveDate(),
-                        e.getEventTimestamp(),
-                        e.getJournalReference(),
-                        e.getDescription(),
-                        e.getDebitAmount() != null ? e.getDebitAmount() : BigDecimal.ZERO,
-                        e.getCreditAmount() != null ? e.getCreditAmount() : BigDecimal.ZERO,
-                        e.getBalanceAfter()
-                ))
-                .collect(Collectors.toList());
+        List<AccountMovement> movementList = new ArrayList<>();
+        BigDecimal runningBalance = openingBalance;
+        BigDecimal totalDebits = BigDecimal.ZERO;
+        BigDecimal totalCredits = BigDecimal.ZERO;
+        for (JournalLine line : movements) {
+            JournalEntry entry = line.getJournalEntry();
+            BigDecimal debit = safe(line.getDebit());
+            BigDecimal credit = safe(line.getCredit());
+            BigDecimal delta = debit.subtract(credit);
+            runningBalance = runningBalance.add(delta);
+            totalDebits = totalDebits.add(debit);
+            totalCredits = totalCredits.add(credit);
+            movementList.add(new AccountMovement(
+                    entry != null ? entry.getEntryDate() : null,
+                    resolveEntryTimestamp(entry),
+                    entry != null ? entry.getReferenceNumber() : null,
+                    resolveEntryDescription(entry, line),
+                    debit,
+                    credit,
+                    runningBalance
+            ));
+        }
         
         BigDecimal closingBalance = movements.isEmpty() 
                 ? openingBalance 
-                : movements.get(movements.size() - 1).getBalanceAfter();
-        
-        BigDecimal totalDebits = movements.stream()
-                .map(e -> e.getDebitAmount() != null ? e.getDebitAmount() : BigDecimal.ZERO)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-        
-        BigDecimal totalCredits = movements.stream()
-                .map(e -> e.getCreditAmount() != null ? e.getCreditAmount() : BigDecimal.ZERO)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+                : runningBalance;
         
         return new AccountActivityReport(
                 account.getCode(),
@@ -247,12 +241,6 @@ public class TemporalBalanceService {
         return new BalanceComparison(accountId, date1, balance1, date2, balance2, change);
     }
 
-    private BigDecimal getCurrentBalance(Company company, Long accountId) {
-        return accountRepository.findByCompanyAndId(company, accountId)
-                .map(Account::getBalance)
-                .orElse(BigDecimal.ZERO);
-    }
-
     private AccountingPeriodSnapshot resolveClosedSnapshot(Company company, LocalDate asOfDate) {
         if (company == null || asOfDate == null) {
             return null;
@@ -262,7 +250,47 @@ public class TemporalBalanceService {
         if (period.isEmpty() || period.get().getStatus() != AccountingPeriodStatus.CLOSED) {
             return null;
         }
-        return snapshotRepository.findByCompanyAndPeriod(company, period.get()).orElse(null);
+        return snapshotRepository.findByCompanyAndPeriod(company, period.get())
+                .orElseThrow(() -> new ApplicationException(ErrorCode.BUSINESS_CONSTRAINT_VIOLATION,
+                        "Closed period snapshot is required for temporal queries")
+                        .withDetail("companyId", company.getId())
+                        .withDetail("periodId", period.get().getId())
+                        .withDetail("asOfDate", asOfDate));
+    }
+
+    private Map<Long, BigDecimal> summarizeBalances(Company company, LocalDate asOfDate) {
+        Map<Long, BigDecimal> balances = new HashMap<>();
+        List<Object[]> rows = journalLineRepository.summarizeByAccountUpTo(company, asOfDate);
+        for (Object[] row : rows) {
+            if (row == null || row.length < 3 || row[0] == null) {
+                continue;
+            }
+            Long accountId = (Long) row[0];
+            BigDecimal debit = row[1] == null ? BigDecimal.ZERO : (BigDecimal) row[1];
+            BigDecimal credit = row[2] == null ? BigDecimal.ZERO : (BigDecimal) row[2];
+            balances.put(accountId, debit.subtract(credit));
+        }
+        return balances;
+    }
+
+    private Instant resolveEntryTimestamp(JournalEntry entry) {
+        if (entry == null) {
+            return null;
+        }
+        if (entry.getPostedAt() != null) {
+            return entry.getPostedAt();
+        }
+        return entry.getCreatedAt();
+    }
+
+    private String resolveEntryDescription(JournalEntry entry, JournalLine line) {
+        if (line != null && line.getDescription() != null && !line.getDescription().isBlank()) {
+            return line.getDescription();
+        }
+        if (entry != null && entry.getMemo() != null && !entry.getMemo().isBlank()) {
+            return entry.getMemo();
+        }
+        return null;
     }
 
     private BigDecimal safe(BigDecimal value) {
