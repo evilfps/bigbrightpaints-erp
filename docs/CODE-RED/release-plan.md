@@ -17,7 +17,7 @@ We are "deployable" when all are true:
 - Operational truth (orders, slips, packing) does not contradict financial truth (journals) for the same business event.
 - The pre-deploy scans return clean on a production-like dataset.
 
-## 1) Current Status Snapshot (as of 2026-02-01)
+## 1) Current Status Snapshot (as of 2026-02-05)
 
 Verified green gates:
 - Local release gate passes: `bash scripts/verify_local.sh` (schema drift scan + Flyway overlap scan + time API scan + `mvn verify`).
@@ -171,6 +171,7 @@ Goal: validate on production-like data before shipping to prod.
    - On the release commit, record repo expectations:
      - migration count: `ls -1 erp-domain/src/main/resources/db/migration | wc -l`
      - latest version: `ls -1 erp-domain/src/main/resources/db/migration | sed -n 's/^V\\([0-9]\\+\\)__.*$/\\1/p' | sort -n | tail -n 1`
+     - expected values for this release: count=131, max version=131
    - On staging DB, confirm `flyway_schema_history` matches:
      - `SELECT count(*) FROM flyway_schema_history WHERE success = true;`
      - `SELECT max(version) FROM flyway_schema_history WHERE success = true;`
