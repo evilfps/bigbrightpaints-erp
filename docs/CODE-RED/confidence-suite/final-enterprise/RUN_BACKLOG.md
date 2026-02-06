@@ -1,19 +1,22 @@
 # Run Backlog (Autonomous)
 
-Last refreshed: 2026-02-06T11:31:48Z
+Last refreshed: 2026-02-06T12:27:00Z
 
 ## In Progress
-- [ ] Prepare immutable commit SHA for promotion (tree currently has additional local changes).
+- [ ] Create immutable candidate commit containing non-vacuous gate-fast enforcement + runtime truthsuite coverage.
 
 ## Next
-- [ ] Stage only intended truth-suite/gate files and create promotion candidate commit.
-- [ ] Re-run all five gates on the clean committed SHA.
-- [ ] Attach final staging/prod promotion note to CODE-RED release docs.
+- [ ] Stage only intended files (no `artifacts/`) and commit candidate SHA.
+- [ ] Re-run all five gates once on the committed SHA for final certification output.
+- [ ] Publish promotion recommendation for branch-as-trunk flow.
 
 ## Done
-- [x] Root-cause capture for current failures (catalog missing runtime test entries).
-- [x] Added strict diff-base fallback logic in changed-files coverage helper.
-- [x] Restored strict gate-core thresholds (line `0.92`, branch `0.85`) and validated pass.
-- [x] Restored strict gate-quality threshold (mutation `>=80`) with actionable-signal guards.
-- [x] Completed strict branch-as-trunk five-gate run with explicit `DIFF_BASE` anchor.
-- [x] Updated `GATE_EVIDENCE_2026-02-06.md` with strict metrics and command proofs.
+- [x] Diagnosed non-vacuous gate-fast failure against baseline `2df86f7...`.
+- [x] Added vacuous coverage detection to `scripts/changed_files_coverage.py`.
+- [x] Enforced fail-on-vacuous in `scripts/gate_fast.sh` release validation mode.
+- [x] Added executable critical truthsuite runtime tests covering:
+  - `AccountingFacade.reverseClosingEntryForPeriodReopen`
+  - `AccountingPeriodService` close/reopen facade boundary paths
+  - `InventoryValuationService` FIFO quantity-available valuation
+- [x] Updated `TEST_CATALOG.json` and gate contracts.
+- [x] Passed all five gates in working tree with non-vacuous `gate-fast`.

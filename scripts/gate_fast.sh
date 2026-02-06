@@ -77,12 +77,19 @@ echo "[gate-fast] run critical truth tests"
 
 DIFF_BASE="$(resolve_diff_base)"
 echo "[gate-fast] changed-files coverage against base=$DIFF_BASE"
-python3 "$ROOT_DIR/scripts/changed_files_coverage.py" \
-  --jacoco "$ROOT_DIR/erp-domain/target/site/jacoco/jacoco.xml" \
-  --diff-base "$DIFF_BASE" \
-  --src-root erp-domain/src/main/java \
-  --threshold-line 0.95 \
-  --threshold-branch 0.90 \
+coverage_args=(
+  --jacoco "$ROOT_DIR/erp-domain/target/site/jacoco/jacoco.xml"
+  --diff-base "$DIFF_BASE"
+  --src-root erp-domain/src/main/java
+  --threshold-line 0.95
+  --threshold-branch 0.90
   --output "$ARTIFACT_DIR/changed-coverage.json"
+)
+
+if [[ "$RELEASE_VALIDATION_MODE" == "true" ]]; then
+  coverage_args+=(--fail-on-vacuous)
+fi
+
+python3 "$ROOT_DIR/scripts/changed_files_coverage.py" "${coverage_args[@]}"
 
 echo "[gate-fast] OK"

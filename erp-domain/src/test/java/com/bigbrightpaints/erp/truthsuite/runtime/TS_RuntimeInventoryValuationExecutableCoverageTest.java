@@ -1,0 +1,79 @@
+package com.bigbrightpaints.erp.truthsuite.runtime;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
+import com.bigbrightpaints.erp.modules.company.domain.Company;
+import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGood;
+import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatch;
+import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatchRepository;
+import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodRepository;
+import com.bigbrightpaints.erp.modules.inventory.domain.InventoryMovementRepository;
+import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatchRepository;
+import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovementRepository;
+import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialRepository;
+import com.bigbrightpaints.erp.modules.reports.service.InventoryValuationService;
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.util.List;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
+import org.springframework.test.util.ReflectionTestUtils;
+
+@Tag("critical")
+@Tag("reconciliation")
+class TS_RuntimeInventoryValuationExecutableCoverageTest {
+
+    @Test
+    void fifoFinishedGoodValuation_usesQuantityAvailable_notQuantityTotal() {
+        RawMaterialRepository rawMaterialRepository = mock(RawMaterialRepository.class);
+        RawMaterialBatchRepository rawMaterialBatchRepository = mock(RawMaterialBatchRepository.class);
+        FinishedGoodRepository finishedGoodRepository = mock(FinishedGoodRepository.class);
+        FinishedGoodBatchRepository finishedGoodBatchRepository = mock(FinishedGoodBatchRepository.class);
+        InventoryMovementRepository inventoryMovementRepository = mock(InventoryMovementRepository.class);
+        RawMaterialMovementRepository rawMaterialMovementRepository = mock(RawMaterialMovementRepository.class);
+
+        InventoryValuationService service = new InventoryValuationService(
+                rawMaterialRepository,
+                rawMaterialBatchRepository,
+                finishedGoodRepository,
+                finishedGoodBatchRepository,
+                inventoryMovementRepository,
+                rawMaterialMovementRepository
+        );
+
+        Company company = new Company();
+        company.setCode("TRUTH");
+        company.setName("Truth Pvt");
+        company.setTimezone("Asia/Kolkata");
+        ReflectionTestUtils.setField(company, "id", 61L);
+
+        FinishedGood finishedGood = new FinishedGood();
+        finishedGood.setCompany(company);
+        finishedGood.setProductCode("FG-VAL-01");
+        finishedGood.setName("FG Valuation");
+        finishedGood.setCurrentStock(new BigDecimal("7.00"));
+        finishedGood.setReservedStock(BigDecimal.ZERO);
+        finishedGood.setCostingMethod("FIFO");
+        ReflectionTestUtils.setField(finishedGood, "id", 901L);
+
+        FinishedGoodBatch batch = new FinishedGoodBatch();
+        batch.setFinishedGood(finishedGood);
+        batch.setBatchCode("FG-BATCH-01");
+        batch.setQuantityTotal(new BigDecimal("10.00"));
+        batch.setQuantityAvailable(new BigDecimal("3.00"));
+        batch.setUnitCost(new BigDecimal("50.00"));
+        batch.setManufacturedAt(Instant.parse("2026-02-01T00:00:00Z"));
+
+        when(rawMaterialRepository.findByCompanyOrderByNameAsc(company)).thenReturn(List.of());
+        when(finishedGoodRepository.findByCompanyOrderByProductCodeAsc(company)).thenReturn(List.of(finishedGood));
+        when(finishedGoodBatchRepository.findByFinishedGoodOrderByManufacturedAtAsc(finishedGood))
+                .thenReturn(List.of(batch));
+
+        InventoryValuationService.InventorySnapshot snapshot = service.currentSnapshot(company);
+
+        assertThat(snapshot.totalValue()).isEqualByComparingTo("150.00");
+        assertThat(snapshot.lowStockItems()).isEqualTo(0L);
+    }
+}

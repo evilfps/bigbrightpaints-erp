@@ -43,6 +43,11 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--src-root", default="erp-domain/src/main/java", help="Source root to evaluate")
     p.add_argument("--threshold-line", type=float, default=0.95, help="Minimum changed-line coverage ratio")
     p.add_argument("--threshold-branch", type=float, default=0.90, help="Minimum changed-branch coverage ratio")
+    p.add_argument(
+        "--fail-on-vacuous",
+        action="store_true",
+        help="Fail when changed-file coverage is vacuous (no files considered or no executable changed lines)",
+    )
     p.add_argument("--output", default="", help="Optional JSON summary output")
     return p.parse_args()
 
@@ -153,6 +158,7 @@ def main() -> int:
 
     line_ratio = (line_cov / line_total) if line_total else 1.0
     branch_ratio = (branch_cov / branch_total) if branch_total else 1.0
+    vacuous = files_considered == 0 or line_total == 0
 
     summary = {
         "diff_base": base,
@@ -165,7 +171,10 @@ def main() -> int:
         "branch_total": branch_total,
         "branch_ratio": branch_ratio,
         "branch_threshold": args.threshold_branch,
-        "passes": (line_ratio >= args.threshold_line and branch_ratio >= args.threshold_branch),
+        "vacuous": vacuous,
+        "passes": (line_ratio >= args.threshold_line
+                   and branch_ratio >= args.threshold_branch
+                   and not (args.fail_on_vacuous and vacuous)),
         "per_file": per_file,
     }
 
@@ -176,6 +185,14 @@ def main() -> int:
         os.makedirs(os.path.dirname(args.output), exist_ok=True)
         with open(args.output, "w", encoding="utf-8") as fh:
             json.dump(summary, fh, indent=2)
+
+    if args.fail_on_vacuous and vacuous:
+        print(
+            "[changed_files_coverage] FAIL: vacuous changed-files coverage "
+            f"(files_considered={files_considered}, line_total={line_total})",
+            file=sys.stderr,
+        )
+        return 1
 
     return 0 if summary["passes"] else 1
 

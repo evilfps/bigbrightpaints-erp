@@ -19,6 +19,7 @@ Command:
 - Branch-as-trunk final certification usage:
   - `GATE_FAST_RELEASE_VALIDATION_MODE=true DIFF_BASE=<RELEASE_ANCHOR_SHA> bash scripts/gate_fast.sh`
   - In this mode, `DIFF_BASE` is mandatory and `HEAD~N` values are rejected.
+  - `RELEASE_ANCHOR_SHA` must be a fixed baseline commit before the current hardening train on this branch.
 
 Enforced:
 - Only tests in `.../truthsuite/**`.
@@ -26,6 +27,9 @@ Enforced:
 - Changed-line coverage from JaCoCo XML + git diff:
   - line >= `0.95`
   - branch >= `0.90`
+  - release validation mode is invalid if changed coverage is vacuous:
+    - `files_considered == 0` or
+    - `line_total == 0`
 - Flaky guard:
   - any lane-included test with `@Tag("flaky")` fails.
 - Catalog/ownership validation for tagged truth tests.
