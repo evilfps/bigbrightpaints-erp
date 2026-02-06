@@ -1,0 +1,5 @@
+# Quarantined tests (one per line, relative path from repo root).
+# Rule: quarantined tests must not appear in gate-fast/core/release/reconciliation.
+#
+# Example:
+# erp-domain/src/test/java/com/bigbrightpaints/erp/codered/CR_SampleFlakyIT.java

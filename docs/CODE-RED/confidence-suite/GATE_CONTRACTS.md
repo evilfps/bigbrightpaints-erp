@@ -1,0 +1,145 @@
+# Gate Contracts
+
+This document defines mandatory lane contracts for one immutable SHA.
+
+Authoritative truth-suite scope:
+- `erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/**`
+- Gate evidence from legacy tests is forbidden.
+
+## Gate-Fast
+
+Purpose:
+- PR hard-fail lane for critical safety regressions in <=15 minutes.
+
+Command:
+- `bash scripts/gate_fast.sh`
+
+Enforced:
+- Only tests in `.../truthsuite/**`.
+- `@Tag("critical")` tests only, excluding `@Tag("flaky")`.
+- Changed-line coverage from JaCoCo XML + git diff:
+  - line >= `0.95`
+  - branch >= `0.90`
+- Flaky guard:
+  - any lane-included test with `@Tag("flaky")` fails.
+- Catalog/ownership validation for tagged truth tests.
+
+Artifacts:
+- `artifacts/gate-fast/changed-coverage.json`
+- `artifacts/gate-fast/flake-guard.json`
+- `artifacts/gate-fast/catalog-validation.json`
+
+Failure semantics:
+- any threshold miss, flaky-tag violation, or test failure is `NO-GO`.
+
+## Gate-Core
+
+Purpose:
+- mainline integration lane for critical + concurrency + reconciliation truth tests.
+
+Command:
+- `bash scripts/gate_core.sh`
+
+Enforced:
+- Only tests in `.../truthsuite/**`.
+- `@Tag("critical")`, `@Tag("concurrency")`, and `@Tag("reconciliation")` selection via Maven groups.
+- Excludes `@Tag("flaky")`.
+- Module coverage floor on critical packages:
+  - line >= `0.92`
+  - branch >= `0.85`
+- Catalog/ownership validation.
+
+Critical package scope:
+- `com.bigbrightpaints.erp.modules.accounting`
+- `com.bigbrightpaints.erp.modules.inventory`
+- `com.bigbrightpaints.erp.modules.invoice`
+- `com.bigbrightpaints.erp.orchestrator.policy`
+- `com.bigbrightpaints.erp.orchestrator.service`
+- `com.bigbrightpaints.erp.orchestrator.workflow`
+
+Artifacts:
+- `artifacts/gate-core/module-coverage.json`
+- `artifacts/gate-core/catalog-validation.json`
+- `artifacts/gate-core/flake-guard.json`
+
+Failure semantics:
+- any selected test failure, coverage floor miss, or flake/catalog violation is `NO-GO`.
+
+## Gate-Release
+
+Purpose:
+- strict release SHA lane.
+
+Command:
+- `bash scripts/gate_release.sh`
+
+Enforced:
+- Only tests in `.../truthsuite/**`.
+- `FAIL_ON_FINDINGS=true bash scripts/verify_local.sh`
+- Fresh migration path: empty DB -> latest migration.
+- Upgrade migration path: N-1 -> latest migration.
+- `scripts/db_predeploy_scans.sql` must return zero rows on both paths.
+- Catalog/ownership validation.
+
+Artifacts:
+- `artifacts/gate-release/migration-matrix.json`
+- `artifacts/gate-release/predeploy-scans-fresh.txt`
+- `artifacts/gate-release/predeploy-scans-upgrade.txt`
+- `artifacts/gate-release/catalog-validation.json`
+
+Failure semantics:
+- any verify failure, migration failure, or predeploy scan row is `NO-GO`.
+
+## Gate-Reconciliation
+
+Purpose:
+- prove operational truth == financial truth using deterministic cross-module assertions.
+
+Command:
+- `bash scripts/gate_reconciliation.sh`
+
+Enforced:
+- Only tests in `.../truthsuite/**`.
+- `@Tag("reconciliation")` truth tests only, excluding `@Tag("flaky")`.
+- Reconciliation evidence summarization from Surefire XML.
+- Empty mismatch report required.
+
+Artifacts:
+- `artifacts/gate-reconciliation/reconciliation-summary.json`
+- `artifacts/gate-reconciliation/mismatch-report.txt`
+- `artifacts/gate-reconciliation/catalog-validation.json`
+
+Failure semantics:
+- any reconciliation test failure or non-empty mismatch report is `NO-GO`.
+
+## Gate-Quality
+
+Purpose:
+- nightly confidence durability checks (mutation + flake-rate + portfolio governance).
+
+Command:
+- `bash scripts/gate_quality.sh`
+
+Enforced:
+- PIT mutation score for critical modules >= `80.0`.
+- Rolling flake-rate check over `20` runs on monitored tests:
+  - flake rate < `0.01`.
+- Catalog completeness and quarantine enforcement.
+- Flake window executes `-Pgate-core`, which is restricted to `.../truthsuite/**`.
+
+Artifacts:
+- `artifacts/gate-quality/mutation-summary.json`
+- `artifacts/gate-quality/flake-rate.json`
+- `artifacts/gate-quality/catalog-validation.json`
+
+Failure semantics:
+- mutation score below threshold or flake rate >= 1% is `NO-GO`.
+
+## Promotion Rule
+
+Release promotion is allowed only when one immutable SHA has green:
+- `gate-fast`
+- `gate-core`
+- `gate-release`
+- `gate-reconciliation`
+- `gate-quality` (nightly durability gate must be healthy before promotion window)

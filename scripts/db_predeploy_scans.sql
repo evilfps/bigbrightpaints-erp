@@ -337,12 +337,12 @@ order by s.company_id, s.accounting_period_id, s.id;
 -- 12) Flyway history mismatch vs repo expectations (NO-GO)
 -- Update expected values on each release commit.
 with expected as (
-  select 131::int as expected_count, 131::int as expected_max_version
+  select 132::int as expected_count, 132::int as expected_max_version
 ),
 actual as (
   select
     count(*)::int as actual_count,
-    max(version)::int as actual_max_version
+    coalesce(max(case when version ~ '^[0-9]+$' then version::int end), 0) as actual_max_version
   from flyway_schema_history
   where success = true
 )
@@ -460,3 +460,109 @@ where to_regclass('idx_finished_goods_stock') is not null
 union all
 select 'index', 'idx_finished_good_batches_quantity'
 where to_regclass('idx_finished_good_batches_quantity') is not null;
+
+-- 16) AR subledger vs AR control-account mismatch (NO-GO)
+with ar_accounts as (
+  select distinct company_id, receivable_account_id as account_id
+  from dealers
+  where receivable_account_id is not null
+),
+ar_gl as (
+  select
+    aa.company_id,
+    coalesce(sum(a.balance), 0) as gl_total
+  from ar_accounts aa
+  join accounts a
+    on a.company_id = aa.company_id
+   and a.id = aa.account_id
+  group by aa.company_id
+),
+ar_subledger as (
+  select
+    i.company_id,
+    coalesce(sum(i.outstanding_amount), 0) as subledger_total
+  from invoices i
+  where upper(coalesce(i.status, '')) not in ('VOID', 'DRAFT', 'REVERSED')
+  group by i.company_id
+)
+select
+  coalesce(g.company_id, s.company_id) as company_id,
+  coalesce(g.gl_total, 0) as ar_gl_total,
+  coalesce(s.subledger_total, 0) as ar_subledger_total,
+  coalesce(g.gl_total, 0) - coalesce(s.subledger_total, 0) as variance
+from ar_gl g
+full join ar_subledger s
+  on s.company_id = g.company_id
+where abs(coalesce(g.gl_total, 0) - coalesce(s.subledger_total, 0)) > 0.01
+order by company_id;
+
+-- 17) AP subledger vs AP control-account mismatch (NO-GO)
+with ap_accounts as (
+  select distinct company_id, payable_account_id as account_id
+  from suppliers
+  where payable_account_id is not null
+),
+ap_gl as (
+  select
+    aa.company_id,
+    coalesce(sum(a.balance), 0) as gl_total
+  from ap_accounts aa
+  join accounts a
+    on a.company_id = aa.company_id
+   and a.id = aa.account_id
+  group by aa.company_id
+),
+ap_subledger as (
+  select
+    p.company_id,
+    coalesce(sum(p.outstanding_amount), 0) as subledger_total
+  from raw_material_purchases p
+  where upper(coalesce(p.status, '')) not in ('VOID', 'DRAFT', 'REVERSED')
+  group by p.company_id
+)
+select
+  coalesce(g.company_id, s.company_id) as company_id,
+  coalesce(g.gl_total, 0) as ap_gl_total,
+  coalesce(s.subledger_total, 0) as ap_subledger_total,
+  coalesce(g.gl_total, 0) - coalesce(s.subledger_total, 0) as variance
+from ap_gl g
+full join ap_subledger s
+  on s.company_id = g.company_id
+where abs(coalesce(g.gl_total, 0) - coalesce(s.subledger_total, 0)) > 0.01
+order by company_id;
+
+-- 18) Dispatched slips without dispatch inventory movements (NO-GO)
+select
+  p.company_id,
+  p.id as packaging_slip_id,
+  p.slip_number,
+  p.status,
+  count(m.id) as dispatch_movement_count
+from packaging_slips p
+left join inventory_movements m
+  on m.packing_slip_id = p.id
+ and upper(coalesce(m.movement_type, '')) = 'DISPATCH'
+where upper(coalesce(p.status, '')) = 'DISPATCHED'
+group by p.company_id, p.id, p.slip_number, p.status
+having count(m.id) = 0
+order by p.company_id, p.id;
+
+-- 19) Dispatch inventory movements not linked to slip COGS journal (NO-GO)
+select
+  p.company_id,
+  p.id as packaging_slip_id,
+  p.slip_number,
+  p.cogs_journal_entry_id,
+  m.id as inventory_movement_id,
+  m.journal_entry_id
+from packaging_slips p
+join inventory_movements m
+  on m.packing_slip_id = p.id
+ and upper(coalesce(m.movement_type, '')) = 'DISPATCH'
+where upper(coalesce(p.status, '')) = 'DISPATCHED'
+  and (
+    p.cogs_journal_entry_id is null
+    or m.journal_entry_id is null
+    or m.journal_entry_id <> p.cogs_journal_entry_id
+  )
+order by p.company_id, p.id, m.id;

@@ -4,11 +4,31 @@ on:
   pull_request:
   push:
     branches: [ main ]
+    tags:
+      - 'v*'
+      - 'release-*'
+  workflow_dispatch:
+    inputs:
+      run_release_gates:
+        description: "Run gate-release and gate-reconciliation"
+        required: false
+        default: "true"
+      run_quality_gate:
+        description: "Run gate-quality in this manual execution"
+        required: false
+        default: "false"
+      flake_runs:
+        description: "Override FLAKE_RUNS for gate-quality"
+        required: false
+        default: "20"
+  schedule:
+    - cron: "17 2 * * *"
 
 jobs:
-  erp-domain:
+  gate-fast:
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 20
 
     steps:
       - name: Checkout
@@ -21,49 +41,165 @@ jobs:
           java-version: "21"
           cache: maven
 
-      - name: CODE-RED schema drift scan
+      - name: Gate Fast
+        env:
+          DIFF_BASE: ${{ github.event.pull_request.base.sha }}
         run: |
           set -euo pipefail
-          bash scripts/schema_drift_scan.sh
+          bash scripts/gate_fast.sh
 
-      - name: CODE-RED time API scan
-        run: |
-          set -euo pipefail
-          bash scripts/time_api_scan.sh
-
-      - name: Run tests (erp-domain)
-        working-directory: erp-domain
-        run: |
-          set -euo pipefail
-          mirrors=(
-            "${MAVEN_MIRROR_PRIMARY:-https://repo.maven.apache.org/maven2}"
-            "${MAVEN_MIRROR_FALLBACK:-https://maven-central.storage-download.googleapis.com/maven2}"
-          )
-          for mirror in "${mirrors[@]}"; do
-            echo "Using Maven mirror: ${mirror}"
-            if mvn -B -ntp -Dmaven.mirror.url="${mirror}" verify; then
-              exit 0
-            fi
-            echo "Mirror failed: ${mirror}" >&2
-          done
-          exit 1
-
-      - name: CODE-RED test triage
-        if: always()
-        run: |
-          set -euo pipefail
-          bash scripts/triage_tests.sh
-
-      - name: Upload JaCoCo report
+      - name: Upload gate-fast artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: jacoco-erp-domain
-          path: erp-domain/target/site/jacoco/**
+          name: gate-fast-artifacts
+          path: |
+            artifacts/gate-fast/**
+            erp-domain/target/site/jacoco/**
+            erp-domain/target/surefire-reports/**
 
-      - name: Upload surefire reports
+  gate-core:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 70
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: Gate Core
+        run: |
+          set -euo pipefail
+          bash scripts/gate_core.sh
+
+      - name: Upload gate-core artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: surefire-erp-domain
-          path: erp-domain/target/surefire-reports/**
+          name: gate-core-artifacts
+          path: |
+            artifacts/gate-core/**
+            erp-domain/target/site/jacoco/**
+            erp-domain/target/surefire-reports/**
+
+  gate-release:
+    if: startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && github.event.inputs.run_release_gates != 'false')
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: Gate Release
+        env:
+          PGHOST: 127.0.0.1
+          PGPORT: "5432"
+          PGUSER: postgres
+          PGPASSWORD: postgres
+          PGDATABASE: postgres
+        run: |
+          set -euo pipefail
+          bash scripts/gate_release.sh
+
+      - name: Upload gate-release artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate-release-artifacts
+          path: |
+            artifacts/gate-release/**
+            erp-domain/target/site/jacoco/**
+            erp-domain/target/surefire-reports/**
+
+  gate-reconciliation:
+    if: startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && github.event.inputs.run_release_gates != 'false')
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: Gate Reconciliation
+        run: |
+          set -euo pipefail
+          bash scripts/gate_reconciliation.sh
+
+      - name: Upload gate-reconciliation artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate-reconciliation-artifacts
+          path: |
+            artifacts/gate-reconciliation/**
+            erp-domain/target/surefire-reports/**
+
+  gate-quality:
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.event.inputs.run_quality_gate == 'true')
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: Gate Quality
+        env:
+          FLAKE_RUNS: ${{ github.event.inputs.flake_runs || '20' }}
+        run: |
+          set -euo pipefail
+          bash scripts/gate_quality.sh
+
+      - name: Upload gate-quality artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate-quality-artifacts
+          path: |
+            artifacts/gate-quality/**
+            erp-domain/target/pit-reports/**
+            erp-domain/target/site/jacoco/**
+            erp-domain/target/surefire-reports/**
