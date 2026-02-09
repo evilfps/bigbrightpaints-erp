@@ -1,0 +1,18 @@
+spring:
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:${DB_PORT:5432}/erp_domain}
+    username: ${SPRING_DATASOURCE_USERNAME:erp}
+    password: ${SPRING_DATASOURCE_PASSWORD:erp}
+
+erp:
+  environment:
+    validation:
+      enabled: ${ERP_ENVIRONMENT_VALIDATION_ENABLED:false}
+  cors:
+    allowed-origins: ${ERP_CORS_ALLOWED_ORIGINS:${CORS_ALLOWED_ORIGINS:http://localhost:3002,http://127.0.0.1:3002}}
+  licensing:
+    enforce: ${ERP_LICENSE_ENFORCE:false}
+    license-key: ${ERP_LICENSE_KEY:}
+  dispatch:
+    debit-account-id: ${ERP_DISPATCH_DEBIT_ACCOUNT_ID:0}
+    credit-account-id: ${ERP_DISPATCH_CREDIT_ACCOUNT_ID:0}

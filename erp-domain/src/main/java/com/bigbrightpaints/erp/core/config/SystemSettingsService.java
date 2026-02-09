@@ -28,6 +28,7 @@ public class SystemSettingsService {
     private final EmailProperties emailProperties;
     private final SystemSettingsRepository settingsRepository;
     private final CopyOnWriteArrayList<String> allowedOrigins = new CopyOnWriteArrayList<>();
+    private final boolean environmentValidationEnabled;
     private volatile boolean autoApprovalEnabled;
     private volatile boolean periodLockEnforced;
 
@@ -44,10 +45,12 @@ public class SystemSettingsService {
     public SystemSettingsService(EmailProperties emailProperties,
                                  SystemSettingsRepository settingsRepository,
                                  @Value("${erp.cors.allowed-origins:http://localhost:3002}") String corsOrigins,
+                                 @Value("${erp.environment.validation.enabled:false}") boolean environmentValidationEnabled,
                                  @Value("${erp.auto-approval.enabled:true}") boolean autoApprovalEnabled,
                                  @Value("${erp.period-lock.enforced:true}") boolean periodLockEnforced) {
         this.emailProperties = emailProperties;
         this.settingsRepository = settingsRepository;
+        this.environmentValidationEnabled = environmentValidationEnabled;
         // Load persisted values (if any), else fall back to config defaults
         Map<String, String> persisted = settingsRepository.findAll().stream()
                 .collect(Collectors.toMap(SystemSetting::getKey, SystemSetting::getValue));
@@ -210,8 +213,10 @@ public class SystemSettingsService {
             String normalizedScheme = scheme.toLowerCase(Locale.ROOT);
             String normalizedHost = host.toLowerCase(Locale.ROOT);
             boolean httpsAllowed = "https".equals(normalizedScheme);
-            boolean httpLocalAllowed = "http".equals(normalizedScheme) && LOOPBACK_HOSTS.contains(normalizedHost);
-            if (!httpsAllowed && !httpLocalAllowed) {
+            boolean httpAllowed = "http".equals(normalizedScheme)
+                    && (LOOPBACK_HOSTS.contains(normalizedHost)
+                    || (!environmentValidationEnabled && isPrivateNetworkIpv4Literal(normalizedHost)));
+            if (!httpsAllowed && !httpAllowed) {
                 invalidOrigins.add(origin);
                 continue;
             }
@@ -222,11 +227,38 @@ public class SystemSettingsService {
             normalizedOrigins.add(normalizedOrigin);
         }
         if (!invalidOrigins.isEmpty()) {
+            String httpPolicy = environmentValidationEnabled
+                    ? "http allowed only for localhost"
+                    : "http allowed only for localhost or private-network IPv4 when erp.environment.validation.enabled=false";
             throw new IllegalArgumentException(
-                    "Invalid CORS origins (must be https, without wildcards; http allowed only for localhost): "
+                    "Invalid CORS origins (must be https, without wildcards; " + httpPolicy + "): "
                             + invalidOrigins);
         }
         return new ArrayList<>(normalizedOrigins);
+    }
+
+    private boolean isPrivateNetworkIpv4Literal(String host) {
+        String[] parts = host.split("\\.");
+        if (parts.length != 4) {
+            return false;
+        }
+        int[] octets = new int[4];
+        for (int i = 0; i < parts.length; i++) {
+            if (!parts[i].chars().allMatch(Character::isDigit)) {
+                return false;
+            }
+            try {
+                octets[i] = Integer.parseInt(parts[i]);
+            } catch (NumberFormatException ex) {
+                return false;
+            }
+            if (octets[i] < 0 || octets[i] > 255) {
+                return false;
+            }
+        }
+        return octets[0] == 10
+                || (octets[0] == 172 && octets[1] >= 16 && octets[1] <= 31)
+                || (octets[0] == 192 && octets[1] == 168);
     }
 
     private boolean parseBool(String value) {

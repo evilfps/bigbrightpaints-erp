@@ -9,7 +9,7 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.util.StringUtils;
 
 @Configuration
-@Profile("prod")
+@Profile("prod & !seed")
 public class SmtpPropertiesValidator {
 
     private static final Logger log = LoggerFactory.getLogger(SmtpPropertiesValidator.class);
