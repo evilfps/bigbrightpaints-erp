@@ -438,6 +438,37 @@ public class JournalEntryE2ETest extends AbstractIntegrationTest {
     }
 
     @Test
+    @DisplayName("Journal Cascade Reversal: Fails closed and rolls back primary reversal when related entry is invalid")
+    void journalCascadeReversal_FailsClosedAndRollsBackPrimary() {
+        Company company = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();
+        Long baseEntryId = createBalancedJournalEntry(company, new BigDecimal("140.00"));
+
+        Map<String, Object> reversalReq = Map.of(
+                "reversalDate", LocalDate.now(),
+                "reason", "Cascade rollback test",
+                "memo", "Cascade rollback",
+                "relatedEntryIds", List.of(Long.MAX_VALUE)
+        );
+
+        ResponseEntity<Map> reversalResp = rest.exchange(
+                "/api/v1/accounting/journal-entries/" + baseEntryId + "/cascade-reverse",
+                HttpMethod.POST,
+                new HttpEntity<>(reversalReq, headers),
+                Map.class);
+
+        assertThat(reversalResp.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+
+        JournalEntry baseEntry = journalEntryRepository.findById(baseEntryId).orElseThrow();
+        assertThat(baseEntry.getStatus()).isEqualTo("POSTED");
+
+        long reversalCount = journalEntryRepository.findAll().stream()
+                .filter(entry -> entry.getReversalOf() != null)
+                .filter(entry -> entry.getReversalOf().getId().equals(baseEntryId))
+                .count();
+        assertThat(reversalCount).isZero();
+    }
+
+    @Test
     @DisplayName("Financial Reports: Profit & Loss and Balance Sheet are Accurate")
     void financialReports_ProfitLoss_BalanceSheet_Accurate() {
         Company company = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();

@@ -3017,6 +3017,10 @@ public class AccountingService {
      */
     @Transactional
     public List<JournalEntryDto> cascadeReverseRelatedEntries(Long primaryEntryId, JournalEntryReversalRequest request) {
+        if (request == null) {
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                    "Reversal request is required for cascade reversal");
+        }
         Company company = companyContextService.requireCurrentCompany();
         JournalEntry primaryEntry = companyEntityLookup.requireJournalEntry(company, primaryEntryId);
         List<JournalEntryDto> reversedEntries = new java.util.ArrayList<>();
@@ -3067,7 +3071,10 @@ public class AccountingService {
                     reversedEntries.add(relatedReversal);
                     processedIds.add(related.getId());
                 } catch (ApplicationException e) {
-                    log.warn("Could not cascade reverse entry {}: {}", related.getReferenceNumber(), e.getMessage());
+                    throw e.withDetail("cascadePrimaryEntryId", primaryEntryId)
+                            .withDetail("cascadePrimaryReference", baseRef)
+                            .withDetail("cascadeRelatedEntryId", related.getId())
+                            .withDetail("cascadeRelatedReference", related.getReferenceNumber());
                 }
             }
         }
@@ -3084,13 +3091,16 @@ public class AccountingService {
                     if ("REVERSED".equalsIgnoreCase(relatedEntry.getStatus()) ||
                         "VOIDED".equalsIgnoreCase(relatedEntry.getStatus())) {
                         log.info("Skipping already reversed/voided entry {}", relatedId);
+                        processedIds.add(relatedId);
                         continue;
                     }
                     JournalEntryDto relatedReversal = reverseJournalEntry(relatedId, request);
                     reversedEntries.add(relatedReversal);
                     processedIds.add(relatedId);
                 } catch (ApplicationException e) {
-                    log.warn("Could not reverse related entry {}: {}", relatedId, e.getMessage());
+                    throw e.withDetail("cascadePrimaryEntryId", primaryEntryId)
+                            .withDetail("cascadePrimaryReference", baseRef)
+                            .withDetail("cascadeRelatedEntryId", relatedId);
                 }
             }
         }
