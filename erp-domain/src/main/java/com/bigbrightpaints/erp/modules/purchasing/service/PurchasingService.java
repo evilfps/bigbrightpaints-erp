@@ -70,6 +70,7 @@ public class PurchasingService {
 
     private static final BigDecimal MAX_GST_RATE = new BigDecimal("28.00");
     private static final BigDecimal UNIT_COST_TOLERANCE = new BigDecimal("0.01");
+    private static final BigDecimal QUANTITY_TOLERANCE = new BigDecimal("0.0001");
 
     private final CompanyContextService companyContextService;
     private final RawMaterialPurchaseRepository purchaseRepository;
@@ -831,6 +832,22 @@ public class PurchasingService {
             return returnExistingPurchaseReturn(purchase, material, supplier, quantity, unitCost, reference,
                     returnDate, memo, existingMovements);
         }
+        BigDecimal remainingReturnableQty = remainingReturnableQuantity(purchase, material);
+        if (remainingReturnableQty.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                    "All purchased quantity has already been returned for this material")
+                    .withDetail("purchaseId", purchase.getId())
+                    .withDetail("rawMaterialId", material.getId());
+        }
+        if (quantity.compareTo(remainingReturnableQty) > 0) {
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                    "Purchase return quantity exceeds remaining returnable quantity")
+                    .withDetail("purchaseId", purchase.getId())
+                    .withDetail("rawMaterialId", material.getId())
+                    .withDetail("remainingReturnableQuantity", remainingReturnableQty)
+                    .withDetail("requestedQuantity", quantity);
+        }
+        validateReturnAmountWithinOutstanding(purchase, totalAmount);
 
         // Post journal FIRST before deducting stock
         Map<Long, BigDecimal> taxCredits = null;
@@ -856,6 +873,7 @@ public class PurchasingService {
 
         List<RawMaterialMovement> movements = issueReturnFromBatches(material, quantity, unitCost, reference, entry.id());
         movementRepository.saveAll(movements);
+        applyPurchaseReturnQuantity(purchase, material, quantity);
         applyPurchaseReturnToOutstanding(purchase, totalAmount);
         return entry;
     }
@@ -998,13 +1016,107 @@ public class PurchasingService {
             return;
         }
         BigDecimal currentOutstanding = MoneyUtils.zeroIfNull(purchase.getOutstandingAmount());
+        if (amount.compareTo(currentOutstanding) > 0) {
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                    "Purchase return exceeds outstanding payable amount")
+                    .withDetail("purchaseId", purchase.getId())
+                    .withDetail("outstandingAmount", currentOutstanding)
+                    .withDetail("returnAmount", amount);
+        }
         BigDecimal newOutstanding = currentOutstanding.subtract(amount);
-        purchase.setOutstandingAmount(newOutstanding);
-        if (amount.compareTo(MoneyUtils.zeroIfNull(purchase.getTotalAmount())) >= 0
-                && newOutstanding.compareTo(BigDecimal.ZERO) <= 0) {
+        purchase.setOutstandingAmount(currency(newOutstanding));
+        if (purchase.getOutstandingAmount().compareTo(BigDecimal.ZERO) == 0 && isPurchaseFullyReturned(purchase)) {
             purchase.setStatus("VOID");
         } else {
             updatePurchaseStatus(purchase);
+        }
+    }
+
+    private BigDecimal remainingReturnableQuantity(RawMaterialPurchase purchase, RawMaterial material) {
+        if (purchase == null || material == null) {
+            return BigDecimal.ZERO;
+        }
+        BigDecimal purchased = purchase.getLines().stream()
+                .filter(line -> line.getRawMaterial() != null
+                        && line.getRawMaterial().getId().equals(material.getId()))
+                .map(line -> quantityValue(line.getQuantity()))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal returned = purchase.getLines().stream()
+                .filter(line -> line.getRawMaterial() != null
+                        && line.getRawMaterial().getId().equals(material.getId()))
+                .map(line -> quantityValue(line.getReturnedQuantity()))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal remaining = purchased.subtract(returned);
+        if (remaining.compareTo(BigDecimal.ZERO) < 0 && remaining.abs().compareTo(QUANTITY_TOLERANCE) <= 0) {
+            return BigDecimal.ZERO;
+        }
+        return remaining.max(BigDecimal.ZERO);
+    }
+
+    private void applyPurchaseReturnQuantity(RawMaterialPurchase purchase, RawMaterial material, BigDecimal quantity) {
+        if (purchase == null || material == null || quantity == null || quantity.compareTo(BigDecimal.ZERO) <= 0) {
+            return;
+        }
+        BigDecimal remaining = quantity;
+        for (RawMaterialPurchaseLine line : purchase.getLines()) {
+            if (line.getRawMaterial() == null || !line.getRawMaterial().getId().equals(material.getId())) {
+                continue;
+            }
+            BigDecimal lineQty = quantityValue(line.getQuantity());
+            BigDecimal alreadyReturned = quantityValue(line.getReturnedQuantity());
+            BigDecimal available = lineQty.subtract(alreadyReturned);
+            if (available.compareTo(BigDecimal.ZERO) <= 0) {
+                continue;
+            }
+            BigDecimal applied = available.min(remaining);
+            line.setReturnedQuantity(alreadyReturned.add(applied));
+            remaining = remaining.subtract(applied);
+            if (remaining.compareTo(BigDecimal.ZERO) <= 0) {
+                break;
+            }
+        }
+        if (remaining.compareTo(QUANTITY_TOLERANCE) > 0) {
+            throw new ApplicationException(ErrorCode.BUSINESS_CONSTRAINT_VIOLATION,
+                    "Purchase return quantity exceeds available returnable quantity after allocation")
+                    .withDetail("purchaseId", purchase.getId())
+                    .withDetail("rawMaterialId", material.getId())
+                    .withDetail("remainingQuantity", remaining);
+        }
+    }
+
+    private boolean isPurchaseFullyReturned(RawMaterialPurchase purchase) {
+        if (purchase == null || purchase.getLines() == null || purchase.getLines().isEmpty()) {
+            return false;
+        }
+        for (RawMaterialPurchaseLine line : purchase.getLines()) {
+            BigDecimal lineQty = quantityValue(line.getQuantity());
+            if (lineQty.compareTo(BigDecimal.ZERO) <= 0) {
+                continue;
+            }
+            BigDecimal returnedQty = quantityValue(line.getReturnedQuantity());
+            BigDecimal remaining = lineQty.subtract(returnedQty);
+            if (remaining.compareTo(QUANTITY_TOLERANCE) > 0) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private BigDecimal quantityValue(BigDecimal value) {
+        return value != null ? value : BigDecimal.ZERO;
+    }
+
+    private void validateReturnAmountWithinOutstanding(RawMaterialPurchase purchase, BigDecimal returnAmount) {
+        if (purchase == null || returnAmount == null || returnAmount.compareTo(BigDecimal.ZERO) <= 0) {
+            return;
+        }
+        BigDecimal outstanding = MoneyUtils.zeroIfNull(purchase.getOutstandingAmount());
+        if (returnAmount.compareTo(outstanding) > 0) {
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                    "Purchase return exceeds outstanding payable amount")
+                    .withDetail("purchaseId", purchase.getId())
+                    .withDetail("outstandingAmount", outstanding)
+                    .withDetail("returnAmount", returnAmount);
         }
     }
 

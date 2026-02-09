@@ -40,6 +40,7 @@ import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -122,10 +123,12 @@ public class ReportService {
     public ProfitLossDto profitLoss(LocalDate asOfDate) {
         ReportContext context = resolveReportContext(asOfDate);
         List<TrialBalanceLine> lines = resolveTrialBalanceLines(context);
-        BigDecimal revenue = aggregateAccountType(lines, AccountType.REVENUE);
+        BigDecimal revenue = aggregateAccountType(lines, AccountType.REVENUE)
+                .add(aggregateAccountType(lines, AccountType.OTHER_INCOME));
         BigDecimal cogs = aggregateAccountType(lines, AccountType.COGS);
         BigDecimal grossProfit = revenue.subtract(cogs);
-        BigDecimal expenses = aggregateAccountType(lines, AccountType.EXPENSE);
+        BigDecimal expenses = aggregateAccountType(lines, AccountType.EXPENSE)
+                .add(aggregateAccountType(lines, AccountType.OTHER_EXPENSE));
         BigDecimal netIncome = grossProfit.subtract(expenses);
         return new ProfitLossDto(revenue, cogs, grossProfit, expenses, netIncome, context.metadata());
     }
@@ -142,12 +145,24 @@ public class ReportService {
             if (!"POSTED".equalsIgnoreCase(entry.getStatus())) {
                 continue;
             }
+            List<JournalLine> lines = entry.getLines();
+            if (lines == null || lines.isEmpty()) {
+                continue;
+            }
             for (JournalLine line : entry.getLines()) {
                 if (!isCashAccount(line.getAccount())) {
                     continue;
                 }
                 BigDecimal delta = safe(line.getDebit()).subtract(safe(line.getCredit()));
-                operating = operating.add(delta);
+                if (delta.compareTo(BigDecimal.ZERO) == 0) {
+                    continue;
+                }
+                CashFlowSection section = resolveCashFlowSection(line, lines);
+                switch (section) {
+                    case INVESTING -> investing = investing.add(delta);
+                    case FINANCING -> financing = financing.add(delta);
+                    default -> operating = operating.add(delta);
+                }
             }
         }
         BigDecimal net = operating.add(investing).add(financing);
@@ -344,8 +359,20 @@ public class ReportService {
     private BigDecimal aggregateAccountType(List<TrialBalanceLine> lines, AccountType type) {
         return lines.stream()
                 .filter(line -> line.type() == type)
-                .map(line -> safe(line.debit()).subtract(safe(line.credit())))
+                .map(this::naturalBalance)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    private BigDecimal naturalBalance(TrialBalanceLine line) {
+        if (line == null) {
+            return BigDecimal.ZERO;
+        }
+        BigDecimal debit = safe(line.debit());
+        BigDecimal credit = safe(line.credit());
+        if (line.type() == null || line.type().isDebitNormalBalance()) {
+            return debit.subtract(credit);
+        }
+        return credit.subtract(debit);
     }
 
     private ReportContext resolveReportContext(LocalDate asOfDate) {
@@ -431,6 +458,91 @@ public class ReportService {
                 || label.contains("upi");
     }
 
+    private CashFlowSection resolveCashFlowSection(JournalLine cashLine, List<JournalLine> entryLines) {
+        if (cashLine == null || entryLines == null || entryLines.isEmpty()) {
+            return CashFlowSection.OPERATING;
+        }
+        BigDecimal cashDelta = safe(cashLine.getDebit()).subtract(safe(cashLine.getCredit()));
+        if (cashDelta.compareTo(BigDecimal.ZERO) == 0) {
+            return CashFlowSection.OPERATING;
+        }
+        boolean inflow = cashDelta.compareTo(BigDecimal.ZERO) > 0;
+        List<JournalLine> candidates = entryLines.stream()
+                .filter(line -> line != null && line != cashLine)
+                .filter(line -> !isCashAccount(line.getAccount()))
+                .filter(line -> inflow
+                        ? safe(line.getCredit()).compareTo(BigDecimal.ZERO) > 0
+                        : safe(line.getDebit()).compareTo(BigDecimal.ZERO) > 0)
+                .toList();
+        if (candidates.isEmpty()) {
+            candidates = entryLines.stream()
+                    .filter(line -> line != null && line != cashLine)
+                    .filter(line -> !isCashAccount(line.getAccount()))
+                    .toList();
+        }
+        if (candidates.isEmpty()) {
+            return CashFlowSection.OPERATING;
+        }
+        Map<CashFlowSection, BigDecimal> weights = new EnumMap<>(CashFlowSection.class);
+        for (JournalLine candidate : candidates) {
+            BigDecimal weight = inflow ? safe(candidate.getCredit()) : safe(candidate.getDebit());
+            if (weight.compareTo(BigDecimal.ZERO) <= 0) {
+                weight = safe(candidate.getDebit()).add(safe(candidate.getCredit()));
+            }
+            CashFlowSection section = classifyCashFlowCounterparty(candidate.getAccount());
+            weights.merge(section, weight.abs(), BigDecimal::add);
+        }
+        CashFlowSection resolved = CashFlowSection.OPERATING;
+        BigDecimal maxWeight = BigDecimal.ZERO;
+        for (Map.Entry<CashFlowSection, BigDecimal> entry : weights.entrySet()) {
+            BigDecimal weight = safe(entry.getValue());
+            if (weight.compareTo(maxWeight) > 0) {
+                maxWeight = weight;
+                resolved = entry.getKey();
+            }
+        }
+        return resolved;
+    }
+
+    private CashFlowSection classifyCashFlowCounterparty(Account account) {
+        if (account == null) {
+            return CashFlowSection.OPERATING;
+        }
+        AccountType type = account.getType();
+        String label = ((account.getCode() != null ? account.getCode() : "")
+                + " "
+                + (account.getName() != null ? account.getName() : ""))
+                .toLowerCase(Locale.ROOT);
+        if (type == AccountType.EQUITY) {
+            return CashFlowSection.FINANCING;
+        }
+        if (type == AccountType.LIABILITY) {
+            if (containsAny(label, "loan", "borrow", "debt", "note payable", "capital lease", "long-term")) {
+                return CashFlowSection.FINANCING;
+            }
+            return CashFlowSection.OPERATING;
+        }
+        if (type == AccountType.ASSET) {
+            if (containsAny(label, "fixed asset", "equipment", "machinery", "vehicle", "building", "plant", "investment")) {
+                return CashFlowSection.INVESTING;
+            }
+            return CashFlowSection.OPERATING;
+        }
+        return CashFlowSection.OPERATING;
+    }
+
+    private boolean containsAny(String value, String... tokens) {
+        if (value == null || tokens == null) {
+            return false;
+        }
+        for (String token : tokens) {
+            if (token != null && value.contains(token)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private BigDecimal resolveInventoryLedgerBalance(Company company) {
         Long defaultInventoryAccountId = company.getDefaultInventoryAccountId();
         if (defaultInventoryAccountId != null) {
@@ -481,6 +593,12 @@ public class ReportService {
             BigDecimal debit,
             BigDecimal credit
     ) {}
+
+    private enum CashFlowSection {
+        OPERATING,
+        INVESTING,
+        FINANCING
+    }
 
     private record ReportContext(
             Company company,

@@ -6,6 +6,7 @@ import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
+import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryReference;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterial;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatch;
@@ -31,6 +32,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @DisplayName("Regression: Purchase return idempotency avoids duplicate movements")
 class PurchaseReturnIdempotencyRegressionIT extends AbstractIntegrationTest {
@@ -65,6 +67,8 @@ class PurchaseReturnIdempotencyRegressionIT extends AbstractIntegrationTest {
 
     @BeforeEach
     void setUp() {
+        String seedSuffix = Long.toString(System.nanoTime());
+        String seedBatchCode = "RM-LF022-B1-" + seedSuffix;
         company = dataSeeder.ensureCompany(COMPANY_CODE, "LF-022 Materials");
         CompanyContextHolder.setCompanyId(COMPANY_CODE);
 
@@ -85,7 +89,7 @@ class PurchaseReturnIdempotencyRegressionIT extends AbstractIntegrationTest {
         material = new RawMaterial();
         material.setCompany(company);
         material.setName("LF-022 Resin");
-        material.setSku("RM-LF022");
+        material.setSku("RM-LF022-" + seedSuffix);
         material.setUnitType("KG");
         material.setInventoryAccountId(inventory.getId());
         material.setCurrentStock(new BigDecimal("10.00"));
@@ -93,7 +97,7 @@ class PurchaseReturnIdempotencyRegressionIT extends AbstractIntegrationTest {
 
         RawMaterialBatch batch = new RawMaterialBatch();
         batch.setRawMaterial(material);
-        batch.setBatchCode("RM-LF022-B1");
+        batch.setBatchCode(seedBatchCode);
         batch.setQuantity(new BigDecimal("10.00"));
         batch.setUnit("KG");
         batch.setCostPerUnit(new BigDecimal("5.00"));
@@ -102,7 +106,7 @@ class PurchaseReturnIdempotencyRegressionIT extends AbstractIntegrationTest {
         RawMaterialPurchase seeded = new RawMaterialPurchase();
         seeded.setCompany(company);
         seeded.setSupplier(supplier);
-        seeded.setInvoiceNumber("PR-LF022-INV-001");
+        seeded.setInvoiceNumber("PR-LF022-INV-" + seedSuffix);
         seeded.setInvoiceDate(LocalDate.of(2026, 1, 10));
         seeded.setTotalAmount(new BigDecimal("20.00"));
         seeded.setOutstandingAmount(new BigDecimal("20.00"));
@@ -111,7 +115,7 @@ class PurchaseReturnIdempotencyRegressionIT extends AbstractIntegrationTest {
         RawMaterialPurchaseLine line = new RawMaterialPurchaseLine();
         line.setPurchase(seeded);
         line.setRawMaterial(material);
-        line.setBatchCode("RM-LF022-B1");
+        line.setBatchCode(seedBatchCode);
         line.setQuantity(new BigDecimal("4.00"));
         line.setUnit("KG");
         line.setCostPerUnit(new BigDecimal("5.00"));
@@ -165,6 +169,75 @@ class PurchaseReturnIdempotencyRegressionIT extends AbstractIntegrationTest {
         assertThat(movementsAfter).allMatch(movement -> movement.getJournalEntryId().equals(first.id()));
         assertThat(purchaseAfterSecond.getOutstandingAmount()).isEqualByComparingTo(BigDecimal.ZERO);
         assertThat(purchaseAfterSecond.getStatus()).isEqualTo("VOID");
+    }
+
+    @Test
+    void partialThenFinalReturn_marksPurchaseVoidOnlyWhenFullyReturned() {
+        PurchaseReturnRequest firstReturn = new PurchaseReturnRequest(
+                supplier.getId(),
+                purchase.getId(),
+                material.getId(),
+                new BigDecimal("2.00"),
+                new BigDecimal("5.00"),
+                "PR-LF022-010",
+                LocalDate.of(2026, 1, 14),
+                "Damaged"
+        );
+        purchasingService.recordPurchaseReturn(firstReturn);
+
+        RawMaterialPurchase afterFirst = purchaseRepository.findById(purchase.getId()).orElseThrow();
+        assertThat(afterFirst.getOutstandingAmount()).isEqualByComparingTo(new BigDecimal("10.00"));
+        assertThat(afterFirst.getStatus()).isEqualTo("PARTIAL");
+
+        PurchaseReturnRequest secondReturn = new PurchaseReturnRequest(
+                supplier.getId(),
+                purchase.getId(),
+                material.getId(),
+                new BigDecimal("2.00"),
+                new BigDecimal("5.00"),
+                "PR-LF022-011",
+                LocalDate.of(2026, 1, 15),
+                "Damaged"
+        );
+        purchasingService.recordPurchaseReturn(secondReturn);
+
+        RawMaterialPurchase afterSecond = purchaseRepository.findById(purchase.getId()).orElseThrow();
+        assertThat(afterSecond.getOutstandingAmount()).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(afterSecond.getStatus()).isEqualTo("VOID");
+    }
+
+    @Test
+    void purchaseReturnRejectsQuantityAboveRemainingReturnable() {
+        PurchaseReturnRequest firstReturn = new PurchaseReturnRequest(
+                supplier.getId(),
+                purchase.getId(),
+                material.getId(),
+                new BigDecimal("3.00"),
+                new BigDecimal("5.00"),
+                "PR-LF022-020",
+                LocalDate.of(2026, 1, 14),
+                "Damaged"
+        );
+        purchasingService.recordPurchaseReturn(firstReturn);
+
+        PurchaseReturnRequest overReturn = new PurchaseReturnRequest(
+                supplier.getId(),
+                purchase.getId(),
+                material.getId(),
+                new BigDecimal("2.00"),
+                new BigDecimal("5.00"),
+                "PR-LF022-021",
+                LocalDate.of(2026, 1, 15),
+                "Damaged"
+        );
+
+        assertThatThrownBy(() -> purchasingService.recordPurchaseReturn(overReturn))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("remaining returnable quantity");
+
+        RawMaterialPurchase afterRejected = purchaseRepository.findById(purchase.getId()).orElseThrow();
+        assertThat(afterRejected.getOutstandingAmount()).isEqualByComparingTo(new BigDecimal("5.00"));
+        assertThat(afterRejected.getStatus()).isEqualTo("PARTIAL");
     }
 
     private Account ensureAccount(Company company, String code, String name, AccountType type) {

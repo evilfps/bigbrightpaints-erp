@@ -6,22 +6,28 @@ import com.bigbrightpaints.erp.modules.inventory.dto.InventoryAdjustmentDto;
 import com.bigbrightpaints.erp.modules.inventory.dto.InventoryAdjustmentRequest;
 import com.bigbrightpaints.erp.modules.inventory.service.InventoryAdjustmentService;
 import com.bigbrightpaints.erp.shared.dto.ApiResponse;
-import jakarta.validation.Valid;
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.ConstraintViolationException;
+import jakarta.validation.Validator;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.util.StringUtils;
 
 import java.util.List;
+import java.util.Set;
 
 @RestController
 @RequestMapping("/api/v1/inventory/adjustments")
 public class InventoryAdjustmentController {
 
     private final InventoryAdjustmentService inventoryAdjustmentService;
+    private final Validator validator;
 
-    public InventoryAdjustmentController(InventoryAdjustmentService inventoryAdjustmentService) {
+    public InventoryAdjustmentController(InventoryAdjustmentService inventoryAdjustmentService,
+                                         Validator validator) {
         this.inventoryAdjustmentService = inventoryAdjustmentService;
+        this.validator = validator;
     }
 
     @GetMapping
@@ -34,8 +40,9 @@ public class InventoryAdjustmentController {
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
     public ResponseEntity<ApiResponse<InventoryAdjustmentDto>> createAdjustment(
             @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
-            @Valid @RequestBody InventoryAdjustmentRequest request) {
+            @RequestBody InventoryAdjustmentRequest request) {
         InventoryAdjustmentRequest resolved = applyIdempotencyKey(request, idempotencyKey);
+        validateRequest(resolved);
         return ResponseEntity.ok(ApiResponse.success("Inventory adjustment posted",
                 inventoryAdjustmentService.createAdjustment(resolved)));
     }
@@ -68,5 +75,12 @@ public class InventoryAdjustmentController {
                 headerKey.trim(),
                 request.lines()
         );
+    }
+
+    private void validateRequest(InventoryAdjustmentRequest request) {
+        Set<ConstraintViolation<InventoryAdjustmentRequest>> violations = validator.validate(request);
+        if (!violations.isEmpty()) {
+            throw new ConstraintViolationException(violations);
+        }
     }
 }

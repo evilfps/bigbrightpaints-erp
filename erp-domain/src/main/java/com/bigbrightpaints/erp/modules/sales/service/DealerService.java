@@ -16,9 +16,13 @@ import com.bigbrightpaints.erp.modules.sales.dto.CreateDealerRequest;
 import com.bigbrightpaints.erp.modules.sales.dto.DealerLookupResponse;
 import com.bigbrightpaints.erp.modules.sales.dto.DealerResponse;
 import jakarta.transaction.Transactional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
@@ -33,6 +37,7 @@ import java.util.Map;
 @Service
 public class DealerService {
 
+    private static final Logger log = LoggerFactory.getLogger(DealerService.class);
     private static final int DEALER_SEARCH_LIMIT = 10;
     private static final SecureRandom RANDOM = new SecureRandom();
     private static final String LOWER = "abcdefghijklmnopqrstuvwxyz";
@@ -108,9 +113,7 @@ public class DealerService {
         dealer.setReceivableAccount(receivableAccount);
         dealer = dealerRepository.save(dealer);
 
-        if (rawPassword != null) {
-            emailService.sendUserCredentialsEmail(contactEmail, dealer.getName(), rawPassword);
-        }
+        scheduleCredentialEmailAfterCommit(contactEmail, dealer.getName(), rawPassword);
         return toResponse(dealer, portalUser.getEmail());
     }
 
@@ -259,6 +262,26 @@ public class DealerService {
             sb.append(c);
         }
         return sb.toString();
+    }
+
+    private void scheduleCredentialEmailAfterCommit(String contactEmail, String dealerName, String rawPassword) {
+        if (!StringUtils.hasText(rawPassword)) {
+            return;
+        }
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            emailService.sendUserCredentialsEmail(contactEmail, dealerName, rawPassword);
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                try {
+                    emailService.sendUserCredentialsEmail(contactEmail, dealerName, rawPassword);
+                } catch (RuntimeException ex) {
+                    log.error("Dealer credentials email failed after commit for {}", contactEmail, ex);
+                }
+            }
+        });
     }
 
     private DealerResponse toResponse(Dealer dealer, String portalEmail) {

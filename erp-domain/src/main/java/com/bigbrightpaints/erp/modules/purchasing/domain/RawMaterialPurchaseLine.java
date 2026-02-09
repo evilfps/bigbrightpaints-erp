@@ -33,6 +33,9 @@ public class RawMaterialPurchaseLine extends VersionedEntity {
     @Column(nullable = false)
     private BigDecimal quantity;
 
+    @Column(name = "returned_quantity", nullable = false)
+    private BigDecimal returnedQuantity = BigDecimal.ZERO;
+
     @Column(nullable = false)
     private String unit;
 
@@ -62,6 +65,8 @@ public class RawMaterialPurchaseLine extends VersionedEntity {
     public void setBatchCode(String batchCode) { this.batchCode = batchCode; }
     public BigDecimal getQuantity() { return quantity; }
     public void setQuantity(BigDecimal quantity) { this.quantity = quantity; }
+    public BigDecimal getReturnedQuantity() { return returnedQuantity; }
+    public void setReturnedQuantity(BigDecimal returnedQuantity) { this.returnedQuantity = returnedQuantity; }
     public String getUnit() { return unit; }
     public void setUnit(String unit) { this.unit = unit; }
     public BigDecimal getCostPerUnit() { return costPerUnit; }

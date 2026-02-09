@@ -7,12 +7,15 @@ import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryRequest;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
+import com.bigbrightpaints.erp.modules.reports.dto.BalanceSheetDto;
 import com.bigbrightpaints.erp.modules.reports.dto.CashFlowDto;
+import com.bigbrightpaints.erp.modules.reports.dto.ProfitLossDto;
 import com.bigbrightpaints.erp.modules.reports.dto.ReportSource;
 import com.bigbrightpaints.erp.modules.reports.service.ReportService;
 import com.bigbrightpaints.erp.test.AbstractIntegrationTest;
 import com.bigbrightpaints.erp.test.support.TestDateUtils;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
@@ -21,6 +24,8 @@ import java.time.LocalDate;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+@Tag("critical")
+@Tag("reconciliation")
 
 class CR_Reports_CashFlow_NotZeroByConstructionIT extends AbstractIntegrationTest {
 
@@ -53,6 +58,57 @@ class CR_Reports_CashFlow_NotZeroByConstructionIT extends AbstractIntegrationTes
             assertThat(cashFlow.metadata().source()).isEqualTo(ReportSource.LIVE);
             assertThat(cashFlow.netChange()).isEqualByComparingTo(new BigDecimal("100.00"));
             assertThat(cashFlow.operating()).isEqualByComparingTo(cashFlow.netChange());
+        } finally {
+            CompanyContextHolder.clear();
+        }
+    }
+
+    @Test
+    void statements_useNaturalSigns_andCashFlowSplitsSections() {
+        String companyCode = "CR-CF-SIGN-" + System.nanoTime();
+        Company company = dataSeeder.ensureCompany(companyCode, companyCode + " Ltd");
+        CompanyContextHolder.setCompanyId(companyCode);
+        try {
+            LocalDate entryDate = TestDateUtils.safeDate(company);
+            Account cash = ensureAccount(company, "CASH-SPLIT", "Cash", AccountType.ASSET);
+            Account revenue = ensureAccount(company, "REV-SPLIT", "Revenue", AccountType.REVENUE);
+            Account expense = ensureAccount(company, "EXP-SPLIT", "Operating Expense", AccountType.EXPENSE);
+            Account equipment = ensureAccount(company, "EQP-SPLIT", "Equipment", AccountType.ASSET);
+            Account loan = ensureAccount(company, "LOAN-SPLIT", "Term Loan", AccountType.LIABILITY);
+
+            postJournal(entryDate, List.of(
+                    line(cash.getId(), new BigDecimal("100.00"), BigDecimal.ZERO),
+                    line(revenue.getId(), BigDecimal.ZERO, new BigDecimal("100.00"))
+            ));
+            postJournal(entryDate, List.of(
+                    line(expense.getId(), new BigDecimal("40.00"), BigDecimal.ZERO),
+                    line(cash.getId(), BigDecimal.ZERO, new BigDecimal("40.00"))
+            ));
+            postJournal(entryDate, List.of(
+                    line(equipment.getId(), new BigDecimal("60.00"), BigDecimal.ZERO),
+                    line(cash.getId(), BigDecimal.ZERO, new BigDecimal("60.00"))
+            ));
+            postJournal(entryDate, List.of(
+                    line(cash.getId(), new BigDecimal("30.00"), BigDecimal.ZERO),
+                    line(loan.getId(), BigDecimal.ZERO, new BigDecimal("30.00"))
+            ));
+
+            ProfitLossDto profitLoss = reportService.profitLoss();
+            BalanceSheetDto balanceSheet = reportService.balanceSheet();
+            CashFlowDto cashFlow = reportService.cashFlow();
+
+            assertThat(profitLoss.revenue()).isEqualByComparingTo(new BigDecimal("100.00"));
+            assertThat(profitLoss.operatingExpenses()).isEqualByComparingTo(new BigDecimal("40.00"));
+            assertThat(profitLoss.netIncome()).isEqualByComparingTo(new BigDecimal("60.00"));
+
+            assertThat(balanceSheet.totalAssets()).isEqualByComparingTo(new BigDecimal("90.00"));
+            assertThat(balanceSheet.totalLiabilities()).isEqualByComparingTo(new BigDecimal("30.00"));
+            assertThat(balanceSheet.totalEquity()).isEqualByComparingTo(new BigDecimal("60.00"));
+
+            assertThat(cashFlow.operating()).isEqualByComparingTo(new BigDecimal("60.00"));
+            assertThat(cashFlow.investing()).isEqualByComparingTo(new BigDecimal("-60.00"));
+            assertThat(cashFlow.financing()).isEqualByComparingTo(new BigDecimal("30.00"));
+            assertThat(cashFlow.netChange()).isEqualByComparingTo(new BigDecimal("30.00"));
         } finally {
             CompanyContextHolder.clear();
         }
