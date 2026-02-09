@@ -1,5 +1,6 @@
 package com.bigbrightpaints.erp.modules.accounting.service;
 
+import com.bigbrightpaints.erp.core.audit.AuditEvent;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
@@ -10,6 +11,8 @@ import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriod;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriodStatus;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriodRepository;
+import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
+import com.bigbrightpaints.erp.modules.accounting.domain.JournalLine;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalLineRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalReferenceMapping;
@@ -47,8 +50,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.batch.support.transaction.ResourcelessTransactionManager;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -61,6 +66,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -274,6 +280,76 @@ class AccountingServiceTest {
         assertThatThrownBy(() -> accountingService.reverseJournalEntry(45L, request))
                 .isInstanceOf(ApplicationException.class)
                 .hasMessageContaining("CLOSED period");
+    }
+
+    @Test
+    void reverseJournalEntry_logsSuccessAudit_afterCommitOnly() {
+        LocalDate today = LocalDate.of(2024, 4, 1);
+        when(companyClock.today(company)).thenReturn(today);
+        AccountingPeriod openPeriod = new AccountingPeriod();
+        when(accountingPeriodService.requireOpenPeriod(company, today)).thenReturn(openPeriod);
+
+        AccountingService service = spy(accountingService);
+        JournalEntry original = reversalSourceEntry(500L, "REV-AUDIT-OK", today);
+        JournalEntry reversal = new JournalEntry();
+        ReflectionTestUtils.setField(reversal, "id", 900L);
+
+        when(companyEntityLookup.requireJournalEntry(company, 500L)).thenReturn(original);
+        when(companyEntityLookup.requireJournalEntry(company, 900L)).thenReturn(reversal);
+        when(journalEntryRepository.save(any(JournalEntry.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        doReturn(stubEntry(900L)).when(service).createJournalEntry(any(JournalEntryRequest.class));
+
+        JournalEntryReversalRequest request = new JournalEntryReversalRequest(
+                today,
+                false,
+                "Test reversal",
+                "Audit commit order",
+                Boolean.FALSE
+        );
+
+        TransactionTemplate transactionTemplate = new TransactionTemplate(new ResourcelessTransactionManager());
+        transactionTemplate.executeWithoutResult(status -> {
+            JournalEntryDto result = service.reverseJournalEntry(500L, request);
+            assertThat(result.id()).isEqualTo(900L);
+            verify(auditService, never()).logSuccess(eq(AuditEvent.JOURNAL_ENTRY_REVERSED), any());
+        });
+
+        verify(auditService).logSuccess(eq(AuditEvent.JOURNAL_ENTRY_REVERSED), any());
+    }
+
+    @Test
+    void reverseJournalEntry_skipsSuccessAudit_whenTransactionRollsBack() {
+        LocalDate today = LocalDate.of(2024, 4, 1);
+        when(companyClock.today(company)).thenReturn(today);
+        AccountingPeriod openPeriod = new AccountingPeriod();
+        when(accountingPeriodService.requireOpenPeriod(company, today)).thenReturn(openPeriod);
+
+        AccountingService service = spy(accountingService);
+        JournalEntry original = reversalSourceEntry(501L, "REV-AUDIT-ROLLBACK", today);
+        JournalEntry reversal = new JournalEntry();
+        ReflectionTestUtils.setField(reversal, "id", 901L);
+
+        when(companyEntityLookup.requireJournalEntry(company, 501L)).thenReturn(original);
+        when(companyEntityLookup.requireJournalEntry(company, 901L)).thenReturn(reversal);
+        when(journalEntryRepository.save(any(JournalEntry.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        doReturn(stubEntry(901L)).when(service).createJournalEntry(any(JournalEntryRequest.class));
+
+        JournalEntryReversalRequest request = new JournalEntryReversalRequest(
+                today,
+                false,
+                "Test reversal",
+                "Audit rollback order",
+                Boolean.FALSE
+        );
+
+        TransactionTemplate transactionTemplate = new TransactionTemplate(new ResourcelessTransactionManager());
+        transactionTemplate.executeWithoutResult(status -> {
+            service.reverseJournalEntry(501L, request);
+            status.setRollbackOnly();
+            verify(auditService, never()).logSuccess(eq(AuditEvent.JOURNAL_ENTRY_REVERSED), any());
+        });
+
+        verify(auditService, never()).logSuccess(eq(AuditEvent.JOURNAL_ENTRY_REVERSED), any());
     }
 
     @Test
@@ -1295,5 +1371,29 @@ class AccountingServiceTest {
                 null,
                 null
         );
+    }
+
+    private JournalEntry reversalSourceEntry(Long id, String reference, LocalDate entryDate) {
+        JournalEntry entry = new JournalEntry();
+        ReflectionTestUtils.setField(entry, "id", id);
+        entry.setStatus("POSTED");
+        entry.setReferenceNumber(reference);
+        entry.setEntryDate(entryDate);
+
+        Account account = new Account();
+        ReflectionTestUtils.setField(account, "id", 700L);
+        account.setCode("CASH");
+        account.setName("Cash");
+        account.setType(AccountType.ASSET);
+        account.setCompany(company);
+
+        JournalLine line = new JournalLine();
+        line.setJournalEntry(entry);
+        line.setAccount(account);
+        line.setDescription("line");
+        line.setDebit(new BigDecimal("10.00"));
+        line.setCredit(BigDecimal.ZERO);
+        entry.getLines().add(line);
+        return entry;
     }
 }

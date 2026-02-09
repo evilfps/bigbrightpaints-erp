@@ -15,15 +15,22 @@ import java.security.MessageDigest;
 import java.util.HexFormat;
 import java.util.UUID;
 import java.util.function.Supplier;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.util.StringUtils;
 
 @Service
 public class OrchestratorIdempotencyService {
+
+    private static final Logger log = LoggerFactory.getLogger(OrchestratorIdempotencyService.class);
+    private static final String ROLLBACK_FAILURE_MESSAGE = "Outer transaction rolled back before commit";
 
     public record CommandLease(String traceId, OrchestratorCommand command, boolean shouldExecute) {
     }
@@ -91,7 +98,28 @@ public class OrchestratorIdempotencyService {
             return;
         }
         command.markSuccess();
-        persistStatusUpdate(command.getId(), OrchestratorCommand::markSuccess);
+        UUID commandId = command.getId();
+        if (commandId == null) {
+            return;
+        }
+        if (TransactionSynchronizationManager.isSynchronizationActive()
+                && TransactionSynchronizationManager.isActualTransactionActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    safelyPersistStatus(commandId, OrchestratorCommand::markSuccess, "SUCCESS");
+                }
+
+                @Override
+                public void afterCompletion(int status) {
+                    if (status == TransactionSynchronization.STATUS_ROLLED_BACK) {
+                        safelyPersistStatus(commandId, managed -> managed.markFailed(ROLLBACK_FAILURE_MESSAGE), "FAILED");
+                    }
+                }
+            });
+            return;
+        }
+        persistStatusUpdate(commandId, OrchestratorCommand::markSuccess);
     }
 
     public void markFailed(OrchestratorCommand command, RuntimeException ex) {
@@ -118,6 +146,16 @@ public class OrchestratorIdempotencyService {
             commandRepository.saveAndFlush(managed);
             return null;
         });
+    }
+
+    private void safelyPersistStatus(UUID commandId,
+                                     java.util.function.Consumer<OrchestratorCommand> mutator,
+                                     String targetStatus) {
+        try {
+            persistStatusUpdate(commandId, mutator);
+        } catch (RuntimeException ex) {
+            log.error("Failed to persist orchestrator command {} transition to {}", commandId, targetStatus, ex);
+        }
     }
 
     private String normalizeKey(String idempotencyKey) {

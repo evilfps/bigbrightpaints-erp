@@ -45,6 +45,8 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
@@ -718,7 +720,7 @@ public class AccountingService {
             if (sanitizedReason != null) {
                 auditMetadata.put("reason", sanitizedReason);
             }
-            auditService.logSuccess(AuditEvent.JOURNAL_ENTRY_REVERSED, auditMetadata);
+            logAuditSuccessAfterCommit(AuditEvent.JOURNAL_ENTRY_REVERSED, auditMetadata);
             return toDto(reversalEntry);
         }
         JournalEntryDto reversalDto = createJournalEntry(payload);
@@ -752,7 +754,7 @@ public class AccountingService {
         if (sanitizedReason != null) {
             auditMetadata.put("reason", sanitizedReason);
         }
-        auditService.logSuccess(AuditEvent.JOURNAL_ENTRY_REVERSED, auditMetadata);
+        logAuditSuccessAfterCommit(AuditEvent.JOURNAL_ENTRY_REVERSED, auditMetadata);
         return reversalDto;
     }
 
@@ -2967,6 +2969,24 @@ public class AccountingService {
 
     private LocalDate currentDate(Company company) {
         return companyClock.today(company);
+    }
+
+    private void logAuditSuccessAfterCommit(AuditEvent event, Map<String, String> metadata) {
+        if (event == null) {
+            return;
+        }
+        Map<String, String> capturedMetadata = metadata != null ? new HashMap<>(metadata) : null;
+        if (TransactionSynchronizationManager.isSynchronizationActive()
+                && TransactionSynchronizationManager.isActualTransactionActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    auditService.logSuccess(event, capturedMetadata);
+                }
+            });
+            return;
+        }
+        auditService.logSuccess(event, capturedMetadata);
     }
 
     /**
