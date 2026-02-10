@@ -351,10 +351,18 @@ public class AccountingService {
             List<Supplier> supplierOwners = supplierRepository.findAllByCompanyAndPayableAccount(company, account);
             if (!supplierOwners.isEmpty()) {
                 if (supplierContext == null) {
-                    throw new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE,
-                            "Supplier payable account " + account.getCode() + " requires a supplier context");
+                    if (supplierOwners.size() == 1) {
+                        supplierContext = supplierOwners.get(0);
+                        supplier = supplierContext;
+                        supplierPayableAccount = supplierContext.getPayableAccount();
+                        entry.setSupplier(supplierContext);
+                    } else {
+                        throw new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE,
+                                "Supplier payable account " + account.getCode() + " requires a supplier context");
+                    }
                 }
-                if (supplierOwners.stream().noneMatch(owner -> owner.getId().equals(supplierContext.getId()))) {
+                Long supplierContextId = supplierContext.getId();
+                if (supplierOwners.stream().noneMatch(owner -> owner.getId().equals(supplierContextId))) {
                     throw new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE,
                             "Supplier payable account " + account.getCode() + " requires matching supplier context");
                 }
@@ -770,7 +778,7 @@ public class AccountingService {
         Dealer dealer = dealerRepository.lockByCompanyAndId(company, request.dealerId())
                 .orElseThrow(() -> new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE, "Dealer not found"));
         Account receivableAccount = requireDealerReceivable(dealer);
-        Account cashAccount = requireAccount(company, request.cashAccountId());
+        Account cashAccount = requireCashAccountForSettlement(company, request.cashAccountId(), "dealer receipt");
         BigDecimal amount = requirePositive(request.amount(), "amount");
         List<SettlementAllocationRequest> allocations = request.allocations();
         validatePaymentAllocations(allocations, amount, "dealer receipt", true);
@@ -917,7 +925,7 @@ public class AccountingService {
         BigDecimal total = BigDecimal.ZERO;
         List<JournalEntryRequest.JournalLineRequest> lines = new java.util.ArrayList<>();
         for (DealerReceiptSplitRequest.IncomingLine line : request.incomingLines()) {
-            Account incoming = requireAccount(company, line.accountId());
+            Account incoming = requireCashAccountForSettlement(company, line.accountId(), "dealer split receipt");
             BigDecimal amt = requirePositive(line.amount(), "amount");
             total = total.add(amt);
             lines.add(new JournalEntryRequest.JournalLineRequest(incoming.getId(), "Dealer receipt", amt, BigDecimal.ZERO));
@@ -1082,7 +1090,7 @@ public class AccountingService {
                     .withDetail("requiredStatus", PayrollRun.PayrollStatus.POSTED.name());
         }
 
-        Account cashAccount = requireAccount(company, request.cashAccountId());
+        Account cashAccount = requireCashAccountForSettlement(company, request.cashAccountId(), "payroll payment");
         BigDecimal amount = requirePositive(request.amount(), "amount");
 
         Account salaryPayableAccount = accountRepository.findByCompanyAndCodeIgnoreCase(company, "SALARY-PAYABLE")
@@ -1225,7 +1233,7 @@ public class AccountingService {
         }
         
         // Required accounts
-        Account cash = requireAccount(company, request.cashAccountId());
+        Account cash = requireCashAccountForSettlement(company, request.cashAccountId(), "payroll batch payment");
         Account expense = requireAccount(company, request.expenseAccountId());
         
         // Optional liability accounts
@@ -1479,7 +1487,7 @@ public class AccountingService {
         Supplier supplier = supplierRepository.lockByCompanyAndId(company, request.supplierId())
                 .orElseThrow(() -> new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE, "Supplier not found"));
         Account payableAccount = requireSupplierPayable(supplier);
-        Account cashAccount = requireAccount(company, request.cashAccountId());
+        Account cashAccount = requireCashAccountForSettlement(company, request.cashAccountId(), "supplier payment");
         BigDecimal amount = requirePositive(request.amount(), "amount");
         List<SettlementAllocationRequest> allocations = request.allocations();
         validatePaymentAllocations(allocations, amount, "supplier payment", false);
@@ -1541,32 +1549,31 @@ public class AccountingService {
         List<RawMaterialPurchase> touchedPurchases = new ArrayList<>();
 
         for (SettlementAllocationRequest allocation : allocations) {
-            if (allocation.purchaseId() == null) {
-                throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
-                        "Purchase allocation is required for supplier settlements");
-            }
             if (allocation.invoiceId() != null) {
                 throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
-                        "Supplier settlements cannot allocate to invoices");
+                        "Supplier payments cannot allocate to invoices");
             }
             BigDecimal applied = requirePositive(allocation.appliedAmount(), "appliedAmount");
-            RawMaterialPurchase purchase = rawMaterialPurchaseRepository.lockByCompanyAndId(company, allocation.purchaseId())
-                    .orElseThrow(() -> new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE, "Raw material purchase not found"));
-            if (purchase.getSupplier() == null || !purchase.getSupplier().getId().equals(supplier.getId())) {
-                throw new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE, "Purchase does not belong to the supplier");
+            RawMaterialPurchase purchase = null;
+            if (allocation.purchaseId() != null) {
+                purchase = rawMaterialPurchaseRepository.lockByCompanyAndId(company, allocation.purchaseId())
+                        .orElseThrow(() -> new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE, "Raw material purchase not found"));
+                if (purchase.getSupplier() == null || !purchase.getSupplier().getId().equals(supplier.getId())) {
+                    throw new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE, "Purchase does not belong to the supplier");
+                }
+                BigDecimal currentOutstanding = MoneyUtils.zeroIfNull(purchase.getOutstandingAmount());
+                if (applied.compareTo(currentOutstanding) > 0) {
+                    throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                            "Allocation exceeds purchase outstanding amount")
+                            .withDetail("purchaseId", purchase.getId())
+                            .withDetail("outstanding", currentOutstanding)
+                            .withDetail("applied", applied);
+                }
+                BigDecimal newOutstanding = currentOutstanding.subtract(applied).max(BigDecimal.ZERO);
+                purchase.setOutstandingAmount(newOutstanding);
+                updatePurchaseStatus(purchase);
+                touchedPurchases.add(purchase);
             }
-            BigDecimal currentOutstanding = MoneyUtils.zeroIfNull(purchase.getOutstandingAmount());
-            if (applied.compareTo(currentOutstanding) > 0) {
-                throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
-                        "Allocation exceeds purchase outstanding amount")
-                        .withDetail("purchaseId", purchase.getId())
-                        .withDetail("outstanding", currentOutstanding)
-                        .withDetail("applied", applied);
-            }
-            BigDecimal newOutstanding = currentOutstanding.subtract(applied).max(BigDecimal.ZERO);
-            purchase.setOutstandingAmount(newOutstanding);
-            updatePurchaseStatus(purchase);
-            touchedPurchases.add(purchase);
 
             PartnerSettlementAllocation row = new PartnerSettlementAllocation();
             row.setCompany(company);
@@ -1810,7 +1817,7 @@ public class AccountingService {
         Supplier supplier = supplierRepository.lockByCompanyAndId(company, request.supplierId())
                 .orElseThrow(() -> new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE, "Supplier not found"));
         Account payableAccount = requireSupplierPayable(supplier);
-        Account cashAccount = requireAccount(company, request.cashAccountId());
+        Account cashAccount = requireCashAccountForSettlement(company, request.cashAccountId(), "supplier settlement");
         List<SettlementAllocationRequest> allocations = request.allocations();
         if (allocations == null || allocations.isEmpty()) {
             throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT, "At least one allocation is required");
@@ -1857,10 +1864,6 @@ public class AccountingService {
         List<RawMaterialPurchase> touchedPurchases = new ArrayList<>();
 
         for (SettlementAllocationRequest allocation : allocations) {
-            if (allocation.purchaseId() == null) {
-                throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
-                        "Purchase allocation is required for supplier settlements");
-            }
             if (allocation.invoiceId() != null) {
                 throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
                         "Supplier settlements cannot allocate to invoices");
@@ -2065,6 +2068,27 @@ public class AccountingService {
         return companyEntityLookup.requireAccount(company, accountId);
     }
 
+    private Account requireCashAccountForSettlement(Company company, Long accountId, String operation) {
+        Account account = requireAccount(company, accountId);
+        if (account.getType() != null && account.getType() != AccountType.ASSET) {
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                    "Cash/bank account for " + operation + " must be an ASSET account")
+                    .withDetail("operation", operation)
+                    .withDetail("accountId", account.getId())
+                    .withDetail("accountCode", account.getCode())
+                    .withDetail("accountType", account.getType().name());
+        }
+        if (isReceivableAccount(account) || isPayableAccount(account)) {
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                    "Cash/bank account for " + operation + " cannot be AR/AP control account")
+                    .withDetail("operation", operation)
+                    .withDetail("accountId", account.getId())
+                    .withDetail("accountCode", account.getCode())
+                    .withDetail("accountName", account.getName());
+        }
+        return account;
+    }
+
     private BigDecimal requirePositive(BigDecimal value, String field) {
         if (value == null || value.compareTo(BigDecimal.ZERO) <= 0) {
             throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT, "Value for " + field + " must be greater than zero");
@@ -2100,13 +2124,13 @@ public class AccountingService {
                             "Dealer receipts cannot allocate to purchases");
                 }
             } else {
-                if (allocation.purchaseId() == null) {
-                    throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
-                            "Purchase allocation is required for supplier payments");
-                }
                 if (allocation.invoiceId() != null) {
                     throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
                             "Supplier payments cannot allocate to invoices");
+                }
+                if (allocation.purchaseId() == null) {
+                    throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                            "Purchase allocation is required for supplier payments; use /api/v1/accounting/settlements/suppliers for on-account credits");
                 }
             }
             BigDecimal applied = requirePositive(allocation.appliedAmount(), "appliedAmount");
@@ -2714,14 +2738,14 @@ public class AccountingService {
                 throw new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE, "cashAccountId is required when cash is moving");
             }
             if (cashAmount.compareTo(BigDecimal.ZERO) > 0) {
-                Account cashAccount = requireAccount(company, request.cashAccountId());
+                Account cashAccount = requireCashAccountForSettlement(company, request.cashAccountId(), "dealer settlement");
                 paymentLines.add(new JournalEntryRequest.JournalLineRequest(cashAccount.getId(), memo, cashAmount, BigDecimal.ZERO));
             }
         } else {
             BigDecimal paymentTotal = BigDecimal.ZERO;
             for (SettlementPaymentRequest payment : paymentRequests) {
                 BigDecimal amount = requirePositive(payment.amount(), "payment amount");
-                Account account = requireAccount(company, payment.accountId());
+                Account account = requireCashAccountForSettlement(company, payment.accountId(), "dealer settlement payment line");
                 paymentLines.add(new JournalEntryRequest.JournalLineRequest(account.getId(), memo, amount, BigDecimal.ZERO));
                 paymentTotal = paymentTotal.add(amount);
             }

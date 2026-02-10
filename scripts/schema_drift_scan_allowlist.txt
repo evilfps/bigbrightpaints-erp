@@ -113,3 +113,5 @@ erp-domain/src/main/resources/db/migration/V108__sales_order_gst_inclusive.sql
 erp-domain/src/main/resources/db/migration/V110__ensure_gst_accounts_defaults.sql
 erp-domain/src/main/resources/db/migration/V111__backfill_production_product_metadata.sql
 erp-domain/src/main/resources/db/migration/V128__converge_payroll_schema.sql
+erp-domain/src/main/resources/db/migration/V134__catalog_finished_good_backfill.sql
+erp-domain/src/main/resources/db/migration/V135__partner_account_hierarchy_backfill.sql

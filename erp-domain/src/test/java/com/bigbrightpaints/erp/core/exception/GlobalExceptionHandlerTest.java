@@ -4,6 +4,7 @@ import com.bigbrightpaints.erp.shared.dto.ApiResponse;
 import java.lang.reflect.Field;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockHttpServletRequest;
 
@@ -47,6 +48,26 @@ class GlobalExceptionHandlerTest {
         assertThat(body.data()).containsKey("details");
         assertThat(body.data().get("details"))
                 .isInstanceOf(Map.class);
+    }
+
+    @Test
+    void illegalArgumentInProductionReturnsReadableReason() throws Exception {
+        GlobalExceptionHandler handler = new GlobalExceptionHandler();
+        setActiveProfile(handler, "prod,seed");
+
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setRequestURI("/api/v1/hr/employees");
+
+        IllegalArgumentException ex = new IllegalArgumentException(
+                "No enum constant com.bigbrightpaints.erp.modules.hr.domain.Employee.PaymentSchedule.");
+
+        ResponseEntity<ApiResponse<Map<String, Object>>> response = handler.handleIllegalArgument(ex, request);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        ApiResponse<Map<String, Object>> body = response.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.message()).isEqualTo("Invalid option provided");
+        assertThat(body.data()).containsEntry("reason", "Invalid option provided");
     }
 
     private static void setActiveProfile(GlobalExceptionHandler handler, String value) throws Exception {

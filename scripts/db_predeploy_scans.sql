@@ -337,7 +337,7 @@ order by s.company_id, s.accounting_period_id, s.id;
 -- 12) Flyway history mismatch vs repo expectations (NO-GO)
 -- Update expected values on each release commit.
 with expected as (
-  select 132::int as expected_count, 132::int as expected_max_version
+  select 135::int as expected_count, 135::int as expected_max_version
 ),
 actual as (
   select
@@ -512,13 +512,35 @@ ap_gl as (
    and a.id = aa.account_id
   group by aa.company_id
 ),
-ap_subledger as (
+ap_purchase_outstanding as (
   select
     p.company_id,
-    coalesce(sum(p.outstanding_amount), 0) as subledger_total
+    coalesce(sum(p.outstanding_amount), 0) as purchase_outstanding_total
   from raw_material_purchases p
   where upper(coalesce(p.status, '')) not in ('VOID', 'DRAFT', 'REVERSED')
   group by p.company_id
+),
+ap_unapplied_supplier_credits as (
+  select
+    psa.company_id,
+    coalesce(sum(psa.allocation_amount), 0) as unapplied_credit_total
+  from partner_settlement_allocations psa
+  join journal_entries je
+    on je.company_id = psa.company_id
+   and je.id = psa.journal_entry_id
+  where upper(coalesce(psa.partner_type, '')) = 'SUPPLIER'
+    and psa.purchase_id is null
+    and psa.supplier_id is not null
+    and upper(coalesce(je.status, '')) not in ('VOIDED', 'REVERSED', 'DRAFT')
+  group by psa.company_id
+),
+ap_subledger as (
+  select
+    coalesce(po.company_id, uc.company_id) as company_id,
+    coalesce(po.purchase_outstanding_total, 0) - coalesce(uc.unapplied_credit_total, 0) as subledger_total
+  from ap_purchase_outstanding po
+  full join ap_unapplied_supplier_credits uc
+    on uc.company_id = po.company_id
 )
 select
   coalesce(g.company_id, s.company_id) as company_id,

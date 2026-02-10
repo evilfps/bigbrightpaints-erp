@@ -17,6 +17,7 @@ import java.text.Normalizer;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -113,7 +114,13 @@ public class SupplierService {
         account.setCode(code);
         account.setName(supplier.getName() + " Payable");
         account.setType(AccountType.LIABILITY);
+        resolveControlAccount(company, "AP", AccountType.LIABILITY).ifPresent(account::setParent);
         return accountRepository.save(account);
+    }
+
+    private Optional<Account> resolveControlAccount(Company company, String code, AccountType expectedType) {
+        return accountRepository.findByCompanyAndCodeIgnoreCase(company, code)
+                .filter(account -> account.getType() == expectedType);
     }
 
     private SupplierResponse toResponse(Supplier supplier) {

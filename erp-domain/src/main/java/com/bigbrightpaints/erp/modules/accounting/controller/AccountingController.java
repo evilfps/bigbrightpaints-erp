@@ -14,6 +14,9 @@ import com.bigbrightpaints.erp.modules.accounting.service.CompanyDefaultAccounts
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
+import com.bigbrightpaints.erp.core.util.CompanyClock;
+import com.bigbrightpaints.erp.modules.company.domain.Company;
+import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.sales.service.SalesReturnService;
 import com.bigbrightpaints.erp.shared.dto.ApiResponse;
 import io.micrometer.core.annotation.Timed;
@@ -21,16 +24,22 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.ExceptionHandler;
-import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.util.StringUtils;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import java.time.YearMonth;
+import java.time.LocalDate;
+import java.time.Instant;
+import java.time.format.DateTimeParseException;
 
 @RestController
 @RequestMapping("/api/v1/accounting")
@@ -47,6 +56,8 @@ public class AccountingController {
     private final AccountHierarchyService accountHierarchyService;
     private final AgingReportService agingReportService;
     private final CompanyDefaultAccountsService companyDefaultAccountsService;
+    private final CompanyContextService companyContextService;
+    private final CompanyClock companyClock;
 
     public AccountingController(AccountingService accountingService,
                                 AccountingFacade accountingFacade,
@@ -58,7 +69,9 @@ public class AccountingController {
                                 TemporalBalanceService temporalBalanceService,
                                 AccountHierarchyService accountHierarchyService,
                                 AgingReportService agingReportService,
-                                CompanyDefaultAccountsService companyDefaultAccountsService) {
+                                CompanyDefaultAccountsService companyDefaultAccountsService,
+                                CompanyContextService companyContextService,
+                                CompanyClock companyClock) {
         this.accountingService = accountingService;
         this.accountingFacade = accountingFacade;
         this.salesReturnService = salesReturnService;
@@ -70,15 +83,30 @@ public class AccountingController {
         this.accountHierarchyService = accountHierarchyService;
         this.agingReportService = agingReportService;
         this.companyDefaultAccountsService = companyDefaultAccountsService;
+        this.companyContextService = companyContextService;
+        this.companyClock = companyClock;
     }
 
     /**
-     * Translate business exceptions to 400 for API clients (prevents 500 on validation/state errors).
+     * Keep accounting error payloads structured and explicit for UI diagnostics.
      */
     @ExceptionHandler(ApplicationException.class)
-    @ResponseStatus(HttpStatus.BAD_REQUEST)
-    public ApiResponse<Void> handleApplicationException(ApplicationException ex) {
-        return ApiResponse.failure(ex.getUserMessage(), null);
+    public ResponseEntity<ApiResponse<Map<String, Object>>> handleApplicationException(
+            ApplicationException ex,
+            HttpServletRequest request) {
+        String traceId = UUID.randomUUID().toString();
+        Map<String, Object> errorData = new HashMap<>();
+        errorData.put("code", ex.getErrorCode().getCode());
+        errorData.put("message", ex.getUserMessage());
+        errorData.put("reason", ex.getUserMessage());
+        errorData.put("path", request != null ? request.getRequestURI() : null);
+        errorData.put("traceId", traceId);
+        Map<String, Object> details = ex.getDetails();
+        if (!details.isEmpty()) {
+            errorData.put("details", details);
+        }
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.failure(ex.getUserMessage(), errorData));
     }
 
     @GetMapping("/accounts")
@@ -588,14 +616,48 @@ public class AccountingController {
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
     public ResponseEntity<ApiResponse<TemporalBalanceService.AccountActivityReport>> getAccountActivity(
             @PathVariable Long accountId,
-            @RequestParam String startDate,
-            @RequestParam String endDate) {
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate,
+            @RequestParam(required = false) String from,
+            @RequestParam(required = false) String to) {
+        String resolvedStart = StringUtils.hasText(startDate) ? startDate : from;
+        String resolvedEnd = StringUtils.hasText(endDate) ? endDate : to;
+        if (!StringUtils.hasText(resolvedStart) || !StringUtils.hasText(resolvedEnd)) {
+            throw new ApplicationException(ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD,
+                    "Account activity requires startDate/endDate (or from/to) query parameters");
+        }
+        LocalDate start;
+        LocalDate end;
+        try {
+            start = LocalDate.parse(resolvedStart);
+            end = LocalDate.parse(resolvedEnd);
+        } catch (DateTimeParseException ex) {
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_DATE,
+                    "Invalid account activity date format; expected ISO date yyyy-MM-dd")
+                    .withDetail("startDate", resolvedStart)
+                    .withDetail("endDate", resolvedEnd);
+        }
         return ResponseEntity.ok(ApiResponse.success(
                 "Account activity report",
                 temporalBalanceService.getAccountActivity(
                         accountId,
-                        java.time.LocalDate.parse(startDate),
-                        java.time.LocalDate.parse(endDate))));
+                        start,
+                        end)));
+    }
+
+    @GetMapping("/date-context")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> getAccountingDateContext() {
+        Company company = companyContextService.requireCurrentCompany();
+        LocalDate today = companyClock.today(company);
+        Instant now = companyClock.now(company);
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("companyId", company != null ? company.getId() : null);
+        payload.put("companyCode", company != null ? company.getCode() : null);
+        payload.put("timezone", company != null ? company.getTimezone() : null);
+        payload.put("today", today);
+        payload.put("now", now);
+        return ResponseEntity.ok(ApiResponse.success("Accounting date context", payload));
     }
 
     @GetMapping("/accounts/{accountId}/balance/compare")
@@ -690,4 +752,5 @@ public class AccountingController {
                 "Days Sales Outstanding report",
                 agingReportService.getDealerDSO(dealerId)));
     }
+
 }

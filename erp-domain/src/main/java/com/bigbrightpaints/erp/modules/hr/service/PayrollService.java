@@ -191,7 +191,10 @@ public class PayrollService {
             .orElseThrow(() -> new IllegalArgumentException("Payroll run not found"));
 
         if (run.getStatus() != PayrollRun.PayrollStatus.DRAFT) {
-            throw new IllegalStateException("Can only calculate payroll in DRAFT status");
+            throw new ApplicationException(ErrorCode.BUSINESS_INVALID_STATE,
+                    "Can only calculate payroll in DRAFT status")
+                    .withDetail("payrollRunId", payrollRunId)
+                    .withDetail("currentStatus", run.getStatus().name());
         }
 
         // Clear existing lines
@@ -229,6 +232,12 @@ public class PayrollService {
         run.setTotalNetPay(totalNetPay);
         run.setTotalPresentDays(totalPresentDays);
         run.setTotalOvertimeHours(totalOtHours);
+        run.setTotalAmount(totalNetPay);
+        if (run.getRunDate() == null) {
+            LocalDate runDate = run.getPeriodEnd() != null ? run.getPeriodEnd() : run.getPeriodStart();
+            run.setRunDate(runDate != null ? runDate : companyClock.today(company));
+        }
+        run.setProcessedBy(getCurrentUser());
         run.setStatus(PayrollRun.PayrollStatus.CALCULATED);
 
         payrollRunRepository.save(run);
@@ -348,12 +357,21 @@ public class PayrollService {
             .orElseThrow(() -> new IllegalArgumentException("Payroll run not found"));
 
         if (run.getStatus() != PayrollRun.PayrollStatus.CALCULATED) {
-            throw new IllegalStateException("Can only approve payroll in CALCULATED status");
+            throw new ApplicationException(ErrorCode.BUSINESS_INVALID_STATE,
+                    "Can only approve payroll in CALCULATED status")
+                    .withDetail("payrollRunId", payrollRunId)
+                    .withDetail("currentStatus", run.getStatus().name());
+        }
+        if (payrollRunLineRepository.findByPayrollRun(run).isEmpty()) {
+            throw new ApplicationException(ErrorCode.BUSINESS_INVALID_STATE,
+                    "Cannot approve payroll run with no calculated lines")
+                    .withDetail("payrollRunId", payrollRunId);
         }
 
         run.setStatus(PayrollRun.PayrollStatus.APPROVED);
         run.setApprovedBy(getCurrentUser());
         run.setApprovedAt(CompanyTime.now(company));
+        run.setProcessedBy(getCurrentUser());
 
         payrollRunRepository.save(run);
         return toDto(run);
@@ -370,7 +388,10 @@ public class PayrollService {
         boolean statusPosted = run.getStatus() == PayrollRun.PayrollStatus.POSTED;
 
         if (!statusPosted && !hasJournal && run.getStatus() != PayrollRun.PayrollStatus.APPROVED) {
-            throw new IllegalStateException("Can only post approved payroll");
+            throw new ApplicationException(ErrorCode.BUSINESS_INVALID_STATE,
+                    "Can only post approved payroll")
+                    .withDetail("payrollRunId", payrollRunId)
+                    .withDetail("currentStatus", run.getStatus().name());
         }
 
         // Find required accounts
@@ -380,19 +401,30 @@ public class PayrollService {
 
         // Load payroll lines to calculate totals
         List<PayrollRunLine> runLines = payrollRunLineRepository.findByPayrollRun(run);
+        if (runLines.isEmpty()) {
+            throw new ApplicationException(ErrorCode.BUSINESS_INVALID_STATE,
+                    "Payroll run has no calculated lines; run calculate before posting")
+                    .withDetail("payrollRunId", payrollRunId);
+        }
         boolean hasUnsupportedDeductions = runLines.stream().anyMatch(line ->
                 hasPositive(line.getPfDeduction())
                         || hasPositive(line.getTaxDeduction())
                         || hasPositive(line.getOtherDeductions()));
         if (hasUnsupportedDeductions) {
-            throw new IllegalStateException("Payroll statutory deductions (PF/tax/other) are not supported in runs. " +
-                    "Only advance deductions are applied; use accounting payroll payments for statutory withholdings.");
+            throw new ApplicationException(ErrorCode.BUSINESS_CONSTRAINT_VIOLATION,
+                    "Payroll statutory deductions (PF/tax/other) are not supported in runs. " +
+                            "Only advance deductions are applied; use accounting payroll payments for statutory withholdings.");
         }
 
         // Calculate totals from run lines
         BigDecimal totalGrossPay = runLines.stream()
             .map(PayrollRunLine::getGrossPay)
             .reduce(BigDecimal.ZERO, BigDecimal::add);
+        if (totalGrossPay.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new ApplicationException(ErrorCode.BUSINESS_INVALID_STATE,
+                    "Payroll run total gross pay is zero; nothing to post")
+                    .withDetail("payrollRunId", payrollRunId);
+        }
 
         BigDecimal totalAdvances = runLines.stream()
             .map(PayrollRunLine::getAdvanceDeduction)
@@ -457,6 +489,9 @@ public class PayrollService {
             }
             if (run.getPostedAt() == null) {
                 run.setPostedAt(CompanyTime.now(company));
+            }
+            if (run.getTotalAmount() == null) {
+                run.setTotalAmount(run.getTotalNetPay());
             }
             updated = true;
         }
@@ -862,8 +897,10 @@ public class PayrollService {
 
     private Account findAccountByCode(Company company, String code) {
         return accountRepository.findByCompanyAndCodeIgnoreCase(company, code)
-            .orElseThrow(() -> new IllegalStateException("Account not found: " + code + 
-                ". Please create this account in Chart of Accounts."));
+            .orElseThrow(() -> new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE,
+                    "Required account not found: " + code + ". Please create it in Chart of Accounts.")
+                    .withDetail("accountCode", code)
+                    .withDetail("canonicalPath", "/api/v1/accounting/accounts"));
     }
 
     private String getCurrentUser() {

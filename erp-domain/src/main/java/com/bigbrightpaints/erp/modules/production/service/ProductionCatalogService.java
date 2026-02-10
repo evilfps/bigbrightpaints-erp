@@ -312,9 +312,9 @@ public class ProductionCatalogService {
             throw new IllegalArgumentException("Product name is required");
         }
 
-        String sizeLabel = StringUtils.hasText(request.sizeLabel()) ? request.sizeLabel().trim() : request.unitOfMeasure();
+        String sizeLabel = resolveEffectiveSizeLabel(request.sizeLabel(), request.unitOfMeasure());
         validateSingleVariantField("defaultColour", request.defaultColour());
-        validateSingleVariantField("sizeLabel", request.sizeLabel());
+        validateSingleVariantField("sizeLabel", sizeLabel);
         String sku = determineSku(company, brand, normalizedCategory, request.defaultColour(), sizeLabel, request.customSkuCode());
         if (productRepository.findByCompanyAndSkuCode(company, sku).isPresent()) {
             throw new IllegalArgumentException("SKU " + sku + " already exists");
@@ -481,6 +481,13 @@ public class ProductionCatalogService {
 
     private String normalizeTokenKey(String value) {
         return value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
+    }
+
+    private String resolveEffectiveSizeLabel(String sizeLabel, String unitOfMeasure) {
+        if (StringUtils.hasText(sizeLabel)) {
+            return sizeLabel.trim();
+        }
+        return StringUtils.hasText(unitOfMeasure) ? unitOfMeasure.trim() : unitOfMeasure;
     }
 
     private void validateSingleVariantField(String fieldName, String value) {

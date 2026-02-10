@@ -33,6 +33,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 
 @Service
 public class DealerService {
@@ -229,7 +230,13 @@ public class DealerService {
         account.setCode(code);
         account.setName(dealer.getName() + " Receivable");
         account.setType(AccountType.ASSET);
+        resolveControlAccount(company, "AR", AccountType.ASSET).ifPresent(account::setParent);
         return accountRepository.save(account);
+    }
+
+    private Optional<Account> resolveControlAccount(Company company, String code, AccountType expectedType) {
+        return accountRepository.findByCompanyAndCodeIgnoreCase(company, code)
+                .filter(account -> account.getType() == expectedType);
     }
 
     private String generateDealerCode(String input, Company company) {

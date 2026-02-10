@@ -212,6 +212,44 @@ class RawMaterialAndProductUpdateIT extends AbstractIntegrationTest {
     }
 
     @Test
+    void create_product_rejects_multi_value_size_from_unit_fallback_and_points_to_bulk_variants() {
+        HttpHeaders headers = authenticatedHeaders();
+
+        Map<String, Long> accounts = fixtureAccountIds();
+        Map<String, Object> metadata = Map.of(
+                "fgValuationAccountId", accounts.get("INV"),
+                "fgCogsAccountId", accounts.get("COGS"),
+                "fgRevenueAccountId", accounts.get("REV"),
+                "fgDiscountAccountId", accounts.get("DISC"),
+                "fgTaxAccountId", accounts.get("GST_OUT")
+        );
+
+        Map<String, Object> createPayload = new HashMap<>();
+        createPayload.put("productName", "Primer Fallback " + UUID.randomUUID().toString().substring(0, 8));
+        createPayload.put("brandName", "HouseBrand");
+        createPayload.put("category", "FINISHED_GOOD");
+        createPayload.put("defaultColour", "RED");
+        createPayload.put("unitOfMeasure", "1L,2L");
+        createPayload.put("basePrice", new BigDecimal("125.50"));
+        createPayload.put("gstRate", BigDecimal.ZERO);
+        createPayload.put("minDiscountPercent", BigDecimal.ZERO);
+        createPayload.put("minSellingPrice", new BigDecimal("110.00"));
+        createPayload.put("metadata", metadata);
+
+        ResponseEntity<Map> create = rest.exchange(
+                "/api/v1/accounting/catalog/products",
+                HttpMethod.POST,
+                new HttpEntity<>(createPayload, headers),
+                Map.class
+        );
+
+        assertThat(create.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        Map<?, ?> errorData = (Map<?, ?>) create.getBody().get("data");
+        assertThat(String.valueOf(errorData.get("message")))
+                .contains("/api/v1/accounting/catalog/products/bulk-variants");
+    }
+
+    @Test
     void bulk_variants_expand_comma_separated_colors_and_sizes() {
         HttpHeaders headers = authenticatedHeaders();
 

@@ -2,6 +2,7 @@ package com.bigbrightpaints.erp.modules.sales.service;
 
 import com.bigbrightpaints.erp.core.notification.EmailService;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
+import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccount;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
@@ -16,6 +17,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -136,6 +138,20 @@ class DealerServiceTest {
         synchronizations.forEach(sync -> sync.afterCompletion(TransactionSynchronization.STATUS_ROLLED_BACK));
 
         verify(emailService, never()).sendUserCredentialsEmail(anyString(), anyString(), anyString());
+    }
+
+    @Test
+    void createDealer_linksReceivableAccountUnderArControlWhenPresent() {
+        Account arControl = new Account();
+        arControl.setType(AccountType.ASSET);
+        arControl.setCode("AR");
+        when(accountRepository.findByCompanyAndCodeIgnoreCase(eq(company), eq("AR"))).thenReturn(Optional.of(arControl));
+
+        dealerService.createDealer(request());
+
+        ArgumentCaptor<Account> accountCaptor = ArgumentCaptor.forClass(Account.class);
+        verify(accountRepository).save(accountCaptor.capture());
+        assertThat(accountCaptor.getValue().getParent()).isSameAs(arControl);
     }
 
     private CreateDealerRequest request() {

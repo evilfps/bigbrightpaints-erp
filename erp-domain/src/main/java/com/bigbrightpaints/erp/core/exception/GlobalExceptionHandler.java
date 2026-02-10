@@ -23,9 +23,11 @@ import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
+import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
 
@@ -98,8 +100,10 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         Map<String, Object> errorResponse = new HashMap<>();
         errorResponse.put("code", ex.getErrorCode().getCode());
         errorResponse.put("message", ex.getUserMessage());
+        errorResponse.put("reason", ex.getUserMessage());
         errorResponse.put("traceId", traceId);
         errorResponse.put("timestamp", LocalDateTime.now());
+        errorResponse.put("path", request.getRequestURI());
 
         // Only include details in non-production environments
         if (!isProductionMode() && !ex.getDetails().isEmpty()) {
@@ -124,21 +128,19 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
         logger.warn("Validation error [{}] - Path: {}", traceId, request.getDescription(false));
 
-        Map<String, String> fieldErrors = new HashMap<>();
+        Map<String, String> fieldErrors = new LinkedHashMap<>();
         for (FieldError error : ex.getBindingResult().getFieldErrors()) {
-            fieldErrors.put(error.getField(), error.getDefaultMessage());
+            fieldErrors.putIfAbsent(error.getField(), error.getDefaultMessage());
         }
+        String reason = buildValidationReason(fieldErrors);
 
         Map<String, Object> errorResponse = new HashMap<>();
         errorResponse.put("code", ErrorCode.VALIDATION_INVALID_INPUT.getCode());
-        errorResponse.put("message", "Validation failed");
+        errorResponse.put("message", reason);
+        errorResponse.put("reason", reason);
         errorResponse.put("traceId", traceId);
-
-        if (!isProductionMode()) {
-            errorResponse.put("errors", fieldErrors);
-        }
-
-        return ResponseEntity.badRequest().body(ApiResponse.failure("Validation failed", errorResponse));
+        errorResponse.put("errors", fieldErrors);
+        return ResponseEntity.badRequest().body(ApiResponse.failure(reason, errorResponse));
     }
 
     /**
@@ -152,16 +154,27 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
         logger.warn("Constraint violation [{}] - Path: {}", traceId, request.getRequestURI(), ex);
 
+        Map<String, String> violations = new LinkedHashMap<>();
+        ex.getConstraintViolations().forEach(violation -> {
+            String rawPath = violation.getPropertyPath() != null ? violation.getPropertyPath().toString() : "value";
+            String field = rawPath;
+            int dot = rawPath.lastIndexOf('.');
+            if (dot >= 0 && dot < rawPath.length() - 1) {
+                field = rawPath.substring(dot + 1);
+            }
+            violations.putIfAbsent(field, violation.getMessage());
+        });
+        String reason = buildValidationReason(violations);
+
         Map<String, Object> errorResponse = new HashMap<>();
         errorResponse.put("code", ErrorCode.VALIDATION_INVALID_INPUT.getCode());
-        errorResponse.put("message", "Validation constraint violated");
+        errorResponse.put("message", reason);
+        errorResponse.put("reason", reason);
         errorResponse.put("traceId", traceId);
-
-        if (!isProductionMode()) {
-            errorResponse.put("details", ex.getMessage());
+        if (!violations.isEmpty()) {
+            errorResponse.put("errors", violations);
         }
-
-        return ResponseEntity.badRequest().body(ApiResponse.failure("Validation failed", errorResponse));
+        return ResponseEntity.badRequest().body(ApiResponse.failure(reason, errorResponse));
     }
 
     /**
@@ -299,15 +312,15 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         logger.warn("Illegal argument [{}] - Path: {}, Message: {}",
                 traceId, request.getRequestURI(), ex.getMessage());
 
+        String reason = resolveIllegalArgumentMessage(ex.getMessage());
         Map<String, Object> errorResponse = new HashMap<>();
         errorResponse.put("code", ErrorCode.VALIDATION_INVALID_INPUT.getCode());
-        errorResponse.put("message", isProductionMode()
-                ? "Invalid input provided"
-                : ex.getMessage());
+        errorResponse.put("message", reason);
+        errorResponse.put("reason", reason);
         errorResponse.put("traceId", traceId);
 
         return ResponseEntity.badRequest()
-                .body(ApiResponse.failure("Invalid request", errorResponse));
+                .body(ApiResponse.failure(reason, errorResponse));
     }
 
     /**
@@ -407,5 +420,49 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             case "CONC" -> HttpStatus.CONFLICT;
             default -> HttpStatus.INTERNAL_SERVER_ERROR;
         };
+    }
+
+    private String buildValidationReason(Map<String, String> errors) {
+        if (errors == null || errors.isEmpty()) {
+            return "Validation failed";
+        }
+        StringBuilder builder = new StringBuilder("Validation failed: ");
+        int count = 0;
+        for (Map.Entry<String, String> entry : errors.entrySet()) {
+            if (count > 0) {
+                builder.append("; ");
+            }
+            builder.append(entry.getKey()).append(" ").append(entry.getValue());
+            count++;
+            if (count >= 3) {
+                break;
+            }
+        }
+        if (errors.size() > 3) {
+            builder.append("; and ").append(errors.size() - 3).append(" more");
+        }
+        return builder.toString();
+    }
+
+    private String resolveIllegalArgumentMessage(String message) {
+        if (!StringUtils.hasText(message)) {
+            return "Invalid input provided";
+        }
+        String trimmed = message.trim();
+        if (trimmed.startsWith("No enum constant ")) {
+            String token = trimmed.substring("No enum constant ".length()).trim();
+            if (!StringUtils.hasText(token) || token.endsWith(".")) {
+                return "Invalid option provided";
+            }
+            int lastDot = token.lastIndexOf('.');
+            String invalidValue = lastDot >= 0 && lastDot < token.length() - 1
+                    ? token.substring(lastDot + 1)
+                    : token;
+            if (StringUtils.hasText(invalidValue)) {
+                return "Invalid option '" + invalidValue + "'";
+            }
+            return "Invalid option provided";
+        }
+        return trimmed;
     }
 }

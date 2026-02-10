@@ -24,6 +24,7 @@ import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryReversalReques
 import com.bigbrightpaints.erp.modules.accounting.dto.InventoryRevaluationRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.SettlementAllocationRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.SettlementPaymentRequest;
+import com.bigbrightpaints.erp.modules.accounting.dto.SupplierPaymentRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.SupplierSettlementRequest;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
@@ -535,6 +536,114 @@ class AccountingServiceTest {
         assertThatThrownBy(() -> accountingService.createJournalEntry(request))
                 .isInstanceOf(ApplicationException.class)
                 .hasMessageContaining("supplier context");
+    }
+
+    @Test
+    void createJournalEntry_infersSupplierContextFromOwnedPayableAccount() {
+        LocalDate today = LocalDate.of(2024, 4, 7);
+        when(companyClock.today(company)).thenReturn(today);
+        when(journalEntryRepository.findByCompanyAndReferenceNumber(eq(company), eq("AP-INFER-SUPPLIER")))
+                .thenReturn(Optional.empty());
+        AccountingPeriod period = new AccountingPeriod();
+        period.setYear(today.getYear());
+        period.setMonth(today.getMonthValue());
+        when(accountingPeriodService.requireOpenPeriod(company, today)).thenReturn(period);
+
+        Account payable = new Account();
+        ReflectionTestUtils.setField(payable, "id", 31L);
+        payable.setCompany(company);
+        payable.setCode("AP-SKEINA");
+        payable.setName("Skeina Payable");
+        payable.setType(AccountType.LIABILITY);
+
+        Account cash = new Account();
+        ReflectionTestUtils.setField(cash, "id", 32L);
+        cash.setCompany(company);
+        cash.setCode("CASH");
+        cash.setName("Cash");
+        cash.setType(AccountType.ASSET);
+
+        Supplier supplier = new Supplier();
+        ReflectionTestUtils.setField(supplier, "id", 91L);
+        supplier.setName("SKEINA");
+        supplier.setPayableAccount(payable);
+
+        when(accountRepository.lockByCompanyAndId(eq(company), eq(31L))).thenReturn(Optional.of(payable));
+        when(accountRepository.lockByCompanyAndId(eq(company), eq(32L))).thenReturn(Optional.of(cash));
+        when(supplierRepository.findAllByCompanyAndPayableAccount(eq(company), eq(payable))).thenReturn(List.of(supplier));
+        when(journalEntryRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(accountRepository.updateBalanceAtomic(eq(company), any(), any())).thenReturn(1);
+
+        JournalEntryRequest request = new JournalEntryRequest(
+                "AP-INFER-SUPPLIER",
+                today,
+                "Supplier inferred from payable account",
+                null,
+                null,
+                Boolean.FALSE,
+                List.of(
+                        new JournalEntryRequest.JournalLineRequest(32L, "Cash", new BigDecimal("2000.00"), BigDecimal.ZERO),
+                        new JournalEntryRequest.JournalLineRequest(31L, "Supplier AP", BigDecimal.ZERO, new BigDecimal("2000.00"))
+                )
+        );
+
+        JournalEntryDto result = accountingService.createJournalEntry(request);
+        assertThat(result).isNotNull();
+        assertThat(result.supplierId()).isEqualTo(91L);
+    }
+
+    @Test
+    void createJournalEntry_rejectsAmbiguousSupplierInference() {
+        LocalDate today = LocalDate.of(2024, 4, 7);
+        when(companyClock.today(company)).thenReturn(today);
+        when(journalEntryRepository.findByCompanyAndReferenceNumber(eq(company), eq("AP-AMBIG-SUPPLIER")))
+                .thenReturn(Optional.empty());
+
+        Account payable = new Account();
+        ReflectionTestUtils.setField(payable, "id", 33L);
+        payable.setCompany(company);
+        payable.setCode("AP-SHARED");
+        payable.setName("Shared AP");
+        payable.setType(AccountType.LIABILITY);
+
+        Account cash = new Account();
+        ReflectionTestUtils.setField(cash, "id", 34L);
+        cash.setCompany(company);
+        cash.setCode("CASH");
+        cash.setName("Cash");
+        cash.setType(AccountType.ASSET);
+
+        Supplier supplierA = new Supplier();
+        ReflectionTestUtils.setField(supplierA, "id", 92L);
+        supplierA.setName("SKEINA");
+        supplierA.setPayableAccount(payable);
+
+        Supplier supplierB = new Supplier();
+        ReflectionTestUtils.setField(supplierB, "id", 93L);
+        supplierB.setName("OTHER");
+        supplierB.setPayableAccount(payable);
+
+        when(accountRepository.lockByCompanyAndId(eq(company), eq(33L))).thenReturn(Optional.of(payable));
+        when(accountRepository.lockByCompanyAndId(eq(company), eq(34L))).thenReturn(Optional.of(cash));
+        when(supplierRepository.findAllByCompanyAndPayableAccount(eq(company), eq(payable)))
+                .thenReturn(List.of(supplierA, supplierB));
+
+        JournalEntryRequest request = new JournalEntryRequest(
+                "AP-AMBIG-SUPPLIER",
+                today,
+                "Ambiguous supplier inference",
+                null,
+                null,
+                Boolean.FALSE,
+                List.of(
+                        new JournalEntryRequest.JournalLineRequest(34L, "Cash", new BigDecimal("1000.00"), BigDecimal.ZERO),
+                        new JournalEntryRequest.JournalLineRequest(33L, "Supplier AP", BigDecimal.ZERO, new BigDecimal("1000.00"))
+                )
+        );
+
+        assertThatThrownBy(() -> accountingService.createJournalEntry(request))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("requires a supplier context");
     }
 
     @Test
@@ -1131,6 +1240,53 @@ class AccountingServiceTest {
     }
 
     @Test
+    void recordSupplierPayment_requiresPurchaseAllocation() {
+        Supplier supplier = new Supplier();
+        supplier.setName("Supplier");
+        ReflectionTestUtils.setField(supplier, "id", 1L);
+
+        Account payable = new Account();
+        payable.setCompany(company);
+        payable.setCode("AP-SUP");
+        payable.setType(AccountType.LIABILITY);
+        ReflectionTestUtils.setField(payable, "id", 10L);
+        supplier.setPayableAccount(payable);
+
+        Account cash = new Account();
+        cash.setCompany(company);
+        cash.setCode("CASH");
+        cash.setType(AccountType.ASSET);
+        ReflectionTestUtils.setField(cash, "id", 20L);
+
+        when(supplierRepository.lockByCompanyAndId(eq(company), eq(1L))).thenReturn(Optional.of(supplier));
+        when(companyEntityLookup.requireAccount(eq(company), eq(20L))).thenReturn(cash);
+
+        SettlementAllocationRequest allocation = new SettlementAllocationRequest(
+                null,
+                null,
+                new BigDecimal("100.00"),
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                null,
+                null
+        );
+
+        SupplierPaymentRequest request = new SupplierPaymentRequest(
+                1L,
+                20L,
+                new BigDecimal("100.00"),
+                "PAY-ONACC-1",
+                "On-account attempt",
+                "IDEMP-PAY-ONACC-1",
+                List.of(allocation)
+        );
+
+        assertThatThrownBy(() -> accountingService.recordSupplierPayment(request))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Purchase allocation is required for supplier payments");
+    }
+
+    @Test
     void settleDealerInvoices_appliesGrossAmountToInvoice() {
         AccountingService service = spy(accountingService);
 
@@ -1368,7 +1524,7 @@ class AccountingServiceTest {
     }
 
     @Test
-    void settleSupplierInvoices_rejectsMissingPurchaseAllocation() {
+    void settleSupplierInvoices_allowsOnAccountAllocationWithoutMemo() {
         AccountingService service = spy(accountingService);
 
         Supplier supplier = new Supplier();
@@ -1384,11 +1540,16 @@ class AccountingServiceTest {
         Account cash = new Account();
         cash.setCompany(company);
         cash.setCode("CASH");
+        cash.setType(AccountType.ASSET);
         ReflectionTestUtils.setField(cash, "id", 20L);
 
         when(supplierRepository.lockByCompanyAndId(eq(company), eq(1L))).thenReturn(Optional.of(supplier));
         when(settlementAllocationRepository.findByCompanyAndIdempotencyKey(any(), any())).thenReturn(List.of());
         when(companyEntityLookup.requireAccount(eq(company), eq(20L))).thenReturn(cash);
+        JournalEntryDto journalEntryDto = stubEntry(87L);
+        doReturn(journalEntryDto).when(service).createJournalEntry(any(JournalEntryRequest.class));
+        when(companyEntityLookup.requireJournalEntry(eq(company), eq(87L)))
+                .thenReturn(new com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry());
 
         SettlementAllocationRequest allocation = new SettlementAllocationRequest(
                 null,
@@ -1414,9 +1575,128 @@ class AccountingServiceTest {
                 List.of(allocation)
         );
 
+        var response = service.settleSupplierInvoices(request);
+        assertThat(response.journalEntry()).isNotNull();
+        assertThat(response.journalEntry().id()).isEqualTo(87L);
+        assertThat(response.totalApplied()).isEqualByComparingTo("100.00");
+        assertThat(response.allocations()).hasSize(1);
+        assertThat(response.allocations().getFirst().purchaseId()).isNull();
+        assertThat(response.allocations().getFirst().memo()).isNull();
+    }
+
+    @Test
+    void settleSupplierInvoices_allowsOnAccountAllocationWithMemo() {
+        AccountingService service = spy(accountingService);
+
+        Supplier supplier = new Supplier();
+        supplier.setName("Supplier");
+        Account payable = new Account();
+        payable.setCompany(company);
+        payable.setCode("AP");
+        payable.setType(AccountType.LIABILITY);
+        ReflectionTestUtils.setField(payable, "id", 10L);
+        supplier.setPayableAccount(payable);
+        ReflectionTestUtils.setField(supplier, "id", 1L);
+
+        Account cash = new Account();
+        cash.setCompany(company);
+        cash.setCode("CASH");
+        cash.setType(AccountType.ASSET);
+        ReflectionTestUtils.setField(cash, "id", 20L);
+
+        when(supplierRepository.lockByCompanyAndId(eq(company), eq(1L))).thenReturn(Optional.of(supplier));
+        when(settlementAllocationRepository.findByCompanyAndIdempotencyKey(any(), any())).thenReturn(List.of());
+        when(companyEntityLookup.requireAccount(eq(company), eq(20L))).thenReturn(cash);
+
+        JournalEntryDto journalEntryDto = stubEntry(88L);
+        doReturn(journalEntryDto).when(service).createJournalEntry(any(JournalEntryRequest.class));
+        when(companyEntityLookup.requireJournalEntry(eq(company), eq(88L)))
+                .thenReturn(new com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry());
+
+        SettlementAllocationRequest allocation = new SettlementAllocationRequest(
+                null,
+                null,
+                new BigDecimal("100.00"),
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                null,
+                "AP on-account clearing");
+
+        SupplierSettlementRequest request = new SupplierSettlementRequest(
+                1L,
+                20L,
+                null,
+                null,
+                null,
+                null,
+                LocalDate.of(2024, 4, 9),
+                "REF-AP-ONACC-1",
+                "Supplier settlement",
+                "IDEMP-AP-ONACC-1",
+                Boolean.FALSE,
+                List.of(allocation)
+        );
+
+        var response = service.settleSupplierInvoices(request);
+
+        assertThat(response.journalEntry()).isNotNull();
+        assertThat(response.journalEntry().id()).isEqualTo(88L);
+        assertThat(response.totalApplied()).isEqualByComparingTo("100.00");
+        assertThat(response.allocations()).hasSize(1);
+        assertThat(response.allocations().getFirst().purchaseId()).isNull();
+        assertThat(response.allocations().getFirst().invoiceId()).isNull();
+    }
+
+    @Test
+    void settleSupplierInvoices_rejectsNonAssetCashAccount() {
+        AccountingService service = spy(accountingService);
+
+        Supplier supplier = new Supplier();
+        supplier.setName("Supplier");
+        Account payable = new Account();
+        payable.setCompany(company);
+        payable.setCode("AP-SUP");
+        payable.setType(AccountType.LIABILITY);
+        ReflectionTestUtils.setField(payable, "id", 10L);
+        supplier.setPayableAccount(payable);
+        ReflectionTestUtils.setField(supplier, "id", 1L);
+
+        Account invalidCash = new Account();
+        invalidCash.setCompany(company);
+        invalidCash.setCode("AP-CLEARING");
+        invalidCash.setType(AccountType.LIABILITY);
+        ReflectionTestUtils.setField(invalidCash, "id", 20L);
+
+        when(supplierRepository.lockByCompanyAndId(eq(company), eq(1L))).thenReturn(Optional.of(supplier));
+        when(companyEntityLookup.requireAccount(eq(company), eq(20L))).thenReturn(invalidCash);
+
+        SettlementAllocationRequest allocation = new SettlementAllocationRequest(
+                null,
+                2L,
+                new BigDecimal("100.00"),
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                null,
+                null);
+
+        SupplierSettlementRequest request = new SupplierSettlementRequest(
+                1L,
+                20L,
+                null,
+                null,
+                null,
+                null,
+                LocalDate.of(2024, 4, 9),
+                "REF-AP-2",
+                "Supplier settlement",
+                "IDEMP-AP-2",
+                Boolean.FALSE,
+                List.of(allocation)
+        );
+
         assertThatThrownBy(() -> service.settleSupplierInvoices(request))
                 .isInstanceOf(ApplicationException.class)
-                .hasMessageContaining("Purchase allocation is required for supplier settlements");
+                .hasMessageContaining("must be an ASSET account");
     }
 
     private JournalEntryDto stubEntry(long id) {
