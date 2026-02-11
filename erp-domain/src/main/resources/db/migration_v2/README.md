@@ -6,4 +6,4 @@
   - Flyway location: `classpath:db/migration_v2`
   - History table: `flyway_schema_history_v2`
   - Dev DB default: `erp_domain_v2`
-
+- Reference/sample data stays in application seeders (see `docs/db/SEED_REFERENCE_STRATEGY.md`).

@@ -1,0 +1,12 @@
+spring:
+  config:
+    activate:
+      on-profile: seed & flyway-v2
+  datasource:
+    url: ${SPRING_DATASOURCE_V2_URL:jdbc:postgresql://localhost:${DB_PORT:5432}/erp_domain_v2}
+    username: ${SPRING_DATASOURCE_V2_USERNAME:${SPRING_DATASOURCE_USERNAME:erp}}
+    password: ${SPRING_DATASOURCE_V2_PASSWORD:${SPRING_DATASOURCE_PASSWORD:erp}}
+  flyway:
+    locations: classpath:db/migration_v2
+    table: flyway_schema_history_v2
+
