@@ -152,12 +152,18 @@ Auto-Replenish Queue (Always Keep Filled)
   - Completed: loser path now waits for leader journal materialization before failing (`awaitJournalEntry` in manual idempotency reserve path).
   - Added E2E test `journalEntry_ManualIdempotencyKey_CaseInsensitiveReplay`.
   - Follow-up deterministic patch applied: allocation idempotency reads now use ordered case-insensitive lookup first.
-- [ready] M2-S4 Accounting event trail durability boundary
+- [in_progress] M2-S4 Accounting event trail durability boundary
   - Investigate fail-open `recordJournalEntryPostedEventSafe`/`recordJournalEntryReversedEventSafe` behavior and define policy for staging (`strict` vs `best-effort` with durable retry/alert).
   - Ensure no silent accounting-event trail drops for posted/reversed journals without compensating alerting.
-- [ready] M0-S2 Async audit-request lifecycle hardening
+- [done] M0-S2 Async audit-request lifecycle hardening
   - Fix `AuditService` async logging path reading recycled `HttpServletRequest` facade after response commit.
   - Ensure client IP/user-agent metadata capture is request-safe and non-throwing under async execution.
+  - Completed: moved request metadata capture to caller thread and passed immutable context map into async write path.
+  - Completed: stopped propagating `RequestAttributes` to async worker threads in `CompanyContextTaskDecorator`.
+  - Added focused regression tests: `AuditServiceTest`, `CompanyContextTaskDecoratorTest`.
+- [ready] M8-S2 Outbox-to-audit correlation gap scan
+  - Verify accounting/outbox side effects always emit traceable audit trail or deterministic alert, including retry paths.
+  - Add correlation assertions across orchestrator command ID, journal ID, and audit event sequence.
 
 Commit Ledger
 - 2026-02-12: `16b2a2c4`
@@ -194,22 +200,31 @@ Commit Ledger
     - medium: non-deterministic case-variant allocation lookup path (patched in current WIP cycle)
     - medium: accounting event trail fail-open boundary needs explicit policy/task (`M2-S4`)
     - low: overly broad `ON CONFLICT DO NOTHING` in mapping reserve SQL (patched in current WIP cycle)
+- 2026-02-12: `415528d0`
+  - Stabilized manual-journal idempotency race and deterministic replay ordering.
+  - Verified:
+    - `mvn -B -ntp -Dtest=AccountingServiceTest,JournalEntryE2ETest test`
+    - `mvn -B -ntp -Dtest=AccountingServiceTest,SettlementE2ETest,JournalEntryE2ETest test`
+  - Subagent review findings:
+    - low: add direct seeded duplicate-case allocation regression for deterministic ordering branch
+    - low: add schema preflight guard for `uq_journal_reference_mapping_legacy` to catch drift early
+  - `codex review --commit 415528d0`: completed; no critical/high/medium regressions confirmed.
 
 Current Checkpoint
-- Current WIP M2-S3 stabilization:
-  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingService.java`
-    - manual-journal loser path now awaits leader commit before concurrency-failure
-    - allocation idempotency resolver now prioritizes deterministic ordered ignore-case lookup
-  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/domain/PartnerSettlementAllocationRepository.java`
-    - added ordered case-insensitive finder for stable replay resolution
-  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/domain/JournalReferenceMappingRepository.java`
-    - restored targeted conflict clause for reserve insert statements
-  - `erp-domain/src/test/java/com/bigbrightpaints/erp/e2e/accounting/JournalEntryE2ETest.java`
-    - added mixed-case manual idempotency replay coverage
+- Current WIP M0-S2 completion + M2-S4 kickoff:
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/core/audit/AuditService.java`
+    - request metadata is captured on caller thread and passed into async audit persistence
+    - request-field extraction is guarded with safe accessors to avoid recycled-request runtime faults
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/core/config/CompanyContextTaskDecorator.java`
+    - async context now propagates company/security only; request attributes are no longer copied into worker thread
+  - `erp-domain/src/test/java/com/bigbrightpaints/erp/core/audit/AuditServiceTest.java`
+    - added recycled-request safety and request-metadata capture assertions
+  - `erp-domain/src/test/java/com/bigbrightpaints/erp/core/config/CompanyContextTaskDecoratorTest.java`
+    - added context-propagation assertion and no-request-attribute propagation assertion
 - Verification command:
-  - `mvn -B -ntp -Dtest=AccountingServiceTest,SettlementE2ETest,JournalEntryE2ETest test`
+  - `mvn -B -ntp -Dtest=AuditServiceTest,CompanyContextTaskDecoratorTest,AccountingServiceTest,SettlementE2ETest,JournalEntryE2ETest test`
 - Next action:
-  - commit M2-S3 follow-up patch
+  - commit M0-S2 hardening patch
   - run `codex review --commit <sha>`
   - move to M2-S4 accounting event-trail durability boundary
 

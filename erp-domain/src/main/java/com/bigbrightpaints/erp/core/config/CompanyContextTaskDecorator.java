@@ -24,7 +24,6 @@ public class CompanyContextTaskDecorator implements TaskDecorator {
                     CompanyContextHolder.setCompanyCode(companyCode);
                 }
                 SecurityContextHolder.setContext(securityContext);
-                
                 runnable.run();
             } finally {
                 // Clean up to prevent context leaks

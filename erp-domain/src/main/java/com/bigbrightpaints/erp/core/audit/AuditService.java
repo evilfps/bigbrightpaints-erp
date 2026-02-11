@@ -47,26 +47,35 @@ public class AuditService {
     /**
      * Logs an audit event with full context.
      */
-    @Async
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void logEvent(AuditEvent event, AuditStatus status, Map<String, String> metadata) {
-        logEventInternal(event, status, metadata, null, null);
+        Map<String, String> requestContext = captureRequestContextMetadata();
+        self.logEventAsync(event, status, metadata, null, null, requestContext);
     }
 
-    @Async
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void logAuthSuccess(AuditEvent event, String username, String companyCode, Map<String, String> metadata) {
-        logEventInternal(event, AuditStatus.SUCCESS, metadata, username, companyCode);
+        Map<String, String> requestContext = captureRequestContextMetadata();
+        self.logEventAsync(event, AuditStatus.SUCCESS, metadata, username, companyCode, requestContext);
+    }
+
+    public void logAuthFailure(AuditEvent event, String username, String companyCode, Map<String, String> metadata) {
+        Map<String, String> requestContext = captureRequestContextMetadata();
+        self.logEventAsync(event, AuditStatus.FAILURE, metadata, username, companyCode, requestContext);
     }
 
     @Async
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void logAuthFailure(AuditEvent event, String username, String companyCode, Map<String, String> metadata) {
-        logEventInternal(event, AuditStatus.FAILURE, metadata, username, companyCode);
+    public void logEventAsync(AuditEvent event,
+                              AuditStatus status,
+                              Map<String, String> metadata,
+                              String usernameOverride,
+                              String companyCodeOverride,
+                              Map<String, String> requestContext) {
+        logEventInternal(event, status, metadata, usernameOverride, companyCodeOverride, requestContext);
     }
 
     private void logEventInternal(AuditEvent event, AuditStatus status, Map<String, String> metadata,
-                                  String usernameOverride, String companyCodeOverride) {
+                                  String usernameOverride, String companyCodeOverride,
+                                  Map<String, String> requestContext) {
         try {
             AuditLog.Builder builder = new AuditLog.Builder()
                 .eventType(event)
@@ -99,24 +108,14 @@ public class AuditService {
                 logger.warn("Invalid company identifier format: {}", companyToken);
             }
 
-            // Add request context
-            ServletRequestAttributes requestAttributes =
-                (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
-            if (requestAttributes != null) {
-                HttpServletRequest request = requestAttributes.getRequest();
-                builder.ipAddress(getClientIpAddress(request))
-                       .userAgent(request.getHeader("User-Agent"))
-                       .requestMethod(request.getMethod())
-                       .requestPath(request.getRequestURI())
-                       .sessionId(request.getSession(false) != null ?
-                                 request.getSession().getId() : null);
-
-                // Add trace ID if present
-                String traceId = request.getHeader("X-Trace-Id");
-                if (traceId == null) {
-                    traceId = (String) request.getAttribute("traceId");
-                }
-                if (traceId != null) {
+            if (requestContext != null && !requestContext.isEmpty()) {
+                builder.ipAddress(requestContext.get("ipAddress"))
+                       .userAgent(requestContext.get("userAgent"))
+                       .requestMethod(requestContext.get("requestMethod"))
+                       .requestPath(requestContext.get("requestPath"))
+                       .sessionId(requestContext.get("sessionId"));
+                String traceId = requestContext.get("traceId");
+                if (traceId != null && !traceId.isBlank()) {
                     builder.traceId(traceId);
                 }
             }
@@ -135,6 +134,51 @@ public class AuditService {
             // Don't let audit logging failures impact the main application
             logger.error("Failed to log audit event: {} - Status: {}", event, status, e);
         }
+    }
+
+    private Map<String, String> captureRequestContextMetadata() {
+        Map<String, String> context = new HashMap<>();
+        try {
+            ServletRequestAttributes requestAttributes =
+                    (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+            if (requestAttributes == null) {
+                return context;
+            }
+            HttpServletRequest request = requestAttributes.getRequest();
+            if (request == null) {
+                return context;
+            }
+            String ipAddress = getClientIpAddress(request);
+            if (ipAddress != null && !ipAddress.isBlank()) {
+                context.put("ipAddress", ipAddress);
+            }
+            String userAgent = safeHeader(request, "User-Agent");
+            if (userAgent != null && !userAgent.isBlank()) {
+                context.put("userAgent", userAgent);
+            }
+            String requestMethod = safeRequestMethod(request);
+            if (requestMethod != null && !requestMethod.isBlank()) {
+                context.put("requestMethod", requestMethod);
+            }
+            String requestPath = safeRequestPath(request);
+            if (requestPath != null && !requestPath.isBlank()) {
+                context.put("requestPath", requestPath);
+            }
+            String sessionId = safeSessionId(request);
+            if (sessionId != null && !sessionId.isBlank()) {
+                context.put("sessionId", sessionId);
+            }
+            String traceId = safeHeader(request, "X-Trace-Id");
+            if ((traceId == null || traceId.isBlank())) {
+                traceId = safeTraceAttribute(request, "traceId");
+            }
+            if (traceId != null && !traceId.isBlank()) {
+                context.put("traceId", traceId);
+            }
+        } catch (RuntimeException ex) {
+            logger.debug("Skipping request context enrichment for audit event due to request lifecycle state", ex);
+        }
+        return context;
     }
 
     private Long resolveCompanyId(String companyToken) {
@@ -252,6 +296,9 @@ public class AuditService {
      * Gets the client IP address, handling proxy headers.
      */
     private String getClientIpAddress(HttpServletRequest request) {
+        if (request == null) {
+            return null;
+        }
         String[] headers = {
             "X-Forwarded-For",
             "Proxy-Client-IP",
@@ -266,7 +313,7 @@ public class AuditService {
         };
 
         for (String header : headers) {
-            String ip = request.getHeader(header);
+            String ip = safeHeader(request, header);
             if (ip != null && !ip.isEmpty() && !"unknown".equalsIgnoreCase(ip)) {
                 // Handle comma-separated IPs (when going through multiple proxies)
                 int commaIndex = ip.indexOf(',');
@@ -277,7 +324,53 @@ public class AuditService {
             }
         }
 
-        return request.getRemoteAddr();
+        try {
+            return request.getRemoteAddr();
+        } catch (RuntimeException ex) {
+            return null;
+        }
+    }
+
+    private String safeHeader(HttpServletRequest request, String header) {
+        try {
+            return request.getHeader(header);
+        } catch (RuntimeException ex) {
+            return null;
+        }
+    }
+
+    private String safeRequestMethod(HttpServletRequest request) {
+        try {
+            return request.getMethod();
+        } catch (RuntimeException ex) {
+            return null;
+        }
+    }
+
+    private String safeRequestPath(HttpServletRequest request) {
+        try {
+            return request.getRequestURI();
+        } catch (RuntimeException ex) {
+            return null;
+        }
+    }
+
+    private String safeSessionId(HttpServletRequest request) {
+        try {
+            var session = request.getSession(false);
+            return session != null ? session.getId() : null;
+        } catch (RuntimeException ex) {
+            return null;
+        }
+    }
+
+    private String safeTraceAttribute(HttpServletRequest request, String attributeName) {
+        try {
+            Object value = request.getAttribute(attributeName);
+            return value != null ? value.toString() : null;
+        } catch (RuntimeException ex) {
+            return null;
+        }
     }
 
     /**
