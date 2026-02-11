@@ -14,6 +14,8 @@ Non-Stop Operating Rules
 - Validate by targeted abuse + invariant tests, not doc assumptions.
 - Auto-replenish rule: whenever one planned task is marked completed, immediately add at least one new concrete task slice.
 - Backlog floor: always keep at least 3 `ready` tasks so loop never runs out of work.
+- DB migration policy (mandatory): use Flyway V2 only (`classpath:db/migration_v2`, table `flyway_schema_history_v2`) for all new schema/index fixes.
+- No legacy migration additions while in this loop unless explicitly marked emergency/backport and documented here with reason.
 
 Completion Gates (Required For "Safe To Deploy" Claim)
 - No known critical/high security issues in auth/RBAC/tenant isolation/data exposure.
@@ -24,9 +26,10 @@ Completion Gates (Required For "Safe To Deploy" Claim)
   - Cross-module posting links (sales/inventory/purchasing/payroll -> accounting)
 - No confirmed cross-tenant / cross-partner IDOR or privilege abuse paths.
 - DB/predeploy gates:
-  - migration safety checked
+  - migration safety checked (Flyway V2 path)
   - critical indexes and heavy query paths reviewed
   - no committed secrets in runtime config
+  - migration overlap/drift scans pass for V2 (`scripts/flyway_overlap_scan.sh --migration-set v2`, schema drift checks)
 - Module workflow gates:
   - intended E2E workflows execute with expected state transitions
   - edge-case failures are deterministic and fail-safe
@@ -75,10 +78,53 @@ Deep Module-by-Module Execution Plan
   - Final risk ledger, unresolved blockers, reproduction commands, rollback/safety notes.
   - Confirm staging handoff checklist with evidence.
 
+Deep Service-Level Breakdown (Active Queue Source)
+- M0 Auth/RBAC/Company isolation services:
+  - `auth/service/AuthService.java`, `auth/service/RefreshTokenService.java`, `auth/service/UserAccountDetailsService.java`
+  - `rbac/service/RoleService.java`, `company/service/CompanyContextService.java`
+  - Focus: token abuse, disabled-user bypass, stale privilege escalation, cross-company context bleed.
+- M1 Dealer portal and sales boundary services:
+  - `sales/service/DealerPortalService.java`, `sales/service/DealerService.java`, `invoice/service/InvoiceService.java`
+  - `accounting/service/DealerLedgerService.java`, portal controllers under `modules/portal` + `modules/sales`
+  - Focus: dealer-to-dealer data exposure, invoice/ledger artifact enumeration, status leak paths.
+- M2/M3 accounting trust + settlement services:
+  - `accounting/service/AccountingService.java`, `accounting/service/ReferenceNumberService.java`
+  - `accounting/service/ReconciliationService.java`, `accounting/service/AccountingPeriodService.java`
+  - Focus: posting invariants, idempotency key replay/case abuse, reference races, period lock bypass.
+- M4 reporting consistency services:
+  - `reports/service/ReportService.java`, `accounting/service/StatementService.java`, `accounting/service/AgingReportService.java`
+  - Focus: snapshot-source mismatches, stale reads crossing close periods, reconciliation drift.
+- M5 manufacturing/inventory/dispatch coupling services:
+  - `factory/service/PackingService.java`, `factory/service/BulkPackingService.java`, `factory/service/CostAllocationService.java`
+  - `inventory/service/RawMaterialService.java`, `inventory/service/FinishedGoodsService.java`
+  - Focus: quantity/value divergence, duplicate dispatch postings, COGS/WIP mislinking.
+- M6 purchasing + O2C/P2P chain services:
+  - `purchasing/service/PurchasingService.java`, `purchasing/service/SupplierService.java`
+  - `sales/service/SalesService.java`, `sales/service/SalesFulfillmentService.java`
+  - Focus: broken cross-module references, duplicate state transitions, non-idempotent retries.
+- M7 payroll/accounting integration services:
+  - `hr/service/PayrollCalculationService.java`, `hr/service/PayrollService.java`
+  - Focus: payroll posting correctness, liability clearing invariants, period/date enforcement.
+- M8 orchestrator/exactly-once surfaces:
+  - async command/outbox/retry paths + scheduler wiring
+  - Focus: duplicate side effects, replay safety, audit trace completeness.
+- M9 DB/performance/duplicate code:
+  - heavy repository queries + endpoint hotspots, duplicate business logic across services/controllers
+  - Focus: measured bottlenecks, missing indexes in V2, divergence from duplicated logic paths.
+- M10 predeploy consolidation:
+  - release scripts, migration matrix, predeploy scans, rollback readiness evidence.
+  - Focus: staging-safe go/no-go evidence pack.
+
 Auto-Replenish Queue (Always Keep Filled)
+- [done] M1-S0 Dealer ledger boundary status semantics
+  - Completed via `37022d02`: cross-dealer ledger access now returns 403 via access-denied path.
+  - Regression coverage: `DealerControllerSecurityIT`.
 - [ready] M2-S1 Dealer settlement idempotency replay matrix
   - Validate same idempotency key across payload variants cannot mutate allocations/cash lines.
   - Assert deterministic rejection path and no duplicate journal/allocation rows.
+- [ready] M1-S2 Dealer portal invoice/aging/pdf boundary matrix
+  - Verify dealer role cannot enumerate or fetch another dealer artifacts across all portal endpoints.
+  - Ensure failure semantics are consistent (403/404 as intended) and never leak foreign IDs.
 - [ready] M2-S2 Supplier settlement over-allocation and race boundary
   - Concurrent settle/payment attempts against same purchase outstanding.
   - Verify no negative outstanding and no duplicate settlement rows.
@@ -91,6 +137,12 @@ Auto-Replenish Queue (Always Keep Filled)
 - [ready] M9-S1 Performance hotspot triage for accounting listings
   - Inspect heavy queries/index usage for journal, statements, aging endpoints.
   - Add/adjust indexes only where measurable bottleneck is confirmed.
+- [ready] M9-S2 V2 migration integrity and overlap chain
+  - Verify all new DB changes are in `db/migration_v2` and represented in migration matrix artifacts.
+  - Reject/flag legacy-only migration additions from this loop.
+- [ready] M6-S2 Cross-module duplicate logic map
+  - Build service/controller duplication map for order->dispatch->invoice->receipt->settlement path.
+  - Consolidate highest-risk duplicated rule into single canonical path with regression tests.
 
 Commit Ledger
 - 2026-02-12: `16b2a2c4`
@@ -139,3 +191,4 @@ Async Loop Cadence
 - When marking a slice `completed`:
   - convert next `ready` slice to `in_progress`
   - append at least one new `ready` slice at end of queue
+  - append one dependent cross-module slice so the queue stays context-linked (not generic)
