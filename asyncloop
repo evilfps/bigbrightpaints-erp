@@ -11,8 +11,8 @@ Operating Rules
 - Prioritize exploitable security flaws and accounting invariant violations first.
 
 Current Loop Plan
-- [in_progress] Harden configuration secrets and unsafe defaults in runtime profiles.
-- [pending] Design and add abuse-driven tests for tenant/role boundary bypasses.
+- [completed] Harden configuration secrets and unsafe defaults in runtime profiles.
+- [in_progress] Design and add abuse-driven tests for tenant/role boundary bypasses.
 - [pending] Audit accounting posting and settlement flows for cross-module invariant gaps.
 - [pending] Fix confirmed logic/security issues with minimal safe patches.
 - [pending] Run targeted verification matrix (security + accounting + cross-module).
@@ -27,18 +27,21 @@ Commit Ledger
   - Reject JWT authentication for disabled users.
   - Added `AuthDisabledUserTokenIT`.
   - `codex review --commit 65f53375`: review executed; no critical regression reported.
+- 2026-02-12: `35866465`
+  - Hardened runtime config secrets and removed committed SMTP credentials/defaults.
+  - Added `ConfigurationSecretsHardeningTest`; updated prod-hardening test properties.
+  - Verified: `mvn -B -ntp -Dtest=ConfigurationSecretsHardeningTest,CR_HealthEndpointProdHardeningIT test`.
+  - `codex review --commit 35866465`: running (result will be appended).
 
 Current Checkpoint
-- Config hardening implemented for runtime profiles:
-  - `erp-domain/src/main/resources/application.yml`
-  - `erp-domain/src/main/resources/application-dev.yml`
-  - `erp-domain/src/main/resources/application-prod.yml`
-- Coverage added:
-  - `erp-domain/src/test/java/com/bigbrightpaints/erp/core/config/ConfigurationSecretsHardeningTest.java`
-  - `erp-domain/src/test/java/com/bigbrightpaints/erp/codered/CR_HealthEndpointProdHardeningIT.java`
+- Current WIP security fix:
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/sales/service/DealerPortalService.java`
+    - Replace `SecurityException` with `AccessDeniedException` to prevent 500 on dealer-boundary violations.
+  - `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/sales/DealerControllerSecurityIT.java`
+    - Add abuse test ensuring dealer cannot access another dealer's ledger (`403`).
 - Verification command:
-  - `mvn -B -ntp -Dtest=ConfigurationSecretsHardeningTest,CR_HealthEndpointProdHardeningIT test`
+  - `mvn -B -ntp -Dtest=DealerControllerSecurityIT,DealerLedgerIT test`
 - Next action:
-  - commit this step
+  - commit dealer-boundary fix
   - run `codex review --commit <sha>`
-  - continue dealer-role abuse audit
+  - continue accounting invariant audit loop

@@ -12,6 +12,7 @@ import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrder;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrderRepository;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -78,7 +79,7 @@ public class DealerPortalService {
         if (!isDealerUser()) return;
         Dealer currentDealer = getCurrentDealer();
         if (!currentDealer.getId().equals(dealerId)) {
-            throw new SecurityException("Access denied: You can only view your own data");
+            throw new AccessDeniedException("Access denied: You can only view your own data");
         }
     }
 
