@@ -12,6 +12,8 @@ Non-Stop Operating Rules
 - After each commit: run `codex review --commit <sha>` and log result here.
 - Prioritize exploitable vulnerabilities and accounting/invariant failures over cosmetic work.
 - Validate by targeted abuse + invariant tests, not doc assumptions.
+- Auto-replenish rule: whenever one planned task is marked completed, immediately add at least one new concrete task slice.
+- Backlog floor: always keep at least 3 `ready` tasks so loop never runs out of work.
 
 Completion Gates (Required For "Safe To Deploy" Claim)
 - No known critical/high security issues in auth/RBAC/tenant isolation/data exposure.
@@ -73,6 +75,23 @@ Deep Module-by-Module Execution Plan
   - Final risk ledger, unresolved blockers, reproduction commands, rollback/safety notes.
   - Confirm staging handoff checklist with evidence.
 
+Auto-Replenish Queue (Always Keep Filled)
+- [ready] M2-S1 Dealer settlement idempotency replay matrix
+  - Validate same idempotency key across payload variants cannot mutate allocations/cash lines.
+  - Assert deterministic rejection path and no duplicate journal/allocation rows.
+- [ready] M2-S2 Supplier settlement over-allocation and race boundary
+  - Concurrent settle/payment attempts against same purchase outstanding.
+  - Verify no negative outstanding and no duplicate settlement rows.
+- [ready] M3-S1 Period-lock + reversal abuse cases
+  - Reverse in locked/closed periods with and without admin override.
+  - Assert no silent bypass and correct error semantics.
+- [ready] M5-S1 Dispatch/COGS linkage integrity
+  - Validate dispatch posting references link exactly once to inventory and accounting artifacts.
+  - Verify idempotent dispatch replays do not duplicate COGS.
+- [ready] M9-S1 Performance hotspot triage for accounting listings
+  - Inspect heavy queries/index usage for journal, statements, aging endpoints.
+  - Add/adjust indexes only where measurable bottleneck is confirmed.
+
 Commit Ledger
 - 2026-02-12: `16b2a2c4`
   - Harden packing endpoints with explicit role gate.
@@ -117,3 +136,6 @@ Async Loop Cadence
   - run focused verification
   - commit + `codex review --commit`
   - append findings/next slice here
+- When marking a slice `completed`:
+  - convert next `ready` slice to `in_progress`
+  - append at least one new `ready` slice at end of queue
