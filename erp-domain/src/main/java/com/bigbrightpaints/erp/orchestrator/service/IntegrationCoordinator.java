@@ -61,6 +61,7 @@ import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.util.StringUtils;
 
 @Service
 public class IntegrationCoordinator {
@@ -297,6 +298,15 @@ public class IntegrationCoordinator {
     public void postDispatchJournal(String batchId,
                                     String companyId,
                                     BigDecimal amount) {
+        postDispatchJournal(batchId, companyId, amount, null, null);
+    }
+
+    @Transactional
+    public void postDispatchJournal(String batchId,
+                                    String companyId,
+                                    BigDecimal amount,
+                                    String traceId,
+                                    String idempotencyKey) {
         requireFactoryDispatchEnabled();
         runWithCompanyContext(companyId, () -> {
             Long debitAccountId = dispatchDebitAccountId;
@@ -307,7 +317,8 @@ public class IntegrationCoordinator {
                 creditAccountId = defaults.inventoryAccountId();
                 log.warn("Dispatch accounts not configured; using company default COGS/Inventory for batch {}", batchId);
             }
-            postJournal("DISPATCH-" + batchId, amount, "Dispatch journal for batch " + batchId, debitAccountId, creditAccountId);
+            String memo = correlationMemo("Dispatch journal for batch " + batchId, traceId, idempotencyKey);
+            postJournal("DISPATCH-" + batchId, amount, memo, debitAccountId, creditAccountId);
         });
     }
 
@@ -336,9 +347,21 @@ public class IntegrationCoordinator {
                                                 Long expenseAccountId,
                                                 Long cashAccountId,
                                                 String companyId) {
+        return recordPayrollPayment(payrollRunId, amount, expenseAccountId, cashAccountId, companyId, null, null);
+    }
+
+    @Transactional
+    public JournalEntryDto recordPayrollPayment(Long payrollRunId,
+                                                BigDecimal amount,
+                                                Long expenseAccountId,
+                                                Long cashAccountId,
+                                                String companyId,
+                                                String traceId,
+                                                String idempotencyKey) {
         requirePayrollEnabled();
+        String memo = correlationMemo("Orchestrator payroll payment for run " + payrollRunId, traceId, idempotencyKey);
         return withCompanyContext(companyId, () -> accountingFacade.recordPayrollPayment(
-                new PayrollPaymentRequest(payrollRunId, cashAccountId, expenseAccountId, amount, null, null)));
+                new PayrollPaymentRequest(payrollRunId, cashAccountId, expenseAccountId, amount, null, memo)));
     }
 
     @Transactional(readOnly = true)
@@ -570,6 +593,17 @@ public class IntegrationCoordinator {
                 postingAmount,
                 false
         );
+    }
+
+    private String correlationMemo(String baseMemo, String traceId, String idempotencyKey) {
+        StringBuilder builder = new StringBuilder(baseMemo != null ? baseMemo : "");
+        if (StringUtils.hasText(traceId)) {
+            builder.append(" [trace=").append(traceId.trim()).append("]");
+        }
+        if (StringUtils.hasText(idempotencyKey)) {
+            builder.append(" [idem=").append(idempotencyKey.trim()).append("]");
+        }
+        return builder.toString();
     }
 
     private Long parseNumericId(String id) {

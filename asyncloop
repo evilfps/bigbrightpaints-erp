@@ -184,12 +184,16 @@ Auto-Replenish Queue (Always Keep Filled)
   - Guard best-effort mode from secondary audit-log failures so event-trail policy cannot fail-open/fail-closed unpredictably.
   - Replace raw exception-message leakage in audit metadata with sanitized failure class/code.
   - Add reversal-path strict/best-effort tests to match posting-path durability coverage.
-- [ready] M8-S3 Correlation contract assertions for orchestrator accounting side effects
+- [done] M8-S3 Correlation contract assertions for orchestrator accounting side effects
   - Add focused checks to ensure dispatch/payroll side-effect calls always carry trace/idempotency markers.
   - Extend orchestrator truth-suite assertions to cover accounting memo correlation markers.
+  - Completed: added `IntegrationCoordinatorTest` assertions for dispatch/payroll memo propagation of `[trace=...]` and `[idem=...]`.
 - [ready] M2-S6 Event-trail input prevalidation contract
   - Validate event-mirrored fields (reference, account code, description) against bounded/safe constraints before strict event persistence.
   - Fail fast with `VALIDATION_INVALID_INPUT` on invalid payloads instead of infra-flavored integration errors.
+- [ready] M8-S4 Commit self-containment guardrail
+  - Ensure orchestrator correlation commits include both dispatcher call-site and coordinator overload definitions.
+  - Add commit-review checklist item to reject clean-checkout compile gaps.
 
 Commit Ledger
 - 2026-02-12: `16b2a2c4`
@@ -257,18 +261,27 @@ Commit Ledger
   - Added direct regression tests in `CommandDispatcherTest` to prevent correlation loss.
   - Verified:
     - `mvn -B -ntp -Dtest=CommandDispatcherTest,EventPublisherServiceTest,TraceServiceIT test`
-  - `codex review --commit 85d2e1be`: running (result will be appended).
+  - `codex review --commit 85d2e1be`: flagged P0 clean-checkout compile gap (dispatcher calls new overloads not yet committed in coordinator at commit boundary).
+  - Follow-up action in progress: commit missing `IntegrationCoordinator` overload bridge + correlation contract tests to close self-containment gap.
 
 Current Checkpoint
-- Current WIP M0-S3 completion + M2-S5 kickoff:
-  - `erp-domain/src/test/java/com/bigbrightpaints/erp/core/audit/AuditServiceTest.java`
-    - added auth-wrapper attribution coverage under missing/recycled contexts and override/fallback paths
+- Current WIP M2-S5 implementation + M8-S3 follow-up hardening:
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingService.java`
+    - event-trail failure metadata sanitized and audit-marker write now guarded from secondary failure amplification
+    - strict-mode compatibility prevalidation added for event-mirrored field lengths
+  - `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingServiceTest.java`
+    - added strict/best-effort reversal durability tests and metadata-sanitization assertions
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/orchestrator/service/IntegrationCoordinator.java`
+    - adds correlation-aware overloads required by dispatcher commit self-containment
+  - `erp-domain/src/test/java/com/bigbrightpaints/erp/orchestrator/service/IntegrationCoordinatorTest.java`
+    - verifies trace/idempotency markers are propagated into dispatch/payroll accounting memos
 - Verification command:
-  - `mvn -B -ntp -Dtest=AuditServiceTest,CompanyContextTaskDecoratorTest,CommandDispatcherTest test`
+  - `mvn -B -ntp -Dtest=IntegrationCoordinatorTest,CommandDispatcherTest test`
+  - `mvn -B -ntp -Dtest=AccountingServiceTest,JournalEntryE2ETest,SettlementE2ETest test`
 - Next action:
-  - commit M0-S3 audit-wrapper attribution tests
+  - commit integration self-containment bridge for `85d2e1be` follow-up
   - run `codex review --commit <sha>`
-  - execute M2-S5 accounting event-trail sanitization + reversal durability hardening
+  - commit M2-S5 accounting event-trail sanitization + reversal durability hardening
 
 Async Loop Cadence
 - Each cycle:

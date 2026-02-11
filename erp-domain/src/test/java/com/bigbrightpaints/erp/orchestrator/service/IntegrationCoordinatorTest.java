@@ -4,6 +4,7 @@ import com.bigbrightpaints.erp.core.security.CompanyContextHolder;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
+import com.bigbrightpaints.erp.modules.accounting.dto.PayrollPaymentRequest;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingService;
 import com.bigbrightpaints.erp.modules.accounting.service.CompanyDefaultAccountsService;
@@ -40,6 +41,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
@@ -352,6 +354,49 @@ class IntegrationCoordinatorTest {
         assertThrows(ApplicationException.class,
                 () -> disabled.recordPayrollPayment(1L, new BigDecimal("1000"), 1L, 2L, COMPANY_ID));
         verify(accountingFacade, never()).recordPayrollPayment(any());
+    }
+
+    @Test
+    void postDispatchJournalPropagatesTraceAndIdempotencyInMemo() {
+        integrationCoordinator.postDispatchJournal(
+                "B-900",
+                COMPANY_ID,
+                new BigDecimal("120.00"),
+                "trace-dispatch-900",
+                "idem-dispatch-900");
+
+        verify(accountingFacade).postSimpleJournal(
+                eq("DISPATCH-B-900"),
+                eq(LocalDate.of(2024, 1, 1)),
+                argThat(memo -> memo != null
+                        && memo.contains("Dispatch journal for batch B-900")
+                        && memo.contains("[trace=trace-dispatch-900]")
+                        && memo.contains("[idem=idem-dispatch-900]")),
+                eq(10L),
+                eq(20L),
+                eq(new BigDecimal("120.00")),
+                eq(false));
+    }
+
+    @Test
+    void recordPayrollPaymentPropagatesTraceAndIdempotencyInMemo() {
+        integrationCoordinator.recordPayrollPayment(
+                901L,
+                new BigDecimal("500.00"),
+                11L,
+                22L,
+                COMPANY_ID,
+                "trace-payroll-901",
+                "idem-payroll-901");
+
+        verify(accountingFacade).recordPayrollPayment(argThat((PayrollPaymentRequest request) ->
+                request != null
+                        && request.payrollRunId().equals(901L)
+                        && request.amount().compareTo(new BigDecimal("500.00")) == 0
+                        && request.memo() != null
+                        && request.memo().contains("Orchestrator payroll payment for run 901")
+                        && request.memo().contains("[trace=trace-payroll-901]")
+                        && request.memo().contains("[idem=idem-payroll-901]")));
     }
 
     private static class NoOpTransactionManager extends AbstractPlatformTransactionManager {
