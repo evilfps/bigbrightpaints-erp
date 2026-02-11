@@ -215,7 +215,9 @@ public class CommandDispatcher {
             integrationCoordinator.postDispatchJournal(
                     request.batchId(),
                     companyId,
-                    request.postingAmount());
+                    request.postingAmount(),
+                    traceId,
+                    idempotencyKey);
             DomainEvent event = DomainEvent.of("ProductionBatchDispatchedEvent", companyId, userId, "Batch",
                 request.batchId(), Map.of("dispatchedBy", request.requestedBy(), "traceId", traceId,
                         "idempotencyKey", idempotencyKey),
@@ -275,7 +277,9 @@ public class CommandDispatcher {
                     request.postingAmount(),
                     request.debitAccountId(),
                     request.creditAccountId(),
-                    companyId);
+                    companyId,
+                    traceId,
+                    idempotencyKey);
             DomainEvent event = DomainEvent.of("PayrollCompletedEvent", companyId, userId, "Payroll",
                 request.payrollDate().toString(), Map.of("initiatedBy", request.initiatedBy(), "traceId", traceId,
                         "idempotencyKey", idempotencyKey),

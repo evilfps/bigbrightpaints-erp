@@ -2,6 +2,7 @@ package com.bigbrightpaints.erp.orchestrator.service;
 
 import com.bigbrightpaints.erp.modules.inventory.service.FinishedGoodsService.InventoryReservationResult;
 import com.bigbrightpaints.erp.modules.inventory.service.FinishedGoodsService.InventoryShortage;
+import com.bigbrightpaints.erp.modules.hr.dto.PayrollRunDto;
 import com.bigbrightpaints.erp.orchestrator.config.OrchestratorFeatureFlags;
 import com.bigbrightpaints.erp.orchestrator.dto.ApproveOrderRequest;
 import com.bigbrightpaints.erp.orchestrator.dto.DispatchRequest;
@@ -138,6 +139,12 @@ class CommandDispatcherTest {
         verify(integrationCoordinator, never()).updateProductionStatus(ArgumentMatchers.anyString(), ArgumentMatchers.anyString());
         verify(integrationCoordinator, never()).releaseInventory(ArgumentMatchers.anyString(), ArgumentMatchers.anyString());
         verify(integrationCoordinator, never()).postDispatchJournal(ArgumentMatchers.anyString(), ArgumentMatchers.anyString(), ArgumentMatchers.any());
+        verify(integrationCoordinator, never()).postDispatchJournal(
+                ArgumentMatchers.anyString(),
+                ArgumentMatchers.anyString(),
+                ArgumentMatchers.any(),
+                ArgumentMatchers.anyString(),
+                ArgumentMatchers.anyString());
         verify(eventPublisherService).enqueue(ArgumentMatchers.argThat(event ->
                 "OrchestratorCommandDenied".equals(event.eventType())));
         verify(traceService).record(
@@ -177,6 +184,14 @@ class CommandDispatcherTest {
         verify(integrationCoordinator, never()).syncEmployees(ArgumentMatchers.anyString());
         verify(integrationCoordinator, never()).generatePayroll(ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.anyString());
         verify(integrationCoordinator, never()).recordPayrollPayment(ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.anyString());
+        verify(integrationCoordinator, never()).recordPayrollPayment(
+                ArgumentMatchers.any(),
+                ArgumentMatchers.any(),
+                ArgumentMatchers.any(),
+                ArgumentMatchers.any(),
+                ArgumentMatchers.anyString(),
+                ArgumentMatchers.anyString(),
+                ArgumentMatchers.anyString());
         verify(eventPublisherService).enqueue(ArgumentMatchers.argThat(event ->
                 "OrchestratorCommandDenied".equals(event.eventType())));
         verify(traceService).record(
@@ -258,6 +273,14 @@ class CommandDispatcherTest {
         verify(integrationCoordinator, never()).syncEmployees(ArgumentMatchers.anyString());
         verify(integrationCoordinator, never()).generatePayroll(ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.anyString());
         verify(integrationCoordinator, never()).recordPayrollPayment(ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.anyString());
+        verify(integrationCoordinator, never()).recordPayrollPayment(
+                ArgumentMatchers.any(),
+                ArgumentMatchers.any(),
+                ArgumentMatchers.any(),
+                ArgumentMatchers.any(),
+                ArgumentMatchers.anyString(),
+                ArgumentMatchers.anyString(),
+                ArgumentMatchers.anyString());
         verify(idempotencyService).markFailed(
                 ArgumentMatchers.eq(command),
                 ArgumentMatchers.argThat((RuntimeException ex) ->
@@ -319,6 +342,64 @@ class CommandDispatcherTest {
 
         verify(idempotencyService).markFailed(ArgumentMatchers.eq(command), ArgumentMatchers.any(RuntimeException.class));
         verify(idempotencyService, never()).markSuccess(ArgumentMatchers.any());
+    }
+
+    @Test
+    void dispatchBatchPropagatesTraceAndIdempotencyToDispatchJournal() {
+        OrchestratorCommand command =
+                new OrchestratorCommand(1L, "ORCH.FACTORY.BATCH.DISPATCH", "idem-dispatch", "hash", "trace-dispatch");
+        DispatchRequest request = new DispatchRequest("77", "orch@bbp.com", new BigDecimal("100"));
+        when(idempotencyService.start(
+                ArgumentMatchers.eq("ORCH.FACTORY.BATCH.DISPATCH"),
+                ArgumentMatchers.eq("idem-dispatch"),
+                ArgumentMatchers.eq(request),
+                ArgumentMatchers.any()))
+                .thenReturn(new OrchestratorIdempotencyService.CommandLease("trace-dispatch", command, true));
+
+        String traceId = commandDispatcher.dispatchBatch(request, "idem-dispatch", "req-dispatch", "COMP", "user-1");
+
+        assertThat(traceId).isEqualTo("trace-dispatch");
+        verify(policyEnforcer).checkDispatchPermissions("user-1", "COMP");
+        verify(integrationCoordinator).updateProductionStatus("77", "COMP");
+        verify(integrationCoordinator).releaseInventory("77", "COMP");
+        verify(integrationCoordinator).postDispatchJournal(
+                "77",
+                "COMP",
+                new BigDecimal("100"),
+                "trace-dispatch",
+                "idem-dispatch");
+        verify(idempotencyService).markSuccess(command);
+    }
+
+    @Test
+    void runPayrollPropagatesTraceAndIdempotencyToAccountingPosting() {
+        LocalDate payrollDate = LocalDate.of(2026, 1, 31);
+        BigDecimal postingAmount = new BigDecimal("1000");
+        PayrollRunRequest request = new PayrollRunRequest(payrollDate, "orch", 11L, 22L, postingAmount);
+        OrchestratorCommand command = new OrchestratorCommand(1L, "ORCH.PAYROLL.RUN", "idem-payroll", "hash", "trace-payroll");
+        when(idempotencyService.start(
+                ArgumentMatchers.eq("ORCH.PAYROLL.RUN"),
+                ArgumentMatchers.eq("idem-payroll"),
+                ArgumentMatchers.eq(request),
+                ArgumentMatchers.any()))
+                .thenReturn(new OrchestratorIdempotencyService.CommandLease("trace-payroll", command, true));
+        when(integrationCoordinator.generatePayroll(payrollDate, postingAmount, "COMP"))
+                .thenReturn(new PayrollRunDto(55L, null, payrollDate, "COMPLETED", "orch", null, postingAmount, null, "idem-payroll"));
+
+        String traceId = commandDispatcher.runPayroll(request, "idem-payroll", "req-payroll", "COMP", "user-1");
+
+        assertThat(traceId).isEqualTo("trace-payroll");
+        verify(policyEnforcer).checkPayrollPermissions("user-1", "COMP");
+        verify(integrationCoordinator).syncEmployees("COMP");
+        verify(integrationCoordinator).recordPayrollPayment(
+                55L,
+                postingAmount,
+                11L,
+                22L,
+                "COMP",
+                "trace-payroll",
+                "idem-payroll");
+        verify(idempotencyService).markSuccess(command);
     }
 
     @Test
