@@ -123,6 +123,13 @@ public class AccountingService {
     @Value("${erp.benchmark.skip-date-validation:false}")
     private boolean skipDateValidation;
 
+    /**
+     * When true, journal posting/reversal fails if event-trail persistence fails.
+     * This is the staging/predeploy default to prevent silent audit-trail drops.
+     */
+    @Value("${erp.accounting.event-trail.strict:true}")
+    private boolean strictAccountingEventTrail = true;
+
     public AccountingService(CompanyContextService companyContextService,
                              AccountRepository accountRepository,
                              JournalEntryRepository journalEntryRepository,
@@ -3295,7 +3302,7 @@ public class AccountingService {
             Map<Long, BigDecimal> snapshot = balancesBefore != null ? new HashMap<>(balancesBefore) : Map.of();
             accountingEventStore.recordJournalEntryPosted(journalEntry, snapshot);
         } catch (Exception ex) {
-            log.warn("Failed to record accounting event trail for journal {}", journalEntry.getReferenceNumber(), ex);
+            handleAccountingEventTrailFailure("JOURNAL_ENTRY_POSTED", journalEntry.getReferenceNumber(), ex);
         }
     }
 
@@ -3306,8 +3313,36 @@ public class AccountingService {
         try {
             accountingEventStore.recordJournalEntryReversed(original, reversal, reason);
         } catch (Exception ex) {
-            log.warn("Failed to record reversal event trail for journal {}", original.getReferenceNumber(), ex);
+            handleAccountingEventTrailFailure("JOURNAL_ENTRY_REVERSED", original.getReferenceNumber(), ex);
         }
+    }
+
+    private void handleAccountingEventTrailFailure(String operation, String journalReference, Exception ex) {
+        Map<String, String> metadata = new HashMap<>();
+        metadata.put("eventTrailOperation", operation);
+        metadata.put("policy", strictAccountingEventTrail ? "STRICT" : "BEST_EFFORT");
+        if (StringUtils.hasText(journalReference)) {
+            metadata.put("journalReference", journalReference);
+        }
+        metadata.put("errorType", ex.getClass().getSimpleName());
+        if (StringUtils.hasText(ex.getMessage())) {
+            metadata.put("error", ex.getMessage());
+        }
+        auditService.logFailure(AuditEvent.INTEGRATION_FAILURE, metadata);
+
+        if (strictAccountingEventTrail) {
+            throw new ApplicationException(
+                    ErrorCode.SYSTEM_DATABASE_ERROR,
+                    "Accounting event trail persistence failed",
+                    ex)
+                    .withDetail("eventTrailOperation", operation)
+                    .withDetail("journalReference", journalReference);
+        }
+
+        log.warn("Accounting event trail persistence failed for operation {} and journal {} (best-effort policy)",
+                operation,
+                journalReference,
+                ex);
     }
 
     private void ensureDuplicateMatchesExisting(JournalEntry existing,

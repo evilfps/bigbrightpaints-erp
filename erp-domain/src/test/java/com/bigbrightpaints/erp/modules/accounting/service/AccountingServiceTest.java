@@ -17,11 +17,13 @@ import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalLineRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalReferenceMapping;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalReferenceMappingRepository;
+import com.bigbrightpaints.erp.modules.accounting.event.AccountingEventStore;
 import com.bigbrightpaints.erp.modules.accounting.dto.DealerSettlementRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryReversalRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.InventoryRevaluationRequest;
+import com.bigbrightpaints.erp.modules.accounting.dto.PartnerSettlementResponse;
 import com.bigbrightpaints.erp.modules.accounting.dto.SettlementAllocationRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.SettlementPaymentRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.SupplierPaymentRequest;
@@ -56,10 +58,13 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.util.ArrayList;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -131,6 +136,8 @@ class AccountingServiceTest {
     private com.bigbrightpaints.erp.core.config.SystemSettingsService systemSettingsService;
     @Mock
     private AuditService auditService;
+    @Mock
+    private AccountingEventStore accountingEventStore;
 
     private AccountingService accountingService;
     private Company company;
@@ -163,7 +170,8 @@ class AccountingServiceTest {
                 journalReferenceMappingRepository,
                 entityManager,
                 systemSettingsService,
-                auditService
+                auditService,
+                accountingEventStore
         );
         company = new Company();
         company.setBaseCurrency("INR");
@@ -839,6 +847,103 @@ class AccountingServiceTest {
     }
 
     @Test
+    void createJournalEntry_failsWhenEventTrailPersistenceFailsInStrictMode() {
+        LocalDate today = LocalDate.of(2024, 3, 22);
+        when(companyClock.today(company)).thenReturn(today);
+        AccountingPeriod period = new AccountingPeriod();
+        period.setYear(today.getYear());
+        period.setMonth(today.getMonthValue());
+        when(accountingPeriodService.requireOpenPeriod(company, today)).thenReturn(period);
+        when(journalEntryRepository.findByCompanyAndReferenceNumber(eq(company), eq("EVT-STRICT")))
+                .thenReturn(Optional.empty());
+
+        Account debitAccount = new Account();
+        ReflectionTestUtils.setField(debitAccount, "id", 101L);
+        debitAccount.setCompany(company);
+        debitAccount.setBalance(BigDecimal.ZERO);
+        debitAccount.setCode("DEBIT-STRICT");
+        Account creditAccount = new Account();
+        ReflectionTestUtils.setField(creditAccount, "id", 102L);
+        creditAccount.setCompany(company);
+        creditAccount.setBalance(BigDecimal.ZERO);
+        creditAccount.setCode("CREDIT-STRICT");
+        when(accountRepository.lockByCompanyAndId(eq(company), eq(101L))).thenReturn(Optional.of(debitAccount));
+        when(accountRepository.lockByCompanyAndId(eq(company), eq(102L))).thenReturn(Optional.of(creditAccount));
+        when(journalEntryRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(accountRepository.updateBalanceAtomic(eq(company), any(), any())).thenReturn(1);
+        when(accountingEventStore.recordJournalEntryPosted(any(), any()))
+                .thenThrow(new IllegalStateException("event-store-down"));
+
+        JournalEntryRequest request = new JournalEntryRequest(
+                "EVT-STRICT",
+                today,
+                "Strict event trail failure test",
+                null,
+                null,
+                Boolean.FALSE,
+                List.of(
+                        new JournalEntryRequest.JournalLineRequest(101L, "Debit line", new BigDecimal("20.00"), BigDecimal.ZERO),
+                        new JournalEntryRequest.JournalLineRequest(102L, "Credit line", BigDecimal.ZERO, new BigDecimal("20.00"))
+                )
+        );
+
+        assertThatThrownBy(() -> accountingService.createJournalEntry(request))
+                .isInstanceOf(ApplicationException.class)
+                .satisfies(ex -> assertThat(((ApplicationException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.SYSTEM_DATABASE_ERROR))
+                .hasMessageContaining("Accounting event trail persistence failed");
+        verify(auditService).logFailure(eq(AuditEvent.INTEGRATION_FAILURE), org.mockito.ArgumentMatchers.<Map<String, String>>any());
+    }
+
+    @Test
+    void createJournalEntry_bestEffortEventTrailFailureStillPosts() {
+        ReflectionTestUtils.setField(accountingService, "strictAccountingEventTrail", false);
+        LocalDate today = LocalDate.of(2024, 3, 23);
+        when(companyClock.today(company)).thenReturn(today);
+        AccountingPeriod period = new AccountingPeriod();
+        period.setYear(today.getYear());
+        period.setMonth(today.getMonthValue());
+        when(accountingPeriodService.requireOpenPeriod(company, today)).thenReturn(period);
+        when(journalEntryRepository.findByCompanyAndReferenceNumber(eq(company), eq("EVT-BEST-EFFORT")))
+                .thenReturn(Optional.empty());
+
+        Account debitAccount = new Account();
+        ReflectionTestUtils.setField(debitAccount, "id", 201L);
+        debitAccount.setCompany(company);
+        debitAccount.setBalance(BigDecimal.ZERO);
+        debitAccount.setCode("DEBIT-BE");
+        Account creditAccount = new Account();
+        ReflectionTestUtils.setField(creditAccount, "id", 202L);
+        creditAccount.setCompany(company);
+        creditAccount.setBalance(BigDecimal.ZERO);
+        creditAccount.setCode("CREDIT-BE");
+        when(accountRepository.lockByCompanyAndId(eq(company), eq(201L))).thenReturn(Optional.of(debitAccount));
+        when(accountRepository.lockByCompanyAndId(eq(company), eq(202L))).thenReturn(Optional.of(creditAccount));
+        when(journalEntryRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(accountRepository.updateBalanceAtomic(eq(company), any(), any())).thenReturn(1);
+        when(accountingEventStore.recordJournalEntryPosted(any(), any()))
+                .thenThrow(new IllegalStateException("event-store-down"));
+
+        JournalEntryRequest request = new JournalEntryRequest(
+                "EVT-BEST-EFFORT",
+                today,
+                "Best effort event trail failure test",
+                null,
+                null,
+                Boolean.FALSE,
+                List.of(
+                        new JournalEntryRequest.JournalLineRequest(201L, "Debit line", new BigDecimal("15.00"), BigDecimal.ZERO),
+                        new JournalEntryRequest.JournalLineRequest(202L, "Credit line", BigDecimal.ZERO, new BigDecimal("15.00"))
+                )
+        );
+
+        JournalEntryDto result = accountingService.createJournalEntry(request);
+        assertThat(result.referenceNumber()).isEqualTo("EVT-BEST-EFFORT");
+        verify(auditService).logFailure(eq(AuditEvent.INTEGRATION_FAILURE), org.mockito.ArgumentMatchers.<Map<String, String>>any());
+        verify(auditService).logSuccess(eq(AuditEvent.JOURNAL_ENTRY_POSTED), any());
+    }
+
+    @Test
     void createJournalEntry_convertsForeignCurrencyToBaseAmounts() {
         LocalDate today = LocalDate.of(2024, 4, 1);
         when(companyClock.today(company)).thenReturn(today);
@@ -1360,6 +1465,102 @@ class AccountingServiceTest {
     }
 
     @Test
+    void settleDealerInvoices_idempotentReplayReturnsSameCashAmount() {
+        AccountingService service = spy(accountingService);
+
+        Dealer dealer = new Dealer();
+        dealer.setName("Dealer");
+        ReflectionTestUtils.setField(dealer, "id", 1L);
+
+        Account receivable = new Account();
+        receivable.setCompany(company);
+        receivable.setCode("AR");
+        receivable.setType(AccountType.ASSET);
+        ReflectionTestUtils.setField(receivable, "id", 10L);
+        dealer.setReceivableAccount(receivable);
+
+        Account cash = new Account();
+        cash.setCompany(company);
+        cash.setCode("CASH");
+        ReflectionTestUtils.setField(cash, "id", 20L);
+
+        Account discount = new Account();
+        discount.setCompany(company);
+        discount.setCode("DISC");
+        ReflectionTestUtils.setField(discount, "id", 21L);
+
+        var invoice = new com.bigbrightpaints.erp.modules.invoice.domain.Invoice();
+        invoice.setCompany(company);
+        invoice.setDealer(dealer);
+        invoice.setCurrency("INR");
+        invoice.setOutstandingAmount(new BigDecimal("1000.00"));
+        invoice.setTotalAmount(new BigDecimal("1000.00"));
+        ReflectionTestUtils.setField(invoice, "id", 5L);
+
+        var journalEntry = new JournalEntry();
+        ReflectionTestUtils.setField(journalEntry, "id", 44L);
+        journalEntry.setDealer(dealer);
+        journalEntry.setReferenceNumber("DR-TEST-1");
+        journalEntry.setMemo("Dealer settlement");
+        journalEntry.getLines().add(journalLine(journalEntry, cash, "Dealer settlement", new BigDecimal("450.00"), BigDecimal.ZERO));
+        journalEntry.getLines().add(journalLine(journalEntry, discount, "Settlement discount", new BigDecimal("50.00"), BigDecimal.ZERO));
+        journalEntry.getLines().add(journalLine(journalEntry, receivable, "Dealer settlement", BigDecimal.ZERO, new BigDecimal("500.00")));
+
+        when(dealerRepository.lockByCompanyAndId(eq(company), eq(1L))).thenReturn(Optional.of(dealer));
+        when(invoiceRepository.lockByCompanyAndId(eq(company), eq(5L))).thenReturn(Optional.of(invoice));
+        when(companyEntityLookup.requireAccount(eq(company), eq(20L))).thenReturn(cash);
+        when(companyEntityLookup.requireAccount(eq(company), eq(21L))).thenReturn(discount);
+        when(companyEntityLookup.requireJournalEntry(eq(company), eq(44L))).thenReturn(journalEntry);
+
+        List<com.bigbrightpaints.erp.modules.accounting.domain.PartnerSettlementAllocation> savedRows = new ArrayList<>();
+        AtomicInteger allocationLookupCount = new AtomicInteger(0);
+        when(settlementAllocationRepository.findByCompanyAndIdempotencyKey(eq(company), eq("IDEMP-AR-CASH")))
+                .thenAnswer(invocation -> allocationLookupCount.getAndIncrement() == 0 ? List.of() : List.copyOf(savedRows));
+        when(settlementAllocationRepository.saveAll(any()))
+                .thenAnswer(invocation -> {
+                    @SuppressWarnings("unchecked")
+                    List<com.bigbrightpaints.erp.modules.accounting.domain.PartnerSettlementAllocation> incoming =
+                            (List<com.bigbrightpaints.erp.modules.accounting.domain.PartnerSettlementAllocation>) invocation.getArgument(0);
+                    savedRows.clear();
+                    savedRows.addAll(incoming);
+                    return incoming;
+                });
+
+        doReturn(stubEntry(44L)).when(service).createJournalEntry(any());
+
+        SettlementAllocationRequest allocation = new SettlementAllocationRequest(
+                5L,
+                null,
+                new BigDecimal("500.00"),
+                new BigDecimal("50.00"),
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                "settle");
+
+        DealerSettlementRequest request = new DealerSettlementRequest(
+                1L,
+                20L,
+                21L,
+                null,
+                null,
+                null,
+                LocalDate.of(2024, 4, 9),
+                "DR-TEST-1",
+                "Dealer settlement",
+                "IDEMP-AR-CASH",
+                Boolean.FALSE,
+                List.of(allocation),
+                null
+        );
+
+        PartnerSettlementResponse first = service.settleDealerInvoices(request);
+        PartnerSettlementResponse replay = service.settleDealerInvoices(request);
+
+        assertThat(first.cashAmount()).isEqualByComparingTo("450.00");
+        assertThat(replay.cashAmount()).isEqualByComparingTo(first.cashAmount());
+    }
+
+    @Test
     void revalueInventory_distributesAcrossFinishedGoodBatches() {
         AccountingService service = spy(accountingService);
 
@@ -1697,6 +1898,20 @@ class AccountingServiceTest {
         assertThatThrownBy(() -> service.settleSupplierInvoices(request))
                 .isInstanceOf(ApplicationException.class)
                 .hasMessageContaining("must be an ASSET account");
+    }
+
+    private JournalLine journalLine(JournalEntry entry,
+                                    Account account,
+                                    String description,
+                                    BigDecimal debit,
+                                    BigDecimal credit) {
+        JournalLine line = new JournalLine();
+        line.setJournalEntry(entry);
+        line.setAccount(account);
+        line.setDescription(description);
+        line.setDebit(debit);
+        line.setCredit(credit);
+        return line;
     }
 
     private JournalEntryDto stubEntry(long id) {

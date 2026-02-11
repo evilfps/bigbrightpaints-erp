@@ -152,18 +152,27 @@ Auto-Replenish Queue (Always Keep Filled)
   - Completed: loser path now waits for leader journal materialization before failing (`awaitJournalEntry` in manual idempotency reserve path).
   - Added E2E test `journalEntry_ManualIdempotencyKey_CaseInsensitiveReplay`.
   - Follow-up deterministic patch applied: allocation idempotency reads now use ordered case-insensitive lookup first.
-- [in_progress] M2-S4 Accounting event trail durability boundary
+- [done] M2-S4 Accounting event trail durability boundary
   - Investigate fail-open `recordJournalEntryPostedEventSafe`/`recordJournalEntryReversedEventSafe` behavior and define policy for staging (`strict` vs `best-effort` with durable retry/alert).
   - Ensure no silent accounting-event trail drops for posted/reversed journals without compensating alerting.
+  - Completed: added strict policy switch `erp.accounting.event-trail.strict` (default `true`) to fail posting/reversal when event trail persistence fails.
+  - Completed: best-effort mode now emits explicit `INTEGRATION_FAILURE` audit records with operation, policy, and error metadata.
+  - Added regression tests for strict-fail and best-effort semantics in `AccountingServiceTest`.
 - [done] M0-S2 Async audit-request lifecycle hardening
   - Fix `AuditService` async logging path reading recycled `HttpServletRequest` facade after response commit.
   - Ensure client IP/user-agent metadata capture is request-safe and non-throwing under async execution.
   - Completed: moved request metadata capture to caller thread and passed immutable context map into async write path.
   - Completed: stopped propagating `RequestAttributes` to async worker threads in `CompanyContextTaskDecorator`.
   - Added focused regression tests: `AuditServiceTest`, `CompanyContextTaskDecoratorTest`.
-- [ready] M8-S2 Outbox-to-audit correlation gap scan
+- [in_progress] M8-S2 Outbox-to-audit correlation gap scan
   - Verify accounting/outbox side effects always emit traceable audit trail or deterministic alert, including retry paths.
   - Add correlation assertions across orchestrator command ID, journal ID, and audit event sequence.
+- [ready] M0-S3 Auth audit wrapper attribution hardening
+  - Add direct tests for `logAuthSuccess` / `logAuthFailure` request+company attribution under missing/recycled security/request context.
+  - Ensure login/auth events preserve actor/company metadata even when async context shifts.
+- [ready] M0-S4 Async security-context snapshot integrity
+  - Snapshot security context on decoration to avoid principal drift when caller thread mutates auth before worker executes.
+  - Add deterministic regression test for mutate-after-decorate scenario.
 
 Commit Ledger
 - 2026-02-12: `16b2a2c4`
@@ -209,24 +218,32 @@ Commit Ledger
     - low: add direct seeded duplicate-case allocation regression for deterministic ordering branch
     - low: add schema preflight guard for `uq_journal_reference_mapping_legacy` to catch drift early
   - `codex review --commit 415528d0`: completed; no critical/high/medium regressions confirmed.
+- 2026-02-12: `21c381ee`
+  - Hardened async audit request lifecycle and removed async request-attribute propagation.
+  - Verified:
+    - `mvn -B -ntp -Dtest=AuditServiceTest,CompanyContextTaskDecoratorTest,AccountingServiceTest,SettlementE2ETest,JournalEntryE2ETest test`
+  - Subagent review findings:
+    - low: add auth-wrapper attribution tests for `logAuthSuccess` / `logAuthFailure`
+    - low: enforce immutable request-context map handoff in `AuditService`
+    - low: snapshot security context in task decorator to prevent post-decorate principal drift
 
 Current Checkpoint
-- Current WIP M0-S2 completion + M2-S4 kickoff:
+- Current WIP M2-S4 completion + M8-S2 kickoff:
   - `erp-domain/src/main/java/com/bigbrightpaints/erp/core/audit/AuditService.java`
     - request metadata is captured on caller thread and passed into async audit persistence
     - request-field extraction is guarded with safe accessors to avoid recycled-request runtime faults
   - `erp-domain/src/main/java/com/bigbrightpaints/erp/core/config/CompanyContextTaskDecorator.java`
     - async context now propagates company/security only; request attributes are no longer copied into worker thread
-  - `erp-domain/src/test/java/com/bigbrightpaints/erp/core/audit/AuditServiceTest.java`
-    - added recycled-request safety and request-metadata capture assertions
-  - `erp-domain/src/test/java/com/bigbrightpaints/erp/core/config/CompanyContextTaskDecoratorTest.java`
-    - added context-propagation assertion and no-request-attribute propagation assertion
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingService.java`
+    - strict-vs-best-effort accounting event-trail policy with explicit integration-failure audit metadata
+  - `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingServiceTest.java`
+    - added strict failure and best-effort continuation event-trail durability tests
 - Verification command:
-  - `mvn -B -ntp -Dtest=AuditServiceTest,CompanyContextTaskDecoratorTest,AccountingServiceTest,SettlementE2ETest,JournalEntryE2ETest test`
+  - `mvn -B -ntp -Dtest=AccountingServiceTest,JournalEntryE2ETest,SettlementE2ETest,AuditServiceTest,CompanyContextTaskDecoratorTest test`
 - Next action:
-  - commit M0-S2 hardening patch
+  - commit M2-S4 durability boundary patch
   - run `codex review --commit <sha>`
-  - move to M2-S4 accounting event-trail durability boundary
+  - continue M8-S2 outbox-to-audit correlation gap scan
 
 Async Loop Cadence
 - Each cycle:
