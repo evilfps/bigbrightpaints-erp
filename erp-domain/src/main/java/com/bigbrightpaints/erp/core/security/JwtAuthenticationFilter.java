@@ -70,6 +70,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
                 request.setAttribute("jwtClaims", claims);
                 UserPrincipal principal = (UserPrincipal) userDetailsService.loadUserByUsername(claims.getSubject());
+                if (!principal.isEnabled()) {
+                    logger.warn("Attempted use of token for disabled user - User: {}, IP: {}",
+                            claims.getSubject(), request.getRemoteAddr());
+                    filterChain.doFilter(request, response);
+                    return;
+                }
                 UsernamePasswordAuthenticationToken authentication =
                         new UsernamePasswordAuthenticationToken(principal, token, principal.getAuthorities());
                 authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
