@@ -234,12 +234,21 @@ Auto-Replenish Queue (Always Keep Filled)
 - [ready] M0-S7 Auth-wrapper contract documentation + API alignment
   - Document explicit auth-audit attribution fallback policy so auth/login services send nonblank actor/company values.
   - Add compatibility checks in auth service tests for expected audit metadata markers.
-- [in_progress] M0-S7 Auth-wrapper contract documentation + API alignment
+- [done] M0-S7 Auth-wrapper contract documentation + API alignment
   - Document explicit auth-audit attribution fallback policy so auth/login services send nonblank actor/company values.
   - Add compatibility checks in auth service tests for expected audit metadata markers.
+  - Completed: added `docs/auth-audit-attribution-policy.md` with explicit unresolved-attribution contract.
+  - Completed: `AuthService.login(...)` now normalizes audit identifiers before wrapper invocation.
+  - Completed: added `AuthServiceAuditAttributionTest` to pin trimmed audit identifier behavior on login failure path.
 - [ready] M2-S8 Event-trail failure alert-routing fixture
   - Add lightweight assertion fixture for downstream alert router mapping from `errorCategory`/`failureCode`.
   - Ensure categories remain stable across refactors.
+- [in_progress] M2-S8 Event-trail failure alert-routing fixture
+  - Add lightweight assertion fixture for downstream alert router mapping from `errorCategory`/`failureCode`.
+  - Ensure categories remain stable across refactors.
+- [ready] M0-S8 Auth-audit observability note
+  - Add runbook note for interpreting `authActorResolution`/`authCompanyResolution` markers during incident response.
+  - Include quick triage queries for unresolved auth attributions.
 
 Commit Ledger
 - 2026-02-12: `16b2a2c4`
@@ -346,15 +355,19 @@ Commit Ledger
   - `codex review --commit 0cb6a857`: running (result will be appended).
 
 Current Checkpoint
-- Current WIP M2-S7 completion + M0-S7 kickoff:
-  - `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingServiceTest.java`
-    - added deterministic taxonomy tests for `VALIDATION` and `DATA_INTEGRITY` event-trail failure categories
+- Current WIP M0-S7 completion + M2-S8 kickoff:
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/auth/service/AuthService.java`
+    - audit identifiers are normalized before auth-failure wrapper calls
+  - `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/auth/service/AuthServiceAuditAttributionTest.java`
+    - pins trimmed audit identifier handoff on authentication failure path
+  - `docs/auth-audit-attribution-policy.md`
+    - defines explicit auth-wrapper attribution contract and unresolved-marker semantics
 - Verification command:
-  - `mvn -B -ntp -Dtest=AccountingServiceTest test`
+  - `mvn -B -ntp -Dtest=AuthServiceAuditAttributionTest,AuditServiceTest,AuditServiceAsyncIT test`
 - Next action:
-  - commit M2-S7 taxonomy normalization regression tests
+  - commit M0-S7 auth-wrapper contract docs + API alignment
   - run `codex review --commit <sha>`
-  - execute M0-S7 auth-wrapper contract documentation + API alignment
+  - execute M2-S8 event-trail alert-routing fixture
 
 Async Loop Cadence
 - Each cycle:

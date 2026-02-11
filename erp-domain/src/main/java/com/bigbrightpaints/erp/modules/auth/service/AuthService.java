@@ -99,8 +99,11 @@ public class AuthService {
             if (user != null) {
                 registerFailure(user);
             }
-            auditService.logAuthFailure(AuditEvent.LOGIN_FAILURE, request.email(),
-                    request.companyCode(), Map.of("reason", "Authentication failed"));
+            auditService.logAuthFailure(
+                    AuditEvent.LOGIN_FAILURE,
+                    normalizeAuditIdentifier(request.email()),
+                    normalizeAuditIdentifier(request.companyCode()),
+                    Map.of("reason", "Authentication failed"));
             throw ex;
         } catch (RuntimeException ex) {
             if (user != null && isMfaFailure(ex)) {
@@ -110,8 +113,11 @@ public class AuthService {
             if (reason == null || reason.isBlank()) {
                 reason = "Login failed";
             }
-            auditService.logAuthFailure(AuditEvent.LOGIN_FAILURE, request.email(),
-                    request.companyCode(), Map.of("reason", reason));
+            auditService.logAuthFailure(
+                    AuditEvent.LOGIN_FAILURE,
+                    normalizeAuditIdentifier(request.email()),
+                    normalizeAuditIdentifier(request.companyCode()),
+                    Map.of("reason", reason));
             throw ex;
         }
     }
@@ -180,6 +186,14 @@ public class AuthService {
 
     private boolean isMfaFailure(RuntimeException ex) {
         return ex instanceof InvalidMfaException || ex instanceof MfaRequiredException;
+    }
+
+    private String normalizeAuditIdentifier(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 
     public void logout(String refreshToken, String accessToken, String userEmail) {
