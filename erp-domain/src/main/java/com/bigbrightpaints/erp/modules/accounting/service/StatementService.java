@@ -154,7 +154,7 @@ public class StatementService {
         BigDecimal creditPool = BigDecimal.ZERO;
         for (DealerLedgerEntry e : entries) {
             if (e.getEntryDate().isAfter(ref)) {
-                break;
+                continue;
             }
             BigDecimal delta = safe(e.getDebit()).subtract(safe(e.getCredit()));
             balance = balance.add(delta);
@@ -223,7 +223,7 @@ public class StatementService {
         BigDecimal creditPool = BigDecimal.ZERO;
         for (SupplierLedgerEntry e : entries) {
             if (e.getEntryDate().isAfter(ref)) {
-                break;
+                continue;
             }
             BigDecimal delta = safe(e.getCredit()).subtract(safe(e.getDebit()));
             balance = balance.add(delta);
