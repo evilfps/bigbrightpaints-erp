@@ -1005,6 +1005,60 @@ class SalesServiceTest {
     }
 
     @Test
+    void confirmDispatchReplayFastPathRetainsOrderMarkersWhenOnlyOtherSlipCancelled() {
+        SalesOrder order = new SalesOrder();
+        setField(order, "id", 10L);
+        order.setCompany(company);
+        order.setStatus("SHIPPED");
+
+        PackagingSlip slip = new PackagingSlip();
+        setField(slip, "id", 55L);
+        slip.setCompany(company);
+        slip.setSalesOrder(order);
+        slip.setSlipNumber("PS-55");
+        slip.setStatus("DISPATCHED");
+        slip.setInvoiceId(777L);
+        slip.setJournalEntryId(222L);
+        slip.setCogsJournalEntryId(333L);
+
+        PackagingSlip cancelledSlip = new PackagingSlip();
+        setField(cancelledSlip, "id", 56L);
+        cancelledSlip.setCompany(company);
+        cancelledSlip.setSalesOrder(order);
+        cancelledSlip.setSlipNumber("PS-56");
+        cancelledSlip.setStatus("CANCELLED");
+
+        Invoice existingInvoice = new Invoice();
+        setField(existingInvoice, "id", 777L);
+        existingInvoice.setTotalAmount(new BigDecimal("90.00"));
+
+        when(packagingSlipRepository.findAndLockByIdAndCompany(55L, company)).thenReturn(Optional.of(slip));
+        when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 10L))
+                .thenReturn(List.of(slip, cancelledSlip));
+        when(companyEntityLookup.requireSalesOrder(company, 10L)).thenReturn(order);
+        when(invoiceRepository.findByCompanyAndId(company, 777L)).thenReturn(Optional.of(existingInvoice));
+        when(salesOrderRepository.save(ArgumentMatchers.any(SalesOrder.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        DispatchConfirmRequest request = new DispatchConfirmRequest(
+                55L,
+                null,
+                List.of(new DispatchConfirmRequest.DispatchLine(99L, null, BigDecimal.ONE, null, new BigDecimal("10"), null, null, null)),
+                null,
+                "admin",
+                Boolean.TRUE,
+                "Replay override with cancelled secondary slip",
+                null);
+
+        DispatchConfirmResponse response = salesService.confirmDispatch(request);
+
+        assertEquals(777L, response.finalInvoiceId());
+        assertEquals(222L, response.arJournalEntryId());
+        assertEquals(222L, order.getSalesJournalEntryId());
+        assertEquals(333L, order.getCogsJournalEntryId());
+        assertEquals(777L, order.getFulfillmentInvoiceId());
+    }
+
+    @Test
     void confirmDispatchPostsArWhenOrderJournalExistsButSlipNotDispatched() {
         Dealer dealer = dealerWithCreditLimit(42L, BigDecimal.valueOf(1000));
         Account receivable = new Account();

@@ -153,11 +153,24 @@ public class InvoiceService {
         return slips.size() == 1;
     }
 
+    private boolean hasSingleActiveSlipForOrder(Company company, Long salesOrderId) {
+        if (company == null || salesOrderId == null) {
+            return false;
+        }
+        List<PackagingSlip> slips = Optional
+                .ofNullable(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, salesOrderId))
+                .orElse(List.of());
+        long activeSlipCount = slips.stream()
+                .filter(slip -> !("CANCELLED".equalsIgnoreCase(slip.getStatus())))
+                .count();
+        return activeSlipCount == 1;
+    }
+
     private boolean reconcileOrderInvoiceMarker(Company company, SalesOrder order, Long invoiceId) {
         if (order == null || company == null) {
             return false;
         }
-        boolean singleSlipForOrder = hasSingleSlipForOrder(company, order.getId());
+        boolean singleSlipForOrder = hasSingleActiveSlipForOrder(company, order.getId());
         if (!singleSlipForOrder) {
             if (order.getFulfillmentInvoiceId() != null) {
                 order.setFulfillmentInvoiceId(null);

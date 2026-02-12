@@ -2422,6 +2422,20 @@ public class SalesService {
         return slips != null && slips.size() == 1;
     }
 
+    private boolean hasSingleActiveSlipForOrder(Company company, SalesOrder order) {
+        if (company == null || order == null || order.getId() == null) {
+            return false;
+        }
+        List<PackagingSlip> slips = packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, order.getId());
+        if (slips == null || slips.isEmpty()) {
+            return false;
+        }
+        long activeSlipCount = slips.stream()
+                .filter(slip -> !("CANCELLED".equalsIgnoreCase(slip.getStatus())))
+                .count();
+        return activeSlipCount == 1;
+    }
+
     private boolean reconcileOrderLevelDispatchMarkers(Company company,
                                                        SalesOrder order,
                                                        Long invoiceId,
@@ -2430,7 +2444,7 @@ public class SalesService {
         if (company == null || order == null) {
             return false;
         }
-        boolean singleSlipForOrder = hasSingleSlipForOrder(company, order);
+        boolean singleSlipForOrder = hasSingleActiveSlipForOrder(company, order);
         boolean orderUpdated = false;
         if (!singleSlipForOrder) {
             if (order.getSalesJournalEntryId() != null) {

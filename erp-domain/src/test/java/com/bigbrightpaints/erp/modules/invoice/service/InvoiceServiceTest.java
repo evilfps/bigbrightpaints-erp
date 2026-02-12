@@ -205,6 +205,40 @@ class InvoiceServiceTest {
     }
 
     @Test
+    void issueInvoiceForOrder_existingInvoiceSetsOrderInvoiceIdWhenOnlyOtherSlipCancelled() {
+        Long orderId = 58L;
+        when(companyContextService.requireCurrentCompany()).thenReturn(company);
+        Invoice existingInvoice = new Invoice();
+        ReflectionTestUtils.setField(existingInvoice, "id", 123L);
+        existingInvoice.setCompany(company);
+        existingInvoice.setInvoiceNumber("INV-58");
+        when(invoiceRepository.findAllByCompanyAndSalesOrderId(company, orderId)).thenReturn(List.of(existingInvoice));
+
+        Dealer dealer = new Dealer();
+        SalesOrder order = new SalesOrder();
+        order.setCompany(company);
+        order.setDealer(dealer);
+        order.setOrderNumber("SO-58");
+        order.setCurrency("INR");
+        ReflectionTestUtils.setField(order, "id", orderId);
+
+        when(salesService.getOrderWithItems(orderId)).thenReturn(order);
+        PackagingSlip slip = new PackagingSlip();
+        ReflectionTestUtils.setField(slip, "id", 99L);
+        PackagingSlip cancelledSlip = new PackagingSlip();
+        ReflectionTestUtils.setField(cancelledSlip, "id", 100L);
+        cancelledSlip.setStatus("CANCELLED");
+        when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, orderId))
+                .thenReturn(List.of(slip, cancelledSlip));
+
+        InvoiceDto dto = invoiceService.issueInvoiceForOrder(orderId);
+
+        assertThat(order.getFulfillmentInvoiceId()).isEqualTo(123L);
+        assertThat(dto.id()).isEqualTo(123L);
+        verify(salesOrderRepository).save(order);
+    }
+
+    @Test
     void issueInvoiceForOrder_usesDispatchConfirmationWhenSlipExists() {
         Long orderId = 77L;
         when(companyContextService.requireCurrentCompany()).thenReturn(company);
