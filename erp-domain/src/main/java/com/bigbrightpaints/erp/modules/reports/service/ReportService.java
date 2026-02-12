@@ -198,9 +198,12 @@ public class ReportService {
     public List<AccountStatementEntryDto> accountStatement() {
         Company company = companyContextService.requireCurrentCompany();
         var dealers = dealerRepository.findByCompanyOrderByNameAsc(company);
-        var balances = Optional.ofNullable(
-                dealerLedgerService.currentBalances(dealers.stream().map(Dealer::getId).toList()))
-                .orElse(Map.of());
+        var balances = dealerLedgerService.currentBalances(dealers.stream().map(Dealer::getId).toList());
+        if (balances == null) {
+            throw new ApplicationException(
+                    ErrorCode.SYSTEM_INTERNAL_ERROR,
+                    "Dealer balance snapshot unavailable for account statement");
+        }
         return dealers.stream()
                 .map(dealer -> {
                     BigDecimal outstanding = balances.getOrDefault(dealer.getId(), BigDecimal.ZERO);

@@ -1,5 +1,6 @@
 package com.bigbrightpaints.erp.modules.reports.service;
 
+import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
@@ -32,6 +33,8 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -177,25 +180,16 @@ class ReportServiceAccountStatementTest {
     }
 
     @Test
-    void accountStatement_toleratesNullBalanceMap() {
+    void accountStatement_rejectsNullBalanceMap() {
         Dealer dealer = new Dealer();
         ReflectionTestUtils.setField(dealer, "id", 14L);
         dealer.setName("Dealer Null Balances");
         when(dealerRepository.findByCompanyOrderByNameAsc(company)).thenReturn(List.of(dealer));
         when(dealerLedgerService.currentBalances(List.of(14L))).thenReturn(null);
-        when(dealerLedgerRepository.findFirstByCompanyAndDealerOrderByEntryDateDescIdDesc(company, dealer))
-                .thenReturn(Optional.empty());
-        when(companyClock.today(company)).thenReturn(LocalDate.of(2026, 2, 14));
 
-        var rows = reportService.accountStatement();
-
-        assertThat(rows).hasSize(1);
-        var row = rows.getFirst();
-        assertThat(row.dealerName()).isEqualTo("Dealer Null Balances");
-        assertThat(row.reference()).isEqualTo("BALANCE");
-        assertThat(row.debit()).isEqualByComparingTo("0.00");
-        assertThat(row.credit()).isEqualByComparingTo("0.00");
-        assertThat(row.balance()).isEqualByComparingTo("0.00");
-        assertThat(row.journalEntryId()).isNull();
+        assertThatThrownBy(() -> reportService.accountStatement())
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Dealer balance snapshot unavailable");
+        verifyNoInteractions(dealerLedgerRepository);
     }
 }
