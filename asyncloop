@@ -1901,3 +1901,84 @@ Queue Rotation (Auto-Replenish)
 - [ready] M10-S3 release-gate dry-run and blocker ledger sync (`scripts/verify_local.sh` + artifact sanity)
 - [ready] M4-S9 aging overcredit deterministic contract tests across dealer/company statement surfaces
 - [ready] M7-S3 dunning overdue-threshold contract for synthetic credit-bucket semantics (no false hold bypass)
+
+Completed Slice (Committed)
+- 2026-02-12: `50332598`
+  - test(accounting): fix supplier settlement race fallback fixture.
+  - Adjusted supplier-settlement data-integrity fallback fixture sequencing in `AccountingServiceTest` so replay/mapping repair path asserts intended invariant instead of tripping Mockito unused-stub failure.
+  - Verification:
+    - `cd erp-domain && mvn -B -ntp -Dtest=AccountingServiceTest#settleSupplierInvoices_allowsOnAccountAllocationWithoutMemo+settleSupplierInvoices_allowsOnAccountAllocationWithMemo+settleSupplierInvoices_rejectsOnAccountAllocationWithAdjustments+settleSupplierInvoices_nonLeaderReplayRepairsReferenceMapping+settleSupplierInvoices_nonLeaderReplayAllowsLegacyOnAccountAdjustments+settleSupplierInvoices_replayRejectsMappingAllocationJournalMismatchOnLeaderFastPath+settleSupplierInvoices_dataIntegrityFallbackRepairsReferenceMapping test` -> pass (7 tests, 0 failures, 0 errors).
+
+Post-Commit Review Evidence
+- Commit reviewed: `50332598`
+- `codex review --commit 50332598`:
+  - verdict: fixture update aligns with intended fallback coverage; no actionable regression found.
+- Review subagent `019c526a-86f8-7332-9ca4-b0d19f352f36`:
+  - findings: none at medium/high severity.
+
+Completed Slice (Committed)
+- 2026-02-12: `a8627f0c`
+  - fix(admin): make approval actions explicit across portals.
+  - Added explicit admin approval-action contract surface for credit requests and normalized queue/action payload semantics across admin + sales paths.
+  - Added dedicated credit request approval lifecycle tests (`AdminSettingsControllerApprovalsContractTest`, `SalesServiceTest`, `CreditLimitOverrideServiceTest`).
+  - Verification:
+    - `cd erp-domain && mvn -B -ntp -Dtest=AdminSettingsControllerApprovalsContractTest,SalesServiceTest#createCreditRequestNormalizesPendingStatusForAdminQueue+updateCreditRequestNormalizesApprovedStatus+updateCreditRequestRejectsUnsupportedStatusValue+approveCreditRequestUpdatesStatusOnly+rejectCreditRequestUpdatesStatusOnly,CreditLimitOverrideServiceTest test` -> pass (10 tests, 0 failures, 0 errors).
+
+Post-Commit Review Evidence
+- Commit reviewed: `a8627f0c`
+- `codex review --commit a8627f0c`:
+  - findings: actionable gap remained where legacy update route could still drive approval transitions.
+- Review subagent `019c526b-3fae-7003-86ba-590b09a67fd9`:
+  - high finding: approval/rejection could still be reached via generic status update path.
+  - medium finding: action endpoints lacked strict pending-only transition guard.
+  - disposition: fixed in follow-up commits `5b070ad9` and `6c07bc39`.
+
+Completed Slice (Committed)
+- 2026-02-12: `5b070ad9`
+  - fix(sales): gate credit-request status changes to action endpoints.
+  - Blocked approval-state changes through generic update flow; enforce action-only transition path for approve/reject endpoints.
+  - Updated API notes and negative lifecycle tests to reject unsupported status mutation via update endpoint.
+  - Verification:
+    - `cd erp-domain && mvn -B -ntp -Dtest=AdminSettingsControllerApprovalsContractTest,SalesServiceTest#createCreditRequestNormalizesPendingStatusForAdminQueue+updateCreditRequestRejectsStatusTransitionToApproved+updateCreditRequestRejectsUnsupportedStatusValue+approveCreditRequestUpdatesStatusOnly+rejectCreditRequestUpdatesStatusOnly,CreditLimitOverrideServiceTest test` -> pass (13 tests, 0 failures, 0 errors).
+
+Post-Commit Review Evidence
+- Commit reviewed: `5b070ad9`
+- `codex review --commit 5b070ad9`:
+  - findings: create-time and finalized-request lifecycle gaps remained.
+- Review subagent `019c5275-9f27-70e0-a475-3cdbb0ee25af`:
+  - high finding: non-pending status could be injected at create-time.
+  - medium finding: finalized requests could still be edited through update path.
+  - disposition: fixed in follow-up `6c07bc39`.
+
+Completed Slice (Committed)
+- 2026-02-12: `6c07bc39`
+  - fix(sales): enforce pending-only credit request lifecycle.
+  - Enforced pending-only create/update lifecycle so approve/reject remains action-gated and finalized records are immutable for sales-side edits.
+  - Added explicit negative regression tests for non-pending create attempts, finalized-update attempts, and non-pending approve/reject attempts.
+  - Verification:
+    - `cd erp-domain && mvn -B -ntp -Dtest=AdminSettingsControllerApprovalsContractTest,SalesServiceTest#createCreditRequestNormalizesPendingStatusForAdminQueue+createCreditRequestRejectsNonPendingInitialStatus+updateCreditRequestRejectsStatusTransitionToApproved+updateCreditRequestRejectsEditsWhenRequestAlreadyFinalized+updateCreditRequestAllowsExplicitSameStatus+updateCreditRequestRejectsUnsupportedStatusValue+approveCreditRequestUpdatesStatusOnly+approveCreditRequestRejectsNonPendingStatus+rejectCreditRequestUpdatesStatusOnly+rejectCreditRequestRejectsNonPendingStatus,CreditLimitOverrideServiceTest test` -> pass (15 tests, 0 failures, 0 errors).
+
+Post-Commit Review Evidence
+- Commit reviewed: `6c07bc39`
+- `codex review --commit 6c07bc39`:
+  - final verdict: no actionable regressions in patch scope.
+- Review subagent `019c527b-cd7f-7172-a715-ee70ca264f06`:
+  - findings: no high severity defects.
+  - residual medium gap: API-layer RBAC integration coverage for approve/reject endpoints should be expanded.
+  - residual low gap: extend lifecycle negative variants for rejected-state immutability.
+
+Loop Update
+- 2026-02-13T00:10:02+05:30
+- tracked_now_ts: `2026-02-13T00:10:02+05:30`
+- tracked_elapsed: `22h 16m 10s`
+- active_in_progress: `M11-S3 admin approval RBAC + explicit-action parity matrix across portals`
+
+Queue Rotation (Auto-Replenish)
+- [completed] M11-S2 admin credit-approval action-gating closure across sales/admin flows
+- [in_progress] M11-S3 admin approval RBAC + explicit-action parity matrix across portals
+- [ready] M12-S1 accounting discount/reference invariant audit (discount math + ledger reference linkage)
+- [ready] M12-S2 user-facing discount/reference behavior docs across admin/sales/dealer portals
+- [ready] M10-S3 release-gate dry-run and blocker ledger sync (`scripts/verify_local.sh` + artifact sanity)
+- [ready] M9-S5 capture EXPLAIN + index-candidate evidence for journal/allocation replay hotspot queries (Flyway V2-ready)
+- [ready] M7-S3 dunning overdue-threshold contract for synthetic credit-bucket semantics (no false hold bypass)
+- [ready] M2-S12 replay mismatch guard helper extraction to enforce parity by construction
