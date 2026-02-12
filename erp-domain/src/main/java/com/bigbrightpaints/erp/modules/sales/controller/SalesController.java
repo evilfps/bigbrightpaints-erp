@@ -172,4 +172,13 @@ public class SalesController {
     public ResponseEntity<ApiResponse<DispatchConfirmResponse>> confirmDispatch(@Valid @RequestBody DispatchConfirmRequest request) {
         return ResponseEntity.ok(ApiResponse.success("Dispatch confirmed", salesService.confirmDispatch(request)));
     }
+
+    @PostMapping("/sales/dispatch/reconcile-order-markers")
+    @PreAuthorize("hasAnyAuthority('ROLE_ACCOUNTING','ROLE_ADMIN') and hasAuthority('dispatch.confirm')")
+    public ResponseEntity<ApiResponse<DispatchMarkerReconciliationResponse>> reconcileOrderMarkers(
+            @RequestParam(defaultValue = "200") int limit) {
+        return ResponseEntity.ok(ApiResponse.success(
+                "Order-level dispatch markers reconciled",
+                salesService.reconcileStaleOrderLevelMarkers(limit)));
+    }
 }

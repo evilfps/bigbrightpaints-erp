@@ -37,6 +37,7 @@ import com.bigbrightpaints.erp.modules.sales.dto.SalesOrderItemRequest;
 import com.bigbrightpaints.erp.modules.sales.dto.SalesOrderRequest;
 import com.bigbrightpaints.erp.modules.sales.dto.DispatchConfirmRequest;
 import com.bigbrightpaints.erp.modules.sales.dto.DispatchConfirmResponse;
+import com.bigbrightpaints.erp.modules.sales.dto.DispatchMarkerReconciliationResponse;
 import com.bigbrightpaints.erp.modules.sales.event.SalesOrderCreatedEvent;
 import com.bigbrightpaints.erp.modules.inventory.domain.PackagingSlip;
 import com.bigbrightpaints.erp.modules.inventory.domain.PackagingSlipLine;
@@ -51,6 +52,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
@@ -1098,6 +1101,86 @@ class SalesServiceTest {
         assertEquals(222L, order.getSalesJournalEntryId());
         assertEquals(333L, order.getCogsJournalEntryId());
         assertEquals(777L, order.getFulfillmentInvoiceId());
+    }
+
+    @Test
+    void reconcileStaleOrderLevelMarkersClearsMarkersForDriftedMultiSlipOrders() {
+        SalesOrder order = new SalesOrder();
+        setField(order, "id", 10L);
+        order.setCompany(company);
+        order.setSalesJournalEntryId(901L);
+        order.setCogsJournalEntryId(902L);
+        order.setFulfillmentInvoiceId(903L);
+
+        PackagingSlip slip = new PackagingSlip();
+        setField(slip, "id", 55L);
+        slip.setCompany(company);
+        slip.setSalesOrder(order);
+        slip.setStatus("DISPATCHED");
+
+        PackagingSlip otherSlip = new PackagingSlip();
+        setField(otherSlip, "id", 56L);
+        otherSlip.setCompany(company);
+        otherSlip.setSalesOrder(order);
+        otherSlip.setStatus("PENDING");
+
+        when(salesOrderRepository.findDispatchMarkerCandidateIdsByCompanyOrderByCreatedAtDescIdDesc(eq(company), any()))
+                .thenReturn(new PageImpl<>(List.of(10L), PageRequest.of(0, 200), 1));
+        when(salesOrderRepository.findWithItemsByCompanyAndIdForUpdate(company, 10L))
+                .thenReturn(Optional.of(order));
+        when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 10L))
+                .thenReturn(List.of(slip, otherSlip));
+        when(salesOrderRepository.save(ArgumentMatchers.any(SalesOrder.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        DispatchMarkerReconciliationResponse response = salesService.reconcileStaleOrderLevelMarkers(200);
+
+        assertEquals(1, response.scannedOrders());
+        assertEquals(1, response.reconciledOrders());
+        assertEquals(List.of(10L), response.reconciledOrderIds());
+        assertNull(order.getSalesJournalEntryId());
+        assertNull(order.getCogsJournalEntryId());
+        assertNull(order.getFulfillmentInvoiceId());
+        verify(salesOrderRepository).save(order);
+    }
+
+    @Test
+    void reconcileStaleOrderLevelMarkersRetainsMarkersWhenOnlyOtherSlipCancelled() {
+        SalesOrder order = new SalesOrder();
+        setField(order, "id", 10L);
+        order.setCompany(company);
+        order.setSalesJournalEntryId(901L);
+        order.setCogsJournalEntryId(902L);
+        order.setFulfillmentInvoiceId(903L);
+
+        PackagingSlip slip = new PackagingSlip();
+        setField(slip, "id", 55L);
+        slip.setCompany(company);
+        slip.setSalesOrder(order);
+        slip.setStatus("DISPATCHED");
+
+        PackagingSlip cancelledSlip = new PackagingSlip();
+        setField(cancelledSlip, "id", 56L);
+        cancelledSlip.setCompany(company);
+        cancelledSlip.setSalesOrder(order);
+        cancelledSlip.setStatus("CANCELLED");
+
+        when(salesOrderRepository.findDispatchMarkerCandidateIdsByCompanyOrderByCreatedAtDescIdDesc(eq(company), any()))
+                .thenReturn(new PageImpl<>(List.of(10L), PageRequest.of(0, 200), 1));
+        when(salesOrderRepository.findWithItemsByCompanyAndIdForUpdate(company, 10L))
+                .thenReturn(Optional.of(order));
+        when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 10L))
+                .thenReturn(List.of(slip, cancelledSlip));
+
+        DispatchMarkerReconciliationResponse response = salesService.reconcileStaleOrderLevelMarkers(200);
+
+        assertEquals(1, response.scannedOrders());
+        assertEquals(0, response.reconciledOrders());
+        assertTrue(response.reconciledOrderIds().isEmpty());
+        assertEquals(901L, order.getSalesJournalEntryId());
+        assertEquals(902L, order.getCogsJournalEntryId());
+        assertEquals(903L, order.getFulfillmentInvoiceId());
+        verify(salesOrderRepository, never()).save(any(SalesOrder.class));
     }
 
     @Test

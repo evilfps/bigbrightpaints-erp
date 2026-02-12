@@ -36,6 +36,18 @@ public interface SalesOrderRepository extends JpaRepository<SalesOrder, Long> {
                                                                    @Param("status") String status,
                                                                    Pageable pageable);
 
+    @Query("""
+            select o.id
+            from SalesOrder o
+            where o.company = :company
+              and (o.salesJournalEntryId is not null
+                   or o.cogsJournalEntryId is not null
+                   or o.fulfillmentInvoiceId is not null)
+            order by o.createdAt desc, o.id desc
+            """)
+    Page<Long> findDispatchMarkerCandidateIdsByCompanyOrderByCreatedAtDescIdDesc(@Param("company") Company company,
+                                                                                  Pageable pageable);
+
     @Query("select o.id from SalesOrder o where o.company = :company and o.dealer = :dealer order by o.createdAt desc, o.id desc")
     Page<Long> findIdsByCompanyAndDealerOrderByCreatedAtDescIdDesc(@Param("company") Company company,
                                                                    @Param("dealer") Dealer dealer,

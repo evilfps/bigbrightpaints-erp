@@ -759,6 +759,32 @@ public class SalesService {
                 .orElseThrow(() -> new IllegalArgumentException("Order not found"));
     }
 
+    @Transactional
+    public DispatchMarkerReconciliationResponse reconcileStaleOrderLevelMarkers(int limit) {
+        Company company = companyContextService.requireCurrentCompany();
+        int safeLimit = Math.max(1, Math.min(limit, 500));
+        Page<Long> candidates = salesOrderRepository.findDispatchMarkerCandidateIdsByCompanyOrderByCreatedAtDescIdDesc(
+                company,
+                PageRequest.of(0, safeLimit));
+        List<Long> reconciledOrderIds = new ArrayList<>();
+        for (Long orderId : candidates.getContent()) {
+            Optional<SalesOrder> orderOpt = salesOrderRepository.findWithItemsByCompanyAndIdForUpdate(company, orderId);
+            if (orderOpt.isEmpty()) {
+                continue;
+            }
+            SalesOrder order = orderOpt.get();
+            boolean updated = reconcileOrderLevelDispatchMarkers(company, order, null, null, null);
+            if (updated) {
+                salesOrderRepository.save(order);
+                reconciledOrderIds.add(orderId);
+            }
+        }
+        return new DispatchMarkerReconciliationResponse(
+                candidates.getContent().size(),
+                reconciledOrderIds.size(),
+                List.copyOf(reconciledOrderIds));
+    }
+
     private GstTreatment resolveGstTreatment(String value) {
         if (!StringUtils.hasText(value)) {
             return GstTreatment.NONE;
