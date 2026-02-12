@@ -2377,6 +2377,8 @@ class AccountingServiceTest {
         assertThat(mapping.getEntityId()).isEqualTo(911L);
         assertThat(mapping.getEntityType()).isEqualTo("DEALER_RECEIPT");
         assertThat(mapping.getCanonicalReference()).isEqualTo("DR-RACE-EXIST-1");
+        verify(invoiceSettlementPolicy, never()).applySettlement(any(), any(), any());
+        verify(dealerLedgerService, never()).syncInvoiceLedger(any(), any());
     }
 
     @Test
@@ -2478,6 +2480,8 @@ class AccountingServiceTest {
         assertThat(mapping.getEntityId()).isEqualTo(921L);
         assertThat(mapping.getEntityType()).isEqualTo("DEALER_RECEIPT_SPLIT");
         assertThat(mapping.getCanonicalReference()).isEqualTo("DR-SPLIT-RACE-EXIST-1");
+        verify(invoiceSettlementPolicy, never()).applySettlement(any(), any(), any());
+        verify(dealerLedgerService, never()).syncInvoiceLedger(any(), any());
     }
 
     @Test
@@ -2584,6 +2588,8 @@ class AccountingServiceTest {
         assertThat(mapping.getEntityId()).isEqualTo(931L);
         assertThat(mapping.getEntityType()).isEqualTo("SUPPLIER_PAYMENT");
         assertThat(mapping.getCanonicalReference()).isEqualTo("SUP-PAY-RACE-EXIST-1");
+        assertThat(purchase.getOutstandingAmount()).isEqualByComparingTo("100.00");
+        verify(rawMaterialPurchaseRepository, never()).saveAll(any());
     }
 
     @Test
@@ -2700,6 +2706,7 @@ class AccountingServiceTest {
         assertThat(mapping.getEntityId()).isEqualTo(951L);
         assertThat(mapping.getEntityType()).isEqualTo("DEALER_SETTLEMENT");
         assertThat(mapping.getCanonicalReference()).isEqualTo("DR-SETTLE-RACE-EXIST-1");
+        verify(invoiceSettlementPolicy, never()).applySettlement(any(), any(), any());
     }
 
     @Test

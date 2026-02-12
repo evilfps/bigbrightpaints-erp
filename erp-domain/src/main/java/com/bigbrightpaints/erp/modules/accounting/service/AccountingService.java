@@ -868,6 +868,7 @@ public class AccountingService {
         LocalDate entryDate = entry.getEntryDate();
         List<PartnerSettlementAllocation> settlementRows = new ArrayList<>();
         List<Invoice> touchedInvoices = new ArrayList<>();
+        Map<Long, BigDecimal> remainingByInvoice = new HashMap<>();
 
         for (SettlementAllocationRequest allocation : allocations) {
             if (allocation.invoiceId() == null) {
@@ -885,7 +886,9 @@ public class AccountingService {
                 throw new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE, "Invoice does not belong to the dealer");
             }
             enforceSettlementCurrency(company, invoice);
-            BigDecimal currentOutstanding = MoneyUtils.zeroIfNull(invoice.getOutstandingAmount());
+            BigDecimal currentOutstanding = remainingByInvoice.getOrDefault(
+                    invoice.getId(),
+                    MoneyUtils.zeroIfNull(invoice.getOutstandingAmount()));
             if (applied.compareTo(currentOutstanding) > 0) {
                 throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
                         "Allocation exceeds invoice outstanding amount")
@@ -893,10 +896,7 @@ public class AccountingService {
                         .withDetail("outstanding", currentOutstanding)
                         .withDetail("applied", applied);
             }
-            String settlementRef = reference + "-INV-" + invoice.getId();
-            invoiceSettlementPolicy.applySettlement(invoice, applied, settlementRef);
-            dealerLedgerService.syncInvoiceLedger(invoice, entryDate);
-            touchedInvoices.add(invoice);
+            remainingByInvoice.put(invoice.getId(), currentOutstanding.subtract(applied).max(BigDecimal.ZERO));
 
             PartnerSettlementAllocation row = new PartnerSettlementAllocation();
             row.setCompany(company);
@@ -916,9 +916,6 @@ public class AccountingService {
             row.setMemo(allocation.memo());
             settlementRows.add(row);
         }
-        if (!touchedInvoices.isEmpty()) {
-            invoiceRepository.saveAll(touchedInvoices);
-        }
         try {
             settlementAllocationRepository.saveAll(settlementRows);
         } catch (DataIntegrityViolationException ex) {
@@ -931,6 +928,19 @@ public class AccountingService {
                 return toDto(existingEntry);
             }
             throw ex;
+        }
+        for (PartnerSettlementAllocation row : settlementRows) {
+            Invoice invoice = row.getInvoice();
+            if (invoice == null) {
+                continue;
+            }
+            String settlementRef = reference + "-INV-" + invoice.getId();
+            invoiceSettlementPolicy.applySettlement(invoice, row.getAllocationAmount(), settlementRef);
+            dealerLedgerService.syncInvoiceLedger(invoice, entryDate);
+            touchedInvoices.add(invoice);
+        }
+        if (!touchedInvoices.isEmpty()) {
+            invoiceRepository.saveAll(touchedInvoices);
         }
         return entryDto;
     }
@@ -1043,10 +1053,6 @@ public class AccountingService {
                 continue;
             }
             enforceSettlementCurrency(company, invoice);
-            String settlementRef = reference + "-INV-" + invoice.getId();
-            invoiceSettlementPolicy.applySettlement(invoice, applied, settlementRef);
-            dealerLedgerService.syncInvoiceLedger(invoice, entryDate);
-            touchedInvoices.add(invoice);
 
             PartnerSettlementAllocation row = new PartnerSettlementAllocation();
             row.setCompany(company);
@@ -1072,9 +1078,6 @@ public class AccountingService {
                     "Receipt amount could not be fully allocated")
                     .withDetail("remaining", remaining);
         }
-        if (!touchedInvoices.isEmpty()) {
-            invoiceRepository.saveAll(touchedInvoices);
-        }
         try {
             settlementAllocationRepository.saveAll(settlementRows);
         } catch (DataIntegrityViolationException ex) {
@@ -1086,6 +1089,19 @@ public class AccountingService {
                 return toDto(existingEntry);
             }
             throw ex;
+        }
+        for (PartnerSettlementAllocation row : settlementRows) {
+            Invoice invoice = row.getInvoice();
+            if (invoice == null) {
+                continue;
+            }
+            String settlementRef = reference + "-INV-" + invoice.getId();
+            invoiceSettlementPolicy.applySettlement(invoice, row.getAllocationAmount(), settlementRef);
+            dealerLedgerService.syncInvoiceLedger(invoice, entryDate);
+            touchedInvoices.add(invoice);
+        }
+        if (!touchedInvoices.isEmpty()) {
+            invoiceRepository.saveAll(touchedInvoices);
         }
         return entryDto;
     }
@@ -1569,6 +1585,8 @@ public class AccountingService {
         LocalDate entryDate = entry.getEntryDate();
         List<PartnerSettlementAllocation> settlementRows = new ArrayList<>();
         List<RawMaterialPurchase> touchedPurchases = new ArrayList<>();
+        Map<Long, BigDecimal> remainingByPurchase = new HashMap<>();
+        Map<Long, RawMaterialPurchase> purchaseById = new HashMap<>();
 
         for (SettlementAllocationRequest allocation : allocations) {
             if (allocation.invoiceId() != null) {
@@ -1583,7 +1601,9 @@ public class AccountingService {
                 if (purchase.getSupplier() == null || !purchase.getSupplier().getId().equals(supplier.getId())) {
                     throw new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE, "Purchase does not belong to the supplier");
                 }
-                BigDecimal currentOutstanding = MoneyUtils.zeroIfNull(purchase.getOutstandingAmount());
+                BigDecimal currentOutstanding = remainingByPurchase.getOrDefault(
+                        purchase.getId(),
+                        MoneyUtils.zeroIfNull(purchase.getOutstandingAmount()));
                 if (applied.compareTo(currentOutstanding) > 0) {
                     throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
                             "Allocation exceeds purchase outstanding amount")
@@ -1591,10 +1611,8 @@ public class AccountingService {
                             .withDetail("outstanding", currentOutstanding)
                             .withDetail("applied", applied);
                 }
-                BigDecimal newOutstanding = currentOutstanding.subtract(applied).max(BigDecimal.ZERO);
-                purchase.setOutstandingAmount(newOutstanding);
-                updatePurchaseStatus(purchase);
-                touchedPurchases.add(purchase);
+                remainingByPurchase.put(purchase.getId(), currentOutstanding.subtract(applied).max(BigDecimal.ZERO));
+                purchaseById.put(purchase.getId(), purchase);
             }
 
             PartnerSettlementAllocation row = new PartnerSettlementAllocation();
@@ -1624,6 +1642,15 @@ public class AccountingService {
                 return toDto(existingEntry);
             }
             throw ex;
+        }
+        for (Map.Entry<Long, BigDecimal> entryState : remainingByPurchase.entrySet()) {
+            RawMaterialPurchase purchase = purchaseById.get(entryState.getKey());
+            if (purchase == null) {
+                continue;
+            }
+            purchase.setOutstandingAmount(entryState.getValue().max(BigDecimal.ZERO));
+            updatePurchaseStatus(purchase);
+            touchedPurchases.add(purchase);
         }
         if (!touchedPurchases.isEmpty()) {
             rawMaterialPurchaseRepository.saveAll(touchedPurchases);
@@ -1696,6 +1723,7 @@ public class AccountingService {
         BigDecimal cashAmount = lineDraft.cashAmount();
         List<PartnerSettlementAllocation> settlementRows = new ArrayList<>();
         List<Invoice> touchedInvoices = new ArrayList<>();
+        Map<Long, BigDecimal> remainingByInvoice = new HashMap<>();
 
         for (SettlementAllocationRequest allocation : allocations) {
             if (allocation.invoiceId() == null) {
@@ -1720,7 +1748,9 @@ public class AccountingService {
 
             // Open-item tracking: applied amount represents gross invoice reduction.
             BigDecimal cleared = applied;
-            BigDecimal currentOutstanding = MoneyUtils.zeroIfNull(invoice.getOutstandingAmount());
+            BigDecimal currentOutstanding = remainingByInvoice.getOrDefault(
+                    invoice.getId(),
+                    MoneyUtils.zeroIfNull(invoice.getOutstandingAmount()));
             if (cleared.subtract(currentOutstanding).compareTo(ALLOCATION_TOLERANCE) > 0) {
                 throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
                         "Settlement allocation exceeds invoice outstanding amount")
@@ -1728,11 +1758,7 @@ public class AccountingService {
                         .withDetail("outstandingAmount", currentOutstanding)
                         .withDetail("appliedAmount", cleared);
             }
-            // Use centralized policy for settlement - handles status transitions
-            String settlementRef = reference + "-INV-" + invoice.getId();
-            invoiceSettlementPolicy.applySettlement(invoice, cleared, settlementRef);
-            dealerLedgerService.syncInvoiceLedger(invoice, entryDate);
-            touchedInvoices.add(invoice);
+            remainingByInvoice.put(invoice.getId(), currentOutstanding.subtract(cleared).max(BigDecimal.ZERO));
 
             PartnerSettlementAllocation row = new PartnerSettlementAllocation();
             row.setCompany(company);
@@ -1779,6 +1805,16 @@ public class AccountingService {
                 return buildDealerSettlementResponse(concurrent);
             }
             throw ex;
+        }
+        for (PartnerSettlementAllocation row : settlementRows) {
+            Invoice invoice = row.getInvoice();
+            if (invoice == null) {
+                continue;
+            }
+            String settlementRef = reference + "-INV-" + invoice.getId();
+            invoiceSettlementPolicy.applySettlement(invoice, row.getAllocationAmount(), settlementRef);
+            dealerLedgerService.syncInvoiceLedger(invoice, entryDate);
+            touchedInvoices.add(invoice);
         }
         if (!touchedInvoices.isEmpty()) {
             invoiceRepository.saveAll(touchedInvoices);
@@ -1884,6 +1920,8 @@ public class AccountingService {
         BigDecimal totalFxLoss = totals.totalFxLoss();
         List<PartnerSettlementAllocation> settlementRows = new ArrayList<>();
         List<RawMaterialPurchase> touchedPurchases = new ArrayList<>();
+        Map<Long, BigDecimal> remainingByPurchase = new HashMap<>();
+        Map<Long, RawMaterialPurchase> purchaseById = new HashMap<>();
 
         for (SettlementAllocationRequest allocation : allocations) {
             if (allocation.invoiceId() != null) {
@@ -1904,7 +1942,9 @@ public class AccountingService {
                 }
                 // Open-item: applied amount represents gross purchase reduction.
                 BigDecimal cleared = applied;
-                BigDecimal currentOutstanding = MoneyUtils.zeroIfNull(purchase.getOutstandingAmount());
+                BigDecimal currentOutstanding = remainingByPurchase.getOrDefault(
+                        purchase.getId(),
+                        MoneyUtils.zeroIfNull(purchase.getOutstandingAmount()));
                 if (cleared.subtract(currentOutstanding).compareTo(ALLOCATION_TOLERANCE) > 0) {
                     throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
                             "Settlement allocation exceeds purchase outstanding amount")
@@ -1912,9 +1952,8 @@ public class AccountingService {
                             .withDetail("outstandingAmount", currentOutstanding)
                             .withDetail("appliedAmount", cleared);
                 }
-                purchase.setOutstandingAmount(currentOutstanding.subtract(cleared).max(BigDecimal.ZERO));
-                updatePurchaseStatus(purchase);
-                touchedPurchases.add(purchase);
+                remainingByPurchase.put(purchase.getId(), currentOutstanding.subtract(cleared).max(BigDecimal.ZERO));
+                purchaseById.put(purchase.getId(), purchase);
             }
 
             PartnerSettlementAllocation row = new PartnerSettlementAllocation();
@@ -1959,6 +1998,15 @@ public class AccountingService {
                 return buildSupplierSettlementResponse(concurrent);
             }
             throw ex;
+        }
+        for (Map.Entry<Long, BigDecimal> entryState : remainingByPurchase.entrySet()) {
+            RawMaterialPurchase purchase = purchaseById.get(entryState.getKey());
+            if (purchase == null) {
+                continue;
+            }
+            purchase.setOutstandingAmount(entryState.getValue().max(BigDecimal.ZERO));
+            updatePurchaseStatus(purchase);
+            touchedPurchases.add(purchase);
         }
         if (!touchedPurchases.isEmpty()) {
             rawMaterialPurchaseRepository.saveAll(touchedPurchases);
