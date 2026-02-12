@@ -2,7 +2,7 @@ spring:
   application:
     name: erp-domain
   profiles:
-    active: dev
+    active: ${SPRING_PROFILES_ACTIVE:prod}
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/erp_domain}
     username: ${SPRING_DATASOURCE_USERNAME:erp}
@@ -98,7 +98,7 @@ erp:
     validation:
       enabled: false
   security:
-    swagger-public: true
+    swagger-public: false
     mfa:
       # Master code functionality removed for security - use recovery codes only
     notifications:

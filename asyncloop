@@ -19,8 +19,8 @@ Non-Stop Operating Rules
 
 Runtime Tracking
 - tracked_start_ts: `2026-02-12T01:53:52+05:30` (first immutable async-loop commit marker)
-- tracked_now_ts: `2026-02-12T07:26:49+05:30`
-- tracked_elapsed: `5h 32m 57s`
+- tracked_now_ts: `2026-02-12T07:38:25+05:30`
+- tracked_elapsed: `5h 44m 33s`
 
 Completion Gates (Required For "Safe To Deploy" Claim)
 - No known critical/high security issues in auth/RBAC/tenant isolation/data exposure.
@@ -594,24 +594,24 @@ Commit Ledger
     - `019c4f90-6c6d-78b1-a7fa-7b6fde313bb6` (running)
 
 Current Checkpoint
-- Current WIP M5-S6R1 (dealer portal migration V9 safety closure):
-  - Root cause:
-    - `c413f749` review found migration V9 needed company-membership scoping and deterministic normalized-email backfill behavior.
-  - Fix completed in working tree (pending commit):
-    - `erp-domain/src/main/resources/db/migration_v2/V9__dealer_portal_user_binding_hardening.sql` (new)
-      - scope backfill to `user_companies` membership.
-      - only backfill unambiguous normalized-email matches per company.
-      - collapse duplicate `(company_id, portal_user_id)` mappings with active-first canonical retention.
-      - enforce partial unique index on `(company_id, portal_user_id)` where portal user is non-null.
-- Verification command:
-  - `mvn -B -ntp -Dtest=FinishedGoodsServiceTest,DispatchConfirmationIT test`
-  - Result: pass (2026-02-12T07:24:43+05:30)
-  - `mvn -B -ntp -Dtest=DealerPortalServiceTest,DealerPortalControllerSecurityIT test`
-  - Result: pass (2026-02-12T07:16:56+05:30)
+- 2026-02-12: `[pending-commit-sha]`
+  - M1-S7 baseline hardening pass (security defaults fail-closed):
+    - changed `spring.profiles.active` default in baseline runtime to `${SPRING_PROFILES_ACTIVE:prod}`.
+    - switched baseline Swagger exposure default to private (`erp.security.swagger-public=false`).
+    - switched `SecurityConfig` fallback to fail-closed (`@Value(...:false)`).
+    - switched `GlobalExceptionHandler` profile fallback to `prod` to avoid accidental verbose error detail exposure.
+    - set `application-dev.yml` explicit local opt-in for Swagger exposure.
+  - Regression coverage:
+    - added `CR_SwaggerDefaultHardeningIT` to assert anonymous Swagger/OpenAPI is blocked under default test profile.
+    - pinned `OpenApiSnapshotIT` with explicit `erp.security.swagger-public=true` so snapshot export remains intentional.
+  - Verification commands:
+    - `mvn -B -ntp -Dtest=CR_SwaggerDefaultHardeningIT,OpenApiSnapshotIT test` -> pass (2026-02-12T07:38:01+05:30)
+    - `mvn -B -ntp -Dtest=GlobalExceptionHandlerTest test` -> pass (2026-02-12T07:38:09+05:30)
+    - `mvn -B -ntp -Dtest=CR_SwaggerDefaultHardeningIT,CR_SwaggerProdHardeningIT,OpenApiSnapshotIT test` -> expected fail on existing SMTP prod-validator precondition (`spring.mail.host` missing in prod IT properties), tracked for follow-up test-fixture hardening.
 - Next action:
-  - commit M5-S6R1 migration V9 company-scoped deterministic backfill hardening
-  - run `codex review --commit <sha>`
-  - process subagent findings for `ae927d32` and `M5-S6R1` follow-up
+  - commit M1-S7 baseline fail-closed defaults + regression tests.
+  - run `codex review --commit <sha>` via review subagent.
+  - triage and patch prod hardening IT fixture gap (`spring.mail.host`/`spring.mail.username` explicit test properties) as next slice.
 
 Async Loop Cadence
 - Each cycle:

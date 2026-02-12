@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.http.*;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
+import org.springframework.test.context.TestPropertySource;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -14,6 +15,7 @@ import java.nio.file.Path;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+@TestPropertySource(properties = "erp.security.swagger-public=true")
 public class OpenApiSnapshotIT extends AbstractIntegrationTest {
 
     @Autowired

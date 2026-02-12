@@ -29,7 +29,7 @@ public class SecurityConfig {
     public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter,
                           CompanyContextFilter companyContextFilter,
                           UserAccountDetailsService userDetailsService,
-                          @Value("${erp.security.swagger-public:true}") boolean swaggerPublic) {
+                          @Value("${erp.security.swagger-public:false}") boolean swaggerPublic) {
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
         this.companyContextFilter = companyContextFilter;
         this.userDetailsService = userDetailsService;

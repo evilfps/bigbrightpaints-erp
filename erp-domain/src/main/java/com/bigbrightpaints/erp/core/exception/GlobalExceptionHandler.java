@@ -49,7 +49,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     @Autowired(required = false)
     private AuditService auditService;
 
-    @Value("${spring.profiles.active:dev}")
+    @Value("${spring.profiles.active:prod}")
     private String activeProfile;
 
     private boolean isProductionMode() {

@@ -30,6 +30,7 @@ jwt:
   refresh-token-ttl-seconds: 604800
 erp:
   security:
+    swagger-public: true
     encryption.key: ${ERP_ENCRYPTION_KEY:dev-only-encryption-key-override-32}
     mfa.enabled: true
   dispatch:
