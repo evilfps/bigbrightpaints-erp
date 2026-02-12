@@ -27,8 +27,8 @@ Cross-Agent Continuation Contract (If Any Agent Handoffs Here)
 
 Runtime Tracking
 - tracked_start_ts: `2026-02-12T01:53:52+05:30` (first immutable async-loop commit marker)
-- tracked_now_ts: `2026-02-12T13:35:05+05:30`
-- tracked_elapsed: `11h 41m 13s`
+- tracked_now_ts: `2026-02-12T13:44:30+05:30`
+- tracked_elapsed: `11h 50m 38s`
 
 Completion Gates (Required For "Safe To Deploy" Claim)
 - No known critical/high security issues in auth/RBAC/tenant isolation/data exposure.
@@ -873,4 +873,33 @@ Loop Update
 - 2026-02-12T13:35:05+05:30
 - tracked_now_ts: `2026-02-12T13:35:05+05:30`
 - tracked_elapsed: `11h 41m 13s`
+- active_in_progress: `M4-S3 statement/aging/report settlement-link consistency and source-of-truth checks`
+
+Post-Commit Review Evidence
+- Commit reviewed: `7250ca11`
+- `codex review --commit 7250ca11`:
+  - completed with environment rollout/state-db noise and final verdict: no actionable regression (ledger-only update).
+- Review subagent `019c50e2-8cb0-7d13-975c-a73bf447f39b`:
+  - info-only: commit is process-log metadata update, no code-path changes.
+
+Completed Slice (Committed)
+- 2026-02-12: `e5b82687`
+  - fix(reports): scope aged receivables query by as-of date.
+  - Added `DealerLedgerRepository.findAllUnpaidAsOf(company, asOfDate)` with `entryDate <= asOfDate` cutoff.
+  - Updated `AgingReportService.getAgedReceivablesReport(asOfDate)` to use as-of scoped query.
+  - Added `AgingReportServiceTest` for explicit as-of and default-today paths.
+  - Verification:
+    - `mvn -B -ntp -Dtest=AgingReportServiceTest test` -> pass.
+
+Post-Commit Review Evidence
+- Commit reviewed: `e5b82687`
+- `codex review --commit e5b82687`:
+  - completed with environment rollout/state-db noise and final verdict: no regression detected in this patch.
+- Review subagent `019c50e6-b3d4-7b03-9ca6-bdd51486e75e`:
+  - flagged potential mirror divergence under `testing/erp-domain`; validated as non-tracked workspace path in this branch, so no commit delta required.
+
+Loop Update
+- 2026-02-12T13:44:30+05:30
+- tracked_now_ts: `2026-02-12T13:44:30+05:30`
+- tracked_elapsed: `11h 50m 38s`
 - active_in_progress: `M4-S3 statement/aging/report settlement-link consistency and source-of-truth checks`
