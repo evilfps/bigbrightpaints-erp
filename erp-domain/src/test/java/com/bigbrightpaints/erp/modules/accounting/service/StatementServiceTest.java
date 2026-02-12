@@ -18,6 +18,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDate;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Optional;
 
@@ -157,5 +158,39 @@ class StatementServiceTest {
         assertThat(response.totalOutstanding()).isZero();
         assertThat(response.buckets()).hasSize(3);
         assertThat(response.buckets().get(2).toDays()).isNull();
+    }
+
+    @Test
+    void dealerStatementPdf_returnsRealPdfBytes() {
+        Dealer dealer = new Dealer();
+        dealer.setName("Dealer PDF");
+        ReflectionTestUtils.setField(dealer, "id", 31L);
+        when(dealerRepository.findByCompanyAndId(company, 31L)).thenReturn(Optional.of(dealer));
+
+        LocalDate from = LocalDate.of(2026, 2, 1);
+        LocalDate to = LocalDate.of(2026, 2, 28);
+        when(dealerLedgerRepository.findByCompanyAndDealerAndEntryDateBeforeOrderByEntryDateAsc(company, dealer, from))
+                .thenReturn(List.of());
+        when(dealerLedgerRepository.findByCompanyAndDealerAndEntryDateBetweenOrderByEntryDateAsc(company, dealer, from, to))
+                .thenReturn(List.of());
+
+        byte[] pdf = statementService.dealerStatementPdf(31L, from, to);
+
+        assertThat(pdf).isNotEmpty();
+        assertThat(new String(pdf, 0, 5, StandardCharsets.US_ASCII)).isEqualTo("%PDF-");
+    }
+
+    @Test
+    void supplierAgingPdf_returnsRealPdfBytes() {
+        Supplier supplier = new Supplier();
+        supplier.setName("Supplier PDF");
+        ReflectionTestUtils.setField(supplier, "id", 41L);
+        when(supplierRepository.findByCompanyAndId(company, 41L)).thenReturn(Optional.of(supplier));
+        when(supplierLedgerRepository.findByCompanyAndSupplierOrderByEntryDateAsc(company, supplier)).thenReturn(List.of());
+
+        byte[] pdf = statementService.supplierAgingPdf(41L, LocalDate.of(2026, 2, 12), "0-30,30-60,61");
+
+        assertThat(pdf).isNotEmpty();
+        assertThat(new String(pdf, 0, 5, StandardCharsets.US_ASCII)).isEqualTo("%PDF-");
     }
 }

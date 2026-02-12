@@ -3,6 +3,7 @@ package com.bigbrightpaints.erp.modules.accounting.service;
 import com.bigbrightpaints.erp.core.util.CompanyTime;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
+import com.openhtmltopdf.pdfboxout.PdfRendererBuilder;
 import com.bigbrightpaints.erp.modules.accounting.domain.*;
 import com.bigbrightpaints.erp.modules.accounting.dto.AgingBucketDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.AgingSummaryResponse;
@@ -19,6 +20,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
+import java.io.ByteArrayOutputStream;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -64,8 +66,9 @@ public class StatementService {
 
         List<StatementTransactionDto> txns = new ArrayList<>();
         BigDecimal running = opening;
-        List<DealerLedgerEntry> periodEntries = dealerLedgerRepository
-                .findByCompanyAndDealerAndEntryDateBetweenOrderByEntryDateAsc(company, dealer, start, end);
+        List<DealerLedgerEntry> periodEntries = new ArrayList<>(
+                dealerLedgerRepository.findByCompanyAndDealerAndEntryDateBetweenOrderByEntryDateAsc(company, dealer, start, end)
+        );
         periodEntries.sort(Comparator.comparing(DealerLedgerEntry::getEntryDate).thenComparing(DealerLedgerEntry::getId));
         for (DealerLedgerEntry entry : periodEntries) {
             BigDecimal delta = safe(entry.getDebit()).subtract(safe(entry.getCredit()));
@@ -106,8 +109,9 @@ public class StatementService {
 
         List<StatementTransactionDto> txns = new ArrayList<>();
         BigDecimal running = opening;
-        List<SupplierLedgerEntry> periodEntries = supplierLedgerRepository
-                .findByCompanyAndSupplierAndEntryDateBetweenOrderByEntryDateAsc(company, supplier, start, end);
+        List<SupplierLedgerEntry> periodEntries = new ArrayList<>(
+                supplierLedgerRepository.findByCompanyAndSupplierAndEntryDateBetweenOrderByEntryDateAsc(company, supplier, start, end)
+        );
         periodEntries.sort(Comparator.comparing(SupplierLedgerEntry::getEntryDate).thenComparing(SupplierLedgerEntry::getId));
         for (SupplierLedgerEntry entry : periodEntries) {
             BigDecimal delta = safe(entry.getCredit()).subtract(safe(entry.getDebit()));
@@ -381,29 +385,85 @@ public class StatementService {
     }
 
     private byte[] buildStatementPdf(String title, PartnerStatementResponse stmt) {
-        StringBuilder sb = new StringBuilder();
-        sb.append(title).append("\n")
-                .append("Partner: ").append(stmt.partnerName()).append("\n")
-                .append("Period: ").append(stmt.fromDate()).append(" to ").append(stmt.toDate()).append("\n")
-                .append("Opening Balance: ").append(stmt.openingBalance()).append("\n")
-                .append("Closing Balance: ").append(stmt.closingBalance()).append("\n\n")
-                .append("Date,Reference,Description,Debit,Credit,Balance\n");
-        stmt.transactions().forEach(tx -> sb.append(tx.entryDate()).append(",")
-                .append(tx.referenceNumber()).append(",")
-                .append(tx.memo() != null ? tx.memo().replace(",", " ") : "").append(",")
-                .append(tx.debit()).append(",")
-                .append(tx.credit()).append(",")
-                .append(tx.runningBalance()).append("\n"));
-        return sb.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        StringBuilder html = new StringBuilder();
+        html.append("<html><head><meta charset='UTF-8'/>")
+                .append("<style>")
+                .append("body{font-family:Arial,sans-serif;font-size:12px;color:#111;}")
+                .append("h1{font-size:18px;margin:0 0 8px 0;} .meta{margin-bottom:12px;}")
+                .append("table{border-collapse:collapse;width:100%;} th,td{border:1px solid #ddd;padding:6px;text-align:left;}")
+                .append("th{background:#f4f4f4;} .right{text-align:right;}")
+                .append("</style></head><body>");
+        html.append("<h1>").append(htmlEscape(title)).append("</h1>")
+                .append("<div class='meta'>")
+                .append("<div><strong>Partner:</strong> ").append(htmlEscape(stmt.partnerName())).append("</div>")
+                .append("<div><strong>Period:</strong> ").append(htmlEscape(stmt.fromDate()))
+                .append(" to ").append(htmlEscape(stmt.toDate())).append("</div>")
+                .append("<div><strong>Opening Balance:</strong> ").append(htmlEscape(stmt.openingBalance())).append("</div>")
+                .append("<div><strong>Closing Balance:</strong> ").append(htmlEscape(stmt.closingBalance())).append("</div>")
+                .append("</div>");
+        html.append("<table><thead><tr>")
+                .append("<th>Date</th><th>Reference</th><th>Description</th>")
+                .append("<th class='right'>Debit</th><th class='right'>Credit</th><th class='right'>Balance</th>")
+                .append("</tr></thead><tbody>");
+        stmt.transactions().forEach(tx -> html.append("<tr>")
+                .append("<td>").append(htmlEscape(tx.entryDate())).append("</td>")
+                .append("<td>").append(htmlEscape(tx.referenceNumber())).append("</td>")
+                .append("<td>").append(htmlEscape(tx.memo())).append("</td>")
+                .append("<td class='right'>").append(htmlEscape(tx.debit())).append("</td>")
+                .append("<td class='right'>").append(htmlEscape(tx.credit())).append("</td>")
+                .append("<td class='right'>").append(htmlEscape(tx.runningBalance())).append("</td>")
+                .append("</tr>"));
+        html.append("</tbody></table></body></html>");
+        return renderPdf(html.toString(), "statement");
     }
 
     private byte[] buildAgingPdf(String title, AgingSummaryResponse aging) {
-        StringBuilder sb = new StringBuilder();
-        sb.append(title).append("\n")
-                .append("Partner: ").append(aging.partnerName()).append("\n")
-                .append("Bucket,Amount\n");
-        aging.buckets().forEach(b -> sb.append(b.label()).append(",").append(b.amount()).append("\n"));
-        sb.append("Total,").append(aging.totalOutstanding()).append("\n");
-        return sb.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        StringBuilder html = new StringBuilder();
+        html.append("<html><head><meta charset='UTF-8'/>")
+                .append("<style>")
+                .append("body{font-family:Arial,sans-serif;font-size:12px;color:#111;}")
+                .append("h1{font-size:18px;margin:0 0 8px 0;} .meta{margin-bottom:12px;}")
+                .append("table{border-collapse:collapse;width:100%;} th,td{border:1px solid #ddd;padding:6px;text-align:left;}")
+                .append("th{background:#f4f4f4;} .right{text-align:right;}")
+                .append("</style></head><body>");
+        html.append("<h1>").append(htmlEscape(title)).append("</h1>")
+                .append("<div class='meta'><strong>Partner:</strong> ")
+                .append(htmlEscape(aging.partnerName()))
+                .append("</div>");
+        html.append("<table><thead><tr><th>Bucket</th><th class='right'>Amount</th></tr></thead><tbody>");
+        aging.buckets().forEach(b -> html.append("<tr>")
+                .append("<td>").append(htmlEscape(b.label())).append("</td>")
+                .append("<td class='right'>").append(htmlEscape(b.amount())).append("</td>")
+                .append("</tr>"));
+        html.append("<tr><td><strong>Total</strong></td><td class='right'><strong>")
+                .append(htmlEscape(aging.totalOutstanding()))
+                .append("</strong></td></tr>");
+        html.append("</tbody></table></body></html>");
+        return renderPdf(html.toString(), "aging");
+    }
+
+    private byte[] renderPdf(String html, String docType) {
+        try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            PdfRendererBuilder builder = new PdfRendererBuilder();
+            builder.useFastMode();
+            builder.withHtmlContent(html, "");
+            builder.toStream(out);
+            builder.run();
+            return out.toByteArray();
+        } catch (Exception ex) {
+            throw new IllegalStateException("Failed to render " + docType + " PDF", ex);
+        }
+    }
+
+    private String htmlEscape(Object value) {
+        if (value == null) {
+            return "";
+        }
+        return value.toString()
+                .replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace("\"", "&quot;")
+                .replace("'", "&#39;");
     }
 }

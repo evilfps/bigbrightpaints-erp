@@ -1056,3 +1056,36 @@ Queue Rotation (Auto-Replenish)
 - [ready] M5-S3 dispatch/invoice/accounting exact-link invariant sweep (including backorder cancel status semantics)
 - [ready] M6-S8 duplicate idempotency helper consolidation map for receipt/split/payment/settlement paths
 - [ready] M4-S6 aging/statement performance guard (repository-level prefiltering to avoid full-ledger scans)
+
+Loop Update
+- 2026-02-12T14:12:46+05:30
+- tracked_now_ts: `2026-02-12T14:12:46+05:30`
+- tracked_elapsed: `12h 18m 54s`
+- active_in_progress: `M4-S5 report export parity audit (API vs PDF payload integrity)`
+
+Completed Slice (Commit In Progress)
+- 2026-02-12: `[pending-commit-sha]`
+  - M4-S5 export parity + correctness hardening:
+    - Identified and fixed contract breach: accounting statement/aging "PDF" endpoints were returning plain text bytes while advertising `application/pdf`.
+    - Replaced text-byte builders with real PDF rendering via `PdfRendererBuilder` for:
+      - dealer statement PDF,
+      - supplier statement PDF,
+      - dealer aging PDF,
+      - supplier aging PDF.
+    - Added HTML escaping in PDF rendering path for report fields and line metadata.
+    - Fixed additional mutability bugs surfaced by parity tests:
+      - statement period entry lists are now copied before in-place sort (avoids `UnsupportedOperationException` on immutable collections).
+    - Expanded `StatementServiceTest` coverage:
+      - asserts PDF endpoints return real PDF bytes (`%PDF-`),
+      - keeps boundary and bucket compatibility/invariant checks intact.
+  - Verification:
+    - `mvn -B -ntp -Dtest=StatementServiceTest test` -> pass (8 tests, 0 failures, 0 errors).
+
+Queue Rotation (Auto-Replenish)
+- [completed] M4-S5 report export parity audit (API/PDF integrity + binary correctness)
+- [in_progress] M4-S6 aging/statement performance guard (repository-level prefiltering to avoid full-ledger scans)
+- [ready] M2-S9 closed-period mutation abuse matrix for settlement replay and allocation races
+- [ready] M9-S4 accounting query hotspot + index-check under replay workload
+- [ready] M5-S3 dispatch/invoice/accounting exact-link invariant sweep (including backorder cancel status semantics)
+- [ready] M6-S8 duplicate idempotency helper consolidation map for receipt/split/payment/settlement paths
+- [ready] M4-S7 report-API contract e2e expansion (statement/aging PDF + API parity assertions)
