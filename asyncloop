@@ -432,25 +432,32 @@ Commit Ledger
     - `bash -n scripts/gate_release.sh scripts/guard_orchestrator_correlation_contract.sh`
     - `bash scripts/guard_orchestrator_correlation_contract.sh`
   - `codex review --commit 1b5d2b55`: running (result will be appended).
+- 2026-02-12: `9030a363`
+  - Added metadata schema contract test for integration-failure audit markers across accounting and global-exception producers.
+  - Verified:
+    - `mvn -B -ntp -Dtest=IntegrationFailureMetadataSchemaContractTest,GlobalExceptionHandlerTest,IntegrationFailureAlertRoutingPolicyTest test`
+    - `mvn -B -ntp -Dtest=IntegrationFailureMetadataSchemaContractTest,GlobalExceptionHandlerTest,IntegrationFailureAlertRoutingPolicyTest,AccountingServiceTest,AccountingEventTrailAlertRoutingPolicyTest,JournalEntryE2ETest,SettlementE2ETest,IntegrationCoordinatorTest,CommandDispatcherTest,AuditServiceTest,AuditServiceAsyncIT,CompanyContextTaskDecoratorTest,AuthServiceAuditAttributionTest test`
+  - Subagent review:
+    - `019c4f4d-c050-7f53-ae39-e896ec93d347` (running)
 
 Current Checkpoint
-- Current WIP M2-S11 completion (integration-failure metadata schema contract):
-  - `erp-domain/src/test/java/com/bigbrightpaints/erp/core/audit/IntegrationFailureMetadataSchemaContractTest.java`
-    - Added schema contract assertions for `AuditEvent.INTEGRATION_FAILURE` metadata keys across both producers:
-      - accounting event-trail failure path in `AccountingService`
-      - malformed-request + settlement failure paths in `GlobalExceptionHandler`
-    - Required keys pinned:
-      - `failureCode`
-      - `errorCategory`
-      - `alertRoutingVersion`
-      - `alertRoute`
+- Current WIP M3-S3 completion (reversal-path failure taxonomy hardening):
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingService.java`
+    - generalized `ApplicationException` classification for event-trail failures:
+      - all `VALIDATION_*` -> `VALIDATION`
+      - `CONCURRENCY_*` + `DUPLICATE_ENTITY` -> `DATA_INTEGRITY`
+      - fallback -> `PERSISTENCE`
+  - `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingServiceTest.java`
+    - added reversal-path tests to pin `ApplicationException` classification and alert-route contract:
+      - validation classification route (`SEV2_URGENT`)
+      - data-integrity classification route (`SEV1_PAGE`)
 - Verification command:
-  - `mvn -B -ntp -Dtest=IntegrationFailureMetadataSchemaContractTest,GlobalExceptionHandlerTest,IntegrationFailureAlertRoutingPolicyTest test`
+  - `mvn -B -ntp -Dtest=AccountingServiceTest,AccountingEventTrailAlertRoutingPolicyTest test`
   - `mvn -B -ntp -Dtest=IntegrationFailureMetadataSchemaContractTest,GlobalExceptionHandlerTest,IntegrationFailureAlertRoutingPolicyTest,AccountingServiceTest,AccountingEventTrailAlertRoutingPolicyTest,JournalEntryE2ETest,SettlementE2ETest,IntegrationCoordinatorTest,CommandDispatcherTest,AuditServiceTest,AuditServiceAsyncIT,CompanyContextTaskDecoratorTest,AuthServiceAuditAttributionTest test`
 - Next action:
-  - commit M2-S11 metadata schema contract test
+  - commit M3-S3 reversal-path taxonomy hardening
   - run `codex review --commit <sha>`
-  - start M3-S3 reversal-path taxonomy hardening (validation/data-integrity/concurrency classifications + pinned tests)
+  - start M4-S2 auth/runtime attribution audit for tenant/user boundary failure paths
 
 Async Loop Cadence
 - Each cycle:

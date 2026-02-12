@@ -3430,8 +3430,8 @@ public class AccountingService {
     }
 
     private String classifyEventTrailFailure(Exception ex) {
-        if (ex instanceof ApplicationException appEx && appEx.getErrorCode() == ErrorCode.VALIDATION_INVALID_INPUT) {
-            return "VALIDATION";
+        if (ex instanceof ApplicationException appEx) {
+            return classifyApplicationEventTrailFailure(appEx.getErrorCode());
         }
         if (ex instanceof IllegalArgumentException) {
             return "VALIDATION";
@@ -3440,6 +3440,30 @@ public class AccountingService {
             return "DATA_INTEGRITY";
         }
         return "PERSISTENCE";
+    }
+
+    private String classifyApplicationEventTrailFailure(ErrorCode errorCode) {
+        if (errorCode == null) {
+            return "PERSISTENCE";
+        }
+        if (isValidationError(errorCode)) {
+            return "VALIDATION";
+        }
+        if (isDataIntegrityError(errorCode)) {
+            return "DATA_INTEGRITY";
+        }
+        return "PERSISTENCE";
+    }
+
+    private boolean isValidationError(ErrorCode errorCode) {
+        return errorCode.name().startsWith("VALIDATION_");
+    }
+
+    private boolean isDataIntegrityError(ErrorCode errorCode) {
+        return switch (errorCode) {
+            case CONCURRENCY_CONFLICT, CONCURRENCY_LOCK_TIMEOUT, INTERNAL_CONCURRENCY_FAILURE, DUPLICATE_ENTITY -> true;
+            default -> false;
+        };
     }
 
     private void ensureDuplicateMatchesExisting(JournalEntry existing,

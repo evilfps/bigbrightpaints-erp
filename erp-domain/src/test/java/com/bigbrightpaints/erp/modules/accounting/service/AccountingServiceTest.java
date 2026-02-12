@@ -1170,6 +1170,98 @@ class AccountingServiceTest {
     }
 
     @Test
+    void reverseJournalEntry_bestEffortEventTrailValidationApplicationExceptionClassified() {
+        ReflectionTestUtils.setField(accountingService, "strictAccountingEventTrail", false);
+        LocalDate today = LocalDate.of(2024, 4, 3);
+        when(companyClock.today(company)).thenReturn(today);
+        AccountingPeriod openPeriod = new AccountingPeriod();
+        when(accountingPeriodService.requireOpenPeriod(company, today)).thenReturn(openPeriod);
+
+        AccountingService service = spy(accountingService);
+        JournalEntry original = reversalSourceEntry(612L, "REV-EVT-VALIDATION", today);
+        JournalEntry reversal = new JournalEntry();
+        ReflectionTestUtils.setField(reversal, "id", 912L);
+
+        when(companyEntityLookup.requireJournalEntry(company, 612L)).thenReturn(original);
+        when(companyEntityLookup.requireJournalEntry(company, 912L)).thenReturn(reversal);
+        when(journalEntryRepository.save(any(JournalEntry.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        doReturn(stubEntry(912L)).when(service).createJournalEntry(any(JournalEntryRequest.class));
+        when(accountingEventStore.recordJournalEntryReversed(any(), any(), any()))
+                .thenThrow(new ApplicationException(
+                        ErrorCode.VALIDATION_INVALID_REFERENCE,
+                        "invalid reversal event payload"));
+
+        JournalEntryReversalRequest request = new JournalEntryReversalRequest(
+                today,
+                false,
+                "Best effort reversal validation classification",
+                "Reversal validation classification test",
+                Boolean.FALSE
+        );
+
+        JournalEntryDto result = service.reverseJournalEntry(612L, request);
+        assertThat(result.id()).isEqualTo(912L);
+
+        ArgumentCaptor<Map<String, String>> integrationFailureCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(auditService).logFailure(eq(AuditEvent.INTEGRATION_FAILURE), integrationFailureCaptor.capture());
+        assertThat(integrationFailureCaptor.getValue())
+                .containsEntry("eventTrailOperation", "JOURNAL_ENTRY_REVERSED")
+                .containsEntry("policy", "BEST_EFFORT")
+                .containsEntry("failureCode", "ACCOUNTING_EVENT_TRAIL_PERSISTENCE_FAILURE")
+                .containsEntry("errorCategory", "VALIDATION")
+                .containsEntry("errorType", "ApplicationException")
+                .containsEntry("alertRoutingVersion", "ACCOUNTING_EVENT_TRAIL_V1")
+                .containsEntry("alertRoute", "SEV2_URGENT");
+        verify(auditService).logSuccess(eq(AuditEvent.JOURNAL_ENTRY_REVERSED), any());
+    }
+
+    @Test
+    void reverseJournalEntry_bestEffortEventTrailDataIntegrityApplicationExceptionClassified() {
+        ReflectionTestUtils.setField(accountingService, "strictAccountingEventTrail", false);
+        LocalDate today = LocalDate.of(2024, 4, 4);
+        when(companyClock.today(company)).thenReturn(today);
+        AccountingPeriod openPeriod = new AccountingPeriod();
+        when(accountingPeriodService.requireOpenPeriod(company, today)).thenReturn(openPeriod);
+
+        AccountingService service = spy(accountingService);
+        JournalEntry original = reversalSourceEntry(613L, "REV-EVT-INTEGRITY", today);
+        JournalEntry reversal = new JournalEntry();
+        ReflectionTestUtils.setField(reversal, "id", 913L);
+
+        when(companyEntityLookup.requireJournalEntry(company, 613L)).thenReturn(original);
+        when(companyEntityLookup.requireJournalEntry(company, 913L)).thenReturn(reversal);
+        when(journalEntryRepository.save(any(JournalEntry.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        doReturn(stubEntry(913L)).when(service).createJournalEntry(any(JournalEntryRequest.class));
+        when(accountingEventStore.recordJournalEntryReversed(any(), any(), any()))
+                .thenThrow(new ApplicationException(
+                        ErrorCode.INTERNAL_CONCURRENCY_FAILURE,
+                        "duplicate reversal event key"));
+
+        JournalEntryReversalRequest request = new JournalEntryReversalRequest(
+                today,
+                false,
+                "Best effort reversal data integrity classification",
+                "Reversal data integrity classification test",
+                Boolean.FALSE
+        );
+
+        JournalEntryDto result = service.reverseJournalEntry(613L, request);
+        assertThat(result.id()).isEqualTo(913L);
+
+        ArgumentCaptor<Map<String, String>> integrationFailureCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(auditService).logFailure(eq(AuditEvent.INTEGRATION_FAILURE), integrationFailureCaptor.capture());
+        assertThat(integrationFailureCaptor.getValue())
+                .containsEntry("eventTrailOperation", "JOURNAL_ENTRY_REVERSED")
+                .containsEntry("policy", "BEST_EFFORT")
+                .containsEntry("failureCode", "ACCOUNTING_EVENT_TRAIL_PERSISTENCE_FAILURE")
+                .containsEntry("errorCategory", "DATA_INTEGRITY")
+                .containsEntry("errorType", "ApplicationException")
+                .containsEntry("alertRoutingVersion", "ACCOUNTING_EVENT_TRAIL_V1")
+                .containsEntry("alertRoute", "SEV1_PAGE");
+        verify(auditService).logSuccess(eq(AuditEvent.JOURNAL_ENTRY_REVERSED), any());
+    }
+
+    @Test
     void reverseJournalEntry_bestEffortEventTrailFailureContinuesWhenAuditMarkerFails() {
         ReflectionTestUtils.setField(accountingService, "strictAccountingEventTrail", false);
         LocalDate today = LocalDate.of(2024, 4, 3);
