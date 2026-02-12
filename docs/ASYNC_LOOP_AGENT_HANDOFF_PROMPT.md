@@ -23,22 +23,25 @@ Mandatory operating rules:
 - If user asks questions mid-loop, answer briefly and continue work immediately.
 
 Current context to start from:
-- Last completed code commit in dispatch replay chain: `ea3bd276`
-  - recomputes single-slip status at decision points to avoid stale anchor usage.
-  - includes regression test: order becomes multi-slip mid-dispatch and AR posting is forced.
+- Last completed code commit in dispatch/invoice linkage chain: `09af3991`
+  - enforces single-slip gate in `InvoiceService.issueInvoiceForOrder` before writing `order.fulfillmentInvoiceId`.
+  - includes regression test that keeps `fulfillmentInvoiceId` unset for multi-slip existing-invoice flow.
 - Prior related commits:
+  - `521d8e07` gates order-level invoice marker writes to single-slip in dispatch paths.
+  - `26ddee67` blocks order-level AR linkage drift on multi-slip replay.
+  - `ea3bd276` recomputes single-slip status at decision points.
   - `e277cde0` anchored replay overrides with required reason.
   - `8b7b3e73` closes multi-slip order-journal replay bypass and preserves override audit metadata.
   - `9a8c2c42` adds replay mismatch test for existing AR journal totals.
-- Latest targeted verification already passing for dispatch replay matrix:
-  - `mvn -B -ntp -Dtest=SalesServiceTest#confirmDispatchRejectsOverridesForAlreadyDispatchedSlip,SalesServiceTest#confirmDispatchRejectsReplayOverridesWhenOnlyOrderJournalAnchorOnMultiSlipOrder,SalesServiceTest#confirmDispatchRequiresOverrideReasonWhenReplayOverrideAnchored,SalesServiceTest#confirmDispatchAllowsReplayOverridesWhenAlreadyDispatchedHasJournalAnchor,SalesServiceTest#confirmDispatchRejectsReplayOverrideWhenExistingJournalTotalMismatches,SalesServiceTest#confirmDispatchReplayFastPathLogsOverrideAuditMetadata,SalesServiceTest#confirmDispatchRequiresOverrideReasonWhenOverridesProvided,SalesServiceTest#confirmDispatchSkipsArPostingWhenOrderAlreadyHasJournal,SalesServiceTest#confirmDispatchPostsArWhenOrderJournalExistsButOrderBecomesMultiSlip test`
+- Latest targeted verification already passing:
+  - `mvn -B -ntp -Dtest=SalesServiceTest,InvoiceServiceTest test` (30 tests, 0 failures).
 
 Immediate next actions:
 1) Confirm there are no uncommitted owned changes from the previous step.
-2) Finish/record post-commit review evidence for `ea3bd276` in `asyncloop`.
-3) Continue M5-S3 with remaining gaps:
-   - fast-path replay mismatch validation in already-anchored return path,
-   - anchor ownership/integrity checks for slip invoice/journal markers.
+2) Ensure `asyncloop` review evidence for `09af3991` is complete and consistent.
+3) Continue active slice `M5-S5`:
+   - TOCTOU risk reduction for single-vs-multi slip marker decisions,
+   - stale order-level marker cleanup/backfill strategy for drifted records.
 4) Commit each fix with targeted tests, then run commit review + review subagent.
 5) Append every step to `asyncloop` with timestamp, elapsed runtime, evidence, and replenished queue.
 
