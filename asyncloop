@@ -969,3 +969,34 @@ Queue Rotation (Auto-Replenish)
 - [ready] M5-S3 dispatch/invoice/accounting exact-link invariant sweep (including backorder cancel status semantics)
 - [ready] M6-S8 duplicate idempotency helper consolidation map for receipt/split/payment/settlement paths
 - [ready] M4-S5 report export parity audit (PDF/CSV aging/statement should match API totals + as-of semantics)
+
+Loop Update
+- 2026-02-12T14:01:29+05:30
+- tracked_now_ts: `2026-02-12T14:01:29+05:30`
+- tracked_elapsed: `12h 07m 37s`
+- active_in_progress: `M4-S4 statement/aging boundary invariants (from/to guards + bucket validation hardening)`
+
+Completed Slice (Commit In Progress)
+- 2026-02-12: `[pending-commit-sha]`
+  - M4-S4 report boundary hardening:
+    - Added statement period validation (`from <= to`) for dealer and supplier statements to block inverted windows.
+    - Hardened aging bucket parser:
+      - rejects malformed tokens/non-numeric/negative bounds,
+      - rejects descending or overlapping ranges,
+      - enforces open-ended bucket only as final range.
+    - Fixed latent mutability assumption in aging flows by copying repository lists before in-place sort (prevents `UnsupportedOperationException` if unmodifiable list is returned).
+    - Added focused unit coverage in new `StatementServiceTest` for:
+      - dealer/supplier statement inverted date rejection,
+      - malformed and overlapping bucket rejection,
+      - valid open-ended final bucket acceptance.
+  - Verification:
+    - `mvn -B -ntp -Dtest=StatementServiceTest test` -> pass (5 tests, 0 failures, 0 errors).
+
+Queue Rotation (Auto-Replenish)
+- [completed] M4-S4 statement/aging boundary invariants (from/to guards + bucket validation hardening)
+- [in_progress] M4-S5 report export parity audit (PDF/CSV aging/statement should match API totals + as-of semantics)
+- [ready] M2-S9 closed-period mutation abuse matrix for settlement replay and allocation races
+- [ready] M9-S4 accounting query hotspot + index-check under replay workload
+- [ready] M5-S3 dispatch/invoice/accounting exact-link invariant sweep (including backorder cancel status semantics)
+- [ready] M6-S8 duplicate idempotency helper consolidation map for receipt/split/payment/settlement paths
+- [ready] M4-S6 aging/statement performance guard (repository-level prefiltering to avoid full-ledger scans)

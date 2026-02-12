@@ -1,6 +1,8 @@
 package com.bigbrightpaints.erp.modules.accounting.service;
 
 import com.bigbrightpaints.erp.core.util.CompanyTime;
+import com.bigbrightpaints.erp.core.exception.ApplicationException;
+import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.modules.accounting.domain.*;
 import com.bigbrightpaints.erp.modules.accounting.dto.AgingBucketDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.AgingSummaryResponse;
@@ -53,6 +55,7 @@ public class StatementService {
         LocalDate today = companyClock.today(company);
         LocalDate start = from == null ? today.minusMonths(6) : from;
         LocalDate end = to == null ? today : to;
+        validateStatementRange(start, end);
 
         BigDecimal opening = dealerLedgerRepository.findByCompanyAndDealerAndEntryDateBeforeOrderByEntryDateAsc(company, dealer, start)
                 .stream()
@@ -94,6 +97,7 @@ public class StatementService {
         LocalDate today = companyClock.today(company);
         LocalDate start = from == null ? today.minusMonths(6) : from;
         LocalDate end = to == null ? today : to;
+        validateStatementRange(start, end);
 
         BigDecimal opening = supplierLedgerRepository.findByCompanyAndSupplierAndEntryDateBeforeOrderByEntryDateAsc(company, supplier, start)
                 .stream()
@@ -134,7 +138,9 @@ public class StatementService {
                 .orElseThrow(() -> new IllegalArgumentException("Dealer not found"));
         LocalDate ref = asOf == null ? companyClock.today(company) : asOf;
         List<int[]> buckets = parseBuckets(bucketParam);
-        List<DealerLedgerEntry> entries = dealerLedgerRepository.findByCompanyAndDealerOrderByEntryDateAsc(company, dealer);
+        List<DealerLedgerEntry> entries = new ArrayList<>(
+                dealerLedgerRepository.findByCompanyAndDealerOrderByEntryDateAsc(company, dealer)
+        );
         BigDecimal balance = BigDecimal.ZERO;
         BigDecimal[] bucketTotals = new BigDecimal[buckets.size()];
         for (int i = 0; i < bucketTotals.length; i++) bucketTotals[i] = BigDecimal.ZERO;
@@ -201,7 +207,9 @@ public class StatementService {
                 .orElseThrow(() -> new IllegalArgumentException("Supplier not found"));
         LocalDate ref = asOf == null ? companyClock.today(company) : asOf;
         List<int[]> buckets = parseBuckets(bucketParam);
-        List<SupplierLedgerEntry> entries = supplierLedgerRepository.findByCompanyAndSupplierOrderByEntryDateAsc(company, supplier);
+        List<SupplierLedgerEntry> entries = new ArrayList<>(
+                supplierLedgerRepository.findByCompanyAndSupplierOrderByEntryDateAsc(company, supplier)
+        );
         BigDecimal balance = BigDecimal.ZERO;
         BigDecimal[] bucketTotals = new BigDecimal[buckets.size()];
         for (int i = 0; i < bucketTotals.length; i++) bucketTotals[i] = BigDecimal.ZERO;
@@ -287,16 +295,74 @@ public class StatementService {
         String value = StringUtils.hasText(bucketParam) ? bucketParam : def;
         String[] parts = value.split(",");
         List<int[]> buckets = new ArrayList<>();
-        for (String part : parts) {
-            String trimmed = part.trim();
+        Integer previousUpperBound = null;
+        for (int i = 0; i < parts.length; i++) {
+            String trimmed = parts[i].trim();
+            if (trimmed.isEmpty()) {
+                throw invalidBucketFormat(bucketParam);
+            }
             if (trimmed.contains("-")) {
                 String[] range = trimmed.split("-");
-                buckets.add(new int[]{Integer.parseInt(range[0]), Integer.parseInt(range[1])});
+                if (range.length != 2) {
+                    throw invalidBucketFormat(bucketParam);
+                }
+                int from = parseBucketBound(range[0], bucketParam);
+                int to = parseBucketBound(range[1], bucketParam);
+                if (from > to) {
+                    throw invalidBucketFormat(bucketParam);
+                }
+                if (previousUpperBound != null && from <= previousUpperBound) {
+                    throw invalidBucketFormat(bucketParam);
+                }
+                previousUpperBound = to;
+                buckets.add(new int[]{from, to});
             } else {
-                buckets.add(new int[]{Integer.parseInt(trimmed)});
+                int from = parseBucketBound(trimmed, bucketParam);
+                if (previousUpperBound != null && from <= previousUpperBound) {
+                    throw invalidBucketFormat(bucketParam);
+                }
+                if (i != parts.length - 1) {
+                    throw invalidBucketFormat(bucketParam);
+                }
+                previousUpperBound = Integer.MAX_VALUE;
+                buckets.add(new int[]{from});
             }
         }
+        if (buckets.isEmpty()) {
+            throw invalidBucketFormat(bucketParam);
+        }
         return buckets;
+    }
+
+    private int parseBucketBound(String raw, String original) {
+        String trimmed = raw == null ? "" : raw.trim();
+        try {
+            int parsed = Integer.parseInt(trimmed);
+            if (parsed < 0) {
+                throw invalidBucketFormat(original);
+            }
+            return parsed;
+        } catch (NumberFormatException ex) {
+            throw invalidBucketFormat(original);
+        }
+    }
+
+    private ApplicationException invalidBucketFormat(String bucketParam) {
+        throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                "Invalid aging bucket format")
+                .withDetail("bucketParam", bucketParam);
+    }
+
+    private void validateStatementRange(LocalDate start, LocalDate end) {
+        if (start == null || end == null) {
+            return;
+        }
+        if (start.isAfter(end)) {
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                    "from date cannot be after to date")
+                    .withDetail("from", start.toString())
+                    .withDetail("to", end.toString());
+        }
     }
 
     private LocalDate resolveAgingDate(DealerLedgerEntry entry) {
