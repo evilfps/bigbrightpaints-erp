@@ -83,10 +83,7 @@ public class InvoiceService {
             if (existingInvoices.size() == 1) {
                 Invoice existing = existingInvoices.get(0);
                 SalesOrder existingOrder = salesService.getOrderWithItems(salesOrderId);
-                if (existingOrder.getFulfillmentInvoiceId() == null
-                        && existing.getId() != null
-                        && hasSingleSlipForOrder(company, salesOrderId)) {
-                    existingOrder.setFulfillmentInvoiceId(existing.getId());
+                if (reconcileOrderInvoiceMarker(company, existingOrder, existing.getId())) {
                     salesOrderRepository.save(existingOrder);
                 }
                 linkInvoiceToPackagingSlip(existingOrder, existing);
@@ -154,6 +151,25 @@ public class InvoiceService {
                 .ofNullable(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, salesOrderId))
                 .orElse(List.of());
         return slips.size() == 1;
+    }
+
+    private boolean reconcileOrderInvoiceMarker(Company company, SalesOrder order, Long invoiceId) {
+        if (order == null || company == null) {
+            return false;
+        }
+        boolean singleSlipForOrder = hasSingleSlipForOrder(company, order.getId());
+        if (!singleSlipForOrder) {
+            if (order.getFulfillmentInvoiceId() != null) {
+                order.setFulfillmentInvoiceId(null);
+                return true;
+            }
+            return false;
+        }
+        if (invoiceId != null && order.getFulfillmentInvoiceId() == null) {
+            order.setFulfillmentInvoiceId(invoiceId);
+            return true;
+        }
+        return false;
     }
 
     private BigDecimal currency(BigDecimal value) {

@@ -1535,20 +1535,12 @@ public class SalesService {
                 if (slipUpdated) {
                     packagingSlipRepository.save(slip);
                 }
-                boolean singleSlipForOrder = hasSingleSlipForOrder(company, order);
-                boolean orderUpdated = false;
-                if (order.getSalesJournalEntryId() == null && existingJeId != null && singleSlipForOrder) {
-                    order.setSalesJournalEntryId(existingJeId);
-                    orderUpdated = true;
-                }
-                if (order.getCogsJournalEntryId() == null && existingCogsJournalId != null && singleSlipForOrder) {
-                    order.setCogsJournalEntryId(existingCogsJournalId);
-                    orderUpdated = true;
-                }
-                if (order.getFulfillmentInvoiceId() == null && existingInvoiceId != null && singleSlipForOrder) {
-                    order.setFulfillmentInvoiceId(existingInvoiceId);
-                    orderUpdated = true;
-                }
+                boolean orderUpdated = reconcileOrderLevelDispatchMarkers(
+                        company,
+                        order,
+                        existingInvoiceId,
+                        existingJeId,
+                        existingCogsJournalId);
                 String nextStatus = resolveOrderStatusAfterDispatch(company, order);
                 if (!nextStatus.equalsIgnoreCase(order.getStatus())) {
                     order.setStatus(nextStatus);
@@ -2158,20 +2150,20 @@ public class SalesService {
         }
         packagingSlipRepository.save(slip);
 
-        if (arJournalEntryId != null && order.getSalesJournalEntryId() == null && singleSlipForOrder) {
-            order.setSalesJournalEntryId(arJournalEntryId);
-        }
-        if (cogsJournalId != null && order.getCogsJournalEntryId() == null && singleSlipForOrder) {
-            order.setCogsJournalEntryId(cogsJournalId);
-        }
-        if (invoice.getId() != null && order.getFulfillmentInvoiceId() == null && singleSlipForOrder) {
-            order.setFulfillmentInvoiceId(invoice.getId());
-        }
+        boolean orderUpdated = reconcileOrderLevelDispatchMarkers(
+                company,
+                order,
+                invoice.getId(),
+                arJournalEntryId,
+                cogsJournalId);
         String nextStatus = resolveOrderStatusAfterDispatch(company, order);
         if (!nextStatus.equalsIgnoreCase(order.getStatus())) {
             order.setStatus(nextStatus);
+            orderUpdated = true;
         }
-        salesOrderRepository.save(order);
+        if (orderUpdated) {
+            salesOrderRepository.save(order);
+        }
 
         logDispatchAudit(slip, order, invoice, arJournalEntryId, cogsJournalId, totalAmount, alreadyDispatched, hasRequestedOverrides, overrideReason);
         return new DispatchConfirmResponse(
@@ -2428,6 +2420,46 @@ public class SalesService {
         }
         List<PackagingSlip> slips = packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, order.getId());
         return slips != null && slips.size() == 1;
+    }
+
+    private boolean reconcileOrderLevelDispatchMarkers(Company company,
+                                                       SalesOrder order,
+                                                       Long invoiceId,
+                                                       Long salesJournalEntryId,
+                                                       Long cogsJournalEntryId) {
+        if (company == null || order == null) {
+            return false;
+        }
+        boolean singleSlipForOrder = hasSingleSlipForOrder(company, order);
+        boolean orderUpdated = false;
+        if (!singleSlipForOrder) {
+            if (order.getSalesJournalEntryId() != null) {
+                order.setSalesJournalEntryId(null);
+                orderUpdated = true;
+            }
+            if (order.getCogsJournalEntryId() != null) {
+                order.setCogsJournalEntryId(null);
+                orderUpdated = true;
+            }
+            if (order.getFulfillmentInvoiceId() != null) {
+                order.setFulfillmentInvoiceId(null);
+                orderUpdated = true;
+            }
+            return orderUpdated;
+        }
+        if (salesJournalEntryId != null && order.getSalesJournalEntryId() == null) {
+            order.setSalesJournalEntryId(salesJournalEntryId);
+            orderUpdated = true;
+        }
+        if (cogsJournalEntryId != null && order.getCogsJournalEntryId() == null) {
+            order.setCogsJournalEntryId(cogsJournalEntryId);
+            orderUpdated = true;
+        }
+        if (invoiceId != null && order.getFulfillmentInvoiceId() == null) {
+            order.setFulfillmentInvoiceId(invoiceId);
+            orderUpdated = true;
+        }
+        return orderUpdated;
     }
 
     private String resolveOrderStatusAfterDispatch(Company company, SalesOrder order) {

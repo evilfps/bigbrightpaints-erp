@@ -942,6 +942,9 @@ class SalesServiceTest {
         setField(order, "id", 10L);
         order.setCompany(company);
         order.setStatus("SHIPPED");
+        order.setSalesJournalEntryId(901L);
+        order.setCogsJournalEntryId(902L);
+        order.setFulfillmentInvoiceId(903L);
 
         PackagingSlip slip = new PackagingSlip();
         setField(slip, "id", 55L);
@@ -988,6 +991,7 @@ class SalesServiceTest {
         assertNull(order.getSalesJournalEntryId());
         assertNull(order.getCogsJournalEntryId());
         assertNull(order.getFulfillmentInvoiceId());
+        verify(salesOrderRepository, times(1)).save(order);
         verify(accountingFacade, never()).postSalesJournal(
                 ArgumentMatchers.anyLong(),
                 ArgumentMatchers.anyString(),
