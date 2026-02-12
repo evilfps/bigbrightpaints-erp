@@ -1089,3 +1089,36 @@ Queue Rotation (Auto-Replenish)
 - [ready] M5-S3 dispatch/invoice/accounting exact-link invariant sweep (including backorder cancel status semantics)
 - [ready] M6-S8 duplicate idempotency helper consolidation map for receipt/split/payment/settlement paths
 - [ready] M4-S7 report-API contract e2e expansion (statement/aging PDF + API parity assertions)
+
+Completed Slice (Committed)
+- 2026-02-12: `2afb5aa7`
+  - fix(reports): render real PDFs for statements and aging exports.
+  - Replaced pseudo-PDF text bytes with actual binary PDF rendering for statement/aging endpoints.
+  - Added HTML escaping on report-rendering fields and stabilized sort paths on immutable repository lists.
+  - Verification:
+    - `mvn -B -ntp -Dtest=StatementServiceTest test` -> pass (8 tests, 0 failures, 0 errors).
+
+Post-Commit Review Evidence
+- Commit reviewed: `2afb5aa7`
+- `codex review --commit 2afb5aa7`:
+  - final verdict: no actionable regressions introduced by this commit.
+- Review subagent `019c5105-27d3-7ea2-9e10-78b9dcdd5c0a`:
+  - no functional regressions found in changed code.
+  - residual risks flagged for follow-up:
+    - PDF render path throughput under concurrency not yet measured.
+    - Tests assert `%PDF-` contract but do not validate extracted content parity yet.
+
+Loop Update
+- 2026-02-12T14:18:56+05:30
+- tracked_now_ts: `2026-02-12T14:18:56+05:30`
+- tracked_elapsed: `12h 25m 4s`
+- active_in_progress: `M4-S6 aging/statement performance guard (prefilter + query-path reduction)`
+
+Queue Rotation (Auto-Replenish)
+- [completed] M4-S5 report export parity audit (API/PDF integrity + binary correctness)
+- [in_progress] M4-S6 aging/statement performance guard (prefilter + query-path reduction)
+- [ready] M4-S7 PDF content parity assertions (extract-and-verify totals/partner metadata)
+- [ready] M2-S9 closed-period mutation abuse matrix for settlement replay and allocation races
+- [ready] M9-S4 accounting query hotspot + index-check under replay workload
+- [ready] M5-S3 dispatch/invoice/accounting exact-link invariant sweep (including backorder cancel status semantics)
+- [ready] M6-S8 duplicate idempotency helper consolidation map for receipt/split/payment/settlement paths
