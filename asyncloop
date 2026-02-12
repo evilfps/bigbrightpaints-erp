@@ -27,8 +27,8 @@ Cross-Agent Continuation Contract (If Any Agent Handoffs Here)
 
 Runtime Tracking
 - tracked_start_ts: `2026-02-12T01:53:52+05:30` (first immutable async-loop commit marker)
-- tracked_now_ts: `2026-02-12T13:08:09+05:30`
-- tracked_elapsed: `11h 14m 17s`
+- tracked_now_ts: `2026-02-12T13:23:40+05:30`
+- tracked_elapsed: `11h 29m 48s`
 
 Completion Gates (Required For "Safe To Deploy" Claim)
 - No known critical/high security issues in auth/RBAC/tenant isolation/data exposure.
@@ -806,3 +806,33 @@ Queue Rotation (Auto-Replenish)
 - [ready] M2-S9 closed-period mutation abuse matrix for settlement replay and allocation races
 - [ready] M9-S4 accounting query hotspot + index-check under replay workload
 - [ready] M5-S3 dispatch/invoice/accounting exact-link invariant sweep (including backorder cancel status semantics)
+
+Loop Update
+- 2026-02-12T13:23:40+05:30
+- tracked_now_ts: `2026-02-12T13:23:40+05:30`
+- tracked_elapsed: `11h 29m 48s`
+
+Completed Slice (Commit In Progress)
+- 2026-02-12: `[pending-commit-sha]`
+  - M6-S5 replay mismatch matrix + race-fallback mapping coverage:
+    - Added explicit replay mismatch rejection tests for all `resolveReplayJournalEntry(...)` receipt/payment/settlement call sites:
+      - `recordDealerReceipt_replayRejectsMappingAllocationJournalMismatch`
+      - `recordDealerReceiptSplit_replayRejectsMappingAllocationJournalMismatch`
+      - `recordSupplierPayment_replayRejectsMappingAllocationJournalMismatch`
+      - `settleDealerInvoices_replayRejectsMappingAllocationJournalMismatch`
+      - (existing) `settleSupplierInvoices_replayRejectsMappingAllocationJournalMismatch`
+    - Added insert-race fallback mapping repair tests for:
+      - `recordDealerReceipt_dataIntegrityFallbackRepairsReferenceMapping`
+      - `recordDealerReceiptSplit_dataIntegrityFallbackRepairsReferenceMapping`
+      - `recordSupplierPayment_dataIntegrityFallbackRepairsReferenceMapping`
+    - Corrected mapping lookup sequencing in race tests to model reserve/link/catch call order and avoid false conflict from intentional mapping guard.
+  - Verification:
+    - `mvn -B -ntp -Dtest=AccountingServiceTest#recordDealerReceipt_replayRejectsMappingAllocationJournalMismatch+recordDealerReceiptSplit_replayRejectsMappingAllocationJournalMismatch+recordSupplierPayment_replayRejectsMappingAllocationJournalMismatch+settleDealerInvoices_replayRejectsMappingAllocationJournalMismatch+settleSupplierInvoices_replayRejectsMappingAllocationJournalMismatch+recordDealerReceipt_dataIntegrityFallbackRepairsReferenceMapping+recordDealerReceiptSplit_dataIntegrityFallbackRepairsReferenceMapping+recordSupplierPayment_dataIntegrityFallbackRepairsReferenceMapping test` -> pass (8 tests, 0 failures, 0 errors).
+
+Queue Rotation (Auto-Replenish)
+- [completed] M6-S5 replay mismatch matrix + race-fallback coverage for receipt/payment/settlement paths
+- [in_progress] M4-S3 statement/aging/report settlement-link consistency and source-of-truth checks
+- [ready] M2-S9 closed-period mutation abuse matrix for settlement replay and allocation races
+- [ready] M9-S4 accounting query hotspot + index-check under replay workload
+- [ready] M5-S3 dispatch/invoice/accounting exact-link invariant sweep (including backorder cancel status semantics)
+- [ready] M6-S6 duplicate replay-linking rule map (receipt/split/payment/settlement canonical helper consolidation target)

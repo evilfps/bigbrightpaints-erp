@@ -2019,6 +2019,668 @@ class AccountingServiceTest {
     }
 
     @Test
+    void recordDealerReceipt_replayRejectsMappingAllocationJournalMismatch() {
+        Dealer dealer = new Dealer();
+        dealer.setName("Mismatch Dealer");
+        ReflectionTestUtils.setField(dealer, "id", 1L);
+
+        Account receivable = new Account();
+        receivable.setCompany(company);
+        receivable.setCode("AR-MISMATCH");
+        receivable.setType(AccountType.ASSET);
+        ReflectionTestUtils.setField(receivable, "id", 10L);
+        dealer.setReceivableAccount(receivable);
+
+        Account cash = new Account();
+        cash.setCompany(company);
+        cash.setCode("CASH-MISMATCH");
+        cash.setType(AccountType.ASSET);
+        ReflectionTestUtils.setField(cash, "id", 20L);
+
+        com.bigbrightpaints.erp.modules.invoice.domain.Invoice invoice =
+                new com.bigbrightpaints.erp.modules.invoice.domain.Invoice();
+        invoice.setCompany(company);
+        invoice.setDealer(dealer);
+        ReflectionTestUtils.setField(invoice, "id", 501L);
+
+        JournalEntry mappingEntry = new JournalEntry();
+        ReflectionTestUtils.setField(mappingEntry, "id", 904L);
+        mappingEntry.setDealer(dealer);
+        mappingEntry.setReferenceNumber("DR-MAP-MISMATCH-1");
+
+        JournalEntry allocationEntry = new JournalEntry();
+        ReflectionTestUtils.setField(allocationEntry, "id", 905L);
+        allocationEntry.setDealer(dealer);
+        allocationEntry.setReferenceNumber("DR-ALLOC-MISMATCH-1");
+
+        com.bigbrightpaints.erp.modules.accounting.domain.PartnerSettlementAllocation existingRow =
+                new com.bigbrightpaints.erp.modules.accounting.domain.PartnerSettlementAllocation();
+        existingRow.setCompany(company);
+        existingRow.setPartnerType(com.bigbrightpaints.erp.modules.accounting.domain.PartnerType.DEALER);
+        existingRow.setDealer(dealer);
+        existingRow.setInvoice(invoice);
+        existingRow.setJournalEntry(allocationEntry);
+        existingRow.setSettlementDate(LocalDate.of(2024, 4, 9));
+        existingRow.setAllocationAmount(new BigDecimal("100.00"));
+        existingRow.setDiscountAmount(BigDecimal.ZERO);
+        existingRow.setWriteOffAmount(BigDecimal.ZERO);
+        existingRow.setFxDifferenceAmount(BigDecimal.ZERO);
+        existingRow.setIdempotencyKey("IDEMP-DR-MISMATCH");
+
+        JournalReferenceMapping mapping = new JournalReferenceMapping();
+        mapping.setCompany(company);
+        mapping.setLegacyReference("idemp-dr-mismatch");
+        mapping.setCanonicalReference("DR-MAP-MISMATCH-1");
+        mapping.setEntityType("DEALER_RECEIPT");
+        mapping.setEntityId(null);
+
+        when(dealerRepository.lockByCompanyAndId(eq(company), eq(1L))).thenReturn(Optional.of(dealer));
+        when(companyEntityLookup.requireAccount(eq(company), eq(20L))).thenReturn(cash);
+        when(journalReferenceMappingRepository.findAllByCompanyAndLegacyReferenceIgnoreCase(eq(company), eq("idemp-dr-mismatch")))
+                .thenReturn(List.of(mapping));
+        when(journalReferenceResolver.findExistingEntry(eq(company), eq("DR-MAP-MISMATCH-1")))
+                .thenReturn(Optional.of(mappingEntry));
+        when(settlementAllocationRepository.findByCompanyAndJournalEntryOrderByCreatedAtAsc(eq(company), eq(mappingEntry)))
+                .thenReturn(List.of());
+        when(settlementAllocationRepository.findByCompanyAndIdempotencyKeyIgnoreCaseOrderByCreatedAtAscIdAsc(eq(company), eq("IDEMP-DR-MISMATCH")))
+                .thenReturn(List.of(existingRow));
+
+        DealerReceiptRequest request = new DealerReceiptRequest(
+                1L,
+                20L,
+                new BigDecimal("100.00"),
+                "DR-MAP-MISMATCH-1",
+                "Dealer receipt replay",
+                "IDEMP-DR-MISMATCH",
+                List.of(new SettlementAllocationRequest(
+                        501L,
+                        null,
+                        new BigDecimal("100.00"),
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        null
+                ))
+        );
+
+        assertThatThrownBy(() -> accountingService.recordDealerReceipt(request))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("different journal than settled allocations");
+    }
+
+    @Test
+    void recordDealerReceiptSplit_replayRejectsMappingAllocationJournalMismatch() {
+        Dealer dealer = new Dealer();
+        dealer.setName("Mismatch Dealer");
+        ReflectionTestUtils.setField(dealer, "id", 1L);
+
+        Account receivable = new Account();
+        receivable.setCompany(company);
+        receivable.setCode("AR-SPLIT-MISMATCH");
+        receivable.setType(AccountType.ASSET);
+        ReflectionTestUtils.setField(receivable, "id", 10L);
+        dealer.setReceivableAccount(receivable);
+
+        Account cash = new Account();
+        cash.setCompany(company);
+        cash.setCode("CASH-SPLIT-MISMATCH");
+        cash.setType(AccountType.ASSET);
+        ReflectionTestUtils.setField(cash, "id", 20L);
+
+        JournalEntry mappingEntry = new JournalEntry();
+        ReflectionTestUtils.setField(mappingEntry, "id", 906L);
+        mappingEntry.setDealer(dealer);
+        mappingEntry.setReferenceNumber("DR-SPLIT-MAP-MISMATCH-1");
+
+        JournalEntry allocationEntry = new JournalEntry();
+        ReflectionTestUtils.setField(allocationEntry, "id", 907L);
+        allocationEntry.setDealer(dealer);
+        allocationEntry.setReferenceNumber("DR-SPLIT-ALLOC-MISMATCH-1");
+
+        com.bigbrightpaints.erp.modules.accounting.domain.PartnerSettlementAllocation existingRow =
+                new com.bigbrightpaints.erp.modules.accounting.domain.PartnerSettlementAllocation();
+        existingRow.setCompany(company);
+        existingRow.setPartnerType(com.bigbrightpaints.erp.modules.accounting.domain.PartnerType.DEALER);
+        existingRow.setDealer(dealer);
+        existingRow.setJournalEntry(allocationEntry);
+        existingRow.setSettlementDate(LocalDate.of(2024, 4, 9));
+        existingRow.setAllocationAmount(new BigDecimal("100.00"));
+        existingRow.setDiscountAmount(BigDecimal.ZERO);
+        existingRow.setWriteOffAmount(BigDecimal.ZERO);
+        existingRow.setFxDifferenceAmount(BigDecimal.ZERO);
+        existingRow.setIdempotencyKey("IDEMP-DR-SPLIT-MISMATCH");
+
+        JournalReferenceMapping mapping = new JournalReferenceMapping();
+        mapping.setCompany(company);
+        mapping.setLegacyReference("idemp-dr-split-mismatch");
+        mapping.setCanonicalReference("DR-SPLIT-MAP-MISMATCH-1");
+        mapping.setEntityType("DEALER_RECEIPT_SPLIT");
+        mapping.setEntityId(null);
+
+        when(dealerRepository.lockByCompanyAndId(eq(company), eq(1L))).thenReturn(Optional.of(dealer));
+        when(companyEntityLookup.requireAccount(eq(company), eq(20L))).thenReturn(cash);
+        when(journalReferenceMappingRepository.findAllByCompanyAndLegacyReferenceIgnoreCase(eq(company), eq("idemp-dr-split-mismatch")))
+                .thenReturn(List.of(mapping));
+        when(journalReferenceResolver.findExistingEntry(eq(company), eq("DR-SPLIT-MAP-MISMATCH-1")))
+                .thenReturn(Optional.of(mappingEntry));
+        when(settlementAllocationRepository.findByCompanyAndJournalEntryOrderByCreatedAtAsc(eq(company), eq(mappingEntry)))
+                .thenReturn(List.of());
+        when(settlementAllocationRepository.findByCompanyAndIdempotencyKeyIgnoreCaseOrderByCreatedAtAscIdAsc(eq(company), eq("IDEMP-DR-SPLIT-MISMATCH")))
+                .thenReturn(List.of(existingRow));
+
+        DealerReceiptSplitRequest request = new DealerReceiptSplitRequest(
+                1L,
+                List.of(new DealerReceiptSplitRequest.IncomingLine(20L, new BigDecimal("100.00"))),
+                "DR-SPLIT-MAP-MISMATCH-1",
+                "Dealer split replay",
+                "IDEMP-DR-SPLIT-MISMATCH"
+        );
+
+        assertThatThrownBy(() -> accountingService.recordDealerReceiptSplit(request))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("different journal than settled allocations");
+    }
+
+    @Test
+    void recordSupplierPayment_replayRejectsMappingAllocationJournalMismatch() {
+        Supplier supplier = new Supplier();
+        supplier.setName("Mismatch Supplier");
+        ReflectionTestUtils.setField(supplier, "id", 1L);
+
+        Account payable = new Account();
+        payable.setCompany(company);
+        payable.setCode("AP-MISMATCH");
+        payable.setType(AccountType.LIABILITY);
+        ReflectionTestUtils.setField(payable, "id", 10L);
+        supplier.setPayableAccount(payable);
+
+        Account cash = new Account();
+        cash.setCompany(company);
+        cash.setCode("CASH-MISMATCH");
+        cash.setType(AccountType.ASSET);
+        ReflectionTestUtils.setField(cash, "id", 20L);
+
+        RawMaterialPurchase purchase = new RawMaterialPurchase();
+        purchase.setCompany(company);
+        purchase.setSupplier(supplier);
+        ReflectionTestUtils.setField(purchase, "id", 601L);
+
+        JournalEntry mappingEntry = new JournalEntry();
+        ReflectionTestUtils.setField(mappingEntry, "id", 908L);
+        mappingEntry.setSupplier(supplier);
+        mappingEntry.setReferenceNumber("SUP-PAY-MAP-MISMATCH-1");
+
+        JournalEntry allocationEntry = new JournalEntry();
+        ReflectionTestUtils.setField(allocationEntry, "id", 909L);
+        allocationEntry.setSupplier(supplier);
+        allocationEntry.setReferenceNumber("SUP-PAY-ALLOC-MISMATCH-1");
+
+        com.bigbrightpaints.erp.modules.accounting.domain.PartnerSettlementAllocation existingRow =
+                new com.bigbrightpaints.erp.modules.accounting.domain.PartnerSettlementAllocation();
+        existingRow.setCompany(company);
+        existingRow.setPartnerType(com.bigbrightpaints.erp.modules.accounting.domain.PartnerType.SUPPLIER);
+        existingRow.setSupplier(supplier);
+        existingRow.setPurchase(purchase);
+        existingRow.setJournalEntry(allocationEntry);
+        existingRow.setSettlementDate(LocalDate.of(2024, 4, 9));
+        existingRow.setAllocationAmount(new BigDecimal("100.00"));
+        existingRow.setDiscountAmount(BigDecimal.ZERO);
+        existingRow.setWriteOffAmount(BigDecimal.ZERO);
+        existingRow.setFxDifferenceAmount(BigDecimal.ZERO);
+        existingRow.setIdempotencyKey("IDEMP-SUP-PAY-MISMATCH");
+
+        JournalReferenceMapping mapping = new JournalReferenceMapping();
+        mapping.setCompany(company);
+        mapping.setLegacyReference("idemp-sup-pay-mismatch");
+        mapping.setCanonicalReference("SUP-PAY-MAP-MISMATCH-1");
+        mapping.setEntityType("SUPPLIER_PAYMENT");
+        mapping.setEntityId(null);
+
+        when(supplierRepository.lockByCompanyAndId(eq(company), eq(1L))).thenReturn(Optional.of(supplier));
+        when(companyEntityLookup.requireAccount(eq(company), eq(20L))).thenReturn(cash);
+        when(journalReferenceMappingRepository.findAllByCompanyAndLegacyReferenceIgnoreCase(eq(company), eq("idemp-sup-pay-mismatch")))
+                .thenReturn(List.of(mapping));
+        when(journalReferenceResolver.findExistingEntry(eq(company), eq("SUP-PAY-MAP-MISMATCH-1")))
+                .thenReturn(Optional.of(mappingEntry));
+        when(settlementAllocationRepository.findByCompanyAndIdempotencyKeyIgnoreCaseOrderByCreatedAtAscIdAsc(eq(company), eq("IDEMP-SUP-PAY-MISMATCH")))
+                .thenReturn(List.of(existingRow));
+
+        SupplierPaymentRequest request = new SupplierPaymentRequest(
+                1L,
+                20L,
+                new BigDecimal("100.00"),
+                "SUP-PAY-MAP-MISMATCH-1",
+                "Supplier payment replay",
+                "IDEMP-SUP-PAY-MISMATCH",
+                List.of(new SettlementAllocationRequest(
+                        null,
+                        601L,
+                        new BigDecimal("100.00"),
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        null
+                ))
+        );
+
+        assertThatThrownBy(() -> accountingService.recordSupplierPayment(request))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("different journal than settled allocations");
+    }
+
+    @Test
+    void recordDealerReceipt_dataIntegrityFallbackRepairsReferenceMapping() {
+        AccountingService service = spy(accountingService);
+
+        Dealer dealer = new Dealer();
+        dealer.setName("Race Dealer");
+        ReflectionTestUtils.setField(dealer, "id", 1L);
+
+        Account receivable = new Account();
+        receivable.setCompany(company);
+        receivable.setCode("AR-RACE");
+        receivable.setType(AccountType.ASSET);
+        ReflectionTestUtils.setField(receivable, "id", 10L);
+        dealer.setReceivableAccount(receivable);
+
+        Account cash = new Account();
+        cash.setCompany(company);
+        cash.setCode("CASH-RACE");
+        cash.setType(AccountType.ASSET);
+        ReflectionTestUtils.setField(cash, "id", 20L);
+
+        com.bigbrightpaints.erp.modules.invoice.domain.Invoice invoice =
+                new com.bigbrightpaints.erp.modules.invoice.domain.Invoice();
+        invoice.setCompany(company);
+        invoice.setDealer(dealer);
+        invoice.setCurrency("INR");
+        invoice.setOutstandingAmount(new BigDecimal("100.00"));
+        invoice.setTotalAmount(new BigDecimal("100.00"));
+        ReflectionTestUtils.setField(invoice, "id", 502L);
+
+        JournalEntry createdEntry = new JournalEntry();
+        ReflectionTestUtils.setField(createdEntry, "id", 910L);
+        createdEntry.setDealer(dealer);
+        createdEntry.setReferenceNumber("DR-RACE-NEW-1");
+        createdEntry.setMemo("Dealer receipt race");
+        createdEntry.getLines().add(journalLine(createdEntry, cash, "Dealer receipt race", new BigDecimal("100.00"), BigDecimal.ZERO));
+        createdEntry.getLines().add(journalLine(createdEntry, receivable, "Dealer receipt race", BigDecimal.ZERO, new BigDecimal("100.00")));
+
+        JournalEntry concurrentEntry = new JournalEntry();
+        ReflectionTestUtils.setField(concurrentEntry, "id", 911L);
+        concurrentEntry.setDealer(dealer);
+        concurrentEntry.setReferenceNumber("DR-RACE-EXIST-1");
+        concurrentEntry.setMemo("Dealer receipt race");
+        concurrentEntry.getLines().add(journalLine(concurrentEntry, cash, "Dealer receipt race", new BigDecimal("100.00"), BigDecimal.ZERO));
+        concurrentEntry.getLines().add(journalLine(concurrentEntry, receivable, "Dealer receipt race", BigDecimal.ZERO, new BigDecimal("100.00")));
+
+        com.bigbrightpaints.erp.modules.accounting.domain.PartnerSettlementAllocation concurrentRow =
+                new com.bigbrightpaints.erp.modules.accounting.domain.PartnerSettlementAllocation();
+        concurrentRow.setCompany(company);
+        concurrentRow.setPartnerType(com.bigbrightpaints.erp.modules.accounting.domain.PartnerType.DEALER);
+        concurrentRow.setDealer(dealer);
+        concurrentRow.setInvoice(invoice);
+        concurrentRow.setJournalEntry(concurrentEntry);
+        concurrentRow.setSettlementDate(LocalDate.of(2024, 4, 9));
+        concurrentRow.setAllocationAmount(new BigDecimal("100.00"));
+        concurrentRow.setDiscountAmount(BigDecimal.ZERO);
+        concurrentRow.setWriteOffAmount(BigDecimal.ZERO);
+        concurrentRow.setFxDifferenceAmount(BigDecimal.ZERO);
+        concurrentRow.setIdempotencyKey("IDEMP-DR-RACE");
+
+        JournalReferenceMapping mapping = new JournalReferenceMapping();
+        mapping.setCompany(company);
+        mapping.setLegacyReference("idemp-dr-race");
+        mapping.setCanonicalReference("DR-RACE-NEW-1");
+        mapping.setEntityType("DEALER_RECEIPT");
+        mapping.setEntityId(null);
+
+        AtomicInteger mappingLookups = new AtomicInteger(0);
+        when(journalReferenceMappingRepository.findAllByCompanyAndLegacyReferenceIgnoreCase(eq(company), eq("idemp-dr-race")))
+                .thenAnswer(invocation -> mappingLookups.getAndIncrement() < 2 ? List.of() : List.of(mapping));
+
+        AtomicInteger allocationLookups = new AtomicInteger(0);
+        when(settlementAllocationRepository.findByCompanyAndIdempotencyKeyIgnoreCaseOrderByCreatedAtAscIdAsc(eq(company), eq("IDEMP-DR-RACE")))
+                .thenAnswer(invocation -> allocationLookups.getAndIncrement() < 2 ? List.of() : List.of(concurrentRow));
+
+        when(dealerRepository.lockByCompanyAndId(eq(company), eq(1L))).thenReturn(Optional.of(dealer));
+        when(companyEntityLookup.requireAccount(eq(company), eq(20L))).thenReturn(cash);
+        when(invoiceRepository.lockByCompanyAndId(eq(company), eq(502L))).thenReturn(Optional.of(invoice));
+        when(settlementAllocationRepository.findByCompanyAndJournalEntryOrderByCreatedAtAsc(eq(company), eq(createdEntry)))
+                .thenReturn(List.of());
+        doReturn(stubEntry(910L)).when(service).createJournalEntry(any(JournalEntryRequest.class));
+        when(companyEntityLookup.requireJournalEntry(eq(company), eq(910L))).thenReturn(createdEntry);
+        when(settlementAllocationRepository.saveAll(any())).thenThrow(new DataIntegrityViolationException("duplicate"));
+
+        DealerReceiptRequest request = new DealerReceiptRequest(
+                1L,
+                20L,
+                new BigDecimal("100.00"),
+                "DR-RACE-NEW-1",
+                "Dealer receipt race",
+                "IDEMP-DR-RACE",
+                List.of(new SettlementAllocationRequest(
+                        502L,
+                        null,
+                        new BigDecimal("100.00"),
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        null
+                ))
+        );
+
+        JournalEntryDto response = service.recordDealerReceipt(request);
+
+        assertThat(response.id()).isEqualTo(911L);
+        verify(journalReferenceMappingRepository).save(mapping);
+        assertThat(mapping.getEntityId()).isEqualTo(911L);
+        assertThat(mapping.getEntityType()).isEqualTo("DEALER_RECEIPT");
+        assertThat(mapping.getCanonicalReference()).isEqualTo("DR-RACE-EXIST-1");
+    }
+
+    @Test
+    void recordDealerReceiptSplit_dataIntegrityFallbackRepairsReferenceMapping() {
+        AccountingService service = spy(accountingService);
+
+        Dealer dealer = new Dealer();
+        dealer.setName("Race Dealer");
+        ReflectionTestUtils.setField(dealer, "id", 1L);
+
+        Account receivable = new Account();
+        receivable.setCompany(company);
+        receivable.setCode("AR-SPLIT-RACE");
+        receivable.setType(AccountType.ASSET);
+        ReflectionTestUtils.setField(receivable, "id", 10L);
+        dealer.setReceivableAccount(receivable);
+
+        Account cash = new Account();
+        cash.setCompany(company);
+        cash.setCode("CASH-SPLIT-RACE");
+        cash.setType(AccountType.ASSET);
+        ReflectionTestUtils.setField(cash, "id", 20L);
+
+        com.bigbrightpaints.erp.modules.invoice.domain.Invoice invoice =
+                new com.bigbrightpaints.erp.modules.invoice.domain.Invoice();
+        invoice.setCompany(company);
+        invoice.setDealer(dealer);
+        invoice.setCurrency("INR");
+        invoice.setOutstandingAmount(new BigDecimal("100.00"));
+        invoice.setTotalAmount(new BigDecimal("100.00"));
+        ReflectionTestUtils.setField(invoice, "id", 602L);
+
+        JournalEntry createdEntry = new JournalEntry();
+        ReflectionTestUtils.setField(createdEntry, "id", 920L);
+        createdEntry.setDealer(dealer);
+        createdEntry.setReferenceNumber("DR-SPLIT-RACE-NEW-1");
+        createdEntry.setMemo("Dealer split race");
+        createdEntry.getLines().add(journalLine(createdEntry, cash, "Dealer split race", new BigDecimal("100.00"), BigDecimal.ZERO));
+        createdEntry.getLines().add(journalLine(createdEntry, receivable, "Dealer split race", BigDecimal.ZERO, new BigDecimal("100.00")));
+
+        JournalEntry concurrentEntry = new JournalEntry();
+        ReflectionTestUtils.setField(concurrentEntry, "id", 921L);
+        concurrentEntry.setDealer(dealer);
+        concurrentEntry.setReferenceNumber("DR-SPLIT-RACE-EXIST-1");
+        concurrentEntry.setMemo("Dealer split race");
+        concurrentEntry.getLines().add(journalLine(concurrentEntry, cash, "Dealer split race", new BigDecimal("100.00"), BigDecimal.ZERO));
+        concurrentEntry.getLines().add(journalLine(concurrentEntry, receivable, "Dealer split race", BigDecimal.ZERO, new BigDecimal("100.00")));
+
+        com.bigbrightpaints.erp.modules.accounting.domain.PartnerSettlementAllocation concurrentRow =
+                new com.bigbrightpaints.erp.modules.accounting.domain.PartnerSettlementAllocation();
+        concurrentRow.setCompany(company);
+        concurrentRow.setPartnerType(com.bigbrightpaints.erp.modules.accounting.domain.PartnerType.DEALER);
+        concurrentRow.setDealer(dealer);
+        concurrentRow.setInvoice(invoice);
+        concurrentRow.setJournalEntry(concurrentEntry);
+        concurrentRow.setSettlementDate(LocalDate.of(2024, 4, 9));
+        concurrentRow.setAllocationAmount(new BigDecimal("100.00"));
+        concurrentRow.setDiscountAmount(BigDecimal.ZERO);
+        concurrentRow.setWriteOffAmount(BigDecimal.ZERO);
+        concurrentRow.setFxDifferenceAmount(BigDecimal.ZERO);
+        concurrentRow.setIdempotencyKey("IDEMP-DR-SPLIT-RACE");
+
+        JournalReferenceMapping mapping = new JournalReferenceMapping();
+        mapping.setCompany(company);
+        mapping.setLegacyReference("idemp-dr-split-race");
+        mapping.setCanonicalReference("DR-SPLIT-RACE-NEW-1");
+        mapping.setEntityType("DEALER_RECEIPT_SPLIT");
+        mapping.setEntityId(null);
+
+        AtomicInteger mappingLookups = new AtomicInteger(0);
+        when(journalReferenceMappingRepository.findAllByCompanyAndLegacyReferenceIgnoreCase(eq(company), eq("idemp-dr-split-race")))
+                .thenAnswer(invocation -> mappingLookups.getAndIncrement() < 2 ? List.of() : List.of(mapping));
+
+        AtomicInteger allocationLookups = new AtomicInteger(0);
+        when(settlementAllocationRepository.findByCompanyAndIdempotencyKeyIgnoreCaseOrderByCreatedAtAscIdAsc(eq(company), eq("IDEMP-DR-SPLIT-RACE")))
+                .thenAnswer(invocation -> allocationLookups.getAndIncrement() < 2 ? List.of() : List.of(concurrentRow));
+
+        when(dealerRepository.lockByCompanyAndId(eq(company), eq(1L))).thenReturn(Optional.of(dealer));
+        when(companyEntityLookup.requireAccount(eq(company), eq(20L))).thenReturn(cash);
+        when(invoiceRepository.lockOpenInvoicesForSettlement(eq(company), eq(dealer))).thenReturn(List.of(invoice));
+        when(settlementAllocationRepository.findByCompanyAndJournalEntryOrderByCreatedAtAsc(eq(company), eq(createdEntry)))
+                .thenReturn(List.of());
+        doReturn(stubEntry(920L)).when(service).createJournalEntry(any(JournalEntryRequest.class));
+        when(companyEntityLookup.requireJournalEntry(eq(company), eq(920L))).thenReturn(createdEntry);
+        when(settlementAllocationRepository.saveAll(any())).thenThrow(new DataIntegrityViolationException("duplicate"));
+
+        DealerReceiptSplitRequest request = new DealerReceiptSplitRequest(
+                1L,
+                List.of(new DealerReceiptSplitRequest.IncomingLine(20L, new BigDecimal("100.00"))),
+                "DR-SPLIT-RACE-NEW-1",
+                "Dealer split race",
+                "IDEMP-DR-SPLIT-RACE"
+        );
+
+        JournalEntryDto response = service.recordDealerReceiptSplit(request);
+
+        assertThat(response.id()).isEqualTo(921L);
+        verify(journalReferenceMappingRepository).save(mapping);
+        assertThat(mapping.getEntityId()).isEqualTo(921L);
+        assertThat(mapping.getEntityType()).isEqualTo("DEALER_RECEIPT_SPLIT");
+        assertThat(mapping.getCanonicalReference()).isEqualTo("DR-SPLIT-RACE-EXIST-1");
+    }
+
+    @Test
+    void recordSupplierPayment_dataIntegrityFallbackRepairsReferenceMapping() {
+        AccountingService service = spy(accountingService);
+
+        Supplier supplier = new Supplier();
+        supplier.setName("Race Supplier");
+        ReflectionTestUtils.setField(supplier, "id", 1L);
+
+        Account payable = new Account();
+        payable.setCompany(company);
+        payable.setCode("AP-RACE");
+        payable.setType(AccountType.LIABILITY);
+        ReflectionTestUtils.setField(payable, "id", 10L);
+        supplier.setPayableAccount(payable);
+
+        Account cash = new Account();
+        cash.setCompany(company);
+        cash.setCode("CASH-RACE");
+        cash.setType(AccountType.ASSET);
+        ReflectionTestUtils.setField(cash, "id", 20L);
+
+        RawMaterialPurchase purchase = new RawMaterialPurchase();
+        purchase.setCompany(company);
+        purchase.setSupplier(supplier);
+        purchase.setOutstandingAmount(new BigDecimal("100.00"));
+        ReflectionTestUtils.setField(purchase, "id", 603L);
+
+        JournalEntry createdEntry = new JournalEntry();
+        ReflectionTestUtils.setField(createdEntry, "id", 930L);
+        createdEntry.setSupplier(supplier);
+        createdEntry.setReferenceNumber("SUP-PAY-RACE-NEW-1");
+        createdEntry.setMemo("Supplier payment race");
+        createdEntry.getLines().add(journalLine(createdEntry, payable, "Supplier payment race", new BigDecimal("100.00"), BigDecimal.ZERO));
+        createdEntry.getLines().add(journalLine(createdEntry, cash, "Supplier payment race", BigDecimal.ZERO, new BigDecimal("100.00")));
+
+        JournalEntry concurrentEntry = new JournalEntry();
+        ReflectionTestUtils.setField(concurrentEntry, "id", 931L);
+        concurrentEntry.setSupplier(supplier);
+        concurrentEntry.setReferenceNumber("SUP-PAY-RACE-EXIST-1");
+        concurrentEntry.setMemo("Supplier payment race");
+        concurrentEntry.getLines().add(journalLine(concurrentEntry, payable, "Supplier payment race", new BigDecimal("100.00"), BigDecimal.ZERO));
+        concurrentEntry.getLines().add(journalLine(concurrentEntry, cash, "Supplier payment race", BigDecimal.ZERO, new BigDecimal("100.00")));
+
+        com.bigbrightpaints.erp.modules.accounting.domain.PartnerSettlementAllocation concurrentRow =
+                new com.bigbrightpaints.erp.modules.accounting.domain.PartnerSettlementAllocation();
+        concurrentRow.setCompany(company);
+        concurrentRow.setPartnerType(com.bigbrightpaints.erp.modules.accounting.domain.PartnerType.SUPPLIER);
+        concurrentRow.setSupplier(supplier);
+        concurrentRow.setPurchase(purchase);
+        concurrentRow.setJournalEntry(concurrentEntry);
+        concurrentRow.setSettlementDate(LocalDate.of(2024, 4, 9));
+        concurrentRow.setAllocationAmount(new BigDecimal("100.00"));
+        concurrentRow.setDiscountAmount(BigDecimal.ZERO);
+        concurrentRow.setWriteOffAmount(BigDecimal.ZERO);
+        concurrentRow.setFxDifferenceAmount(BigDecimal.ZERO);
+        concurrentRow.setIdempotencyKey("IDEMP-SUP-PAY-RACE");
+
+        JournalReferenceMapping mapping = new JournalReferenceMapping();
+        mapping.setCompany(company);
+        mapping.setLegacyReference("idemp-sup-pay-race");
+        mapping.setCanonicalReference("SUP-PAY-RACE-NEW-1");
+        mapping.setEntityType("SUPPLIER_PAYMENT");
+        mapping.setEntityId(null);
+
+        AtomicInteger mappingLookups = new AtomicInteger(0);
+        when(journalReferenceMappingRepository.findAllByCompanyAndLegacyReferenceIgnoreCase(eq(company), eq("idemp-sup-pay-race")))
+                .thenAnswer(invocation -> mappingLookups.getAndIncrement() < 2 ? List.of() : List.of(mapping));
+
+        AtomicInteger allocationLookups = new AtomicInteger(0);
+        when(settlementAllocationRepository.findByCompanyAndIdempotencyKeyIgnoreCaseOrderByCreatedAtAscIdAsc(eq(company), eq("IDEMP-SUP-PAY-RACE")))
+                .thenAnswer(invocation -> allocationLookups.getAndIncrement() < 2 ? List.of() : List.of(concurrentRow));
+
+        when(supplierRepository.lockByCompanyAndId(eq(company), eq(1L))).thenReturn(Optional.of(supplier));
+        when(companyEntityLookup.requireAccount(eq(company), eq(20L))).thenReturn(cash);
+        when(rawMaterialPurchaseRepository.lockByCompanyAndId(eq(company), eq(603L))).thenReturn(Optional.of(purchase));
+        doReturn(stubEntry(930L)).when(service).createJournalEntry(any(JournalEntryRequest.class));
+        when(companyEntityLookup.requireJournalEntry(eq(company), eq(930L))).thenReturn(createdEntry);
+        when(settlementAllocationRepository.saveAll(any())).thenThrow(new DataIntegrityViolationException("duplicate"));
+
+        SupplierPaymentRequest request = new SupplierPaymentRequest(
+                1L,
+                20L,
+                new BigDecimal("100.00"),
+                "SUP-PAY-RACE-NEW-1",
+                "Supplier payment race",
+                "IDEMP-SUP-PAY-RACE",
+                List.of(new SettlementAllocationRequest(
+                        null,
+                        603L,
+                        new BigDecimal("100.00"),
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        null
+                ))
+        );
+
+        JournalEntryDto response = service.recordSupplierPayment(request);
+
+        assertThat(response.id()).isEqualTo(931L);
+        verify(journalReferenceMappingRepository).save(mapping);
+        assertThat(mapping.getEntityId()).isEqualTo(931L);
+        assertThat(mapping.getEntityType()).isEqualTo("SUPPLIER_PAYMENT");
+        assertThat(mapping.getCanonicalReference()).isEqualTo("SUP-PAY-RACE-EXIST-1");
+    }
+
+    @Test
+    void settleDealerInvoices_replayRejectsMappingAllocationJournalMismatch() {
+        Dealer dealer = new Dealer();
+        dealer.setName("Mismatch Dealer");
+        ReflectionTestUtils.setField(dealer, "id", 1L);
+
+        Account receivable = new Account();
+        receivable.setCompany(company);
+        receivable.setCode("AR-SETTLE-MISMATCH");
+        receivable.setType(AccountType.ASSET);
+        ReflectionTestUtils.setField(receivable, "id", 10L);
+        dealer.setReceivableAccount(receivable);
+
+        Account cash = new Account();
+        cash.setCompany(company);
+        cash.setCode("CASH-SETTLE-MISMATCH");
+        cash.setType(AccountType.ASSET);
+        ReflectionTestUtils.setField(cash, "id", 20L);
+
+        com.bigbrightpaints.erp.modules.invoice.domain.Invoice invoice =
+                new com.bigbrightpaints.erp.modules.invoice.domain.Invoice();
+        invoice.setCompany(company);
+        invoice.setDealer(dealer);
+        ReflectionTestUtils.setField(invoice, "id", 701L);
+
+        JournalEntry mappingEntry = new JournalEntry();
+        ReflectionTestUtils.setField(mappingEntry, "id", 940L);
+        mappingEntry.setDealer(dealer);
+        mappingEntry.setReferenceNumber("DR-SETTLE-MAP-MISMATCH-1");
+
+        JournalEntry allocationEntry = new JournalEntry();
+        ReflectionTestUtils.setField(allocationEntry, "id", 941L);
+        allocationEntry.setDealer(dealer);
+        allocationEntry.setReferenceNumber("DR-SETTLE-ALLOC-MISMATCH-1");
+
+        com.bigbrightpaints.erp.modules.accounting.domain.PartnerSettlementAllocation existingRow =
+                new com.bigbrightpaints.erp.modules.accounting.domain.PartnerSettlementAllocation();
+        existingRow.setCompany(company);
+        existingRow.setPartnerType(com.bigbrightpaints.erp.modules.accounting.domain.PartnerType.DEALER);
+        existingRow.setDealer(dealer);
+        existingRow.setInvoice(invoice);
+        existingRow.setJournalEntry(allocationEntry);
+        existingRow.setSettlementDate(LocalDate.of(2024, 4, 9));
+        existingRow.setAllocationAmount(new BigDecimal("100.00"));
+        existingRow.setDiscountAmount(BigDecimal.ZERO);
+        existingRow.setWriteOffAmount(BigDecimal.ZERO);
+        existingRow.setFxDifferenceAmount(BigDecimal.ZERO);
+        existingRow.setIdempotencyKey("IDEMP-DR-SETTLE-MISMATCH");
+
+        JournalReferenceMapping mapping = new JournalReferenceMapping();
+        mapping.setCompany(company);
+        mapping.setLegacyReference("idemp-dr-settle-mismatch");
+        mapping.setCanonicalReference("DR-SETTLE-MAP-MISMATCH-1");
+        mapping.setEntityType("DEALER_SETTLEMENT");
+        mapping.setEntityId(null);
+
+        when(dealerRepository.lockByCompanyAndId(eq(company), eq(1L))).thenReturn(Optional.of(dealer));
+        when(companyEntityLookup.requireAccount(eq(company), eq(20L))).thenReturn(cash);
+        when(journalReferenceMappingRepository.findAllByCompanyAndLegacyReferenceIgnoreCase(eq(company), eq("idemp-dr-settle-mismatch")))
+                .thenReturn(List.of(mapping));
+        when(journalReferenceResolver.findExistingEntry(eq(company), eq("DR-SETTLE-MAP-MISMATCH-1")))
+                .thenReturn(Optional.of(mappingEntry));
+        when(settlementAllocationRepository.findByCompanyAndIdempotencyKeyIgnoreCaseOrderByCreatedAtAscIdAsc(eq(company), eq("IDEMP-DR-SETTLE-MISMATCH")))
+                .thenReturn(List.of(existingRow));
+
+        DealerSettlementRequest request = new DealerSettlementRequest(
+                1L,
+                20L,
+                null,
+                null,
+                null,
+                null,
+                LocalDate.of(2024, 4, 9),
+                "DR-SETTLE-MAP-MISMATCH-1",
+                "Dealer settlement replay",
+                "IDEMP-DR-SETTLE-MISMATCH",
+                Boolean.FALSE,
+                List.of(new SettlementAllocationRequest(
+                        701L,
+                        null,
+                        new BigDecimal("100.00"),
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        null
+                )),
+                null
+        );
+
+        assertThatThrownBy(() -> accountingService.settleDealerInvoices(request))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("different journal than settled allocations");
+    }
+
+    @Test
     void settleDealerInvoices_appliesGrossAmountToInvoice() {
         AccountingService service = spy(accountingService);
 
