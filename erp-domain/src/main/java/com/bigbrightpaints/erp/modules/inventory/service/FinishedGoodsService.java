@@ -1414,7 +1414,11 @@ public class FinishedGoodsService {
         if (order == null) {
             return false;
         }
-        if (!"PENDING_PRODUCTION".equalsIgnoreCase(order.getStatus())) {
+        String status = order.getStatus();
+        boolean allowedStatus = "PENDING_PRODUCTION".equalsIgnoreCase(status)
+                || "RESERVED".equalsIgnoreCase(status)
+                || "READY_TO_SHIP".equalsIgnoreCase(status);
+        if (!allowedStatus) {
             return false;
         }
         return !order.hasInvoiceIssued()
@@ -1430,12 +1434,13 @@ public class FinishedGoodsService {
         if (slips.isEmpty()) {
             return order.getStatus();
         }
-        boolean allDispatched = slips.stream()
-                .allMatch(slip -> "DISPATCHED".equalsIgnoreCase(slip.getStatus()));
-        if (allDispatched) {
-            return "SHIPPED";
+        List<PackagingSlip> activeSlips = slips.stream()
+                .filter(slip -> !"CANCELLED".equalsIgnoreCase(slip.getStatus()))
+                .toList();
+        if (activeSlips.isEmpty()) {
+            return order.getStatus();
         }
-        boolean anyBackorder = slips.stream()
+        boolean anyBackorder = activeSlips.stream()
                 .anyMatch(slip -> "BACKORDER".equalsIgnoreCase(slip.getStatus()));
         if (anyBackorder) {
             return "PENDING_PRODUCTION";

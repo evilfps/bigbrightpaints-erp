@@ -19,8 +19,8 @@ Non-Stop Operating Rules
 
 Runtime Tracking
 - tracked_start_ts: `2026-02-12T01:53:52+05:30` (first immutable async-loop commit marker)
-- tracked_now_ts: `2026-02-12T07:14:09+05:30`
-- tracked_elapsed: `5h 20m 17s`
+- tracked_now_ts: `2026-02-12T07:19:18+05:30`
+- tracked_elapsed: `5h 25m 26s`
 
 Completion Gates (Required For "Safe To Deploy" Claim)
 - No known critical/high security issues in auth/RBAC/tenant isolation/data exposure.
@@ -548,28 +548,47 @@ Commit Ledger
     - `019c4f82-3025-7471-a47f-1212068e416e` (completed)
     - medium: legacy dealer users without `portal_user_id` backfill can be locked out; mitigation required via migration/backfill slice.
     - low: keep explicit integration proof that fail-closed id-miss path maps to 403.
+- 2026-02-12: `6f805def`
+  - Inventory status-sync guardrails (first remediation pass for `5f3a6db4` findings):
+    - lock sales order row before status reconciliation.
+    - restrict status sync to mutable workflow statuses with posted-accounting guards.
+    - keep backorder-cancel transition constrained to `READY_TO_SHIP`.
+    - expand regression coverage for accounting-posted and terminal-state no-mutation.
+  - Verified:
+    - `mvn -B -ntp -Dtest=FinishedGoodsServiceTest#cancelBackorderClearsReservation,FinishedGoodsServiceTest#cancelBackorderReconcilesOrderStatusToReadyToShipWhenOnlyDispatchedSlipRemains,FinishedGoodsServiceTest#cancelBackorderDoesNotMutateOrderStatusWhenAccountingAlreadyPosted,FinishedGoodsServiceTest#cancelBackorderDoesNotMutateOrderStatusWhenOrderAlreadyTerminal,DispatchConfirmationIT test`
+  - Subagent review:
+    - `019c4f86-0016-7680-838c-228f3b2385e6` (completed)
+    - high: only-cancelled-slip case can still drift to `READY_TO_SHIP`.
+    - medium: add explicit invoice-posted and COGS-posted guard coverage.
+    - medium: allow safe reconciliation from additional mutable statuses while blocking terminal/posted states.
 
 Current Checkpoint
-- Current WIP M3-S4R (inventory status-sync remediation from high-severity review findings):
-  - Root cause (from subagent review on `5f3a6db4`):
-    - backorder-cancel status sync could bypass accounting immutability constraints and diverge from `SalesService` status semantics.
+- Current WIP M3-S4R2 + M5-S6 (inventory follow-up + dealer mapping backfill hardening):
+  - Root causes:
+    - review on `6f805def` surfaced a high-risk edge case where only-cancelled slips can still misclassify order readiness.
+    - review on `6cdf11be` surfaced legacy dealer lockout risk without `portal_user_id` backfill.
   - Fix completed in working tree (pending commit):
     - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/service/FinishedGoodsService.java`
-      - lock order row before reconciliation (`findWithItemsByCompanyAndIdForUpdate`).
-      - allow status sync only for mutable `PENDING_PRODUCTION` orders with no posted accounting markers.
-      - apply only `PENDING_PRODUCTION -> READY_TO_SHIP` transition from backorder-cancel path.
-      - align slip-status resolution semantics with `SalesService` (no active-slip-only divergence).
+      - restore active-slip filtering and no-op when all slips are cancelled.
+      - allow reconciliation for mutable statuses (`PENDING_PRODUCTION`/`RESERVED`/`READY_TO_SHIP`) while preserving accounting immutability guard.
     - `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/inventory/service/FinishedGoodsServiceTest.java`
-      - adjust reconciliation expectation to `READY_TO_SHIP`.
-      - add regression: posted-accounting order status must not mutate.
-      - add regression: terminal-status order must not mutate.
+      - add regression: only-cancelled-slip path must not set `READY_TO_SHIP`.
+      - add regressions: invoice-posted and COGS-posted orders must not mutate status.
+    - `erp-domain/src/main/resources/db/migration_v2/V9__dealer_portal_user_binding_hardening.sql` (new)
+      - backfill dealer `portal_user_id` from normalized email.
+      - collapse duplicate `(company_id, portal_user_id)` mappings fail-closed.
+      - enforce partial unique index on `(company_id, portal_user_id)` where portal user is non-null.
+    - `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/sales/DealerPortalControllerSecurityIT.java`
+      - add IT proving unmapped dealer principal is denied with 403.
 - Verification command:
-  - `mvn -B -ntp -Dtest=FinishedGoodsServiceTest#cancelBackorderClearsReservation,FinishedGoodsServiceTest#cancelBackorderReconcilesOrderStatusToReadyToShipWhenOnlyDispatchedSlipRemains,FinishedGoodsServiceTest#cancelBackorderDoesNotMutateOrderStatusWhenAccountingAlreadyPosted,FinishedGoodsServiceTest#cancelBackorderDoesNotMutateOrderStatusWhenOrderAlreadyTerminal,DispatchConfirmationIT test`
-  - Result: pass (2026-02-12T07:13:54+05:30)
+  - `mvn -B -ntp -Dtest=FinishedGoodsServiceTest,DispatchConfirmationIT test`
+  - Result: pass (2026-02-12T07:19:18+05:30)
+  - `mvn -B -ntp -Dtest=DealerPortalServiceTest,DealerPortalControllerSecurityIT test`
+  - Result: pass (2026-02-12T07:16:56+05:30)
 - Next action:
-  - commit M3-S4R inventory status-sync guardrail remediation
+  - commit M3-S4R2 high-severity inventory follow-up patch
   - run `codex review --commit <sha>`
-  - implement M5-S6 dealer portal user-id backfill + uniqueness guard in Flyway V2
+  - commit M5-S6 Flyway V2 dealer mapping backfill/uniqueness + 403 mapping IT
 
 Async Loop Cadence
 - Each cycle:

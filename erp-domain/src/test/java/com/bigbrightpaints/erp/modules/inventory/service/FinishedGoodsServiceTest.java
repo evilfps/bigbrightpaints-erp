@@ -268,6 +268,76 @@ class FinishedGoodsServiceTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void cancelBackorderDoesNotMutateOrderStatusWhenInvoiceAlreadyIssued() {
+        Company company = seedCompany("BACKORDER-INVOICE");
+        FinishedGood fg = createFinishedGood(company, "FG-BO-INVOICE", new BigDecimal("10"), new BigDecimal("5"), "FIFO");
+        FinishedGoodBatch dispatchedBatch = createBatch(fg, "BATCH-BO-INVOICE-DISP", new BigDecimal("5"), BigDecimal.ZERO, new BigDecimal("10"));
+        FinishedGoodBatch backorderBatch = createBatch(fg, "BATCH-BO-INVOICE-OPEN", new BigDecimal("5"), BigDecimal.ZERO, new BigDecimal("11"));
+        SalesOrder order = createOrder(company, "SO-BO-INVOICE-" + UUID.randomUUID(), fg.getProductCode(), new BigDecimal("10"));
+        order.setStatus("PENDING_PRODUCTION");
+        order.setFulfillmentInvoiceId(992L);
+        order = salesOrderRepository.saveAndFlush(order);
+
+        PackagingSlip dispatchedSlip = new PackagingSlip();
+        dispatchedSlip.setCompany(company);
+        dispatchedSlip.setSalesOrder(order);
+        dispatchedSlip.setSlipNumber("PS-DISP-" + UUID.randomUUID().toString().substring(0, 8));
+        dispatchedSlip.setStatus("DISPATCHED");
+        dispatchedSlip.setBackorder(false);
+        PackagingSlipLine dispatchedLine = new PackagingSlipLine();
+        dispatchedLine.setPackagingSlip(dispatchedSlip);
+        dispatchedLine.setFinishedGoodBatch(dispatchedBatch);
+        dispatchedLine.setOrderedQuantity(new BigDecimal("5"));
+        dispatchedLine.setQuantity(new BigDecimal("5"));
+        dispatchedLine.setUnitCost(dispatchedBatch.getUnitCost());
+        dispatchedSlip.getLines().add(dispatchedLine);
+        packagingSlipRepository.saveAndFlush(dispatchedSlip);
+
+        PackagingSlip backorderSlip = createSlip(company, order, "BACKORDER", backorderBatch, new BigDecimal("5"));
+        createReservation(order, fg, backorderBatch, new BigDecimal("5"));
+
+        finishedGoodsService.cancelBackorderSlip(backorderSlip.getId(), "tester", "cancel backorder");
+
+        SalesOrder refreshedOrder = salesOrderRepository.findByCompanyAndId(company, order.getId()).orElseThrow();
+        assertThat(refreshedOrder.getStatus()).isEqualTo("PENDING_PRODUCTION");
+    }
+
+    @Test
+    void cancelBackorderDoesNotMutateOrderStatusWhenCogsJournalAlreadyPosted() {
+        Company company = seedCompany("BACKORDER-COGS");
+        FinishedGood fg = createFinishedGood(company, "FG-BO-COGS", new BigDecimal("10"), new BigDecimal("5"), "FIFO");
+        FinishedGoodBatch dispatchedBatch = createBatch(fg, "BATCH-BO-COGS-DISP", new BigDecimal("5"), BigDecimal.ZERO, new BigDecimal("10"));
+        FinishedGoodBatch backorderBatch = createBatch(fg, "BATCH-BO-COGS-OPEN", new BigDecimal("5"), BigDecimal.ZERO, new BigDecimal("11"));
+        SalesOrder order = createOrder(company, "SO-BO-COGS-" + UUID.randomUUID(), fg.getProductCode(), new BigDecimal("10"));
+        order.setStatus("PENDING_PRODUCTION");
+        order.setCogsJournalEntryId(993L);
+        order = salesOrderRepository.saveAndFlush(order);
+
+        PackagingSlip dispatchedSlip = new PackagingSlip();
+        dispatchedSlip.setCompany(company);
+        dispatchedSlip.setSalesOrder(order);
+        dispatchedSlip.setSlipNumber("PS-DISP-" + UUID.randomUUID().toString().substring(0, 8));
+        dispatchedSlip.setStatus("DISPATCHED");
+        dispatchedSlip.setBackorder(false);
+        PackagingSlipLine dispatchedLine = new PackagingSlipLine();
+        dispatchedLine.setPackagingSlip(dispatchedSlip);
+        dispatchedLine.setFinishedGoodBatch(dispatchedBatch);
+        dispatchedLine.setOrderedQuantity(new BigDecimal("5"));
+        dispatchedLine.setQuantity(new BigDecimal("5"));
+        dispatchedLine.setUnitCost(dispatchedBatch.getUnitCost());
+        dispatchedSlip.getLines().add(dispatchedLine);
+        packagingSlipRepository.saveAndFlush(dispatchedSlip);
+
+        PackagingSlip backorderSlip = createSlip(company, order, "BACKORDER", backorderBatch, new BigDecimal("5"));
+        createReservation(order, fg, backorderBatch, new BigDecimal("5"));
+
+        finishedGoodsService.cancelBackorderSlip(backorderSlip.getId(), "tester", "cancel backorder");
+
+        SalesOrder refreshedOrder = salesOrderRepository.findByCompanyAndId(company, order.getId()).orElseThrow();
+        assertThat(refreshedOrder.getStatus()).isEqualTo("PENDING_PRODUCTION");
+    }
+
+    @Test
     void cancelBackorderDoesNotMutateOrderStatusWhenOrderAlreadyTerminal() {
         Company company = seedCompany("BACKORDER-TERMINAL");
         FinishedGood fg = createFinishedGood(company, "FG-BO-TERMINAL", new BigDecimal("10"), new BigDecimal("5"), "FIFO");
@@ -299,6 +369,24 @@ class FinishedGoodsServiceTest extends AbstractIntegrationTest {
 
         SalesOrder refreshedOrder = salesOrderRepository.findByCompanyAndId(company, order.getId()).orElseThrow();
         assertThat(refreshedOrder.getStatus()).isEqualTo("SHIPPED");
+    }
+
+    @Test
+    void cancelBackorderDoesNotChangeStatusWhenNoActiveSlipRemains() {
+        Company company = seedCompany("BACKORDER-NO-ACTIVE");
+        FinishedGood fg = createFinishedGood(company, "FG-BO-NO-ACTIVE", new BigDecimal("10"), new BigDecimal("5"), "FIFO");
+        FinishedGoodBatch backorderBatch = createBatch(fg, "BATCH-BO-NO-ACTIVE", new BigDecimal("5"), BigDecimal.ZERO, new BigDecimal("11"));
+        SalesOrder order = createOrder(company, "SO-BO-NO-ACTIVE-" + UUID.randomUUID(), fg.getProductCode(), new BigDecimal("5"));
+        order.setStatus("PENDING_PRODUCTION");
+        order = salesOrderRepository.saveAndFlush(order);
+
+        PackagingSlip backorderSlip = createSlip(company, order, "BACKORDER", backorderBatch, new BigDecimal("5"));
+        createReservation(order, fg, backorderBatch, new BigDecimal("5"));
+
+        finishedGoodsService.cancelBackorderSlip(backorderSlip.getId(), "tester", "cancel backorder");
+
+        SalesOrder refreshedOrder = salesOrderRepository.findByCompanyAndId(company, order.getId()).orElseThrow();
+        assertThat(refreshedOrder.getStatus()).isEqualTo("PENDING_PRODUCTION");
     }
 
     @Test
