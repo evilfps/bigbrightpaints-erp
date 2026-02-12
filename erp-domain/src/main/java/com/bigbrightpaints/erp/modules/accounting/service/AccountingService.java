@@ -1911,6 +1911,7 @@ public class AccountingService {
         if (allocations == null || allocations.isEmpty()) {
             throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT, "At least one allocation is required");
         }
+        validateSupplierSettlementAllocations(allocations);
         SettlementTotals totals = computeSettlementTotals(allocations);
         String memo = StringUtils.hasText(request.memo())
                 ? request.memo().trim()
@@ -1968,6 +1969,14 @@ public class AccountingService {
             BigDecimal discount = normalizeNonNegative(allocation.discountAmount(), "discountAmount");
             BigDecimal writeOff = normalizeNonNegative(allocation.writeOffAmount(), "writeOffAmount");
             BigDecimal fxAdjustment = MoneyUtils.zeroIfNull(allocation.fxAdjustment());
+
+            if (allocation.purchaseId() == null
+                    && (discount.compareTo(BigDecimal.ZERO) > 0
+                    || writeOff.compareTo(BigDecimal.ZERO) > 0
+                    || fxAdjustment.compareTo(BigDecimal.ZERO) != 0)) {
+                throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                        "On-account supplier settlement allocations cannot include discount/write-off/FX adjustments");
+            }
 
             RawMaterialPurchase purchase = null;
             if (allocation.purchaseId() != null) {
@@ -2838,6 +2847,28 @@ public class AccountingService {
             if (allocation.purchaseId() != null) {
                 throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
                         "Dealer settlements cannot allocate to purchases");
+            }
+        }
+    }
+
+    private void validateSupplierSettlementAllocations(List<SettlementAllocationRequest> allocations) {
+        if (allocations == null) {
+            return;
+        }
+        for (SettlementAllocationRequest allocation : allocations) {
+            if (allocation.invoiceId() != null) {
+                throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                        "Supplier settlements cannot allocate to invoices");
+            }
+            BigDecimal discount = normalizeNonNegative(allocation.discountAmount(), "discountAmount");
+            BigDecimal writeOff = normalizeNonNegative(allocation.writeOffAmount(), "writeOffAmount");
+            BigDecimal fxAdjustment = MoneyUtils.zeroIfNull(allocation.fxAdjustment());
+            if (allocation.purchaseId() == null
+                    && (discount.compareTo(BigDecimal.ZERO) > 0
+                    || writeOff.compareTo(BigDecimal.ZERO) > 0
+                    || fxAdjustment.compareTo(BigDecimal.ZERO) != 0)) {
+                throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                        "On-account supplier settlement allocations cannot include discount/write-off/FX adjustments");
             }
         }
     }

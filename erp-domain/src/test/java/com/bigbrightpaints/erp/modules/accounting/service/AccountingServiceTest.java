@@ -3835,7 +3835,6 @@ class AccountingServiceTest {
         ReflectionTestUtils.setField(cash, "id", 20L);
 
         when(supplierRepository.lockByCompanyAndId(eq(company), eq(1L))).thenReturn(Optional.of(supplier));
-        when(settlementAllocationRepository.findByCompanyAndIdempotencyKey(any(), any())).thenReturn(List.of());
         when(companyEntityLookup.requireAccount(eq(company), eq(20L))).thenReturn(cash);
         JournalEntryDto journalEntryDto = stubEntry(87L);
         doReturn(journalEntryDto).when(service).createJournalEntry(any(JournalEntryRequest.class));
@@ -3896,7 +3895,6 @@ class AccountingServiceTest {
         ReflectionTestUtils.setField(cash, "id", 20L);
 
         when(supplierRepository.lockByCompanyAndId(eq(company), eq(1L))).thenReturn(Optional.of(supplier));
-        when(settlementAllocationRepository.findByCompanyAndIdempotencyKey(any(), any())).thenReturn(List.of());
         when(companyEntityLookup.requireAccount(eq(company), eq(20L))).thenReturn(cash);
 
         JournalEntryDto journalEntryDto = stubEntry(88L);
@@ -3936,6 +3934,60 @@ class AccountingServiceTest {
         assertThat(response.allocations()).hasSize(1);
         assertThat(response.allocations().getFirst().purchaseId()).isNull();
         assertThat(response.allocations().getFirst().invoiceId()).isNull();
+    }
+
+    @Test
+    void settleSupplierInvoices_rejectsOnAccountAllocationWithAdjustments() {
+        AccountingService service = spy(accountingService);
+
+        Supplier supplier = new Supplier();
+        supplier.setName("Supplier");
+        Account payable = new Account();
+        payable.setCompany(company);
+        payable.setCode("AP");
+        payable.setType(AccountType.LIABILITY);
+        ReflectionTestUtils.setField(payable, "id", 10L);
+        supplier.setPayableAccount(payable);
+        ReflectionTestUtils.setField(supplier, "id", 1L);
+
+        Account cash = new Account();
+        cash.setCompany(company);
+        cash.setCode("CASH");
+        cash.setType(AccountType.ASSET);
+        ReflectionTestUtils.setField(cash, "id", 20L);
+
+        when(supplierRepository.lockByCompanyAndId(eq(company), eq(1L))).thenReturn(Optional.of(supplier));
+        when(companyEntityLookup.requireAccount(eq(company), eq(20L))).thenReturn(cash);
+
+        SettlementAllocationRequest allocation = new SettlementAllocationRequest(
+                null,
+                null,
+                new BigDecimal("100.00"),
+                new BigDecimal("10.00"),
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                "Invalid on-account discount"
+        );
+
+        SupplierSettlementRequest request = new SupplierSettlementRequest(
+                1L,
+                20L,
+                21L,
+                null,
+                null,
+                null,
+                LocalDate.of(2024, 4, 9),
+                "REF-AP-ONACC-INVALID",
+                "Supplier settlement",
+                "IDEMP-AP-ONACC-INVALID",
+                Boolean.FALSE,
+                List.of(allocation)
+        );
+
+        assertThatThrownBy(() -> service.settleSupplierInvoices(request))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("On-account supplier settlement allocations cannot include discount/write-off/FX adjustments");
+        verify(service, never()).createJournalEntry(any(JournalEntryRequest.class));
     }
 
     @Test

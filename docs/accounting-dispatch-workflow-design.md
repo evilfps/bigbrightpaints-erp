@@ -87,6 +87,8 @@ Must-hold invariants:
 - Replay must validate partner + allocation signature + journal lines.
 - Replay must use allocation-linked journal as source-of-truth.
 - If mapping journal and allocation journal disagree, reject as concurrency conflict.
+- Supplier on-account settlement lines (`purchaseId=null`) must not carry discount/write-off/FX adjustments; these adjustments are only valid when anchored to a concrete purchase allocation.
+- Settlement references are idempotency-bound: retries with the same idempotency key must resolve to the same canonical journal reference.
 
 ### 6) Period close/reopen and system reversal boundaries
 Entry points:
