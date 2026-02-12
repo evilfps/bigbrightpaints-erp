@@ -19,8 +19,8 @@ Non-Stop Operating Rules
 
 Runtime Tracking
 - tracked_start_ts: `2026-02-12T01:53:52+05:30` (first immutable async-loop commit marker)
-- tracked_now_ts: `2026-02-12T06:54:04+05:30`
-- tracked_elapsed: `5h 00m 12s`
+- tracked_now_ts: `2026-02-12T06:57:24+05:30`
+- tracked_elapsed: `5h 03m 32s`
 
 Completion Gates (Required For "Safe To Deploy" Claim)
 - No known critical/high security issues in auth/RBAC/tenant isolation/data exposure.
@@ -498,32 +498,39 @@ Commit Ledger
     - `mvn -B -ntp -Dtest=BulkPackingServiceIdempotencyTest,BulkPackingServiceTest,CR_BulkPackagingCrossModuleTest test`
   - Subagent review:
     - `019c4f66-59b4-7fc3-8bc6-d70adb304430` (running)
+- 2026-02-12: `c5abfd49`
+  - Hardened dealer portal identity binding:
+    - `DealerPortalService#getCurrentDealer` now resolves by authenticated user-id first.
+    - Email-based lookup is compatibility fallback only.
+    - Ambiguous dealer mappings now fail closed (`AccessDeniedException`) instead of relying on single-result query semantics.
+  - Hardened duplicate dealer creation guard:
+    - `DealerService#createDealer` now uses list-based scoped lookup for portal-user duplication checks.
+  - Added focused regressions:
+    - `DealerPortalServiceTest` (new): user-id binding, ambiguity fail-closed, fallback behavior.
+    - `DealerServiceTest`: duplicate portal mapping rejection guard.
+  - Verified:
+    - `mvn -B -ntp -Dtest=DealerPortalServiceTest,DealerServiceTest,DealerControllerSecurityIT test`
+  - Subagent review:
+    - `019c4f73-dcde-7b22-adf3-00ad6284687e` (running)
 
 Current Checkpoint
-- Current WIP M5-S3 (dealer/sales portal authorization + tenant-isolation hardening):
-  - Root cause (proved by service-level tests and repository contract review):
-    - `DealerPortalService#getCurrentDealer` bound identity to mutable email only; principal user-id was not used.
-    - Duplicate dealer mappings for same portal user could yield ambiguous access behavior/non-deterministic failures.
-    - `DealerService#createDealer` used single-result lookup and could fail noisily under duplicate dirty-data states.
+- Current WIP M5-S4 (dealer portal misuse matrix / negative-path hardening):
+  - Root cause (proved by endpoint-level security matrix gaps):
+    - Dealer portal endpoints lacked dedicated integration coverage for:
+      - horizontal data isolation across dealers
+      - tenant header/token mismatch rejection on portal routes
+      - strict dealer-role requirement enforcement
   - Fix in progress:
-    - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/sales/service/DealerPortalService.java`
-      - bind dealer resolution to authenticated `UserPrincipal.user.id` first
-      - email lookup retained as compatibility fallback only
-      - fail closed with `AccessDeniedException` when mappings are ambiguous
-    - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/sales/domain/DealerRepository.java`
-      - added explicit list-based scoped lookup methods for portal user id/email
-    - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/sales/service/DealerService.java`
-      - switched duplicate portal-user guard to list-based lookup to avoid single-result ambiguity
-    - `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/sales/service/DealerPortalServiceTest.java` (new)
-      - coverage for user-id binding, ambiguity fail-closed behavior, and fallback path
-    - `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/sales/service/DealerServiceTest.java`
-      - added duplicate-portal-mapping guard regression
+    - `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/sales/DealerPortalControllerSecurityIT.java` (new)
+      - proves invoice list is scoped to authenticated dealer only.
+      - proves company header/token mismatch returns 403 on dealer portal routes.
+      - proves non-dealer roles cannot access dealer portal endpoints.
 - Verification command:
-  - `mvn -B -ntp -Dtest=DealerPortalServiceTest,DealerServiceTest,DealerControllerSecurityIT test`
+  - `mvn -B -ntp -Dtest=DealerPortalControllerSecurityIT,DealerPortalServiceTest,DealerServiceTest test`
 - Next action:
-  - commit M5-S3 dealer/sales portal identity-binding hardening
+  - commit M5-S4 dealer portal misuse-matrix integration coverage
   - run `codex review --commit <sha>`
-  - start M5-S4 endpoint misuse matrix (dealer portal horizontal access + company header abuse + permission edge paths)
+  - start M3-S4 inventory-manufacturing dispatch invariant chain audit
 
 Async Loop Cadence
 - Each cycle:
