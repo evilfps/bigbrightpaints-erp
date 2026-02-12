@@ -19,8 +19,8 @@ Non-Stop Operating Rules
 
 Runtime Tracking
 - tracked_start_ts: `2026-02-12T01:53:52+05:30` (first immutable async-loop commit marker)
-- tracked_now_ts: `2026-02-12T05:55:04+05:30`
-- tracked_elapsed: `4h 01m 12s`
+- tracked_now_ts: `2026-02-12T05:58:06+05:30`
+- tracked_elapsed: `4h 04m 14s`
 
 Completion Gates (Required For "Safe To Deploy" Claim)
 - No known critical/high security issues in auth/RBAC/tenant isolation/data exposure.
@@ -228,9 +228,11 @@ Auto-Replenish Queue (Always Keep Filled)
   - Expand async tests to include blank-override behavior once contract is finalized.
   - Completed policy: blank auth-wrapper overrides now resolve to explicit `UNKNOWN_AUTH_ACTOR` and unresolved-company sentinel (no ambient fallback).
   - Completed: async and unit tests now assert unresolved attribution metadata markers (`authActorResolution`, `authCompanyResolution`).
-- [in_progress] M8-S5 Correlation guard CI integration follow-up
+- [done] M8-S5 Correlation guard CI integration follow-up
   - Integrate `guard_orchestrator_correlation_contract.sh` into CI path (`scripts/verify_local.sh` is already covered by local gate).
   - Add fail-fast artifact note for orchestrator correlation guard violations.
+  - Completed: integrated guard execution into both `scripts/gate_fast.sh` and `scripts/gate_core.sh`.
+  - Completed: guard output is captured into artifacts as `orchestrator-correlation-guard.txt` for both CI gates.
 - [done] M2-S7 Event-trail failure taxonomy normalization
   - Unify failure classification rules across posting/reversal paths and expose deterministic categories for alert routing.
   - Add tests for `DATA_INTEGRITY` and `VALIDATION` categories (not only generic persistence failures).
@@ -271,6 +273,12 @@ Auto-Replenish Queue (Always Keep Filled)
 - [ready] M8-S6 Correlation guard CI artifact and fail-fast evidence
   - Publish correlation guard failures into CI artifacts for triage (`artifacts/gate-release`), including missing call-site/overload/test signals.
   - Ensure CI failure output includes a single actionable remediation command.
+- [in_progress] M2-S10 Integration-failure route coverage expansion
+  - Extend routing metadata contract checks to non-accounting integration-failure producers (e.g., global exception handling) to prevent inconsistent alert payloads.
+  - Add regression test coverage pinning route-version and route-key presence where applicable.
+- [ready] M3-S2 Settlement failure telemetry normalization
+  - Normalize settlement failure audit metadata (dealer/supplier flows) to include deterministic failure codes and non-leaky categories.
+  - Add regression assertions for split receipts and supplier settlement failure taxonomy.
 
 Commit Ledger
 - 2026-02-12: `16b2a2c4`
@@ -380,23 +388,25 @@ Commit Ledger
   - Verified:
     - `mvn -B -ntp -Dtest=AccountingServiceTest,JournalEntryE2ETest,SettlementE2ETest,IntegrationCoordinatorTest,CommandDispatcherTest,AuditServiceTest,AuditServiceAsyncIT,CompanyContextTaskDecoratorTest,AuthServiceAuditAttributionTest test`
   - `codex review --commit d26c7d15`: running (result will be appended).
+- 2026-02-12: `18548593`
+  - Stabilized accounting event-trail alert-routing contract with deterministic route mapping metadata.
+  - Verified:
+    - `mvn -B -ntp -Dtest=AccountingServiceTest,AccountingEventTrailAlertRoutingPolicyTest,JournalEntryE2ETest,SettlementE2ETest,IntegrationCoordinatorTest,CommandDispatcherTest,AuditServiceTest,AuditServiceAsyncIT,CompanyContextTaskDecoratorTest,AuthServiceAuditAttributionTest test`
+  - `codex review --commit 18548593`: running (result will be appended).
 
 Current Checkpoint
-- Current WIP M2-S8 + M2-S9 completion:
-  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingService.java`
-    - adds deterministic event-trail alert-routing metadata fields to integration-failure audit markers
-  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingEventTrailAlertRoutingPolicy.java`
-    - defines stable route mapping contract for event-trail failure categories
-  - `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingServiceTest.java`
-    - asserts routing metadata on strict/best-effort and validation/data-integrity paths
-  - `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingEventTrailAlertRoutingPolicyTest.java`
-    - locks policy mapping outputs and fallback behavior
+- Current WIP M8-S5 completion + M2-S10 kickoff:
+  - `scripts/gate_fast.sh`
+    - adds orchestrator correlation guard execution + artifact capture in gate-fast CI path
+  - `scripts/gate_core.sh`
+    - adds orchestrator correlation guard execution + artifact capture in gate-core CI path
 - Verification command:
-  - `mvn -B -ntp -Dtest=AccountingServiceTest,AccountingEventTrailAlertRoutingPolicyTest,JournalEntryE2ETest,SettlementE2ETest,IntegrationCoordinatorTest,CommandDispatcherTest,AuditServiceTest,AuditServiceAsyncIT,CompanyContextTaskDecoratorTest,AuthServiceAuditAttributionTest test`
+  - `bash -n scripts/gate_fast.sh scripts/gate_core.sh`
+  - `bash scripts/guard_orchestrator_correlation_contract.sh`
 - Next action:
-  - commit M2-S8/M2-S9 routing contract hardening
+  - commit M8-S5 CI guard integration
   - run `codex review --commit <sha>`
-  - continue M8-S5 correlation guard CI integration follow-up
+  - continue M2-S10 non-accounting integration-failure route coverage expansion
 
 Async Loop Cadence
 - Each cycle:

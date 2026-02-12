@@ -22,6 +22,15 @@ python3 "$ROOT_DIR/scripts/check_flaky_tags.py" \
   --gate gate-core \
   --output "$ARTIFACT_DIR/flake-guard.json"
 
+echo "[gate-core] orchestrator correlation contract guard"
+CORRELATION_GUARD_LOG="$ARTIFACT_DIR/orchestrator-correlation-guard.txt"
+if bash "$ROOT_DIR/scripts/guard_orchestrator_correlation_contract.sh" >"$CORRELATION_GUARD_LOG" 2>&1; then
+  cat "$CORRELATION_GUARD_LOG"
+else
+  cat "$CORRELATION_GUARD_LOG" >&2
+  exit 1
+fi
+
 echo "[gate-core] run critical+concurrency+reconciliation truth tests"
 (
   cd "$ROOT_DIR/erp-domain"
