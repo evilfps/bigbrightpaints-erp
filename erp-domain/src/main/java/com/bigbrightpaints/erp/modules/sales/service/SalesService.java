@@ -1365,6 +1365,20 @@ public class SalesService {
         return toDto(creditRequest);
     }
 
+    @Transactional
+    public CreditRequestDto approveCreditRequest(Long id) {
+        CreditRequest creditRequest = requireCreditRequest(id);
+        creditRequest.setStatus("APPROVED");
+        return toDto(creditRequest);
+    }
+
+    @Transactional
+    public CreditRequestDto rejectCreditRequest(Long id) {
+        CreditRequest creditRequest = requireCreditRequest(id);
+        creditRequest.setStatus("REJECTED");
+        return toDto(creditRequest);
+    }
+
     private String normalizeCreditRequestStatus(String status, boolean defaultPending) {
         if (!StringUtils.hasText(status)) {
             if (defaultPending) {

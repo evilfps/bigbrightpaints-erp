@@ -166,6 +166,18 @@ public class SalesController {
         return ResponseEntity.ok(ApiResponse.success("Credit request updated", salesService.updateCreditRequest(id, request)));
     }
 
+    @PostMapping("/sales/credit-requests/{id}/approve")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
+    public ResponseEntity<ApiResponse<CreditRequestDto>> approveCreditRequest(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success("Credit request approved", salesService.approveCreditRequest(id)));
+    }
+
+    @PostMapping("/sales/credit-requests/{id}/reject")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
+    public ResponseEntity<ApiResponse<CreditRequestDto>> rejectCreditRequest(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success("Credit request rejected", salesService.rejectCreditRequest(id)));
+    }
+
     /* Dispatch confirmation (final invoice + AR at shipment) */
     @PostMapping("/sales/dispatch/confirm")
     @PreAuthorize("hasAnyAuthority('ROLE_SALES','ROLE_ACCOUNTING','ROLE_ADMIN') and hasAuthority('dispatch.confirm')")

@@ -215,8 +215,8 @@ class AdminSettingsControllerApprovalsContractTest {
         assertThat(creditApproval.actionType()).isEqualTo("APPROVE_DEALER_CREDIT_REQUEST");
         assertThat(creditApproval.actionLabel()).isEqualTo("Approve dealer credit-limit increase");
         assertThat(creditApproval.sourcePortal()).isEqualTo("DEALER_PORTAL");
-        assertThat(creditApproval.approveEndpoint()).isEqualTo("/api/v1/sales/credit-requests/{id}");
-        assertThat(creditApproval.rejectEndpoint()).isEqualTo("/api/v1/sales/credit-requests/{id}");
+        assertThat(creditApproval.approveEndpoint()).isEqualTo("/api/v1/sales/credit-requests/{id}/approve");
+        assertThat(creditApproval.rejectEndpoint()).isEqualTo("/api/v1/sales/credit-requests/{id}/reject");
 
         assertThat(response.data().creditRequests())
                 .extracting(AdminApprovalItemDto::createdAt)

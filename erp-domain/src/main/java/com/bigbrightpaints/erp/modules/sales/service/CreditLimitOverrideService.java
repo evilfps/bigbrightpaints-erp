@@ -21,9 +21,11 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 @Service
 public class CreditLimitOverrideService {
@@ -56,14 +58,15 @@ public class CreditLimitOverrideService {
 
     public List<CreditLimitOverrideRequestDto> listRequests(String status) {
         Company company = companyContextService.requireCurrentCompany();
-        if (status == null || status.isBlank()) {
+        String normalizedStatus = normalizeStatus(status);
+        if (!StringUtils.hasText(normalizedStatus)) {
             return creditLimitOverrideRequestRepository.findByCompanyOrderByCreatedAtDesc(company)
                     .stream()
                     .map(this::toDto)
                     .toList();
         }
         return creditLimitOverrideRequestRepository.findByCompanyAndStatusOrderByCreatedAtDesc(
-                        company, status.toUpperCase())
+                        company, normalizedStatus)
                 .stream()
                 .map(this::toDto)
                 .toList();
@@ -120,7 +123,7 @@ public class CreditLimitOverrideService {
     @Transactional
     public CreditLimitOverrideRequestDto approveRequest(Long id, CreditLimitOverrideDecisionRequest request, String reviewedBy) {
         CreditLimitOverrideRequest overrideRequest = requireRequest(id);
-        if (!STATUS_PENDING.equalsIgnoreCase(overrideRequest.getStatus())) {
+        if (!STATUS_PENDING.equals(normalizeStatus(overrideRequest.getStatus()))) {
             throw new ApplicationException(ErrorCode.BUSINESS_INVALID_STATE,
                     "Only pending override requests can be approved");
         }
@@ -141,7 +144,7 @@ public class CreditLimitOverrideService {
     @Transactional
     public CreditLimitOverrideRequestDto rejectRequest(Long id, CreditLimitOverrideDecisionRequest request, String reviewedBy) {
         CreditLimitOverrideRequest overrideRequest = requireRequest(id);
-        if (!STATUS_PENDING.equalsIgnoreCase(overrideRequest.getStatus())) {
+        if (!STATUS_PENDING.equals(normalizeStatus(overrideRequest.getStatus()))) {
             throw new ApplicationException(ErrorCode.BUSINESS_INVALID_STATE,
                     "Only pending override requests can be rejected");
         }
@@ -240,6 +243,13 @@ public class CreditLimitOverrideService {
         return creditLimitOverrideRequestRepository.findByCompanyAndId(company, id)
                 .orElseThrow(() -> new ApplicationException(ErrorCode.BUSINESS_ENTITY_NOT_FOUND,
                         "Credit override request not found"));
+    }
+
+    private String normalizeStatus(String status) {
+        if (!StringUtils.hasText(status)) {
+            return "";
+        }
+        return status.trim().toUpperCase(Locale.ROOT);
     }
 
     private CreditLimitOverrideRequestDto toDto(CreditLimitOverrideRequest request) {

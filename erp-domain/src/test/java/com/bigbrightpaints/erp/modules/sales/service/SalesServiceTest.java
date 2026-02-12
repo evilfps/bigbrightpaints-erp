@@ -254,6 +254,48 @@ class SalesServiceTest {
     }
 
     @Test
+    void approveCreditRequestUpdatesStatusOnly() {
+        Dealer dealer = dealerWithCreditLimit(77L, new BigDecimal("2500"));
+        CreditRequest existing = new CreditRequest();
+        existing.setCompany(company);
+        existing.setDealer(dealer);
+        existing.setAmountRequested(new BigDecimal("600"));
+        existing.setReason("Temporary headroom needed");
+        existing.setStatus("PENDING");
+        setField(existing, "id", 910L);
+
+        when(companyEntityLookup.requireCreditRequest(company, 910L)).thenReturn(existing);
+
+        CreditRequestDto dto = salesService.approveCreditRequest(910L);
+
+        assertEquals("APPROVED", dto.status());
+        assertEquals(new BigDecimal("600"), existing.getAmountRequested());
+        assertEquals("Temporary headroom needed", existing.getReason());
+        assertEquals(dealer.getId(), existing.getDealer().getId());
+    }
+
+    @Test
+    void rejectCreditRequestUpdatesStatusOnly() {
+        Dealer dealer = dealerWithCreditLimit(78L, new BigDecimal("3000"));
+        CreditRequest existing = new CreditRequest();
+        existing.setCompany(company);
+        existing.setDealer(dealer);
+        existing.setAmountRequested(new BigDecimal("725"));
+        existing.setReason("Dealer requested temporary overrun");
+        existing.setStatus("PENDING");
+        setField(existing, "id", 911L);
+
+        when(companyEntityLookup.requireCreditRequest(company, 911L)).thenReturn(existing);
+
+        CreditRequestDto dto = salesService.rejectCreditRequest(911L);
+
+        assertEquals("REJECTED", dto.status());
+        assertEquals(new BigDecimal("725"), existing.getAmountRequested());
+        assertEquals("Dealer requested temporary overrun", existing.getReason());
+        assertEquals(dealer.getId(), existing.getDealer().getId());
+    }
+
+    @Test
     void createOrderNeedsRevenueAccount() {
         setupProduct("SKU1", BigDecimal.valueOf(100), BigDecimal.ZERO);
         FinishedGood finishedGood = buildFinishedGood("SKU1");

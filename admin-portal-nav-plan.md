@@ -173,7 +173,8 @@ Purpose: a single place to action admin-only approvals and hand off to accountin
       - `sourcePortal`: origin context (`DEALER_PORTAL`, `SALES_PORTAL`, `FACTORY_PORTAL`, `HR_PORTAL`).
       - `approveEndpoint` / `rejectEndpoint`: server-declared API route templates (`{id}` path placeholder).
     - For `CREDIT_REQUEST` rows:
-      - approval/rejection both use `PUT /api/v1/sales/credit-requests/{id}` with body `status=APPROVED|REJECTED`.
+      - approve: `POST /api/v1/sales/credit-requests/{id}/approve`
+      - reject: `POST /api/v1/sales/credit-requests/{id}/reject`
   - Actions depend on where the approval is implemented:
     - Credit limit overrides:
       - API: `GET /api/v1/credit/override-requests`

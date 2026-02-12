@@ -34,7 +34,8 @@ public class AdminSettingsController {
     private static final String CREDIT_REQUEST_APPROVAL_ACTION = "APPROVE_DEALER_CREDIT_REQUEST";
     private static final String CREDIT_OVERRIDE_APPROVAL_ACTION = "APPROVE_DISPATCH_CREDIT_OVERRIDE";
     private static final String PAYROLL_APPROVAL_ACTION = "APPROVE_PAYROLL_RUN";
-    private static final String CREDIT_REQUEST_MUTATION_ENDPOINT = "/api/v1/sales/credit-requests/{id}";
+    private static final String CREDIT_REQUEST_APPROVE_ENDPOINT = "/api/v1/sales/credit-requests/{id}/approve";
+    private static final String CREDIT_REQUEST_REJECT_ENDPOINT = "/api/v1/sales/credit-requests/{id}/reject";
     private static final String CREDIT_OVERRIDE_APPROVE_ENDPOINT = "/api/v1/credit/override-requests/{id}/approve";
     private static final String CREDIT_OVERRIDE_REJECT_ENDPOINT = "/api/v1/credit/override-requests/{id}/reject";
     private static final String PAYROLL_APPROVE_ENDPOINT = "/api/v1/payroll/runs/{id}/approve";
@@ -151,8 +152,8 @@ public class AdminSettingsController {
                 CREDIT_REQUEST_APPROVAL_ACTION,
                 "Approve dealer credit-limit increase",
                 "DEALER_PORTAL",
-                CREDIT_REQUEST_MUTATION_ENDPOINT,
-                CREDIT_REQUEST_MUTATION_ENDPOINT,
+                CREDIT_REQUEST_APPROVE_ENDPOINT,
+                CREDIT_REQUEST_REJECT_ENDPOINT,
                 request.getCreatedAt()
         );
     }
