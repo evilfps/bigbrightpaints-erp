@@ -146,4 +146,33 @@ class ReportServiceAccountStatementTest {
         assertThat(row.balance()).isEqualByComparingTo("88.00");
         assertThat(row.journalEntryId()).isNull();
     }
+
+    @Test
+    void accountStatement_handlesLatestLedgerEntryWithoutJournalLink() {
+        Dealer dealer = new Dealer();
+        ReflectionTestUtils.setField(dealer, "id", 13L);
+        dealer.setName("Dealer Ledger No Journal");
+        when(dealerRepository.findByCompanyOrderByNameAsc(company)).thenReturn(List.of(dealer));
+        when(dealerLedgerService.currentBalances(List.of(13L))).thenReturn(Map.of(13L, new BigDecimal("25.00")));
+
+        DealerLedgerEntry latest = new DealerLedgerEntry();
+        latest.setEntryDate(LocalDate.of(2026, 2, 12));
+        latest.setReferenceNumber("REC-UNLINKED");
+        latest.setDebit(new BigDecimal("55.00"));
+        latest.setCredit(new BigDecimal("30.00"));
+        latest.setJournalEntry(null);
+        when(dealerLedgerRepository.findFirstByCompanyAndDealerOrderByEntryDateDescIdDesc(company, dealer))
+                .thenReturn(Optional.of(latest));
+
+        var rows = reportService.accountStatement();
+
+        assertThat(rows).hasSize(1);
+        var row = rows.getFirst();
+        assertThat(row.dealerName()).isEqualTo("Dealer Ledger No Journal");
+        assertThat(row.reference()).isEqualTo("REC-UNLINKED");
+        assertThat(row.debit()).isEqualByComparingTo("55.00");
+        assertThat(row.credit()).isEqualByComparingTo("30.00");
+        assertThat(row.balance()).isEqualByComparingTo("25.00");
+        assertThat(row.journalEntryId()).isNull();
+    }
 }
