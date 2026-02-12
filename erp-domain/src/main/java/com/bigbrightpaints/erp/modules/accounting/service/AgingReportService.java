@@ -56,7 +56,7 @@ public class AgingReportService {
     public AgedReceivablesReport getAgedReceivablesReport(LocalDate asOfDate) {
         Company company = companyContextService.requireCurrentCompany();
         LocalDate effectiveDate = asOfDate != null ? asOfDate : companyClock.today(company);
-        List<DealerLedgerEntry> unpaidEntries = dealerLedgerRepository.findAllUnpaid(company);
+        List<DealerLedgerEntry> unpaidEntries = dealerLedgerRepository.findAllUnpaidAsOf(company, effectiveDate);
         
         Map<Long, List<DealerLedgerEntry>> byDealer = unpaidEntries.stream()
                 .collect(Collectors.groupingBy(e -> e.getDealer().getId()));

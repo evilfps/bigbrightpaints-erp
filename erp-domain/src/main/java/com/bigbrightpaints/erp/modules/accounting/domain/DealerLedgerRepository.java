@@ -61,6 +61,13 @@ public interface DealerLedgerRepository extends JpaRepository<DealerLedgerEntry,
     List<DealerLedgerEntry> findAllUnpaid(@Param("company") Company company);
 
     @Query("SELECT e FROM DealerLedgerEntry e WHERE e.company = :company " +
+           "AND e.entryDate <= :asOfDate " +
+           "AND e.paymentStatus NOT IN ('PAID','VOID','REVERSED') " +
+           "AND e.invoiceNumber IS NOT NULL ORDER BY e.dealer.id, e.dueDate ASC")
+    List<DealerLedgerEntry> findAllUnpaidAsOf(@Param("company") Company company,
+                                              @Param("asOfDate") java.time.LocalDate asOfDate);
+
+    @Query("SELECT e FROM DealerLedgerEntry e WHERE e.company = :company " +
            "AND e.paymentStatus NOT IN ('PAID','VOID','REVERSED') AND e.invoiceNumber IS NOT NULL AND e.dueDate < :asOfDate ORDER BY e.dealer.id, e.dueDate ASC")
     List<DealerLedgerEntry> findOverdueAsOf(@Param("company") Company company, @Param("asOfDate") java.time.LocalDate asOfDate);
 
