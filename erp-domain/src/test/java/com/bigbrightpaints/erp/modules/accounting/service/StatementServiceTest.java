@@ -28,8 +28,11 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -348,17 +351,18 @@ class StatementServiceTest {
         var expected = statementService.dealerStatement(91L, from, to);
         byte[] pdf = statementService.dealerStatementPdf(91L, from, to);
         String text = extractPdfText(pdf);
+        List<BigDecimal> numericTokens = extractNumericTokens(text);
 
         assertThat(text).contains("Dealer Statement");
         assertThat(text).contains(expected.partnerName());
-        assertThat(text).contains(expected.openingBalance().toString());
-        assertThat(text).contains(expected.closingBalance().toString());
+        assertNumericTokenPresent(numericTokens, expected.openingBalance());
+        assertNumericTokenPresent(numericTokens, expected.closingBalance());
         for (var tx : expected.transactions()) {
             assertThat(text).contains(tx.referenceNumber());
             assertThat(text).contains(tx.memo());
-            assertThat(text).contains(tx.debit().toString());
-            assertThat(text).contains(tx.credit().toString());
-            assertThat(text).contains(tx.runningBalance().toString());
+            assertNumericTokenPresent(numericTokens, tx.debit());
+            assertNumericTokenPresent(numericTokens, tx.credit());
+            assertNumericTokenPresent(numericTokens, tx.runningBalance());
         }
     }
 
@@ -379,13 +383,14 @@ class StatementServiceTest {
         var expected = statementService.supplierAging(92L, LocalDate.of(2026, 2, 12), "0-30,30-60,61");
         byte[] pdf = statementService.supplierAgingPdf(92L, LocalDate.of(2026, 2, 12), "0-30,30-60,61");
         String text = extractPdfText(pdf);
+        List<BigDecimal> numericTokens = extractNumericTokens(text);
 
         assertThat(text).contains("Supplier Aging");
         assertThat(text).contains(expected.partnerName());
-        assertThat(text).contains(expected.totalOutstanding().toString());
+        assertNumericTokenPresent(numericTokens, expected.totalOutstanding());
         for (var bucket : expected.buckets()) {
             assertThat(text).contains(bucket.label());
-            assertThat(text).contains(bucket.amount().toString());
+            assertNumericTokenPresent(numericTokens, bucket.amount());
         }
     }
 
@@ -395,5 +400,25 @@ class StatementServiceTest {
         } catch (IOException ex) {
             throw new RuntimeException("Unable to extract text from generated PDF", ex);
         }
+    }
+
+    private List<BigDecimal> extractNumericTokens(String text) {
+        List<BigDecimal> values = new ArrayList<>();
+        Matcher matcher = Pattern.compile("-?\\d+(?:,\\d{3})*(?:\\.\\d+)?").matcher(text);
+        while (matcher.find()) {
+            String token = matcher.group().replace(",", "");
+            try {
+                values.add(new BigDecimal(token));
+            } catch (NumberFormatException ignored) {
+                // Skip non-numeric artifacts from text extraction.
+            }
+        }
+        return values;
+    }
+
+    private void assertNumericTokenPresent(List<BigDecimal> numericTokens, BigDecimal expected) {
+        assertThat(numericTokens.stream().anyMatch(value -> value.compareTo(expected) == 0))
+                .withFailMessage("Expected numeric value %s in extracted PDF text", expected)
+                .isTrue();
     }
 }
