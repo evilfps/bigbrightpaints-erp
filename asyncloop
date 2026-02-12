@@ -27,8 +27,8 @@ Cross-Agent Continuation Contract (If Any Agent Handoffs Here)
 
 Runtime Tracking
 - tracked_start_ts: `2026-02-12T01:53:52+05:30` (first immutable async-loop commit marker)
-- tracked_now_ts: `2026-02-12T13:28:03+05:30`
-- tracked_elapsed: `11h 34m 11s`
+- tracked_now_ts: `2026-02-12T13:35:05+05:30`
+- tracked_elapsed: `11h 41m 13s`
 
 Completion Gates (Required For "Safe To Deploy" Claim)
 - No known critical/high security issues in auth/RBAC/tenant isolation/data exposure.
@@ -849,4 +849,28 @@ Loop Update
 - 2026-02-12T13:28:03+05:30
 - tracked_now_ts: `2026-02-12T13:28:03+05:30`
 - tracked_elapsed: `11h 34m 11s`
+- active_in_progress: `M4-S3 statement/aging/report settlement-link consistency and source-of-truth checks`
+
+Completed Slice (Committed)
+- 2026-02-12: `a47cfdb2`
+  - fix(build): track migration freeze guard and align benchmark constructor.
+  - Added tracked script `scripts/guard_legacy_migration_freeze.sh` so `verify_local.sh` no longer fails with missing-script condition in branch history.
+  - Updated `AccountingServiceBenchmarkTest` constructor wiring for `AccountingEventStore` to match current `AccountingService` signature.
+  - Verification:
+    - `mvn -B -ntp -DskipTests test-compile` (in `erp-domain`) -> pass.
+    - `VERIFY_LOCAL_SKIP_TESTS=true bash scripts/verify_local.sh` -> fails on pre-existing unrelated local worktree artifact:
+      - `erp-domain/src/main/resources/db/migration/V136__enterprise_audit_ml_events.sql` (legacy-v1 freeze guard trigger).
+      - This is not introduced by commit `a47cfdb2`; tracked as cleanup blocker for local verification runs.
+
+Post-Commit Review Evidence
+- Commit reviewed: `a47cfdb2`
+- `codex review --commit a47cfdb2`:
+  - completed with rollout/state-db noise but final verdict: changes are consistent; no actionable regression found.
+- Review subagent `019c50e0-2f7a-7320-8374-86afdc725dff`:
+  - no functional bug in commit; confirms both reported blockers are addressed by tracked changes.
+
+Loop Update
+- 2026-02-12T13:35:05+05:30
+- tracked_now_ts: `2026-02-12T13:35:05+05:30`
+- tracked_elapsed: `11h 41m 13s`
 - active_in_progress: `M4-S3 statement/aging/report settlement-link consistency and source-of-truth checks`
