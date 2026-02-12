@@ -351,18 +351,22 @@ class StatementServiceTest {
         var expected = statementService.dealerStatement(91L, from, to);
         byte[] pdf = statementService.dealerStatementPdf(91L, from, to);
         String text = extractPdfText(pdf);
-        List<BigDecimal> numericTokens = extractNumericTokens(text);
 
         assertThat(text).contains("Dealer Statement");
         assertThat(text).contains(expected.partnerName());
-        assertNumericTokenPresent(numericTokens, expected.openingBalance());
-        assertNumericTokenPresent(numericTokens, expected.closingBalance());
-        for (var tx : expected.transactions()) {
+        assertNumericTokenPresent(text, expected.openingBalance());
+        assertNumericTokenPresent(text, expected.closingBalance());
+        for (int i = 0; i < expected.transactions().size(); i++) {
+            var tx = expected.transactions().get(i);
+            String nextReference = i + 1 < expected.transactions().size()
+                    ? expected.transactions().get(i + 1).referenceNumber()
+                    : null;
+            String txSection = extractSection(text, tx.referenceNumber(), nextReference);
             assertThat(text).contains(tx.referenceNumber());
-            assertThat(text).contains(tx.memo());
-            assertNumericTokenPresent(numericTokens, tx.debit());
-            assertNumericTokenPresent(numericTokens, tx.credit());
-            assertNumericTokenPresent(numericTokens, tx.runningBalance());
+            assertThat(txSection).contains(tx.memo());
+            assertNumericTokenPresent(txSection, tx.debit());
+            assertNumericTokenPresent(txSection, tx.credit());
+            assertNumericTokenPresent(txSection, tx.runningBalance());
         }
     }
 
@@ -383,14 +387,18 @@ class StatementServiceTest {
         var expected = statementService.supplierAging(92L, LocalDate.of(2026, 2, 12), "0-30,30-60,61");
         byte[] pdf = statementService.supplierAgingPdf(92L, LocalDate.of(2026, 2, 12), "0-30,30-60,61");
         String text = extractPdfText(pdf);
-        List<BigDecimal> numericTokens = extractNumericTokens(text);
 
         assertThat(text).contains("Supplier Aging");
         assertThat(text).contains(expected.partnerName());
-        assertNumericTokenPresent(numericTokens, expected.totalOutstanding());
-        for (var bucket : expected.buckets()) {
+        assertNumericTokenPresent(extractSection(text, "Total", null), expected.totalOutstanding());
+        for (int i = 0; i < expected.buckets().size(); i++) {
+            var bucket = expected.buckets().get(i);
+            String nextLabel = i + 1 < expected.buckets().size()
+                    ? expected.buckets().get(i + 1).label()
+                    : "Total";
+            String bucketSection = extractSection(text, bucket.label(), nextLabel);
             assertThat(text).contains(bucket.label());
-            assertNumericTokenPresent(numericTokens, bucket.amount());
+            assertNumericTokenPresent(bucketSection, bucket.amount());
         }
     }
 
@@ -404,9 +412,12 @@ class StatementServiceTest {
 
     private List<BigDecimal> extractNumericTokens(String text) {
         List<BigDecimal> values = new ArrayList<>();
-        Matcher matcher = Pattern.compile("-?\\d+(?:,\\d{3})*(?:\\.\\d+)?").matcher(text);
+        Matcher matcher = Pattern.compile("\\(?-?\\d+(?:,\\d{3})*(?:\\.\\d+)?\\)?").matcher(text);
         while (matcher.find()) {
-            String token = matcher.group().replace(",", "");
+            String token = matcher.group().replace(",", "").trim();
+            if (token.startsWith("(") && token.endsWith(")")) {
+                token = "-" + token.substring(1, token.length() - 1);
+            }
             try {
                 values.add(new BigDecimal(token));
             } catch (NumberFormatException ignored) {
@@ -416,9 +427,26 @@ class StatementServiceTest {
         return values;
     }
 
-    private void assertNumericTokenPresent(List<BigDecimal> numericTokens, BigDecimal expected) {
+    private void assertNumericTokenPresent(String text, BigDecimal expected) {
+        List<BigDecimal> numericTokens = extractNumericTokens(text);
         assertThat(numericTokens.stream().anyMatch(value -> value.compareTo(expected) == 0))
                 .withFailMessage("Expected numeric value %s in extracted PDF text", expected)
                 .isTrue();
+    }
+
+    private String extractSection(String text, String startMarker, String endMarker) {
+        int start = text.indexOf(startMarker);
+        assertThat(start)
+                .withFailMessage("Expected marker '%s' in extracted PDF text", startMarker)
+                .isGreaterThanOrEqualTo(0);
+        int searchFrom = start + startMarker.length();
+        if (endMarker == null) {
+            return text.substring(start);
+        }
+        int end = text.indexOf(endMarker, searchFrom);
+        if (end < 0) {
+            end = text.length();
+        }
+        return text.substring(start, end);
     }
 }
