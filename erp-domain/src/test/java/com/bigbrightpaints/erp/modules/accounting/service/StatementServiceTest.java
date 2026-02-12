@@ -42,7 +42,6 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class StatementServiceTest {
-    private static final int SECTION_WINDOW_CHARS = 600;
 
     @Mock
     private CompanyContextService companyContextService;
@@ -357,12 +356,8 @@ class StatementServiceTest {
         assertThat(text).contains(expected.partnerName());
         assertNumericTokenPresent(text, expected.openingBalance());
         assertNumericTokenPresent(text, expected.closingBalance());
-        for (int i = 0; i < expected.transactions().size(); i++) {
-            var tx = expected.transactions().get(i);
-            String nextReference = i + 1 < expected.transactions().size()
-                    ? expected.transactions().get(i + 1).referenceNumber()
-                    : null;
-            String txSection = extractSection(text, tx.referenceNumber(), nextReference);
+        for (var tx : expected.transactions()) {
+            String txSection = extractLineContainingMarker(text, tx.referenceNumber());
             assertThat(text).contains(tx.referenceNumber());
             assertThat(txSection).contains(tx.memo());
             assertNumericTokenPresent(txSection, tx.debit());
@@ -391,13 +386,9 @@ class StatementServiceTest {
 
         assertThat(text).contains("Supplier Aging");
         assertThat(text).contains(expected.partnerName());
-        assertNumericTokenPresent(extractSection(text, "Total", null), expected.totalOutstanding());
-        for (int i = 0; i < expected.buckets().size(); i++) {
-            var bucket = expected.buckets().get(i);
-            String nextLabel = i + 1 < expected.buckets().size()
-                    ? expected.buckets().get(i + 1).label()
-                    : "Total";
-            String bucketSection = extractSection(text, bucket.label(), nextLabel);
+        assertNumericTokenPresent(extractLineContainingMarker(text, "Total"), expected.totalOutstanding());
+        for (var bucket : expected.buckets()) {
+            String bucketSection = extractLineContainingMarker(text, bucket.label());
             assertThat(text).contains(bucket.label());
             assertNumericTokenPresent(bucketSection, bucket.amount());
         }
@@ -435,20 +426,12 @@ class StatementServiceTest {
                 .isTrue();
     }
 
-    private String extractSection(String text, String startMarker, String endMarker) {
-        int start = text.indexOf(startMarker);
-        assertThat(start)
-                .withFailMessage("Expected marker '%s' in extracted PDF text", startMarker)
-                .isGreaterThanOrEqualTo(0);
-        int searchFrom = start + startMarker.length();
-        int boundedEnd = Math.min(text.length(), start + SECTION_WINDOW_CHARS);
-        if (endMarker == null) {
-            return text.substring(start, boundedEnd);
+    private String extractLineContainingMarker(String text, String marker) {
+        for (String line : text.split("\\R")) {
+            if (line.contains(marker)) {
+                return line;
+            }
         }
-        int end = text.indexOf(endMarker, searchFrom);
-        if (end < 0 || end > boundedEnd) {
-            end = boundedEnd;
-        }
-        return text.substring(start, end);
+        throw new AssertionError("Expected marker '" + marker + "' in extracted PDF text");
     }
 }
