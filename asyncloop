@@ -1922,7 +1922,7 @@ Completed Slice (Committed)
   - Added explicit admin approval-action contract surface for credit requests and normalized queue/action payload semantics across admin + sales paths.
   - Added dedicated credit request approval lifecycle tests (`AdminSettingsControllerApprovalsContractTest`, `SalesServiceTest`, `CreditLimitOverrideServiceTest`).
   - Verification:
-    - `cd erp-domain && mvn -B -ntp -Dtest=AdminSettingsControllerApprovalsContractTest,SalesServiceTest#createCreditRequestNormalizesPendingStatusForAdminQueue+updateCreditRequestNormalizesApprovedStatus+updateCreditRequestRejectsUnsupportedStatusValue+approveCreditRequestUpdatesStatusOnly+rejectCreditRequestUpdatesStatusOnly,CreditLimitOverrideServiceTest test` -> pass (10 tests, 0 failures, 0 errors).
+    - `cd erp-domain && mvn -B -ntp -Dtest=AdminSettingsControllerApprovalsContractTest,SalesServiceTest#createCreditRequestNormalizesPendingStatusForAdminQueue+updateCreditRequestRejectsStatusTransitionToApproved+updateCreditRequestRejectsUnsupportedStatusValue+approveCreditRequestUpdatesStatusOnly+rejectCreditRequestUpdatesStatusOnly,CreditLimitOverrideServiceTest test` -> pass (10 tests, 0 failures, 0 errors).
 
 Post-Commit Review Evidence
 - Commit reviewed: `a8627f0c`
@@ -1981,4 +1981,117 @@ Queue Rotation (Auto-Replenish)
 - [ready] M10-S3 release-gate dry-run and blocker ledger sync (`scripts/verify_local.sh` + artifact sanity)
 - [ready] M9-S5 capture EXPLAIN + index-candidate evidence for journal/allocation replay hotspot queries (Flyway V2-ready)
 - [ready] M7-S3 dunning overdue-threshold contract for synthetic credit-bucket semantics (no false hold bypass)
+- [ready] M2-S12 replay mismatch guard helper extraction to enforce parity by construction
+
+Completed Slice (Committed)
+- 2026-02-13: `bbd131ac`
+  - docs(async-loop): record admin approval hardening evidence chain.
+  - Backfilled loop evidence chain for `50332598`, `a8627f0c`, `5b070ad9`, and `6c07bc39`, including review dispositions and queue continuity into `M11-S3`.
+  - Verification:
+    - docs/ledger-only update (no runtime tests).
+
+Post-Commit Review Evidence
+- Commit reviewed: `bbd131ac`
+- `codex review --commit bbd131ac`:
+  - final verdict: no actionable defects in docs-only patch scope.
+- Review subagent `019c5328-d404-7c03-89ec-739378d4ef2a`:
+  - medium finding: stale test selector in `a8627f0c` verification command (`updateCreditRequestNormalizesApprovedStatus`) no longer maps to current test name.
+  - disposition: corrected in this asyncloop update.
+
+Completed Slice (Committed)
+- 2026-02-13: `0bb0e6c4`
+  - test(admin): add approval action RBAC matrix coverage.
+  - Added `AdminApprovalRbacIT` covering:
+    - `/api/v1/admin/approvals` admin-only access,
+    - credit-request approve/reject role boundaries,
+    - credit-override approve/reject role boundaries.
+  - Verification:
+    - `cd erp-domain && mvn -B -ntp -Dtest=AdminApprovalRbacIT test` -> pass (3 tests, 0 failures, 0 errors).
+
+Post-Commit Review Evidence
+- Commit reviewed: `0bb0e6c4`
+- `codex review --commit 0bb0e6c4`:
+  - final verdict: no actionable defects in patch scope.
+- Review subagent `019c532f-dd01-7151-9edf-5b3057cf225e`:
+  - high finding: payroll approval action endpoints lacked explicit RBAC integration coverage in this matrix.
+  - disposition: fixed in follow-up commits `89741ea9` and `0425db1f`.
+
+Completed Slice (Committed)
+- 2026-02-13: `79683241`
+  - fix(accounting): block negative net-cash settlement allocations.
+  - Added per-allocation net-cash contribution guard for dealer/supplier settlement allocations to block discount/writeoff/FX abuse patterns that push a single allocation below zero while masking at aggregate level.
+  - Added targeted regression tests in `AccountingServiceTest`.
+  - Verification:
+    - `cd erp-domain && mvn -B -ntp -Dtest=AccountingServiceTest#settleDealerInvoices_rejectsAllocationWithNegativeNetCashContribution+settleSupplierInvoices_rejectsAllocationWithNegativeNetCashContribution+settleSupplierInvoices_cashAmountAccountsForDiscountAndFxGain+settleDealerInvoices_appliesGrossAmountToInvoice test` -> pass (4 tests, 0 failures, 0 errors).
+
+Post-Commit Review Evidence
+- Commit reviewed: `79683241`
+- `codex review --commit 79683241`:
+  - P2 finding: new validation ran after idempotency reservation, allowing key poisoning on validation-failure retries.
+  - disposition: fixed in `6b922dfc`.
+- Review subagent `019c5339-6035-7612-b746-618b30fc4e17`:
+  - medium finding: replay semantics around prevalidation are under-tested for mutated replay payloads.
+  - low finding: FX/tolerance edge coverage can be expanded.
+  - disposition: tracked as follow-up slice `M12-S3`.
+
+Completed Slice (Committed)
+- 2026-02-13: `6b922dfc`
+  - fix(accounting): prevalidate settlement net-cash before idempotency reservation.
+  - Moved net-cash contribution checks into pre-reservation allocation validators to prevent reservation poisoning on invalid payloads.
+  - Added assertions that invalid net-cash payloads do not call `reserveReferenceMapping`.
+  - Verification:
+    - `cd erp-domain && mvn -B -ntp -Dtest=AccountingServiceTest#settleDealerInvoices_rejectsAllocationWithNegativeNetCashContribution+settleSupplierInvoices_rejectsAllocationWithNegativeNetCashContribution+settleSupplierInvoices_cashAmountAccountsForDiscountAndFxGain+settleDealerInvoices_appliesGrossAmountToInvoice test` -> pass (4 tests, 0 failures, 0 errors).
+
+Post-Commit Review Evidence
+- Commit reviewed: `6b922dfc`
+- `codex review --commit 6b922dfc`:
+  - final verdict: no actionable regressions introduced in patch scope.
+- Review subagent `019c533f-d26b-7441-bb64-ca41910a677a`:
+  - medium note: add replay-path regression asserting idempotency mismatch semantics remain deterministic when payload mutates into invalid net-cash shape.
+  - disposition: tracked as follow-up slice `M12-S3`.
+
+Completed Slice (Committed)
+- 2026-02-13: `89741ea9`
+  - test(admin): cover payroll approval action RBAC boundaries.
+  - Added payroll workflow RBAC assertions for `/api/v1/payroll/runs/{id}/approve`, `/post`, `/mark-paid` to verify non-privileged role rejection and privileged-role reachability.
+  - Verification:
+    - `cd erp-domain && mvn -B -ntp -Dtest=AdminApprovalRbacIT test` -> pass (4 tests, 0 failures, 0 errors).
+
+Post-Commit Review Evidence
+- Commit reviewed: `89741ea9`
+- `codex review --commit 89741ea9`:
+  - P2 finding: role matrix did not assert both privileged roles on every payroll action endpoint.
+  - disposition: fixed in `0425db1f`.
+- Review subagent `019c5344-59cd-7e81-b002-c67405541ea5`:
+  - medium/low finding: missing admin checks on approve/post and missing accounting check on mark-paid.
+  - disposition: fixed in `0425db1f`.
+
+Completed Slice (Committed)
+- 2026-02-13: `0425db1f`
+  - test(admin): assert both privileged roles for payroll approval actions.
+  - Completed payroll action matrix so each action endpoint now asserts both `ROLE_ADMIN` and `ROLE_ACCOUNTING` are accepted while non-privileged roles remain blocked.
+  - Verification:
+    - `cd erp-domain && mvn -B -ntp -Dtest=AdminApprovalRbacIT test` -> pass (4 tests, 0 failures, 0 errors).
+
+Post-Commit Review Evidence
+- Commit reviewed: `0425db1f`
+- `codex review --commit 0425db1f`:
+  - final verdict: no introduced logic/security/maintainability issue in patch scope.
+- Review subagent `019c5348-2c7e-7c83-9737-69a29cf95867`:
+  - findings: no remaining payroll-endpoint RBAC blind spots at medium/high severity.
+
+Loop Update
+- 2026-02-13T00:48:46+05:30
+- tracked_now_ts: `2026-02-13T00:48:46+05:30`
+- tracked_elapsed: `22h 54m 54s`
+- active_in_progress: `M12-S3 settlement replay prevalidation parity + FX/tolerance edge contracts`
+
+Queue Rotation (Auto-Replenish)
+- [completed] M11-S3 admin approval RBAC + explicit-action parity matrix across portals
+- [completed] M12-S1 accounting discount/reference invariant audit (net-cash settlement abuse guard + idempotency reservation ordering fix)
+- [in_progress] M12-S3 settlement replay prevalidation parity + FX/tolerance edge contracts
+- [ready] M12-S2 user-facing discount/reference behavior docs across admin/sales/dealer portals
+- [ready] M11-S4 admin approval action descriptor clarity docs (explicit “what admin is approving” labels across queues/portals)
+- [ready] M10-S3 release-gate dry-run and blocker ledger sync (`scripts/verify_local.sh` + artifact sanity)
+- [ready] M9-S5 capture EXPLAIN + index-candidate evidence for journal/allocation replay hotspot queries (Flyway V2-ready)
 - [ready] M2-S12 replay mismatch guard helper extraction to enforce parity by construction
