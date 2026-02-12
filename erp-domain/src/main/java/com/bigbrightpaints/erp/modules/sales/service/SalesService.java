@@ -1462,7 +1462,6 @@ public class SalesService {
         Map<Long, BigDecimal> shipQtyByLineId = new HashMap<>();
 
         SalesOrder order = requireOrder(salesOrderId);
-        boolean singleSlipForOrder = hasSingleSlipForOrder(company, order);
         boolean orderTaxInclusive = order.isGstInclusive();
         Map<String, BigDecimal> minPriceBySku = new HashMap<>();
         boolean alreadyDispatched = "DISPATCHED".equalsIgnoreCase(slip.getStatus());
@@ -1471,10 +1470,12 @@ public class SalesService {
         }
         String overrideReason = null;
         if (alreadyDispatched && hasRequestedOverrides) {
+            boolean hasOrderLevelReplayAnchor = order.getSalesJournalEntryId() != null
+                    && hasSingleSlipForOrder(company, order);
             boolean hasReplayFinancialAnchor = existingInvoice != null
                     || slip.getInvoiceId() != null
                     || slip.getJournalEntryId() != null
-                    || (order.getSalesJournalEntryId() != null && singleSlipForOrder);
+                    || hasOrderLevelReplayAnchor;
             if (!hasReplayFinancialAnchor) {
                 throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
                         "Dispatch overrides are not allowed for already dispatched slips without existing financial markers")
@@ -1534,6 +1535,7 @@ public class SalesService {
                 if (slipUpdated) {
                     packagingSlipRepository.save(slip);
                 }
+                boolean singleSlipForOrder = hasSingleSlipForOrder(company, order);
                 boolean orderUpdated = false;
                 if (order.getSalesJournalEntryId() == null && existingJeId != null) {
                     order.setSalesJournalEntryId(existingJeId);
@@ -1947,7 +1949,7 @@ public class SalesService {
             preexistingJournalId = existingInvoice.getJournalEntry().getId();
         } else if (slip.getJournalEntryId() != null) {
             preexistingJournalId = slip.getJournalEntryId();
-        } else if (alreadyDispatched && order.getSalesJournalEntryId() != null && singleSlipForOrder) {
+        } else if (alreadyDispatched && order.getSalesJournalEntryId() != null && hasSingleSlipForOrder(company, order)) {
             preexistingJournalId = order.getSalesJournalEntryId();
         }
         if (preexistingJournalId != null) {
@@ -2084,6 +2086,7 @@ public class SalesService {
         if (arJournalEntryId == null && preexistingJournalId != null) {
             arJournalEntryId = preexistingJournalId;
         }
+        boolean singleSlipForOrder = hasSingleSlipForOrder(company, order);
         List<DispatchConfirmResponse.AccountPostingDto> arPostings = new ArrayList<>();
         if (arJournalEntryId == null && totalAmount.compareTo(BigDecimal.ZERO) > 0) {
             if (revenueByAccount.isEmpty()) {

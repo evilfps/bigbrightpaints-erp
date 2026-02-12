@@ -1027,6 +1027,95 @@ class SalesServiceTest {
     }
 
     @Test
+    void confirmDispatchPostsArWhenOrderJournalExistsButOrderBecomesMultiSlip() {
+        Dealer dealer = dealerWithCreditLimit(42L, BigDecimal.valueOf(1000));
+        Account receivable = new Account();
+        receivable.setName("AR");
+        setField(receivable, "id", 900L);
+        dealer.setReceivableAccount(receivable);
+
+        SalesOrder order = new SalesOrder();
+        setField(order, "id", 10L);
+        order.setCompany(company);
+        order.setDealer(dealer);
+        order.setOrderNumber("SO-10");
+        order.setStatus("READY_TO_SHIP");
+        order.setSalesJournalEntryId(222L);
+
+        SalesOrderItem item = new SalesOrderItem();
+        setField(item, "id", 1L);
+        item.setSalesOrder(order);
+        item.setProductCode("SKU-D");
+        item.setDescription("Desc");
+        item.setQuantity(BigDecimal.ONE);
+        item.setUnitPrice(BigDecimal.valueOf(200));
+        item.setGstRate(BigDecimal.ZERO);
+        order.getItems().add(item);
+
+        FinishedGood finishedGood = buildFinishedGood("SKU-D");
+        finishedGood.setCurrentStock(BigDecimal.ONE);
+        finishedGood.setRevenueAccountId(3L);
+
+        FinishedGoodBatch batch = new FinishedGoodBatch();
+        batch.setFinishedGood(finishedGood);
+        batch.setBatchCode("B-1");
+        batch.setQuantityTotal(BigDecimal.ONE);
+        batch.setQuantityAvailable(BigDecimal.ONE);
+        batch.setUnitCost(BigDecimal.ZERO);
+
+        PackagingSlip slip = new PackagingSlip();
+        setField(slip, "id", 55L);
+        slip.setCompany(company);
+        slip.setSalesOrder(order);
+        slip.setSlipNumber("PS-55");
+        slip.setStatus("PENDING");
+
+        PackagingSlip otherSlip = new PackagingSlip();
+        setField(otherSlip, "id", 56L);
+        otherSlip.setCompany(company);
+        otherSlip.setSalesOrder(order);
+        otherSlip.setSlipNumber("PS-56");
+        otherSlip.setStatus("PENDING");
+
+        PackagingSlipLine slipLine = new PackagingSlipLine();
+        setField(slipLine, "id", 99L);
+        slipLine.setPackagingSlip(slip);
+        slipLine.setFinishedGoodBatch(batch);
+        slipLine.setOrderedQuantity(BigDecimal.ONE);
+        slipLine.setQuantity(BigDecimal.ONE);
+        slipLine.setUnitCost(BigDecimal.ZERO);
+        slip.getLines().add(slipLine);
+
+        when(packagingSlipRepository.findAndLockByIdAndCompany(55L, company)).thenReturn(Optional.of(slip));
+        when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 10L))
+                .thenReturn(List.of(slip), List.of(slip, otherSlip), List.of(slip, otherSlip));
+        when(companyEntityLookup.requireSalesOrder(company, 10L)).thenReturn(order);
+        when(dealerRepository.lockByCompanyAndId(company, dealer.getId())).thenReturn(Optional.of(dealer));
+        when(invoiceNumberService.nextInvoiceNumber(company)).thenReturn("INV-55");
+        when(invoiceRepository.save(ArgumentMatchers.any(Invoice.class))).thenAnswer(invocation -> {
+            Invoice invoice = invocation.getArgument(0);
+            setField(invoice, "id", 777L);
+            return invoice;
+        });
+        when(salesOrderRepository.save(ArgumentMatchers.any(SalesOrder.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(packagingSlipRepository.save(ArgumentMatchers.any(PackagingSlip.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        DispatchConfirmRequest request = new DispatchConfirmRequest(55L, null, List.of(), null, "admin", Boolean.TRUE, null, null);
+        salesService.confirmDispatch(request);
+
+        verify(accountingFacade, times(1)).postSalesJournal(
+                ArgumentMatchers.anyLong(),
+                ArgumentMatchers.anyString(),
+                ArgumentMatchers.any(),
+                ArgumentMatchers.anyString(),
+                ArgumentMatchers.anyMap(),
+                ArgumentMatchers.anyMap(),
+                ArgumentMatchers.nullable(Map.class),
+                ArgumentMatchers.any(),
+                ArgumentMatchers.anyString());
+    }
+
+    @Test
     void createOrderRespectsDealerCreditLimit() {
         setupProduct("SKU3", BigDecimal.valueOf(200), BigDecimal.ZERO);
         FinishedGood finishedGood = buildFinishedGood("SKU3");
