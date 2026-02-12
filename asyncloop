@@ -434,22 +434,23 @@ Commit Ledger
   - `codex review --commit 1b5d2b55`: running (result will be appended).
 
 Current Checkpoint
-- Current WIP M3-S2 completion + M2-S11 kickoff:
-  - `erp-domain/src/main/java/com/bigbrightpaints/erp/core/audit/IntegrationFailureAlertRoutingPolicy.java`
-    - expanded to cover settlement-operation failure routing classes
-  - `erp-domain/src/main/java/com/bigbrightpaints/erp/core/exception/GlobalExceptionHandler.java`
-    - emits deterministic settlement failure telemetry for dealer/supplier settlement paths
-  - `erp-domain/src/test/java/com/bigbrightpaints/erp/core/exception/GlobalExceptionHandlerTest.java`
-    - verifies settlement validation/concurrency route classifications and metadata keys
-  - `erp-domain/src/test/java/com/bigbrightpaints/erp/core/audit/IntegrationFailureAlertRoutingPolicyTest.java`
-    - pins settlement failure route mapping outputs
+- Current WIP M2-S11 completion (integration-failure metadata schema contract):
+  - `erp-domain/src/test/java/com/bigbrightpaints/erp/core/audit/IntegrationFailureMetadataSchemaContractTest.java`
+    - Added schema contract assertions for `AuditEvent.INTEGRATION_FAILURE` metadata keys across both producers:
+      - accounting event-trail failure path in `AccountingService`
+      - malformed-request + settlement failure paths in `GlobalExceptionHandler`
+    - Required keys pinned:
+      - `failureCode`
+      - `errorCategory`
+      - `alertRoutingVersion`
+      - `alertRoute`
 - Verification command:
-  - `mvn -B -ntp -Dtest=GlobalExceptionHandlerTest,IntegrationFailureAlertRoutingPolicyTest test`
-  - `mvn -B -ntp -Dtest=GlobalExceptionHandlerTest,IntegrationFailureAlertRoutingPolicyTest,AccountingServiceTest,AccountingEventTrailAlertRoutingPolicyTest,JournalEntryE2ETest,SettlementE2ETest,IntegrationCoordinatorTest,CommandDispatcherTest,AuditServiceTest,AuditServiceAsyncIT,CompanyContextTaskDecoratorTest,AuthServiceAuditAttributionTest test`
+  - `mvn -B -ntp -Dtest=IntegrationFailureMetadataSchemaContractTest,GlobalExceptionHandlerTest,IntegrationFailureAlertRoutingPolicyTest test`
+  - `mvn -B -ntp -Dtest=IntegrationFailureMetadataSchemaContractTest,GlobalExceptionHandlerTest,IntegrationFailureAlertRoutingPolicyTest,AccountingServiceTest,AccountingEventTrailAlertRoutingPolicyTest,JournalEntryE2ETest,SettlementE2ETest,IntegrationCoordinatorTest,CommandDispatcherTest,AuditServiceTest,AuditServiceAsyncIT,CompanyContextTaskDecoratorTest,AuthServiceAuditAttributionTest test`
 - Next action:
-  - commit M3-S2 settlement failure telemetry normalization
+  - commit M2-S11 metadata schema contract test
   - run `codex review --commit <sha>`
-  - continue M2-S11 integration failure metadata schema check
+  - start M3-S3 reversal-path taxonomy hardening (validation/data-integrity/concurrency classifications + pinned tests)
 
 Async Loop Cadence
 - Each cycle:
