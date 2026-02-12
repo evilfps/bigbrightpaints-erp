@@ -4,6 +4,8 @@ import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.modules.accounting.domain.DealerLedgerRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.SupplierLedgerRepository;
+import com.bigbrightpaints.erp.modules.accounting.dto.DealerBalanceView;
+import com.bigbrightpaints.erp.modules.accounting.dto.SupplierBalanceView;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.purchasing.domain.Supplier;
@@ -17,6 +19,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -75,7 +78,7 @@ class StatementServiceTest {
                 LocalDate.of(2026, 2, 10)))
                 .isInstanceOf(ApplicationException.class)
                 .hasMessageContaining("from date cannot be after to date");
-        verify(dealerLedgerRepository, never()).findByCompanyAndDealerAndEntryDateBetweenOrderByEntryDateAsc(
+        verify(dealerLedgerRepository, never()).findByCompanyAndDealerAndEntryDateBetweenOrderByEntryDateAscIdAsc(
                 org.mockito.ArgumentMatchers.any(),
                 org.mockito.ArgumentMatchers.any(),
                 org.mockito.ArgumentMatchers.any(),
@@ -95,7 +98,7 @@ class StatementServiceTest {
                 LocalDate.of(2026, 2, 18)))
                 .isInstanceOf(ApplicationException.class)
                 .hasMessageContaining("from date cannot be after to date");
-        verify(supplierLedgerRepository, never()).findByCompanyAndSupplierAndEntryDateBetweenOrderByEntryDateAsc(
+        verify(supplierLedgerRepository, never()).findByCompanyAndSupplierAndEntryDateBetweenOrderByEntryDateAscIdAsc(
                 org.mockito.ArgumentMatchers.any(),
                 org.mockito.ArgumentMatchers.any(),
                 org.mockito.ArgumentMatchers.any(),
@@ -136,7 +139,8 @@ class StatementServiceTest {
         supplier.setName("Supplier");
         ReflectionTestUtils.setField(supplier, "id", 14L);
         when(supplierRepository.findByCompanyAndId(company, 14L)).thenReturn(Optional.of(supplier));
-        when(supplierLedgerRepository.findByCompanyAndSupplierOrderByEntryDateAsc(company, supplier)).thenReturn(List.of());
+        when(supplierLedgerRepository.findByCompanyAndSupplierAndEntryDateLessThanEqualOrderByEntryDateAscIdAsc(
+                company, supplier, LocalDate.of(2026, 2, 12))).thenReturn(List.of());
 
         var response = statementService.supplierAging(14L, LocalDate.of(2026, 2, 12), "0-30,30-60,61");
 
@@ -151,13 +155,79 @@ class StatementServiceTest {
         dealer.setName("Dealer");
         ReflectionTestUtils.setField(dealer, "id", 21L);
         when(dealerRepository.findByCompanyAndId(company, 21L)).thenReturn(Optional.of(dealer));
-        when(dealerLedgerRepository.findByCompanyAndDealerOrderByEntryDateAsc(company, dealer)).thenReturn(List.of());
+        when(dealerLedgerRepository.findByCompanyAndDealerAndEntryDateLessThanEqualOrderByEntryDateAscIdAsc(
+                company, dealer, LocalDate.of(2026, 2, 12))).thenReturn(List.of());
 
         var response = statementService.dealerAging(21L, LocalDate.of(2026, 2, 12), "0-15,16-30,31");
 
         assertThat(response.totalOutstanding()).isZero();
         assertThat(response.buckets()).hasSize(3);
         assertThat(response.buckets().get(2).toDays()).isNull();
+    }
+
+    @Test
+    void dealerStatement_usesAggregateOpeningWithoutLoadingAllPriorRows() {
+        Dealer dealer = new Dealer();
+        dealer.setName("Dealer Aggregate");
+        ReflectionTestUtils.setField(dealer, "id", 51L);
+        when(dealerRepository.findByCompanyAndId(company, 51L)).thenReturn(Optional.of(dealer));
+
+        LocalDate from = LocalDate.of(2026, 2, 1);
+        LocalDate to = LocalDate.of(2026, 2, 28);
+        when(dealerLedgerRepository.aggregateBalanceBefore(company, dealer, from))
+                .thenReturn(Optional.of(new DealerBalanceView(51L, new BigDecimal("1250.50"))));
+        when(dealerLedgerRepository.findByCompanyAndDealerAndEntryDateBetweenOrderByEntryDateAscIdAsc(company, dealer, from, to))
+                .thenReturn(List.of());
+
+        var response = statementService.dealerStatement(51L, from, to);
+
+        assertThat(response.openingBalance()).isEqualByComparingTo("1250.50");
+        assertThat(response.closingBalance()).isEqualByComparingTo("1250.50");
+        verify(dealerLedgerRepository, never()).findByCompanyAndDealerAndEntryDateBeforeOrderByEntryDateAsc(
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void supplierStatement_usesAggregateOpeningWithoutLoadingAllPriorRows() {
+        Supplier supplier = new Supplier();
+        supplier.setName("Supplier Aggregate");
+        ReflectionTestUtils.setField(supplier, "id", 61L);
+        when(supplierRepository.findByCompanyAndId(company, 61L)).thenReturn(Optional.of(supplier));
+
+        LocalDate from = LocalDate.of(2026, 2, 1);
+        LocalDate to = LocalDate.of(2026, 2, 28);
+        when(supplierLedgerRepository.aggregateBalanceBefore(company, supplier, from))
+                .thenReturn(Optional.of(new SupplierBalanceView(61L, new BigDecimal("980.25"))));
+        when(supplierLedgerRepository.findByCompanyAndSupplierAndEntryDateBetweenOrderByEntryDateAscIdAsc(company, supplier, from, to))
+                .thenReturn(List.of());
+
+        var response = statementService.supplierStatement(61L, from, to);
+
+        assertThat(response.openingBalance()).isEqualByComparingTo("980.25");
+        assertThat(response.closingBalance()).isEqualByComparingTo("980.25");
+        verify(supplierLedgerRepository, never()).findByCompanyAndSupplierAndEntryDateBeforeOrderByEntryDateAsc(
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void dealerAging_prefiltersByAsOfInRepositoryQuery() {
+        Dealer dealer = new Dealer();
+        dealer.setName("Dealer Aging");
+        ReflectionTestUtils.setField(dealer, "id", 71L);
+        when(dealerRepository.findByCompanyAndId(company, 71L)).thenReturn(Optional.of(dealer));
+        when(dealerLedgerRepository.findByCompanyAndDealerAndEntryDateLessThanEqualOrderByEntryDateAscIdAsc(
+                company, dealer, LocalDate.of(2026, 2, 12))).thenReturn(List.of());
+
+        var response = statementService.dealerAging(71L, LocalDate.of(2026, 2, 12), "0-30,30-60,61");
+
+        assertThat(response.totalOutstanding()).isZero();
+        verify(dealerLedgerRepository, never()).findByCompanyAndDealerOrderByEntryDateAsc(
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any());
     }
 
     @Test
@@ -169,9 +239,8 @@ class StatementServiceTest {
 
         LocalDate from = LocalDate.of(2026, 2, 1);
         LocalDate to = LocalDate.of(2026, 2, 28);
-        when(dealerLedgerRepository.findByCompanyAndDealerAndEntryDateBeforeOrderByEntryDateAsc(company, dealer, from))
-                .thenReturn(List.of());
-        when(dealerLedgerRepository.findByCompanyAndDealerAndEntryDateBetweenOrderByEntryDateAsc(company, dealer, from, to))
+        when(dealerLedgerRepository.aggregateBalanceBefore(company, dealer, from)).thenReturn(Optional.empty());
+        when(dealerLedgerRepository.findByCompanyAndDealerAndEntryDateBetweenOrderByEntryDateAscIdAsc(company, dealer, from, to))
                 .thenReturn(List.of());
 
         byte[] pdf = statementService.dealerStatementPdf(31L, from, to);
@@ -186,7 +255,8 @@ class StatementServiceTest {
         supplier.setName("Supplier PDF");
         ReflectionTestUtils.setField(supplier, "id", 41L);
         when(supplierRepository.findByCompanyAndId(company, 41L)).thenReturn(Optional.of(supplier));
-        when(supplierLedgerRepository.findByCompanyAndSupplierOrderByEntryDateAsc(company, supplier)).thenReturn(List.of());
+        when(supplierLedgerRepository.findByCompanyAndSupplierAndEntryDateLessThanEqualOrderByEntryDateAscIdAsc(
+                company, supplier, LocalDate.of(2026, 2, 12))).thenReturn(List.of());
 
         byte[] pdf = statementService.supplierAgingPdf(41L, LocalDate.of(2026, 2, 12), "0-30,30-60,61");
 

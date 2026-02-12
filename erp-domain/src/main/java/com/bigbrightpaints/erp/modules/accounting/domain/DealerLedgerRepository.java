@@ -38,7 +38,18 @@ public interface DealerLedgerRepository extends JpaRepository<DealerLedgerEntry,
             "from DealerLedgerEntry e where e.company = :company and e.dealer = :dealer group by e.dealer.id")
     Optional<DealerBalanceView> aggregateBalance(@Param("company") Company company, @Param("dealer") Dealer dealer);
 
+    @Query("select new com.bigbrightpaints.erp.modules.accounting.dto.DealerBalanceView(e.dealer.id, coalesce(sum(e.debit - e.credit), 0)) " +
+            "from DealerLedgerEntry e where e.company = :company and e.dealer = :dealer and e.entryDate < :before group by e.dealer.id")
+    Optional<DealerBalanceView> aggregateBalanceBefore(@Param("company") Company company,
+                                                       @Param("dealer") Dealer dealer,
+                                                       @Param("before") java.time.LocalDate before);
+
     List<DealerLedgerEntry> findByCompanyAndJournalEntry(Company company, JournalEntry journalEntry);
+
+    List<DealerLedgerEntry> findByCompanyAndDealerAndEntryDateBetweenOrderByEntryDateAscIdAsc(Company company,
+                                                                                               Dealer dealer,
+                                                                                               java.time.LocalDate start,
+                                                                                               java.time.LocalDate end);
 
     List<DealerLedgerEntry> findByCompanyAndDealerAndEntryDateBetweenOrderByEntryDateAsc(Company company,
                                                                                          Dealer dealer,
@@ -48,6 +59,10 @@ public interface DealerLedgerRepository extends JpaRepository<DealerLedgerEntry,
     List<DealerLedgerEntry> findByCompanyAndDealerAndEntryDateBeforeOrderByEntryDateAsc(Company company,
                                                                                         Dealer dealer,
                                                                                         java.time.LocalDate before);
+
+    List<DealerLedgerEntry> findByCompanyAndDealerAndEntryDateLessThanEqualOrderByEntryDateAscIdAsc(Company company,
+                                                                                                      Dealer dealer,
+                                                                                                      java.time.LocalDate asOf);
 
     java.util.Optional<DealerLedgerEntry> findFirstByCompanyAndDealerOrderByEntryDateDescIdDesc(Company company, Dealer dealer);
 

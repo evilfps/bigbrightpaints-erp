@@ -7,8 +7,10 @@ import com.openhtmltopdf.pdfboxout.PdfRendererBuilder;
 import com.bigbrightpaints.erp.modules.accounting.domain.*;
 import com.bigbrightpaints.erp.modules.accounting.dto.AgingBucketDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.AgingSummaryResponse;
+import com.bigbrightpaints.erp.modules.accounting.dto.DealerBalanceView;
 import com.bigbrightpaints.erp.modules.accounting.dto.PartnerStatementResponse;
 import com.bigbrightpaints.erp.modules.accounting.dto.StatementTransactionDto;
+import com.bigbrightpaints.erp.modules.accounting.dto.SupplierBalanceView;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
@@ -59,17 +61,16 @@ public class StatementService {
         LocalDate end = to == null ? today : to;
         validateStatementRange(start, end);
 
-        BigDecimal opening = dealerLedgerRepository.findByCompanyAndDealerAndEntryDateBeforeOrderByEntryDateAsc(company, dealer, start)
-                .stream()
-                .map(e -> safe(e.getDebit()).subtract(safe(e.getCredit())))
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal opening = dealerLedgerRepository.aggregateBalanceBefore(company, dealer, start)
+                .map(DealerBalanceView::balance)
+                .orElse(BigDecimal.ZERO);
 
         List<StatementTransactionDto> txns = new ArrayList<>();
         BigDecimal running = opening;
-        List<DealerLedgerEntry> periodEntries = new ArrayList<>(
-                dealerLedgerRepository.findByCompanyAndDealerAndEntryDateBetweenOrderByEntryDateAsc(company, dealer, start, end)
-        );
-        periodEntries.sort(Comparator.comparing(DealerLedgerEntry::getEntryDate).thenComparing(DealerLedgerEntry::getId));
+        List<DealerLedgerEntry> periodEntries =
+                dealerLedgerRepository.findByCompanyAndDealerAndEntryDateBetweenOrderByEntryDateAscIdAsc(
+                        company, dealer, start, end
+                );
         for (DealerLedgerEntry entry : periodEntries) {
             BigDecimal delta = safe(entry.getDebit()).subtract(safe(entry.getCredit()));
             running = running.add(delta);
@@ -102,17 +103,16 @@ public class StatementService {
         LocalDate end = to == null ? today : to;
         validateStatementRange(start, end);
 
-        BigDecimal opening = supplierLedgerRepository.findByCompanyAndSupplierAndEntryDateBeforeOrderByEntryDateAsc(company, supplier, start)
-                .stream()
-                .map(e -> safe(e.getCredit()).subtract(safe(e.getDebit())))
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal opening = supplierLedgerRepository.aggregateBalanceBefore(company, supplier, start)
+                .map(SupplierBalanceView::balance)
+                .orElse(BigDecimal.ZERO);
 
         List<StatementTransactionDto> txns = new ArrayList<>();
         BigDecimal running = opening;
-        List<SupplierLedgerEntry> periodEntries = new ArrayList<>(
-                supplierLedgerRepository.findByCompanyAndSupplierAndEntryDateBetweenOrderByEntryDateAsc(company, supplier, start, end)
-        );
-        periodEntries.sort(Comparator.comparing(SupplierLedgerEntry::getEntryDate).thenComparing(SupplierLedgerEntry::getId));
+        List<SupplierLedgerEntry> periodEntries =
+                supplierLedgerRepository.findByCompanyAndSupplierAndEntryDateBetweenOrderByEntryDateAscIdAsc(
+                        company, supplier, start, end
+                );
         for (SupplierLedgerEntry entry : periodEntries) {
             BigDecimal delta = safe(entry.getCredit()).subtract(safe(entry.getDebit()));
             running = running.add(delta);
@@ -142,20 +142,17 @@ public class StatementService {
                 .orElseThrow(() -> new IllegalArgumentException("Dealer not found"));
         LocalDate ref = asOf == null ? companyClock.today(company) : asOf;
         List<int[]> buckets = parseBuckets(bucketParam);
-        List<DealerLedgerEntry> entries = new ArrayList<>(
-                dealerLedgerRepository.findByCompanyAndDealerOrderByEntryDateAsc(company, dealer)
-        );
+        List<DealerLedgerEntry> entries =
+                dealerLedgerRepository.findByCompanyAndDealerAndEntryDateLessThanEqualOrderByEntryDateAscIdAsc(
+                        company, dealer, ref
+                );
         BigDecimal balance = BigDecimal.ZERO;
         BigDecimal[] bucketTotals = new BigDecimal[buckets.size()];
         for (int i = 0; i < bucketTotals.length; i++) bucketTotals[i] = BigDecimal.ZERO;
 
-        entries.sort(Comparator.comparing(DealerLedgerEntry::getEntryDate).thenComparing(DealerLedgerEntry::getId));
         List<AgingLine> openInvoices = new ArrayList<>();
         BigDecimal creditPool = BigDecimal.ZERO;
         for (DealerLedgerEntry e : entries) {
-            if (e.getEntryDate().isAfter(ref)) {
-                break;
-            }
             BigDecimal delta = safe(e.getDebit()).subtract(safe(e.getCredit()));
             balance = balance.add(delta);
             if (delta.compareTo(BigDecimal.ZERO) > 0) {
@@ -211,20 +208,17 @@ public class StatementService {
                 .orElseThrow(() -> new IllegalArgumentException("Supplier not found"));
         LocalDate ref = asOf == null ? companyClock.today(company) : asOf;
         List<int[]> buckets = parseBuckets(bucketParam);
-        List<SupplierLedgerEntry> entries = new ArrayList<>(
-                supplierLedgerRepository.findByCompanyAndSupplierOrderByEntryDateAsc(company, supplier)
-        );
+        List<SupplierLedgerEntry> entries =
+                supplierLedgerRepository.findByCompanyAndSupplierAndEntryDateLessThanEqualOrderByEntryDateAscIdAsc(
+                        company, supplier, ref
+                );
         BigDecimal balance = BigDecimal.ZERO;
         BigDecimal[] bucketTotals = new BigDecimal[buckets.size()];
         for (int i = 0; i < bucketTotals.length; i++) bucketTotals[i] = BigDecimal.ZERO;
 
-        entries.sort(Comparator.comparing(SupplierLedgerEntry::getEntryDate).thenComparing(SupplierLedgerEntry::getId));
         List<AgingLine> openInvoices = new ArrayList<>();
         BigDecimal creditPool = BigDecimal.ZERO;
         for (SupplierLedgerEntry e : entries) {
-            if (e.getEntryDate().isAfter(ref)) {
-                break;
-            }
             BigDecimal delta = safe(e.getCredit()).subtract(safe(e.getDebit()));
             balance = balance.add(delta);
             if (delta.compareTo(BigDecimal.ZERO) > 0) {

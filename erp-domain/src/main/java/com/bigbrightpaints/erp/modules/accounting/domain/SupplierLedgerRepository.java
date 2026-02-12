@@ -40,6 +40,17 @@ public interface SupplierLedgerRepository extends JpaRepository<SupplierLedgerEn
     Optional<SupplierBalanceView> aggregateBalance(@Param("company") Company company,
                                                    @Param("supplier") Supplier supplier);
 
+    @Query("select new com.bigbrightpaints.erp.modules.accounting.dto.SupplierBalanceView(e.supplier.id, coalesce(sum(e.credit - e.debit), 0)) " +
+            "from SupplierLedgerEntry e where e.company = :company and e.supplier = :supplier and e.entryDate < :before group by e.supplier.id")
+    Optional<SupplierBalanceView> aggregateBalanceBefore(@Param("company") Company company,
+                                                         @Param("supplier") Supplier supplier,
+                                                         @Param("before") java.time.LocalDate before);
+
+    List<SupplierLedgerEntry> findByCompanyAndSupplierAndEntryDateBetweenOrderByEntryDateAscIdAsc(Company company,
+                                                                                                   Supplier supplier,
+                                                                                                   java.time.LocalDate start,
+                                                                                                   java.time.LocalDate end);
+
     List<SupplierLedgerEntry> findByCompanyAndSupplierAndEntryDateBetweenOrderByEntryDateAsc(Company company,
                                                                                             Supplier supplier,
                                                                                             java.time.LocalDate start,
@@ -48,4 +59,8 @@ public interface SupplierLedgerRepository extends JpaRepository<SupplierLedgerEn
     List<SupplierLedgerEntry> findByCompanyAndSupplierAndEntryDateBeforeOrderByEntryDateAsc(Company company,
                                                                                            Supplier supplier,
                                                                                            java.time.LocalDate before);
+
+    List<SupplierLedgerEntry> findByCompanyAndSupplierAndEntryDateLessThanEqualOrderByEntryDateAscIdAsc(Company company,
+                                                                                                         Supplier supplier,
+                                                                                                         java.time.LocalDate asOf);
 }
