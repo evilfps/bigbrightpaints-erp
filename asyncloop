@@ -1761,3 +1761,83 @@ Queue Rotation (Auto-Replenish)
 - [ready] M6-S9 unify partner journal-line idempotency assertion helpers to reduce drift across receipt/settlement validations
 - [ready] M9-S5 capture EXPLAIN + index-candidate evidence for journal/allocation replay hotspot queries (Flyway V2-ready)
 - [ready] M10-S3 release-gate dry-run and blocker ledger sync (`scripts/verify_local.sh` + artifact sanity)
+
+Completed Slice (Committed)
+- 2026-02-12: `f713ae70`
+  - docs(async-loop): backfill M9-S4 migration chain evidence.
+  - Logged missing commit-review evidence and chain-validation proof for `6ccc3214` -> `63526ede` -> `4485c047`.
+  - Verification:
+    - `git diff --exit-code 6ccc3214 -- erp-domain/src/main/resources/db/migration_v2/V10__accounting_replay_hotspot_indexes.sql` -> exit 0.
+    - `bash scripts/flyway_overlap_scan.sh --migration-set v2` -> pass (11 migrations, findings=0).
+    - `bash scripts/schema_drift_scan.sh --migration-set v2` -> known pre-existing `V7` drift-generator output, exit 0.
+
+Post-Commit Review Evidence
+- Commit reviewed: `f713ae70`
+- `codex review --commit f713ae70`:
+  - final verdict: no actionable bug; documentation/evidence commit consistent.
+- Review subagent `019c51e8-c6d5-7a22-9d1f-67e2b8c93177`:
+  - findings: none.
+
+Completed Slice (Committed)
+- 2026-02-12: `3751f7e5`
+  - fix(dispatch): add stale order-marker reconciliation routine.
+  - Added admin/accounting-gated endpoint: `POST /api/v1/sales/dispatch/reconcile-order-markers`.
+  - Added `SalesService.reconcileStaleOrderLevelMarkers(int limit)` + candidate-id repository query + response DTO.
+  - Added stale-marker reconciliation tests (multi-slip clear + cancelled-secondary preserve).
+  - Verification:
+    - `cd erp-domain && mvn -B -ntp -Dtest=SalesServiceTest test` -> pass (31 tests, 0 failures, 0 errors).
+    - `cd erp-domain && mvn -B -ntp -Dtest=SalesServiceTest,InvoiceServiceTest test` -> pass (37 tests, 0 failures, 0 errors).
+
+Post-Commit Review Evidence
+- Commit reviewed: `3751f7e5`
+- `codex review --commit 3751f7e5`:
+  - finding: P2 risk that single-page candidate scan could miss older stale records.
+  - disposition: addressed in follow-up `52d0c48b`/`96126480`.
+- Review subagent `019c51ed-f7f4-79d3-bfaa-de7790f88d31`:
+  - findings: none at medium/high severity.
+
+Completed Slice (Committed)
+- 2026-02-12: `52d0c48b`
+  - fix(dispatch): paginate stale-marker reconciliation candidates.
+  - Introduced paged candidate iteration and added pagination-focused reconciliation test.
+  - Verification:
+    - `cd erp-domain && mvn -B -ntp -Dtest=SalesServiceTest,InvoiceServiceTest test` -> pass (38 tests, 0 failures, 0 errors).
+
+Post-Commit Review Evidence
+- Commit reviewed: `52d0c48b`
+- `codex review --commit 52d0c48b`:
+  - no blocking regression captured.
+- Review subagent `019c51f3-2490-7c93-8d91-ddc759ad03d4`:
+  - high finding: offset-pagination drift risk under concurrent inserts/reordering.
+  - disposition: addressed in `96126480` by targeting only drifted-marker candidates and removing offset-loop dependency.
+
+Completed Slice (Committed)
+- 2026-02-12: `96126480`
+  - fix(dispatch): target drifted marker candidates in reconciliation.
+  - Tightened candidate repository query to drifted marker cases only (`active-slip count <> 1`) and simplified capped reconciliation run.
+  - Replaced offset-based scan behavior from prior follow-up, removing concurrency drift class.
+  - Verification:
+    - `cd erp-domain && mvn -B -ntp -Dtest=SalesServiceTest,InvoiceServiceTest test` -> pass (38 tests, 0 failures, 0 errors).
+
+Post-Commit Review Evidence
+- Commit reviewed: `96126480`
+- `codex review --commit 96126480`:
+  - final verdict: no actionable regressions identified in patch scope.
+- Review subagent `019c51f7-ea68-7772-a060-47a8552e2f09`:
+  - findings: none.
+
+Loop Update
+- 2026-02-12T18:44:57+05:30
+- tracked_now_ts: `2026-02-12T18:44:57+05:30`
+- tracked_elapsed: `16h 51m 5s`
+- active_in_progress: `M4-S8 aging overcredit policy hardening decision (negative bucket clamp vs carry-forward bucket)`
+
+Queue Rotation (Auto-Replenish)
+- [completed] M5-S6 stale order-level marker reconciliation for already-drifted multi-slip records
+- [in_progress] M4-S8 aging overcredit policy hardening decision (negative bucket clamp vs carry-forward bucket)
+- [ready] M7-S2 ledger/journal report linkage assertions (traceability from report rows to journal IDs)
+- [ready] M2-S12 replay mismatch guard helper extraction to enforce parity by construction
+- [ready] M6-S9 unify partner journal-line idempotency assertion helpers to reduce drift across receipt/settlement validations
+- [ready] M9-S5 capture EXPLAIN + index-candidate evidence for journal/allocation replay hotspot queries (Flyway V2-ready)
+- [ready] M10-S3 release-gate dry-run and blocker ledger sync (`scripts/verify_local.sh` + artifact sanity)
+- [ready] M4-S9 aging overcredit deterministic contract tests across dealer/company statement surfaces
