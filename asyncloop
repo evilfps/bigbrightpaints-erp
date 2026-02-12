@@ -488,28 +488,37 @@ Commit Ledger
     - `mvn -B -ntp -Dtest=BulkPackingServiceIdempotencyTest,BulkPackingServiceTest,CR_BulkPackagingCrossModuleTest#bulkPack_idempotentRetry_doesNotDoubleConsumeOrPost test`
   - Subagent review:
     - `019c4f63-fdbc-73c2-a787-0e3ae77b3414` (running)
+- 2026-02-12: `d0a31e7d`
+  - Added service-layer pre-lock request-shape guards for bulk packing:
+    - reject duplicate child SKU lines
+    - reject non-positive pack counts
+    - reject null/empty request lines before locking/mutation
+  - Added unit regressions and reran full `CR_BulkPackagingCrossModuleTest`.
+  - Verified:
+    - `mvn -B -ntp -Dtest=BulkPackingServiceIdempotencyTest,BulkPackingServiceTest,CR_BulkPackagingCrossModuleTest test`
+  - Subagent review:
+    - `019c4f66-59b4-7fc3-8bc6-d70adb304430` (running)
 
 Current Checkpoint
-- Current WIP M5-S2 (bulk packing request-shape hardening):
+- Current WIP M0-S7 (auth/audit attribution collision + forensic metadata hardening):
   - Root cause (proved by failing test):
-    - service-layer guardrails relied on controller bean-validation; direct/internal service calls could pass malformed lines (duplicate child SKU entries, zero pack counts).
+    - runtime numeric company token collisions (code vs id) could silently misattribute audit events.
+    - unresolved auth company token attempts were not persisted in audit metadata, reducing forensic traceability.
     - failing proof command:
-      - `mvn -B -ntp -Dtest=BulkPackingServiceIdempotencyTest test`
+      - commit-review finding surfaced from `019c4f5a-af42-7d51-a9d8-1db3be551161` and pinned by updated `AuditServiceTest`.
   - Fix in progress:
-    - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/factory/service/BulkPackingService.java`
-      - added `validatePackLines` pre-lock guard:
-        - request null/empty rejection
-        - duplicate child SKU rejection
-        - positive whole-pack enforcement before mutation
-      - `requireWholePackCount` now rejects non-positive values explicitly.
-    - `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/factory/service/BulkPackingServiceIdempotencyTest.java`
-      - added regressions for duplicate child SKU rejection and zero pack quantity rejection
+    - `erp-domain/src/main/java/com/bigbrightpaints/erp/core/audit/AuditService.java`
+      - runtime numeric collision path now fails closed when code-id and entity-id conflict
+      - unresolved auth company token now persisted as metadata (`authCompanyToken`, `authCompanyResolution=UNRESOLVED`)
+    - `erp-domain/src/test/java/com/bigbrightpaints/erp/core/audit/AuditServiceTest.java`
+      - updated numeric collision test to assert fail-closed behavior
+      - added metadata assertions for unresolved auth numeric token paths
 - Verification command:
-  - `mvn -B -ntp -Dtest=BulkPackingServiceIdempotencyTest,BulkPackingServiceTest,CR_BulkPackagingCrossModuleTest test`
+  - `mvn -B -ntp -Dtest=AuditServiceTest,AuditServiceAsyncIT,AuthServiceAuditAttributionTest test`
 - Next action:
-  - commit M5-S2 request-shape hardening guardrails
+  - commit M0-S7 auth/audit collision + metadata hardening
   - run `codex review --commit <sha>`
-  - pivot to M0-S7 auth/audit numeric collision + unresolved token metadata follow-up
+  - start M5-S3 dealer/sales portal authz and tenant-isolation slice
 
 Async Loop Cadence
 - Each cycle:

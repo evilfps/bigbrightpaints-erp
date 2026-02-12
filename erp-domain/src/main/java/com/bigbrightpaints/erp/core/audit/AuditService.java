@@ -122,6 +122,10 @@ public class AuditService {
             if (companyId != null) {
                 builder.companyId(companyId);
             } else if (companyToken != null) {
+                if (!allowNumericIdFallback && metadata != null) {
+                    metadata.putIfAbsent("authCompanyToken", companyToken.trim());
+                    metadata.put("authCompanyResolution", "UNRESOLVED");
+                }
                 logger.warn("Unable to resolve company token: {}", companyToken);
             }
 
@@ -203,19 +207,26 @@ public class AuditService {
             return null;
         }
         String normalizedToken = companyToken.trim();
+        Long numericToken = parseNumericToken(normalizedToken);
         Company byCode = companyRepository.findByCodeIgnoreCase(normalizedToken).orElse(null);
         if (byCode != null) {
+            if (allowNumericIdFallback && numericToken != null) {
+                Long idCandidate = companyRepository.findById(numericToken).map(Company::getId).orElse(null);
+                if (idCandidate != null && !byCode.getId().equals(idCandidate)) {
+                    logger.warn("Ambiguous numeric company token {} maps to code-id {} and entity-id {}; failing closed",
+                            normalizedToken, byCode.getId(), idCandidate);
+                    return null;
+                }
+            }
             return byCode.getId();
         }
         if (!allowNumericIdFallback) {
             return null;
         }
-        try {
-            Long parsedId = Long.parseLong(normalizedToken);
-            return companyRepository.findById(parsedId).map(Company::getId).orElse(null);
-        } catch (NumberFormatException e) {
+        if (numericToken == null) {
             return null;
         }
+        return companyRepository.findById(numericToken).map(Company::getId).orElse(null);
     }
 
     /**
@@ -329,12 +340,27 @@ public class AuditService {
 
     private String normalizeAuthCompanyOverride(String companyCode, Map<String, String> metadata) {
         if (companyCode != null && !companyCode.isBlank()) {
-            return companyCode.trim();
+            String normalized = companyCode.trim();
+            if (metadata != null) {
+                metadata.putIfAbsent("authCompanyToken", normalized);
+            }
+            return normalized;
         }
         if (metadata != null) {
             metadata.putIfAbsent("authCompanyResolution", "UNRESOLVED");
         }
         return AUTH_COMPANY_UNRESOLVED_SENTINEL;
+    }
+
+    private Long parseNumericToken(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        try {
+            return Long.parseLong(value);
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
     }
 
     /**

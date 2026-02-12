@@ -152,7 +152,10 @@ class AuditServiceTest {
         verify(auditLogRepository).save(auditCaptor.capture());
         AuditLog saved = auditCaptor.getValue();
         assertThat(saved.getCompanyId()).isNull();
-        assertThat(saved.getMetadata()).containsEntry("reason", "unknown-numeric-company");
+        assertThat(saved.getMetadata())
+                .containsEntry("reason", "unknown-numeric-company")
+                .containsEntry("authCompanyToken", "404")
+                .containsEntry("authCompanyResolution", "UNRESOLVED");
         verify(companyRepository, never()).findById(404L);
     }
 
@@ -171,6 +174,9 @@ class AuditServiceTest {
         verify(auditLogRepository).save(auditCaptor.capture());
         AuditLog saved = auditCaptor.getValue();
         assertThat(saved.getCompanyId()).isNull();
+        assertThat(saved.getMetadata())
+                .containsEntry("authCompanyToken", "404")
+                .containsEntry("authCompanyResolution", "UNRESOLVED");
         verify(companyRepository, never()).findById(404L);
     }
 
@@ -189,22 +195,26 @@ class AuditServiceTest {
         verify(auditLogRepository).save(auditCaptor.capture());
         AuditLog saved = auditCaptor.getValue();
         assertThat(saved.getCompanyId()).isNull();
-        assertThat(saved.getMetadata()).containsEntry("authChannel", "password");
+        assertThat(saved.getMetadata())
+                .containsEntry("authChannel", "password")
+                .containsEntry("authCompanyToken", "505")
+                .containsEntry("authCompanyResolution", "UNRESOLVED");
         verify(companyRepository, never()).findById(505L);
     }
 
     @Test
-    void logEvent_numericRuntimeContextPrefersCodeOnCodeIdCollision() {
+    void logEvent_numericRuntimeContextCodeIdCollisionFailsClosed() {
         CompanyContextHolder.setCompanyCode("1001");
         when(companyRepository.findByCodeIgnoreCase("1001")).thenReturn(Optional.of(companyWithId(77L, "1001")));
+        when(companyRepository.findById(1001L)).thenReturn(Optional.of(companyWithId(1001L, "LEGACY-1001")));
 
         auditService.logEvent(AuditEvent.DATA_READ, AuditStatus.SUCCESS, Map.of("source", "runtime-collision"));
 
         ArgumentCaptor<AuditLog> auditCaptor = ArgumentCaptor.forClass(AuditLog.class);
         verify(auditLogRepository).save(auditCaptor.capture());
         AuditLog saved = auditCaptor.getValue();
-        assertThat(saved.getCompanyId()).isEqualTo(77L);
-        verify(companyRepository, never()).findById(1001L);
+        assertThat(saved.getCompanyId()).isNull();
+        verify(companyRepository).findById(1001L);
     }
 
     @Test
