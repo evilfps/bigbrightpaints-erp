@@ -818,7 +818,8 @@ public class AccountingService {
             List<PartnerSettlementAllocation> existingAllocations =
                     resolveAllocationsForIdempotentReceiptReplay(company, idempotencyKey, existingEntry);
             if (!existingAllocations.isEmpty()) {
-                JournalEntry entry = existingEntry != null ? existingEntry : existingAllocations.getFirst().getJournalEntry();
+                JournalEntry entry = resolveReplayJournalEntry(idempotencyKey, existingEntry, existingAllocations);
+                linkReferenceMapping(company, idempotencyKey, entry, ENTITY_TYPE_DEALER_RECEIPT);
                 validateDealerReceiptIdempotency(idempotencyKey, dealer, cashAccount, receivableAccount, amount, memo, entry,
                         existingAllocations, allocations);
                 return toDto(entry);
@@ -831,6 +832,7 @@ public class AccountingService {
         List<PartnerSettlementAllocation> existingAllocations = findAllocationsByIdempotencyKey(company, idempotencyKey);
         if (!existingAllocations.isEmpty()) {
             JournalEntry entry = existingAllocations.getFirst().getJournalEntry();
+            linkReferenceMapping(company, idempotencyKey, entry, ENTITY_TYPE_DEALER_RECEIPT);
             validateDealerReceiptIdempotency(idempotencyKey, dealer, cashAccount, receivableAccount, amount, memo, entry,
                     existingAllocations, allocations);
             return toDto(entry);
@@ -923,6 +925,7 @@ public class AccountingService {
             List<PartnerSettlementAllocation> concurrent = findAllocationsByIdempotencyKey(company, idempotencyKey);
             if (!concurrent.isEmpty()) {
                 JournalEntry existingEntry = concurrent.getFirst().getJournalEntry();
+                linkReferenceMapping(company, idempotencyKey, existingEntry, ENTITY_TYPE_DEALER_RECEIPT);
                 validateDealerReceiptIdempotency(idempotencyKey, dealer, cashAccount, receivableAccount, amount, memo, existingEntry,
                         concurrent, allocations);
                 return toDto(existingEntry);
@@ -965,7 +968,8 @@ public class AccountingService {
             List<PartnerSettlementAllocation> existingAllocations =
                     resolveAllocationsForIdempotentReceiptReplay(company, idempotencyKey, existingEntry);
             if (!existingAllocations.isEmpty()) {
-                JournalEntry entry = existingEntry != null ? existingEntry : existingAllocations.getFirst().getJournalEntry();
+                JournalEntry entry = resolveReplayJournalEntry(idempotencyKey, existingEntry, existingAllocations);
+                linkReferenceMapping(company, idempotencyKey, entry, ENTITY_TYPE_DEALER_RECEIPT_SPLIT);
                 validateSplitReceiptIdempotency(idempotencyKey, dealer, memo, entry, lines);
                 return toDto(entry);
             }
@@ -976,6 +980,7 @@ public class AccountingService {
         List<PartnerSettlementAllocation> existingAllocations = findAllocationsByIdempotencyKey(company, idempotencyKey);
         if (!existingAllocations.isEmpty()) {
             JournalEntry entry = existingAllocations.getFirst().getJournalEntry();
+            linkReferenceMapping(company, idempotencyKey, entry, ENTITY_TYPE_DEALER_RECEIPT_SPLIT);
             validateSplitReceiptIdempotency(idempotencyKey, dealer, memo, entry, lines);
             return toDto(entry);
         }
@@ -1076,6 +1081,7 @@ public class AccountingService {
             List<PartnerSettlementAllocation> concurrent = findAllocationsByIdempotencyKey(company, idempotencyKey);
             if (!concurrent.isEmpty()) {
                 JournalEntry existingEntry = concurrent.getFirst().getJournalEntry();
+                linkReferenceMapping(company, idempotencyKey, existingEntry, ENTITY_TYPE_DEALER_RECEIPT_SPLIT);
                 validateSplitReceiptIdempotency(idempotencyKey, dealer, memo, existingEntry, lines);
                 return toDto(existingEntry);
             }
@@ -1518,7 +1524,8 @@ public class AccountingService {
             JournalEntry existingEntry = awaitJournalEntry(company, reference, idempotencyKey);
             List<PartnerSettlementAllocation> existingAllocations = awaitAllocations(company, idempotencyKey);
             if (!existingAllocations.isEmpty()) {
-                JournalEntry entry = existingEntry != null ? existingEntry : existingAllocations.getFirst().getJournalEntry();
+                JournalEntry entry = resolveReplayJournalEntry(idempotencyKey, existingEntry, existingAllocations);
+                linkReferenceMapping(company, idempotencyKey, entry, ENTITY_TYPE_SUPPLIER_PAYMENT);
                 validateSupplierPaymentIdempotency(idempotencyKey, supplier, cashAccount, payableAccount, amount, memo,
                         entry, existingAllocations, allocations);
                 return toDto(entry);
@@ -1531,6 +1538,7 @@ public class AccountingService {
         List<PartnerSettlementAllocation> existingAllocations = findAllocationsByIdempotencyKey(company, idempotencyKey);
         if (!existingAllocations.isEmpty()) {
             JournalEntry entry = existingAllocations.getFirst().getJournalEntry();
+            linkReferenceMapping(company, idempotencyKey, entry, ENTITY_TYPE_SUPPLIER_PAYMENT);
             validateSupplierPaymentIdempotency(idempotencyKey, supplier, cashAccount, payableAccount, amount, memo,
                     entry, existingAllocations, allocations);
             return toDto(entry);
@@ -1610,6 +1618,7 @@ public class AccountingService {
             List<PartnerSettlementAllocation> concurrent = findAllocationsByIdempotencyKey(company, idempotencyKey);
             if (!concurrent.isEmpty()) {
                 JournalEntry existingEntry = concurrent.getFirst().getJournalEntry();
+                linkReferenceMapping(company, idempotencyKey, existingEntry, ENTITY_TYPE_SUPPLIER_PAYMENT);
                 validateSupplierPaymentIdempotency(idempotencyKey, supplier, cashAccount, payableAccount, amount, memo,
                         existingEntry, concurrent, allocations);
                 return toDto(existingEntry);
@@ -1657,7 +1666,7 @@ public class AccountingService {
             JournalEntry existingEntry = awaitJournalEntry(company, reference, trimmedIdempotencyKey);
             List<PartnerSettlementAllocation> existingAllocations = awaitAllocations(company, trimmedIdempotencyKey);
             if (!existingAllocations.isEmpty()) {
-                JournalEntry entry = existingEntry != null ? existingEntry : existingAllocations.getFirst().getJournalEntry();
+                JournalEntry entry = resolveReplayJournalEntry(trimmedIdempotencyKey, existingEntry, existingAllocations);
                 linkReferenceMapping(company, trimmedIdempotencyKey, entry, ENTITY_TYPE_DEALER_SETTLEMENT);
                 validateSettlementIdempotencyKey(trimmedIdempotencyKey, PartnerType.DEALER, dealer.getId(), existingAllocations, allocations);
                 validateSettlementJournalLines(trimmedIdempotencyKey, dealer, memo, entry, lineDraft.lines());
@@ -1845,7 +1854,7 @@ public class AccountingService {
             JournalEntry existingEntry = awaitJournalEntry(company, reference, trimmedIdempotencyKey);
             List<PartnerSettlementAllocation> existingAllocations = awaitAllocations(company, trimmedIdempotencyKey);
             if (!existingAllocations.isEmpty()) {
-                JournalEntry entry = existingEntry != null ? existingEntry : existingAllocations.getFirst().getJournalEntry();
+                JournalEntry entry = resolveReplayJournalEntry(trimmedIdempotencyKey, existingEntry, existingAllocations);
                 linkReferenceMapping(company, trimmedIdempotencyKey, entry, ENTITY_TYPE_SUPPLIER_SETTLEMENT);
                 validateSettlementIdempotencyKey(trimmedIdempotencyKey, PartnerType.SUPPLIER, supplier.getId(), existingAllocations, allocations);
                 validateSupplierSettlementJournalLines(trimmedIdempotencyKey, supplier, memo, entry, lineDraft.lines());
@@ -2499,6 +2508,27 @@ public class AccountingService {
             return existingAllocations;
         }
         return settlementAllocationRepository.findByCompanyAndJournalEntryOrderByCreatedAtAsc(company, existingEntry);
+    }
+
+    private JournalEntry resolveReplayJournalEntry(String idempotencyKey,
+                                                   JournalEntry mappingEntry,
+                                                   List<PartnerSettlementAllocation> allocations) {
+        JournalEntry allocationEntry = null;
+        if (allocations != null && !allocations.isEmpty()) {
+            allocationEntry = allocations.getFirst().getJournalEntry();
+        }
+        if (mappingEntry != null
+                && allocationEntry != null
+                && mappingEntry.getId() != null
+                && allocationEntry.getId() != null
+                && !Objects.equals(mappingEntry.getId(), allocationEntry.getId())) {
+            throw new ApplicationException(ErrorCode.CONCURRENCY_CONFLICT,
+                    "Idempotency mapping points to a different journal than settled allocations")
+                    .withDetail("idempotencyKey", idempotencyKey)
+                    .withDetail("mappingJournalEntryId", mappingEntry.getId())
+                    .withDetail("allocationJournalEntryId", allocationEntry.getId());
+        }
+        return allocationEntry != null ? allocationEntry : mappingEntry;
     }
 
     private void sleepBriefly() {

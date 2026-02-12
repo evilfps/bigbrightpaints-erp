@@ -27,8 +27,8 @@ Cross-Agent Continuation Contract (If Any Agent Handoffs Here)
 
 Runtime Tracking
 - tracked_start_ts: `2026-02-12T01:53:52+05:30` (first immutable async-loop commit marker)
-- tracked_now_ts: `2026-02-12T12:41:29+05:30`
-- tracked_elapsed: `10h 47m 37s`
+- tracked_now_ts: `2026-02-12T13:08:09+05:30`
+- tracked_elapsed: `11h 14m 17s`
 
 Completion Gates (Required For "Safe To Deploy" Claim)
 - No known critical/high security issues in auth/RBAC/tenant isolation/data exposure.
@@ -760,3 +760,49 @@ Queue Rotation (Auto-Replenish)
 - [ready] M4-S3 Statement/Aging/Report source consistency and settlement linkage checks
 - [ready] M2-S9 Closed-period mutation abuse matrix for settlements and allocation replay
 - [ready] M9-S4 payment/settlement query hotspot + index-check under replay workload
+
+Post-Commit Review Evidence (Prior Commit Closure)
+- Commit reviewed: `36d56ce0`
+- `codex review --commit 36d56ce0`:
+  - command executed in this environment but did not return stable final summary due repeated rollout/state-db noise and timeout in shell wrapper.
+  - logged as tooling instability; no automatic verdict captured from CLI run.
+- Review subagent `019c50c1-a0b1-75a3-818d-6519962db3ab` findings:
+  - medium: replay branch journal source could prefer mapping entry over allocation-linked entry, allowing mapping drift lock-in.
+  - low: missing explicit tests for some replay/race branches.
+  - security: no new direct auth/RBAC/tenant leak introduced in reviewed commit.
+
+Loop Update
+- 2026-02-12T13:08:09+05:30
+- tracked_now_ts: `2026-02-12T13:08:09+05:30`
+- tracked_elapsed: `11h 14m 17s`
+
+Completed Slice (Commit In Progress)
+- 2026-02-12: `[pending-commit-sha]`
+  - M6-S4 replay + duplicate-posting race-path consistency hardening:
+    - Added mapping repair in dealer receipt, dealer split receipt, and supplier payment replay branches:
+      - non-leader replay path,
+      - existing-allocation replay path,
+      - allocation insert-race fallback path (`DataIntegrityViolationException` recovery).
+    - Added shared replay source-of-truth resolver:
+      - replay now prefers allocation-linked journal entry,
+      - rejects mapping/allocation journal mismatch as `CONCURRENCY_CONFLICT` (prevents metadata drift lock-in).
+    - Added regressions:
+      - `recordDealerReceipt_nonLeaderReplayRepairsReferenceMapping`
+      - `recordDealerReceiptSplit_nonLeaderReplayRepairsReferenceMapping`
+      - `recordSupplierPayment_nonLeaderReplayRepairsReferenceMapping`
+      - `settleSupplierInvoices_replayRejectsMappingAllocationJournalMismatch`
+  - Documentation deliverable for design/readability:
+    - Added `docs/accounting-dispatch-workflow-design.md`:
+      - technical invariants + expected sequences,
+      - plain-language behavior for future user-facing docs,
+      - explicit idempotency/replay contracts,
+      - run change ledger and update protocol.
+  - Verification:
+    - `mvn -B -ntp -Dtest=AccountingServiceTest#recordDealerReceipt_nonLeaderReplayRepairsReferenceMapping+recordDealerReceiptSplit_nonLeaderReplayRepairsReferenceMapping+recordSupplierPayment_nonLeaderReplayRepairsReferenceMapping+settleSupplierInvoices_nonLeaderReplayRepairsReferenceMapping+settleSupplierInvoices_replayRejectsMappingAllocationJournalMismatch+settleDealerInvoices_idempotentReplayReturnsSameCashAmount+recordSupplierPayment_requiresPurchaseAllocation test` -> pass (7 tests, 0 failures, 0 errors).
+
+Queue Rotation (Auto-Replenish)
+- [completed] M6-S4 replay duplicate-posting consistency for dealer receipt/split/supplier payment
+- [in_progress] M4-S3 statement/aging/report settlement-link consistency and source-of-truth checks
+- [ready] M2-S9 closed-period mutation abuse matrix for settlement replay and allocation races
+- [ready] M9-S4 accounting query hotspot + index-check under replay workload
+- [ready] M5-S3 dispatch/invoice/accounting exact-link invariant sweep (including backorder cancel status semantics)
