@@ -1846,6 +1846,7 @@ public class AccountingService {
             List<PartnerSettlementAllocation> existingAllocations = awaitAllocations(company, trimmedIdempotencyKey);
             if (!existingAllocations.isEmpty()) {
                 JournalEntry entry = existingEntry != null ? existingEntry : existingAllocations.getFirst().getJournalEntry();
+                linkReferenceMapping(company, trimmedIdempotencyKey, entry, ENTITY_TYPE_SUPPLIER_SETTLEMENT);
                 validateSettlementIdempotencyKey(trimmedIdempotencyKey, PartnerType.SUPPLIER, supplier.getId(), existingAllocations, allocations);
                 validateSupplierSettlementJournalLines(trimmedIdempotencyKey, supplier, memo, entry, lineDraft.lines());
                 return buildSupplierSettlementResponse(existingAllocations);
@@ -1858,6 +1859,7 @@ public class AccountingService {
         List<PartnerSettlementAllocation> existingAllocations = findAllocationsByIdempotencyKey(company, trimmedIdempotencyKey);
         if (!existingAllocations.isEmpty()) {
             JournalEntry entry = existingAllocations.getFirst().getJournalEntry();
+            linkReferenceMapping(company, trimmedIdempotencyKey, entry, ENTITY_TYPE_SUPPLIER_SETTLEMENT);
             validateSettlementIdempotencyKey(trimmedIdempotencyKey, PartnerType.SUPPLIER, supplier.getId(), existingAllocations, allocations);
             validateSupplierSettlementJournalLines(trimmedIdempotencyKey, supplier, memo, entry, lineDraft.lines());
             return buildSupplierSettlementResponse(existingAllocations);
@@ -1941,6 +1943,7 @@ public class AccountingService {
             List<PartnerSettlementAllocation> concurrent = findAllocationsByIdempotencyKey(company, trimmedIdempotencyKey);
             if (!concurrent.isEmpty()) {
                 JournalEntry existingEntry = concurrent.getFirst().getJournalEntry();
+                linkReferenceMapping(company, trimmedIdempotencyKey, existingEntry, ENTITY_TYPE_SUPPLIER_SETTLEMENT);
                 validateSettlementIdempotencyKey(trimmedIdempotencyKey, PartnerType.SUPPLIER, supplier.getId(), concurrent, allocations);
                 validateSupplierSettlementJournalLines(trimmedIdempotencyKey, supplier, memo, existingEntry, lineDraft.lines());
                 return buildSupplierSettlementResponse(concurrent);

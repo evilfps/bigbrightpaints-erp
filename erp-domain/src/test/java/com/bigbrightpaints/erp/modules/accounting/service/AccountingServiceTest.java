@@ -2204,6 +2204,98 @@ class AccountingServiceTest {
     }
 
     @Test
+    void settleSupplierInvoices_nonLeaderReplayRepairsReferenceMapping() {
+        Supplier supplier = new Supplier();
+        supplier.setName("Replay Supplier");
+        ReflectionTestUtils.setField(supplier, "id", 1L);
+
+        Account payable = new Account();
+        payable.setCompany(company);
+        payable.setCode("AP-REPLAY");
+        payable.setType(AccountType.LIABILITY);
+        ReflectionTestUtils.setField(payable, "id", 10L);
+        supplier.setPayableAccount(payable);
+
+        Account cash = new Account();
+        cash.setCompany(company);
+        cash.setCode("CASH-REPLAY");
+        cash.setType(AccountType.ASSET);
+        ReflectionTestUtils.setField(cash, "id", 20L);
+
+        JournalEntry existingEntry = new JournalEntry();
+        ReflectionTestUtils.setField(existingEntry, "id", 901L);
+        existingEntry.setSupplier(supplier);
+        existingEntry.setReferenceNumber("SUP-SETTLE-REPLAY-1");
+        existingEntry.setMemo("Supplier settlement replay");
+        existingEntry.getLines().add(journalLine(existingEntry, payable, "Supplier settlement replay", new BigDecimal("100.00"), BigDecimal.ZERO));
+        existingEntry.getLines().add(journalLine(existingEntry, cash, "Supplier settlement replay", BigDecimal.ZERO, new BigDecimal("100.00")));
+
+        com.bigbrightpaints.erp.modules.accounting.domain.PartnerSettlementAllocation existingRow =
+                new com.bigbrightpaints.erp.modules.accounting.domain.PartnerSettlementAllocation();
+        existingRow.setCompany(company);
+        existingRow.setPartnerType(com.bigbrightpaints.erp.modules.accounting.domain.PartnerType.SUPPLIER);
+        existingRow.setSupplier(supplier);
+        existingRow.setJournalEntry(existingEntry);
+        existingRow.setSettlementDate(LocalDate.of(2024, 4, 9));
+        existingRow.setAllocationAmount(new BigDecimal("100.00"));
+        existingRow.setDiscountAmount(BigDecimal.ZERO);
+        existingRow.setWriteOffAmount(BigDecimal.ZERO);
+        existingRow.setFxDifferenceAmount(BigDecimal.ZERO);
+        existingRow.setIdempotencyKey("IDEMP-AP-REPLAY");
+        existingRow.setMemo(null);
+
+        JournalReferenceMapping mapping = new JournalReferenceMapping();
+        mapping.setCompany(company);
+        mapping.setLegacyReference("idemp-ap-replay");
+        mapping.setCanonicalReference("SUP-SETTLE-REPLAY-1");
+        mapping.setEntityType("SUPPLIER_SETTLEMENT");
+        mapping.setEntityId(null);
+
+        when(supplierRepository.lockByCompanyAndId(eq(company), eq(1L))).thenReturn(Optional.of(supplier));
+        when(companyEntityLookup.requireAccount(eq(company), eq(20L))).thenReturn(cash);
+        when(journalReferenceMappingRepository.findAllByCompanyAndLegacyReferenceIgnoreCase(eq(company), eq("idemp-ap-replay")))
+                .thenReturn(List.of(mapping));
+        when(journalReferenceResolver.findExistingEntry(eq(company), eq("SUP-SETTLE-REPLAY-1")))
+                .thenReturn(Optional.of(existingEntry));
+        when(settlementAllocationRepository.findByCompanyAndIdempotencyKeyIgnoreCaseOrderByCreatedAtAscIdAsc(eq(company), eq("IDEMP-AP-REPLAY")))
+                .thenReturn(List.of(existingRow));
+
+        SettlementAllocationRequest allocation = new SettlementAllocationRequest(
+                null,
+                null,
+                new BigDecimal("100.00"),
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                null
+        );
+
+        SupplierSettlementRequest request = new SupplierSettlementRequest(
+                1L,
+                20L,
+                null,
+                null,
+                null,
+                null,
+                LocalDate.of(2024, 4, 9),
+                null,
+                "Supplier settlement replay",
+                "IDEMP-AP-REPLAY",
+                Boolean.FALSE,
+                List.of(allocation)
+        );
+
+        PartnerSettlementResponse response = accountingService.settleSupplierInvoices(request);
+
+        assertThat(response.journalEntry()).isNotNull();
+        assertThat(response.journalEntry().id()).isEqualTo(901L);
+        verify(journalReferenceMappingRepository).save(mapping);
+        assertThat(mapping.getEntityId()).isEqualTo(901L);
+        assertThat(mapping.getEntityType()).isEqualTo("SUPPLIER_SETTLEMENT");
+        assertThat(mapping.getCanonicalReference()).isEqualTo("SUP-SETTLE-REPLAY-1");
+    }
+
+    @Test
     void settleSupplierInvoices_rejectsNonAssetCashAccount() {
         AccountingService service = spy(accountingService);
 

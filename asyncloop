@@ -730,3 +730,33 @@ Queue Rotation (Auto-Replenish)
 - [ready] M4-S3 Statement/Aging/Report source consistency and settlement linkage checks
 - [ready] M9-S3 Duplicate service/controller rule map for posting workflows (canonicalization targets)
 - [ready] M2-S9 Closed-period mutation abuse matrix for settlements and allocation replay
+
+Post-Commit Review Evidence
+- Commit reviewed: `1ca9bf23`
+- `codex review --commit 1ca9bf23` -> no concrete regressions found.
+- Review subagent `019c50b6-912a-7da2-929c-8d1999e37163` -> completed, no concrete findings.
+
+Loop Update
+- 2026-02-12T12:53:45+05:30
+- tracked_now_ts: `2026-02-12T12:53:45+05:30`
+- tracked_elapsed: `10h 59m 53s`
+
+Completed Slice (Commit In Progress)
+- 2026-02-12: `[pending-commit-sha]`
+  - M6-S3 duplicate/idempotency flow consistency hardening (supplier settlement replay paths):
+    - Added mapping relink in all supplier settlement idempotent replay branches:
+      - non-leader replay path,
+      - existing-allocation replay path,
+      - allocation insert race fallback path.
+    - This aligns supplier settlement with dealer settlement replay behavior and prevents journal-reference mapping drift under retries/collision recovery.
+  - Regression:
+    - Added `settleSupplierInvoices_nonLeaderReplayRepairsReferenceMapping` to assert replay branch repairs mapping `entityId/entityType/canonicalReference` against existing journal.
+  - Verification:
+    - `mvn -B -ntp -Dtest=AccountingServiceTest#settleSupplierInvoices_nonLeaderReplayRepairsReferenceMapping+settleSupplierInvoices_allowsOnAccountAllocationWithoutMemo+settleSupplierInvoices_allowsOnAccountAllocationWithMemo+settleSupplierInvoices_rejectsNonAssetCashAccount test` -> pass.
+
+Queue Rotation (Auto-Replenish)
+- [completed] M6-S3 supplier settlement replay mapping consistency slice
+- [in_progress] M6-S4 duplicate posting race-path review for dealer receipt/split/supplier payment fallback branches
+- [ready] M4-S3 Statement/Aging/Report source consistency and settlement linkage checks
+- [ready] M2-S9 Closed-period mutation abuse matrix for settlements and allocation replay
+- [ready] M9-S4 payment/settlement query hotspot + index-check under replay workload
