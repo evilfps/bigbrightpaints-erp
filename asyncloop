@@ -1026,3 +1026,33 @@ Queue Rotation (Auto-Replenish)
 - [ready] M5-S3 dispatch/invoice/accounting exact-link invariant sweep (including backorder cancel status semantics)
 - [ready] M6-S8 duplicate idempotency helper consolidation map for receipt/split/payment/settlement paths
 - [ready] M4-S6 aging/statement performance guard (repository-level prefiltering to avoid full-ledger scans)
+
+Completed Slice (Committed)
+- 2026-02-12: `e3977827`
+  - fix(reports): preserve legacy touching-boundary aging buckets.
+  - Relaxed bucket validation to allow legacy contiguous boundaries while still rejecting true overlap.
+  - Added explicit compatibility test for `0-30,30-60,61` and retained strict rejection coverage for real overlap.
+  - Verification:
+    - `mvn -B -ntp -Dtest=StatementServiceTest test` -> pass (6 tests, 0 failures, 0 errors).
+
+Post-Commit Review Evidence
+- Commit reviewed: `e3977827`
+- `codex review --commit e3977827`:
+  - completed with rollout/state-db noise and final verdict: no clear regression introduced by compatibility patch.
+- Review subagent `019c50fd-ba37-7860-9df3-436ed1e95e69`:
+  - no regressions found; flagged residual semantic note about inclusive shared boundary assignment (first matching bucket wins), matching legacy behavior.
+
+Loop Update
+- 2026-02-12T14:07:23+05:30
+- tracked_now_ts: `2026-02-12T14:07:23+05:30`
+- tracked_elapsed: `12h 13m 31s`
+- active_in_progress: `M4-S5 report export parity audit (PDF/CSV aging/statement should match API totals + as-of semantics)`
+
+Queue Rotation (Auto-Replenish)
+- [completed] M4-S4 + M4-S4b statement/aging boundary hardening and compatibility closure
+- [in_progress] M4-S5 report export parity audit (PDF/CSV aging/statement should match API totals + as-of semantics)
+- [ready] M2-S9 closed-period mutation abuse matrix for settlement replay and allocation races
+- [ready] M9-S4 accounting query hotspot + index-check under replay workload
+- [ready] M5-S3 dispatch/invoice/accounting exact-link invariant sweep (including backorder cancel status semantics)
+- [ready] M6-S8 duplicate idempotency helper consolidation map for receipt/split/payment/settlement paths
+- [ready] M4-S6 aging/statement performance guard (repository-level prefiltering to avoid full-ledger scans)
