@@ -902,6 +902,8 @@ class AccountingServiceTest {
                 .containsEntry("failureCode", "ACCOUNTING_EVENT_TRAIL_PERSISTENCE_FAILURE")
                 .containsEntry("errorCategory", "PERSISTENCE")
                 .containsEntry("errorType", "IllegalStateException")
+                .containsEntry("alertRoutingVersion", "ACCOUNTING_EVENT_TRAIL_V1")
+                .containsEntry("alertRoute", "SEV2_URGENT")
                 .doesNotContainKey("error");
     }
 
@@ -957,6 +959,8 @@ class AccountingServiceTest {
                 .containsEntry("failureCode", "ACCOUNTING_EVENT_TRAIL_PERSISTENCE_FAILURE")
                 .containsEntry("errorCategory", "PERSISTENCE")
                 .containsEntry("errorType", "IllegalStateException")
+                .containsEntry("alertRoutingVersion", "ACCOUNTING_EVENT_TRAIL_V1")
+                .containsEntry("alertRoute", "SEV3_TICKET")
                 .doesNotContainKey("error");
         verify(auditService).logSuccess(eq(AuditEvent.JOURNAL_ENTRY_POSTED), any());
     }
@@ -1008,8 +1012,11 @@ class AccountingServiceTest {
         ArgumentCaptor<Map<String, String>> integrationFailureCaptor = ArgumentCaptor.forClass(Map.class);
         verify(auditService).logFailure(eq(AuditEvent.INTEGRATION_FAILURE), integrationFailureCaptor.capture());
         assertThat(integrationFailureCaptor.getValue())
+                .containsEntry("failureCode", "ACCOUNTING_EVENT_TRAIL_PERSISTENCE_FAILURE")
                 .containsEntry("errorCategory", "VALIDATION")
-                .containsEntry("errorType", "IllegalArgumentException");
+                .containsEntry("errorType", "IllegalArgumentException")
+                .containsEntry("alertRoutingVersion", "ACCOUNTING_EVENT_TRAIL_V1")
+                .containsEntry("alertRoute", "SEV2_URGENT");
     }
 
     @Test
@@ -1059,8 +1066,11 @@ class AccountingServiceTest {
         ArgumentCaptor<Map<String, String>> integrationFailureCaptor = ArgumentCaptor.forClass(Map.class);
         verify(auditService).logFailure(eq(AuditEvent.INTEGRATION_FAILURE), integrationFailureCaptor.capture());
         assertThat(integrationFailureCaptor.getValue())
+                .containsEntry("failureCode", "ACCOUNTING_EVENT_TRAIL_PERSISTENCE_FAILURE")
                 .containsEntry("errorCategory", "DATA_INTEGRITY")
-                .containsEntry("errorType", "DataIntegrityViolationException");
+                .containsEntry("errorType", "DataIntegrityViolationException")
+                .containsEntry("alertRoutingVersion", "ACCOUNTING_EVENT_TRAIL_V1")
+                .containsEntry("alertRoute", "SEV1_PAGE");
     }
 
     @Test
@@ -1153,6 +1163,8 @@ class AccountingServiceTest {
                 .containsEntry("failureCode", "ACCOUNTING_EVENT_TRAIL_PERSISTENCE_FAILURE")
                 .containsEntry("errorCategory", "PERSISTENCE")
                 .containsEntry("errorType", "IllegalStateException")
+                .containsEntry("alertRoutingVersion", "ACCOUNTING_EVENT_TRAIL_V1")
+                .containsEntry("alertRoute", "SEV2_URGENT")
                 .doesNotContainKey("error");
         verify(auditService, never()).logSuccess(eq(AuditEvent.JOURNAL_ENTRY_REVERSED), any());
     }

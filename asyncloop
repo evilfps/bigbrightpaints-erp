@@ -17,6 +17,11 @@ Non-Stop Operating Rules
 - DB migration policy (mandatory): use Flyway V2 only (`classpath:db/migration_v2`, table `flyway_schema_history_v2`) for all new schema/index fixes.
 - No legacy migration additions while in this loop.
 
+Runtime Tracking
+- tracked_start_ts: `2026-02-12T01:53:52+05:30` (first immutable async-loop commit marker)
+- tracked_now_ts: `2026-02-12T05:55:04+05:30`
+- tracked_elapsed: `4h 01m 12s`
+
 Completion Gates (Required For "Safe To Deploy" Claim)
 - No known critical/high security issues in auth/RBAC/tenant isolation/data exposure.
 - Accounting safety gates hold:
@@ -223,7 +228,7 @@ Auto-Replenish Queue (Always Keep Filled)
   - Expand async tests to include blank-override behavior once contract is finalized.
   - Completed policy: blank auth-wrapper overrides now resolve to explicit `UNKNOWN_AUTH_ACTOR` and unresolved-company sentinel (no ambient fallback).
   - Completed: async and unit tests now assert unresolved attribution metadata markers (`authActorResolution`, `authCompanyResolution`).
-- [ready] M8-S5 Correlation guard CI integration follow-up
+- [in_progress] M8-S5 Correlation guard CI integration follow-up
   - Integrate `guard_orchestrator_correlation_contract.sh` into CI path (`scripts/verify_local.sh` is already covered by local gate).
   - Add fail-fast artifact note for orchestrator correlation guard violations.
 - [done] M2-S7 Event-trail failure taxonomy normalization
@@ -240,12 +245,13 @@ Auto-Replenish Queue (Always Keep Filled)
   - Completed: added `docs/auth-audit-attribution-policy.md` with explicit unresolved-attribution contract.
   - Completed: `AuthService.login(...)` now normalizes audit identifiers before wrapper invocation.
   - Completed: added `AuthServiceAuditAttributionTest` to pin trimmed audit identifier behavior on login failure path.
-- [ready] M2-S8 Event-trail failure alert-routing fixture
+- [done] M2-S8 Event-trail failure alert-routing fixture
   - Add lightweight assertion fixture for downstream alert router mapping from `errorCategory`/`failureCode`.
   - Ensure categories remain stable across refactors.
-- [in_progress] M2-S8 Event-trail failure alert-routing fixture
-  - Add lightweight assertion fixture for downstream alert router mapping from `errorCategory`/`failureCode`.
-  - Ensure categories remain stable across refactors.
+  - Completed: introduced explicit metadata routing fields on integration-failure markers:
+    - `alertRoutingVersion=ACCOUNTING_EVENT_TRAIL_V1`
+    - `alertRoute` derived deterministically from failure contract.
+  - Completed: updated `AccountingServiceTest` assertions for strict/best-effort + category-based routing behavior.
 - [ready] M0-S8 Auth-audit observability note
   - Add runbook note for interpreting `authActorResolution`/`authCompanyResolution` markers during incident response.
   - Include quick triage queries for unresolved auth attributions.
@@ -254,9 +260,17 @@ Auto-Replenish Queue (Always Keep Filled)
   - Completed: gated `AuditServiceAsyncIT.TestConfig` behind dedicated profile `audit-async-it`.
   - Completed: enabled the profile only in `AuditServiceAsyncIT` via `@ActiveProfiles("audit-async-it")`.
   - Completed: verified no `BeanDefinitionOverrideException` in mixed matrix including E2E + async-auth tests.
-- [ready] M2-S9 Event-trail alert routing contract map
+- [done] M2-S9 Event-trail alert routing contract map
   - Add deterministic mapping fixture asserting `errorCategory`/`failureCode` -> alert tier/severity.
   - Ensure accounting event-trail refactors cannot silently remap routing class semantics.
+  - Completed: added `AccountingEventTrailAlertRoutingPolicy` contract mapper and dedicated regression matrix `AccountingEventTrailAlertRoutingPolicyTest`.
+  - Completed: mapping now enforces stable routes (`SEV1_PAGE`, `SEV2_URGENT`, `SEV3_TICKET`, `UNMAPPED`) for downstream responders.
+- [ready] M2-S10 Integration-failure route coverage expansion
+  - Extend routing metadata contract checks to non-accounting integration-failure producers (e.g., global exception handling) to prevent inconsistent alert payloads.
+  - Add regression test coverage pinning route-version and route-key presence where applicable.
+- [ready] M8-S6 Correlation guard CI artifact and fail-fast evidence
+  - Publish correlation guard failures into CI artifacts for triage (`artifacts/gate-release`), including missing call-site/overload/test signals.
+  - Ensure CI failure output includes a single actionable remediation command.
 
 Commit Ledger
 - 2026-02-12: `16b2a2c4`
@@ -361,17 +375,28 @@ Commit Ledger
     - `bash scripts/guard_orchestrator_correlation_contract.sh`
     - `bash -n scripts/verify_local.sh`
   - `codex review --commit 0cb6a857`: running (result will be appended).
+- 2026-02-12: `d26c7d15`
+  - Isolated `AuditServiceAsyncIT` test-only Spring config behind dedicated profile to prevent cross-suite bean collisions.
+  - Verified:
+    - `mvn -B -ntp -Dtest=AccountingServiceTest,JournalEntryE2ETest,SettlementE2ETest,IntegrationCoordinatorTest,CommandDispatcherTest,AuditServiceTest,AuditServiceAsyncIT,CompanyContextTaskDecoratorTest,AuthServiceAuditAttributionTest test`
+  - `codex review --commit d26c7d15`: running (result will be appended).
 
 Current Checkpoint
-- Current WIP M0-S9 completion + M2-S8 continuation:
-  - `erp-domain/src/test/java/com/bigbrightpaints/erp/core/audit/AuditServiceAsyncIT.java`
-    - isolated async test config with dedicated profile to stop context contamination in full SpringBoot E2E suites
+- Current WIP M2-S8 + M2-S9 completion:
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingService.java`
+    - adds deterministic event-trail alert-routing metadata fields to integration-failure audit markers
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingEventTrailAlertRoutingPolicy.java`
+    - defines stable route mapping contract for event-trail failure categories
+  - `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingServiceTest.java`
+    - asserts routing metadata on strict/best-effort and validation/data-integrity paths
+  - `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingEventTrailAlertRoutingPolicyTest.java`
+    - locks policy mapping outputs and fallback behavior
 - Verification command:
-  - `mvn -B -ntp -Dtest=AccountingServiceTest,JournalEntryE2ETest,SettlementE2ETest,IntegrationCoordinatorTest,CommandDispatcherTest,AuditServiceTest,AuditServiceAsyncIT,CompanyContextTaskDecoratorTest,AuthServiceAuditAttributionTest test`
+  - `mvn -B -ntp -Dtest=AccountingServiceTest,AccountingEventTrailAlertRoutingPolicyTest,JournalEntryE2ETest,SettlementE2ETest,IntegrationCoordinatorTest,CommandDispatcherTest,AuditServiceTest,AuditServiceAsyncIT,CompanyContextTaskDecoratorTest,AuthServiceAuditAttributionTest test`
 - Next action:
-  - commit M0-S9 async test isolation fix
+  - commit M2-S8/M2-S9 routing contract hardening
   - run `codex review --commit <sha>`
-  - execute M2-S8 + M2-S9 event-trail alert-routing fixture and contract map assertions
+  - continue M8-S5 correlation guard CI integration follow-up
 
 Async Loop Cadence
 - Each cycle:

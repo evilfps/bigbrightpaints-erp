@@ -3325,13 +3325,19 @@ public class AccountingService {
     private void handleAccountingEventTrailFailure(String operation, String journalReference, Exception ex) {
         Map<String, String> metadata = new HashMap<>();
         metadata.put("eventTrailOperation", operation);
-        metadata.put("policy", strictAccountingEventTrail ? "STRICT" : "BEST_EFFORT");
+        String policy = strictAccountingEventTrail ? "STRICT" : "BEST_EFFORT";
+        metadata.put("policy", policy);
         if (StringUtils.hasText(journalReference)) {
             metadata.put("journalReference", journalReference);
         }
-        metadata.put("failureCode", "ACCOUNTING_EVENT_TRAIL_PERSISTENCE_FAILURE");
-        metadata.put("errorCategory", classifyEventTrailFailure(ex));
+        String failureCode = AccountingEventTrailAlertRoutingPolicy.ACCOUNTING_EVENT_TRAIL_FAILURE_CODE;
+        String errorCategory = classifyEventTrailFailure(ex);
+        metadata.put("failureCode", failureCode);
+        metadata.put("errorCategory", errorCategory);
         metadata.put("errorType", ex.getClass().getSimpleName());
+        metadata.put("alertRoutingVersion", AccountingEventTrailAlertRoutingPolicy.ROUTING_VERSION);
+        metadata.put("alertRoute",
+                AccountingEventTrailAlertRoutingPolicy.resolveRoute(failureCode, errorCategory, policy));
         try {
             auditService.logFailure(AuditEvent.INTEGRATION_FAILURE, metadata);
         } catch (Exception auditEx) {
