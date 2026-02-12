@@ -763,24 +763,40 @@ public class SalesService {
     public DispatchMarkerReconciliationResponse reconcileStaleOrderLevelMarkers(int limit) {
         Company company = companyContextService.requireCurrentCompany();
         int safeLimit = Math.max(1, Math.min(limit, 500));
-        Page<Long> candidates = salesOrderRepository.findDispatchMarkerCandidateIdsByCompanyOrderByCreatedAtDescIdDesc(
-                company,
-                PageRequest.of(0, safeLimit));
+        int scannedOrders = 0;
+        int page = 0;
+        final int pageSize = 100;
         List<Long> reconciledOrderIds = new ArrayList<>();
-        for (Long orderId : candidates.getContent()) {
-            Optional<SalesOrder> orderOpt = salesOrderRepository.findWithItemsByCompanyAndIdForUpdate(company, orderId);
-            if (orderOpt.isEmpty()) {
-                continue;
+        while (scannedOrders < safeLimit) {
+            Page<Long> candidates = salesOrderRepository.findDispatchMarkerCandidateIdsByCompanyOrderByCreatedAtDescIdDesc(
+                    company,
+                    PageRequest.of(page, pageSize));
+            if (candidates.isEmpty()) {
+                break;
             }
-            SalesOrder order = orderOpt.get();
-            boolean updated = reconcileOrderLevelDispatchMarkers(company, order, null, null, null);
-            if (updated) {
-                salesOrderRepository.save(order);
-                reconciledOrderIds.add(orderId);
+            for (Long orderId : candidates.getContent()) {
+                if (scannedOrders >= safeLimit) {
+                    break;
+                }
+                scannedOrders++;
+                Optional<SalesOrder> orderOpt = salesOrderRepository.findWithItemsByCompanyAndIdForUpdate(company, orderId);
+                if (orderOpt.isEmpty()) {
+                    continue;
+                }
+                SalesOrder order = orderOpt.get();
+                boolean updated = reconcileOrderLevelDispatchMarkers(company, order, null, null, null);
+                if (updated) {
+                    salesOrderRepository.save(order);
+                    reconciledOrderIds.add(orderId);
+                }
             }
+            if (!candidates.hasNext()) {
+                break;
+            }
+            page++;
         }
         return new DispatchMarkerReconciliationResponse(
-                candidates.getContent().size(),
+                scannedOrders,
                 reconciledOrderIds.size(),
                 List.copyOf(reconciledOrderIds));
     }

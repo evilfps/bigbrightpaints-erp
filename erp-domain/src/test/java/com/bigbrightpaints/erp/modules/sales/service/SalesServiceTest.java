@@ -1184,6 +1184,76 @@ class SalesServiceTest {
     }
 
     @Test
+    void reconcileStaleOrderLevelMarkersScansAcrossCandidatePages() {
+        SalesOrder singleSlipOrder = new SalesOrder();
+        setField(singleSlipOrder, "id", 10L);
+        singleSlipOrder.setCompany(company);
+        singleSlipOrder.setSalesJournalEntryId(901L);
+        singleSlipOrder.setCogsJournalEntryId(902L);
+        singleSlipOrder.setFulfillmentInvoiceId(903L);
+
+        SalesOrder multiSlipOrder = new SalesOrder();
+        setField(multiSlipOrder, "id", 20L);
+        multiSlipOrder.setCompany(company);
+        multiSlipOrder.setSalesJournalEntryId(801L);
+        multiSlipOrder.setCogsJournalEntryId(802L);
+        multiSlipOrder.setFulfillmentInvoiceId(803L);
+
+        when(salesOrderRepository.findDispatchMarkerCandidateIdsByCompanyOrderByCreatedAtDescIdDesc(
+                company, PageRequest.of(0, 100)))
+                .thenReturn(new PageImpl<>(List.of(10L), PageRequest.of(0, 100), 101));
+        when(salesOrderRepository.findDispatchMarkerCandidateIdsByCompanyOrderByCreatedAtDescIdDesc(
+                company, PageRequest.of(1, 100)))
+                .thenReturn(new PageImpl<>(List.of(20L), PageRequest.of(1, 100), 101));
+
+        when(salesOrderRepository.findWithItemsByCompanyAndIdForUpdate(company, 10L))
+                .thenReturn(Optional.of(singleSlipOrder));
+        when(salesOrderRepository.findWithItemsByCompanyAndIdForUpdate(company, 20L))
+                .thenReturn(Optional.of(multiSlipOrder));
+        when(salesOrderRepository.save(ArgumentMatchers.any(SalesOrder.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        PackagingSlip singleSlip = new PackagingSlip();
+        setField(singleSlip, "id", 55L);
+        singleSlip.setCompany(company);
+        singleSlip.setSalesOrder(singleSlipOrder);
+        singleSlip.setStatus("DISPATCHED");
+
+        PackagingSlip cancelledSingle = new PackagingSlip();
+        setField(cancelledSingle, "id", 56L);
+        cancelledSingle.setCompany(company);
+        cancelledSingle.setSalesOrder(singleSlipOrder);
+        cancelledSingle.setStatus("CANCELLED");
+
+        PackagingSlip multiSlipA = new PackagingSlip();
+        setField(multiSlipA, "id", 65L);
+        multiSlipA.setCompany(company);
+        multiSlipA.setSalesOrder(multiSlipOrder);
+        multiSlipA.setStatus("DISPATCHED");
+
+        PackagingSlip multiSlipB = new PackagingSlip();
+        setField(multiSlipB, "id", 66L);
+        multiSlipB.setCompany(company);
+        multiSlipB.setSalesOrder(multiSlipOrder);
+        multiSlipB.setStatus("PENDING");
+
+        when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 10L))
+                .thenReturn(List.of(singleSlip, cancelledSingle));
+        when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 20L))
+                .thenReturn(List.of(multiSlipA, multiSlipB));
+
+        DispatchMarkerReconciliationResponse response = salesService.reconcileStaleOrderLevelMarkers(200);
+
+        assertEquals(2, response.scannedOrders());
+        assertEquals(1, response.reconciledOrders());
+        assertEquals(List.of(20L), response.reconciledOrderIds());
+        assertEquals(901L, singleSlipOrder.getSalesJournalEntryId());
+        assertNull(multiSlipOrder.getSalesJournalEntryId());
+        assertNull(multiSlipOrder.getCogsJournalEntryId());
+        assertNull(multiSlipOrder.getFulfillmentInvoiceId());
+    }
+
+    @Test
     void confirmDispatchReusesOrderJournalWhenOnlyOtherSlipCancelled() {
         Dealer dealer = dealerWithCreditLimit(42L, BigDecimal.valueOf(1000));
         Account receivable = new Account();
