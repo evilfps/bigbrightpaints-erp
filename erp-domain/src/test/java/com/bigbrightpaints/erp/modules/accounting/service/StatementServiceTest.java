@@ -345,16 +345,21 @@ class StatementServiceTest {
         when(dealerLedgerRepository.findByCompanyAndDealerAndEntryDateBetweenOrderByEntryDateAscIdAsc(company, dealer, from, to))
                 .thenReturn(List.of(row));
 
+        var expected = statementService.dealerStatement(91L, from, to);
         byte[] pdf = statementService.dealerStatementPdf(91L, from, to);
         String text = extractPdfText(pdf);
 
         assertThat(text).contains("Dealer Statement");
-        assertThat(text).contains("Dealer Ledger Text");
-        assertThat(text).contains("INV-TEXT-1");
-        assertThat(text).contains("Dispatch text row");
-        assertThat(text).contains("25.00");
-        assertThat(text).contains("75.00");
-        assertThat(text).contains("100.00");
+        assertThat(text).contains(expected.partnerName());
+        assertThat(text).contains(expected.openingBalance().toString());
+        assertThat(text).contains(expected.closingBalance().toString());
+        for (var tx : expected.transactions()) {
+            assertThat(text).contains(tx.referenceNumber());
+            assertThat(text).contains(tx.memo());
+            assertThat(text).contains(tx.debit().toString());
+            assertThat(text).contains(tx.credit().toString());
+            assertThat(text).contains(tx.runningBalance().toString());
+        }
     }
 
     @Test
@@ -371,14 +376,17 @@ class StatementServiceTest {
         when(supplierLedgerRepository.findByCompanyAndSupplierAndEntryDateLessThanEqualOrderByEntryDateAscIdAsc(
                 company, supplier, LocalDate.of(2026, 2, 12))).thenReturn(List.of(row));
 
+        var expected = statementService.supplierAging(92L, LocalDate.of(2026, 2, 12), "0-30,30-60,61");
         byte[] pdf = statementService.supplierAgingPdf(92L, LocalDate.of(2026, 2, 12), "0-30,30-60,61");
         String text = extractPdfText(pdf);
 
         assertThat(text).contains("Supplier Aging");
-        assertThat(text).contains("Supplier Aging Text");
-        assertThat(text).contains("0-30 days");
-        assertThat(text).contains("Total");
-        assertThat(text).contains("90.00");
+        assertThat(text).contains(expected.partnerName());
+        assertThat(text).contains(expected.totalOutstanding().toString());
+        for (var bucket : expected.buckets()) {
+            assertThat(text).contains(bucket.label());
+            assertThat(text).contains(bucket.amount().toString());
+        }
     }
 
     private String extractPdfText(byte[] pdf) {
