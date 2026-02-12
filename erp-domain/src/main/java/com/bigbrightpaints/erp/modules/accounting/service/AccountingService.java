@@ -1911,23 +1911,23 @@ public class AccountingService {
         if (allocations == null || allocations.isEmpty()) {
             throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT, "At least one allocation is required");
         }
-        validateSupplierSettlementAllocations(allocations);
         SettlementTotals totals = computeSettlementTotals(allocations);
         String memo = StringUtils.hasText(request.memo())
                 ? request.memo().trim()
                 : "Settlement to supplier " + supplier.getName();
         String reference = resolveSupplierSettlementReference(company, supplier, request, trimmedIdempotencyKey);
         IdempotencyReservation reservation = reserveReferenceMapping(company, trimmedIdempotencyKey, reference, ENTITY_TYPE_SUPPLIER_SETTLEMENT);
-        SettlementLineDraft lineDraft = buildSupplierSettlementLines(company, request, payableAccount, cashAccount, totals, memo);
 
         if (!reservation.leader()) {
             JournalEntry existingEntry = awaitJournalEntry(company, reference, trimmedIdempotencyKey);
             List<PartnerSettlementAllocation> existingAllocations = awaitAllocations(company, trimmedIdempotencyKey);
             if (!existingAllocations.isEmpty()) {
+                SettlementLineDraft replayLineDraft =
+                        buildSupplierSettlementLines(company, request, payableAccount, cashAccount, totals, memo);
                 JournalEntry entry = resolveReplayJournalEntry(trimmedIdempotencyKey, existingEntry, existingAllocations);
                 linkReferenceMapping(company, trimmedIdempotencyKey, entry, ENTITY_TYPE_SUPPLIER_SETTLEMENT);
                 validateSettlementIdempotencyKey(trimmedIdempotencyKey, PartnerType.SUPPLIER, supplier.getId(), existingAllocations, allocations);
-                validateSupplierSettlementJournalLines(trimmedIdempotencyKey, supplier, memo, entry, lineDraft.lines());
+                validateSupplierSettlementJournalLines(trimmedIdempotencyKey, supplier, memo, entry, replayLineDraft.lines());
                 return buildSupplierSettlementResponse(existingAllocations);
             }
             throw new ApplicationException(ErrorCode.INTERNAL_CONCURRENCY_FAILURE,
@@ -1942,11 +1942,16 @@ public class AccountingService {
                     reference,
                     trimmedIdempotencyKey,
                     existingAllocations);
+            SettlementLineDraft replayLineDraft =
+                    buildSupplierSettlementLines(company, request, payableAccount, cashAccount, totals, memo);
             linkReferenceMapping(company, trimmedIdempotencyKey, entry, ENTITY_TYPE_SUPPLIER_SETTLEMENT);
             validateSettlementIdempotencyKey(trimmedIdempotencyKey, PartnerType.SUPPLIER, supplier.getId(), existingAllocations, allocations);
-            validateSupplierSettlementJournalLines(trimmedIdempotencyKey, supplier, memo, entry, lineDraft.lines());
+            validateSupplierSettlementJournalLines(trimmedIdempotencyKey, supplier, memo, entry, replayLineDraft.lines());
             return buildSupplierSettlementResponse(existingAllocations);
         }
+
+        validateSupplierSettlementAllocations(allocations);
+        SettlementLineDraft lineDraft = buildSupplierSettlementLines(company, request, payableAccount, cashAccount, totals, memo);
 
         LocalDate entryDate = request.settlementDate() != null ? request.settlementDate() : currentDate(company);
 
