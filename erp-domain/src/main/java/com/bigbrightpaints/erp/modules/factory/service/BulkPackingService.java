@@ -31,8 +31,10 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Service for converting bulk FG batches into sized child batches.
@@ -100,6 +102,7 @@ public class BulkPackingService {
     @Transactional
     public BulkPackResponse pack(BulkPackRequest request) {
         Company company = companyContextService.requireCurrentCompany();
+        validatePackLines(request);
 
         // 1. Load and lock the bulk batch
         FinishedGoodBatch bulkBatch = finishedGoodBatchRepository.lockByCompanyAndId(company, request.bulkBatchId())
@@ -396,11 +399,37 @@ public class BulkPackingService {
             throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
                     "Pack quantity is required for child SKU " + childSkuId);
         }
+        int packCount;
         try {
-            return quantity.intValueExact();
+            packCount = quantity.intValueExact();
         } catch (ArithmeticException ex) {
             throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
                     "Pack quantity must be a whole number for child SKU " + childSkuId);
+        }
+        if (packCount <= 0) {
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                    "Pack quantity must be greater than zero for child SKU " + childSkuId);
+        }
+        return packCount;
+    }
+
+    private void validatePackLines(BulkPackRequest request) {
+        if (request == null) {
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT, "Bulk pack request is required");
+        }
+        if (request.packs() == null || request.packs().isEmpty()) {
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT, "At least one pack line is required");
+        }
+        Set<Long> seenChildSkus = new HashSet<>();
+        for (BulkPackRequest.PackLine line : request.packs()) {
+            if (line == null || line.childSkuId() == null) {
+                throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT, "Child SKU is required for each pack line");
+            }
+            requireWholePackCount(line.quantity(), line.childSkuId());
+            if (!seenChildSkus.add(line.childSkuId())) {
+                throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                        "Duplicate child SKU line is not allowed: " + line.childSkuId());
+            }
         }
     }
 

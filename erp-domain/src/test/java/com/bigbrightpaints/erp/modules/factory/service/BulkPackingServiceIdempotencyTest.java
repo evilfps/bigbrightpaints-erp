@@ -140,4 +140,47 @@ class BulkPackingServiceIdempotencyTest {
 
         verify(accountingFacade, never()).postPackingJournal(anyString(), any(), anyString(), any());
     }
+
+    @Test
+    void pack_rejectsDuplicateChildSkuLinesBeforeMutation() {
+        BulkPackRequest request = new BulkPackRequest(
+                10L,
+                List.of(
+                        new BulkPackRequest.PackLine(200L, new BigDecimal("2"), "1L", "L"),
+                        new BulkPackRequest.PackLine(200L, new BigDecimal("3"), "1L", "L")
+                ),
+                null,
+                true,
+                LocalDate.of(2026, 2, 12),
+                "factory-user",
+                "duplicate child line",
+                "bulk-idem-dup"
+        );
+
+        assertThatThrownBy(() -> bulkPackingService.pack(request))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Duplicate child SKU line is not allowed");
+
+        verify(finishedGoodBatchRepository, never()).lockByCompanyAndId(any(), any());
+    }
+
+    @Test
+    void pack_rejectsZeroPackQuantityBeforeMutation() {
+        BulkPackRequest request = new BulkPackRequest(
+                10L,
+                List.of(new BulkPackRequest.PackLine(200L, BigDecimal.ZERO, "1L", "L")),
+                null,
+                true,
+                LocalDate.of(2026, 2, 12),
+                "factory-user",
+                "zero quantity",
+                "bulk-idem-zero"
+        );
+
+        assertThatThrownBy(() -> bulkPackingService.pack(request))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Pack quantity must be greater than zero");
+
+        verify(finishedGoodBatchRepository, never()).lockByCompanyAndId(any(), any());
+    }
 }

@@ -480,25 +480,36 @@ Commit Ledger
   - Prior review follow-up captured for next auth/audit slice:
     - high: ambiguous numeric runtime token collision can misattribute tenant in audit context
     - medium: unresolved auth company token not persisted in metadata for forensic traceability
+- 2026-02-12: `aabbfba1`
+  - Hardened bulk-pack idempotent replay to fail closed when inventory movements exist without journal linkage.
+  - Added focused unit regression for idempotent replay partial-state detection.
+  - Included extracted `PackagingSizeParser` utility + tests used by bulk packing size parsing path.
+  - Verified:
+    - `mvn -B -ntp -Dtest=BulkPackingServiceIdempotencyTest,BulkPackingServiceTest,CR_BulkPackagingCrossModuleTest#bulkPack_idempotentRetry_doesNotDoubleConsumeOrPost test`
+  - Subagent review:
+    - `019c4f63-fdbc-73c2-a787-0e3ae77b3414` (running)
 
 Current Checkpoint
-- Current WIP M5-S2 (bulk packing idempotency fail-closed):
+- Current WIP M5-S2 (bulk packing request-shape hardening):
   - Root cause (proved by failing test):
-    - idempotent replay returned success when packing inventory movements existed but no journal linkage existed, silently masking accounting drift.
+    - service-layer guardrails relied on controller bean-validation; direct/internal service calls could pass malformed lines (duplicate child SKU entries, zero pack counts).
     - failing proof command:
       - `mvn -B -ntp -Dtest=BulkPackingServiceIdempotencyTest test`
   - Fix in progress:
     - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/factory/service/BulkPackingService.java`
-      - `resolveIdempotentPack` now throws `INTERNAL_CONCURRENCY_FAILURE` when inventory movements exist without journal
-      - prevents fail-open replay in partial/unsafe pack states
+      - added `validatePackLines` pre-lock guard:
+        - request null/empty rejection
+        - duplicate child SKU rejection
+        - positive whole-pack enforcement before mutation
+      - `requireWholePackCount` now rejects non-positive values explicitly.
     - `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/factory/service/BulkPackingServiceIdempotencyTest.java`
-      - added regression ensuring replay fails closed on missing journal linkage
+      - added regressions for duplicate child SKU rejection and zero pack quantity rejection
 - Verification command:
-  - `mvn -B -ntp -Dtest=BulkPackingServiceIdempotencyTest,BulkPackingServiceTest,CR_BulkPackagingCrossModuleTest#bulkPack_idempotentRetry_doesNotDoubleConsumeOrPost test`
+  - `mvn -B -ntp -Dtest=BulkPackingServiceIdempotencyTest,BulkPackingServiceTest,CR_BulkPackagingCrossModuleTest test`
 - Next action:
-  - commit M5-S2 bulk-pack fail-closed idempotency guard
+  - commit M5-S2 request-shape hardening guardrails
   - run `codex review --commit <sha>`
-  - continue M5-S2 manufacturing audit (remaining: duplicate child-line guard + zero-pack hard reject)
+  - pivot to M0-S7 auth/audit numeric collision + unresolved token metadata follow-up
 
 Async Loop Cadence
 - Each cycle:
