@@ -19,8 +19,8 @@ Non-Stop Operating Rules
 
 Runtime Tracking
 - tracked_start_ts: `2026-02-12T01:53:52+05:30` (first immutable async-loop commit marker)
-- tracked_now_ts: `2026-02-12T07:25:35+05:30`
-- tracked_elapsed: `5h 31m 43s`
+- tracked_now_ts: `2026-02-12T07:26:49+05:30`
+- tracked_elapsed: `5h 32m 57s`
 
 Completion Gates (Required For "Safe To Deploy" Claim)
 - No known critical/high security issues in auth/RBAC/tenant isolation/data exposure.
@@ -584,18 +584,20 @@ Commit Ledger
     - high: backfill must be company-membership scoped (`user_companies`), not global email match.
     - high: normalized-email ambiguity in `app_users` must be handled deterministically.
     - medium: duplicate-canonical selection should prioritize active/current dealer records.
+- 2026-02-12: `ae927d32`
+  - Inventory no-dispatch elevation guard:
+    - require at least one active dispatched slip before deriving `READY_TO_SHIP`.
+    - add explicit regression for reserved-only active-slip scenario after backorder cancellation.
+  - Verified:
+    - `mvn -B -ntp -Dtest=FinishedGoodsServiceTest,DispatchConfirmationIT test`
+  - Subagent review:
+    - `019c4f90-6c6d-78b1-a7fa-7b6fde313bb6` (running)
 
 Current Checkpoint
-- Current WIP M3-S4R3 + M5-S6R1 (inventory and portal review closures):
-  - Root causes:
-    - `1fae8208` review found status-elevation risk without dispatched active slips.
-    - `c413f749` review found cross-company/ambiguous backfill risks in migration V9.
+- Current WIP M5-S6R1 (dealer portal migration V9 safety closure):
+  - Root cause:
+    - `c413f749` review found migration V9 needed company-membership scoping and deterministic normalized-email backfill behavior.
   - Fix completed in working tree (pending commit):
-    - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/service/FinishedGoodsService.java`
-      - require at least one active dispatched slip before `READY_TO_SHIP` derivation.
-      - keep no-op when all active slips are cancelled and map `SHIPPED` to conservative `READY_TO_SHIP` in backorder-cancel reconciliation path.
-    - `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/inventory/service/FinishedGoodsServiceTest.java`
-      - add regression: canceling backorder does not promote status when remaining active slips are non-dispatched (`RESERVED` only).
     - `erp-domain/src/main/resources/db/migration_v2/V9__dealer_portal_user_binding_hardening.sql` (new)
       - scope backfill to `user_companies` membership.
       - only backfill unambiguous normalized-email matches per company.
@@ -607,9 +609,9 @@ Current Checkpoint
   - `mvn -B -ntp -Dtest=DealerPortalServiceTest,DealerPortalControllerSecurityIT test`
   - Result: pass (2026-02-12T07:16:56+05:30)
 - Next action:
-  - commit M3-S4R3 inventory no-dispatch status-elevation guard
-  - run `codex review --commit <sha>`
   - commit M5-S6R1 migration V9 company-scoped deterministic backfill hardening
+  - run `codex review --commit <sha>`
+  - process subagent findings for `ae927d32` and `M5-S6R1` follow-up
 
 Async Loop Cadence
 - Each cycle:
