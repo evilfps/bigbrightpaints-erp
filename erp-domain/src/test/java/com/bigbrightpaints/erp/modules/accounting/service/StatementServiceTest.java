@@ -18,9 +18,13 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.text.PDFTextStripper;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.nio.charset.StandardCharsets;
@@ -318,5 +322,70 @@ class StatementServiceTest {
 
         assertThat(pdf).isNotEmpty();
         assertThat(new String(pdf, 0, 5, StandardCharsets.US_ASCII)).isEqualTo("%PDF-");
+    }
+
+    @Test
+    void dealerStatementPdf_containsStatementPayloadText() {
+        Dealer dealer = new Dealer();
+        dealer.setName("Dealer Ledger Text");
+        ReflectionTestUtils.setField(dealer, "id", 91L);
+        when(dealerRepository.findByCompanyAndId(company, 91L)).thenReturn(Optional.of(dealer));
+
+        LocalDate from = LocalDate.of(2026, 2, 1);
+        LocalDate to = LocalDate.of(2026, 2, 28);
+        when(dealerLedgerRepository.aggregateBalanceBefore(company, dealer, from))
+                .thenReturn(Optional.of(new DealerBalanceView(91L, new BigDecimal("25.00"))));
+
+        DealerLedgerEntry row = new DealerLedgerEntry();
+        row.setEntryDate(LocalDate.of(2026, 2, 10));
+        row.setReferenceNumber("INV-TEXT-1");
+        row.setMemo("Dispatch text row");
+        row.setDebit(new BigDecimal("75.00"));
+        row.setCredit(BigDecimal.ZERO);
+        when(dealerLedgerRepository.findByCompanyAndDealerAndEntryDateBetweenOrderByEntryDateAscIdAsc(company, dealer, from, to))
+                .thenReturn(List.of(row));
+
+        byte[] pdf = statementService.dealerStatementPdf(91L, from, to);
+        String text = extractPdfText(pdf);
+
+        assertThat(text).contains("Dealer Statement");
+        assertThat(text).contains("Dealer Ledger Text");
+        assertThat(text).contains("INV-TEXT-1");
+        assertThat(text).contains("Dispatch text row");
+        assertThat(text).contains("25.00");
+        assertThat(text).contains("75.00");
+        assertThat(text).contains("100.00");
+    }
+
+    @Test
+    void supplierAgingPdf_containsAgingPayloadText() {
+        Supplier supplier = new Supplier();
+        supplier.setName("Supplier Aging Text");
+        ReflectionTestUtils.setField(supplier, "id", 92L);
+        when(supplierRepository.findByCompanyAndId(company, 92L)).thenReturn(Optional.of(supplier));
+
+        SupplierLedgerEntry row = new SupplierLedgerEntry();
+        row.setEntryDate(LocalDate.of(2026, 2, 1));
+        row.setDebit(BigDecimal.ZERO);
+        row.setCredit(new BigDecimal("90.00"));
+        when(supplierLedgerRepository.findByCompanyAndSupplierAndEntryDateLessThanEqualOrderByEntryDateAscIdAsc(
+                company, supplier, LocalDate.of(2026, 2, 12))).thenReturn(List.of(row));
+
+        byte[] pdf = statementService.supplierAgingPdf(92L, LocalDate.of(2026, 2, 12), "0-30,30-60,61");
+        String text = extractPdfText(pdf);
+
+        assertThat(text).contains("Supplier Aging");
+        assertThat(text).contains("Supplier Aging Text");
+        assertThat(text).contains("0-30 days");
+        assertThat(text).contains("Total");
+        assertThat(text).contains("90.00");
+    }
+
+    private String extractPdfText(byte[] pdf) {
+        try (PDDocument document = PDDocument.load(new ByteArrayInputStream(pdf))) {
+            return new PDFTextStripper().getText(document);
+        } catch (IOException ex) {
+            throw new RuntimeException("Unable to extract text from generated PDF", ex);
+        }
     }
 }
