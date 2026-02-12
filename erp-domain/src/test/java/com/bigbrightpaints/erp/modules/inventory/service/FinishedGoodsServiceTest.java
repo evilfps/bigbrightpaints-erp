@@ -390,6 +390,40 @@ class FinishedGoodsServiceTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void cancelBackorderDoesNotPromoteStatusWithoutAnyDispatchedActiveSlip() {
+        Company company = seedCompany("BACKORDER-NO-DISPATCH");
+        FinishedGood fg = createFinishedGood(company, "FG-BO-NO-DISPATCH", new BigDecimal("10"), new BigDecimal("5"), "FIFO");
+        FinishedGoodBatch reservedBatch = createBatch(fg, "BATCH-BO-RESERVED", new BigDecimal("5"), BigDecimal.ZERO, new BigDecimal("10"));
+        FinishedGoodBatch backorderBatch = createBatch(fg, "BATCH-BO-PENDING", new BigDecimal("5"), BigDecimal.ZERO, new BigDecimal("11"));
+        SalesOrder order = createOrder(company, "SO-BO-NO-DISPATCH-" + UUID.randomUUID(), fg.getProductCode(), new BigDecimal("10"));
+        order.setStatus("PENDING_PRODUCTION");
+        order = salesOrderRepository.saveAndFlush(order);
+
+        PackagingSlip reservedSlip = new PackagingSlip();
+        reservedSlip.setCompany(company);
+        reservedSlip.setSalesOrder(order);
+        reservedSlip.setSlipNumber("PS-RES-" + UUID.randomUUID().toString().substring(0, 8));
+        reservedSlip.setStatus("RESERVED");
+        reservedSlip.setBackorder(false);
+        PackagingSlipLine reservedLine = new PackagingSlipLine();
+        reservedLine.setPackagingSlip(reservedSlip);
+        reservedLine.setFinishedGoodBatch(reservedBatch);
+        reservedLine.setOrderedQuantity(new BigDecimal("5"));
+        reservedLine.setQuantity(new BigDecimal("5"));
+        reservedLine.setUnitCost(reservedBatch.getUnitCost());
+        reservedSlip.getLines().add(reservedLine);
+        packagingSlipRepository.saveAndFlush(reservedSlip);
+
+        PackagingSlip backorderSlip = createSlip(company, order, "BACKORDER", backorderBatch, new BigDecimal("5"));
+        createReservation(order, fg, backorderBatch, new BigDecimal("5"));
+
+        finishedGoodsService.cancelBackorderSlip(backorderSlip.getId(), "tester", "cancel backorder");
+
+        SalesOrder refreshedOrder = salesOrderRepository.findByCompanyAndId(company, order.getId()).orElseThrow();
+        assertThat(refreshedOrder.getStatus()).isEqualTo("PENDING_PRODUCTION");
+    }
+
+    @Test
     void reserveForOrderKeepsBackorderSlip() {
         Company company = seedCompany("BACKORDER-KEEP");
         FinishedGood fg = createFinishedGood(company, "FG-KEEP", new BigDecimal("5"), new BigDecimal("5"), "FIFO");

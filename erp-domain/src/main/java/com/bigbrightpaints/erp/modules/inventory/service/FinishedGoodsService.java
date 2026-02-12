@@ -1401,7 +1401,7 @@ public class FinishedGoodsService {
         if (!isBackorderCancellationStatusSyncAllowed(managedOrder)) {
             return;
         }
-        String nextStatus = resolveOrderStatusFromSlips(company, managedOrder);
+        String nextStatus = normalizeBackorderCancellationTargetStatus(resolveOrderStatusFromSlips(company, managedOrder));
         if (!"READY_TO_SHIP".equalsIgnoreCase(nextStatus)
                 || "READY_TO_SHIP".equalsIgnoreCase(managedOrder.getStatus())) {
             return;
@@ -1426,6 +1426,16 @@ public class FinishedGoodsService {
                 && !order.hasCogsJournalPosted();
     }
 
+    private String normalizeBackorderCancellationTargetStatus(String status) {
+        if (!StringUtils.hasText(status)) {
+            return status;
+        }
+        if ("SHIPPED".equalsIgnoreCase(status)) {
+            return "READY_TO_SHIP";
+        }
+        return status;
+    }
+
     private String resolveOrderStatusFromSlips(Company company, SalesOrder order) {
         if (company == null || order == null || order.getId() == null) {
             return order != null ? order.getStatus() : null;
@@ -1444,6 +1454,16 @@ public class FinishedGoodsService {
                 .anyMatch(slip -> "BACKORDER".equalsIgnoreCase(slip.getStatus()));
         if (anyBackorder) {
             return "PENDING_PRODUCTION";
+        }
+        boolean anyDispatched = activeSlips.stream()
+                .anyMatch(slip -> "DISPATCHED".equalsIgnoreCase(slip.getStatus()));
+        if (!anyDispatched) {
+            return order.getStatus();
+        }
+        boolean allDispatched = activeSlips.stream()
+                .allMatch(slip -> "DISPATCHED".equalsIgnoreCase(slip.getStatus()));
+        if (allDispatched) {
+            return "SHIPPED";
         }
         return "READY_TO_SHIP";
     }

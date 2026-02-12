@@ -19,8 +19,8 @@ Non-Stop Operating Rules
 
 Runtime Tracking
 - tracked_start_ts: `2026-02-12T01:53:52+05:30` (first immutable async-loop commit marker)
-- tracked_now_ts: `2026-02-12T07:20:36+05:30`
-- tracked_elapsed: `5h 26m 44s`
+- tracked_now_ts: `2026-02-12T07:25:35+05:30`
+- tracked_elapsed: `5h 31m 43s`
 
 Completion Gates (Required For "Safe To Deploy" Claim)
 - No known critical/high security issues in auth/RBAC/tenant isolation/data exposure.
@@ -570,28 +570,46 @@ Commit Ledger
   - Verified:
     - `mvn -B -ntp -Dtest=FinishedGoodsServiceTest,DispatchConfirmationIT test`
   - Subagent review:
-    - `019c4f8a-c5a6-7371-8b5d-73fdd089e0af` (running)
+    - `019c4f8a-c5a6-7371-8b5d-73fdd089e0af` (completed)
+    - high: status can still promote without any dispatched active slip.
+    - medium: broadened mutable status set needs explicit no-dispatch guard.
+- 2026-02-12: `c413f749`
+  - Dealer portal mapping hardening:
+    - added Flyway V2 migration `V9__dealer_portal_user_binding_hardening.sql`.
+    - added IT proving unmapped dealer principal receives 403.
+  - Verified:
+    - `mvn -B -ntp -Dtest=DealerPortalServiceTest,DealerPortalControllerSecurityIT test`
+  - Subagent review:
+    - `019c4f8b-8721-7203-94e1-920eede7d815` (completed)
+    - high: backfill must be company-membership scoped (`user_companies`), not global email match.
+    - high: normalized-email ambiguity in `app_users` must be handled deterministically.
+    - medium: duplicate-canonical selection should prioritize active/current dealer records.
 
 Current Checkpoint
-- Current WIP M5-S6 (dealer portal user-id backfill + uniqueness hardening):
-  - Root cause:
-    - dealer portal fail-closed mode can lock out legacy users unless `portal_user_id` mappings are backfilled and uniqueness is enforced at DB boundary.
+- Current WIP M3-S4R3 + M5-S6R1 (inventory and portal review closures):
+  - Root causes:
+    - `1fae8208` review found status-elevation risk without dispatched active slips.
+    - `c413f749` review found cross-company/ambiguous backfill risks in migration V9.
   - Fix completed in working tree (pending commit):
+    - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/service/FinishedGoodsService.java`
+      - require at least one active dispatched slip before `READY_TO_SHIP` derivation.
+      - keep no-op when all active slips are cancelled and map `SHIPPED` to conservative `READY_TO_SHIP` in backorder-cancel reconciliation path.
+    - `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/inventory/service/FinishedGoodsServiceTest.java`
+      - add regression: canceling backorder does not promote status when remaining active slips are non-dispatched (`RESERVED` only).
     - `erp-domain/src/main/resources/db/migration_v2/V9__dealer_portal_user_binding_hardening.sql` (new)
-      - backfill dealer `portal_user_id` from normalized email.
-      - collapse duplicate `(company_id, portal_user_id)` mappings fail-closed.
+      - scope backfill to `user_companies` membership.
+      - only backfill unambiguous normalized-email matches per company.
+      - collapse duplicate `(company_id, portal_user_id)` mappings with active-first canonical retention.
       - enforce partial unique index on `(company_id, portal_user_id)` where portal user is non-null.
-    - `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/sales/DealerPortalControllerSecurityIT.java`
-      - add IT proving unmapped dealer principal is denied with 403.
 - Verification command:
   - `mvn -B -ntp -Dtest=FinishedGoodsServiceTest,DispatchConfirmationIT test`
-  - Result: pass (2026-02-12T07:19:18+05:30)
+  - Result: pass (2026-02-12T07:24:43+05:30)
   - `mvn -B -ntp -Dtest=DealerPortalServiceTest,DealerPortalControllerSecurityIT test`
   - Result: pass (2026-02-12T07:16:56+05:30)
 - Next action:
-  - commit M5-S6 Flyway V2 dealer mapping backfill/uniqueness + 403 mapping IT
+  - commit M3-S4R3 inventory no-dispatch status-elevation guard
   - run `codex review --commit <sha>`
-  - consume review result for `1fae8208` and apply any required inventory follow-up
+  - commit M5-S6R1 migration V9 company-scoped deterministic backfill hardening
 
 Async Loop Cadence
 - Each cycle:
