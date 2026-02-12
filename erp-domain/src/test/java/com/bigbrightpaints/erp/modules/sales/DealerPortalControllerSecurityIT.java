@@ -32,6 +32,7 @@ class DealerPortalControllerSecurityIT extends AbstractIntegrationTest {
     private static final String COMPANY_CODE = "DEALER-PORTAL-SEC";
     private static final String DEALER_A_EMAIL = "portal-dealer-a@bbp.com";
     private static final String DEALER_B_EMAIL = "portal-dealer-b@bbp.com";
+    private static final String DEALER_ORPHAN_EMAIL = "portal-dealer-orphan@bbp.com";
     private static final String ADMIN_EMAIL = "portal-admin@bbp.com";
     private static final String PASSWORD = "DealerPass123!";
 
@@ -58,6 +59,8 @@ class DealerPortalControllerSecurityIT extends AbstractIntegrationTest {
                 DEALER_A_EMAIL, PASSWORD, "Dealer A User", COMPANY_CODE, List.of("ROLE_DEALER"));
         UserAccount dealerBUser = dataSeeder.ensureUser(
                 DEALER_B_EMAIL, PASSWORD, "Dealer B User", COMPANY_CODE, List.of("ROLE_DEALER"));
+        dataSeeder.ensureUser(
+                DEALER_ORPHAN_EMAIL, PASSWORD, "Dealer Orphan User", COMPANY_CODE, List.of("ROLE_DEALER"));
         dataSeeder.ensureUser(
                 ADMIN_EMAIL, PASSWORD, "Admin User", COMPANY_CODE, List.of("ROLE_ADMIN"));
 
@@ -109,6 +112,20 @@ class DealerPortalControllerSecurityIT extends AbstractIntegrationTest {
     @DisplayName("Non dealer role cannot access dealer portal endpoints")
     void nonDealerRoleCannotAccessDealerPortal() {
         HttpHeaders headers = authHeaders(ADMIN_EMAIL, PASSWORD);
+        ResponseEntity<Map> response = rest.exchange(
+                "/api/v1/dealer-portal/dashboard",
+                HttpMethod.GET,
+                new HttpEntity<>(headers),
+                Map.class
+        );
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+    }
+
+    @Test
+    @DisplayName("Dealer principal without dealer mapping is denied with forbidden status")
+    void dealerWithoutMappingIsForbidden() {
+        HttpHeaders headers = authHeaders(DEALER_ORPHAN_EMAIL, PASSWORD);
         ResponseEntity<Map> response = rest.exchange(
                 "/api/v1/dealer-portal/dashboard",
                 HttpMethod.GET,

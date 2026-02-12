@@ -19,8 +19,8 @@ Non-Stop Operating Rules
 
 Runtime Tracking
 - tracked_start_ts: `2026-02-12T01:53:52+05:30` (first immutable async-loop commit marker)
-- tracked_now_ts: `2026-02-12T07:19:18+05:30`
-- tracked_elapsed: `5h 25m 26s`
+- tracked_now_ts: `2026-02-12T07:20:36+05:30`
+- tracked_elapsed: `5h 26m 44s`
 
 Completion Gates (Required For "Safe To Deploy" Claim)
 - No known critical/high security issues in auth/RBAC/tenant isolation/data exposure.
@@ -561,19 +561,22 @@ Commit Ledger
     - high: only-cancelled-slip case can still drift to `READY_TO_SHIP`.
     - medium: add explicit invoice-posted and COGS-posted guard coverage.
     - medium: allow safe reconciliation from additional mutable statuses while blocking terminal/posted states.
+- 2026-02-12: `1fae8208`
+  - Inventory follow-up remediation for `6f805def` review findings:
+    - prevent `READY_TO_SHIP` drift when no active (non-cancelled) slips remain.
+    - broaden safe mutable sync statuses (`PENDING_PRODUCTION`, `RESERVED`, `READY_TO_SHIP`).
+    - add regressions for invoice-posted and COGS-posted immutability guards.
+    - add regression for all-slips-cancelled no-op behavior.
+  - Verified:
+    - `mvn -B -ntp -Dtest=FinishedGoodsServiceTest,DispatchConfirmationIT test`
+  - Subagent review:
+    - `019c4f8a-c5a6-7371-8b5d-73fdd089e0af` (running)
 
 Current Checkpoint
-- Current WIP M3-S4R2 + M5-S6 (inventory follow-up + dealer mapping backfill hardening):
-  - Root causes:
-    - review on `6f805def` surfaced a high-risk edge case where only-cancelled slips can still misclassify order readiness.
-    - review on `6cdf11be` surfaced legacy dealer lockout risk without `portal_user_id` backfill.
+- Current WIP M5-S6 (dealer portal user-id backfill + uniqueness hardening):
+  - Root cause:
+    - dealer portal fail-closed mode can lock out legacy users unless `portal_user_id` mappings are backfilled and uniqueness is enforced at DB boundary.
   - Fix completed in working tree (pending commit):
-    - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/service/FinishedGoodsService.java`
-      - restore active-slip filtering and no-op when all slips are cancelled.
-      - allow reconciliation for mutable statuses (`PENDING_PRODUCTION`/`RESERVED`/`READY_TO_SHIP`) while preserving accounting immutability guard.
-    - `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/inventory/service/FinishedGoodsServiceTest.java`
-      - add regression: only-cancelled-slip path must not set `READY_TO_SHIP`.
-      - add regressions: invoice-posted and COGS-posted orders must not mutate status.
     - `erp-domain/src/main/resources/db/migration_v2/V9__dealer_portal_user_binding_hardening.sql` (new)
       - backfill dealer `portal_user_id` from normalized email.
       - collapse duplicate `(company_id, portal_user_id)` mappings fail-closed.
@@ -586,9 +589,9 @@ Current Checkpoint
   - `mvn -B -ntp -Dtest=DealerPortalServiceTest,DealerPortalControllerSecurityIT test`
   - Result: pass (2026-02-12T07:16:56+05:30)
 - Next action:
-  - commit M3-S4R2 high-severity inventory follow-up patch
-  - run `codex review --commit <sha>`
   - commit M5-S6 Flyway V2 dealer mapping backfill/uniqueness + 403 mapping IT
+  - run `codex review --commit <sha>`
+  - consume review result for `1fae8208` and apply any required inventory follow-up
 
 Async Loop Cadence
 - Each cycle:
