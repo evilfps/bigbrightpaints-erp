@@ -17,8 +17,10 @@ import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrder;
 import com.bigbrightpaints.erp.shared.dto.ApiResponse;
 import org.junit.jupiter.api.Test;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.lang.reflect.Method;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -30,6 +32,15 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 class AdminSettingsControllerApprovalsContractTest {
+
+    @Test
+    void approvals_isReadOnlyTransactional() throws Exception {
+        Method method = AdminSettingsController.class.getMethod("approvals");
+        Transactional annotation = method.getAnnotation(Transactional.class);
+
+        assertThat(annotation).isNotNull();
+        assertThat(annotation.readOnly()).isTrue();
+    }
 
     @Test
     void approvals_includeCreditOverridesWithExplicitApprovalSummary() {
