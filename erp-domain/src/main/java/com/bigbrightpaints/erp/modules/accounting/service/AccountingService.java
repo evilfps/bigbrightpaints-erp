@@ -1911,6 +1911,11 @@ public class AccountingService {
         if (allocations == null || allocations.isEmpty()) {
             throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT, "At least one allocation is required");
         }
+        boolean replayCandidate = hasExistingIdempotencyMapping(company, trimmedIdempotencyKey)
+                || hasExistingSettlementAllocations(company, trimmedIdempotencyKey);
+        if (!replayCandidate) {
+            validateSupplierSettlementAllocations(allocations);
+        }
         SettlementTotals totals = computeSettlementTotals(allocations);
         String memo = StringUtils.hasText(request.memo())
                 ? request.memo().trim()
@@ -1950,7 +1955,6 @@ public class AccountingService {
             return buildSupplierSettlementResponse(existingAllocations);
         }
 
-        validateSupplierSettlementAllocations(allocations);
         SettlementLineDraft lineDraft = buildSupplierSettlementLines(company, request, payableAccount, cashAccount, totals, memo);
 
         LocalDate entryDate = request.settlementDate() != null ? request.settlementDate() : currentDate(company);
@@ -2443,6 +2447,21 @@ public class AccountingService {
             }
         }
         return referenceNumberService.supplierPaymentReference(company, supplier);
+    }
+
+    private boolean hasExistingIdempotencyMapping(Company company, String idempotencyKey) {
+        if (company == null || !StringUtils.hasText(idempotencyKey)) {
+            return false;
+        }
+        String key = normalizeIdempotencyMappingKey(idempotencyKey);
+        return findLatestLegacyReferenceMapping(company, key).isPresent();
+    }
+
+    private boolean hasExistingSettlementAllocations(Company company, String idempotencyKey) {
+        if (company == null || !StringUtils.hasText(idempotencyKey)) {
+            return false;
+        }
+        return !findAllocationsByIdempotencyKey(company, idempotencyKey).isEmpty();
     }
 
     private IdempotencyReservation reserveReferenceMapping(Company company,

@@ -3988,6 +3988,8 @@ class AccountingServiceTest {
                 .isInstanceOf(ApplicationException.class)
                 .hasMessageContaining("On-account supplier settlement allocations cannot include discount/write-off/FX adjustments");
         verify(service, never()).createJournalEntry(any(JournalEntryRequest.class));
+        verify(journalReferenceMappingRepository, never())
+                .reserveReferenceMapping(any(), any(), any(), any(), any());
     }
 
     @Test
@@ -4080,6 +4082,110 @@ class AccountingServiceTest {
         assertThat(mapping.getEntityId()).isEqualTo(901L);
         assertThat(mapping.getEntityType()).isEqualTo("SUPPLIER_SETTLEMENT");
         assertThat(mapping.getCanonicalReference()).isEqualTo("SUP-SETTLE-REPLAY-1");
+    }
+
+    @Test
+    void settleSupplierInvoices_nonLeaderReplayAllowsLegacyOnAccountAdjustments() {
+        Supplier supplier = new Supplier();
+        supplier.setName("Replay Supplier");
+        ReflectionTestUtils.setField(supplier, "id", 1L);
+
+        Account payable = new Account();
+        payable.setCompany(company);
+        payable.setCode("AP-REPLAY");
+        payable.setType(AccountType.LIABILITY);
+        ReflectionTestUtils.setField(payable, "id", 10L);
+        supplier.setPayableAccount(payable);
+
+        Account cash = new Account();
+        cash.setCompany(company);
+        cash.setCode("CASH-REPLAY");
+        cash.setType(AccountType.ASSET);
+        ReflectionTestUtils.setField(cash, "id", 20L);
+
+        Account discount = new Account();
+        discount.setCompany(company);
+        discount.setCode("DISC-REPLAY");
+        discount.setType(AccountType.REVENUE);
+        ReflectionTestUtils.setField(discount, "id", 30L);
+
+        JournalEntry existingEntry = new JournalEntry();
+        ReflectionTestUtils.setField(existingEntry, "id", 904L);
+        existingEntry.setSupplier(supplier);
+        existingEntry.setReferenceNumber("SUP-SETTLE-REPLAY-ADJ-1");
+        existingEntry.setMemo("Supplier settlement replay");
+        existingEntry.getLines().addAll(List.of(
+                journalLine(existingEntry, payable, "Supplier settlement replay", new BigDecimal("100.00"), BigDecimal.ZERO),
+                journalLine(existingEntry, cash, "Supplier settlement replay", BigDecimal.ZERO, new BigDecimal("90.00")),
+                journalLine(existingEntry, discount, "Settlement discount received", BigDecimal.ZERO, new BigDecimal("10.00"))
+        ));
+
+        com.bigbrightpaints.erp.modules.accounting.domain.PartnerSettlementAllocation existingRow =
+                new com.bigbrightpaints.erp.modules.accounting.domain.PartnerSettlementAllocation();
+        existingRow.setCompany(company);
+        existingRow.setPartnerType(com.bigbrightpaints.erp.modules.accounting.domain.PartnerType.SUPPLIER);
+        existingRow.setSupplier(supplier);
+        existingRow.setJournalEntry(existingEntry);
+        existingRow.setSettlementDate(LocalDate.of(2024, 4, 9));
+        existingRow.setAllocationAmount(new BigDecimal("100.00"));
+        existingRow.setDiscountAmount(new BigDecimal("10.00"));
+        existingRow.setWriteOffAmount(BigDecimal.ZERO);
+        existingRow.setFxDifferenceAmount(BigDecimal.ZERO);
+        existingRow.setIdempotencyKey("IDEMP-AP-REPLAY-ADJ");
+        existingRow.setMemo("Legacy on-account discount");
+
+        JournalReferenceMapping mapping = new JournalReferenceMapping();
+        mapping.setCompany(company);
+        mapping.setLegacyReference("idemp-ap-replay-adj");
+        mapping.setCanonicalReference("SUP-SETTLE-REPLAY-ADJ-1");
+        mapping.setEntityType("SUPPLIER_SETTLEMENT");
+        mapping.setEntityId(null);
+
+        when(supplierRepository.lockByCompanyAndId(eq(company), eq(1L))).thenReturn(Optional.of(supplier));
+        when(companyEntityLookup.requireAccount(eq(company), eq(20L))).thenReturn(cash);
+        when(companyEntityLookup.requireAccount(eq(company), eq(30L))).thenReturn(discount);
+        when(journalReferenceMappingRepository.findAllByCompanyAndLegacyReferenceIgnoreCase(eq(company), eq("idemp-ap-replay-adj")))
+                .thenReturn(List.of(mapping));
+        when(journalReferenceResolver.findExistingEntry(eq(company), eq("SUP-SETTLE-REPLAY-ADJ-1")))
+                .thenReturn(Optional.of(existingEntry));
+        when(settlementAllocationRepository.findByCompanyAndIdempotencyKeyIgnoreCaseOrderByCreatedAtAscIdAsc(eq(company), eq("IDEMP-AP-REPLAY-ADJ")))
+                .thenReturn(List.of(existingRow));
+
+        SettlementAllocationRequest allocation = new SettlementAllocationRequest(
+                null,
+                null,
+                new BigDecimal("100.00"),
+                new BigDecimal("10.00"),
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                "Legacy on-account discount"
+        );
+
+        SupplierSettlementRequest request = new SupplierSettlementRequest(
+                1L,
+                20L,
+                30L,
+                null,
+                null,
+                null,
+                LocalDate.of(2024, 4, 9),
+                null,
+                "Supplier settlement replay",
+                "IDEMP-AP-REPLAY-ADJ",
+                Boolean.FALSE,
+                List.of(allocation)
+        );
+
+        PartnerSettlementResponse response = accountingService.settleSupplierInvoices(request);
+
+        assertThat(response.journalEntry()).isNotNull();
+        assertThat(response.journalEntry().id()).isEqualTo(904L);
+        assertThat(response.totalApplied()).isEqualByComparingTo("100.00");
+        assertThat(response.totalDiscount()).isEqualByComparingTo("10.00");
+        verify(journalReferenceMappingRepository).save(mapping);
+        verify(journalReferenceMappingRepository, never())
+                .reserveReferenceMapping(any(), any(), any(), any(), any());
+        verify(journalEntryRepository, never()).save(any());
     }
 
     @Test
