@@ -665,3 +665,33 @@ Replenished Queue (Auto-Update Rule)
   - inspect repository query plans for journal/activity/aging listings and propose only measured V2 index changes.
 - [ready] M6-S3 O2C/P2P duplicate-rule consolidation scan
   - identify diverged duplicate business rules across service/controller layers and collapse highest-risk duplicate path.
+
+Loop Update
+- 2026-02-12T11:11:03+05:30
+- tracked_now_ts: `2026-02-12T11:11:03+05:30`
+- tracked_elapsed: `09h 17m 11s`
+
+Completed Slice (Commit In Progress)
+- 2026-02-12: `[pending-commit-sha]`
+  - M1-S8 dealer portal artifact-boundary abuse matrix hardening:
+    - `DealerPortalService#getCurrentDealer` now fails closed with `AccessDeniedException` for missing/blank principal identity and missing dealer mapping paths (prevents fail-open/fail-500 behavior on security boundaries).
+    - Added unit regressions for no-auth and blank-identity principal handling.
+    - Added integration abuse coverage:
+      - dealer portal aging endpoint is scoped to authenticated dealer only.
+      - dealer portal invoice-PDF endpoint rejects cross-dealer invoice-id enumeration (returns 404).
+  - M1-S7 review follow-up closure:
+    - `ops_smoke.sh` now validates docs hardening both ways:
+      - anonymous `/v3/api-docs` must be blocked (`401/403/404`)
+      - authenticated docs access must succeed (`200`)
+    - fixed token parsing pipeline bug by switching to stdin JSON parse via `python3 -c`.
+  - Verification:
+    - `bash -n erp-domain/scripts/ops_smoke.sh` -> pass
+    - `mvn -B -ntp -Dtest=DealerPortalServiceTest,DealerPortalControllerSecurityIT,DealerControllerSecurityIT test` -> pass (15 tests, 0 failures)
+
+Queue Rotation (Auto-Replenish)
+- [completed] M1-S8 Dealer portal invoice/aging/pdf boundary misuse matrix
+- [in_progress] M2-S8 Accounting period-lock + reversal abuse matrix
+- [ready] M5-S2 Dispatch/invoice/accounting link invariant sweep
+- [ready] M9-S3 Accounting list/query hotspot profiling
+- [ready] M6-S3 O2C/P2P duplicate-rule consolidation scan
+- [ready] M2-S9 Settlement replay + closed-period mutation matrix (dealer + supplier)

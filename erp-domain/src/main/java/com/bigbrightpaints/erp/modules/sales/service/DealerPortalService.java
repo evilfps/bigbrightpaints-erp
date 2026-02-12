@@ -63,7 +63,7 @@ public class DealerPortalService {
     public Dealer getCurrentDealer() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null || !auth.isAuthenticated()) {
-            throw new IllegalStateException("No authenticated user");
+            throw new AccessDeniedException("No authenticated user");
         }
         Company company = companyContextService.requireCurrentCompany();
         UserAccount authenticatedUser = resolveAuthenticatedUser(auth);
@@ -85,7 +85,7 @@ public class DealerPortalService {
         if (matchedByEmail != null) {
             return matchedByEmail;
         }
-        throw new IllegalStateException("No dealer account linked to user: " + email);
+        throw new AccessDeniedException("Dealer mapping missing for authenticated principal");
     }
 
     public boolean isDealerUser() {
@@ -338,7 +338,7 @@ public class DealerPortalService {
             email = auth.getName();
         }
         if (!StringUtils.hasText(email)) {
-            throw new IllegalStateException("No authenticated user identity");
+            throw new AccessDeniedException("No authenticated user identity");
         }
         return email.trim();
     }

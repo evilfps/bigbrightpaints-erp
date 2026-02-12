@@ -32,6 +32,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.lenient;
 
 @ExtendWith(MockitoExtension.class)
 class DealerPortalServiceTest {
@@ -71,7 +72,7 @@ class DealerPortalServiceTest {
         company = new Company();
         ReflectionTestUtils.setField(company, "id", 9L);
         company.setCode("TENANT");
-        when(companyContextService.requireCurrentCompany()).thenReturn(company);
+        lenient().when(companyContextService.requireCurrentCompany()).thenReturn(company);
     }
 
     @AfterEach
@@ -142,6 +143,28 @@ class DealerPortalServiceTest {
         assertThatThrownBy(() -> dealerPortalService.verifyDealerAccess(99L))
                 .isInstanceOf(AccessDeniedException.class)
                 .hasMessageContaining("Access denied");
+    }
+
+    @Test
+    void getCurrentDealer_deniesWhenNoAuthenticationPresent() {
+        SecurityContextHolder.clearContext();
+
+        assertThatThrownBy(() -> dealerPortalService.getCurrentDealer())
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessageContaining("No authenticated user");
+    }
+
+    @Test
+    void getCurrentDealer_deniesWhenPrincipalIdentityIsBlank() {
+        var auth = new UsernamePasswordAuthenticationToken(
+                "   ",
+                "token",
+                List.of(new SimpleGrantedAuthority("ROLE_DEALER")));
+        SecurityContextHolder.getContext().setAuthentication(auth);
+
+        assertThatThrownBy(() -> dealerPortalService.getCurrentDealer())
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessageContaining("No authenticated user identity");
     }
 
     private void authenticate(UserAccount user, String... authorities) {

@@ -94,6 +94,38 @@ class DealerPortalControllerSecurityIT extends AbstractIntegrationTest {
     }
 
     @Test
+    @DisplayName("Dealer portal aging is strictly scoped to authenticated dealer")
+    void dealerPortalAging_isScopedToCurrentDealer() {
+        HttpHeaders headers = authHeaders(DEALER_A_EMAIL, PASSWORD);
+        ResponseEntity<Map> response = rest.exchange(
+                "/api/v1/dealer-portal/aging",
+                HttpMethod.GET,
+                new HttpEntity<>(headers),
+                Map.class
+        );
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        Map<?, ?> data = (Map<?, ?>) response.getBody().get("data");
+        assertThat(asLong(data.get("dealerId"))).isEqualTo(dealerA.getId());
+        assertThat(new BigDecimal(String.valueOf(data.get("totalOutstanding"))))
+                .isEqualByComparingTo("1180.00");
+    }
+
+    @Test
+    @DisplayName("Dealer portal invoice PDF endpoint rejects cross-dealer invoice enumeration")
+    void dealerPortalInvoicePdf_rejectsCrossDealerInvoiceId() {
+        HttpHeaders headers = authHeaders(DEALER_A_EMAIL, PASSWORD);
+        ResponseEntity<byte[]> response = rest.exchange(
+                "/api/v1/dealer-portal/invoices/" + invoiceB.getId() + "/pdf",
+                HttpMethod.GET,
+                new HttpEntity<>(headers),
+                byte[].class
+        );
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    }
+
+    @Test
     @DisplayName("Dealer portal rejects token/header company mismatch")
     void dealerPortalRejectsCompanyHeaderMismatch() {
         HttpHeaders headers = authHeaders(DEALER_A_EMAIL, PASSWORD);

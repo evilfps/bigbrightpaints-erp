@@ -22,13 +22,7 @@ login_payload=$(printf '{"email":"%s","password":"%s","companyCode":"%s"}' \
   "${ERP_SMOKE_EMAIL}" "${ERP_SMOKE_PASSWORD}" "${ERP_SMOKE_COMPANY}")
 token=$(curl -fsS -X POST "${BASE_URL}/api/v1/auth/login" \
   -H 'Content-Type: application/json' \
-  -d "${login_payload}" | python3 - <<'PY'
-import json
-import sys
-
-data = json.load(sys.stdin)
-print(data.get("accessToken", ""))
-PY
+  -d "${login_payload}" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("accessToken",""))'
 )
 
 if [[ -z "${token}" ]]; then
@@ -36,10 +30,25 @@ if [[ -z "${token}" ]]; then
   exit 1
 fi
 
+echo "Checking API docs are private by default..."
+anonymous_docs_status=$(curl -sS -o /dev/null -w "%{http_code}" "${BASE_URL}/v3/api-docs")
+case "${anonymous_docs_status}" in
+  401|403|404)
+    ;;
+  *)
+    echo "Anonymous API docs unexpectedly accessible (status ${anonymous_docs_status})." >&2
+    exit 1
+    ;;
+esac
+
 echo "Checking API docs (authenticated)..."
-curl -fsS \
+authenticated_docs_status=$(curl -sS -o /dev/null -w "%{http_code}" \
   -H "Authorization: Bearer ${token}" \
-  "${BASE_URL}/v3/api-docs" >/dev/null
+  "${BASE_URL}/v3/api-docs")
+if [[ "${authenticated_docs_status}" != "200" ]]; then
+  echo "Authenticated API docs check failed (status ${authenticated_docs_status})." >&2
+  exit 1
+fi
 
 curl -fsS \
   -H "Authorization: Bearer ${token}" \
