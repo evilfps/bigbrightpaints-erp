@@ -156,6 +156,15 @@ Purpose: a single place to action admin-only approvals and hand off to accountin
 - Credit Requests Approval Queue
   - API: `GET /api/v1/admin/approvals`
   - Source: `creditRequests[]` items
+  - Item contract (important):
+    - `type="CREDIT_REQUEST"`: classic dealer credit-limit increase request.
+      - approve/reject via legacy credit-request workflow.
+      - `reference` format: `CR-<id>`.
+    - `type="CREDIT_LIMIT_OVERRIDE_REQUEST"`: dispatch/sales override request to exceed credit during fulfillment.
+      - approve: `POST /api/v1/credit/override-requests/{id}/approve`
+      - reject: `POST /api/v1/credit/override-requests/{id}/reject`
+      - `reference` preference: slip number -> sales order number -> `CLO-<id>` fallback.
+    - UI must route actions by `type` and not assume all `creditRequests[]` rows share one approval endpoint.
   - Actions depend on where the approval is implemented:
     - Credit limit overrides:
       - API: `GET /api/v1/credit/override-requests`

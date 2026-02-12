@@ -14,6 +14,7 @@ import com.bigbrightpaints.erp.modules.sales.domain.CreditLimitOverrideRequestRe
 import com.bigbrightpaints.erp.modules.sales.domain.CreditRequest;
 import com.bigbrightpaints.erp.modules.sales.domain.CreditRequestRepository;
 import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
+import com.bigbrightpaints.erp.modules.sales.domain.SalesOrder;
 import com.bigbrightpaints.erp.shared.dto.ApiResponse;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -81,6 +82,39 @@ class AdminSettingsControllerApprovalsContractTest {
         ReflectionTestUtils.setField(overrideRequest, "publicId", UUID.fromString("22222222-2222-2222-2222-222222222222"));
         ReflectionTestUtils.setField(overrideRequest, "createdAt", Instant.parse("2026-02-12T12:00:00Z"));
 
+        Dealer gamma = new Dealer();
+        gamma.setName("Dealer Gamma");
+        SalesOrder order = new SalesOrder();
+        order.setOrderNumber("SO-55");
+        CreditLimitOverrideRequest orderOverrideRequest = new CreditLimitOverrideRequest();
+        orderOverrideRequest.setCompany(company);
+        orderOverrideRequest.setDealer(gamma);
+        orderOverrideRequest.setSalesOrder(order);
+        orderOverrideRequest.setDispatchAmount(new BigDecimal("410"));
+        orderOverrideRequest.setCurrentExposure(new BigDecimal("610"));
+        orderOverrideRequest.setCreditLimit(new BigDecimal("700"));
+        orderOverrideRequest.setRequiredHeadroom(new BigDecimal("320"));
+        orderOverrideRequest.setRequestedBy("factory.user@bbp.com");
+        orderOverrideRequest.setStatus("PENDING");
+        ReflectionTestUtils.setField(orderOverrideRequest, "id", 21L);
+        ReflectionTestUtils.setField(orderOverrideRequest, "publicId", UUID.fromString("44444444-4444-4444-4444-444444444444"));
+        ReflectionTestUtils.setField(orderOverrideRequest, "createdAt", Instant.parse("2026-02-12T12:30:00Z"));
+
+        Dealer delta = new Dealer();
+        delta.setName("Dealer Delta");
+        CreditLimitOverrideRequest fallbackOverrideRequest = new CreditLimitOverrideRequest();
+        fallbackOverrideRequest.setCompany(company);
+        fallbackOverrideRequest.setDealer(delta);
+        fallbackOverrideRequest.setDispatchAmount(new BigDecimal("90"));
+        fallbackOverrideRequest.setCurrentExposure(new BigDecimal("150"));
+        fallbackOverrideRequest.setCreditLimit(new BigDecimal("100"));
+        fallbackOverrideRequest.setRequiredHeadroom(new BigDecimal("140"));
+        fallbackOverrideRequest.setRequestedBy("ops.user@bbp.com");
+        fallbackOverrideRequest.setStatus("PENDING");
+        ReflectionTestUtils.setField(fallbackOverrideRequest, "id", 22L);
+        ReflectionTestUtils.setField(fallbackOverrideRequest, "publicId", UUID.fromString("55555555-5555-5555-5555-555555555555"));
+        ReflectionTestUtils.setField(fallbackOverrideRequest, "createdAt", Instant.parse("2026-02-12T12:45:00Z"));
+
         PayrollRun payrollRun = new PayrollRun();
         payrollRun.setCompany(company);
         payrollRun.setRunNumber("PR-2026-02");
@@ -95,7 +129,7 @@ class AdminSettingsControllerApprovalsContractTest {
         when(creditRequestRepository.findByCompanyAndStatusOrderByCreatedAtDesc(company, "PENDING"))
                 .thenReturn(List.of(creditRequest));
         when(creditLimitOverrideRequestRepository.findByCompanyAndStatusOrderByCreatedAtDesc(company, "PENDING"))
-                .thenReturn(List.of(overrideRequest));
+                .thenReturn(List.of(overrideRequest, orderOverrideRequest, fallbackOverrideRequest));
         when(payrollRunRepository.findByCompanyAndStatusOrderByCreatedAtDesc(company, PayrollRun.PayrollStatus.CALCULATED))
                 .thenReturn(List.of(payrollRun));
 
@@ -103,20 +137,41 @@ class AdminSettingsControllerApprovalsContractTest {
 
         assertThat(response.success()).isTrue();
         assertThat(response.data()).isNotNull();
-        assertThat(response.data().creditRequests()).hasSize(2);
+        assertThat(response.data().creditRequests()).hasSize(4);
 
         AdminApprovalItemDto overrideApproval = response.data().creditRequests().get(0);
         assertThat(overrideApproval.type()).isEqualTo("CREDIT_LIMIT_OVERRIDE_REQUEST");
-        assertThat(overrideApproval.reference()).isEqualTo("PS-44");
-        assertThat(overrideApproval.summary()).contains("Approve dispatch credit override");
-        assertThat(overrideApproval.summary()).contains("Dealer Beta");
-        assertThat(overrideApproval.summary()).contains("dispatch 300");
-        assertThat(overrideApproval.summary()).contains("requested by sales.user@bbp.com");
+        assertThat(overrideApproval.reference()).isEqualTo("CLO-22");
+        assertThat(overrideApproval.summary()).contains("Dealer Delta");
+        assertThat(overrideApproval.summary()).contains("requested by ops.user@bbp.com");
 
-        AdminApprovalItemDto creditApproval = response.data().creditRequests().get(1);
+        AdminApprovalItemDto orderOverrideApproval = response.data().creditRequests().get(1);
+        assertThat(orderOverrideApproval.type()).isEqualTo("CREDIT_LIMIT_OVERRIDE_REQUEST");
+        assertThat(orderOverrideApproval.reference()).isEqualTo("SO-55");
+        assertThat(orderOverrideApproval.summary()).contains("Dealer Gamma");
+        assertThat(orderOverrideApproval.summary()).contains("requested by factory.user@bbp.com");
+
+        AdminApprovalItemDto slipOverrideApproval = response.data().creditRequests().get(2);
+        assertThat(slipOverrideApproval.type()).isEqualTo("CREDIT_LIMIT_OVERRIDE_REQUEST");
+        assertThat(slipOverrideApproval.reference()).isEqualTo("PS-44");
+        assertThat(slipOverrideApproval.summary()).contains("Approve dispatch credit override");
+        assertThat(slipOverrideApproval.summary()).contains("Dealer Beta");
+        assertThat(slipOverrideApproval.summary()).contains("dispatch 300");
+        assertThat(slipOverrideApproval.summary()).contains("requested by sales.user@bbp.com");
+
+        AdminApprovalItemDto creditApproval = response.data().creditRequests().get(3);
         assertThat(creditApproval.type()).isEqualTo("CREDIT_REQUEST");
         assertThat(creditApproval.reference()).isEqualTo("CR-10");
         assertThat(creditApproval.summary()).contains("Approve credit-limit increase for Dealer Alpha");
+
+        assertThat(response.data().creditRequests())
+                .extracting(AdminApprovalItemDto::createdAt)
+                .containsExactly(
+                        Instant.parse("2026-02-12T12:45:00Z"),
+                        Instant.parse("2026-02-12T12:30:00Z"),
+                        Instant.parse("2026-02-12T12:00:00Z"),
+                        Instant.parse("2026-02-12T11:00:00Z")
+                );
 
         assertThat(response.data().payrollRuns()).hasSize(1);
         assertThat(response.data().payrollRuns().get(0).type()).isEqualTo("PAYROLL_RUN");
