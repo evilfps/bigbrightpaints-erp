@@ -1384,7 +1384,52 @@ public class FinishedGoodsService {
         slip.setDispatchNotes(reason != null ? reason : "Backorder canceled by " + (username != null ? username : "system"));
         slip.setConfirmedAt(CompanyTime.now(company));
         slip.setConfirmedBy(username != null ? username : "system");
-        return toSlipDto(packagingSlipRepository.save(slip));
+        PackagingSlip savedSlip = packagingSlipRepository.save(slip);
+        syncOrderStatusAfterBackorderCancellation(company, savedSlip.getSalesOrder());
+        return toSlipDto(savedSlip);
+    }
+
+    private void syncOrderStatusAfterBackorderCancellation(Company company, SalesOrder salesOrder) {
+        if (company == null || salesOrder == null || salesOrder.getId() == null) {
+            return;
+        }
+        SalesOrder managedOrder = salesOrderRepository.findByCompanyAndId(company, salesOrder.getId()).orElse(null);
+        if (managedOrder == null) {
+            return;
+        }
+        String nextStatus = resolveOrderStatusFromSlips(company, managedOrder);
+        if (!StringUtils.hasText(nextStatus) || nextStatus.equalsIgnoreCase(managedOrder.getStatus())) {
+            return;
+        }
+        managedOrder.setStatus(nextStatus);
+        salesOrderRepository.save(managedOrder);
+    }
+
+    private String resolveOrderStatusFromSlips(Company company, SalesOrder order) {
+        if (company == null || order == null || order.getId() == null) {
+            return order != null ? order.getStatus() : null;
+        }
+        List<PackagingSlip> slips = packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, order.getId());
+        if (slips.isEmpty()) {
+            return order.getStatus();
+        }
+        List<PackagingSlip> activeSlips = slips.stream()
+                .filter(slip -> !"CANCELLED".equalsIgnoreCase(slip.getStatus()))
+                .toList();
+        if (activeSlips.isEmpty()) {
+            return "CANCELLED";
+        }
+        boolean allDispatched = activeSlips.stream()
+                .allMatch(slip -> "DISPATCHED".equalsIgnoreCase(slip.getStatus()));
+        if (allDispatched) {
+            return "SHIPPED";
+        }
+        boolean anyBackorder = activeSlips.stream()
+                .anyMatch(slip -> "BACKORDER".equalsIgnoreCase(slip.getStatus()));
+        if (anyBackorder) {
+            return "PENDING_PRODUCTION";
+        }
+        return "READY_TO_SHIP";
     }
 
     private PackagingSlip createSlip(SalesOrder order) {

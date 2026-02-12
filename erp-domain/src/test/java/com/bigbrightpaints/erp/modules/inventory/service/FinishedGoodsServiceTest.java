@@ -199,6 +199,40 @@ class FinishedGoodsServiceTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void cancelBackorderReconcilesOrderStatusToShippedWhenOnlyDispatchedSlipRemains() {
+        Company company = seedCompany("BACKORDER-STATUS");
+        FinishedGood fg = createFinishedGood(company, "FG-BO-STATUS", new BigDecimal("10"), new BigDecimal("5"), "FIFO");
+        FinishedGoodBatch dispatchedBatch = createBatch(fg, "BATCH-BO-DISP", new BigDecimal("5"), BigDecimal.ZERO, new BigDecimal("10"));
+        FinishedGoodBatch backorderBatch = createBatch(fg, "BATCH-BO-OPEN", new BigDecimal("5"), BigDecimal.ZERO, new BigDecimal("11"));
+        SalesOrder order = createOrder(company, "SO-BO-STATUS-" + UUID.randomUUID(), fg.getProductCode(), new BigDecimal("10"));
+        order.setStatus("PENDING_PRODUCTION");
+        order = salesOrderRepository.saveAndFlush(order);
+
+        PackagingSlip dispatchedSlip = new PackagingSlip();
+        dispatchedSlip.setCompany(company);
+        dispatchedSlip.setSalesOrder(order);
+        dispatchedSlip.setSlipNumber(order.getOrderNumber() + "-PS-DISPATCHED");
+        dispatchedSlip.setStatus("DISPATCHED");
+        dispatchedSlip.setBackorder(false);
+        PackagingSlipLine dispatchedLine = new PackagingSlipLine();
+        dispatchedLine.setPackagingSlip(dispatchedSlip);
+        dispatchedLine.setFinishedGoodBatch(dispatchedBatch);
+        dispatchedLine.setOrderedQuantity(new BigDecimal("5"));
+        dispatchedLine.setQuantity(new BigDecimal("5"));
+        dispatchedLine.setUnitCost(dispatchedBatch.getUnitCost());
+        dispatchedSlip.getLines().add(dispatchedLine);
+        packagingSlipRepository.saveAndFlush(dispatchedSlip);
+
+        PackagingSlip backorderSlip = createSlip(company, order, "BACKORDER", backorderBatch, new BigDecimal("5"));
+        createReservation(order, fg, backorderBatch, new BigDecimal("5"));
+
+        finishedGoodsService.cancelBackorderSlip(backorderSlip.getId(), "tester", "cancel backorder");
+
+        SalesOrder refreshedOrder = salesOrderRepository.findByCompanyAndId(company, order.getId()).orElseThrow();
+        assertThat(refreshedOrder.getStatus()).isEqualTo("SHIPPED");
+    }
+
+    @Test
     void reserveForOrderKeepsBackorderSlip() {
         Company company = seedCompany("BACKORDER-KEEP");
         FinishedGood fg = createFinishedGood(company, "FG-KEEP", new BigDecimal("5"), new BigDecimal("5"), "FIFO");

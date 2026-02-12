@@ -19,8 +19,8 @@ Non-Stop Operating Rules
 
 Runtime Tracking
 - tracked_start_ts: `2026-02-12T01:53:52+05:30` (first immutable async-loop commit marker)
-- tracked_now_ts: `2026-02-12T06:57:24+05:30`
-- tracked_elapsed: `5h 03m 32s`
+- tracked_now_ts: `2026-02-12T07:06:02+05:30`
+- tracked_elapsed: `5h 12m 10s`
 
 Completion Gates (Required For "Safe To Deploy" Claim)
 - No known critical/high security issues in auth/RBAC/tenant isolation/data exposure.
@@ -511,26 +511,38 @@ Commit Ledger
   - Verified:
     - `mvn -B -ntp -Dtest=DealerPortalServiceTest,DealerServiceTest,DealerControllerSecurityIT test`
   - Subagent review:
-    - `019c4f73-dcde-7b22-adf3-00ad6284687e` (running)
+    - `019c4f73-dcde-7b22-adf3-00ad6284687e` (completed)
+    - low: if principal user-id exists but has no dealer match, email fallback can still bind; tighten to fail closed on id-miss.
+    - low: enforce `(company_id, portal_user_id)` uniqueness at DB boundary to avoid ambiguity/availability failures.
+- 2026-02-12: `7dc9b6b1`
+  - Added dealer portal misuse-matrix integration coverage (`DealerPortalControllerSecurityIT`):
+    - dealer invoice list is scoped to authenticated dealer only
+    - non-dealer roles are denied for dealer portal endpoints
+    - company-header mismatch path returns 403
+  - Verified:
+    - `mvn -B -ntp -Dtest=DealerPortalControllerSecurityIT,DealerPortalServiceTest,DealerServiceTest test`
+  - Subagent review:
+    - `019c4f76-7bac-7d40-8b3e-54621d630a83` (completed)
+    - medium: mismatch case currently trips header-vs-header conflict path; add single-header token-vs-header mismatch assertion.
+    - low: avoid narrowing `Long` IDs to `int` in assertions.
 
 Current Checkpoint
-- Current WIP M5-S4 (dealer portal misuse matrix / negative-path hardening):
-  - Root cause (proved by endpoint-level security matrix gaps):
-    - Dealer portal endpoints lacked dedicated integration coverage for:
-      - horizontal data isolation across dealers
-      - tenant header/token mismatch rejection on portal routes
-      - strict dealer-role requirement enforcement
-  - Fix in progress:
-    - `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/sales/DealerPortalControllerSecurityIT.java` (new)
-      - proves invoice list is scoped to authenticated dealer only.
-      - proves company header/token mismatch returns 403 on dealer portal routes.
-      - proves non-dealer roles cannot access dealer portal endpoints.
+- Current WIP M3-S4 (inventory-manufacturing dispatch invariant chain):
+  - Root cause (proved by workflow review + targeted regression):
+    - canceling a backorder slip released inventory reservations but did not reconcile parent sales-order workflow state.
+    - this can leave orders stranded in `PENDING_PRODUCTION` even when active slips indicate shipping is complete.
+  - Fix completed in working tree (pending commit):
+    - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/service/FinishedGoodsService.java`
+      - reconcile parent order status after backorder cancellation using active (non-cancelled) slip set.
+    - `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/inventory/service/FinishedGoodsServiceTest.java`
+      - new regression: cancel backorder + remaining dispatched slip => order transitions to `SHIPPED`.
 - Verification command:
-  - `mvn -B -ntp -Dtest=DealerPortalControllerSecurityIT,DealerPortalServiceTest,DealerServiceTest test`
+  - `mvn -B -ntp -Dtest=FinishedGoodsServiceTest#cancelBackorderClearsReservation,FinishedGoodsServiceTest#cancelBackorderReconcilesOrderStatusToShippedWhenOnlyDispatchedSlipRemains,DispatchConfirmationIT test`
+  - Result: pass (2026-02-12T07:05:39+05:30)
 - Next action:
-  - commit M5-S4 dealer portal misuse-matrix integration coverage
+  - commit M3-S4 order-status reconciliation on backorder cancellation
   - run `codex review --commit <sha>`
-  - start M3-S4 inventory-manufacturing dispatch invariant chain audit
+  - apply portal review follow-ups (`M5-S5`): strict id-miss fail-closed and token-vs-header mismatch test precision
 
 Async Loop Cadence
 - Each cycle:
