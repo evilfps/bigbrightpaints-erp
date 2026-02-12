@@ -438,26 +438,36 @@ Commit Ledger
     - `mvn -B -ntp -Dtest=IntegrationFailureMetadataSchemaContractTest,GlobalExceptionHandlerTest,IntegrationFailureAlertRoutingPolicyTest test`
     - `mvn -B -ntp -Dtest=IntegrationFailureMetadataSchemaContractTest,GlobalExceptionHandlerTest,IntegrationFailureAlertRoutingPolicyTest,AccountingServiceTest,AccountingEventTrailAlertRoutingPolicyTest,JournalEntryE2ETest,SettlementE2ETest,IntegrationCoordinatorTest,CommandDispatcherTest,AuditServiceTest,AuditServiceAsyncIT,CompanyContextTaskDecoratorTest,AuthServiceAuditAttributionTest test`
   - Subagent review:
-    - `019c4f4d-c050-7f53-ae39-e896ec93d347` (running)
+    - `019c4f4d-c050-7f53-ae39-e896ec93d347` (completed)
+    - medium: aggregate assertion can mask single-producer regression if another producer double-emits (queued follow-up `M2-S12`)
+    - low: reflective test plumbing is brittle against benign refactors (accepted for now; lower priority)
+- 2026-02-12: `a8ee9b98`
+  - Hardened reversal event-trail classification taxonomy and pinned validation/data-integrity routes on reversal path.
+  - Verified:
+    - `mvn -B -ntp -Dtest=AccountingServiceTest,AccountingEventTrailAlertRoutingPolicyTest test`
+    - `mvn -B -ntp -Dtest=IntegrationFailureMetadataSchemaContractTest,GlobalExceptionHandlerTest,IntegrationFailureAlertRoutingPolicyTest,AccountingServiceTest,AccountingEventTrailAlertRoutingPolicyTest,JournalEntryE2ETest,SettlementE2ETest,IntegrationCoordinatorTest,CommandDispatcherTest,AuditServiceTest,AuditServiceAsyncIT,CompanyContextTaskDecoratorTest,AuthServiceAuditAttributionTest test`
+  - Subagent review:
+    - `019c4f50-6f29-78d2-bf96-76c99954283d` (running)
 
 Current Checkpoint
-- Current WIP M3-S3 completion (reversal-path failure taxonomy hardening):
-  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingService.java`
-    - generalized `ApplicationException` classification for event-trail failures:
-      - all `VALIDATION_*` -> `VALIDATION`
-      - `CONCURRENCY_*` + `DUPLICATE_ENTITY` -> `DATA_INTEGRITY`
-      - fallback -> `PERSISTENCE`
-  - `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingServiceTest.java`
-    - added reversal-path tests to pin `ApplicationException` classification and alert-route contract:
-      - validation classification route (`SEV2_URGENT`)
-      - data-integrity classification route (`SEV1_PAGE`)
+- Current WIP M4-S2 completion (auth/runtime attribution boundary hardening):
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/core/audit/AuditService.java`
+    - fixed company resolution precedence to avoid cross-tenant misattribution for numeric company codes:
+      - resolve by `company code` first
+      - fallback to numeric ID only when that ID exists
+      - never persist phantom company IDs from unchecked numeric parsing
+  - `erp-domain/src/test/java/com/bigbrightpaints/erp/core/audit/AuditServiceTest.java`
+    - added numeric-company regression tests:
+      - numeric code resolves by code mapping before ID parsing
+      - unknown numeric token does not persist fabricated company attribution
+    - updated request-context audit test to use validated numeric-ID fallback fixture
 - Verification command:
-  - `mvn -B -ntp -Dtest=AccountingServiceTest,AccountingEventTrailAlertRoutingPolicyTest test`
+  - `mvn -B -ntp -Dtest=AuditServiceTest,AuditServiceAsyncIT,AuthServiceAuditAttributionTest test`
   - `mvn -B -ntp -Dtest=IntegrationFailureMetadataSchemaContractTest,GlobalExceptionHandlerTest,IntegrationFailureAlertRoutingPolicyTest,AccountingServiceTest,AccountingEventTrailAlertRoutingPolicyTest,JournalEntryE2ETest,SettlementE2ETest,IntegrationCoordinatorTest,CommandDispatcherTest,AuditServiceTest,AuditServiceAsyncIT,CompanyContextTaskDecoratorTest,AuthServiceAuditAttributionTest test`
 - Next action:
-  - commit M3-S3 reversal-path taxonomy hardening
+  - commit M4-S2 auth/runtime attribution boundary hardening
   - run `codex review --commit <sha>`
-  - start M4-S2 auth/runtime attribution audit for tenant/user boundary failure paths
+  - start `M2-S12` follow-up: producer-specific metadata contract assertions to close review feedback from `9030a363`
 
 Async Loop Cadence
 - Each cycle:

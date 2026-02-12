@@ -198,11 +198,16 @@ public class AuditService {
         if (companyToken == null || companyToken.isBlank()) {
             return null;
         }
+        String normalizedToken = companyToken.trim();
+        Company byCode = companyRepository.findByCodeIgnoreCase(normalizedToken).orElse(null);
+        if (byCode != null) {
+            return byCode.getId();
+        }
         try {
-            return Long.parseLong(companyToken);
+            Long parsedId = Long.parseLong(normalizedToken);
+            return companyRepository.findById(parsedId).map(Company::getId).orElse(null);
         } catch (NumberFormatException e) {
-            Company company = companyRepository.findByCodeIgnoreCase(companyToken).orElse(null);
-            return company != null ? company.getId() : null;
+            return null;
         }
     }
 

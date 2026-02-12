@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -71,6 +72,8 @@ class AuditServiceTest {
         when(request.getMethod()).thenReturn("POST");
         when(request.getRequestURI()).thenReturn("/api/v1/accounting/journal");
         RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+        when(companyRepository.findByCodeIgnoreCase("42")).thenReturn(Optional.empty());
+        when(companyRepository.findById(42L)).thenReturn(Optional.of(companyWithId(42L, "COMP-42")));
         CompanyContextHolder.setCompanyCode("42");
 
         SecurityContext securityContext = SecurityContextHolder.createEmptyContext();
@@ -115,6 +118,42 @@ class AuditServiceTest {
         assertThat(saved.getUserId()).isEqualTo("alice");
         assertThat(saved.getCompanyId()).isEqualTo(88L);
         assertThat(saved.getMetadata()).containsEntry("authChannel", "password");
+    }
+
+    @Test
+    void logAuthFailure_numericCompanyCodePrefersCodeResolutionOverRawId() {
+        Company numericCodeCompany = companyWithId(7L, "1001");
+        when(companyRepository.findByCodeIgnoreCase("1001")).thenReturn(Optional.of(numericCodeCompany));
+
+        auditService.logAuthFailure(
+                AuditEvent.LOGIN_FAILURE,
+                "numeric-code-user",
+                "1001",
+                Map.of("reason", "numeric-company-code"));
+
+        ArgumentCaptor<AuditLog> auditCaptor = ArgumentCaptor.forClass(AuditLog.class);
+        verify(auditLogRepository).save(auditCaptor.capture());
+        AuditLog saved = auditCaptor.getValue();
+        assertThat(saved.getCompanyId()).isEqualTo(7L);
+        verify(companyRepository, never()).findById(1001L);
+    }
+
+    @Test
+    void logAuthFailure_unknownNumericCompanyCodeDoesNotPersistPhantomCompanyId() {
+        when(companyRepository.findByCodeIgnoreCase("404")).thenReturn(Optional.empty());
+        when(companyRepository.findById(404L)).thenReturn(Optional.empty());
+
+        auditService.logAuthFailure(
+                AuditEvent.LOGIN_FAILURE,
+                "numeric-miss-user",
+                "404",
+                Map.of("reason", "unknown-numeric-company"));
+
+        ArgumentCaptor<AuditLog> auditCaptor = ArgumentCaptor.forClass(AuditLog.class);
+        verify(auditLogRepository).save(auditCaptor.capture());
+        AuditLog saved = auditCaptor.getValue();
+        assertThat(saved.getCompanyId()).isNull();
+        assertThat(saved.getMetadata()).containsEntry("reason", "unknown-numeric-company");
     }
 
     @Test
