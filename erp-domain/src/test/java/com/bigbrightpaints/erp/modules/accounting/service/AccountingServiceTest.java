@@ -78,6 +78,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -3219,7 +3220,7 @@ class AccountingServiceTest {
         JournalEntry concurrentEntry = new JournalEntry();
         ReflectionTestUtils.setField(concurrentEntry, "id", 961L);
         concurrentEntry.setSupplier(supplier);
-        concurrentEntry.setReferenceNumber("SUP-SETTLE-RACE-EXIST-1");
+        concurrentEntry.setReferenceNumber("SUP-SETTLE-RACE-NEW-1");
         concurrentEntry.setMemo("Supplier settlement race");
         concurrentEntry.getLines().add(journalLine(concurrentEntry, payable, "Supplier settlement race", new BigDecimal("100.00"), BigDecimal.ZERO));
         concurrentEntry.getLines().add(journalLine(concurrentEntry, cash, "Supplier settlement race", BigDecimal.ZERO, new BigDecimal("100.00")));
@@ -3252,10 +3253,17 @@ class AccountingServiceTest {
 
         AtomicInteger allocationLookups = new AtomicInteger(0);
         when(settlementAllocationRepository.findByCompanyAndIdempotencyKeyIgnoreCaseOrderByCreatedAtAscIdAsc(eq(company), eq("IDEMP-AP-SETTLE-RACE")))
-                .thenAnswer(invocation -> allocationLookups.getAndIncrement() < 1 ? List.of() : List.of(concurrentRow));
+                .thenAnswer(invocation -> allocationLookups.getAndIncrement() < 2 ? List.of() : List.of(concurrentRow));
 
         when(supplierRepository.lockByCompanyAndId(eq(company), eq(1L))).thenReturn(Optional.of(supplier));
         when(companyEntityLookup.requireAccount(eq(company), eq(20L))).thenReturn(cash);
+        when(journalReferenceMappingRepository.reserveReferenceMapping(
+                eq(company.getId()),
+                eq("idemp-ap-settle-race"),
+                eq("SUP-SETTLE-RACE-NEW-1"),
+                eq("SUPPLIER_SETTLEMENT"),
+                any()))
+                .thenReturn(1);
         when(rawMaterialPurchaseRepository.lockByCompanyAndId(eq(company), eq(704L))).thenReturn(Optional.of(purchase));
         doReturn(stubEntry(960L)).when(service).createJournalEntry(any(JournalEntryRequest.class));
         when(companyEntityLookup.requireJournalEntry(eq(company), eq(960L))).thenReturn(createdEntry);
@@ -3290,10 +3298,10 @@ class AccountingServiceTest {
 
         assertThat(response.journalEntry()).isNotNull();
         assertThat(response.journalEntry().id()).isEqualTo(961L);
-        verify(journalReferenceMappingRepository).save(mapping);
+        verify(journalReferenceMappingRepository, times(2)).save(mapping);
         assertThat(mapping.getEntityId()).isEqualTo(961L);
         assertThat(mapping.getEntityType()).isEqualTo("SUPPLIER_SETTLEMENT");
-        assertThat(mapping.getCanonicalReference()).isEqualTo("SUP-SETTLE-RACE-EXIST-1");
+        assertThat(mapping.getCanonicalReference()).isEqualTo("SUP-SETTLE-RACE-NEW-1");
         assertThat(purchase.getOutstandingAmount()).isEqualByComparingTo("100.00");
         verify(rawMaterialPurchaseRepository, never()).saveAll(any());
     }
