@@ -184,12 +184,33 @@ class AdminApprovalRbacIT extends AbstractIntegrationTest {
                 Map.class);
         assertThat(accountingApprove.getStatusCode()).isNotEqualTo(HttpStatus.FORBIDDEN);
 
+        ResponseEntity<Map> adminApprove = rest.exchange(
+                "/api/v1/payroll/runs/" + unknownRunId + "/approve",
+                HttpMethod.POST,
+                new HttpEntity<>(null, adminHeaders),
+                Map.class);
+        assertThat(adminApprove.getStatusCode()).isNotEqualTo(HttpStatus.FORBIDDEN);
+
         ResponseEntity<Map> accountingPost = rest.exchange(
                 "/api/v1/payroll/runs/" + unknownRunId + "/post",
                 HttpMethod.POST,
                 new HttpEntity<>(null, accountingHeaders),
                 Map.class);
         assertThat(accountingPost.getStatusCode()).isNotEqualTo(HttpStatus.FORBIDDEN);
+
+        ResponseEntity<Map> adminPost = rest.exchange(
+                "/api/v1/payroll/runs/" + unknownRunId + "/post",
+                HttpMethod.POST,
+                new HttpEntity<>(null, adminHeaders),
+                Map.class);
+        assertThat(adminPost.getStatusCode()).isNotEqualTo(HttpStatus.FORBIDDEN);
+
+        ResponseEntity<Map> accountingMarkPaid = rest.exchange(
+                "/api/v1/payroll/runs/" + unknownRunId + "/mark-paid",
+                HttpMethod.POST,
+                new HttpEntity<>(markPaidPayload, accountingHeaders),
+                Map.class);
+        assertThat(accountingMarkPaid.getStatusCode()).isNotEqualTo(HttpStatus.FORBIDDEN);
 
         ResponseEntity<Map> adminMarkPaid = rest.exchange(
                 "/api/v1/payroll/runs/" + unknownRunId + "/mark-paid",
