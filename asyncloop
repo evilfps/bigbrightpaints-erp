@@ -1841,3 +1841,63 @@ Queue Rotation (Auto-Replenish)
 - [ready] M9-S5 capture EXPLAIN + index-candidate evidence for journal/allocation replay hotspot queries (Flyway V2-ready)
 - [ready] M10-S3 release-gate dry-run and blocker ledger sync (`scripts/verify_local.sh` + artifact sanity)
 - [ready] M4-S9 aging overcredit deterministic contract tests across dealer/company statement surfaces
+
+Post-Commit Review Evidence
+- Commit reviewed: `9e8fd85c`
+- `codex review --commit 9e8fd85c`:
+  - final verdict: no actionable defects in docs/evidence update.
+- Review subagent `019c5202-56ef-7eb3-a8d3-49110250323c`:
+  - findings: none.
+
+Completed Slice (Committed)
+- 2026-02-12: `9a12df8c`
+  - fix(accounting): clamp aging overcredit buckets at zero.
+  - M4-S8 initial policy hardening:
+    - added residual-credit clamp to prevent negative first aging bucket amounts in dealer/supplier aging summaries,
+    - added targeted overcredit regression tests for both dealer and supplier paths.
+  - Verification:
+    - `cd erp-domain && mvn -B -ntp -Dtest=StatementServiceTest test` -> pass (17 tests, 0 failures, 0 errors).
+
+Post-Commit Review Evidence
+- Commit reviewed: `9a12df8c`
+- `codex review --commit 9a12df8c`:
+  - final verdict: no direct regression identified in patch scope.
+- Review subagent `019c5203-f9b4-7993-be9d-315c7254a9bb`:
+  - medium finding: bucket clamp could desynchronize `sum(buckets)` from `totalOutstanding` in overcredit cases.
+  - disposition: fixed in follow-up `c09f9b98` by explicit residual-credit carry bucket preserving totals.
+
+Completed Slice (Committed)
+- 2026-02-12: `c09f9b98`
+  - fix(accounting): preserve aging totals with residual credit bucket.
+  - M4-S8 closure adjustment:
+    - converted residual overcredit handling to apply available credit against current bucket only, then append explicit `Credit Balance` bucket for unapplied residual credit,
+    - keeps regular aging buckets non-negative while preserving reconciliation with `totalOutstanding`.
+  - Updated overcredit tests to assert credit-bucket semantics and bucket-total reconciliation.
+  - Verification:
+    - `cd erp-domain && mvn -B -ntp -Dtest=StatementServiceTest test` -> pass (17 tests, 0 failures, 0 errors).
+
+Post-Commit Review Evidence
+- Commit reviewed: `c09f9b98`
+- `codex review --commit c09f9b98`:
+  - final verdict: no actionable regressions.
+- Review subagent `019c5207-0c7f-7611-83d9-b437cfc1981a`:
+  - low notes:
+    - synthetic credit bucket uses sentinel age bounds and should be tracked for downstream bound-filter consumers,
+    - downstream dunning/report contracts should gain direct regression assertions for residual-credit cases.
+  - disposition: accepted as non-blocking; queued targeted downstream contract slice (`M7-S3`).
+
+Loop Update
+- 2026-02-12T19:00:01+05:30
+- tracked_now_ts: `2026-02-12T19:00:01+05:30`
+- tracked_elapsed: `17h 6m 9s`
+- active_in_progress: `M7-S2 ledger/journal report linkage assertions (traceability from report rows to journal IDs)`
+
+Queue Rotation (Auto-Replenish)
+- [completed] M4-S8 aging overcredit policy hardening decision (negative bucket clamp vs carry-forward bucket)
+- [in_progress] M7-S2 ledger/journal report linkage assertions (traceability from report rows to journal IDs)
+- [ready] M2-S12 replay mismatch guard helper extraction to enforce parity by construction
+- [ready] M6-S9 unify partner journal-line idempotency assertion helpers to reduce drift across receipt/settlement validations
+- [ready] M9-S5 capture EXPLAIN + index-candidate evidence for journal/allocation replay hotspot queries (Flyway V2-ready)
+- [ready] M10-S3 release-gate dry-run and blocker ledger sync (`scripts/verify_local.sh` + artifact sanity)
+- [ready] M4-S9 aging overcredit deterministic contract tests across dealer/company statement surfaces
+- [ready] M7-S3 dunning overdue-threshold contract for synthetic credit-bucket semantics (no false hold bypass)
