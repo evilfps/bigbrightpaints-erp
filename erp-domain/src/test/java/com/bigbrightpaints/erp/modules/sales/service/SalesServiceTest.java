@@ -65,6 +65,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.*;
@@ -788,7 +789,7 @@ class SalesServiceTest {
                 ArgumentMatchers.anyString(),
                 ArgumentMatchers.anyMap(),
                 ArgumentMatchers.anyMap(),
-                ArgumentMatchers.anyMap(),
+                ArgumentMatchers.nullable(Map.class),
                 ArgumentMatchers.any(),
                 ArgumentMatchers.anyString());
     }
@@ -881,7 +882,7 @@ class SalesServiceTest {
                 ArgumentMatchers.anyString(),
                 ArgumentMatchers.anyMap(),
                 ArgumentMatchers.anyMap(),
-                ArgumentMatchers.anyMap(),
+                ArgumentMatchers.nullable(Map.class),
                 ArgumentMatchers.any(),
                 ArgumentMatchers.anyString());
     }
@@ -936,7 +937,69 @@ class SalesServiceTest {
     }
 
     @Test
-    void confirmDispatchSkipsArPostingWhenOrderAlreadyHasJournal() {
+    void confirmDispatchReplayFastPathDoesNotSetOrderJournalForMultiSlipOrder() {
+        SalesOrder order = new SalesOrder();
+        setField(order, "id", 10L);
+        order.setCompany(company);
+        order.setStatus("SHIPPED");
+
+        PackagingSlip slip = new PackagingSlip();
+        setField(slip, "id", 55L);
+        slip.setCompany(company);
+        slip.setSalesOrder(order);
+        slip.setSlipNumber("PS-55");
+        slip.setStatus("DISPATCHED");
+        slip.setInvoiceId(777L);
+        slip.setJournalEntryId(222L);
+        slip.setCogsJournalEntryId(333L);
+
+        PackagingSlip otherSlip = new PackagingSlip();
+        setField(otherSlip, "id", 56L);
+        otherSlip.setCompany(company);
+        otherSlip.setSalesOrder(order);
+        otherSlip.setSlipNumber("PS-56");
+        otherSlip.setStatus("DISPATCHED");
+
+        Invoice existingInvoice = new Invoice();
+        setField(existingInvoice, "id", 777L);
+        existingInvoice.setTotalAmount(new BigDecimal("90.00"));
+
+        when(packagingSlipRepository.findAndLockByIdAndCompany(55L, company)).thenReturn(Optional.of(slip));
+        when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 10L))
+                .thenReturn(List.of(slip, otherSlip));
+        when(companyEntityLookup.requireSalesOrder(company, 10L)).thenReturn(order);
+        when(invoiceRepository.findByCompanyAndId(company, 777L)).thenReturn(Optional.of(existingInvoice));
+        when(salesOrderRepository.save(ArgumentMatchers.any(SalesOrder.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        DispatchConfirmRequest request = new DispatchConfirmRequest(
+                55L,
+                null,
+                List.of(new DispatchConfirmRequest.DispatchLine(99L, null, BigDecimal.ONE, null, new BigDecimal("10"), null, null, null)),
+                null,
+                "admin",
+                Boolean.TRUE,
+                "Replay override with multi-slip order",
+                null);
+
+        DispatchConfirmResponse response = salesService.confirmDispatch(request);
+
+        assertEquals(777L, response.finalInvoiceId());
+        assertEquals(222L, response.arJournalEntryId());
+        assertNull(order.getSalesJournalEntryId());
+        verify(accountingFacade, never()).postSalesJournal(
+                ArgumentMatchers.anyLong(),
+                ArgumentMatchers.anyString(),
+                ArgumentMatchers.any(),
+                ArgumentMatchers.anyString(),
+                ArgumentMatchers.anyMap(),
+                ArgumentMatchers.anyMap(),
+                ArgumentMatchers.nullable(Map.class),
+                ArgumentMatchers.any(),
+                ArgumentMatchers.anyString());
+    }
+
+    @Test
+    void confirmDispatchPostsArWhenOrderJournalExistsButSlipNotDispatched() {
         Dealer dealer = dealerWithCreditLimit(42L, BigDecimal.valueOf(1000));
         Account receivable = new Account();
         receivable.setName("AR");
@@ -1014,14 +1077,14 @@ class SalesServiceTest {
         DispatchConfirmRequest request = new DispatchConfirmRequest(55L, null, List.of(), null, "admin", Boolean.TRUE, null, null);
         salesService.confirmDispatch(request);
 
-        verify(accountingFacade, never()).postSalesJournal(
+        verify(accountingFacade, times(1)).postSalesJournal(
                 ArgumentMatchers.anyLong(),
                 ArgumentMatchers.anyString(),
                 ArgumentMatchers.any(),
                 ArgumentMatchers.anyString(),
                 ArgumentMatchers.anyMap(),
                 ArgumentMatchers.anyMap(),
-                ArgumentMatchers.anyMap(),
+                ArgumentMatchers.nullable(Map.class),
                 ArgumentMatchers.any(),
                 ArgumentMatchers.anyString());
     }

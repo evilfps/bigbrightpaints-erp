@@ -1537,7 +1537,7 @@ public class SalesService {
                 }
                 boolean singleSlipForOrder = hasSingleSlipForOrder(company, order);
                 boolean orderUpdated = false;
-                if (order.getSalesJournalEntryId() == null && existingJeId != null) {
+                if (order.getSalesJournalEntryId() == null && existingJeId != null && singleSlipForOrder) {
                     order.setSalesJournalEntryId(existingJeId);
                     orderUpdated = true;
                 }
