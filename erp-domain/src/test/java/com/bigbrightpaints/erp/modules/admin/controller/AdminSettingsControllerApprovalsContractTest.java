@@ -221,4 +221,57 @@ class AdminSettingsControllerApprovalsContractTest {
         assertThat(payrollApproval.reference()).isEqualTo("PR-2026-02");
         assertThat(payrollApproval.summary()).contains("Approve payroll run PR-2026-02");
     }
+
+    @Test
+    void approvals_payrollFallbackReferenceUsesIdWhenRunNumberMissing() {
+        SystemSettingsService systemSettingsService = mock(SystemSettingsService.class);
+        EmailService emailService = mock(EmailService.class);
+        CompanyContextService companyContextService = mock(CompanyContextService.class);
+        CreditRequestRepository creditRequestRepository = mock(CreditRequestRepository.class);
+        CreditLimitOverrideRequestRepository creditLimitOverrideRequestRepository =
+                mock(CreditLimitOverrideRequestRepository.class);
+        PayrollRunRepository payrollRunRepository = mock(PayrollRunRepository.class);
+        AdminSettingsController controller = new AdminSettingsController(
+                systemSettingsService,
+                emailService,
+                companyContextService,
+                creditRequestRepository,
+                creditLimitOverrideRequestRepository,
+                payrollRunRepository
+        );
+
+        Company company = new Company();
+        ReflectionTestUtils.setField(company, "id", 502L);
+        when(companyContextService.requireCurrentCompany()).thenReturn(company);
+
+        PayrollRun payrollRun = new PayrollRun();
+        payrollRun.setCompany(company);
+        payrollRun.setRunNumber("  ");
+        payrollRun.setRunType(PayrollRun.RunType.MONTHLY);
+        payrollRun.setPeriodStart(LocalDate.of(2026, 3, 1));
+        payrollRun.setPeriodEnd(LocalDate.of(2026, 3, 31));
+        payrollRun.setStatus(PayrollRun.PayrollStatus.CALCULATED);
+        ReflectionTestUtils.setField(payrollRun, "id", 31L);
+        ReflectionTestUtils.setField(payrollRun, "publicId", UUID.fromString("77777777-7777-7777-7777-777777777777"));
+        ReflectionTestUtils.setField(payrollRun, "createdAt", Instant.parse("2026-03-12T10:00:00Z"));
+
+        when(creditRequestRepository.findByCompanyAndStatusOrderByCreatedAtDesc(company, "PENDING"))
+                .thenReturn(List.of());
+        when(creditLimitOverrideRequestRepository.findByCompanyAndStatusOrderByCreatedAtDesc(company, "PENDING"))
+                .thenReturn(List.of());
+        when(payrollRunRepository.findByCompanyAndStatusOrderByCreatedAtDesc(company, PayrollRun.PayrollStatus.CALCULATED))
+                .thenReturn(List.of(payrollRun));
+
+        ApiResponse<AdminApprovalsResponse> response = controller.approvals();
+
+        assertThat(response.success()).isTrue();
+        assertThat(response.data()).isNotNull();
+        assertThat(response.data().creditRequests()).isEmpty();
+        assertThat(response.data().payrollRuns()).hasSize(1);
+
+        AdminApprovalItemDto payrollApproval = response.data().payrollRuns().get(0);
+        assertThat(payrollApproval.type()).isEqualTo("PAYROLL_RUN");
+        assertThat(payrollApproval.reference()).isEqualTo("PR-31");
+        assertThat(payrollApproval.summary()).contains("Approve payroll run PR-31");
+    }
 }
