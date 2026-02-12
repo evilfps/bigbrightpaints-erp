@@ -8,15 +8,22 @@ import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.hr.domain.PayrollRun;
 import com.bigbrightpaints.erp.modules.hr.domain.PayrollRunRepository;
+import com.bigbrightpaints.erp.modules.inventory.domain.PackagingSlip;
+import com.bigbrightpaints.erp.modules.sales.domain.CreditLimitOverrideRequest;
+import com.bigbrightpaints.erp.modules.sales.domain.CreditLimitOverrideRequestRepository;
 import com.bigbrightpaints.erp.modules.sales.domain.CreditRequest;
 import com.bigbrightpaints.erp.modules.sales.domain.CreditRequestRepository;
 import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Stream;
 
 @RestController
 @RequestMapping("/api/v1/admin")
@@ -27,17 +34,20 @@ public class AdminSettingsController {
     private final EmailService emailService;
     private final CompanyContextService companyContextService;
     private final CreditRequestRepository creditRequestRepository;
+    private final CreditLimitOverrideRequestRepository creditLimitOverrideRequestRepository;
     private final PayrollRunRepository payrollRunRepository;
 
     public AdminSettingsController(SystemSettingsService systemSettingsService,
                                    EmailService emailService,
                                    CompanyContextService companyContextService,
                                    CreditRequestRepository creditRequestRepository,
+                                   CreditLimitOverrideRequestRepository creditLimitOverrideRequestRepository,
                                    PayrollRunRepository payrollRunRepository) {
         this.systemSettingsService = systemSettingsService;
         this.emailService = emailService;
         this.companyContextService = companyContextService;
         this.creditRequestRepository = creditRequestRepository;
+        this.creditLimitOverrideRequestRepository = creditLimitOverrideRequestRepository;
         this.payrollRunRepository = payrollRunRepository;
     }
 
@@ -61,14 +71,22 @@ public class AdminSettingsController {
     @GetMapping("/approvals")
     public ApiResponse<AdminApprovalsResponse> approvals() {
         Company company = companyContextService.requireCurrentCompany();
-        List<AdminApprovalItemDto> creditApprovals = creditRequestRepository
+        List<AdminApprovalItemDto> creditRequestApprovals = creditRequestRepository
                 .findByCompanyAndStatusOrderByCreatedAtDesc(company, "PENDING")
                 .stream()
-                .map(cr -> approvalItem("CREDIT_REQUEST", cr.getId(), cr.getPublicId(),
-                        "CR-" + cr.getId(), cr.getStatus(),
-                        cr.getDealer() != null ? cr.getDealer().getName() + " - " + cr.getAmountRequested()
-                                : cr.getAmountRequested().toPlainString(),
-                        cr.getCreatedAt()))
+                .map(this::toCreditRequestApprovalItem)
+                .toList();
+
+        List<AdminApprovalItemDto> creditOverrideApprovals = creditLimitOverrideRequestRepository
+                .findByCompanyAndStatusOrderByCreatedAtDesc(company, "PENDING")
+                .stream()
+                .map(this::toCreditOverrideApprovalItem)
+                .toList();
+
+        List<AdminApprovalItemDto> creditApprovals = Stream
+                .concat(creditRequestApprovals.stream(), creditOverrideApprovals.stream())
+                .sorted(Comparator.comparing(AdminApprovalItemDto::createdAt,
+                        Comparator.nullsLast(Comparator.reverseOrder())))
                 .toList();
 
         List<AdminApprovalItemDto> payrollApprovals = payrollRunRepository
@@ -87,5 +105,63 @@ public class AdminSettingsController {
     private AdminApprovalItemDto approvalItem(String type, Long id, UUID publicId, String reference,
                                               String status, String summary, Instant createdAt) {
         return new AdminApprovalItemDto(type, id, publicId, reference, status, summary, createdAt);
+    }
+
+    private AdminApprovalItemDto toCreditRequestApprovalItem(CreditRequest request) {
+        String dealerLabel = request.getDealer() != null && StringUtils.hasText(request.getDealer().getName())
+                ? request.getDealer().getName()
+                : "Unknown dealer";
+        String summary = "Approve credit-limit increase for " + dealerLabel
+                + " amount " + toAmountString(request.getAmountRequested());
+        if (StringUtils.hasText(request.getReason())) {
+            summary = summary + " (reason: " + request.getReason().trim() + ")";
+        }
+        return approvalItem(
+                "CREDIT_REQUEST",
+                request.getId(),
+                request.getPublicId(),
+                "CR-" + request.getId(),
+                request.getStatus(),
+                summary,
+                request.getCreatedAt()
+        );
+    }
+
+    private AdminApprovalItemDto toCreditOverrideApprovalItem(CreditLimitOverrideRequest request) {
+        String dealerLabel = request.getDealer() != null && StringUtils.hasText(request.getDealer().getName())
+                ? request.getDealer().getName()
+                : "Unknown dealer";
+        String summary = "Approve dispatch credit override for " + dealerLabel
+                + ": dispatch " + toAmountString(request.getDispatchAmount())
+                + ", exposure " + toAmountString(request.getCurrentExposure())
+                + ", limit " + toAmountString(request.getCreditLimit())
+                + ", required headroom " + toAmountString(request.getRequiredHeadroom());
+        if (StringUtils.hasText(request.getRequestedBy())) {
+            summary = summary + " (requested by " + request.getRequestedBy().trim() + ")";
+        }
+        return approvalItem(
+                "CREDIT_LIMIT_OVERRIDE_REQUEST",
+                request.getId(),
+                request.getPublicId(),
+                overrideReference(request),
+                request.getStatus(),
+                summary,
+                request.getCreatedAt()
+        );
+    }
+
+    private String overrideReference(CreditLimitOverrideRequest request) {
+        PackagingSlip slip = request.getPackagingSlip();
+        if (slip != null && StringUtils.hasText(slip.getSlipNumber())) {
+            return slip.getSlipNumber();
+        }
+        if (request.getSalesOrder() != null && StringUtils.hasText(request.getSalesOrder().getOrderNumber())) {
+            return request.getSalesOrder().getOrderNumber();
+        }
+        return "CLO-" + request.getId();
+    }
+
+    private String toAmountString(BigDecimal amount) {
+        return amount == null ? "0" : amount.stripTrailingZeros().toPlainString();
     }
 }
