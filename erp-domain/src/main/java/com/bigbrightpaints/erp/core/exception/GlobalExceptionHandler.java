@@ -119,6 +119,8 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             errorResponse.put("details", ex.getDetails());
         }
 
+        logSettlementFailureAudit(request, traceId, ex);
+
         HttpStatus status = determineHttpStatus(ex.getErrorCode());
         return ResponseEntity.status(status).body(ApiResponse.failure(ex.getUserMessage(), errorResponse));
     }
@@ -477,6 +479,72 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             builder.append("; and ").append(errors.size() - 3).append(" more");
         }
         return builder.toString();
+    }
+
+    private void logSettlementFailureAudit(HttpServletRequest request,
+                                           String traceId,
+                                           ApplicationException ex) {
+        if (auditService == null || request == null || ex == null) {
+            return;
+        }
+        String requestPath = request.getRequestURI();
+        if (!StringUtils.hasText(requestPath) || !requestPath.startsWith("/api/v1/accounting/settlements/")) {
+            return;
+        }
+        String failureCode = IntegrationFailureAlertRoutingPolicy.SETTLEMENT_OPERATION_FAILURE_CODE;
+        String errorCategory = classifyIntegrationFailureCategory(ex.getErrorCode());
+
+        Map<String, String> metadata = new HashMap<>();
+        metadata.put("category", "settlement-failure");
+        metadata.put("failureCode", failureCode);
+        metadata.put("errorCategory", errorCategory);
+        metadata.put("errorCode", ex.getErrorCode() != null ? ex.getErrorCode().getCode() : ErrorCode.UNKNOWN_ERROR.getCode());
+        metadata.put("alertRoutingVersion", IntegrationFailureAlertRoutingPolicy.ROUTING_VERSION);
+        metadata.put("alertRoute", IntegrationFailureAlertRoutingPolicy.resolveRoute(failureCode, errorCategory));
+        metadata.put("traceId", traceId);
+        metadata.put("requestMethod", request.getMethod());
+        metadata.put("requestPath", requestPath);
+        metadata.put("settlementType", resolveSettlementType(requestPath));
+        auditService.logFailure(AuditEvent.INTEGRATION_FAILURE, metadata);
+    }
+
+    private String resolveSettlementType(String requestPath) {
+        if (!StringUtils.hasText(requestPath)) {
+            return "UNKNOWN";
+        }
+        if (requestPath.contains("/dealers")) {
+            return "DEALER";
+        }
+        if (requestPath.contains("/suppliers")) {
+            return "SUPPLIER";
+        }
+        return "UNKNOWN";
+    }
+
+    private String classifyIntegrationFailureCategory(ErrorCode errorCode) {
+        if (errorCode == null) {
+            return "UNKNOWN";
+        }
+        String code = errorCode.getCode();
+        if (!StringUtils.hasText(code)) {
+            return "UNKNOWN";
+        }
+        if (code.startsWith("VAL_")) {
+            return "VALIDATION";
+        }
+        if (code.startsWith("CONC_")) {
+            return "CONCURRENCY";
+        }
+        if (code.startsWith("DATA_")) {
+            return "DATA_INTEGRITY";
+        }
+        if (code.startsWith("SYS_") || code.startsWith("INT_")) {
+            return "SYSTEM";
+        }
+        if (code.startsWith("BUS_")) {
+            return "BUSINESS";
+        }
+        return "UNKNOWN";
     }
 
     private String resolveIllegalArgumentMessage(String message) {

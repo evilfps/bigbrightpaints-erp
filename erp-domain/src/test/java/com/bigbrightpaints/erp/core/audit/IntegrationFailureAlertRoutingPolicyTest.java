@@ -19,4 +19,18 @@ class IntegrationFailureAlertRoutingPolicyTest {
                 "SOME_OTHER_FAILURE",
                 "request-parse")).isEqualTo("UNMAPPED");
     }
+
+    @Test
+    void resolveRoute_mapsSettlementValidationToSev3Ticket() {
+        assertThat(IntegrationFailureAlertRoutingPolicy.resolveRoute(
+                "SETTLEMENT_OPERATION_FAILED",
+                "VALIDATION")).isEqualTo("SEV3_TICKET");
+    }
+
+    @Test
+    void resolveRoute_mapsSettlementConcurrencyToSev2Urgent() {
+        assertThat(IntegrationFailureAlertRoutingPolicy.resolveRoute(
+                "SETTLEMENT_OPERATION_FAILED",
+                "CONCURRENCY")).isEqualTo("SEV2_URGENT");
+    }
 }

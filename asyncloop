@@ -19,8 +19,8 @@ Non-Stop Operating Rules
 
 Runtime Tracking
 - tracked_start_ts: `2026-02-12T01:53:52+05:30` (first immutable async-loop commit marker)
-- tracked_now_ts: `2026-02-12T06:02:20+05:30`
-- tracked_elapsed: `4h 08m 28s`
+- tracked_now_ts: `2026-02-12T06:06:09+05:30`
+- tracked_elapsed: `4h 12m 17s`
 
 Completion Gates (Required For "Safe To Deploy" Claim)
 - No known critical/high security issues in auth/RBAC/tenant isolation/data exposure.
@@ -282,18 +282,24 @@ Auto-Replenish Queue (Always Keep Filled)
     - `alertRoutingVersion=INTEGRATION_FAILURE_V1`
     - `alertRoute=SEV3_TICKET`
   - Completed: added/updated regression tests in `IntegrationFailureAlertRoutingPolicyTest` and `GlobalExceptionHandlerTest`.
-- [ready] M3-S2 Settlement failure telemetry normalization
+- [done] M3-S2 Settlement failure telemetry normalization
   - Normalize settlement failure audit metadata (dealer/supplier flows) to include deterministic failure codes and non-leaky categories.
   - Add regression assertions for split receipts and supplier settlement failure taxonomy.
-- [in_progress] M3-S2 Settlement failure telemetry normalization
-  - Normalize settlement failure audit metadata (dealer/supplier flows) to include deterministic failure codes and non-leaky categories.
-  - Add regression assertions for split receipts and supplier settlement failure taxonomy.
+  - Completed: settlement-path `ApplicationException` telemetry normalized in `GlobalExceptionHandler` under `failureCode=SETTLEMENT_OPERATION_FAILED`.
+  - Completed: category/routing contract now emits deterministic `errorCategory`, `alertRoutingVersion`, and `alertRoute`.
+  - Completed: added dealer/supplier settlement failure routing assertions in `GlobalExceptionHandlerTest`.
 - [ready] M2-S11 Integration failure metadata schema check
   - Add a lightweight schema-check test ensuring mandatory metadata keys for `AuditEvent.INTEGRATION_FAILURE` producers are present.
   - Prevent silent drift between accounting and non-accounting failure markers.
 - [ready] M8-S7 Guard contract fixture coverage
   - Add a script-level fixture test for `guard_orchestrator_correlation_contract.sh` to pin expected fail messages and remediation hint behavior.
   - Reduce risk of regex drift creating false negatives in CI guard checks.
+- [in_progress] M2-S11 Integration failure metadata schema check
+  - Add a lightweight schema-check test ensuring mandatory metadata keys for `AuditEvent.INTEGRATION_FAILURE` producers are present.
+  - Prevent silent drift between accounting and non-accounting failure markers.
+- [ready] M3-S3 Settlement failure telemetry at source-service boundaries
+  - Add service-level settlement failure telemetry hooks for supplier/dealer flows where global handler cannot classify partner context deeply.
+  - Cover idempotency race and allocation-overflow failures with deterministic metadata assertions.
 
 Commit Ledger
 - 2026-02-12: `16b2a2c4`
@@ -420,20 +426,30 @@ Commit Ledger
     - `mvn -B -ntp -Dtest=GlobalExceptionHandlerTest,IntegrationFailureAlertRoutingPolicyTest test`
     - `mvn -B -ntp -Dtest=GlobalExceptionHandlerTest,IntegrationFailureAlertRoutingPolicyTest,AccountingServiceTest,AccountingEventTrailAlertRoutingPolicyTest,JournalEntryE2ETest,SettlementE2ETest,IntegrationCoordinatorTest,CommandDispatcherTest,AuditServiceTest,AuditServiceAsyncIT,CompanyContextTaskDecoratorTest,AuthServiceAuditAttributionTest test`
   - `codex review --commit 9bf7af1f`: running (result will be appended).
+- 2026-02-12: `1b5d2b55`
+  - Added release-gate correlation guard artifact capture and single-command remediation hint on guard failures.
+  - Verified:
+    - `bash -n scripts/gate_release.sh scripts/guard_orchestrator_correlation_contract.sh`
+    - `bash scripts/guard_orchestrator_correlation_contract.sh`
+  - `codex review --commit 1b5d2b55`: running (result will be appended).
 
 Current Checkpoint
-- Current WIP M8-S6 completion + M3-S2 kickoff:
-  - `scripts/gate_release.sh`
-    - captures orchestrator correlation guard output to gate-release artifact for fail-fast triage
-  - `scripts/guard_orchestrator_correlation_contract.sh`
-    - prints single remediation command on guard contract failure
+- Current WIP M3-S2 completion + M2-S11 kickoff:
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/core/audit/IntegrationFailureAlertRoutingPolicy.java`
+    - expanded to cover settlement-operation failure routing classes
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/core/exception/GlobalExceptionHandler.java`
+    - emits deterministic settlement failure telemetry for dealer/supplier settlement paths
+  - `erp-domain/src/test/java/com/bigbrightpaints/erp/core/exception/GlobalExceptionHandlerTest.java`
+    - verifies settlement validation/concurrency route classifications and metadata keys
+  - `erp-domain/src/test/java/com/bigbrightpaints/erp/core/audit/IntegrationFailureAlertRoutingPolicyTest.java`
+    - pins settlement failure route mapping outputs
 - Verification command:
-  - `bash -n scripts/gate_release.sh scripts/guard_orchestrator_correlation_contract.sh`
-  - `bash scripts/guard_orchestrator_correlation_contract.sh`
+  - `mvn -B -ntp -Dtest=GlobalExceptionHandlerTest,IntegrationFailureAlertRoutingPolicyTest test`
+  - `mvn -B -ntp -Dtest=GlobalExceptionHandlerTest,IntegrationFailureAlertRoutingPolicyTest,AccountingServiceTest,AccountingEventTrailAlertRoutingPolicyTest,JournalEntryE2ETest,SettlementE2ETest,IntegrationCoordinatorTest,CommandDispatcherTest,AuditServiceTest,AuditServiceAsyncIT,CompanyContextTaskDecoratorTest,AuthServiceAuditAttributionTest test`
 - Next action:
-  - commit M8-S6 correlation guard artifact/fail-fast evidence updates
+  - commit M3-S2 settlement failure telemetry normalization
   - run `codex review --commit <sha>`
-  - continue M3-S2 settlement failure telemetry normalization
+  - continue M2-S11 integration failure metadata schema check
 
 Async Loop Cadence
 - Each cycle:

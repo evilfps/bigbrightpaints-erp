@@ -115,6 +115,66 @@ class GlobalExceptionHandlerTest {
         assertThat(metadata).containsEntry("requestPath", "/api/v1/accounting/settlements/suppliers");
     }
 
+    @Test
+    void settlementValidationFailure_isAuditedWithDeterministicTelemetry() throws Exception {
+        GlobalExceptionHandler handler = new GlobalExceptionHandler();
+        setActiveProfile(handler, "dev");
+        AuditService auditService = mock(AuditService.class);
+        setAuditService(handler, auditService);
+
+        ApplicationException ex = new ApplicationException(
+                ErrorCode.VALIDATION_INVALID_INPUT,
+                "Settlement allocation exceeds invoice outstanding amount");
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/v1/accounting/settlements/dealers");
+
+        ResponseEntity<ApiResponse<Map<String, Object>>> response = handler.handleApplicationException(ex, request);
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, String>> metadataCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(auditService).logFailure(eq(AuditEvent.INTEGRATION_FAILURE), metadataCaptor.capture());
+        Map<String, String> metadata = metadataCaptor.getValue();
+        assertThat(metadata)
+                .containsEntry("category", "settlement-failure")
+                .containsEntry("failureCode", "SETTLEMENT_OPERATION_FAILED")
+                .containsEntry("errorCategory", "VALIDATION")
+                .containsEntry("errorCode", ErrorCode.VALIDATION_INVALID_INPUT.getCode())
+                .containsEntry("settlementType", "DEALER")
+                .containsEntry("alertRoutingVersion", "INTEGRATION_FAILURE_V1")
+                .containsEntry("alertRoute", "SEV3_TICKET")
+                .containsEntry("requestPath", "/api/v1/accounting/settlements/dealers");
+    }
+
+    @Test
+    void settlementConcurrencyFailure_isAuditedWithSev2Route() throws Exception {
+        GlobalExceptionHandler handler = new GlobalExceptionHandler();
+        setActiveProfile(handler, "dev");
+        AuditService auditService = mock(AuditService.class);
+        setAuditService(handler, auditService);
+
+        ApplicationException ex = new ApplicationException(
+                ErrorCode.CONCURRENCY_CONFLICT,
+                "Idempotency key already used");
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/v1/accounting/settlements/suppliers");
+
+        ResponseEntity<ApiResponse<Map<String, Object>>> response = handler.handleApplicationException(ex, request);
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, String>> metadataCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(auditService).logFailure(eq(AuditEvent.INTEGRATION_FAILURE), metadataCaptor.capture());
+        Map<String, String> metadata = metadataCaptor.getValue();
+        assertThat(metadata)
+                .containsEntry("category", "settlement-failure")
+                .containsEntry("failureCode", "SETTLEMENT_OPERATION_FAILED")
+                .containsEntry("errorCategory", "CONCURRENCY")
+                .containsEntry("errorCode", ErrorCode.CONCURRENCY_CONFLICT.getCode())
+                .containsEntry("settlementType", "SUPPLIER")
+                .containsEntry("alertRoutingVersion", "INTEGRATION_FAILURE_V1")
+                .containsEntry("alertRoute", "SEV2_URGENT")
+                .containsEntry("requestPath", "/api/v1/accounting/settlements/suppliers");
+    }
+
     private static void setActiveProfile(GlobalExceptionHandler handler, String value) throws Exception {
         Field field = GlobalExceptionHandler.class.getDeclaredField("activeProfile");
         field.setAccessible(true);
