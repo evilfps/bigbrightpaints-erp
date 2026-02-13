@@ -47,16 +47,18 @@ Expected UX behavior:
 
 - Allocation-level negative net cash is rejected (tolerance: `0.01`).
 - Supplier on-account allocations (`purchaseId = null`) cannot include discount/write-off/FX adjustments.
-- Allocation cannot exceed current outstanding amount on the linked invoice/purchase.
+- Allocation cannot exceed current outstanding amount on the linked invoice/purchase beyond tolerance (`0.01`).
 
 Recommended validation copy:
-- "Settlement allocation has negative net cash contribution."
+- "Settlement allocation has negative net cash contribution for dealer settlement."
+- "Settlement allocation has negative net cash contribution for supplier settlement."
 - "On-account supplier settlement allocations cannot include discount/write-off/FX adjustments."
-- "Settlement allocation exceeds outstanding amount."
+- "Settlement allocation exceeds invoice outstanding amount."
+- "Settlement allocation exceeds purchase outstanding amount."
 
 ### 2.4 Replay and reference behavior
 
-- Replayed payloads with same `idempotencyKey` must match saved partner + allocation signatures and journal-line signature.
+- Replayed payloads with same `idempotencyKey` must match saved partner + allocation signatures, memo value, and journal-line signature.
 - Mismatch is rejected as concurrency conflict; backend does not silently rewrite payload intent.
 - If mapping points to one journal and allocations point to another, request is rejected.
 - For dealer settlement without explicit `referenceNumber`, backend may use a temporary reserved reference first and then resolve to canonical dealer receipt reference; UI should always display the journal reference returned in response.
@@ -89,6 +91,9 @@ Admin approval implication:
   - reject endpoint `/api/v1/credit/override-requests/{id}/reject`
 
 ## 4) Admin Portal: "What Exactly Is Being Approved"
+
+Detailed descriptor matrix:
+- `docs/ADMIN_APPROVAL_ACTION_DESCRIPTOR_MATRIX.md`
 
 `GET /api/v1/admin/approvals` returns two arrays:
 - `creditRequests`: credit-limit increase + dispatch credit override approvals

@@ -5,6 +5,7 @@ Updated: 2026-01-25
 
 Related behavior contract:
 - `docs/PORTAL_DISCOUNT_REFERENCE_BEHAVIOR_GUIDE.md`
+- `docs/ADMIN_APPROVAL_ACTION_DESCRIPTOR_MATRIX.md`
 
 ## Summary by module
 
