@@ -17,6 +17,9 @@ import com.bigbrightpaints.erp.modules.production.domain.CatalogImportRepository
 import com.bigbrightpaints.erp.modules.production.domain.ProductionProduct;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionProductRepository;
 import com.bigbrightpaints.erp.modules.production.dto.CatalogImportResponse;
+import com.bigbrightpaints.erp.modules.production.dto.ProductCreateRequest;
+import com.bigbrightpaints.erp.modules.production.dto.ProductUpdateRequest;
+import com.bigbrightpaints.erp.modules.production.dto.ProductionProductDto;
 import com.bigbrightpaints.erp.modules.production.service.ProductionCatalogService;
 import com.bigbrightpaints.erp.test.AbstractIntegrationTest;
 import java.math.BigDecimal;
@@ -263,6 +266,75 @@ class ProductionCatalogRawMaterialInvariantIT extends AbstractIntegrationTest {
                 .findByCompanyAndProductCode(company, "FG-COST-DRIFT-01")
                 .orElseThrow();
         assertThat(afterReplayImport.getCostingMethod()).isEqualTo("WAC");
+    }
+
+    @Test
+    void createAndUpdateProduct_canonicalizeDriftedFinishedGoodCostingAlias() {
+        configureFinishedGoodDefaultAccounts();
+
+        String sku = "FG-COST-SYNC-01";
+        FinishedGood drifted = new FinishedGood();
+        drifted.setCompany(company);
+        drifted.setProductCode(sku);
+        drifted.setName("Legacy Drifted Create/Update FG");
+        drifted.setUnit("LTR");
+        drifted.setCurrentStock(BigDecimal.ZERO);
+        drifted.setReservedStock(BigDecimal.ZERO);
+        drifted.setValuationAccountId(inventoryAccount.getId());
+        drifted.setCogsAccountId(company.getDefaultCogsAccountId());
+        drifted.setRevenueAccountId(company.getDefaultRevenueAccountId());
+        drifted.setTaxAccountId(company.getDefaultTaxAccountId());
+        drifted.setCostingMethod(" weighted_average ");
+        finishedGoodRepository.save(drifted);
+
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("fgValuationAccountId", inventoryAccount.getId());
+        metadata.put("fgCogsAccountId", company.getDefaultCogsAccountId());
+        metadata.put("fgRevenueAccountId", company.getDefaultRevenueAccountId());
+        metadata.put("fgTaxAccountId", company.getDefaultTaxAccountId());
+
+        ProductionProductDto created = productionCatalogService.createProduct(new ProductCreateRequest(
+                null,
+                "FG Sync Brand",
+                null,
+                "FG Sync Product",
+                "FINISHED_GOOD",
+                null,
+                null,
+                "LTR",
+                sku,
+                BigDecimal.ZERO,
+                new BigDecimal("18.00"),
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                metadata
+        ));
+
+        FinishedGood afterCreate = finishedGoodRepository
+                .findByCompanyAndProductCode(company, sku)
+                .orElseThrow();
+        assertThat(afterCreate.getCostingMethod()).isEqualTo("WAC");
+
+        afterCreate.setCostingMethod("weighted-average");
+        finishedGoodRepository.save(afterCreate);
+
+        productionCatalogService.updateProduct(created.id(), new ProductUpdateRequest(
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+        ));
+
+        FinishedGood afterUpdate = finishedGoodRepository
+                .findByCompanyAndProductCode(company, sku)
+                .orElseThrow();
+        assertThat(afterUpdate.getCostingMethod()).isEqualTo("WAC");
     }
 
     private Account ensureAccount(String code, String name, AccountType type) {
