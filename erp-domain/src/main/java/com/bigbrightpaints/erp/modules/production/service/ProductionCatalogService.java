@@ -920,8 +920,30 @@ public class ProductionCatalogService {
         boolean isNew = material.getId() == null;
         material.setName(product.getProductName());
         material.setUnitType(resolveUnit(product.getUnitOfMeasure()));
+        Long resolvedInventoryAccountId = resolveRawMaterialInventoryAccountId(company, product);
+        if (material.getInventoryAccountId() == null && resolvedInventoryAccountId != null) {
+            material.setInventoryAccountId(resolvedInventoryAccountId);
+        }
+        if (product.getGstRate() != null) {
+            material.setGstRate(percent(product.getGstRate()));
+        }
+        if (!StringUtils.hasText(material.getCostingMethod())) {
+            material.setCostingMethod("FIFO");
+        }
         rawMaterialRepository.save(material);
         return isNew;
+    }
+
+    private Long resolveRawMaterialInventoryAccountId(Company company, ProductionProduct product) {
+        Long metadataAccountId = metadataLong(product, "inventoryAccountId");
+        if (metadataAccountId == null) {
+            metadataAccountId = metadataLong(product, "rawMaterialInventoryAccountId");
+        }
+        if (metadataAccountId != null && metadataAccountId > 0) {
+            return metadataAccountId;
+        }
+        Long defaultInventoryAccountId = company != null ? company.getDefaultInventoryAccountId() : null;
+        return defaultInventoryAccountId != null && defaultInventoryAccountId > 0 ? defaultInventoryAccountId : null;
     }
 
     private void ensureCatalogFinishedGood(Company company, ProductionProduct product) {
@@ -1504,6 +1526,11 @@ public class ProductionCatalogService {
             maybePut(metadata, "fgRevenueAccountId", wholeNumber(record, "fg_revenue_account_id"));
             maybePut(metadata, "fgDiscountAccountId", wholeNumber(record, "fg_discount_account_id"));
             maybePut(metadata, "fgTaxAccountId", wholeNumber(record, "fg_tax_account_id"));
+            Long rawMaterialInventoryAccountId = wholeNumber(record, "rm_inventory_account_id");
+            if (rawMaterialInventoryAccountId == null) {
+                rawMaterialInventoryAccountId = wholeNumber(record, "inventory_account_id");
+            }
+            maybePut(metadata, "inventoryAccountId", rawMaterialInventoryAccountId);
             maybePut(metadata, "wipAccountId", wholeNumber(record, "wip_account_id"));
             maybePut(metadata, "semiFinishedAccountId", wholeNumber(record, "semi_finished_account_id"));
         }
