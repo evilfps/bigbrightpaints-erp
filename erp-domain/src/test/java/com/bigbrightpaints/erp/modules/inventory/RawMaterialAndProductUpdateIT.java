@@ -313,6 +313,120 @@ class RawMaterialAndProductUpdateIT extends AbstractIntegrationTest {
     }
 
     @Test
+    void finished_good_update_alias_replay_stays_canonical_wac() {
+        HttpHeaders headers = authenticatedHeaders();
+
+        Map<String, Object> createPayload = new HashMap<>();
+        createPayload.put("productCode", "FG-ALIAS-" + UUID.randomUUID().toString().substring(0, 8));
+        createPayload.put("name", "FG Alias Replay");
+        createPayload.put("unit", "UNIT");
+        createPayload.put("costingMethod", "FIFO");
+
+        ResponseEntity<Map> create = rest.exchange(
+                "/api/v1/finished-goods",
+                HttpMethod.POST,
+                new HttpEntity<>(createPayload, headers),
+                Map.class
+        );
+        assertThat(create.getStatusCode()).isEqualTo(HttpStatus.OK);
+        Map<?, ?> createdData = (Map<?, ?>) create.getBody().get("data");
+        Long finishedGoodId = ((Number) createdData.get("id")).longValue();
+
+        Map<String, Object> updatePayload = new HashMap<>();
+        updatePayload.put("productCode", createPayload.get("productCode"));
+        updatePayload.put("name", "FG Alias Replay A");
+        updatePayload.put("unit", "UNIT");
+        updatePayload.put("costingMethod", " weighted-average ");
+        ResponseEntity<Map> updateWeightedAverage = rest.exchange(
+                "/api/v1/finished-goods/" + finishedGoodId,
+                HttpMethod.PUT,
+                new HttpEntity<>(updatePayload, headers),
+                Map.class
+        );
+        assertThat(updateWeightedAverage.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(((Map<?, ?>) updateWeightedAverage.getBody().get("data")).get("costingMethod")).isEqualTo("WAC");
+
+        updatePayload.put("name", "FG Alias Replay B");
+        updatePayload.put("costingMethod", "WAC");
+        ResponseEntity<Map> updateWac = rest.exchange(
+                "/api/v1/finished-goods/" + finishedGoodId,
+                HttpMethod.PUT,
+                new HttpEntity<>(updatePayload, headers),
+                Map.class
+        );
+        assertThat(updateWac.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(((Map<?, ?>) updateWac.getBody().get("data")).get("costingMethod")).isEqualTo("WAC");
+
+        updatePayload.put("name", "FG Alias Replay C");
+        updatePayload.put("costingMethod", "weighted_average");
+        ResponseEntity<Map> updateWeightedUnderscore = rest.exchange(
+                "/api/v1/finished-goods/" + finishedGoodId,
+                HttpMethod.PUT,
+                new HttpEntity<>(updatePayload, headers),
+                Map.class
+        );
+        assertThat(updateWeightedUnderscore.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(((Map<?, ?>) updateWeightedUnderscore.getBody().get("data")).get("costingMethod")).isEqualTo("WAC");
+
+        Map<?, ?> fetched = fetchFinishedGoodData(headers, finishedGoodId);
+        assertThat(fetched.get("costingMethod")).isEqualTo("WAC");
+    }
+
+    @Test
+    void finished_good_invalid_alias_replay_does_not_mutate_persisted_method() {
+        HttpHeaders headers = authenticatedHeaders();
+
+        Map<String, Object> createPayload = new HashMap<>();
+        createPayload.put("productCode", "FG-IMM-" + UUID.randomUUID().toString().substring(0, 8));
+        createPayload.put("name", "FG Immutable On Invalid");
+        createPayload.put("unit", "UNIT");
+        createPayload.put("costingMethod", "FIFO");
+
+        ResponseEntity<Map> create = rest.exchange(
+                "/api/v1/finished-goods",
+                HttpMethod.POST,
+                new HttpEntity<>(createPayload, headers),
+                Map.class
+        );
+        assertThat(create.getStatusCode()).isEqualTo(HttpStatus.OK);
+        Map<?, ?> createdData = (Map<?, ?>) create.getBody().get("data");
+        Long finishedGoodId = ((Number) createdData.get("id")).longValue();
+
+        Map<String, Object> invalidUpdatePayload = new HashMap<>();
+        invalidUpdatePayload.put("productCode", createPayload.get("productCode"));
+        invalidUpdatePayload.put("name", "FG Invalid Attempt A");
+        invalidUpdatePayload.put("unit", "UNIT");
+        invalidUpdatePayload.put("costingMethod", "NOT_A_METHOD");
+
+        ResponseEntity<Map> invalidFirst = rest.exchange(
+                "/api/v1/finished-goods/" + finishedGoodId,
+                HttpMethod.PUT,
+                new HttpEntity<>(invalidUpdatePayload, headers),
+                Map.class
+        );
+        assertThat(invalidFirst.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(String.valueOf(invalidFirst.getBody())).contains("Unsupported costing method");
+
+        Map<?, ?> afterFirstFailure = fetchFinishedGoodData(headers, finishedGoodId);
+        assertThat(afterFirstFailure.get("costingMethod")).isEqualTo("FIFO");
+        assertThat(afterFirstFailure.get("name")).isEqualTo("FG Immutable On Invalid");
+
+        invalidUpdatePayload.put("name", "FG Invalid Attempt B");
+        ResponseEntity<Map> invalidSecond = rest.exchange(
+                "/api/v1/finished-goods/" + finishedGoodId,
+                HttpMethod.PUT,
+                new HttpEntity<>(invalidUpdatePayload, headers),
+                Map.class
+        );
+        assertThat(invalidSecond.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(String.valueOf(invalidSecond.getBody())).contains("Unsupported costing method");
+
+        Map<?, ?> afterSecondFailure = fetchFinishedGoodData(headers, finishedGoodId);
+        assertThat(afterSecondFailure.get("costingMethod")).isEqualTo("FIFO");
+        assertThat(afterSecondFailure.get("name")).isEqualTo("FG Immutable On Invalid");
+    }
+
+    @Test
     void create_product_rejects_multi_value_color_and_size_and_points_to_bulk_variants() {
         HttpHeaders headers = authenticatedHeaders();
 
@@ -530,6 +644,17 @@ class RawMaterialAndProductUpdateIT extends AbstractIntegrationTest {
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.add("X-Company-Id", COMPANY_CODE);
         return headers;
+    }
+
+    private Map<?, ?> fetchFinishedGoodData(HttpHeaders headers, Long finishedGoodId) {
+        ResponseEntity<Map> fetch = rest.exchange(
+                "/api/v1/finished-goods/" + finishedGoodId,
+                HttpMethod.GET,
+                new HttpEntity<>(headers),
+                Map.class
+        );
+        assertThat(fetch.getStatusCode()).isEqualTo(HttpStatus.OK);
+        return (Map<?, ?>) fetch.getBody().get("data");
     }
 
     private Map<String, Long> fixtureAccountIds() {
