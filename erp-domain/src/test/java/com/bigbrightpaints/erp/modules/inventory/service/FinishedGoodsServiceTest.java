@@ -23,6 +23,7 @@ import com.bigbrightpaints.erp.modules.sales.domain.SalesOrderRepository;
 import com.bigbrightpaints.erp.test.AbstractIntegrationTest;
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
@@ -80,6 +81,45 @@ class FinishedGoodsServiceTest extends AbstractIntegrationTest {
                 .findFirst()
                 .orElseThrow();
         assertThat(dispatchMovement.getUnitCost()).isEqualByComparingTo(new BigDecimal("25"));
+    }
+
+    @Test
+    void reserveForOrderUsesExpiryOrderWhenCostingMethodIsWac() {
+        Company company = seedCompany("WAC-FEFO");
+        FinishedGood fg = createFinishedGood(company, "FG-WAC-FEFO", new BigDecimal("6"), BigDecimal.ZERO, "WAC");
+
+        FinishedGoodBatch olderManufacturedLaterExpiry = createBatch(
+                fg,
+                "BATCH-WAC-OLDER",
+                new BigDecimal("3"),
+                new BigDecimal("3"),
+                new BigDecimal("9"));
+        olderManufacturedLaterExpiry.setManufacturedAt(Instant.now().minusSeconds(7200));
+        olderManufacturedLaterExpiry.setExpiryDate(LocalDate.now().plusDays(30));
+        olderManufacturedLaterExpiry = finishedGoodBatchRepository.saveAndFlush(olderManufacturedLaterExpiry);
+
+        FinishedGoodBatch newerManufacturedSoonerExpiry = createBatch(
+                fg,
+                "BATCH-WAC-SOON",
+                new BigDecimal("3"),
+                new BigDecimal("3"),
+                new BigDecimal("10"));
+        newerManufacturedSoonerExpiry.setManufacturedAt(Instant.now().minusSeconds(3600));
+        newerManufacturedSoonerExpiry.setExpiryDate(LocalDate.now().plusDays(3));
+        newerManufacturedSoonerExpiry = finishedGoodBatchRepository.saveAndFlush(newerManufacturedSoonerExpiry);
+
+        SalesOrder order = createOrder(company, "SO-WAC-FEFO-" + UUID.randomUUID(), fg.getProductCode(), new BigDecimal("2"));
+
+        FinishedGoodsService.InventoryReservationResult result = finishedGoodsService.reserveForOrder(order);
+
+        PackagingSlip slip = packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, order.getId()).stream()
+                .filter(existing -> !existing.isBackorder())
+                .findFirst()
+                .orElseThrow();
+        assertThat(result.shortages()).isEmpty();
+        assertThat(slip.getLines()).hasSize(1);
+        assertThat(slip.getLines().getFirst().getFinishedGoodBatch().getId())
+                .isEqualTo(newerManufacturedSoonerExpiry.getId());
     }
 
     @Test

@@ -1627,7 +1627,7 @@ public class FinishedGoodsService {
         String method = finishedGood.getCostingMethod() == null ? "FIFO" : finishedGood.getCostingMethod().trim().toUpperCase();
         return switch (method) {
             case "LIFO" -> finishedGoodBatchRepository.findAllocatableBatchesLIFO(finishedGood);
-            case "WAC", "WEIGHTED_AVERAGE", "WEIGHTED-AVERAGE" -> finishedGoodBatchRepository.findAllocatableBatchesFIFO(finishedGood);
+            case "WAC", "WEIGHTED_AVERAGE", "WEIGHTED-AVERAGE" -> finishedGoodBatchRepository.findAllocatableBatches(finishedGood);
             default -> finishedGoodBatchRepository.findAllocatableBatchesFIFO(finishedGood);
         };
     }

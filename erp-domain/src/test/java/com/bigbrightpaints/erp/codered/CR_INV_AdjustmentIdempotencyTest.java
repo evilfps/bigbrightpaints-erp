@@ -12,6 +12,8 @@ import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGood;
+import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatch;
+import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatchRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryAdjustment;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryAdjustmentRepository;
@@ -47,6 +49,7 @@ class CR_INV_AdjustmentIdempotencyTest extends AbstractIntegrationTest {
     @Autowired private CompanyRepository companyRepository;
     @Autowired private AccountRepository accountRepository;
     @Autowired private FinishedGoodsService finishedGoodsService;
+    @Autowired private FinishedGoodBatchRepository finishedGoodBatchRepository;
     @Autowired private FinishedGoodRepository finishedGoodRepository;
     @Autowired private InventoryAdjustmentService inventoryAdjustmentService;
     @Autowired private InventoryAdjustmentRepository inventoryAdjustmentRepository;
@@ -205,6 +208,70 @@ class CR_INV_AdjustmentIdempotencyTest extends AbstractIntegrationTest {
         assertThat(stored.getId()).isEqualTo(adjustmentIds.getFirst());
     }
 
+    @Test
+    void adjustment_wacUsesExpiryOrderedBatchSelection_andIdempotentReplayDoesNotDoubleDeplete() {
+        String companyCode = "CR-INV-ADJ-WAC-" + shortId();
+        Company company = bootstrapCompany(companyCode);
+        Map<String, Account> accounts = ensureAccounts(company);
+
+        FinishedGood fg = ensureFinishedGood(company, "FG-ADJ-WAC-" + shortId(), accounts, "WAC");
+        Long olderBatchId = seedBatchWithMetadata(
+                company,
+                fg,
+                "BATCH-ADJ-WAC-OLD-" + shortId(),
+                new BigDecimal("3"),
+                new BigDecimal("10.00"),
+                Instant.now().minus(Duration.ofHours(2)),
+                LocalDate.now().plusDays(30));
+        Long soonerExpiryBatchId = seedBatchWithMetadata(
+                company,
+                fg,
+                "BATCH-ADJ-WAC-SOON-" + shortId(),
+                new BigDecimal("3"),
+                new BigDecimal("11.00"),
+                Instant.now().minus(Duration.ofHours(1)),
+                LocalDate.now().plusDays(3));
+
+        String idempotencyKey = "INV-ADJ-WAC-" + UUID.randomUUID();
+        InventoryAdjustmentRequest request = new InventoryAdjustmentRequest(
+                TestDateUtils.safeDate(company),
+                InventoryAdjustmentType.DAMAGED,
+                accounts.get("VAR").getId(),
+                "WAC expiry-priority adjustment",
+                false,
+                idempotencyKey,
+                List.of(new InventoryAdjustmentRequest.LineRequest(
+                        fg.getId(),
+                        new BigDecimal("2"),
+                        new BigDecimal("10.00"),
+                        "WAC adjustment"
+                ))
+        );
+
+        CompanyContextHolder.setCompanyId(companyCode);
+        InventoryAdjustmentDto first = inventoryAdjustmentService.createAdjustment(request);
+        CompanyContextHolder.clear();
+
+        FinishedGoodBatch soonerExpiryAfterFirst = finishedGoodBatchRepository.findById(soonerExpiryBatchId).orElseThrow();
+        FinishedGoodBatch olderAfterFirst = finishedGoodBatchRepository.findById(olderBatchId).orElseThrow();
+        assertThat(soonerExpiryAfterFirst.getQuantityTotal()).isEqualByComparingTo(new BigDecimal("1"));
+        assertThat(soonerExpiryAfterFirst.getQuantityAvailable()).isEqualByComparingTo(new BigDecimal("1"));
+        assertThat(olderAfterFirst.getQuantityTotal()).isEqualByComparingTo(new BigDecimal("3"));
+        assertThat(olderAfterFirst.getQuantityAvailable()).isEqualByComparingTo(new BigDecimal("3"));
+
+        CompanyContextHolder.setCompanyId(companyCode);
+        InventoryAdjustmentDto second = inventoryAdjustmentService.createAdjustment(request);
+        CompanyContextHolder.clear();
+        assertThat(second.id()).isEqualTo(first.id());
+
+        FinishedGoodBatch soonerExpiryAfterReplay = finishedGoodBatchRepository.findById(soonerExpiryBatchId).orElseThrow();
+        FinishedGoodBatch olderAfterReplay = finishedGoodBatchRepository.findById(olderBatchId).orElseThrow();
+        assertThat(soonerExpiryAfterReplay.getQuantityTotal()).isEqualByComparingTo(new BigDecimal("1"));
+        assertThat(soonerExpiryAfterReplay.getQuantityAvailable()).isEqualByComparingTo(new BigDecimal("1"));
+        assertThat(olderAfterReplay.getQuantityTotal()).isEqualByComparingTo(new BigDecimal("3"));
+        assertThat(olderAfterReplay.getQuantityAvailable()).isEqualByComparingTo(new BigDecimal("3"));
+    }
+
     private Company bootstrapCompany(String companyCode) {
         dataSeeder.ensureCompany(companyCode, companyCode + " Ltd");
         CompanyContextHolder.setCompanyId(companyCode);
@@ -262,12 +329,16 @@ class CR_INV_AdjustmentIdempotencyTest extends AbstractIntegrationTest {
     }
 
     private FinishedGood ensureFinishedGood(Company company, String sku, Map<String, Account> accounts) {
+        return ensureFinishedGood(company, sku, accounts, "FIFO");
+    }
+
+    private FinishedGood ensureFinishedGood(Company company, String sku, Map<String, Account> accounts, String costingMethod) {
         CompanyContextHolder.setCompanyId(company.getCode());
         FinishedGoodRequest request = new FinishedGoodRequest(
                 sku,
                 sku,
                 "PCS",
-                "FIFO",
+                costingMethod,
                 accounts.get("INV").getId(),
                 accounts.get("COGS").getId(),
                 accounts.get("REV").getId(),
@@ -294,6 +365,31 @@ class CR_INV_AdjustmentIdempotencyTest extends AbstractIntegrationTest {
                 null
         ));
         CompanyContextHolder.clear();
+    }
+
+    private Long seedBatchWithMetadata(Company company,
+                                       FinishedGood finishedGood,
+                                       String batchCode,
+                                       BigDecimal quantity,
+                                       BigDecimal unitCost,
+                                       Instant manufacturedAt,
+                                       LocalDate expiryDate) {
+        CompanyContextHolder.setCompanyId(company.getCode());
+        try {
+            finishedGoodsService.registerBatch(new FinishedGoodBatchRequest(
+                    finishedGood.getId(),
+                    batchCode,
+                    quantity,
+                    unitCost,
+                    manufacturedAt,
+                    expiryDate
+            ));
+            return finishedGoodBatchRepository.findByFinishedGoodAndBatchCode(finishedGood, batchCode)
+                    .map(FinishedGoodBatch::getId)
+                    .orElseThrow();
+        } finally {
+            CompanyContextHolder.clear();
+        }
     }
 
     private static String shortId() {
