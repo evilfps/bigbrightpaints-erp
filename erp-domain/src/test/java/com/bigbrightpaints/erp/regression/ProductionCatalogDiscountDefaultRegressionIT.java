@@ -11,6 +11,7 @@ import com.bigbrightpaints.erp.modules.production.dto.ProductionProductDto;
 import com.bigbrightpaints.erp.modules.production.service.ProductionCatalogService;
 import com.bigbrightpaints.erp.test.AbstractIntegrationTest;
 import java.math.BigDecimal;
+import java.util.UUID;
 import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -19,6 +20,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @DisplayName("Regression: Catalog create handles null discount default")
 class ProductionCatalogDiscountDefaultRegressionIT extends AbstractIntegrationTest {
@@ -87,11 +89,49 @@ class ProductionCatalogDiscountDefaultRegressionIT extends AbstractIntegrationTe
         assertThat(metadata).doesNotContainKey("fgDiscountAccountId");
     }
 
+    @Test
+    void createProductRejectsFinishedGoodAccountOutsideCompanyScope() {
+        Company foreignCompany = dataSeeder.ensureCompany(
+                "FG-SCOPE-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase(),
+                "FG Scope Foreign");
+        Account foreignInventoryAccount = ensureAccountFor(
+                foreignCompany,
+                "FG-INV-FOREIGN",
+                "Foreign FG Inventory",
+                AccountType.ASSET);
+
+        ProductCreateRequest request = new ProductCreateRequest(
+                null,
+                "LF-014 Brand",
+                null,
+                "LF-014 Foreign Account Product",
+                "FINISHED_GOOD",
+                "WHITE",
+                "1L",
+                "UNIT",
+                null,
+                new BigDecimal("100.00"),
+                new BigDecimal("18.00"),
+                null,
+                null,
+                Map.of("fgValuationAccountId", foreignInventoryAccount.getId())
+        );
+
+        assertThatThrownBy(() -> productionCatalogService.createProduct(request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("invalid account id")
+                .hasMessageContaining("fgValuationAccountId");
+    }
+
     private Account ensureAccount(String code, String name, AccountType type) {
-        return accountRepository.findByCompanyAndCodeIgnoreCase(company, code)
+        return ensureAccountFor(company, code, name, type);
+    }
+
+    private Account ensureAccountFor(Company targetCompany, String code, String name, AccountType type) {
+        return accountRepository.findByCompanyAndCodeIgnoreCase(targetCompany, code)
                 .orElseGet(() -> {
                     Account account = new Account();
-                    account.setCompany(company);
+                    account.setCompany(targetCompany);
                     account.setCode(code);
                     account.setName(name);
                     account.setType(type);

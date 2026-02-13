@@ -200,15 +200,20 @@ class ProductionCatalogRawMaterialInvariantIT extends AbstractIntegrationTest {
                 "Foreign Finished Good Inventory",
                 AccountType.ASSET);
 
-        CatalogImportResponse response = productionCatalogService.importCatalog(
-                finishedGoodCsvWithAccount("FG-OUTSIDE-01", "18.00", foreignValuationAccount.getId(), "fg_valuation_account_id"),
-                "RM-CAT-IDEMP-06"
-        );
+        MockMultipartFile importFile = finishedGoodCsvWithAccount(
+                "FG-OUTSIDE-01",
+                "18.00",
+                foreignValuationAccount.getId(),
+                "fg_valuation_account_id");
+        CatalogImportResponse response = productionCatalogService.importCatalog(importFile, "RM-CAT-IDEMP-06");
+        CatalogImportResponse replay = productionCatalogService.importCatalog(importFile, "RM-CAT-IDEMP-06");
 
         assertThat(response.errors()).hasSize(1);
+        assertThat(replay.errors()).hasSize(1);
         assertThat(response.errors().getFirst().message())
                 .contains("invalid account id")
                 .contains("fgValuationAccountId");
+        assertThat(replay.errors().getFirst().message()).isEqualTo(response.errors().getFirst().message());
         assertThat(productionProductRepository.findByCompanyAndSkuCode(company, "FG-OUTSIDE-01")).isEmpty();
     }
 
