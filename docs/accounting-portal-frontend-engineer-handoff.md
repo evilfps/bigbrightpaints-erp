@@ -566,3 +566,69 @@ These are cross-portal APIs reused in Accounting Portal for auth/session/profile
 - For settlement/payment screens, show unapplied balance and allocation residuals before submit.
 - For reports, preserve filter context and export exactly the filtered dataset to avoid reconciliation mismatches.
 - Treat opening stock import as migration-grade: require explicit import confirmation, force stable idempotency key entry, surface row-level error outcomes, and prompt immediate post-import reconciliation (inventory valuation vs journal postings).
+
+## Delta Update (2026-02-13): Costing + Transaction Audit Trail + Approval Flows
+
+### New Accounting Audit Trail APIs (Must Add In FE)
+
+- `GET /api/v1/accounting/audit/transactions`
+  - Query params: `from`, `to`, `module`, `status`, `reference`, `page` (default `0`), `size` (default `50`).
+  - Returns paged `AccountingTransactionAuditListItemDto` rows.
+- `GET /api/v1/accounting/audit/transactions/{journalEntryId}`
+  - Returns `AccountingTransactionAuditDetailDto` with linked documents, settlement allocations, and event trail.
+- Legacy digest endpoints remain but are deprecated:
+  - `GET /api/v1/accounting/audit/digest`
+  - `GET /api/v1/accounting/audit/digest.csv`
+
+Implementation note:
+- `/api/v1/accounting/audit/transactions*` is code-verified from `AccountingController`; if OpenAPI snapshot is stale, treat backend controller contract as authoritative until snapshot refresh.
+
+Frontend function-name additions:
+- `acctAuditTransactions` -> `GET /api/v1/accounting/audit/transactions`
+- `acctAuditTransactionDetail` -> `GET /api/v1/accounting/audit/transactions/{journalEntryId}`
+
+Suggested route:
+- `/accounting/audit-trail`
+
+List columns (from `AccountingTransactionAuditListItemDto`):
+- `journalEntryId`, `referenceNumber`, `entryDate`, `status`, `module`, `transactionType`,
+- `dealerName`, `supplierName`, `totalDebit`, `totalCredit`, `consistencyStatus`, `postedAt`.
+
+Detail sections (from `AccountingTransactionAuditDetailDto`):
+- Header: journal/period/reversal/correction metadata.
+- `lines[]`: account code, debit/credit, description.
+- `linkedDocuments[]`: invoice/purchase/settlement-linked docs.
+- `settlementAllocations[]`: allocation + discount/writeoff/fx + idempotency key.
+- `eventTrail[]`: accounting-event timeline (event type, sequence, account, amounts, correlation id).
+
+### Costing Visibility Checklist (Keep These Prominent In FE)
+
+Costing views/actions must stay visible in accounting portal:
+- `POST /api/v1/accounting/inventory/landed-cost`
+- `POST /api/v1/accounting/inventory/revaluation`
+- `POST /api/v1/accounting/inventory/wip-adjustment`
+- `GET /api/v1/reports/monthly-production-costs`
+- `GET /api/v1/reports/production-logs/{id}/cost-breakdown`
+- `GET /api/v1/reports/inventory-valuation`
+- `GET /api/v1/reports/inventory-reconciliation`
+
+UX rule:
+- Any costing report/action with resulting journal reference must support drill-through into `/accounting/audit-trail`.
+
+### Approval Flow Contract For Accounting Approvers
+
+Accounting role users (`ROLE_ACCOUNTING`) can operate approvals via:
+- Queue: `GET /api/v1/admin/approvals`
+- Action endpoints from queue payload fields:
+  - `approveEndpoint`
+  - `rejectEndpoint` (nullable for payroll)
+
+Queue payload fields to render directly:
+- `type`, `reference`, `status`, `summary`,
+- `actionType`, `actionLabel`, `sourcePortal`,
+- `approveEndpoint`, `rejectEndpoint`, `createdAt`.
+
+Action semantics:
+- Credit request approvals: `/api/v1/sales/credit-requests/{id}/approve|reject`
+- Dispatch override approvals: `/api/v1/credit/override-requests/{id}/approve|reject`
+- Payroll approvals: `/api/v1/payroll/runs/{id}/approve` (no reject endpoint in queue payload)
