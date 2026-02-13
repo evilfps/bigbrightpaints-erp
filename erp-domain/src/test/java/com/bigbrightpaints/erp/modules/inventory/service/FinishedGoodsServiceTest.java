@@ -32,6 +32,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -175,6 +176,7 @@ class FinishedGoodsServiceTest extends AbstractIntegrationTest {
     }
 
     @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     void reserveForOrderUsesStableBatchIdTieBreakWhenWacBatchesShareExpiryAndManufacturedAt() {
         Company company = seedCompany("WAC-FEFO-TIE");
         FinishedGood fg = createFinishedGood(company, "FG-WAC-FEFO-TIE", new BigDecimal("6"), BigDecimal.ZERO, "WAC");
@@ -207,14 +209,8 @@ class FinishedGoodsServiceTest extends AbstractIntegrationTest {
         FinishedGoodsService.InventoryReservationResult first = finishedGoodsService.reserveForOrder(order);
         FinishedGoodsService.InventoryReservationResult replay = finishedGoodsService.reserveForOrder(order);
 
-        PackagingSlip slip = packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, order.getId()).stream()
-                .filter(existing -> !existing.isBackorder())
-                .findFirst()
-                .orElseThrow();
         assertThat(first.shortages()).isEmpty();
         assertThat(replay.shortages()).isEmpty();
-        assertThat(slip.getLines()).hasSize(1);
-        assertThat(slip.getLines().getFirst().getFinishedGoodBatch().getId()).isEqualTo(firstInserted.getId());
 
         FinishedGoodBatch firstAfterReplay = finishedGoodBatchRepository.findById(firstInserted.getId()).orElseThrow();
         FinishedGoodBatch secondAfterReplay = finishedGoodBatchRepository.findById(secondInserted.getId()).orElseThrow();
@@ -227,10 +223,24 @@ class FinishedGoodsServiceTest extends AbstractIntegrationTest {
                         InventoryReference.SALES_ORDER,
                         order.getId().toString());
         assertThat(reservations).hasSize(1);
+        assertThat(reservations.getFirst().getFinishedGoodBatch().getId()).isEqualTo(firstInserted.getId());
         assertThat(reservations.getFirst().getReservedQuantity()).isEqualByComparingTo(BigDecimal.ONE);
+        FinishedGood refreshedFinishedGood = finishedGoodRepository.findById(fg.getId()).orElseThrow();
+        assertThat(refreshedFinishedGood.getReservedStock()).isEqualByComparingTo(BigDecimal.ONE);
+
+        List<InventoryMovement> reserveMovements = inventoryMovementRepository
+                .findByReferenceTypeAndReferenceIdOrderByCreatedAtAsc(
+                        InventoryReference.SALES_ORDER,
+                        order.getId().toString())
+                .stream()
+                .filter(movement -> "RESERVE".equalsIgnoreCase(movement.getMovementType()))
+                .toList();
+        assertThat(reserveMovements).hasSize(1);
+        assertThat(reserveMovements.getFirst().getQuantity()).isEqualByComparingTo(BigDecimal.ONE);
     }
 
     @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     void reserveForOrderTreatsLegacyWeightedAverageAliasAsWac_underTurkishLocale() {
         Locale previous = Locale.getDefault();
         Locale.setDefault(Locale.forLanguageTag("tr-TR"));
@@ -272,15 +282,8 @@ class FinishedGoodsServiceTest extends AbstractIntegrationTest {
             FinishedGoodsService.InventoryReservationResult first = finishedGoodsService.reserveForOrder(order);
             FinishedGoodsService.InventoryReservationResult replay = finishedGoodsService.reserveForOrder(order);
 
-            PackagingSlip slip = packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, order.getId()).stream()
-                    .filter(existing -> !existing.isBackorder())
-                    .findFirst()
-                    .orElseThrow();
             assertThat(first.shortages()).isEmpty();
             assertThat(replay.shortages()).isEmpty();
-            assertThat(slip.getLines()).hasSize(1);
-            assertThat(slip.getLines().getFirst().getFinishedGoodBatch().getId())
-                    .isEqualTo(newerManufacturedSoonerExpiry.getId());
 
             FinishedGoodBatch soonerAfterReplay = finishedGoodBatchRepository.findById(newerManufacturedSoonerExpiry.getId()).orElseThrow();
             FinishedGoodBatch olderAfterReplay = finishedGoodBatchRepository.findById(olderManufacturedLaterExpiry.getId()).orElseThrow();
@@ -293,10 +296,95 @@ class FinishedGoodsServiceTest extends AbstractIntegrationTest {
                             InventoryReference.SALES_ORDER,
                             order.getId().toString());
             assertThat(reservations).hasSize(1);
+            assertThat(reservations.getFirst().getFinishedGoodBatch().getId())
+                    .isEqualTo(newerManufacturedSoonerExpiry.getId());
             assertThat(reservations.getFirst().getReservedQuantity()).isEqualByComparingTo(new BigDecimal("2"));
+            FinishedGood refreshedFinishedGood = finishedGoodRepository.findById(fg.getId()).orElseThrow();
+            assertThat(refreshedFinishedGood.getReservedStock()).isEqualByComparingTo(new BigDecimal("2"));
+
+            List<InventoryMovement> reserveMovements = inventoryMovementRepository
+                    .findByReferenceTypeAndReferenceIdOrderByCreatedAtAsc(
+                            InventoryReference.SALES_ORDER,
+                            order.getId().toString())
+                    .stream()
+                    .filter(movement -> "RESERVE".equalsIgnoreCase(movement.getMovementType()))
+                    .toList();
+            assertThat(reserveMovements).hasSize(1);
+            assertThat(reserveMovements.getFirst().getQuantity()).isEqualByComparingTo(new BigDecimal("2"));
         } finally {
             Locale.setDefault(previous);
         }
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    void reserveForOrderWacShortageReplayKeepsStableReservationsAndDoesNotDoubleDeplete() {
+        Company company = seedCompany("WAC-REPLAY-SHORT");
+        FinishedGood fg = createFinishedGood(company, "FG-WAC-REPLAY-SHORT", new BigDecimal("4"), BigDecimal.ZERO, "WAC");
+
+        FinishedGoodBatch soonerExpiry = createBatch(
+                fg,
+                "BATCH-WAC-REPLAY-SHORT-SOON",
+                new BigDecimal("2"),
+                new BigDecimal("2"),
+                new BigDecimal("11"));
+        soonerExpiry.setManufacturedAt(Instant.now().minusSeconds(3600));
+        soonerExpiry.setExpiryDate(LocalDate.now().plusDays(3));
+        soonerExpiry = finishedGoodBatchRepository.saveAndFlush(soonerExpiry);
+
+        FinishedGoodBatch laterExpiry = createBatch(
+                fg,
+                "BATCH-WAC-REPLAY-SHORT-LATER",
+                new BigDecimal("2"),
+                new BigDecimal("2"),
+                new BigDecimal("10"));
+        laterExpiry.setManufacturedAt(Instant.now().minusSeconds(7200));
+        laterExpiry.setExpiryDate(LocalDate.now().plusDays(30));
+        laterExpiry = finishedGoodBatchRepository.saveAndFlush(laterExpiry);
+
+        SalesOrder order = createOrder(
+                company,
+                "SO-WAC-REPLAY-SHORT-" + UUID.randomUUID(),
+                fg.getProductCode(),
+                new BigDecimal("6"));
+
+        FinishedGoodsService.InventoryReservationResult first = finishedGoodsService.reserveForOrder(order);
+        FinishedGoodBatch soonerAfterFirst = finishedGoodBatchRepository.findById(soonerExpiry.getId()).orElseThrow();
+        FinishedGoodBatch laterAfterFirst = finishedGoodBatchRepository.findById(laterExpiry.getId()).orElseThrow();
+        FinishedGood finishedGoodAfterFirst = finishedGoodRepository.findById(fg.getId()).orElseThrow();
+
+        FinishedGoodsService.InventoryReservationResult replay = finishedGoodsService.reserveForOrder(order);
+        FinishedGoodBatch soonerAfterReplay = finishedGoodBatchRepository.findById(soonerExpiry.getId()).orElseThrow();
+        FinishedGoodBatch laterAfterReplay = finishedGoodBatchRepository.findById(laterExpiry.getId()).orElseThrow();
+        FinishedGood finishedGoodAfterReplay = finishedGoodRepository.findById(fg.getId()).orElseThrow();
+
+        assertThat(first.shortages()).hasSize(1);
+        assertThat(first.shortages().getFirst().shortageQuantity()).isEqualByComparingTo(new BigDecimal("2"));
+        assertThat(replay.shortages()).hasSize(1);
+        assertThat(replay.shortages().getFirst().shortageQuantity()).isEqualByComparingTo(new BigDecimal("2"));
+
+        assertThat(soonerAfterFirst.getQuantityAvailable()).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(laterAfterFirst.getQuantityAvailable()).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(soonerAfterReplay.getQuantityAvailable()).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(laterAfterReplay.getQuantityAvailable()).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(finishedGoodAfterFirst.getReservedStock()).isEqualByComparingTo(new BigDecimal("4"));
+        assertThat(finishedGoodAfterReplay.getReservedStock()).isEqualByComparingTo(new BigDecimal("4"));
+
+        List<InventoryReservation> activeReservations = inventoryReservationRepository
+                .findByFinishedGoodCompanyAndReferenceTypeAndReferenceId(
+                        company,
+                        InventoryReference.SALES_ORDER,
+                        order.getId().toString())
+                .stream()
+                .filter(reservation -> !"CANCELLED".equalsIgnoreCase(reservation.getStatus()))
+                .toList();
+        assertThat(activeReservations).hasSize(2);
+        BigDecimal reservedTotal = activeReservations.stream()
+                .map(reservation -> reservation.getReservedQuantity() != null
+                        ? reservation.getReservedQuantity()
+                        : BigDecimal.ZERO)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        assertThat(reservedTotal).isEqualByComparingTo(new BigDecimal("4"));
     }
 
     @Test
