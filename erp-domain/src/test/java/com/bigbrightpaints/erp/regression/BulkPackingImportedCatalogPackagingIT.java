@@ -7,6 +7,7 @@ import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
+import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
 import com.bigbrightpaints.erp.modules.factory.domain.PackagingSizeMapping;
 import com.bigbrightpaints.erp.modules.factory.domain.PackagingSizeMappingRepository;
 import com.bigbrightpaints.erp.modules.factory.dto.BulkPackRequest;
@@ -52,6 +53,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class BulkPackingImportedCatalogPackagingIT extends AbstractIntegrationTest {
 
     @Autowired private AccountRepository accountRepository;
+    @Autowired private CompanyRepository companyRepository;
     @Autowired private ProductionCatalogService productionCatalogService;
     @Autowired private BulkPackingService bulkPackingService;
     @Autowired private RawMaterialRepository rawMaterialRepository;
@@ -67,6 +69,9 @@ class BulkPackingImportedCatalogPackagingIT extends AbstractIntegrationTest {
     private Account bulkInventoryAccount;
     private Account childInventoryAccount;
     private Account packagingInventoryAccount;
+    private Account cogsAccount;
+    private Account revenueAccount;
+    private Account taxAccount;
     private String companyCode;
 
     @BeforeEach
@@ -77,6 +82,14 @@ class BulkPackingImportedCatalogPackagingIT extends AbstractIntegrationTest {
         bulkInventoryAccount = ensureAccount("INV-BULK-M13S2", "Bulk Inventory", AccountType.ASSET);
         childInventoryAccount = ensureAccount("INV-CHILD-M13S2", "Child Inventory", AccountType.ASSET);
         packagingInventoryAccount = ensureAccount("INV-PACK-M13S2", "Packaging Inventory", AccountType.ASSET);
+        cogsAccount = ensureAccount("COGS-M13S2", "COGS", AccountType.COGS);
+        revenueAccount = ensureAccount("REV-M13S2", "Revenue", AccountType.REVENUE);
+        taxAccount = ensureAccount("TAX-M13S2", "Tax", AccountType.LIABILITY);
+        company.setDefaultCogsAccountId(cogsAccount.getId());
+        company.setDefaultRevenueAccountId(revenueAccount.getId());
+        company.setDefaultTaxAccountId(taxAccount.getId());
+        company.setDefaultInventoryAccountId(bulkInventoryAccount.getId());
+        company = companyRepository.save(company);
     }
 
     @AfterEach
@@ -188,6 +201,93 @@ class BulkPackingImportedCatalogPackagingIT extends AbstractIntegrationTest {
         assertThat(snapshotRawMovements(replayRawMovements)).isEqualTo(firstRawMovementSnapshot);
         assertThat(snapshotInventoryMovements(replayInventoryMovements)).isEqualTo(firstInventoryMovementSnapshot);
         assertThat(afterReplay.getCurrentStock()).isEqualByComparingTo(afterFirstPack.getCurrentStock());
+    }
+
+    @Test
+    void bulkPack_importedFinishedGoodsAndPackagingUseCatalogMappedAccounts() {
+        CatalogImportResponse rmImport = productionCatalogService.importCatalog(
+                rawMaterialCsvWithAccountAlias("PACK-RM-M13S7", "12.00", packagingInventoryAccount.getId()),
+                "M13-S7-CAT-IMPORT-RM"
+        );
+        CatalogImportResponse bulkFgImport = productionCatalogService.importCatalog(
+                finishedGoodCsvWithValuationAccount("FG-BULK-M13S7", "Bulk Paint M13-S7", bulkInventoryAccount.getId()),
+                "M13-S7-CAT-IMPORT-BULK"
+        );
+        CatalogImportResponse childFgImport = productionCatalogService.importCatalog(
+                finishedGoodCsvWithValuationAccount("FG-1L-M13S7", "Paint 1L M13-S7", childInventoryAccount.getId()),
+                "M13-S7-CAT-IMPORT-CHILD"
+        );
+        assertThat(rmImport.errors()).isEmpty();
+        assertThat(bulkFgImport.errors()).isEmpty();
+        assertThat(childFgImport.errors()).isEmpty();
+
+        RawMaterial packagingMaterial = rawMaterialRepository.findByCompanyAndSku(company, "PACK-RM-M13S7").orElseThrow();
+        FinishedGood bulkFg = finishedGoodRepository.findByCompanyAndProductCode(company, "FG-BULK-M13S7").orElseThrow();
+        FinishedGood childFg = finishedGoodRepository.findByCompanyAndProductCode(company, "FG-1L-M13S7").orElseThrow();
+        assertThat(packagingMaterial.getInventoryAccountId()).isEqualTo(packagingInventoryAccount.getId());
+        assertThat(bulkFg.getValuationAccountId()).isEqualTo(bulkInventoryAccount.getId());
+        assertThat(childFg.getValuationAccountId()).isEqualTo(childInventoryAccount.getId());
+
+        addRawMaterialBatch(packagingMaterial, new BigDecimal("40"), new BigDecimal("1.10"));
+        createPackagingMapping(packagingMaterial, "1L");
+        FinishedGoodBatch bulkBatch = createBulkBatch(bulkFg, new BigDecimal("12"), new BigDecimal("6.00"));
+
+        BulkPackRequest request = new BulkPackRequest(
+                bulkBatch.getId(),
+                List.of(new BulkPackRequest.PackLine(childFg.getId(), new BigDecimal("4"), "1L", "L")),
+                null,
+                false,
+                LocalDate.now(),
+                "packer",
+                "imported account linkage",
+                "M13-S7-PACK-IDEMP"
+        );
+
+        BulkPackResponse response = bulkPackingService.pack(request);
+        assertThat(response.journalEntryId()).isNotNull();
+
+        String packReference = resolvePackReference(response.childBatches().getFirst().id());
+        List<RawMaterialMovement> rawMovements = rawMaterialMovementRepository
+                .findByRawMaterialCompanyAndReferenceTypeAndReferenceId(company, InventoryReference.PACKING_RECORD, packReference);
+        List<InventoryMovement> inventoryMovements = inventoryMovementRepository
+                .findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdOrderByCreatedAtAsc(
+                        company,
+                        InventoryReference.PACKING_RECORD,
+                        packReference);
+        assertThat(rawMovements).isNotEmpty();
+        assertThat(inventoryMovements).isNotEmpty();
+        assertThat(rawMovements)
+                .allSatisfy(movement -> assertThat(movement.getJournalEntryId()).isEqualTo(response.journalEntryId()));
+        assertThat(inventoryMovements)
+                .allSatisfy(movement -> assertThat(movement.getJournalEntryId()).isEqualTo(response.journalEntryId()));
+
+        JournalEntry posted = journalEntryRepository.findByCompanyAndId(company, response.journalEntryId()).orElseThrow();
+        Map<Long, BigDecimal> creditByAccount = posted.getLines().stream()
+                .filter(line -> line.getAccount() != null)
+                .map(line -> Map.entry(
+                        line.getAccount().getId(),
+                        Optional.ofNullable(line.getCredit()).orElse(BigDecimal.ZERO)))
+                .filter(entry -> entry.getValue().compareTo(BigDecimal.ZERO) > 0)
+                .collect(Collectors.toMap(
+                        Map.Entry::getKey,
+                        Map.Entry::getValue,
+                        BigDecimal::add));
+        Map<Long, BigDecimal> debitByAccount = posted.getLines().stream()
+                .filter(line -> line.getAccount() != null)
+                .map(line -> Map.entry(
+                        line.getAccount().getId(),
+                        Optional.ofNullable(line.getDebit()).orElse(BigDecimal.ZERO)))
+                .filter(entry -> entry.getValue().compareTo(BigDecimal.ZERO) > 0)
+                .collect(Collectors.toMap(
+                        Map.Entry::getKey,
+                        Map.Entry::getValue,
+                        BigDecimal::add));
+        assertThat(creditByAccount.keySet())
+                .containsExactlyInAnyOrder(bulkInventoryAccount.getId(), packagingInventoryAccount.getId());
+        assertThat(debitByAccount.keySet()).containsExactly(childInventoryAccount.getId());
+        BigDecimal totalDebit = debitByAccount.values().stream().reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal totalCredit = creditByAccount.values().stream().reduce(BigDecimal.ZERO, BigDecimal::add);
+        assertThat(totalDebit).isEqualByComparingTo(totalCredit);
     }
 
     private Map<Long, String> snapshotRawMovements(List<RawMaterialMovement> movements) {
@@ -302,6 +402,21 @@ class BulkPackingImportedCatalogPackagingIT extends AbstractIntegrationTest {
         return new MockMultipartFile(
                 "file",
                 "packaging-catalog.csv",
+                "text/csv",
+                csv.getBytes(StandardCharsets.UTF_8)
+        );
+    }
+
+    private MockMultipartFile finishedGoodCsvWithValuationAccount(String skuCode,
+                                                                  String productName,
+                                                                  Long valuationAccountId) {
+        String csv = String.join("\n",
+                "brand,product_name,sku_code,category,unit_of_measure,gst_rate,fg_valuation_account_id",
+                "FGBrand," + productName + "," + skuCode + ",FINISHED_GOOD,LTR,18.00," + valuationAccountId
+        );
+        return new MockMultipartFile(
+                "file",
+                "finished-good-catalog.csv",
                 "text/csv",
                 csv.getBytes(StandardCharsets.UTF_8)
         );

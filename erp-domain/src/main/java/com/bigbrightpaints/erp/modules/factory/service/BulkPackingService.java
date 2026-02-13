@@ -582,11 +582,20 @@ public class BulkPackingService {
         }
         List<RawMaterialMovement> movements = rawMaterialMovementRepository
                 .findByRawMaterialCompanyAndReferenceTypeAndReferenceId(company, InventoryReference.PACKING_RECORD, referenceId);
-        if (movements.isEmpty()) {
+        if (!movements.isEmpty()) {
+            movements.forEach(movement -> movement.setJournalEntryId(journalEntryId));
+            rawMaterialMovementRepository.saveAll(movements);
+        }
+        List<InventoryMovement> inventoryMovements = inventoryMovementRepository
+                .findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdOrderByCreatedAtAsc(
+                        company,
+                        InventoryReference.PACKING_RECORD,
+                        referenceId);
+        if (inventoryMovements.isEmpty()) {
             return;
         }
-        movements.forEach(movement -> movement.setJournalEntryId(journalEntryId));
-        rawMaterialMovementRepository.saveAll(movements);
+        inventoryMovements.forEach(movement -> movement.setJournalEntryId(journalEntryId));
+        inventoryMovementRepository.saveAll(inventoryMovements);
     }
 
     private FinishedGoodBatch createChildBatch(Company company,
