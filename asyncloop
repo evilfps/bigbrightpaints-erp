@@ -3812,3 +3812,45 @@ Queue Rotation (Auto-Replenish)
 - [ready] M9-S5 capture EXPLAIN + index-candidate evidence for journal/allocation replay hotspot queries (Flyway V2-ready)
 - [ready] M2-S12 replay mismatch guard helper extraction to enforce parity by construction
 - [ready] M11-S6 approval queue runtime contract test slice (assert FE docs match live `AdminApprovalItemDto` payload fields and action endpoint semantics)
+
+Completed Slice (Committed)
+- 2026-02-14: `9a657e2e`
+  - fix(catalog): canonicalize raw-material costing on sync.
+  - M14-S17 closure:
+    - added `CostingMethodUtils.canonicalizeRawMaterialMethodForSync(...)` for locale-stable sync canonicalization (`weighted-average` aliases -> `WAC`, blank -> `FIFO`, unsupported values preserved trimmed).
+    - `ProductionCatalogService#syncRawMaterial(...)` now canonicalizes existing raw-material costing methods during sync/import replay instead of only filling blank defaults.
+    - added raw-material import invariants in `ProductionCatalogRawMaterialInvariantIT`:
+      - `importCatalog_repairsDriftedRawMaterialCostingAlias_onFreshImportAndReplay`
+      - `importCatalog_preservesUnsupportedRawMaterialCostingMethod_onSync`
+    - expanded utility coverage in `CostingMethodUtilsTest` for raw-material sync canonicalization + Turkish-locale stability.
+  - Verification:
+    - `cd /home/realnigga/Desktop/orchestrator_erp/erp-domain && mvn -B -ntp -Dtest=CostingMethodUtilsTest,ProductionCatalogRawMaterialInvariantIT#importCatalog_repairsDriftedRawMaterialCostingAlias_onFreshImportAndReplay+importCatalog_preservesUnsupportedRawMaterialCostingMethod_onSync+importCatalog_repairsRawMaterialWhenInventoryAccountMissing test` -> pass (10 tests, 0 failures, 0 errors).
+
+Post-Commit Review Evidence
+- Commit reviewed: `9a657e2e`
+- `codex review --commit 9a657e2e`:
+  - status: running in extended/noisy rollout stream (`exec` session `44681`); terminal verdict pending durable capture.
+- Review subagent `019c58ac-47e1-7b20-abce-d9d565001997`:
+  - findings: none at critical/high/medium/low severity.
+  - summary: canonicalization and replay invariants are consistent; no accounting/security/integrity regressions identified in reviewed scope.
+
+Loop Update
+- 2026-02-14T01:56:20+05:30
+- tracked_now_ts: `2026-02-14T01:56:20+05:30`
+- tracked_elapsed: `48h 2m 28s`
+- active_in_progress: `M14-S18 accounting catalog import RBAC abuse matrix (/api/v1/accounting/catalog/import unauthorized-role denial + cross-company isolation assertions)`
+
+Queue Rotation (Auto-Replenish)
+- [completed] M14-S17 raw-material catalog sync costing canonicalization parity (repair drifted weighted-average aliases on import/replay without changing unsupported-method semantics)
+- [in_progress] M14-S18 accounting catalog import RBAC abuse matrix (`/api/v1/accounting/catalog/import` unauthorized-role denial + cross-company isolation assertions)
+- [ready] M14-S19 stock-summary vs inventory-valuation truth contract (assert FIFO/LIFO/WAC + reserved-stock parity between `/finished-goods/stock-summary` and report snapshot totals)
+- [ready] M14-S20 accounting portal endpoint-map drift gate (assert HR/PURCHASING/INVENTORY/REPORTS remain mapped under Accounting portal unless replacement map docs update lands atomically)
+- [ready] M14-S21 unsupported-method preservation contract for catalog sync/create/update (unknown legacy costing values stay unchanged while known aliases canonicalize)
+- [ready] M14-S22 costing-selector dedupe guard for WAC/FIFO/LIFO replay paths (extract shared finished-good selector helper for reserve+adjustment and enforce parity tests incl. shortage replay)
+- [ready] M14-S23 portal-scope guard negative matrix (simulate dropped section/module anchors in temp docs fixture to prove fail-closed behavior)
+- [ready] M14-S24 accounting catalog import idempotency mismatch guard (`/api/v1/accounting/catalog/import` same idempotency key + payload hash mismatch must fail deterministically with no partial product/raw-material mutations)
+- [ready] M12-S5 discount/reference calculation parity matrix across sales->invoice->settlement + user-facing example table refresh
+- [ready] M10-S3 release-gate dry-run and blocker ledger sync (`scripts/verify_local.sh` + artifact sanity)
+- [ready] M9-S5 capture EXPLAIN + index-candidate evidence for journal/allocation replay hotspot queries (Flyway V2-ready)
+- [ready] M2-S12 replay mismatch guard helper extraction to enforce parity by construction
+- [ready] M11-S6 approval queue runtime contract test slice (assert FE docs match live `AdminApprovalItemDto` payload fields and action endpoint semantics)
