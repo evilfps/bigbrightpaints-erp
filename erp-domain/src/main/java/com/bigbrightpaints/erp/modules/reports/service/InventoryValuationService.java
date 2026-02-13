@@ -21,6 +21,9 @@ import java.math.RoundingMode;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -229,17 +232,39 @@ public class InventoryValuationService {
         if (remaining.compareTo(BigDecimal.ZERO) <= 0) {
             return BigDecimal.ZERO;
         }
-        if (CostingMethodUtils.isWeightedAverage(finishedGood.getCostingMethod())) {
+        String method = normalizeFinishedGoodMethod(finishedGood.getCostingMethod());
+        if (CostingMethodUtils.isWeightedAverage(method)) {
             BigDecimal avgCost = finishedGoodBatchRepository.calculateWeightedAverageCost(finishedGood);
             if (avgCost == null) {
                 return BigDecimal.ZERO;
             }
             return remaining.multiply(avgCost);
         }
-        List<FinishedGoodBatch> batches = finishedGoodBatchRepository.findByFinishedGoodOrderByManufacturedAtAsc(finishedGood);
+        List<FinishedGoodBatch> batches = new ArrayList<>(
+                finishedGoodBatchRepository.findByFinishedGoodOrderByManufacturedAtAsc(finishedGood));
+        batches.sort(Comparator
+                .comparing(FinishedGoodBatch::getManufacturedAt, Comparator.nullsLast(Comparator.naturalOrder()))
+                .thenComparing(FinishedGoodBatch::getId, Comparator.nullsLast(Comparator.naturalOrder())));
+        if ("LIFO".equals(method)) {
+            Collections.reverse(batches);
+        }
         return consumeValuation(remaining, batches.stream()
-                .map(batch -> new CostSlice(safe(batch.getQuantityAvailable()), batch.getUnitCost()))
+                .map(batch -> new CostSlice(safe(batch.getQuantityTotal()), batch.getUnitCost()))
                 .toList());
+    }
+
+    private String normalizeFinishedGoodMethod(String method) {
+        if (method == null || method.isBlank()) {
+            return "FIFO";
+        }
+        String normalized = method.trim().toUpperCase(Locale.ROOT);
+        if (CostingMethodUtils.isWeightedAverage(normalized)) {
+            return "WAC";
+        }
+        if ("LIFO".equals(normalized)) {
+            return "LIFO";
+        }
+        return "FIFO";
     }
 
     private BigDecimal consumeValuation(BigDecimal required, List<CostSlice> slices) {
