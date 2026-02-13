@@ -143,8 +143,9 @@ class FinishedGoodsServiceTest extends AbstractIntegrationTest {
 
         assertThat(summary.weightedAverageCost()).isEqualByComparingTo(new BigDecimal("10.4"));
         assertThat(summary.currentStock()).isEqualByComparingTo(new BigDecimal("10"));
+        BigDecimal expectedDelta = new BigDecimal("104.00");
         assertThat(snapshot.totalValue().subtract(baselineValue))
-                .isEqualByComparingTo(summary.currentStock().multiply(summary.weightedAverageCost()));
+                .isEqualByComparingTo(expectedDelta);
     }
 
     @Test
