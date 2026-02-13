@@ -2953,3 +2953,44 @@ Queue Rotation (Auto-Replenish)
 - [ready] M9-S5 capture EXPLAIN + index-candidate evidence for journal/allocation replay hotspot queries (Flyway V2-ready)
 - [ready] M2-S12 replay mismatch guard helper extraction to enforce parity by construction
 - [ready] M11-S6 approval queue runtime contract test slice (assert FE docs match live `AdminApprovalItemDto` payload fields and action endpoint semantics)
+
+Completed Slice (Committed)
+- 2026-02-13: `fce999de`
+  - fix(inventory): use FEFO selection for WAC depletion.
+  - M14-S2 closure:
+    - WAC batch selection in `FinishedGoodsService` and `InventoryAdjustmentService` now routes through `FinishedGoodBatchRepository.findAllocatableBatches(...)` (expiry/manufactured FEFO ordering) instead of FIFO ordering.
+    - Added reservation-path regression in `FinishedGoodsServiceTest`:
+      - `reserveForOrderUsesExpiryOrderWhenCostingMethodIsWac`
+    - Added adjustment-path + replay-idempotency regression in `CR_INV_AdjustmentIdempotencyTest`:
+      - `adjustment_wacUsesExpiryOrderedBatchSelection_andIdempotentReplayDoesNotDoubleDeplete`
+  - Verification:
+    - `cd erp-domain && mvn -B -ntp -Dtest=FinishedGoodsServiceTest#reserveForOrderUsesExpiryOrderWhenCostingMethodIsWac,CR_INV_AdjustmentIdempotencyTest#adjustment_wacUsesExpiryOrderedBatchSelection_andIdempotentReplayDoesNotDoubleDeplete test` -> pass (2 tests, 0 failures, 0 errors).
+
+Post-Commit Review Evidence
+- Commit reviewed: `fce999de`
+- `codex review --commit fce999de`:
+  - executed with stream capture but remained rollout/state-db noisy; no durable terminal verdict captured before manual interrupt.
+  - captured stream: `/tmp/codex_review_fce999de.log`.
+- Review subagent `019c5770-e83d-7052-a708-39ba9391cb0e`:
+  - no medium/high findings.
+  - verdict: FEFO routing change and replay-idempotency regression coverage preserve accounting and inventory invariants in reviewed scope.
+
+Loop Update
+- 2026-02-13T20:13:59+05:30
+- tracked_now_ts: `2026-02-13T20:13:59+05:30`
+- tracked_elapsed: `42h 20m 7s`
+- active_in_progress: `M14-S3 costing helper dedupe + regression matrix (consolidate duplicated isWeightedAverage(...) logic across factory/inventory valuation services)`
+
+Queue Rotation (Auto-Replenish)
+- [completed] M14-S2 WAC allocation path correctness (replace FIFO batch selection in WAC branches of `FinishedGoodsService` + `InventoryAdjustmentService`)
+- [in_progress] M14-S3 costing helper dedupe + regression matrix (consolidate duplicated `isWeightedAverage(...)` logic across factory/inventory valuation services)
+- [ready] M14-S4 accounting-portal scope invariant guard (preserve HR/PURCHASING/INVENTORY/REPORTS mapping unless replacement portal-map + endpoint docs land in same commit)
+- [ready] M14-S5 costing method alias replay matrix for finished-goods APIs (FIFO/WAC normalization + invalid-alias rejection parity with raw-material contracts)
+- [ready] M14-S6 costing output endpoint parity contract (`stock-summary` vs `inventory-valuation` vs `production-log cost-breakdown` consistency under FIFO/WAC)
+- [ready] M14-S7 locale-stable costing helper sweep (`Locale.ROOT` normalization parity across duplicated `isWeightedAverage(...)` call sites + negative locale regression checks)
+- [ready] M14-S8 WAC FEFO tie-break determinism (same-expiry batch ordering contract + replay-safe depletion assertions across reserve/adjustment flows)
+- [ready] M12-S5 discount/reference calculation parity matrix across sales->invoice->settlement + user-facing example table refresh
+- [ready] M10-S3 release-gate dry-run and blocker ledger sync (`scripts/verify_local.sh` + artifact sanity)
+- [ready] M9-S5 capture EXPLAIN + index-candidate evidence for journal/allocation replay hotspot queries (Flyway V2-ready)
+- [ready] M2-S12 replay mismatch guard helper extraction to enforce parity by construction
+- [ready] M11-S6 approval queue runtime contract test slice (assert FE docs match live `AdminApprovalItemDto` payload fields and action endpoint semantics)
