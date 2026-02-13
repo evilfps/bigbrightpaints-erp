@@ -3854,3 +3854,58 @@ Queue Rotation (Auto-Replenish)
 - [ready] M9-S5 capture EXPLAIN + index-candidate evidence for journal/allocation replay hotspot queries (Flyway V2-ready)
 - [ready] M2-S12 replay mismatch guard helper extraction to enforce parity by construction
 - [ready] M11-S6 approval queue runtime contract test slice (assert FE docs match live `AdminApprovalItemDto` payload fields and action endpoint semantics)
+
+Post-Commit Review Evidence (Prior Pending Closure)
+- Commit reviewed: `9a657e2e`
+- `codex review --commit 9a657e2e` (re-check/final capture):
+  - final verdict: no regressions or correctness issues introduced; raw-material canonicalization aligns with existing finished-good sync behavior and targeted tests.
+- Review subagent `019c58ac-47e1-7b20-abce-d9d565001997`:
+  - findings: none.
+
+Post-Commit Review Evidence (Prior Pending Closure)
+- Commit reviewed: `932378df`
+- `codex review --commit 932378df`:
+  - final verdict: docs-only ledger commit; no executable-path defects introduced.
+- Review subagent `019c58af-c00e-7ee2-a741-e00453564f8a`:
+  - findings: none; ledger continuity and queue-floor checks passed.
+
+Completed Slice (Committed)
+- 2026-02-14: `bc4b1d36`
+  - test(accounting): add catalog import rbac isolation matrix.
+  - M14-S18 closure:
+    - added `AccountingCatalogControllerSecurityIT` coverage for `/api/v1/accounting/catalog/import` to assert:
+      - `ROLE_ADMIN` and `ROLE_ACCOUNTING` allowed,
+      - non-privileged `ROLE_SALES` denied (`403`),
+      - company-header mismatch (`token company != X-Company-Id`) denied (`403`).
+    - multipart request helper uses realistic CSV upload + `Idempotency-Key` header to exercise controller path without mock shortcuts.
+  - Verification:
+    - `cd /home/realnigga/Desktop/orchestrator_erp/erp-domain && mvn -B -ntp -Dtest=AccountingCatalogControllerSecurityIT test` -> pass (2 tests, 0 failures, 0 errors).
+
+Post-Commit Review Evidence
+- Commit reviewed: `bc4b1d36`
+- `codex review --commit bc4b1d36`:
+  - status: initial run interrupted after prolonged rollout-noise stall; re-run (`exec` session `31571`) still in extended/noisy stream with terminal verdict pending capture.
+- Review subagent `019c58b2-a4b6-7ae3-996a-de4b42ab7c9e`:
+  - findings: none.
+  - summary: RBAC, company isolation, and multipart path coverage are coherent; no regression risk identified in test scope.
+
+Loop Update
+- 2026-02-14T02:04:06+05:30
+- tracked_now_ts: `2026-02-14T02:04:06+05:30`
+- tracked_elapsed: `48h 10m 14s`
+- active_in_progress: `M14-S19 stock-summary vs inventory-valuation truth contract (assert FIFO/LIFO/WAC + reserved-stock parity between /finished-goods/stock-summary and report snapshot totals)`
+
+Queue Rotation (Auto-Replenish)
+- [completed] M14-S18 accounting catalog import RBAC abuse matrix (`/api/v1/accounting/catalog/import` unauthorized-role denial + cross-company isolation assertions)
+- [in_progress] M14-S19 stock-summary vs inventory-valuation truth contract (assert FIFO/LIFO/WAC + reserved-stock parity between `/finished-goods/stock-summary` and report snapshot totals)
+- [ready] M14-S20 accounting portal endpoint-map drift gate (assert HR/PURCHASING/INVENTORY/REPORTS remain mapped under Accounting portal unless replacement map docs update lands atomically)
+- [ready] M14-S21 unsupported-method preservation contract for catalog sync/create/update (unknown legacy costing values stay unchanged while known aliases canonicalize)
+- [ready] M14-S22 costing-selector dedupe guard for WAC/FIFO/LIFO replay paths (extract shared finished-good selector helper for reserve+adjustment and enforce parity tests incl. shortage replay)
+- [ready] M14-S23 portal-scope guard negative matrix (simulate dropped section/module anchors in temp docs fixture to prove fail-closed behavior)
+- [ready] M14-S24 accounting catalog import idempotency mismatch guard (`/api/v1/accounting/catalog/import` same idempotency key + payload hash mismatch must fail deterministically with no partial product/raw-material mutations)
+- [ready] M14-S25 accounting catalog import multipart abuse matrix (missing/empty file part, wrong content-type, and oversized row rejection must fail safe without creating product/raw-material rows)
+- [ready] M12-S5 discount/reference calculation parity matrix across sales->invoice->settlement + user-facing example table refresh
+- [ready] M10-S3 release-gate dry-run and blocker ledger sync (`scripts/verify_local.sh` + artifact sanity)
+- [ready] M9-S5 capture EXPLAIN + index-candidate evidence for journal/allocation replay hotspot queries (Flyway V2-ready)
+- [ready] M2-S12 replay mismatch guard helper extraction to enforce parity by construction
+- [ready] M11-S6 approval queue runtime contract test slice (assert FE docs match live `AdminApprovalItemDto` payload fields and action endpoint semantics)
