@@ -3,6 +3,7 @@ package com.bigbrightpaints.erp.modules.inventory.service;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
+import com.bigbrightpaints.erp.core.util.CostingMethodUtils;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
@@ -269,9 +270,11 @@ public class InventoryAdjustmentService {
         String method = finishedGood.getCostingMethod() == null
                 ? "FIFO"
                 : finishedGood.getCostingMethod().trim().toUpperCase(Locale.ROOT);
+        if (CostingMethodUtils.isWeightedAverage(method)) {
+            return finishedGoodBatchRepository.findAllocatableBatches(finishedGood);
+        }
         return switch (method) {
             case "LIFO" -> finishedGoodBatchRepository.findAllocatableBatchesLIFO(finishedGood);
-            case "WAC", "WEIGHTED_AVERAGE", "WEIGHTED-AVERAGE" -> finishedGoodBatchRepository.findAllocatableBatches(finishedGood);
             default -> finishedGoodBatchRepository.findAllocatableBatchesFIFO(finishedGood);
         };
     }

@@ -4,6 +4,7 @@ import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.util.CompanyTime;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
+import com.bigbrightpaints.erp.core.util.CostingMethodUtils;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.inventory.domain.*;
@@ -1627,9 +1628,11 @@ public class FinishedGoodsService {
         String method = finishedGood.getCostingMethod() == null
                 ? "FIFO"
                 : finishedGood.getCostingMethod().trim().toUpperCase(Locale.ROOT);
+        if (CostingMethodUtils.isWeightedAverage(method)) {
+            return finishedGoodBatchRepository.findAllocatableBatches(finishedGood);
+        }
         return switch (method) {
             case "LIFO" -> finishedGoodBatchRepository.findAllocatableBatchesLIFO(finishedGood);
-            case "WAC", "WEIGHTED_AVERAGE", "WEIGHTED-AVERAGE" -> finishedGoodBatchRepository.findAllocatableBatches(finishedGood);
             default -> finishedGoodBatchRepository.findAllocatableBatchesFIFO(finishedGood);
         };
     }
@@ -1730,10 +1733,7 @@ public class FinishedGoodsService {
         if (finishedGood == null) {
             return BigDecimal.ZERO;
         }
-        String method = finishedGood.getCostingMethod() == null
-                ? "FIFO"
-                : finishedGood.getCostingMethod().trim().toUpperCase(Locale.ROOT);
-        if ("WAC".equals(method) || "WEIGHTED_AVERAGE".equals(method) || "WEIGHTED-AVERAGE".equals(method)) {
+        if (CostingMethodUtils.isWeightedAverage(finishedGood.getCostingMethod())) {
             return weightedAverageCost(finishedGood);
         }
         return batch != null && batch.getUnitCost() != null ? batch.getUnitCost() : BigDecimal.ZERO;
