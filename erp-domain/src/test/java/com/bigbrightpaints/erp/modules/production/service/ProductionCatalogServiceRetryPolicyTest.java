@@ -195,6 +195,8 @@ class ProductionCatalogServiceRetryPolicyTest {
         productsByBrandName.put(newProductKey(brandB.getId(), "shared product"), productB);
 
         when(brandRepository.findByCompanyAndNameIgnoreCase(company, "branda")).thenReturn(Optional.empty());
+        when(productRepository.findByCompanyAndId(company, 101L)).thenReturn(Optional.of(productA));
+        when(productRepository.findByCompanyAndId(company, 202L)).thenReturn(Optional.of(productB));
 
         Object context = newImportContext(
                 brandsByName,
@@ -209,6 +211,117 @@ class ProductionCatalogServiceRetryPolicyTest {
                 .extracting(product -> product.getId())
                 .containsExactlyInAnyOrder(101L, 202L);
         assertThat(productsBySku).containsKeys("SKU-A", "SKU-B");
+    }
+
+    @Test
+    void evictRowCache_prunesDriftedRowsWhenBrandCannotBeResolved() throws Exception {
+        Company company = new Company();
+        ProductionBrand brandA = new ProductionBrand();
+        ReflectionTestUtils.setField(brandA, "id", 11L);
+        brandA.setName("BrandA");
+        ProductionBrand brandB = new ProductionBrand();
+        ReflectionTestUtils.setField(brandB, "id", 22L);
+        brandB.setName("BrandB");
+
+        ProductionProduct drifted = new ProductionProduct();
+        ReflectionTestUtils.setField(drifted, "id", 101L);
+        drifted.setBrand(brandA);
+        drifted.setProductName("Shared Product");
+        drifted.setSkuCode("SKU-A");
+
+        ProductionProduct active = new ProductionProduct();
+        ReflectionTestUtils.setField(active, "id", 202L);
+        active.setBrand(brandB);
+        active.setProductName("Shared Product");
+        active.setSkuCode("SKU-B");
+
+        Map<String, ProductionBrand> brandsByName = new HashMap<>();
+        Map<String, ProductionProduct> productsBySku = new HashMap<>();
+        productsBySku.put("SKU-A", drifted);
+        productsBySku.put("SKU-B", active);
+        Map<Object, ProductionProduct> productsByBrandName = new HashMap<>();
+        productsByBrandName.put(newProductKey(brandA.getId(), "shared product"), drifted);
+        productsByBrandName.put(newProductKey(brandB.getId(), "shared product"), active);
+
+        when(brandRepository.findByCompanyAndNameIgnoreCase(company, "branda")).thenReturn(Optional.empty());
+        when(productRepository.findByCompanyAndId(company, 101L)).thenReturn(Optional.empty());
+        when(productRepository.findByCompanyAndId(company, 202L)).thenReturn(Optional.of(active));
+
+        Object context = newImportContext(
+                brandsByName,
+                productsBySku,
+                productsByBrandName,
+                new HashMap<Long, Long>());
+        Object importRow = newImportRow(1L, null, "branda", "shared product");
+
+        ReflectionTestUtils.invokeMethod(service, "evictRowCache", company, importRow, context);
+
+        assertThat(productsByBrandName.values())
+                .extracting(product -> product.getId())
+                .containsExactly(202L);
+        assertThat(productsBySku).containsKeys("SKU-A", "SKU-B");
+    }
+
+    @Test
+    void evictRowCache_retryReplayAfterDriftPruneClearsResolvedBrandEntry() throws Exception {
+        Company company = new Company();
+        ProductionBrand brandA = new ProductionBrand();
+        ReflectionTestUtils.setField(brandA, "id", 11L);
+        brandA.setName("BrandA");
+        ProductionBrand brandB = new ProductionBrand();
+        ReflectionTestUtils.setField(brandB, "id", 22L);
+        brandB.setName("BrandB");
+
+        ProductionProduct drifted = new ProductionProduct();
+        ReflectionTestUtils.setField(drifted, "id", 101L);
+        drifted.setBrand(brandA);
+        drifted.setProductName("Shared Product");
+        drifted.setSkuCode("SKU-A");
+
+        ProductionProduct active = new ProductionProduct();
+        ReflectionTestUtils.setField(active, "id", 202L);
+        active.setBrand(brandB);
+        active.setProductName("Shared Product");
+        active.setSkuCode("SKU-B");
+
+        ProductionProduct replayedBrandA = new ProductionProduct();
+        ReflectionTestUtils.setField(replayedBrandA, "id", 303L);
+        replayedBrandA.setBrand(brandA);
+        replayedBrandA.setProductName("Shared Product");
+        replayedBrandA.setSkuCode("SKU-A-REPLAY");
+
+        Map<String, ProductionBrand> brandsByName = new HashMap<>();
+        Map<String, ProductionProduct> productsBySku = new HashMap<>();
+        productsBySku.put("SKU-A", drifted);
+        productsBySku.put("SKU-B", active);
+        Map<Object, ProductionProduct> productsByBrandName = new HashMap<>();
+        productsByBrandName.put(newProductKey(brandA.getId(), "shared product"), drifted);
+        productsByBrandName.put(newProductKey(brandB.getId(), "shared product"), active);
+
+        when(brandRepository.findByCompanyAndNameIgnoreCase(company, "branda"))
+                .thenReturn(Optional.empty())
+                .thenReturn(Optional.of(brandA));
+        when(productRepository.findByCompanyAndId(company, 101L)).thenReturn(Optional.empty());
+        when(productRepository.findByCompanyAndId(company, 202L)).thenReturn(Optional.of(active));
+
+        Object context = newImportContext(
+                brandsByName,
+                productsBySku,
+                productsByBrandName,
+                new HashMap<Long, Long>());
+        Object importRow = newImportRow(1L, null, "branda", "shared product");
+
+        ReflectionTestUtils.invokeMethod(service, "evictRowCache", company, importRow, context);
+        assertThat(productsByBrandName.values())
+                .extracting(product -> product.getId())
+                .containsExactly(202L);
+
+        productsByBrandName.put(newProductKey(brandA.getId(), "shared product"), replayedBrandA);
+        ReflectionTestUtils.invokeMethod(service, "evictRowCache", company, importRow, context);
+
+        assertThat(productsByBrandName.values())
+                .extracting(product -> product.getId())
+                .containsExactly(202L);
     }
 
     private boolean invokeIsRetryableImportFailure(Throwable error) {

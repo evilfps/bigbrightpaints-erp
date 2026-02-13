@@ -307,6 +307,7 @@ public class ProductionCatalogService {
         }
         if (importRow.productKey() != null) {
             if (importRow.brandKey() != null && importRowBrandId == null) {
+                pruneDriftedProductNameCacheEntries(company, importRow.productKey(), context);
                 return;
             }
             for (var iterator = context.productsByBrandName().entrySet().iterator(); iterator.hasNext(); ) {
@@ -318,6 +319,37 @@ public class ProductionCatalogService {
                 }
             }
         }
+    }
+
+    private void pruneDriftedProductNameCacheEntries(Company company, String productKey, ImportContext context) {
+        if (company == null || productKey == null) {
+            return;
+        }
+        Map<Long, Boolean> productExistsById = new HashMap<>();
+        for (var iterator = context.productsByBrandName().entrySet().iterator(); iterator.hasNext(); ) {
+            Map.Entry<ProductKey, ProductionProduct> entry = iterator.next();
+            if (!productKey.equals(entry.getKey().productNameKey())) {
+                continue;
+            }
+            if (isDriftedCachedProduct(company, entry.getValue(), productExistsById)) {
+                iterator.remove();
+            }
+        }
+    }
+
+    private boolean isDriftedCachedProduct(Company company,
+                                           ProductionProduct cachedProduct,
+                                           Map<Long, Boolean> productExistsById) {
+        if (cachedProduct == null || cachedProduct.getId() == null) {
+            return true;
+        }
+        Long productId = cachedProduct.getId();
+        Boolean exists = productExistsById.get(productId);
+        if (exists == null) {
+            exists = productRepository.findByCompanyAndId(company, productId).isPresent();
+            productExistsById.put(productId, exists);
+        }
+        return !exists;
     }
 
     @Transactional
