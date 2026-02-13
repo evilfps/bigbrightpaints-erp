@@ -2256,3 +2256,90 @@ Queue Rotation (Auto-Replenish)
 - [ready] M10-S3 release-gate dry-run and blocker ledger sync (`scripts/verify_local.sh` + artifact sanity)
 - [ready] M9-S5 capture EXPLAIN + index-candidate evidence for journal/allocation replay hotspot queries (Flyway V2-ready)
 - [ready] M2-S12 replay mismatch guard helper extraction to enforce parity by construction
+
+Post-Commit Review Evidence
+- Commit reviewed: `658efa0e`
+- `codex review --commit 658efa0e`:
+  - final verdict: docs-only ledger update; no actionable defects.
+- Review subagent `019c55ac-5317-7ec1-8ab6-ce4a49848400`:
+  - findings: none.
+
+Completed Slice (Committed)
+- 2026-02-13: `aa05ad78`
+  - fix(catalog): seed raw-material accounting defaults on import.
+  - Seeded catalog-imported `RAW_MATERIAL` records with accounting-critical defaults:
+    - default inventory account fallback,
+    - GST synchronization,
+    - CSV metadata support for `rm_inventory_account_id` and alias `inventory_account_id`.
+  - Verification:
+    - `cd erp-domain && mvn -B -ntp -Dtest=ProductionCatalogRawMaterialInvariantIT test` -> pass (2 tests, 0 failures, 0 errors).
+
+Post-Commit Review Evidence
+- Commit reviewed: `aa05ad78`
+- `codex review --commit aa05ad78`:
+  - final verdict: no commit-introduced defect in patch scope.
+- Review subagent `019c55b2-5a0d-7b91-9def-b67fdf5b067c`:
+  - high finding: explicit account mapping could not repair stale wrong account when existing account was already non-null.
+  - medium finding: explicit account id should be company-validated before apply.
+  - medium finding: tests should cover explicit alias path and stale-account reconciliation.
+  - disposition: fixed in follow-up commit `a01a24b9`.
+
+Completed Slice (Committed)
+- 2026-02-13: `a01a24b9`
+  - fix(catalog): validate and reconcile raw-material account mapping.
+  - Added company-scope account validation before applying raw-material inventory account mappings.
+  - Added explicit-account-aware reconciliation so stale wrong account mappings are repaired when mapping is explicitly supplied.
+  - Expanded regression suite for alias-account ingestion and stale-account repair behavior.
+  - Verification:
+    - `cd erp-domain && mvn -B -ntp -Dtest=ProductionCatalogRawMaterialInvariantIT test` -> pass (4 tests, 0 failures, 0 errors).
+
+Post-Commit Review Evidence
+- Commit reviewed: `a01a24b9`
+- `codex review --commit a01a24b9`:
+  - P1 finding: stale persisted metadata could trigger unintended account reapplication on rows without explicit account mapping.
+  - disposition: fixed in follow-up commit `0c7f7d9a`.
+- Review subagent `019c55ba-db29-7991-b083-55fffc79af5a`:
+  - medium finding: per-row account validation lookup could regress replay throughput.
+  - disposition: fixed in follow-up commit `0c7f7d9a` via per-import validation cache.
+
+Completed Slice (Committed)
+- 2026-02-13: `0c7f7d9a`
+  - fix(catalog): gate raw-material account reconcile to explicit mapping.
+  - Fixed stale-marker style drift in catalog/raw-material mapping flow:
+    - reconcile account mapping only when current row explicitly carries account mapping,
+    - keep missing-account backfill behavior,
+    - add per-import account-validation cache to reduce replay lookup overhead.
+  - Expanded regression coverage in `ProductionCatalogRawMaterialInvariantIT`:
+    - explicit alias mapping path,
+    - explicit stale-account repair,
+    - invalid cross-company account rejection,
+    - non-explicit mapping path does not reapply stale metadata mapping.
+  - Verification:
+    - `cd erp-domain && mvn -B -ntp -Dtest=ProductionCatalogRawMaterialInvariantIT test` -> pass (6 tests, 0 failures, 0 errors).
+
+Post-Commit Review Evidence
+- Commit reviewed: `0c7f7d9a`
+- `codex review --commit 0c7f7d9a`:
+  - final verdict: no discrete regression introduced by commit.
+- Review subagent `019c55c7-8cd4-7410-afbf-1a3a73d623d9`:
+  - no medium/high findings.
+  - low notes:
+    - retry/idempotency interaction not directly covered by new tests,
+    - per-import account-validation cache grows with distinct account ids in a single import.
+
+Loop Update
+- 2026-02-13T12:30:46+05:30
+- tracked_now_ts: `2026-02-13T12:30:46+05:30`
+- tracked_elapsed: `34h 36m 54s`
+- active_in_progress: `M13-S2 product import + packaging accounting linkage and idempotency contract tests`
+
+Queue Rotation (Auto-Replenish)
+- [completed] M13-S1 product import SKU/raw-material/packaging cross-module workflow invariant audit
+- [in_progress] M13-S2 product import + packaging accounting linkage and idempotency contract tests
+- [ready] M13-S3 product import/packaging admin-approval visibility parity across portals
+- [ready] M13-S4 raw-material import ownership + company-scope boundary abuse scan (SKU->raw-material->packaging chain)
+- [ready] M13-S5 catalog import update-existing row transactional safety scan (`REQUIRES_NEW` row loop optimistic-lock risk characterization + mitigation plan)
+- [ready] M12-S4 discount reference calculation examples + API error-copy parity table for user docs
+- [ready] M10-S3 release-gate dry-run and blocker ledger sync (`scripts/verify_local.sh` + artifact sanity)
+- [ready] M9-S5 capture EXPLAIN + index-candidate evidence for journal/allocation replay hotspot queries (Flyway V2-ready)
+- [ready] M2-S12 replay mismatch guard helper extraction to enforce parity by construction
