@@ -235,7 +235,57 @@ class InvoiceServiceTest {
 
         assertThat(order.getFulfillmentInvoiceId()).isEqualTo(123L);
         assertThat(dto.id()).isEqualTo(123L);
+        assertThat(slip.getInvoiceId()).isEqualTo(123L);
         verify(salesOrderRepository).save(order);
+    }
+
+    @Test
+    void issueInvoiceForOrder_usesSingleActiveSlipWhenSecondarySlipCancelled() {
+        Long orderId = 78L;
+        when(companyContextService.requireCurrentCompany()).thenReturn(company);
+        when(invoiceRepository.findAllByCompanyAndSalesOrderId(company, orderId)).thenReturn(List.of());
+
+        Dealer dealer = new Dealer();
+        SalesOrder order = new SalesOrder();
+        order.setCompany(company);
+        order.setDealer(dealer);
+        order.setOrderNumber("SO-78");
+        order.setCurrency("INR");
+        ReflectionTestUtils.setField(order, "id", orderId);
+
+        when(salesService.getOrderWithItems(orderId)).thenReturn(order);
+
+        PackagingSlip activeSlip = new PackagingSlip();
+        ReflectionTestUtils.setField(activeSlip, "id", 199L);
+        PackagingSlip cancelledSlip = new PackagingSlip();
+        ReflectionTestUtils.setField(cancelledSlip, "id", 200L);
+        cancelledSlip.setStatus("CANCELLED");
+        when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, orderId))
+                .thenReturn(List.of(activeSlip, cancelledSlip));
+
+        DispatchConfirmResponse response = new DispatchConfirmResponse(
+                activeSlip.getId(),
+                orderId,
+                223L,
+                null,
+                List.of(),
+                true,
+                List.of()
+        );
+        when(salesService.confirmDispatch(any())).thenReturn(response);
+
+        Invoice invoice = new Invoice();
+        ReflectionTestUtils.setField(invoice, "id", 223L);
+        invoice.setCompany(company);
+        invoice.setInvoiceNumber("INV-78");
+        when(invoiceRepository.findByCompanyAndId(company, 223L)).thenReturn(Optional.of(invoice));
+
+        InvoiceDto dto = invoiceService.issueInvoiceForOrder(orderId);
+
+        ArgumentCaptor<DispatchConfirmRequest> requestCaptor = ArgumentCaptor.forClass(DispatchConfirmRequest.class);
+        verify(salesService).confirmDispatch(requestCaptor.capture());
+        assertThat(requestCaptor.getValue().packingSlipId()).isEqualTo(199L);
+        assertThat(dto.id()).isEqualTo(223L);
     }
 
     @Test

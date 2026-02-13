@@ -706,6 +706,51 @@ public class SalesService {
         return companyEntityLookup.requireSalesOrder(company, id);
     }
 
+    private SalesOrder requireOrderForUpdate(Company company, Long id) {
+        Optional<SalesOrder> lockedOrder = salesOrderRepository.findWithItemsByCompanyAndIdForUpdate(company, id);
+        if (lockedOrder != null && lockedOrder.isPresent()) {
+            return lockedOrder.get();
+        }
+        return companyEntityLookup.requireSalesOrder(company, id);
+    }
+
+    private List<PackagingSlip> findOrderSlips(Company company, Long orderId, boolean forUpdate) {
+        if (company == null || orderId == null) {
+            return List.of();
+        }
+        List<PackagingSlip> slips = null;
+        if (forUpdate) {
+            slips = packagingSlipRepository.findAllByCompanyAndSalesOrderIdForUpdate(company, orderId);
+        }
+        if (slips == null || slips.isEmpty()) {
+            slips = packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, orderId);
+        }
+        return slips != null ? slips : List.of();
+    }
+
+    private long activeSlipCount(List<PackagingSlip> slips) {
+        if (slips == null || slips.isEmpty()) {
+            return 0;
+        }
+        return slips.stream()
+                .filter(slip -> !("CANCELLED".equalsIgnoreCase(slip.getStatus())))
+                .count();
+    }
+
+    private boolean hasSingleActiveSlip(List<PackagingSlip> slips) {
+        return activeSlipCount(slips) == 1;
+    }
+
+    private PackagingSlip findSingleActiveSlip(List<PackagingSlip> slips) {
+        if (!hasSingleActiveSlip(slips)) {
+            return null;
+        }
+        return slips.stream()
+                .filter(slip -> !("CANCELLED".equalsIgnoreCase(slip.getStatus())))
+                .findFirst()
+                .orElse(null);
+    }
+
     private void assertOrderMutable(SalesOrder order, String action) {
         if (order == null) {
             return;
@@ -779,7 +824,39 @@ public class SalesService {
                 continue;
             }
             SalesOrder order = orderOpt.get();
-            boolean updated = reconcileOrderLevelDispatchMarkers(company, order, null, null, null);
+            List<PackagingSlip> orderSlips = findOrderSlips(company, orderId, true);
+            PackagingSlip singleActiveSlip = findSingleActiveSlip(orderSlips);
+            boolean singleActiveSlipForOrder = singleActiveSlip != null;
+
+            Long invoiceId = null;
+            Long salesJournalEntryId = null;
+            Long cogsJournalEntryId = null;
+            if (singleActiveSlipForOrder) {
+                invoiceId = singleActiveSlip.getInvoiceId();
+                salesJournalEntryId = singleActiveSlip.getJournalEntryId();
+                cogsJournalEntryId = singleActiveSlip.getCogsJournalEntryId();
+                if (cogsJournalEntryId == null) {
+                    String slipNumber = singleActiveSlip.getSlipNumber();
+                    String cogsReferenceId = resolveCogsReferenceId(singleActiveSlip, slipNumber);
+                    cogsJournalEntryId = findCogsJournalId(company, cogsReferenceId);
+                    if (cogsJournalEntryId == null
+                            && StringUtils.hasText(slipNumber)
+                            && !slipNumber.trim().equalsIgnoreCase(cogsReferenceId)) {
+                        cogsJournalEntryId = findCogsJournalId(company, slipNumber.trim());
+                    }
+                }
+                if (invoiceId == null && salesJournalEntryId == null && cogsJournalEntryId == null) {
+                    // Avoid destructive cleanup when no slip-level anchors are available yet.
+                    continue;
+                }
+            }
+
+            boolean updated = reconcileOrderLevelDispatchMarkers(
+                    order,
+                    invoiceId,
+                    salesJournalEntryId,
+                    cogsJournalEntryId,
+                    singleActiveSlipForOrder);
             if (updated) {
                 salesOrderRepository.save(order);
                 reconciledOrderIds.add(orderId);
@@ -1512,16 +1589,21 @@ public class SalesService {
             slip = packagingSlipRepository.findAndLockByIdAndCompany(request.packingSlipId(), company)
                     .orElseThrow(() -> new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE, "Packing slip not found"));
         } else if (request.orderId() != null) {
-            List<PackagingSlip> slips = packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, request.orderId());
+            List<PackagingSlip> slips = findOrderSlips(company, request.orderId(), true);
             if (slips.isEmpty()) {
                 throw new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE,
                         "Packing slip not found for order " + request.orderId());
             }
-            if (slips.size() > 1) {
+            long activeSlips = activeSlipCount(slips);
+            if (activeSlips > 1) {
                 throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
                         "Multiple packing slips found for order " + request.orderId() + "; provide packingSlipId");
             }
-            PackagingSlip selected = slips.get(0);
+            PackagingSlip selected = findSingleActiveSlip(slips);
+            if (selected == null) {
+                throw new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE,
+                        "No active packing slip found for order " + request.orderId());
+            }
             Long slipId = selected.getId();
             slip = packagingSlipRepository.findAndLockByIdAndCompany(slipId, company)
                     .orElseThrow(() -> new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE,
@@ -1533,6 +1615,20 @@ public class SalesService {
         if (salesOrderId == null) {
             throw new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE, "Sales order is required on packing slip");
         }
+        SalesOrder order = requireOrderForUpdate(company, salesOrderId);
+        List<PackagingSlip> orderSlips = findOrderSlips(company, salesOrderId, true);
+        if (orderSlips.isEmpty() && slip != null) {
+            orderSlips = List.of(slip);
+        }
+        if (slip != null && slip.getId() != null) {
+            for (PackagingSlip candidate : orderSlips) {
+                if (candidate != null && slip.getId().equals(candidate.getId())) {
+                    slip = candidate;
+                    break;
+                }
+            }
+        }
+        boolean singleActiveSlipForOrder = hasSingleActiveSlip(orderSlips);
         String slipNumber = slip.getSlipNumber();
         String cogsReferenceId = resolveCogsReferenceId(slip, slipNumber);
         Invoice existingInvoice = null;
@@ -1552,17 +1648,16 @@ public class SalesService {
         boolean hasRequestedOverrides = lineOverrides.values().stream().anyMatch(this::isDispatchOverrideApplied);
         Map<Long, BigDecimal> shipQtyByLineId = new HashMap<>();
 
-        SalesOrder order = requireOrder(salesOrderId);
         boolean orderTaxInclusive = order.isGstInclusive();
         Map<String, BigDecimal> minPriceBySku = new HashMap<>();
         boolean alreadyDispatched = "DISPATCHED".equalsIgnoreCase(slip.getStatus());
         if (existingInvoice == null && alreadyDispatched) {
-            existingInvoice = resolveExistingInvoiceForSlip(company, order, slip, slipNumber);
+            existingInvoice = resolveExistingInvoiceForSlip(company, order, slip, slipNumber, singleActiveSlipForOrder);
         }
         String overrideReason = null;
         if (alreadyDispatched && hasRequestedOverrides) {
             boolean hasOrderLevelReplayAnchor = order.getSalesJournalEntryId() != null
-                    && hasSingleActiveSlipForOrder(company, order);
+                    && singleActiveSlipForOrder;
             boolean hasReplayFinancialAnchor = existingInvoice != null
                     || slip.getInvoiceId() != null
                     || slip.getJournalEntryId() != null
@@ -1627,12 +1722,12 @@ public class SalesService {
                     packagingSlipRepository.save(slip);
                 }
                 boolean orderUpdated = reconcileOrderLevelDispatchMarkers(
-                        company,
                         order,
                         existingInvoiceId,
                         existingJeId,
-                        existingCogsJournalId);
-                String nextStatus = resolveOrderStatusAfterDispatch(company, order);
+                        existingCogsJournalId,
+                        singleActiveSlipForOrder);
+                String nextStatus = resolveOrderStatusAfterDispatch(order, orderSlips);
                 if (!nextStatus.equalsIgnoreCase(order.getStatus())) {
                     order.setStatus(nextStatus);
                     orderUpdated = true;
@@ -2032,7 +2127,7 @@ public class SalesService {
             preexistingJournalId = existingInvoice.getJournalEntry().getId();
         } else if (slip.getJournalEntryId() != null) {
             preexistingJournalId = slip.getJournalEntryId();
-        } else if (alreadyDispatched && order.getSalesJournalEntryId() != null && hasSingleActiveSlipForOrder(company, order)) {
+        } else if (alreadyDispatched && order.getSalesJournalEntryId() != null && singleActiveSlipForOrder) {
             preexistingJournalId = order.getSalesJournalEntryId();
         }
         if (preexistingJournalId != null) {
@@ -2169,7 +2264,7 @@ public class SalesService {
         if (arJournalEntryId == null && preexistingJournalId != null) {
             arJournalEntryId = preexistingJournalId;
         }
-        boolean singleSlipForOrder = hasSingleActiveSlipForOrder(company, order);
+        boolean singleSlipForOrder = singleActiveSlipForOrder;
         List<DispatchConfirmResponse.AccountPostingDto> arPostings = new ArrayList<>();
         if (arJournalEntryId == null && totalAmount.compareTo(BigDecimal.ZERO) > 0) {
             if (revenueByAccount.isEmpty()) {
@@ -2241,13 +2336,18 @@ public class SalesService {
         }
         packagingSlipRepository.save(slip);
 
+        List<PackagingSlip> latestOrderSlips = findOrderSlips(company, order.getId(), false);
+        if (latestOrderSlips.isEmpty() && slip != null) {
+            latestOrderSlips = List.of(slip);
+        }
+        boolean singleActiveSlipAfterDispatch = hasSingleActiveSlip(latestOrderSlips);
         boolean orderUpdated = reconcileOrderLevelDispatchMarkers(
-                company,
                 order,
                 invoice.getId(),
                 arJournalEntryId,
-                cogsJournalId);
-        String nextStatus = resolveOrderStatusAfterDispatch(company, order);
+                cogsJournalId,
+                singleActiveSlipAfterDispatch);
+        String nextStatus = resolveOrderStatusAfterDispatch(order, latestOrderSlips);
         if (!nextStatus.equalsIgnoreCase(order.getStatus())) {
             order.setStatus(nextStatus);
             orderUpdated = true;
@@ -2470,7 +2570,8 @@ public class SalesService {
     private Invoice resolveExistingInvoiceForSlip(Company company,
                                                   SalesOrder order,
                                                   PackagingSlip slip,
-                                                  String slipNumber) {
+                                                  String slipNumber,
+                                                  boolean singleActiveSlipForOrder) {
         if (company == null || order == null || order.getId() == null || slip == null) {
             return null;
         }
@@ -2494,7 +2595,7 @@ public class SalesService {
                         .withDetail("slipNumber", slipNumber);
             }
         }
-        if (hasSingleActiveSlipForOrder(company, order)) {
+        if (singleActiveSlipForOrder) {
             if (order.getFulfillmentInvoiceId() != null) {
                 return invoiceRepository.findByCompanyAndId(company, order.getFulfillmentInvoiceId()).orElse(null);
             }
@@ -2505,37 +2606,14 @@ public class SalesService {
         return null;
     }
 
-    private boolean hasSingleSlipForOrder(Company company, SalesOrder order) {
-        if (company == null || order == null || order.getId() == null) {
-            return false;
-        }
-        List<PackagingSlip> slips = packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, order.getId());
-        return slips != null && slips.size() == 1;
-    }
-
-    private boolean hasSingleActiveSlipForOrder(Company company, SalesOrder order) {
-        if (company == null || order == null || order.getId() == null) {
-            return false;
-        }
-        List<PackagingSlip> slips = packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, order.getId());
-        if (slips == null || slips.isEmpty()) {
-            return false;
-        }
-        long activeSlipCount = slips.stream()
-                .filter(slip -> !("CANCELLED".equalsIgnoreCase(slip.getStatus())))
-                .count();
-        return activeSlipCount == 1;
-    }
-
-    private boolean reconcileOrderLevelDispatchMarkers(Company company,
-                                                       SalesOrder order,
+    private boolean reconcileOrderLevelDispatchMarkers(SalesOrder order,
                                                        Long invoiceId,
                                                        Long salesJournalEntryId,
-                                                       Long cogsJournalEntryId) {
-        if (company == null || order == null) {
+                                                       Long cogsJournalEntryId,
+                                                       boolean singleSlipForOrder) {
+        if (order == null) {
             return false;
         }
-        boolean singleSlipForOrder = hasSingleActiveSlipForOrder(company, order);
         boolean orderUpdated = false;
         if (!singleSlipForOrder) {
             if (order.getSalesJournalEntryId() != null) {
@@ -2552,26 +2630,25 @@ public class SalesService {
             }
             return orderUpdated;
         }
-        if (salesJournalEntryId != null && order.getSalesJournalEntryId() == null) {
+        if (!java.util.Objects.equals(order.getSalesJournalEntryId(), salesJournalEntryId)) {
             order.setSalesJournalEntryId(salesJournalEntryId);
             orderUpdated = true;
         }
-        if (cogsJournalEntryId != null && order.getCogsJournalEntryId() == null) {
+        if (!java.util.Objects.equals(order.getCogsJournalEntryId(), cogsJournalEntryId)) {
             order.setCogsJournalEntryId(cogsJournalEntryId);
             orderUpdated = true;
         }
-        if (invoiceId != null && order.getFulfillmentInvoiceId() == null) {
+        if (!java.util.Objects.equals(order.getFulfillmentInvoiceId(), invoiceId)) {
             order.setFulfillmentInvoiceId(invoiceId);
             orderUpdated = true;
         }
         return orderUpdated;
     }
 
-    private String resolveOrderStatusAfterDispatch(Company company, SalesOrder order) {
-        if (order == null || company == null) {
-            return order != null ? order.getStatus() : null;
+    private String resolveOrderStatusAfterDispatch(SalesOrder order, List<PackagingSlip> slips) {
+        if (order == null) {
+            return null;
         }
-        List<PackagingSlip> slips = packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, order.getId());
         if (slips.isEmpty()) {
             return order.getStatus();
         }

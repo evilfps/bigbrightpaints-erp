@@ -40,16 +40,20 @@ public interface SalesOrderRepository extends JpaRepository<SalesOrder, Long> {
             select o.id
             from SalesOrder o
             where o.company = :company
-              and (o.salesJournalEntryId is not null
-                   or o.cogsJournalEntryId is not null
-                   or o.fulfillmentInvoiceId is not null)
               and (
-                    select count(ps.id)
-                    from PackagingSlip ps
-                    where ps.company = :company
-                      and ps.salesOrder = o
-                      and upper(coalesce(ps.status, '')) <> 'CANCELLED'
-                  ) <> 1
+                    o.salesJournalEntryId is not null
+                 or o.cogsJournalEntryId is not null
+                 or o.fulfillmentInvoiceId is not null
+                 or exists (
+                        select 1
+                        from PackagingSlip ps
+                        where ps.company = :company
+                          and ps.salesOrder = o
+                          and (ps.invoiceId is not null
+                               or ps.journalEntryId is not null
+                               or ps.cogsJournalEntryId is not null)
+                    )
+                  )
             order by o.createdAt desc, o.id desc
             """)
     Page<Long> findDispatchMarkerCandidateIdsByCompanyOrderByCreatedAtDescIdDesc(@Param("company") Company company,

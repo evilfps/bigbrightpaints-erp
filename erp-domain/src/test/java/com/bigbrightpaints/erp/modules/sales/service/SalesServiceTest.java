@@ -1391,6 +1391,50 @@ class SalesServiceTest {
     }
 
     @Test
+    void reconcileStaleOrderLevelMarkersRepairsSingleActiveSlipMarkerDrift() {
+        SalesOrder order = new SalesOrder();
+        setField(order, "id", 10L);
+        order.setCompany(company);
+        order.setSalesJournalEntryId(901L);
+        order.setCogsJournalEntryId(902L);
+        order.setFulfillmentInvoiceId(903L);
+
+        PackagingSlip slip = new PackagingSlip();
+        setField(slip, "id", 55L);
+        slip.setCompany(company);
+        slip.setSalesOrder(order);
+        slip.setStatus("DISPATCHED");
+        slip.setInvoiceId(777L);
+        slip.setJournalEntryId(222L);
+        slip.setCogsJournalEntryId(333L);
+
+        PackagingSlip cancelledSlip = new PackagingSlip();
+        setField(cancelledSlip, "id", 56L);
+        cancelledSlip.setCompany(company);
+        cancelledSlip.setSalesOrder(order);
+        cancelledSlip.setStatus("CANCELLED");
+
+        when(salesOrderRepository.findDispatchMarkerCandidateIdsByCompanyOrderByCreatedAtDescIdDesc(eq(company), any()))
+                .thenReturn(new PageImpl<>(List.of(10L), PageRequest.of(0, 200), 1));
+        when(salesOrderRepository.findWithItemsByCompanyAndIdForUpdate(company, 10L))
+                .thenReturn(Optional.of(order));
+        when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 10L))
+                .thenReturn(List.of(slip, cancelledSlip));
+        when(salesOrderRepository.save(ArgumentMatchers.any(SalesOrder.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        DispatchMarkerReconciliationResponse response = salesService.reconcileStaleOrderLevelMarkers(200);
+
+        assertEquals(1, response.scannedOrders());
+        assertEquals(1, response.reconciledOrders());
+        assertEquals(List.of(10L), response.reconciledOrderIds());
+        assertEquals(222L, order.getSalesJournalEntryId());
+        assertEquals(333L, order.getCogsJournalEntryId());
+        assertEquals(777L, order.getFulfillmentInvoiceId());
+        verify(salesOrderRepository).save(order);
+    }
+
+    @Test
     void reconcileStaleOrderLevelMarkersProcessesAllReturnedCandidates() {
         SalesOrder singleSlipOrder = new SalesOrder();
         setField(singleSlipOrder, "id", 10L);
