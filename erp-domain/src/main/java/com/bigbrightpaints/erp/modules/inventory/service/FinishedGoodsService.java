@@ -37,7 +37,6 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -1627,15 +1626,10 @@ public class FinishedGoodsService {
     }
 
     private List<FinishedGoodBatch> selectBatchesByCostingMethod(FinishedGood finishedGood) {
-        String method = finishedGood.getCostingMethod() == null
-                ? "FIFO"
-                : finishedGood.getCostingMethod().trim().toUpperCase(Locale.ROOT);
-        if (CostingMethodUtils.isWeightedAverage(method)) {
-            return finishedGoodBatchRepository.findAllocatableBatches(finishedGood);
-        }
-        return switch (method) {
-            case "LIFO" -> finishedGoodBatchRepository.findAllocatableBatchesLIFO(finishedGood);
-            default -> finishedGoodBatchRepository.findAllocatableBatchesFIFO(finishedGood);
+        return switch (CostingMethodUtils.resolveFinishedGoodBatchSelectionMethod(finishedGood.getCostingMethod())) {
+            case WAC -> finishedGoodBatchRepository.findAllocatableBatches(finishedGood);
+            case LIFO -> finishedGoodBatchRepository.findAllocatableBatchesLIFO(finishedGood);
+            case FIFO -> finishedGoodBatchRepository.findAllocatableBatchesFIFO(finishedGood);
         };
     }
 
@@ -2003,17 +1997,16 @@ public class FinishedGoodsService {
         if (onHand.compareTo(BigDecimal.ZERO) <= 0) {
             return BigDecimal.ZERO;
         }
-        String method = finishedGood.getCostingMethod() == null
-                ? "FIFO"
-                : finishedGood.getCostingMethod().trim().toUpperCase(Locale.ROOT);
-        if (CostingMethodUtils.isWeightedAverage(method)) {
+        CostingMethodUtils.FinishedGoodBatchSelectionMethod selectionMethod =
+                CostingMethodUtils.resolveFinishedGoodBatchSelectionMethod(finishedGood.getCostingMethod());
+        if (selectionMethod == CostingMethodUtils.FinishedGoodBatchSelectionMethod.WAC) {
             return weightedAverageCost(finishedGood);
         }
         List<FinishedGoodBatch> batches = new ArrayList<>(finishedGoodBatchRepository.findByFinishedGoodOrderByManufacturedAtAsc(finishedGood));
         batches.sort(Comparator
                 .comparing(FinishedGoodBatch::getManufacturedAt, Comparator.nullsLast(Comparator.naturalOrder()))
                 .thenComparing(FinishedGoodBatch::getId, Comparator.nullsLast(Comparator.naturalOrder())));
-        if ("LIFO".equals(method)) {
+        if (selectionMethod == CostingMethodUtils.FinishedGoodBatchSelectionMethod.LIFO) {
             Collections.reverse(batches);
         }
         BigDecimal valuedStock = BigDecimal.ZERO;

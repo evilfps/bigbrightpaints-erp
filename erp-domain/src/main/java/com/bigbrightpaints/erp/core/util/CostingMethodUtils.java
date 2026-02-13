@@ -4,6 +4,12 @@ import java.util.Locale;
 
 public final class CostingMethodUtils {
 
+    public enum FinishedGoodBatchSelectionMethod {
+        FIFO,
+        LIFO,
+        WAC
+    }
+
     private CostingMethodUtils() {
     }
 
@@ -67,5 +73,19 @@ public final class CostingMethodUtils {
             case "WAC", "WEIGHTED_AVERAGE", "WEIGHTED-AVERAGE" -> "WAC";
             default -> trimmed;
         };
+    }
+
+    public static FinishedGoodBatchSelectionMethod resolveFinishedGoodBatchSelectionMethod(String method) {
+        if (isWeightedAverage(method)) {
+            return FinishedGoodBatchSelectionMethod.WAC;
+        }
+        if (method == null || method.isBlank()) {
+            return FinishedGoodBatchSelectionMethod.FIFO;
+        }
+        String normalized = method.trim().toUpperCase(Locale.ROOT);
+        if ("LIFO".equals(normalized)) {
+            return FinishedGoodBatchSelectionMethod.LIFO;
+        }
+        return FinishedGoodBatchSelectionMethod.FIFO;
     }
 }

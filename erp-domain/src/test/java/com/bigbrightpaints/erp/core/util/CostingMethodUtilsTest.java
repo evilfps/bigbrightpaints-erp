@@ -78,4 +78,32 @@ class CostingMethodUtilsTest {
         assertThat(CostingMethodUtils.canonicalizeRawMaterialMethodForSync(null)).isEqualTo("FIFO");
         assertThat(CostingMethodUtils.canonicalizeRawMaterialMethodForSync(" custom_method ")).isEqualTo("custom_method");
     }
+
+    @Test
+    void resolveFinishedGoodBatchSelectionMethod_canonicalizesSupportedAndFallsBackToFifo() {
+        assertThat(CostingMethodUtils.resolveFinishedGoodBatchSelectionMethod("weighted-average"))
+                .isEqualTo(CostingMethodUtils.FinishedGoodBatchSelectionMethod.WAC);
+        assertThat(CostingMethodUtils.resolveFinishedGoodBatchSelectionMethod("lifo"))
+                .isEqualTo(CostingMethodUtils.FinishedGoodBatchSelectionMethod.LIFO);
+        assertThat(CostingMethodUtils.resolveFinishedGoodBatchSelectionMethod("fifo"))
+                .isEqualTo(CostingMethodUtils.FinishedGoodBatchSelectionMethod.FIFO);
+        assertThat(CostingMethodUtils.resolveFinishedGoodBatchSelectionMethod("custom_method"))
+                .isEqualTo(CostingMethodUtils.FinishedGoodBatchSelectionMethod.FIFO);
+        assertThat(CostingMethodUtils.resolveFinishedGoodBatchSelectionMethod(null))
+                .isEqualTo(CostingMethodUtils.FinishedGoodBatchSelectionMethod.FIFO);
+    }
+
+    @Test
+    void resolveFinishedGoodBatchSelectionMethod_isLocaleStable() {
+        Locale previous = Locale.getDefault();
+        try {
+            Locale.setDefault(Locale.forLanguageTag("tr-TR"));
+            assertThat(CostingMethodUtils.resolveFinishedGoodBatchSelectionMethod("weighted_average"))
+                    .isEqualTo(CostingMethodUtils.FinishedGoodBatchSelectionMethod.WAC);
+            assertThat(CostingMethodUtils.resolveFinishedGoodBatchSelectionMethod("lifo"))
+                    .isEqualTo(CostingMethodUtils.FinishedGoodBatchSelectionMethod.LIFO);
+        } finally {
+            Locale.setDefault(previous);
+        }
+    }
 }
