@@ -8,11 +8,17 @@ import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterial;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialRepository;
+import com.bigbrightpaints.erp.modules.production.domain.ProductionBrand;
+import com.bigbrightpaints.erp.modules.production.domain.ProductionBrandRepository;
+import com.bigbrightpaints.erp.modules.production.domain.ProductionProduct;
+import com.bigbrightpaints.erp.modules.production.domain.ProductionProductRepository;
 import com.bigbrightpaints.erp.modules.production.dto.CatalogImportResponse;
 import com.bigbrightpaints.erp.modules.production.service.ProductionCatalogService;
 import com.bigbrightpaints.erp.test.AbstractIntegrationTest;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -20,6 +26,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.test.util.AopTestUtils;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -30,6 +38,8 @@ class ProductionCatalogRawMaterialInvariantIT extends AbstractIntegrationTest {
     @Autowired private AccountRepository accountRepository;
     @Autowired private ProductionCatalogService productionCatalogService;
     @Autowired private RawMaterialRepository rawMaterialRepository;
+    @Autowired private ProductionBrandRepository productionBrandRepository;
+    @Autowired private ProductionProductRepository productionProductRepository;
 
     private Company company;
     private Account inventoryAccount;
@@ -124,16 +134,104 @@ class ProductionCatalogRawMaterialInvariantIT extends AbstractIntegrationTest {
         assertThat(repaired.getGstRate()).isEqualByComparingTo("18.00");
     }
 
+    @Test
+    void syncRawMaterial_withoutExplicitAccountMappingDoesNotReapplyStaleMetadataMapping() throws Exception {
+        ProductionProduct product = seedRawMaterialProduct(
+                "RM-TIO2-MANUAL",
+                alternateInventoryAccount.getId(),
+                inventoryAccount.getId());
+        product.setGstRate(new BigDecimal("12.00"));
+        ProductionCatalogService targetService = AopTestUtils.getTargetObject(productionCatalogService);
+        ReflectionTestUtils.invokeMethod(
+                targetService,
+                "syncRawMaterial",
+                company,
+                product,
+                new HashMap<Long, Long>(),
+                false);
+
+        RawMaterial replayed = rawMaterialRepository.findByCompanyAndSku(company, "RM-TIO2-MANUAL").orElseThrow();
+        assertThat(replayed.getInventoryAccountId()).isEqualTo(inventoryAccount.getId());
+        assertThat(replayed.getGstRate()).isEqualByComparingTo("12.00");
+    }
+
+    @Test
+    void importCatalog_rejectsRawMaterialInventoryAccountOutsideCompanyScope() {
+        Company foreignCompany = dataSeeder.ensureCompany(
+                "RM-FOREIGN-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase(),
+                "Foreign RM Co");
+        Account foreignInventoryAccount = ensureAccountFor(
+                foreignCompany,
+                "RM-INV-FOREIGN",
+                "Foreign Raw Material Inventory",
+                AccountType.ASSET);
+
+        CatalogImportResponse response = productionCatalogService.importCatalog(
+                rawMaterialCsvWithAccount(
+                        "RM-TIO2-OUTSIDE",
+                        "18.00",
+                        foreignInventoryAccount.getId(),
+                        "rm_inventory_account_id"),
+                "RM-CAT-IDEMP-05"
+        );
+
+        assertThat(response.errors()).hasSize(1);
+        assertThat(response.errors().getFirst().message()).contains("invalid inventory account id");
+        assertThat(rawMaterialRepository.findByCompanyAndSku(company, "RM-TIO2-OUTSIDE")).isEmpty();
+    }
+
     private Account ensureAccount(String code, String name, AccountType type) {
-        return accountRepository.findByCompanyAndCodeIgnoreCase(company, code)
+        return ensureAccountFor(company, code, name, type);
+    }
+
+    private Account ensureAccountFor(Company targetCompany, String code, String name, AccountType type) {
+        return accountRepository.findByCompanyAndCodeIgnoreCase(targetCompany, code)
                 .orElseGet(() -> {
                     Account account = new Account();
-                    account.setCompany(company);
+                    account.setCompany(targetCompany);
                     account.setCode(code);
                     account.setName(name);
                     account.setType(type);
                     return accountRepository.save(account);
                 });
+    }
+
+    private ProductionProduct seedRawMaterialProduct(String skuCode,
+                                                     Long metadataInventoryAccountId,
+                                                     Long materialInventoryAccountId) {
+        ProductionBrand brand = new ProductionBrand();
+        brand.setCompany(company);
+        brand.setName("RMBrand-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase());
+        brand.setCode("RM-" + UUID.randomUUID().toString().substring(0, 6).toUpperCase());
+        ProductionBrand savedBrand = productionBrandRepository.save(brand);
+
+        ProductionProduct product = new ProductionProduct();
+        product.setCompany(company);
+        product.setBrand(savedBrand);
+        product.setProductName("Titanium Dioxide");
+        product.setCategory("RAW_MATERIAL");
+        product.setUnitOfMeasure("KG");
+        product.setSkuCode(skuCode);
+        product.setActive(true);
+        product.setBasePrice(BigDecimal.ZERO);
+        product.setGstRate(new BigDecimal("18.00"));
+        product.setMinDiscountPercent(BigDecimal.ZERO);
+        product.setMinSellingPrice(BigDecimal.ZERO);
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("inventoryAccountId", metadataInventoryAccountId);
+        product.setMetadata(metadata);
+        ProductionProduct savedProduct = productionProductRepository.save(product);
+
+        RawMaterial material = new RawMaterial();
+        material.setCompany(company);
+        material.setName("Titanium Dioxide");
+        material.setSku(skuCode);
+        material.setUnitType("KG");
+        material.setCurrentStock(BigDecimal.ZERO);
+        material.setInventoryAccountId(materialInventoryAccountId);
+        material.setGstRate(BigDecimal.ZERO);
+        rawMaterialRepository.save(material);
+        return savedProduct;
     }
 
     private MockMultipartFile rawMaterialCsv(String skuCode, String gstRate) {

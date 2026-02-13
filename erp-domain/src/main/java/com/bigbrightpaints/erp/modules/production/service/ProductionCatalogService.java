@@ -638,7 +638,11 @@ public class ProductionCatalogService {
         ProductionProduct saved = productRepository.save(product);
         ensureCatalogFinishedGood(company, saved);
         cacheProduct(context, saved);
-        boolean seeded = syncRawMaterial(company, saved);
+        boolean seeded = syncRawMaterial(
+                company,
+                saved,
+                context.validatedRawMaterialInventoryAccounts(),
+                hasExplicitRawMaterialInventoryAccount(row));
         return new ProcessOutcome(resolution.created(), created, seeded);
     }
 
@@ -719,7 +723,7 @@ public class ProductionCatalogService {
             }
         }
 
-        return new ImportContext(brandsByName, productsBySku, productsByBrandName);
+        return new ImportContext(brandsByName, productsBySku, productsByBrandName, new HashMap<>());
     }
 
     private void cacheBrand(ImportContext context, ProductionBrand brand) {
@@ -904,6 +908,23 @@ public class ProductionCatalogService {
     }
 
     private boolean syncRawMaterial(Company company, ProductionProduct product) {
+        return syncRawMaterial(company, product, null, rawMaterialInventoryAccountIdFromMetadata(product) != null);
+    }
+
+    private boolean syncRawMaterial(Company company,
+                                    ProductionProduct product,
+                                    Map<Long, Long> validatedRawMaterialInventoryAccounts) {
+        return syncRawMaterial(
+                company,
+                product,
+                validatedRawMaterialInventoryAccounts,
+                rawMaterialInventoryAccountIdFromMetadata(product) != null);
+    }
+
+    private boolean syncRawMaterial(Company company,
+                                    ProductionProduct product,
+                                    Map<Long, Long> validatedRawMaterialInventoryAccounts,
+                                    boolean hasExplicitInventoryAccountMapping) {
         if (!isRawMaterialCategory(product.getCategory())) {
             return false;
         }
@@ -920,12 +941,15 @@ public class ProductionCatalogService {
         boolean isNew = material.getId() == null;
         material.setName(product.getProductName());
         material.setUnitType(resolveUnit(product.getUnitOfMeasure()));
-        Long metadataInventoryAccountId = rawMaterialInventoryAccountIdFromMetadata(product);
         Long resolvedInventoryAccountId = resolveRawMaterialInventoryAccountId(company, product);
         boolean shouldApplyInventoryAccount = resolvedInventoryAccountId != null
-                && (metadataInventoryAccountId != null || material.getInventoryAccountId() == null);
+                && (hasExplicitInventoryAccountMapping || material.getInventoryAccountId() == null);
         if (shouldApplyInventoryAccount) {
-            Long validatedInventoryAccountId = requireRawMaterialInventoryAccount(company, resolvedInventoryAccountId, sku);
+            Long validatedInventoryAccountId = requireRawMaterialInventoryAccount(
+                    company,
+                    resolvedInventoryAccountId,
+                    sku,
+                    validatedRawMaterialInventoryAccounts);
             if (!Objects.equals(material.getInventoryAccountId(), validatedInventoryAccountId)) {
                 material.setInventoryAccountId(validatedInventoryAccountId);
             }
@@ -940,10 +964,18 @@ public class ProductionCatalogService {
         return isNew;
     }
 
+    private boolean hasExplicitRawMaterialInventoryAccount(CatalogRow row) {
+        return row != null && rawMaterialInventoryAccountIdFromMetadata(row.metadata()) != null;
+    }
+
     private Long rawMaterialInventoryAccountIdFromMetadata(ProductionProduct product) {
-        Long metadataAccountId = metadataLong(product, "inventoryAccountId");
+        return rawMaterialInventoryAccountIdFromMetadata(product != null ? product.getMetadata() : null);
+    }
+
+    private Long rawMaterialInventoryAccountIdFromMetadata(Map<String, Object> metadata) {
+        Long metadataAccountId = metadataLong(metadata, "inventoryAccountId");
         if (metadataAccountId == null) {
-            metadataAccountId = metadataLong(product, "rawMaterialInventoryAccountId");
+            metadataAccountId = metadataLong(metadata, "rawMaterialInventoryAccountId");
         }
         return metadataAccountId;
     }
@@ -958,11 +990,28 @@ public class ProductionCatalogService {
     }
 
     private Long requireRawMaterialInventoryAccount(Company company, Long accountId, String sku) {
+        return requireRawMaterialInventoryAccount(company, accountId, sku, null);
+    }
+
+    private Long requireRawMaterialInventoryAccount(Company company,
+                                                    Long accountId,
+                                                    String sku,
+                                                    Map<Long, Long> validatedRawMaterialInventoryAccounts) {
         if (accountId == null || accountId <= 0) {
             return null;
         }
+        if (validatedRawMaterialInventoryAccounts != null) {
+            Long cachedAccountId = validatedRawMaterialInventoryAccounts.get(accountId);
+            if (cachedAccountId != null) {
+                return cachedAccountId;
+            }
+        }
         try {
-            return companyEntityLookup.requireAccount(company, accountId).getId();
+            Long validatedAccountId = companyEntityLookup.requireAccount(company, accountId).getId();
+            if (validatedRawMaterialInventoryAccounts != null) {
+                validatedRawMaterialInventoryAccounts.put(accountId, validatedAccountId);
+            }
+            return validatedAccountId;
         } catch (IllegalArgumentException ex) {
             throw new IllegalArgumentException(
                     "Raw material SKU " + sku + " references an invalid inventory account id " + accountId);
@@ -1092,10 +1141,17 @@ public class ProductionCatalogService {
     }
 
     private Long metadataLong(ProductionProduct product, String key) {
-        if (product == null || product.getMetadata() == null) {
+        if (product == null) {
             return null;
         }
-        Object candidate = product.getMetadata().get(key);
+        return metadataLong(product.getMetadata(), key);
+    }
+
+    private Long metadataLong(Map<String, Object> metadata, String key) {
+        if (metadata == null) {
+            return null;
+        }
+        Object candidate = metadata.get(key);
         if (candidate instanceof Number number) {
             long value = number.longValue();
             return value > 0 ? value : null;
@@ -1389,7 +1445,8 @@ public class ProductionCatalogService {
 
     private record ImportContext(Map<String, ProductionBrand> brandsByName,
                                  Map<String, ProductionProduct> productsBySku,
-                                 Map<ProductKey, ProductionProduct> productsByBrandName) {
+                                 Map<ProductKey, ProductionProduct> productsByBrandName,
+                                 Map<Long, Long> validatedRawMaterialInventoryAccounts) {
     }
 
     private record ImportRow(long recordNumber,
