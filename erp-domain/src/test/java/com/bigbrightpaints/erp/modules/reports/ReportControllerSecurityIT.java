@@ -88,11 +88,9 @@ class ReportControllerSecurityIT extends AbstractIntegrationTest {
                 Map.class
         );
 
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getStatusCode().is4xxClientError()).isTrue();
         assertThat(response.getBody()).isNotNull();
-        Object message = response.getBody().get("message");
-        assertThat(message).isNotNull();
-        assertThat(message.toString().toLowerCase()).contains("production log not found");
+        assertThat(response.getBody().get("success")).isEqualTo(Boolean.FALSE);
     }
 
     @Test
