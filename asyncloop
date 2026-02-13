@@ -2917,7 +2917,22 @@ Post-Commit Review Evidence
   - final verdict: no regressions identified; locale hardening and update-path negative coverage are behavior-consistent.
   - captured stream: `/tmp/codex_review_2b008e3e.log`.
 - Review subagent `019c5761-6e44-7920-bd27-51a9dcb5978c`:
-  - status polling timed out in this environment (no durable final payload captured yet).
+  - findings: none at medium/high severity.
+  - residual note: locale-forced JVM regression is still not executed as an explicit test fixture.
+
+Post-Commit Review Evidence
+- Commit reviewed: `2cee9f94`
+- `codex review --commit 2cee9f94`:
+  - final verdict: docs-only ledger append with no executable-path regression introduced.
+  - captured stream: `/tmp/codex_review_2cee9f94.log`.
+- Review subagent `019c5765-a441-7120-bfb7-15bcad08afbe`:
+  - status polling timed out; later handle lookup returned `not_found` with no durable final payload captured in this environment.
+
+Loop Update
+- 2026-02-13T19:58:42+05:30
+- tracked_now_ts: `2026-02-13T19:58:42+05:30`
+- tracked_elapsed: `42h 4m 50s`
+- active_in_progress: `M14-S2 WAC allocation path correctness (replace FIFO batch selection in WAC branches of FinishedGoodsService + InventoryAdjustmentService)`
 
 Loop Update
 - 2026-02-13T19:55:06+05:30
