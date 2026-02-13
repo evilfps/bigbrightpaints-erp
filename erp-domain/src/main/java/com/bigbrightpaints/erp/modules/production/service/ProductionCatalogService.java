@@ -287,16 +287,38 @@ public class ProductionCatalogService {
     }
 
     private void evictRowCache(ImportRow importRow, ImportContext context) {
+        Long importRowBrandId = null;
+        if (importRow.brandKey() != null) {
+            ProductionBrand cachedBrand = context.brandsByName().get(importRow.brandKey());
+            if (cachedBrand != null) {
+                importRowBrandId = cachedBrand.getId();
+            }
+        }
         if (importRow.brandKey() != null) {
             context.brandsByName().remove(importRow.brandKey());
         }
         if (StringUtils.hasText(importRow.sanitizedSku())) {
-            context.productsBySku().remove(normalizeSkuKey(importRow.sanitizedSku()));
+            ProductionProduct removed = context.productsBySku().remove(normalizeSkuKey(importRow.sanitizedSku()));
+            removeVerifiedProductCacheMarker(context, removed);
         }
         if (importRow.productKey() != null) {
-            context.productsByBrandName().entrySet()
-                    .removeIf(entry -> importRow.productKey().equals(entry.getKey().productNameKey()));
+            for (var iterator = context.productsByBrandName().entrySet().iterator(); iterator.hasNext(); ) {
+                Map.Entry<ProductKey, ProductionProduct> entry = iterator.next();
+                boolean matchesName = importRow.productKey().equals(entry.getKey().productNameKey());
+                boolean matchesBrand = importRowBrandId == null || importRowBrandId.equals(entry.getKey().brandId());
+                if (matchesName && matchesBrand) {
+                    removeVerifiedProductCacheMarker(context, entry.getValue());
+                    iterator.remove();
+                }
+            }
         }
+    }
+
+    private void removeVerifiedProductCacheMarker(ImportContext context, ProductionProduct product) {
+        if (product == null || product.getId() == null) {
+            return;
+        }
+        context.verifiedProductIds().remove(product.getId());
     }
 
     @Transactional
@@ -611,7 +633,9 @@ public class ProductionCatalogService {
         } else if (importRow.productKey() != null) {
             existing = context.productsByBrandName().get(new ProductKey(brand.getId(), importRow.productKey()));
         }
-        if (existing != null) {
+        if (existing != null
+                && existing.getId() != null
+                && !context.verifiedProductIds().contains(existing.getId())) {
             ProductionProduct refreshed = refreshCachedProductFromCurrentTransaction(company, existing);
             if (refreshed == null) {
                 evictRowCache(importRow, context);
@@ -744,7 +768,7 @@ public class ProductionCatalogService {
             }
         }
 
-        return new ImportContext(brandsByName, productsBySku, productsByBrandName, new HashMap<>());
+        return new ImportContext(brandsByName, productsBySku, productsByBrandName, new HashMap<>(), new HashSet<>());
     }
 
     private void cacheBrand(ImportContext context, ProductionBrand brand) {
@@ -760,6 +784,9 @@ public class ProductionCatalogService {
     private void cacheProduct(ImportContext context, ProductionProduct product) {
         if (product == null) {
             return;
+        }
+        if (product.getId() != null) {
+            context.verifiedProductIds().add(product.getId());
         }
         String skuKey = normalizeSkuKey(product.getSkuCode());
         if (skuKey != null) {
@@ -1529,7 +1556,8 @@ public class ProductionCatalogService {
     private record ImportContext(Map<String, ProductionBrand> brandsByName,
                                  Map<String, ProductionProduct> productsBySku,
                                  Map<ProductKey, ProductionProduct> productsByBrandName,
-                                 Map<Long, Long> validatedRawMaterialInventoryAccounts) {
+                                 Map<Long, Long> validatedRawMaterialInventoryAccounts,
+                                 Set<Long> verifiedProductIds) {
     }
 
     private record ImportRow(long recordNumber,

@@ -8,11 +8,17 @@ import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialRepository;
 import com.bigbrightpaints.erp.modules.production.domain.CatalogImportRepository;
+import com.bigbrightpaints.erp.modules.production.domain.ProductionBrand;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionBrandRepository;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionProduct;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionProductRepository;
 import jakarta.persistence.OptimisticLockException;
+import java.lang.reflect.Constructor;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -111,6 +117,60 @@ class ProductionCatalogServiceRetryPolicyTest {
         verifyNoInteractions(productRepository);
     }
 
+    @Test
+    void evictRowCache_onlyRemovesMatchingBrandNameEntryAndMarker() throws Exception {
+        ProductionBrand brandA = new ProductionBrand();
+        ReflectionTestUtils.setField(brandA, "id", 11L);
+        brandA.setName("BrandA");
+        ProductionBrand brandB = new ProductionBrand();
+        ReflectionTestUtils.setField(brandB, "id", 22L);
+        brandB.setName("BrandB");
+
+        ProductionProduct productA = new ProductionProduct();
+        ReflectionTestUtils.setField(productA, "id", 101L);
+        productA.setBrand(brandA);
+        productA.setProductName("Shared Product");
+        productA.setSkuCode("SKU-A");
+
+        ProductionProduct productB = new ProductionProduct();
+        ReflectionTestUtils.setField(productB, "id", 202L);
+        productB.setBrand(brandB);
+        productB.setProductName("Shared Product");
+        productB.setSkuCode("SKU-B");
+
+        Map<String, ProductionBrand> brandsByName = new HashMap<>();
+        brandsByName.put("branda", brandA);
+        brandsByName.put("brandb", brandB);
+
+        Map<String, ProductionProduct> productsBySku = new HashMap<>();
+        productsBySku.put("SKU-A", productA);
+        productsBySku.put("SKU-B", productB);
+
+        Map<Object, ProductionProduct> productsByBrandName = new HashMap<>();
+        productsByBrandName.put(newProductKey(brandA.getId(), "shared product"), productA);
+        productsByBrandName.put(newProductKey(brandB.getId(), "shared product"), productB);
+
+        Set<Long> verifiedProductIds = new HashSet<>();
+        verifiedProductIds.add(101L);
+        verifiedProductIds.add(202L);
+
+        Object context = newImportContext(
+                brandsByName,
+                productsBySku,
+                productsByBrandName,
+                new HashMap<Long, Long>(),
+                verifiedProductIds);
+        Object importRow = newImportRow(1L, null, "branda", "shared product");
+
+        ReflectionTestUtils.invokeMethod(service, "evictRowCache", importRow, context);
+
+        assertThat(productsByBrandName.values())
+                .extracting(product -> product.getId())
+                .containsExactly(202L);
+        assertThat(productsBySku).containsKeys("SKU-A", "SKU-B");
+        assertThat(verifiedProductIds).containsExactly(202L);
+    }
+
     private boolean invokeIsRetryableImportFailure(Throwable error) {
         Boolean retryable = ReflectionTestUtils.invokeMethod(service, "isRetryableImportFailure", error);
         return Boolean.TRUE.equals(retryable);
@@ -118,5 +178,49 @@ class ProductionCatalogServiceRetryPolicyTest {
 
     private ProductionProduct invokeRefreshCachedProduct(Company company, ProductionProduct cached) {
         return ReflectionTestUtils.invokeMethod(service, "refreshCachedProductFromCurrentTransaction", company, cached);
+    }
+
+    private Object newProductKey(Long brandId, String productNameKey) throws Exception {
+        Class<?> productKeyClass = Class.forName(ProductionCatalogService.class.getName() + "$ProductKey");
+        Constructor<?> constructor = productKeyClass.getDeclaredConstructor(Long.class, String.class);
+        constructor.setAccessible(true);
+        return constructor.newInstance(brandId, productNameKey);
+    }
+
+    private Object newImportContext(Map<String, ProductionBrand> brandsByName,
+                                    Map<String, ProductionProduct> productsBySku,
+                                    Map<Object, ProductionProduct> productsByBrandName,
+                                    Map<Long, Long> validatedRawMaterialInventoryAccounts,
+                                    Set<Long> verifiedProductIds) throws Exception {
+        Class<?> importContextClass = Class.forName(ProductionCatalogService.class.getName() + "$ImportContext");
+        Constructor<?> constructor = importContextClass.getDeclaredConstructor(
+                Map.class,
+                Map.class,
+                Map.class,
+                Map.class,
+                Set.class);
+        constructor.setAccessible(true);
+        return constructor.newInstance(
+                brandsByName,
+                productsBySku,
+                productsByBrandName,
+                validatedRawMaterialInventoryAccounts,
+                verifiedProductIds);
+    }
+
+    private Object newImportRow(long recordNumber,
+                                String sanitizedSku,
+                                String brandKey,
+                                String productKey) throws Exception {
+        Class<?> catalogRowClass = Class.forName(ProductionCatalogService.class.getName() + "$CatalogRow");
+        Class<?> importRowClass = Class.forName(ProductionCatalogService.class.getName() + "$ImportRow");
+        Constructor<?> constructor = importRowClass.getDeclaredConstructor(
+                long.class,
+                catalogRowClass,
+                String.class,
+                String.class,
+                String.class);
+        constructor.setAccessible(true);
+        return constructor.newInstance(recordNumber, null, sanitizedSku, brandKey, productKey);
     }
 }
