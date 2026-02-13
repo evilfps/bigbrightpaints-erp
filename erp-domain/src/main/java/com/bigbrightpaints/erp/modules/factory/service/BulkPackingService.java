@@ -1,6 +1,7 @@
 package com.bigbrightpaints.erp.modules.factory.service;
 
 import com.bigbrightpaints.erp.core.util.CompanyTime;
+import com.bigbrightpaints.erp.core.util.CostingMethodUtils;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
@@ -475,7 +476,7 @@ public class BulkPackingService {
             // Consume using FIFO
             BigDecimal remaining = material.quantity();
             BigDecimal consumedCost = BigDecimal.ZERO;
-            BigDecimal weightedAverageCost = isWeightedAverage(rm.getCostingMethod())
+            BigDecimal weightedAverageCost = CostingMethodUtils.isWeightedAverage(rm.getCostingMethod())
                     ? rawMaterialBatchRepository.calculateWeightedAverageCost(rm)
                     : null;
 
@@ -525,14 +526,6 @@ public class BulkPackingService {
         }
 
         return new PackagingCostSummary(totalCost, accountTotals, Map.of());
-    }
-
-    private boolean isWeightedAverage(String method) {
-        if (method == null) {
-            return false;
-        }
-        String normalized = method.trim().toUpperCase();
-        return "WAC".equals(normalized) || "WEIGHTED_AVERAGE".equals(normalized) || "WEIGHTED-AVERAGE".equals(normalized);
     }
 
     private PackagingCostSummary consumePackagingFromMappings(Company company,

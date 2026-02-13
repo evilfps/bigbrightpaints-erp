@@ -1,5 +1,6 @@
 package com.bigbrightpaints.erp.modules.reports.service;
 
+import com.bigbrightpaints.erp.core.util.CostingMethodUtils;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGood;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatch;
@@ -208,7 +209,7 @@ public class InventoryValuationService {
         if (remaining.compareTo(BigDecimal.ZERO) <= 0) {
             return BigDecimal.ZERO;
         }
-        if (isWeightedAverage(material.getCostingMethod())) {
+        if (CostingMethodUtils.isWeightedAverage(material.getCostingMethod())) {
             BigDecimal avgCost = rawMaterialBatchRepository.calculateWeightedAverageCost(material);
             if (avgCost == null) {
                 return BigDecimal.ZERO;
@@ -228,7 +229,7 @@ public class InventoryValuationService {
         if (remaining.compareTo(BigDecimal.ZERO) <= 0) {
             return BigDecimal.ZERO;
         }
-        if (isWeightedAverage(finishedGood.getCostingMethod())) {
+        if (CostingMethodUtils.isWeightedAverage(finishedGood.getCostingMethod())) {
             BigDecimal avgCost = finishedGoodBatchRepository.calculateWeightedAverageCost(finishedGood);
             if (avgCost == null) {
                 return BigDecimal.ZERO;
@@ -258,14 +259,6 @@ public class InventoryValuationService {
             remaining = remaining.subtract(used);
         }
         return total;
-    }
-
-    private boolean isWeightedAverage(String method) {
-        if (method == null) {
-            return false;
-        }
-        String normalized = method.trim().toUpperCase(Locale.ROOT);
-        return "WAC".equals(normalized) || "WEIGHTED_AVERAGE".equals(normalized) || "WEIGHTED-AVERAGE".equals(normalized);
     }
 
     private BigDecimal safe(BigDecimal value) {

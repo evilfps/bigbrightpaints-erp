@@ -2,6 +2,7 @@ package com.bigbrightpaints.erp.modules.factory.service;
 
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
+import com.bigbrightpaints.erp.core.util.CostingMethodUtils;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.factory.domain.PackagingSizeMapping;
@@ -214,7 +215,7 @@ public class PackagingMaterialService {
 
     private BigDecimal issueFromBatches(RawMaterial rawMaterial, BigDecimal requiredQty, String referenceId) {
         List<RawMaterialBatch> batches = rawMaterialBatchRepository.findAvailableBatchesFIFO(rawMaterial);
-        BigDecimal weightedAverageCost = isWeightedAverage(rawMaterial.getCostingMethod())
+        BigDecimal weightedAverageCost = CostingMethodUtils.isWeightedAverage(rawMaterial.getCostingMethod())
                 ? rawMaterialBatchRepository.calculateWeightedAverageCost(rawMaterial)
                 : null;
         BigDecimal remaining = requiredQty;
@@ -262,14 +263,6 @@ public class PackagingMaterialService {
         }
 
         return totalCost.setScale(2, RoundingMode.HALF_UP);
-    }
-
-    private boolean isWeightedAverage(String method) {
-        if (method == null) {
-            return false;
-        }
-        String normalized = method.trim().toUpperCase();
-        return "WAC".equals(normalized) || "WEIGHTED_AVERAGE".equals(normalized) || "WEIGHTED-AVERAGE".equals(normalized);
     }
 
     private String normalizePackagingSize(String size) {

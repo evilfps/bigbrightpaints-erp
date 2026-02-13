@@ -5,6 +5,7 @@ import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
+import com.bigbrightpaints.erp.core.util.CostingMethodUtils;
 import com.bigbrightpaints.erp.core.util.MoneyUtils;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
@@ -331,7 +332,7 @@ public class ProductionLogService {
     private BigDecimal issueFromBatches(RawMaterial rawMaterial, BigDecimal requiredQty, String referenceId) {
         // Lock batches in FIFO order (pessimistic lock) to prevent double consumption
         List<RawMaterialBatch> batches = rawMaterialBatchRepository.findAvailableBatchesFIFO(rawMaterial);
-        BigDecimal weightedAverageCost = isWeightedAverage(rawMaterial.getCostingMethod())
+        BigDecimal weightedAverageCost = CostingMethodUtils.isWeightedAverage(rawMaterial.getCostingMethod())
                 ? rawMaterialBatchRepository.calculateWeightedAverageCost(rawMaterial)
                 : null;
         BigDecimal remaining = requiredQty;
@@ -383,14 +384,6 @@ public class ProductionLogService {
         }
         rawMaterialMovementRepository.saveAll(movements);
         return totalCost;
-    }
-
-    private boolean isWeightedAverage(String method) {
-        if (method == null) {
-            return false;
-        }
-        String normalized = method.trim().toUpperCase();
-        return "WAC".equals(normalized) || "WEIGHTED_AVERAGE".equals(normalized) || "WEIGHTED-AVERAGE".equals(normalized);
     }
 
     private void postMaterialJournal(Company company,
