@@ -920,9 +920,15 @@ public class ProductionCatalogService {
         boolean isNew = material.getId() == null;
         material.setName(product.getProductName());
         material.setUnitType(resolveUnit(product.getUnitOfMeasure()));
+        Long metadataInventoryAccountId = rawMaterialInventoryAccountIdFromMetadata(product);
         Long resolvedInventoryAccountId = resolveRawMaterialInventoryAccountId(company, product);
-        if (material.getInventoryAccountId() == null && resolvedInventoryAccountId != null) {
-            material.setInventoryAccountId(resolvedInventoryAccountId);
+        boolean shouldApplyInventoryAccount = resolvedInventoryAccountId != null
+                && (metadataInventoryAccountId != null || material.getInventoryAccountId() == null);
+        if (shouldApplyInventoryAccount) {
+            Long validatedInventoryAccountId = requireRawMaterialInventoryAccount(company, resolvedInventoryAccountId, sku);
+            if (!Objects.equals(material.getInventoryAccountId(), validatedInventoryAccountId)) {
+                material.setInventoryAccountId(validatedInventoryAccountId);
+            }
         }
         if (product.getGstRate() != null) {
             material.setGstRate(percent(product.getGstRate()));
@@ -934,16 +940,33 @@ public class ProductionCatalogService {
         return isNew;
     }
 
-    private Long resolveRawMaterialInventoryAccountId(Company company, ProductionProduct product) {
+    private Long rawMaterialInventoryAccountIdFromMetadata(ProductionProduct product) {
         Long metadataAccountId = metadataLong(product, "inventoryAccountId");
         if (metadataAccountId == null) {
             metadataAccountId = metadataLong(product, "rawMaterialInventoryAccountId");
         }
+        return metadataAccountId;
+    }
+
+    private Long resolveRawMaterialInventoryAccountId(Company company, ProductionProduct product) {
+        Long metadataAccountId = rawMaterialInventoryAccountIdFromMetadata(product);
         if (metadataAccountId != null && metadataAccountId > 0) {
             return metadataAccountId;
         }
         Long defaultInventoryAccountId = company != null ? company.getDefaultInventoryAccountId() : null;
         return defaultInventoryAccountId != null && defaultInventoryAccountId > 0 ? defaultInventoryAccountId : null;
+    }
+
+    private Long requireRawMaterialInventoryAccount(Company company, Long accountId, String sku) {
+        if (accountId == null || accountId <= 0) {
+            return null;
+        }
+        try {
+            return companyEntityLookup.requireAccount(company, accountId).getId();
+        } catch (IllegalArgumentException ex) {
+            throw new IllegalArgumentException(
+                    "Raw material SKU " + sku + " references an invalid inventory account id " + accountId);
+        }
     }
 
     private void ensureCatalogFinishedGood(Company company, ProductionProduct product) {

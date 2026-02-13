@@ -33,6 +33,7 @@ class ProductionCatalogRawMaterialInvariantIT extends AbstractIntegrationTest {
 
     private Company company;
     private Account inventoryAccount;
+    private Account alternateInventoryAccount;
     private String companyCode;
 
     @BeforeEach
@@ -41,6 +42,7 @@ class ProductionCatalogRawMaterialInvariantIT extends AbstractIntegrationTest {
         company = dataSeeder.ensureCompany(companyCode, companyCode + " Ltd");
         CompanyContextHolder.setCompanyId(companyCode);
         inventoryAccount = ensureAccount("RM-INV", "Raw Material Inventory", AccountType.ASSET);
+        alternateInventoryAccount = ensureAccount("RM-INV-ALT", "Raw Material Inventory Alt", AccountType.ASSET);
         company.setDefaultInventoryAccountId(inventoryAccount.getId());
         companyRepository.save(company);
     }
@@ -86,6 +88,42 @@ class ProductionCatalogRawMaterialInvariantIT extends AbstractIntegrationTest {
         assertThat(repaired.getGstRate()).isEqualByComparingTo("12.00");
     }
 
+    @Test
+    void importCatalog_acceptsInventoryAccountIdAliasColumn() {
+        CatalogImportResponse response = productionCatalogService.importCatalog(
+                rawMaterialCsvWithAccount("RM-TIO2-ALIAS", "5.00", alternateInventoryAccount.getId(), "inventory_account_id"),
+                "RM-CAT-IDEMP-03"
+        );
+
+        assertThat(response.errors()).isEmpty();
+        RawMaterial material = rawMaterialRepository.findByCompanyAndSku(company, "RM-TIO2-ALIAS").orElseThrow();
+        assertThat(material.getInventoryAccountId()).isEqualTo(alternateInventoryAccount.getId());
+        assertThat(material.getGstRate()).isEqualByComparingTo("5.00");
+    }
+
+    @Test
+    void importCatalog_explicitRawMaterialInventoryAccountRepairsStaleWrongAccount() {
+        RawMaterial stale = new RawMaterial();
+        stale.setCompany(company);
+        stale.setName("Titanium Dioxide");
+        stale.setSku("RM-TIO2-WRONG");
+        stale.setUnitType("KG");
+        stale.setCurrentStock(BigDecimal.ZERO);
+        stale.setInventoryAccountId(inventoryAccount.getId());
+        stale.setGstRate(BigDecimal.ZERO);
+        rawMaterialRepository.save(stale);
+
+        CatalogImportResponse response = productionCatalogService.importCatalog(
+                rawMaterialCsvWithAccount("RM-TIO2-WRONG", "18.00", alternateInventoryAccount.getId(), "rm_inventory_account_id"),
+                "RM-CAT-IDEMP-04"
+        );
+
+        assertThat(response.errors()).isEmpty();
+        RawMaterial repaired = rawMaterialRepository.findByCompanyAndSku(company, "RM-TIO2-WRONG").orElseThrow();
+        assertThat(repaired.getInventoryAccountId()).isEqualTo(alternateInventoryAccount.getId());
+        assertThat(repaired.getGstRate()).isEqualByComparingTo("18.00");
+    }
+
     private Account ensureAccount(String code, String name, AccountType type) {
         return accountRepository.findByCompanyAndCodeIgnoreCase(company, code)
                 .orElseGet(() -> {
@@ -110,5 +148,20 @@ class ProductionCatalogRawMaterialInvariantIT extends AbstractIntegrationTest {
                 csv.getBytes(StandardCharsets.UTF_8)
         );
     }
-}
 
+    private MockMultipartFile rawMaterialCsvWithAccount(String skuCode,
+                                                        String gstRate,
+                                                        Long inventoryAccountId,
+                                                        String accountColumnName) {
+        String csv = String.join("\n",
+                "brand,product_name,sku_code,category,unit_of_measure,gst_rate," + accountColumnName,
+                "RMBrand,Titanium Dioxide," + skuCode + ",RAW_MATERIAL,KG," + gstRate + "," + inventoryAccountId
+        );
+        return new MockMultipartFile(
+                "file",
+                "raw-material-catalog-account.csv",
+                "text/csv",
+                csv.getBytes(StandardCharsets.UTF_8)
+        );
+    }
+}
