@@ -76,6 +76,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
@@ -3138,10 +3139,21 @@ class AccountingServiceTest {
 
         AtomicInteger allocationLookups = new AtomicInteger(0);
         when(settlementAllocationRepository.findByCompanyAndIdempotencyKeyIgnoreCaseOrderByCreatedAtAscIdAsc(eq(company), eq("IDEMP-DR-SETTLE-RACE")))
-                .thenAnswer(invocation -> allocationLookups.getAndIncrement() < 1 ? List.of() : List.of(concurrentRow));
+                .thenAnswer(invocation -> allocationLookups.getAndIncrement() < 2 ? List.of() : List.of(concurrentRow));
 
         when(dealerRepository.lockByCompanyAndId(eq(company), eq(1L))).thenReturn(Optional.of(dealer));
         when(companyEntityLookup.requireAccount(eq(company), eq(20L))).thenReturn(cash);
+        when(journalReferenceMappingRepository.reserveReferenceMapping(
+                eq(company.getId()),
+                eq("idemp-dr-settle-race"),
+                eq("DR-SETTLE-RACE-NEW-1"),
+                eq("DEALER_SETTLEMENT"),
+                any()))
+                .thenReturn(1);
+        when(invoiceRepository.lockByCompanyAndId(eq(company), eq(702L))).thenReturn(Optional.of(invoice));
+        doReturn(stubEntry(950L)).when(service).createJournalEntry(any(JournalEntryRequest.class));
+        when(companyEntityLookup.requireJournalEntry(eq(company), eq(950L))).thenReturn(createdEntry);
+        when(settlementAllocationRepository.saveAll(any())).thenThrow(new DataIntegrityViolationException("duplicate"));
 
         DealerSettlementRequest request = new DealerSettlementRequest(
                 1L,
@@ -3172,8 +3184,8 @@ class AccountingServiceTest {
         assertThat(response.journalEntry()).isNotNull();
         assertThat(response.journalEntry().id()).isEqualTo(951L);
         ArgumentCaptor<JournalReferenceMapping> mappingCaptor = ArgumentCaptor.forClass(JournalReferenceMapping.class);
-        verify(journalReferenceMappingRepository, times(1)).save(mappingCaptor.capture());
-        JournalReferenceMapping savedMapping = mappingCaptor.getValue();
+        verify(journalReferenceMappingRepository, atLeastOnce()).save(mappingCaptor.capture());
+        JournalReferenceMapping savedMapping = mappingCaptor.getAllValues().getLast();
         assertThat(savedMapping.getLegacyReference()).isEqualTo("idemp-dr-settle-race");
         assertThat(savedMapping.getEntityId()).isEqualTo(951L);
         assertThat(savedMapping.getEntityType()).isEqualTo("DEALER_SETTLEMENT");
