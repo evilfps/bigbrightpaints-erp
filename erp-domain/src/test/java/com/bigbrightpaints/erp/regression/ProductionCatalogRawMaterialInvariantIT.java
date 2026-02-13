@@ -6,6 +6,8 @@ import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
+import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGood;
+import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterial;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialRepository;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionBrand;
@@ -39,6 +41,7 @@ class ProductionCatalogRawMaterialInvariantIT extends AbstractIntegrationTest {
     @Autowired private CompanyRepository companyRepository;
     @Autowired private AccountRepository accountRepository;
     @Autowired private ProductionCatalogService productionCatalogService;
+    @Autowired private FinishedGoodRepository finishedGoodRepository;
     @Autowired private RawMaterialRepository rawMaterialRepository;
     @Autowired private ProductionBrandRepository productionBrandRepository;
     @Autowired private ProductionProductRepository productionProductRepository;
@@ -185,14 +188,7 @@ class ProductionCatalogRawMaterialInvariantIT extends AbstractIntegrationTest {
 
     @Test
     void importCatalog_rejectsFinishedGoodAccountOutsideCompanyScope() {
-        Account cogsAccount = ensureAccount("FG-COGS", "Finished Good COGS", AccountType.COGS);
-        Account revenueAccount = ensureAccount("FG-REV", "Finished Good Revenue", AccountType.REVENUE);
-        Account taxAccount = ensureAccount("FG-TAX", "Finished Good Tax", AccountType.LIABILITY);
-        Company managedCompany = companyRepository.findById(company.getId()).orElseThrow();
-        managedCompany.setDefaultCogsAccountId(cogsAccount.getId());
-        managedCompany.setDefaultRevenueAccountId(revenueAccount.getId());
-        managedCompany.setDefaultTaxAccountId(taxAccount.getId());
-        company = companyRepository.save(managedCompany);
+        configureFinishedGoodDefaultAccounts();
 
         Company foreignCompany = dataSeeder.ensureCompany(
                 "FG-FOREIGN-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase(),
@@ -227,6 +223,48 @@ class ProductionCatalogRawMaterialInvariantIT extends AbstractIntegrationTest {
         assertThat(productionProductRepository.findByCompanyAndSkuCode(company, "FG-OUTSIDE-01")).isEmpty();
     }
 
+    @Test
+    void importCatalog_repairsDriftedFinishedGoodCostingAlias_onFreshImportAndReplay() {
+        configureFinishedGoodDefaultAccounts();
+
+        FinishedGood drifted = new FinishedGood();
+        drifted.setCompany(company);
+        drifted.setProductCode("FG-COST-DRIFT-01");
+        drifted.setName("Legacy Drifted FG");
+        drifted.setUnit("LTR");
+        drifted.setCurrentStock(BigDecimal.ZERO);
+        drifted.setReservedStock(BigDecimal.ZERO);
+        drifted.setValuationAccountId(inventoryAccount.getId());
+        drifted.setCogsAccountId(company.getDefaultCogsAccountId());
+        drifted.setRevenueAccountId(company.getDefaultRevenueAccountId());
+        drifted.setTaxAccountId(company.getDefaultTaxAccountId());
+        drifted.setCostingMethod(" weighted_average ");
+        finishedGoodRepository.save(drifted);
+
+        MockMultipartFile importFile = finishedGoodCsvWithAccount(
+                "FG-COST-DRIFT-01",
+                "18.00",
+                inventoryAccount.getId(),
+                "fg_valuation_account_id");
+
+        CatalogImportResponse firstImport = productionCatalogService.importCatalog(importFile, "RM-CAT-IDEMP-07");
+        assertThat(firstImport.errors()).isEmpty();
+        FinishedGood afterFirstImport = finishedGoodRepository
+                .findByCompanyAndProductCode(company, "FG-COST-DRIFT-01")
+                .orElseThrow();
+        assertThat(afterFirstImport.getCostingMethod()).isEqualTo("WAC");
+
+        afterFirstImport.setCostingMethod("weighted-average");
+        finishedGoodRepository.save(afterFirstImport);
+
+        CatalogImportResponse replayImport = productionCatalogService.importCatalog(importFile, "RM-CAT-IDEMP-08");
+        assertThat(replayImport.errors()).isEmpty();
+        FinishedGood afterReplayImport = finishedGoodRepository
+                .findByCompanyAndProductCode(company, "FG-COST-DRIFT-01")
+                .orElseThrow();
+        assertThat(afterReplayImport.getCostingMethod()).isEqualTo("WAC");
+    }
+
     private Account ensureAccount(String code, String name, AccountType type) {
         return ensureAccountFor(company, code, name, type);
     }
@@ -241,6 +279,17 @@ class ProductionCatalogRawMaterialInvariantIT extends AbstractIntegrationTest {
                     account.setType(type);
                     return accountRepository.save(account);
                 });
+    }
+
+    private void configureFinishedGoodDefaultAccounts() {
+        Account cogsAccount = ensureAccount("FG-COGS", "Finished Good COGS", AccountType.COGS);
+        Account revenueAccount = ensureAccount("FG-REV", "Finished Good Revenue", AccountType.REVENUE);
+        Account taxAccount = ensureAccount("FG-TAX", "Finished Good Tax", AccountType.LIABILITY);
+        Company managedCompany = companyRepository.findById(company.getId()).orElseThrow();
+        managedCompany.setDefaultCogsAccountId(cogsAccount.getId());
+        managedCompany.setDefaultRevenueAccountId(revenueAccount.getId());
+        managedCompany.setDefaultTaxAccountId(taxAccount.getId());
+        company = companyRepository.save(managedCompany);
     }
 
     private ProductionProduct seedRawMaterialProduct(String skuCode,

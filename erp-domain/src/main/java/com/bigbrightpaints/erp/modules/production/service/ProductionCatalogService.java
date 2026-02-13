@@ -1185,8 +1185,9 @@ public class ProductionCatalogService {
             finishedGood.setDiscountAccountId(discountAccountId);
             dirty = true;
         }
-        if (!StringUtils.hasText(finishedGood.getCostingMethod())) {
-            finishedGood.setCostingMethod("FIFO");
+        String canonicalCostingMethod = canonicalizeFinishedGoodCostingMethod(finishedGood.getCostingMethod());
+        if (!Objects.equals(finishedGood.getCostingMethod(), canonicalCostingMethod)) {
+            finishedGood.setCostingMethod(canonicalCostingMethod);
             dirty = true;
         }
         if (dirty) {
@@ -1225,8 +1226,9 @@ public class ProductionCatalogService {
                     existing.setDiscountAccountId(discountAccountId);
                     needsSync = true;
                 }
-                if (!StringUtils.hasText(existing.getCostingMethod())) {
-                    existing.setCostingMethod("FIFO");
+                String existingCanonicalCostingMethod = canonicalizeFinishedGoodCostingMethod(existing.getCostingMethod());
+                if (!Objects.equals(existing.getCostingMethod(), existingCanonicalCostingMethod)) {
+                    existing.setCostingMethod(existingCanonicalCostingMethod);
                     needsSync = true;
                 }
                 if (needsSync) {
@@ -1241,6 +1243,19 @@ public class ProductionCatalogService {
             return unit.trim();
         }
         return "UNIT";
+    }
+
+    private String canonicalizeFinishedGoodCostingMethod(String method) {
+        if (!StringUtils.hasText(method)) {
+            return "FIFO";
+        }
+        String normalized = method.trim().toUpperCase(Locale.ROOT);
+        return switch (normalized) {
+            case "FIFO" -> "FIFO";
+            case "LIFO" -> "LIFO";
+            case "WAC", "WEIGHTED_AVERAGE", "WEIGHTED-AVERAGE" -> "WAC";
+            default -> method.trim();
+        };
     }
 
     private Long requiredMetadataLong(ProductionProduct product, String key) {
