@@ -173,6 +173,109 @@ class RawMaterialAndProductUpdateIT extends AbstractIntegrationTest {
     }
 
     @Test
+    void finished_good_create_normalizes_weighted_average_alias_to_wac() {
+        HttpHeaders headers = authenticatedHeaders();
+
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("productCode", "FG-NORM-" + UUID.randomUUID().toString().substring(0, 8));
+        payload.put("name", "FG Normalization");
+        payload.put("unit", "UNIT");
+        payload.put("costingMethod", " weighted-average ");
+
+        ResponseEntity<Map> create = rest.exchange(
+                "/api/v1/finished-goods",
+                HttpMethod.POST,
+                new HttpEntity<>(payload, headers),
+                Map.class
+        );
+
+        assertThat(create.getStatusCode()).isEqualTo(HttpStatus.OK);
+        Map<?, ?> data = (Map<?, ?>) create.getBody().get("data");
+        assertThat(data.get("costingMethod")).isEqualTo("WAC");
+    }
+
+    @Test
+    void finished_good_create_preserves_lifo_method() {
+        HttpHeaders headers = authenticatedHeaders();
+
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("productCode", "FG-LIFO-" + UUID.randomUUID().toString().substring(0, 8));
+        payload.put("name", "FG LIFO");
+        payload.put("unit", "UNIT");
+        payload.put("costingMethod", " lifo ");
+
+        ResponseEntity<Map> create = rest.exchange(
+                "/api/v1/finished-goods",
+                HttpMethod.POST,
+                new HttpEntity<>(payload, headers),
+                Map.class
+        );
+
+        assertThat(create.getStatusCode()).isEqualTo(HttpStatus.OK);
+        Map<?, ?> data = (Map<?, ?>) create.getBody().get("data");
+        assertThat(data.get("costingMethod")).isEqualTo("LIFO");
+    }
+
+    @Test
+    void finished_good_update_normalizes_weighted_average_alias_to_wac() {
+        HttpHeaders headers = authenticatedHeaders();
+
+        Map<String, Object> createPayload = new HashMap<>();
+        createPayload.put("productCode", "FG-UPD-" + UUID.randomUUID().toString().substring(0, 8));
+        createPayload.put("name", "FG Update");
+        createPayload.put("unit", "UNIT");
+        createPayload.put("costingMethod", "FIFO");
+
+        ResponseEntity<Map> create = rest.exchange(
+                "/api/v1/finished-goods",
+                HttpMethod.POST,
+                new HttpEntity<>(createPayload, headers),
+                Map.class
+        );
+        assertThat(create.getStatusCode()).isEqualTo(HttpStatus.OK);
+        Map<?, ?> createdData = (Map<?, ?>) create.getBody().get("data");
+        Long finishedGoodId = ((Number) createdData.get("id")).longValue();
+
+        Map<String, Object> updatePayload = new HashMap<>();
+        updatePayload.put("productCode", createPayload.get("productCode"));
+        updatePayload.put("name", "FG Update Normalized");
+        updatePayload.put("unit", "UNIT");
+        updatePayload.put("costingMethod", "weighted_average");
+
+        ResponseEntity<Map> update = rest.exchange(
+                "/api/v1/finished-goods/" + finishedGoodId,
+                HttpMethod.PUT,
+                new HttpEntity<>(updatePayload, headers),
+                Map.class
+        );
+
+        assertThat(update.getStatusCode()).isEqualTo(HttpStatus.OK);
+        Map<?, ?> updatedData = (Map<?, ?>) update.getBody().get("data");
+        assertThat(updatedData.get("costingMethod")).isEqualTo("WAC");
+    }
+
+    @Test
+    void finished_good_create_rejects_unsupported_costing_method() {
+        HttpHeaders headers = authenticatedHeaders();
+
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("productCode", "FG-BAD-" + UUID.randomUUID().toString().substring(0, 8));
+        payload.put("name", "FG Bad Method");
+        payload.put("unit", "UNIT");
+        payload.put("costingMethod", "ABC");
+
+        ResponseEntity<Map> create = rest.exchange(
+                "/api/v1/finished-goods",
+                HttpMethod.POST,
+                new HttpEntity<>(payload, headers),
+                Map.class
+        );
+
+        assertThat(create.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(String.valueOf(create.getBody())).contains("Unsupported costing method");
+    }
+
+    @Test
     void create_product_rejects_multi_value_color_and_size_and_points_to_bulk_variants() {
         HttpHeaders headers = authenticatedHeaders();
 

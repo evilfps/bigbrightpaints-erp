@@ -127,7 +127,7 @@ public class FinishedGoodsService {
             fg.setUnit(request.unit());
         }
         if (request.costingMethod() != null) {
-            fg.setCostingMethod(request.costingMethod());
+            fg.setCostingMethod(normalizeCostingMethod(request.costingMethod()));
         }
         if (request.valuationAccountId() != null) {
             fg.setValuationAccountId(request.valuationAccountId());
@@ -198,7 +198,7 @@ public class FinishedGoodsService {
         finishedGood.setProductCode(request.productCode());
         finishedGood.setName(request.name());
         finishedGood.setUnit(request.unit() == null ? "UNIT" : request.unit());
-        finishedGood.setCostingMethod(request.costingMethod() == null ? "FIFO" : request.costingMethod());
+        finishedGood.setCostingMethod(normalizeCostingMethod(request.costingMethod()));
         finishedGood.setCurrentStock(BigDecimal.ZERO);
         finishedGood.setReservedStock(BigDecimal.ZERO);
         finishedGood.setValuationAccountId(request.valuationAccountId());
@@ -1978,6 +1978,19 @@ public class FinishedGoodsService {
         if (finishedGood.getTaxAccountId() == null) {
             finishedGood.setTaxAccountId(defaults.taxAccountId());
         }
+    }
+
+    private String normalizeCostingMethod(String method) {
+        if (!StringUtils.hasText(method)) {
+            return "FIFO";
+        }
+        String normalized = method.trim().toUpperCase();
+        return switch (normalized) {
+            case "FIFO" -> "FIFO";
+            case "LIFO" -> "LIFO";
+            case "WAC", "WEIGHTED_AVERAGE", "WEIGHTED-AVERAGE" -> "WAC";
+            default -> throw new IllegalArgumentException("Unsupported costing method " + method);
+        };
     }
 
     public void invalidateWeightedAverageCost(Long finishedGoodId) {
