@@ -65,6 +65,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 
@@ -203,7 +204,7 @@ class CR_PurchasingToApAccountingTest extends AbstractIntegrationTest {
         Company company = bootstrapCompany(companyCode);
         Map<String, Account> accounts = ensurePurchasingAccounts(company);
         Supplier supplier = ensureSupplier(company, accounts.get("AP"));
-        String importedSku = "CR-RM-IMP-" + shortId();
+        String importedSku = ("CR-RM-IMP-" + shortId()).toUpperCase(Locale.ROOT);
         RawMaterial importedRawMaterial;
         RawMaterialPurchaseResponse purchase;
 
