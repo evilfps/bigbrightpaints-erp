@@ -10,6 +10,8 @@ import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterial;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialRepository;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionBrand;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionBrandRepository;
+import com.bigbrightpaints.erp.modules.production.domain.CatalogImport;
+import com.bigbrightpaints.erp.modules.production.domain.CatalogImportRepository;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionProduct;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionProductRepository;
 import com.bigbrightpaints.erp.modules.production.dto.CatalogImportResponse;
@@ -40,6 +42,7 @@ class ProductionCatalogRawMaterialInvariantIT extends AbstractIntegrationTest {
     @Autowired private RawMaterialRepository rawMaterialRepository;
     @Autowired private ProductionBrandRepository productionBrandRepository;
     @Autowired private ProductionProductRepository productionProductRepository;
+    @Autowired private CatalogImportRepository catalogImportRepository;
 
     private Company company;
     private Account inventoryAccount;
@@ -206,7 +209,13 @@ class ProductionCatalogRawMaterialInvariantIT extends AbstractIntegrationTest {
                 foreignValuationAccount.getId(),
                 "fg_valuation_account_id");
         CatalogImportResponse response = productionCatalogService.importCatalog(importFile, "RM-CAT-IDEMP-06");
+        CatalogImport firstImportRecord = catalogImportRepository
+                .findByCompanyAndIdempotencyKey(company, "RM-CAT-IDEMP-06")
+                .orElseThrow();
         CatalogImportResponse replay = productionCatalogService.importCatalog(importFile, "RM-CAT-IDEMP-06");
+        CatalogImport replayImportRecord = catalogImportRepository
+                .findByCompanyAndIdempotencyKey(company, "RM-CAT-IDEMP-06")
+                .orElseThrow();
 
         assertThat(response.errors()).hasSize(1);
         assertThat(replay.errors()).hasSize(1);
@@ -214,6 +223,7 @@ class ProductionCatalogRawMaterialInvariantIT extends AbstractIntegrationTest {
                 .contains("invalid account id")
                 .contains("fgValuationAccountId");
         assertThat(replay.errors().getFirst().message()).isEqualTo(response.errors().getFirst().message());
+        assertThat(replayImportRecord.getId()).isEqualTo(firstImportRecord.getId());
         assertThat(productionProductRepository.findByCompanyAndSkuCode(company, "FG-OUTSIDE-01")).isEmpty();
     }
 
