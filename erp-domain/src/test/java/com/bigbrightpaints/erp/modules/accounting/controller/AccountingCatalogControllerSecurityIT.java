@@ -115,11 +115,119 @@ class AccountingCatalogControllerSecurityIT extends AbstractIntegrationTest {
         assertThat(rawMaterialRepository.findByCompanyAndSku(company, secondSku)).isEmpty();
     }
 
+    @Test
+    void accountingCatalogImport_rejectsMissingFilePartWithoutMutations() {
+        Company company = dataSeeder.ensureCompany(COMPANY_CODE, "Catalog Sec Co");
+        HttpHeaders accountingHeaders = authHeaders(ACCOUNTING_EMAIL, PASSWORD, COMPANY_CODE);
+        String idempotencyKey = "CAT-MISSING-FILE-" + shortId();
+
+        ResponseEntity<Map> response = importCatalogWithoutFile(accountingHeaders, idempotencyKey);
+
+        assertThat(response.getStatusCode().is4xxClientError()).isTrue();
+        assertThat(catalogImportRepository.findByCompanyAndIdempotencyKey(company, idempotencyKey)).isEmpty();
+    }
+
+    @Test
+    void accountingCatalogImport_rejectsEmptyFileWithoutMutations() {
+        Company company = dataSeeder.ensureCompany(COMPANY_CODE, "Catalog Sec Co");
+        HttpHeaders accountingHeaders = authHeaders(ACCOUNTING_EMAIL, PASSWORD, COMPANY_CODE);
+        String idempotencyKey = "CAT-EMPTY-FILE-" + shortId();
+
+        ResponseEntity<Map> response = importCatalogWithCustomFile(
+                accountingHeaders,
+                "",
+                "empty.csv",
+                "text/csv",
+                idempotencyKey);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(catalogImportRepository.findByCompanyAndIdempotencyKey(company, idempotencyKey)).isEmpty();
+    }
+
+    @Test
+    void accountingCatalogImport_rejectsWrongFileContentTypeWithoutMutations() {
+        Company company = dataSeeder.ensureCompany(COMPANY_CODE, "Catalog Sec Co");
+        HttpHeaders accountingHeaders = authHeaders(ACCOUNTING_EMAIL, PASSWORD, COMPANY_CODE);
+        String idempotencyKey = "CAT-WRONG-TYPE-" + shortId();
+        String sku = "RM-WRONG-TYPE-" + shortId();
+
+        ResponseEntity<Map> response = importCatalogWithCustomFile(
+                accountingHeaders,
+                catalogCsvContent(sku),
+                "catalog-" + sku + ".txt",
+                "text/plain",
+                idempotencyKey);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
+        assertThat(catalogImportRepository.findByCompanyAndIdempotencyKey(company, idempotencyKey)).isEmpty();
+        assertThat(rawMaterialRepository.findByCompanyAndSku(company, sku)).isEmpty();
+    }
+
+    @Test
+    void accountingCatalogImport_rejectsOversizedRowWithoutInventoryMutation() {
+        Company company = dataSeeder.ensureCompany(COMPANY_CODE, "Catalog Sec Co");
+        HttpHeaders accountingHeaders = authHeaders(ACCOUNTING_EMAIL, PASSWORD, COMPANY_CODE);
+        String idempotencyKey = "CAT-OVERSIZED-" + shortId();
+        String oversizedName = "P".repeat(2100);
+        String sku = "RM-OVERSIZE-" + shortId();
+        String csv = String.join("\n",
+                "brand,product_name,sku_code,category,unit_of_measure,gst_rate",
+                "RBAC Brand," + oversizedName + "," + sku + ",RAW_MATERIAL,KG,18.00");
+
+        ResponseEntity<Map> response = importCatalogWithCustomFile(
+                accountingHeaders,
+                csv,
+                "catalog-" + sku + ".csv",
+                "text/csv",
+                idempotencyKey);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isNotNull();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> data = (Map<String, Object>) response.getBody().get("data");
+        assertThat(data).containsEntry("rowsProcessed", 0);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> errors = (List<Map<String, Object>>) data.get("errors");
+        assertThat(errors).isNotEmpty();
+        assertThat(errors.getFirst().get("message").toString()).contains("exceeds max length");
+        assertThat(rawMaterialRepository.findByCompanyAndSku(company, sku)).isEmpty();
+    }
+
     private ResponseEntity<Map> importCatalog(HttpHeaders headers, String sku, String idempotencyKey) {
+        return importCatalogWithCustomFile(
+                headers,
+                catalogCsvContent(sku),
+                "catalog-" + sku + ".csv",
+                "text/csv",
+                idempotencyKey);
+    }
+
+    private ResponseEntity<Map> importCatalogWithCustomFile(HttpHeaders headers,
+                                                            String csvContent,
+                                                            String fileName,
+                                                            String fileContentType,
+                                                            String idempotencyKey) {
         MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
         HttpHeaders fileHeaders = new HttpHeaders();
-        fileHeaders.setContentType(MediaType.parseMediaType("text/csv"));
-        body.add("file", new HttpEntity<>(catalogCsv(sku), fileHeaders));
+        if (fileContentType != null) {
+            fileHeaders.setContentType(MediaType.parseMediaType(fileContentType));
+        }
+        body.add("file", new HttpEntity<>(catalogCsvResource(fileName, csvContent), fileHeaders));
+
+        HttpHeaders requestHeaders = new HttpHeaders();
+        requestHeaders.putAll(headers);
+        requestHeaders.setContentType(MediaType.MULTIPART_FORM_DATA);
+        requestHeaders.set("Idempotency-Key", idempotencyKey);
+
+        return rest.exchange(
+                "/api/v1/accounting/catalog/import",
+                HttpMethod.POST,
+                new HttpEntity<>(body, requestHeaders),
+                Map.class);
+    }
+
+    private ResponseEntity<Map> importCatalogWithoutFile(HttpHeaders headers, String idempotencyKey) {
+        MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
 
         HttpHeaders requestHeaders = new HttpHeaders();
         requestHeaders.putAll(headers);
@@ -149,15 +257,18 @@ class AccountingCatalogControllerSecurityIT extends AbstractIntegrationTest {
         return headers;
     }
 
-    private ByteArrayResource catalogCsv(String sku) {
-        String csv = String.join("\n",
+    private String catalogCsvContent(String sku) {
+        return String.join("\n",
                 "brand,product_name,sku_code,category,unit_of_measure,gst_rate",
                 "RBAC Brand,RBAC Product " + sku + "," + sku + ",RAW_MATERIAL,KG,18.00"
         );
-        return new ByteArrayResource(csv.getBytes(StandardCharsets.UTF_8)) {
+    }
+
+    private ByteArrayResource catalogCsvResource(String fileName, String csvContent) {
+        return new ByteArrayResource(csvContent.getBytes(StandardCharsets.UTF_8)) {
             @Override
             public String getFilename() {
-                return "catalog-" + sku + ".csv";
+                return fileName;
             }
         };
     }

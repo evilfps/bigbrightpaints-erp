@@ -76,6 +76,12 @@ public class ProductionCatalogService {
     private static final Pattern MULTI_VALUE_DELIMITER = Pattern.compile("[,;\\n]");
     private static final Pattern SEQUENCE_PATTERN = Pattern.compile(".*-(\\d{3})$");
     private static final String SEMI_FINISHED_SUFFIX = "-BULK";
+    private static final int MAX_CATALOG_FIELD_LENGTH = 2048;
+    private static final Set<String> CATALOG_IMPORT_ALLOWED_CONTENT_TYPES = Set.of(
+            "text/csv",
+            "application/csv",
+            "application/vnd.ms-excel"
+    );
     private static final List<String> RAW_MATERIAL_CATEGORIES = List.of("RAW_MATERIAL", "RAW MATERIAL", "RAW-MATERIAL");
     private static final List<String> FINISHED_GOOD_ACCOUNT_KEYS = List.of(
             "fgValuationAccountId",
@@ -139,6 +145,10 @@ public class ProductionCatalogService {
         Company company = companyContextService.requireCurrentCompany();
         if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("CSV file is required");
+        }
+        if (!isSupportedCatalogContentType(file)) {
+            throw new ApplicationException(ErrorCode.FILE_INVALID_TYPE,
+                    "Catalog import accepts CSV files only");
         }
         String fileHash = sha256Hex(file);
         String normalizedKey = normalizeIdempotencyKey(idempotencyKey, fileHash);
@@ -1565,6 +1575,22 @@ public class ProductionCatalogService {
         }
     }
 
+    private boolean isSupportedCatalogContentType(MultipartFile file) {
+        String contentType = file.getContentType();
+        if (StringUtils.hasText(contentType)) {
+            String normalized = contentType.trim().toLowerCase(Locale.ROOT);
+            int parametersIndex = normalized.indexOf(';');
+            if (parametersIndex >= 0) {
+                normalized = normalized.substring(0, parametersIndex).trim();
+            }
+            if (CATALOG_IMPORT_ALLOWED_CONTENT_TYPES.contains(normalized)) {
+                return true;
+            }
+        }
+        String fileName = file.getOriginalFilename();
+        return StringUtils.hasText(fileName) && fileName.trim().toLowerCase(Locale.ROOT).endsWith(".csv");
+    }
+
     private record ColorSizeSpec(String color, List<String> sizes) {
         private ColorSizeSpec {
             color = color == null ? "" : color;
@@ -1647,7 +1673,15 @@ public class ProductionCatalogService {
             for (Map.Entry<String, String> entry : map.entrySet()) {
                 if (entry.getKey() != null && entry.getKey().equalsIgnoreCase(column)) {
                     String value = entry.getValue();
-                    return StringUtils.hasText(value) ? value.trim() : null;
+                    if (!StringUtils.hasText(value)) {
+                        return null;
+                    }
+                    String trimmed = value.trim();
+                    if (trimmed.length() > MAX_CATALOG_FIELD_LENGTH) {
+                        throw new IllegalArgumentException("Column '" + column + "' exceeds max length of "
+                                + MAX_CATALOG_FIELD_LENGTH + " characters");
+                    }
+                    return trimmed;
                 }
             }
             return null;
