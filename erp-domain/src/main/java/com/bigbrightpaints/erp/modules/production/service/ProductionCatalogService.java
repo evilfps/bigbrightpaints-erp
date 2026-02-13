@@ -1044,8 +1044,9 @@ public class ProductionCatalogService {
         if (product.getGstRate() != null) {
             material.setGstRate(percent(product.getGstRate()));
         }
-        if (!StringUtils.hasText(material.getCostingMethod())) {
-            material.setCostingMethod("FIFO");
+        String canonicalCostingMethod = CostingMethodUtils.canonicalizeRawMaterialMethodForSync(material.getCostingMethod());
+        if (!Objects.equals(material.getCostingMethod(), canonicalCostingMethod)) {
+            material.setCostingMethod(canonicalCostingMethod);
         }
         rawMaterialRepository.save(material);
         return isNew;

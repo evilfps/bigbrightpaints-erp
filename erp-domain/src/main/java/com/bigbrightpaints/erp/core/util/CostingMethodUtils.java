@@ -55,4 +55,17 @@ public final class CostingMethodUtils {
             default -> trimmed;
         };
     }
+
+    public static String canonicalizeRawMaterialMethodForSync(String method) {
+        if (method == null || method.isBlank()) {
+            return "FIFO";
+        }
+        String trimmed = method.trim();
+        String normalized = trimmed.toUpperCase(Locale.ROOT);
+        return switch (normalized) {
+            case "FIFO" -> "FIFO";
+            case "WAC", "WEIGHTED_AVERAGE", "WEIGHTED-AVERAGE" -> "WAC";
+            default -> trimmed;
+        };
+    }
 }

@@ -165,6 +165,59 @@ class ProductionCatalogRawMaterialInvariantIT extends AbstractIntegrationTest {
     }
 
     @Test
+    void importCatalog_repairsDriftedRawMaterialCostingAlias_onFreshImportAndReplay() {
+        RawMaterial drifted = new RawMaterial();
+        drifted.setCompany(company);
+        drifted.setName("Titanium Dioxide");
+        drifted.setSku("RM-TIO2-COST-DRIFT");
+        drifted.setUnitType("KG");
+        drifted.setCurrentStock(BigDecimal.ZERO);
+        drifted.setInventoryAccountId(inventoryAccount.getId());
+        drifted.setGstRate(BigDecimal.ZERO);
+        drifted.setCostingMethod(" weighted_average ");
+        rawMaterialRepository.save(drifted);
+
+        MockMultipartFile importFile = rawMaterialCsv("RM-TIO2-COST-DRIFT", "18.00");
+        CatalogImportResponse firstImport = productionCatalogService.importCatalog(importFile, "RM-CAT-IDEMP-17");
+        assertThat(firstImport.errors()).isEmpty();
+
+        RawMaterial afterFirstImport = rawMaterialRepository.findByCompanyAndSku(company, "RM-TIO2-COST-DRIFT").orElseThrow();
+        assertThat(afterFirstImport.getCostingMethod()).isEqualTo("WAC");
+
+        afterFirstImport.setCostingMethod("weighted-average");
+        rawMaterialRepository.save(afterFirstImport);
+
+        CatalogImportResponse replayImport = productionCatalogService.importCatalog(importFile, "RM-CAT-IDEMP-18");
+        assertThat(replayImport.errors()).isEmpty();
+        RawMaterial afterReplayImport = rawMaterialRepository.findByCompanyAndSku(company, "RM-TIO2-COST-DRIFT").orElseThrow();
+        assertThat(afterReplayImport.getCostingMethod()).isEqualTo("WAC");
+    }
+
+    @Test
+    void importCatalog_preservesUnsupportedRawMaterialCostingMethod_onSync() {
+        RawMaterial legacy = new RawMaterial();
+        legacy.setCompany(company);
+        legacy.setName("Titanium Dioxide");
+        legacy.setSku("RM-TIO2-COST-LEGACY");
+        legacy.setUnitType("KG");
+        legacy.setCurrentStock(BigDecimal.ZERO);
+        legacy.setInventoryAccountId(inventoryAccount.getId());
+        legacy.setGstRate(BigDecimal.ZERO);
+        legacy.setCostingMethod("CUSTOM_METHOD");
+        rawMaterialRepository.save(legacy);
+
+        CatalogImportResponse response = productionCatalogService.importCatalog(
+                rawMaterialCsv("RM-TIO2-COST-LEGACY", "12.00"),
+                "RM-CAT-IDEMP-19"
+        );
+
+        assertThat(response.errors()).isEmpty();
+        RawMaterial synced = rawMaterialRepository.findByCompanyAndSku(company, "RM-TIO2-COST-LEGACY").orElseThrow();
+        assertThat(synced.getCostingMethod()).isEqualTo("CUSTOM_METHOD");
+        assertThat(synced.getGstRate()).isEqualByComparingTo("12.00");
+    }
+
+    @Test
     void importCatalog_rejectsRawMaterialInventoryAccountOutsideCompanyScope() {
         Company foreignCompany = dataSeeder.ensureCompany(
                 "RM-FOREIGN-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase(),

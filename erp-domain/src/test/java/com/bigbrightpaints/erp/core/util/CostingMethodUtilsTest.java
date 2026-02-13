@@ -35,6 +35,7 @@ class CostingMethodUtilsTest {
             assertThat(CostingMethodUtils.normalizeRawMaterialMethodOrDefault(" weighted_average ")).isEqualTo("WAC");
             assertThat(CostingMethodUtils.normalizeFinishedGoodMethodOrDefault(" weighted-average ")).isEqualTo("WAC");
             assertThat(CostingMethodUtils.canonicalizeFinishedGoodMethodForSync(" weighted_average ")).isEqualTo("WAC");
+            assertThat(CostingMethodUtils.canonicalizeRawMaterialMethodForSync(" weighted-average ")).isEqualTo("WAC");
         } finally {
             Locale.setDefault(previous);
         }
@@ -68,5 +69,13 @@ class CostingMethodUtilsTest {
         assertThat(CostingMethodUtils.canonicalizeFinishedGoodMethodForSync(" lifo ")).isEqualTo("LIFO");
         assertThat(CostingMethodUtils.canonicalizeFinishedGoodMethodForSync(null)).isEqualTo("FIFO");
         assertThat(CostingMethodUtils.canonicalizeFinishedGoodMethodForSync(" custom_method ")).isEqualTo("custom_method");
+    }
+
+    @Test
+    void canonicalizeRawMaterialMethodForSync_canonicalizesKnownAndPreservesUnknownTrimmed() {
+        assertThat(CostingMethodUtils.canonicalizeRawMaterialMethodForSync(" weighted_average ")).isEqualTo("WAC");
+        assertThat(CostingMethodUtils.canonicalizeRawMaterialMethodForSync(" fifo ")).isEqualTo("FIFO");
+        assertThat(CostingMethodUtils.canonicalizeRawMaterialMethodForSync(null)).isEqualTo("FIFO");
+        assertThat(CostingMethodUtils.canonicalizeRawMaterialMethodForSync(" custom_method ")).isEqualTo("custom_method");
     }
 }
