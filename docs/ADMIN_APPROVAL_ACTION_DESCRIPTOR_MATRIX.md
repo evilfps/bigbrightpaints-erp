@@ -4,6 +4,7 @@ Purpose: exact contract for what each admin approval queue item means, where it 
 
 Source of truth:
 - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/admin/controller/AdminSettingsController.java`
+- `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/sales/controller/DealerPortalController.java`
 - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/sales/service/SalesService.java`
 - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/sales/service/CreditLimitOverrideService.java`
 - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/hr/service/PayrollService.java`
@@ -34,6 +35,7 @@ Each queue item is `AdminApprovalItemDto` with:
 ### 3.1 Credit request queue items
 
 - `sourcePortal` is `DEALER_PORTAL`.
+- Dealer submission endpoint is `POST /api/v1/dealer-portal/credit-requests`.
 - `reference` format is `CR-{id}`.
 - `summary` includes:
   - dealer name

@@ -1,5 +1,11 @@
 package com.bigbrightpaints.erp.modules.admin;
 
+import com.bigbrightpaints.erp.modules.auth.domain.UserAccount;
+import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
+import com.bigbrightpaints.erp.modules.company.domain.Company;
+import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
+import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
+import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
 import com.bigbrightpaints.erp.test.AbstractIntegrationTest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -26,10 +32,18 @@ class AdminApprovalRbacIT extends AbstractIntegrationTest {
     private static final String ACCOUNTING_EMAIL = "approval-accounting@bbp.com";
     private static final String SALES_EMAIL = "approval-sales@bbp.com";
     private static final String FACTORY_EMAIL = "approval-factory@bbp.com";
+    private static final String DEALER_EMAIL = "approval-dealer@bbp.com";
+    private static final String DEALER_CODE = "APPROVAL-DEALER";
     private static final String PASSWORD = "Approval123!";
 
     @Autowired
     private TestRestTemplate rest;
+    @Autowired
+    private CompanyRepository companyRepository;
+    @Autowired
+    private UserAccountRepository userAccountRepository;
+    @Autowired
+    private DealerRepository dealerRepository;
 
     @BeforeEach
     void setupUsers() {
@@ -37,6 +51,8 @@ class AdminApprovalRbacIT extends AbstractIntegrationTest {
         dataSeeder.ensureUser(ACCOUNTING_EMAIL, PASSWORD, "Approval Accounting", COMPANY_CODE, List.of("ROLE_ACCOUNTING"));
         dataSeeder.ensureUser(SALES_EMAIL, PASSWORD, "Approval Sales", COMPANY_CODE, List.of("ROLE_SALES"));
         dataSeeder.ensureUser(FACTORY_EMAIL, PASSWORD, "Approval Factory", COMPANY_CODE, List.of("ROLE_FACTORY"));
+        dataSeeder.ensureUser(DEALER_EMAIL, PASSWORD, "Approval Dealer", COMPANY_CODE, List.of("ROLE_DEALER"));
+        ensureDealerPortalMapping();
     }
 
     @Test
@@ -220,6 +236,58 @@ class AdminApprovalRbacIT extends AbstractIntegrationTest {
         assertThat(adminMarkPaid.getStatusCode()).isNotEqualTo(HttpStatus.FORBIDDEN);
     }
 
+    @Test
+    void dealerPortalCreditRequestFeedsAdminApprovalsQueue() {
+        HttpHeaders dealerHeaders = authHeaders(DEALER_EMAIL, PASSWORD);
+        HttpHeaders adminHeaders = authHeaders(ADMIN_EMAIL, PASSWORD);
+
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("amountRequested", new BigDecimal("2100"));
+        payload.put("reason", "Need temporary limit increase for new order");
+
+        ResponseEntity<Map> createResponse = rest.exchange(
+                "/api/v1/dealer-portal/credit-requests",
+                HttpMethod.POST,
+                new HttpEntity<>(payload, dealerHeaders),
+                Map.class);
+        assertThat(createResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        Map<?, ?> createBody = createResponse.getBody();
+        assertThat(createBody).isNotNull();
+        Map<?, ?> createData = (Map<?, ?>) createBody.get("data");
+        assertThat(createData).isNotNull();
+        long creditRequestId = ((Number) createData.get("id")).longValue();
+        assertThat(String.valueOf(createData.get("status"))).isEqualTo("PENDING");
+
+        ResponseEntity<Map> approvalsResponse = rest.exchange(
+                "/api/v1/admin/approvals",
+                HttpMethod.GET,
+                new HttpEntity<>(adminHeaders),
+                Map.class);
+        assertThat(approvalsResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        Map<?, ?> approvalsBody = approvalsResponse.getBody();
+        assertThat(approvalsBody).isNotNull();
+        Map<?, ?> approvalsData = (Map<?, ?>) approvalsBody.get("data");
+        assertThat(approvalsData).isNotNull();
+        List<?> creditApprovals = (List<?>) approvalsData.get("creditRequests");
+        assertThat(creditApprovals).isNotNull();
+
+        Map<?, ?> requestApproval = creditApprovals.stream()
+                .filter(Map.class::isInstance)
+                .map(Map.class::cast)
+                .filter(item -> "CREDIT_REQUEST".equals(String.valueOf(item.get("type"))))
+                .filter(item -> ((Number) item.get("id")).longValue() == creditRequestId)
+                .findFirst()
+                .orElse(null);
+
+        assertThat(requestApproval).isNotNull();
+        assertThat(String.valueOf(requestApproval.get("reference"))).isEqualTo("CR-" + creditRequestId);
+        assertThat(String.valueOf(requestApproval.get("actionType"))).isEqualTo("APPROVE_DEALER_CREDIT_REQUEST");
+        assertThat(String.valueOf(requestApproval.get("sourcePortal"))).isEqualTo("DEALER_PORTAL");
+        assertThat(String.valueOf(requestApproval.get("summary")))
+                .contains("Approve dealer credit-limit increase request")
+                .contains("Need temporary limit increase for new order");
+    }
+
     private HttpHeaders authHeaders(String email, String password) {
         Map<String, Object> loginPayload = Map.of(
                 "email", email,
@@ -262,5 +330,22 @@ class AdminApprovalRbacIT extends AbstractIntegrationTest {
         Map<?, ?> data = (Map<?, ?>) body.get("data");
         assertThat(data).isNotNull();
         return String.valueOf(data.get("status"));
+    }
+
+    private void ensureDealerPortalMapping() {
+        Company company = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();
+        UserAccount dealerUser = userAccountRepository.findByEmailIgnoreCase(DEALER_EMAIL).orElseThrow();
+        Dealer dealer = dealerRepository.findByCompanyAndCodeIgnoreCase(company, DEALER_CODE)
+                .orElseGet(() -> {
+                    Dealer created = new Dealer();
+                    created.setCompany(company);
+                    created.setCode(DEALER_CODE);
+                    created.setName("Approval Dealer");
+                    created.setEmail(DEALER_EMAIL);
+                    created.setCreditLimit(new BigDecimal("5000"));
+                    return created;
+                });
+        dealer.setPortalUser(dealerUser);
+        dealerRepository.save(dealer);
     }
 }
