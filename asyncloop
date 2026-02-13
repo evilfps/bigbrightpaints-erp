@@ -3767,3 +3767,48 @@ Queue Rotation (Auto-Replenish)
 - [ready] M9-S5 capture EXPLAIN + index-candidate evidence for journal/allocation replay hotspot queries (Flyway V2-ready)
 - [ready] M2-S12 replay mismatch guard helper extraction to enforce parity by construction
 - [ready] M11-S6 approval queue runtime contract test slice (assert FE docs match live `AdminApprovalItemDto` payload fields and action endpoint semantics)
+
+Post-Commit Review Evidence
+- Commit reviewed: `62df5bb5`
+- `codex review --commit 62df5bb5`:
+  - status: running for extended session (`exec` session `11142`); terminal verdict pending append.
+- Review subagent `019c58a3-90ce-7483-a5b3-bb526e8ad672`:
+  - status: running/timed-out so far; terminal verdict pending append.
+
+Completed Slice (Committed)
+- 2026-02-14: `f58268f6`
+  - hardening(release): enforce accounting portal domain anchors.
+  - M14-S16 closure hardening:
+    - strengthened `scripts/guard_accounting_portal_scope_contract.sh` to require Accounting domain section anchors in both endpoint map and frontend handoff docs.
+    - guard now enforces module-presence rows (`hr`, `purchasing`, `inventory`, `reports`) in `docs/endpoint-inventory.md`.
+    - guard now enforces critical controller-section anchors in `docs/accounting-portal-endpoint-map.md` for purchasing/inventory/hr/report domains.
+  - Verification:
+    - `cd /home/realnigga/Desktop/orchestrator_erp && bash scripts/guard_accounting_portal_scope_contract.sh` -> pass (`[guard_accounting_portal_scope_contract] OK`).
+
+Post-Commit Review Evidence
+- Commit reviewed: `f58268f6`
+- `codex review --commit f58268f6`:
+  - status: running for extended session (`exec` session `94928`); terminal verdict pending append.
+- Review subagent `019c58a5-5268-7722-be7a-a69a6b8eb2a5`:
+  - status: running/timed-out so far; terminal verdict pending append.
+
+Loop Update
+- 2026-02-14T01:46:49+05:30
+- tracked_now_ts: `2026-02-14T01:46:49+05:30`
+- tracked_elapsed: `47h 52m 57s`
+- active_in_progress: `M14-S17 raw-material catalog sync costing canonicalization parity (repair drifted weighted-average aliases on import/replay without changing unsupported-method semantics)`
+
+Queue Rotation (Auto-Replenish)
+- [completed] M14-S16 accounting portal scope invariant guard (HR/PURCHASING/INVENTORY/REPORTS remain under Accounting portal unless replacement portal map + endpoint docs land in same commit)
+- [in_progress] M14-S17 raw-material catalog sync costing canonicalization parity (repair drifted weighted-average aliases on import/replay without changing unsupported-method semantics)
+- [ready] M14-S18 accounting catalog import RBAC abuse matrix (`/api/v1/accounting/catalog/import` unauthorized-role denial + cross-company isolation assertions)
+- [ready] M14-S19 stock-summary vs inventory-valuation truth contract (assert FIFO/LIFO/WAC + reserved-stock parity between `/finished-goods/stock-summary` and report snapshot totals)
+- [ready] M14-S20 accounting portal endpoint-map drift gate (assert HR/PURCHASING/INVENTORY/REPORTS remain mapped under Accounting portal unless replacement map docs update lands atomically)
+- [ready] M14-S21 unsupported-method preservation contract for catalog sync/create/update (unknown legacy costing values stay unchanged while known aliases canonicalize)
+- [ready] M14-S22 costing-selector dedupe guard for WAC/FIFO/LIFO replay paths (extract shared finished-good selector helper for reserve+adjustment and enforce parity tests incl. shortage replay)
+- [ready] M14-S23 portal-scope guard negative matrix (simulate dropped section/module anchors in temp docs fixture to prove fail-closed behavior)
+- [ready] M12-S5 discount/reference calculation parity matrix across sales->invoice->settlement + user-facing example table refresh
+- [ready] M10-S3 release-gate dry-run and blocker ledger sync (`scripts/verify_local.sh` + artifact sanity)
+- [ready] M9-S5 capture EXPLAIN + index-candidate evidence for journal/allocation replay hotspot queries (Flyway V2-ready)
+- [ready] M2-S12 replay mismatch guard helper extraction to enforce parity by construction
+- [ready] M11-S6 approval queue runtime contract test slice (assert FE docs match live `AdminApprovalItemDto` payload fields and action endpoint semantics)
