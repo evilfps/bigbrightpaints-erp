@@ -2955,6 +2955,75 @@ Queue Rotation (Auto-Replenish)
 - [ready] M11-S6 approval queue runtime contract test slice (assert FE docs match live `AdminApprovalItemDto` payload fields and action endpoint semantics)
 
 Post-Commit Review Evidence
+- Commit reviewed: `64a06e24`
+- `codex review --commit 64a06e24`:
+  - final verdict: docs-only `asyncloop` ledger append; no behavior-impacting defects introduced.
+  - captured stream: `/tmp/codex_review_64a06e24.log`.
+- Review subagent `019c578a-75b6-7192-83d0-eacbf9d09f17`:
+  - findings: none (critical/high/medium/low).
+  - residual note: `/tmp` evidence path durability remains environment-dependent.
+
+Completed Slice (Committed)
+- 2026-02-13: `53272512`
+  - test(reports): assert WAC stock-summary valuation parity.
+  - M14-S6 incremental coverage:
+    - added `FinishedGoodsServiceTest#stockSummaryWeightedAverageAlignsWithInventoryValuationForWacGoods` to validate WAC parity between stock-summary output and inventory-valuation contribution for added finished-good stock.
+  - Verification:
+    - `cd erp-domain && mvn -B -ntp -Dtest=FinishedGoodsServiceTest#stockSummaryWeightedAverageAlignsWithInventoryValuationForWacGoods,InventoryValuationServiceTest#currentSnapshot_fifoUsesRemainingBatchQuantity test` -> pass (2 tests, 0 failures, 0 errors).
+
+Post-Commit Review Evidence
+- Commit reviewed: `53272512`
+- `codex review --commit 53272512`:
+  - final verdict: test-only change with no production runtime regression.
+  - captured stream: `/tmp/codex_review_53272512.log`.
+- Review subagent `019c578e-4e44-7660-b027-d533a2060339`:
+  - medium finding: parity assertion expected value was derived from stock-summary outputs (not independent).
+  - low finding: coverage did not exercise consumed-batch/on-hand divergence for WAC math.
+  - disposition: addressed in follow-up commit `98874288` with independent expected delta and additional report-path tests.
+
+Completed Slice (Committed)
+- 2026-02-13: `98874288`
+  - test(reports): add cost-breakdown and WAC parity checks.
+  - M14-S6 closure hardening:
+    - replaced WAC parity expectation with independent fixed expected delta (`104.00`) to avoid shared-source false confidence.
+    - added `ReportServiceCostBreakdownTest` with:
+      - component sum invariant (`material + labor + overhead == totalCost`),
+      - null-component safety and missing-product fallback contract checks.
+  - Verification:
+    - `cd erp-domain && mvn -B -ntp -Dtest=ReportServiceCostBreakdownTest,FinishedGoodsServiceTest#stockSummaryWeightedAverageAlignsWithInventoryValuationForWacGoods,InventoryValuationServiceTest#currentSnapshot_fifoUsesRemainingBatchQuantity test` -> pass (4 tests, 0 failures, 0 errors).
+
+Post-Commit Review Evidence
+- Commit reviewed: `98874288`
+- `codex review --commit 98874288`:
+  - final verdict: test additions are coherent with current report/inventory behavior; no actionable regressions identified.
+  - captured stream: `/tmp/codex_review_98874288.log`.
+- Review subagent `019c5792-da8d-71a2-8b50-7c393def80dd`:
+  - findings: none (critical/high/medium/low).
+  - residual notes:
+    - tenant-isolation negative case for cost-breakdown remains uncovered in this commit,
+    - controller-level RBAC negative test for `/api/v1/reports/production-logs/{id}/cost-breakdown` remains pending.
+
+Loop Update
+- 2026-02-13T20:49:57+05:30
+- tracked_now_ts: `2026-02-13T20:49:57+05:30`
+- tracked_elapsed: `42h 56m 8s`
+- active_in_progress: `M14-S7 locale-stable costing helper sweep (Locale.ROOT normalization parity across duplicated isWeightedAverage(...) call sites + negative locale regression checks)`
+
+Queue Rotation (Auto-Replenish)
+- [completed] M14-S6 costing output endpoint parity contract (`stock-summary` vs `inventory-valuation` vs `production-log cost-breakdown` consistency under FIFO/WAC)
+- [in_progress] M14-S7 locale-stable costing helper sweep (`Locale.ROOT` normalization parity across duplicated `isWeightedAverage(...)` call sites + negative locale regression checks)
+- [ready] M14-S8 WAC FEFO tie-break determinism (same-expiry batch ordering contract + replay-safe depletion assertions across reserve/adjustment flows)
+- [ready] M14-S9 costing-method utility adoption in inventory service call sites (replace inline alias checks in dispatch/adjustment selectors + locale contract tests)
+- [ready] M14-S10 finished-good costing selector unification (`resolveDispatchUnitCost` + batch selectors consume shared utility, with locale-forced negative regression tests)
+- [ready] M14-S11 stock-summary method-awareness parity (prevent implicit WAC-only unit-cost output drift for FIFO/LIFO goods, or document and guard explicit endpoint contract)
+- [ready] M14-S12 cost-breakdown tenant-boundary + RBAC negative matrix (`/reports/production-logs/{id}/cost-breakdown` cross-company rejection + unauthorized-role assertions)
+- [ready] M12-S5 discount/reference calculation parity matrix across sales->invoice->settlement + user-facing example table refresh
+- [ready] M10-S3 release-gate dry-run and blocker ledger sync (`scripts/verify_local.sh` + artifact sanity)
+- [ready] M9-S5 capture EXPLAIN + index-candidate evidence for journal/allocation replay hotspot queries (Flyway V2-ready)
+- [ready] M2-S12 replay mismatch guard helper extraction to enforce parity by construction
+- [ready] M11-S6 approval queue runtime contract test slice (assert FE docs match live `AdminApprovalItemDto` payload fields and action endpoint semantics)
+
+Post-Commit Review Evidence
 - Commit reviewed: `15da48cb`
 - `codex review --commit 15da48cb`:
   - final verdict: docs-only `asyncloop` append; no runtime behavior or executable-path regression identified.
