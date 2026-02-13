@@ -1624,7 +1624,9 @@ public class FinishedGoodsService {
     }
 
     private List<FinishedGoodBatch> selectBatchesByCostingMethod(FinishedGood finishedGood) {
-        String method = finishedGood.getCostingMethod() == null ? "FIFO" : finishedGood.getCostingMethod().trim().toUpperCase();
+        String method = finishedGood.getCostingMethod() == null
+                ? "FIFO"
+                : finishedGood.getCostingMethod().trim().toUpperCase(Locale.ROOT);
         return switch (method) {
             case "LIFO" -> finishedGoodBatchRepository.findAllocatableBatchesLIFO(finishedGood);
             case "WAC", "WEIGHTED_AVERAGE", "WEIGHTED-AVERAGE" -> finishedGoodBatchRepository.findAllocatableBatches(finishedGood);
@@ -1730,7 +1732,7 @@ public class FinishedGoodsService {
         }
         String method = finishedGood.getCostingMethod() == null
                 ? "FIFO"
-                : finishedGood.getCostingMethod().trim().toUpperCase();
+                : finishedGood.getCostingMethod().trim().toUpperCase(Locale.ROOT);
         if ("WAC".equals(method) || "WEIGHTED_AVERAGE".equals(method) || "WEIGHTED-AVERAGE".equals(method)) {
             return weightedAverageCost(finishedGood);
         }

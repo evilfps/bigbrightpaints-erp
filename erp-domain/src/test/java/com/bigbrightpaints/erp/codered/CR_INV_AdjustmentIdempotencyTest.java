@@ -36,6 +36,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 
@@ -270,6 +271,67 @@ class CR_INV_AdjustmentIdempotencyTest extends AbstractIntegrationTest {
         assertThat(soonerExpiryAfterReplay.getQuantityAvailable()).isEqualByComparingTo(new BigDecimal("1"));
         assertThat(olderAfterReplay.getQuantityTotal()).isEqualByComparingTo(new BigDecimal("3"));
         assertThat(olderAfterReplay.getQuantityAvailable()).isEqualByComparingTo(new BigDecimal("3"));
+    }
+
+    @Test
+    void adjustment_legacyWeightedAverageAlias_usesExpiryOrder_underTurkishLocale() {
+        String companyCode = "CR-INV-ADJ-WAC-LOC-" + shortId();
+        Company company = bootstrapCompany(companyCode);
+        Map<String, Account> accounts = ensureAccounts(company);
+
+        FinishedGood fg = ensureFinishedGood(company, "FG-ADJ-WAC-LOC-" + shortId(), accounts, "WAC");
+        fg.setCostingMethod("weighted-average");
+        fg = finishedGoodRepository.saveAndFlush(fg);
+
+        Long olderBatchId = seedBatchWithMetadata(
+                company,
+                fg,
+                "BATCH-ADJ-WAC-LOC-OLD-" + shortId(),
+                new BigDecimal("3"),
+                new BigDecimal("10.00"),
+                Instant.now().minus(Duration.ofHours(2)),
+                LocalDate.now().plusDays(30));
+        Long soonerExpiryBatchId = seedBatchWithMetadata(
+                company,
+                fg,
+                "BATCH-ADJ-WAC-LOC-SOON-" + shortId(),
+                new BigDecimal("3"),
+                new BigDecimal("11.00"),
+                Instant.now().minus(Duration.ofHours(1)),
+                LocalDate.now().plusDays(3));
+
+        InventoryAdjustmentRequest request = new InventoryAdjustmentRequest(
+                TestDateUtils.safeDate(company),
+                InventoryAdjustmentType.DAMAGED,
+                accounts.get("VAR").getId(),
+                "WAC legacy alias locale adjustment",
+                false,
+                "INV-ADJ-WAC-LOC-" + UUID.randomUUID(),
+                List.of(new InventoryAdjustmentRequest.LineRequest(
+                        fg.getId(),
+                        new BigDecimal("2"),
+                        new BigDecimal("10.00"),
+                        "WAC adjustment locale"
+                ))
+        );
+
+        Locale previous = Locale.getDefault();
+        Locale.setDefault(Locale.forLanguageTag("tr-TR"));
+        try {
+            CompanyContextHolder.setCompanyId(companyCode);
+            inventoryAdjustmentService.createAdjustment(request);
+            CompanyContextHolder.clear();
+        } finally {
+            Locale.setDefault(previous);
+            CompanyContextHolder.clear();
+        }
+
+        FinishedGoodBatch soonerExpiryAfter = finishedGoodBatchRepository.findById(soonerExpiryBatchId).orElseThrow();
+        FinishedGoodBatch olderAfter = finishedGoodBatchRepository.findById(olderBatchId).orElseThrow();
+        assertThat(soonerExpiryAfter.getQuantityTotal()).isEqualByComparingTo(new BigDecimal("1"));
+        assertThat(soonerExpiryAfter.getQuantityAvailable()).isEqualByComparingTo(new BigDecimal("1"));
+        assertThat(olderAfter.getQuantityTotal()).isEqualByComparingTo(new BigDecimal("3"));
+        assertThat(olderAfter.getQuantityAvailable()).isEqualByComparingTo(new BigDecimal("3"));
     }
 
     private Company bootstrapCompany(String companyCode) {

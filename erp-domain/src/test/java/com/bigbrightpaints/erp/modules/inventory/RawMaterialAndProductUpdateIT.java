@@ -113,6 +113,39 @@ class RawMaterialAndProductUpdateIT extends AbstractIntegrationTest {
     }
 
     @Test
+    void raw_material_create_normalizes_weighted_average_alias_under_turkish_locale() {
+        HttpHeaders headers = authenticatedHeaders();
+        Map<String, Long> accounts = fixtureAccountIds();
+
+        Locale previous = Locale.getDefault();
+        Locale.setDefault(Locale.forLanguageTag("tr-TR"));
+        try {
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("name", "RM Locale WAC");
+            payload.put("sku", "RM-LOC-" + UUID.randomUUID().toString().substring(0, 8));
+            payload.put("unitType", "KG");
+            payload.put("reorderLevel", new BigDecimal("10"));
+            payload.put("minStock", new BigDecimal("20"));
+            payload.put("maxStock", new BigDecimal("200"));
+            payload.put("inventoryAccountId", accounts.get("INV"));
+            payload.put("costingMethod", " weighted-average ");
+
+            ResponseEntity<Map> create = rest.exchange(
+                    "/api/v1/accounting/raw-materials",
+                    HttpMethod.POST,
+                    new HttpEntity<>(payload, headers),
+                    Map.class
+            );
+
+            assertThat(create.getStatusCode()).isEqualTo(HttpStatus.OK);
+            Map<?, ?> data = (Map<?, ?>) create.getBody().get("data");
+            assertThat(data.get("costingMethod")).isEqualTo("WAC");
+        } finally {
+            Locale.setDefault(previous);
+        }
+    }
+
+    @Test
     void production_catalog_update_adjusts_price_and_name() {
         HttpHeaders headers = authenticatedHeaders();
 

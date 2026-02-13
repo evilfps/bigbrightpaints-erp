@@ -38,6 +38,7 @@ import java.time.LocalDate;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 @Service
@@ -265,7 +266,9 @@ public class InventoryAdjustmentService {
     }
 
     private List<FinishedGoodBatch> selectBatchesByCostingMethod(FinishedGood finishedGood) {
-        String method = finishedGood.getCostingMethod() == null ? "FIFO" : finishedGood.getCostingMethod().trim().toUpperCase();
+        String method = finishedGood.getCostingMethod() == null
+                ? "FIFO"
+                : finishedGood.getCostingMethod().trim().toUpperCase(Locale.ROOT);
         return switch (method) {
             case "LIFO" -> finishedGoodBatchRepository.findAllocatableBatchesLIFO(finishedGood);
             case "WAC", "WEIGHTED_AVERAGE", "WEIGHTED-AVERAGE" -> finishedGoodBatchRepository.findAllocatableBatches(finishedGood);

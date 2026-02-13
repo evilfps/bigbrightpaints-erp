@@ -43,6 +43,7 @@ import java.time.LocalDate;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 @Service
@@ -329,7 +330,7 @@ public class RawMaterialService {
         if (!StringUtils.hasText(method)) {
             return "FIFO";
         }
-        String normalized = method.trim().toUpperCase();
+        String normalized = method.trim().toUpperCase(Locale.ROOT);
         return switch (normalized) {
             case "FIFO" -> "FIFO";
             case "WAC", "WEIGHTED_AVERAGE", "WEIGHTED-AVERAGE" -> "WAC";

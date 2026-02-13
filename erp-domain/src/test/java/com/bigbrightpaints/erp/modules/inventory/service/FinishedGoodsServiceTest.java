@@ -27,6 +27,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -125,6 +126,60 @@ class FinishedGoodsServiceTest extends AbstractIntegrationTest {
         assertThat(slip.getLines()).hasSize(1);
         assertThat(slip.getLines().getFirst().getFinishedGoodBatch().getId())
                 .isEqualTo(newerManufacturedSoonerExpiry.getId());
+    }
+
+    @Test
+    void reserveForOrderTreatsLegacyWeightedAverageAliasAsWac_underTurkishLocale() {
+        Locale previous = Locale.getDefault();
+        Locale.setDefault(Locale.forLanguageTag("tr-TR"));
+        try {
+            Company company = seedCompany("WAC-ALIAS-TR");
+            FinishedGood fg = createFinishedGood(
+                    company,
+                    "FG-WAC-ALIAS-" + UUID.randomUUID().toString().substring(0, 8),
+                    new BigDecimal("6"),
+                    BigDecimal.ZERO,
+                    "weighted-average");
+
+            FinishedGoodBatch olderManufacturedLaterExpiry = createBatch(
+                    fg,
+                    "BATCH-WAC-ALIAS-OLD",
+                    new BigDecimal("3"),
+                    new BigDecimal("3"),
+                    new BigDecimal("9"));
+            olderManufacturedLaterExpiry.setManufacturedAt(Instant.now().minusSeconds(7200));
+            olderManufacturedLaterExpiry.setExpiryDate(LocalDate.now().plusDays(30));
+            olderManufacturedLaterExpiry = finishedGoodBatchRepository.saveAndFlush(olderManufacturedLaterExpiry);
+
+            FinishedGoodBatch newerManufacturedSoonerExpiry = createBatch(
+                    fg,
+                    "BATCH-WAC-ALIAS-SOON",
+                    new BigDecimal("3"),
+                    new BigDecimal("3"),
+                    new BigDecimal("10"));
+            newerManufacturedSoonerExpiry.setManufacturedAt(Instant.now().minusSeconds(3600));
+            newerManufacturedSoonerExpiry.setExpiryDate(LocalDate.now().plusDays(3));
+            newerManufacturedSoonerExpiry = finishedGoodBatchRepository.saveAndFlush(newerManufacturedSoonerExpiry);
+
+            SalesOrder order = createOrder(
+                    company,
+                    "SO-WAC-ALIAS-" + UUID.randomUUID(),
+                    fg.getProductCode(),
+                    new BigDecimal("2"));
+
+            FinishedGoodsService.InventoryReservationResult result = finishedGoodsService.reserveForOrder(order);
+
+            PackagingSlip slip = packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, order.getId()).stream()
+                    .filter(existing -> !existing.isBackorder())
+                    .findFirst()
+                    .orElseThrow();
+            assertThat(result.shortages()).isEmpty();
+            assertThat(slip.getLines()).hasSize(1);
+            assertThat(slip.getLines().getFirst().getFinishedGoodBatch().getId())
+                    .isEqualTo(newerManufacturedSoonerExpiry.getId());
+        } finally {
+            Locale.setDefault(previous);
+        }
     }
 
     @Test
