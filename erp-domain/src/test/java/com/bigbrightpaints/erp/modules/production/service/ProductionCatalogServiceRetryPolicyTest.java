@@ -164,6 +164,53 @@ class ProductionCatalogServiceRetryPolicyTest {
         assertThat(productsBySku).containsKeys("SKU-A", "SKU-B");
     }
 
+    @Test
+    void evictRowCache_skipsBrandNamePurgeWhenBrandCannotBeResolved() throws Exception {
+        Company company = new Company();
+        ProductionBrand brandA = new ProductionBrand();
+        ReflectionTestUtils.setField(brandA, "id", 11L);
+        brandA.setName("BrandA");
+        ProductionBrand brandB = new ProductionBrand();
+        ReflectionTestUtils.setField(brandB, "id", 22L);
+        brandB.setName("BrandB");
+
+        ProductionProduct productA = new ProductionProduct();
+        ReflectionTestUtils.setField(productA, "id", 101L);
+        productA.setBrand(brandA);
+        productA.setProductName("Shared Product");
+        productA.setSkuCode("SKU-A");
+
+        ProductionProduct productB = new ProductionProduct();
+        ReflectionTestUtils.setField(productB, "id", 202L);
+        productB.setBrand(brandB);
+        productB.setProductName("Shared Product");
+        productB.setSkuCode("SKU-B");
+
+        Map<String, ProductionBrand> brandsByName = new HashMap<>();
+        Map<String, ProductionProduct> productsBySku = new HashMap<>();
+        productsBySku.put("SKU-A", productA);
+        productsBySku.put("SKU-B", productB);
+        Map<Object, ProductionProduct> productsByBrandName = new HashMap<>();
+        productsByBrandName.put(newProductKey(brandA.getId(), "shared product"), productA);
+        productsByBrandName.put(newProductKey(brandB.getId(), "shared product"), productB);
+
+        when(brandRepository.findByCompanyAndNameIgnoreCase(company, "branda")).thenReturn(Optional.empty());
+
+        Object context = newImportContext(
+                brandsByName,
+                productsBySku,
+                productsByBrandName,
+                new HashMap<Long, Long>());
+        Object importRow = newImportRow(1L, null, "branda", "shared product");
+
+        ReflectionTestUtils.invokeMethod(service, "evictRowCache", company, importRow, context);
+
+        assertThat(productsByBrandName.values())
+                .extracting(product -> product.getId())
+                .containsExactlyInAnyOrder(101L, 202L);
+        assertThat(productsBySku).containsKeys("SKU-A", "SKU-B");
+    }
+
     private boolean invokeIsRetryableImportFailure(Throwable error) {
         Boolean retryable = ReflectionTestUtils.invokeMethod(service, "isRetryableImportFailure", error);
         return Boolean.TRUE.equals(retryable);

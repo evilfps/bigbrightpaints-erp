@@ -306,6 +306,9 @@ public class ProductionCatalogService {
             context.productsBySku().remove(normalizeSkuKey(importRow.sanitizedSku()));
         }
         if (importRow.productKey() != null) {
+            if (importRow.brandKey() != null && importRowBrandId == null) {
+                return;
+            }
             for (var iterator = context.productsByBrandName().entrySet().iterator(); iterator.hasNext(); ) {
                 Map.Entry<ProductKey, ProductionProduct> entry = iterator.next();
                 boolean matchesName = importRow.productKey().equals(entry.getKey().productNameKey());
