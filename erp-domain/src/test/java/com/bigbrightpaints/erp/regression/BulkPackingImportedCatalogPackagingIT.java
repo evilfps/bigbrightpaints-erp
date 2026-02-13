@@ -4,6 +4,7 @@ import com.bigbrightpaints.erp.core.security.CompanyContextHolder;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
+import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.factory.domain.PackagingSizeMapping;
@@ -35,6 +36,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -126,9 +128,18 @@ class BulkPackingImportedCatalogPackagingIT extends AbstractIntegrationTest {
         assertThat(firstRawMovements)
                 .allSatisfy(movement -> assertThat(movement.getJournalEntryId()).isEqualTo(first.journalEntryId()));
         assertThat(journalEntryRepository.findByCompanyAndReferenceNumber(company, packReference)).isPresent();
+        JournalEntry posted = journalEntryRepository.findByCompanyAndId(company, first.journalEntryId()).orElseThrow();
+        BigDecimal packagingCredit = posted.getLines().stream()
+                .filter(line -> line.getAccount() != null)
+                .filter(line -> Objects.equals(line.getAccount().getId(), packagingInventoryAccount.getId()))
+                .map(line -> Optional.ofNullable(line.getCredit()).orElse(BigDecimal.ZERO))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        assertThat(packagingCredit).isEqualByComparingTo(first.packagingCost());
 
         RawMaterial afterFirstPack = rawMaterialRepository.findByCompanyAndSku(company, "PACK-RM-M13S2").orElseThrow();
         assertThat(afterFirstPack.getCurrentStock()).isEqualByComparingTo("45");
+        List<Long> firstRawMovementIds = firstRawMovements.stream().map(RawMaterialMovement::getId).toList();
+        List<Long> firstInventoryMovementIds = firstInventoryMovements.stream().map(InventoryMovement::getId).toList();
 
         BulkPackResponse replay = bulkPackingService.pack(request);
         assertThat(replay.journalEntryId()).isEqualTo(first.journalEntryId());
@@ -145,18 +156,24 @@ class BulkPackingImportedCatalogPackagingIT extends AbstractIntegrationTest {
 
         assertThat(replayRawMovements).hasSize(firstRawMovements.size());
         assertThat(replayInventoryMovements).hasSize(firstInventoryMovements.size());
+        assertThat(replayRawMovements.stream().map(RawMaterialMovement::getId).toList())
+                .containsExactlyElementsOf(firstRawMovementIds);
+        assertThat(replayInventoryMovements.stream().map(InventoryMovement::getId).toList())
+                .containsExactlyElementsOf(firstInventoryMovementIds);
         assertThat(afterReplay.getCurrentStock()).isEqualByComparingTo(afterFirstPack.getCurrentStock());
     }
 
     private String resolvePackReference(Long childBatchId) {
-        return inventoryMovementRepository.findAll().stream()
+        List<String> references = inventoryMovementRepository.findAll().stream()
                 .filter(movement -> Objects.equals(movement.getReferenceType(), InventoryReference.PACKING_RECORD))
                 .filter(movement -> "RECEIPT".equalsIgnoreCase(movement.getMovementType()))
                 .filter(movement -> movement.getFinishedGoodBatch() != null)
                 .filter(movement -> Objects.equals(movement.getFinishedGoodBatch().getId(), childBatchId))
                 .map(InventoryMovement::getReferenceId)
-                .findFirst()
-                .orElseThrow();
+                .distinct()
+                .collect(Collectors.toList());
+        assertThat(references).hasSize(1);
+        return references.getFirst();
     }
 
     private Account ensureAccount(String code, String name, AccountType type) {
