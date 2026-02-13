@@ -28,6 +28,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -172,7 +173,7 @@ public class FinishedGoodsService {
                         safeQuantity(fg.getCurrentStock()),
                         safeQuantity(fg.getReservedStock()),
                         safeQuantity(fg.getCurrentStock()).subtract(safeQuantity(fg.getReservedStock())),
-                        weightedAverageCost(fg),
+                        stockSummaryUnitCost(fg),
                         null,
                         null,
                         null,
@@ -1991,6 +1992,39 @@ public class FinishedGoodsService {
         if (finishedGoodId != null) {
             wacCache.remove(finishedGoodId);
         }
+    }
+
+    private BigDecimal stockSummaryUnitCost(FinishedGood finishedGood) {
+        if (finishedGood == null) {
+            return BigDecimal.ZERO;
+        }
+        BigDecimal onHand = safeQuantity(finishedGood.getCurrentStock());
+        if (onHand.compareTo(BigDecimal.ZERO) <= 0) {
+            return BigDecimal.ZERO;
+        }
+        if (CostingMethodUtils.isWeightedAverage(finishedGood.getCostingMethod())) {
+            return weightedAverageCost(finishedGood);
+        }
+        BigDecimal valuedStock = BigDecimal.ZERO;
+        BigDecimal remaining = onHand;
+        List<FinishedGoodBatch> batches = finishedGoodBatchRepository.findByFinishedGoodOrderByManufacturedAtAsc(finishedGood);
+        for (FinishedGoodBatch batch : batches) {
+            if (remaining.compareTo(BigDecimal.ZERO) <= 0) {
+                break;
+            }
+            BigDecimal available = safeQuantity(batch.getQuantityAvailable());
+            if (available.compareTo(BigDecimal.ZERO) <= 0) {
+                continue;
+            }
+            BigDecimal unitCost = batch.getUnitCost() != null ? batch.getUnitCost() : BigDecimal.ZERO;
+            BigDecimal used = remaining.min(available);
+            valuedStock = valuedStock.add(used.multiply(unitCost));
+            remaining = remaining.subtract(used);
+        }
+        if (valuedStock.compareTo(BigDecimal.ZERO) <= 0) {
+            return BigDecimal.ZERO;
+        }
+        return valuedStock.divide(onHand, 6, RoundingMode.HALF_UP);
     }
 
     private BigDecimal weightedAverageCost(FinishedGood fg) {

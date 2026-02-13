@@ -291,6 +291,42 @@ class FinishedGoodsServiceTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void stockSummaryUsesBatchValuationUnitCostForFifoGoods() {
+        Company company = seedCompany("FIFO-PARITY");
+        BigDecimal baselineValue = inventoryValuationService.currentSnapshot(company).totalValue();
+        FinishedGood fg = createFinishedGood(company, "FG-FIFO-PARITY", new BigDecimal("5"), BigDecimal.ZERO, "FIFO");
+        createBatch(fg, "FIFO-PARITY-OLD", new BigDecimal("10"), new BigDecimal("2"), new BigDecimal("5"));
+        createBatch(fg, "FIFO-PARITY-NEW", new BigDecimal("10"), new BigDecimal("10"), new BigDecimal("20"));
+
+        StockSummaryDto summary = finishedGoodsService.getStockSummary().stream()
+                .filter(item -> "FG-FIFO-PARITY".equals(item.code()))
+                .findFirst()
+                .orElseThrow();
+        InventoryValuationService.InventorySnapshot snapshot = inventoryValuationService.currentSnapshot(company);
+
+        assertThat(summary.weightedAverageCost()).isEqualByComparingTo(new BigDecimal("14"));
+        assertThat(summary.weightedAverageCost()).isNotEqualByComparingTo(new BigDecimal("12.5"));
+        assertThat(snapshot.totalValue().subtract(baselineValue))
+                .isEqualByComparingTo(new BigDecimal("70.00"));
+    }
+
+    @Test
+    void stockSummaryUsesBatchValuationUnitCostForLifoGoods() {
+        Company company = seedCompany("LIFO-PARITY");
+        FinishedGood fg = createFinishedGood(company, "FG-LIFO-PARITY", new BigDecimal("5"), BigDecimal.ZERO, "LIFO");
+        createBatch(fg, "LIFO-PARITY-OLD", new BigDecimal("10"), new BigDecimal("2"), new BigDecimal("5"));
+        createBatch(fg, "LIFO-PARITY-NEW", new BigDecimal("10"), new BigDecimal("10"), new BigDecimal("20"));
+
+        StockSummaryDto summary = finishedGoodsService.getStockSummary().stream()
+                .filter(item -> "FG-LIFO-PARITY".equals(item.code()))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(summary.weightedAverageCost()).isEqualByComparingTo(new BigDecimal("14"));
+        assertThat(summary.weightedAverageCost()).isNotEqualByComparingTo(new BigDecimal("12.5"));
+    }
+
+    @Test
     void linkDispatchMovementsToJournal_backfillsLegacyNullPackingSlipIdForSingleSlipOrder() {
         Company company = seedCompany("DISPATCH-LEGACY-LINK");
         FinishedGood fg = createFinishedGood(company, "FG-LINK", new BigDecimal("10"), BigDecimal.ZERO, "FIFO");
