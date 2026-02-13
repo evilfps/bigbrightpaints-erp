@@ -2,10 +2,10 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-GUARDRAIL_DOC="$ROOT_DIR/docs/ACCOUNTING_PORTAL_SCOPE_GUARDRAIL.md"
-ENDPOINT_MAP_DOC="$ROOT_DIR/docs/accounting-portal-endpoint-map.md"
-HANDOFF_DOC="$ROOT_DIR/docs/accounting-portal-frontend-engineer-handoff.md"
-ENDPOINT_INVENTORY_DOC="$ROOT_DIR/docs/endpoint-inventory.md"
+GUARDRAIL_DOC="${ACCOUNTING_PORTAL_SCOPE_GUARDRAIL_DOC:-$ROOT_DIR/docs/ACCOUNTING_PORTAL_SCOPE_GUARDRAIL.md}"
+ENDPOINT_MAP_DOC="${ACCOUNTING_PORTAL_ENDPOINT_MAP_DOC:-$ROOT_DIR/docs/accounting-portal-endpoint-map.md}"
+HANDOFF_DOC="${ACCOUNTING_PORTAL_HANDOFF_DOC:-$ROOT_DIR/docs/accounting-portal-frontend-engineer-handoff.md}"
+ENDPOINT_INVENTORY_DOC="${ACCOUNTING_PORTAL_ENDPOINT_INVENTORY_DOC:-$ROOT_DIR/docs/endpoint-inventory.md}"
 REMEDIATION_COMMAND="bash scripts/guard_accounting_portal_scope_contract.sh"
 SCOPE_SENTENCE="HR, PURCHASING, INVENTORY, and REPORTS come under the Accounting portal"
 
@@ -35,8 +35,8 @@ for heading in \
 done
 
 for module in hr purchasing inventory reports; do
-  rg -q "\\| \`$module\` \\|" "$ENDPOINT_INVENTORY_DOC" \
-    || fail "endpoint inventory summary missing required module row: $module"
+  rg -q "\\| \`$module\` \\| [1-9][0-9]* \\|" "$ENDPOINT_INVENTORY_DOC" \
+    || fail "endpoint inventory summary missing required module row with non-zero path count: $module"
 done
 
 for controller in \
