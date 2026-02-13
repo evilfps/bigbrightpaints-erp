@@ -2413,3 +2413,70 @@ Queue Rotation (Auto-Replenish)
 - [ready] M9-S5 capture EXPLAIN + index-candidate evidence for journal/allocation replay hotspot queries (Flyway V2-ready)
 - [ready] M2-S12 replay mismatch guard helper extraction to enforce parity by construction
 - [ready] M13-S6 imported-SKU discount/reference carry-through audit (sales order -> invoice -> settlement consistency)
+
+Completed Slice (Committed)
+- 2026-02-13: `7521795a`
+  - fix(p2p): lock purchase-settlement boundary and payload aliases.
+  - Added purchase DTO alias compatibility for frontend payload variants (`invoiceNo`/`invoice_no`, `goodsReceiptID`/`goods_receipt_id`/`goodsReceipt`/`grnId`).
+  - Added truth-suite boundary guard `TS_P2PPurchaseSettlementBoundaryTest` to pin invariants:
+    - purchasing route/controller isolation from settlement routes,
+    - purchase creation service path posts purchase journal only,
+    - settlement request contract does not include purchase invoice fields.
+  - Added user-facing/engineering boundary doc `docs/P2P_PURCHASE_SETTLEMENT_BOUNDARY.md` and linked it from `docs/endpoint-inventory.md`.
+
+Post-Commit Review Evidence
+- Commit reviewed: `7521795a`
+- `codex review --commit 7521795a`:
+  - P2 finding: alias + canonical fields could override by JSON key order on mixed-key payloads.
+  - disposition: fixed in follow-up commit `f9699087` via explicit conflict-guarded creator merge.
+- Review subagent `019c56db-4e32-7231-824a-d643b9616c18`:
+  - reported high on `List#getFirst` compile risk in alias test.
+  - disposition: accepted as non-blocking false positive in this repo (`erp-domain/pom.xml` pins Java 21, `List#getFirst` is available, and targeted tests passed).
+
+Completed Slice (Committed)
+- 2026-02-13: `ec802e47`
+  - test(catalog): pin failed-import replay to single idempotent record.
+  - Strengthened `ProductionCatalogRawMaterialInvariantIT` by asserting replay of failed FG account import reuses the same `CatalogImport` row ID.
+
+Post-Commit Review Evidence
+- Commit reviewed: `ec802e47`
+- `codex review --commit ec802e47`:
+  - final verdict: test-only hardening; no regression introduced.
+- Review subagent `019c56dc-e40d-7241-a11b-87d683359df9`:
+  - no medium/high findings.
+
+Completed Slice (Committed)
+- 2026-02-13: `f9699087`
+  - fix(purchasing): reject conflicting alias and canonical fields.
+  - Replaced raw `@JsonAlias` wiring with explicit `@JsonCreator` merge logic in `RawMaterialPurchaseRequest`.
+  - Added deterministic conflict rejection when canonical + alias values disagree for:
+    - `invoiceNumber` (`invoiceNo`, `invoice_no`),
+    - `goodsReceiptId` (`goodsReceiptID`, `goods_receipt_id`, `goodsReceipt`, `grnId`).
+  - Expanded `RawMaterialPurchaseRequestJsonAliasTest` with negative conflict coverage.
+  - Verification:
+    - `cd erp-domain && mvn -B -ntp -Dtest=RawMaterialPurchaseRequestJsonAliasTest,TS_P2PPurchaseSettlementBoundaryTest,ProductionCatalogRawMaterialInvariantIT,ProductionCatalogDiscountDefaultRegressionIT test` -> pass (15 tests, 0 failures, 0 errors).
+
+Post-Commit Review Evidence
+- Commit reviewed: `f9699087`
+- `codex review --commit f9699087`:
+  - final verdict: no regressions; alias conflict hardening is correct.
+- Review subagent `019c56d9-ebd1-7da0-9017-154c6aee7007`:
+  - repeated `List#getFirst` compile risk note on alias test.
+  - disposition: accepted as non-blocking false positive under Java 21 + passing targeted matrix.
+
+Loop Update
+- 2026-02-13T17:29:05+05:30
+- tracked_now_ts: `2026-02-13T17:29:05+05:30`
+- tracked_elapsed: `39h 35m 13s`
+- active_in_progress: `M13-S5 catalog import update-existing row transactional safety scan (REQUIRES_NEW row-loop optimistic-lock behavior + invariant closure)`
+
+Queue Rotation (Auto-Replenish)
+- [completed] M6-S10 purchasing-vs-settlement endpoint boundary invariants + duplicate-route clarification
+- [completed] M13-S4 raw-material import ownership + company-scope boundary abuse scan (SKU->raw-material->packaging chain)
+- [in_progress] M13-S5 catalog import update-existing row transactional safety scan (REQUIRES_NEW row-loop optimistic-lock behavior + invariant closure)
+- [ready] M13-S7 product import SKU/raw-material/packaging cross-module reconciliation assertions (inventory + accounting linkage)
+- [ready] M12-S5 discount/reference calculation parity matrix across sales->invoice->settlement + user-facing example table refresh
+- [ready] M11-S5 admin approval action payload parity hardening across portals (explicit action descriptors in API responses)
+- [ready] M10-S3 release-gate dry-run and blocker ledger sync (`scripts/verify_local.sh` + artifact sanity)
+- [ready] M9-S5 capture EXPLAIN + index-candidate evidence for journal/allocation replay hotspot queries (Flyway V2-ready)
+- [ready] M2-S12 replay mismatch guard helper extraction to enforce parity by construction
