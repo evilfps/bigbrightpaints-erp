@@ -2954,6 +2954,8 @@ Queue Rotation (Auto-Replenish)
 - [ready] M2-S12 replay mismatch guard helper extraction to enforce parity by construction
 - [ready] M11-S6 approval queue runtime contract test slice (assert FE docs match live `AdminApprovalItemDto` payload fields and action endpoint semantics)
 
+
+
 Post-Commit Review Evidence
 - Commit reviewed: `64a06e24`
 - `codex review --commit 64a06e24`:
@@ -3383,6 +3385,62 @@ Queue Rotation (Auto-Replenish)
 - [ready] M14-S14 costing canonicalization parity for catalog/import update flows (ensure finished-good aliases are canonicalized consistently outside direct create/update API paths)
 - [ready] M14-S15 WAC tie-break + selector replay pressure matrix (catalog-imported same-expiry batches; assert no FIFO fallback regression across reserve/adjustment retry paths)
 - [ready] M14-S16 accounting portal scope invariant guard (HR/PURCHASING/INVENTORY/REPORTS remain under Accounting portal unless replacement portal map + endpoint docs land in same commit)
+- [ready] M12-S5 discount/reference calculation parity matrix across sales->invoice->settlement + user-facing example table refresh
+- [ready] M10-S3 release-gate dry-run and blocker ledger sync (`scripts/verify_local.sh` + artifact sanity)
+- [ready] M9-S5 capture EXPLAIN + index-candidate evidence for journal/allocation replay hotspot queries (Flyway V2-ready)
+- [ready] M2-S12 replay mismatch guard helper extraction to enforce parity by construction
+- [ready] M11-S6 approval queue runtime contract test slice (assert FE docs match live `AdminApprovalItemDto` payload fields and action endpoint semantics)
+
+Completed Slice (Committed)
+- 2026-02-13: `7defc54d`
+  - docs(async-loop): log M14-S9 closure and requeue costing hardening.
+  - Logged `e1196180` + `749cb1c6` closure evidence and updated queue with explicit costing normalization/dedupe slices and accounting portal scope guardrail slice.
+  - Verification:
+    - docs-only ledger update (no runtime tests).
+
+Post-Commit Review Evidence
+- Commit reviewed: `7defc54d`
+- `codex review --commit 7defc54d`:
+  - final verdict: docs-only ledger append; no executable-path regressions introduced.
+- Review subagent `019c57b2-b75a-7833-a334-f58eb98d2cd6`:
+  - findings: none.
+  - verdict: approve; queue integrity (`1 in_progress` + `>=3 ready`) preserved.
+
+Completed Slice (Committed)
+- 2026-02-13: `2941f545`
+  - fix(catalog): canonicalize drifted finished-good costing on import sync.
+  - M14-S10 closure:
+    - `ProductionCatalogService#ensureCatalogFinishedGood` now canonicalizes finished-good costing methods on sync (blank -> `FIFO`, weighted-average aliases -> `WAC`, preserves `FIFO`/`LIFO`) in both primary and concurrency-fallback save paths.
+    - Added acceptance regression for drifted stale rows + replay:
+      - `ProductionCatalogRawMaterialInvariantIT#importCatalog_repairsDriftedFinishedGoodCostingAlias_onFreshImportAndReplay`
+    - Refactored finished-good default-account setup in the same regression suite to shared helper for deterministic preconditions.
+  - Verification:
+    - `cd erp-domain && mvn -B -ntp -Dtest=ProductionCatalogRawMaterialInvariantIT#importCatalog_repairsDriftedFinishedGoodCostingAlias_onFreshImportAndReplay,ProductionCatalogRawMaterialInvariantIT#importCatalog_rejectsFinishedGoodAccountOutsideCompanyScope,RawMaterialAndProductUpdateIT#finished_good_create_normalizes_weighted_average_alias_to_wac+finished_good_update_normalizes_weighted_average_alias_to_wac test` -> pass (4 tests, 0 failures, 0 errors).
+    - `cd erp-domain && mvn -B -ntp -Dtest=ProductionCatalogServiceRetryPolicyTest,ProductionCatalogFinishedGoodInvariantIT test` -> pass (12 tests, 0 failures, 0 errors).
+
+Post-Commit Review Evidence
+- Commit reviewed: `2941f545`
+- `codex review --commit 2941f545`:
+  - final verdict: no regressions or correctness issues identified; canonicalization is consistent and covered by added integration test.
+- Review subagent `019c57b7-b754-7f51-a4ec-ef6728a61f67`:
+  - findings: none (critical/high/medium/low).
+  - verdict: approve; catalog import idempotency/retry invariants preserved under drift cleanup.
+
+Loop Update
+- 2026-02-13T21:31:11+05:30
+- tracked_now_ts: `2026-02-13T21:31:11+05:30`
+- tracked_elapsed: `43h 37m 19s`
+- active_in_progress: `M14-S11 shared costing canonicalization utility extraction (dedupe normalization rules across FinishedGoodsService, RawMaterialService, and ProductionCatalogService with locale-forced negative tests)`
+
+Queue Rotation (Auto-Replenish)
+- [completed] M14-S10 finished-good costing canonicalization parity (align create/update normalization with raw-material contracts + drift/replay negative matrix)
+- [in_progress] M14-S11 shared costing canonicalization utility extraction (dedupe normalization rules across `FinishedGoodsService`, `RawMaterialService`, and `ProductionCatalogService` with locale-forced negative tests)
+- [ready] M14-S12 stock-summary method-awareness parity (prevent implicit WAC-only unit-cost output drift for FIFO/LIFO goods, or document and guard explicit endpoint contract)
+- [ready] M14-S13 cost-breakdown tenant-boundary + RBAC negative matrix (`/reports/production-logs/{id}/cost-breakdown` cross-company rejection + unauthorized-role assertions)
+- [ready] M14-S14 costing canonicalization parity for catalog/import update flows (ensure finished-good aliases are canonicalized consistently outside direct create/update API paths)
+- [ready] M14-S15 WAC tie-break + selector replay pressure matrix (catalog-imported same-expiry batches; assert no FIFO fallback regression across reserve/adjustment retry paths)
+- [ready] M14-S16 accounting portal scope invariant guard (HR/PURCHASING/INVENTORY/REPORTS remain under Accounting portal unless replacement portal map + endpoint docs land in same commit)
+- [ready] M14-S17 raw-material catalog sync costing canonicalization parity (repair drifted weighted-average aliases on import/replay without changing unsupported-method semantics)
 - [ready] M12-S5 discount/reference calculation parity matrix across sales->invoice->settlement + user-facing example table refresh
 - [ready] M10-S3 release-gate dry-run and blocker ledger sync (`scripts/verify_local.sh` + artifact sanity)
 - [ready] M9-S5 capture EXPLAIN + index-candidate evidence for journal/allocation replay hotspot queries (Flyway V2-ready)
