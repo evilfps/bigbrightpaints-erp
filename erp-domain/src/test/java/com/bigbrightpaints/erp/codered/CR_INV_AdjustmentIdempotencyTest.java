@@ -274,6 +274,74 @@ class CR_INV_AdjustmentIdempotencyTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void adjustment_wacUsesStableBatchIdTieBreak_whenExpiryAndManufacturedAtMatch() {
+        String companyCode = "CR-INV-ADJ-WAC-TIE-" + shortId();
+        Company company = bootstrapCompany(companyCode);
+        Map<String, Account> accounts = ensureAccounts(company);
+
+        FinishedGood fg = ensureFinishedGood(company, "FG-ADJ-WAC-TIE-" + shortId(), accounts, "WAC");
+        Instant sameManufacturedAt = Instant.now().minus(Duration.ofHours(2));
+        LocalDate sameExpiryDate = LocalDate.now().plusDays(14);
+
+        Long firstBatchId = seedBatchWithMetadata(
+                company,
+                fg,
+                "BATCH-ADJ-WAC-TIE-A-" + shortId(),
+                new BigDecimal("3"),
+                new BigDecimal("10.00"),
+                sameManufacturedAt,
+                sameExpiryDate);
+        Long secondBatchId = seedBatchWithMetadata(
+                company,
+                fg,
+                "BATCH-ADJ-WAC-TIE-B-" + shortId(),
+                new BigDecimal("3"),
+                new BigDecimal("11.00"),
+                sameManufacturedAt,
+                sameExpiryDate);
+        assertThat(firstBatchId).isLessThan(secondBatchId);
+
+        String idempotencyKey = "INV-ADJ-WAC-TIE-" + UUID.randomUUID();
+        InventoryAdjustmentRequest request = new InventoryAdjustmentRequest(
+                TestDateUtils.safeDate(company),
+                InventoryAdjustmentType.DAMAGED,
+                accounts.get("VAR").getId(),
+                "WAC tie-break adjustment",
+                false,
+                idempotencyKey,
+                List.of(new InventoryAdjustmentRequest.LineRequest(
+                        fg.getId(),
+                        new BigDecimal("2"),
+                        new BigDecimal("10.00"),
+                        "WAC tie adjustment"
+                ))
+        );
+
+        CompanyContextHolder.setCompanyId(companyCode);
+        InventoryAdjustmentDto first = inventoryAdjustmentService.createAdjustment(request);
+        CompanyContextHolder.clear();
+
+        FinishedGoodBatch firstBatchAfter = finishedGoodBatchRepository.findById(firstBatchId).orElseThrow();
+        FinishedGoodBatch secondBatchAfter = finishedGoodBatchRepository.findById(secondBatchId).orElseThrow();
+        assertThat(firstBatchAfter.getQuantityTotal()).isEqualByComparingTo(BigDecimal.ONE);
+        assertThat(firstBatchAfter.getQuantityAvailable()).isEqualByComparingTo(BigDecimal.ONE);
+        assertThat(secondBatchAfter.getQuantityTotal()).isEqualByComparingTo(new BigDecimal("3"));
+        assertThat(secondBatchAfter.getQuantityAvailable()).isEqualByComparingTo(new BigDecimal("3"));
+
+        CompanyContextHolder.setCompanyId(companyCode);
+        InventoryAdjustmentDto second = inventoryAdjustmentService.createAdjustment(request);
+        CompanyContextHolder.clear();
+        assertThat(second.id()).isEqualTo(first.id());
+
+        FinishedGoodBatch firstBatchAfterReplay = finishedGoodBatchRepository.findById(firstBatchId).orElseThrow();
+        FinishedGoodBatch secondBatchAfterReplay = finishedGoodBatchRepository.findById(secondBatchId).orElseThrow();
+        assertThat(firstBatchAfterReplay.getQuantityTotal()).isEqualByComparingTo(BigDecimal.ONE);
+        assertThat(firstBatchAfterReplay.getQuantityAvailable()).isEqualByComparingTo(BigDecimal.ONE);
+        assertThat(secondBatchAfterReplay.getQuantityTotal()).isEqualByComparingTo(new BigDecimal("3"));
+        assertThat(secondBatchAfterReplay.getQuantityAvailable()).isEqualByComparingTo(new BigDecimal("3"));
+    }
+
+    @Test
     void adjustment_legacyWeightedAverageAlias_usesExpiryOrder_underTurkishLocale() {
         String companyCode = "CR-INV-ADJ-WAC-LOC-" + shortId();
         Company company = bootstrapCompany(companyCode);

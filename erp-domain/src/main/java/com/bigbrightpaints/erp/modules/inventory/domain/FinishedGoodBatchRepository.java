@@ -30,7 +30,8 @@ public interface FinishedGoodBatchRepository extends JpaRepository<FinishedGoodB
               and b.quantityAvailable > 0
             order by case when b.expiryDate is null then 1 else 0 end,
                      b.expiryDate asc,
-                     b.manufacturedAt asc
+                     b.manufacturedAt asc,
+                     b.id asc
             """)
     List<FinishedGoodBatch> findAllocatableBatches(@Param("finishedGood") FinishedGood finishedGood);
 

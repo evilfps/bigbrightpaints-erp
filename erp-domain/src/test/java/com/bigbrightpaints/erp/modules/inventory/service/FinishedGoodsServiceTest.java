@@ -175,6 +175,47 @@ class FinishedGoodsServiceTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void reserveForOrderUsesStableBatchIdTieBreakWhenWacBatchesShareExpiryAndManufacturedAt() {
+        Company company = seedCompany("WAC-FEFO-TIE");
+        FinishedGood fg = createFinishedGood(company, "FG-WAC-FEFO-TIE", new BigDecimal("6"), BigDecimal.ZERO, "WAC");
+        Instant sameManufacturedAt = Instant.now().minusSeconds(3600);
+        LocalDate sameExpiry = LocalDate.now().plusDays(12);
+
+        FinishedGoodBatch firstInserted = createBatch(
+                fg,
+                "BATCH-WAC-TIE-A",
+                new BigDecimal("3"),
+                new BigDecimal("3"),
+                new BigDecimal("9"));
+        firstInserted.setManufacturedAt(sameManufacturedAt);
+        firstInserted.setExpiryDate(sameExpiry);
+        firstInserted = finishedGoodBatchRepository.saveAndFlush(firstInserted);
+
+        FinishedGoodBatch secondInserted = createBatch(
+                fg,
+                "BATCH-WAC-TIE-B",
+                new BigDecimal("3"),
+                new BigDecimal("3"),
+                new BigDecimal("10"));
+        secondInserted.setManufacturedAt(sameManufacturedAt);
+        secondInserted.setExpiryDate(sameExpiry);
+        secondInserted = finishedGoodBatchRepository.saveAndFlush(secondInserted);
+
+        assertThat(firstInserted.getId()).isLessThan(secondInserted.getId());
+
+        SalesOrder order = createOrder(company, "SO-WAC-FEFO-TIE-" + UUID.randomUUID(), fg.getProductCode(), BigDecimal.ONE);
+        FinishedGoodsService.InventoryReservationResult result = finishedGoodsService.reserveForOrder(order);
+
+        PackagingSlip slip = packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, order.getId()).stream()
+                .filter(existing -> !existing.isBackorder())
+                .findFirst()
+                .orElseThrow();
+        assertThat(result.shortages()).isEmpty();
+        assertThat(slip.getLines()).hasSize(1);
+        assertThat(slip.getLines().getFirst().getFinishedGoodBatch().getId()).isEqualTo(firstInserted.getId());
+    }
+
+    @Test
     void reserveForOrderTreatsLegacyWeightedAverageAliasAsWac_underTurkishLocale() {
         Locale previous = Locale.getDefault();
         Locale.setDefault(Locale.forLanguageTag("tr-TR"));
