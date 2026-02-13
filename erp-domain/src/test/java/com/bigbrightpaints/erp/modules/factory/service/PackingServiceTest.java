@@ -3,6 +3,7 @@ package com.bigbrightpaints.erp.modules.factory.service;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
+import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
@@ -24,6 +25,7 @@ import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryMovement;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryMovementRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryReference;
+import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovement;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovementRepository;
 import com.bigbrightpaints.erp.modules.inventory.service.BatchNumberService;
 import com.bigbrightpaints.erp.modules.inventory.service.FinishedGoodsService;
@@ -333,10 +335,14 @@ class PackingServiceTest {
                 LocalDate.of(2024, 1, 1),
                 "packer",
                 "pack-key-1",
-                List.of(new PackingLineRequest("1L", new BigDecimal("1"), 1, null, null))
+                List.of(new PackingLineRequest("500ML", null, 2, null, null))
         );
 
         packingService.recordPacking(request);
+
+        ArgumentCaptor<BigDecimal> packedQuantity = ArgumentCaptor.forClass(BigDecimal.class);
+        verify(productionLogRepository).incrementPackedQuantityAtomic(eq(1L), packedQuantity.capture());
+        assertThat(packedQuantity.getValue()).isEqualByComparingTo("1.0");
 
         verify(accountingFacade, times(1)).postPackingJournal(
                 eq("PROD-001-PACK-77"),
@@ -344,6 +350,78 @@ class PackingServiceTest {
                 anyString(),
                 any()
         );
+    }
+
+    @Test
+    void recordPacking_rejectsPackagingMovementJournalRelinkDrift() {
+        ProductionProduct product = new ProductionProduct();
+        product.setSkuCode("SKU-1");
+        product.setProductName("Primer");
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("wipAccountId", 900L);
+        product.setMetadata(metadata);
+
+        ProductionLog log = new ProductionLog();
+        ReflectionTestUtils.setField(log, "id", 1L);
+        log.setCompany(company);
+        log.setProduct(product);
+        log.setProductionCode("PROD-001");
+        log.setMixedQuantity(new BigDecimal("10"));
+        log.setTotalPackedQuantity(BigDecimal.ZERO);
+        log.setStatus(ProductionLogStatus.READY_TO_PACK);
+
+        FinishedGood finishedGood = new FinishedGood();
+        ReflectionTestUtils.setField(finishedGood, "id", 5L);
+        finishedGood.setCompany(company);
+        finishedGood.setProductCode(product.getSkuCode());
+        finishedGood.setValuationAccountId(500L);
+        finishedGood.setCurrentStock(BigDecimal.ZERO);
+
+        when(companyEntityLookup.lockProductionLog(company, 1L)).thenReturn(log);
+        when(finishedGoodRepository.lockByCompanyAndProductCode(company, "SKU-1"))
+                .thenReturn(Optional.of(finishedGood));
+        when(packingRecordRepository.save(any())).thenAnswer(invocation -> {
+            var record = invocation.getArgument(0);
+            ReflectionTestUtils.setField(record, "id", 88L);
+            return record;
+        });
+        when(packagingMaterialService.consumePackagingMaterial("500ML", 2, "PROD-001-PACK-88"))
+                .thenReturn(new PackagingConsumptionResult(
+                        true,
+                        new BigDecimal("20.00"),
+                        new BigDecimal("2"),
+                        Map.of(811L, new BigDecimal("20.00")),
+                        null
+                ));
+        when(accountingFacade.postPackingJournal(anyString(), any(LocalDate.class), anyString(), any()))
+                .thenReturn(stubEntry(55L));
+
+        RawMaterialMovement existingMovement = new RawMaterialMovement();
+        ReflectionTestUtils.setField(existingMovement, "id", 300L);
+        existingMovement.setJournalEntryId(999L);
+        when(rawMaterialMovementRepository.findByRawMaterialCompanyAndReferenceTypeAndReferenceId(
+                company,
+                InventoryReference.PACKING_RECORD,
+                "PROD-001-PACK-88"))
+                .thenReturn(List.of(existingMovement));
+
+        PackingRequest request = new PackingRequest(
+                1L,
+                LocalDate.of(2024, 1, 1),
+                "packer",
+                null,
+                List.of(new PackingLineRequest("500ML", null, 2, null, null))
+        );
+
+        assertThatThrownBy(() -> packingService.recordPacking(request))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("already linked to journal")
+                .satisfies(error -> assertThat(((ApplicationException) error).getErrorCode())
+                        .isEqualTo(ErrorCode.BUSINESS_CONSTRAINT_VIOLATION));
+
+        assertThat(existingMovement.getJournalEntryId()).isEqualTo(999L);
+        verify(rawMaterialMovementRepository, never()).saveAll(any());
+        verify(productionLogRepository, never()).incrementPackedQuantityAtomic(anyLong(), any());
     }
 
     @Test

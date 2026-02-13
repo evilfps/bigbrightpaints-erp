@@ -43,10 +43,11 @@ import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 
 @Service
@@ -679,8 +680,23 @@ public class PackingService {
         if (movements.isEmpty()) {
             return;
         }
-        movements.forEach(movement -> movement.setJournalEntryId(journalEntryId));
-        rawMaterialMovementRepository.saveAll(movements);
+        List<RawMaterialMovement> toUpdate = new ArrayList<>();
+        for (RawMaterialMovement movement : movements) {
+            Long existingJournalId = movement.getJournalEntryId();
+            if (existingJournalId == null) {
+                movement.setJournalEntryId(journalEntryId);
+                toUpdate.add(movement);
+                continue;
+            }
+            if (!Objects.equals(existingJournalId, journalEntryId)) {
+                throw new ApplicationException(
+                        ErrorCode.BUSINESS_CONSTRAINT_VIOLATION,
+                        "Packing reference " + referenceId + " already linked to journal " + existingJournalId);
+            }
+        }
+        if (!toUpdate.isEmpty()) {
+            rawMaterialMovementRepository.saveAll(toUpdate);
+        }
     }
 
     private void postCompletionEntries(Company company,
@@ -770,15 +786,11 @@ public class PackingService {
         if (!StringUtils.hasText(size)) {
             throw new IllegalArgumentException("Packaging size is required for line " + lineNumber);
         }
-        String normalized = size.trim().toUpperCase(Locale.ROOT);
-        if (normalized.endsWith("L")) {
-            normalized = normalized.substring(0, normalized.length() - 1);
-        }
-        try {
-            return new BigDecimal(normalized);
-        } catch (NumberFormatException ex) {
+        BigDecimal parsed = PackagingSizeParser.parseSizeInLitersAllowBareNumber(size);
+        if (parsed == null) {
             throw new IllegalArgumentException("Invalid packaging size '" + size + "' on line " + lineNumber);
         }
+        return parsed;
     }
 
     private LocalDate resolveCurrentDate(Company company) {
