@@ -2954,6 +2954,51 @@ Queue Rotation (Auto-Replenish)
 - [ready] M2-S12 replay mismatch guard helper extraction to enforce parity by construction
 - [ready] M11-S6 approval queue runtime contract test slice (assert FE docs match live `AdminApprovalItemDto` payload fields and action endpoint semantics)
 
+Completed Slice (Committed)
+- 2026-02-13: `99ae6c06`
+  - chore(guard): enforce accounting portal scope contract.
+  - M14-S4 closure:
+    - added `scripts/guard_accounting_portal_scope_contract.sh` to enforce the frontend-scope invariant sentence and guardrail doc linkage checks:
+      - `HR, PURCHASING, INVENTORY, and REPORTS come under the Accounting portal in frontend scope.`
+    - integrated guard execution into:
+      - `scripts/verify_local.sh`
+      - `scripts/gate_fast.sh`
+      - `scripts/gate_core.sh`
+    - aligned `docs/endpoint-inventory.md` wording to the invariant contract.
+  - Verification:
+    - `bash scripts/guard_accounting_portal_scope_contract.sh` -> pass.
+    - `bash -n scripts/verify_local.sh scripts/gate_fast.sh scripts/gate_core.sh scripts/guard_accounting_portal_scope_contract.sh` -> pass.
+
+Post-Commit Review Evidence
+- Commit reviewed: `99ae6c06`
+- `codex review --commit 99ae6c06`:
+  - final verdict: guard integration is consistent with existing gate patterns; no functional regressions or blocking issues identified.
+  - captured stream: `/tmp/codex_review_99ae6c06.log`.
+- Review subagent `019c5780-d612-7e21-a2ad-1e6954275a15`:
+  - high findings: none.
+  - medium findings: none.
+  - low finding: guard is documentation-string based, so semantic scope drift can still pass if docs are manually kept unchanged; retain manual reviewer verification on endpoint ownership diffs.
+
+Loop Update
+- 2026-02-13T20:29:49+05:30
+- tracked_now_ts: `2026-02-13T20:29:49+05:30`
+- tracked_elapsed: `42h 36m 0s`
+- active_in_progress: `M14-S5 costing method alias replay matrix for finished-goods APIs (FIFO/WAC normalization + invalid-alias rejection parity with raw-material contracts)`
+
+Queue Rotation (Auto-Replenish)
+- [completed] M14-S4 accounting-portal scope invariant guard (preserve HR/PURCHASING/INVENTORY/REPORTS mapping unless replacement portal-map + endpoint docs land in same commit)
+- [in_progress] M14-S5 costing method alias replay matrix for finished-goods APIs (FIFO/WAC normalization + invalid-alias rejection parity with raw-material contracts)
+- [ready] M14-S6 costing output endpoint parity contract (`stock-summary` vs `inventory-valuation` vs `production-log cost-breakdown` consistency under FIFO/WAC)
+- [ready] M14-S7 locale-stable costing helper sweep (`Locale.ROOT` normalization parity across duplicated `isWeightedAverage(...)` call sites + negative locale regression checks)
+- [ready] M14-S8 WAC FEFO tie-break determinism (same-expiry batch ordering contract + replay-safe depletion assertions across reserve/adjustment flows)
+- [ready] M14-S9 costing-method utility adoption in inventory service call sites (replace inline alias checks in dispatch/adjustment selectors + locale contract tests)
+- [ready] M14-S10 finished-good costing selector unification (`resolveDispatchUnitCost` + batch selectors consume shared utility, with locale-forced negative regression tests)
+- [ready] M12-S5 discount/reference calculation parity matrix across sales->invoice->settlement + user-facing example table refresh
+- [ready] M10-S3 release-gate dry-run and blocker ledger sync (`scripts/verify_local.sh` + artifact sanity)
+- [ready] M9-S5 capture EXPLAIN + index-candidate evidence for journal/allocation replay hotspot queries (Flyway V2-ready)
+- [ready] M2-S12 replay mismatch guard helper extraction to enforce parity by construction
+- [ready] M11-S6 approval queue runtime contract test slice (assert FE docs match live `AdminApprovalItemDto` payload fields and action endpoint semantics)
+
 Post-Commit Review Evidence
 - Commit reviewed: `17fbaf21`
 - `codex review --commit 17fbaf21`:
