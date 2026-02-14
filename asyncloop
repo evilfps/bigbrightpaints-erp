@@ -6027,8 +6027,8 @@ Follow-up Hardening (Committed)
 Post-Commit Review Evidence
 - Commit reviewed: `03e8d5b4`
 - `codex review --commit 03e8d5b4`:
-  - command executed; review stream remained rollout/state-db noisy without a durable final terminal verdict capture.
-  - no concrete high/medium regression signal surfaced in captured output.
+  - command executed with prolonged rollout/state-db noise during startup, then completed with final reviewer verdict.
+  - final verdict: no concrete correctness regressions identified in the scoped commit diff.
 - Review subagent `019c5cf2-5091-79e1-b630-16846585711b`:
   - findings: none (`no findings`).
   - residual non-blocking note: optional end-to-end replay-path assertion can be added for extra confidence (defense-in-depth, not a closure blocker).
