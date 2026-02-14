@@ -24,12 +24,13 @@ This document captures the current backend contract for sales-order payment mode
 
 ## Accounting and Lifecycle Notes
 - Revenue recognition must remain shipment-gated; order creation alone should not expose recognized revenue (`M15-S2`).
-- Admin portal dashboard revenue metrics (`/api/v1/portal/dashboard`) include only shipment-recognized order statuses:
-  - `SHIPPED`
-  - `FULFILLED`
-  - `COMPLETED`
-  - `CLOSED`
-- Pipeline statuses like `BOOKED`, `RESERVED`, `PENDING_PRODUCTION`, `PENDING_INVENTORY`, and `READY_TO_SHIP` are non-recognized for revenue totals.
+- Admin portal dashboard revenue metrics (`/api/v1/portal/dashboard`) are derived from shipment-posted invoice rows, not order status labels.
+- Dashboard recognized-revenue invoice statuses:
+  - `ISSUED`
+  - `PAID`
+  - `PARTIAL`
+- Non-invoiced orders remain excluded from recognized revenue totals even if manually moved to terminal order statuses.
+- Partial-dispatch orders with issued invoices are included in revenue totals, preventing under-reporting while dispatch backlog remains.
 - Dealer utilized-credit reporting must include pending/open commitments (`M15-S4`).
 - Dealer pending-order visibility must match admin lifecycle truth (`M15-S5`).
 - Cash/credit account mapping should be backend-policy driven, not ad-hoc operator selection (`M15-S7`).

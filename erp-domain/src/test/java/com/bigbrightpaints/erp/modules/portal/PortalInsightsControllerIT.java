@@ -22,6 +22,10 @@ import com.bigbrightpaints.erp.modules.inventory.domain.PackagingSlip;
 import com.bigbrightpaints.erp.modules.inventory.domain.PackagingSlipRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterial;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialRepository;
+import com.bigbrightpaints.erp.modules.invoice.domain.Invoice;
+import com.bigbrightpaints.erp.modules.invoice.domain.InvoiceRepository;
+import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
+import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrder;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrderRepository;
 import com.bigbrightpaints.erp.test.AbstractIntegrationTest;
@@ -74,6 +78,10 @@ public class PortalInsightsControllerIT extends AbstractIntegrationTest {
     private PayrollRunRepository payrollRunRepository;
     @Autowired
     private AccountRepository accountRepository;
+    @Autowired
+    private DealerRepository dealerRepository;
+    @Autowired
+    private InvoiceRepository invoiceRepository;
 
     private Company company;
 
@@ -209,30 +217,31 @@ public class PortalInsightsControllerIT extends AbstractIntegrationTest {
 
     @Test
     @SuppressWarnings("unchecked")
-    void dashboardRevenueIncludesOnlyShipmentRecognizedOrders() {
-        SalesOrder shipped = new SalesOrder();
-        shipped.setCompany(company);
-        shipped.setOrderNumber("ORD-PORTAL-SHIP");
-        shipped.setStatus(" shipped ");
-        shipped.setTotalAmount(new BigDecimal("88000"));
-        shipped.setCurrency("INR");
-        salesOrderRepository.saveAndFlush(shipped);
+    void dashboardRevenueUsesRecognizedInvoicesNotOrderStatus() {
+        String suffix = Long.toUnsignedString(System.nanoTime());
+        Dealer dealer = saveDealer("D-" + suffix);
 
-        SalesOrder completed = new SalesOrder();
-        completed.setCompany(company);
-        completed.setOrderNumber("ORD-PORTAL-COMP");
-        completed.setStatus("COMPLETED");
-        completed.setTotalAmount(new BigDecimal("12000"));
-        completed.setCurrency("INR");
-        salesOrderRepository.saveAndFlush(completed);
+        SalesOrder partialDispatchOrder = saveSalesOrder("ORD-PORTAL-PART-" + suffix, "PENDING_PRODUCTION", new BigDecimal("88000"));
+        SalesOrder shippedOrder = saveSalesOrder("ORD-PORTAL-SHIP-" + suffix, "SHIPPED", new BigDecimal("12000"));
+        saveSalesOrder("ORD-PORTAL-CLOSED-" + suffix, "CLOSED", new BigDecimal("51000"));
+        saveSalesOrder("ORD-PORTAL-PEND-" + suffix, "PENDING_PRODUCTION", new BigDecimal("65000"));
 
-        SalesOrder pending = new SalesOrder();
-        pending.setCompany(company);
-        pending.setOrderNumber("ORD-PORTAL-PEND");
-        pending.setStatus("PENDING_PRODUCTION");
-        pending.setTotalAmount(new BigDecimal("65000"));
-        pending.setCurrency("INR");
-        salesOrderRepository.saveAndFlush(pending);
+        saveInvoice(
+                dealer,
+                partialDispatchOrder,
+                "INV-PORTAL-A-" + suffix,
+                " issued ",
+                new BigDecimal("88000"),
+                LocalDate.now().minusDays(2)
+        );
+        saveInvoice(
+                dealer,
+                shippedOrder,
+                "INV-PORTAL-B-" + suffix,
+                "PAID",
+                new BigDecimal("12000"),
+                LocalDate.now().minusDays(1)
+        );
 
         HttpHeaders headers = authenticatedHeaders();
         ResponseEntity<Map> dashboard = rest.exchange("/api/v1/portal/dashboard", HttpMethod.GET, new HttpEntity<>(headers), Map.class);
@@ -250,6 +259,49 @@ public class PortalInsightsControllerIT extends AbstractIntegrationTest {
 
         assertThat(revenue.get("value")).isEqualTo("₹100000.00");
         assertThat(revenue.get("detail")).isEqualTo("Last 30d: ₹100000.00");
+    }
+
+    private SalesOrder saveSalesOrder(String orderNumber, String status, BigDecimal totalAmount) {
+        SalesOrder order = new SalesOrder();
+        order.setCompany(company);
+        order.setOrderNumber(orderNumber);
+        order.setStatus(status);
+        order.setTotalAmount(totalAmount);
+        order.setCurrency("INR");
+        return salesOrderRepository.saveAndFlush(order);
+    }
+
+    private Dealer saveDealer(String codeSuffix) {
+        Dealer dealer = new Dealer();
+        dealer.setCompany(company);
+        dealer.setName("Dealer " + codeSuffix);
+        dealer.setCode("DEALER-" + codeSuffix);
+        dealer.setCreditLimit(new BigDecimal("500000"));
+        dealer.setOutstandingBalance(BigDecimal.ZERO);
+        dealer.setStatus("ACTIVE");
+        return dealerRepository.saveAndFlush(dealer);
+    }
+
+    private Invoice saveInvoice(Dealer dealer,
+                                SalesOrder salesOrder,
+                                String invoiceNumber,
+                                String status,
+                                BigDecimal totalAmount,
+                                LocalDate issueDate) {
+        Invoice invoice = new Invoice();
+        invoice.setCompany(company);
+        invoice.setDealer(dealer);
+        invoice.setSalesOrder(salesOrder);
+        invoice.setInvoiceNumber(invoiceNumber);
+        invoice.setStatus(status);
+        invoice.setSubtotal(totalAmount);
+        invoice.setTaxTotal(BigDecimal.ZERO);
+        invoice.setTotalAmount(totalAmount);
+        invoice.setOutstandingAmount(totalAmount);
+        invoice.setCurrency("INR");
+        invoice.setIssueDate(issueDate);
+        invoice.setDueDate(issueDate.plusDays(30));
+        return invoiceRepository.saveAndFlush(invoice);
     }
 
     private HttpHeaders authenticatedHeaders() {

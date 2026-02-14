@@ -28,6 +28,8 @@ import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialRepository;
 import com.bigbrightpaints.erp.modules.portal.dto.DashboardInsights;
 import com.bigbrightpaints.erp.modules.portal.dto.OperationsInsights;
 import com.bigbrightpaints.erp.modules.portal.dto.WorkforceInsights;
+import com.bigbrightpaints.erp.modules.invoice.domain.Invoice;
+import com.bigbrightpaints.erp.modules.invoice.domain.InvoiceRepository;
 import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrder;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrderRepository;
@@ -50,15 +52,15 @@ import java.util.stream.Collectors;
 @Service
 @Transactional(readOnly = true)
 public class PortalInsightsService {
-    private static final Set<String> REVENUE_RECOGNIZED_ORDER_STATUSES = Set.of(
-            "SHIPPED",
-            "FULFILLED",
-            "COMPLETED",
-            "CLOSED"
+    private static final Set<String> REVENUE_RECOGNIZED_INVOICE_STATUSES = Set.of(
+            "ISSUED",
+            "PAID",
+            "PARTIAL"
     );
 
     private final CompanyContextService companyContextService;
     private final SalesOrderRepository salesOrderRepository;
+    private final InvoiceRepository invoiceRepository;
     private final DealerRepository dealerRepository;
     private final PackagingSlipRepository packagingSlipRepository;
     private final EmployeeRepository employeeRepository;
@@ -75,6 +77,7 @@ public class PortalInsightsService {
 
     public PortalInsightsService(CompanyContextService companyContextService,
                                  SalesOrderRepository salesOrderRepository,
+                                 InvoiceRepository invoiceRepository,
                                  DealerRepository dealerRepository,
                                  PackagingSlipRepository packagingSlipRepository,
                                  EmployeeRepository employeeRepository,
@@ -90,6 +93,7 @@ public class PortalInsightsService {
                                  CompanyClock companyClock) {
         this.companyContextService = companyContextService;
         this.salesOrderRepository = salesOrderRepository;
+        this.invoiceRepository = invoiceRepository;
         this.dealerRepository = dealerRepository;
         this.packagingSlipRepository = packagingSlipRepository;
         this.employeeRepository = employeeRepository;
@@ -108,15 +112,16 @@ public class PortalInsightsService {
     public DashboardInsights dashboard() {
         Company company = companyContextService.requireCurrentCompany();
         List<SalesOrder> orders = salesOrderRepository.findByCompanyOrderByCreatedAtDesc(company);
+        List<Invoice> invoices = invoiceRepository.findByCompanyOrderByIssueDateDesc(company);
         List<PackagingSlip> slips = packagingSlipRepository.findByCompanyOrderByCreatedAtDesc(company);
         List<Employee> employees = employeeRepository.findByCompanyOrderByFirstNameAsc(company);
         List<ProductionPlan> plans = productionPlanRepository.findByCompanyOrderByPlannedDateDesc(company);
-        List<SalesOrder> recognizedRevenueOrders = orders.stream()
-                .filter(this::isRevenueRecognizedOrder)
+        List<Invoice> recognizedRevenueInvoices = invoices.stream()
+                .filter(this::isRevenueRecognizedInvoice)
                 .toList();
 
-        String revenue = currency(totalAmount(recognizedRevenueOrders));
-        String last30 = currency(sumWithin(recognizedRevenueOrders, 30, company));
+        String revenue = currency(totalInvoiceAmount(recognizedRevenueInvoices));
+        String last30 = currency(sumInvoicesWithin(recognizedRevenueInvoices, 30, company));
         long dealers = dealerRepository.findByCompanyOrderByNameAsc(company).size();
         long activeEmployees = employees.stream().filter(emp -> "ACTIVE".equalsIgnoreCase(emp.getStatus())).count();
         double fulfilment = ratio(
@@ -288,25 +293,25 @@ public class PortalInsightsService {
         return "Created recently";
     }
 
-    private BigDecimal totalAmount(List<SalesOrder> orders) {
-        return orders.stream()
-                .map(SalesOrder::getTotalAmount)
+    private BigDecimal totalInvoiceAmount(List<Invoice> invoices) {
+        return invoices.stream()
+                .map(Invoice::getTotalAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
-    private BigDecimal sumWithin(List<SalesOrder> orders, int days, Company company) {
-        Instant cutoff = companyClock.now(company).minus(days, ChronoUnit.DAYS);
-        return orders.stream()
-                .filter(order -> order.getCreatedAt() != null && order.getCreatedAt().isAfter(cutoff))
-                .map(SalesOrder::getTotalAmount)
+    private BigDecimal sumInvoicesWithin(List<Invoice> invoices, int days, Company company) {
+        LocalDate cutoff = companyClock.today(company).minusDays(days);
+        return invoices.stream()
+                .filter(invoice -> invoice.getIssueDate() != null && !invoice.getIssueDate().isBefore(cutoff))
+                .map(Invoice::getTotalAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
-    private boolean isRevenueRecognizedOrder(SalesOrder order) {
-        if (order == null || order.getStatus() == null) {
+    private boolean isRevenueRecognizedInvoice(Invoice invoice) {
+        if (invoice == null || invoice.getStatus() == null) {
             return false;
         }
-        return REVENUE_RECOGNIZED_ORDER_STATUSES.contains(order.getStatus().trim().toUpperCase(Locale.ROOT));
+        return REVENUE_RECOGNIZED_INVOICE_STATUSES.contains(invoice.getStatus().trim().toUpperCase(Locale.ROOT));
     }
 
     private static double ratio(long numerator, long denominator) {
