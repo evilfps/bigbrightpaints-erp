@@ -40,8 +40,13 @@ if [[ "$MIGRATION_SET" == "v2" ]]; then
   CHECKSUM_GUARD_LOG="$ARTIFACT_DIR/flyway-v2-transient-checksum-guard.txt"
 
   if [[ -n "${FLYWAY_GUARD_DB_NAME:-}" && -n "${PGDATABASE:-}" && "${FLYWAY_GUARD_DB_NAME}" != "${PGDATABASE}" ]]; then
-    echo "[gate-release] WARNING: FLYWAY_GUARD_DB_NAME and PGDATABASE differ; gate_release guard checks FLYWAY_GUARD_DB_NAME and verify_local guard checks PGDATABASE" | tee "$CHECKSUM_GUARD_LOG" >&2
-    VERIFY_LOCAL_GUARD_DB_NAME="$PGDATABASE"
+    if [[ "${ALLOW_FLYWAY_GUARD_DB_MISMATCH:-false}" == "true" ]]; then
+      echo "[gate-release] WARNING: FLYWAY_GUARD_DB_NAME and PGDATABASE differ; running dual-target guard path because ALLOW_FLYWAY_GUARD_DB_MISMATCH=true" | tee "$CHECKSUM_GUARD_LOG" >&2
+      VERIFY_LOCAL_GUARD_DB_NAME="$PGDATABASE"
+    else
+      echo "[gate-release] FLYWAY_GUARD_DB_NAME (${FLYWAY_GUARD_DB_NAME}) must match PGDATABASE (${PGDATABASE}) when both are set (or set ALLOW_FLYWAY_GUARD_DB_MISMATCH=true for dual-target guard mode)" | tee "$CHECKSUM_GUARD_LOG" >&2
+      exit 3
+    fi
   fi
 
   GUARD_DB_NAME="${FLYWAY_GUARD_DB_NAME:-${PGDATABASE:-}}"
