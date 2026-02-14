@@ -4976,9 +4976,6 @@ public class AccountingService {
                 if (!line.normalizedDescription().equals(adjustmentSignature.normalizedDescription())) {
                     continue;
                 }
-                if (line.signature().amount().compareTo(adjustmentSignature.amount()) != 0) {
-                    continue;
-                }
                 candidateIndexes.add(i);
             }
             candidateIndexesByAdjustment.add(candidateIndexes);
@@ -4986,6 +4983,7 @@ public class AccountingService {
         Map<DealerPaymentSignature, Integer> workingCounts = new HashMap<>(counts);
         if (canMatchRequestSignaturesWithOptionalAdjustmentExclusions(
                 0,
+                adjustmentSignatures,
                 candidateIndexesByAdjustment,
                 candidateLines,
                 new HashSet<>(),
@@ -5036,16 +5034,18 @@ public class AccountingService {
 
     private boolean canMatchRequestSignaturesWithOptionalAdjustmentExclusions(
             int adjustmentIndex,
+            List<SettlementAdjustmentSignature> adjustmentSignatures,
             List<List<Integer>> candidateIndexesByAdjustment,
             List<ExistingDealerPaymentLine> candidateLines,
             Set<Integer> removedIndexes,
             Map<DealerPaymentSignature, Integer> workingCounts,
             Map<DealerPaymentSignature, Integer> requestPaymentSignatures) {
-        if (adjustmentIndex >= candidateIndexesByAdjustment.size()) {
+        if (adjustmentIndex >= adjustmentSignatures.size()) {
             return workingCounts.equals(requestPaymentSignatures);
         }
         if (canMatchRequestSignaturesWithOptionalAdjustmentExclusions(
                 adjustmentIndex + 1,
+                adjustmentSignatures,
                 candidateIndexesByAdjustment,
                 candidateLines,
                 removedIndexes,
@@ -5053,17 +5053,63 @@ public class AccountingService {
                 requestPaymentSignatures)) {
             return true;
         }
-        for (Integer lineIndex : candidateIndexesByAdjustment.get(adjustmentIndex)) {
+        return tryMatchAdjustmentRemovalCombination(
+                adjustmentIndex,
+                candidateIndexesByAdjustment.get(adjustmentIndex),
+                0,
+                adjustmentSignatures.get(adjustmentIndex).amount(),
+                adjustmentSignatures,
+                candidateIndexesByAdjustment,
+                candidateLines,
+                removedIndexes,
+                workingCounts,
+                requestPaymentSignatures);
+    }
+
+    private boolean tryMatchAdjustmentRemovalCombination(
+            int adjustmentIndex,
+            List<Integer> candidateIndexes,
+            int candidateOffset,
+            BigDecimal remainingAmount,
+            List<SettlementAdjustmentSignature> adjustmentSignatures,
+            List<List<Integer>> candidateIndexesByAdjustment,
+            List<ExistingDealerPaymentLine> candidateLines,
+            Set<Integer> removedIndexes,
+            Map<DealerPaymentSignature, Integer> workingCounts,
+            Map<DealerPaymentSignature, Integer> requestPaymentSignatures) {
+        if (remainingAmount.compareTo(BigDecimal.ZERO) == 0) {
+            return canMatchRequestSignaturesWithOptionalAdjustmentExclusions(
+                    adjustmentIndex + 1,
+                    adjustmentSignatures,
+                    candidateIndexesByAdjustment,
+                    candidateLines,
+                    removedIndexes,
+                    workingCounts,
+                    requestPaymentSignatures);
+        }
+        if (remainingAmount.compareTo(BigDecimal.ZERO) < 0 || candidateOffset >= candidateIndexes.size()) {
+            return false;
+        }
+        for (int i = candidateOffset; i < candidateIndexes.size(); i++) {
+            Integer lineIndex = candidateIndexes.get(i);
             if (lineIndex == null || removedIndexes.contains(lineIndex)) {
                 continue;
             }
             ExistingDealerPaymentLine line = candidateLines.get(lineIndex);
+            BigDecimal lineAmount = line.signature().amount();
+            if (lineAmount.compareTo(remainingAmount) > 0) {
+                continue;
+            }
             if (!decrementSignatureCount(workingCounts, line.signature())) {
                 continue;
             }
             removedIndexes.add(lineIndex);
-            if (canMatchRequestSignaturesWithOptionalAdjustmentExclusions(
-                    adjustmentIndex + 1,
+            if (tryMatchAdjustmentRemovalCombination(
+                    adjustmentIndex,
+                    candidateIndexes,
+                    i + 1,
+                    remainingAmount.subtract(lineAmount),
+                    adjustmentSignatures,
                     candidateIndexesByAdjustment,
                     candidateLines,
                     removedIndexes,
