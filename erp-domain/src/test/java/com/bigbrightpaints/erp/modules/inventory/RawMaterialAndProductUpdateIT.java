@@ -146,6 +146,120 @@ class RawMaterialAndProductUpdateIT extends AbstractIntegrationTest {
     }
 
     @Test
+    void raw_material_update_normalizes_weighted_average_alias_to_wac() {
+        HttpHeaders headers = authenticatedHeaders();
+        Map<String, Long> accounts = fixtureAccountIds();
+
+        Map<String, Object> createPayload = new HashMap<>();
+        createPayload.put("name", "RM Update WAC");
+        createPayload.put("sku", "RM-UPD-WAC-" + UUID.randomUUID().toString().substring(0, 8));
+        createPayload.put("unitType", "KG");
+        createPayload.put("reorderLevel", new BigDecimal("10"));
+        createPayload.put("minStock", new BigDecimal("5"));
+        createPayload.put("maxStock", new BigDecimal("50"));
+        createPayload.put("inventoryAccountId", accounts.get("INV"));
+        createPayload.put("costingMethod", "FIFO");
+
+        ResponseEntity<Map> create = rest.exchange(
+                "/api/v1/accounting/raw-materials",
+                HttpMethod.POST,
+                new HttpEntity<>(createPayload, headers),
+                Map.class
+        );
+        assertThat(create.getStatusCode()).isEqualTo(HttpStatus.OK);
+        Map<?, ?> createdData = (Map<?, ?>) create.getBody().get("data");
+        Long rawMaterialId = ((Number) createdData.get("id")).longValue();
+
+        Map<String, Object> updatePayload = new HashMap<>(createPayload);
+        updatePayload.put("name", "RM Update WAC Normalized");
+        updatePayload.put("costingMethod", " weighted_average ");
+
+        ResponseEntity<Map> update = rest.exchange(
+                "/api/v1/accounting/raw-materials/" + rawMaterialId,
+                HttpMethod.PUT,
+                new HttpEntity<>(updatePayload, headers),
+                Map.class
+        );
+
+        assertThat(update.getStatusCode()).isEqualTo(HttpStatus.OK);
+        Map<?, ?> updatedData = (Map<?, ?>) update.getBody().get("data");
+        assertThat(updatedData.get("costingMethod")).isEqualTo("WAC");
+
+        RawMaterial updated = rawMaterialRepository.findById(rawMaterialId).orElseThrow();
+        assertThat(updated.getCostingMethod()).isEqualTo("WAC");
+    }
+
+    @Test
+    void raw_material_create_rejects_malformed_costing_token() {
+        HttpHeaders headers = authenticatedHeaders();
+        Map<String, Long> accounts = fixtureAccountIds();
+
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("name", "RM Malformed Method");
+        payload.put("sku", "RM-BAD-" + UUID.randomUUID().toString().substring(0, 8));
+        payload.put("unitType", "KG");
+        payload.put("reorderLevel", new BigDecimal("10"));
+        payload.put("minStock", new BigDecimal("5"));
+        payload.put("maxStock", new BigDecimal("50"));
+        payload.put("inventoryAccountId", accounts.get("INV"));
+        payload.put("costingMethod", "WAC;DROP");
+
+        ResponseEntity<Map> create = rest.exchange(
+                "/api/v1/accounting/raw-materials",
+                HttpMethod.POST,
+                new HttpEntity<>(payload, headers),
+                Map.class
+        );
+
+        assertThat(create.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(String.valueOf(create.getBody())).contains("Unsupported costing method");
+    }
+
+    @Test
+    void raw_material_update_rejects_malformed_costing_token_without_mutation() {
+        HttpHeaders headers = authenticatedHeaders();
+        Map<String, Long> accounts = fixtureAccountIds();
+
+        Map<String, Object> createPayload = new HashMap<>();
+        createPayload.put("name", "RM Immutable On Invalid");
+        createPayload.put("sku", "RM-IMM-" + UUID.randomUUID().toString().substring(0, 8));
+        createPayload.put("unitType", "KG");
+        createPayload.put("reorderLevel", new BigDecimal("10"));
+        createPayload.put("minStock", new BigDecimal("5"));
+        createPayload.put("maxStock", new BigDecimal("50"));
+        createPayload.put("inventoryAccountId", accounts.get("INV"));
+        createPayload.put("costingMethod", "FIFO");
+
+        ResponseEntity<Map> create = rest.exchange(
+                "/api/v1/accounting/raw-materials",
+                HttpMethod.POST,
+                new HttpEntity<>(createPayload, headers),
+                Map.class
+        );
+        assertThat(create.getStatusCode()).isEqualTo(HttpStatus.OK);
+        Map<?, ?> createdData = (Map<?, ?>) create.getBody().get("data");
+        Long rawMaterialId = ((Number) createdData.get("id")).longValue();
+
+        Map<String, Object> updatePayload = new HashMap<>(createPayload);
+        updatePayload.put("name", "RM Invalid Mutation Attempt");
+        updatePayload.put("costingMethod", "FIFO/WAC");
+
+        ResponseEntity<Map> update = rest.exchange(
+                "/api/v1/accounting/raw-materials/" + rawMaterialId,
+                HttpMethod.PUT,
+                new HttpEntity<>(updatePayload, headers),
+                Map.class
+        );
+
+        assertThat(update.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(String.valueOf(update.getBody())).contains("Unsupported costing method");
+
+        RawMaterial persisted = rawMaterialRepository.findById(rawMaterialId).orElseThrow();
+        assertThat(persisted.getName()).isEqualTo("RM Immutable On Invalid");
+        assertThat(persisted.getCostingMethod()).isEqualTo("FIFO");
+    }
+
+    @Test
     void production_catalog_update_adjusts_price_and_name() {
         HttpHeaders headers = authenticatedHeaders();
 
