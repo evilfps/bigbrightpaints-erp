@@ -4781,3 +4781,54 @@ Queue Rotation (Auto-Replenish)
 - [ready] M9-S5 capture EXPLAIN + index-candidate evidence for journal/allocation replay hotspot queries (Flyway V2-ready)
 - [ready] M2-S12 replay mismatch guard helper extraction to enforce parity by construction
 - [ready] M11-S6 approval queue runtime contract test slice (assert FE docs match live `AdminApprovalItemDto` payload fields and action endpoint semantics)
+
+Post-Commit Review Evidence
+- Commit reviewed: `41c48cb5`
+- `codex review --commit 41c48cb5`:
+  - final verdict: docs-only `asyncloop` append; no executable code/config/test regression introduced.
+- Review subagent `019c5a88-2957-79e0-a39a-3a48ad003123`:
+  - findings:
+    - medium: historical + latest loop/queue blocks coexist in ledger and can look conflicting if append-only semantics are not considered.
+  - disposition: no code fix required; `asyncloop` is intentionally append-only and latest state is defined by the final block at EOF.
+
+Completed Slice (Committed)
+- 2026-02-14: `fabdb20f`
+  - fix(reports): fail safe raw-material WAC valuation on null average.
+  - M14-S35 closure pass:
+    - patched `InventoryValuationService#valueFromRawMaterial` to fall back to deterministic batch valuation when WAC aggregate is unavailable (`calculateWeightedAverageCost(...) == null`).
+    - extracted `valueFromRawMaterialBatches(...)` helper with deterministic ordering (`receivedAt`, `id`) to keep valuation stable.
+    - added `currentSnapshot_rawMaterialWacFallsBackToBatchValuationWhenAverageMissing` in `InventoryValuationServiceTest`.
+  - Verification:
+    - `cd /home/realnigga/Desktop/orchestrator_erp/erp-domain && mvn -B -ntp -Dtest=InventoryValuationServiceTest test` -> pass (5 tests, 0 failures, 0 errors).
+
+Post-Commit Review Evidence
+- Commit reviewed: `fabdb20f`
+- `codex review --commit fabdb20f`:
+  - final verdict: no regression identified; raw-material WAC null-handling now safely falls back to batch valuation and test coverage is coherent.
+  - note: reviewer's exploratory broad run (`-Dtest=*InventoryValuation*`) surfaced an existing runtime test failure in `TS_RuntimeInventoryValuationExecutableCoverageTest#fifoFinishedGoodValuation_usesQuantityAvailable_notQuantityTotal`; this predates and is outside raw-material scope of `fabdb20f`.
+- Review subagent `019c5a8d-7d5a-7630-9042-83d98674f01e`:
+  - findings: none.
+  - summary: fallback path + deterministic ordering + new test coverage are consistent with accounting valuation invariants.
+
+Loop Update
+- 2026-02-14T10:39:45+05:30
+- tracked_now_ts: `2026-02-14T10:39:45+05:30`
+- tracked_elapsed: `56h 45m 53s`
+- active_in_progress: `M14-S36 catalog-import concurrent winner provenance contract (winner replay with same payload must stay stable after mismatch conflict; loser payload must never materialize across retry attempts)`
+- continuity_recheck: `0355149b` / `f9fd898f` / `a1d05cd7` evidence chain remains aligned.
+
+Queue Rotation (Auto-Replenish)
+- [completed] M14-S35 raw-material WAC null-average fail-safe contract (if weighted-average repository returns null/blank path output, valuation/reporting must remain deterministic and never silently understate inventory)
+- [in_progress] M14-S36 catalog-import concurrent winner provenance contract (winner replay with same payload must stay stable after mismatch conflict; loser payload must never materialize across retry attempts)
+- [ready] M14-S37 catalog-import stale-row cache cleanup acceptance matrix (legacy drifted rows + retry replay must clear stale flags without mutating winner payload)
+- [ready] M14-S38 catalog-import MIME token canonicalization matrix (mixed-case/parameterized content-type parsing must remain fail-closed for disallowed families while preserving allowlist aliases)
+- [ready] M14-S39 raw-material malformed-token replay matrix (repeat invalid costing payloads across create/update must stay fail-closed and side-effect-free under company-scoped concurrent retries)
+- [ready] M14-S40 finished-good batch-selection parity guard (assert WAC paths never regress to FIFO allocation queries in dispatch/adjustment flows; add negative regression tests)
+- [ready] M14-S41 costing-helper centralization guard (enforce shared costing decision helper usage across inventory/factory/reporting services; document and test anti-duplication contract)
+- [ready] M14-S42 raw-material WAC null-average factory-flow parity matrix (bulk packing/packaging/production issue flows must apply deterministic batch-cost fallback without zero-cost understatement)
+- [ready] M11-S7 accounting-portal scope invariant lock (HR, PURCHASING, INVENTORY, REPORTS remain under Accounting portal unless replacement portal map + endpoint docs are updated atomically)
+- [ready] M12-S5 discount/reference calculation parity matrix across sales->invoice->settlement + user-facing example table refresh
+- [ready] M10-S3 release-gate dry-run and blocker ledger sync (`scripts/verify_local.sh` + artifact sanity)
+- [ready] M9-S5 capture EXPLAIN + index-candidate evidence for journal/allocation replay hotspot queries (Flyway V2-ready)
+- [ready] M2-S12 replay mismatch guard helper extraction to enforce parity by construction
+- [ready] M11-S6 approval queue runtime contract test slice (assert FE docs match live `AdminApprovalItemDto` payload fields and action endpoint semantics)
