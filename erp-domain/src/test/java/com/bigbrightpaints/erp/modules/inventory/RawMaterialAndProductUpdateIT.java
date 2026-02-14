@@ -28,6 +28,10 @@ import java.util.Map;
 import java.util.HashMap;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -231,6 +235,55 @@ class RawMaterialAndProductUpdateIT extends AbstractIntegrationTest {
     }
 
     @Test
+    void raw_material_create_repeated_malformed_costing_retries_stay_fail_closed_and_side_effect_free() {
+        HttpHeaders headers = authenticatedHeaders();
+        Map<String, Long> accounts = fixtureAccountIds();
+        Company company = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();
+        long beforeCount = rawMaterialRepository.findByCompanyOrderByNameAsc(company).size();
+        String sku = "RM-BAD-RETRY-" + UUID.randomUUID().toString().substring(0, 8);
+        Company foreignCompany = dataSeeder.ensureCompany(
+                "RM-FOREIGN-RETRY-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase(),
+                "Raw Material Foreign Retry Co"
+        );
+
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("name", "RM Malformed Retry");
+        payload.put("sku", sku);
+        payload.put("unitType", "KG");
+        payload.put("reorderLevel", new BigDecimal("10"));
+        payload.put("minStock", new BigDecimal("5"));
+        payload.put("maxStock", new BigDecimal("50"));
+        payload.put("inventoryAccountId", accounts.get("INV"));
+        payload.put("costingMethod", "WAC;DROP");
+
+        ResponseEntity<Map> firstAttempt = rest.exchange(
+                "/api/v1/accounting/raw-materials",
+                HttpMethod.POST,
+                new HttpEntity<>(payload, headers),
+                Map.class
+        );
+        assertThat(firstAttempt.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(String.valueOf(firstAttempt.getBody())).contains("Unsupported costing method");
+        assertThat(rawMaterialRepository.findByCompanyAndSku(company, sku)).isEmpty();
+        assertThat(rawMaterialRepository.findByCompanyAndSku(foreignCompany, sku)).isEmpty();
+
+        payload.put("costingMethod", "FIFO/WAC");
+        ResponseEntity<Map> secondAttempt = rest.exchange(
+                "/api/v1/accounting/raw-materials",
+                HttpMethod.POST,
+                new HttpEntity<>(payload, headers),
+                Map.class
+        );
+        assertThat(secondAttempt.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(String.valueOf(secondAttempt.getBody())).contains("Unsupported costing method");
+        assertThat(rawMaterialRepository.findByCompanyAndSku(company, sku)).isEmpty();
+        assertThat(rawMaterialRepository.findByCompanyAndSku(foreignCompany, sku)).isEmpty();
+
+        long afterCount = rawMaterialRepository.findByCompanyOrderByNameAsc(company).size();
+        assertThat(afterCount).isEqualTo(beforeCount);
+    }
+
+    @Test
     void raw_material_update_rejects_malformed_costing_token_without_mutation() {
         HttpHeaders headers = authenticatedHeaders();
         Map<String, Long> accounts = fixtureAccountIds();
@@ -271,6 +324,66 @@ class RawMaterialAndProductUpdateIT extends AbstractIntegrationTest {
 
         RawMaterial persisted = rawMaterialRepository.findById(rawMaterialId).orElseThrow();
         assertThat(persisted.getName()).isEqualTo("RM Immutable On Invalid");
+        assertThat(persisted.getCostingMethod()).isEqualTo("FIFO");
+    }
+
+    @Test
+    void raw_material_update_concurrent_malformed_retries_stay_side_effect_free() throws Exception {
+        HttpHeaders headers = authenticatedHeaders();
+        Map<String, Long> accounts = fixtureAccountIds();
+
+        Map<String, Object> createPayload = new HashMap<>();
+        createPayload.put("name", "RM Concurrent Invalid Base");
+        createPayload.put("sku", "RM-CONC-IMM-" + UUID.randomUUID().toString().substring(0, 8));
+        createPayload.put("unitType", "KG");
+        createPayload.put("reorderLevel", new BigDecimal("10"));
+        createPayload.put("minStock", new BigDecimal("5"));
+        createPayload.put("maxStock", new BigDecimal("50"));
+        createPayload.put("inventoryAccountId", accounts.get("INV"));
+        createPayload.put("costingMethod", "FIFO");
+
+        ResponseEntity<Map> create = rest.exchange(
+                "/api/v1/accounting/raw-materials",
+                HttpMethod.POST,
+                new HttpEntity<>(createPayload, headers),
+                Map.class
+        );
+        assertThat(create.getStatusCode()).isEqualTo(HttpStatus.OK);
+        Map<?, ?> createdData = (Map<?, ?>) create.getBody().get("data");
+        Long rawMaterialId = ((Number) createdData.get("id")).longValue();
+
+        Map<String, Object> invalidUpdatePayload = new HashMap<>(createPayload);
+        invalidUpdatePayload.put("name", "RM Concurrent Invalid Mutation");
+        invalidUpdatePayload.put("costingMethod", "WAC;DROP");
+
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        try {
+            Future<ResponseEntity<Map>> first = pool.submit(() -> rest.exchange(
+                    "/api/v1/accounting/raw-materials/" + rawMaterialId,
+                    HttpMethod.PUT,
+                    new HttpEntity<>(new HashMap<>(invalidUpdatePayload), headers),
+                    Map.class
+            ));
+            Future<ResponseEntity<Map>> second = pool.submit(() -> rest.exchange(
+                    "/api/v1/accounting/raw-materials/" + rawMaterialId,
+                    HttpMethod.PUT,
+                    new HttpEntity<>(new HashMap<>(invalidUpdatePayload), headers),
+                    Map.class
+            ));
+
+            ResponseEntity<Map> firstResponse = first.get(30, TimeUnit.SECONDS);
+            ResponseEntity<Map> secondResponse = second.get(30, TimeUnit.SECONDS);
+
+            assertThat(firstResponse.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+            assertThat(secondResponse.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+            assertThat(String.valueOf(firstResponse.getBody())).contains("Unsupported costing method");
+            assertThat(String.valueOf(secondResponse.getBody())).contains("Unsupported costing method");
+        } finally {
+            pool.shutdownNow();
+        }
+
+        RawMaterial persisted = rawMaterialRepository.findById(rawMaterialId).orElseThrow();
+        assertThat(persisted.getName()).isEqualTo("RM Concurrent Invalid Base");
         assertThat(persisted.getCostingMethod()).isEqualTo("FIFO");
     }
 
