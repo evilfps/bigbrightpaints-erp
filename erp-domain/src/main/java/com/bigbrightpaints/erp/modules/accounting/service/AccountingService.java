@@ -59,6 +59,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -93,6 +94,9 @@ public class AccountingService {
     private static final String ENTITY_TYPE_SUPPLIER_PAYMENT = "SUPPLIER_PAYMENT";
     private static final String ENTITY_TYPE_SUPPLIER_SETTLEMENT = "SUPPLIER_SETTLEMENT";
     private static final String ENTITY_TYPE_CREDIT_NOTE = "CREDIT_NOTE";
+    private static final String SETTLEMENT_DISCOUNT_LINE_DESCRIPTION = "settlement discount";
+    private static final String SETTLEMENT_WRITE_OFF_LINE_DESCRIPTION = "settlement write-off";
+    private static final String SETTLEMENT_FX_LOSS_LINE_DESCRIPTION = "fx loss on settlement";
 
     private final CompanyContextService companyContextService;
     private final AccountRepository accountRepository;
@@ -2455,7 +2459,7 @@ public class AccountingService {
             if (!allocationSignatureCountsFromRows(existing).equals(requestSignatures)) {
                 continue;
             }
-            if (!dealerPaymentSignatureCountsFromExistingRows(existing, requestPaymentAccountIds)
+            if (!dealerPaymentSignatureCountsFromExistingRows(existing, requestPaymentAccountIds, requestPaymentSignatures)
                     .equals(requestPaymentSignatures)) {
                 continue;
             }
@@ -2493,7 +2497,7 @@ public class AccountingService {
                 .map(DealerPaymentSignature::accountId)
                 .filter(Objects::nonNull)
                 .collect(java.util.stream.Collectors.toCollection(java.util.LinkedHashSet::new));
-        return dealerPaymentSignatureCountsFromExistingRows(existing, requestPaymentAccountIds)
+        return dealerPaymentSignatureCountsFromExistingRows(existing, requestPaymentAccountIds, requestPaymentSignatures)
                 .equals(requestPaymentSignatures);
     }
 
@@ -3927,6 +3931,12 @@ public class AccountingService {
     private record DealerPaymentSignature(Long accountId, BigDecimal amount) {
     }
 
+    private record ExistingDealerPaymentLine(DealerPaymentSignature signature, String normalizedDescription) {
+    }
+
+    private record SettlementAdjustmentSignature(String normalizedDescription, BigDecimal amount) {
+    }
+
     private Account requireDealerReceivable(Dealer dealer) {
         if (dealer == null || dealer.getReceivableAccount() == null) {
             throw new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE,
@@ -4913,8 +4923,10 @@ public class AccountingService {
 
     private Map<DealerPaymentSignature, Integer> dealerPaymentSignatureCountsFromExistingRows(
             List<PartnerSettlementAllocation> allocations,
-            Set<Long> paymentAccountIds) {
+            Set<Long> paymentAccountIds,
+            Map<DealerPaymentSignature, Integer> requestPaymentSignatures) {
         Map<DealerPaymentSignature, Integer> counts = new HashMap<>();
+        List<ExistingDealerPaymentLine> candidateLines = new ArrayList<>();
         if (allocations == null || allocations.isEmpty() || paymentAccountIds == null || paymentAccountIds.isEmpty()) {
             return counts;
         }
@@ -4938,9 +4950,6 @@ public class AccountingService {
             if (debit.compareTo(BigDecimal.ZERO) <= 0) {
                 continue;
             }
-            if (isNonPaymentSettlementAdjustmentLine(line)) {
-                continue;
-            }
             Account account = line.getAccount();
             if (account.getType() != AccountType.ASSET) {
                 continue;
@@ -4948,19 +4957,145 @@ public class AccountingService {
             if (isReceivableAccount(account) || isPayableAccount(account)) {
                 continue;
             }
-            counts.merge(new DealerPaymentSignature(accountId, debit), 1, Integer::sum);
+            DealerPaymentSignature signature = new DealerPaymentSignature(accountId, debit);
+            counts.merge(signature, 1, Integer::sum);
+            candidateLines.add(new ExistingDealerPaymentLine(signature, normalizeLineDescription(line.getDescription())));
+        }
+        if (requestPaymentSignatures == null || requestPaymentSignatures.isEmpty() || counts.equals(requestPaymentSignatures)) {
+            return counts;
+        }
+        List<SettlementAdjustmentSignature> adjustmentSignatures = buildSettlementAdjustmentSignaturesFromRows(allocations);
+        if (adjustmentSignatures.isEmpty()) {
+            return counts;
+        }
+        List<List<Integer>> candidateIndexesByAdjustment = new ArrayList<>();
+        for (SettlementAdjustmentSignature adjustmentSignature : adjustmentSignatures) {
+            List<Integer> candidateIndexes = new ArrayList<>();
+            for (int i = 0; i < candidateLines.size(); i++) {
+                ExistingDealerPaymentLine line = candidateLines.get(i);
+                if (!line.normalizedDescription().equals(adjustmentSignature.normalizedDescription())) {
+                    continue;
+                }
+                if (line.signature().amount().compareTo(adjustmentSignature.amount()) != 0) {
+                    continue;
+                }
+                candidateIndexes.add(i);
+            }
+            candidateIndexesByAdjustment.add(candidateIndexes);
+        }
+        Map<DealerPaymentSignature, Integer> workingCounts = new HashMap<>(counts);
+        if (canMatchRequestSignaturesWithOptionalAdjustmentExclusions(
+                0,
+                candidateIndexesByAdjustment,
+                candidateLines,
+                new HashSet<>(),
+                workingCounts,
+                requestPaymentSignatures)) {
+            return new HashMap<>(requestPaymentSignatures);
         }
         return counts;
     }
 
-    private boolean isNonPaymentSettlementAdjustmentLine(JournalLine line) {
-        if (line == null || !StringUtils.hasText(line.getDescription())) {
+    private List<SettlementAdjustmentSignature> buildSettlementAdjustmentSignaturesFromRows(
+            List<PartnerSettlementAllocation> allocations) {
+        if (allocations == null || allocations.isEmpty()) {
+            return List.of();
+        }
+        BigDecimal totalDiscount = BigDecimal.ZERO;
+        BigDecimal totalWriteOff = BigDecimal.ZERO;
+        BigDecimal totalFxLoss = BigDecimal.ZERO;
+        for (PartnerSettlementAllocation allocation : allocations) {
+            if (allocation == null) {
+                continue;
+            }
+            totalDiscount = totalDiscount.add(normalizeAmount(allocation.getDiscountAmount()));
+            totalWriteOff = totalWriteOff.add(normalizeAmount(allocation.getWriteOffAmount()));
+            BigDecimal fxDifference = normalizeAmount(allocation.getFxDifferenceAmount());
+            if (fxDifference.compareTo(BigDecimal.ZERO) < 0) {
+                totalFxLoss = totalFxLoss.add(fxDifference.abs());
+            }
+        }
+        List<SettlementAdjustmentSignature> signatures = new ArrayList<>();
+        if (totalDiscount.compareTo(BigDecimal.ZERO) > 0) {
+            signatures.add(new SettlementAdjustmentSignature(
+                    SETTLEMENT_DISCOUNT_LINE_DESCRIPTION,
+                    normalizeAmount(totalDiscount)));
+        }
+        if (totalWriteOff.compareTo(BigDecimal.ZERO) > 0) {
+            signatures.add(new SettlementAdjustmentSignature(
+                    SETTLEMENT_WRITE_OFF_LINE_DESCRIPTION,
+                    normalizeAmount(totalWriteOff)));
+        }
+        if (totalFxLoss.compareTo(BigDecimal.ZERO) > 0) {
+            signatures.add(new SettlementAdjustmentSignature(
+                    SETTLEMENT_FX_LOSS_LINE_DESCRIPTION,
+                    normalizeAmount(totalFxLoss)));
+        }
+        return signatures;
+    }
+
+    private boolean canMatchRequestSignaturesWithOptionalAdjustmentExclusions(
+            int adjustmentIndex,
+            List<List<Integer>> candidateIndexesByAdjustment,
+            List<ExistingDealerPaymentLine> candidateLines,
+            Set<Integer> removedIndexes,
+            Map<DealerPaymentSignature, Integer> workingCounts,
+            Map<DealerPaymentSignature, Integer> requestPaymentSignatures) {
+        if (adjustmentIndex >= candidateIndexesByAdjustment.size()) {
+            return workingCounts.equals(requestPaymentSignatures);
+        }
+        if (canMatchRequestSignaturesWithOptionalAdjustmentExclusions(
+                adjustmentIndex + 1,
+                candidateIndexesByAdjustment,
+                candidateLines,
+                removedIndexes,
+                workingCounts,
+                requestPaymentSignatures)) {
+            return true;
+        }
+        for (Integer lineIndex : candidateIndexesByAdjustment.get(adjustmentIndex)) {
+            if (lineIndex == null || removedIndexes.contains(lineIndex)) {
+                continue;
+            }
+            ExistingDealerPaymentLine line = candidateLines.get(lineIndex);
+            if (!decrementSignatureCount(workingCounts, line.signature())) {
+                continue;
+            }
+            removedIndexes.add(lineIndex);
+            if (canMatchRequestSignaturesWithOptionalAdjustmentExclusions(
+                    adjustmentIndex + 1,
+                    candidateIndexesByAdjustment,
+                    candidateLines,
+                    removedIndexes,
+                    workingCounts,
+                    requestPaymentSignatures)) {
+                return true;
+            }
+            removedIndexes.remove(lineIndex);
+            workingCounts.merge(line.signature(), 1, Integer::sum);
+        }
+        return false;
+    }
+
+    private boolean decrementSignatureCount(Map<DealerPaymentSignature, Integer> counts,
+                                            DealerPaymentSignature signature) {
+        Integer current = counts.get(signature);
+        if (current == null || current <= 0) {
             return false;
         }
-        String description = line.getDescription().trim().toLowerCase(Locale.ROOT);
-        return "settlement discount".equals(description)
-                || "settlement write-off".equals(description)
-                || "fx loss on settlement".equals(description);
+        if (current == 1) {
+            counts.remove(signature);
+            return true;
+        }
+        counts.put(signature, current - 1);
+        return true;
+    }
+
+    private String normalizeLineDescription(String description) {
+        if (!StringUtils.hasText(description)) {
+            return "";
+        }
+        return description.trim().toLowerCase(Locale.ROOT);
     }
 
     private String allocationSignature(Long invoiceId,
