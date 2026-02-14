@@ -24,6 +24,7 @@ import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 
+import jakarta.persistence.EntityManager;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
@@ -67,6 +68,9 @@ class AccountingCatalogControllerSecurityIT extends AbstractIntegrationTest {
 
     @Autowired
     private ProductionProductRepository productionProductRepository;
+
+    @Autowired
+    private EntityManager entityManager;
 
     @BeforeEach
     void setUpUsers() {
@@ -335,7 +339,7 @@ class AccountingCatalogControllerSecurityIT extends AbstractIntegrationTest {
     }
 
     @Test
-    void accountingCatalogImport_staleRetryReplayKeepsWinnerPayloadStable() throws Exception {
+    void accountingCatalogImport_staleRetryReplayKeepsWinnerPayloadStable() {
         Company company = dataSeeder.ensureCompany(COMPANY_CODE, "Catalog Sec Co");
         HttpHeaders accountingHeaders = authHeaders(ACCOUNTING_EMAIL, PASSWORD, COMPANY_CODE);
         String idempotencyKey = "CAT-STALE-RETRY-" + shortId();
@@ -352,7 +356,7 @@ class AccountingCatalogControllerSecurityIT extends AbstractIntegrationTest {
                         RawMaterial.class,
                         material.getId() == null ? -1L : material.getId());
             }
-            return invocation.callRealMethod();
+            return persistRawMaterial(material);
         }).when(rawMaterialRepository).save(any(RawMaterial.class));
 
         try {
@@ -376,12 +380,12 @@ class AccountingCatalogControllerSecurityIT extends AbstractIntegrationTest {
             Integer winnerRawMaterialsSeeded = winnerRecord.getRawMaterialsSeeded();
             String winnerErrorsJson = winnerRecord.getErrorsJson();
 
-            var winnerProduct = productionProductRepository.findByCompanyAndSkuCode(company, winnerSku);
-            var winnerMaterial = rawMaterialRepository.findByCompanyAndSku(company, winnerSku);
-            Long winnerProductId = winnerProduct.map(product -> product.getId()).orElse(null);
-            String winnerPersistedProductName = winnerProduct.map(product -> product.getProductName()).orElse(null);
-            Long winnerMaterialId = winnerMaterial.map(material -> material.getId()).orElse(null);
-            String winnerPersistedMaterialName = winnerMaterial.map(material -> material.getName()).orElse(null);
+            var winnerProduct = productionProductRepository.findByCompanyAndSkuCode(company, winnerSku).orElseThrow();
+            var winnerMaterial = rawMaterialRepository.findByCompanyAndSku(company, winnerSku).orElseThrow();
+            Long winnerProductId = winnerProduct.getId();
+            String winnerPersistedProductName = winnerProduct.getProductName();
+            Long winnerMaterialId = winnerMaterial.getId();
+            String winnerPersistedMaterialName = winnerMaterial.getName();
 
             ResponseEntity<Map> replayResponse = importCatalogWithCustomFile(
                     accountingHeaders,
@@ -407,15 +411,29 @@ class AccountingCatalogControllerSecurityIT extends AbstractIntegrationTest {
             assertThat(persistedAfterReplay.getRawMaterialsSeeded()).isEqualTo(winnerRawMaterialsSeeded);
             assertThat(persistedAfterReplay.getErrorsJson()).isEqualTo(winnerErrorsJson);
 
-            var productAfterReplay = productionProductRepository.findByCompanyAndSkuCode(company, winnerSku);
-            var materialAfterReplay = rawMaterialRepository.findByCompanyAndSku(company, winnerSku);
-            assertThat(productAfterReplay.map(product -> product.getId()).orElse(null)).isEqualTo(winnerProductId);
-            assertThat(productAfterReplay.map(product -> product.getProductName()).orElse(null)).isEqualTo(winnerPersistedProductName);
-            assertThat(materialAfterReplay.map(material -> material.getId()).orElse(null)).isEqualTo(winnerMaterialId);
-            assertThat(materialAfterReplay.map(material -> material.getName()).orElse(null)).isEqualTo(winnerPersistedMaterialName);
+            var productAfterReplay = productionProductRepository.findByCompanyAndSkuCode(company, winnerSku).orElseThrow();
+            var materialAfterReplay = rawMaterialRepository.findByCompanyAndSku(company, winnerSku).orElseThrow();
+            assertThat(productAfterReplay.getId()).isEqualTo(winnerProductId);
+            assertThat(productAfterReplay.getProductName()).isEqualTo(winnerPersistedProductName);
+            assertThat(materialAfterReplay.getId()).isEqualTo(winnerMaterialId);
+            assertThat(materialAfterReplay.getName()).isEqualTo(winnerPersistedMaterialName);
         } finally {
             reset(rawMaterialRepository);
         }
+    }
+
+    private RawMaterial persistRawMaterial(RawMaterial material) {
+        if (material == null) {
+            return null;
+        }
+        if (material.getId() == null) {
+            entityManager.persist(material);
+            entityManager.flush();
+            return material;
+        }
+        RawMaterial merged = entityManager.merge(material);
+        entityManager.flush();
+        return merged;
     }
 
     @Test
