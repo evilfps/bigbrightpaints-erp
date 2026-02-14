@@ -234,8 +234,10 @@ public class DealerPortalService {
         agingBuckets.put("61-90 days", days61to90);
         agingBuckets.put("90+ days", over90);
         
+        BigDecimal pendingOrderExposure = resolvePendingOrderExposure(dealer, null);
+        BigDecimal creditUsed = totalOutstanding.add(pendingOrderExposure);
         BigDecimal creditLimit = dealer.getCreditLimit() != null ? dealer.getCreditLimit() : BigDecimal.ZERO;
-        BigDecimal availableCredit = creditLimit.subtract(totalOutstanding);
+        BigDecimal availableCredit = creditLimit.subtract(creditUsed);
         if (availableCredit.compareTo(BigDecimal.ZERO) < 0) {
             availableCredit = BigDecimal.ZERO;
         }
@@ -245,6 +247,8 @@ public class DealerPortalService {
         result.put("dealerName", dealer.getName());
         result.put("creditLimit", creditLimit);
         result.put("totalOutstanding", totalOutstanding);
+        result.put("pendingOrderExposure", pendingOrderExposure);
+        result.put("creditUsed", creditUsed);
         result.put("availableCredit", availableCredit);
         result.put("agingBuckets", agingBuckets);
         result.put("overdueInvoices", overdueInvoices);
@@ -263,6 +267,15 @@ public class DealerPortalService {
         long pendingInvoices = invoices.stream()
                 .filter(i -> i.getOutstandingAmount() != null && i.getOutstandingAmount().compareTo(BigDecimal.ZERO) > 0)
                 .count();
+        List<SalesOrder> orders = salesOrderRepository.findByCompanyAndDealerOrderByCreatedAtDesc(
+                dealer.getCompany(), dealer);
+        long pendingOrderCount = orders.stream()
+                .filter(this::contributesPendingCreditExposure)
+                .count();
+        BigDecimal pendingOrderExposure = orders.stream()
+                .filter(this::contributesPendingCreditExposure)
+                .map(order -> order.getTotalAmount() != null ? order.getTotalAmount() : BigDecimal.ZERO)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
         
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("dealerId", dealer.getId());
@@ -273,6 +286,9 @@ public class DealerPortalService {
         result.put("availableCredit", aging.get("availableCredit"));
         result.put("totalOutstanding", aging.get("totalOutstanding"));
         result.put("pendingInvoices", pendingInvoices);
+        result.put("pendingOrderCount", pendingOrderCount);
+        result.put("pendingOrderExposure", pendingOrderExposure);
+        result.put("creditUsed", aging.get("creditUsed"));
         result.put("agingBuckets", aging.get("agingBuckets"));
         return result;
     }
@@ -284,7 +300,10 @@ public class DealerPortalService {
                 dealer.getCompany(), dealer);
         
         List<Map<String, Object>> orderList = new ArrayList<>();
+        long pendingOrderCount = 0L;
+        BigDecimal pendingOrderExposure = BigDecimal.ZERO;
         for (SalesOrder order : orders) {
+            boolean pendingCreditExposure = contributesPendingCreditExposure(order);
             Map<String, Object> orderMap = new LinkedHashMap<>();
             orderMap.put("id", order.getId());
             orderMap.put("orderNumber", order.getOrderNumber());
@@ -292,13 +311,21 @@ public class DealerPortalService {
             orderMap.put("totalAmount", order.getTotalAmount());
             orderMap.put("createdAt", order.getCreatedAt());
             orderMap.put("notes", order.getNotes());
+            orderMap.put("pendingCreditExposure", pendingCreditExposure);
             orderList.add(orderMap);
+            if (pendingCreditExposure) {
+                pendingOrderCount++;
+                pendingOrderExposure = pendingOrderExposure.add(
+                        order.getTotalAmount() != null ? order.getTotalAmount() : BigDecimal.ZERO);
+            }
         }
         
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("dealerId", dealer.getId());
         result.put("dealerName", dealer.getName());
         result.put("orderCount", orders.size());
+        result.put("pendingOrderCount", pendingOrderCount);
+        result.put("pendingOrderExposure", pendingOrderExposure);
         result.put("orders", orderList);
         return result;
     }
@@ -351,5 +378,21 @@ public class DealerPortalService {
             throw new AccessDeniedException("Ambiguous dealer mapping for " + identity);
         }
         return candidates.get(0);
+    }
+
+    private BigDecimal resolvePendingOrderExposure(Dealer dealer, Long excludeOrderId) {
+        BigDecimal exposure = salesOrderRepository.sumPendingCreditExposureByCompanyAndDealer(
+                dealer.getCompany(),
+                dealer,
+                SalesOrderCreditExposurePolicy.pendingCreditExposureStatuses(),
+                excludeOrderId
+        );
+        return exposure != null ? exposure : BigDecimal.ZERO;
+    }
+
+    private boolean contributesPendingCreditExposure(SalesOrder order) {
+        return order != null
+                && order.getFulfillmentInvoiceId() == null
+                && SalesOrderCreditExposurePolicy.isPendingCreditExposureStatus(order.getStatus());
     }
 }

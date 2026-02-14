@@ -12,8 +12,10 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.jpa.repository.QueryHints;
 import org.springframework.data.repository.query.Param;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 public interface SalesOrderRepository extends JpaRepository<SalesOrder, Long> {
     @EntityGraph(attributePaths = {"items", "dealer"})
@@ -96,4 +98,19 @@ public interface SalesOrderRepository extends JpaRepository<SalesOrder, Long> {
 
     @EntityGraph(attributePaths = {"items"})
     List<SalesOrder> findByCompanyAndDealerAndStatusOrderByCreatedAtDesc(Company company, Dealer dealer, String status);
+
+    @Query("""
+            select coalesce(sum(o.totalAmount), 0)
+            from SalesOrder o
+            where o.company = :company
+              and o.dealer = :dealer
+              and o.fulfillmentInvoiceId is null
+              and upper(o.status) in :statuses
+              and (:excludeOrderId is null or o.id <> :excludeOrderId)
+            """)
+    BigDecimal sumPendingCreditExposureByCompanyAndDealer(
+            @Param("company") Company company,
+            @Param("dealer") Dealer dealer,
+            @Param("statuses") Set<String> statuses,
+            @Param("excludeOrderId") Long excludeOrderId);
 }

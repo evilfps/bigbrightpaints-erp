@@ -449,7 +449,7 @@ public class SalesService {
         OrderAmountSummary amounts = mapOrderItems(order, items, gstTreatment, orderLevelRate, gstInclusive);
         validateTotalAmount(request.totalAmount(), amounts.total());
         if (requiresCreditLimitCheck(paymentMode)) {
-            enforceCreditLimit(order.getDealer(), amounts.total());
+            enforceCreditLimit(company, order.getDealer(), amounts.total(), null);
         }
         SalesOrder saved = salesOrderRepository.save(order);
 
@@ -653,7 +653,7 @@ public class SalesService {
         OrderAmountSummary amounts = mapOrderItems(order, items, gstTreatment, orderLevelRate, gstInclusive);
         validateTotalAmount(request.totalAmount(), amounts.total());
         if (requiresCreditLimitCheck(paymentMode)) {
-            enforceCreditLimit(order.getDealer(), amounts.total());
+            enforceCreditLimit(order.getCompany(), order.getDealer(), amounts.total(), order.getId());
         }
         salesOrderRepository.save(order);
         FinishedGoodsService.InventoryReservationResult reservationResult = finishedGoodsService.reserveForOrder(order);
@@ -1298,7 +1298,7 @@ public class SalesService {
         }
     }
 
-    private void enforceCreditLimit(Dealer dealer, BigDecimal orderTotal) {
+    private void enforceCreditLimit(Company company, Dealer dealer, BigDecimal orderTotal, Long excludeOrderId) {
         if (dealer == null || dealer.getId() == null) {
             return;
         }
@@ -1312,14 +1312,24 @@ public class SalesService {
         if (outstanding == null) {
             outstanding = BigDecimal.ZERO;
         }
+        BigDecimal pendingExposure = salesOrderRepository.sumPendingCreditExposureByCompanyAndDealer(
+                company,
+                lockedDealer,
+                SalesOrderCreditExposurePolicy.pendingCreditExposureStatuses(),
+                excludeOrderId
+        );
+        if (pendingExposure == null) {
+            pendingExposure = BigDecimal.ZERO;
+        }
         BigDecimal total = orderTotal == null ? BigDecimal.ZERO : orderTotal;
-        BigDecimal projected = outstanding.add(total);
+        BigDecimal currentExposure = outstanding.add(pendingExposure);
+        BigDecimal projected = currentExposure.add(total);
         if (projected.compareTo(limit) > 0) {
             throw new IllegalStateException(String.format(
-                    "Dealer %s credit limit exceeded. Limit %.2f, outstanding %.2f, attempted order %.2f",
+                    "Dealer %s credit limit exceeded. Limit %.2f, current exposure %.2f, attempted order %.2f",
                     lockedDealer.getName(),
                     limit,
-                    outstanding,
+                    currentExposure,
                     total));
         }
     }

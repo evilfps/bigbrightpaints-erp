@@ -1877,6 +1877,44 @@ class SalesServiceTest {
     }
 
     @Test
+    void createOrderCreditLimitIncludesPendingOrderExposure() {
+        setupProduct("SKU3-EXPOSURE", BigDecimal.valueOf(200), BigDecimal.ZERO);
+        FinishedGood finishedGood = buildFinishedGood("SKU3-EXPOSURE");
+        finishedGood.setRevenueAccountId(5L);
+        when(finishedGoodRepository.findByCompanyAndProductCode(company, "SKU3-EXPOSURE"))
+                .thenReturn(Optional.of(finishedGood));
+        Dealer dealer = dealerWithCreditLimit(422L, BigDecimal.valueOf(1000));
+        when(companyEntityLookup.requireDealer(company, 422L)).thenReturn(dealer);
+        when(dealerRepository.lockByCompanyAndId(company, dealer.getId())).thenReturn(Optional.of(dealer));
+        when(orderNumberService.nextOrderNumber(company)).thenReturn("SO-EXPOSURE-42");
+        when(dealerLedgerService.currentBalance(422L)).thenReturn(BigDecimal.valueOf(400));
+        when(salesOrderRepository.sumPendingCreditExposureByCompanyAndDealer(
+                eq(company),
+                eq(dealer),
+                ArgumentMatchers.anySet(),
+                ArgumentMatchers.isNull()))
+                .thenReturn(BigDecimal.valueOf(500));
+
+        SalesOrderRequest request = new SalesOrderRequest(
+                422L,
+                BigDecimal.valueOf(200),
+                "INR",
+                null,
+                List.of(new SalesOrderItemRequest("SKU3-EXPOSURE", "Desc", BigDecimal.ONE, BigDecimal.valueOf(200), null)),
+                "NONE",
+                null,
+                null,
+                null);
+
+        assertThrows(IllegalStateException.class, () -> salesService.createOrder(request));
+        verify(salesOrderRepository).sumPendingCreditExposureByCompanyAndDealer(
+                eq(company),
+                eq(dealer),
+                ArgumentMatchers.anySet(),
+                ArgumentMatchers.isNull());
+    }
+
+    @Test
     void createOrderCashPaymentModeBypassesDealerCreditLimit() {
         setupProduct("SKU3-CASH", BigDecimal.valueOf(200), BigDecimal.ZERO);
         FinishedGood finishedGood = buildFinishedGood("SKU3-CASH");

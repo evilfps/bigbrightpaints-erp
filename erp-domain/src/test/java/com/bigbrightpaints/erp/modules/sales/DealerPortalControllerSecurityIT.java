@@ -7,6 +7,8 @@ import com.bigbrightpaints.erp.modules.invoice.domain.Invoice;
 import com.bigbrightpaints.erp.modules.invoice.domain.InvoiceRepository;
 import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
+import com.bigbrightpaints.erp.modules.sales.domain.SalesOrder;
+import com.bigbrightpaints.erp.modules.sales.domain.SalesOrderRepository;
 import com.bigbrightpaints.erp.test.AbstractIntegrationTest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -48,10 +50,15 @@ class DealerPortalControllerSecurityIT extends AbstractIntegrationTest {
     @Autowired
     private InvoiceRepository invoiceRepository;
 
+    @Autowired
+    private SalesOrderRepository salesOrderRepository;
+
     private Dealer dealerA;
     private Dealer dealerB;
     private Invoice invoiceA;
     private Invoice invoiceB;
+    private SalesOrder orderA;
+    private SalesOrder orderB;
 
     @BeforeEach
     void setup() {
@@ -69,6 +76,8 @@ class DealerPortalControllerSecurityIT extends AbstractIntegrationTest {
         dealerB = upsertDealer(company, "PORTAL-B", "Portal Dealer B", dealerBUser);
         invoiceA = upsertInvoice(company, dealerA, "INV-PORTAL-A");
         invoiceB = upsertInvoice(company, dealerB, "INV-PORTAL-B");
+        orderA = upsertOrder(company, dealerA, "SO-PORTAL-A-OPEN", "PENDING_PRODUCTION", new BigDecimal("5000.00"));
+        orderB = upsertOrder(company, dealerB, "SO-PORTAL-B-OPEN", "PENDING_PRODUCTION", new BigDecimal("7000.00"));
     }
 
     @Test
@@ -109,6 +118,12 @@ class DealerPortalControllerSecurityIT extends AbstractIntegrationTest {
         assertThat(asLong(data.get("dealerId"))).isEqualTo(dealerA.getId());
         assertThat(new BigDecimal(String.valueOf(data.get("totalOutstanding"))))
                 .isEqualByComparingTo("1180.00");
+        assertThat(new BigDecimal(String.valueOf(data.get("pendingOrderExposure"))))
+                .isEqualByComparingTo("5000.00");
+        assertThat(new BigDecimal(String.valueOf(data.get("creditUsed"))))
+                .isEqualByComparingTo("6180.00");
+        assertThat(new BigDecimal(String.valueOf(data.get("availableCredit"))))
+                .isEqualByComparingTo("93820.00");
     }
 
     @Test
@@ -168,6 +183,33 @@ class DealerPortalControllerSecurityIT extends AbstractIntegrationTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
     }
 
+    @Test
+    @DisplayName("Dealer portal orders expose pending-order visibility and exposure totals")
+    void dealerPortalOrders_includePendingExposureSignals() {
+        HttpHeaders headers = authHeaders(DEALER_A_EMAIL, PASSWORD);
+        ResponseEntity<Map> response = rest.exchange(
+                "/api/v1/dealer-portal/orders",
+                HttpMethod.GET,
+                new HttpEntity<>(headers),
+                Map.class
+        );
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        Map<?, ?> data = (Map<?, ?>) response.getBody().get("data");
+        assertThat(asLong(data.get("dealerId"))).isEqualTo(dealerA.getId());
+        assertThat(((Number) data.get("pendingOrderCount")).longValue()).isEqualTo(1L);
+        assertThat(new BigDecimal(String.valueOf(data.get("pendingOrderExposure"))))
+                .isEqualByComparingTo("5000.00");
+        List<?> orders = (List<?>) data.get("orders");
+        Map<?, ?> pendingOrder = orders.stream()
+                .map(Map.class::cast)
+                .filter(order -> orderA.getOrderNumber().equals(order.get("orderNumber")))
+                .findFirst()
+                .orElseThrow();
+        assertThat((Boolean) pendingOrder.get("pendingCreditExposure")).isTrue();
+        assertThat(pendingOrder.get("status")).isEqualTo("PENDING_PRODUCTION");
+    }
+
     private HttpHeaders authHeaders(String email, String password) {
         Map<String, Object> payload = Map.of(
                 "email", email,
@@ -217,5 +259,30 @@ class DealerPortalControllerSecurityIT extends AbstractIntegrationTest {
         invoice.setOutstandingAmount(new BigDecimal("1180.00"));
         invoice.setCurrency("INR");
         return invoiceRepository.saveAndFlush(invoice);
+    }
+
+    private SalesOrder upsertOrder(Company company,
+                                   Dealer dealer,
+                                   String orderNumber,
+                                   String status,
+                                   BigDecimal totalAmount) {
+        SalesOrder order = salesOrderRepository.findByCompanyAndDealerOrderByCreatedAtDesc(company, dealer).stream()
+                .filter(existing -> orderNumber.equals(existing.getOrderNumber()))
+                .findFirst()
+                .orElseGet(SalesOrder::new);
+        order.setCompany(company);
+        order.setDealer(dealer);
+        order.setOrderNumber(orderNumber);
+        order.setStatus(status);
+        order.setCurrency("INR");
+        order.setNotes("portal-seeded");
+        order.setSubtotalAmount(totalAmount);
+        order.setGstTotal(BigDecimal.ZERO);
+        order.setGstTreatment("NONE");
+        order.setGstInclusive(false);
+        order.setGstRate(BigDecimal.ZERO);
+        order.setGstRoundingAdjustment(BigDecimal.ZERO);
+        order.setTotalAmount(totalAmount);
+        return salesOrderRepository.saveAndFlush(order);
     }
 }

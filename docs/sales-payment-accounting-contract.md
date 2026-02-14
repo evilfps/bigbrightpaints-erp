@@ -43,7 +43,27 @@ This document captures the current backend contract for sales-order payment mode
 - Cash/credit account mapping should be backend-policy driven, not ad-hoc operator selection (`M15-S7`).
 - Payroll required-account guardrails (for `SALARY-EXP`) are tracked in `M15-S8`.
 
+## Pending Credit-Exposure Projection
+- Dealer credit exposure now has two components:
+  - posted receivable outstanding (`invoice outstanding` / dealer ledger balance),
+  - plus open order commitments that are still pre-invoice.
+- Pending exposure statuses are centrally mapped by `SalesOrderCreditExposurePolicy`:
+  - `BOOKED`
+  - `RESERVED`
+  - `PENDING_PRODUCTION`
+  - `PENDING_INVENTORY`
+  - `PROCESSING`
+  - `READY_TO_SHIP`
+  - `CONFIRMED`
+  - `ON_HOLD`
+- Exposure excludes rows already linked to fulfillment invoice markers.
+- Dealer portal payloads now expose:
+  - `pendingOrderExposure`
+  - `creditUsed` (`totalOutstanding + pendingOrderExposure`)
+  - `pendingOrderCount` and per-order `pendingCreditExposure` flags.
+
 ## User-Facing Summary
 - Selecting `CASH` should not show credit-limit rejection.
 - Selecting `CREDIT` or `SPLIT` may show credit-limit rejection when projected exposure exceeds limit.
+- Dealer dashboard/aging credit usage includes pre-invoice pending production/order commitments.
 - Retry/replay of the same order request must return the same order outcome without creating duplicates, including requests crossing adjacent deployment versions.
