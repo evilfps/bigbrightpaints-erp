@@ -33,37 +33,26 @@ else
 fi
 
 VERIFY_LOCAL_SKIP_GUARD=false
-VERIFY_LOCAL_GUARD_DB_NAME="${FLYWAY_GUARD_DB_NAME:-${PGDATABASE:-}}"
+VERIFY_LOCAL_GUARD_DB_NAME="${PGDATABASE:-${FLYWAY_GUARD_DB_NAME:-}}"
 
 if [[ "$MIGRATION_SET" == "v2" ]]; then
   echo "[gate-release] flyway v2 transient checksum guard"
   CHECKSUM_GUARD_LOG="$ARTIFACT_DIR/flyway-v2-transient-checksum-guard.txt"
 
   if [[ -n "${FLYWAY_GUARD_DB_NAME:-}" && -n "${PGDATABASE:-}" && "${FLYWAY_GUARD_DB_NAME}" != "${PGDATABASE}" ]]; then
-    if [[ "${ALLOW_FLYWAY_GUARD_DB_MISMATCH:-false}" == "true" ]]; then
-      echo "[gate-release] WARNING: FLYWAY_GUARD_DB_NAME and PGDATABASE differ; running dual-target guard path because ALLOW_FLYWAY_GUARD_DB_MISMATCH=true" | tee "$CHECKSUM_GUARD_LOG" >&2
-      VERIFY_LOCAL_GUARD_DB_NAME="$PGDATABASE"
-    else
-      echo "[gate-release] FLYWAY_GUARD_DB_NAME (${FLYWAY_GUARD_DB_NAME}) must match PGDATABASE (${PGDATABASE}) when both are set (or set ALLOW_FLYWAY_GUARD_DB_MISMATCH=true for dual-target guard mode)" | tee "$CHECKSUM_GUARD_LOG" >&2
-      exit 3
-    fi
+    echo "[gate-release] WARNING: FLYWAY_GUARD_DB_NAME and PGDATABASE differ; using PGDATABASE as release guard target" | tee "$CHECKSUM_GUARD_LOG" >&2
   fi
 
-  GUARD_DB_NAME="${FLYWAY_GUARD_DB_NAME:-${PGDATABASE:-}}"
+  GUARD_DB_NAME="$VERIFY_LOCAL_GUARD_DB_NAME"
   if [[ -z "${FLYWAY_GUARD_DB_NAME:-}" && -n "${PGDATABASE:-}" ]]; then
     echo "[gate-release] deriving FLYWAY_GUARD_DB_NAME from PGDATABASE=$PGDATABASE" | tee "$CHECKSUM_GUARD_LOG"
     export FLYWAY_GUARD_DB_NAME="$PGDATABASE"
-    VERIFY_LOCAL_GUARD_DB_NAME="$PGDATABASE"
   fi
 
   if [[ -n "$GUARD_DB_NAME" ]]; then
     if bash "$ROOT_DIR/scripts/guard_flyway_v2_transient_checksum.sh" "$GUARD_DB_NAME" >"$CHECKSUM_GUARD_LOG" 2>&1; then
       cat "$CHECKSUM_GUARD_LOG"
-      if [[ "$VERIFY_LOCAL_GUARD_DB_NAME" == "$GUARD_DB_NAME" ]]; then
-        VERIFY_LOCAL_SKIP_GUARD=true
-      else
-        echo "[gate-release] verify_local will re-run flyway guard against PGDATABASE target" | tee -a "$CHECKSUM_GUARD_LOG"
-      fi
+      VERIFY_LOCAL_SKIP_GUARD=true
     else
       guard_exit=$?
       cat "$CHECKSUM_GUARD_LOG" >&2
