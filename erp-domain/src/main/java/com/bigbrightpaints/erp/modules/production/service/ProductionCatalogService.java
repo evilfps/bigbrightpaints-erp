@@ -1598,7 +1598,7 @@ public class ProductionCatalogService {
         if (parameterSection == null) {
             return true;
         }
-        String[] parameters = parameterSection.split(";");
+        String[] parameters = parameterSection.split(";", -1);
         for (String parameter : parameters) {
             String token = parameter.trim();
             if (!StringUtils.hasText(token)) {

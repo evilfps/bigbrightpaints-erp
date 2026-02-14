@@ -704,6 +704,25 @@ class AccountingCatalogControllerSecurityIT extends AbstractIntegrationTest {
     }
 
     @Test
+    void accountingCatalogImport_rejectsAllowedMimeWithTrailingSemicolonParameterTail() {
+        Company company = dataSeeder.ensureCompany(COMPANY_CODE, "Catalog Sec Co");
+        HttpHeaders accountingHeaders = authHeaders(ACCOUNTING_EMAIL, PASSWORD, COMPANY_CODE);
+        String idempotencyKey = "CAT-REJECT-TRAILING-SEMICOLON-" + shortId();
+        String sku = "RM-REJECT-TRAILING-SEMICOLON-" + shortId();
+
+        ResponseEntity<Map> response = importCatalogWithRawPartContentType(
+                accountingHeaders,
+                catalogCsvContent(sku),
+                "catalog-" + sku + ".csv",
+                "text/csv; charset=UTF-8;",
+                idempotencyKey);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
+        assertThat(catalogImportRepository.findByCompanyAndIdempotencyKey(company, idempotencyKey)).isEmpty();
+        assertThat(rawMaterialRepository.findByCompanyAndSku(company, sku)).isEmpty();
+    }
+
+    @Test
     void accountingCatalogImport_rejectsPrefixedAllowedMimeTokenWithParameters() {
         Company company = dataSeeder.ensureCompany(COMPANY_CODE, "Catalog Sec Co");
         HttpHeaders accountingHeaders = authHeaders(ACCOUNTING_EMAIL, PASSWORD, COMPANY_CODE);
