@@ -19,7 +19,7 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/v1/factory")
 @PreAuthorize("hasAnyAuthority('ROLE_FACTORY','ROLE_ACCOUNTING','ROLE_ADMIN')")
 public class PackingController {
-    private static final int MAX_IDEMPOTENCY_KEY_LENGTH = 255;
+    private static final int MAX_IDEMPOTENCY_KEY_LENGTH = 128;
     private static final String PACKING_COMMAND = "FACTORY.PACKING.RECORD";
 
     private final PackingService packingService;

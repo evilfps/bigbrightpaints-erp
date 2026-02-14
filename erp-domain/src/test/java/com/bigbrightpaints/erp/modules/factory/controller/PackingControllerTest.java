@@ -106,4 +106,26 @@ class PackingControllerTest {
         assertThat(captor.getValue().idempotencyKey())
                 .isEqualTo("REQ|FACTORY.PACKING.RECORD|req-123");
     }
+
+    @Test
+    void recordPacking_hashesOversizedRequestIdFallbackWithinPersistenceLimit() {
+        PackingController controller = new PackingController(packingService, bulkPackingService);
+        when(packingService.recordPacking(any())).thenReturn(null);
+
+        PackingRequest request = new PackingRequest(
+                1L,
+                LocalDate.of(2026, 2, 6),
+                "packer",
+                null,
+                List.of(new PackingLineRequest("10L", new BigDecimal("1"), 1, 1, 1))
+        );
+
+        controller.recordPacking(null, "req-" + "x".repeat(300), request);
+
+        ArgumentCaptor<PackingRequest> captor = ArgumentCaptor.forClass(PackingRequest.class);
+        verify(packingService).recordPacking(captor.capture());
+        assertThat(captor.getValue().idempotencyKey())
+                .startsWith("REQH|FACTORY.PACKING.RECORD|");
+        assertThat(captor.getValue().idempotencyKey().length()).isLessThanOrEqualTo(128);
+    }
 }
