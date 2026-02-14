@@ -28,11 +28,8 @@ import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialRepository;
 import com.bigbrightpaints.erp.modules.portal.dto.DashboardInsights;
 import com.bigbrightpaints.erp.modules.portal.dto.OperationsInsights;
 import com.bigbrightpaints.erp.modules.portal.dto.WorkforceInsights;
-import com.bigbrightpaints.erp.modules.invoice.domain.Invoice;
-import com.bigbrightpaints.erp.modules.invoice.domain.InvoiceRepository;
 import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
-import com.bigbrightpaints.erp.modules.sales.domain.SalesOrder;
-import com.bigbrightpaints.erp.modules.sales.domain.SalesOrderRepository;
+import jakarta.persistence.EntityManager;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -57,10 +54,22 @@ public class PortalInsightsService {
             "PAID",
             "PARTIAL"
     );
+    private static final String RECOGNIZED_REVENUE_SUM_QUERY = """
+            select sum(i.totalAmount)
+            from Invoice i
+            where i.company = :company
+              and upper(trim(i.status)) in :statuses
+            """;
+    private static final String RECOGNIZED_REVENUE_SUM_SINCE_QUERY = """
+            select sum(i.totalAmount)
+            from Invoice i
+            where i.company = :company
+              and upper(trim(i.status)) in :statuses
+              and i.issueDate >= :fromDate
+            """;
 
     private final CompanyContextService companyContextService;
-    private final SalesOrderRepository salesOrderRepository;
-    private final InvoiceRepository invoiceRepository;
+    private final EntityManager entityManager;
     private final DealerRepository dealerRepository;
     private final PackagingSlipRepository packagingSlipRepository;
     private final EmployeeRepository employeeRepository;
@@ -76,8 +85,7 @@ public class PortalInsightsService {
     private final CompanyClock companyClock;
 
     public PortalInsightsService(CompanyContextService companyContextService,
-                                 SalesOrderRepository salesOrderRepository,
-                                 InvoiceRepository invoiceRepository,
+                                 EntityManager entityManager,
                                  DealerRepository dealerRepository,
                                  PackagingSlipRepository packagingSlipRepository,
                                  EmployeeRepository employeeRepository,
@@ -92,8 +100,7 @@ public class PortalInsightsService {
                                  AccountRepository accountRepository,
                                  CompanyClock companyClock) {
         this.companyContextService = companyContextService;
-        this.salesOrderRepository = salesOrderRepository;
-        this.invoiceRepository = invoiceRepository;
+        this.entityManager = entityManager;
         this.dealerRepository = dealerRepository;
         this.packagingSlipRepository = packagingSlipRepository;
         this.employeeRepository = employeeRepository;
@@ -111,17 +118,15 @@ public class PortalInsightsService {
 
     public DashboardInsights dashboard() {
         Company company = companyContextService.requireCurrentCompany();
-        List<SalesOrder> orders = salesOrderRepository.findByCompanyOrderByCreatedAtDesc(company);
-        List<Invoice> invoices = invoiceRepository.findByCompanyOrderByIssueDateDesc(company);
+        LocalDate recognizedRevenueCutoff = companyClock.today(company).minusDays(30);
+        BigDecimal recognizedRevenue = sumRecognizedRevenue(company);
+        BigDecimal recognizedRevenueLast30 = sumRecognizedRevenueOnOrAfter(company, recognizedRevenueCutoff);
         List<PackagingSlip> slips = packagingSlipRepository.findByCompanyOrderByCreatedAtDesc(company);
         List<Employee> employees = employeeRepository.findByCompanyOrderByFirstNameAsc(company);
         List<ProductionPlan> plans = productionPlanRepository.findByCompanyOrderByPlannedDateDesc(company);
-        List<Invoice> recognizedRevenueInvoices = invoices.stream()
-                .filter(this::isRevenueRecognizedInvoice)
-                .toList();
 
-        String revenue = currency(totalInvoiceAmount(recognizedRevenueInvoices));
-        String last30 = currency(sumInvoicesWithin(recognizedRevenueInvoices, 30, company));
+        String revenue = currency(recognizedRevenue);
+        String last30 = currency(recognizedRevenueLast30);
         long dealers = dealerRepository.findByCompanyOrderByNameAsc(company).size();
         long activeEmployees = employees.stream().filter(emp -> "ACTIVE".equalsIgnoreCase(emp.getStatus())).count();
         double fulfilment = ratio(
@@ -293,25 +298,19 @@ public class PortalInsightsService {
         return "Created recently";
     }
 
-    private BigDecimal totalInvoiceAmount(List<Invoice> invoices) {
-        return invoices.stream()
-                .map(Invoice::getTotalAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    private BigDecimal sumRecognizedRevenue(Company company) {
+        return zeroIfNull(entityManager.createQuery(RECOGNIZED_REVENUE_SUM_QUERY, BigDecimal.class)
+                .setParameter("company", company)
+                .setParameter("statuses", REVENUE_RECOGNIZED_INVOICE_STATUSES)
+                .getSingleResult());
     }
 
-    private BigDecimal sumInvoicesWithin(List<Invoice> invoices, int days, Company company) {
-        LocalDate cutoff = companyClock.today(company).minusDays(days);
-        return invoices.stream()
-                .filter(invoice -> invoice.getIssueDate() != null && !invoice.getIssueDate().isBefore(cutoff))
-                .map(Invoice::getTotalAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-    }
-
-    private boolean isRevenueRecognizedInvoice(Invoice invoice) {
-        if (invoice == null || invoice.getStatus() == null) {
-            return false;
-        }
-        return REVENUE_RECOGNIZED_INVOICE_STATUSES.contains(invoice.getStatus().trim().toUpperCase(Locale.ROOT));
+    private BigDecimal sumRecognizedRevenueOnOrAfter(Company company, LocalDate fromDate) {
+        return zeroIfNull(entityManager.createQuery(RECOGNIZED_REVENUE_SUM_SINCE_QUERY, BigDecimal.class)
+                .setParameter("company", company)
+                .setParameter("statuses", REVENUE_RECOGNIZED_INVOICE_STATUSES)
+                .setParameter("fromDate", fromDate)
+                .getSingleResult());
     }
 
     private static double ratio(long numerator, long denominator) {
@@ -319,6 +318,10 @@ public class PortalInsightsService {
             return 0d;
         }
         return (double) numerator / (double) denominator;
+    }
+
+    private static BigDecimal zeroIfNull(BigDecimal value) {
+        return value != null ? value : BigDecimal.ZERO;
     }
 
     private static String currency(BigDecimal amount) {
