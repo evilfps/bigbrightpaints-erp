@@ -3982,6 +3982,68 @@ class AccountingServiceTest {
     }
 
     @Test
+    void buildDealerSettlementIdempotencyKey_isStableAcrossEquivalentSplitPaymentOrder() {
+        DealerSettlementRequest requestA = new DealerSettlementRequest(
+                1L,
+                null,
+                null,
+                null,
+                null,
+                null,
+                LocalDate.of(2024, 5, 1),
+                null,
+                null,
+                null,
+                Boolean.FALSE,
+                List.of(new SettlementAllocationRequest(
+                        701L,
+                        null,
+                        new BigDecimal("100.00"),
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        null
+                )),
+                List.of(
+                        new SettlementPaymentRequest(20L, new BigDecimal("60.00"), "CASH"),
+                        new SettlementPaymentRequest(20L, new BigDecimal("40.00"), "BANK")
+                )
+        );
+
+        DealerSettlementRequest requestB = new DealerSettlementRequest(
+                1L,
+                null,
+                null,
+                null,
+                null,
+                null,
+                LocalDate.of(2024, 5, 1),
+                null,
+                null,
+                null,
+                Boolean.FALSE,
+                List.of(new SettlementAllocationRequest(
+                        701L,
+                        null,
+                        new BigDecimal("100.00"),
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        null
+                )),
+                List.of(
+                        new SettlementPaymentRequest(20L, new BigDecimal("40.00"), "BANK"),
+                        new SettlementPaymentRequest(20L, new BigDecimal("60.00"), "CASH")
+                )
+        );
+
+        String keyA = ReflectionTestUtils.invokeMethod(accountingService, "buildDealerSettlementIdempotencyKey", requestA);
+        String keyB = ReflectionTestUtils.invokeMethod(accountingService, "buildDealerSettlementIdempotencyKey", requestB);
+
+        assertThat(keyA).isEqualTo(keyB);
+    }
+
+    @Test
     void settleDealerInvoices_requiresPaymentsToMatchCash() {
         // Setup company/dealer/invoice
         Dealer dealer = new Dealer();

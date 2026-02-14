@@ -4001,7 +4001,9 @@ public class AccountingService {
         }
         List<SettlementPaymentRequest> payments = request.payments() != null
                 ? request.payments().stream()
-                .sorted(Comparator.comparing(SettlementPaymentRequest::accountId, Comparator.nullsLast(Long::compareTo)))
+                .sorted(Comparator
+                        .comparing(SettlementPaymentRequest::accountId, Comparator.nullsLast(Long::compareTo))
+                        .thenComparing(SettlementPaymentRequest::amount, Comparator.nullsLast(BigDecimal::compareTo)))
                 .toList()
                 : List.of();
         for (SettlementPaymentRequest payment : payments) {
