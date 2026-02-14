@@ -6479,3 +6479,113 @@ Queue Rotation (Auto-Replenish)
 - [ready] M14-S48 costing-selection enum drift guard (new/legacy costing tokens must remain centrally mapped via `CostingMethodUtils` with no per-module fallback forks)
 - [ready] M14-S49 catalog-import retry-winner ledger/journal silence guard (stale-retry loser payloads must never produce duplicate accounting side effects while winner replay remains idempotent)
 - [ready] M11-S7 accounting-portal scope invariant lock (HR, PURCHASING, INVENTORY, REPORTS remain under Accounting portal unless replacement portal map + endpoint docs are updated atomically)
+
+Completed Slice (Committed)
+- 2026-02-15: `76ad45b9`
+  - chore(db): add flyway v2 transient checksum guard.
+  - M15-S22 execution (initial pass):
+    - added `scripts/guard_flyway_v2_transient_checksum.sh` to detect transient `V12` checksum-risk signatures before migrate.
+    - added `docs/db/FLYWAY_V2_TRANSIENT_CHECKSUM_REPAIR.md` runbook for guard/repair/migrate workflow.
+  - Verification:
+    - `bash -n scripts/guard_flyway_v2_transient_checksum.sh` -> pass.
+    - `bash scripts/guard_flyway_v2_transient_checksum.sh` -> expected usage failure (`database name is required`).
+
+Post-Commit Review Evidence
+- Commit reviewed: `76ad45b9`
+- `codex review --commit 76ad45b9`:
+  - command executed; session entered prolonged rollout/state-db churn and was interrupted after no-progress windows.
+- Review subagent `019c5e12-ee3a-7ae0-b7f5-02887143442f`:
+  - findings:
+    - high: post-`V13` canonical-shape short-circuit could false-pass non-canonical norm index.
+    - medium: repair examples missed schema/defaultSchema binding for non-public history schema.
+    - medium: unsanitized env-derived identifiers/tokens in SQL interpolation.
+  - disposition: fixed immediately in follow-up commit `84757440`.
+
+Follow-up Hardening (Committed)
+- 2026-02-15: `84757440`
+  - fix(db): harden flyway v2 checksum guard semantics.
+  - changes:
+    - added identifier/token validation guardrails.
+    - enforced canonical post-`V13` norm index shape checks including `indisvalid`.
+    - expanded remediation output with default-schema-aware Flyway commands and explicit migrate command.
+    - updated runbook with post-`V13` non-canonical rebuild workflow.
+  - Verification:
+    - `bash -n scripts/guard_flyway_v2_transient_checksum.sh` -> pass.
+    - `FLYWAY_GUARD_SCHEMA='public;drop' bash scripts/guard_flyway_v2_transient_checksum.sh anydb` -> expected validation failure.
+
+Post-Commit Review Evidence
+- Commit reviewed: `84757440`
+- `codex review --commit 84757440`:
+  - final verdict captured: no discrete actionable regression introduced by the hardening patch.
+- Review subagent `019c5e17-f027-7702-922c-499559f71220`:
+  - findings:
+    - medium: Bash 4-only lowercase expansion could fail on Bash 3 environments.
+  - disposition: fixed immediately in follow-up commit `d6b4260d` (portable lowercase normalization).
+
+Follow-up Hardening (Committed)
+- 2026-02-15: `032e5cd7`
+  - fix(scripts): strengthen flyway v2 guard drift checks.
+  - changes:
+    - addressed medium review concerns around canonical drift handling and remediation text clarity.
+  - Verification:
+    - `bash -n scripts/guard_flyway_v2_transient_checksum.sh` -> pass.
+
+Post-Commit Review Evidence
+- Commit reviewed: `032e5cd7`
+- `codex review --commit 032e5cd7`:
+  - final verdict captured: no functional regression introduced.
+- Review subagent `019c5e1b-e9be-7290-99a6-98e6d4ec6979`:
+  - findings:
+    - medium: Bash 4-only lowercase syntax (`${var,,}`) portability risk.
+  - disposition: fixed immediately in follow-up commit `d6b4260d`.
+
+Follow-up Hardening (Committed)
+- 2026-02-15: `d6b4260d`
+  - fix(scripts): make flyway checksum guard bash3-safe.
+  - changes:
+    - replaced `${var,,}` with `tr`-based lowercase normalization for Bash 3 compatibility.
+    - retained quoted schema/table references for query safety.
+  - Verification:
+    - `bash -n scripts/guard_flyway_v2_transient_checksum.sh` -> pass.
+    - `bash scripts/guard_flyway_v2_transient_checksum.sh` -> expected usage failure (`database name is required`).
+
+Post-Commit Review Evidence
+- Commit reviewed: `d6b4260d`
+- `codex review --commit d6b4260d`:
+  - final verdict captured: compatibility patch preserves behavior and introduces no functional regression.
+- Review subagent `019c5e1f-65bd-7ee0-98eb-56115fd86e4a`:
+  - findings: none (no critical/high/medium/low defects reported).
+
+Completed Slice (Resolved)
+- M15-S22 flyway-v2 transient-checksum repair runbook + guard script
+  - closure basis: `76ad45b9` + `84757440` + `032e5cd7` + `d6b4260d`.
+  - contract status:
+    - pre-migrate transient checksum-risk signatures are detectable.
+    - repair/migrate workflow is documented with schema-aware commands.
+    - post-`V13` non-canonical index shape is explicitly guarded.
+
+Loop Update
+- 2026-02-15T03:19:48+05:30
+- tracked_now_ts: `2026-02-15T03:19:48+05:30`
+- tracked_elapsed: `73h 25m 56s`
+- active_in_progress: `M15-S23 pending-exposure parity fixture-independence hardening (derive expected pending count/exposure deltas from baseline snapshots instead of fixed aggregate literals)`
+- continuity_recheck:
+  - pending-exposure correctness/parity chain remains closed.
+  - flyway-v2 checksum operational guard chain is now closed with script+runbook hardening.
+
+Queue Rotation (Auto-Replenish)
+- [completed] M15-S22 flyway-v2 transient-checksum repair runbook + guard script (document and script detection/repair workflow for environments that consumed transient versioned-migration artifacts)
+- [in_progress] M15-S23 pending-exposure parity fixture-independence hardening (derive expected pending count/exposure deltas from baseline snapshots instead of fixed aggregate literals)
+- [ready] M15-S8 payroll account default/bootstrap guard (`SALARY-EXP` missing account should fail with deterministic provisioning guidance/guard rails)
+- [ready] M15-S9 sales/dealer accounting method-map docs refresh (internal + user-facing docs for cash/credit/split formulas, account mapping rules, idempotency headers, and pending-order credit exposure semantics)
+- [ready] M15-S10 cross-module idempotency contract unification matrix (standardize header semantics + helper parity across sales/production/accounting endpoint families)
+- [ready] M15-S11 recognized-revenue/pending-credit contract docs + endpoint parity matrix (internal and user-facing portal docs must match shipment gate + pending exposure behavior)
+- [ready] M15-S12 idempotency header contract convergence doc+runtime assert sweep (sales/production/accounting entrypoints must share canonical header semantics and error model)
+- [ready] M15-S15 pending-status normalization performance guard (evaluate/land Flyway V2-safe functional index or normalized-token strategy so aggregate pending-status predicates retain index-friendly plans under high order volume)
+- [ready] M15-S16 dealer-settlement replay e2e defense-in-depth matrix (optional end-to-end `settleDealerInvoices` replay assertion where adjustment debit lines coexist with split payments to further harden payment-account bounded remap behavior)
+- [ready] M15-S18 dispatch replay COGS reference payload parity guard (assert `postCogsJournal` reference/memo/line payload stability on replay anchors and prevent wrong-reference postings under override replay paths)
+- [ready] M15-S19 dispatch replay slip-number fallback + AR-overload guard matrix (cover `hasCogsJournalFor` alternate slip-number fallback and explicitly lock both `postSalesJournal` overload paths against duplicate replay posting)
+- [ready] M15-S24 flyway-v2 guard CI preflight hook (wire transient-checksum guard into release/predeploy checks with deterministic non-zero exit handling)
+- [ready] M14-S48 costing-selection enum drift guard (new/legacy costing tokens must remain centrally mapped via `CostingMethodUtils` with no per-module fallback forks)
+- [ready] M14-S49 catalog-import retry-winner ledger/journal silence guard (stale-retry loser payloads must never produce duplicate accounting side effects while winner replay remains idempotent)
+- [ready] M11-S7 accounting-portal scope invariant lock (HR, PURCHASING, INVENTORY, REPORTS remain under Accounting portal unless replacement portal map + endpoint docs are updated atomically)
