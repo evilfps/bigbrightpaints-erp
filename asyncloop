@@ -5298,3 +5298,72 @@ Queue Rotation (Auto-Replenish)
 - [ready] M9-S5 capture EXPLAIN + index-candidate evidence for journal/allocation replay hotspot queries (Flyway V2-ready)
 - [ready] M2-S12 replay mismatch guard helper extraction to enforce parity by construction
 - [ready] M11-S6 approval queue runtime contract test slice (assert FE docs match live `AdminApprovalItemDto` payload fields and action endpoint semantics)
+
+Post-Commit Review Evidence
+- Commit reviewed: `36f82dff` (docs-only ledger update)
+- docs-only rule applied: skipped `codex review` per operator directive.
+- Review subagent `019c5b1d-353d-7041-82aa-c9dc31a26454`:
+  - findings: none.
+  - summary: `asyncloop` tail append was process-consistent and queue-safe.
+
+Completed Slice (Committed)
+- 2026-02-14: `9cdc1827`
+  - test(accounting): lock catalog idempotency key variant behavior.
+  - M14-S44 execution (initial pass):
+    - added `accountingCatalogImport_idempotencyKeyWhitespaceVariantsReplayDeterministically`.
+    - added `accountingCatalogImport_idempotencyKeyCaseVariantsStayDeterministicPerVariant`.
+    - locked whitespace-trim replay behavior and per-case deterministic winner/conflict assertions at endpoint boundary.
+  - Verification:
+    - `cd /home/realnigga/Desktop/orchestrator_erp/erp-domain && mvn -B -ntp -Dtest=AccountingCatalogControllerSecurityIT#accountingCatalogImport_idempotencyKeyWhitespaceVariantsReplayDeterministically,AccountingCatalogControllerSecurityIT#accountingCatalogImport_idempotencyKeyCaseVariantsStayDeterministicPerVariant,AccountingCatalogControllerSecurityIT#accountingCatalogImport_sameIdempotencyKeyAcrossCompaniesRemainsCompanyScoped test` -> pass (3 tests, 0 failures, 0 errors).
+
+Post-Commit Review Evidence
+- Commit reviewed: `9cdc1827`
+- `codex review --commit 9cdc1827`:
+  - finding: `P2` false-green gap in whitespace-variant test (could pass without proving single-row canonicalization).
+  - disposition: fixed immediately in follow-up commit `e5544325`.
+- Review subagent `019c5b20-6955-7e03-ad5c-b3f83029d145`:
+  - findings: none.
+  - note: test-only change did not introduce boundary/invariant regressions.
+
+Follow-up Hardening (Committed)
+- 2026-02-14: `e5544325`
+  - test(accounting): close whitespace idempotency false-green gap.
+  - strengthened whitespace-variant test to assert:
+    - padded key does not persist as a distinct key row,
+    - only one `CatalogImport` row exists across padded/unpadded key variants.
+  - Verification:
+    - `cd /home/realnigga/Desktop/orchestrator_erp/erp-domain && mvn -B -ntp -Dtest=AccountingCatalogControllerSecurityIT#accountingCatalogImport_idempotencyKeyWhitespaceVariantsReplayDeterministically,AccountingCatalogControllerSecurityIT#accountingCatalogImport_idempotencyKeyCaseVariantsStayDeterministicPerVariant,AccountingCatalogControllerSecurityIT#accountingCatalogImport_sameIdempotencyKeyAcrossCompaniesRemainsCompanyScoped test` -> pass (3 tests, 0 failures, 0 errors).
+
+Post-Commit Review Evidence
+- Commit reviewed: `e5544325`
+- `codex review --commit e5544325`:
+  - final verdict: assertion hardening is coherent with test intent; no regressions introduced.
+- Review subagent `019c5b24-5b8c-7571-a2d6-46b8dc4aa143`:
+  - findings: none.
+
+Completed Slice (Resolved)
+- M14-S44 catalog-import idempotency key canonicalization abuse guard
+  - closure basis: `9cdc1827` + `e5544325` with passing focused matrix and converged review chain.
+
+Loop Update
+- 2026-02-14T13:25:38+05:30
+- tracked_now_ts: `2026-02-14T13:25:38+05:30`
+- tracked_elapsed: `59h 31m 46s`
+- active_in_progress: `M14-S45 catalog-import MIME parameter injection guard (allowlist-token prefix/suffix tricks and malformed parameter tails must remain fail-closed with zero persistence side effects)`
+- continuity_recheck: `36f82dff` / `9cdc1827` / `e5544325` review-evidence chain appended.
+
+Queue Rotation (Auto-Replenish)
+- [completed] M14-S44 catalog-import idempotency key canonicalization abuse guard (whitespace/case-varied key replays must remain deterministic, company-scoped, and side-effect-free)
+- [in_progress] M14-S45 catalog-import MIME parameter injection guard (allowlist-token prefix/suffix tricks and malformed parameter tails must remain fail-closed with zero persistence side effects)
+- [ready] M14-S46 raw-material malformed-costing canonicalization fence (create/update/import vectors must reject non-canonical costing tokens uniformly and preserve entity state across retries)
+- [ready] M14-S47 finished-good WAC cache drift replay guard (dispatch + adjustment retry chains must invalidate cached weighted-average snapshots so replayed postings never reuse stale pre-mutation unit costs)
+- [ready] M14-S48 costing-selection enum drift guard (new/legacy costing tokens must remain centrally mapped via `CostingMethodUtils` with no per-module fallback forks)
+- [ready] M14-S49 catalog-import retry-winner ledger/journal silence guard (stale-retry loser payloads must never produce duplicate accounting side effects while winner replay remains idempotent)
+- [ready] M14-S50 cross-company same-key concurrent fence matrix (parallel imports across two companies using one idempotency key must produce two independent winners with deterministic replay conflicts and no global-key collision bleed)
+- [ready] M14-S51 catalog-import idempotency control-char/Unicode whitespace fence (tab/non-breaking/zero-width key variants must be normalized or rejected deterministically with no duplicate import-row creation)
+- [ready] M11-S7 accounting-portal scope invariant lock (HR, PURCHASING, INVENTORY, REPORTS remain under Accounting portal unless replacement portal map + endpoint docs are updated atomically)
+- [ready] M12-S5 discount/reference calculation parity matrix across sales->invoice->settlement + user-facing example table refresh
+- [ready] M10-S3 release-gate dry-run and blocker ledger sync (`scripts/verify_local.sh` + artifact sanity)
+- [ready] M9-S5 capture EXPLAIN + index-candidate evidence for journal/allocation replay hotspot queries (Flyway V2-ready)
+- [ready] M2-S12 replay mismatch guard helper extraction to enforce parity by construction
+- [ready] M11-S6 approval queue runtime contract test slice (assert FE docs match live `AdminApprovalItemDto` payload fields and action endpoint semantics)
