@@ -4666,3 +4666,71 @@ Queue Rotation (Auto-Replenish)
 - [ready] M9-S5 capture EXPLAIN + index-candidate evidence for journal/allocation replay hotspot queries (Flyway V2-ready)
 - [ready] M2-S12 replay mismatch guard helper extraction to enforce parity by construction
 - [ready] M11-S6 approval queue runtime contract test slice (assert FE docs match live `AdminApprovalItemDto` payload fields and action endpoint semantics)
+
+Post-Commit Review Evidence
+- Commit reviewed: `b1b36da7`
+- `codex review --commit b1b36da7`:
+  - final verdict: docs-only asyncloop append; no executable/config/test regression introduced.
+- Review subagent `019c5a74-3736-7ef3-bae9-1ad0b5e7129f`:
+  - findings: none.
+  - summary: queue-floor, active continuity, and commit-evidence linkage remain coherent.
+
+Completed Slice (Committed)
+- 2026-02-14: `5bf4ef97`
+  - test(inventory): enforce raw-material costing token parity.
+  - M14-S33 initial pass:
+    - added `raw_material_update_normalizes_weighted_average_alias_to_wac`.
+    - added `raw_material_create_rejects_malformed_costing_token`.
+    - added `raw_material_update_rejects_malformed_costing_token_without_mutation`.
+    - closed raw-material create/update parity gap against existing finished-good + import canonicalization coverage.
+  - Verification:
+    - `cd /home/realnigga/Desktop/orchestrator_erp/erp-domain && mvn -B -ntp -Dtest=RawMaterialAndProductUpdateIT test` -> pass (18 tests, 0 failures, 0 errors).
+
+Post-Commit Review Evidence
+- Commit reviewed: `5bf4ef97`
+- `codex review --commit 5bf4ef97`:
+  - final verdict: new integration tests are coherent with existing behavior; no introduced bug.
+- Review subagent `019c5a77-599f-7972-a421-bf05e7f12164`:
+  - findings:
+    - medium: malformed-create test needed explicit persistence-side-effect assertions.
+    - low: company-scope negative check needed explicit foreign-company assertion.
+  - disposition: fixed immediately in follow-up commit `1324f452`.
+
+Completed Slice (Committed)
+- 2026-02-14: `1324f452`
+  - test(inventory): assert malformed raw-material create has no side effects.
+  - M14-S33 final closure:
+    - hardened malformed-create test with before/after count invariants for current company.
+    - asserted malformed create does not persist SKU in current company.
+    - asserted malformed create does not leak/create SKU under a foreign company context.
+  - Verification:
+    - `cd /home/realnigga/Desktop/orchestrator_erp/erp-domain && mvn -B -ntp -Dtest=RawMaterialAndProductUpdateIT test` -> pass (18 tests, 0 failures, 0 errors).
+
+Post-Commit Review Evidence
+- Commit reviewed: `1324f452`
+- `codex review --commit 1324f452`:
+  - final verdict: commit only strengthens integration-test side-effect assertions; consistent with existing setup.
+- Review subagent `019c5a7a-2467-77e3-95f5-d0d5e1ebb4b1`:
+  - findings: none.
+  - summary: malformed-token rejection path is now covered for non-persistence + company-scope guard.
+
+Loop Update
+- 2026-02-14T10:21:10+05:30
+- tracked_now_ts: `2026-02-14T10:21:10+05:30`
+- tracked_elapsed: `56h 27m 18s`
+- active_in_progress: `M14-S34 finished-good request costing normalization parity gate (align create/update/import request normalization with raw-material service contract, including alias canonicalization and malformed-token rejection)`
+- continuity_recheck: `0355149b` / `f9fd898f` / `a1d05cd7` evidence chain remains finalized and aligned.
+
+Queue Rotation (Auto-Replenish)
+- [completed] M14-S33 costing token-shape + canonicalization boundary matrix (finished-good/raw-material create/update/import parity; malformed token rejection + unsupported legacy preservation contracts)
+- [in_progress] M14-S34 finished-good request costing normalization parity gate (align create/update/import request normalization with raw-material service contract, including alias canonicalization and malformed-token rejection)
+- [ready] M14-S35 raw-material WAC null-average fail-safe contract (if weighted-average repository returns null/blank path output, valuation/reporting must remain deterministic and never silently understate inventory)
+- [ready] M14-S36 catalog-import concurrent winner provenance contract (winner replay with same payload must stay stable after mismatch conflict; loser payload must never materialize across retry attempts)
+- [ready] M14-S37 catalog-import stale-row cache cleanup acceptance matrix (legacy drifted rows + retry replay must clear stale flags without mutating winner payload)
+- [ready] M14-S38 catalog-import MIME token canonicalization matrix (mixed-case/parameterized content-type parsing must remain fail-closed for disallowed families while preserving allowlist aliases)
+- [ready] M14-S39 raw-material malformed-token replay matrix (repeat invalid costing payloads across create/update must stay fail-closed and side-effect-free under company-scoped concurrent retries)
+- [ready] M12-S5 discount/reference calculation parity matrix across sales->invoice->settlement + user-facing example table refresh
+- [ready] M10-S3 release-gate dry-run and blocker ledger sync (`scripts/verify_local.sh` + artifact sanity)
+- [ready] M9-S5 capture EXPLAIN + index-candidate evidence for journal/allocation replay hotspot queries (Flyway V2-ready)
+- [ready] M2-S12 replay mismatch guard helper extraction to enforce parity by construction
+- [ready] M11-S6 approval queue runtime contract test slice (assert FE docs match live `AdminApprovalItemDto` payload fields and action endpoint semantics)
