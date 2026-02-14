@@ -140,6 +140,60 @@ class AccountingCatalogControllerSecurityIT extends AbstractIntegrationTest {
     }
 
     @Test
+    void accountingCatalogImport_sameSkuMismatchDoesNotMutateWinnerRows() {
+        Company company = dataSeeder.ensureCompany(COMPANY_CODE, "Catalog Sec Co");
+        HttpHeaders accountingHeaders = authHeaders(ACCOUNTING_EMAIL, PASSWORD, COMPANY_CODE);
+        String idempotencyKey = "CAT-IDEMP-SAME-SKU-" + shortId();
+        String sharedSku = "RM-IDEMP-SHARED-" + shortId();
+        String winnerProductName = "RBAC Winner " + shortId();
+        String loserProductName = "RBAC Loser " + shortId();
+
+        ResponseEntity<Map> firstResponse = importCatalogWithCustomFile(
+                accountingHeaders,
+                catalogCsvContent(sharedSku, winnerProductName),
+                "catalog-" + sharedSku + "-winner.csv",
+                "text/csv",
+                idempotencyKey);
+        assertThat(firstResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+        CatalogImport winnerImport = catalogImportRepository.findByCompanyAndIdempotencyKey(company, idempotencyKey)
+                .orElseThrow();
+        var winnerProduct = productionProductRepository.findByCompanyAndSkuCode(company, sharedSku).orElseThrow();
+        var winnerMaterial = rawMaterialRepository.findByCompanyAndSku(company, sharedSku).orElseThrow();
+        Long winnerProductId = winnerProduct.getId();
+        String winnerPersistedProductName = winnerProduct.getProductName();
+        Long winnerMaterialId = winnerMaterial.getId();
+        String winnerPersistedMaterialName = winnerMaterial.getName();
+
+        ResponseEntity<Map> secondResponse = importCatalogWithCustomFile(
+                accountingHeaders,
+                catalogCsvContent(sharedSku, loserProductName),
+                "catalog-" + sharedSku + "-loser.csv",
+                "text/csv",
+                idempotencyKey);
+        assertThat(secondResponse.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(secondResponse.getBody()).isNotNull();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> errorData = (Map<String, Object>) secondResponse.getBody().get("data");
+        assertThat(errorData).containsEntry("code", "CONC_001");
+
+        CatalogImport persistedImport = catalogImportRepository.findByCompanyAndIdempotencyKey(company, idempotencyKey)
+                .orElseThrow();
+        assertThat(persistedImport.getId()).isEqualTo(winnerImport.getId());
+        assertThat(persistedImport.getRowsProcessed()).isEqualTo(winnerImport.getRowsProcessed());
+        assertThat(persistedImport.getProductsCreated()).isEqualTo(winnerImport.getProductsCreated());
+        assertThat(persistedImport.getProductsUpdated()).isEqualTo(winnerImport.getProductsUpdated());
+
+        var productAfterConflict = productionProductRepository.findByCompanyAndSkuCode(company, sharedSku).orElseThrow();
+        var materialAfterConflict = rawMaterialRepository.findByCompanyAndSku(company, sharedSku).orElseThrow();
+        assertThat(productAfterConflict.getId()).isEqualTo(winnerProductId);
+        assertThat(productAfterConflict.getProductName()).isEqualTo(winnerPersistedProductName);
+        assertThat(productAfterConflict.getProductName()).isEqualTo(winnerProductName);
+        assertThat(materialAfterConflict.getId()).isEqualTo(winnerMaterialId);
+        assertThat(materialAfterConflict.getName()).isEqualTo(winnerPersistedMaterialName);
+    }
+
+    @Test
     void accountingCatalogImport_concurrentMismatchProducesSingleWinnerAndConflict() throws Exception {
         Company company = dataSeeder.ensureCompany(COMPANY_CODE, "Catalog Sec Co");
         HttpHeaders accountingHeaders = authHeaders(ACCOUNTING_EMAIL, PASSWORD, COMPANY_CODE);
@@ -369,9 +423,13 @@ class AccountingCatalogControllerSecurityIT extends AbstractIntegrationTest {
     }
 
     private String catalogCsvContent(String sku) {
+        return catalogCsvContent(sku, "RBAC Product " + sku);
+    }
+
+    private String catalogCsvContent(String sku, String productName) {
         return String.join("\n",
                 "brand,product_name,sku_code,category,unit_of_measure,gst_rate",
-                "RBAC Brand,RBAC Product " + sku + "," + sku + ",RAW_MATERIAL,KG,18.00"
+                "RBAC Brand," + productName + "," + sku + ",RAW_MATERIAL,KG,18.00"
         );
     }
 
