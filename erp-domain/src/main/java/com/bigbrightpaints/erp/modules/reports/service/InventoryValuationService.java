@@ -232,8 +232,9 @@ public class InventoryValuationService {
         if (remaining.compareTo(BigDecimal.ZERO) <= 0) {
             return BigDecimal.ZERO;
         }
-        String method = normalizeFinishedGoodMethod(finishedGood.getCostingMethod());
-        if (CostingMethodUtils.isWeightedAverage(method)) {
+        CostingMethodUtils.FinishedGoodBatchSelectionMethod selectionMethod =
+                CostingMethodUtils.resolveFinishedGoodBatchSelectionMethod(finishedGood.getCostingMethod());
+        if (selectionMethod == CostingMethodUtils.FinishedGoodBatchSelectionMethod.WAC) {
             BigDecimal avgCost = finishedGoodBatchRepository.calculateWeightedAverageCost(finishedGood);
             if (avgCost == null) {
                 return BigDecimal.ZERO;
@@ -245,26 +246,12 @@ public class InventoryValuationService {
         batches.sort(Comparator
                 .comparing(FinishedGoodBatch::getManufacturedAt, Comparator.nullsLast(Comparator.naturalOrder()))
                 .thenComparing(FinishedGoodBatch::getId, Comparator.nullsLast(Comparator.naturalOrder())));
-        if ("LIFO".equals(method)) {
+        if (selectionMethod == CostingMethodUtils.FinishedGoodBatchSelectionMethod.LIFO) {
             Collections.reverse(batches);
         }
         return consumeValuation(remaining, batches.stream()
                 .map(batch -> new CostSlice(safe(batch.getQuantityTotal()), batch.getUnitCost()))
                 .toList());
-    }
-
-    private String normalizeFinishedGoodMethod(String method) {
-        if (method == null || method.isBlank()) {
-            return "FIFO";
-        }
-        String normalized = method.trim().toUpperCase(Locale.ROOT);
-        if (CostingMethodUtils.isWeightedAverage(normalized)) {
-            return "WAC";
-        }
-        if ("LIFO".equals(normalized)) {
-            return "LIFO";
-        }
-        return "FIFO";
     }
 
     private BigDecimal consumeValuation(BigDecimal required, List<CostSlice> slices) {
