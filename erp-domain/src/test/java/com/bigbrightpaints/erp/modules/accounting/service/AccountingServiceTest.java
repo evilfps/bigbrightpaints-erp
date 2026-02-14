@@ -4095,6 +4095,90 @@ class AccountingServiceTest {
     }
 
     @Test
+    void resolveDealerSettlementIdempotencyKey_matchesLegacyReplayAcrossEquivalentPaymentReorder() {
+        DealerSettlementRequest originalOrderRequest = new DealerSettlementRequest(
+                1L,
+                null,
+                null,
+                null,
+                null,
+                null,
+                LocalDate.of(2024, 5, 1),
+                null,
+                null,
+                null,
+                Boolean.FALSE,
+                List.of(new SettlementAllocationRequest(
+                        701L,
+                        null,
+                        new BigDecimal("100.00"),
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        null
+                )),
+                List.of(
+                        new SettlementPaymentRequest(20L, new BigDecimal("60.00"), "CASH"),
+                        new SettlementPaymentRequest(20L, new BigDecimal("40.00"), "BANK")
+                )
+        );
+
+        DealerSettlementRequest replayOrderRequest = new DealerSettlementRequest(
+                1L,
+                null,
+                null,
+                null,
+                null,
+                null,
+                LocalDate.of(2024, 5, 1),
+                null,
+                null,
+                null,
+                Boolean.FALSE,
+                List.of(new SettlementAllocationRequest(
+                        701L,
+                        null,
+                        new BigDecimal("100.00"),
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        null
+                )),
+                List.of(
+                        new SettlementPaymentRequest(20L, new BigDecimal("40.00"), "BANK"),
+                        new SettlementPaymentRequest(20L, new BigDecimal("60.00"), "CASH")
+                )
+        );
+
+        String canonicalReplayKey = ReflectionTestUtils.invokeMethod(
+                accountingService,
+                "buildDealerSettlementIdempotencyKey",
+                replayOrderRequest
+        );
+        String legacyOriginalKey = ReflectionTestUtils.invokeMethod(
+                accountingService,
+                "buildLegacyDealerSettlementIdempotencyKey",
+                originalOrderRequest
+        );
+        assertThat(canonicalReplayKey).isNotEqualTo(legacyOriginalKey);
+
+        var existing = new PartnerSettlementAllocation();
+        existing.setCompany(company);
+        existing.setIdempotencyKey(legacyOriginalKey);
+        when(settlementAllocationRepository.findByCompanyAndIdempotencyKeyIgnoreCaseOrderByCreatedAtAscIdAsc(
+                eq(company), eq(legacyOriginalKey))).thenReturn(List.of(existing));
+
+        String resolved = ReflectionTestUtils.invokeMethod(
+                accountingService,
+                "resolveDealerSettlementIdempotencyKey",
+                company,
+                replayOrderRequest
+        );
+
+        assertThat(resolved).isEqualTo(legacyOriginalKey);
+    }
+
+    @Test
     void settleDealerInvoices_requiresPaymentsToMatchCash() {
         // Setup company/dealer/invoice
         Dealer dealer = new Dealer();

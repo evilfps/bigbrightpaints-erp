@@ -59,12 +59,15 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
@@ -91,6 +94,7 @@ public class AccountingService {
     private static final String ENTITY_TYPE_SUPPLIER_PAYMENT = "SUPPLIER_PAYMENT";
     private static final String ENTITY_TYPE_SUPPLIER_SETTLEMENT = "SUPPLIER_SETTLEMENT";
     private static final String ENTITY_TYPE_CREDIT_NOTE = "CREDIT_NOTE";
+    private static final int DEALER_SETTLEMENT_LEGACY_KEY_CANDIDATE_LIMIT = 32;
 
     private final CompanyContextService companyContextService;
     private final AccountRepository accountRepository;
@@ -2383,12 +2387,14 @@ public class AccountingService {
         }
 
         String canonicalKey = buildDealerSettlementIdempotencyKey(request);
-        String legacyKey = buildLegacyDealerSettlementIdempotencyKey(request);
-
-        if (StringUtils.hasText(legacyKey)
-                && !legacyKey.equalsIgnoreCase(canonicalKey)
-                && (hasExistingSettlementAllocations(company, legacyKey) || hasExistingIdempotencyMapping(company, legacyKey))) {
-            return legacyKey;
+        List<String> legacyCandidates = buildDealerSettlementLegacyIdempotencyKeyCandidates(request);
+        for (String legacyKey : legacyCandidates) {
+            if (!StringUtils.hasText(legacyKey) || legacyKey.equalsIgnoreCase(canonicalKey)) {
+                continue;
+            }
+            if (hasExistingSettlementAllocations(company, legacyKey) || hasExistingIdempotencyMapping(company, legacyKey)) {
+                return legacyKey;
+            }
         }
         return canonicalKey;
     }
@@ -4014,8 +4020,146 @@ public class AccountingService {
         return buildDealerSettlementIdempotencyKey(request, paymentComparator);
     }
 
+    private List<String> buildDealerSettlementLegacyIdempotencyKeyCandidates(DealerSettlementRequest request) {
+        if (request == null) {
+            return List.of();
+        }
+        List<SettlementPaymentRequest> sortedPayments = request.payments() != null
+                ? request.payments().stream()
+                .sorted(Comparator.comparing(SettlementPaymentRequest::accountId, Comparator.nullsLast(Long::compareTo)))
+                .toList()
+                : List.of();
+        if (sortedPayments.isEmpty()) {
+            return List.of(buildLegacyDealerSettlementIdempotencyKey(request));
+        }
+
+        List<List<SettlementPaymentRequest>> groups = groupPaymentsByAccount(sortedPayments);
+        LinkedHashSet<String> keys = new LinkedHashSet<>();
+        buildLegacyCandidateKeys(
+                request,
+                groups,
+                0,
+                new ArrayList<>(),
+                keys,
+                DEALER_SETTLEMENT_LEGACY_KEY_CANDIDATE_LIMIT
+        );
+        if (keys.isEmpty()) {
+            keys.add(buildLegacyDealerSettlementIdempotencyKey(request));
+        }
+        return List.copyOf(keys);
+    }
+
+    private List<List<SettlementPaymentRequest>> groupPaymentsByAccount(List<SettlementPaymentRequest> sortedPayments) {
+        List<List<SettlementPaymentRequest>> groups = new ArrayList<>();
+        if (sortedPayments == null || sortedPayments.isEmpty()) {
+            return groups;
+        }
+        Long currentAccountId = null;
+        List<SettlementPaymentRequest> currentGroup = new ArrayList<>();
+        for (SettlementPaymentRequest payment : sortedPayments) {
+            Long accountId = payment != null ? payment.accountId() : null;
+            if (!currentGroup.isEmpty() && !Objects.equals(currentAccountId, accountId)) {
+                groups.add(new ArrayList<>(currentGroup));
+                currentGroup.clear();
+            }
+            currentAccountId = accountId;
+            currentGroup.add(payment);
+        }
+        if (!currentGroup.isEmpty()) {
+            groups.add(new ArrayList<>(currentGroup));
+        }
+        return groups;
+    }
+
+    private void buildLegacyCandidateKeys(DealerSettlementRequest request,
+                                          List<List<SettlementPaymentRequest>> groups,
+                                          int groupIndex,
+                                          List<SettlementPaymentRequest> orderedPayments,
+                                          LinkedHashSet<String> keys,
+                                          int limit) {
+        if (keys.size() >= limit) {
+            return;
+        }
+        if (groupIndex >= groups.size()) {
+            keys.add(buildDealerSettlementIdempotencyKey(request, orderedPayments));
+            return;
+        }
+
+        List<List<SettlementPaymentRequest>> groupPermutations = paymentGroupPermutations(groups.get(groupIndex), limit);
+        for (List<SettlementPaymentRequest> permutation : groupPermutations) {
+            if (keys.size() >= limit) {
+                return;
+            }
+            int startSize = orderedPayments.size();
+            orderedPayments.addAll(permutation);
+            buildLegacyCandidateKeys(request, groups, groupIndex + 1, orderedPayments, keys, limit);
+            orderedPayments.subList(startSize, orderedPayments.size()).clear();
+        }
+    }
+
+    private List<List<SettlementPaymentRequest>> paymentGroupPermutations(List<SettlementPaymentRequest> group, int limit) {
+        if (group == null || group.isEmpty()) {
+            return List.of(List.of());
+        }
+        List<List<SettlementPaymentRequest>> permutations = new ArrayList<>();
+        permutePaymentGroup(group, new boolean[group.size()], new ArrayList<>(), permutations, limit);
+        return permutations;
+    }
+
+    private void permutePaymentGroup(List<SettlementPaymentRequest> group,
+                                     boolean[] used,
+                                     List<SettlementPaymentRequest> current,
+                                     List<List<SettlementPaymentRequest>> permutations,
+                                     int limit) {
+        if (permutations.size() >= limit) {
+            return;
+        }
+        if (current.size() == group.size()) {
+            permutations.add(new ArrayList<>(current));
+            return;
+        }
+        Set<String> levelSeen = new HashSet<>();
+        for (int i = 0; i < group.size(); i++) {
+            if (used[i]) {
+                continue;
+            }
+            SettlementPaymentRequest payment = group.get(i);
+            String token = paymentPermutationToken(payment);
+            if (!levelSeen.add(token)) {
+                continue;
+            }
+            used[i] = true;
+            current.add(payment);
+            permutePaymentGroup(group, used, current, permutations, limit);
+            current.remove(current.size() - 1);
+            used[i] = false;
+            if (permutations.size() >= limit) {
+                return;
+            }
+        }
+    }
+
+    private String paymentPermutationToken(SettlementPaymentRequest payment) {
+        if (payment == null) {
+            return "null|0";
+        }
+        return (payment.accountId() != null ? payment.accountId() : "null")
+                + "|"
+                + normalizeDecimal(payment.amount());
+    }
+
     private String buildDealerSettlementIdempotencyKey(DealerSettlementRequest request,
                                                        Comparator<SettlementPaymentRequest> paymentComparator) {
+        List<SettlementPaymentRequest> orderedPayments = request != null && request.payments() != null
+                ? request.payments().stream()
+                .sorted(paymentComparator)
+                .toList()
+                : List.of();
+        return buildDealerSettlementIdempotencyKey(request, orderedPayments);
+    }
+
+    private String buildDealerSettlementIdempotencyKey(DealerSettlementRequest request,
+                                                       List<SettlementPaymentRequest> orderedPayments) {
         if (request == null) {
             return UUID.randomUUID().toString();
         }
@@ -4033,12 +4177,7 @@ public class AccountingService {
                     .append(":woff=").append(normalizeDecimal(allocation.writeOffAmount()))
                     .append(":fx=").append(normalizeDecimal(allocation.fxAdjustment()));
         }
-        List<SettlementPaymentRequest> payments = request.payments() != null
-                ? request.payments().stream()
-                .sorted(paymentComparator)
-                .toList()
-                : List.of();
-        for (SettlementPaymentRequest payment : payments) {
+        for (SettlementPaymentRequest payment : orderedPayments) {
             fingerprint.append("|pay=").append(payment.accountId() != null ? payment.accountId() : "null")
                     .append(":").append(normalizeDecimal(payment.amount()));
         }
