@@ -22,6 +22,13 @@ This document captures the current backend contract for sales-order payment mode
   - Legacy default-credit signature shape (`...|CREDIT|...`) is still accepted.
   - Accepted legacy signatures are upgraded in-place to canonical signature form on replay.
 
+## Idempotency Contract (Orchestrator Production/Dispatch)
+- For orchestrator fulfillment/dispatch/payroll command endpoints, key resolution now uses:
+  - `Idempotency-Key` header first,
+  - then `X-Request-Id` header,
+  - then deterministic auto-key derived from command + company + normalized payload.
+- This removes brittle header-only failures while preserving exactly-once replay behavior for repeated start/dispatch submissions.
+
 ## Accounting and Lifecycle Notes
 - Revenue recognition must remain shipment-gated; order creation alone should not expose recognized revenue (`M15-S2`).
 - Admin portal dashboard revenue metrics (`/api/v1/portal/dashboard`) are derived from shipment-posted invoice rows, not order status labels.

@@ -1,8 +1,6 @@
 package com.bigbrightpaints.erp.orchestrator.controller;
 
 import com.bigbrightpaints.erp.core.security.CompanyContextHolder;
-import com.bigbrightpaints.erp.core.exception.ApplicationException;
-import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.orchestrator.dto.ApproveOrderRequest;
 import com.bigbrightpaints.erp.orchestrator.dto.DispatchRequest;
 import com.bigbrightpaints.erp.orchestrator.dto.OrderFulfillmentRequest;
@@ -11,6 +9,10 @@ import com.bigbrightpaints.erp.orchestrator.exception.OrchestratorFeatureDisable
 import com.bigbrightpaints.erp.orchestrator.service.CommandDispatcher;
 import com.bigbrightpaints.erp.orchestrator.service.TraceService;
 import jakarta.validation.Valid;
+import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.security.Principal;
 import java.util.Map;
 import org.springframework.http.HttpStatus;
@@ -45,9 +47,20 @@ public class OrchestratorController {
                                                              @org.springframework.web.bind.annotation.RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
                                                              @org.springframework.web.bind.annotation.RequestHeader(value = "X-Request-Id", required = false) String requestId,
                                                              Principal principal) {
+        String companyCode = requireCompanyCode();
         ApproveOrderRequest normalized = new ApproveOrderRequest(orderId, request.approvedBy(), request.totalAmount());
-        String traceId = commandDispatcher.approveOrder(normalized, requireIdempotencyKey(idempotencyKey),
-                requestId, requireCompanyCode(), principal.getName());
+        String traceId = commandDispatcher.approveOrder(
+                normalized,
+                resolveIdempotencyKey(
+                        idempotencyKey,
+                        requestId,
+                        "ORCH.ORDER.APPROVE",
+                        companyCode,
+                        normalized.orderId() + "|" + canonicalText(normalized.approvedBy()) + "|" + canonicalAmount(normalized.totalAmount())
+                ),
+                requestId,
+                companyCode,
+                principal.getName());
         return ResponseEntity.accepted().body(Map.of("traceId", traceId));
     }
 
@@ -58,8 +71,20 @@ public class OrchestratorController {
                                                              @org.springframework.web.bind.annotation.RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
                                                              @org.springframework.web.bind.annotation.RequestHeader(value = "X-Request-Id", required = false) String requestId,
                                                              Principal principal) {
-        String traceId = commandDispatcher.updateOrderFulfillment(orderId, request, requireIdempotencyKey(idempotencyKey),
-                requestId, requireCompanyCode(), principal.getName());
+        String companyCode = requireCompanyCode();
+        String traceId = commandDispatcher.updateOrderFulfillment(
+                orderId,
+                request,
+                resolveIdempotencyKey(
+                        idempotencyKey,
+                        requestId,
+                        "ORCH.ORDER.FULFILLMENT.UPDATE",
+                        companyCode,
+                        orderId + "|" + canonicalText(request.status()) + "|" + canonicalText(request.notes())
+                ),
+                requestId,
+                companyCode,
+                principal.getName());
         return ResponseEntity.accepted().body(Map.of("traceId", traceId));
     }
 
@@ -70,11 +95,22 @@ public class OrchestratorController {
                                                          @org.springframework.web.bind.annotation.RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
                                                          @org.springframework.web.bind.annotation.RequestHeader(value = "X-Request-Id", required = false) String requestId,
                                                          Principal principal) {
+        String companyCode = requireCompanyCode();
         DispatchRequest normalized = new DispatchRequest(batchId,
                 request.requestedBy(),
                 request.postingAmount());
-        String traceId = commandDispatcher.dispatchBatch(normalized, requireIdempotencyKey(idempotencyKey),
-                requestId, requireCompanyCode(), principal.getName());
+        String traceId = commandDispatcher.dispatchBatch(
+                normalized,
+                resolveIdempotencyKey(
+                        idempotencyKey,
+                        requestId,
+                        "ORCH.FACTORY.BATCH.DISPATCH",
+                        companyCode,
+                        normalized.batchId() + "|" + canonicalText(normalized.requestedBy()) + "|" + canonicalAmount(normalized.postingAmount())
+                ),
+                requestId,
+                companyCode,
+                principal.getName());
         return ResponseEntity.accepted().body(Map.of("traceId", traceId));
     }
 
@@ -102,8 +138,21 @@ public class OrchestratorController {
                                                            @org.springframework.web.bind.annotation.RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
                                                            @org.springframework.web.bind.annotation.RequestHeader(value = "X-Request-Id", required = false) String requestId,
                                                            Principal principal) {
-        String traceId = commandDispatcher.runPayroll(request, requireIdempotencyKey(idempotencyKey),
-                requestId, requireCompanyCode(), principal.getName());
+        String companyCode = requireCompanyCode();
+        String traceId = commandDispatcher.runPayroll(
+                request,
+                resolveIdempotencyKey(
+                        idempotencyKey,
+                        requestId,
+                        "ORCH.PAYROLL.RUN",
+                        companyCode,
+                        request.payrollDate() + "|" + canonicalText(request.initiatedBy()) + "|"
+                                + request.debitAccountId() + "|" + request.creditAccountId() + "|"
+                                + canonicalAmount(request.postingAmount())
+                ),
+                requestId,
+                companyCode,
+                principal.getName());
         return ResponseEntity.accepted().body(Map.of("traceId", traceId));
     }
 
@@ -141,12 +190,41 @@ public class OrchestratorController {
         return companyCode.trim();
     }
 
-    private String requireIdempotencyKey(String idempotencyKey) {
-        if (!StringUtils.hasText(idempotencyKey)) {
-            throw new ApplicationException(ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD,
-                    "Idempotency-Key header is required");
+    private String resolveIdempotencyKey(String idempotencyKey,
+                                         String requestId,
+                                         String commandName,
+                                         String companyCode,
+                                         String payloadSignature) {
+        if (StringUtils.hasText(idempotencyKey)) {
+            return idempotencyKey.trim();
         }
-        return idempotencyKey.trim();
+        if (StringUtils.hasText(requestId)) {
+            return "REQ|" + commandName + "|" + requestId.trim();
+        }
+        String source = commandName + "|" + canonicalText(companyCode) + "|" + canonicalText(payloadSignature);
+        return "AUTO|" + commandName + "|" + sha256Hex(source);
+    }
+
+    private static String canonicalText(String value) {
+        return value == null ? "" : value.trim();
+    }
+
+    private static String canonicalAmount(BigDecimal amount) {
+        return amount == null ? "" : amount.stripTrailingZeros().toPlainString();
+    }
+
+    private static String sha256Hex(String value) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(value.getBytes(StandardCharsets.UTF_8));
+            StringBuilder hex = new StringBuilder(hash.length * 2);
+            for (byte b : hash) {
+                hex.append(String.format("%02x", b));
+            }
+            return hex.toString();
+        } catch (NoSuchAlgorithmException ex) {
+            throw new IllegalStateException("SHA-256 unavailable", ex);
+        }
     }
 
     @ExceptionHandler(OrchestratorFeatureDisabledException.class)

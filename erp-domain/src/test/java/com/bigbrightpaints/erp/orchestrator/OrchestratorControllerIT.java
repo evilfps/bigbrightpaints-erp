@@ -185,6 +185,66 @@ public class OrchestratorControllerIT extends AbstractIntegrationTest {
     }
 
     @Test
+    void fulfillment_accepts_request_id_fallback_when_idempotency_header_missing() {
+        String token = loginToken();
+        HttpHeaders headers = authHeaders(token);
+        String requestId = "req-" + UUID.randomUUID();
+        headers.add("X-Request-Id", requestId);
+        long outboxBefore = outboxEventRepository.count();
+
+        Map<String, Object> body = Map.of(
+                "status", "PROCESSING",
+                "notes", "start production");
+
+        ResponseEntity<Map> firstResponse = rest.exchange(
+                "/api/v1/orchestrator/orders/" + seededOrderId + "/fulfillment",
+                HttpMethod.POST,
+                new HttpEntity<>(body, headers),
+                Map.class);
+
+        ResponseEntity<Map> secondResponse = rest.exchange(
+                "/api/v1/orchestrator/orders/" + seededOrderId + "/fulfillment",
+                HttpMethod.POST,
+                new HttpEntity<>(body, headers),
+                Map.class);
+
+        assertThat(firstResponse.getStatusCode()).isEqualTo(HttpStatus.ACCEPTED);
+        assertThat(secondResponse.getStatusCode()).isEqualTo(HttpStatus.ACCEPTED);
+        String traceId = (String) firstResponse.getBody().get("traceId");
+        assertThat(secondResponse.getBody().get("traceId")).isEqualTo(traceId);
+        assertThat(outboxEventRepository.count()).isEqualTo(outboxBefore + 1);
+    }
+
+    @Test
+    void fulfillment_auto_derives_idempotency_key_when_headers_missing() {
+        String token = loginToken();
+        HttpHeaders headers = authHeaders(token);
+        long outboxBefore = outboxEventRepository.count();
+
+        Map<String, Object> body = Map.of(
+                "status", "PROCESSING",
+                "notes", "start production auto");
+
+        ResponseEntity<Map> firstResponse = rest.exchange(
+                "/api/v1/orchestrator/orders/" + seededOrderId + "/fulfillment",
+                HttpMethod.POST,
+                new HttpEntity<>(body, headers),
+                Map.class);
+
+        ResponseEntity<Map> secondResponse = rest.exchange(
+                "/api/v1/orchestrator/orders/" + seededOrderId + "/fulfillment",
+                HttpMethod.POST,
+                new HttpEntity<>(body, headers),
+                Map.class);
+
+        assertThat(firstResponse.getStatusCode()).isEqualTo(HttpStatus.ACCEPTED);
+        assertThat(secondResponse.getStatusCode()).isEqualTo(HttpStatus.ACCEPTED);
+        String traceId = (String) firstResponse.getBody().get("traceId");
+        assertThat(secondResponse.getBody().get("traceId")).isEqualTo(traceId);
+        assertThat(outboxEventRepository.count()).isEqualTo(outboxBefore + 1);
+    }
+
+    @Test
     void payroll_run_is_disabled_by_default_in_code_red() {
         String token = loginToken();
         HttpHeaders headers = authHeaders(token);
