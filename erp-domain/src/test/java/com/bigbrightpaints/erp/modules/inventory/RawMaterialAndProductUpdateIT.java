@@ -2,6 +2,7 @@ package com.bigbrightpaints.erp.modules.inventory;
 
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
+import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterial;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialRepository;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionProduct;
@@ -42,6 +43,9 @@ class RawMaterialAndProductUpdateIT extends AbstractIntegrationTest {
 
     @Autowired
     private RawMaterialRepository rawMaterialRepository;
+
+    @Autowired
+    private FinishedGoodRepository finishedGoodRepository;
 
     @Autowired
     private ProductionProductRepository productionProductRepository;
@@ -431,6 +435,38 @@ class RawMaterialAndProductUpdateIT extends AbstractIntegrationTest {
 
         assertThat(create.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         assertThat(String.valueOf(create.getBody())).contains("Unsupported costing method");
+    }
+
+    @Test
+    void finished_good_create_rejects_malformed_costing_token_without_side_effects() {
+        HttpHeaders headers = authenticatedHeaders();
+        Company company = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();
+        long beforeCount = finishedGoodRepository.findByCompanyOrderByProductCodeAsc(company).size();
+        String productCode = "FG-BAD-MAL-" + UUID.randomUUID().toString().substring(0, 8);
+        Company foreignCompany = dataSeeder.ensureCompany(
+                "FG-FOREIGN-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase(),
+                "Finished Good Foreign Co"
+        );
+
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("productCode", productCode);
+        payload.put("name", "FG Bad Malformed Method");
+        payload.put("unit", "UNIT");
+        payload.put("costingMethod", "WAC;DROP");
+
+        ResponseEntity<Map> create = rest.exchange(
+                "/api/v1/finished-goods",
+                HttpMethod.POST,
+                new HttpEntity<>(payload, headers),
+                Map.class
+        );
+
+        assertThat(create.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(String.valueOf(create.getBody())).contains("Unsupported costing method");
+        assertThat(finishedGoodRepository.findByCompanyAndProductCode(company, productCode)).isEmpty();
+        assertThat(finishedGoodRepository.findByCompanyAndProductCode(foreignCompany, productCode)).isEmpty();
+        long afterCount = finishedGoodRepository.findByCompanyOrderByProductCodeAsc(company).size();
+        assertThat(afterCount).isEqualTo(beforeCount);
     }
 
     @Test
