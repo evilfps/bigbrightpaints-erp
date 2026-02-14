@@ -586,6 +586,17 @@ class DealerPortalControllerSecurityIT extends AbstractIntegrationTest {
     @DisplayName("Dealer/admin pending exposure parity handles void and malformed sibling invoice status tokens")
     void dealerAdminPendingExposureParity_handlesVoidAndMalformedSiblingInvoiceTokens() {
         Company company = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();
+        HttpHeaders dealerHeaders = authHeaders(DEALER_A_EMAIL, PASSWORD);
+        ResponseEntity<Map> baselineDealerOrdersResponse = rest.exchange(
+                "/api/v1/dealer-portal/orders",
+                HttpMethod.GET,
+                new HttpEntity<>(dealerHeaders),
+                Map.class
+        );
+        assertThat(baselineDealerOrdersResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        Map<?, ?> baselineDealerOrdersData = (Map<?, ?>) baselineDealerOrdersResponse.getBody().get("data");
+        long baselinePendingCount = ((Number) baselineDealerOrdersData.get("pendingOrderCount")).longValue();
+        BigDecimal baselinePendingExposure = new BigDecimal(String.valueOf(baselineDealerOrdersData.get("pendingOrderExposure")));
 
         SalesOrder voidOnlyOrder = upsertOrder(
                 company,
@@ -629,7 +640,6 @@ class DealerPortalControllerSecurityIT extends AbstractIntegrationTest {
         invoiceRepository.saveAndFlush(malformedActiveInvoice);
 
         try {
-            HttpHeaders dealerHeaders = authHeaders(DEALER_A_EMAIL, PASSWORD);
             ResponseEntity<Map> dealerOrdersResponse = rest.exchange(
                     "/api/v1/dealer-portal/orders",
                     HttpMethod.GET,
@@ -638,9 +648,10 @@ class DealerPortalControllerSecurityIT extends AbstractIntegrationTest {
             );
             assertThat(dealerOrdersResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
             Map<?, ?> dealerOrdersData = (Map<?, ?>) dealerOrdersResponse.getBody().get("data");
-            assertThat(((Number) dealerOrdersData.get("pendingOrderCount")).longValue()).isEqualTo(2L);
+            assertThat(((Number) dealerOrdersData.get("pendingOrderCount")).longValue())
+                    .isEqualTo(baselinePendingCount + 1L);
             assertThat(new BigDecimal(String.valueOf(dealerOrdersData.get("pendingOrderExposure"))))
-                    .isEqualByComparingTo("7600.00");
+                    .isEqualByComparingTo(baselinePendingExposure.add(new BigDecimal("2600.00")));
             List<?> orders = (List<?>) dealerOrdersData.get("orders");
             Map<?, ?> voidOnlyOrderMap = orders.stream()
                     .map(Map.class::cast)
@@ -663,9 +674,10 @@ class DealerPortalControllerSecurityIT extends AbstractIntegrationTest {
             );
             assertThat(dealerDashboardResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
             Map<?, ?> dealerDashboardData = (Map<?, ?>) dealerDashboardResponse.getBody().get("data");
-            assertThat(((Number) dealerDashboardData.get("pendingOrderCount")).longValue()).isEqualTo(2L);
+            assertThat(((Number) dealerDashboardData.get("pendingOrderCount")).longValue())
+                    .isEqualTo(((Number) dealerOrdersData.get("pendingOrderCount")).longValue());
             assertThat(new BigDecimal(String.valueOf(dealerDashboardData.get("pendingOrderExposure"))))
-                    .isEqualByComparingTo("7600.00");
+                    .isEqualByComparingTo(new BigDecimal(String.valueOf(dealerOrdersData.get("pendingOrderExposure"))));
 
             HttpHeaders adminHeaders = authHeaders(ADMIN_EMAIL, PASSWORD);
             ResponseEntity<Map> adminAgingResponse = rest.exchange(
