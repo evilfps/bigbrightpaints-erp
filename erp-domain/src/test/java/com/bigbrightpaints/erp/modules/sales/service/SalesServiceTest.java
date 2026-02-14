@@ -1383,6 +1383,24 @@ class SalesServiceTest {
 
         assertEquals(777L, response.finalInvoiceId());
         assertEquals(222L, response.arJournalEntryId());
+        assertTrue(response.cogsPostings().isEmpty());
+        verify(accountingFacade, never()).postSalesJournal(
+                ArgumentMatchers.anyLong(),
+                ArgumentMatchers.anyString(),
+                ArgumentMatchers.any(),
+                ArgumentMatchers.anyString(),
+                ArgumentMatchers.anyMap(),
+                ArgumentMatchers.anyMap(),
+                ArgumentMatchers.nullable(Map.class),
+                ArgumentMatchers.any(),
+                ArgumentMatchers.anyString());
+        verify(accountingFacade, never()).postCogsJournal(
+                ArgumentMatchers.anyString(),
+                ArgumentMatchers.anyLong(),
+                ArgumentMatchers.any(),
+                ArgumentMatchers.anyString(),
+                ArgumentMatchers.anyList());
+        verifyNoInteractions(accountingService);
 
         ArgumentCaptor<Map<String, String>> auditMetadataCaptor = ArgumentCaptor.forClass(Map.class);
         verify(auditService).logSuccess(eq(AuditEvent.DISPATCH_CONFIRMED), auditMetadataCaptor.capture());
@@ -1390,6 +1408,68 @@ class SalesServiceTest {
         assertEquals("true", metadata.get("alreadyDispatched"));
         assertEquals("true", metadata.get("dispatchOverridesApplied"));
         assertEquals("Replay override in fast path", metadata.get("dispatchOverrideReason"));
+    }
+
+    @Test
+    void confirmDispatchReplayFastPathSkipsDuplicateCogsWhenJournalExistsByReference() {
+        SalesOrder order = new SalesOrder();
+        setField(order, "id", 10L);
+        order.setCompany(company);
+        order.setStatus("SHIPPED");
+
+        PackagingSlip slip = new PackagingSlip();
+        setField(slip, "id", 55L);
+        slip.setCompany(company);
+        slip.setSalesOrder(order);
+        slip.setSlipNumber("PS-55");
+        slip.setStatus("DISPATCHED");
+        slip.setInvoiceId(777L);
+        slip.setJournalEntryId(222L);
+        slip.setCogsJournalEntryId(null);
+
+        Invoice existingInvoice = new Invoice();
+        setField(existingInvoice, "id", 777L);
+        existingInvoice.setTotalAmount(new BigDecimal("90.00"));
+
+        when(packagingSlipRepository.findAndLockByIdAndCompany(55L, company)).thenReturn(Optional.of(slip));
+        when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 10L)).thenReturn(List.of(slip));
+        when(companyEntityLookup.requireSalesOrder(company, 10L)).thenReturn(order);
+        when(invoiceRepository.findByCompanyAndId(company, 777L)).thenReturn(Optional.of(existingInvoice));
+        when(accountingFacade.hasCogsJournalFor("PS-55")).thenReturn(true);
+
+        DispatchConfirmRequest request = new DispatchConfirmRequest(
+                55L,
+                null,
+                List.of(new DispatchConfirmRequest.DispatchLine(99L, null, BigDecimal.ONE, null, new BigDecimal("10"), null, null, null)),
+                null,
+                "admin",
+                Boolean.TRUE,
+                "Replay override with pre-existing COGS reference",
+                null);
+
+        DispatchConfirmResponse response = salesService.confirmDispatch(request);
+
+        assertEquals(777L, response.finalInvoiceId());
+        assertEquals(222L, response.arJournalEntryId());
+        assertTrue(response.cogsPostings().isEmpty());
+        verify(accountingFacade, atLeastOnce()).hasCogsJournalFor("PS-55");
+        verify(accountingFacade, never()).postSalesJournal(
+                ArgumentMatchers.anyLong(),
+                ArgumentMatchers.anyString(),
+                ArgumentMatchers.any(),
+                ArgumentMatchers.anyString(),
+                ArgumentMatchers.anyMap(),
+                ArgumentMatchers.anyMap(),
+                ArgumentMatchers.nullable(Map.class),
+                ArgumentMatchers.any(),
+                ArgumentMatchers.anyString());
+        verify(accountingFacade, never()).postCogsJournal(
+                ArgumentMatchers.anyString(),
+                ArgumentMatchers.anyLong(),
+                ArgumentMatchers.any(),
+                ArgumentMatchers.anyString(),
+                ArgumentMatchers.anyList());
+        verifyNoInteractions(accountingService);
     }
 
     @Test
