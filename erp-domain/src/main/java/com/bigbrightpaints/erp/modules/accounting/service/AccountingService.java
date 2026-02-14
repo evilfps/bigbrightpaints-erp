@@ -2408,6 +2408,7 @@ public class AccountingService {
         if (requestSignatures.isEmpty()) {
             return Optional.empty();
         }
+        Map<DealerPaymentSignature, Integer> requestPaymentSignatures = dealerPaymentSignatureCountsFromRequest(request);
 
         Long dealerId = request.dealerId();
         Set<Long> invoiceIds = request.allocations().stream()
@@ -2443,9 +2444,13 @@ public class AccountingService {
             if (dealerMismatch) {
                 continue;
             }
-            if (allocationSignatureCountsFromRows(existing).equals(requestSignatures)) {
-                return Optional.of(candidateKey);
+            if (!allocationSignatureCountsFromRows(existing).equals(requestSignatures)) {
+                continue;
             }
+            if (!dealerPaymentSignatureCountsFromExistingRows(existing).equals(requestPaymentSignatures)) {
+                continue;
+            }
+            return Optional.of(candidateKey);
         }
         return Optional.empty();
     }
@@ -3877,6 +3882,9 @@ public class AccountingService {
     private record JournalLineSignature(Long accountId, BigDecimal debit, BigDecimal credit) {
     }
 
+    private record DealerPaymentSignature(Long accountId, BigDecimal amount) {
+    }
+
     private Account requireDealerReceivable(Dealer dealer) {
         if (dealer == null || dealer.getReceivableAccount() == null) {
             throw new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE,
@@ -4795,6 +4803,76 @@ public class AccountingService {
                     allocation.memo()
             );
             counts.merge(signature, 1, Integer::sum);
+        }
+        return counts;
+    }
+
+    private Map<DealerPaymentSignature, Integer> dealerPaymentSignatureCountsFromRequest(DealerSettlementRequest request) {
+        Map<DealerPaymentSignature, Integer> counts = new HashMap<>();
+        if (request == null) {
+            return counts;
+        }
+        if (request.payments() != null && !request.payments().isEmpty()) {
+            for (SettlementPaymentRequest payment : request.payments()) {
+                if (payment == null || payment.accountId() == null) {
+                    continue;
+                }
+                BigDecimal amount = normalizeAmount(payment.amount());
+                if (amount.compareTo(BigDecimal.ZERO) <= 0) {
+                    continue;
+                }
+                counts.merge(new DealerPaymentSignature(payment.accountId(), amount), 1, Integer::sum);
+            }
+            return counts;
+        }
+
+        SettlementTotals totals = computeSettlementTotals(request.allocations());
+        BigDecimal cashAmount = totals.totalApplied()
+                .add(totals.totalFxGain())
+                .subtract(totals.totalFxLoss())
+                .subtract(totals.totalDiscount())
+                .subtract(totals.totalWriteOff());
+        if (cashAmount.compareTo(BigDecimal.ZERO) <= 0 || request.cashAccountId() == null) {
+            return counts;
+        }
+        counts.merge(
+                new DealerPaymentSignature(request.cashAccountId(), normalizeAmount(cashAmount)),
+                1,
+                Integer::sum
+        );
+        return counts;
+    }
+
+    private Map<DealerPaymentSignature, Integer> dealerPaymentSignatureCountsFromExistingRows(
+            List<PartnerSettlementAllocation> allocations) {
+        Map<DealerPaymentSignature, Integer> counts = new HashMap<>();
+        if (allocations == null || allocations.isEmpty()) {
+            return counts;
+        }
+        JournalEntry entry = allocations.stream()
+                .map(PartnerSettlementAllocation::getJournalEntry)
+                .filter(Objects::nonNull)
+                .findFirst()
+                .orElse(null);
+        if (entry == null || entry.getLines() == null) {
+            return counts;
+        }
+        for (JournalLine line : entry.getLines()) {
+            if (line == null || line.getAccount() == null || line.getAccount().getId() == null) {
+                continue;
+            }
+            BigDecimal debit = normalizeAmount(line.getDebit());
+            if (debit.compareTo(BigDecimal.ZERO) <= 0) {
+                continue;
+            }
+            Account account = line.getAccount();
+            if (account.getType() != AccountType.ASSET) {
+                continue;
+            }
+            if (isReceivableAccount(account) || isPayableAccount(account)) {
+                continue;
+            }
+            counts.merge(new DealerPaymentSignature(account.getId(), debit), 1, Integer::sum);
         }
         return counts;
     }
