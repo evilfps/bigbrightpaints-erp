@@ -4569,6 +4569,116 @@ class AccountingServiceTest {
     }
 
     @Test
+    void resolveDealerSettlementIdempotencyKey_acceptsLegacyReplayWhenDiscountDebitSharesCashAccount() {
+        DealerSettlementRequest replayRequest = new DealerSettlementRequest(
+                1L,
+                20L,
+                20L,
+                null,
+                null,
+                null,
+                LocalDate.of(2024, 5, 1),
+                null,
+                null,
+                null,
+                Boolean.FALSE,
+                List.of(new SettlementAllocationRequest(
+                        701L,
+                        null,
+                        new BigDecimal("100.00"),
+                        new BigDecimal("40.00"),
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        null
+                )),
+                null
+        );
+
+        String canonicalReplayKey = ReflectionTestUtils.invokeMethod(
+                accountingService,
+                "buildDealerSettlementIdempotencyKey",
+                replayRequest
+        );
+        String legacyKey = ReflectionTestUtils.invokeMethod(
+                accountingService,
+                "buildLegacyDealerSettlementIdempotencyKey",
+                replayRequest
+        );
+        assertThat(canonicalReplayKey).isNotEqualTo(legacyKey);
+
+        Dealer dealer = new Dealer();
+        ReflectionTestUtils.setField(dealer, "id", 1L);
+
+        var invoice = new com.bigbrightpaints.erp.modules.invoice.domain.Invoice();
+        invoice.setCompany(company);
+        invoice.setDealer(dealer);
+        ReflectionTestUtils.setField(invoice, "id", 701L);
+
+        var existing = new PartnerSettlementAllocation();
+        existing.setCompany(company);
+        existing.setDealer(dealer);
+        existing.setInvoice(invoice);
+        existing.setAllocationAmount(new BigDecimal("100.00"));
+        existing.setDiscountAmount(new BigDecimal("40.00"));
+        existing.setWriteOffAmount(BigDecimal.ZERO);
+        existing.setFxDifferenceAmount(BigDecimal.ZERO);
+        existing.setIdempotencyKey(legacyKey);
+
+        Account cashAccount = new Account();
+        cashAccount.setCompany(company);
+        cashAccount.setType(AccountType.ASSET);
+        cashAccount.setCode("CASH");
+        cashAccount.setName("Cash");
+        ReflectionTestUtils.setField(cashAccount, "id", 20L);
+
+        Account receivableAccount = new Account();
+        receivableAccount.setCompany(company);
+        receivableAccount.setType(AccountType.ASSET);
+        receivableAccount.setCode("AR-DEALER");
+        receivableAccount.setName("Dealer Receivable");
+        ReflectionTestUtils.setField(receivableAccount, "id", 10L);
+
+        JournalEntry existingEntry = new JournalEntry();
+        existingEntry.getLines().add(journalLine(
+                existingEntry,
+                cashAccount,
+                "Dealer settlement",
+                new BigDecimal("60.00"),
+                BigDecimal.ZERO
+        ));
+        existingEntry.getLines().add(journalLine(
+                existingEntry,
+                cashAccount,
+                "Settlement discount",
+                new BigDecimal("40.00"),
+                BigDecimal.ZERO
+        ));
+        existingEntry.getLines().add(journalLine(
+                existingEntry,
+                receivableAccount,
+                "Dealer settlement",
+                BigDecimal.ZERO,
+                new BigDecimal("100.00")
+        ));
+        existing.setJournalEntry(existingEntry);
+
+        when(invoiceRepository.findByCompanyAndId(eq(company), eq(701L))).thenReturn(Optional.of(invoice));
+        when(settlementAllocationRepository.findByCompanyAndInvoiceOrderByCreatedAtDesc(eq(company), eq(invoice)))
+                .thenReturn(List.of(existing));
+        when(settlementAllocationRepository.findByCompanyAndIdempotencyKeyIgnoreCaseOrderByCreatedAtAscIdAsc(
+                eq(company), eq(legacyKey))).thenReturn(List.of(existing));
+
+        String resolved = ReflectionTestUtils.invokeMethod(
+                accountingService,
+                "resolveDealerSettlementIdempotencyKey",
+                company,
+                replayRequest
+        );
+
+        assertThat(resolved).isEqualTo(legacyKey);
+    }
+
+    @Test
     void settleDealerInvoices_requiresPaymentsToMatchCash() {
         // Setup company/dealer/invoice
         Dealer dealer = new Dealer();

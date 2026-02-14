@@ -4938,6 +4938,9 @@ public class AccountingService {
             if (debit.compareTo(BigDecimal.ZERO) <= 0) {
                 continue;
             }
+            if (isNonPaymentSettlementAdjustmentLine(line)) {
+                continue;
+            }
             Account account = line.getAccount();
             if (account.getType() != AccountType.ASSET) {
                 continue;
@@ -4948,6 +4951,16 @@ public class AccountingService {
             counts.merge(new DealerPaymentSignature(accountId, debit), 1, Integer::sum);
         }
         return counts;
+    }
+
+    private boolean isNonPaymentSettlementAdjustmentLine(JournalLine line) {
+        if (line == null || !StringUtils.hasText(line.getDescription())) {
+            return false;
+        }
+        String description = line.getDescription().trim().toLowerCase(Locale.ROOT);
+        return "settlement discount".equals(description)
+                || "settlement write-off".equals(description)
+                || "fx loss on settlement".equals(description);
     }
 
     private String allocationSignature(Long invoiceId,
