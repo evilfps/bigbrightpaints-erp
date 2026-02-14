@@ -5108,3 +5108,49 @@ Queue Rotation (Auto-Replenish)
 - [ready] M9-S5 capture EXPLAIN + index-candidate evidence for journal/allocation replay hotspot queries (Flyway V2-ready)
 - [ready] M2-S12 replay mismatch guard helper extraction to enforce parity by construction
 - [ready] M11-S6 approval queue runtime contract test slice (assert FE docs match live `AdminApprovalItemDto` payload fields and action endpoint semantics)
+
+Completed Slice (Committed)
+- 2026-02-14: `c929e771`
+  - test(truthsuite): tighten costing helper anti-dup checks.
+  - M14-S41 closure pass:
+    - added `TS_CostingHelperCentralizationContractTest` in `truthsuite/crossmodule` (initial commit `9dbf13a3`) to lock shared `CostingMethodUtils` usage across inventory/factory/reports services.
+    - follow-up hardening (`c929e771`) expanded anti-dup checks to include `RawMaterialService` and static normalize-helper signature variants.
+    - enforced fail-fast contract against local weighted-average/normalize helper copies in scoped modules.
+  - Verification:
+    - `cd /home/realnigga/Desktop/orchestrator_erp/erp-domain && mvn -B -ntp -Dtest=TS_CostingHelperCentralizationContractTest test` -> pass (3 tests, 0 failures, 0 errors).
+
+Post-Commit Review Evidence
+- Commit reviewed: `9dbf13a3`
+- `codex review --commit 9dbf13a3`:
+  - initial verdict: identified coverage gaps (missing `RawMaterialService` anti-dup check, missing static normalize-helper signature checks).
+- Review subagent `019c5aef-f892-7790-8ebb-3d2d0756b9eb`:
+  - findings: none in production-code scope; residual risk noted for substring-based contract brittleness.
+- Commit reviewed: `c929e771`
+- `codex review --commit c929e771`:
+  - final verdict: tightening-only test change aligned with contract intent; no actionable regressions identified.
+- Review subagent `019c5aee-1e90-7200-a9df-5214274daae9`:
+  - findings: none.
+  - summary: anti-dup coverage extension is coherent and non-invasive to production behavior.
+
+Loop Update
+- 2026-02-14T12:26:31+05:30
+- tracked_now_ts: `2026-02-14T12:26:31+05:30`
+- tracked_elapsed: `58h 32m 39s`
+- active_in_progress: `M14-S42 raw-material WAC null-average factory-flow parity matrix (bulk packing/packaging/production issue flows must apply deterministic batch-cost fallback without zero-cost understatement)`
+- continuity_recheck: `0355149b` / `f9fd898f` / `a1d05cd7` evidence chain remains aligned.
+
+Queue Rotation (Auto-Replenish)
+- [completed] M14-S41 costing-helper centralization guard (enforce shared costing decision helper usage across inventory/factory/reporting services; document and test anti-duplication contract)
+- [in_progress] M14-S42 raw-material WAC null-average factory-flow parity matrix (bulk packing/packaging/production issue flows must apply deterministic batch-cost fallback without zero-cost understatement)
+- [ready] M14-S43 catalog-import winner provenance cross-company fence (same idempotency key reused across different companies must remain company-scoped with no winner/loser bleed-over)
+- [ready] M14-S44 catalog-import idempotency key canonicalization abuse guard (whitespace/case-varied key replays must remain deterministic, company-scoped, and side-effect-free)
+- [ready] M14-S45 catalog-import MIME parameter injection guard (allowlist-token prefix/suffix tricks and malformed parameter tails must remain fail-closed with zero persistence side effects)
+- [ready] M14-S46 raw-material malformed-costing canonicalization fence (create/update/import vectors must reject non-canonical costing tokens uniformly and preserve entity state across retries)
+- [ready] M14-S47 finished-good WAC cache drift replay guard (dispatch + adjustment retry chains must invalidate cached weighted-average snapshots so replayed postings never reuse stale pre-mutation unit costs)
+- [ready] M14-S48 costing-selection enum drift guard (new/legacy costing tokens must remain centrally mapped via `CostingMethodUtils` with no per-module fallback forks)
+- [ready] M11-S7 accounting-portal scope invariant lock (HR, PURCHASING, INVENTORY, REPORTS remain under Accounting portal unless replacement portal map + endpoint docs are updated atomically)
+- [ready] M12-S5 discount/reference calculation parity matrix across sales->invoice->settlement + user-facing example table refresh
+- [ready] M10-S3 release-gate dry-run and blocker ledger sync (`scripts/verify_local.sh` + artifact sanity)
+- [ready] M9-S5 capture EXPLAIN + index-candidate evidence for journal/allocation replay hotspot queries (Flyway V2-ready)
+- [ready] M2-S12 replay mismatch guard helper extraction to enforce parity by construction
+- [ready] M11-S6 approval queue runtime contract test slice (assert FE docs match live `AdminApprovalItemDto` payload fields and action endpoint semantics)
