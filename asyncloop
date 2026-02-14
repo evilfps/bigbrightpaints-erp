@@ -4533,7 +4533,7 @@ Completed Slice (Committed)
     - asserted production brand/product table counts remain unchanged on mismatch rejection.
     - asserted persisted `CatalogImport` counters remain unchanged on mismatch rejection.
   - Verification:
-    - `cd /home/realnigga/Desktop/orchestrator_erp/erp-domain && mvn -B -ntp -Dtest=AccountingCatalogControllerSecurityIT test` -> pass (10 tests, 0 failures, 0 errors).
+    - `cd /home/realnigga/Desktop/orchestrator_erp/erp-domain && mvn -B -ntp -Dtest=AccountingCatalogControllerSecurityIT test` -> pass (9 tests, 0 failures, 0 errors).
 
 Post-Commit Review Evidence
 - Commit reviewed: `4b015bf5`
@@ -4550,7 +4550,7 @@ Completed Slice (Committed)
   - M14-S31 closure:
     - added `accountingCatalogImport_sameSkuMismatchDoesNotMutateWinnerRows` in `AccountingCatalogControllerSecurityIT`.
     - replayed same idempotency key with same SKU but divergent product name and asserted conflict (`CONC_001`) path cannot mutate already-winner product/raw-material rows.
-    - asserted winner `CatalogImport` row counters and payload remain unchanged across conflict replay.
+    - asserted winner row identity/name invariants and selected `CatalogImport` counters (`rowsProcessed`, `productsCreated`, `productsUpdated`) remain unchanged across conflict replay.
   - Verification:
     - `cd /home/realnigga/Desktop/orchestrator_erp/erp-domain && mvn -B -ntp -Dtest=AccountingCatalogControllerSecurityIT test` -> pass (10 tests, 0 failures, 0 errors).
 
