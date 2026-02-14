@@ -80,6 +80,10 @@ For each commit, append:
   - if owned by current slice, continue and finish.
   - if unrelated unexpected edits appear, stop and report.
 4. Continue commit/review cadence from latest recorded point.
+5. If pausing mid-slice, append a `Pause Checkpoint` block in `asyncloop` with:
+  - owned uncommitted file paths,
+  - last targeted verification command and concrete failure line,
+  - immediate next action to resume the same slice.
 
 ## Current High-Priority Continuation Targets
 - M5 dispatch/invoice/accounting replay and double-post defenses.
