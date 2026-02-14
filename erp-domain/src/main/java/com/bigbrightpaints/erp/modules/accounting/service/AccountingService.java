@@ -2421,6 +2421,7 @@ public class AccountingService {
                 .map(DealerPaymentSignature::accountId)
                 .filter(Objects::nonNull)
                 .collect(java.util.stream.Collectors.toCollection(java.util.LinkedHashSet::new));
+        Map<String, Long> requestedAdjustmentAccountIds = requestedAdjustmentAccountIds(request);
 
         Long dealerId = request.dealerId();
         Set<Long> invoiceIds = request.allocations().stream()
@@ -2459,7 +2460,11 @@ public class AccountingService {
             if (!allocationSignatureCountsFromRows(existing).equals(requestSignatures)) {
                 continue;
             }
-            if (!dealerPaymentSignatureCountsFromExistingRows(existing, requestPaymentAccountIds, requestPaymentSignatures)
+            if (!dealerPaymentSignatureCountsFromExistingRows(
+                    existing,
+                    requestPaymentAccountIds,
+                    requestPaymentSignatures,
+                    requestedAdjustmentAccountIds)
                     .equals(requestPaymentSignatures)) {
                 continue;
             }
@@ -2497,7 +2502,12 @@ public class AccountingService {
                 .map(DealerPaymentSignature::accountId)
                 .filter(Objects::nonNull)
                 .collect(java.util.stream.Collectors.toCollection(java.util.LinkedHashSet::new));
-        return dealerPaymentSignatureCountsFromExistingRows(existing, requestPaymentAccountIds, requestPaymentSignatures)
+        Map<String, Long> requestedAdjustmentAccountIds = requestedAdjustmentAccountIds(request);
+        return dealerPaymentSignatureCountsFromExistingRows(
+                existing,
+                requestPaymentAccountIds,
+                requestPaymentSignatures,
+                requestedAdjustmentAccountIds)
                 .equals(requestPaymentSignatures);
     }
 
@@ -4924,7 +4934,8 @@ public class AccountingService {
     private Map<DealerPaymentSignature, Integer> dealerPaymentSignatureCountsFromExistingRows(
             List<PartnerSettlementAllocation> allocations,
             Set<Long> paymentAccountIds,
-            Map<DealerPaymentSignature, Integer> requestPaymentSignatures) {
+            Map<DealerPaymentSignature, Integer> requestPaymentSignatures,
+            Map<String, Long> requestedAdjustmentAccountIds) {
         Map<DealerPaymentSignature, Integer> counts = new HashMap<>();
         List<ExistingDealerPaymentLine> candidateLines = new ArrayList<>();
         if (allocations == null || allocations.isEmpty() || paymentAccountIds == null || paymentAccountIds.isEmpty()) {
@@ -4974,7 +4985,10 @@ public class AccountingService {
             BigDecimal nonPaymentAmount = adjustmentDebitAmountOnNonPaymentAccounts(
                     entry,
                     paymentAccountIds,
-                    adjustmentSignature.normalizedDescription());
+                    adjustmentSignature.normalizedDescription(),
+                    requestedAdjustmentAccountIds != null
+                            ? requestedAdjustmentAccountIds.get(adjustmentSignature.normalizedDescription())
+                            : null);
             BigDecimal remaining = adjustmentSignature.amount().subtract(nonPaymentAmount);
             adjustmentRemovalTargets.add(normalizeAmount(remaining.compareTo(BigDecimal.ZERO) > 0 ? remaining : BigDecimal.ZERO));
             List<Integer> candidateIndexes = new ArrayList<>();
@@ -5009,7 +5023,8 @@ public class AccountingService {
 
     private BigDecimal adjustmentDebitAmountOnNonPaymentAccounts(JournalEntry entry,
                                                                  Set<Long> paymentAccountIds,
-                                                                 String normalizedDescription) {
+                                                                 String normalizedDescription,
+                                                                 Long expectedAdjustmentAccountId) {
         if (entry == null || entry.getLines() == null || !StringUtils.hasText(normalizedDescription)) {
             return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
         }
@@ -5022,7 +5037,11 @@ public class AccountingService {
                 continue;
             }
             Account account = line.getAccount();
-            if (account.getType() == AccountType.ASSET
+            if (expectedAdjustmentAccountId != null) {
+                if (!Objects.equals(account.getId(), expectedAdjustmentAccountId)) {
+                    continue;
+                }
+            } else if (account.getType() == AccountType.ASSET
                     && !isReceivableAccount(account)
                     && !isPayableAccount(account)) {
                 // Treat non-request cash/bank-like debits as payment noise, not adjustment coverage.
@@ -5076,6 +5095,23 @@ public class AccountingService {
                     normalizeAmount(totalFxLoss)));
         }
         return signatures;
+    }
+
+    private Map<String, Long> requestedAdjustmentAccountIds(DealerSettlementRequest request) {
+        if (request == null) {
+            return Map.of();
+        }
+        Map<String, Long> ids = new HashMap<>();
+        if (request.discountAccountId() != null) {
+            ids.put(SETTLEMENT_DISCOUNT_LINE_DESCRIPTION, request.discountAccountId());
+        }
+        if (request.writeOffAccountId() != null) {
+            ids.put(SETTLEMENT_WRITE_OFF_LINE_DESCRIPTION, request.writeOffAccountId());
+        }
+        if (request.fxLossAccountId() != null) {
+            ids.put(SETTLEMENT_FX_LOSS_LINE_DESCRIPTION, request.fxLossAccountId());
+        }
+        return ids;
     }
 
     private boolean canMatchRequestSignaturesWithOptionalAdjustmentExclusions(
