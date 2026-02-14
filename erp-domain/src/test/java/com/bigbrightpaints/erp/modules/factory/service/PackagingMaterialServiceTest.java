@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -25,6 +26,7 @@ import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -183,6 +185,14 @@ class PackagingMaterialServiceTest {
         assertThat(result.quantity()).isEqualByComparingTo("3");
         assertThat(result.accountTotalsOrEmpty()).containsEntry(700L, new BigDecimal("7.00"));
         verify(rawMaterialBatchRepository).calculateWeightedAverageCost(material);
+
+        ArgumentCaptor<RawMaterialMovement> movementCaptor = ArgumentCaptor.forClass(RawMaterialMovement.class);
+        verify(rawMaterialMovementRepository, times(2)).save(movementCaptor.capture());
+        List<RawMaterialMovement> movements = movementCaptor.getAllValues();
+        assertThat(movements.get(0).getUnitCost()).isEqualByComparingTo("1.00");
+        assertThat(movements.get(0).getQuantity()).isEqualByComparingTo("2");
+        assertThat(movements.get(1).getUnitCost()).isEqualByComparingTo("5.00");
+        assertThat(movements.get(1).getQuantity()).isEqualByComparingTo("1");
     }
 
     @Test
