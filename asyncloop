@@ -4355,3 +4355,61 @@ Queue Rotation (Auto-Replenish)
 - [ready] M9-S5 capture EXPLAIN + index-candidate evidence for journal/allocation replay hotspot queries (Flyway V2-ready)
 - [ready] M2-S12 replay mismatch guard helper extraction to enforce parity by construction
 - [ready] M11-S6 approval queue runtime contract test slice (assert FE docs match live `AdminApprovalItemDto` payload fields and action endpoint semantics)
+
+Completed Slice (Committed)
+- 2026-02-14: `00e414c3`
+  - refactor(costing): centralize weighted-average branch selection.
+  - M14-S28 closure (initial pass):
+    - introduced `CostingMethodUtils.selectWeightedAverageValue(...)` to centralize weighted-average branch routing.
+    - rewired weighted-average decision call sites in `BulkPackingService`, `PackagingMaterialService`, `ProductionLogService`, and `InventoryValuationService` to use the canonical helper.
+    - added `CostingMethodUtilsTest` coverage asserting weighted and non-weighted supplier routing plus single-branch execution semantics.
+  - Verification:
+    - `cd /home/realnigga/Desktop/orchestrator_erp/erp-domain && mvn -B -ntp -Dtest=CostingMethodUtilsTest,InventoryValuationServiceTest,BulkPackingServiceTest,ProductionLogServiceTest,PackagingMaterialServiceTest,ReportInventoryParityIT test` -> pass (21 tests, 0 failures, 0 errors).
+
+Post-Commit Review Evidence
+- Commit reviewed: `00e414c3`
+- `codex review --commit 00e414c3`:
+  - final verdict: behavior-preserving refactor; no actionable defects introduced.
+- Review subagent `019c5a3d-a962-7a22-8e14-bd755ce84cb7`:
+  - findings:
+    - medium: missing explicit raw-material WAC branch coverage in `InventoryValuationServiceTest`.
+    - low: parity breadth across all touched services remains narrower than full cross-service matrix.
+  - disposition: medium finding fixed immediately in follow-up commit `1a2e4f23`; low breadth tracked into next costing slices.
+
+Completed Slice (Committed)
+- 2026-02-14: `1a2e4f23`
+  - test(reports): assert raw-material wac valuation branch.
+  - M14-S28 closure (finalized after review finding):
+    - added `InventoryValuationServiceTest.currentSnapshot_rawMaterialWacUsesWeightedAveragePath` to prove raw-material weighted-average valuation uses `calculateWeightedAverageCost(...)` and does not fall back to FIFO batch listing.
+    - asserted value totals remain deterministic on WAC path (`5 * 3 = 15.00`) with no low-stock drift.
+  - Verification:
+    - `cd /home/realnigga/Desktop/orchestrator_erp/erp-domain && mvn -B -ntp -Dtest=CostingMethodUtilsTest,InventoryValuationServiceTest,ReportInventoryParityIT,BulkPackingServiceTest,PackagingMaterialServiceTest test` -> pass (22 tests, 0 failures, 0 errors).
+
+Post-Commit Review Evidence
+- Commit reviewed: `1a2e4f23`
+- `codex review --commit 1a2e4f23`:
+  - final verdict: focused unit-test addition is consistent with current service logic and introduces no runtime regression.
+- Review subagent `019c5a44-07ab-7382-a49d-034b06398a12`:
+  - findings: none.
+  - residual note: future guard can add explicit null-weighted-average repository return handling/coverage.
+
+Loop Update
+- 2026-02-14T09:20:31+05:30
+- tracked_now_ts: `2026-02-14T09:20:31+05:30`
+- tracked_elapsed: `55h 26m 39s`
+- active_in_progress: `M14-S29 inventory adjustment selector-routing integration assertions (prove WAC/LIFO/FIFO branch parity between reserve and adjustment flows with deterministic batch-order fixtures)`
+- continuity_recheck: `0355149b` / `f9fd898f` / `a1d05cd7` finalized review evidence remains aligned; no additional correction required.
+
+Queue Rotation (Auto-Replenish)
+- [completed] M14-S28 cross-module costing predicate dedupe map (consolidate duplicated `isWeightedAverage(...)` decision points across BulkPackingService/PackagingMaterialService/ProductionLogService/InventoryValuationService into one canonical helper + parity tests)
+- [in_progress] M14-S29 inventory adjustment selector-routing integration assertions (prove WAC/LIFO/FIFO branch parity between reserve and adjustment flows with deterministic batch-order fixtures)
+- [ready] M14-S30 catalog-import idempotency mismatch concurrent race matrix (parallel same key + different payload requests must deterministically produce one winner + one `CONC_001`, with no split-brain import record)
+- [ready] M14-S31 catalog-import mismatch side-effect boundary audit (assert production brand/product tables and audit payload counters remain unchanged on mismatch-reject path)
+- [ready] M14-S32 catalog-import MIME fallback boundary contract (missing `Content-Type` + `.csv` filename accepted; explicit disallowed MIME rejected; docs/error-status matrix updated atomically)
+- [ready] M14-S33 costing token-shape + canonicalization boundary matrix (finished-good/raw-material create/update/import parity; malformed token rejection + unsupported legacy preservation contracts)
+- [ready] M14-S34 finished-good request costing normalization parity gate (align create/update/import request normalization with raw-material service contract, including alias canonicalization and malformed-token rejection)
+- [ready] M12-S5 discount/reference calculation parity matrix across sales->invoice->settlement + user-facing example table refresh
+- [ready] M10-S3 release-gate dry-run and blocker ledger sync (`scripts/verify_local.sh` + artifact sanity)
+- [ready] M9-S5 capture EXPLAIN + index-candidate evidence for journal/allocation replay hotspot queries (Flyway V2-ready)
+- [ready] M2-S12 replay mismatch guard helper extraction to enforce parity by construction
+- [ready] M11-S6 approval queue runtime contract test slice (assert FE docs match live `AdminApprovalItemDto` payload fields and action endpoint semantics)
