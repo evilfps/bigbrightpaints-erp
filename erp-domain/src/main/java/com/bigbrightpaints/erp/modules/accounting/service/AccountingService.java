@@ -4982,19 +4982,24 @@ public class AccountingService {
         List<BigDecimal> adjustmentRemovalTargets = new ArrayList<>();
         List<List<Integer>> candidateIndexesByAdjustment = new ArrayList<>();
         for (SettlementAdjustmentSignature adjustmentSignature : adjustmentSignatures) {
+            Long expectedAdjustmentAccountId = requestedAdjustmentAccountIds != null
+                    ? requestedAdjustmentAccountIds.get(adjustmentSignature.normalizedDescription())
+                    : null;
             BigDecimal nonPaymentAmount = adjustmentDebitAmountOnNonPaymentAccounts(
                     entry,
                     paymentAccountIds,
                     adjustmentSignature.normalizedDescription(),
-                    requestedAdjustmentAccountIds != null
-                            ? requestedAdjustmentAccountIds.get(adjustmentSignature.normalizedDescription())
-                            : null);
+                    expectedAdjustmentAccountId);
             BigDecimal remaining = adjustmentSignature.amount().subtract(nonPaymentAmount);
             adjustmentRemovalTargets.add(normalizeAmount(remaining.compareTo(BigDecimal.ZERO) > 0 ? remaining : BigDecimal.ZERO));
             List<Integer> candidateIndexes = new ArrayList<>();
             for (int i = 0; i < candidateLines.size(); i++) {
                 ExistingDealerPaymentLine line = candidateLines.get(i);
                 if (!line.normalizedDescription().equals(adjustmentSignature.normalizedDescription())) {
+                    continue;
+                }
+                if (expectedAdjustmentAccountId != null
+                        && !Objects.equals(line.signature().accountId(), expectedAdjustmentAccountId)) {
                     continue;
                 }
                 candidateIndexes.add(i);

@@ -4599,11 +4599,7 @@ class AccountingServiceTest {
                 "buildDealerSettlementIdempotencyKey",
                 replayRequest
         );
-        String legacyKey = ReflectionTestUtils.invokeMethod(
-                accountingService,
-                "buildLegacyDealerSettlementIdempotencyKey",
-                replayRequest
-        );
+        String legacyKey = "LEGACY-DISCOUNT-WRONG-PAYMENT-ACCOUNT";
         assertThat(canonicalReplayKey).isNotEqualTo(legacyKey);
 
         Dealer dealer = new Dealer();
@@ -4709,11 +4705,7 @@ class AccountingServiceTest {
                 "buildDealerSettlementIdempotencyKey",
                 replayRequest
         );
-        String legacyKey = ReflectionTestUtils.invokeMethod(
-                accountingService,
-                "buildLegacyDealerSettlementIdempotencyKey",
-                replayRequest
-        );
+        String legacyKey = "LEGACY-DISCOUNT-UNREQUESTED-PAYMENT-ACCOUNT";
         assertThat(canonicalReplayKey).isNotEqualTo(legacyKey);
 
         Dealer dealer = new Dealer();
@@ -4826,11 +4818,7 @@ class AccountingServiceTest {
                 "buildDealerSettlementIdempotencyKey",
                 replayRequest
         );
-        String legacyKey = ReflectionTestUtils.invokeMethod(
-                accountingService,
-                "buildLegacyDealerSettlementIdempotencyKey",
-                replayRequest
-        );
+        String legacyKey = "LEGACY-DISCOUNT-UNREQUESTED-PAYMENT-ACCOUNT";
         assertThat(canonicalReplayKey).isNotEqualTo(legacyKey);
 
         Dealer dealer = new Dealer();
@@ -5302,6 +5290,130 @@ class AccountingServiceTest {
                 existingEntry,
                 receivableAccount,
                 "Settlement discount",
+                BigDecimal.ZERO,
+                new BigDecimal("120.00")
+        ));
+        existing.setJournalEntry(existingEntry);
+
+        when(invoiceRepository.findByCompanyAndId(eq(company), eq(701L))).thenReturn(Optional.of(invoice));
+        when(settlementAllocationRepository.findByCompanyAndInvoiceOrderByCreatedAtDesc(eq(company), eq(invoice)))
+                .thenReturn(List.of(existing));
+        when(settlementAllocationRepository.findByCompanyAndIdempotencyKeyIgnoreCaseOrderByCreatedAtAscIdAsc(
+                eq(company), eq(legacyKey))).thenReturn(List.of(existing));
+
+        String resolved = ReflectionTestUtils.invokeMethod(
+                accountingService,
+                "resolveDealerSettlementIdempotencyKey",
+                company,
+                replayRequest
+        );
+
+        assertThat(resolved).isEqualTo(canonicalReplayKey);
+    }
+
+    @Test
+    void resolveDealerSettlementIdempotencyKey_rejectsLegacyReplayWhenDiscountLineOnUnrequestedPaymentAccount() {
+        DealerSettlementRequest replayRequest = new DealerSettlementRequest(
+                1L,
+                null,
+                30L,
+                null,
+                null,
+                null,
+                LocalDate.of(2024, 5, 1),
+                null,
+                null,
+                null,
+                Boolean.FALSE,
+                List.of(new SettlementAllocationRequest(
+                        701L,
+                        null,
+                        new BigDecimal("120.00"),
+                        new BigDecimal("40.00"),
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        null
+                )),
+                List.of(
+                        new SettlementPaymentRequest(20L, new BigDecimal("40.00"), "BANK"),
+                        new SettlementPaymentRequest(21L, new BigDecimal("40.00"), "BANK")
+                )
+        );
+
+        String canonicalReplayKey = ReflectionTestUtils.invokeMethod(
+                accountingService,
+                "buildDealerSettlementIdempotencyKey",
+                replayRequest
+        );
+
+        Dealer dealer = new Dealer();
+        ReflectionTestUtils.setField(dealer, "id", 1L);
+
+        var invoice = new com.bigbrightpaints.erp.modules.invoice.domain.Invoice();
+        invoice.setCompany(company);
+        invoice.setDealer(dealer);
+        ReflectionTestUtils.setField(invoice, "id", 701L);
+
+        String legacyKey = "LEGACY-DISCOUNT-UNREQUESTED-PAYMENT-ACCOUNT";
+        assertThat(canonicalReplayKey).isNotEqualTo(legacyKey);
+
+        var existing = new PartnerSettlementAllocation();
+        existing.setCompany(company);
+        existing.setDealer(dealer);
+        existing.setInvoice(invoice);
+        existing.setAllocationAmount(new BigDecimal("120.00"));
+        existing.setDiscountAmount(new BigDecimal("40.00"));
+        existing.setWriteOffAmount(BigDecimal.ZERO);
+        existing.setFxDifferenceAmount(BigDecimal.ZERO);
+        existing.setIdempotencyKey(legacyKey);
+
+        Account account20 = new Account();
+        account20.setCompany(company);
+        account20.setType(AccountType.ASSET);
+        account20.setCode("BANK-20");
+        account20.setName("Bank 20");
+        ReflectionTestUtils.setField(account20, "id", 20L);
+
+        Account account21 = new Account();
+        account21.setCompany(company);
+        account21.setType(AccountType.ASSET);
+        account21.setCode("BANK-21");
+        account21.setName("Bank 21");
+        ReflectionTestUtils.setField(account21, "id", 21L);
+
+        Account receivableAccount = new Account();
+        receivableAccount.setCompany(company);
+        receivableAccount.setType(AccountType.ASSET);
+        receivableAccount.setCode("AR-DEALER");
+        receivableAccount.setName("Dealer Receivable");
+        ReflectionTestUtils.setField(receivableAccount, "id", 10L);
+
+        JournalEntry existingEntry = new JournalEntry();
+        existingEntry.getLines().add(journalLine(
+                existingEntry,
+                account20,
+                "Dealer settlement",
+                new BigDecimal("40.00"),
+                BigDecimal.ZERO
+        ));
+        existingEntry.getLines().add(journalLine(
+                existingEntry,
+                account21,
+                "Dealer settlement",
+                new BigDecimal("40.00"),
+                BigDecimal.ZERO
+        ));
+        existingEntry.getLines().add(journalLine(
+                existingEntry,
+                account21,
+                "Settlement discount",
+                new BigDecimal("40.00"),
+                BigDecimal.ZERO
+        ));
+        existingEntry.getLines().add(journalLine(
+                existingEntry,
+                receivableAccount,
+                "Dealer settlement",
                 BigDecimal.ZERO,
                 new BigDecimal("120.00")
         ));
