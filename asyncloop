@@ -4413,3 +4413,53 @@ Queue Rotation (Auto-Replenish)
 - [ready] M9-S5 capture EXPLAIN + index-candidate evidence for journal/allocation replay hotspot queries (Flyway V2-ready)
 - [ready] M2-S12 replay mismatch guard helper extraction to enforce parity by construction
 - [ready] M11-S6 approval queue runtime contract test slice (assert FE docs match live `AdminApprovalItemDto` payload fields and action endpoint semantics)
+
+Post-Commit Review Evidence
+- Commit reviewed: `8bfa9d6d`
+- `codex review --commit 8bfa9d6d`:
+  - final verdict: docs-only ledger append; no executable/config/test regression introduced.
+- Review subagent `019c5a46-5f37-7d10-93f0-28134ab48ed2`:
+  - findings: none.
+  - summary: evidence-chain consistency, continuity anchors, and backlog floor checks all validated.
+
+Completed Slice (Committed)
+- 2026-02-14: `713d9d61`
+  - test(inventory): assert reserve-adjustment selector parity.
+  - M14-S29 closure:
+    - expanded `CR_INV_AdjustmentIdempotencyTest` with cross-flow parity assertion `reserveAndAdjustment_selectSameBatchBranchAcrossCostingMethods`.
+    - added deterministic FIFO/LIFO/WAC fixture helpers that execute reserve flow (`FinishedGoodsService.reserveForOrder`) and adjustment flow (`InventoryAdjustmentService.createAdjustment`) against mirrored batch metadata.
+    - asserted branch-parity by construction across flows and methods (same relative batch branch consumed/reserved under identical ordering fixtures).
+  - Verification:
+    - `cd /home/realnigga/Desktop/orchestrator_erp/erp-domain && mvn -B -ntp -Dtest=CR_INV_AdjustmentIdempotencyTest test` -> pass (7 tests, 0 failures, 0 errors).
+
+Post-Commit Review Evidence
+- Commit reviewed: `713d9d61`
+- `codex review --commit 713d9d61`:
+  - final verdict: test-only commit is coherent with current selector behavior; no correctness regression identified.
+  - stress check: reviewer re-ran `CR_INV_AdjustmentIdempotencyTest#reserveAndAdjustment_selectSameBatchBranchAcrossCostingMethods` 5x; no flake observed.
+- Review subagent `019c5a4a-dcf8-7c60-ae86-59deda6169d0`:
+  - findings:
+    - high: claimed `List#getFirst()` compile incompatibility in parity helper.
+  - disposition: false positive; repo/test runtime is Java 21 where `List#getFirst()` is available, and targeted Maven compile/test passed after commit.
+  - residual note: parity test currently focuses on positive branch-selection path (replay behavior covered by adjacent idempotency tests in same class).
+
+Loop Update
+- 2026-02-14T09:32:12+05:30
+- tracked_now_ts: `2026-02-14T09:32:12+05:30`
+- tracked_elapsed: `55h 38m 20s`
+- active_in_progress: `M14-S30 catalog-import idempotency mismatch concurrent race matrix (parallel same key + different payload requests must deterministically produce one winner + one CONC_001, with no split-brain import record)`
+- continuity_recheck: `0355149b` / `f9fd898f` / `a1d05cd7` evidence chain remains finalized and aligned.
+
+Queue Rotation (Auto-Replenish)
+- [completed] M14-S29 inventory adjustment selector-routing integration assertions (prove WAC/LIFO/FIFO branch parity between reserve and adjustment flows with deterministic batch-order fixtures)
+- [in_progress] M14-S30 catalog-import idempotency mismatch concurrent race matrix (parallel same key + different payload requests must deterministically produce one winner + one `CONC_001`, with no split-brain import record)
+- [ready] M14-S31 catalog-import mismatch side-effect boundary audit (assert production brand/product tables and audit payload counters remain unchanged on mismatch-reject path)
+- [ready] M14-S32 catalog-import MIME fallback boundary contract (missing `Content-Type` + `.csv` filename accepted; explicit disallowed MIME rejected; docs/error-status matrix updated atomically)
+- [ready] M14-S33 costing token-shape + canonicalization boundary matrix (finished-good/raw-material create/update/import parity; malformed token rejection + unsupported legacy preservation contracts)
+- [ready] M14-S34 finished-good request costing normalization parity gate (align create/update/import request normalization with raw-material service contract, including alias canonicalization and malformed-token rejection)
+- [ready] M14-S35 raw-material WAC null-average fail-safe contract (if weighted-average repository returns null/blank path output, valuation/reporting must remain deterministic and never silently understate inventory)
+- [ready] M12-S5 discount/reference calculation parity matrix across sales->invoice->settlement + user-facing example table refresh
+- [ready] M10-S3 release-gate dry-run and blocker ledger sync (`scripts/verify_local.sh` + artifact sanity)
+- [ready] M9-S5 capture EXPLAIN + index-candidate evidence for journal/allocation replay hotspot queries (Flyway V2-ready)
+- [ready] M2-S12 replay mismatch guard helper extraction to enforce parity by construction
+- [ready] M11-S6 approval queue runtime contract test slice (assert FE docs match live `AdminApprovalItemDto` payload fields and action endpoint semantics)
