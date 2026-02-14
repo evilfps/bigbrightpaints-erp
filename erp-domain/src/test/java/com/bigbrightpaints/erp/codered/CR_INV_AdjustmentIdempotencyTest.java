@@ -409,6 +409,57 @@ class CR_INV_AdjustmentIdempotencyTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void dispatch_wacUsesWeightedAverageCost_andRejectsFifoCostRegression() {
+        String companyCode = "CR-INV-DISP-WAC-" + shortId();
+        Company company = bootstrapCompany(companyCode);
+        Map<String, Account> accounts = ensureAccounts(company);
+
+        FinishedGood fg = ensureFinishedGood(company, "FG-DISP-WAC-" + shortId(), accounts, "WAC");
+        Long fifoPreferredBatchId = seedBatchWithMetadata(
+                company,
+                fg,
+                "BATCH-DISP-WAC-FIFO-" + shortId(),
+                new BigDecimal("3"),
+                new BigDecimal("8.00"),
+                Instant.now().minus(Duration.ofHours(2)),
+                LocalDate.now().plusDays(30));
+        Long wacExpiryBatchId = seedBatchWithMetadata(
+                company,
+                fg,
+                "BATCH-DISP-WAC-EXP-" + shortId(),
+                new BigDecimal("3"),
+                new BigDecimal("20.00"),
+                Instant.now().minus(Duration.ofHours(1)),
+                LocalDate.now().plusDays(3));
+
+        SalesOrder order = createOrder(
+                company,
+                "SO-DISP-WAC-" + shortId(),
+                fg.getProductCode(),
+                new BigDecimal("2"));
+
+        CompanyContextHolder.setCompanyId(companyCode);
+        try {
+            finishedGoodsService.reserveForOrder(order);
+            var postings = finishedGoodsService.markSlipDispatched(order.getId());
+            assertThat(postings).hasSize(1);
+            assertThat(postings.getFirst().cost()).isEqualByComparingTo(new BigDecimal("28.00"));
+            // Guard against regressions to FIFO/batch-unit-cost paths.
+            assertThat(postings.getFirst().cost()).isNotEqualByComparingTo(new BigDecimal("16.00"));
+            assertThat(postings.getFirst().cost()).isNotEqualByComparingTo(new BigDecimal("40.00"));
+        } finally {
+            CompanyContextHolder.clear();
+        }
+
+        FinishedGoodBatch fifoPreferredAfter = finishedGoodBatchRepository.findById(fifoPreferredBatchId).orElseThrow();
+        FinishedGoodBatch wacExpiryAfter = finishedGoodBatchRepository.findById(wacExpiryBatchId).orElseThrow();
+        assertThat(fifoPreferredAfter.getQuantityTotal()).isEqualByComparingTo(new BigDecimal("3"));
+        assertThat(fifoPreferredAfter.getQuantityAvailable()).isEqualByComparingTo(new BigDecimal("3"));
+        assertThat(wacExpiryAfter.getQuantityTotal()).isEqualByComparingTo(BigDecimal.ONE);
+        assertThat(wacExpiryAfter.getQuantityAvailable()).isEqualByComparingTo(BigDecimal.ONE);
+    }
+
+    @Test
     void reserveAndAdjustment_selectSameBatchBranchAcrossCostingMethods() {
         String companyCode = "CR-INV-SEL-PAR-" + shortId();
         Company company = bootstrapCompany(companyCode);
