@@ -4162,9 +4162,26 @@ class AccountingServiceTest {
         );
         assertThat(canonicalReplayKey).isNotEqualTo(legacyOriginalKey);
 
+        Dealer dealer = new Dealer();
+        ReflectionTestUtils.setField(dealer, "id", 1L);
+
+        var invoice = new com.bigbrightpaints.erp.modules.invoice.domain.Invoice();
+        invoice.setCompany(company);
+        invoice.setDealer(dealer);
+        ReflectionTestUtils.setField(invoice, "id", 701L);
+
         var existing = new PartnerSettlementAllocation();
         existing.setCompany(company);
+        existing.setDealer(dealer);
+        existing.setInvoice(invoice);
+        existing.setAllocationAmount(new BigDecimal("100.00"));
+        existing.setDiscountAmount(BigDecimal.ZERO);
+        existing.setWriteOffAmount(BigDecimal.ZERO);
+        existing.setFxDifferenceAmount(BigDecimal.ZERO);
         existing.setIdempotencyKey(legacyOriginalKey);
+        when(invoiceRepository.findByCompanyAndId(eq(company), eq(701L))).thenReturn(Optional.of(invoice));
+        when(settlementAllocationRepository.findByCompanyAndInvoiceOrderByCreatedAtDesc(eq(company), eq(invoice)))
+                .thenReturn(List.of(existing));
         when(settlementAllocationRepository.findByCompanyAndIdempotencyKeyIgnoreCaseOrderByCreatedAtAscIdAsc(
                 eq(company), eq(legacyOriginalKey))).thenReturn(List.of(existing));
 
