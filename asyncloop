@@ -5439,3 +5439,74 @@ Queue Rotation (Auto-Replenish)
 - [ready] M9-S5 capture EXPLAIN + index-candidate evidence for journal/allocation replay hotspot queries (Flyway V2-ready)
 - [ready] M2-S12 replay mismatch guard helper extraction to enforce parity by construction
 - [ready] M11-S6 approval queue runtime contract test slice (assert FE docs match live `AdminApprovalItemDto` payload fields and action endpoint semantics)
+
+Post-Commit Review Evidence
+- Commit reviewed: `67bc0392` (docs-only ledger update)
+- docs-only rule applied: skipped `codex review` per operator directive.
+- Review subagent `019c5b33-e975-7ca0-bd14-62012522d17f`:
+  - findings: none.
+  - summary: process/evidence chain and queue invariants remained coherent.
+
+Completed Slice (Committed)
+- 2026-02-14: `98708515`
+  - fix(catalog): reject malformed raw-material costing on import.
+  - M14-S46 execution:
+    - switched catalog raw-material sync to `CostingMethodUtils.normalizeRawMaterialMethodOrDefault(...)` so import path enforces the same strict costing-token rules as raw-material create/update endpoints.
+    - added `accountingCatalogImport_rejectsMalformedLegacyRawMaterialCostingAndReplayStaysStable` endpoint regression test.
+    - test asserts malformed legacy raw-material costing stays fail-closed during import, replay remains deterministic, and persisted raw-material/product state remains unchanged.
+  - Verification:
+    - `cd /home/realnigga/Desktop/orchestrator_erp/erp-domain && mvn -B -ntp -Dtest=AccountingCatalogControllerSecurityIT#accountingCatalogImport_rejectsMalformedLegacyRawMaterialCostingAndReplayStaysStable,AccountingCatalogControllerSecurityIT#accountingCatalogImport_rejectsAllowedMimeWithTrailingSemicolonParameterTail,RawMaterialAndProductUpdateIT#raw_material_update_rejects_malformed_costing_token_without_mutation test` -> pass (3 tests, 0 failures, 0 errors).
+
+Post-Commit Review Evidence
+- Commit reviewed: `98708515`
+- `codex review --commit 98708515`:
+  - final verdict: strict import costing validation change and replay-stability coverage are coherent; no introduced regressions found.
+- Review subagent `019c5b39-fc54-7f12-a31a-3771b9832308`:
+  - findings: none.
+  - residual note: add-path regression coverage for this exact legacy-costing scenario is optional future hardening (non-blocking).
+
+Completed Slice (Resolved)
+- M14-S46 raw-material malformed-costing canonicalization fence
+  - closure basis: `98708515` with passing focused matrix and converged review chain.
+
+User Escalation Intake (Added To Queue)
+- 2026-02-14: captured production defects reported from sales/admin/dealer flows.
+- converted to executable slices:
+  - M15-S1 sales-order cash-vs-credit gating fix (pure-cash orders must bypass dealer credit-limit rejection while credit/split exposure paths still enforce limits).
+  - M15-S2 revenue recognition shipment gate (admin revenue visibility and revenue posting must remain blocked until dispatch/ship event, not sales-order creation).
+  - M15-S3 production start idempotency contract hardening (portal-triggered start-production must satisfy idempotency policy without brittle missing-header failures).
+  - M15-S4 dealer credit exposure pending-order projection (credit-used indicators must include production-pending/open-order commitments).
+  - M15-S5 dealer pending-order visibility parity (dealer user APIs/portal must surface pending/unshipped orders consistently with admin views).
+  - M15-S6 split-payment allocation correctness (cash+credit mixed settlements must post and persist allocation legs correctly).
+  - M15-S7 sales cash-account auto-mapping boundary (sales workflows should not require ad-hoc account picking where canonical cash/credit mappings exist).
+  - M15-S8 payroll account default/bootstrap guard (`SALARY-EXP` missing-account failures must have deterministic setup guardrails/fallback diagnostics).
+
+Loop Update
+- 2026-02-14T13:52:01+05:30
+- tracked_now_ts: `2026-02-14T13:52:01+05:30`
+- tracked_elapsed: `59h 58m 09s`
+- active_in_progress: `M14-S47 finished-good WAC cache drift replay guard (dispatch + adjustment retry chains must invalidate cached weighted-average snapshots so replayed postings never reuse stale pre-mutation unit costs)`
+- continuity_recheck: `67bc0392` / `98708515` evidence chain appended with mandatory reviews.
+
+Queue Rotation (Auto-Replenish)
+- [completed] M14-S46 raw-material malformed-costing canonicalization fence (create/update/import vectors must reject non-canonical costing tokens uniformly and preserve entity state across retries)
+- [in_progress] M14-S47 finished-good WAC cache drift replay guard (dispatch + adjustment retry chains must invalidate cached weighted-average snapshots so replayed postings never reuse stale pre-mutation unit costs)
+- [ready] M14-S48 costing-selection enum drift guard (new/legacy costing tokens must remain centrally mapped via `CostingMethodUtils` with no per-module fallback forks)
+- [ready] M14-S49 catalog-import retry-winner ledger/journal silence guard (stale-retry loser payloads must never produce duplicate accounting side effects while winner replay remains idempotent)
+- [ready] M14-S50 cross-company same-key concurrent fence matrix (parallel imports across two companies using one idempotency key must produce two independent winners with deterministic replay conflicts and no global-key collision bleed)
+- [ready] M14-S51 catalog-import idempotency control-char/Unicode whitespace fence (tab/non-breaking/zero-width key variants must be normalized or rejected deterministically with no duplicate import-row creation)
+- [ready] M14-S52 raw-material costing-token trim/case poison fence (mixed-case/space-padded costing tokens on create, update, and import must fail uniformly without mutating existing material state)
+- [ready] M15-S1 sales-order cash-vs-credit gating fix (pure-cash orders must bypass credit-limit rejection; credit and mixed exposure must still enforce policy)
+- [ready] M15-S2 revenue recognition shipment gate (defer revenue posting/visibility until shipment dispatch confirmation)
+- [ready] M15-S3 production start idempotency contract hardening (remove missing-header brittleness while preserving exactly-once semantics)
+- [ready] M15-S4 dealer credit exposure pending-order projection (open production-pending orders must contribute to dealer utilized-credit metrics)
+- [ready] M15-S5 dealer pending-order visibility parity (dealer-facing pending order lists must match admin/order lifecycle truth)
+- [ready] M15-S6 split-payment allocation correctness (cash+credit split settlements must persist allocation legs and accounting postings deterministically)
+- [ready] M15-S7 sales cash-account auto-mapping boundary (standard cash/credit account selection must be backend-driven and policy-safe)
+- [ready] M15-S8 payroll account default/bootstrap guard (`SALARY-EXP` missing account should fail with deterministic provisioning guidance/guard rails)
+- [ready] M11-S7 accounting-portal scope invariant lock (HR, PURCHASING, INVENTORY, REPORTS remain under Accounting portal unless replacement portal map + endpoint docs are updated atomically)
+- [ready] M12-S5 discount/reference calculation parity matrix across sales->invoice->settlement + user-facing example table refresh
+- [ready] M10-S3 release-gate dry-run and blocker ledger sync (`scripts/verify_local.sh` + artifact sanity)
+- [ready] M9-S5 capture EXPLAIN + index-candidate evidence for journal/allocation replay hotspot queries (Flyway V2-ready)
+- [ready] M2-S12 replay mismatch guard helper extraction to enforce parity by construction
+- [ready] M11-S6 approval queue runtime contract test slice (assert FE docs match live `AdminApprovalItemDto` payload fields and action endpoint semantics)
