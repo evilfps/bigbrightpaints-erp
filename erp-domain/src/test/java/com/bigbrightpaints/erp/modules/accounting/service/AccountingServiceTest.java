@@ -5992,7 +5992,7 @@ class AccountingServiceTest {
     }
 
     @Test
-    void settleSupplierInvoices_nonLeaderReplayRepairsReferenceMapping() {
+    void settleSupplierInvoices_nonLeaderReplayAllowsInactiveCashAccountAndRepairsReferenceMapping() {
         Supplier supplier = new Supplier();
         supplier.setName("Replay Supplier");
         ReflectionTestUtils.setField(supplier, "id", 1L);
@@ -6008,6 +6008,7 @@ class AccountingServiceTest {
         cash.setCompany(company);
         cash.setCode("CASH-REPLAY");
         cash.setType(AccountType.ASSET);
+        cash.setActive(false);
         ReflectionTestUtils.setField(cash, "id", 20L);
 
         JournalEntry existingEntry = new JournalEntry();

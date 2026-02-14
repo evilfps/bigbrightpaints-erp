@@ -806,7 +806,7 @@ public class AccountingService {
         Dealer dealer = dealerRepository.lockByCompanyAndId(company, request.dealerId())
                 .orElseThrow(() -> new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE, "Dealer not found"));
         Account receivableAccount = requireDealerReceivable(dealer);
-        Account cashAccount = requireCashAccountForSettlement(company, request.cashAccountId(), "dealer receipt");
+        Account cashAccount = requireCashAccountForSettlement(company, request.cashAccountId(), "dealer receipt", false);
         BigDecimal amount = requirePositive(request.amount(), "amount");
         List<SettlementAllocationRequest> allocations = request.allocations();
         validatePaymentAllocations(allocations, amount, "dealer receipt", true);
@@ -847,6 +847,7 @@ public class AccountingService {
                     existingAllocations, allocations);
             return toDto(entry);
         }
+        cashAccount = requireCashAccountForSettlement(company, request.cashAccountId(), "dealer receipt", true);
         JournalEntryRequest payload = new JournalEntryRequest(
                 reference,
                 currentDate(company),
@@ -971,7 +972,7 @@ public class AccountingService {
         BigDecimal total = BigDecimal.ZERO;
         List<JournalEntryRequest.JournalLineRequest> lines = new java.util.ArrayList<>();
         for (DealerReceiptSplitRequest.IncomingLine line : request.incomingLines()) {
-            Account incoming = requireCashAccountForSettlement(company, line.accountId(), "dealer split receipt");
+            Account incoming = requireCashAccountForSettlement(company, line.accountId(), "dealer split receipt", false);
             BigDecimal amt = requirePositive(line.amount(), "amount");
             total = total.add(amt);
             lines.add(new JournalEntryRequest.JournalLineRequest(incoming.getId(), "Dealer receipt", amt, BigDecimal.ZERO));
@@ -1013,6 +1014,9 @@ public class AccountingService {
             return toDto(entry);
         }
 
+        for (DealerReceiptSplitRequest.IncomingLine line : request.incomingLines()) {
+            requireCashAccountForSettlement(company, line.accountId(), "dealer split receipt", true);
+        }
         JournalEntryRequest payload = new JournalEntryRequest(
                 reference,
                 currentDate(company),
@@ -1547,7 +1551,7 @@ public class AccountingService {
         Supplier supplier = supplierRepository.lockByCompanyAndId(company, request.supplierId())
                 .orElseThrow(() -> new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE, "Supplier not found"));
         Account payableAccount = requireSupplierPayable(supplier);
-        Account cashAccount = requireCashAccountForSettlement(company, request.cashAccountId(), "supplier payment");
+        Account cashAccount = requireCashAccountForSettlement(company, request.cashAccountId(), "supplier payment", false);
         BigDecimal amount = requirePositive(request.amount(), "amount");
         List<SettlementAllocationRequest> allocations = request.allocations();
         validatePaymentAllocations(allocations, amount, "supplier payment", false);
@@ -1586,6 +1590,7 @@ public class AccountingService {
             return toDto(entry);
         }
 
+        cashAccount = requireCashAccountForSettlement(company, request.cashAccountId(), "supplier payment", true);
         JournalEntryRequest payload = new JournalEntryRequest(
                 reference,
                 currentDate(company),
@@ -1718,7 +1723,13 @@ public class AccountingService {
                 && isReservedReference(reference)) {
             reference = referenceNumberService.dealerReceiptReference(company, dealer);
         }
-        SettlementLineDraft lineDraft = buildDealerSettlementLines(company, request, receivableAccount, totals, memo);
+        SettlementLineDraft lineDraft = buildDealerSettlementLines(
+                company,
+                request,
+                receivableAccount,
+                totals,
+                memo,
+                false);
 
         if (!reservation.leader()) {
             JournalEntry existingEntry = awaitJournalEntry(company, reference, trimmedIdempotencyKey);
@@ -1748,6 +1759,13 @@ public class AccountingService {
             return buildDealerSettlementResponse(existingAllocations);
         }
 
+        lineDraft = buildDealerSettlementLines(
+                company,
+                request,
+                receivableAccount,
+                totals,
+                memo,
+                true);
         LocalDate entryDate = request.settlementDate() != null ? request.settlementDate() : currentDate(company);
 
         BigDecimal totalApplied = totals.totalApplied();
@@ -1913,7 +1931,7 @@ public class AccountingService {
         Supplier supplier = supplierRepository.lockByCompanyAndId(company, request.supplierId())
                 .orElseThrow(() -> new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE, "Supplier not found"));
         Account payableAccount = requireSupplierPayable(supplier);
-        Account cashAccount = requireCashAccountForSettlement(company, request.cashAccountId(), "supplier settlement");
+        Account cashAccount = requireCashAccountForSettlement(company, request.cashAccountId(), "supplier settlement", false);
         List<SettlementAllocationRequest> allocations = request.allocations();
         if (allocations == null || allocations.isEmpty()) {
             throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT, "At least one allocation is required");
@@ -1962,6 +1980,7 @@ public class AccountingService {
             return buildSupplierSettlementResponse(existingAllocations);
         }
 
+        cashAccount = requireCashAccountForSettlement(company, request.cashAccountId(), "supplier settlement", true);
         SettlementLineDraft lineDraft = buildSupplierSettlementLines(company, request, payableAccount, cashAccount, totals, memo);
 
         LocalDate entryDate = request.settlementDate() != null ? request.settlementDate() : currentDate(company);
@@ -2204,8 +2223,12 @@ public class AccountingService {
     }
 
     private Account requireCashAccountForSettlement(Company company, Long accountId, String operation) {
+        return requireCashAccountForSettlement(company, accountId, operation, true);
+    }
+
+    private Account requireCashAccountForSettlement(Company company, Long accountId, String operation, boolean requireActive) {
         Account account = requireAccount(company, accountId);
-        if (!account.isActive()) {
+        if (requireActive && !account.isActive()) {
             throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
                     "Cash/bank account for " + operation + " must be active")
                     .withDetail("operation", operation)
@@ -3135,7 +3158,8 @@ public class AccountingService {
                                                            DealerSettlementRequest request,
                                                            Account receivableAccount,
                                                            SettlementTotals totals,
-                                                           String memo) {
+                                                           String memo,
+                                                           boolean requireActiveCashAccounts) {
         if (totals == null) {
             totals = new SettlementTotals(BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO);
         }
@@ -3184,14 +3208,22 @@ public class AccountingService {
                 throw new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE, "cashAccountId is required when cash is moving");
             }
             if (cashAmount.compareTo(BigDecimal.ZERO) > 0) {
-                Account cashAccount = requireCashAccountForSettlement(company, request.cashAccountId(), "dealer settlement");
+                Account cashAccount = requireCashAccountForSettlement(
+                        company,
+                        request.cashAccountId(),
+                        "dealer settlement",
+                        requireActiveCashAccounts);
                 paymentLines.add(new JournalEntryRequest.JournalLineRequest(cashAccount.getId(), memo, cashAmount, BigDecimal.ZERO));
             }
         } else {
             BigDecimal paymentTotal = BigDecimal.ZERO;
             for (SettlementPaymentRequest payment : paymentRequests) {
                 BigDecimal amount = requirePositive(payment.amount(), "payment amount");
-                Account account = requireCashAccountForSettlement(company, payment.accountId(), "dealer settlement payment line");
+                Account account = requireCashAccountForSettlement(
+                        company,
+                        payment.accountId(),
+                        "dealer settlement payment line",
+                        requireActiveCashAccounts);
                 paymentLines.add(new JournalEntryRequest.JournalLineRequest(account.getId(), memo, amount, BigDecimal.ZERO));
                 paymentTotal = paymentTotal.add(amount);
             }

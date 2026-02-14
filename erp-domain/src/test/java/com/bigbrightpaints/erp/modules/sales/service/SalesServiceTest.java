@@ -1155,13 +1155,15 @@ class SalesServiceTest {
         FinishedGood finishedGood = buildFinishedGood("SKU-D");
         finishedGood.setRevenueAccountId(3L);
         finishedGood.setDiscountAccountId(4L);
+        finishedGood.setValuationAccountId(11L);
+        finishedGood.setCogsAccountId(12L);
 
         FinishedGoodBatch batch = new FinishedGoodBatch();
         batch.setFinishedGood(finishedGood);
         batch.setBatchCode("B-1");
         batch.setQuantityTotal(BigDecimal.ONE);
         batch.setQuantityAvailable(BigDecimal.ONE);
-        batch.setUnitCost(BigDecimal.ZERO);
+        batch.setUnitCost(new BigDecimal("25.00"));
 
         PackagingSlip slip = new PackagingSlip();
         setField(slip, "id", 55L);
@@ -1178,7 +1180,7 @@ class SalesServiceTest {
         slipLine.setOrderedQuantity(BigDecimal.ONE);
         slipLine.setQuantity(BigDecimal.ONE);
         slipLine.setShippedQuantity(BigDecimal.ONE);
-        slipLine.setUnitCost(BigDecimal.ZERO);
+        slipLine.setUnitCost(new BigDecimal("25.00"));
         slip.getLines().add(slipLine);
 
         JournalEntry existingEntry = new JournalEntry();
@@ -1218,6 +1220,10 @@ class SalesServiceTest {
 
         assertEquals(222L, response.arJournalEntryId());
         assertEquals(777L, response.finalInvoiceId());
+        assertEquals(1, response.cogsPostings().size());
+        assertEquals(11L, response.cogsPostings().get(0).inventoryAccountId());
+        assertEquals(12L, response.cogsPostings().get(0).cogsAccountId());
+        assertEquals(0, response.cogsPostings().get(0).cost().compareTo(new BigDecimal("25.00")));
         verify(accountingFacade, never()).postSalesJournal(
                 ArgumentMatchers.anyLong(),
                 ArgumentMatchers.anyString(),
@@ -1228,7 +1234,7 @@ class SalesServiceTest {
                 ArgumentMatchers.nullable(Map.class),
                 ArgumentMatchers.any(),
                 ArgumentMatchers.anyString());
-        verify(accountingFacade, never()).postCogsJournal(
+        verify(accountingFacade, times(1)).postCogsJournal(
                 ArgumentMatchers.anyString(),
                 ArgumentMatchers.anyLong(),
                 ArgumentMatchers.any(),
@@ -1264,13 +1270,15 @@ class SalesServiceTest {
         FinishedGood finishedGood = buildFinishedGood("SKU-D");
         finishedGood.setRevenueAccountId(3L);
         finishedGood.setDiscountAccountId(4L);
+        finishedGood.setValuationAccountId(11L);
+        finishedGood.setCogsAccountId(12L);
 
         FinishedGoodBatch batch = new FinishedGoodBatch();
         batch.setFinishedGood(finishedGood);
         batch.setBatchCode("B-1");
         batch.setQuantityTotal(BigDecimal.ONE);
         batch.setQuantityAvailable(BigDecimal.ONE);
-        batch.setUnitCost(BigDecimal.ZERO);
+        batch.setUnitCost(new BigDecimal("25.00"));
 
         PackagingSlip slip = new PackagingSlip();
         setField(slip, "id", 55L);
@@ -1287,7 +1295,7 @@ class SalesServiceTest {
         slipLine.setOrderedQuantity(BigDecimal.ONE);
         slipLine.setQuantity(BigDecimal.ONE);
         slipLine.setShippedQuantity(BigDecimal.ONE);
-        slipLine.setUnitCost(BigDecimal.ZERO);
+        slipLine.setUnitCost(new BigDecimal("25.00"));
         slip.getLines().add(slipLine);
 
         JournalEntry existingEntry = new JournalEntry();
