@@ -5021,6 +5021,13 @@ public class AccountingService {
             if (paymentAccountIds != null && paymentAccountIds.contains(line.getAccount().getId())) {
                 continue;
             }
+            Account account = line.getAccount();
+            if (account.getType() == AccountType.ASSET
+                    && !isReceivableAccount(account)
+                    && !isPayableAccount(account)) {
+                // Treat non-request cash/bank-like debits as payment noise, not adjustment coverage.
+                continue;
+            }
             if (!normalizeLineDescription(line.getDescription()).equals(normalizedDescription)) {
                 continue;
             }
