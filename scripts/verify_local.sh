@@ -47,14 +47,15 @@ if [[ "$MIGRATION_SET" == "v2" ]]; then
 
   GUARD_DB_NAME="${FLYWAY_GUARD_DB_NAME:-${PGDATABASE:-}}"
   SKIP_FLYWAY_GUARD="${VERIFY_LOCAL_SKIP_FLYWAY_GUARD:-false}"
+  DELEGATED_GUARD_EXECUTED="${VERIFY_LOCAL_GUARD_ALREADY_EXECUTED:-false}"
 
   if [[ "${REQUIRE_FLYWAY_V2_GUARD:-false}" == "true" && -z "$GUARD_DB_NAME" ]]; then
     echo "[verify_local] FLYWAY_GUARD_DB_NAME/PGDATABASE is required when REQUIRE_FLYWAY_V2_GUARD=true" >&2
     exit 3
   fi
 
-  if [[ "$SKIP_FLYWAY_GUARD" == "true" && "${REQUIRE_FLYWAY_V2_GUARD:-false}" == "true" ]]; then
-    echo "[verify_local] ignore flyway v2 transient checksum delegation while REQUIRE_FLYWAY_V2_GUARD=true"
+  if [[ "$SKIP_FLYWAY_GUARD" == "true" && "$DELEGATED_GUARD_EXECUTED" != "true" ]]; then
+    echo "[verify_local] ignore flyway v2 transient checksum delegation (VERIFY_LOCAL_GUARD_ALREADY_EXECUTED=true not set)"
     SKIP_FLYWAY_GUARD=false
   fi
 
