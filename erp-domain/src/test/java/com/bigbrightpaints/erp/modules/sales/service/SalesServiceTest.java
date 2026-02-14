@@ -771,6 +771,182 @@ class SalesServiceTest {
     }
 
     @Test
+    void confirmDispatchCashSignaturePostsArAndCogsWithoutImplicitReceipt() {
+        Dealer dealer = dealerWithCreditLimit(42L, BigDecimal.valueOf(1000));
+        Account receivable = new Account();
+        receivable.setName("AR");
+        setField(receivable, "id", 900L);
+        dealer.setReceivableAccount(receivable);
+
+        SalesOrder order = new SalesOrder();
+        setField(order, "id", 10L);
+        order.setCompany(company);
+        order.setDealer(dealer);
+        order.setOrderNumber("SO-CASH-10");
+        order.setStatus("READY_TO_SHIP");
+        order.setIdempotencyHash(DigestUtils.sha256Hex("42|200|INR|NONE|false|0||CASH|SKU-CASH:1:200:0"));
+
+        SalesOrderItem item = new SalesOrderItem();
+        setField(item, "id", 1L);
+        item.setSalesOrder(order);
+        item.setProductCode("SKU-CASH");
+        item.setDescription("Cash dispatch order");
+        item.setQuantity(BigDecimal.ONE);
+        item.setUnitPrice(new BigDecimal("200.00"));
+        item.setGstRate(BigDecimal.ZERO);
+        order.getItems().add(item);
+
+        FinishedGood finishedGood = buildFinishedGood("SKU-CASH");
+        finishedGood.setCurrentStock(BigDecimal.ONE);
+        finishedGood.setRevenueAccountId(3L);
+        finishedGood.setValuationAccountId(11L);
+        finishedGood.setCogsAccountId(12L);
+
+        FinishedGoodBatch batch = new FinishedGoodBatch();
+        batch.setFinishedGood(finishedGood);
+        batch.setBatchCode("B-CASH-1");
+        batch.setQuantityTotal(BigDecimal.ONE);
+        batch.setQuantityAvailable(BigDecimal.ONE);
+        batch.setUnitCost(new BigDecimal("120.00"));
+
+        PackagingSlip slip = new PackagingSlip();
+        setField(slip, "id", 55L);
+        slip.setCompany(company);
+        slip.setSalesOrder(order);
+        slip.setSlipNumber("PS-55");
+        slip.setStatus("PENDING");
+
+        PackagingSlipLine slipLine = new PackagingSlipLine();
+        setField(slipLine, "id", 99L);
+        slipLine.setPackagingSlip(slip);
+        slipLine.setFinishedGoodBatch(batch);
+        slipLine.setOrderedQuantity(BigDecimal.ONE);
+        slipLine.setQuantity(BigDecimal.ONE);
+        slipLine.setUnitCost(new BigDecimal("120.00"));
+        slip.getLines().add(slipLine);
+
+        when(packagingSlipRepository.findAndLockByIdAndCompany(55L, company)).thenReturn(Optional.of(slip));
+        when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 10L)).thenReturn(List.of(slip));
+        when(companyEntityLookup.requireSalesOrder(company, 10L)).thenReturn(order);
+        when(dealerRepository.lockByCompanyAndId(company, dealer.getId())).thenReturn(Optional.of(dealer));
+        when(invoiceNumberService.nextInvoiceNumber(company)).thenReturn("INV-CASH-55");
+        when(invoiceRepository.save(ArgumentMatchers.any(Invoice.class))).thenAnswer(invocation -> {
+            Invoice invoice = invocation.getArgument(0);
+            setField(invoice, "id", 777L);
+            return invoice;
+        });
+        when(salesOrderRepository.save(ArgumentMatchers.any(SalesOrder.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(packagingSlipRepository.save(ArgumentMatchers.any(PackagingSlip.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        JournalEntryDto arEntry = new JournalEntryDto(
+                501L,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+        );
+        JournalEntryDto cogsEntry = new JournalEntryDto(
+                601L,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+        );
+        when(accountingFacade.postSalesJournal(
+                anyLong(),
+                anyString(),
+                any(),
+                anyString(),
+                anyMap(),
+                anyMap(),
+                ArgumentMatchers.nullable(Map.class),
+                any(),
+                anyString()
+        )).thenReturn(arEntry);
+        when(accountingFacade.postCogsJournal(
+                anyString(),
+                anyLong(),
+                any(),
+                anyString(),
+                ArgumentMatchers.anyList()
+        )).thenReturn(cogsEntry);
+
+        DispatchConfirmResponse response = salesService.confirmDispatch(
+                new DispatchConfirmRequest(55L, null, List.of(), null, "admin", Boolean.TRUE, null, null));
+
+        assertEquals(501L, response.arJournalEntryId());
+        assertEquals(777L, response.finalInvoiceId());
+        assertEquals(1, response.cogsPostings().size());
+        assertEquals(11L, response.cogsPostings().get(0).inventoryAccountId());
+        assertEquals(12L, response.cogsPostings().get(0).cogsAccountId());
+        assertEquals(0, response.cogsPostings().get(0).cost().compareTo(new BigDecimal("120.00")));
+        assertTrue(response.arPostings().stream().anyMatch(posting ->
+                Long.valueOf(900L).equals(posting.accountId())
+                        && posting.debit() != null
+                        && posting.debit().compareTo(new BigDecimal("200.00")) == 0));
+
+        verify(accountingFacade, times(1)).postSalesJournal(
+                eq(dealer.getId()),
+                eq(order.getOrderNumber()),
+                any(),
+                anyString(),
+                anyMap(),
+                anyMap(),
+                ArgumentMatchers.nullable(Map.class),
+                eq(new BigDecimal("200.00")),
+                eq("INV-CASH-55")
+        );
+        verify(accountingFacade, times(1)).postCogsJournal(
+                eq("PS-55"),
+                eq(dealer.getId()),
+                any(),
+                anyString(),
+                ArgumentMatchers.anyList()
+        );
+        verifyNoInteractions(accountingService);
+    }
+
+    @Test
     void confirmDispatchRequiresOverrideReasonWhenOverridesProvided() {
         SalesOrder order = new SalesOrder();
         setField(order, "id", 10L);
@@ -1052,6 +1228,12 @@ class SalesServiceTest {
                 ArgumentMatchers.nullable(Map.class),
                 ArgumentMatchers.any(),
                 ArgumentMatchers.anyString());
+        verify(accountingFacade, never()).postCogsJournal(
+                ArgumentMatchers.anyString(),
+                ArgumentMatchers.anyLong(),
+                ArgumentMatchers.any(),
+                ArgumentMatchers.anyString(),
+                ArgumentMatchers.anyList());
     }
 
     @Test
@@ -1145,6 +1327,12 @@ class SalesServiceTest {
                 ArgumentMatchers.nullable(Map.class),
                 ArgumentMatchers.any(),
                 ArgumentMatchers.anyString());
+        verify(accountingFacade, never()).postCogsJournal(
+                ArgumentMatchers.anyString(),
+                ArgumentMatchers.anyLong(),
+                ArgumentMatchers.any(),
+                ArgumentMatchers.anyString(),
+                ArgumentMatchers.anyList());
     }
 
     @Test

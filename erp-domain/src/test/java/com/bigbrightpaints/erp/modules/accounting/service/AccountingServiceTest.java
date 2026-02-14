@@ -6361,6 +6361,59 @@ class AccountingServiceTest {
     }
 
     @Test
+    void settleSupplierInvoices_rejectsInactiveCashAccount() {
+        AccountingService service = spy(accountingService);
+
+        Supplier supplier = new Supplier();
+        supplier.setName("Supplier");
+        Account payable = new Account();
+        payable.setCompany(company);
+        payable.setCode("AP-SUP");
+        payable.setType(AccountType.LIABILITY);
+        ReflectionTestUtils.setField(payable, "id", 10L);
+        supplier.setPayableAccount(payable);
+        ReflectionTestUtils.setField(supplier, "id", 1L);
+
+        Account inactiveCash = new Account();
+        inactiveCash.setCompany(company);
+        inactiveCash.setCode("BANK-INACTIVE");
+        inactiveCash.setType(AccountType.ASSET);
+        inactiveCash.setActive(false);
+        ReflectionTestUtils.setField(inactiveCash, "id", 20L);
+
+        when(supplierRepository.lockByCompanyAndId(eq(company), eq(1L))).thenReturn(Optional.of(supplier));
+        when(companyEntityLookup.requireAccount(eq(company), eq(20L))).thenReturn(inactiveCash);
+
+        SettlementAllocationRequest allocation = new SettlementAllocationRequest(
+                null,
+                2L,
+                new BigDecimal("100.00"),
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                null,
+                null);
+
+        SupplierSettlementRequest request = new SupplierSettlementRequest(
+                1L,
+                20L,
+                null,
+                null,
+                null,
+                null,
+                LocalDate.of(2024, 4, 9),
+                "REF-AP-INACTIVE",
+                "Supplier settlement",
+                "IDEMP-AP-INACTIVE",
+                Boolean.FALSE,
+                List.of(allocation)
+        );
+
+        assertThatThrownBy(() -> service.settleSupplierInvoices(request))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("must be active");
+    }
+
+    @Test
     void settleSupplierInvoices_rejectsNonAssetCashAccount() {
         AccountingService service = spy(accountingService);
 

@@ -2205,6 +2205,14 @@ public class AccountingService {
 
     private Account requireCashAccountForSettlement(Company company, Long accountId, String operation) {
         Account account = requireAccount(company, accountId);
+        if (!account.isActive()) {
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                    "Cash/bank account for " + operation + " must be active")
+                    .withDetail("operation", operation)
+                    .withDetail("accountId", account.getId())
+                    .withDetail("accountCode", account.getCode())
+                    .withDetail("active", false);
+        }
         if (account.getType() != null && account.getType() != AccountType.ASSET) {
             throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
                     "Cash/bank account for " + operation + " must be an ASSET account")
