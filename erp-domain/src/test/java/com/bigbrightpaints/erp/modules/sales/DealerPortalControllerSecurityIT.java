@@ -582,6 +582,125 @@ class DealerPortalControllerSecurityIT extends AbstractIntegrationTest {
         }
     }
 
+    @Test
+    @DisplayName("Dealer/admin pending exposure parity handles void and malformed sibling invoice status tokens")
+    void dealerAdminPendingExposureParity_handlesVoidAndMalformedSiblingInvoiceTokens() {
+        Company company = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();
+
+        SalesOrder voidOnlyOrder = upsertOrder(
+                company,
+                dealerA,
+                "SO-PORTAL-A-VOID-ONLY",
+                "PENDING_PRODUCTION",
+                new BigDecimal("2600.00")
+        );
+        Invoice voidOnlyInvoice = upsertInvoice(company, dealerA, "INV-PORTAL-A-VOID-ONLY");
+        voidOnlyInvoice.setStatus(" void ");
+        voidOnlyInvoice.setSalesOrder(voidOnlyOrder);
+        voidOnlyInvoice.setSubtotal(new BigDecimal("2200.00"));
+        voidOnlyInvoice.setTaxTotal(new BigDecimal("396.00"));
+        voidOnlyInvoice.setTotalAmount(new BigDecimal("2596.00"));
+        voidOnlyInvoice.setOutstandingAmount(BigDecimal.ZERO);
+        invoiceRepository.saveAndFlush(voidOnlyInvoice);
+
+        SalesOrder mixedMalformedOrder = upsertOrder(
+                company,
+                dealerA,
+                "SO-PORTAL-A-VOID-MALFORMED",
+                "PENDING_PRODUCTION",
+                new BigDecimal("3100.00")
+        );
+        Invoice voidSiblingInvoice = upsertInvoice(company, dealerA, "INV-PORTAL-A-VOID-MALFORMED");
+        voidSiblingInvoice.setStatus(" void ");
+        voidSiblingInvoice.setSalesOrder(mixedMalformedOrder);
+        voidSiblingInvoice.setSubtotal(new BigDecimal("2600.00"));
+        voidSiblingInvoice.setTaxTotal(new BigDecimal("468.00"));
+        voidSiblingInvoice.setTotalAmount(new BigDecimal("3068.00"));
+        voidSiblingInvoice.setOutstandingAmount(BigDecimal.ZERO);
+        invoiceRepository.saveAndFlush(voidSiblingInvoice);
+
+        Invoice malformedActiveInvoice = upsertInvoice(company, dealerB, "INV-PORTAL-A-MALFORMED-ACTIVE");
+        malformedActiveInvoice.setStatus(" ??? ");
+        malformedActiveInvoice.setSalesOrder(mixedMalformedOrder);
+        malformedActiveInvoice.setSubtotal(new BigDecimal("2600.00"));
+        malformedActiveInvoice.setTaxTotal(new BigDecimal("468.00"));
+        malformedActiveInvoice.setTotalAmount(new BigDecimal("3068.00"));
+        malformedActiveInvoice.setOutstandingAmount(new BigDecimal("700.00"));
+        invoiceRepository.saveAndFlush(malformedActiveInvoice);
+
+        try {
+            HttpHeaders dealerHeaders = authHeaders(DEALER_A_EMAIL, PASSWORD);
+            ResponseEntity<Map> dealerOrdersResponse = rest.exchange(
+                    "/api/v1/dealer-portal/orders",
+                    HttpMethod.GET,
+                    new HttpEntity<>(dealerHeaders),
+                    Map.class
+            );
+            assertThat(dealerOrdersResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+            Map<?, ?> dealerOrdersData = (Map<?, ?>) dealerOrdersResponse.getBody().get("data");
+            assertThat(((Number) dealerOrdersData.get("pendingOrderCount")).longValue()).isEqualTo(2L);
+            assertThat(new BigDecimal(String.valueOf(dealerOrdersData.get("pendingOrderExposure"))))
+                    .isEqualByComparingTo("7600.00");
+            List<?> orders = (List<?>) dealerOrdersData.get("orders");
+            Map<?, ?> voidOnlyOrderMap = orders.stream()
+                    .map(Map.class::cast)
+                    .filter(order -> voidOnlyOrder.getOrderNumber().equals(order.get("orderNumber")))
+                    .findFirst()
+                    .orElseThrow();
+            assertThat((Boolean) voidOnlyOrderMap.get("pendingCreditExposure")).isTrue();
+            Map<?, ?> mixedMalformedOrderMap = orders.stream()
+                    .map(Map.class::cast)
+                    .filter(order -> mixedMalformedOrder.getOrderNumber().equals(order.get("orderNumber")))
+                    .findFirst()
+                    .orElseThrow();
+            assertThat((Boolean) mixedMalformedOrderMap.get("pendingCreditExposure")).isFalse();
+
+            ResponseEntity<Map> dealerDashboardResponse = rest.exchange(
+                    "/api/v1/dealer-portal/dashboard",
+                    HttpMethod.GET,
+                    new HttpEntity<>(dealerHeaders),
+                    Map.class
+            );
+            assertThat(dealerDashboardResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+            Map<?, ?> dealerDashboardData = (Map<?, ?>) dealerDashboardResponse.getBody().get("data");
+            assertThat(((Number) dealerDashboardData.get("pendingOrderCount")).longValue()).isEqualTo(2L);
+            assertThat(new BigDecimal(String.valueOf(dealerDashboardData.get("pendingOrderExposure"))))
+                    .isEqualByComparingTo("7600.00");
+
+            HttpHeaders adminHeaders = authHeaders(ADMIN_EMAIL, PASSWORD);
+            ResponseEntity<Map> adminAgingResponse = rest.exchange(
+                    "/api/v1/dealers/" + dealerA.getId() + "/aging",
+                    HttpMethod.GET,
+                    new HttpEntity<>(adminHeaders),
+                    Map.class
+            );
+            assertThat(adminAgingResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+            Map<?, ?> adminAgingData = (Map<?, ?>) adminAgingResponse.getBody().get("data");
+            assertThat(((Number) adminAgingData.get("pendingOrderCount")).longValue())
+                    .isEqualTo(((Number) dealerOrdersData.get("pendingOrderCount")).longValue());
+            assertThat(new BigDecimal(String.valueOf(adminAgingData.get("pendingOrderExposure"))))
+                    .isEqualByComparingTo(new BigDecimal(String.valueOf(dealerOrdersData.get("pendingOrderExposure"))));
+        } finally {
+            if (malformedActiveInvoice.getId() != null) {
+                invoiceRepository.deleteById(malformedActiveInvoice.getId());
+            }
+            if (voidSiblingInvoice.getId() != null) {
+                invoiceRepository.deleteById(voidSiblingInvoice.getId());
+            }
+            if (voidOnlyInvoice.getId() != null) {
+                invoiceRepository.deleteById(voidOnlyInvoice.getId());
+            }
+            invoiceRepository.flush();
+            if (mixedMalformedOrder.getId() != null) {
+                salesOrderRepository.deleteById(mixedMalformedOrder.getId());
+            }
+            if (voidOnlyOrder.getId() != null) {
+                salesOrderRepository.deleteById(voidOnlyOrder.getId());
+            }
+            salesOrderRepository.flush();
+        }
+    }
+
     private HttpHeaders authHeaders(String email, String password) {
         Map<String, Object> payload = Map.of(
                 "email", email,
