@@ -4582,3 +4582,87 @@ Queue Rotation (Auto-Replenish)
 - [ready] M9-S5 capture EXPLAIN + index-candidate evidence for journal/allocation replay hotspot queries (Flyway V2-ready)
 - [ready] M2-S12 replay mismatch guard helper extraction to enforce parity by construction
 - [ready] M11-S6 approval queue runtime contract test slice (assert FE docs match live `AdminApprovalItemDto` payload fields and action endpoint semantics)
+
+Post-Commit Review Evidence
+- Commit reviewed: `95ef494e`
+- `codex review --commit 95ef494e`:
+  - final verdict: docs-only append; no executable/config/test regression.
+- Review subagent `019c5a5f-9114-7c81-9970-f884bb8d121e`:
+  - findings:
+    - medium: evidence count mismatch for `4b015bf5` test total.
+    - low: winner `CatalogImport` payload immutability overclaimed vs asserted counters.
+  - disposition: fixed in immediate follow-up commit `91b16e52`.
+
+Completed Slice (Committed)
+- 2026-02-14: `91b16e52`
+  - docs(async-loop): correct M14-S31 evidence overclaim.
+  - corrected `4b015bf5` verification count to 9 tests.
+  - narrowed `1eca5288` wording to asserted winner-row invariants + selected counter immutability.
+
+Post-Commit Review Evidence
+- Commit reviewed: `91b16e52`
+- `codex review --commit 91b16e52`:
+  - final verdict: docs-only correction aligns with observed assertions; no regression introduced.
+- Review subagent `019c5a64-28da-7d81-a0f2-026adb629b76`:
+  - findings: none.
+  - summary: evidence claims now match test assertions and queue invariants remain coherent.
+
+Completed Slice (Committed)
+- 2026-02-14: `47c5b8d3`
+  - test(accounting): lock catalog import MIME fallback contract.
+  - M14-S32 initial pass:
+    - added missing-part-content-type acceptance/reject tests in `AccountingCatalogControllerSecurityIT`.
+    - updated `docs/accounting-portal-endpoint-map.md` and `docs/accounting-portal-frontend-engineer-handoff.md` with catalog import multipart allowlist + error status contract (`400`, `409 CONC_001`, `422 FILE_003`).
+  - Verification:
+    - `cd /home/realnigga/Desktop/orchestrator_erp/erp-domain && mvn -B -ntp -Dtest=AccountingCatalogControllerSecurityIT test` -> pass (12 tests, 0 failures, 0 errors).
+
+Post-Commit Review Evidence
+- Commit reviewed: `47c5b8d3`
+- `codex review --commit 47c5b8d3`:
+  - findings:
+    - P2: `null` file-part content-type in `TestRestTemplate` helper did not guarantee truly headerless multipart part (fallback branch not strictly proven).
+- Review subagent `019c5a66-ff03-7d50-bf28-5f3ec64e35e8`:
+  - findings:
+    - medium: missing-file-part contract should assert strict `400` (not generic `4xx`).
+    - low: explicit allowlist docs needed positive-path tests for `application/csv` and `application/vnd.ms-excel`.
+  - disposition: all findings fixed in immediate follow-up commit `c0ae1050`.
+
+Completed Slice (Committed)
+- 2026-02-14: `c0ae1050`
+  - test(accounting): harden catalog MIME fallback assertions.
+  - M14-S32 final closure:
+    - replaced null-header shortcut with raw multipart helper that omits file-part `Content-Type` header by construction.
+    - tightened missing-file-part expectation to strict `400 BAD_REQUEST`.
+    - added positive allowlist acceptance tests for `application/csv` and `application/vnd.ms-excel`.
+    - retained explicit `FILE_003` assertion for missing-content-type + non-CSV filename reject path.
+  - Verification:
+    - `cd /home/realnigga/Desktop/orchestrator_erp/erp-domain && mvn -B -ntp -Dtest=AccountingCatalogControllerSecurityIT test` -> pass (14 tests, 0 failures, 0 errors).
+
+Post-Commit Review Evidence
+- Commit reviewed: `c0ae1050`
+- `codex review --commit c0ae1050`:
+  - final verdict: follow-up test-helper/assertion hardening is coherent; no introduced regression.
+- Review subagent `019c5a6c-6903-7a02-ae2f-22867768a983`:
+  - outcome: no final verdict returned before agent stall/close (platform timeout behavior).
+  - mitigation: commit already covered by primary review + full targeted test rerun.
+
+Loop Update
+- 2026-02-14T10:08:57+05:30
+- tracked_now_ts: `2026-02-14T10:08:57+05:30`
+- tracked_elapsed: `56h 15m 05s`
+- active_in_progress: `M14-S33 costing token-shape + canonicalization boundary matrix (finished-good/raw-material create/update/import parity; malformed token rejection + unsupported legacy preservation contracts)`
+- continuity_recheck: `0355149b` / `f9fd898f` / `a1d05cd7` evidence chain still aligned after backfill + correction commits.
+
+Queue Rotation (Auto-Replenish)
+- [completed] M14-S32 catalog-import MIME fallback boundary contract (missing `Content-Type` + `.csv` filename accepted; explicit disallowed MIME rejected; docs/error-status matrix updated atomically)
+- [in_progress] M14-S33 costing token-shape + canonicalization boundary matrix (finished-good/raw-material create/update/import parity; malformed token rejection + unsupported legacy preservation contracts)
+- [ready] M14-S34 finished-good request costing normalization parity gate (align create/update/import request normalization with raw-material service contract, including alias canonicalization and malformed-token rejection)
+- [ready] M14-S35 raw-material WAC null-average fail-safe contract (if weighted-average repository returns null/blank path output, valuation/reporting must remain deterministic and never silently understate inventory)
+- [ready] M14-S36 catalog-import concurrent winner provenance contract (winner replay with same payload must stay stable after mismatch conflict; loser payload must never materialize across retry attempts)
+- [ready] M14-S37 catalog-import stale-row cache cleanup acceptance matrix (legacy drifted rows + retry replay must clear stale flags without mutating winner payload)
+- [ready] M14-S38 catalog-import MIME token canonicalization matrix (mixed-case/parameterized content-type parsing must remain fail-closed for disallowed families while preserving allowlist aliases)
+- [ready] M12-S5 discount/reference calculation parity matrix across sales->invoice->settlement + user-facing example table refresh
+- [ready] M10-S3 release-gate dry-run and blocker ledger sync (`scripts/verify_local.sh` + artifact sanity)
+- [ready] M9-S5 capture EXPLAIN + index-candidate evidence for journal/allocation replay hotspot queries (Flyway V2-ready)
+- [ready] M2-S12 replay mismatch guard helper extraction to enforce parity by construction
+- [ready] M11-S6 approval queue runtime contract test slice (assert FE docs match live `AdminApprovalItemDto` payload fields and action endpoint semantics)
