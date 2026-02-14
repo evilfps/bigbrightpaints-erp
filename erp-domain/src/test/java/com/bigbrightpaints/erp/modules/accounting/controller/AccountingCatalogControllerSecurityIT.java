@@ -1,6 +1,7 @@
 package com.bigbrightpaints.erp.modules.accounting.controller;
 
 import com.bigbrightpaints.erp.modules.company.domain.Company;
+import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterial;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialRepository;
 import com.bigbrightpaints.erp.modules.production.domain.CatalogImport;
 import com.bigbrightpaints.erp.modules.production.domain.CatalogImportRepository;
@@ -10,6 +11,7 @@ import com.bigbrightpaints.erp.test.AbstractIntegrationTest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.HttpEntity;
@@ -18,6 +20,7 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 
@@ -31,8 +34,15 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.Mockito.atLeast;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.verify;
 
 class AccountingCatalogControllerSecurityIT extends AbstractIntegrationTest {
 
@@ -49,7 +59,7 @@ class AccountingCatalogControllerSecurityIT extends AbstractIntegrationTest {
     @Autowired
     private CatalogImportRepository catalogImportRepository;
 
-    @Autowired
+    @SpyBean(proxyTargetAware = true)
     private RawMaterialRepository rawMaterialRepository;
 
     @Autowired
@@ -321,6 +331,90 @@ class AccountingCatalogControllerSecurityIT extends AbstractIntegrationTest {
             assertThat(rawMaterialRepository.findByCompanyAndSku(company, loserSku)).isEmpty();
         } finally {
             pool.shutdownNow();
+        }
+    }
+
+    @Test
+    void accountingCatalogImport_staleRetryReplayKeepsWinnerPayloadStable() throws Exception {
+        Company company = dataSeeder.ensureCompany(COMPANY_CODE, "Catalog Sec Co");
+        HttpHeaders accountingHeaders = authHeaders(ACCOUNTING_EMAIL, PASSWORD, COMPANY_CODE);
+        String idempotencyKey = "CAT-STALE-RETRY-" + shortId();
+        String winnerSku = "RM-STALE-" + shortId();
+        String winnerProductName = "RBAC Stale Winner " + shortId();
+        AtomicBoolean failFirstSave = new AtomicBoolean(true);
+
+        doAnswer(invocation -> {
+            RawMaterial material = invocation.getArgument(0);
+            if (material != null
+                    && winnerSku.equalsIgnoreCase(material.getSku())
+                    && failFirstSave.compareAndSet(true, false)) {
+                throw new ObjectOptimisticLockingFailureException(
+                        RawMaterial.class,
+                        material.getId() == null ? -1L : material.getId());
+            }
+            return invocation.callRealMethod();
+        }).when(rawMaterialRepository).save(any(RawMaterial.class));
+
+        try {
+            ResponseEntity<Map> firstResponse = importCatalogWithCustomFile(
+                    accountingHeaders,
+                    catalogCsvContent(winnerSku, winnerProductName),
+                    "catalog-" + winnerSku + ".csv",
+                    "text/csv",
+                    idempotencyKey);
+            assertThat(firstResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+            assertThat(failFirstSave).isFalse();
+            verify(rawMaterialRepository, atLeast(2))
+                    .save(argThat(material -> material != null && winnerSku.equalsIgnoreCase(material.getSku())));
+
+            CatalogImport winnerRecord = catalogImportRepository.findByCompanyAndIdempotencyKey(company, idempotencyKey)
+                    .orElseThrow();
+            Long winnerRecordId = winnerRecord.getId();
+            Integer winnerRowsProcessed = winnerRecord.getRowsProcessed();
+            Integer winnerProductsCreated = winnerRecord.getProductsCreated();
+            Integer winnerProductsUpdated = winnerRecord.getProductsUpdated();
+            Integer winnerRawMaterialsSeeded = winnerRecord.getRawMaterialsSeeded();
+            String winnerErrorsJson = winnerRecord.getErrorsJson();
+
+            var winnerProduct = productionProductRepository.findByCompanyAndSkuCode(company, winnerSku);
+            var winnerMaterial = rawMaterialRepository.findByCompanyAndSku(company, winnerSku);
+            Long winnerProductId = winnerProduct.map(product -> product.getId()).orElse(null);
+            String winnerPersistedProductName = winnerProduct.map(product -> product.getProductName()).orElse(null);
+            Long winnerMaterialId = winnerMaterial.map(material -> material.getId()).orElse(null);
+            String winnerPersistedMaterialName = winnerMaterial.map(material -> material.getName()).orElse(null);
+
+            ResponseEntity<Map> replayResponse = importCatalogWithCustomFile(
+                    accountingHeaders,
+                    catalogCsvContent(winnerSku, winnerProductName),
+                    "catalog-" + winnerSku + "-replay.csv",
+                    "text/csv",
+                    idempotencyKey);
+            assertThat(replayResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+            assertThat(replayResponse.getBody()).isNotNull();
+            @SuppressWarnings("unchecked")
+            Map<String, Object> replayData = (Map<String, Object>) replayResponse.getBody().get("data");
+            assertThat(replayData).containsEntry("rowsProcessed", winnerRowsProcessed);
+            assertThat(replayData).containsEntry("productsCreated", winnerProductsCreated);
+            assertThat(replayData).containsEntry("productsUpdated", winnerProductsUpdated);
+            assertThat(replayData).containsEntry("rawMaterialsSeeded", winnerRawMaterialsSeeded);
+
+            CatalogImport persistedAfterReplay = catalogImportRepository.findByCompanyAndIdempotencyKey(company, idempotencyKey)
+                    .orElseThrow();
+            assertThat(persistedAfterReplay.getId()).isEqualTo(winnerRecordId);
+            assertThat(persistedAfterReplay.getRowsProcessed()).isEqualTo(winnerRowsProcessed);
+            assertThat(persistedAfterReplay.getProductsCreated()).isEqualTo(winnerProductsCreated);
+            assertThat(persistedAfterReplay.getProductsUpdated()).isEqualTo(winnerProductsUpdated);
+            assertThat(persistedAfterReplay.getRawMaterialsSeeded()).isEqualTo(winnerRawMaterialsSeeded);
+            assertThat(persistedAfterReplay.getErrorsJson()).isEqualTo(winnerErrorsJson);
+
+            var productAfterReplay = productionProductRepository.findByCompanyAndSkuCode(company, winnerSku);
+            var materialAfterReplay = rawMaterialRepository.findByCompanyAndSku(company, winnerSku);
+            assertThat(productAfterReplay.map(product -> product.getId()).orElse(null)).isEqualTo(winnerProductId);
+            assertThat(productAfterReplay.map(product -> product.getProductName()).orElse(null)).isEqualTo(winnerPersistedProductName);
+            assertThat(materialAfterReplay.map(material -> material.getId()).orElse(null)).isEqualTo(winnerMaterialId);
+            assertThat(materialAfterReplay.map(material -> material.getName()).orElse(null)).isEqualTo(winnerPersistedMaterialName);
+        } finally {
+            reset(rawMaterialRepository);
         }
     }
 
