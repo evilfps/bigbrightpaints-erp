@@ -523,6 +523,63 @@ class AccountingCatalogControllerSecurityIT extends AbstractIntegrationTest {
     }
 
     @Test
+    void accountingCatalogImport_acceptsMixedCaseParameterizedTextCsvContentType() {
+        Company company = dataSeeder.ensureCompany(COMPANY_CODE, "Catalog Sec Co");
+        HttpHeaders accountingHeaders = authHeaders(ACCOUNTING_EMAIL, PASSWORD, COMPANY_CODE);
+        String idempotencyKey = "CAT-ALLOW-MIXED-TEXT-CSV-" + shortId();
+        String sku = "RM-ALLOW-MIXED-TEXT-CSV-" + shortId();
+
+        ResponseEntity<Map> response = importCatalogWithRawPartContentType(
+                accountingHeaders,
+                catalogCsvContent(sku),
+                "catalog-" + sku + ".csv",
+                "TeXT/CSV; CHARSET=UTF-8",
+                idempotencyKey);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(catalogImportRepository.findByCompanyAndIdempotencyKey(company, idempotencyKey)).isPresent();
+        assertThat(rawMaterialRepository.findByCompanyAndSku(company, sku)).isPresent();
+    }
+
+    @Test
+    void accountingCatalogImport_acceptsMixedCaseParameterizedVndMsExcelAlias() {
+        Company company = dataSeeder.ensureCompany(COMPANY_CODE, "Catalog Sec Co");
+        HttpHeaders accountingHeaders = authHeaders(ACCOUNTING_EMAIL, PASSWORD, COMPANY_CODE);
+        String idempotencyKey = "CAT-ALLOW-MIXED-VND-MS-EXCEL-" + shortId();
+        String sku = "RM-ALLOW-MIXED-VND-MS-EXCEL-" + shortId();
+
+        ResponseEntity<Map> response = importCatalogWithRawPartContentType(
+                accountingHeaders,
+                catalogCsvContent(sku),
+                "catalog-" + sku + ".csv",
+                "Application/VnD.Ms-Excel; charset=UTF-8; profile=legacy",
+                idempotencyKey);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(catalogImportRepository.findByCompanyAndIdempotencyKey(company, idempotencyKey)).isPresent();
+        assertThat(rawMaterialRepository.findByCompanyAndSku(company, sku)).isPresent();
+    }
+
+    @Test
+    void accountingCatalogImport_rejectsNearMissMimeEvenWithParameters() {
+        Company company = dataSeeder.ensureCompany(COMPANY_CODE, "Catalog Sec Co");
+        HttpHeaders accountingHeaders = authHeaders(ACCOUNTING_EMAIL, PASSWORD, COMPANY_CODE);
+        String idempotencyKey = "CAT-REJECT-NEAR-MISS-MIME-" + shortId();
+        String sku = "RM-REJECT-NEAR-MISS-MIME-" + shortId();
+
+        ResponseEntity<Map> response = importCatalogWithRawPartContentType(
+                accountingHeaders,
+                catalogCsvContent(sku),
+                "catalog-" + sku + ".csv",
+                "text/csvx; charset=UTF-8",
+                idempotencyKey);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
+        assertThat(catalogImportRepository.findByCompanyAndIdempotencyKey(company, idempotencyKey)).isEmpty();
+        assertThat(rawMaterialRepository.findByCompanyAndSku(company, sku)).isEmpty();
+    }
+
+    @Test
     void accountingCatalogImport_rejectsDisallowedMimeEvenWhenFileNameLooksCsv() {
         Company company = dataSeeder.ensureCompany(COMPANY_CODE, "Catalog Sec Co");
         HttpHeaders accountingHeaders = authHeaders(ACCOUNTING_EMAIL, PASSWORD, COMPANY_CODE);
@@ -674,6 +731,31 @@ class AccountingCatalogControllerSecurityIT extends AbstractIntegrationTest {
         String boundary = "----CatalogBoundary" + shortId();
         String multipartBody = "--" + boundary + "\r\n"
                 + "Content-Disposition: form-data; name=\"file\"; filename=\"" + fileName + "\"\r\n"
+                + "\r\n"
+                + csvContent + "\r\n"
+                + "--" + boundary + "--\r\n";
+
+        HttpHeaders requestHeaders = new HttpHeaders();
+        requestHeaders.putAll(headers);
+        requestHeaders.set("Content-Type", "multipart/form-data; boundary=" + boundary);
+        requestHeaders.set("Idempotency-Key", idempotencyKey);
+
+        return rest.exchange(
+                "/api/v1/accounting/catalog/import",
+                HttpMethod.POST,
+                new HttpEntity<>(multipartBody, requestHeaders),
+                Map.class);
+    }
+
+    private ResponseEntity<Map> importCatalogWithRawPartContentType(HttpHeaders headers,
+                                                                    String csvContent,
+                                                                    String fileName,
+                                                                    String fileContentType,
+                                                                    String idempotencyKey) {
+        String boundary = "----CatalogBoundary" + shortId();
+        String multipartBody = "--" + boundary + "\r\n"
+                + "Content-Disposition: form-data; name=\"file\"; filename=\"" + fileName + "\"\r\n"
+                + "Content-Type: " + fileContentType + "\r\n"
                 + "\r\n"
                 + csvContent + "\r\n"
                 + "--" + boundary + "--\r\n";
