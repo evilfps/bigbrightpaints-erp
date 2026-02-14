@@ -1580,13 +1580,41 @@ public class ProductionCatalogService {
         if (StringUtils.hasText(contentType)) {
             String normalized = contentType.trim().toLowerCase(Locale.ROOT);
             int parametersIndex = normalized.indexOf(';');
+            String parameterSection = null;
             if (parametersIndex >= 0) {
+                parameterSection = normalized.substring(parametersIndex + 1);
                 normalized = normalized.substring(0, parametersIndex).trim();
             }
-            return CATALOG_IMPORT_ALLOWED_CONTENT_TYPES.contains(normalized);
+            if (!CATALOG_IMPORT_ALLOWED_CONTENT_TYPES.contains(normalized)) {
+                return false;
+            }
+            return isValidMimeParameterSection(parameterSection);
         }
         String fileName = file.getOriginalFilename();
         return StringUtils.hasText(fileName) && fileName.trim().toLowerCase(Locale.ROOT).endsWith(".csv");
+    }
+
+    private boolean isValidMimeParameterSection(String parameterSection) {
+        if (parameterSection == null) {
+            return true;
+        }
+        String[] parameters = parameterSection.split(";");
+        for (String parameter : parameters) {
+            String token = parameter.trim();
+            if (!StringUtils.hasText(token)) {
+                return false;
+            }
+            int equalsIndex = token.indexOf('=');
+            if (equalsIndex <= 0 || equalsIndex == token.length() - 1) {
+                return false;
+            }
+            String key = token.substring(0, equalsIndex).trim();
+            String value = token.substring(equalsIndex + 1).trim();
+            if (!StringUtils.hasText(key) || !StringUtils.hasText(value)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private record ColorSizeSpec(String color, List<String> sizes) {
