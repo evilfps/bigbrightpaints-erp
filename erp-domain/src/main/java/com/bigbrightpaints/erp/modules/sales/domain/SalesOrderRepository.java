@@ -104,7 +104,8 @@ public interface SalesOrderRepository extends JpaRepository<SalesOrder, Long> {
             from SalesOrder o
             where o.company = :company
               and o.dealer = :dealer
-              and o.status in :statuses
+              and o.status is not null
+              and upper(trim(o.status)) in :statuses
               and (:excludeOrderId is null or o.id <> :excludeOrderId)
               and not exists (
                     select 1
@@ -125,7 +126,8 @@ public interface SalesOrderRepository extends JpaRepository<SalesOrder, Long> {
             from SalesOrder o
             where o.company = :company
               and o.dealer = :dealer
-              and o.status in :statuses
+              and o.status is not null
+              and upper(trim(o.status)) in :statuses
               and (:excludeOrderId is null or o.id <> :excludeOrderId)
               and not exists (
                     select 1

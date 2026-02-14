@@ -213,6 +213,68 @@ class DealerPortalControllerSecurityIT extends AbstractIntegrationTest {
     }
 
     @Test
+    @DisplayName("Pending-order summaries normalize status tokens across dealer and admin views")
+    void pendingOrderSummaries_normalizeStatusTokensAcrossDealerAndAdminViews() {
+        Company company = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();
+        SalesOrder normalizedStatusOrder = upsertOrder(
+                company,
+                dealerA,
+                "SO-PORTAL-A-STATUS-NORMALIZED",
+                " pending_production ",
+                new BigDecimal("4200.00")
+        );
+        try {
+            HttpHeaders dealerHeaders = authHeaders(DEALER_A_EMAIL, PASSWORD);
+            ResponseEntity<Map> dealerOrdersResponse = rest.exchange(
+                    "/api/v1/dealer-portal/orders",
+                    HttpMethod.GET,
+                    new HttpEntity<>(dealerHeaders),
+                    Map.class
+            );
+            assertThat(dealerOrdersResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+            Map<?, ?> dealerOrdersData = (Map<?, ?>) dealerOrdersResponse.getBody().get("data");
+            assertThat(((Number) dealerOrdersData.get("pendingOrderCount")).longValue()).isEqualTo(2L);
+            assertThat(new BigDecimal(String.valueOf(dealerOrdersData.get("pendingOrderExposure"))))
+                    .isEqualByComparingTo("9200.00");
+            List<?> orders = (List<?>) dealerOrdersData.get("orders");
+            Map<?, ?> normalizedOrderMap = orders.stream()
+                    .map(Map.class::cast)
+                    .filter(order -> normalizedStatusOrder.getOrderNumber().equals(order.get("orderNumber")))
+                    .findFirst()
+                    .orElseThrow();
+            assertThat((Boolean) normalizedOrderMap.get("pendingCreditExposure")).isTrue();
+
+            ResponseEntity<Map> dealerDashboardResponse = rest.exchange(
+                    "/api/v1/dealer-portal/dashboard",
+                    HttpMethod.GET,
+                    new HttpEntity<>(dealerHeaders),
+                    Map.class
+            );
+            assertThat(dealerDashboardResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+            Map<?, ?> dealerDashboardData = (Map<?, ?>) dealerDashboardResponse.getBody().get("data");
+            assertThat(((Number) dealerDashboardData.get("pendingOrderCount")).longValue()).isEqualTo(2L);
+            assertThat(new BigDecimal(String.valueOf(dealerDashboardData.get("pendingOrderExposure"))))
+                    .isEqualByComparingTo("9200.00");
+
+            HttpHeaders adminHeaders = authHeaders(ADMIN_EMAIL, PASSWORD);
+            ResponseEntity<Map> adminAgingResponse = rest.exchange(
+                    "/api/v1/dealers/" + dealerA.getId() + "/aging",
+                    HttpMethod.GET,
+                    new HttpEntity<>(adminHeaders),
+                    Map.class
+            );
+            assertThat(adminAgingResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+            Map<?, ?> adminAgingData = (Map<?, ?>) adminAgingResponse.getBody().get("data");
+            assertThat(((Number) adminAgingData.get("pendingOrderCount")).longValue()).isEqualTo(2L);
+            assertThat(new BigDecimal(String.valueOf(adminAgingData.get("pendingOrderExposure"))))
+                    .isEqualByComparingTo("9200.00");
+        } finally {
+            salesOrderRepository.deleteById(normalizedStatusOrder.getId());
+            salesOrderRepository.flush();
+        }
+    }
+
+    @Test
     @DisplayName("Dealer portal excludes invoiced orders from pending-credit exposure totals")
     void dealerPortalOrders_excludesInvoicedOrdersFromPendingExposure() {
         Company company = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();
