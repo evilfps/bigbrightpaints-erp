@@ -4,6 +4,8 @@ import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialRepository;
 import com.bigbrightpaints.erp.modules.production.domain.CatalogImport;
 import com.bigbrightpaints.erp.modules.production.domain.CatalogImportRepository;
+import com.bigbrightpaints.erp.modules.production.domain.ProductionBrandRepository;
+import com.bigbrightpaints.erp.modules.production.domain.ProductionProductRepository;
 import com.bigbrightpaints.erp.test.AbstractIntegrationTest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -49,6 +51,12 @@ class AccountingCatalogControllerSecurityIT extends AbstractIntegrationTest {
 
     @Autowired
     private RawMaterialRepository rawMaterialRepository;
+
+    @Autowired
+    private ProductionBrandRepository productionBrandRepository;
+
+    @Autowired
+    private ProductionProductRepository productionProductRepository;
 
     @BeforeEach
     void setUpUsers() {
@@ -105,6 +113,9 @@ class AccountingCatalogControllerSecurityIT extends AbstractIntegrationTest {
 
         Optional<CatalogImport> firstRecord = catalogImportRepository.findByCompanyAndIdempotencyKey(company, idempotencyKey);
         assertThat(firstRecord).isPresent();
+        CatalogImport winnerRecord = firstRecord.get();
+        int brandsAfterWinner = productionBrandRepository.findByCompanyOrderByNameAsc(company).size();
+        int productsAfterWinner = productionProductRepository.findByCompanyOrderByProductNameAsc(company).size();
 
         ResponseEntity<Map> secondResponse = importCatalog(accountingHeaders, secondSku, idempotencyKey);
         assertThat(secondResponse.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
@@ -115,7 +126,15 @@ class AccountingCatalogControllerSecurityIT extends AbstractIntegrationTest {
 
         Optional<CatalogImport> persistedRecord = catalogImportRepository.findByCompanyAndIdempotencyKey(company, idempotencyKey);
         assertThat(persistedRecord).isPresent();
-        assertThat(persistedRecord.get().getId()).isEqualTo(firstRecord.get().getId());
+        assertThat(persistedRecord.get().getId()).isEqualTo(winnerRecord.getId());
+        assertThat(persistedRecord.get().getRowsProcessed()).isEqualTo(winnerRecord.getRowsProcessed());
+        assertThat(persistedRecord.get().getBrandsCreated()).isEqualTo(winnerRecord.getBrandsCreated());
+        assertThat(persistedRecord.get().getProductsCreated()).isEqualTo(winnerRecord.getProductsCreated());
+        assertThat(persistedRecord.get().getProductsUpdated()).isEqualTo(winnerRecord.getProductsUpdated());
+        assertThat(persistedRecord.get().getRawMaterialsSeeded()).isEqualTo(winnerRecord.getRawMaterialsSeeded());
+        assertThat(persistedRecord.get().getErrorsJson()).isEqualTo(winnerRecord.getErrorsJson());
+        assertThat(productionBrandRepository.findByCompanyOrderByNameAsc(company)).hasSize(brandsAfterWinner);
+        assertThat(productionProductRepository.findByCompanyOrderByProductNameAsc(company)).hasSize(productsAfterWinner);
         assertThat(rawMaterialRepository.findByCompanyAndSku(company, firstSku)).isPresent();
         assertThat(rawMaterialRepository.findByCompanyAndSku(company, secondSku)).isEmpty();
     }
