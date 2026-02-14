@@ -2869,6 +2869,29 @@ Queue Rotation (Auto-Replenish)
 - [ready] M14-S5 costing method alias replay matrix for finished-goods APIs (FIFO/WAC normalization + invalid-alias rejection parity with raw-material contracts)
 - [ready] M14-S6 costing output endpoint parity contract (`stock-summary` vs `inventory-valuation` vs `production-log cost-breakdown` consistency under FIFO/WAC)
 
+Post-Commit Review Evidence (Prior Pending Closure)
+- Commit reviewed: `bb5fce9c`
+- `codex review --commit bb5fce9c`:
+  - final verdict captured from re-check stream: docs-only patch is correct with no executable-path regressions.
+  - captured stream: `/tmp/codex_review_bb5fce9c.log`.
+- Review subagent `019c5754-9a59-7712-8eee-26ae2f73b014`:
+  - findings: none.
+
+Completed Slice (Committed)
+- 2026-02-13: `b548206e`
+  - fix(inventory): normalize finished-good costing methods.
+  - M14-S1 initial closure pass:
+    - finished-good create/update now normalize costing method inputs to canonical values instead of persisting raw alias strings,
+    - unsupported costing methods now fail fast with `IllegalArgumentException` (400 path in API layer),
+    - preserved legacy `LIFO` compatibility while canonicalizing WAC aliases.
+  - Added API integration coverage in `RawMaterialAndProductUpdateIT`:
+    - create normalizes `weighted-average` -> `WAC`,
+    - create preserves `lifo` -> `LIFO`,
+    - update normalizes `weighted_average` -> `WAC`,
+    - create rejects unsupported costing method.
+  - Verification:
+    - `cd erp-domain && mvn -B -ntp -Dtest=RawMaterialAndProductUpdateIT#finished_good_create_normalizes_weighted_average_alias_to_wac+finished_good_create_preserves_lifo_method+finished_good_update_normalizes_weighted_average_alias_to_wac+finished_good_create_rejects_unsupported_costing_method test` -> pass (4 tests, 0 failures, 0 errors).
+
 Post-Commit Review Evidence
 - Commit reviewed: `b548206e`
 - `codex review --commit b548206e`:
@@ -2930,77 +2953,6 @@ Queue Rotation (Auto-Replenish)
 - [ready] M9-S5 capture EXPLAIN + index-candidate evidence for journal/allocation replay hotspot queries (Flyway V2-ready)
 - [ready] M2-S12 replay mismatch guard helper extraction to enforce parity by construction
 - [ready] M11-S6 approval queue runtime contract test slice (assert FE docs match live `AdminApprovalItemDto` payload fields and action endpoint semantics)
-
-Post-Commit Review Evidence (Prior Pending Closure)
-- Commit reviewed: `045a7d73`
-- `codex review --commit 045a7d73` (re-check/final capture):
-  - final verdict: P2 regression found; explicit disallowed MIME could bypass guard when filename ends with `.csv`.
-  - disposition: fixed immediately in follow-up commit `e37c2f1f`.
-- Review subagent `019c5a0e-10f0-7be3-ab10-5b54b2217c03`:
-  - findings: medium (same MIME bypass path).
-  - disposition: fixed in `e37c2f1f` with fail-closed MIME handling + regression test.
-
-Completed Slice (Committed)
-- 2026-02-14: `e37c2f1f`
-  - fix(catalog): fail closed on explicit mime mismatch.
-  - M14-S25 closure (finalized after review finding):
-    - hardened `ProductionCatalogService.isSupportedCatalogContentType(...)` to reject explicit non-allowlisted MIME types even when filename ends with `.csv`.
-    - preserved extension fallback only when multipart content type is missing/blank.
-    - added regression in `AccountingCatalogControllerSecurityIT` for `text/plain` + `.csv` filename to assert `422 FILE_003` and no `CatalogImport`/raw-material mutation.
-  - Verification:
-    - `cd /home/realnigga/Desktop/orchestrator_erp/erp-domain && mvn -B -ntp -Dtest=AccountingCatalogControllerSecurityIT test` -> pass (8 tests, 0 failures, 0 errors).
-
-Post-Commit Review Evidence
-- Commit reviewed: `e37c2f1f`
-- `codex review --commit e37c2f1f`:
-  - final verdict: fail-closed MIME guard and regression test are correct; no actionable defect introduced.
-- Review subagent `019c5a11-fe8a-7ee3-a9ce-dbf060592012`:
-  - findings: none.
-  - notes: non-blocking compatibility/fallback coverage risks recorded for future slice expansion.
-
-Completed Slice (Committed)
-- 2026-02-14: `18f522f1`
-  - refactor(reports): align finished-good costing selection parity.
-  - M14-S26 closure:
-    - replaced `InventoryValuationService` local finished-good costing normalization with shared `CostingMethodUtils.resolveFinishedGoodBatchSelectionMethod(...)` to match stock-summary branch selection by construction.
-    - removed duplicate method-specific normalization branch from report service.
-    - expanded `ReportInventoryParityIT` with:
-      - weighted-average alias fixture (`weighted_average`) parity,
-      - unsupported legacy method fallback fixture (`LEGACY_UNKNOWN` -> FIFO valuation behavior),
-      - row-count and per-code valuation assertions for both additions.
-  - Verification:
-    - `cd /home/realnigga/Desktop/orchestrator_erp/erp-domain && mvn -B -ntp -Dtest=ReportInventoryParityIT test` -> pass (1 test, 0 failures, 0 errors).
-
-Post-Commit Review Evidence
-- Commit reviewed: `18f522f1`
-- `codex review --commit 18f522f1`:
-  - final verdict: behavior-preserving parity refactor with alias/fallback assertions; no actionable regressions.
-- Review subagent `019c5a15-f26a-7e03-9998-330b11856f09`:
-  - findings: none.
-  - note: non-blocking residual gap remains full-suite breadth beyond targeted parity test.
-
-Loop Update
-- 2026-02-14T08:31:29+05:30
-- tracked_now_ts: `2026-02-14T08:31:29+05:30`
-- tracked_elapsed: `54h 37m 37s`
-- active_in_progress: `M14-S27 endpoint-inventory cross-portal drift detector (fail if hr/purchasing/inventory/reports rows fall to zero or disappear while accounting portal map still claims ownership)`
-
-Queue Rotation (Auto-Replenish)
-- [completed] M14-S25 accounting catalog import multipart abuse matrix (missing/empty file part, wrong content-type, and oversized row rejection must fail safe without creating product/raw-material rows)
-- [completed] M14-S26 finished-good costing alias parity sweep for read paths (ensure stock-summary and inventory-valuation canonicalize legacy weighted-average aliases identically, with unsupported-method fallback explicitly covered)
-- [in_progress] M14-S27 endpoint-inventory cross-portal drift detector (fail if hr/purchasing/inventory/reports rows fall to zero or disappear while accounting portal map still claims ownership)
-- [ready] M14-S28 cross-module costing predicate dedupe map (consolidate duplicated `isWeightedAverage(...)` decision points across BulkPackingService/PackagingMaterialService/ProductionLogService/InventoryValuationService into one canonical helper + parity tests)
-- [ready] M14-S29 inventory adjustment selector-routing integration assertions (prove WAC/LIFO/FIFO branch parity between reserve and adjustment flows with deterministic batch-order fixtures)
-- [ready] M14-S30 catalog-import idempotency mismatch concurrent race matrix (parallel same key + different payload requests must deterministically produce one winner + one `CONC_001`, with no split-brain import record)
-- [ready] M14-S31 catalog-import mismatch side-effect boundary audit (assert production brand/product tables and audit payload counters remain unchanged on mismatch-reject path)
-- [ready] M14-S32 catalog-import MIME fallback boundary contract (missing `Content-Type` + `.csv` filename accepted; explicit disallowed MIME rejected; docs/error-status matrix updated atomically)
-- [ready] M12-S5 discount/reference calculation parity matrix across sales->invoice->settlement + user-facing example table refresh
-- [ready] M10-S3 release-gate dry-run and blocker ledger sync (`scripts/verify_local.sh` + artifact sanity)
-- [ready] M9-S5 capture EXPLAIN + index-candidate evidence for journal/allocation replay hotspot queries (Flyway V2-ready)
-- [ready] M2-S12 replay mismatch guard helper extraction to enforce parity by construction
-- [ready] M11-S6 approval queue runtime contract test slice (assert FE docs match live `AdminApprovalItemDto` payload fields and action endpoint semantics)
-
-
 
 Post-Commit Review Evidence
 - Commit reviewed: `64a06e24`
