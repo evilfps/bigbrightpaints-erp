@@ -164,6 +164,25 @@ class AccountingCatalogControllerSecurityIT extends AbstractIntegrationTest {
     }
 
     @Test
+    void accountingCatalogImport_rejectsDisallowedMimeEvenWhenFileNameLooksCsv() {
+        Company company = dataSeeder.ensureCompany(COMPANY_CODE, "Catalog Sec Co");
+        HttpHeaders accountingHeaders = authHeaders(ACCOUNTING_EMAIL, PASSWORD, COMPANY_CODE);
+        String idempotencyKey = "CAT-WRONG-MIME-CSV-" + shortId();
+        String sku = "RM-WRONG-MIME-CSV-" + shortId();
+
+        ResponseEntity<Map> response = importCatalogWithCustomFile(
+                accountingHeaders,
+                catalogCsvContent(sku),
+                "catalog-" + sku + ".csv",
+                "text/plain",
+                idempotencyKey);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
+        assertThat(catalogImportRepository.findByCompanyAndIdempotencyKey(company, idempotencyKey)).isEmpty();
+        assertThat(rawMaterialRepository.findByCompanyAndSku(company, sku)).isEmpty();
+    }
+
+    @Test
     void accountingCatalogImport_rejectsOversizedRowWithoutInventoryMutation() {
         Company company = dataSeeder.ensureCompany(COMPANY_CODE, "Catalog Sec Co");
         HttpHeaders accountingHeaders = authHeaders(ACCOUNTING_EMAIL, PASSWORD, COMPANY_CODE);

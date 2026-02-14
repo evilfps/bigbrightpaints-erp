@@ -1583,9 +1583,7 @@ public class ProductionCatalogService {
             if (parametersIndex >= 0) {
                 normalized = normalized.substring(0, parametersIndex).trim();
             }
-            if (CATALOG_IMPORT_ALLOWED_CONTENT_TYPES.contains(normalized)) {
-                return true;
-            }
+            return CATALOG_IMPORT_ALLOWED_CONTENT_TYPES.contains(normalized);
         }
         String fileName = file.getOriginalFilename();
         return StringUtils.hasText(fileName) && fileName.trim().toLowerCase(Locale.ROOT).endsWith(".csv");
