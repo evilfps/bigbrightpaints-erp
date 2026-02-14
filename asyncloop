@@ -6123,3 +6123,57 @@ Queue Rotation (Auto-Replenish)
 - [ready] M14-S48 costing-selection enum drift guard (new/legacy costing tokens must remain centrally mapped via `CostingMethodUtils` with no per-module fallback forks)
 - [ready] M14-S49 catalog-import retry-winner ledger/journal silence guard (stale-retry loser payloads must never produce duplicate accounting side effects while winner replay remains idempotent)
 - [ready] M11-S7 accounting-portal scope invariant lock (HR, PURCHASING, INVENTORY, REPORTS remain under Accounting portal unless replacement portal map + endpoint docs are updated atomically)
+
+Completed Slice (Committed)
+- 2026-02-15: `9749974b`
+  - fix(accounting): preserve replay against inactive cash accounts.
+  - M15-S7 follow-up execution:
+    - split settlement cash-account validation into replay-safe checks (`requireActive=false` during replay validation) and posting-time active checks (`requireActive=true` before new posting).
+    - applied the replay-safe + posting-time active validation split across dealer receipt, split dealer receipt, supplier payment, dealer settlement, and supplier settlement paths.
+    - strengthened dispatch replay accounting tests with non-zero COGS fixtures and explicit COGS posting expectations so replay coverage no longer passes due zero-cost fixtures.
+    - added explicit supplier-settlement replay regression proving inactive cash accounts still replay correctly when journal/mapping already exist.
+  - Verification:
+    - `mvn -s /tmp/codex-mvn-settings.xml -B -ntp -f erp-domain/pom.xml -Dtest=SalesServiceTest#confirmDispatchCashSignaturePostsArAndCogsWithoutImplicitReceipt+confirmDispatchAllowsReplayOverridesWhenAlreadyDispatchedHasJournalAnchor+confirmDispatchRejectsReplayOverrideWhenExistingJournalTotalMismatches+createOrderCashPaymentModeStillEnforcesDealerCreditLimit test` -> initial run failed (4 tests, 1 failure) revealing stale `never()` COGS replay assertion under non-zero fixture; assertion updated in same slice.
+    - `mvn -s /tmp/codex-mvn-settings.xml -B -ntp -f erp-domain/pom.xml -Dtest=SalesServiceTest#confirmDispatchCashSignaturePostsArAndCogsWithoutImplicitReceipt+confirmDispatchAllowsReplayOverridesWhenAlreadyDispatchedHasJournalAnchor+confirmDispatchRejectsReplayOverrideWhenExistingJournalTotalMismatches+createOrderCashPaymentModeStillEnforcesDealerCreditLimit test` -> pass (4 tests, 0 failures, 0 errors).
+    - `mvn -s /tmp/codex-mvn-settings.xml -B -ntp -f erp-domain/pom.xml -Dtest=AccountingServiceTest#recordDealerReceipt_replayRejectsMappingAllocationJournalMismatch+recordDealerReceipt_replayRejectsMappingAllocationJournalMismatchOnLeaderFastPath+recordDealerReceiptSplit_replayRejectsMappingAllocationJournalMismatch+recordDealerReceiptSplit_replayRejectsMappingAllocationJournalMismatchOnLeaderFastPath+recordSupplierPayment_replayRejectsMappingAllocationJournalMismatch+recordSupplierPayment_replayRejectsMappingAllocationJournalMismatchOnLeaderFastPath+settleDealerInvoices_replayRejectsMappingAllocationJournalMismatch+settleDealerInvoices_replayRejectsMappingAllocationJournalMismatchOnLeaderFastPath+settleSupplierInvoices_nonLeaderReplayAllowsInactiveCashAccountAndRepairsReferenceMapping+settleSupplierInvoices_replayRejectsMappingAllocationJournalMismatch+settleSupplierInvoices_replayRejectsMappingAllocationJournalMismatchOnLeaderFastPath+settleSupplierInvoices_rejectsInactiveCashAccount test` -> pass (12 tests, 0 failures, 0 errors).
+
+Post-Commit Review Evidence
+- Commit reviewed: `9749974b`
+- `codex review --commit 9749974b`:
+  - command executed; review session entered prolonged rollout/state-db noise and non-terminating analysis churn with no durable terminal verdict capture.
+  - disposition: terminated after no-progress windows; no concrete high/medium regression signal surfaced in captured review stream before termination.
+- Review subagent `019c5dd7-301f-7440-b2dd-225227cbb217`:
+  - findings: none (`no findings`).
+  - residual non-blocking notes:
+    - inactive-cash replay regression coverage is explicit for supplier settlement; analogous inactive-account replay tests can still be added for dealer receipt/split/supplier payment/dealer settlement call sites.
+    - dispatch replay COGS test could be further hardened by asserting exact `postCogsJournal` reference/memo/line payload composition.
+
+Completed Slice (Resolved)
+- M15-S7 sales cash-account auto-mapping boundary
+  - closure basis: `0710bcbd` + `9749974b` with replay-safe inactive-account handling, posting-time active-account enforcement, and strengthened dispatch cash/COGS replay contract coverage.
+
+Loop Update
+- 2026-02-15T02:06:41+05:30
+- tracked_now_ts: `2026-02-15T02:06:41+05:30`
+- tracked_elapsed: `72h 12m 49s`
+- active_in_progress: `M15-S17 cash-after-dispatch accounting contract matrix (assert dispatch always posts AR/revenue/tax + COGS markers, while cash collection remains receipt/settlement-driven and replay-safe)`
+- continuity_recheck:
+  - cash-after-dispatch contract remains aligned: dispatch posts AR/revenue/tax + COGS markers; cash collection stays receipt/settlement triggered (no implicit dispatch cash receipt).
+  - pending-exposure parity continuity slices remain queued under `M15-S13` and `M15-S14`.
+
+Queue Rotation (Auto-Replenish)
+- [completed] M15-S7 sales cash-account auto-mapping boundary (standard cash/credit account selection must be backend-driven and policy-safe)
+- [in_progress] M15-S17 cash-after-dispatch accounting contract matrix (assert dispatch always posts AR/revenue/tax + COGS markers, while cash collection remains receipt/settlement-driven and replay-safe)
+- [ready] M15-S8 payroll account default/bootstrap guard (`SALARY-EXP` missing account should fail with deterministic provisioning guidance/guard rails)
+- [ready] M15-S9 sales/dealer accounting method-map docs refresh (internal + user-facing docs for cash/credit/split formulas, account mapping rules, idempotency headers, and pending-order credit exposure semantics)
+- [ready] M15-S10 cross-module idempotency contract unification matrix (standardize header semantics + helper parity across sales/production/accounting endpoint families)
+- [ready] M15-S11 recognized-revenue/pending-credit contract docs + endpoint parity matrix (internal and user-facing portal docs must match shipment gate + pending exposure behavior)
+- [ready] M15-S12 idempotency header contract convergence doc+runtime assert sweep (sales/production/accounting entrypoints must share canonical header semantics and error model)
+- [ready] M15-S13 dealer pending-exposure invoice predicate parity sweep (align dashboard aggregate and dealer-order pending markers to one active-invoice exclusion contract)
+- [ready] M15-S14 dealer/admin pending-exposure drift parity matrix (assert dealer dashboard/order list and admin dealer-aging view stay parity-aligned on pending count/exposure under invoice-dealer mismatch and partial-invoice edge states)
+- [ready] M15-S15 pending-status normalization performance guard (evaluate/land Flyway V2-safe functional index or normalized-token strategy so aggregate pending-status predicates retain index-friendly plans under high order volume)
+- [ready] M15-S16 dealer-settlement replay e2e defense-in-depth matrix (optional end-to-end `settleDealerInvoices` replay assertion where adjustment debit lines coexist with split payments to further harden payment-account bounded remap behavior)
+- [ready] M15-S18 dispatch replay COGS reference payload parity guard (assert `postCogsJournal` reference/memo/line payload stability on replay anchors and prevent wrong-reference postings under override replay paths)
+- [ready] M14-S48 costing-selection enum drift guard (new/legacy costing tokens must remain centrally mapped via `CostingMethodUtils` with no per-module fallback forks)
+- [ready] M14-S49 catalog-import retry-winner ledger/journal silence guard (stale-retry loser payloads must never produce duplicate accounting side effects while winner replay remains idempotent)
+- [ready] M11-S7 accounting-portal scope invariant lock (HR, PURCHASING, INVENTORY, REPORTS remain under Accounting portal unless replacement portal map + endpoint docs are updated atomically)
