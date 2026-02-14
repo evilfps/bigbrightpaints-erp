@@ -597,6 +597,8 @@ class DealerPortalControllerSecurityIT extends AbstractIntegrationTest {
         Map<?, ?> baselineDealerOrdersData = (Map<?, ?>) baselineDealerOrdersResponse.getBody().get("data");
         long baselinePendingCount = ((Number) baselineDealerOrdersData.get("pendingOrderCount")).longValue();
         BigDecimal baselinePendingExposure = new BigDecimal(String.valueOf(baselineDealerOrdersData.get("pendingOrderExposure")));
+        assertThat(baselinePendingCount).isEqualTo(1L);
+        assertThat(baselinePendingExposure).isEqualByComparingTo("5000.00");
 
         SalesOrder voidOnlyOrder = upsertOrder(
                 company,
