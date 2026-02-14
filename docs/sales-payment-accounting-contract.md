@@ -11,8 +11,8 @@ This document captures the current backend contract for sales-order payment mode
   - Dealer credit-limit check is enforced (split still has credit exposure).
   - Allocation-leg posting rules are tracked in `M15-S6` (pending hardening).
 - `CASH`:
-  - Dealer credit-limit check is bypassed at order create/update.
-  - Cash orders must not be blocked by dealer outstanding-balance checks.
+  - Dealer credit-limit check is enforced at order create/update.
+  - Cash collection is still settled downstream via accounting receipt/settlement flows; `paymentMode=CASH` does not bypass order-time credit policy.
 
 ## Idempotency Contract (Sales Order Create)
 - Canonical request signature uses normalized payload fields and appends payment mode token only for non-default modes.
@@ -62,10 +62,10 @@ This document captures the current backend contract for sales-order payment mode
   - `pendingOrderExposure`
   - `creditUsed` (`totalOutstanding + pendingOrderExposure`)
   - `pendingOrderCount` and per-order `pendingCreditExposure` flags.
-- Pending exposure is currently a dealer-visibility/monitoring metric; hard credit-limit rejection remains tied to posted outstanding + attempted order amount until split-payment account mapping is fully unified (`M15-S6/M15-S7`).
+- Pending exposure is currently a dealer-visibility/monitoring metric; hard credit-limit rejection remains tied to posted outstanding + attempted order amount and is enforced for all standard order payment modes at create/update.
 
 ## User-Facing Summary
-- Selecting `CASH` should not show credit-limit rejection.
-- Selecting `CREDIT` or `SPLIT` may show credit-limit rejection when posted outstanding + attempted order exceeds dealer limit.
+- Selecting `CASH`, `CREDIT`, or `SPLIT` may show credit-limit rejection when posted outstanding + attempted order exceeds dealer limit.
+- Cash settlement still occurs through accounting receipt/settlement flows after order booking.
 - Dealer dashboard/aging credit usage includes pre-invoice pending production/order commitments.
 - Retry/replay of the same order request must return the same order outcome without creating duplicates, including requests crossing adjacent deployment versions.

@@ -2018,6 +2018,50 @@ class SalesServiceTest {
     }
 
     @Test
+    void updateOrderCashPaymentModeStillEnforcesDealerCreditLimit() {
+        setupProduct("SKU3-UPD-CASH", BigDecimal.valueOf(200), BigDecimal.ZERO);
+        FinishedGood finishedGood = buildFinishedGood("SKU3-UPD-CASH");
+        finishedGood.setRevenueAccountId(5L);
+        when(finishedGoodRepository.findByCompanyAndProductCode(company, "SKU3-UPD-CASH"))
+                .thenReturn(Optional.of(finishedGood));
+
+        Dealer dealer = dealerWithCreditLimit(430L, BigDecimal.valueOf(1000));
+        SalesOrder existing = new SalesOrder();
+        setField(existing, "id", 4300L);
+        existing.setCompany(company);
+        existing.setDealer(dealer);
+        existing.setStatus("BOOKED");
+        existing.setCurrency("INR");
+        existing.setGstTreatment("NONE");
+        existing.setGstInclusive(false);
+        existing.setGstRate(BigDecimal.ZERO);
+        existing.setSubtotalAmount(BigDecimal.valueOf(200));
+        existing.setGstTotal(BigDecimal.ZERO);
+        existing.setGstRoundingAdjustment(BigDecimal.ZERO);
+        existing.setTotalAmount(BigDecimal.valueOf(200));
+
+        when(companyEntityLookup.requireSalesOrder(company, 4300L)).thenReturn(existing);
+        when(dealerRepository.lockByCompanyAndId(company, dealer.getId())).thenReturn(Optional.of(dealer));
+        when(dealerLedgerService.currentBalance(430L)).thenReturn(BigDecimal.valueOf(950));
+        when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 4300L)).thenReturn(List.of());
+
+        SalesOrderRequest request = new SalesOrderRequest(
+                null,
+                BigDecimal.valueOf(200),
+                "INR",
+                null,
+                List.of(new SalesOrderItemRequest("SKU3-UPD-CASH", "Desc", BigDecimal.ONE, BigDecimal.valueOf(200), null)),
+                "NONE",
+                null,
+                null,
+                null,
+                "CASH");
+
+        assertThrows(IllegalStateException.class, () -> salesService.updateOrder(4300L, request));
+        verify(dealerLedgerService).currentBalance(430L);
+    }
+
+    @Test
     void createOrderSplitPaymentModeStillEnforcesDealerCreditLimit() {
         setupProduct("SKU3-SPLIT", BigDecimal.valueOf(200), BigDecimal.ZERO);
         FinishedGood finishedGood = buildFinishedGood("SKU3-SPLIT");
