@@ -476,9 +476,10 @@ public class BulkPackingService {
             // Consume using FIFO
             BigDecimal remaining = material.quantity();
             BigDecimal consumedCost = BigDecimal.ZERO;
-            BigDecimal weightedAverageCost = CostingMethodUtils.isWeightedAverage(rm.getCostingMethod())
-                    ? rawMaterialBatchRepository.calculateWeightedAverageCost(rm)
-                    : null;
+            BigDecimal weightedAverageCost = CostingMethodUtils.selectWeightedAverageValue(
+                    rm.getCostingMethod(),
+                    () -> rawMaterialBatchRepository.calculateWeightedAverageCost(rm),
+                    () -> null);
 
             List<RawMaterialBatch> batches = rawMaterialBatchRepository
                     .findAvailableBatchesFIFO(rm);

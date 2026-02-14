@@ -212,19 +212,23 @@ public class InventoryValuationService {
         if (remaining.compareTo(BigDecimal.ZERO) <= 0) {
             return BigDecimal.ZERO;
         }
-        if (CostingMethodUtils.isWeightedAverage(material.getCostingMethod())) {
-            BigDecimal avgCost = rawMaterialBatchRepository.calculateWeightedAverageCost(material);
-            if (avgCost == null) {
-                return BigDecimal.ZERO;
-            }
-            return remaining.multiply(avgCost);
-        }
-        List<RawMaterialBatch> batches = rawMaterialBatchRepository.findByRawMaterial(material).stream()
-                .sorted((a, b) -> a.getReceivedAt().compareTo(b.getReceivedAt()))
-                .toList();
-        return consumeValuation(remaining, batches.stream()
-                .map(batch -> new CostSlice(batch.getQuantity(), batch.getCostPerUnit()))
-                .toList());
+        return CostingMethodUtils.selectWeightedAverageValue(
+                material.getCostingMethod(),
+                () -> {
+                    BigDecimal avgCost = rawMaterialBatchRepository.calculateWeightedAverageCost(material);
+                    if (avgCost == null) {
+                        return BigDecimal.ZERO;
+                    }
+                    return remaining.multiply(avgCost);
+                },
+                () -> {
+                    List<RawMaterialBatch> batches = rawMaterialBatchRepository.findByRawMaterial(material).stream()
+                            .sorted((a, b) -> a.getReceivedAt().compareTo(b.getReceivedAt()))
+                            .toList();
+                    return consumeValuation(remaining, batches.stream()
+                            .map(batch -> new CostSlice(batch.getQuantity(), batch.getCostPerUnit()))
+                            .toList());
+                });
     }
 
     private BigDecimal valueFromFinishedGood(FinishedGood finishedGood) {

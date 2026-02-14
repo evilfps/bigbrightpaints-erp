@@ -3,6 +3,7 @@ package com.bigbrightpaints.erp.core.util;
 import org.junit.jupiter.api.Test;
 
 import java.util.Locale;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -24,6 +25,48 @@ class CostingMethodUtilsTest {
         assertThat(CostingMethodUtils.isWeightedAverage("   ")).isFalse();
         assertThat(CostingMethodUtils.isWeightedAverage("FIFO")).isFalse();
         assertThat(CostingMethodUtils.isWeightedAverage("LIFO")).isFalse();
+    }
+
+    @Test
+    void selectWeightedAverageValue_usesWeightedSupplierOnceForWeightedMethods() {
+        AtomicInteger weightedCalls = new AtomicInteger();
+        AtomicInteger nonWeightedCalls = new AtomicInteger();
+
+        String selected = CostingMethodUtils.selectWeightedAverageValue(
+                " weighted_average ",
+                () -> {
+                    weightedCalls.incrementAndGet();
+                    return "weighted";
+                },
+                () -> {
+                    nonWeightedCalls.incrementAndGet();
+                    return "non-weighted";
+                });
+
+        assertThat(selected).isEqualTo("weighted");
+        assertThat(weightedCalls.get()).isEqualTo(1);
+        assertThat(nonWeightedCalls.get()).isZero();
+    }
+
+    @Test
+    void selectWeightedAverageValue_usesFallbackSupplierOnceForNonWeightedMethods() {
+        AtomicInteger weightedCalls = new AtomicInteger();
+        AtomicInteger nonWeightedCalls = new AtomicInteger();
+
+        String selected = CostingMethodUtils.selectWeightedAverageValue(
+                "FIFO",
+                () -> {
+                    weightedCalls.incrementAndGet();
+                    return "weighted";
+                },
+                () -> {
+                    nonWeightedCalls.incrementAndGet();
+                    return "non-weighted";
+                });
+
+        assertThat(selected).isEqualTo("non-weighted");
+        assertThat(weightedCalls.get()).isZero();
+        assertThat(nonWeightedCalls.get()).isEqualTo(1);
     }
 
     @Test

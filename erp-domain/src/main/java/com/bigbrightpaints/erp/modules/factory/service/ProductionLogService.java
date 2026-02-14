@@ -332,9 +332,10 @@ public class ProductionLogService {
     private BigDecimal issueFromBatches(RawMaterial rawMaterial, BigDecimal requiredQty, String referenceId) {
         // Lock batches in FIFO order (pessimistic lock) to prevent double consumption
         List<RawMaterialBatch> batches = rawMaterialBatchRepository.findAvailableBatchesFIFO(rawMaterial);
-        BigDecimal weightedAverageCost = CostingMethodUtils.isWeightedAverage(rawMaterial.getCostingMethod())
-                ? rawMaterialBatchRepository.calculateWeightedAverageCost(rawMaterial)
-                : null;
+        BigDecimal weightedAverageCost = CostingMethodUtils.selectWeightedAverageValue(
+                rawMaterial.getCostingMethod(),
+                () -> rawMaterialBatchRepository.calculateWeightedAverageCost(rawMaterial),
+                () -> null);
         BigDecimal remaining = requiredQty;
         BigDecimal totalCost = BigDecimal.ZERO;
         List<RawMaterialMovement> movements = new ArrayList<>();

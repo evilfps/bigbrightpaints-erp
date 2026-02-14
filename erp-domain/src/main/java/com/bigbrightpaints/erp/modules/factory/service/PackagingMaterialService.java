@@ -215,9 +215,10 @@ public class PackagingMaterialService {
 
     private BigDecimal issueFromBatches(RawMaterial rawMaterial, BigDecimal requiredQty, String referenceId) {
         List<RawMaterialBatch> batches = rawMaterialBatchRepository.findAvailableBatchesFIFO(rawMaterial);
-        BigDecimal weightedAverageCost = CostingMethodUtils.isWeightedAverage(rawMaterial.getCostingMethod())
-                ? rawMaterialBatchRepository.calculateWeightedAverageCost(rawMaterial)
-                : null;
+        BigDecimal weightedAverageCost = CostingMethodUtils.selectWeightedAverageValue(
+                rawMaterial.getCostingMethod(),
+                () -> rawMaterialBatchRepository.calculateWeightedAverageCost(rawMaterial),
+                () -> null);
         BigDecimal remaining = requiredQty;
         BigDecimal totalCost = BigDecimal.ZERO;
 

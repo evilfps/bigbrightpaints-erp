@@ -1,6 +1,7 @@
 package com.bigbrightpaints.erp.core.util;
 
 import java.util.Locale;
+import java.util.function.Supplier;
 
 public final class CostingMethodUtils {
 
@@ -21,6 +22,12 @@ public final class CostingMethodUtils {
         return "WAC".equals(normalized)
                 || "WEIGHTED_AVERAGE".equals(normalized)
                 || "WEIGHTED-AVERAGE".equals(normalized);
+    }
+
+    public static <T> T selectWeightedAverageValue(String method,
+                                                   Supplier<T> weightedAverageSupplier,
+                                                   Supplier<T> nonWeightedSupplier) {
+        return isWeightedAverage(method) ? weightedAverageSupplier.get() : nonWeightedSupplier.get();
     }
 
     public static String normalizeRawMaterialMethodOrDefault(String method) {
