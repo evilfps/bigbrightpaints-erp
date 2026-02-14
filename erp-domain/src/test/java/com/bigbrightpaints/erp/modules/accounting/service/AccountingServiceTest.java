@@ -4599,7 +4599,11 @@ class AccountingServiceTest {
                 "buildDealerSettlementIdempotencyKey",
                 replayRequest
         );
-        String legacyKey = "LEGACY-DISCOUNT-WRONG-PAYMENT-ACCOUNT";
+        String legacyKey = ReflectionTestUtils.invokeMethod(
+                accountingService,
+                "buildLegacyDealerSettlementIdempotencyKey",
+                replayRequest
+        );
         assertThat(canonicalReplayKey).isNotEqualTo(legacyKey);
 
         Dealer dealer = new Dealer();
@@ -4705,7 +4709,11 @@ class AccountingServiceTest {
                 "buildDealerSettlementIdempotencyKey",
                 replayRequest
         );
-        String legacyKey = "LEGACY-DISCOUNT-UNREQUESTED-PAYMENT-ACCOUNT";
+        String legacyKey = ReflectionTestUtils.invokeMethod(
+                accountingService,
+                "buildLegacyDealerSettlementIdempotencyKey",
+                replayRequest
+        );
         assertThat(canonicalReplayKey).isNotEqualTo(legacyKey);
 
         Dealer dealer = new Dealer();
@@ -4818,7 +4826,11 @@ class AccountingServiceTest {
                 "buildDealerSettlementIdempotencyKey",
                 replayRequest
         );
-        String legacyKey = "LEGACY-DISCOUNT-UNREQUESTED-PAYMENT-ACCOUNT";
+        String legacyKey = ReflectionTestUtils.invokeMethod(
+                accountingService,
+                "buildLegacyDealerSettlementIdempotencyKey",
+                replayRequest
+        );
         assertThat(canonicalReplayKey).isNotEqualTo(legacyKey);
 
         Dealer dealer = new Dealer();
@@ -5354,7 +5366,26 @@ class AccountingServiceTest {
         invoice.setDealer(dealer);
         ReflectionTestUtils.setField(invoice, "id", 701L);
 
-        String legacyKey = "LEGACY-DISCOUNT-UNREQUESTED-PAYMENT-ACCOUNT";
+        DealerSettlementRequest legacyRequest = new DealerSettlementRequest(
+                replayRequest.dealerId(),
+                20L,
+                replayRequest.discountAccountId(),
+                replayRequest.writeOffAccountId(),
+                replayRequest.fxGainAccountId(),
+                replayRequest.fxLossAccountId(),
+                replayRequest.settlementDate(),
+                replayRequest.referenceNumber(),
+                replayRequest.memo(),
+                replayRequest.idempotencyKey(),
+                replayRequest.adminOverride(),
+                replayRequest.allocations(),
+                null
+        );
+        String legacyKey = ReflectionTestUtils.invokeMethod(
+                accountingService,
+                "buildLegacyDealerSettlementIdempotencyKey",
+                legacyRequest
+        );
         assertThat(canonicalReplayKey).isNotEqualTo(legacyKey);
 
         var existing = new PartnerSettlementAllocation();
