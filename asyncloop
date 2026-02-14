@@ -4258,3 +4258,100 @@ Queue Rotation (Auto-Replenish)
 - [ready] M9-S5 capture EXPLAIN + index-candidate evidence for journal/allocation replay hotspot queries (Flyway V2-ready)
 - [ready] M2-S12 replay mismatch guard helper extraction to enforce parity by construction
 - [ready] M11-S6 approval queue runtime contract test slice (assert FE docs match live `AdminApprovalItemDto` payload fields and action endpoint semantics)
+
+Post-Commit Review Evidence
+- Commit reviewed: `ccf4e209`
+- `codex review --commit ccf4e209`:
+  - final verdict: docs-only ledger integrity repair; no actionable regressions introduced.
+- Review subagent `019c5a25-ec9b-7d32-aaf6-21c20bc9b39a`:
+  - findings: none.
+  - residual notes: `/tmp` evidence paths remain ephemeral; older historical block contains non-monotonic timestamps but no new ledger corruption introduced by this commit.
+
+Completed Slice (Committed)
+- 2026-02-14: `c2c8578a`
+  - test(guard): enforce cross-doc endpoint evidence anchors.
+  - M14-S27 initial closure pass:
+    - extended `guard_accounting_portal_scope_contract.sh` to require endpoint evidence for `hr`, `purchasing`, `inventory`, and `reports` across endpoint inventory, endpoint map, and frontend handoff docs.
+    - added regression `guardFailsWhenEndpointMapInventoryEvidenceIsMissing`.
+    - updated scope-guard fixtures with required endpoint anchors.
+  - Verification:
+    - `bash scripts/guard_accounting_portal_scope_contract.sh` -> pass.
+    - `cd /home/realnigga/Desktop/orchestrator_erp/erp-domain && mvn -B -ntp -Dtest=AccountingPortalScopeGuardScriptTest test` -> pass (8 tests, 0 failures, 0 errors).
+
+Post-Commit Review Evidence
+- Commit reviewed: `c2c8578a`
+- `codex review --commit c2c8578a`:
+  - final verdict: no concrete correctness regression introduced.
+- Review subagent `019c5a28-a647-7e30-97df-3e80152c96a9`:
+  - findings:
+    - medium: broad substring endpoint matching could pass on stale/incidental mentions (fail-open drift risk).
+    - low: negative matrix did not yet cover enough malformed/multi-doc endpoint evidence cases.
+  - disposition: addressed in follow-up commits `75ed527a` and `6902a18a`.
+
+Completed Slice (Committed)
+- 2026-02-14: `75ed527a`
+  - fix(guard): require structured endpoint evidence rows.
+  - M14-S27 hardening pass:
+    - replaced broad substring checks with structured markdown row/bullet checks for canonical endpoint anchors.
+    - switched canonical anchors to concrete endpoints:
+      - `/api/v1/hr/employees`
+      - `/api/v1/purchasing/purchase-orders`
+      - `/api/v1/finished-goods/stock-summary`
+      - `/api/v1/reports/inventory-valuation`
+    - added negatives for missing handoff HR endpoint row and missing endpoint-inventory reports endpoint bullet.
+  - Verification:
+    - `bash scripts/guard_accounting_portal_scope_contract.sh` -> pass.
+    - `cd /home/realnigga/Desktop/orchestrator_erp/erp-domain && mvn -B -ntp -Dtest=AccountingPortalScopeGuardScriptTest test` -> pass (10 tests, 0 failures, 0 errors).
+
+Post-Commit Review Evidence
+- Commit reviewed: `75ed527a`
+- `codex review --commit 75ed527a`:
+  - final verdict: P2 found; CRLF-formatted docs could fail endpoint-inventory regex line-end match (strict `...\\x60$` anchor).
+  - disposition: fixed in follow-up commit `6902a18a` via CRLF-tolerant row matching.
+- Review subagent `019c5a2d-e560-79f3-962a-7d4013dbea00`:
+  - findings:
+    - medium: method-token regex accepted malformed comma/whitespace-only tokens.
+    - low: row regexes were not fully end-anchored for table-shape validation.
+    - medium: malformed-row negative coverage needed expansion.
+  - disposition: fixed in `6902a18a` with stricter method-token patterns, row-shape anchors, endpoint regex escaping, and malformed-row tests.
+
+Completed Slice (Committed)
+- 2026-02-14: `6902a18a`
+  - fix(guard): harden endpoint row regex and malformed cases.
+  - M14-S27 final closure:
+    - escaped endpoint strings before regex interpolation to prevent metacharacter parse/match drift.
+    - tightened method-token validation to `METHOD(, METHOD)*` shape across structured endpoint checks.
+    - added CRLF-tolerant row endings and stricter row-shape anchors for endpoint-inventory/endpoint-map/handoff checks.
+    - added malformed-row negatives in `AccountingPortalScopeGuardScriptTest` for endpoint-map and endpoint-inventory method token drift.
+  - Verification:
+    - `bash scripts/guard_accounting_portal_scope_contract.sh` -> pass.
+    - `cd /home/realnigga/Desktop/orchestrator_erp/erp-domain && mvn -B -ntp -Dtest=AccountingPortalScopeGuardScriptTest test` -> pass (12 tests, 0 failures, 0 errors).
+
+Post-Commit Review Evidence
+- Commit reviewed: `6902a18a`
+- `codex review --commit 6902a18a`:
+  - final verdict: regex hardening + malformed-row tests are coherent with guard contract checks; no actionable defects introduced.
+- Review subagent `019c5a33-e8a0-7a62-839e-81f776df232b`:
+  - findings: none.
+  - residual notes: low remaining breadth for an explicit CRLF fixture regression and malformed handoff-method token case.
+
+Loop Update
+- 2026-02-14T09:04:41+05:30
+- tracked_now_ts: `2026-02-14T09:04:41+05:30`
+- tracked_elapsed: `55h 10m 49s`
+- active_in_progress: `M14-S28 cross-module costing predicate dedupe map (consolidate duplicated isWeightedAverage(...) decision points across BulkPackingService/PackagingMaterialService/ProductionLogService/InventoryValuationService into one canonical helper + parity tests)`
+- continuity_recheck: `0355149b` / `f9fd898f` / `a1d05cd7` finalized review evidence remains aligned; no additional correction needed.
+
+Queue Rotation (Auto-Replenish)
+- [completed] M14-S27 endpoint-inventory cross-portal drift detector (fail if hr/purchasing/inventory/reports rows fall to zero or disappear while accounting portal map still claims ownership)
+- [in_progress] M14-S28 cross-module costing predicate dedupe map (consolidate duplicated `isWeightedAverage(...)` decision points across BulkPackingService/PackagingMaterialService/ProductionLogService/InventoryValuationService into one canonical helper + parity tests)
+- [ready] M14-S29 inventory adjustment selector-routing integration assertions (prove WAC/LIFO/FIFO branch parity between reserve and adjustment flows with deterministic batch-order fixtures)
+- [ready] M14-S30 catalog-import idempotency mismatch concurrent race matrix (parallel same key + different payload requests must deterministically produce one winner + one `CONC_001`, with no split-brain import record)
+- [ready] M14-S31 catalog-import mismatch side-effect boundary audit (assert production brand/product tables and audit payload counters remain unchanged on mismatch-reject path)
+- [ready] M14-S32 catalog-import MIME fallback boundary contract (missing `Content-Type` + `.csv` filename accepted; explicit disallowed MIME rejected; docs/error-status matrix updated atomically)
+- [ready] M14-S33 costing token-shape + canonicalization boundary matrix (finished-good/raw-material create/update/import parity; malformed token rejection + unsupported legacy preservation contracts)
+- [ready] M12-S5 discount/reference calculation parity matrix across sales->invoice->settlement + user-facing example table refresh
+- [ready] M10-S3 release-gate dry-run and blocker ledger sync (`scripts/verify_local.sh` + artifact sanity)
+- [ready] M9-S5 capture EXPLAIN + index-candidate evidence for journal/allocation replay hotspot queries (Flyway V2-ready)
+- [ready] M2-S12 replay mismatch guard helper extraction to enforce parity by construction
+- [ready] M11-S6 approval queue runtime contract test slice (assert FE docs match live `AdminApprovalItemDto` payload fields and action endpoint semantics)
