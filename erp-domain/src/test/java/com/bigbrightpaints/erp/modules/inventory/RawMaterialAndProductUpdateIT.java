@@ -193,10 +193,17 @@ class RawMaterialAndProductUpdateIT extends AbstractIntegrationTest {
     void raw_material_create_rejects_malformed_costing_token() {
         HttpHeaders headers = authenticatedHeaders();
         Map<String, Long> accounts = fixtureAccountIds();
+        Company company = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();
+        long beforeCount = rawMaterialRepository.findByCompanyOrderByNameAsc(company).size();
+        String sku = "RM-BAD-" + UUID.randomUUID().toString().substring(0, 8);
+        Company foreignCompany = dataSeeder.ensureCompany(
+                "RM-FOREIGN-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase(),
+                "Raw Material Foreign Co"
+        );
 
         Map<String, Object> payload = new HashMap<>();
         payload.put("name", "RM Malformed Method");
-        payload.put("sku", "RM-BAD-" + UUID.randomUUID().toString().substring(0, 8));
+        payload.put("sku", sku);
         payload.put("unitType", "KG");
         payload.put("reorderLevel", new BigDecimal("10"));
         payload.put("minStock", new BigDecimal("5"));
@@ -213,6 +220,10 @@ class RawMaterialAndProductUpdateIT extends AbstractIntegrationTest {
 
         assertThat(create.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         assertThat(String.valueOf(create.getBody())).contains("Unsupported costing method");
+        assertThat(rawMaterialRepository.findByCompanyAndSku(company, sku)).isEmpty();
+        assertThat(rawMaterialRepository.findByCompanyAndSku(foreignCompany, sku)).isEmpty();
+        long afterCount = rawMaterialRepository.findByCompanyOrderByNameAsc(company).size();
+        assertThat(afterCount).isEqualTo(beforeCount);
     }
 
     @Test
