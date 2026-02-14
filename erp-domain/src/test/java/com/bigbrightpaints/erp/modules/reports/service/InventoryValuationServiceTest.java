@@ -20,6 +20,8 @@ import java.time.Instant;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -150,5 +152,32 @@ class InventoryValuationServiceTest {
 
         assertThat(snapshot.totalValue()).isEqualByComparingTo("140.00");
         assertThat(snapshot.lowStockItems()).isZero();
+    }
+
+    @Test
+    void currentSnapshot_rawMaterialWacUsesWeightedAveragePath() {
+        Company company = new Company();
+        company.setCode("CR-RM-WAC");
+        company.setName("CR RM WAC");
+        company.setTimezone("UTC");
+
+        com.bigbrightpaints.erp.modules.inventory.domain.RawMaterial material =
+                new com.bigbrightpaints.erp.modules.inventory.domain.RawMaterial();
+        material.setCompany(company);
+        material.setName("Pigment A");
+        material.setSku("RM-WAC");
+        material.setCurrentStock(new BigDecimal("5"));
+        material.setCostingMethod("weighted_average");
+
+        when(rawMaterialRepository.findByCompanyOrderByNameAsc(company)).thenReturn(List.of(material));
+        when(rawMaterialBatchRepository.calculateWeightedAverageCost(material)).thenReturn(new BigDecimal("3"));
+        when(finishedGoodRepository.findByCompanyOrderByProductCodeAsc(company)).thenReturn(List.of());
+
+        InventoryValuationService.InventorySnapshot snapshot = inventoryValuationService.currentSnapshot(company);
+
+        assertThat(snapshot.totalValue()).isEqualByComparingTo("15.00");
+        assertThat(snapshot.lowStockItems()).isZero();
+        verify(rawMaterialBatchRepository).calculateWeightedAverageCost(material);
+        verify(rawMaterialBatchRepository, never()).findByRawMaterial(material);
     }
 }
