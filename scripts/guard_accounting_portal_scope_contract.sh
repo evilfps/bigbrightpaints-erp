@@ -15,6 +15,20 @@ fail() {
   exit 1
 }
 
+assert_endpoint_contract() {
+  local module="$1"
+  local endpoint="$2"
+
+  rg -q -- "^- \\x60[A-Z, ]+\\x60 \\x60$endpoint\\x60$" "$ENDPOINT_INVENTORY_DOC" \
+    || fail "required $module endpoint evidence missing in endpoint inventory bullets ($endpoint) in $ENDPOINT_INVENTORY_DOC"
+
+  rg -q -- "^\\| \\x60[A-Z, ]+ $endpoint\\x60 \\|" "$ENDPOINT_MAP_DOC" \
+    || fail "required $module endpoint evidence missing in endpoint map rows ($endpoint) in $ENDPOINT_MAP_DOC"
+
+  rg -q -- "^\\| \\x60[^|]+\\x60 \\| [A-Z]+ \\| \\x60$endpoint\\x60 \\|" "$HANDOFF_DOC" \
+    || fail "required $module endpoint evidence missing in handoff rows ($endpoint) in $HANDOFF_DOC"
+}
+
 for path in "$GUARDRAIL_DOC" "$ENDPOINT_MAP_DOC" "$HANDOFF_DOC" "$ENDPOINT_INVENTORY_DOC"; do
   [[ -f "$path" ]] || fail "missing required file: $path"
 done
@@ -40,16 +54,13 @@ for module in hr purchasing inventory reports; do
 done
 
 for required in \
-  "hr:/api/v1/hr/" \
-  "purchasing:/api/v1/purchasing/" \
+  "hr:/api/v1/hr/employees" \
+  "purchasing:/api/v1/purchasing/purchase-orders" \
   "inventory:/api/v1/finished-goods/stock-summary" \
   "reports:/api/v1/reports/inventory-valuation"; do
   module="${required%%:*}"
-  pattern="${required#*:}"
-  for path in "$ENDPOINT_INVENTORY_DOC" "$ENDPOINT_MAP_DOC" "$HANDOFF_DOC"; do
-    rg -q "$pattern" "$path" \
-      || fail "required $module endpoint evidence missing ($pattern) in $path"
-  done
+  endpoint="${required#*:}"
+  assert_endpoint_contract "$module" "$endpoint"
 done
 
 for controller in \

@@ -115,7 +115,7 @@ class AccountingPortalScopeGuardScriptTest {
         FixturePaths fixturePaths = writeFixture(13);
         replaceInFile(
                 fixturePaths.endpointMapDoc(),
-                "- /api/v1/finished-goods/stock-summary\n",
+                "| `GET /api/v1/finished-goods/stock-summary` |\n",
                 "");
 
         ProcessResult result = runGuard(fixturePaths);
@@ -123,6 +123,36 @@ class AccountingPortalScopeGuardScriptTest {
         assertThat(result.exitCode()).isNotEqualTo(0);
         assertThat(result.stderr()).contains("required inventory endpoint evidence missing");
         assertThat(result.stderr()).contains("/api/v1/finished-goods/stock-summary");
+    }
+
+    @Test
+    void guardFailsWhenHandoffHrEndpointEvidenceIsMissing() throws Exception {
+        FixturePaths fixturePaths = writeFixture(13);
+        replaceInFile(
+                fixturePaths.handoffDoc(),
+                "| `hrEmployees` | GET | `/api/v1/hr/employees` |\n",
+                "");
+
+        ProcessResult result = runGuard(fixturePaths);
+
+        assertThat(result.exitCode()).isNotEqualTo(0);
+        assertThat(result.stderr()).contains("required hr endpoint evidence missing");
+        assertThat(result.stderr()).contains("/api/v1/hr/employees");
+    }
+
+    @Test
+    void guardFailsWhenEndpointInventoryReportsEvidenceIsMissing() throws Exception {
+        FixturePaths fixturePaths = writeFixture(13);
+        replaceInFile(
+                fixturePaths.endpointInventoryDoc(),
+                "- `GET` `/api/v1/reports/inventory-valuation`\n",
+                "");
+
+        ProcessResult result = runGuard(fixturePaths);
+
+        assertThat(result.exitCode()).isNotEqualTo(0);
+        assertThat(result.stderr()).contains("required reports endpoint evidence missing");
+        assertThat(result.stderr()).contains("/api/v1/reports/inventory-valuation");
     }
 
     private ProcessResult runGuard(FixturePaths fixturePaths) throws Exception {
@@ -181,10 +211,10 @@ class AccountingPortalScopeGuardScriptTest {
                 ### hr-payroll-controller
                 ## Reports & Reconciliation
                 ### report-controller
-                - /api/v1/purchasing/purchase-orders
-                - /api/v1/finished-goods/stock-summary
-                - /api/v1/reports/inventory-valuation
-                - /api/v1/hr/employees
+                | `GET /api/v1/purchasing/purchase-orders` |
+                | `GET /api/v1/finished-goods/stock-summary` |
+                | `GET /api/v1/reports/inventory-valuation` |
+                | `GET /api/v1/hr/employees` |
                 """);
 
         Files.writeString(handoffDoc, """
@@ -194,10 +224,10 @@ class AccountingPortalScopeGuardScriptTest {
                 ## Inventory & Costing
                 ## HR & Payroll
                 ## Reports & Reconciliation
-                - /api/v1/purchasing/purchase-orders
-                - /api/v1/finished-goods/stock-summary
-                - /api/v1/reports/inventory-valuation
-                - /api/v1/hr/employees
+                | `poListPurchaseOrders` | GET | `/api/v1/purchasing/purchase-orders` |
+                | `finishedGoodGetStockSummary` | GET | `/api/v1/finished-goods/stock-summary` |
+                | `reportInventoryValuation` | GET | `/api/v1/reports/inventory-valuation` |
+                | `hrEmployees` | GET | `/api/v1/hr/employees` |
                 """);
 
         Files.writeString(endpointInventoryDoc, """
@@ -210,6 +240,10 @@ class AccountingPortalScopeGuardScriptTest {
                 | `purchasing` | 7 | /api/v1/purchasing/purchase-orders |
                 | `inventory` | 5 | /api/v1/finished-goods/stock-summary |
                 | `reports` | %d | /api/v1/reports/inventory-valuation |
+                - `GET` `/api/v1/purchasing/purchase-orders`
+                - `GET` `/api/v1/finished-goods/stock-summary`
+                - `GET` `/api/v1/reports/inventory-valuation`
+                - `GET` `/api/v1/hr/employees`
                 """.formatted(reportsCount));
 
         return new FixturePaths(guardrailDoc, endpointMapDoc, handoffDoc, endpointInventoryDoc);
