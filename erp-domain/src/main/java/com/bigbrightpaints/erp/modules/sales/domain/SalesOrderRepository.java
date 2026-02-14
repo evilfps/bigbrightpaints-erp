@@ -112,7 +112,7 @@ public interface SalesOrderRepository extends JpaRepository<SalesOrder, Long> {
                     from Invoice i
                     where i.company = :company
                       and i.salesOrder = o
-                      and (i.status is null or i.status not in ('DRAFT', 'VOID', 'REVERSED'))
+                      and (i.status is null or upper(trim(i.status)) not in ('DRAFT', 'VOID', 'REVERSED'))
               )
             """)
     BigDecimal sumPendingCreditExposureByCompanyAndDealer(
@@ -134,7 +134,7 @@ public interface SalesOrderRepository extends JpaRepository<SalesOrder, Long> {
                     from Invoice i
                     where i.company = :company
                       and i.salesOrder = o
-                      and (i.status is null or i.status not in ('DRAFT', 'VOID', 'REVERSED'))
+                      and (i.status is null or upper(trim(i.status)) not in ('DRAFT', 'VOID', 'REVERSED'))
               )
             """)
     long countPendingCreditExposureByCompanyAndDealer(

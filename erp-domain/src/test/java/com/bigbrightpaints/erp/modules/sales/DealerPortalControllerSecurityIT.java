@@ -371,6 +371,82 @@ class DealerPortalControllerSecurityIT extends AbstractIntegrationTest {
     }
 
     @Test
+    @DisplayName("Pending exposure ignores draft-like invoice status tokens across dealer and admin views")
+    void pendingExposure_ignoresDraftLikeInvoiceStatusTokensAcrossDealerAndAdminViews() {
+        Company company = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();
+        SalesOrder draftLinkedOrder = upsertOrder(
+                company,
+                dealerA,
+                "SO-PORTAL-A-DRAFT-STATUS",
+                "PENDING_PRODUCTION",
+                new BigDecimal("3600.00")
+        );
+        Invoice draftLikeInvoice = upsertInvoice(company, dealerA, "INV-PORTAL-A-DRAFT-STATUS");
+        draftLikeInvoice.setStatus(" draft ");
+        draftLikeInvoice.setSalesOrder(draftLinkedOrder);
+        draftLikeInvoice.setSubtotal(new BigDecimal("3000.00"));
+        draftLikeInvoice.setTaxTotal(new BigDecimal("540.00"));
+        draftLikeInvoice.setTotalAmount(new BigDecimal("3540.00"));
+        draftLikeInvoice.setOutstandingAmount(new BigDecimal("900.00"));
+        invoiceRepository.saveAndFlush(draftLikeInvoice);
+        try {
+            HttpHeaders dealerHeaders = authHeaders(DEALER_A_EMAIL, PASSWORD);
+            ResponseEntity<Map> dealerOrdersResponse = rest.exchange(
+                    "/api/v1/dealer-portal/orders",
+                    HttpMethod.GET,
+                    new HttpEntity<>(dealerHeaders),
+                    Map.class
+            );
+            assertThat(dealerOrdersResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+            Map<?, ?> dealerOrdersData = (Map<?, ?>) dealerOrdersResponse.getBody().get("data");
+            assertThat(((Number) dealerOrdersData.get("pendingOrderCount")).longValue()).isEqualTo(2L);
+            assertThat(new BigDecimal(String.valueOf(dealerOrdersData.get("pendingOrderExposure"))))
+                    .isEqualByComparingTo("8600.00");
+            List<?> orders = (List<?>) dealerOrdersData.get("orders");
+            Map<?, ?> draftLinkedOrderMap = orders.stream()
+                    .map(Map.class::cast)
+                    .filter(order -> draftLinkedOrder.getOrderNumber().equals(order.get("orderNumber")))
+                    .findFirst()
+                    .orElseThrow();
+            assertThat((Boolean) draftLinkedOrderMap.get("pendingCreditExposure")).isTrue();
+
+            ResponseEntity<Map> dealerDashboardResponse = rest.exchange(
+                    "/api/v1/dealer-portal/dashboard",
+                    HttpMethod.GET,
+                    new HttpEntity<>(dealerHeaders),
+                    Map.class
+            );
+            assertThat(dealerDashboardResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+            Map<?, ?> dealerDashboardData = (Map<?, ?>) dealerDashboardResponse.getBody().get("data");
+            assertThat(((Number) dealerDashboardData.get("pendingOrderCount")).longValue()).isEqualTo(2L);
+            assertThat(new BigDecimal(String.valueOf(dealerDashboardData.get("pendingOrderExposure"))))
+                    .isEqualByComparingTo("8600.00");
+
+            HttpHeaders adminHeaders = authHeaders(ADMIN_EMAIL, PASSWORD);
+            ResponseEntity<Map> adminAgingResponse = rest.exchange(
+                    "/api/v1/dealers/" + dealerA.getId() + "/aging",
+                    HttpMethod.GET,
+                    new HttpEntity<>(adminHeaders),
+                    Map.class
+            );
+            assertThat(adminAgingResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+            Map<?, ?> adminAgingData = (Map<?, ?>) adminAgingResponse.getBody().get("data");
+            assertThat(((Number) adminAgingData.get("pendingOrderCount")).longValue()).isEqualTo(2L);
+            assertThat(new BigDecimal(String.valueOf(adminAgingData.get("pendingOrderExposure"))))
+                    .isEqualByComparingTo("8600.00");
+        } finally {
+            if (draftLikeInvoice.getId() != null) {
+                invoiceRepository.deleteById(draftLikeInvoice.getId());
+                invoiceRepository.flush();
+            }
+            if (draftLinkedOrder.getId() != null) {
+                salesOrderRepository.deleteById(draftLinkedOrder.getId());
+                salesOrderRepository.flush();
+            }
+        }
+    }
+
+    @Test
     @DisplayName("Admin dealer aging pending summary matches dealer pending-order signals")
     void adminDealerAging_pendingSummaryMatchesDealerOrdersEvenWhenInvoiceDealerDrifts() {
         Company company = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();

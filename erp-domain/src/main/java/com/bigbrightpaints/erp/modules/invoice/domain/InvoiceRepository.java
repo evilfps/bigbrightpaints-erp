@@ -37,7 +37,7 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
             where i.company = :company
               and i.salesOrder is not null
               and i.salesOrder.dealer = :dealer
-              and (i.status is null or i.status not in ('DRAFT', 'VOID', 'REVERSED'))
+              and (i.status is null or upper(trim(i.status)) not in ('DRAFT', 'VOID', 'REVERSED'))
             """)
     Set<Long> findActiveSalesOrderIdsByCompanyAndDealer(@Param("company") Company company,
                                                          @Param("dealer") Dealer dealer);
