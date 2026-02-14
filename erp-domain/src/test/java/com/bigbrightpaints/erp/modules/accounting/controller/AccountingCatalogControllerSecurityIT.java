@@ -173,6 +173,14 @@ class AccountingCatalogControllerSecurityIT extends AbstractIntegrationTest {
         CatalogImport winnerRecord = catalogImportRepository.findByCompanyAndIdempotencyKey(company, baseKey)
                 .orElseThrow();
         assertThat(winnerRecord.getIdempotencyKey()).isEqualTo(baseKey);
+        assertThat(catalogImportRepository.findByCompanyAndIdempotencyKey(company, paddedKey)).isEmpty();
+        Long matchingRows = entityManager.createQuery(
+                        "select count(ci) from CatalogImport ci where ci.company = :company and ci.idempotencyKey in :keys",
+                        Long.class)
+                .setParameter("company", company)
+                .setParameter("keys", List.of(baseKey, paddedKey))
+                .getSingleResult();
+        assertThat(matchingRows).isEqualTo(1L);
 
         ResponseEntity<Map> mismatchResponse = importCatalog(accountingHeaders, loserSku, paddedKey);
         assertThat(mismatchResponse.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
