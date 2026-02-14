@@ -372,7 +372,20 @@ public class SalesService {
     public SalesOrderDto createOrder(SalesOrderRequest request) {
         Company company = companyContextService.requireCurrentCompany();
         String idempotencyKey = request.resolveIdempotencyKey();
+        String legacyDefaultPaymentIdempotencyKey = resolveLegacyDefaultPaymentIdempotencyKey(request, idempotencyKey);
         String requestSignature = buildSalesOrderSignature(request);
+        String legacyDefaultPaymentRequestSignature = buildSalesOrderSignatureIncludingDefaultPaymentMode(request);
+        if (legacyDefaultPaymentIdempotencyKey != null) {
+            Optional<SalesOrderDto> legacyDefaultMatch = resolveOrderByIdempotencyKey(
+                    company,
+                    legacyDefaultPaymentIdempotencyKey,
+                    requestSignature,
+                    legacyDefaultPaymentRequestSignature
+            );
+            if (legacyDefaultMatch.isPresent()) {
+                return legacyDefaultMatch.get();
+            }
+        }
         try {
             SalesOrderDto created = transactionTemplate.execute(status ->
                     createOrderInternal(company, request, idempotencyKey, requestSignature));
@@ -382,7 +395,13 @@ public class SalesService {
             return created;
         } catch (DataIntegrityViolationException ex) {
             SalesOrderDto resolved = transactionTemplate.execute(status ->
-                    resolveIdempotentOrderInternal(company, idempotencyKey, requestSignature, ex));
+                    resolveIdempotentOrderInternal(
+                            company,
+                            idempotencyKey,
+                            requestSignature,
+                            legacyDefaultPaymentRequestSignature,
+                            ex
+                    ));
             if (resolved == null) {
                 throw ex;
             }
@@ -396,25 +415,12 @@ public class SalesService {
                                               String requestSignature) {
         Optional<SalesOrder> existing = salesOrderRepository.findByCompanyAndIdempotencyKey(company, idempotencyKey);
         if (existing.isPresent()) {
-            SalesOrder order = existing.get();
-            String storedSignature = order.getIdempotencyHash();
-            if (!StringUtils.hasText(storedSignature)) {
-                String derivedSignature = buildSalesOrderSignature(order);
-                if (!derivedSignature.equals(requestSignature)) {
-                    throw new ApplicationException(ErrorCode.CONCURRENCY_CONFLICT,
-                            "Idempotency key already used with different payload")
-                            .withDetail("idempotencyKey", idempotencyKey);
-                }
-                order.setIdempotencyHash(requestSignature);
-                salesOrderRepository.save(order);
-                return toDto(order);
-            }
-            if (!storedSignature.equals(requestSignature)) {
-                throw new ApplicationException(ErrorCode.CONCURRENCY_CONFLICT,
-                        "Idempotency key already used with different payload")
-                        .withDetail("idempotencyKey", idempotencyKey);
-            }
-            return toDto(order);
+            return resolveExistingOrder(
+                    existing.get(),
+                    idempotencyKey,
+                    requestSignature,
+                    buildSalesOrderSignatureIncludingDefaultPaymentMode(request)
+            );
         }
         GstTreatment gstTreatment = resolveGstTreatment(request.gstTreatment());
         BigDecimal orderLevelRate = resolveOrderLevelRate(company, gstTreatment, request.gstRate());
@@ -469,16 +475,38 @@ public class SalesService {
     private SalesOrderDto resolveIdempotentOrderInternal(Company company,
                                                          String idempotencyKey,
                                                          String requestSignature,
+                                                         String legacyDefaultPaymentRequestSignature,
                                                          DataIntegrityViolationException rootCause) {
         Optional<SalesOrder> existing = salesOrderRepository.findByCompanyAndIdempotencyKey(company, idempotencyKey);
         if (existing.isEmpty()) {
             throw rootCause;
         }
-        SalesOrder order = existing.get();
+        return resolveExistingOrder(existing.get(), idempotencyKey, requestSignature, legacyDefaultPaymentRequestSignature);
+    }
+
+    private Optional<SalesOrderDto> resolveOrderByIdempotencyKey(Company company,
+                                                                 String idempotencyKey,
+                                                                 String requestSignature,
+                                                                 String legacyDefaultPaymentRequestSignature) {
+        return salesOrderRepository.findByCompanyAndIdempotencyKey(company, idempotencyKey)
+                .map(order -> resolveExistingOrder(
+                        order,
+                        idempotencyKey,
+                        requestSignature,
+                        legacyDefaultPaymentRequestSignature
+                ));
+    }
+
+    private SalesOrderDto resolveExistingOrder(SalesOrder order,
+                                               String idempotencyKey,
+                                               String requestSignature,
+                                               String legacyDefaultPaymentRequestSignature) {
         String storedSignature = order.getIdempotencyHash();
         if (!StringUtils.hasText(storedSignature)) {
             String derivedSignature = buildSalesOrderSignature(order);
-            if (!derivedSignature.equals(requestSignature)) {
+            String legacyDefaultPaymentDerivedSignature = buildSalesOrderSignatureIncludingDefaultPaymentMode(order);
+            if (!matchesSignature(derivedSignature, requestSignature, legacyDefaultPaymentRequestSignature)
+                    && !matchesSignature(legacyDefaultPaymentDerivedSignature, requestSignature, legacyDefaultPaymentRequestSignature)) {
                 throw new ApplicationException(ErrorCode.CONCURRENCY_CONFLICT,
                         "Idempotency key already used with different payload")
                         .withDetail("idempotencyKey", idempotencyKey);
@@ -487,15 +515,33 @@ public class SalesService {
             salesOrderRepository.save(order);
             return toDto(order);
         }
-        if (!storedSignature.equals(requestSignature)) {
+        if (!matchesSignature(storedSignature, requestSignature, legacyDefaultPaymentRequestSignature)) {
             throw new ApplicationException(ErrorCode.CONCURRENCY_CONFLICT,
                     "Idempotency key already used with different payload")
                     .withDetail("idempotencyKey", idempotencyKey);
         }
+        if (!storedSignature.equals(requestSignature)) {
+            order.setIdempotencyHash(requestSignature);
+            salesOrderRepository.save(order);
+        }
         return toDto(order);
     }
 
+    private boolean matchesSignature(String candidate,
+                                     String requestSignature,
+                                     String legacyDefaultPaymentRequestSignature) {
+        return candidate.equals(requestSignature) || candidate.equals(legacyDefaultPaymentRequestSignature);
+    }
+
     private String buildSalesOrderSignature(SalesOrderRequest request) {
+        return buildSalesOrderSignature(request, false);
+    }
+
+    private String buildSalesOrderSignatureIncludingDefaultPaymentMode(SalesOrderRequest request) {
+        return buildSalesOrderSignature(request, true);
+    }
+
+    private String buildSalesOrderSignature(SalesOrderRequest request, boolean includeDefaultPaymentModeToken) {
         StringBuilder signature = new StringBuilder();
         signature.append(request.dealerId() == null ? "null" : request.dealerId())
                 .append('|').append(amountToken(request.totalAmount()))
@@ -504,7 +550,11 @@ public class SalesService {
                 .append('|').append(Boolean.TRUE.equals(request.gstInclusive()))
                 .append('|').append(amountToken(request.gstRate()))
                 .append('|').append(normalizeText(request.notes()));
-        appendPaymentModeSignatureToken(signature, normalizeOrderPaymentMode(request.paymentMode()));
+        appendPaymentModeSignatureToken(
+                signature,
+                normalizeOrderPaymentMode(request.paymentMode()),
+                includeDefaultPaymentModeToken
+        );
         request.items().stream()
                 .sorted(orderRequestComparator())
                 .forEach(item -> signature.append('|')
@@ -516,6 +566,14 @@ public class SalesService {
     }
 
     private String buildSalesOrderSignature(SalesOrder order) {
+        return buildSalesOrderSignature(order, false);
+    }
+
+    private String buildSalesOrderSignatureIncludingDefaultPaymentMode(SalesOrder order) {
+        return buildSalesOrderSignature(order, true);
+    }
+
+    private String buildSalesOrderSignature(SalesOrder order, boolean includeDefaultPaymentModeToken) {
         StringBuilder signature = new StringBuilder();
         signature.append(order.getDealer() != null ? order.getDealer().getId() : "null")
                 .append('|').append(amountToken(order.getTotalAmount()))
@@ -524,7 +582,11 @@ public class SalesService {
                 .append('|').append(order.isGstInclusive())
                 .append('|').append(amountToken(order.getGstRate()))
                 .append('|').append(normalizeText(order.getNotes()));
-        appendPaymentModeSignatureToken(signature, DEFAULT_ORDER_PAYMENT_MODE);
+        appendPaymentModeSignatureToken(
+                signature,
+                DEFAULT_ORDER_PAYMENT_MODE,
+                includeDefaultPaymentModeToken
+        );
         order.getItems().stream()
                 .sorted(orderItemComparator())
                 .forEach(item -> signature.append('|')
@@ -1275,12 +1337,29 @@ public class SalesService {
         return normalized;
     }
 
+    private String resolveLegacyDefaultPaymentIdempotencyKey(SalesOrderRequest request, String canonicalIdempotencyKey) {
+        if (StringUtils.hasText(request.idempotencyKey())) {
+            return null;
+        }
+        String normalizedPaymentMode = normalizeOrderPaymentMode(request.paymentMode());
+        if (!DEFAULT_ORDER_PAYMENT_MODE.equals(normalizedPaymentMode)) {
+            return null;
+        }
+        String legacyDefaultPaymentIdempotencyKey = request.resolveIdempotencyKeyIncludingDefaultPaymentMode();
+        if (legacyDefaultPaymentIdempotencyKey.equals(canonicalIdempotencyKey)) {
+            return null;
+        }
+        return legacyDefaultPaymentIdempotencyKey;
+    }
+
     private boolean requiresCreditLimitCheck(String paymentMode) {
         return CREDIT_EXPOSURE_PAYMENT_MODES.contains(paymentMode);
     }
 
-    private void appendPaymentModeSignatureToken(StringBuilder signature, String normalizedPaymentMode) {
-        if (!DEFAULT_ORDER_PAYMENT_MODE.equals(normalizedPaymentMode)) {
+    private void appendPaymentModeSignatureToken(StringBuilder signature,
+                                                 String normalizedPaymentMode,
+                                                 boolean includeDefaultPaymentModeToken) {
+        if (includeDefaultPaymentModeToken || !DEFAULT_ORDER_PAYMENT_MODE.equals(normalizedPaymentMode)) {
             signature.append('|').append(normalizedPaymentMode);
         }
     }

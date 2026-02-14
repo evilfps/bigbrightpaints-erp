@@ -86,4 +86,15 @@ class SalesOrderRequestTest {
 
         assertThat(cash.resolveIdempotencyKey()).isNotEqualTo(defaultCredit.resolveIdempotencyKey());
     }
+
+    @Test
+    void resolveIdempotencyKeyIncludingDefaultPaymentMode_keepsTransitionalDefaultCreditShape() {
+        SalesOrderItemRequest item = new SalesOrderItemRequest("FG-1", "Item", new BigDecimal("2"), new BigDecimal("10"), null);
+        SalesOrderRequest request = new SalesOrderRequest(7L, new BigDecimal("100"), "INR", null, List.of(item),
+                "NONE", BigDecimal.ZERO, false, null, "CREDIT");
+
+        String transitionalPayload = "7|100|INR|CREDIT|FG-1:2:10";
+        assertThat(request.resolveIdempotencyKeyIncludingDefaultPaymentMode())
+                .isEqualTo(DigestUtils.sha256Hex(transitionalPayload));
+    }
 }

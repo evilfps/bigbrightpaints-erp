@@ -47,12 +47,23 @@ public record SalesOrderRequest(
         if (idempotencyKey != null && !idempotencyKey.isBlank()) {
             return idempotencyKey.trim();
         }
+        return resolveDerivedIdempotencyKey(false);
+    }
+
+    public String resolveIdempotencyKeyIncludingDefaultPaymentMode() {
+        if (idempotencyKey != null && !idempotencyKey.isBlank()) {
+            return idempotencyKey.trim();
+        }
+        return resolveDerivedIdempotencyKey(true);
+    }
+
+    private String resolveDerivedIdempotencyKey(boolean includeDefaultPaymentModeSegment) {
         StringBuilder sb = new StringBuilder();
         String normalizedPaymentMode = normalizedPaymentMode();
         sb.append(dealerId == null ? "null" : dealerId)
                 .append('|').append(totalAmount)
                 .append('|').append(currency == null ? "" : currency.trim().toUpperCase(Locale.ROOT));
-        if (!DEFAULT_PAYMENT_MODE.equals(normalizedPaymentMode)) {
+        if (includeDefaultPaymentModeSegment || !DEFAULT_PAYMENT_MODE.equals(normalizedPaymentMode)) {
             sb.append('|').append(normalizedPaymentMode);
         }
         for (SalesOrderItemRequest item : items) {
