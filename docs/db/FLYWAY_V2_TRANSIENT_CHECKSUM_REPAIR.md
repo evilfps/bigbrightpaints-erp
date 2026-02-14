@@ -7,10 +7,11 @@
 
 ## Guard script
 - Script: `scripts/guard_flyway_v2_transient_checksum.sh`
-- Purpose: detect a likely transient `V12` signature before migration.
+- Purpose: detect transient `V12` signature and post-`V13` non-canonical index shape.
 - Exit codes:
-  - `0`: safe/canonical state (`V13` already applied or canonical pre-`V13` `V12`).
-  - `2`: transient signature detected; repair is required before migrate.
+  - `0`: safe/canonical state.
+  - `2`: transient/non-canonical pre-`V13` signature detected; repair+migrate required.
+  - `3`: `V13` present but normalized index shape is non-canonical; index rebuild required.
   - `1`: execution/config error.
 
 ## Detection workflow
@@ -20,6 +21,7 @@
 bash scripts/guard_flyway_v2_transient_checksum.sh <db_name>
 ```
 3. If exit code is `2`, continue with repair workflow below.
+4. If exit code is `3`, run post-`V13` index rebuild workflow below.
 
 ## Repair workflow (v2 chain)
 1. Repair checksums in v2 history table:
@@ -28,6 +30,7 @@ mvn -B -ntp -f erp-domain/pom.xml org.flywaydb:flyway-maven-plugin:repair \
   -Dflyway.url=jdbc:postgresql://$PGHOST:$PGPORT/<db_name> \
   -Dflyway.user=$PGUSER \
   -Dflyway.password=$PGPASSWORD \
+  -Dflyway.defaultSchema=${FLYWAY_GUARD_SCHEMA:-public} \
   -Dflyway.locations=filesystem:$(pwd)/erp-domain/src/main/resources/db/migration_v2 \
   -Dflyway.table=flyway_schema_history_v2
 ```
@@ -37,10 +40,22 @@ mvn -B -ntp -f erp-domain/pom.xml org.flywaydb:flyway-maven-plugin:migrate \
   -Dflyway.url=jdbc:postgresql://$PGHOST:$PGPORT/<db_name> \
   -Dflyway.user=$PGUSER \
   -Dflyway.password=$PGPASSWORD \
+  -Dflyway.defaultSchema=${FLYWAY_GUARD_SCHEMA:-public} \
   -Dflyway.locations=filesystem:$(pwd)/erp-domain/src/main/resources/db/migration_v2 \
   -Dflyway.table=flyway_schema_history_v2
 ```
 3. Re-run guard script and confirm exit code `0`.
+
+## Post-V13 index rebuild workflow (exit code 3)
+Run during a maintenance window:
+```sql
+DROP INDEX CONCURRENTLY IF EXISTS public.idx_invoices_company_order_status_norm;
+CREATE INDEX CONCURRENTLY idx_invoices_company_order_status_norm
+    ON public.invoices USING btree (company_id, sales_order_id, upper(trim(status)))
+    WHERE (sales_order_id IS NOT NULL AND status IS NOT NULL);
+DROP INDEX CONCURRENTLY IF EXISTS public.idx_invoices_company_order_status_null;
+```
+Re-run guard script and confirm exit code `0`.
 
 ## Notes
 - This is an operational recovery for transient checksum drift only.

@@ -34,12 +34,29 @@ fail() {
   exit 1
 }
 
+assert_identifier() {
+  local label="$1"
+  local value="$2"
+  [[ "$value" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || fail "$label must match ^[A-Za-z_][A-Za-z0-9_]*$: '$value'"
+}
+
+assert_numeric_token() {
+  local label="$1"
+  local value="$2"
+  [[ "$value" =~ ^[0-9]+$ ]] || fail "$label must be numeric: '$value'"
+}
+
 [[ -n "$DB_NAME" ]] || {
   usage >&2
   fail "database name is required"
 }
 
 command -v psql >/dev/null 2>&1 || fail "psql is required"
+
+assert_identifier "schema" "$SCHEMA_NAME"
+assert_identifier "history table" "$HISTORY_TABLE"
+assert_numeric_token "V12 version" "$V12_VERSION"
+assert_numeric_token "V13 version" "$V13_VERSION"
 
 export PGPASSWORD="$DB_PASSWORD"
 
@@ -61,17 +78,13 @@ if [[ "$table_exists" != "t" ]]; then
   exit 0
 fi
 
-v12_success_count="$(psql_query "SELECT count(*) FROM ${SCHEMA_NAME}.${HISTORY_TABLE} WHERE version='${V12_VERSION}' AND success;")"
-v13_success_count="$(psql_query "SELECT count(*) FROM ${SCHEMA_NAME}.${HISTORY_TABLE} WHERE version='${V13_VERSION}' AND success;")"
-v12_checksum="$(psql_query "SELECT checksum FROM ${SCHEMA_NAME}.${HISTORY_TABLE} WHERE version='${V12_VERSION}' AND success ORDER BY installed_rank DESC LIMIT 1;")"
+history_table_ref="\"${SCHEMA_NAME}\".\"${HISTORY_TABLE}\""
+v12_success_count="$(psql_query "SELECT count(*) FROM ${history_table_ref} WHERE version='${V12_VERSION}' AND success;")"
+v13_success_count="$(psql_query "SELECT count(*) FROM ${history_table_ref} WHERE version='${V13_VERSION}' AND success;")"
+v12_checksum="$(psql_query "SELECT checksum FROM ${history_table_ref} WHERE version='${V12_VERSION}' AND success ORDER BY installed_rank DESC LIMIT 1;")"
 
 if [[ "$v12_success_count" == "0" ]]; then
   echo "[guard_flyway_v2_transient_checksum] OK: v${V12_VERSION} not yet applied."
-  exit 0
-fi
-
-if [[ "$v13_success_count" != "0" ]]; then
-  echo "[guard_flyway_v2_transient_checksum] OK: v${V13_VERSION} already applied (converged)."
   exit 0
 fi
 
@@ -81,6 +94,24 @@ norm_index_predicate="$(psql_query "SELECT COALESCE(pg_get_expr(i.indpred, i.ind
 has_status_not_null_predicate="f"
 if [[ "$norm_index_predicate" == *"status IS NOT NULL"* ]]; then
   has_status_not_null_predicate="t"
+fi
+
+if [[ "$v13_success_count" != "0" ]]; then
+  if [[ "$null_index_exists" == "f" && "$has_status_not_null_predicate" == "t" ]]; then
+    echo "[guard_flyway_v2_transient_checksum] OK: v${V13_VERSION} applied and normalized index predicate is canonical."
+    exit 0
+  fi
+
+  echo "[guard_flyway_v2_transient_checksum] WARN: v${V13_VERSION} is applied but normalized index shape is non-canonical."
+  echo "[guard_flyway_v2_transient_checksum] INFO: null-index-present=${null_index_exists}, status-not-null-predicate=${has_status_not_null_predicate}"
+  echo "[guard_flyway_v2_transient_checksum] REMEDIATION:"
+  echo "  1) Rebuild idx_invoices_company_order_status_norm with canonical predicate."
+  echo "  2) Ensure idx_invoices_company_order_status_null is absent."
+  echo "  Example (run during maintenance window):"
+  echo "    DROP INDEX CONCURRENTLY IF EXISTS public.idx_invoices_company_order_status_norm;"
+  echo "    CREATE INDEX CONCURRENTLY idx_invoices_company_order_status_norm ON public.invoices USING btree (company_id, sales_order_id, upper(trim(status))) WHERE (sales_order_id IS NOT NULL AND status IS NOT NULL);"
+  echo "    DROP INDEX CONCURRENTLY IF EXISTS public.idx_invoices_company_order_status_null;"
+  exit 3
 fi
 
 if [[ "$null_index_exists" == "f" && "$has_status_not_null_predicate" == "f" ]]; then
@@ -94,10 +125,25 @@ if [[ "$null_index_exists" == "f" && "$has_status_not_null_predicate" == "f" ]];
   echo "    mvn -B -ntp -f ${ROOT_DIR}/erp-domain/pom.xml org.flywaydb:flyway-maven-plugin:repair \\"
   echo "      -Dflyway.url=jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME} \\"
   echo "      -Dflyway.user=${DB_USER} -Dflyway.password=<redacted> \\"
+  echo "      -Dflyway.defaultSchema=${SCHEMA_NAME} \\"
+  echo "      -Dflyway.locations=filesystem:${ROOT_DIR}/erp-domain/src/main/resources/db/migration_v2 \\"
+  echo "      -Dflyway.table=${HISTORY_TABLE}"
+  echo "    mvn -B -ntp -f ${ROOT_DIR}/erp-domain/pom.xml org.flywaydb:flyway-maven-plugin:migrate \\"
+  echo "      -Dflyway.url=jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME} \\"
+  echo "      -Dflyway.user=${DB_USER} -Dflyway.password=<redacted> \\"
+  echo "      -Dflyway.defaultSchema=${SCHEMA_NAME} \\"
   echo "      -Dflyway.locations=filesystem:${ROOT_DIR}/erp-domain/src/main/resources/db/migration_v2 \\"
   echo "      -Dflyway.table=${HISTORY_TABLE}"
   exit 2
 fi
 
-echo "[guard_flyway_v2_transient_checksum] OK: v${V12_VERSION} pre-convergence state is canonical (v${V13_VERSION} pending migrate)."
+if [[ "$null_index_exists" == "t" && "$has_status_not_null_predicate" == "t" ]]; then
+  echo "[guard_flyway_v2_transient_checksum] OK: v${V12_VERSION} pre-convergence state is canonical (v${V13_VERSION} pending migrate)."
+  echo "[guard_flyway_v2_transient_checksum] INFO: v${V12_VERSION} checksum in history table: ${v12_checksum:-<null>}"
+  exit 0
+fi
+
+echo "[guard_flyway_v2_transient_checksum] WARN: v${V12_VERSION} state is non-canonical and does not match known transient signature."
+echo "[guard_flyway_v2_transient_checksum] INFO: null-index-present=${null_index_exists}, status-not-null-predicate=${has_status_not_null_predicate}"
 echo "[guard_flyway_v2_transient_checksum] INFO: v${V12_VERSION} checksum in history table: ${v12_checksum:-<null>}"
+exit 2
