@@ -7450,3 +7450,159 @@ Queue Rotation (Auto-Replenish)
 - [ready] M14-S48 costing-selection enum drift guard (new/legacy costing tokens must remain centrally mapped via `CostingMethodUtils` with no per-module fallback forks)
 - [ready] M14-S49 catalog-import retry-winner ledger/journal silence guard (stale-retry loser payloads must never produce duplicate accounting side effects while winner replay remains idempotent)
 - [ready] M11-S7 accounting-portal scope invariant lock (HR, PURCHASING, INVENTORY, REPORTS remain under Accounting portal unless replacement portal map + endpoint docs are updated atomically)
+
+Post-Commit Review Evidence
+- Commit reviewed: `83253af4`
+- `codex review --commit 83253af4`:
+  - exit status: `0`.
+  - final verdict: docs-only `asyncloop` append; no actionable defects introduced.
+- Review subagent `019c601c-a033-7561-8625-ed1342fb797b`:
+  - findings:
+    - high: none.
+    - medium: none.
+    - low: audit/process-confidence notes only.
+  - disposition: accepted as low advisory.
+
+Completed Slice (Committed)
+- 2026-02-15: `c4ff51f0`
+  - fix(ci): add shorthand `REFERENCES <table>` coverage to referential guard.
+  - M15-S30 initial implementation:
+    - extended `scripts/guard_flyway_v2_referential_contract.sh` to parse/validate shorthand FK references against compatible PK targets.
+    - introduced `scripts/guard_flyway_v2_referential_contract_fixture_matrix.sh` covering shorthand single/composite pass/fail scenarios.
+    - wired referential fixture matrix into `scripts/verify_local.sh` and `scripts/gate_release.sh`.
+    - updated `scripts/guard_flyway_guard_contract.sh` callsite assertions/stubs for new fixture wiring.
+  - Verification:
+    - `bash -n scripts/guard_flyway_v2_referential_contract.sh` -> pass.
+    - `bash -n scripts/guard_flyway_v2_referential_contract_fixture_matrix.sh` -> pass.
+    - `bash scripts/guard_flyway_v2_referential_contract.sh` -> pass.
+    - `bash scripts/guard_flyway_v2_referential_contract_fixture_matrix.sh` -> pass.
+    - `bash scripts/guard_flyway_guard_contract.sh` -> pass.
+
+Post-Commit Review Evidence
+- Commit reviewed: `c4ff51f0`
+- `codex review --commit c4ff51f0`:
+  - exit status: `0`.
+  - findings: no discrete regressions reported in final verdict.
+- Review subagent `019c6021-d272-7c80-8414-593cd1a4990a`:
+  - findings:
+    - medium: shorthand validation could retain stale PK shape after PK drop/redefinition.
+    - low: fixture matrix missing PK redefinition/drop scenario.
+  - disposition: medium fixed immediately in `843db31a`; low addressed with fixture expansion.
+
+Follow-up Hardening (Committed)
+- 2026-02-15: `843db31a`
+  - fix(ci): track dropped PK constraints in shorthand FK checks.
+  - changes:
+    - introduced named key-constraint tracking + drop-handling path in referential guard.
+    - added PK redefinition fixture ensuring shorthand checks use current PK shape.
+  - Verification:
+    - `bash scripts/guard_flyway_v2_referential_contract.sh` -> pass.
+    - `bash scripts/guard_flyway_v2_referential_contract_fixture_matrix.sh` -> pass.
+    - `bash scripts/guard_flyway_guard_contract.sh` -> pass.
+
+Post-Commit Review Evidence
+- Commit reviewed: `843db31a`
+- `codex review --commit 843db31a`:
+  - exit status: `0`.
+  - findings:
+    - P1: unknown `DROP CONSTRAINT IF EXISTS *_pkey` could wrongly clear PK metadata.
+    - P1: dropping one named key could remove shared tuple despite another active key contract.
+  - disposition: fixed immediately in `370570fb`.
+
+Follow-up Hardening (Committed)
+- 2026-02-15: `370570fb`
+  - fix(ci): align shorthand FK checks to current PK state.
+  - changes:
+    - added contract refcount tracking.
+    - removed risky `_pkey` heuristic fallback.
+    - inferred default `table_pkey` names for table-level PK constraints.
+  - Verification:
+    - `bash scripts/guard_flyway_v2_referential_contract.sh` -> pass.
+    - `bash scripts/guard_flyway_v2_referential_contract_fixture_matrix.sh` -> pass.
+    - `bash scripts/guard_flyway_guard_contract.sh` -> pass.
+
+Post-Commit Review Evidence
+- Commit reviewed: `370570fb`
+- `codex review --commit 370570fb`:
+  - exit status: `0`.
+  - findings:
+    - P2: implicit PK name not tracked for ALTER ADD PRIMARY KEY without explicit CONSTRAINT.
+    - P2: implicit PK name not tracked for column-level PRIMARY KEY forms.
+  - disposition: fixed immediately in `7898236f`.
+
+Follow-up Hardening (Committed)
+- 2026-02-15: `7898236f`
+  - fix(ci): infer implicit pkey names for DROP tracking.
+  - changes:
+    - infer `<table>_pkey` for ALTER ADD PRIMARY KEY without explicit name.
+    - infer `<table>_pkey` for column-level PRIMARY KEY.
+  - Verification:
+    - `bash scripts/guard_flyway_v2_referential_contract.sh` -> pass.
+    - `bash scripts/guard_flyway_v2_referential_contract_fixture_matrix.sh` -> pass.
+    - `bash scripts/guard_flyway_guard_contract.sh` -> pass.
+
+Post-Commit Review Evidence
+- Commit reviewed: `7898236f`
+- `codex review --commit 7898236f`:
+  - exit status: `0`.
+  - findings: no concrete introduced regression in final verdict.
+- Review subagent `019c602e-2c8f-79d2-b7d5-9a88d50ea241`:
+  - findings:
+    - medium: column-level PRIMARY KEY with explicit custom constraint name could be mis-tracked by inferred default name.
+  - disposition: fixed immediately in `6a9e21a7` + fixture.
+
+Follow-up Hardening (Committed)
+- 2026-02-15: `6a9e21a7`
+  - fix(ci): honor explicit column-level PK constraint names.
+  - changes:
+    - parse `CONSTRAINT <name> PRIMARY KEY` in column definitions and record actual name.
+    - added fixture proving `DROP CONSTRAINT IF EXISTS <table>_pkey` does not clear custom-named column-level PK metadata.
+  - Verification:
+    - `bash -n scripts/guard_flyway_v2_referential_contract.sh` -> pass.
+    - `bash scripts/guard_flyway_v2_referential_contract.sh` -> pass.
+    - `bash scripts/guard_flyway_v2_referential_contract_fixture_matrix.sh` -> pass.
+    - `bash scripts/guard_flyway_guard_contract.sh` -> pass.
+
+Post-Commit Review Evidence
+- Commit reviewed: `6a9e21a7`
+- `codex review --commit 6a9e21a7`:
+  - exit status: `0`.
+  - final verdict: explicit-name handling + fixture update are sound; no actionable regressions.
+- Review subagent `019c6033-055e-7ac1-8451-d53c8045960a`:
+  - findings:
+    - high: none.
+    - medium: none.
+    - low: none actionable.
+  - disposition: accepted.
+
+Completed Slice (Resolved)
+- M15-S30 referential-guard shorthand REFERENCES coverage (extend canary for PostgreSQL `REFERENCES <table>` shorthand with PK-column resolution and explicit negative fixtures)
+  - closure basis: `c4ff51f0` + `843db31a` + `370570fb` + `7898236f` + `6a9e21a7`.
+  - closure evidence:
+    - shorthand FK validation now resolves against current PK shape (including drop/redefinition paths), with deterministic fixture coverage for single/composite/named-PK edge cases.
+    - review chain converged to no open high/medium findings.
+
+Loop Update
+- 2026-02-15T13:01:07+05:30
+- tracked_now_ts: `2026-02-15T13:01:07+05:30`
+- tracked_elapsed: `83h 07m 15s`
+- active_in_progress: `M15-S8 payroll account default/bootstrap guard (SALARY-EXP missing account should fail with deterministic provisioning guidance/guard rails)`
+- continuity_recheck:
+  - ownership + referential parser chains now both fixture-backed and contract-wired in release/local preflight.
+  - next queue focus shifts to payroll default-account fail-safe guard.
+
+Queue Rotation (Auto-Replenish)
+- [completed] M15-S30 referential-guard shorthand REFERENCES coverage (extend canary for PostgreSQL `REFERENCES <table>` shorthand with PK-column resolution and explicit negative fixtures)
+- [in_progress] M15-S8 payroll account default/bootstrap guard (`SALARY-EXP` missing account should fail with deterministic provisioning guidance/guard rails)
+- [ready] M15-S14R2 dealer/admin pending-order parity recurring canary (scheduled rerun after next sales/accounting exposure logic touch)
+- [ready] M15-S9 sales/dealer accounting method-map docs refresh (internal + user-facing docs for cash/credit/split formulas, account mapping rules, idempotency headers, and pending-order credit exposure semantics)
+- [ready] M15-S10 cross-module idempotency contract unification matrix (standardize header semantics + helper parity across sales/production/accounting endpoint families)
+- [ready] M15-S11 recognized-revenue/pending-credit contract docs + endpoint parity matrix (internal and user-facing portal docs must match shipment gate + pending exposure behavior)
+- [ready] M15-S12 idempotency header contract convergence doc+runtime assert sweep (sales/production/accounting entrypoints must share canonical header semantics and error model)
+- [ready] M15-S15 pending-status normalization performance guard (evaluate/land Flyway V2-safe functional index or normalized-token strategy so aggregate pending-status predicates retain index-friendly plans under high order volume)
+- [ready] M15-S16 dealer-settlement replay e2e defense-in-depth matrix (optional end-to-end `settleDealerInvoices` replay assertion where adjustment debit lines coexist with split payments to further harden payment-account bounded remap behavior)
+- [ready] M15-S18 dispatch replay COGS reference payload parity guard (assert `postCogsJournal` reference/memo/line payload stability on replay anchors and prevent wrong-reference postings under override replay paths)
+- [ready] M15-S19 dispatch replay slip-number fallback + AR-overload guard matrix (cover `hasCogsJournalFor` alternate slip-number fallback and explicitly lock both `postSalesJournal` overload paths against duplicate replay posting)
+- [ready] M14-S48 costing-selection enum drift guard (new/legacy costing tokens must remain centrally mapped via `CostingMethodUtils` with no per-module fallback forks)
+- [ready] M14-S49 catalog-import retry-winner ledger/journal silence guard (stale-retry loser payloads must never produce duplicate accounting side effects while winner replay remains idempotent)
+- [ready] M11-S7 accounting-portal scope invariant lock (HR, PURCHASING, INVENTORY, REPORTS remain under Accounting portal unless replacement portal map + endpoint docs are updated atomically)
