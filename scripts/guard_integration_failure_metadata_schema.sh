@@ -63,7 +63,7 @@ for file in "${producer_files[@]}"; do
       }
 
       function has_integration_failure_token(text, pattern) {
-        pattern = "(^|[^A-Za-z0-9_])(AuditEvent[[:space:]]*\\.[[:space:]]*)?INTEGRATION_FAILURE([^A-Za-z0-9_]|$)"
+        pattern = "logFailure[[:space:]]*\\([[:space:]]*(AuditEvent[[:space:]]*\\.[[:space:]]*)?INTEGRATION_FAILURE([[:space:]]*[,)]|$)"
         return text ~ pattern
       }
 
