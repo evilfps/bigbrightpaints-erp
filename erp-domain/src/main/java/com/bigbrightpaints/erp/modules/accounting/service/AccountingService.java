@@ -2954,25 +2954,17 @@ public class AccountingService {
                     partnerType,
                     partnerId);
         }
-        if (partnerType == PartnerType.DEALER) {
-            if (entry.getDealer() == null || !Objects.equals(entry.getDealer().getId(), partnerId)) {
+        if (isJournalEntryPartnerMismatch(entry, partnerType, partnerId)) {
+            String mismatchSubject = partnerMismatchSubject(partnerType);
+            if ("partner type".equals(mismatchSubject)) {
                 throw replayConflictWithPartnerContext(
-                        "Idempotency key already used for another dealer",
+                        "Idempotency key already used for another partner type",
                         idempotencyKey,
                         partnerType,
                         partnerId);
             }
-        } else if (partnerType == PartnerType.SUPPLIER) {
-            if (entry.getSupplier() == null || !Objects.equals(entry.getSupplier().getId(), partnerId)) {
-                throw replayConflictWithPartnerContext(
-                        "Idempotency key already used for another supplier",
-                        idempotencyKey,
-                        partnerType,
-                        partnerId);
-            }
-        } else {
             throw replayConflictWithPartnerContext(
-                    "Idempotency key already used for another partner type",
+                    "Idempotency key already used for another " + mismatchSubject,
                     idempotencyKey,
                     partnerType,
                     partnerId);
@@ -3008,6 +3000,28 @@ public class AccountingService {
             exception.withDetail(IntegrationFailureMetadataSchema.KEY_PARTNER_ID, partnerId);
         }
         return exception;
+    }
+
+    private boolean isJournalEntryPartnerMismatch(JournalEntry entry,
+                                                  PartnerType partnerType,
+                                                  Long partnerId) {
+        if (partnerType == PartnerType.DEALER) {
+            return entry.getDealer() == null || !Objects.equals(entry.getDealer().getId(), partnerId);
+        }
+        if (partnerType == PartnerType.SUPPLIER) {
+            return entry.getSupplier() == null || !Objects.equals(entry.getSupplier().getId(), partnerId);
+        }
+        return true;
+    }
+
+    private String partnerMismatchSubject(PartnerType partnerType) {
+        if (partnerType == PartnerType.DEALER) {
+            return "dealer";
+        }
+        if (partnerType == PartnerType.SUPPLIER) {
+            return "supplier";
+        }
+        return "partner type";
     }
 
     private void validateCreditNoteIdempotency(String idempotencyKey,
@@ -4917,15 +4931,8 @@ public class AccountingService {
                                                   Long partnerId,
                                                   List<PartnerSettlementAllocation> existing,
                                                   List<SettlementAllocationRequest> allocations) {
-        boolean partnerMismatch = existing.stream().anyMatch(row -> {
-            if (partnerType == PartnerType.DEALER) {
-                return row.getDealer() == null || !Objects.equals(row.getDealer().getId(), partnerId);
-            }
-            if (partnerType == PartnerType.SUPPLIER) {
-                return row.getSupplier() == null || !Objects.equals(row.getSupplier().getId(), partnerId);
-            }
-            return true;
-        });
+        boolean partnerMismatch = existing.stream()
+                .anyMatch(row -> isSettlementAllocationPartnerMismatch(row, partnerType, partnerId));
         if (partnerMismatch) {
             throw replayConflictWithPartnerContext(
                     "Idempotency key already used for another partner",
@@ -4943,6 +4950,18 @@ public class AccountingService {
                     partnerType,
                     partnerId);
         }
+    }
+
+    private boolean isSettlementAllocationPartnerMismatch(PartnerSettlementAllocation row,
+                                                          PartnerType partnerType,
+                                                          Long partnerId) {
+        if (partnerType == PartnerType.DEALER) {
+            return row.getDealer() == null || !Objects.equals(row.getDealer().getId(), partnerId);
+        }
+        if (partnerType == PartnerType.SUPPLIER) {
+            return row.getSupplier() == null || !Objects.equals(row.getSupplier().getId(), partnerId);
+        }
+        return true;
     }
 
     private Map<String, Integer> allocationSignatureCountsFromRows(List<PartnerSettlementAllocation> allocations) {
