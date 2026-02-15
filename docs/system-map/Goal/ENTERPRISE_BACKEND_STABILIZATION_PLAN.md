@@ -8,7 +8,7 @@ This is the canonical control-plane entrypoint for making the backend enterprise
 It does not replace detailed technical docs. It defines execution order, hard gates, and completion evidence.
 
 ## Relationship to Existing Plans
-- `docs/ERP_STAGING_MASTER_PLAN.md` is the final stability-first staging plan and priority source for scope decisions.
+- `docs/system-map/Goal/ERP_STAGING_MASTER_PLAN.md` is the final stability-first staging plan and priority source for scope decisions.
 - This file is the orchestration layer for planning and execution priority.
 - `docs/CODE-RED/stabilization-plan.md` and `docs/CODE-RED/plan-v2.md` remain the detailed technical backlog and implementation history.
 - If conflicts appear:
@@ -47,8 +47,8 @@ It does not replace detailed technical docs. It defines execution order, hard ga
 
 ## Canonical Sources
 - Live execution ledger: `asyncloop`
-- Final scope plan: `docs/ERP_STAGING_MASTER_PLAN.md`
-- Deep implementation blueprint: `docs/ERP_ENTERPRISE_DEPLOYMENT_DEEP_SPEC.md`
+- Final scope plan: `docs/system-map/Goal/ERP_STAGING_MASTER_PLAN.md`
+- Deep implementation blueprint: `docs/system-map/Goal/ERP_ENTERPRISE_DEPLOYMENT_DEEP_SPEC.md`
 - Release gate and blocker truth:
   - `docs/CODE-RED/P0_DEPLOY_BLOCKERS.md`
   - `docs/CODE-RED/GO_NO_GO_CHECKLIST.md`
