@@ -1,5 +1,6 @@
 package com.bigbrightpaints.erp.modules.accounting.controller;
 
+import com.bigbrightpaints.erp.core.audit.IntegrationFailureMetadataSchema;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.shared.dto.ApiResponse;
@@ -16,7 +17,7 @@ class AccountingControllerExceptionHandlerTest {
     @Test
     void handleApplicationException_returnsStructuredReasonPayload() {
         AccountingController controller = new AccountingController(
-                null, null, null, null, null, null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null, null, null, null, null, null);
         ApplicationException ex = new ApplicationException(
                 ErrorCode.VALIDATION_INVALID_REFERENCE,
                 "Supplier payable account AP-SKEINA requires a supplier context")
@@ -46,7 +47,7 @@ class AccountingControllerExceptionHandlerTest {
     @Test
     void handleApplicationException_keepsBadRequestContractWithStructuredPayload() {
         AccountingController controller = new AccountingController(
-                null, null, null, null, null, null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null, null, null, null, null, null);
         ApplicationException ex = new ApplicationException(
                 ErrorCode.BUSINESS_INVALID_STATE,
                 "Payroll must be posted before payment");
@@ -63,5 +64,35 @@ class AccountingControllerExceptionHandlerTest {
         assertThat(body.data()).containsEntry("reason", "Payroll must be posted before payment");
         assertThat(body.data()).containsEntry("path", "/api/v1/accounting/payroll/payments");
         assertThat(body.data()).containsKey("traceId");
+    }
+
+    @Test
+    void handleApplicationException_preservesPartnerReplayDetailsForSupplierPath() {
+        AccountingController controller = new AccountingController(
+                null, null, null, null, null, null, null, null, null, null, null, null, null, null);
+        ApplicationException ex = new ApplicationException(
+                ErrorCode.CONCURRENCY_CONFLICT,
+                "Idempotency key already used for another supplier")
+                .withDetail(IntegrationFailureMetadataSchema.KEY_IDEMPOTENCY_KEY, "IDEMP-AP-RACE-PARTNER")
+                .withDetail(IntegrationFailureMetadataSchema.KEY_PARTNER_TYPE, "SUPPLIER")
+                .withDetail(IntegrationFailureMetadataSchema.KEY_PARTNER_ID, 1L);
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setRequestURI("/api/v1/accounting/settlements/suppliers");
+
+        ResponseEntity<ApiResponse<Map<String, Object>>> response =
+                controller.handleApplicationException(ex, request);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        ApiResponse<Map<String, Object>> body = response.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.message()).isEqualTo("Idempotency key already used for another supplier");
+        assertThat(body.data()).containsEntry("reason", "Idempotency key already used for another supplier");
+        assertThat(body.data()).containsEntry("path", "/api/v1/accounting/settlements/suppliers");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> details = (Map<String, Object>) body.data().get("details");
+        assertThat(details)
+                .containsEntry(IntegrationFailureMetadataSchema.KEY_IDEMPOTENCY_KEY, "IDEMP-AP-RACE-PARTNER")
+                .containsEntry(IntegrationFailureMetadataSchema.KEY_PARTNER_TYPE, "SUPPLIER")
+                .containsEntry(IntegrationFailureMetadataSchema.KEY_PARTNER_ID, 1L);
     }
 }
