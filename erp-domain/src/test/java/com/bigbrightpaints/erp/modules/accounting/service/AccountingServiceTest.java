@@ -6868,6 +6868,16 @@ class AccountingServiceTest {
                 .hasMessageContaining("must be an ASSET account");
     }
 
+    @Test
+    void partnerMismatchMessage_fallbackUsesPartnerTypeWording() {
+        String message = ReflectionTestUtils.invokeMethod(
+                accountingService,
+                "partnerMismatchMessage",
+                (com.bigbrightpaints.erp.modules.accounting.domain.PartnerType) null);
+
+        assertThat(message).isEqualTo("Idempotency key already used for another partner type");
+    }
+
     private JournalLine journalLine(JournalEntry entry,
                                     Account account,
                                     String description,
