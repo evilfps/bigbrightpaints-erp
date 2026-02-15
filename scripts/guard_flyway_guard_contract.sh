@@ -63,6 +63,8 @@ for stub in \
   schema_drift_scan.sh \
   flyway_overlap_scan.sh \
   guard_orchestrator_correlation_contract.sh \
+  guard_integration_failure_metadata_schema.sh \
+  guard_integration_failure_metadata_schema_fixture_matrix.sh \
   guard_accounting_portal_scope_contract.sh \
   guard_audit_trail_ownership_contract.sh \
   guard_payroll_account_bootstrap_contract.sh \
@@ -125,7 +127,9 @@ run_case() {
   set +e
   (
     cd "$TMP_ROOT"
-    PATH="$TMP_ROOT/bin:$PATH" bash -lc "$cmd"
+    env -u PGHOST -u PGPORT -u PGUSER -u PGPASSWORD -u PGDATABASE \
+      PATH="$TMP_ROOT/bin:$PATH" \
+      bash -lc "$cmd"
   ) >"$out_file" 2>&1
   status=$?
   set -e
