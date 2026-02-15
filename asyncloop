@@ -9148,3 +9148,21 @@ Review Queue Update
 Loop Update
 - tracked_now_ts: `2026-02-16T02:47:10+05:30`
 - active_in_progress: `M19-S5 review queue drain + M19-S7 artifact pointer normalization`
+
+[2026-02-16] M19-S7 async-loop artifact/vocabulary pointer normalization (docs/system-map)
+- Completed Slice (Committed): canonical vocabulary lock for replay partner wording
+  - Commit `bce74ed7`: updated `docs/system-map/CANONICAL_VOCABULARY.md`
+  - Added explicit cross-boundary contract:
+    - reason wording is role-specific (`dealer` / `supplier` / fallback `partner type`)
+    - details keys remain canonical (`idempotencyKey`, `partnerType`, `partnerId`)
+    - `partnerType` detail value semantics (`DEALER`/`SUPPLIER`/`"null"`)
+- Verification:
+  - `bash ci/lint-knowledgebase.sh` (PASS)
+
+Loop Update
+- tracked_now_ts: `2026-02-16T02:48:25+05:30`
+- active_in_progress: `M19-S5 review queue drain (blocked by agent cap) + next code hardening slice`
+- review_queue_pending:
+  - `2962800b`
+  - `50d78915`
+  - `6c51730e`
