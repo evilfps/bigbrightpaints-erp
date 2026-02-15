@@ -9337,3 +9337,31 @@ Review Queue Update
 Loop Update
 - tracked_now_ts: `2026-02-16T02:59:30+05:30`
 - active_in_progress: `M19-S5 review queue drain (blocked) + continued idempotency/replay contract hardening`
+
+[2026-02-16] M19-S17 production dedupe: accounting controller idempotency resolution helper
+- Completed Slice (Committed): dedupe repeated idempotency-resolution logic in `AccountingController`
+  - Commit `f271fb5e`: introduced `resolveHeaderOnlyIdempotencyKey(...)` and routed 4 endpoint-specific `applyIdempotencyKey(...)` methods through it.
+  - Scope:
+    - dealer receipt
+    - dealer hybrid receipt
+    - supplier payment
+    - supplier settlement
+  - Behavior preserved:
+    - keep body key when present
+    - resolve from primary/legacy headers when body key absent/blank
+    - no mutation when no resolved key
+
+- Companion test hardening already on head:
+  - Commit `18c3825d` ensures blank-body fallback parity across all four paths.
+
+- Verification:
+  - `cd erp-domain && mvn -B -ntp -Dtest=AccountingControllerIdempotencyHeaderParityTest,AccountingControllerActivityContractTest test` (PASS: 19/19)
+
+Review Queue Update
+- subagent dispatch for `f271fb5e` blocked by active-agent cap (max 6); queued.
+- pending code-review queue:
+  - `2962800b`, `50d78915`, `6c51730e`, `2b2fb143`, `7451e7cf`, `a82746af`, `3358cb2a`, `18c3825d`, `f271fb5e`
+
+Loop Update
+- tracked_now_ts: `2026-02-16T03:01:00+05:30`
+- active_in_progress: `M19-S5 review queue drain (blocked) + controller dedupe/hardening continuation`
