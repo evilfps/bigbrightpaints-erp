@@ -3623,6 +3623,108 @@ class AccountingServiceTest {
     }
 
     @Test
+    void settleDealerInvoices_nonLeaderReplayPartnerMismatchIncludesPartnerDetails() {
+        Dealer dealer = new Dealer();
+        dealer.setName("Dealer");
+        ReflectionTestUtils.setField(dealer, "id", 1L);
+
+        Dealer otherDealer = new Dealer();
+        otherDealer.setName("Other Dealer");
+        ReflectionTestUtils.setField(otherDealer, "id", 2L);
+
+        Account receivable = new Account();
+        receivable.setCompany(company);
+        receivable.setCode("AR-RACE");
+        receivable.setType(AccountType.ASSET);
+        ReflectionTestUtils.setField(receivable, "id", 10L);
+        dealer.setReceivableAccount(receivable);
+
+        Account cash = new Account();
+        cash.setCompany(company);
+        cash.setCode("CASH-RACE");
+        cash.setType(AccountType.ASSET);
+        ReflectionTestUtils.setField(cash, "id", 20L);
+
+        var invoice = new com.bigbrightpaints.erp.modules.invoice.domain.Invoice();
+        invoice.setCompany(company);
+        invoice.setDealer(dealer);
+        invoice.setCurrency("INR");
+        invoice.setOutstandingAmount(new BigDecimal("1000.00"));
+        invoice.setTotalAmount(new BigDecimal("1000.00"));
+        ReflectionTestUtils.setField(invoice, "id", 5L);
+
+        JournalEntry existingEntry = new JournalEntry();
+        ReflectionTestUtils.setField(existingEntry, "id", 993L);
+        existingEntry.setDealer(otherDealer);
+        existingEntry.setReferenceNumber("DR-SETTLE-RACE-PARTNER-1");
+
+        com.bigbrightpaints.erp.modules.accounting.domain.PartnerSettlementAllocation existingRow =
+                new com.bigbrightpaints.erp.modules.accounting.domain.PartnerSettlementAllocation();
+        existingRow.setCompany(company);
+        existingRow.setPartnerType(com.bigbrightpaints.erp.modules.accounting.domain.PartnerType.DEALER);
+        existingRow.setDealer(dealer);
+        existingRow.setInvoice(invoice);
+        existingRow.setJournalEntry(existingEntry);
+        existingRow.setSettlementDate(LocalDate.of(2024, 4, 9));
+        existingRow.setAllocationAmount(new BigDecimal("100.00"));
+        existingRow.setDiscountAmount(BigDecimal.ZERO);
+        existingRow.setWriteOffAmount(BigDecimal.ZERO);
+        existingRow.setFxDifferenceAmount(BigDecimal.ZERO);
+        existingRow.setIdempotencyKey("IDEMP-DR-RACE-PARTNER");
+
+        JournalReferenceMapping mapping = new JournalReferenceMapping();
+        mapping.setCompany(company);
+        mapping.setLegacyReference("idemp-dr-race-partner");
+        mapping.setCanonicalReference("DR-SETTLE-RACE-PARTNER-1");
+        mapping.setEntityType("DEALER_SETTLEMENT");
+        mapping.setEntityId(null);
+
+        when(dealerRepository.lockByCompanyAndId(eq(company), eq(1L))).thenReturn(Optional.of(dealer));
+        when(companyEntityLookup.requireAccount(eq(company), eq(20L))).thenReturn(cash);
+        when(journalReferenceMappingRepository.findAllByCompanyAndLegacyReferenceIgnoreCase(eq(company), eq("idemp-dr-race-partner")))
+                .thenReturn(List.of(mapping));
+        when(journalReferenceResolver.findExistingEntry(eq(company), eq("DR-SETTLE-RACE-PARTNER-1")))
+                .thenReturn(Optional.of(existingEntry));
+        when(settlementAllocationRepository.findByCompanyAndIdempotencyKeyIgnoreCaseOrderByCreatedAtAscIdAsc(
+                eq(company), eq("IDEMP-DR-RACE-PARTNER")))
+                .thenReturn(List.of(existingRow));
+
+        DealerSettlementRequest request = new DealerSettlementRequest(
+                1L,
+                20L,
+                null,
+                null,
+                null,
+                null,
+                LocalDate.of(2024, 4, 9),
+                "DR-SETTLE-RACE-PARTNER-1",
+                "Dealer settlement replay partner mismatch",
+                "IDEMP-DR-RACE-PARTNER",
+                Boolean.FALSE,
+                List.of(new SettlementAllocationRequest(
+                        5L,
+                        null,
+                        new BigDecimal("100.00"),
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        null
+                )),
+                null
+        );
+
+        assertThatThrownBy(() -> accountingService.settleDealerInvoices(request))
+                .isInstanceOfSatisfying(ApplicationException.class, ex -> {
+                    assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.CONCURRENCY_CONFLICT);
+                    assertThat(ex.getDetails())
+                            .containsEntry(IntegrationFailureMetadataSchema.KEY_IDEMPOTENCY_KEY, "IDEMP-DR-RACE-PARTNER")
+                            .containsEntry(IntegrationFailureMetadataSchema.KEY_PARTNER_TYPE, "DEALER")
+                            .containsEntry(IntegrationFailureMetadataSchema.KEY_PARTNER_ID, 1L);
+                })
+                .hasMessageContaining("another dealer");
+    }
+
+    @Test
     void settleDealerInvoices_replayPayloadMismatchWinsOverNetCashPrevalidation() {
         Dealer dealer = new Dealer();
         dealer.setName("Replay Dealer");
@@ -6567,6 +6669,98 @@ class AccountingServiceTest {
                             .containsEntry(IntegrationFailureMetadataSchema.KEY_PARTNER_ID, 1L);
                 })
                 .hasMessageContaining("Supplier settlement idempotency key is reserved but allocation not found");
+    }
+
+    @Test
+    void settleSupplierInvoices_nonLeaderReplayPartnerMismatchIncludesPartnerDetails() {
+        Supplier supplier = new Supplier();
+        supplier.setName("Supplier");
+        ReflectionTestUtils.setField(supplier, "id", 1L);
+
+        Supplier otherSupplier = new Supplier();
+        otherSupplier.setName("Other Supplier");
+        ReflectionTestUtils.setField(otherSupplier, "id", 2L);
+
+        Account payable = new Account();
+        payable.setCompany(company);
+        payable.setCode("AP-RACE");
+        payable.setType(AccountType.LIABILITY);
+        ReflectionTestUtils.setField(payable, "id", 10L);
+        supplier.setPayableAccount(payable);
+
+        Account cash = new Account();
+        cash.setCompany(company);
+        cash.setCode("CASH-RACE");
+        cash.setType(AccountType.ASSET);
+        ReflectionTestUtils.setField(cash, "id", 20L);
+
+        JournalEntry existingEntry = new JournalEntry();
+        ReflectionTestUtils.setField(existingEntry, "id", 994L);
+        existingEntry.setSupplier(otherSupplier);
+        existingEntry.setReferenceNumber("SUP-SETTLE-RACE-PARTNER-1");
+
+        com.bigbrightpaints.erp.modules.accounting.domain.PartnerSettlementAllocation existingRow =
+                new com.bigbrightpaints.erp.modules.accounting.domain.PartnerSettlementAllocation();
+        existingRow.setCompany(company);
+        existingRow.setPartnerType(com.bigbrightpaints.erp.modules.accounting.domain.PartnerType.SUPPLIER);
+        existingRow.setSupplier(supplier);
+        existingRow.setJournalEntry(existingEntry);
+        existingRow.setSettlementDate(LocalDate.of(2024, 4, 9));
+        existingRow.setAllocationAmount(new BigDecimal("100.00"));
+        existingRow.setDiscountAmount(BigDecimal.ZERO);
+        existingRow.setWriteOffAmount(BigDecimal.ZERO);
+        existingRow.setFxDifferenceAmount(BigDecimal.ZERO);
+        existingRow.setIdempotencyKey("IDEMP-AP-RACE-PARTNER");
+
+        JournalReferenceMapping mapping = new JournalReferenceMapping();
+        mapping.setCompany(company);
+        mapping.setLegacyReference("idemp-ap-race-partner");
+        mapping.setCanonicalReference("SUP-SETTLE-RACE-PARTNER-1");
+        mapping.setEntityType("SUPPLIER_SETTLEMENT");
+        mapping.setEntityId(null);
+
+        when(supplierRepository.lockByCompanyAndId(eq(company), eq(1L))).thenReturn(Optional.of(supplier));
+        when(companyEntityLookup.requireAccount(eq(company), eq(20L))).thenReturn(cash);
+        when(journalReferenceMappingRepository.findAllByCompanyAndLegacyReferenceIgnoreCase(eq(company), eq("idemp-ap-race-partner")))
+                .thenReturn(List.of(mapping));
+        when(journalReferenceResolver.findExistingEntry(eq(company), eq("SUP-SETTLE-RACE-PARTNER-1")))
+                .thenReturn(Optional.of(existingEntry));
+        when(settlementAllocationRepository.findByCompanyAndIdempotencyKeyIgnoreCaseOrderByCreatedAtAscIdAsc(
+                eq(company), eq("IDEMP-AP-RACE-PARTNER")))
+                .thenReturn(List.of(existingRow));
+
+        SupplierSettlementRequest request = new SupplierSettlementRequest(
+                1L,
+                20L,
+                null,
+                null,
+                null,
+                null,
+                LocalDate.of(2024, 4, 9),
+                "SUP-SETTLE-RACE-PARTNER-1",
+                "Supplier settlement replay partner mismatch",
+                "IDEMP-AP-RACE-PARTNER",
+                Boolean.FALSE,
+                List.of(new SettlementAllocationRequest(
+                        null,
+                        null,
+                        new BigDecimal("100.00"),
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        null
+                ))
+        );
+
+        assertThatThrownBy(() -> accountingService.settleSupplierInvoices(request))
+                .isInstanceOfSatisfying(ApplicationException.class, ex -> {
+                    assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.CONCURRENCY_CONFLICT);
+                    assertThat(ex.getDetails())
+                            .containsEntry(IntegrationFailureMetadataSchema.KEY_IDEMPOTENCY_KEY, "IDEMP-AP-RACE-PARTNER")
+                            .containsEntry(IntegrationFailureMetadataSchema.KEY_PARTNER_TYPE, "SUPPLIER")
+                            .containsEntry(IntegrationFailureMetadataSchema.KEY_PARTNER_ID, 1L);
+                })
+                .hasMessageContaining("another supplier");
     }
 
     @Test
