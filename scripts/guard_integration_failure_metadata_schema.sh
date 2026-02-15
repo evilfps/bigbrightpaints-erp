@@ -7,7 +7,6 @@ REMEDIATION_COMMAND="bash scripts/guard_integration_failure_metadata_schema.sh"
 PRODUCER_PATTERN='logFailure\(AuditEvent\.INTEGRATION_FAILURE'
 SCHEMA_PATTERN='IntegrationFailureMetadataSchema\.applyRequiredFields\('
 MANUAL_REQUIRED_KEY_PATTERN='put\("failureCode"|put\("errorCategory"|put\("alertRoutingVersion"|put\("alertRoute"'
-SCHEMA_LOOKBACK_LINES=120
 
 fail() {
   echo "[guard_integration_failure_metadata_schema] ERROR: $1" >&2
@@ -26,14 +25,26 @@ for file in "${producer_files[@]}"; do
     fail "producer $file still writes required metadata keys manually; use IntegrationFailureMetadataSchema only"
   fi
 
+  mapfile -t helper_lines < <(rg -n "$SCHEMA_PATTERN" "$file" | cut -d: -f1)
+  [[ "${#helper_lines[@]}" -gt 0 ]] || fail "producer $file does not call IntegrationFailureMetadataSchema.applyRequiredFields"
+
   mapfile -t log_lines < <(rg -n "$PRODUCER_PATTERN" "$file" | cut -d: -f1)
   [[ "${#log_lines[@]}" -gt 0 ]] || fail "producer pattern matched file scan but no log lines resolved for $file"
 
+  previous_log_line=0
   for log_line in "${log_lines[@]}"; do
-    start_line=$((log_line > SCHEMA_LOOKBACK_LINES ? log_line - SCHEMA_LOOKBACK_LINES : 1))
-    if ! sed -n "${start_line},${log_line}p" "$file" | rg -q "$SCHEMA_PATTERN"; then
-      fail "producer $file has INTEGRATION_FAILURE log at line $log_line without nearby schema helper"
+    has_schema_in_segment=false
+    for helper_line in "${helper_lines[@]}"; do
+      if (( helper_line > previous_log_line && helper_line <= log_line )); then
+        has_schema_in_segment=true
+        break
+      fi
+    done
+
+    if [[ "$has_schema_in_segment" != true ]]; then
+      fail "producer $file has INTEGRATION_FAILURE log at line $log_line without schema helper in the same log segment"
     fi
+    previous_log_line=$log_line
   done
 done
 
