@@ -24,24 +24,52 @@ processed_producers=0
 for file in "${producer_files[@]}"; do
   mapfile -t log_lines < <(
     awk '
-      function paren_delta(input, opens, closes, tmp) {
-        tmp = input
-        gsub(/"([^"\\]|\\.)*"/, "", tmp)
-        sub(/\/\/.*/, "", tmp)
+      function sanitize_line(raw, cleaned, block_start, block_tail, block_end) {
+        cleaned = raw
+
+        if (in_block_comment) {
+          block_end = index(cleaned, "*/")
+          if (block_end == 0) {
+            return ""
+          }
+          cleaned = substr(cleaned, block_end + 2)
+          in_block_comment = 0
+        }
+
+        block_start = index(cleaned, "/*")
+        while (block_start > 0) {
+          block_tail = substr(cleaned, block_start + 2)
+          block_end = index(block_tail, "*/")
+          if (block_end == 0) {
+            cleaned = substr(cleaned, 1, block_start - 1)
+            in_block_comment = 1
+            break
+          }
+          cleaned = substr(cleaned, 1, block_start - 1) substr(block_tail, block_end + 2)
+          block_start = index(cleaned, "/*")
+        }
+
+        sub(/\/\/.*/, "", cleaned)
+        gsub(/"([^"\\]|\\.)*"/, "", cleaned)
+        return cleaned
+      }
+
+      function paren_delta(cleaned, opens, closes, tmp) {
+        tmp = cleaned
         opens = gsub(/\(/, "", tmp)
-        tmp = input
-        gsub(/"([^"\\]|\\.)*"/, "", tmp)
-        sub(/\/\/.*/, "", tmp)
+        tmp = cleaned
         closes = gsub(/\)/, "", tmp)
         return opens - closes
       }
-      BEGIN { in_call = 0; start = 0; depth = 0; buffer = "" }
+
+      BEGIN { in_call = 0; in_block_comment = 0; start = 0; depth = 0; buffer = "" }
       {
-        if (!in_call && $0 ~ /logFailure[[:space:]]*\(/) {
+        cleaned = sanitize_line($0)
+        if (!in_call && cleaned ~ /logFailure[[:space:]]*\(/) {
           in_call = 1
           start = NR
-          depth = paren_delta($0)
-          buffer = $0 "\n"
+          depth = paren_delta(cleaned)
+          buffer = cleaned "\n"
           if (depth <= 0) {
             if (buffer ~ /AuditEvent\.INTEGRATION_FAILURE/) {
               print start
@@ -53,8 +81,8 @@ for file in "${producer_files[@]}"; do
           next
         }
         if (in_call) {
-          depth += paren_delta($0)
-          buffer = buffer $0 "\n"
+          depth += paren_delta(cleaned)
+          buffer = buffer cleaned "\n"
           if (depth <= 0) {
             if (buffer ~ /AuditEvent\.INTEGRATION_FAILURE/) {
               print start
