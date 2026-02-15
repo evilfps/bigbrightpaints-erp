@@ -1,6 +1,10 @@
 
 # CODE-RED Stabilization Plan (V1)
 
+Execution governance note:
+- Canonical orchestration and queue control now live in `docs/ENTERPRISE_BACKEND_STABILIZATION_PLAN.md` + `asyncloop`.
+- This document remains the detailed CODE-RED technical backlog/history.
+
 For the full detailed execution plan (V2), see:
 - `docs/CODE-RED/plan-v2.md`
 

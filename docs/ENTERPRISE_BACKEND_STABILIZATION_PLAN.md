@@ -4,8 +4,16 @@ Last reviewed: 2026-02-15
 Owner: Orchestrator Agent
 Status: Active
 
-This is the single control-plane plan for making the backend enterprise-stable and deployable under AI-heavy development.
+This is the canonical control-plane entrypoint for making the backend enterprise-stable and deployable under AI-heavy development.
 It does not replace detailed technical docs. It defines execution order, hard gates, and completion evidence.
+
+## Relationship to Existing Plans
+- This file is the orchestration layer for planning and execution priority.
+- `docs/CODE-RED/stabilization-plan.md` and `docs/CODE-RED/plan-v2.md` remain the detailed technical backlog and implementation history.
+- If conflicts appear:
+  - release/safety gates come from `docs/CODE-RED/GO_NO_GO_CHECKLIST.md`
+  - blocker status comes from `docs/CODE-RED/P0_DEPLOY_BLOCKERS.md`
+  - live execution order comes from `asyncloop`
 
 ## Scope
 - Backend correctness and stability only.
@@ -38,6 +46,7 @@ It does not replace detailed technical docs. It defines execution order, hard ga
 
 ## Canonical Sources
 - Live execution ledger: `asyncloop`
+- Deep implementation blueprint: `docs/ERP_ENTERPRISE_DEPLOYMENT_DEEP_SPEC.md`
 - Release gate and blocker truth:
   - `docs/CODE-RED/P0_DEPLOY_BLOCKERS.md`
   - `docs/CODE-RED/GO_NO_GO_CHECKLIST.md`
@@ -56,10 +65,11 @@ It does not replace detailed technical docs. It defines execution order, hard ga
    - consumers
    - orchestrator
 4. Run smallest proving harness first, then broaden only as needed.
-5. Commit.
-6. Run commit review and one review subagent.
-7. Fix review findings immediately.
-8. Append evidence + queue rotation in `asyncloop`.
+5. For large slices, split bounded implementation work across worker agents in parallel; keep one orchestrator owner.
+6. Commit.
+7. Run commit review and one review subagent (minimum).
+8. Fix review findings immediately.
+9. Append evidence + queue rotation in `asyncloop`.
 
 ## Program Phases
 

@@ -8543,3 +8543,43 @@ Queue Rotation (Auto-Replenish)
 - [ready] M16-S8 persisted audit replay uniqueness contract (define stable replay key + dedupe invariant for durable retry rows)
 - [ready] M16-S9 flyway v2 checksum transition automation (promote V15 transition detection from docs-only to executable guardrail)
 - [ready] M16-S10 audit ownership non-java surface guard (expand decommission checks for future Kotlin/other source roots if added)
+
+Program Governance Checkpoint
+- 2026-02-15T20:17:33+05:30
+
+Completed Slice (Committed)
+- 2026-02-15: `d6ed8def`
+  - docs(plan): add canonical enterprise backend stabilization control plane.
+  - added canonical orchestration entrypoint: `docs/ENTERPRISE_BACKEND_STABILIZATION_PLAN.md`.
+  - linked the control-plane from `docs/INDEX.md` for deterministic agent discovery.
+
+Post-Commit Review Evidence
+- Commit reviewed: `d6ed8def`
+- `codex review --commit d6ed8def`:
+  - exit status: `0`
+  - summary: docs-only change, no actionable runtime regressions.
+- Review subagent `019c61c1-9243-79b3-90d7-9cc21ad6567e`:
+  - findings:
+    - HIGH: canonical-plan collision risk vs CODE-RED detailed plans.
+    - MEDIUM: `AGENTS.md` discovery path missing canonical-plan link.
+    - MEDIUM: `asyncloop` continuity did not yet map new control-plane phases.
+  - disposition: fixed immediately in active follow-up slice `M17-S1` (governance alignment + queue refresh).
+
+Loop Update
+- 2026-02-15T20:17:33+05:30
+- tracked_now_ts: `2026-02-15T20:17:33+05:30`
+- tracked_elapsed: `90h 23m 41s`
+- active_in_progress: `M17-S1 governance alignment and deep-spec bootstrap (multi-agent workflow policy + canonical plan hierarchy + queue migration)`
+- continuity_recheck:
+  - async-loop continuity is preserved; prior `M16` slices remain executable.
+  - new control-plane is now anchored for deployment-focused execution.
+  - next closure target is to finalize governance alignment evidence in committed docs + queue mapping.
+
+Queue Rotation (Auto-Replenish)
+- [in_progress] M17-S1 governance alignment and deep-spec bootstrap (align AGENTS/index/CODE-RED/asyncloop ownership hierarchy and multi-agent execution posture)
+- [ready] M17-S2 OpenAPI contract gate + portal parity matrix (block undocumented contract drift and alias ambiguity)
+- [ready] M17-S3 Top-5 duplicate write-path closure sweep (canonical path + alias parity tests + prod gating where needed)
+- [ready] M17-S4 Accounting anti-drift sentinel expansion (closed-period drift + unlinked artifacts + reconciliation fail-closed hooks)
+- [ready] M17-S5 Test-lane signal overhaul (flake quarantine SLA, release invariant map, deterministic retry matrix)
+- [ready] M17-S6 Staging rehearsal evidence pack + rollback drill (immutable SHA evidence bundle)
+- [ready] M16-S6 audit ownership guard matrix extension (carry-over closure to keep audit-contract hardening queue alive)

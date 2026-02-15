@@ -18,14 +18,26 @@ Human-friendly alias: `AGENTMAP.md`.
 
 ## Canonical Sources (Progressive Disclosure)
 1. `docs/INDEX.md` (repo snapshot + doc map)
-2. `docs/ARCHITECTURE.md` (boundaries + dependency rules)
-3. `docs/agents/CATALOG.md` (who does what)
-4. `docs/agents/PERMISSIONS.md` (who can do what)
-5. `docs/agents/WORKFLOW.md` (lifecycle, CI/CD, rollback)
-6. `docs/agents/ENTERPRISE_MODE.md` (near-deployment policy profiles)
-7. `docs/agents/ORCHESTRATION_LAYER.md` (real orchestrator control plane)
-8. Domain contracts: `erp-domain/docs/INDEX.md`
-9. Async loop runbook: `docs/ASYNC_LOOP_OPERATIONS.md` + `asyncloop`
+2. `docs/ENTERPRISE_BACKEND_STABILIZATION_PLAN.md` (canonical execution control-plane)
+3. `docs/ERP_ENTERPRISE_DEPLOYMENT_DEEP_SPEC.md` (full domain + deployment spec)
+4. `docs/ARCHITECTURE.md` (boundaries + dependency rules)
+5. `docs/agents/CATALOG.md` (who does what)
+6. `docs/agents/PERMISSIONS.md` (who can do what)
+7. `docs/agents/WORKFLOW.md` (lifecycle, CI/CD, rollback)
+8. `docs/agents/ENTERPRISE_MODE.md` (near-deployment policy profiles)
+9. `docs/agents/ORCHESTRATION_LAYER.md` (real orchestrator control plane)
+10. Domain contracts: `erp-domain/docs/INDEX.md`
+11. Async loop runbook: `docs/ASYNC_LOOP_OPERATIONS.md` + `asyncloop`
+
+## Autonomous Throughput Policy
+- This repository is not single-agent-only. Multi-agent execution is the default for large slices.
+- Primary orchestrator agent owns intent, safety, and final merge quality.
+- Worker agents may own bounded implementation slices in parallel when paths are independent.
+- Review agents must run on every commit with severity-tagged findings and file anchors.
+- Progressive-disclosure rule: agents must load only the docs needed for the current slice instead of bulk-reading all docs.
+- Use lane selection to avoid rule overload:
+  - `fast_lane` for low-risk docs/guards/refactors with targeted checks.
+  - `strict_lane` for accounting, auth, migrations, orchestrator semantics with full harness ladder.
 
 ## Build / Run / Test (Detected)
 - Build: `cd erp-domain && mvn -B -ntp -DskipTests package`

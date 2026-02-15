@@ -66,6 +66,7 @@ This is the canonical knowledge base entrypoint for agentic work in this reposit
 - Alias-only legacy filename: `AGENT.md` (not runtime)
 - Agent map: `AGENTS.md`
 - Canonical enterprise stabilization plan: `docs/ENTERPRISE_BACKEND_STABILIZATION_PLAN.md`
+- Deep enterprise deployment spec: `docs/ERP_ENTERPRISE_DEPLOYMENT_DEEP_SPEC.md`
 - Architecture map: `ARCHITECTURE.md`
 - Canonical architecture spec: `docs/ARCHITECTURE.md`
 - Agent catalog (human): `docs/agents/CATALOG.md`
