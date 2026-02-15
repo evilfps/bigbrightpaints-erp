@@ -8997,3 +8997,28 @@ Loop Update
   - `167d2ebc` no regression findings
   - `3766bf6e` + `2c42c27c` merged into later hardening set
   - `2f6e6801` + `44e163e7` reviewed with medium finding invalidated on re-check
+
+[2026-02-16] M18-S7 final ledger gate closure after replay helper compatibility fix
+- Trigger: anchored `gate_fast` initially failed on runtime contract `TS_RuntimeAccountingReplayConflictExecutableCoverageTest.partnerMismatchSubject_returnsCanonicalLabels` due missing private helper after message-dedupe refactor.
+- Completed Slice (Committed): runtime contract compatibility restoration
+  - Commit `f768e6a0`: restored `partnerMismatchSubject(...)` in `AccountingService` and routed `partnerMismatchMessage(...)` through it, preserving canonical dealer/supplier/partner-type wording while keeping deduped message generation.
+  - Targeted verification:
+    - `cd erp-domain && mvn -B -ntp -Dtest=TS_RuntimeAccountingReplayConflictExecutableCoverageTest,AccountingServiceTest,AccountingControllerExceptionHandlerTest test` (PASS: 114/114).
+  - Subagent review: no regression findings.
+
+- Final Ledger Gate Bundle (v2 path)
+  - Anchored fast gate:
+    - `DIFF_BASE=06d85e792d2a80cd9fc1f8e5dc15d6dfa15dd93e GATE_FAST_RELEASE_VALIDATION_MODE=true bash scripts/gate_fast.sh` -> PASS
+    - changed-file coverage: line `25/25` (100%), branch `34/34` (100%).
+  - Core gate:
+    - `bash scripts/gate_core.sh` -> PASS
+  - Reconciliation gate:
+    - `bash scripts/gate_reconciliation.sh` -> PASS
+  - Release gate (v2 migration matrix + predeploy scans):
+    - `PGHOST=127.0.0.1 PGPORT=55432 PGUSER=erp PGPASSWORD=erp PGDATABASE=postgres bash scripts/gate_release.sh` -> PASS
+
+Loop Update
+- tracked_now_ts: `2026-02-16T02:21:20+05:30`
+- active_in_progress: `M18-S8 post-closure cleanup + queue reseed`
+- closure_status:
+  - fast/core/reconciliation/release all green on current head with v2 migration policy.
