@@ -41,7 +41,7 @@ require_legacy_summary_enabled_value() {
           in_block = 0
         }
       }
-      if (in_block && $0 ~ "^[[:space:]]*enabled:[[:space:]]*" expected "[[:space:]]*$") {
+      if (in_block && $0 ~ "^[[:space:]]*enabled:[[:space:]]*" expected "([[:space:]]*#.*)?[[:space:]]*$") {
         found = 1
         exit
       }
