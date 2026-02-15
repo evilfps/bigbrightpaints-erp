@@ -84,6 +84,8 @@ class AccountingControllerExceptionHandlerTest {
 
         ApiResponse<Map<String, Object>> body = assertReplayErrorEnvelope(
                 response,
+                HttpStatus.BAD_REQUEST,
+                ErrorCode.CONCURRENCY_CONFLICT,
                 "Idempotency key already used for another supplier",
                 "/api/v1/accounting/settlements/suppliers");
         Map<String, Object> details = requireDetails(body);
@@ -111,6 +113,8 @@ class AccountingControllerExceptionHandlerTest {
 
         ApiResponse<Map<String, Object>> body = assertReplayErrorEnvelope(
                 response,
+                HttpStatus.BAD_REQUEST,
+                ErrorCode.CONCURRENCY_CONFLICT,
                 "Idempotency key already used for another dealer",
                 "/api/v1/accounting/settlements/dealers");
         Map<String, Object> details = requireDetails(body);
@@ -135,6 +139,8 @@ class AccountingControllerExceptionHandlerTest {
 
         ApiResponse<Map<String, Object>> body = assertReplayErrorEnvelope(
                 response,
+                HttpStatus.BAD_REQUEST,
+                ErrorCode.CONCURRENCY_CONFLICT,
                 "Idempotency key already used for another supplier",
                 "/api/v1/accounting/settlements/suppliers");
         assertThat(body.data()).doesNotContainKey("details");
@@ -142,14 +148,18 @@ class AccountingControllerExceptionHandlerTest {
 
     private ApiResponse<Map<String, Object>> assertReplayErrorEnvelope(
             ResponseEntity<ApiResponse<Map<String, Object>>> response,
+            HttpStatus status,
+            ErrorCode code,
             String reason,
             String path) {
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getStatusCode()).isEqualTo(status);
         ApiResponse<Map<String, Object>> body = response.getBody();
         assertThat(body).isNotNull();
         assertThat(body.message()).isEqualTo(reason);
+        assertThat(body.data()).containsEntry("code", code.getCode());
         assertThat(body.data()).containsEntry("reason", reason);
         assertThat(body.data()).containsEntry("path", path);
+        assertThat(body.data()).containsKey("traceId");
         return body;
     }
 
