@@ -148,4 +148,22 @@ class Fixture {
 JAVA
 )"
 
+run_case "non_integration_token_in_metadata_pass" 0 "$(cat <<'JAVA'
+package com.example;
+
+class Fixture {
+    private static final String INTEGRATION_FAILURE_METADATA = "shadow-token";
+
+    private void validIntegrationFailureProducer() {
+        IntegrationFailureMetadataSchema.applyRequiredFields(metadata, "X", "Y", "Z", "SEV3_TICKET");
+        auditService.logFailure(AuditEvent.INTEGRATION_FAILURE, metadata);
+    }
+
+    private void nonIntegrationEventShouldNotBeParsedAsIntegrationFailure() {
+        auditService.logFailure(AuditEvent.PRODUCTION_LOGGED, INTEGRATION_FAILURE_METADATA);
+    }
+}
+JAVA
+)"
+
 echo "[guard_integration_failure_metadata_schema_fixture_matrix] OK"
