@@ -384,9 +384,28 @@ def find_matching_paren(raw, open_index):
     return -1
 
 
-def add_contract(contracts, table, cols):
+def add_contract(contracts, contract_counts, table, cols):
     if table and cols and all(cols):
-        contracts[table].add(tuple(cols))
+        key = tuple(cols)
+        contracts[table].add(key)
+        contract_counts[table][key] += 1
+
+
+def remove_contract(contracts, contract_counts, table, cols):
+    if not table or not cols:
+        return
+    key = tuple(cols)
+    current = contract_counts[table].get(key, 0)
+    if current <= 1:
+        contract_counts[table].pop(key, None)
+        contracts[table].discard(key)
+        return
+    contract_counts[table][key] = current - 1
+
+
+def add_primary_key(primary_keys, table, cols):
+    if table and cols and all(cols):
+        primary_keys[table].add(tuple(cols))
 
 
 def add_fk(foreign_keys, src_table, src_cols, ref_table, ref_cols, source):
@@ -409,7 +428,7 @@ def remember_constraint(constraint_defs, table, constraint_name, kind, cols):
     }
 
 
-def parse_create_table_statement(statement, path, line, contracts, primary_keys, foreign_keys, constraint_defs):
+def parse_create_table_statement(statement, path, line, contracts, contract_counts, primary_keys, foreign_keys, constraint_defs):
     create_match = re.match(
         rf"(?is)^CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(?P<table>{QUAL_IDENT})\s*\(",
         statement,
@@ -439,10 +458,14 @@ def parse_create_table_statement(statement, path, line, contracts, primary_keys,
         key_match = re.match(r"(?is)^(?P<kind>PRIMARY\s+KEY|UNIQUE)\s*\((?P<cols>.*)\)$", entry_no_constraint)
         if key_match:
             cols = normalize_column_list(key_match.group("cols"))
-            add_contract(contracts, table, cols)
+            add_contract(contracts, contract_counts, table, cols)
             if key_match.group("kind").upper().startswith("PRIMARY"):
-                add_contract(primary_keys, table, cols)
-                remember_constraint(constraint_defs, table, constraint_name, "PRIMARY", cols)
+                add_primary_key(primary_keys, table, cols)
+                if not constraint_name and table:
+                    inferred_name = f"{table.split('.')[-1]}_pkey"
+                    remember_constraint(constraint_defs, table, inferred_name, "PRIMARY", cols)
+                else:
+                    remember_constraint(constraint_defs, table, constraint_name, "PRIMARY", cols)
             elif constraint_name:
                 remember_constraint(constraint_defs, table, constraint_name, "UNIQUE", cols)
             continue
@@ -463,10 +486,10 @@ def parse_create_table_statement(statement, path, line, contracts, primary_keys,
         col = normalize_column_token(col_match.group("col"))
         tail = entry[col_match.end():]
         if re.search(r"(?is)\bPRIMARY\s+KEY\b", tail):
-            add_contract(contracts, table, (col,))
-            add_contract(primary_keys, table, (col,))
+            add_contract(contracts, contract_counts, table, (col,))
+            add_primary_key(primary_keys, table, (col,))
         elif re.search(r"(?is)\bUNIQUE\b", tail):
-            add_contract(contracts, table, (col,))
+            add_contract(contracts, contract_counts, table, (col,))
         col_fk = re.search(
             rf"(?is)\bREFERENCES\s+(?P<ref_table>{QUAL_IDENT})(?:\s*\((?P<ref_cols>[^)]*)\))?",
             tail,
@@ -478,7 +501,7 @@ def parse_create_table_statement(statement, path, line, contracts, primary_keys,
             add_fk(foreign_keys, table, (col,), ref_table, ref_cols, source)
 
 
-def parse_alter_contracts(sql, path, contracts, primary_keys, foreign_keys, constraint_defs):
+def parse_alter_contracts(sql, path, contracts, contract_counts, primary_keys, foreign_keys, constraint_defs):
     alter_pattern = re.compile(
         rf"(?is)ALTER\s+TABLE(?:\s+ONLY)?\s+(?:IF\s+EXISTS\s+)?(?P<table>{QUAL_IDENT})(?P<body>.*?);"
     )
@@ -491,29 +514,25 @@ def parse_alter_contracts(sql, path, contracts, primary_keys, foreign_keys, cons
             body,
         ):
             cols = normalize_column_list(key.group("cols"))
-            add_contract(contracts, table, cols)
+            add_contract(contracts, contract_counts, table, cols)
             constraint_name = normalize_ident(key.group("constraint")) if key.group("constraint") else None
             if key.group("kind").upper().startswith("PRIMARY"):
-                add_contract(primary_keys, table, cols)
+                add_primary_key(primary_keys, table, cols)
                 remember_constraint(constraint_defs, table, constraint_name, "PRIMARY", cols)
             elif constraint_name:
                 remember_constraint(constraint_defs, table, constraint_name, "UNIQUE", cols)
 
         for dropped in re.finditer(
-            rf"(?is)\bDROP\s+CONSTRAINT\s+(?:IF\s+EXISTS\s+)?(?P<constraint>{IDENT})",
+            rf"(?is)\bDROP\s+CONSTRAINT\s+(?P<if_exists>IF\s+EXISTS\s+)?(?P<constraint>{IDENT})",
             body,
         ):
             dropped_name = normalize_ident(dropped.group("constraint"))
             dropped_def = constraint_defs[table].pop(dropped_name, None)
             if dropped_def:
                 dropped_cols = dropped_def["cols"]
-                contracts[table].discard(dropped_cols)
+                remove_contract(contracts, contract_counts, table, dropped_cols)
                 if dropped_def["kind"] == "PRIMARY":
                     primary_keys[table].discard(dropped_cols)
-            elif dropped_name and dropped_name.endswith("_pkey"):
-                for pk_cols in list(primary_keys.get(table, set())):
-                    contracts[table].discard(pk_cols)
-                primary_keys[table].clear()
 
         for fk in re.finditer(
             rf"(?is)\bADD\s+(?:CONSTRAINT\s+{IDENT}\s+)?FOREIGN\s+KEY\s*\((?P<src>[^)]*)\)\s+REFERENCES\s+(?P<ref_table>{QUAL_IDENT})(?:\s*\((?P<ref_cols>[^)]*)\))?",
@@ -526,7 +545,7 @@ def parse_alter_contracts(sql, path, contracts, primary_keys, foreign_keys, cons
             add_fk(foreign_keys, table, src_cols, ref_table, ref_cols, source)
 
 
-def parse_unique_indexes(sql, path, contracts):
+def parse_unique_indexes(sql, path, contracts, contract_counts):
     index_pattern = re.compile(
         rf"(?is)CREATE\s+UNIQUE\s+INDEX(?:\s+IF\s+NOT\s+EXISTS)?\s+{IDENT}\s+ON\s+(?P<table>{QUAL_IDENT})\s+(?:USING\s+\w+\s*)?\((?P<cols>[^)]*)\)(?P<tail>.*?);"
     )
@@ -536,7 +555,7 @@ def parse_unique_indexes(sql, path, contracts):
             continue
         table = normalize_table(index.group("table"))
         cols = normalize_column_list(index.group("cols"))
-        add_contract(contracts, table, cols)
+        add_contract(contracts, contract_counts, table, cols)
 
 
 def main():
@@ -546,6 +565,7 @@ def main():
 
     files = [pathlib.Path(arg) for arg in sys.argv[2:]]
     contracts = defaultdict(set)
+    contract_counts = defaultdict(lambda: defaultdict(int))
     primary_keys = defaultdict(set)
     constraint_defs = defaultdict(dict)
     foreign_keys = []
@@ -554,9 +574,9 @@ def main():
         raw_sql = path.read_text(encoding="utf-8")
         sql = strip_sql_comments(raw_sql)
         for statement, line in iter_statements(sql):
-            parse_create_table_statement(statement, path, line, contracts, primary_keys, foreign_keys, constraint_defs)
-        parse_alter_contracts(sql, path, contracts, primary_keys, foreign_keys, constraint_defs)
-        parse_unique_indexes(sql, path, contracts)
+            parse_create_table_statement(statement, path, line, contracts, contract_counts, primary_keys, foreign_keys, constraint_defs)
+        parse_alter_contracts(sql, path, contracts, contract_counts, primary_keys, foreign_keys, constraint_defs)
+        parse_unique_indexes(sql, path, contracts, contract_counts)
 
     if not foreign_keys:
         print("[guard_flyway_v2_referential_contract] FAIL: no FK references parsed from migration_v2", file=sys.stderr)
