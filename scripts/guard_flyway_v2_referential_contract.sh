@@ -30,7 +30,7 @@ def normalize_ident(raw):
     if not token:
         return None
     if token[0] == '"' and token[-1] == '"':
-        token = token[1:-1].replace('""', '"')
+        return token[1:-1].replace('""', '"')
     return token.lower()
 
 
@@ -139,6 +139,91 @@ def normalize_column_list(raw):
 
 def line_number(raw, offset):
     return raw.count("\n", 0, offset) + 1
+
+
+def strip_sql_comments(raw):
+    buf = []
+    in_single = False
+    in_double = False
+    in_line_comment = False
+    in_block_comment = False
+    dollar_tag = None
+    i = 0
+    while i < len(raw):
+        ch = raw[i]
+        nxt = raw[i + 1] if i + 1 < len(raw) else ""
+        if in_line_comment:
+            if ch == "\n":
+                in_line_comment = False
+                buf.append("\n")
+            i += 1
+            continue
+        if in_block_comment:
+            if ch == "*" and nxt == "/":
+                in_block_comment = False
+                i += 2
+                continue
+            if ch == "\n":
+                buf.append("\n")
+            i += 1
+            continue
+        if dollar_tag is not None:
+            if raw.startswith(dollar_tag, i):
+                buf.extend(list(dollar_tag))
+                i += len(dollar_tag)
+                dollar_tag = None
+                continue
+            buf.append(ch)
+            i += 1
+            continue
+        if in_single:
+            buf.append(ch)
+            if ch == "'" and nxt == "'":
+                buf.append(nxt)
+                i += 2
+                continue
+            if ch == "'":
+                in_single = False
+            i += 1
+            continue
+        if in_double:
+            buf.append(ch)
+            if ch == '"' and nxt == '"':
+                buf.append(nxt)
+                i += 2
+                continue
+            if ch == '"':
+                in_double = False
+            i += 1
+            continue
+        if ch == "-" and nxt == "-":
+            in_line_comment = True
+            i += 2
+            continue
+        if ch == "/" and nxt == "*":
+            in_block_comment = True
+            i += 2
+            continue
+        if ch == "'":
+            in_single = True
+            buf.append(ch)
+            i += 1
+            continue
+        if ch == '"':
+            in_double = True
+            buf.append(ch)
+            i += 1
+            continue
+        if ch == "$":
+            tag_match = re.match(r"\$[A-Za-z_][A-Za-z0-9_]*\$|\$\$", raw[i:])
+            if tag_match:
+                dollar_tag = tag_match.group(0)
+                buf.extend(list(dollar_tag))
+                i += len(dollar_tag)
+                continue
+        buf.append(ch)
+        i += 1
+    return "".join(buf)
 
 
 def iter_statements(raw):
@@ -405,7 +490,8 @@ def main():
     foreign_keys = []
 
     for path in files:
-        sql = path.read_text(encoding="utf-8")
+        raw_sql = path.read_text(encoding="utf-8")
+        sql = strip_sql_comments(raw_sql)
         for statement, line in iter_statements(sql):
             parse_create_table_statement(statement, path, line, contracts, foreign_keys)
         parse_alter_contracts(sql, path, contracts, foreign_keys)
