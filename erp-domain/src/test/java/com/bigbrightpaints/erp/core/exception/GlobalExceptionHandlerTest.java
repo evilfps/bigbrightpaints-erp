@@ -2,6 +2,7 @@ package com.bigbrightpaints.erp.core.exception;
 
 import com.bigbrightpaints.erp.core.audit.AuditEvent;
 import com.bigbrightpaints.erp.core.audit.AuditService;
+import com.bigbrightpaints.erp.core.audit.IntegrationFailureMetadataSchema;
 import com.bigbrightpaints.erp.shared.dto.ApiResponse;
 import java.lang.reflect.Field;
 import java.util.Map;
@@ -125,10 +126,10 @@ class GlobalExceptionHandlerTest {
         verify(auditService).logFailure(eq(AuditEvent.INTEGRATION_FAILURE), metadataCaptor.capture());
         Map<String, String> metadata = metadataCaptor.getValue();
         assertThat(metadata).containsEntry("category", "request-parse");
-        assertThat(metadata).containsEntry("failureCode", "MALFORMED_REQUEST_PAYLOAD");
-        assertThat(metadata).containsEntry("errorCategory", "VALIDATION");
-        assertThat(metadata).containsEntry("alertRoutingVersion", "INTEGRATION_FAILURE_V1");
-        assertThat(metadata).containsEntry("alertRoute", "SEV3_TICKET");
+        assertThat(metadata).containsEntry(IntegrationFailureMetadataSchema.KEY_FAILURE_CODE, "MALFORMED_REQUEST_PAYLOAD");
+        assertThat(metadata).containsEntry(IntegrationFailureMetadataSchema.KEY_ERROR_CATEGORY, "VALIDATION");
+        assertThat(metadata).containsEntry(IntegrationFailureMetadataSchema.KEY_ALERT_ROUTING_VERSION, "INTEGRATION_FAILURE_V1");
+        assertThat(metadata).containsEntry(IntegrationFailureMetadataSchema.KEY_ALERT_ROUTE, "SEV3_TICKET");
         assertThat(metadata).containsEntry("requestMethod", "POST");
         assertThat(metadata).containsEntry("requestPath", "/api/v1/accounting/settlements/suppliers");
     }
@@ -154,12 +155,12 @@ class GlobalExceptionHandlerTest {
         Map<String, String> metadata = metadataCaptor.getValue();
         assertThat(metadata)
                 .containsEntry("category", "settlement-failure")
-                .containsEntry("failureCode", "SETTLEMENT_OPERATION_FAILED")
-                .containsEntry("errorCategory", "VALIDATION")
+                .containsEntry(IntegrationFailureMetadataSchema.KEY_FAILURE_CODE, "SETTLEMENT_OPERATION_FAILED")
+                .containsEntry(IntegrationFailureMetadataSchema.KEY_ERROR_CATEGORY, "VALIDATION")
                 .containsEntry("errorCode", ErrorCode.VALIDATION_INVALID_INPUT.getCode())
                 .containsEntry("settlementType", "DEALER")
-                .containsEntry("alertRoutingVersion", "INTEGRATION_FAILURE_V1")
-                .containsEntry("alertRoute", "SEV3_TICKET")
+                .containsEntry(IntegrationFailureMetadataSchema.KEY_ALERT_ROUTING_VERSION, "INTEGRATION_FAILURE_V1")
+                .containsEntry(IntegrationFailureMetadataSchema.KEY_ALERT_ROUTE, "SEV3_TICKET")
                 .containsEntry("requestPath", "/api/v1/accounting/settlements/dealers");
     }
 
@@ -184,12 +185,12 @@ class GlobalExceptionHandlerTest {
         Map<String, String> metadata = metadataCaptor.getValue();
         assertThat(metadata)
                 .containsEntry("category", "settlement-failure")
-                .containsEntry("failureCode", "SETTLEMENT_OPERATION_FAILED")
-                .containsEntry("errorCategory", "CONCURRENCY")
+                .containsEntry(IntegrationFailureMetadataSchema.KEY_FAILURE_CODE, "SETTLEMENT_OPERATION_FAILED")
+                .containsEntry(IntegrationFailureMetadataSchema.KEY_ERROR_CATEGORY, "CONCURRENCY")
                 .containsEntry("errorCode", ErrorCode.CONCURRENCY_CONFLICT.getCode())
                 .containsEntry("settlementType", "SUPPLIER")
-                .containsEntry("alertRoutingVersion", "INTEGRATION_FAILURE_V1")
-                .containsEntry("alertRoute", "SEV2_URGENT")
+                .containsEntry(IntegrationFailureMetadataSchema.KEY_ALERT_ROUTING_VERSION, "INTEGRATION_FAILURE_V1")
+                .containsEntry(IntegrationFailureMetadataSchema.KEY_ALERT_ROUTE, "SEV2_URGENT")
                 .containsEntry("requestPath", "/api/v1/accounting/settlements/suppliers");
     }
 

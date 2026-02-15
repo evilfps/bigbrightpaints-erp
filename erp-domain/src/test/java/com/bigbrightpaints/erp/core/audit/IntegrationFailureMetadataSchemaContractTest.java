@@ -104,8 +104,8 @@ class IntegrationFailureMetadataSchemaContractTest {
                     assertRequiredSchema(metadata);
                     assertThat(metadata)
                             .containsEntry("category", "request-parse")
-                            .containsEntry("failureCode", IntegrationFailureAlertRoutingPolicy.MALFORMED_REQUEST_FAILURE_CODE)
-                            .containsEntry("errorCategory", "VALIDATION")
+                            .containsEntry(IntegrationFailureMetadataSchema.KEY_FAILURE_CODE, IntegrationFailureAlertRoutingPolicy.MALFORMED_REQUEST_FAILURE_CODE)
+                            .containsEntry(IntegrationFailureMetadataSchema.KEY_ERROR_CATEGORY, "VALIDATION")
                             .containsEntry("requestPath", "/api/v1/accounting/settlements/suppliers");
                 });
         assertThat(emittedMetadata)
@@ -113,8 +113,8 @@ class IntegrationFailureMetadataSchemaContractTest {
                     assertRequiredSchema(metadata);
                     assertThat(metadata)
                             .containsEntry("category", "settlement-failure")
-                            .containsEntry("failureCode", IntegrationFailureAlertRoutingPolicy.SETTLEMENT_OPERATION_FAILURE_CODE)
-                            .containsEntry("errorCategory", "VALIDATION")
+                            .containsEntry(IntegrationFailureMetadataSchema.KEY_FAILURE_CODE, IntegrationFailureAlertRoutingPolicy.SETTLEMENT_OPERATION_FAILURE_CODE)
+                            .containsEntry(IntegrationFailureMetadataSchema.KEY_ERROR_CATEGORY, "VALIDATION")
                             .containsEntry("settlementType", "DEALER");
                 });
     }

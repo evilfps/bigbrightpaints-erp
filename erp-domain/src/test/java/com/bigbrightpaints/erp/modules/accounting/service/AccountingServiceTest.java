@@ -1,6 +1,7 @@
 package com.bigbrightpaints.erp.modules.accounting.service;
 
 import com.bigbrightpaints.erp.core.audit.AuditEvent;
+import com.bigbrightpaints.erp.core.audit.IntegrationFailureMetadataSchema;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
@@ -938,11 +939,11 @@ class AccountingServiceTest {
         assertThat(integrationFailureCaptor.getValue())
                 .containsEntry("eventTrailOperation", "JOURNAL_ENTRY_POSTED")
                 .containsEntry("policy", "STRICT")
-                .containsEntry("failureCode", "ACCOUNTING_EVENT_TRAIL_PERSISTENCE_FAILURE")
-                .containsEntry("errorCategory", "PERSISTENCE")
+                .containsEntry(IntegrationFailureMetadataSchema.KEY_FAILURE_CODE, "ACCOUNTING_EVENT_TRAIL_PERSISTENCE_FAILURE")
+                .containsEntry(IntegrationFailureMetadataSchema.KEY_ERROR_CATEGORY, "PERSISTENCE")
                 .containsEntry("errorType", "IllegalStateException")
-                .containsEntry("alertRoutingVersion", "ACCOUNTING_EVENT_TRAIL_V1")
-                .containsEntry("alertRoute", "SEV2_URGENT")
+                .containsEntry(IntegrationFailureMetadataSchema.KEY_ALERT_ROUTING_VERSION, "ACCOUNTING_EVENT_TRAIL_V1")
+                .containsEntry(IntegrationFailureMetadataSchema.KEY_ALERT_ROUTE, "SEV2_URGENT")
                 .doesNotContainKey("error");
     }
 
@@ -995,11 +996,11 @@ class AccountingServiceTest {
         assertThat(integrationFailureCaptor.getValue())
                 .containsEntry("eventTrailOperation", "JOURNAL_ENTRY_POSTED")
                 .containsEntry("policy", "BEST_EFFORT")
-                .containsEntry("failureCode", "ACCOUNTING_EVENT_TRAIL_PERSISTENCE_FAILURE")
-                .containsEntry("errorCategory", "PERSISTENCE")
+                .containsEntry(IntegrationFailureMetadataSchema.KEY_FAILURE_CODE, "ACCOUNTING_EVENT_TRAIL_PERSISTENCE_FAILURE")
+                .containsEntry(IntegrationFailureMetadataSchema.KEY_ERROR_CATEGORY, "PERSISTENCE")
                 .containsEntry("errorType", "IllegalStateException")
-                .containsEntry("alertRoutingVersion", "ACCOUNTING_EVENT_TRAIL_V1")
-                .containsEntry("alertRoute", "SEV3_TICKET")
+                .containsEntry(IntegrationFailureMetadataSchema.KEY_ALERT_ROUTING_VERSION, "ACCOUNTING_EVENT_TRAIL_V1")
+                .containsEntry(IntegrationFailureMetadataSchema.KEY_ALERT_ROUTE, "SEV3_TICKET")
                 .doesNotContainKey("error");
         verify(auditService, never()).logSuccess(eq(AuditEvent.JOURNAL_ENTRY_POSTED), any());
     }
@@ -1051,11 +1052,11 @@ class AccountingServiceTest {
         ArgumentCaptor<Map<String, String>> integrationFailureCaptor = ArgumentCaptor.forClass(Map.class);
         verify(auditService).logFailure(eq(AuditEvent.INTEGRATION_FAILURE), integrationFailureCaptor.capture());
         assertThat(integrationFailureCaptor.getValue())
-                .containsEntry("failureCode", "ACCOUNTING_EVENT_TRAIL_PERSISTENCE_FAILURE")
-                .containsEntry("errorCategory", "VALIDATION")
+                .containsEntry(IntegrationFailureMetadataSchema.KEY_FAILURE_CODE, "ACCOUNTING_EVENT_TRAIL_PERSISTENCE_FAILURE")
+                .containsEntry(IntegrationFailureMetadataSchema.KEY_ERROR_CATEGORY, "VALIDATION")
                 .containsEntry("errorType", "IllegalArgumentException")
-                .containsEntry("alertRoutingVersion", "ACCOUNTING_EVENT_TRAIL_V1")
-                .containsEntry("alertRoute", "SEV2_URGENT");
+                .containsEntry(IntegrationFailureMetadataSchema.KEY_ALERT_ROUTING_VERSION, "ACCOUNTING_EVENT_TRAIL_V1")
+                .containsEntry(IntegrationFailureMetadataSchema.KEY_ALERT_ROUTE, "SEV2_URGENT");
     }
 
     @Test
@@ -1105,11 +1106,11 @@ class AccountingServiceTest {
         ArgumentCaptor<Map<String, String>> integrationFailureCaptor = ArgumentCaptor.forClass(Map.class);
         verify(auditService).logFailure(eq(AuditEvent.INTEGRATION_FAILURE), integrationFailureCaptor.capture());
         assertThat(integrationFailureCaptor.getValue())
-                .containsEntry("failureCode", "ACCOUNTING_EVENT_TRAIL_PERSISTENCE_FAILURE")
-                .containsEntry("errorCategory", "DATA_INTEGRITY")
+                .containsEntry(IntegrationFailureMetadataSchema.KEY_FAILURE_CODE, "ACCOUNTING_EVENT_TRAIL_PERSISTENCE_FAILURE")
+                .containsEntry(IntegrationFailureMetadataSchema.KEY_ERROR_CATEGORY, "DATA_INTEGRITY")
                 .containsEntry("errorType", "DataIntegrityViolationException")
-                .containsEntry("alertRoutingVersion", "ACCOUNTING_EVENT_TRAIL_V1")
-                .containsEntry("alertRoute", "SEV1_PAGE");
+                .containsEntry(IntegrationFailureMetadataSchema.KEY_ALERT_ROUTING_VERSION, "ACCOUNTING_EVENT_TRAIL_V1")
+                .containsEntry(IntegrationFailureMetadataSchema.KEY_ALERT_ROUTE, "SEV1_PAGE");
     }
 
     @Test
@@ -1199,11 +1200,11 @@ class AccountingServiceTest {
         assertThat(integrationFailureCaptor.getValue())
                 .containsEntry("eventTrailOperation", "JOURNAL_ENTRY_REVERSED")
                 .containsEntry("policy", "STRICT")
-                .containsEntry("failureCode", "ACCOUNTING_EVENT_TRAIL_PERSISTENCE_FAILURE")
-                .containsEntry("errorCategory", "PERSISTENCE")
+                .containsEntry(IntegrationFailureMetadataSchema.KEY_FAILURE_CODE, "ACCOUNTING_EVENT_TRAIL_PERSISTENCE_FAILURE")
+                .containsEntry(IntegrationFailureMetadataSchema.KEY_ERROR_CATEGORY, "PERSISTENCE")
                 .containsEntry("errorType", "IllegalStateException")
-                .containsEntry("alertRoutingVersion", "ACCOUNTING_EVENT_TRAIL_V1")
-                .containsEntry("alertRoute", "SEV2_URGENT")
+                .containsEntry(IntegrationFailureMetadataSchema.KEY_ALERT_ROUTING_VERSION, "ACCOUNTING_EVENT_TRAIL_V1")
+                .containsEntry(IntegrationFailureMetadataSchema.KEY_ALERT_ROUTE, "SEV2_URGENT")
                 .doesNotContainKey("error");
         verify(auditService, never()).logSuccess(eq(AuditEvent.JOURNAL_ENTRY_REVERSED), any());
     }
@@ -1246,11 +1247,11 @@ class AccountingServiceTest {
         assertThat(integrationFailureCaptor.getValue())
                 .containsEntry("eventTrailOperation", "JOURNAL_ENTRY_REVERSED")
                 .containsEntry("policy", "BEST_EFFORT")
-                .containsEntry("failureCode", "ACCOUNTING_EVENT_TRAIL_PERSISTENCE_FAILURE")
-                .containsEntry("errorCategory", "VALIDATION")
+                .containsEntry(IntegrationFailureMetadataSchema.KEY_FAILURE_CODE, "ACCOUNTING_EVENT_TRAIL_PERSISTENCE_FAILURE")
+                .containsEntry(IntegrationFailureMetadataSchema.KEY_ERROR_CATEGORY, "VALIDATION")
                 .containsEntry("errorType", "ApplicationException")
-                .containsEntry("alertRoutingVersion", "ACCOUNTING_EVENT_TRAIL_V1")
-                .containsEntry("alertRoute", "SEV2_URGENT");
+                .containsEntry(IntegrationFailureMetadataSchema.KEY_ALERT_ROUTING_VERSION, "ACCOUNTING_EVENT_TRAIL_V1")
+                .containsEntry(IntegrationFailureMetadataSchema.KEY_ALERT_ROUTE, "SEV2_URGENT");
         verify(auditService, never()).logSuccess(eq(AuditEvent.JOURNAL_ENTRY_REVERSED), any());
     }
 
@@ -1292,11 +1293,11 @@ class AccountingServiceTest {
         assertThat(integrationFailureCaptor.getValue())
                 .containsEntry("eventTrailOperation", "JOURNAL_ENTRY_REVERSED")
                 .containsEntry("policy", "BEST_EFFORT")
-                .containsEntry("failureCode", "ACCOUNTING_EVENT_TRAIL_PERSISTENCE_FAILURE")
-                .containsEntry("errorCategory", "DATA_INTEGRITY")
+                .containsEntry(IntegrationFailureMetadataSchema.KEY_FAILURE_CODE, "ACCOUNTING_EVENT_TRAIL_PERSISTENCE_FAILURE")
+                .containsEntry(IntegrationFailureMetadataSchema.KEY_ERROR_CATEGORY, "DATA_INTEGRITY")
                 .containsEntry("errorType", "ApplicationException")
-                .containsEntry("alertRoutingVersion", "ACCOUNTING_EVENT_TRAIL_V1")
-                .containsEntry("alertRoute", "SEV1_PAGE");
+                .containsEntry(IntegrationFailureMetadataSchema.KEY_ALERT_ROUTING_VERSION, "ACCOUNTING_EVENT_TRAIL_V1")
+                .containsEntry(IntegrationFailureMetadataSchema.KEY_ALERT_ROUTE, "SEV1_PAGE");
         verify(auditService, never()).logSuccess(eq(AuditEvent.JOURNAL_ENTRY_REVERSED), any());
     }
 
