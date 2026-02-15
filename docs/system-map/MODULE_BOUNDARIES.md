@@ -3,6 +3,7 @@
 Last reviewed: 2026-02-15
 
 Boundary ownership:
+- `partner` is the canonical cross-module term for external commercial entities; `dealer` and `supplier` are role-specific terms inside sales and purchasing flows.
 - `accounting` owns period control, ledger posting, settlement, and ledger/report aggregation.
 - `sales` owns order capture, fulfillment triggers, pricing/exposure and dealer-facing sales contracts.
 - `inventory` owns stock entities, movements, adjustments, and valuation inputs for accounting.
@@ -18,7 +19,7 @@ Boundary direction:
 - `orchestrator` -> `sales`, `inventory`, `accounting`, `hr` for coordinated automation.
 - `sales` -> `inventory` for reservations and dispatch fulfillment.
 - `sales` -> `accounting` for invoice/journal/ledger side effects.
-- `purchasing` -> `accounting` for supplier posting and settlement.
+- `purchasing` -> `accounting` for partner posting and settlement (supplier role).
 - `factory/production` -> `inventory` for batch and movement outputs; -> `accounting` for cost transfer.
 - `portal` reads from `sales`/`inventory`/`accounting` views without mutating source-of-truth modules.
 

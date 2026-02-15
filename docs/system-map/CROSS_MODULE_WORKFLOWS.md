@@ -1,5 +1,9 @@
 # Cross-Module Workflows
 
+Terminology note:
+- Use `partner` as the canonical cross-module entity term.
+- Use `dealer` and `supplier` only where the role-specific workflow matters.
+
 ## Order-to-Cash (O2C)
 - Owner module/service: `sales` (`SalesController`, `SalesService`, `SalesFulfillmentService`)
 - Handoff module/service: `inventory` (`FinishedGoodsService`) -> `accounting` (`SalesJournalService`, `AccountingFacade`, `DealerLedgerService`)
@@ -17,9 +21,9 @@
 - Key invariants:
   - GRN intake can’t exceed PO requirement.
   - Raw material movements link to purchase records.
-  - Purchase invoice/supplier settlement and journal lines are balanced and idempotent.
+  - Purchase invoice, partner settlement (supplier role), and journal lines are balanced and idempotent.
 - Duplicate/overlap risks:
-  - Legacy legacy helper methods in multiple services for supplier settlement helpers and idempotency key normalization.
+  - Legacy helper methods in multiple services for partner settlement helpers and idempotency key normalization.
   - Migration overlap between purchasing/inventory schemas (`V27`, `V120` family and related v2 migrations) requires periodic overlap scan.
 
 ## Production-to-Pack
@@ -50,7 +54,7 @@
 - Key invariants:
   - Ledger entries posted under closed periods are blocked unless override policy is explicitly used.
   - Close and reopen are explicit and should be reflected in snapshots.
-  - Subledger totals (`AR/AP`, `supplier`, `payroll`) remain reconciled at close boundaries.
+  - Subledger totals (`AR/AP` partner subledgers: dealer/supplier, and payroll) remain reconciled at close boundaries.
 - Duplicate/overlap risks:
   - Period hooks in multiple modules (accounting + reporting) can apply inconsistent assumptions on close status.
   - Legacy period-close workarounds in scripts/handlers must stay aligned with canonical service checks.

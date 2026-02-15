@@ -19,7 +19,7 @@ Canonical path and migration policy:
 Duplicate/overlap evidence map (current):
 Endpoint duplication:
 - Sales dispatch can be initiated through canonical sales flow and legacy orchestrator endpoints (`OrchestratorController.fulfillOrder/dispatchOrder`), creating duplicated orchestration control.
-- Dealers are exposed through multiple onboarding-related paths and handlers, with legacy `createDealer` touchpoints that need canonical ownership cleanup.
+- Partner onboarding (dealer role) is exposed through multiple onboarding-related paths and handlers, with legacy `createDealer` touchpoints that need canonical ownership cleanup.
 
 File-level overlap candidates:
 - `PayrollRunRequest` duplicates exist in `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/hr/dto/PayrollRunRequest.java` and `erp-domain/src/main/java/com/bigbrightpaints/erp/orchestrator/dto/PayrollRunRequest.java`.
@@ -36,7 +36,7 @@ Prioritized cleanup queue from map evidence:
 1. **Flow overlap cleanups (high)**: reconcile sales dispatch/dealer onboarding; retire deprecated orchestrator-only execution routes.
 2. **Journal overlap control (high)**: consolidate `postSalesJournal`/`postCogsJournal` ownership in canonical `SalesFulfillmentService` + `AccountingFacade` edge.
 3. **Schema overlap risk (high)**: finish V2 convergence migrations and keep v1 legacy untouched except compatibility.
-4. **Idempotency helper debt (medium)**: centralize helper behavior so request-key canonicalization is single-source and auditable.
+4. **Idempotency helper debt (medium)**: centralize helper behavior so request-key canonicalization and partner settlement key handling are single-source and auditable.
 5. **DTO/API overlap (medium)**: deduplicate `PayrollRunRequest` and auth reset/forgot request models behind module boundary contracts.
 
 Residual risks:
