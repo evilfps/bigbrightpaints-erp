@@ -8932,3 +8932,31 @@ Queue Rotation (Auto-Replenish)
   - Add invariants that prevent mixed-tax-state replay drift in settlement adjustment paths.
 - [ready] M18-S10A staging rollback rehearsal evidence normalizer
   - Capture repeatable rollback drill evidence format and ensure scripts emit stable artifact keys.
+
+[2026-02-16] M18-S5A review-driven de-brittle cleanup and replay vocabulary alignment
+- Completed Slice (Committed): remove brittle reserved-replay no-write assertions
+  - Commit `5986537a`: removed two `journalEntryRepository.save(... ) never()` assertions from `AccountingServiceTest` that over-claimed branch internals for reserved non-leader replay mismatch paths.
+  - Verification: `cd erp-domain && mvn -B -ntp -Dtest=AccountingServiceTest test` (PASS: 95/95).
+  - Review dispatch: attempted subagent launch for commit review; blocked by active agent-thread cap (`max 6`) at dispatch time; queued for immediate retry.
+
+- Completed Slice (Committed): partner-mismatch message dedupe across replay validation paths
+  - Commit `167d2ebc`: unified partner mismatch conflict messaging in `AccountingService` via shared `partnerMismatchMessage(...)`, removing drift between journal replay (`another dealer/supplier`) and allocation replay (`another partner`).
+  - Verification: `cd erp-domain && mvn -B -ntp -Dtest=AccountingServiceTest test` (PASS: 95/95).
+  - Review dispatch: attempted subagent launch for commit review; blocked by active agent-thread cap (`max 6`) at dispatch time; queued for immediate retry.
+
+Loop Update
+- tracked_now_ts: `2026-02-16T02:03:30+05:30`
+- active_in_progress: `M18-S5A pending subagent review drain + next async-loop dedupe slice`
+- continuity_recheck:
+  - Code/test fixes continue to pass targeted harness.
+  - Review queue now explicitly tracks pending code-only commit reviews (`5986537a`, `167d2ebc`) awaiting subagent slot availability.
+
+Queue Rotation (Auto-Replenish)
+- [in_progress] M18-S5A pending subagent review drain
+  - Re-dispatch review for `5986537a` and `167d2ebc` as soon as a subagent slot opens; apply fixes if any findings.
+- [ready] M18-S6B partner vocabulary consistency assertions at API boundary
+  - Add/adjust controller/service tests to lock partner metadata semantics while preserving dealer/supplier domain wording in endpoint-level messages.
+- [ready] M18-S4A approval/override policy matrix hardening across dealer/supplier/accounting
+  - Extend negative-path tests for override authorization + audit event consistency.
+- [ready] M18-S10A staging rollback rehearsal evidence normalizer
+  - Capture repeatable rollback drill evidence format and ensure scripts emit stable artifact keys.
