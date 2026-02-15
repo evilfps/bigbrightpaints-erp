@@ -12,7 +12,7 @@ fail() {
 [[ -d "$MIGRATIONS_DIR" ]] || fail "missing migrations dir: $MIGRATIONS_DIR"
 git -C "$ROOT_DIR" rev-parse --git-dir >/dev/null 2>&1 || fail "repository metadata unavailable"
 
-mapfile -t migration_files < <(find "$MIGRATIONS_DIR" -maxdepth 1 -type f -name 'V*__*.sql' | sort -V)
+mapfile -t migration_files < <(find "$MIGRATIONS_DIR" -maxdepth 1 -type f -name 'V*__*.sql' | sort)
 [[ ${#migration_files[@]} -gt 0 ]] || fail "no migration_v2 files found"
 
 untracked=()
@@ -29,88 +29,77 @@ if [[ ${#untracked[@]} -gt 0 ]]; then
   fail "all migration_v2 files must be tracked"
 fi
 
-# Detect CREATE TABLE blocks that define `id bigint NOT NULL` but never establish
-# PRIMARY KEY/UNIQUE on that table (inline or via ALTER TABLE).
+# Detect CREATE/ALTER statements that define `id bigint NOT NULL` but never
+# establish PRIMARY KEY/UNIQUE(id) on that table.
 mapfile -t missing_pk_tables < <(
   awk '
-    BEGIN { IGNORECASE=1 }
+    BEGIN {
+      IGNORECASE = 1
+      RS = ";"
+    }
 
     function normalize_table(raw, cleaned) {
       cleaned = raw
       gsub(/"/, "", cleaned)
-      gsub(/\(/, "", cleaned)
-      gsub(/;/, "", cleaned)
+      sub(/\(.*/, "", cleaned)
+      gsub(/,/, "", cleaned)
       sub(/^ONLY[[:space:]]+/, "", cleaned)
       sub(/^public\./, "", cleaned)
       return cleaned
     }
 
-    function maybe_mark_primary_key(table_name, line) {
-      if (table_name == "") return
-      if (line ~ /PRIMARY KEY/ || line ~ /UNIQUE[[:space:]]*\([[:space:]]*id[[:space:]]*\)/) {
-        has_pk[table_name] = 1
-      }
+    function collapse_spaces(raw, cleaned) {
+      cleaned = raw
+      gsub(/--[^\n\r]*/, "", cleaned)
+      gsub(/[\r\n\t]+/, " ", cleaned)
+      gsub(/[[:space:]]+/, " ", cleaned)
+      sub(/^[[:space:]]+/, "", cleaned)
+      sub(/[[:space:]]+$/, "", cleaned)
+      return cleaned
     }
 
-    /^[[:space:]]*CREATE[[:space:]]+TABLE/ {
-      in_create = 1
-      in_alter = 0
-      create_has_id = 0
-      create_has_pk = 0
-
-      table_name = ""
-      for (i = 1; i <= NF; i++) {
-        if (toupper($i) == "TABLE") {
-          if (toupper($(i+1)) == "IF" && toupper($(i+2)) == "NOT" && toupper($(i+3)) == "EXISTS") {
-            table_name = $(i+4)
-          } else {
-            table_name = $(i+1)
-          }
-          break
-        }
-      }
-
-      current_table = normalize_table(table_name)
-      next
+    function has_id_bigint_not_null(stmt, normalized) {
+      normalized = stmt
+      gsub(/"/, "", normalized)
+      return normalized ~ /(^|[^[:alnum:]_])id[[:space:]]+bigint[[:space:]]+NOT[[:space:]]+NULL([^[:alnum:]_]|$)/
     }
 
-    in_create {
-      if ($0 ~ /^[[:space:]]*id[[:space:]]+bigint[[:space:]]+NOT[[:space:]]+NULL/) {
-        create_has_id = 1
-      }
-      maybe_mark_primary_key(current_table, $0)
-      if ($0 ~ /\)[[:space:]]*;/) {
-        if (create_has_id && !has_pk[current_table]) {
+    function has_pk_contract(stmt, normalized) {
+      normalized = stmt
+      gsub(/"/, "", normalized)
+      return normalized ~ /PRIMARY[[:space:]]+KEY/ || normalized ~ /UNIQUE[[:space:]]*\([[:space:]]*id[[:space:]]*\)/
+    }
+
+    {
+      stmt = collapse_spaces($0)
+      if (stmt == "") next
+
+      if (stmt ~ /CREATE[[:space:]]+TABLE[[:space:]]+/) {
+        create_stmt = stmt
+        sub(/.*CREATE[[:space:]]+TABLE[[:space:]]+/, "", create_stmt)
+        sub(/^IF[[:space:]]+NOT[[:space:]]+EXISTS[[:space:]]+/, "", create_stmt)
+        split(create_stmt, create_token, /[[:space:]]+/)
+        current_table = normalize_table(create_token[1])
+
+        if (current_table != "" && has_id_bigint_not_null(stmt)) {
           needs_pk[current_table] = 1
         }
-        in_create = 0
+        if (current_table != "" && has_pk_contract(stmt)) {
+          has_pk[current_table] = 1
+        }
+        next
       }
-      next
-    }
 
-    /^[[:space:]]*ALTER[[:space:]]+TABLE/ {
-      in_alter = 1
-      alter_table = ""
-      for (i = 1; i <= NF; i++) {
-        if (toupper($i) == "TABLE") {
-          if (toupper($(i+1)) == "ONLY") {
-            alter_table = $(i+2)
-          } else {
-            alter_table = $(i+1)
-          }
-          break
+      if (stmt ~ /ALTER[[:space:]]+TABLE[[:space:]]+/) {
+        alter_stmt = stmt
+        sub(/.*ALTER[[:space:]]+TABLE[[:space:]]+/, "", alter_stmt)
+        sub(/^ONLY[[:space:]]+/, "", alter_stmt)
+        split(alter_stmt, alter_token, /[[:space:]]+/)
+        alter_table = normalize_table(alter_token[1])
+        if (alter_table != "" && has_pk_contract(stmt)) {
+          has_pk[alter_table] = 1
         }
       }
-      alter_table = normalize_table(alter_table)
-      maybe_mark_primary_key(alter_table, $0)
-      if ($0 ~ /;/) in_alter = 0
-      next
-    }
-
-    in_alter {
-      maybe_mark_primary_key(alter_table, $0)
-      if ($0 ~ /;/) in_alter = 0
-      next
     }
 
     END {
