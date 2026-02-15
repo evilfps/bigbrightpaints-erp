@@ -152,12 +152,16 @@ run_case "verify_required_ignores_skip" 0 \
 run_case "verify_skip_without_marker" 0 \
   'rm -f .guard_calls && MIGRATION_SET=v2 VERIFY_LOCAL_SKIP_FLYWAY_GUARD=true VERIFY_LOCAL_GUARD_ALREADY_EXECUTED=false FLYWAY_GUARD_DB_NAME=guard_db VERIFY_LOCAL_SKIP_TESTS=true CONTRACT_MARK_GUARD_FILE=.guard_calls ./scripts/verify_local.sh && test -s .guard_calls'
 
-# Case 5: gate_release fails closed on mismatch by default.
+# Case 5: delegated skip with execution marker suppresses re-running checksum guard.
+run_case "verify_skip_with_marker" 0 \
+  'rm -f .guard_calls && MIGRATION_SET=v2 VERIFY_LOCAL_SKIP_FLYWAY_GUARD=true VERIFY_LOCAL_GUARD_ALREADY_EXECUTED=true FLYWAY_GUARD_DB_NAME=guard_db VERIFY_LOCAL_SKIP_TESTS=true CONTRACT_MARK_GUARD_FILE=.guard_calls ./scripts/verify_local.sh && test ! -s .guard_calls'
+
+# Case 6: gate_release fails closed on mismatch by default.
 run_case "release_mismatch_fail_closed" 4 \
   'FLYWAY_GUARD_DB_NAME=guard_db PGDATABASE=other_db ./scripts/gate_release.sh'
 require_output "release_mismatch_fail_closed" "FLYWAY_GUARD_DB_NAME and PGDATABASE differ."
 
-# Case 6: gate_release propagates allow/delegation flags to verify_local call.
+# Case 7: gate_release propagates allow/delegation flags to verify_local call.
 mv "$TMP_ROOT/scripts/verify_local.sh" "$TMP_ROOT/scripts/verify_local.real.sh"
 cat > "$TMP_ROOT/scripts/verify_local.sh" <<'STUB_VERIFY_WRAPPER'
 #!/usr/bin/env bash
