@@ -1,0 +1,21 @@
+id: orchestrator-runtime
+name: Orchestrator Runtime Agent
+scope_paths:
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/orchestrator/
+  - erp-domain/src/test/java/com/bigbrightpaints/erp/orchestrator/
+  - erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/orchestrator/
+  - scripts/guard_orchestrator_correlation_contract.sh
+allowed_operations:
+  - patch_orchestrator_runtime
+  - enforce_idempotency_contracts
+  - patch_outbox_retry_logic
+required_checks_before_done:
+  - bash ci/check-architecture.sh
+  - bash scripts/guard_orchestrator_correlation_contract.sh
+escalation_triggers:
+  - cross_module_side_effect_semantics_change
+  - destructive_backfill_requested
+risk_tier: critical
+permissions_profile: enterprise_autonomous
+timeout_policy: none
+cross_module_workflow_required: true

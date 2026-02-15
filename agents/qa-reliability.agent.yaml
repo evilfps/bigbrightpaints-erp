@@ -1,0 +1,20 @@
+id: qa-reliability
+name: QA and Reliability Agent
+scope_paths:
+  - scripts/
+  - ci/
+  - erp-domain/src/test/
+  - docs/RELIABILITY.md
+allowed_operations:
+  - run_tests
+  - triage_failures
+  - improve_harness
+required_checks_before_done:
+  - bash scripts/verify_local.sh
+escalation_triggers:
+  - non_reproducible_red_state
+  - infra_dependency_unavailable
+risk_tier: medium
+permissions_profile: enterprise_autonomous
+timeout_policy: none
+cross_module_workflow_required: true

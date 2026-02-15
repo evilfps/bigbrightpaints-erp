@@ -1,0 +1,23 @@
+id: full-codebase-explorer
+name: Full Codebase Explorer Agent
+scope_paths:
+  - erp-domain/
+  - scripts/
+  - docs/
+  - ci/
+  - .github/workflows/
+  - testing/
+allowed_operations:
+  - deep_recon
+  - cross_module_mapping
+  - risk_hotspot_discovery
+  - async_loop_planning
+required_checks_before_done:
+  - none_required_for_recon_mode
+escalation_triggers:
+  - destructive_change_requested
+  - ambiguous_business_policy
+risk_tier: medium
+permissions_profile: read_only_recon
+timeout_policy: none
+cross_module_workflow_required: true

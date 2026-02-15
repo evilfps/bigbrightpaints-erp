@@ -1,0 +1,23 @@
+id: reports-admin-portal
+name: Reports Admin Portal Agent
+scope_paths:
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/reports/
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/admin/
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/portal/
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/demo/
+  - erp-domain/src/test/java/com/bigbrightpaints/erp/modules/reports/
+  - erp-domain/src/test/java/com/bigbrightpaints/erp/modules/admin/
+  - erp-domain/src/test/java/com/bigbrightpaints/erp/modules/portal/
+allowed_operations:
+  - patch_reporting_contracts
+  - patch_admin_portal_contracts
+  - patch_portal_scope_controls
+required_checks_before_done:
+  - bash ci/check-architecture.sh
+escalation_triggers:
+  - role_scope_expansion
+  - sensitive_data_exposure_change
+risk_tier: high
+permissions_profile: enterprise_autonomous
+timeout_policy: none
+cross_module_workflow_required: true

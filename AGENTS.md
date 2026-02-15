@@ -1,169 +1,112 @@
-# Codex Cloud Agent Guide
+# Agent Map (Table of Contents) - orchestrator_erp
 
-This repository is used with Codex Cloud and local worktrees. Follow the rules
-below to avoid data loss and ensure repeatable CI/debugging runs.
+Last reviewed: 2026-02-15
 
-## Scope
-- Primary service: `erp-domain`
-- CI entrypoint: `.github/workflows/ci.yml` (runs CODE-RED scans + `mvn -B -ntp verify`; local equivalent: `bash scripts/verify_local.sh`)
-- Debugging plan: `docs/codex-cloud-ci-debugging-plan.md`
+This file is intentionally short.
+It is a map, not an encyclopedia.
+Depth belongs in `docs/` and `skills/`.
+Human-friendly alias: `AGENTMAP.md`.
 
-## Safety rules (do not deviate)
-- Do not use `git push --force` unless explicitly approved; if forced, use
-  `--force-with-lease` only after a successful rebase.
-- Do not delete branches or rewrite history without explicit approval.
-- Do not touch other worktrees/branches unless explicitly instructed.
-- Do not discard local changes unless instructed; prefer `git stash` with a clear
-  message.
-- If anything unexpected appears (unknown diffs, missing files), stop and report.
+## Mission
+- Run agent-first with measurable harness checks.
+- Keep loops long-running and low-touch.
+- Escalate only when risk is high or intent is ambiguous.
+- Allow full-repository exploration for analysis/recon before scoped edits.
+- Operate with enterprise-autonomous write policy and no timeout limits by default.
+- Require proof-backed decisions (tests/guards/traces), never assumption-backed decisions.
+- Prioritize cross-module workflow correctness over single-module local optimization.
 
-## Long-running tasks (Codex Cloud)
-- Run long tasks asynchronously and track them; do not block the session.
-- Use the async procedure in `docs/codex-cloud-ci-debugging-plan.md`.
+## Canonical Sources (Progressive Disclosure)
+1. `docs/INDEX.md` (repo snapshot + doc map)
+2. `docs/ARCHITECTURE.md` (boundaries + dependency rules)
+3. `docs/agents/CATALOG.md` (who does what)
+4. `docs/agents/PERMISSIONS.md` (who can do what)
+5. `docs/agents/WORKFLOW.md` (lifecycle, CI/CD, rollback)
+6. `docs/agents/ENTERPRISE_MODE.md` (near-deployment policy profiles)
+7. `docs/agents/ORCHESTRATION_LAYER.md` (real orchestrator control plane)
+8. Domain contracts: `erp-domain/docs/INDEX.md`
+9. Async loop runbook: `docs/ASYNC_LOOP_OPERATIONS.md` + `asyncloop`
 
-## CI debugging workflow
-1. Identify the first failing test and capture the stack trace.
-2. Download Surefire artifacts and confirm all failing tests.
-3. Classify failure type (logic, nondeterministic, infra/config, data/setup).
-4. Reproduce locally when possible.
-5. Propose and implement fixes only after root cause is verified.
+## Build / Run / Test (Detected)
+- Build: `cd erp-domain && mvn -B -ntp -DskipTests package`
+- Run local stack: `docker compose up --build`
+- Run tests: `cd erp-domain && mvn -B -ntp test`
+- Harness: `bash scripts/verify_local.sh`
+- Gate tiers:
+  - `bash scripts/gate_fast.sh`
+  - `bash scripts/gate_core.sh`
+  - `bash scripts/gate_release.sh`
+  - `bash scripts/gate_reconciliation.sh`
 
-## Accounting verification
-- Follow the accounting verification checklist in
-  `docs/codex-cloud-ci-debugging-plan.md`.
-- Do not introduce new features while fixing accounting logic.
+## Non-Negotiable Safety
+- No history rewrite, branch deletion, or force push without explicit approval.
+- Never discard unknown local changes.
+- If unexpected diffs or missing files appear, stop and report.
+- Never bypass accounting/migration/reconciliation guards just to get green CI.
 
-## Output expectations
-- Summarize changes with file paths.
-- Provide reproduction steps and test commands.
-- If blocked, state the exact blocker and what evidence is needed.      
+## Review Guidelines (Required)
+- PII: enforce redaction and avoid sensitive payload logging (`docs/SECURITY.md`).
+- AuthZ/RBAC/company isolation: verify fail-closed semantics and tenant scope checks.
+- Migrations: use Flyway v2 policy and run drift/overlap guards.
+- Posting rules: preserve double-entry, period locks, idempotency, and reconciliation links.
+- Frontend docs taxonomy: Accounting Portal owns HR/Inventory/Accounting/Reports/Invoice; Factory Portal owns Production/Manufacturing/Factory.
+- For risky edits, add or update tests before marking done.
 
+## Decision Checkpoints
+- `R1` Orchestrator intent checkpoint when requirements conflict.
+- `R2` Orchestrator risk checkpoint for high-risk semantics with proof pack.
+- `R3` Human checkpoint only for irreversible production actions and final production go/no-go.
 
-<skills_system priority="1">
+## Harness Ladder (Cheapest -> Broadest)
+1. Targeted checks tied to changed files.
+2. `bash ci/lint-knowledgebase.sh`
+3. `bash ci/check-architecture.sh`
+4. `bash ci/check-enterprise-policy.sh`
+5. `bash ci/check-orchestrator-layer.sh`
+6. `bash scripts/verify_local.sh`
+7. CI parity gates as needed.
 
-## Available Skills
+## Agent-First Workflow Contract
+- Define acceptance criteria before edits.
+- Patch minimally.
+- Run harness.
+- Diagnose with concrete evidence.
+- Self-correct and rerun.
+- Keep artifacts/logs linked in task output.
+- For cross-module changes, follow contract-first order:
+  - contracts/events first
+  - producer second
+  - consumers third
+  - orchestrator last
 
-<!-- SKILLS_TABLE_START -->
-<usage>
-When users ask you to perform tasks, check if any of the available skills below can help complete the task more effectively. Skills provide specialized capabilities and domain knowledge.
+## Where To Add Detail
+- New long-lived process docs: `docs/` + link in `docs/INDEX.md`.
+- Agent definitions: `agents/*.agent.yaml` and `agents/catalog.yaml`.
+- Repeatable workflows: `skills/` (`skills/*/SKILL.md` per skill, plus optional `scripts/` templates).
+- Risk/governance updates: `docs/SECURITY.md`, `docs/RELIABILITY.md`, `docs/runbooks/`.
 
-How to use skills:
-- Invoke: `npx openskills read <skill-name>` (run in your shell)
-  - For multiple: `npx openskills read skill-one,skill-two`
-- The skill content will load with detailed instructions on how to complete the task
-- Base directory provided in output for resolving bundled resources (references/, scripts/, assets/)
+## Module Overrides (Closest Equivalent Paths)
+- `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/AGENTS.md`
+- `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/AGENTS.md`
+- `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/sales/AGENTS.md`
+- `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/hr/AGENTS.md`
+- All remaining module ownership and `orchestrator` ownership are defined in `docs/agents/CATALOG.md` and `agents/catalog.yaml`.
 
-Usage notes:
-- Only use skills listed in <available_skills> below
-- Do not invoke a skill that is already loaded in your context
-- Each skill invocation is stateless
-</usage>
+## Exploration Policy
+- Agents may read the full repository for discovery (`erp-domain`, `scripts`, `docs`, `.github/workflows`, `testing`).
+- Write scope remains agent-specific (see `agents/*.agent.yaml`).
+- Recon-only passes can skip tests; code-change passes must run appropriate harness checks.
 
-<available_skills>
+## Output Contract (Every Task)
+Return:
+- files changed
+- commands run
+- harness results
+- residual risks
+- exact blocker + missing evidence if unresolved
 
-<skill>
-<name>algorithmic-art</name>
-<description>Creating algorithmic art using p5.js with seeded randomness and interactive parameter exploration. Use this when users request creating art using code, generative art, algorithmic art, flow fields, or particle systems. Create original algorithmic art rather than copying existing artists' work to avoid copyright violations.</description>
-<location>project</location>
-</skill>
-
-<skill>
-<name>brand-guidelines</name>
-<description>Applies Anthropic's official brand colors and typography to any sort of artifact that may benefit from having Anthropic's look-and-feel. Use it when brand colors or style guidelines, visual formatting, or company design standards apply.</description>
-<location>project</location>
-</skill>
-
-<skill>
-<name>canvas-design</name>
-<description>Create beautiful visual art in .png and .pdf documents using design philosophy. You should use this skill when the user asks to create a poster, piece of art, design, or other static piece. Create original visual designs, never copying existing artists' work to avoid copyright violations.</description>
-<location>project</location>
-</skill>
-
-<skill>
-<name>doc-coauthoring</name>
-<description>Guide users through a structured workflow for co-authoring documentation. Use when user wants to write documentation, proposals, technical specs, decision docs, or similar structured content. This workflow helps users efficiently transfer context, refine content through iteration, and verify the doc works for readers. Trigger when user mentions writing docs, creating proposals, drafting specs, or similar documentation tasks.</description>
-<location>project</location>
-</skill>
-
-<skill>
-<name>docx</name>
-<description>"Comprehensive document creation, editing, and analysis with support for tracked changes, comments, formatting preservation, and text extraction. When Claude needs to work with professional documents (.docx files) for: (1) Creating new documents, (2) Modifying or editing content, (3) Working with tracked changes, (4) Adding comments, or any other document tasks"</description>
-<location>project</location>
-</skill>
-
-<skill>
-<name>frontend-design</name>
-<description>Create distinctive, production-grade frontend interfaces with high design quality. Use this skill when the user asks to build web components, pages, artifacts, posters, or applications (examples include websites, landing pages, dashboards, React components, HTML/CSS layouts, or when styling/beautifying any web UI). Generates creative, polished code and UI design that avoids generic AI aesthetics.</description>
-<location>project</location>
-</skill>
-
-<skill>
-<name>internal-comms</name>
-<description>A set of resources to help me write all kinds of internal communications, using the formats that my company likes to use. Claude should use this skill whenever asked to write some sort of internal communications (status reports, leadership updates, 3P updates, company newsletters, FAQs, incident reports, project updates, etc.).</description>
-<location>project</location>
-</skill>
-
-<skill>
-<name>mcp-builder</name>
-<description>Guide for creating high-quality MCP (Model Context Protocol) servers that enable LLMs to interact with external services through well-designed tools. Use when building MCP servers to integrate external APIs or services, whether in Python (FastMCP) or Node/TypeScript (MCP SDK).</description>
-<location>project</location>
-</skill>
-
-<skill>
-<name>pdf</name>
-<description>Comprehensive PDF manipulation toolkit for extracting text and tables, creating new PDFs, merging/splitting documents, and handling forms. When Claude needs to fill in a PDF form or programmatically process, generate, or analyze PDF documents at scale.</description>
-<location>project</location>
-</skill>
-
-<skill>
-<name>pptx</name>
-<description>"Presentation creation, editing, and analysis. When Claude needs to work with presentations (.pptx files) for: (1) Creating new presentations, (2) Modifying or editing content, (3) Working with layouts, (4) Adding comments or speaker notes, or any other presentation tasks"</description>
-<location>project</location>
-</skill>
-
-<skill>
-<name>skill-creator</name>
-<description>Guide for creating effective skills. This skill should be used when users want to create a new skill (or update an existing skill) that extends Claude's capabilities with specialized knowledge, workflows, or tool integrations.</description>
-<location>project</location>
-</skill>
-
-<skill>
-<name>slack-gif-creator</name>
-<description>Knowledge and utilities for creating animated GIFs optimized for Slack. Provides constraints, validation tools, and animation concepts. Use when users request animated GIFs for Slack like "make me a GIF of X doing Y for Slack."</description>
-<location>project</location>
-</skill>
-
-<skill>
-<name>template</name>
-<description>Replace with description of the skill and when Claude should use it.</description>
-<location>project</location>
-</skill>
-
-<skill>
-<name>theme-factory</name>
-<description>Toolkit for styling artifacts with a theme. These artifacts can be slides, docs, reportings, HTML landing pages, etc. There are 10 pre-set themes with colors/fonts that you can apply to any artifact that has been creating, or can generate a new theme on-the-fly.</description>
-<location>project</location>
-</skill>
-
-<skill>
-<name>web-artifacts-builder</name>
-<description>Suite of tools for creating elaborate, multi-component claude.ai HTML artifacts using modern frontend web technologies (React, Tailwind CSS, shadcn/ui). Use for complex artifacts requiring state management, routing, or shadcn/ui components - not for simple single-file HTML/JSX artifacts.</description>
-<location>project</location>
-</skill>
-
-<skill>
-<name>webapp-testing</name>
-<description>Toolkit for interacting with and testing local web applications using Playwright. Supports verifying frontend functionality, debugging UI behavior, capturing browser screenshots, and viewing browser logs.</description>
-<location>project</location>
-</skill>
-
-<skill>
-<name>xlsx</name>
-<description>"Comprehensive spreadsheet creation, editing, and analysis with support for formulas, formatting, data analysis, and visualization. When Claude needs to work with spreadsheets (.xlsx, .xlsm, .csv, .tsv, etc) for: (1) Creating new spreadsheets with formulas and formatting, (2) Reading or analyzing data, (3) Modify existing spreadsheets while preserving formulas, (4) Data analysis and visualization in spreadsheets, or (5) Recalculating formulas"</description>
-<location>project</location>
-</skill>
-
-</available_skills>
-<!-- SKILLS_TABLE_END -->
-
-</skills_system>    
+## Dependency Change Proof Rule
+- Any allowlist dependency edge update must include ADR evidence with:
+  - why needed
+  - alternatives rejected
+  - boundary preserved

@@ -28,8 +28,78 @@ on:
   schedule:
     - cron: "17 2 * * *"
 
+env:
+  MIGRATION_SET: v2
+
 jobs:
+  knowledgebase-lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Knowledge Base Lint
+        run: |
+          set -euo pipefail
+          bash ci/lint-knowledgebase.sh
+
+  architecture-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Architecture Check
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+            export ARCH_DIFF_BASE="${{ github.event.pull_request.base.sha }}"
+          fi
+          bash ci/check-architecture.sh
+
+  enterprise-policy-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Enterprise Policy Check
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+            export ENTERPRISE_DIFF_BASE="${{ github.event.pull_request.base.sha }}"
+          fi
+          bash ci/check-enterprise-policy.sh
+
+  orchestrator-layer-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Orchestrator Layer Check
+        run: |
+          set -euo pipefail
+          bash ci/check-orchestrator-layer.sh
+
   gate-fast:
+    needs: [knowledgebase-lint, architecture-check, enterprise-policy-check, orchestrator-layer-check]
     if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.event.inputs.diff_base != '')
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -37,6 +107,19 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Guard legacy migration freeze
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+            bash scripts/guard_legacy_migration_freeze.sh --base "${{ github.event.pull_request.base.sha }}"
+          elif [[ "${GITHUB_EVENT_NAME}" == "push" ]]; then
+            bash scripts/guard_legacy_migration_freeze.sh --base "${{ github.event.before }}"
+          else
+            bash scripts/guard_legacy_migration_freeze.sh
+          fi
 
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -68,6 +151,7 @@ jobs:
             erp-domain/target/surefire-reports/**
 
   gate-core:
+    needs: [knowledgebase-lint, architecture-check, enterprise-policy-check, orchestrator-layer-check]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 70
@@ -75,6 +159,19 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Guard legacy migration freeze
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+            bash scripts/guard_legacy_migration_freeze.sh --base "${{ github.event.pull_request.base.sha }}"
+          elif [[ "${GITHUB_EVENT_NAME}" == "push" ]]; then
+            bash scripts/guard_legacy_migration_freeze.sh --base "${{ github.event.before }}"
+          else
+            bash scripts/guard_legacy_migration_freeze.sh
+          fi
 
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -99,6 +196,7 @@ jobs:
             erp-domain/target/surefire-reports/**
 
   gate-release:
+    needs: [knowledgebase-lint, architecture-check, enterprise-policy-check, orchestrator-layer-check]
     if: startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && github.event.inputs.run_release_gates != 'false')
     runs-on: ubuntu-latest
     timeout-minutes: 120
@@ -120,6 +218,19 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Guard legacy migration freeze
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+            bash scripts/guard_legacy_migration_freeze.sh --base "${{ github.event.pull_request.base.sha }}"
+          elif [[ "${GITHUB_EVENT_NAME}" == "push" ]]; then
+            bash scripts/guard_legacy_migration_freeze.sh --base "${{ github.event.before }}"
+          else
+            bash scripts/guard_legacy_migration_freeze.sh
+          fi
 
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -130,6 +241,7 @@ jobs:
 
       - name: Gate Release
         env:
+          MIGRATION_SET: v2
           PGHOST: 127.0.0.1
           PGPORT: "5432"
           PGUSER: postgres
@@ -150,6 +262,7 @@ jobs:
             erp-domain/target/surefire-reports/**
 
   gate-reconciliation:
+    needs: [knowledgebase-lint, architecture-check, enterprise-policy-check, orchestrator-layer-check]
     if: startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && github.event.inputs.run_release_gates != 'false')
     runs-on: ubuntu-latest
     timeout-minutes: 90
@@ -157,6 +270,19 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Guard legacy migration freeze
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+            bash scripts/guard_legacy_migration_freeze.sh --base "${{ github.event.pull_request.base.sha }}"
+          elif [[ "${GITHUB_EVENT_NAME}" == "push" ]]; then
+            bash scripts/guard_legacy_migration_freeze.sh --base "${{ github.event.before }}"
+          else
+            bash scripts/guard_legacy_migration_freeze.sh
+          fi
 
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -180,6 +306,7 @@ jobs:
             erp-domain/target/surefire-reports/**
 
   gate-quality:
+    needs: [knowledgebase-lint, architecture-check]
     if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.event.inputs.run_quality_gate == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 180
@@ -187,6 +314,19 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Guard legacy migration freeze
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+            bash scripts/guard_legacy_migration_freeze.sh --base "${{ github.event.pull_request.base.sha }}"
+          elif [[ "${GITHUB_EVENT_NAME}" == "push" ]]; then
+            bash scripts/guard_legacy_migration_freeze.sh --base "${{ github.event.before }}"
+          else
+            bash scripts/guard_legacy_migration_freeze.sh
+          fi
 
       - name: Set up Java
         uses: actions/setup-java@v4

@@ -1,5 +1,8 @@
 # Async Loop Operations Runbook
 
+Last reviewed: 2026-02-15
+Owner: Orchestrator Agent
+
 This runbook defines the non-stop autonomous workflow used in this repository
 to move the ERP toward staging/predeployment readiness.
 
@@ -26,6 +29,8 @@ to move the ERP toward staging/predeployment readiness.
   the primary agent.
 - Maintain backlog floor: at least 3 `ready` slices in `asyncloop`.
 - After a completed slice, immediately add a new concrete slice.
+- Orchestrator routing/review must follow `agents/orchestrator-layer.yaml`.
+- Decisions must be proof-backed (tests/guards/traces), not assumption-backed.
 
 ## Execution Loop (One Iteration)
 1. Pick highest-risk `in_progress` or top `ready` slice from `asyncloop`.

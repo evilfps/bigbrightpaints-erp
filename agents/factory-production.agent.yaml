@@ -1,0 +1,21 @@
+id: factory-production
+name: Factory Production Agent
+scope_paths:
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/factory/
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/production/
+  - erp-domain/src/test/java/com/bigbrightpaints/erp/modules/factory/
+  - erp-domain/src/test/java/com/bigbrightpaints/erp/modules/production/
+  - erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/manufacturing/
+allowed_operations:
+  - patch_factory_production_workflows
+  - patch_packing_and_batch_logic
+  - patch_costing_linkages
+required_checks_before_done:
+  - bash ci/check-architecture.sh
+escalation_triggers:
+  - costing_semantics_change
+  - inventory_valuation_semantics_change
+risk_tier: high
+permissions_profile: enterprise_autonomous
+timeout_policy: none
+cross_module_workflow_required: true

@@ -1,0 +1,19 @@
+name: Codex Review Policy
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  codex-review-policy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Enforce Codex review guidelines
+        run: |
+          set -euo pipefail
+          bash ci/check-codex-review-guidelines.sh

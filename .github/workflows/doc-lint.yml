@@ -1,0 +1,21 @@
+name: Knowledge Base Lint
+
+on:
+  pull_request:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  knowledgebase-lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Lint knowledge base
+        run: |
+          set -euo pipefail
+          bash ci/lint-knowledgebase.sh

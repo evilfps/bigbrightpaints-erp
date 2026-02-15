@@ -1,0 +1,24 @@
+id: release-ops
+name: Release and Ops Agent
+scope_paths:
+  - .github/workflows/
+  - scripts/
+  - docs/runbooks/
+  - docker-compose.yml
+  - erp-domain/Dockerfile
+allowed_operations:
+  - validate_release_readiness
+  - run_release_gates
+  - prepare_deploy_steps
+  - execute_rollback_drill
+required_checks_before_done:
+  - bash scripts/gate_release.sh
+  - bash scripts/gate_reconciliation.sh
+escalation_triggers:
+  - prod_deploy_request
+  - rollback_execution
+  - missing_release_evidence
+risk_tier: critical
+permissions_profile: enterprise_release
+timeout_policy: none
+cross_module_workflow_required: true

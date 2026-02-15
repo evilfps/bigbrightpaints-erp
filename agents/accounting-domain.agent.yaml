@@ -1,0 +1,21 @@
+id: accounting-domain
+name: Accounting Domain Agent
+scope_paths:
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/
+  - erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/
+  - erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/accounting/
+allowed_operations:
+  - patch_code
+  - add_tests
+  - update_accounting_docs
+required_checks_before_done:
+  - cd erp-domain && mvn -B -ntp -Dtest='*Accounting*' test
+  - bash scripts/verify_local.sh
+escalation_triggers:
+  - ledger_posting_semantics_change
+  - period_close_rule_change
+  - migration_touching_accounting_tables
+risk_tier: critical
+permissions_profile: enterprise_autonomous
+timeout_policy: none
+cross_module_workflow_required: true

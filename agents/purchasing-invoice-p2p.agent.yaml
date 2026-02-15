@@ -1,0 +1,21 @@
+id: purchasing-invoice-p2p
+name: Purchasing Invoice P2P Agent
+scope_paths:
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/purchasing/
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/invoice/
+  - erp-domain/src/test/java/com/bigbrightpaints/erp/modules/purchasing/
+  - erp-domain/src/test/java/com/bigbrightpaints/erp/modules/invoice/
+  - erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/p2p/
+allowed_operations:
+  - patch_p2p_workflows
+  - patch_supplier_settlement_logic
+  - patch_invoice_ap_linkages
+required_checks_before_done:
+  - bash ci/check-architecture.sh
+escalation_triggers:
+  - settlement_semantics_change
+  - migration_touching_financial_tables
+risk_tier: high
+permissions_profile: enterprise_autonomous
+timeout_policy: none
+cross_module_workflow_required: true

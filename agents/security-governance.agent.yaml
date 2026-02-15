@@ -1,0 +1,22 @@
+id: security-governance
+name: Security and Governance Agent
+scope_paths:
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/auth/
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/rbac/
+  - docs/SECURITY.md
+  - .github/workflows/
+allowed_operations:
+  - audit_access_control
+  - tighten_permissions
+  - update_security_policy
+required_checks_before_done:
+  - bash ci/check-architecture.sh
+  - bash ci/lint-knowledgebase.sh
+escalation_triggers:
+  - permission_scope_expansion
+  - secret_management_change
+  - auth_semantics_change
+risk_tier: critical
+permissions_profile: enterprise_autonomous
+timeout_policy: none
+cross_module_workflow_required: true

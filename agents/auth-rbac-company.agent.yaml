@@ -1,0 +1,21 @@
+id: auth-rbac-company
+name: Auth RBAC Company Agent
+scope_paths:
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/auth/
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/rbac/
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/company/
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/core/security/
+  - erp-domain/src/test/java/com/bigbrightpaints/erp/modules/auth/
+allowed_operations:
+  - patch_authz_logic
+  - patch_tenant_isolation
+  - patch_identity_flows
+required_checks_before_done:
+  - bash ci/check-architecture.sh
+escalation_triggers:
+  - permission_expansion
+  - auth_semantics_change
+risk_tier: critical
+permissions_profile: enterprise_autonomous
+timeout_policy: none
+cross_module_workflow_required: true

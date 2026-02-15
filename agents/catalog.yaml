@@ -1,0 +1,284 @@
+version: 2
+last_reviewed: 2026-02-15
+global_policies:
+  default_read_exploration_scopes:
+    - .
+  default_permission_profile: enterprise_autonomous
+  default_timeout: none
+  cross_module_workflow_first: true
+  scope_paths_are_ownership_not_read_limits: true
+  recon_mode_no_tests: true
+  write_scope_enforced_per_agent: conditional_for_high_risk
+  high_risk_changes_require_human_r2: true
+  high_risk_changes_require_r2_checkpoint_file: true
+  migration_changes_require_runbook_updates: true
+  high_risk_logic_changes_require_tests_or_waiver: true
+  proof_first_decisions_required: true
+  orchestrator_can_close_r1_r2_with_proof: true
+  human_required_only_for_irreversible_r3_prod: true
+  enterprise_policy_guard_script: ci/check-enterprise-policy.sh
+  orchestrator_layer_contract: agents/orchestrator-layer.yaml
+agents:
+  - id: orchestrator
+    name: Orchestrator
+    risk_tier: high
+    scopes:
+      - docs/
+      - agents/
+      - skills/
+      - ci/
+      - .github/workflows/
+      - asyncloop
+    allowed_tools:
+      - read_files
+      - write_files
+      - run_shell
+      - run_ci_checks
+      - assign_subtasks
+
+  - id: repo-cartographer
+    name: Repo Cartographer
+    risk_tier: medium
+    scopes:
+      - docs/
+      - ARCHITECTURE.md
+      - AGENTS.md
+      - ci/
+      - erp-domain/docs/
+    allowed_tools:
+      - read_files
+      - write_files
+      - run_shell
+
+  - id: full-codebase-explorer
+    name: Full Codebase Explorer Agent
+    risk_tier: medium
+    scopes:
+      - erp-domain/
+      - scripts/
+      - docs/
+      - ci/
+      - .github/workflows/
+      - testing/
+    allowed_tools:
+      - read_files
+      - run_shell
+
+  - id: accounting-domain
+    name: Accounting Domain Agent
+    risk_tier: critical
+    scopes:
+      - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/
+      - erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/
+      - erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/accounting/
+      - erp-domain/src/main/resources/db/migration_v2/
+    allowed_tools:
+      - read_files
+      - write_files
+      - run_shell
+      - run_ci_checks
+
+  - id: inventory-domain
+    name: Inventory Domain Agent
+    risk_tier: high
+    scopes:
+      - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/
+      - erp-domain/src/test/java/com/bigbrightpaints/erp/modules/inventory/
+      - erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/inventory/
+    allowed_tools:
+      - read_files
+      - write_files
+      - run_shell
+      - run_ci_checks
+
+  - id: sales-domain
+    name: Sales Domain Agent
+    risk_tier: high
+    scopes:
+      - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/sales/
+      - erp-domain/src/test/java/com/bigbrightpaints/erp/modules/sales/
+      - erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/o2c/
+    allowed_tools:
+      - read_files
+      - write_files
+      - run_shell
+      - run_ci_checks
+
+  - id: hr-domain
+    name: HR Domain Agent
+    risk_tier: critical
+    scopes:
+      - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/hr/
+      - erp-domain/src/test/java/com/bigbrightpaints/erp/modules/hr/
+      - erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/payroll/
+    allowed_tools:
+      - read_files
+      - write_files
+      - run_shell
+      - run_ci_checks
+
+  - id: orchestrator-runtime
+    name: Orchestrator Runtime Agent
+    risk_tier: critical
+    scopes:
+      - erp-domain/src/main/java/com/bigbrightpaints/erp/orchestrator/
+      - erp-domain/src/test/java/com/bigbrightpaints/erp/orchestrator/
+      - erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/orchestrator/
+      - scripts/guard_orchestrator_correlation_contract.sh
+    allowed_tools:
+      - read_files
+      - write_files
+      - run_shell
+      - run_ci_checks
+
+  - id: auth-rbac-company
+    name: Auth RBAC Company Agent
+    risk_tier: critical
+    scopes:
+      - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/auth/
+      - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/rbac/
+      - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/company/
+      - erp-domain/src/main/java/com/bigbrightpaints/erp/core/security/
+      - erp-domain/src/test/java/com/bigbrightpaints/erp/modules/auth/
+    allowed_tools:
+      - read_files
+      - write_files
+      - run_shell
+      - run_ci_checks
+
+  - id: purchasing-invoice-p2p
+    name: Purchasing Invoice P2P Agent
+    risk_tier: high
+    scopes:
+      - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/purchasing/
+      - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/invoice/
+      - erp-domain/src/test/java/com/bigbrightpaints/erp/modules/purchasing/
+      - erp-domain/src/test/java/com/bigbrightpaints/erp/modules/invoice/
+      - erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/p2p/
+    allowed_tools:
+      - read_files
+      - write_files
+      - run_shell
+      - run_ci_checks
+
+  - id: factory-production
+    name: Factory Production Agent
+    risk_tier: high
+    scopes:
+      - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/factory/
+      - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/production/
+      - erp-domain/src/test/java/com/bigbrightpaints/erp/modules/factory/
+      - erp-domain/src/test/java/com/bigbrightpaints/erp/modules/production/
+      - erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/manufacturing/
+    allowed_tools:
+      - read_files
+      - write_files
+      - run_shell
+      - run_ci_checks
+
+  - id: reports-admin-portal
+    name: Reports Admin Portal Agent
+    risk_tier: high
+    scopes:
+      - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/reports/
+      - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/admin/
+      - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/portal/
+      - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/demo/
+      - erp-domain/src/test/java/com/bigbrightpaints/erp/modules/reports/
+      - erp-domain/src/test/java/com/bigbrightpaints/erp/modules/admin/
+      - erp-domain/src/test/java/com/bigbrightpaints/erp/modules/portal/
+    allowed_tools:
+      - read_files
+      - write_files
+      - run_shell
+      - run_ci_checks
+
+  - id: qa-reliability
+    name: QA and Reliability Agent
+    risk_tier: medium
+    scopes:
+      - scripts/
+      - ci/
+      - erp-domain/src/test/
+      - docs/RELIABILITY.md
+    allowed_tools:
+      - read_files
+      - write_files
+      - run_shell
+      - run_ci_checks
+
+  - id: refactor-techdebt-gc
+    name: Refactor and Tech-Debt GC Agent
+    risk_tier: medium
+    scopes:
+      - erp-domain/src/main/java/
+      - erp-domain/src/test/java/
+      - docs/
+      - ci/
+    allowed_tools:
+      - read_files
+      - write_files
+      - run_shell
+      - run_ci_checks
+
+  - id: data-migration
+    name: Data Migration Agent
+    risk_tier: critical
+    scopes:
+      - erp-domain/src/main/resources/db/migration_v2/
+      - docs/runbooks/migrations.md
+      - scripts/
+    allowed_tools:
+      - read_files
+      - write_files
+      - run_shell
+      - run_ci_checks
+      - staging_deploy
+
+  - id: security-governance
+    name: Security and Governance Agent
+    risk_tier: critical
+    scopes:
+      - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/auth/
+      - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/rbac/
+      - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/company/
+      - docs/SECURITY.md
+      - .github/workflows/
+      - ci/
+    allowed_tools:
+      - read_files
+      - write_files
+      - run_shell
+      - run_ci_checks
+
+  - id: release-ops
+    name: Release and Ops Agent
+    risk_tier: critical
+    scopes:
+      - .github/workflows/
+      - scripts/
+      - docs/runbooks/
+      - docker-compose.yml
+      - erp-domain/Dockerfile
+    allowed_tools:
+      - read_files
+      - write_files
+      - run_shell
+      - run_ci_checks
+      - staging_deploy
+      - prod_deploy
+
+  - id: frontend-documentation
+    name: Frontend Documentation Agent
+    risk_tier: medium
+    scopes:
+      - docs/accounting-portal-endpoint-map.md
+      - docs/admin-portal-endpoint-map.md
+      - docs/dealer-portal-endpoint-map.md
+      - docs/manufacturing-portal-endpoint-map.md
+      - docs/sales-portal-endpoint-map.md
+      - docs/*portal*handoff*.md
+    allowed_tools:
+      - read_files
+      - write_files
+      - run_shell

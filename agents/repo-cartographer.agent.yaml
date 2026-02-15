@@ -1,0 +1,19 @@
+id: repo-cartographer
+name: Repo Cartographer
+scope_paths:
+  - docs/
+  - ARCHITECTURE.md
+  - AGENTS.md
+allowed_operations:
+  - map_codebase
+  - update_indexes
+  - link_docs
+required_checks_before_done:
+  - bash ci/lint-knowledgebase.sh
+escalation_triggers:
+  - missing_canonical_source
+  - unresolved_stack_detail
+risk_tier: medium
+permissions_profile: enterprise_autonomous
+timeout_policy: none
+cross_module_workflow_required: true

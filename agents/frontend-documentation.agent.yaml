@@ -1,0 +1,39 @@
+id: frontend-documentation
+name: Frontend Documentation Agent
+scope_paths:
+  - docs/accounting-portal-endpoint-map.md
+  - docs/admin-portal-endpoint-map.md
+  - docs/dealer-portal-endpoint-map.md
+  - docs/manufacturing-portal-endpoint-map.md
+  - docs/sales-portal-endpoint-map.md
+  - docs/*portal*handoff*.md
+allowed_operations:
+  - update_frontend_docs
+  - sync_endpoint_maps
+  - enforce_portal_taxonomy
+required_checks_before_done:
+  - bash ci/lint-knowledgebase.sh
+escalation_triggers:
+  - portal_ownership_mapping_change
+  - undocumented_frontend_behavior_conflict
+risk_tier: medium
+portal_taxonomy:
+  - ADMIN
+  - ACCOUNTING
+  - SALES
+  - FACTORY
+  - DEALER
+portal_ownership_contract:
+  accounting_portal_domains:
+    - accounting
+    - inventory
+    - hr
+    - reports
+    - invoice
+  factory_portal_domains:
+    - factory
+    - production
+    - manufacturing
+permissions_profile: enterprise_autonomous
+timeout_policy: none
+cross_module_workflow_required: true

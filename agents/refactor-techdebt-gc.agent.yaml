@@ -1,0 +1,20 @@
+id: refactor-techdebt-gc
+name: Refactor and Tech-Debt GC Agent
+scope_paths:
+  - erp-domain/src/main/java/
+  - erp-domain/src/test/java/
+  - docs/
+allowed_operations:
+  - small_refactor
+  - consolidate_duplicates
+  - enforce_boundaries
+required_checks_before_done:
+  - bash ci/check-architecture.sh
+  - cd erp-domain && mvn -B -ntp test
+escalation_triggers:
+  - behavior_change_without_acceptance
+  - refactor_scope_exceeds_slice
+risk_tier: medium
+permissions_profile: enterprise_autonomous
+timeout_policy: none
+cross_module_workflow_required: true

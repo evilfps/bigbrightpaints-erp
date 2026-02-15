@@ -1,0 +1,175 @@
+version: 1
+last_reviewed: 2026-02-15
+orchestrator_id: orchestrator
+decision_model:
+  mode: proof_first
+  authority:
+    r1: orchestrator
+    r2: orchestrator
+    r3: human
+runtime:
+  loop_source: asyncloop
+  no_timeout: true
+  max_parallel_slices: 4
+  required_slice_outputs:
+    - files_changed
+    - commands_run
+    - harness_results
+    - residual_risks
+    - blockers_or_next_step
+cross_module_protocol:
+  sequence:
+    - contracts_events_interfaces
+    - producer_module
+    - consumer_modules
+    - orchestrator_integration
+  require_architecture_guard: true
+  require_allowlist_evidence_for_new_edges: true
+
+routing_rules:
+  - match:
+      paths:
+        - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/
+        - erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/
+    primary_agent: accounting-domain
+    reviewers:
+      - qa-reliability
+      - security-governance
+
+  - match:
+      paths:
+        - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/
+        - erp-domain/src/test/java/com/bigbrightpaints/erp/modules/inventory/
+    primary_agent: inventory-domain
+    reviewers:
+      - qa-reliability
+
+  - match:
+      paths:
+        - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/sales/
+        - erp-domain/src/test/java/com/bigbrightpaints/erp/modules/sales/
+    primary_agent: sales-domain
+    reviewers:
+      - qa-reliability
+
+  - match:
+      paths:
+        - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/hr/
+        - erp-domain/src/test/java/com/bigbrightpaints/erp/modules/hr/
+    primary_agent: hr-domain
+    reviewers:
+      - qa-reliability
+      - security-governance
+
+  - match:
+      paths:
+        - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/auth/
+        - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/rbac/
+        - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/company/
+    primary_agent: auth-rbac-company
+    reviewers:
+      - security-governance
+      - qa-reliability
+
+  - match:
+      paths:
+        - erp-domain/src/main/java/com/bigbrightpaints/erp/orchestrator/
+    primary_agent: orchestrator-runtime
+    reviewers:
+      - qa-reliability
+      - security-governance
+
+  - match:
+      paths:
+        - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/purchasing/
+        - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/invoice/
+    primary_agent: purchasing-invoice-p2p
+    reviewers:
+      - qa-reliability
+
+  - match:
+      paths:
+        - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/factory/
+        - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/production/
+    primary_agent: factory-production
+    reviewers:
+      - qa-reliability
+
+  - match:
+      paths:
+        - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/reports/
+        - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/admin/
+        - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/portal/
+    primary_agent: reports-admin-portal
+    reviewers:
+      - qa-reliability
+
+  - match:
+      paths:
+        - erp-domain/src/main/resources/db/migration_v2/
+    primary_agent: data-migration
+    reviewers:
+      - security-governance
+      - release-ops
+
+  - match:
+      paths:
+        - .github/workflows/
+        - scripts/
+        - ci/
+    primary_agent: release-ops
+    reviewers:
+      - qa-reliability
+
+  - match:
+      paths:
+        - docs/
+        - ARCHITECTURE.md
+        - AGENTS.md
+    primary_agent: repo-cartographer
+    reviewers:
+      - orchestrator
+
+  - match:
+      paths:
+        - docs/*portal*
+    primary_agent: frontend-documentation
+    reviewers:
+      - repo-cartographer
+
+always_available_agents:
+  - full-codebase-explorer
+  - refactor-techdebt-gc
+
+review_pipeline:
+  minimum_review_agents_per_slice: 1
+  require_codex_review_guidelines_check: true
+  required_checks:
+    - bash ci/lint-knowledgebase.sh
+    - bash ci/check-architecture.sh
+    - bash ci/check-enterprise-policy.sh
+  high_risk_additional_reviewers:
+    - security-governance
+    - qa-reliability
+
+commit_policy:
+  model:
+    - primary implementation agent commits code for its slice
+    - review-only agents do not commit code
+    - orchestrator commits only orchestration/policy/docs artifacts unless explicitly taking ownership
+  required_message_prefixes:
+    - "orch:"
+    - "acct:"
+    - "inv:"
+    - "sales:"
+    - "hr:"
+    - "auth:"
+    - "migr:"
+    - "ops:"
+  require_review_evidence_before_commit: true
+
+completion_contract:
+  mark_done_only_when:
+    - required_checks_pass
+    - review_pipeline_complete
+    - evidence_recorded_in_asyncloop

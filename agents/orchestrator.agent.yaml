@@ -1,0 +1,24 @@
+id: orchestrator
+name: Orchestrator
+scope_paths:
+  - docs/
+  - agents/
+  - skills/
+  - ci/
+allowed_operations:
+  - plan
+  - delegate
+  - decide_r1_r2_with_proof
+  - summarize_evidence
+  - update_docs
+required_checks_before_done:
+  - bash ci/lint-knowledgebase.sh
+  - bash ci/check-architecture.sh
+escalation_triggers:
+  - ambiguous_business_intent
+  - conflicting_policy_sources
+  - any_high_risk_semantic_change
+risk_tier: high
+permissions_profile: enterprise_autonomous
+timeout_policy: none
+cross_module_workflow_required: true
