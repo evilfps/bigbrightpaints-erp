@@ -7,13 +7,13 @@ Status: template-initialized
 Update this file in every high-risk change set.
 
 ## Scope
-- Branch / PR: working-tree enterprise-autonomous hardening (pre-commit)
-- Paths touched: AGENTS/docs/agents/ci/.github/workflows and policy YAMLs
-- Business capability affected: autonomous orchestration policy and near-deployment controls
+- Branch / PR: `async-loop-predeploy-audit` (M16-S3 retry durability hardening)
+- Paths touched: `erp-domain/src/main/java/com/bigbrightpaints/erp/core/audittrail/*`, `erp-domain/src/main/resources/db/migration_v2/V14__audit_action_event_retry_queue.sql`, `docs/approvals/R2-CHECKPOINT.md`
+- Business capability affected: enterprise audit retry durability + Flyway v2 migration governance evidence
 
 ## Risk Trigger
-- Trigger(s): auth/rbac + accounting/payroll + migration policy paths present in repository delta
-- Why this is R2: policy controls changed for high-risk domains and deployment readiness behavior
+- Trigger(s): persistent retry storage semantics and scheduler transaction boundaries for accounting audit trails; new Flyway v2 migration artifact
+- Why this is R2: change modifies high-risk accounting-adjacent durability behavior and introduces new migration requiring proof-backed validation
 
 ## Approval Authority
 - Mode: orchestrator
@@ -34,13 +34,13 @@ Update this file in every high-risk change set.
 - Re-approval condition: any additional high-risk semantic delta or production action
 
 ## Verification Evidence
-- Commands run: `bash ci/lint-knowledgebase.sh`; `bash ci/check-architecture.sh`; `bash ci/check-enterprise-policy.sh`; `bash ci/check-codex-review-guidelines.sh`
-- Result summary: all listed guards passed in current workspace run
-- Artifacts/links: `ci/check-enterprise-policy.sh`; `.github/workflows/ci.yml`; `docs/agents/PERMISSIONS.md`; `docs/agents/WORKFLOW.md`; `docs/agents/ENTERPRISE_MODE.md`
+- Commands run: `cd erp-domain && mvn -B -ntp -Dtest=EnterpriseAuditTrailServiceTest test`; `FAIL_ON_FINDINGS=true bash scripts/schema_drift_scan.sh --migration-set v2`; `FAIL_ON_FINDINGS=true bash scripts/flyway_overlap_scan.sh --migration-set v2`
+- Result summary: targeted retry durability suite passed (`5` tests, `0` failures), v2 drift/overlap guards passed (`findings=0`)
+- Artifacts/links: `erp-domain/src/test/java/com/bigbrightpaints/erp/core/audittrail/EnterpriseAuditTrailServiceTest.java`; `erp-domain/src/main/resources/db/migration_v2/V14__audit_action_event_retry_queue.sql`; `scripts/schema_drift_scan.sh`; `scripts/flyway_overlap_scan.sh`
 
 ## Test Waiver (Only if no tests changed)
-- Reason tests are unchanged: this change set is policy/docs/CI guard wiring only
-- Compensating controls (gates/reviews/monitors): architecture/doc/review/enterprise guard scripts executed and passing
+- Waiver not used: runtime behavior changed and targeted tests were executed.
+- Compensating controls: N/A (covered by executed test + Flyway v2 guard evidence above).
 
 ## Migration Addendum (2026-02-15, V14)
 - Migration artifact: `erp-domain/src/main/resources/db/migration_v2/V14__audit_action_event_retry_queue.sql`
