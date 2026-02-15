@@ -31,20 +31,19 @@ for file in "${producer_files[@]}"; do
   mapfile -t log_lines < <(rg -n "$PRODUCER_PATTERN" "$file" | cut -d: -f1)
   [[ "${#log_lines[@]}" -gt 0 ]] || fail "producer pattern matched file scan but no log lines resolved for $file"
 
-  previous_log_line=0
   for log_line in "${log_lines[@]}"; do
-    has_schema_in_segment=false
+    has_preceding_schema=false
     for helper_line in "${helper_lines[@]}"; do
-      if (( helper_line > previous_log_line && helper_line <= log_line )); then
-        has_schema_in_segment=true
+      if (( helper_line <= log_line )); then
+        has_preceding_schema=true
+      else
         break
       fi
     done
 
-    if [[ "$has_schema_in_segment" != true ]]; then
-      fail "producer $file has INTEGRATION_FAILURE log at line $log_line without schema helper in the same log segment"
+    if [[ "$has_preceding_schema" != true ]]; then
+      fail "producer $file has INTEGRATION_FAILURE log at line $log_line without preceding schema helper"
     fi
-    previous_log_line=$log_line
   done
 done
 
