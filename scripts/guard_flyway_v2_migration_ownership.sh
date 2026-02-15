@@ -206,7 +206,10 @@ mapfile -t missing_pk_tables < <(
 
         if (match(toupper(segment), /UNIQUE[[:space:]]*\(/) == 0) {
           if (match(toupper(segment), /UNIQUE([^[:alnum:]_]|$)/) > 0) {
-            unique_pending_open[table_name] = 1
+            trailing = substr(segment, RSTART + RLENGTH)
+            if (trailing ~ /^[[:space:]]*$/) {
+              unique_pending_open[table_name] = 1
+            }
           }
           return
         }

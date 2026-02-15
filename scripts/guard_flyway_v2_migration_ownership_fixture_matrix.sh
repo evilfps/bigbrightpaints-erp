@@ -107,4 +107,19 @@ CREATE TABLE public.fixture_missing_pk (
 SQL
 )"
 
+run_case "unique_using_index_then_fk_does_not_satisfy_id_contract" 1 "$(cat <<'SQL'
+CREATE TABLE public.fixture_unique_using_index (
+    id bigint NOT NULL,
+    token bigint NOT NULL
+);
+
+CREATE UNIQUE INDEX fixture_unique_using_index_token_idx
+    ON public.fixture_unique_using_index USING btree (token);
+
+ALTER TABLE ONLY public.fixture_unique_using_index
+    ADD CONSTRAINT fixture_unique_using_index_token_key UNIQUE USING INDEX fixture_unique_using_index_token_idx,
+    ADD CONSTRAINT fixture_unique_using_index_token_fk FOREIGN KEY (id) REFERENCES public.fixture_unique_using_index(token);
+SQL
+)"
+
 echo "[guard_flyway_v2_migration_ownership_fixture_matrix] OK"
