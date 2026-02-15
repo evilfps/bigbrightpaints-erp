@@ -15,6 +15,43 @@ fail() {
   exit 1
 }
 
+require_legacy_summary_enabled_value() {
+  local config_path="$1"
+  local expected="$2"
+  awk -v expected="$expected" '
+    BEGIN {
+      in_block = 0
+      block_indent = -1
+      found = 0
+    }
+    /^[[:space:]]*legacy-summary-events:[[:space:]]*$/ {
+      in_block = 1
+      match($0, /[^ ]/)
+      block_indent = RSTART - 1
+      next
+    }
+    {
+      if (in_block) {
+        if ($0 ~ /^[[:space:]]*$/ || $0 ~ /^[[:space:]]*#/) {
+          next
+        }
+        match($0, /[^ ]/)
+        current_indent = RSTART - 1
+        if (current_indent <= block_indent) {
+          in_block = 0
+        }
+      }
+      if (in_block && $0 ~ "^[[:space:]]*enabled:[[:space:]]*" expected "[[:space:]]*$") {
+        found = 1
+        exit
+      }
+    }
+    END {
+      exit(found ? 0 : 1)
+    }
+  ' "$config_path"
+}
+
 for path in "$DOC" "$ACCOUNTING_SERVICE" "$APP_CONFIG_MAIN" "$APP_CONFIG_TEST" "$APP_CONFIG_IT_TEST"; do
   [[ -f "$path" ]] || fail "missing required file: $path"
 done
@@ -41,13 +78,13 @@ fi
 
 rg -q 'legacy-summary-events:' "$APP_CONFIG_MAIN" \
   || fail "missing audit dedup config block in $APP_CONFIG_MAIN"
-rg -q 'enabled: false' "$APP_CONFIG_MAIN" \
+require_legacy_summary_enabled_value "$APP_CONFIG_MAIN" "false" \
   || fail "production/default config must disable legacy accounting summary audit writes by default in $APP_CONFIG_MAIN"
 
 for cfg in "$APP_CONFIG_TEST" "$APP_CONFIG_IT_TEST"; do
   rg -q 'legacy-summary-events:' "$cfg" \
     || fail "missing audit dedup config block in $cfg"
-  rg -q 'enabled: true' "$cfg" \
+  require_legacy_summary_enabled_value "$cfg" "true" \
     || fail "test config must keep legacy summary audit writes enabled for compatibility assertions in $cfg"
 done
 
