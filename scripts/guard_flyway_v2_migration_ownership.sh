@@ -56,33 +56,54 @@ mapfile -t missing_pk_tables < <(
       return normalized == "id"
     }
 
-    function paren_delta(raw, i, ch, in_quote, delta, next_ch, sq) {
-      in_quote = 0
-      delta = 0
+    function strip_string_literals(raw, cleaned, i, ch, next_ch, prev_ch, sq, in_quote, escape_quote) {
+      cleaned = ""
       sq = sprintf("%c", 39)
+      in_quote = 0
+      escape_quote = 0
+
       for (i = 1; i <= length(raw); i++) {
         ch = substr(raw, i, 1)
+        if (!in_quote) {
+          if (ch == sq) {
+            prev_ch = (i > 1) ? substr(raw, i - 1, 1) : ""
+            escape_quote = (prev_ch == "E" || prev_ch == "e") ? 1 : 0
+            in_quote = 1
+            cleaned = cleaned " "
+            continue
+          }
+          cleaned = cleaned ch
+          continue
+        }
+
+        if (escape_quote && ch == "\\") {
+          i++
+          continue
+        }
+
         if (ch == sq) {
           next_ch = substr(raw, i + 1, 1)
-          if (in_quote && next_ch == sq) {
+          if (next_ch == sq) {
             i++
             continue
           }
-          in_quote = !in_quote
-          continue
-        }
-        if (!in_quote) {
-          if (ch == "(") {
-            delta++
-          } else if (ch == ")") {
-            delta--
-          }
+          in_quote = 0
+          escape_quote = 0
         }
       }
-      return delta
+
+      return cleaned
     }
 
-    function id_bigint_not_null_on_line(raw, normalized, segment, comma_pos) {
+    function paren_delta(raw, opens, closes, tmp) {
+      tmp = raw
+      opens = gsub(/\(/, "(", tmp)
+      tmp = raw
+      closes = gsub(/\)/, ")", tmp)
+      return opens - closes
+    }
+
+    function id_bigint_not_null_on_line(raw, normalized, segment, comma_pos, notnull_pos, isnot_pos) {
       normalized = tolower(raw)
       gsub(/"/, "", normalized)
       if (match(normalized, /(^|[(,])[[:space:]]*id[[:space:]]+bigint([^[:alnum:]_]|$)/) == 0) {
@@ -90,11 +111,18 @@ mapfile -t missing_pk_tables < <(
       }
 
       segment = substr(normalized, RSTART)
+      sub(/^[[:space:],(]+/, "", segment)
       comma_pos = index(segment, ",")
       if (comma_pos > 0) {
         segment = substr(segment, 1, comma_pos - 1)
       }
-      return segment ~ /not[[:space:]]+null([^[:alnum:]_]|$)/
+
+      notnull_pos = match(segment, /not[[:space:]]+null([^[:alnum:]_]|$)/)
+      if (notnull_pos == 0) {
+        return 0
+      }
+      isnot_pos = match(segment, /is[[:space:]]+not[[:space:]]+null/)
+      return isnot_pos == 0 || notnull_pos < isnot_pos
     }
 
     function mark_pk_contract(table_name, line_raw, line_upper, line_no_quotes, segment, open_pos, close_pos, unique_body) {
@@ -186,26 +214,31 @@ mapfile -t missing_pk_tables < <(
         next
       }
 
-      upper = toupper(line)
+      line_clean = strip_string_literals(line)
+      if (line_clean ~ /^[[:space:]]*$/) {
+        next
+      }
+
+      upper = toupper(line_clean)
 
       if (upper ~ /^[[:space:]]*CREATE[[:space:]]+TABLE/) {
         in_create = 1
         in_alter = 0
-        current_table = extract_create_table(line)
+        current_table = extract_create_table(line_clean)
         create_has_id = 0
         create_depth = 0
         reset_unique_state(current_table)
       }
 
       if (in_create) {
-        if (id_bigint_not_null_on_line(line)) {
+        if (id_bigint_not_null_on_line(line_clean)) {
           create_has_id = 1
         }
 
-        mark_pk_contract(current_table, line)
-        create_depth += paren_delta(line)
+        mark_pk_contract(current_table, line_clean)
+        create_depth += paren_delta(line_clean)
 
-        if (create_depth <= 0 && line ~ /;/) {
+        if (create_depth <= 0 && line_clean ~ /;/) {
           if (create_has_id && !has_pk[current_table]) {
             needs_pk[current_table] = 1
           }
@@ -218,13 +251,13 @@ mapfile -t missing_pk_tables < <(
 
       if (upper ~ /^[[:space:]]*ALTER[[:space:]]+TABLE/) {
         in_alter = 1
-        alter_table = extract_alter_table(line)
+        alter_table = extract_alter_table(line_clean)
         reset_unique_state(alter_table)
       }
 
       if (in_alter) {
-        mark_pk_contract(alter_table, line)
-        if (line ~ /;/) {
+        mark_pk_contract(alter_table, line_clean)
+        if (line_clean ~ /;/) {
           in_alter = 0
           reset_unique_state(alter_table)
           alter_table = ""
