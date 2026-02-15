@@ -164,11 +164,11 @@ For each portal (`ADMIN`, `ACCOUNTING`, `SALES`, `FACTORY`, `DEALER`):
 ## 8. Test and Quality Specification
 
 ### 8.1 Test lane architecture
-- Lane A: `gate-fast` for PR safety and contract guards.
-- Lane B: `gate-core` for integration invariants.
-- Lane C: `gate-release` for migration matrix + predeploy scans.
-- Lane D: `gate-reconciliation` for accounting truth parity.
-- Lane E: `gate-quality` nightly flake/perf budget.
+- Lane A: `bash scripts/gate_fast.sh` for PR safety and contract guards.
+- Lane B: `bash scripts/gate_core.sh` for integration invariants.
+- Lane C: `bash scripts/gate_release.sh` for migration matrix + predeploy scans.
+- Lane D: `bash scripts/gate_reconciliation.sh` for accounting truth parity.
+- Lane E: `bash scripts/gate_quality.sh` for nightly flake/perf budget.
 
 ### 8.2 Flake and noise management
 - quarantine flaky tests with owner + expiry date,
