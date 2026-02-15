@@ -201,7 +201,8 @@ For each portal (`ADMIN`, `ACCOUNTING`, `SALES`, `FACTORY`, `DEALER`):
 ## 8. Test and Quality Specification
 
 ### 8.1 Test lane architecture
-- Lane A: `bash scripts/gate_fast.sh` for PR safety and contract guards.
+- Lane A (PR safety): `bash scripts/gate_fast.sh` with CI-provided diff base.
+- Lane A (final ledger strict): `DIFF_BASE=<RELEASE_ANCHOR_SHA> GATE_FAST_RELEASE_VALIDATION_MODE=true bash scripts/gate_fast.sh`.
 - Lane B: `bash scripts/gate_core.sh` for integration invariants.
 - Lane C: `bash scripts/gate_release.sh` for migration matrix + predeploy scans.
 - Lane D: `bash scripts/gate_reconciliation.sh` for accounting truth parity.
