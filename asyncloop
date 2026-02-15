@@ -9228,3 +9228,31 @@ Loop Update
 - tracked_now_ts: `2026-02-16T02:52:05+05:30`
 - active_in_progress: `M19-S5 review queue drain (blocked by agent cap)`
 - closure_status: `final ledger gates green; remaining blocker is queued commit-review subagent capacity`
+
+[2026-02-16] M19-S12 activity-controller dedupe + system-map gate_fast clarification
+- Completed Slice (Committed): accounting activity controller fixture dedupe
+  - Commit `a82746af`: `AccountingControllerActivityContractTest`
+    - replaced repeated inline controller construction with `controller(...)` helper
+    - preserved activity/date-context behavior contracts
+  - Verification:
+    - `cd erp-domain && mvn -B -ntp -Dtest=AccountingControllerActivityContractTest test` (PASS: 3/3)
+
+- Completed Slice (Committed): system-map clarification for anchored fast gate
+  - Commit `502f5396`: `docs/system-map/CI_DEVOPS_MAP.md`
+    - added explicit operator-intent section: what anchored `gate_fast` does, why it is first fail-fast ledger gate, and why it prevents vacuous confidence.
+  - Verification:
+    - `bash ci/lint-knowledgebase.sh` (PASS)
+
+Review Queue Update
+- subagent dispatch remains blocked by active-agent cap (max 6).
+- pending code commits for required review:
+  - `2962800b`
+  - `50d78915`
+  - `6c51730e`
+  - `2b2fb143`
+  - `7451e7cf`
+  - `a82746af`
+
+Loop Update
+- tracked_now_ts: `2026-02-16T02:54:35+05:30`
+- active_in_progress: `M19-S5 review queue drain (blocked) + next controller/service contract dedupe slice`
