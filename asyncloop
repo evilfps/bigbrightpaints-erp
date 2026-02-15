@@ -8263,3 +8263,33 @@ Pause Checkpoint
 - last_observed_line_before_pause: `Unusual negative balance -6561.56 for ASSET account CASH` (during long-running cod-red fuzz segment for company `168`)
 - reason_for_pause: full verify replay was interrupted mid-run after guards passed; no deterministic red failure was reached before interruption.
 - immediate_next_action: rerun `bash scripts/verify_local.sh` to completion and capture the first deterministic failing test line (if any) as M16-S2 blocker evidence.
+
+Completed Slice
+- M16-S2 full verify_local replay after audit dedup cutover
+  - status: complete (evidence captured)
+  - run artifact: `/tmp/verify_local_m16s2_final_20260215_174927.log`
+
+Verification
+- `bash scripts/verify_local.sh > /tmp/verify_local_m16s2_final_20260215_174927.log 2>&1`
+  - exit: `0`
+  - summary: `Tests run: 1164, Failures: 0, Errors: 0, Skipped: 4`
+  - build: `BUILD SUCCESS`
+  - total time: `04:44 min`
+  - finished at: `2026-02-15T17:54:14+05:30`
+
+Loop Update
+- 2026-02-15T17:54:36+05:30
+- tracked_now_ts: `2026-02-15T17:54:36+05:30`
+- tracked_elapsed: `88h 00m 44s`
+- active_in_progress: `M16-S3 enterprise audit retry durability upgrade (persisted retry path for business audit events)`
+- continuity_recheck:
+  - completion evidence for M16-S2 is now recorded and reproducible.
+  - no deterministic test blocker remains from dedup cutover.
+  - next residual-risk target is process-restart durability for audit retry queue.
+
+Queue Rotation (Auto-Replenish)
+- [completed] M16-S2 full verify_local replay after audit dedup cutover (capture next blocker beyond audit ownership contract)
+- [in_progress] M16-S3 enterprise audit retry durability upgrade (evaluate persistent/outbox-backed retry path vs in-memory queue for process restarts)
+- [ready] M16-S4 accounting audit read-model performance hardening (index/query-plan validation for high-cardinality event timelines)
+- [ready] M16-S5 legacy summary audit decommission plan (remove compatibility toggles/tests once all workflows consume canonical structured trails)
+- [ready] M16-S6 audit ownership guard matrix extension (validate config contract across test fixtures and staging overlays)
