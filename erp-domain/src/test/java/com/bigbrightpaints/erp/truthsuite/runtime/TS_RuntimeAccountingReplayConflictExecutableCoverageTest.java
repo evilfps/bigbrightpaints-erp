@@ -287,6 +287,121 @@ class TS_RuntimeAccountingReplayConflictExecutableCoverageTest {
                 });
     }
 
+    @Test
+    void isJournalEntryPartnerMismatch_coversAllPartnerTypeBranches() {
+        AccountingService service = accountingService();
+        JournalEntry dealerEntry = journalEntryWithDealer(11L, "memo", 101L, "50.00", "0.00");
+        JournalEntry supplierEntry = journalEntryWithSupplier(77L, "memo", 101L, "50.00", "0.00");
+        JournalEntry emptyEntry = new JournalEntry();
+
+        assertThat((Boolean) ReflectionTestUtils.invokeMethod(
+                service,
+                "isJournalEntryPartnerMismatch",
+                dealerEntry,
+                PartnerType.DEALER,
+                12L)).isTrue();
+
+        assertThat((Boolean) ReflectionTestUtils.invokeMethod(
+                service,
+                "isJournalEntryPartnerMismatch",
+                dealerEntry,
+                PartnerType.DEALER,
+                11L)).isFalse();
+
+        assertThat((Boolean) ReflectionTestUtils.invokeMethod(
+                service,
+                "isJournalEntryPartnerMismatch",
+                supplierEntry,
+                PartnerType.SUPPLIER,
+                78L)).isTrue();
+
+        assertThat((Boolean) ReflectionTestUtils.invokeMethod(
+                service,
+                "isJournalEntryPartnerMismatch",
+                supplierEntry,
+                PartnerType.SUPPLIER,
+                77L)).isFalse();
+
+        assertThat((Boolean) ReflectionTestUtils.invokeMethod(
+                service,
+                "isJournalEntryPartnerMismatch",
+                emptyEntry,
+                PartnerType.DEALER,
+                11L)).isTrue();
+
+        assertThat((Boolean) ReflectionTestUtils.invokeMethod(
+                service,
+                "isJournalEntryPartnerMismatch",
+                dealerEntry,
+                null,
+                11L)).isTrue();
+    }
+
+    @Test
+    void isSettlementAllocationPartnerMismatch_coversAllPartnerTypeBranches() {
+        AccountingService service = accountingService();
+        PartnerSettlementAllocation dealerAllocation = partnerAllocationForDealer(11L, "100.00", "alloc");
+        PartnerSettlementAllocation supplierAllocation = partnerAllocationForSupplier(77L, "100.00", "alloc");
+        PartnerSettlementAllocation emptyAllocation = new PartnerSettlementAllocation();
+
+        assertThat((Boolean) ReflectionTestUtils.invokeMethod(
+                service,
+                "isSettlementAllocationPartnerMismatch",
+                dealerAllocation,
+                PartnerType.DEALER,
+                12L)).isTrue();
+
+        assertThat((Boolean) ReflectionTestUtils.invokeMethod(
+                service,
+                "isSettlementAllocationPartnerMismatch",
+                dealerAllocation,
+                PartnerType.DEALER,
+                11L)).isFalse();
+
+        assertThat((Boolean) ReflectionTestUtils.invokeMethod(
+                service,
+                "isSettlementAllocationPartnerMismatch",
+                supplierAllocation,
+                PartnerType.SUPPLIER,
+                78L)).isTrue();
+
+        assertThat((Boolean) ReflectionTestUtils.invokeMethod(
+                service,
+                "isSettlementAllocationPartnerMismatch",
+                supplierAllocation,
+                PartnerType.SUPPLIER,
+                77L)).isFalse();
+
+        assertThat((Boolean) ReflectionTestUtils.invokeMethod(
+                service,
+                "isSettlementAllocationPartnerMismatch",
+                emptyAllocation,
+                PartnerType.SUPPLIER,
+                77L)).isTrue();
+
+        assertThat((Boolean) ReflectionTestUtils.invokeMethod(
+                service,
+                "isSettlementAllocationPartnerMismatch",
+                dealerAllocation,
+                null,
+                11L)).isTrue();
+    }
+
+    @Test
+    void partnerMismatchSubject_returnsCanonicalLabels() {
+        AccountingService service = accountingService();
+
+        assertThat((String) ReflectionTestUtils.invokeMethod(
+                service,
+                "partnerMismatchSubject",
+                PartnerType.DEALER)).isEqualTo("dealer");
+
+        assertThat((String) ReflectionTestUtils.invokeMethod(
+                service,
+                "partnerMismatchSubject",
+                PartnerType.SUPPLIER)).isEqualTo("supplier");
+    }
+
     private void assertReplayConflict(ApplicationException ex,
                                       String idempotencyKey,
                                       String partnerType,
