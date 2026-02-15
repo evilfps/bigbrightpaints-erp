@@ -2,9 +2,13 @@ package com.bigbrightpaints.erp.core.util;
 
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.util.StringUtils;
 
 public final class IdempotencyHeaderUtils {
+
+    private static final Logger log = LoggerFactory.getLogger(IdempotencyHeaderUtils.class);
 
     private IdempotencyHeaderUtils() {
     }
@@ -12,6 +16,9 @@ public final class IdempotencyHeaderUtils {
     public static String resolveHeaderKey(String idempotencyKeyHeader, String legacyIdempotencyKeyHeader) {
         String primary = trimToNull(idempotencyKeyHeader);
         String legacy = trimToNull(legacyIdempotencyKeyHeader);
+        if (primary != null && legacy != null && !primary.equals(legacy)) {
+            log.warn("Idempotency header mismatch detected; using Idempotency-Key and ignoring X-Idempotency-Key");
+        }
         return primary != null ? primary : legacy;
     }
 
