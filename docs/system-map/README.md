@@ -18,7 +18,5 @@ Operational rules used while building this map:
 - Focus is navigation and evidence-backed cleanup queue generation.
 
 ## Canonical vocabulary guardrails
-- `partner`: canonical cross-module term for external commercial entities in shared contracts, idempotency conflict metadata, and platform-level docs.
-- `dealer`: sales/O2C role specialization of `partner`.
-- `supplier`: purchasing/P2P role specialization of `partner`.
-- `idempotencyKey`: canonical key name for replay identity in request headers, exception details, and audit metadata.
+- Canonical term definitions live in `CANONICAL_VOCABULARY.md`.
+- Role-specific terms (`dealer`, `supplier`) are allowed only in workflow-local context where role specificity is required.
