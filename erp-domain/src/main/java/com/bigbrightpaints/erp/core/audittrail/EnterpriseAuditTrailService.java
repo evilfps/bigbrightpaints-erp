@@ -57,9 +57,11 @@ public class EnterpriseAuditTrailService {
     private static final int MAX_METADATA_ENTRIES = 40;
     private static final int MAX_METADATA_VALUE_LENGTH = 2000;
     private static final int MAX_PAYLOAD_LENGTH = 16_000;
+    private static final int MAX_RETRY_ERROR_LENGTH = 4_000;
     private static final int MAX_IDENTIFIER_LENGTH = 255;
 
     private final AuditActionEventRepository auditActionEventRepository;
+    private final AuditActionEventRetryRepository auditActionEventRetryRepository;
     private final MlInteractionEventRepository mlInteractionEventRepository;
     private final CompanyContextService companyContextService;
     private final ObjectMapper objectMapper;
@@ -78,16 +80,21 @@ public class EnterpriseAuditTrailService {
     @Value("${erp.audit.business.retry.batch-size:50}")
     private int businessEventRetryBatchSize = 50;
 
+    @Value("${erp.audit.business.retry.backoff-ms:30000}")
+    private long businessEventRetryBackoffMs = 30_000L;
+
     private final Deque<PendingBusinessEventRetry> businessEventRetryQueue = new ConcurrentLinkedDeque<>();
     private final AtomicInteger businessEventRetryQueueSize = new AtomicInteger();
 
     public EnterpriseAuditTrailService(
             AuditActionEventRepository auditActionEventRepository,
+            AuditActionEventRetryRepository auditActionEventRetryRepository,
             MlInteractionEventRepository mlInteractionEventRepository,
             CompanyContextService companyContextService,
             ObjectMapper objectMapper,
             @Value("${erp.security.audit.private-key:dev-audit-private-key}") String auditPrivateKey) {
         this.auditActionEventRepository = auditActionEventRepository;
+        this.auditActionEventRetryRepository = auditActionEventRetryRepository;
         this.mlInteractionEventRepository = mlInteractionEventRepository;
         this.companyContextService = companyContextService;
         this.objectMapper = objectMapper;
@@ -131,6 +138,9 @@ public class EnterpriseAuditTrailService {
                 enqueueBusinessEventRetry(pending.command(), pending.actorSnapshot(), failedAttemptCount, ex);
             }
             processed++;
+        }
+        if (processed < batchLimit) {
+            retryPersistedBusinessEvents(batchLimit - processed);
         }
     }
 
@@ -337,6 +347,87 @@ public class EnterpriseAuditTrailService {
         auditActionEventRepository.save(event);
     }
 
+    private void persistBusinessEvent(BusinessEventRetryPayload payload) {
+        AuditActionEvent event = new AuditActionEvent();
+        event.setCompanyId(payload.companyId());
+        event.setOccurredAt(
+                payload.occurredAtEpochMillis() != null
+                        ? Instant.ofEpochMilli(payload.occurredAtEpochMillis())
+                        : CompanyTime.now());
+        event.setSource(payload.source() != null ? payload.source() : AuditActionEventSource.BACKEND);
+        event.setModule(trim(payload.module(), 64, "general"));
+        event.setAction(trim(payload.action(), 128, "unspecified"));
+        event.setEntityType(trim(payload.entityType(), 128, null));
+        event.setEntityId(trim(payload.entityId(), 128, null));
+        event.setReferenceNumber(trim(payload.referenceNumber(), 128, null));
+        event.setStatus(payload.status() != null ? payload.status() : AuditActionEventStatus.INFO);
+        event.setFailureReason(trim(payload.failureReason(), 512, null));
+        event.setAmount(payload.amount());
+        event.setCurrency(trim(payload.currency(), 16, null));
+        event.setCorrelationId(payload.correlationId());
+        event.setRequestId(trim(payload.requestId(), 128, null));
+        event.setTraceId(trim(payload.traceId(), 128, null));
+        event.setIpAddress(trim(payload.ipAddress(), 64, null));
+        event.setUserAgent(trim(payload.userAgent(), MAX_METADATA_VALUE_LENGTH, null));
+        event.setActorUserId(payload.actorUserId());
+        event.setActorIdentifier(trim(payload.actorIdentifier(), MAX_IDENTIFIER_LENGTH, "system"));
+        event.setActorAnonymized(false);
+        event.setMlEligible(Boolean.TRUE.equals(payload.mlEligible()));
+        if (event.isMlEligible()) {
+            event.setTrainingSubjectKey(
+                    payload.actorUserId() != null ? "u:" + payload.actorUserId() : "system");
+            event.setTrainingPayload(trim(payload.trainingPayload(), MAX_PAYLOAD_LENGTH, null));
+        }
+        event.setMetadata(sanitizeMetadata(payload.metadata()));
+        auditActionEventRepository.save(event);
+    }
+
+    private int retryPersistedBusinessEvents(int batchLimit) {
+        if (batchLimit <= 0) {
+            return 0;
+        }
+        List<AuditActionEventRetry> dueRetries =
+                auditActionEventRetryRepository.findByNextAttemptAtLessThanEqualOrderByNextAttemptAtAsc(
+                        CompanyTime.now(),
+                        PageRequest.of(0, batchLimit));
+        int processed = 0;
+        for (AuditActionEventRetry retry : dueRetries) {
+            try {
+                BusinessEventRetryPayload payload =
+                        objectMapper.readValue(retry.getPayload(), BusinessEventRetryPayload.class);
+                persistBusinessEvent(payload);
+                auditActionEventRetryRepository.delete(retry);
+            } catch (Exception ex) {
+                int nextFailedAttemptCount = retry.getFailedAttemptCount() + 1;
+                if (nextFailedAttemptCount >= Math.max(1, businessEventRetryMaxAttempts)) {
+                    log.error(
+                            "Dropping persistent business audit retry after {} failed attempts (id={}, companyId={}, nextAttemptAt={})",
+                            nextFailedAttemptCount,
+                            retry.getId(),
+                            retry.getCompanyId(),
+                            retry.getNextAttemptAt(),
+                            ex);
+                    auditActionEventRetryRepository.delete(retry);
+                } else {
+                    retry.setFailedAttemptCount(nextFailedAttemptCount);
+                    retry.setNextAttemptAt(CompanyTime.now().plusMillis(Math.max(1L, businessEventRetryBackoffMs)));
+                    retry.setLastError(trim(ex.getMessage(), MAX_RETRY_ERROR_LENGTH, ex.getClass().getSimpleName()));
+                    auditActionEventRetryRepository.save(retry);
+                    log.warn(
+                            "Rescheduled persistent business audit retry {}/{} (id={}, companyId={}, nextAttemptAt={})",
+                            nextFailedAttemptCount + 1,
+                            Math.max(1, businessEventRetryMaxAttempts),
+                            retry.getId(),
+                            retry.getCompanyId(),
+                            retry.getNextAttemptAt(),
+                            ex);
+                }
+            }
+            processed++;
+        }
+        return processed;
+    }
+
     private void enqueueBusinessEventRetry(AuditActionEventCommand command,
                                            UserAccount actorSnapshot,
                                            int failedAttemptCount,
@@ -351,6 +442,10 @@ public class EnterpriseAuditTrailService {
                     logLabel(command.referenceNumber()),
                     logLabel(command.traceId()),
                     exception);
+            return;
+        }
+
+        if (persistBusinessEventRetry(command, actorSnapshot, failedAttemptCount, exception)) {
             return;
         }
 
@@ -377,6 +472,43 @@ public class EnterpriseAuditTrailService {
                 logLabel(command.referenceNumber()),
                 logLabel(command.traceId()),
                 exception);
+    }
+
+    private boolean persistBusinessEventRetry(AuditActionEventCommand command,
+                                              UserAccount actorSnapshot,
+                                              int failedAttemptCount,
+                                              Exception exception) {
+        try {
+            BusinessEventRetryPayload payload = BusinessEventRetryPayload.from(command, actorSnapshot);
+            AuditActionEventRetry retry = new AuditActionEventRetry();
+            retry.setCompanyId(payload.companyId());
+            retry.setPayload(objectMapper.writeValueAsString(payload));
+            retry.setFailedAttemptCount(failedAttemptCount);
+            retry.setNextAttemptAt(CompanyTime.now().plusMillis(Math.max(1L, businessEventRetryBackoffMs)));
+            retry.setLastError(trim(exception.getMessage(), MAX_RETRY_ERROR_LENGTH, exception.getClass().getSimpleName()));
+            auditActionEventRetryRepository.save(retry);
+            log.warn(
+                    "Queued persistent business audit retry {}/{} (id={}, companyId={}, module={}, action={}, reference={}, trace={})",
+                    failedAttemptCount + 1,
+                    Math.max(1, businessEventRetryMaxAttempts),
+                    retry.getId(),
+                    retry.getCompanyId(),
+                    logLabel(command.module()),
+                    logLabel(command.action()),
+                    logLabel(command.referenceNumber()),
+                    logLabel(command.traceId()),
+                    exception);
+            return true;
+        } catch (Exception persistenceEx) {
+            log.error(
+                    "Failed to persist business audit retry (module={}, action={}, reference={}, trace={}); falling back to in-memory queue",
+                    logLabel(command.module()),
+                    logLabel(command.action()),
+                    logLabel(command.referenceNumber()),
+                    logLabel(command.traceId()),
+                    persistenceEx);
+            return false;
+        }
     }
 
     private boolean offerBusinessEventRetry(PendingBusinessEventRetry pending) {
@@ -612,6 +744,68 @@ public class EnterpriseAuditTrailService {
         return (root, query, cb) -> actorUserId != null
                 ? cb.equal(root.get("actorUserId"), actorUserId)
                 : cb.conjunction();
+    }
+
+    private record BusinessEventRetryPayload(Long companyId,
+                                             AuditActionEventSource source,
+                                             String module,
+                                             String action,
+                                             String entityType,
+                                             String entityId,
+                                             String referenceNumber,
+                                             AuditActionEventStatus status,
+                                             String failureReason,
+                                             java.math.BigDecimal amount,
+                                             String currency,
+                                             java.util.UUID correlationId,
+                                             String requestId,
+                                             String traceId,
+                                             String ipAddress,
+                                             String userAgent,
+                                             Long actorUserId,
+                                             String actorIdentifier,
+                                             Boolean mlEligible,
+                                             String trainingPayload,
+                                             Map<String, String> metadata,
+                                             Long occurredAtEpochMillis) {
+
+        static BusinessEventRetryPayload from(AuditActionEventCommand command, UserAccount actorSnapshot) {
+            UserAccount actor = actorSnapshot != null ? actorSnapshot : command.actorUserOverride();
+            Long actorUserId = actor != null ? actor.getId() : null;
+            String actorIdentifier;
+            if (actor == null) {
+                actorIdentifier = "system";
+            } else if (StringUtils.hasText(actor.getEmail())) {
+                actorIdentifier = actor.getEmail().toLowerCase();
+            } else if (actor.getId() != null) {
+                actorIdentifier = "user:" + actor.getId();
+            } else {
+                actorIdentifier = "system";
+            }
+            return new BusinessEventRetryPayload(
+                    command.company() != null ? command.company().getId() : null,
+                    command.source(),
+                    command.module(),
+                    command.action(),
+                    command.entityType(),
+                    command.entityId(),
+                    command.referenceNumber(),
+                    command.status(),
+                    command.failureReason(),
+                    command.amount(),
+                    command.currency(),
+                    command.correlationId(),
+                    command.requestId(),
+                    command.traceId(),
+                    command.ipAddress(),
+                    command.userAgent(),
+                    actorUserId,
+                    actorIdentifier,
+                    command.mlEligible(),
+                    command.trainingPayload(),
+                    command.metadata(),
+                    command.occurredAt() != null ? command.occurredAt().toEpochMilli() : null);
+        }
     }
 
     private record IdentitySnapshot(Long actorUserId,

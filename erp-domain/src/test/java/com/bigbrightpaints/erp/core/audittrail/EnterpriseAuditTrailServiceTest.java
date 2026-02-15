@@ -33,6 +33,8 @@ class EnterpriseAuditTrailServiceTest {
     @Mock
     private AuditActionEventRepository auditActionEventRepository;
     @Mock
+    private AuditActionEventRetryRepository auditActionEventRetryRepository;
+    @Mock
     private MlInteractionEventRepository mlInteractionEventRepository;
     @Mock
     private CompanyContextService companyContextService;
@@ -91,7 +93,7 @@ class EnterpriseAuditTrailServiceTest {
     }
 
     @Test
-    void recordBusinessEventAsync_queuesFailure_andScheduledRetryPersistsEvent() {
+    void recordBusinessEventAsync_persistsFailure_andScheduledRetryPersistsEvent() {
         EnterpriseAuditTrailService service = newService();
         Company company = new Company();
         setField(company, "id", 9L);
@@ -101,18 +103,32 @@ class EnterpriseAuditTrailServiceTest {
         when(auditActionEventRepository.save(any(AuditActionEvent.class)))
                 .thenThrow(new RuntimeException("db unavailable"))
                 .thenAnswer(invocation -> invocation.getArgument(0));
+        when(auditActionEventRetryRepository.save(any(AuditActionEventRetry.class)))
+                .thenAnswer(invocation -> {
+                    AuditActionEventRetry retry = invocation.getArgument(0);
+                    if (retry.getId() == null) {
+                        setField(retry, "id", 900L);
+                    }
+                    return retry;
+                });
 
         service.recordBusinessEventAsync(command, snapshotActor);
-        assertThat(service.pendingBusinessEventRetryQueueSize()).isEqualTo(1);
+        assertThat(service.pendingBusinessEventRetryQueueSize()).isZero();
+        ArgumentCaptor<AuditActionEventRetry> retryCaptor = ArgumentCaptor.forClass(AuditActionEventRetry.class);
+        verify(auditActionEventRetryRepository).save(retryCaptor.capture());
+        AuditActionEventRetry savedRetry = retryCaptor.getValue();
+        when(auditActionEventRetryRepository.findByNextAttemptAtLessThanEqualOrderByNextAttemptAtAsc(any(), any()))
+                .thenReturn(List.of(savedRetry));
 
         service.retryQueuedBusinessEvents();
 
         verify(auditActionEventRepository, times(2)).save(any(AuditActionEvent.class));
+        verify(auditActionEventRetryRepository).delete(savedRetry);
         assertThat(service.pendingBusinessEventRetryQueueSize()).isZero();
     }
 
     @Test
-    void retryQueuedBusinessEvents_dropsAfterConfiguredMaxAttempts() {
+    void retryQueuedBusinessEvents_dropsPersistentRetryAfterConfiguredMaxAttempts() {
         EnterpriseAuditTrailService service = newService();
         setField(service, "businessEventRetryMaxAttempts", 2);
 
@@ -123,18 +139,32 @@ class EnterpriseAuditTrailServiceTest {
         doThrow(new RuntimeException("persistent failure"))
                 .when(auditActionEventRepository)
                 .save(any(AuditActionEvent.class));
+        when(auditActionEventRetryRepository.save(any(AuditActionEventRetry.class)))
+                .thenAnswer(invocation -> {
+                    AuditActionEventRetry retry = invocation.getArgument(0);
+                    if (retry.getId() == null) {
+                        setField(retry, "id", 901L);
+                    }
+                    return retry;
+                });
 
         service.recordBusinessEventAsync(command, null);
-        assertThat(service.pendingBusinessEventRetryQueueSize()).isEqualTo(1);
+        assertThat(service.pendingBusinessEventRetryQueueSize()).isZero();
+        ArgumentCaptor<AuditActionEventRetry> retryCaptor = ArgumentCaptor.forClass(AuditActionEventRetry.class);
+        verify(auditActionEventRetryRepository).save(retryCaptor.capture());
+        AuditActionEventRetry savedRetry = retryCaptor.getValue();
+        when(auditActionEventRetryRepository.findByNextAttemptAtLessThanEqualOrderByNextAttemptAtAsc(any(), any()))
+                .thenReturn(List.of(savedRetry));
 
         service.retryQueuedBusinessEvents();
 
         verify(auditActionEventRepository, times(2)).save(any(AuditActionEvent.class));
+        verify(auditActionEventRetryRepository).delete(savedRetry);
         assertThat(service.pendingBusinessEventRetryQueueSize()).isZero();
     }
 
     @Test
-    void recordBusinessEventAsync_honorsRetryQueueCapacity() {
+    void recordBusinessEventAsync_honorsRetryQueueCapacityWhenPersistentRetryStoreUnavailable() {
         EnterpriseAuditTrailService service = newService();
         setField(service, "businessEventRetryMaxQueueSize", 1);
 
@@ -144,17 +174,22 @@ class EnterpriseAuditTrailServiceTest {
         doThrow(new RuntimeException("db unavailable"))
                 .when(auditActionEventRepository)
                 .save(any(AuditActionEvent.class));
+        doThrow(new RuntimeException("retry-store-unavailable"))
+                .when(auditActionEventRetryRepository)
+                .save(any(AuditActionEventRetry.class));
 
         service.recordBusinessEventAsync(command(company, null), null);
         service.recordBusinessEventAsync(command(company, null), null);
 
         verify(auditActionEventRepository, times(2)).save(any(AuditActionEvent.class));
+        verify(auditActionEventRetryRepository, times(2)).save(any(AuditActionEventRetry.class));
         assertThat(service.pendingBusinessEventRetryQueueSize()).isEqualTo(1);
     }
 
     private EnterpriseAuditTrailService newService() {
         return new EnterpriseAuditTrailService(
                 auditActionEventRepository,
+                auditActionEventRetryRepository,
                 mlInteractionEventRepository,
                 companyContextService,
                 new ObjectMapper(),
