@@ -419,6 +419,24 @@ class TS_RuntimeAccountingReplayConflictExecutableCoverageTest {
         assertThat(invokePartnerMismatchSubject(service, null)).isEqualTo("partner type");
     }
 
+    @Test
+    void partnerMismatchMessage_returnsCanonicalReasons() {
+        AccountingService service = accountingService();
+
+        assertThat((String) ReflectionTestUtils.invokeMethod(
+                service,
+                "partnerMismatchMessage",
+                PartnerType.DEALER)).isEqualTo("Idempotency key already used for another dealer");
+
+        assertThat((String) ReflectionTestUtils.invokeMethod(
+                service,
+                "partnerMismatchMessage",
+                PartnerType.SUPPLIER)).isEqualTo("Idempotency key already used for another supplier");
+
+        assertThat(invokePartnerMismatchMessage(service, null))
+                .isEqualTo("Idempotency key already used for another partner type");
+    }
+
     private void assertReplayConflict(ApplicationException ex,
                                       String idempotencyKey,
                                       String partnerType,
@@ -512,6 +530,16 @@ class TS_RuntimeAccountingReplayConflictExecutableCoverageTest {
     private String invokePartnerMismatchSubject(AccountingService service, PartnerType partnerType) {
         try {
             Method method = AccountingService.class.getDeclaredMethod("partnerMismatchSubject", PartnerType.class);
+            method.setAccessible(true);
+            return (String) method.invoke(service, partnerType);
+        } catch (Exception ex) {
+            throw new IllegalStateException(ex);
+        }
+    }
+
+    private String invokePartnerMismatchMessage(AccountingService service, PartnerType partnerType) {
+        try {
+            Method method = AccountingService.class.getDeclaredMethod("partnerMismatchMessage", PartnerType.class);
             method.setAccessible(true);
             return (String) method.invoke(service, partnerType);
         } catch (Exception ex) {
