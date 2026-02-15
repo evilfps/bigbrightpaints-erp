@@ -44,9 +44,14 @@ for event in JOURNAL_ENTRY_POSTED JOURNAL_ENTRY_REVERSED SETTLEMENT_RECORDED; do
     || fail "accounting service suppression guard is missing event filter for ${event}"
 done
 
-if rg -n 'auditService\.logSuccess\(AuditEvent\.(JOURNAL_ENTRY_POSTED|JOURNAL_ENTRY_REVERSED|SETTLEMENT_RECORDED)' "$ACCOUNTING_SERVICE" >/dev/null; then
-  fail "direct legacy summary writes for posted/reversed/settlement events are forbidden in accounting service"
-fi
+require_no_direct_legacy_summary_writes() {
+  local source_root="$1"
+  if rg -n --glob '*.java' 'auditService\.logSuccess\(AuditEvent\.(JOURNAL_ENTRY_POSTED|JOURNAL_ENTRY_REVERSED|SETTLEMENT_RECORDED)' "$source_root" >/dev/null; then
+    fail "direct legacy summary writes for posted/reversed/settlement events are forbidden in tracked source tree: $source_root"
+  fi
+}
+
+require_no_direct_legacy_summary_writes "$ROOT_DIR/erp-domain/src/main/java"
 
 for cfg in "$APP_CONFIG_TEST" "$APP_CONFIG_IT_TEST"; do
   if rg -q 'legacy-summary-events:' "$cfg"; then
