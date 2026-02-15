@@ -8481,3 +8481,65 @@ Queue Rotation (Auto-Replenish)
 - [ready] M16-S7 persisted audit retry fairness guard (company-aware claim scheduling to prevent noisy-tenant starvation)
 - [ready] M16-S8 persisted audit replay uniqueness contract (define stable replay key + dedupe invariant for durable retry rows)
 - [ready] M16-S9 flyway v2 checksum transition automation (promote V15 transition detection from docs-only to executable guardrail)
+
+Completed Slice (Committed)
+- 2026-02-15: `bb97b660`
+  - refactor(audit): decommission legacy summary success toggle.
+  - M16-S5 legacy summary decommission:
+    - removed legacy toggle field/property from `AccountingService`; suppression for `JOURNAL_ENTRY_POSTED`, `JOURNAL_ENTRY_REVERSED`, `SETTLEMENT_RECORDED` is now hard-coded.
+    - removed `legacy-summary-events` config blocks from runtime/test config files.
+    - updated `AccountingServiceTest` expectations to assert no legacy summary success writes for those events.
+    - updated `docs/AUDIT_TRAIL_OWNERSHIP.md` contract text to decommissioned (non-toggle) posture.
+    - rewired ownership guard to fail if legacy toggle resurfaces or if direct legacy summary success writes are reintroduced.
+
+Verification
+- `bash scripts/guard_audit_trail_ownership_contract.sh` -> pass.
+- `bash scripts/guard_flyway_guard_contract.sh` -> pass.
+- `cd erp-domain && mvn -B -ntp -Dtest=AccountingServiceTest,AccountingAuditTrailServiceTest test` -> pass (`94` tests, `0` failures, `0` errors).
+
+Post-Commit Review Evidence
+- Commit reviewed: `bb97b660`
+- `codex review --commit bb97b660`:
+  - exit status: `0`
+  - summary: no actionable regressions detected in committed paths.
+- Review subagent `019c61af-deda-7ce1-8f28-2424f4f4c173`:
+  - finding: HIGH policy-gap signal from local untracked mirror under `testing/erp-domain/*` still containing legacy summary writes.
+  - disposition: handled via follow-up guard hardening (`09062476`) that enforces decommission across tracked source tree (`erp-domain/src/main/java`) and prevents regressions in committed codebase.
+
+Follow-up Hardening (Committed)
+- 2026-02-15: `09062476`
+  - fix(guard): enforce legacy-summary decommission across tracked source.
+  - changes:
+    - ownership guard now scans the full tracked Java source tree (`erp-domain/src/main/java`) for forbidden direct legacy summary success writes instead of single-file checking.
+    - keeps decommission contract fail-closed even if writes are reintroduced in new files.
+
+Verification
+- `bash scripts/guard_audit_trail_ownership_contract.sh` -> pass.
+- `bash scripts/guard_flyway_guard_contract.sh` -> pass.
+
+Post-Commit Review Evidence
+- Commit reviewed: `09062476`
+- `codex review --commit 09062476`:
+  - exit status: `0`
+  - summary: guard scope broadening is consistent and no regressions flagged.
+- Review subagent `019c61b6-68ba-7121-8315-3046d7175d68`:
+  - findings: none.
+
+Loop Update
+- 2026-02-15T20:02:47+05:30
+- tracked_now_ts: `2026-02-15T20:02:47+05:30`
+- tracked_elapsed: `90h 08m 55s`
+- active_in_progress: `M16-S6 audit ownership guard matrix extension (validate config contract across test fixtures and staging overlays)`
+- continuity_recheck:
+  - M16-S5 decommission is committed with runtime toggle removal, config cleanup, and updated assertions.
+  - ownership guard now enforces decommission at tracked-source-tree scope rather than single-file scope.
+  - residual risk carried forward:
+    - untracked local mirrors outside git scope are not part of CI enforcement unless explicitly brought under version control.
+
+Queue Rotation (Auto-Replenish)
+- [completed] M16-S5 legacy summary audit decommission plan (remove compatibility toggles/tests once all workflows consume canonical structured trails)
+- [in_progress] M16-S6 audit ownership guard matrix extension (validate config contract across test fixtures and staging overlays)
+- [ready] M16-S7 persisted audit retry fairness guard (company-aware claim scheduling to prevent noisy-tenant starvation)
+- [ready] M16-S8 persisted audit replay uniqueness contract (define stable replay key + dedupe invariant for durable retry rows)
+- [ready] M16-S9 flyway v2 checksum transition automation (promote V15 transition detection from docs-only to executable guardrail)
+- [ready] M16-S10 audit ownership non-java surface guard (expand decommission checks for future Kotlin/other source roots if added)
