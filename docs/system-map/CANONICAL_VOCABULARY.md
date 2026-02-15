@@ -14,6 +14,17 @@ Use this file as the naming source of truth for cross-module docs and execution 
 - `replay conflict`: canonical result for same `idempotencyKey` with payload/ownership mismatch.
 - Avoid introducing alternate field names for the same concept (`requestKey`, `idemKey`, `retryKey`).
 
+## Replay conflict partner wording contract
+- Conflict `reason` text keeps domain role wording:
+  - dealer path: `Idempotency key already used for another dealer`
+  - supplier path: `Idempotency key already used for another supplier`
+  - fallback/unknown partner type: `Idempotency key already used for another partner type`
+- Conflict `details` keys remain canonical and role-agnostic across all paths:
+  - `idempotencyKey`
+  - `partnerType`
+  - `partnerId`
+- `partnerType` detail value is uppercase role label (`DEALER`, `SUPPLIER`), or `"null"` when partner type is not provided.
+
 ## Ledger-gate execution terms
 - `RELEASE_ANCHOR_SHA`: fixed commit SHA before the active hardening train.
 - `DIFF_BASE`: gate-fast diff baseline, set to `RELEASE_ANCHOR_SHA` for strict final ledger runs.
