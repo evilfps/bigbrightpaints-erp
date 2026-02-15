@@ -833,7 +833,7 @@ public class AccountingService {
             }
             throw new ApplicationException(ErrorCode.INTERNAL_CONCURRENCY_FAILURE,
                     "Dealer receipt idempotency key is reserved but allocation not found")
-                    .withDetail("idempotencyKey", idempotencyKey);
+                    .withDetail(IntegrationFailureMetadataSchema.KEY_IDEMPOTENCY_KEY, idempotencyKey);
         }
 
         List<PartnerSettlementAllocation> existingAllocations = findAllocationsByIdempotencyKey(company, idempotencyKey);
@@ -1001,7 +1001,7 @@ public class AccountingService {
             }
             throw new ApplicationException(ErrorCode.INTERNAL_CONCURRENCY_FAILURE,
                     "Dealer receipt idempotency key is reserved but allocation not found")
-                    .withDetail("idempotencyKey", idempotencyKey);
+                    .withDetail(IntegrationFailureMetadataSchema.KEY_IDEMPOTENCY_KEY, idempotencyKey);
         }
         List<PartnerSettlementAllocation> existingAllocations = findAllocationsByIdempotencyKey(company, idempotencyKey);
         if (!existingAllocations.isEmpty()) {
@@ -1575,7 +1575,7 @@ public class AccountingService {
             }
             throw new ApplicationException(ErrorCode.INTERNAL_CONCURRENCY_FAILURE,
                     "Supplier payment idempotency key is reserved but allocation not found")
-                    .withDetail("idempotencyKey", idempotencyKey);
+                    .withDetail(IntegrationFailureMetadataSchema.KEY_IDEMPOTENCY_KEY, idempotencyKey);
         }
 
         List<PartnerSettlementAllocation> existingAllocations = findAllocationsByIdempotencyKey(company, idempotencyKey);
@@ -2658,7 +2658,7 @@ public class AccountingService {
                     && !mapping.getCanonicalReference().equalsIgnoreCase(canonical)) {
                 throw new ApplicationException(ErrorCode.CONCURRENCY_CONFLICT,
                         "Idempotency key already used for another reference")
-                        .withDetail("idempotencyKey", key)
+                        .withDetail(IntegrationFailureMetadataSchema.KEY_IDEMPOTENCY_KEY, key)
                         .withDetail("referenceNumber", mapping.getCanonicalReference());
             }
             return new IdempotencyReservation(false, canonical);
@@ -2676,12 +2676,12 @@ public class AccountingService {
         JournalReferenceMapping mapping = findLatestLegacyReferenceMapping(company, key)
                 .orElseThrow(() -> new ApplicationException(ErrorCode.INTERNAL_CONCURRENCY_FAILURE,
                         "Idempotency key already reserved but mapping not found")
-                        .withDetail("idempotencyKey", key));
+                        .withDetail(IntegrationFailureMetadataSchema.KEY_IDEMPOTENCY_KEY, key));
         if (StringUtils.hasText(mapping.getCanonicalReference())
                 && !mapping.getCanonicalReference().equalsIgnoreCase(canonical)) {
             throw new ApplicationException(ErrorCode.CONCURRENCY_CONFLICT,
                     "Idempotency key already used for another reference")
-                    .withDetail("idempotencyKey", key)
+                    .withDetail(IntegrationFailureMetadataSchema.KEY_IDEMPOTENCY_KEY, key)
                     .withDetail("referenceNumber", mapping.getCanonicalReference());
         }
         return new IdempotencyReservation(false, canonical);
@@ -2715,7 +2715,7 @@ public class AccountingService {
                 && !canRepairUnlinkedMapping) {
             throw new ApplicationException(ErrorCode.CONCURRENCY_CONFLICT,
                     "Idempotency key maps to a different journal reference")
-                    .withDetail("idempotencyKey", key)
+                    .withDetail(IntegrationFailureMetadataSchema.KEY_IDEMPOTENCY_KEY, key)
                     .withDetail("referenceNumber", mapping.getCanonicalReference());
         }
         mapping.setCanonicalReference(entry.getReferenceNumber());
@@ -2823,7 +2823,7 @@ public class AccountingService {
                 && !Objects.equals(mappingEntry.getId(), allocationEntry.getId())) {
             throw new ApplicationException(ErrorCode.CONCURRENCY_CONFLICT,
                     "Idempotency mapping points to a different journal than settled allocations")
-                    .withDetail("idempotencyKey", idempotencyKey)
+                    .withDetail(IntegrationFailureMetadataSchema.KEY_IDEMPOTENCY_KEY, idempotencyKey)
                     .withDetail("mappingJournalEntryId", mappingEntry.getId())
                     .withDetail("allocationJournalEntryId", allocationEntry.getId());
         }
@@ -3017,32 +3017,32 @@ public class AccountingService {
         if (entry == null) {
             throw new ApplicationException(ErrorCode.CONCURRENCY_CONFLICT,
                     "Idempotency key already used but credit note journal is missing")
-                    .withDetail("idempotencyKey", idempotencyKey);
+                    .withDetail(IntegrationFailureMetadataSchema.KEY_IDEMPOTENCY_KEY, idempotencyKey);
         }
         if (invoice != null && invoice.getDealer() != null && entry.getDealer() != null
                 && !Objects.equals(entry.getDealer().getId(), invoice.getDealer().getId())) {
             throw new ApplicationException(ErrorCode.CONCURRENCY_CONFLICT,
                     "Idempotency key already used for another dealer")
-                    .withDetail("idempotencyKey", idempotencyKey);
+                    .withDetail(IntegrationFailureMetadataSchema.KEY_IDEMPOTENCY_KEY, idempotencyKey);
         }
         if (source != null && entry.getReversalOf() != null
                 && !Objects.equals(entry.getReversalOf().getId(), source.getId())) {
             throw new ApplicationException(ErrorCode.CONCURRENCY_CONFLICT,
                     "Idempotency key already used for another invoice reversal")
-                    .withDetail("idempotencyKey", idempotencyKey);
+                    .withDetail(IntegrationFailureMetadataSchema.KEY_IDEMPOTENCY_KEY, idempotencyKey);
         }
         if (source != null && entry.getReversalOf() == null && invoice != null
                 && !invoice.getPaymentReferences().contains(entry.getReferenceNumber())) {
             throw new ApplicationException(ErrorCode.CONCURRENCY_CONFLICT,
                     "Idempotency key already used for another invoice")
-                    .withDetail("idempotencyKey", idempotencyKey);
+                    .withDetail(IntegrationFailureMetadataSchema.KEY_IDEMPOTENCY_KEY, idempotencyKey);
         }
         BigDecimal existingAmount = calculateCreditNoteAmount(entry, invoice, source);
         BigDecimal expectedAmount = requestedAmount != null ? roundCurrency(requestedAmount) : existingAmount;
         if (existingAmount.compareTo(expectedAmount) != 0) {
             throw new ApplicationException(ErrorCode.CONCURRENCY_CONFLICT,
                     "Idempotency key already used with a different credit amount")
-                    .withDetail("idempotencyKey", idempotencyKey)
+                    .withDetail(IntegrationFailureMetadataSchema.KEY_IDEMPOTENCY_KEY, idempotencyKey)
                     .withDetail("existingAmount", existingAmount)
                     .withDetail("requestedAmount", expectedAmount);
         }
@@ -3055,7 +3055,7 @@ public class AccountingService {
             if (!existingLines.equals(expected)) {
                 throw new ApplicationException(ErrorCode.CONCURRENCY_CONFLICT,
                         "Idempotency key already used for a different credit note payload")
-                        .withDetail("idempotencyKey", idempotencyKey);
+                        .withDetail(IntegrationFailureMetadataSchema.KEY_IDEMPOTENCY_KEY, idempotencyKey);
             }
         }
     }
@@ -4528,7 +4528,7 @@ public class AccountingService {
             }
             throw new ApplicationException(ErrorCode.INTERNAL_CONCURRENCY_FAILURE,
                     "Credit note idempotency key is reserved but journal entry not found")
-                    .withDetail("idempotencyKey", idempotencyKey);
+                    .withDetail(IntegrationFailureMetadataSchema.KEY_IDEMPOTENCY_KEY, idempotencyKey);
         }
         String memo = StringUtils.hasText(request.memo())
                 ? request.memo().trim()
