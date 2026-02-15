@@ -44,24 +44,33 @@ mapfile -t missing_pk_tables < <(
       return cleaned
     }
 
-    function contains_id_token(raw, normalized) {
-      normalized = raw
-      gsub(/"/, "", normalized)
-      return normalized ~ /(^|[^[:alnum:]_])id([^[:alnum:]_]|$)/
-    }
-
     function reset_unique_state(table_name) {
       unique_open[table_name] = 0
-      unique_has_id[table_name] = 0
+      unique_buffer[table_name] = ""
     }
 
-    function mark_pk_contract(table_name, line_raw, line_upper, line_no_quotes, same_line_unique) {
+    function unique_columns_exact_id(raw, normalized) {
+      normalized = tolower(raw)
+      gsub(/"/, "", normalized)
+      gsub(/[[:space:]]+/, "", normalized)
+      return normalized == "id"
+    }
+
+    function paren_delta(raw, opens, closes, tmp) {
+      tmp = raw
+      opens = gsub(/\(/, "(", tmp)
+      tmp = raw
+      closes = gsub(/\)/, ")", tmp)
+      return opens - closes
+    }
+
+    function mark_pk_contract(table_name, line_raw, line_upper, line_no_quotes, open_pos, fragment, close_pos, unique_body) {
       if (table_name == "") {
         return
       }
 
       line_upper = toupper(line_raw)
-      line_no_quotes = line_upper
+      line_no_quotes = line_raw
       gsub(/"/, "", line_no_quotes)
 
       if (line_upper ~ /PRIMARY[[:space:]]+KEY/) {
@@ -70,34 +79,35 @@ mapfile -t missing_pk_tables < <(
         return
       }
 
-      same_line_unique = (line_no_quotes ~ /UNIQUE[[:space:]]*\([[:space:]]*ID[[:space:]]*\)/)
-      if (same_line_unique) {
-        has_pk[table_name] = 1
+      if (!unique_open[table_name]) {
+        if (match(line_upper, /UNIQUE[[:space:]]*\(/) == 0) {
+          return
+        }
+        open_pos = RSTART + RLENGTH - 1
+        fragment = substr(line_no_quotes, open_pos + 1)
+        unique_open[table_name] = 1
+        unique_buffer[table_name] = ""
+      } else {
+        fragment = line_no_quotes
+      }
+
+      close_pos = index(fragment, ")")
+      if (close_pos > 0) {
+        unique_body = substr(fragment, 1, close_pos - 1)
+        if (unique_buffer[table_name] != "") {
+          unique_body = unique_buffer[table_name] " " unique_body
+        }
+        if (unique_columns_exact_id(unique_body)) {
+          has_pk[table_name] = 1
+        }
         reset_unique_state(table_name)
         return
       }
 
-      if (unique_open[table_name]) {
-        if (contains_id_token(line_raw)) {
-          unique_has_id[table_name] = 1
-        }
-        if (line_raw ~ /\)/) {
-          if (unique_has_id[table_name]) {
-            has_pk[table_name] = 1
-          }
-          reset_unique_state(table_name)
-        }
-      }
-
-      if (!unique_open[table_name] && line_upper ~ /UNIQUE[[:space:]]*\(/) {
-        unique_open[table_name] = 1
-        unique_has_id[table_name] = contains_id_token(line_raw) ? 1 : 0
-        if (line_raw ~ /\)/) {
-          if (unique_has_id[table_name]) {
-            has_pk[table_name] = 1
-          }
-          reset_unique_state(table_name)
-        }
+      if (unique_buffer[table_name] != "") {
+        unique_buffer[table_name] = unique_buffer[table_name] " " fragment
+      } else {
+        unique_buffer[table_name] = fragment
       }
     }
 
@@ -147,21 +157,21 @@ mapfile -t missing_pk_tables < <(
         in_alter = 0
         current_table = extract_create_table(line)
         create_has_id = 0
+        create_depth = 0
         reset_unique_state(current_table)
-        mark_pk_contract(current_table, line)
-        next
       }
 
       if (in_create) {
         lower_no_quotes = tolower(line)
         gsub(/"/, "", lower_no_quotes)
-        if (lower_no_quotes ~ /^[[:space:]]*id[[:space:]]+bigint[[:space:]]+not[[:space:]]+null/) {
+        if (lower_no_quotes ~ /(^|[(,])[[:space:]]*id[[:space:]]+bigint[[:space:]]+not[[:space:]]+null([[:space:]]*[,)]|[[:space:]]*$)/) {
           create_has_id = 1
         }
 
         mark_pk_contract(current_table, line)
+        create_depth += paren_delta(line)
 
-        if (line ~ /\)[[:space:]]*;/) {
+        if (create_depth <= 0 && line ~ /;/) {
           if (create_has_id && !has_pk[current_table]) {
             needs_pk[current_table] = 1
           }
@@ -176,13 +186,6 @@ mapfile -t missing_pk_tables < <(
         in_alter = 1
         alter_table = extract_alter_table(line)
         reset_unique_state(alter_table)
-        mark_pk_contract(alter_table, line)
-        if (line ~ /;/) {
-          in_alter = 0
-          reset_unique_state(alter_table)
-          alter_table = ""
-        }
-        next
       }
 
       if (in_alter) {
@@ -192,6 +195,7 @@ mapfile -t missing_pk_tables < <(
           reset_unique_state(alter_table)
           alter_table = ""
         }
+        next
       }
     }
 
