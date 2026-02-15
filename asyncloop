@@ -9184,3 +9184,18 @@ Review Queue Update
 Loop Update
 - tracked_now_ts: `2026-02-16T02:49:35+05:30`
 - active_in_progress: `M19-S5 review queue drain (blocked) + next assertion dedupe slice`
+
+[2026-02-16] M19-S10 controller fixture dedupe for async-loop contract stability
+- Completed Slice (Committed): exception-handler controller fixture helper
+  - Commit `7451e7cf`: introduced `controller()` helper in `AccountingControllerExceptionHandlerTest` and replaced repeated inline constructor calls.
+  - Goal: reduce copy drift while preserving identical exception-envelope contract checks.
+- Verification:
+  - `cd erp-domain && mvn -B -ntp -Dtest=AccountingControllerExceptionHandlerTest test` (PASS: 6/6)
+
+Review Queue Update
+- subagent review dispatch still blocked by active-agent cap (max 6).
+- queued code commits: `2962800b`, `50d78915`, `6c51730e`, `2b2fb143`, `7451e7cf`
+
+Loop Update
+- tracked_now_ts: `2026-02-16T02:50:20+05:30`
+- active_in_progress: `M19-S5 review queue drain (blocked) + next replay contract hardening`
