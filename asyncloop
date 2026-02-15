@@ -9365,3 +9365,43 @@ Review Queue Update
 Loop Update
 - tracked_now_ts: `2026-02-16T03:01:00+05:30`
 - active_in_progress: `M19-S5 review queue drain (blocked) + controller dedupe/hardening continuation`
+
+[2026-02-16] M19-S18 anchored gate_fast recovery for controller changed-file coverage
+- Trigger:
+  - After `f271fb5e` controller idempotency helper refactor, anchored `gate_fast` failed changed-file thresholds on `AccountingController`.
+  - Initial coverage deficit:
+    - line `38/44` (86.36%)
+    - branch `46/50` (92.00%)
+    - `AccountingController` file slice: line `13/19`, branch `12/16`
+
+- Remediation Slice (Committed): critical-runtime coverage expansion
+  - Commit `4d0d508f`: `TS_RuntimeAccountingReplayConflictExecutableCoverageTest`
+  - Added runtime executable coverage for `AccountingController` changed branches:
+    - idempotency helper branches across dealer/supplier paths:
+      - blank body fallback -> header key
+      - body key precedence when headers match
+      - no-header path keeps null
+      - null-request passthrough branches for all four endpoints
+    - audit endpoint execution coverage:
+      - `transactionAudit` with parsed date filters
+      - `transactionAudit` with null date filters
+      - `transactionAuditDetail` journal id forwarding
+
+- Verification (targeted):
+  - `cd erp-domain && mvn -B -ntp -Dtest=TS_RuntimeAccountingReplayConflictExecutableCoverageTest,AccountingControllerIdempotencyHeaderParityTest test` (PASS: 35/35)
+
+- Anchored Gate Re-run:
+  - `DIFF_BASE=06d85e792d2a80cd9fc1f8e5dc15d6dfa15dd93e GATE_FAST_RELEASE_VALIDATION_MODE=true bash scripts/gate_fast.sh` -> PASS
+  - changed-file coverage restored to fully green:
+    - overall line `44/44` (100%), branch `50/50` (100%)
+    - `AccountingController`: line `19/19`, branch `16/16`
+    - `AccountingService`: line `25/25`, branch `34/34`
+
+Review Queue Update
+- subagent dispatch for `4d0d508f` blocked by active-agent cap (max 6); queued.
+- pending code-review queue:
+  - `2962800b`, `50d78915`, `6c51730e`, `2b2fb143`, `7451e7cf`, `a82746af`, `3358cb2a`, `18c3825d`, `f271fb5e`, `4d0d508f`
+
+Loop Update
+- tracked_now_ts: `2026-02-16T03:07:40+05:30`
+- active_in_progress: `M19-S5 review queue drain (blocked) + gate freshness maintained on current head`
