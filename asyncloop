@@ -9597,3 +9597,24 @@ Review Queue Update
 Loop Update
 - tracked_now_ts: `2026-02-16T03:26:10+05:30`
 - active_in_progress: `M19-S5 review queue drain (blocked) + system-map control-plane hardening`
+
+[2026-02-16] M19-S28 review-queue control policy documented (system-map)
+- Completed Slice (Docs):
+  - Added `docs/system-map/REVIEW_QUEUE_POLICY.md`:
+    - normal-mode review workflow
+    - saturation-mode behavior for blocked reviewer capacity
+    - mandatory evidence contract in `asyncloop`
+    - queue accounting contract and final closure criteria
+  - Updated `docs/system-map/README.md` to include policy doc.
+
+- Verification:
+  - `bash ci/lint-knowledgebase.sh` (PASS)
+
+Review Queue Update
+- subagent dispatch remains blocked by active-agent cap (max 6).
+- pending code-review queue unchanged:
+  - `2962800b`, `50d78915`, `6c51730e`, `2b2fb143`, `7451e7cf`, `a82746af`, `3358cb2a`, `18c3825d`, `f271fb5e`, `4d0d508f`, `b4511068`, `3d6a7599`
+
+Loop Update
+- tracked_now_ts: `2026-02-16T03:27:30+05:30`
+- active_in_progress: `M19-S5 review queue drain (blocked) + system-map policy hardening`
