@@ -34,6 +34,9 @@ Feature expansion is not the goal unless required to remove workflow risk.
 - Single canonical write path per business event.
 - Strict module boundaries for accounting, inventory, sales, purchasing, payroll, and orchestrator.
 - Consistent idempotency and reference strategy across modules.
+- Unified domain vocabulary for external entities:
+  - use `partner` as the canonical cross-module term,
+  - use `dealer` and `supplier` only for role-specific flows.
 - API contracts treated as product assets, not byproducts.
 
 ### 3.2 Required architecture deliverables
@@ -44,6 +47,7 @@ Feature expansion is not the goal unless required to remove workflow risk.
   - prod-gate,
   - deprecate.
 - Cross-module linkage contract map kept current and tested.
+- Canonical terminology dictionary for contracts, errors, logs, and docs.
 
 ## 4) Multi-Tenant SaaS Model (Enterprise Requirement)
 
@@ -239,6 +243,17 @@ Acceptance criteria:
 - Predeploy scans clean.
 - Rollback drill executed and documented.
 
+### 14.3 Async-loop final ledger gate closure protocol
+1. Select an immutable `RELEASE_ANCHOR_SHA` immediately before the active hardening train.
+2. Run strict `gate_fast` with anchor:
+   - `DIFF_BASE=<RELEASE_ANCHOR_SHA> GATE_FAST_RELEASE_VALIDATION_MODE=true bash scripts/gate_fast.sh`
+3. Run remaining ledger gates on the same `HEAD` SHA:
+   - `bash scripts/gate_core.sh`
+   - `bash scripts/gate_reconciliation.sh`
+   - `bash scripts/gate_release.sh`
+4. Store command outputs and artifact paths in `asyncloop`.
+5. Rotate `RELEASE_ANCHOR_SHA` only after all required ledger gates pass and evidence is recorded.
+
 ## 15) Virtual Accountant Vision (Deferred Until Stable Base)
 This remains strategic vision after stabilization:
 - NLP/LLM parses user intent,
@@ -284,6 +299,7 @@ Current rule:
 - Approval and override controls hardened with auditability.
 - API contracts and frontend docs synchronized and versioned.
 - Staging gate bundle green with rollback evidence.
+- Final ledger-gate evidence (`gate_fast/core/reconciliation/release`) captured in `asyncloop` with a fixed anchor SHA.
 
 ## 18) Immediate M18 Queue (Stability-Only)
 - `M18-S1`: docs-only review skip policy + runbook alignment.

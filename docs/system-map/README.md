@@ -15,3 +15,9 @@ Operational rules used while building this map:
 - Source-of-truth docs are authoritative for flow/correctness claims.
 - No code changes are made in this task slice; this is docs-only.
 - Focus is navigation and evidence-backed cleanup queue generation.
+
+## Canonical vocabulary guardrails
+- `partner`: canonical cross-module term for external commercial entities in shared contracts, idempotency conflict metadata, and platform-level docs.
+- `dealer`: sales/O2C role specialization of `partner`.
+- `supplier`: purchasing/P2P role specialization of `partner`.
+- `idempotencyKey`: canonical key name for replay identity in request headers, exception details, and audit metadata.

@@ -28,6 +28,21 @@
 - Coverage delta validation vs `DIFF_BASE`
 - Artifacts: `artifacts/gate-fast/*` and Maven surefire/site reports.
 
+### gate_fast `DIFF_BASE` policy (v2 schema)
+- Use a fixed commit SHA for `DIFF_BASE` in long-running async-loop hardening trains.
+- For final ledger closure runs, execute:
+  - `DIFF_BASE=<RELEASE_ANCHOR_SHA> GATE_FAST_RELEASE_VALIDATION_MODE=true bash scripts/gate_fast.sh`
+- In release validation mode, `HEAD~N` references are intentionally rejected; always pass a concrete SHA.
+- Do not weaken line/branch thresholds to bypass broad historical diffs; rotate `RELEASE_ANCHOR_SHA` only after a fully green ledger-gate bundle.
+
+## Async-loop final ledger gate order (staging)
+1. `DIFF_BASE=<RELEASE_ANCHOR_SHA> GATE_FAST_RELEASE_VALIDATION_MODE=true bash scripts/gate_fast.sh`
+2. `bash scripts/gate_core.sh`
+3. `bash scripts/gate_reconciliation.sh`
+4. `bash scripts/gate_release.sh`
+5. Optional hardening lane: `bash scripts/gate_quality.sh`
+6. Record the exact commands and artifact paths in `asyncloop`.
+
 ### gate_core
 - Test catalog + flaky + orchestrator + portal scope + audit ownership guards
 - Critical + concurrency + reconciliation truth tests
