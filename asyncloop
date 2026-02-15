@@ -6753,3 +6753,60 @@ Queue Rotation (Auto-Replenish)
 - [ready] M14-S48 costing-selection enum drift guard (new/legacy costing tokens must remain centrally mapped via `CostingMethodUtils` with no per-module fallback forks)
 - [ready] M14-S49 catalog-import retry-winner ledger/journal silence guard (stale-retry loser payloads must never produce duplicate accounting side effects while winner replay remains idempotent)
 - [ready] M11-S7 accounting-portal scope invariant lock (HR, PURCHASING, INVENTORY, REPORTS remain under Accounting portal unless replacement portal map + endpoint docs are updated atomically)
+
+Completed Slice (Committed)
+- 2026-02-15: `ed2dc7e9`
+  - fix(db): enforce v2 audit-event pk integrity before metadata fks.
+  - M15-S25 execution:
+    - reproduced Flyway v2 failure on fresh chain with isolated Docker Postgres (`SQL State 42830` at `V7__enterprise_audit_ml_events.sql`).
+    - root cause: `audit_action_events` and `ml_interaction_events` lacked guaranteed PKs prior to metadata FK creation.
+    - added defensive PK enforcement blocks in `V7__enterprise_audit_ml_events.sql` so PK is created only when missing, preserving idempotent behavior on pre-existing schemas.
+
+Verification
+- Repro (before fix):
+  - `PGHOST=127.0.0.1 PGPORT=55432 PGUSER=erp PGPASSWORD=erp PGDATABASE=postgres bash scripts/release_migration_matrix.sh --migration-set v2` -> fail at `V7__enterprise_audit_ml_events.sql` with `ERROR: there is no unique constraint matching given keys for referenced table "audit_action_events"`.
+- Validation (after fix):
+  - `PGHOST=127.0.0.1 PGPORT=55432 PGUSER=erp PGPASSWORD=erp PGDATABASE=postgres bash scripts/release_migration_matrix.sh --migration-set v2` -> pass (`fresh` and `upgrade` paths both to `v13`; predeploy scans zero findings).
+
+Post-Commit Review Evidence
+- Commit reviewed: `ed2dc7e9`
+- `codex review --commit ed2dc7e9`:
+  - command executed; session entered prolonged rollout churn and produced no stable final verdict before forced termination.
+- Review subagent `019c5f58-dfda-7d03-b96e-44fbe56d21c0`:
+  - findings: none.
+  - reviewer conclusion: migration ordering and idempotent guards are safe for fresh schema and pre-existing v1 tables.
+
+Completed Slice (Resolved)
+- M15-S25 flyway-v2 V7 FK integrity unblock matrix (isolate and remediate `V7__enterprise_audit_ml_events.sql` FK target uniqueness mismatch so full v2 migrate verification can run cleanly)
+  - closure basis: `ed2dc7e9`.
+  - contract status:
+    - full Flyway v2 migration matrix now succeeds in fresh and upgrade paths.
+    - V7 metadata FK creation is no longer blocked by missing PK target constraints.
+
+Loop Update
+- 2026-02-15T09:01:50+05:30
+- tracked_now_ts: `2026-02-15T09:01:50+05:30`
+- tracked_elapsed: `79h 7m 58s`
+- active_in_progress: `M15-S13R1 pending-exposure predicate parity canary sweep (re-run pending invoice predicate parity assertions on dealer dashboard/order list aggregates after recent guard/migration chain changes)`
+- continuity_recheck:
+  - flyway-v2 migration chain blocker at V7 is closed with execution evidence.
+  - carry-forward parity canary sweeps remain prioritized (`M15-S13R1`, `M15-S14R1`).
+
+Queue Rotation (Auto-Replenish)
+- [completed] M15-S25 flyway-v2 V7 FK integrity unblock matrix (isolate and remediate `V7__enterprise_audit_ml_events.sql` FK target uniqueness mismatch so full v2 migrate verification can run cleanly)
+- [in_progress] M15-S13R1 pending-exposure predicate parity canary sweep (re-run pending invoice predicate parity assertions on dealer dashboard/order list aggregates after recent guard/migration chain changes)
+- [ready] M15-S14R1 dealer/admin pending-order parity canary matrix (re-run dealer vs admin pending count/exposure parity across mixed invoice-link states)
+- [ready] M15-S8 payroll account default/bootstrap guard (`SALARY-EXP` missing account should fail with deterministic provisioning guidance/guard rails)
+- [ready] M15-S9 sales/dealer accounting method-map docs refresh (internal + user-facing docs for cash/credit/split formulas, account mapping rules, idempotency headers, and pending-order credit exposure semantics)
+- [ready] M15-S10 cross-module idempotency contract unification matrix (standardize header semantics + helper parity across sales/production/accounting endpoint families)
+- [ready] M15-S11 recognized-revenue/pending-credit contract docs + endpoint parity matrix (internal and user-facing portal docs must match shipment gate + pending exposure behavior)
+- [ready] M15-S12 idempotency header contract convergence doc+runtime assert sweep (sales/production/accounting entrypoints must share canonical header semantics and error model)
+- [ready] M15-S15 pending-status normalization performance guard (evaluate/land Flyway V2-safe functional index or normalized-token strategy so aggregate pending-status predicates retain index-friendly plans under high order volume)
+- [ready] M15-S16 dealer-settlement replay e2e defense-in-depth matrix (optional end-to-end `settleDealerInvoices` replay assertion where adjustment debit lines coexist with split payments to further harden payment-account bounded remap behavior)
+- [ready] M15-S18 dispatch replay COGS reference payload parity guard (assert `postCogsJournal` reference/memo/line payload stability on replay anchors and prevent wrong-reference postings under override replay paths)
+- [ready] M15-S19 dispatch replay slip-number fallback + AR-overload guard matrix (cover `hasCogsJournalFor` alternate slip-number fallback and explicitly lock both `postSalesJournal` overload paths against duplicate replay posting)
+- [ready] M15-S26 release-guard contract regression harness (add lightweight script-level assertions for mismatch/delegation/required-mode combinations to reduce future policy oscillation risk)
+- [ready] M15-S27 v2 migration ownership/consistency guard (assert all `migration_v2` versions are tracked and contain explicit PK targets for downstream FK references)
+- [ready] M14-S48 costing-selection enum drift guard (new/legacy costing tokens must remain centrally mapped via `CostingMethodUtils` with no per-module fallback forks)
+- [ready] M14-S49 catalog-import retry-winner ledger/journal silence guard (stale-retry loser payloads must never produce duplicate accounting side effects while winner replay remains idempotent)
+- [ready] M11-S7 accounting-portal scope invariant lock (HR, PURCHASING, INVENTORY, REPORTS remain under Accounting portal unless replacement portal map + endpoint docs are updated atomically)
