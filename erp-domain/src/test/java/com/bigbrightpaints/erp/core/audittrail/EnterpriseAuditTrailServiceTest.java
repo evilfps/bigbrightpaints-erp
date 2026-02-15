@@ -2,6 +2,7 @@ package com.bigbrightpaints.erp.core.audittrail;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.anyInt;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -117,7 +118,7 @@ class EnterpriseAuditTrailServiceTest {
         ArgumentCaptor<AuditActionEventRetry> retryCaptor = ArgumentCaptor.forClass(AuditActionEventRetry.class);
         verify(auditActionEventRetryRepository).save(retryCaptor.capture());
         AuditActionEventRetry savedRetry = retryCaptor.getValue();
-        when(auditActionEventRetryRepository.findByNextAttemptAtLessThanEqualOrderByNextAttemptAtAsc(any(), any()))
+        when(auditActionEventRetryRepository.lockDueRetries(any(), anyInt()))
                 .thenReturn(List.of(savedRetry));
 
         service.retryQueuedBusinessEvents();
@@ -153,7 +154,7 @@ class EnterpriseAuditTrailServiceTest {
         ArgumentCaptor<AuditActionEventRetry> retryCaptor = ArgumentCaptor.forClass(AuditActionEventRetry.class);
         verify(auditActionEventRetryRepository).save(retryCaptor.capture());
         AuditActionEventRetry savedRetry = retryCaptor.getValue();
-        when(auditActionEventRetryRepository.findByNextAttemptAtLessThanEqualOrderByNextAttemptAtAsc(any(), any()))
+        when(auditActionEventRetryRepository.lockDueRetries(any(), anyInt()))
                 .thenReturn(List.of(savedRetry));
 
         service.retryQueuedBusinessEvents();

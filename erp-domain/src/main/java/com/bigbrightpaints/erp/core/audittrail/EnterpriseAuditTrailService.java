@@ -123,6 +123,7 @@ public class EnterpriseAuditTrailService {
     }
 
     @Scheduled(fixedDelayString = "${erp.audit.business.retry.fixed-delay-ms:30000}")
+    @Transactional
     void retryQueuedBusinessEvents() {
         int batchLimit = Math.max(1, businessEventRetryBatchSize);
         int processed = 0;
@@ -387,9 +388,9 @@ public class EnterpriseAuditTrailService {
             return 0;
         }
         List<AuditActionEventRetry> dueRetries =
-                auditActionEventRetryRepository.findByNextAttemptAtLessThanEqualOrderByNextAttemptAtAsc(
+                auditActionEventRetryRepository.lockDueRetries(
                         CompanyTime.now(),
-                        PageRequest.of(0, batchLimit));
+                        batchLimit);
         int processed = 0;
         for (AuditActionEventRetry retry : dueRetries) {
             try {
