@@ -8395,3 +8395,89 @@ Queue Rotation (Auto-Replenish)
 - [ready] M16-S6 audit ownership guard matrix extension (validate config contract across test fixtures and staging overlays)
 - [ready] M16-S7 persisted audit retry fairness guard (company-aware claim scheduling to prevent noisy-tenant starvation)
 - [ready] M16-S8 persisted audit replay uniqueness contract (define stable replay key + dedupe invariant for durable retry rows)
+
+Completed Slice (Committed)
+- 2026-02-15: `d096af70`
+  - perf(accounting-audit): batch journal totals and index timeline hotpaths.
+  - M16-S4 baseline:
+    - replaced per-entry journal-line summation with batched aggregate query in `AccountingAuditTrailService`.
+    - added repository projection/query for aggregated totals in `JournalLineRepository`.
+    - added v2 migration `V15__accounting_audit_read_model_hotspot_indexes.sql` for audit read-model hotpath indexing.
+    - updated `AccountingAuditTrailServiceTest` for batch totals + empty-page short-circuit behavior.
+
+Follow-up Hardening (Committed)
+- 2026-02-15: `3d73a324`
+  - fix(accounting-audit): enforce tenant scope and concurrent index rollout.
+  - changes:
+    - tenant fail-closed aggregate query (`company_id` + entry IDs) wiring in repository/service tests.
+    - migration/runbook/governance docs updated for V15 rollout posture.
+
+Residual-Risk Closure (Committed)
+- 2026-02-15: `f916761a`
+  - fix(migrations): split audit index rollout and prove tenant query scope.
+  - changes:
+    - added executable tenant-scope proof in `JournalLineRepositoryIT`.
+    - split index rollout into sequential `V15`..`V18` migrations.
+    - updated migration + rollback runbooks and R2 checkpoint addendum.
+
+Migration Governance Safeguard (Committed)
+- 2026-02-15: `a1912022`
+  - docs(migrations): capture V15 checksum-repair safeguard.
+  - changes:
+    - documented controlled checksum-repair path for V15 transition scenarios.
+
+Post-Commit Review Evidence
+- Commit reviewed: `a1912022`
+- Review subagent `019c617d-80a1-7c33-938e-bbe72de45293`:
+  - findings:
+    - HIGH: duplicate-index failure risk possible in `V16`..`V18` after checksum-repair path for pre-convergence V15 environments.
+    - MEDIUM: repair command text under-specified for Flyway v2 chain/table settings.
+  - disposition: both findings fixed immediately in follow-up `4f92ec6f`.
+
+Follow-up Hardening (Committed)
+- 2026-02-15: `4f92ec6f`
+  - fix(migrations): harden V15 transition idempotency and v2 repair flow.
+  - changes:
+    - made `V16`..`V18` index DDL idempotent via `CREATE INDEX IF NOT EXISTS`.
+    - updated `scripts/schema_drift_scan_allowlist_v2.txt` for reviewed v2 idempotent index migrations.
+    - tightened runbook/R2 guidance to explicit Flyway v2 scoped commands (`migration_v2` + `flyway_schema_history_v2`) instead of generic `flyway repair`.
+    - ignored generated v2 release-matrix artifacts in `.gitignore` to reduce non-canonical artifact churn.
+
+Verification
+- `cd erp-domain && mvn -B -ntp -Dtest=AccountingAuditTrailServiceTest,AccountingControllerActivityContractTest,JournalLineRepositoryIT test` -> pass (`7` tests, `0` failures, `0` errors).
+- `FAIL_ON_FINDINGS=true bash scripts/schema_drift_scan.sh --migration-set v2` -> pass (`findings=0`).
+- `FAIL_ON_FINDINGS=true bash scripts/flyway_overlap_scan.sh --migration-set v2` -> pass (`findings=0`).
+- `bash scripts/guard_flyway_guard_contract.sh` -> pass.
+- `bash scripts/release_migration_matrix_v2.sh` (default local DB) -> failed fast (`password authentication failed for user "erp"`).
+- rerun matrix against isolated temporary Postgres container (`postgres:16-alpine`, `127.0.0.1:55433`) with explicit `PG*` vars -> pass (fresh path pass + upgrade path pass + predeploy scans zero findings).
+- transition simulation proof against isolated temporary Postgres container (`127.0.0.1:55434`) -> pass:
+  - migrated to target `v15`.
+  - precreated `V16`..`V18` index names.
+  - full migrate completed to `v18` without duplicate-index failure (`Successfully applied 3 migrations ... now at version v18`).
+
+Post-Commit Review Evidence
+- Commit reviewed: `4f92ec6f`
+- `codex review --commit 4f92ec6f`:
+  - exit status: `0`
+  - summary: no actionable regressions detected.
+- Review subagent `019c6187-9e36-79c3-bdfb-f28ac49194bf`:
+  - findings: none.
+
+Loop Update
+- 2026-02-15T19:11:28+05:30
+- tracked_now_ts: `2026-02-15T19:11:28+05:30`
+- tracked_elapsed: `89h 17m 36s`
+- active_in_progress: `M16-S5 legacy summary audit decommission plan (remove compatibility toggles/tests once all workflows consume canonical structured trails)`
+- continuity_recheck:
+  - M16-S4 is now closed with executable evidence for tenant scope, idempotent index rollout, and migration-matrix parity.
+  - v2 drift/overlap/guard contract posture is green after idempotent DDL + allowlist update.
+  - residual risk carried forward:
+    - environments that previously applied pre-convergence V15 text still require controlled v2 checksum repair before standard migrate.
+
+Queue Rotation (Auto-Replenish)
+- [completed] M16-S4 accounting audit read-model performance hardening (index/query-plan validation for high-cardinality event timelines)
+- [in_progress] M16-S5 legacy summary audit decommission plan (remove compatibility toggles/tests once all workflows consume canonical structured trails)
+- [ready] M16-S6 audit ownership guard matrix extension (validate config contract across test fixtures and staging overlays)
+- [ready] M16-S7 persisted audit retry fairness guard (company-aware claim scheduling to prevent noisy-tenant starvation)
+- [ready] M16-S8 persisted audit replay uniqueness contract (define stable replay key + dedupe invariant for durable retry rows)
+- [ready] M16-S9 flyway v2 checksum transition automation (promote V15 transition detection from docs-only to executable guardrail)
