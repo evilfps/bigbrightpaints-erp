@@ -1,5 +1,6 @@
 package com.bigbrightpaints.erp.modules.accounting.controller;
 
+import com.bigbrightpaints.erp.core.util.IdempotencyHeaderUtils;
 import com.bigbrightpaints.erp.modules.production.dto.CatalogImportResponse;
 import com.bigbrightpaints.erp.modules.production.dto.BulkVariantRequest;
 import com.bigbrightpaints.erp.modules.production.dto.BulkVariantResponse;
@@ -39,9 +40,11 @@ public class AccountingCatalogController {
     @PostMapping(value = "/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ApiResponse<CatalogImportResponse>> importCatalog(
             @RequestPart("file") MultipartFile file,
-            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
+            @RequestHeader(value = "X-Idempotency-Key", required = false) String legacyIdempotencyKey) {
+        String resolvedKey = IdempotencyHeaderUtils.resolveHeaderKey(idempotencyKey, legacyIdempotencyKey);
         return ResponseEntity.ok(ApiResponse.success("Catalog import processed",
-                productionCatalogService.importCatalog(file, idempotencyKey)));
+                productionCatalogService.importCatalog(file, resolvedKey)));
     }
 
     @GetMapping("/products")

@@ -67,3 +67,11 @@ interview/
 tasks/erp_logic_audit/
 
 # Large generated files
+
+# Local async-loop artifacts (generated, non-canonical)
+.tmp/legacy-v1-quarantine/
+.security-baseline-*/
+.security-baseline-review-*/
+artifacts/release-matrix-local/
+artifacts/release-matrix-local-keep/
+artifacts/reviews/predeploy-blockers-v1-*

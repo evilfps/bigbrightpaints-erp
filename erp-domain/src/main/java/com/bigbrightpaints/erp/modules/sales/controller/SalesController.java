@@ -3,11 +3,13 @@ package com.bigbrightpaints.erp.modules.sales.controller;
 import com.bigbrightpaints.erp.modules.sales.dto.*;
 import com.bigbrightpaints.erp.modules.sales.service.DealerService;
 import com.bigbrightpaints.erp.modules.sales.service.SalesService;
+import com.bigbrightpaints.erp.core.util.IdempotencyHeaderUtils;
 import com.bigbrightpaints.erp.shared.dto.ApiResponse;
 import io.micrometer.core.annotation.Timed;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -50,8 +52,12 @@ public class SalesController {
 
     @PostMapping("/sales/orders")
     @PreAuthorize("hasAnyAuthority('ROLE_SALES','ROLE_ADMIN')")
-    public ResponseEntity<ApiResponse<SalesOrderDto>> createOrder(@Valid @RequestBody SalesOrderRequest request) {
-        return ResponseEntity.ok(ApiResponse.success("Order created", salesService.createOrder(request)));
+    public ResponseEntity<ApiResponse<SalesOrderDto>> createOrder(
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
+            @RequestHeader(value = "X-Idempotency-Key", required = false) String legacyIdempotencyKey,
+            @Valid @RequestBody SalesOrderRequest request) {
+        SalesOrderRequest resolved = applyOrderIdempotencyKey(request, idempotencyKey, legacyIdempotencyKey);
+        return ResponseEntity.ok(ApiResponse.success("Order created", salesService.createOrder(resolved)));
     }
 
     @PutMapping("/sales/orders/{id}")
@@ -91,6 +97,34 @@ public class SalesController {
 
     public record CancelRequest(String reason) {}
     public record StatusRequest(String status) {}
+
+    private SalesOrderRequest applyOrderIdempotencyKey(SalesOrderRequest request,
+                                                       String idempotencyKeyHeader,
+                                                       String legacyIdempotencyKeyHeader) {
+        if (request == null) {
+            return null;
+        }
+        String resolvedKey = IdempotencyHeaderUtils.resolveBodyOrHeaderKey(
+                request.idempotencyKey(),
+                idempotencyKeyHeader,
+                legacyIdempotencyKeyHeader
+        );
+        if (!StringUtils.hasText(resolvedKey) || StringUtils.hasText(request.idempotencyKey())) {
+            return request;
+        }
+        return new SalesOrderRequest(
+                request.dealerId(),
+                request.totalAmount(),
+                request.currency(),
+                request.notes(),
+                request.items(),
+                request.gstTreatment(),
+                request.gstRate(),
+                request.gstInclusive(),
+                resolvedKey,
+                request.paymentMode()
+        );
+    }
 
     /* Promotions */
     @GetMapping("/sales/promotions")

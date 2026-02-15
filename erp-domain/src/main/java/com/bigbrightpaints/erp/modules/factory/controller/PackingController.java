@@ -5,6 +5,7 @@ import com.bigbrightpaints.erp.modules.factory.service.BulkPackingService;
 import com.bigbrightpaints.erp.modules.factory.service.PackingService;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
+import com.bigbrightpaints.erp.core.util.IdempotencyHeaderUtils;
 import com.bigbrightpaints.erp.shared.dto.ApiResponse;
 import jakarta.validation.Valid;
 import java.math.BigDecimal;
@@ -33,9 +34,10 @@ public class PackingController {
     @PostMapping("/packing-records")
     public ResponseEntity<ApiResponse<ProductionLogDetailDto>> recordPacking(
             @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
+            @RequestHeader(value = "X-Idempotency-Key", required = false) String legacyIdempotencyKey,
             @RequestHeader(value = "X-Request-Id", required = false) String requestId,
             @Valid @RequestBody PackingRequest request) {
-        PackingRequest resolved = applyIdempotencyKey(request, idempotencyKey, requestId);
+        PackingRequest resolved = applyIdempotencyKey(request, idempotencyKey, legacyIdempotencyKey, requestId);
         return ResponseEntity.ok(ApiResponse.success("Packing recorded", packingService.recordPacking(resolved)));
     }
 
@@ -86,24 +88,21 @@ public class PackingController {
         return ResponseEntity.ok(ApiResponse.success(bulkPackingService.listChildBatches(parentBatchId)));
     }
 
-    private PackingRequest applyIdempotencyKey(PackingRequest request, String headerKey, String requestId) {
+    private PackingRequest applyIdempotencyKey(PackingRequest request,
+                                               String idempotencyKeyHeader,
+                                               String legacyIdempotencyKeyHeader,
+                                               String requestId) {
         if (request == null) {
             throw new ApplicationException(ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD,
                     "Packing request is required");
         }
-        String bodyKey = StringUtils.hasText(request.idempotencyKey()) ? request.idempotencyKey().trim() : null;
-        String normalizedHeader = StringUtils.hasText(headerKey) ? headerKey.trim() : null;
-        if (StringUtils.hasText(bodyKey)) {
-            if (StringUtils.hasText(normalizedHeader) && !bodyKey.equals(normalizedHeader)) {
-                throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
-                        "Idempotency key mismatch between header and request body")
-                        .withDetail("headerKey", normalizedHeader)
-                        .withDetail("bodyKey", bodyKey);
-            }
-            return requestWithIdempotencyKey(request, bodyKey);
-        }
-        if (StringUtils.hasText(normalizedHeader)) {
-            return requestWithIdempotencyKey(request, normalizedHeader);
+        String resolvedKey = IdempotencyHeaderUtils.resolveBodyOrHeaderKey(
+                request.idempotencyKey(),
+                idempotencyKeyHeader,
+                legacyIdempotencyKeyHeader
+        );
+        if (StringUtils.hasText(resolvedKey)) {
+            return requestWithIdempotencyKey(request, resolvedKey);
         }
         return requestWithIdempotencyKey(request, resolveFallbackIdempotencyKey(request, requestId));
     }

@@ -2,6 +2,7 @@ package com.bigbrightpaints.erp.modules.purchasing.controller;
 
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
+import com.bigbrightpaints.erp.core.util.IdempotencyHeaderUtils;
 import com.bigbrightpaints.erp.modules.purchasing.dto.GoodsReceiptRequest;
 import com.bigbrightpaints.erp.modules.purchasing.dto.GoodsReceiptResponse;
 import com.bigbrightpaints.erp.modules.purchasing.dto.PurchaseOrderRequest;
@@ -61,27 +62,28 @@ public class PurchasingWorkflowController {
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
     public ResponseEntity<ApiResponse<GoodsReceiptResponse>> createGoodsReceipt(
             @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
+            @RequestHeader(value = "X-Idempotency-Key", required = false) String legacyIdempotencyKey,
             @Valid @RequestBody GoodsReceiptRequest request) {
-        GoodsReceiptRequest resolved = applyIdempotencyKey(request, idempotencyKey);
+        GoodsReceiptRequest resolved = applyIdempotencyKey(request, idempotencyKey, legacyIdempotencyKey);
         return ResponseEntity.ok(ApiResponse.success("Goods receipt recorded", purchasingService.createGoodsReceipt(resolved)));
     }
 
-    private GoodsReceiptRequest applyIdempotencyKey(GoodsReceiptRequest request, String headerKey) {
+    private GoodsReceiptRequest applyIdempotencyKey(GoodsReceiptRequest request,
+                                                    String idempotencyKeyHeader,
+                                                    String legacyIdempotencyKeyHeader) {
         if (request == null) {
             throw new ApplicationException(ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD,
                     "Goods receipt request is required");
         }
-        String bodyKey = request.idempotencyKey();
-        if (StringUtils.hasText(bodyKey)) {
-            if (StringUtils.hasText(headerKey) && !bodyKey.trim().equals(headerKey.trim())) {
-                throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
-                        "Idempotency key mismatch between header and request body")
-                        .withDetail("headerKey", headerKey)
-                        .withDetail("bodyKey", bodyKey);
-            }
+        String resolvedKey = IdempotencyHeaderUtils.resolveBodyOrHeaderKey(
+                request.idempotencyKey(),
+                idempotencyKeyHeader,
+                legacyIdempotencyKeyHeader
+        );
+        if (StringUtils.hasText(request.idempotencyKey())) {
             return request;
         }
-        if (!StringUtils.hasText(headerKey)) {
+        if (!StringUtils.hasText(resolvedKey)) {
             throw new ApplicationException(ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD,
                     "Idempotency-Key header is required");
         }
@@ -90,7 +92,7 @@ public class PurchasingWorkflowController {
                 request.receiptNumber(),
                 request.receiptDate(),
                 request.memo(),
-                headerKey.trim(),
+                resolvedKey,
                 request.lines()
         );
     }

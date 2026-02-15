@@ -2,6 +2,7 @@ package com.bigbrightpaints.erp.modules.inventory.controller;
 
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
+import com.bigbrightpaints.erp.core.util.IdempotencyHeaderUtils;
 import com.bigbrightpaints.erp.modules.inventory.dto.InventoryAdjustmentDto;
 import com.bigbrightpaints.erp.modules.inventory.dto.InventoryAdjustmentRequest;
 import com.bigbrightpaints.erp.modules.inventory.service.InventoryAdjustmentService;
@@ -40,29 +41,30 @@ public class InventoryAdjustmentController {
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
     public ResponseEntity<ApiResponse<InventoryAdjustmentDto>> createAdjustment(
             @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
+            @RequestHeader(value = "X-Idempotency-Key", required = false) String legacyIdempotencyKey,
             @RequestBody InventoryAdjustmentRequest request) {
-        InventoryAdjustmentRequest resolved = applyIdempotencyKey(request, idempotencyKey);
+        InventoryAdjustmentRequest resolved = applyIdempotencyKey(request, idempotencyKey, legacyIdempotencyKey);
         validateRequest(resolved);
         return ResponseEntity.ok(ApiResponse.success("Inventory adjustment posted",
                 inventoryAdjustmentService.createAdjustment(resolved)));
     }
 
-    private InventoryAdjustmentRequest applyIdempotencyKey(InventoryAdjustmentRequest request, String headerKey) {
+    private InventoryAdjustmentRequest applyIdempotencyKey(InventoryAdjustmentRequest request,
+                                                           String idempotencyKeyHeader,
+                                                           String legacyIdempotencyKeyHeader) {
         if (request == null) {
             throw new ApplicationException(ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD,
                     "Inventory adjustment request is required");
         }
-        String bodyKey = request.idempotencyKey();
-        if (StringUtils.hasText(bodyKey)) {
-            if (StringUtils.hasText(headerKey) && !bodyKey.trim().equals(headerKey.trim())) {
-                throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
-                        "Idempotency key mismatch between header and request body")
-                        .withDetail("headerKey", headerKey)
-                        .withDetail("bodyKey", bodyKey);
-            }
+        String resolvedKey = IdempotencyHeaderUtils.resolveBodyOrHeaderKey(
+                request.idempotencyKey(),
+                idempotencyKeyHeader,
+                legacyIdempotencyKeyHeader
+        );
+        if (StringUtils.hasText(request.idempotencyKey())) {
             return request;
         }
-        if (!StringUtils.hasText(headerKey)) {
+        if (!StringUtils.hasText(resolvedKey)) {
             throw new ApplicationException(ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD,
                     "Idempotency-Key header is required");
         }
@@ -72,7 +74,7 @@ public class InventoryAdjustmentController {
                 request.adjustmentAccountId(),
                 request.reason(),
                 request.adminOverride(),
-                headerKey.trim(),
+                resolvedKey,
                 request.lines()
         );
     }
