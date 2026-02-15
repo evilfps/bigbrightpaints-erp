@@ -234,8 +234,12 @@ public class AccountingController {
 
     @PostMapping("/settlements/dealers")
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
-    public ResponseEntity<ApiResponse<PartnerSettlementResponse>> settleDealer(@Valid @RequestBody DealerSettlementRequest request) {
-        return ResponseEntity.ok(ApiResponse.success("Settlement recorded", accountingService.settleDealerInvoices(request)));
+    public ResponseEntity<ApiResponse<PartnerSettlementResponse>> settleDealer(
+            @Valid @RequestBody DealerSettlementRequest request,
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
+            @RequestHeader(value = "X-Idempotency-Key", required = false) String legacyIdempotencyKey) {
+        DealerSettlementRequest resolved = applyIdempotencyKey(request, idempotencyKey, legacyIdempotencyKey);
+        return ResponseEntity.ok(ApiResponse.success("Settlement recorded", accountingService.settleDealerInvoices(resolved)));
     }
 
     @PostMapping("/payroll/payments")
@@ -325,6 +329,36 @@ public class AccountingController {
                 request.referenceNumber(),
                 request.memo(),
                 resolvedKey
+        );
+    }
+
+    private DealerSettlementRequest applyIdempotencyKey(DealerSettlementRequest request,
+                                                        String idempotencyKeyHeader,
+                                                        String legacyIdempotencyKeyHeader) {
+        if (request == null) {
+            return request;
+        }
+        String resolvedKey = resolveHeaderOnlyIdempotencyKey(
+                request.idempotencyKey(),
+                idempotencyKeyHeader,
+                legacyIdempotencyKeyHeader);
+        if (!StringUtils.hasText(resolvedKey)) {
+            return request;
+        }
+        return new DealerSettlementRequest(
+                request.dealerId(),
+                request.cashAccountId(),
+                request.discountAccountId(),
+                request.writeOffAccountId(),
+                request.fxGainAccountId(),
+                request.fxLossAccountId(),
+                request.settlementDate(),
+                request.referenceNumber(),
+                request.memo(),
+                resolvedKey,
+                request.adminOverride(),
+                request.allocations(),
+                request.payments()
         );
     }
 

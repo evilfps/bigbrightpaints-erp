@@ -3,6 +3,7 @@ package com.bigbrightpaints.erp.modules.accounting.controller;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.modules.accounting.dto.DealerReceiptRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.DealerReceiptSplitRequest;
+import com.bigbrightpaints.erp.modules.accounting.dto.DealerSettlementRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.SettlementAllocationRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.SupplierPaymentRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.SupplierSettlementRequest;
@@ -212,6 +213,52 @@ class AccountingControllerIdempotencyHeaderParityTest {
         assertThat(captor.getValue().idempotencyKey()).isEqualTo("hdr-blank-004");
     }
 
+    @Test
+    void settleDealer_appliesLegacyHeaderWhenPrimaryMissing() {
+        AccountingController controller = controller();
+        when(accountingService.settleDealerInvoices(any())).thenReturn(null);
+
+        controller.settleDealer(dealerSettlementRequest(null), null, "legacy-001");
+
+        ArgumentCaptor<DealerSettlementRequest> captor = ArgumentCaptor.forClass(DealerSettlementRequest.class);
+        verify(accountingService).settleDealerInvoices(captor.capture());
+        assertThat(captor.getValue().idempotencyKey()).isEqualTo("legacy-001");
+    }
+
+    @Test
+    void settleDealer_prefersPrimaryHeaderWhenPrimaryLegacyMismatch() {
+        AccountingController controller = controller();
+        when(accountingService.settleDealerInvoices(any())).thenReturn(null);
+
+        controller.settleDealer(dealerSettlementRequest(null), "hdr-001", "legacy-001");
+
+        ArgumentCaptor<DealerSettlementRequest> captor = ArgumentCaptor.forClass(DealerSettlementRequest.class);
+        verify(accountingService).settleDealerInvoices(captor.capture());
+        assertThat(captor.getValue().idempotencyKey()).isEqualTo("hdr-001");
+    }
+
+    @Test
+    void settleDealer_rejectsBodyHeaderMismatch() {
+        AccountingController controller = controller();
+
+        assertThatThrownBy(() -> controller.settleDealer(
+                dealerSettlementRequest("body-001"), "hdr-001", null))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Idempotency key mismatch");
+    }
+
+    @Test
+    void settleDealer_blankBodyKeyFallsBackToHeader() {
+        AccountingController controller = controller();
+        when(accountingService.settleDealerInvoices(any())).thenReturn(null);
+
+        controller.settleDealer(dealerSettlementRequest("   "), "hdr-blank-005", null);
+
+        ArgumentCaptor<DealerSettlementRequest> captor = ArgumentCaptor.forClass(DealerSettlementRequest.class);
+        verify(accountingService).settleDealerInvoices(captor.capture());
+        assertThat(captor.getValue().idempotencyKey()).isEqualTo("hdr-blank-005");
+    }
+
     private AccountingController controller() {
         return new AccountingController(
                 accountingService,
@@ -250,6 +297,24 @@ class AccountingControllerIdempotencyHeaderParityTest {
                 "RCPT-SPLIT-001",
                 "memo",
                 idempotencyKey
+        );
+    }
+
+    private DealerSettlementRequest dealerSettlementRequest(String idempotencyKey) {
+        return new DealerSettlementRequest(
+                1001L,
+                2001L,
+                null,
+                null,
+                null,
+                null,
+                LocalDate.of(2026, 2, 15),
+                "SETTLE-DEALER-001",
+                "memo",
+                idempotencyKey,
+                Boolean.FALSE,
+                allocations(),
+                null
         );
     }
 
