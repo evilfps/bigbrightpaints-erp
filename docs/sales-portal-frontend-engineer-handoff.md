@@ -374,7 +374,7 @@ Recommended pattern:
 
 ## Delta Update (2026-02-15): Payment-Mode + Idempotency + Pending Exposure Contract (Flyway V2)
 
-- Flyway baseline is single `V2` (`db/migration_v2`, `flyway_schema_history_v2`).
+- Async-loop verification baseline in this slice uses Flyway `V2` (`db/migration_v2`, `flyway_schema_history_v2`).
 - Sales order payment mode map:
   - allowed values: `CASH`, `CREDIT`, `SPLIT`.
   - default when omitted: `CREDIT`.

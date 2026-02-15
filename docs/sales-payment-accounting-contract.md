@@ -2,7 +2,7 @@
 
 ## Scope
 This document captures the current backend contract for sales-order payment modes, credit-limit enforcement, and idempotency behavior.
-- Flyway baseline for this contract is **V2** (`db/migration_v2`, `flyway_schema_history_v2`).
+- Async-loop verification baseline for this slice is run on Flyway **V2** (`db/migration_v2`, `flyway_schema_history_v2` profile/path).
 
 ## Payment Modes
 - Allowed order payment modes are exactly `CASH`, `CREDIT`, `SPLIT` (default is `CREDIT` when omitted).
@@ -23,7 +23,7 @@ This document captures the current backend contract for sales-order payment mode
 - `recordDealerReceiptSplit` (`incomingLines[]`):
   - Journal shape: each incoming line debits its cash/bank account; one receivable credit line is posted for total receipt.
   - Requires at least one incoming line and rejects totals above open receivable exposure.
-- `recordDealerSettlement` (allocation + optional payments):
+- `settleDealerInvoices` (`POST /api/v1/accounting/settlements/dealers`; allocation + optional payments):
   - Net cash formula: `cashAmount = totalApplied + totalFxGain - totalFxLoss - totalDiscount - totalWriteOff`.
   - If `payments[]` is provided, `sum(payments.amount)` must equal `cashAmount`.
   - If `payments[]` is omitted and `cashAmount > 0`, `cashAccountId` is required and used as implicit single-tender mapping.

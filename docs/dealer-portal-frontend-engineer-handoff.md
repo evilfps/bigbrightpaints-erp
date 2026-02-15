@@ -219,7 +219,7 @@ Frontend note:
 
 ## Delta Update (2026-02-15): Pending Exposure Semantics + Flyway Baseline (V2)
 
-- Flyway baseline is single `V2` (`db/migration_v2`, `flyway_schema_history_v2`).
+- Async-loop verification baseline in this slice uses Flyway `V2` (`db/migration_v2`, `flyway_schema_history_v2`).
 - Dealer pending exposure fields are contract fields, not UI-derived guesses:
   - dashboard/aging/orders surfaces expose `pendingOrderExposure`, `pendingOrderCount`, and per-order `pendingCreditExposure`.
   - `creditUsed = totalOutstanding + pendingOrderExposure`.
