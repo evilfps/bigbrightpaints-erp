@@ -8,7 +8,6 @@ INTEGRATION_EVENT_PATTERN='AuditEvent\.INTEGRATION_FAILURE'
 LOG_FAILURE_PATTERN='logFailure\('
 SCHEMA_PATTERN='IntegrationFailureMetadataSchema\.applyRequiredFields\('
 MANUAL_REQUIRED_KEY_PATTERN='put\("failureCode"|put\("errorCategory"|put\("alertRoutingVersion"|put\("alertRoute"'
-LOG_LOOKAHEAD_LINES=8
 
 fail() {
   echo "[guard_integration_failure_metadata_schema] ERROR: $1" >&2
@@ -18,22 +17,42 @@ fail() {
 
 [[ -d "$SOURCE_ROOT" ]] || fail "missing source root: $SOURCE_ROOT"
 
-mapfile -t producer_files < <(rg -l "$INTEGRATION_EVENT_PATTERN" "$SOURCE_ROOT")
+mapfile -t producer_files < <(rg -l "$LOG_FAILURE_PATTERN" "$SOURCE_ROOT")
 
-[[ "${#producer_files[@]}" -gt 0 ]] || fail "no files with INTEGRATION_FAILURE references found under $SOURCE_ROOT"
+[[ "${#producer_files[@]}" -gt 0 ]] || fail "no files with logFailure calls found under $SOURCE_ROOT"
 
 processed_producers=0
 for file in "${producer_files[@]}"; do
-  mapfile -t all_log_lines < <(rg -n "$LOG_FAILURE_PATTERN" "$file" | cut -d: -f1)
-  [[ "${#all_log_lines[@]}" -gt 0 ]] || continue
-
-  log_lines=()
-  for log_line in "${all_log_lines[@]}"; do
-    end_line=$((log_line + LOG_LOOKAHEAD_LINES))
-    if sed -n "${log_line},${end_line}p" "$file" | rg -q "$INTEGRATION_EVENT_PATTERN"; then
-      log_lines+=("$log_line")
-    fi
-  done
+  mapfile -t log_lines < <(
+    awk '
+      BEGIN { in_call = 0; start = 0; buffer = "" }
+      {
+        if (!in_call && $0 ~ /logFailure[[:space:]]*\(/) {
+          in_call = 1
+          start = NR
+          buffer = $0 "\n"
+          if ($0 ~ /\);/) {
+            if (buffer ~ /AuditEvent\.INTEGRATION_FAILURE/) {
+              print start
+            }
+            in_call = 0
+            buffer = ""
+          }
+          next
+        }
+        if (in_call) {
+          buffer = buffer $0 "\n"
+          if ($0 ~ /\);/) {
+            if (buffer ~ /AuditEvent\.INTEGRATION_FAILURE/) {
+              print start
+            }
+            in_call = 0
+            buffer = ""
+          }
+        }
+      }
+    ' "$file"
+  )
 
   [[ "${#log_lines[@]}" -gt 0 ]] || continue
   processed_producers=$((processed_producers + 1))
