@@ -9022,3 +9022,11 @@ Loop Update
 - active_in_progress: `M18-S8 post-closure cleanup + queue reseed`
 - closure_status:
   - fast/core/reconciliation/release all green on current head with v2 migration policy.
+
+Queue Rotation (Post-Closure Reseed)
+- [ready] M19-S1 replay mismatch contract drift sentinel
+  - Add a compact test contract table that asserts canonical replay conflict reason strings by partner type (dealer/supplier/partner-type fallback) to catch wording drift in one place.
+- [ready] M19-S2 controller error payload contract consolidation
+  - Add a shared assertion helper in `AccountingControllerExceptionHandlerTest` to dedupe partner replay payload checks and reduce brittle duplicate literals.
+- [ready] M19-S3 release gate artifact normalization
+  - Verify gate artifact outputs for this head are attached to `artifacts/gate-*` consistently and update async ledger evidence pointers.
