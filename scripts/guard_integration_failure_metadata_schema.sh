@@ -26,8 +26,12 @@ for file in "${producer_files[@]}"; do
     awk '
       function paren_delta(input, opens, closes, tmp) {
         tmp = input
+        gsub(/"([^"\\]|\\.)*"/, "", tmp)
+        sub(/\/\/.*/, "", tmp)
         opens = gsub(/\(/, "", tmp)
         tmp = input
+        gsub(/"([^"\\]|\\.)*"/, "", tmp)
+        sub(/\/\/.*/, "", tmp)
         closes = gsub(/\)/, "", tmp)
         return opens - closes
       }
