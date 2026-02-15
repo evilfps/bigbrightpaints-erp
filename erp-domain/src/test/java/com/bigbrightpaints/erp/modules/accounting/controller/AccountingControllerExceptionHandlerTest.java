@@ -14,6 +14,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class AccountingControllerExceptionHandlerTest {
 
+    private static final String REPLAY_REASON_SUPPLIER = "Idempotency key already used for another supplier";
+    private static final String REPLAY_REASON_DEALER = "Idempotency key already used for another dealer";
+    private static final String REPLAY_REASON_PARTNER_TYPE = "Idempotency key already used for another partner type";
+
     @Test
     void handleApplicationException_returnsStructuredReasonPayload() {
         AccountingController controller = new AccountingController(
@@ -73,7 +77,7 @@ class AccountingControllerExceptionHandlerTest {
                 null, null, null, null, null, null, null, null, null, null, null, null, null, null);
         ApplicationException ex = new ApplicationException(
                 ErrorCode.CONCURRENCY_CONFLICT,
-                "Idempotency key already used for another supplier")
+                REPLAY_REASON_SUPPLIER)
                 .withDetail(IntegrationFailureMetadataSchema.KEY_IDEMPOTENCY_KEY, "IDEMP-AP-RACE-PARTNER")
                 .withDetail(IntegrationFailureMetadataSchema.KEY_PARTNER_TYPE, "SUPPLIER")
                 .withDetail(IntegrationFailureMetadataSchema.KEY_PARTNER_ID, 1L);
@@ -87,7 +91,7 @@ class AccountingControllerExceptionHandlerTest {
                 response,
                 HttpStatus.BAD_REQUEST,
                 ErrorCode.CONCURRENCY_CONFLICT,
-                "Idempotency key already used for another supplier",
+                REPLAY_REASON_SUPPLIER,
                 "/api/v1/accounting/settlements/suppliers");
         Map<String, Object> details = requireDetails(body);
         assertPartnerReplayDetails(details, "IDEMP-AP-RACE-PARTNER", "SUPPLIER", 1L);
@@ -99,7 +103,7 @@ class AccountingControllerExceptionHandlerTest {
                 null, null, null, null, null, null, null, null, null, null, null, null, null, null);
         ApplicationException ex = new ApplicationException(
                 ErrorCode.CONCURRENCY_CONFLICT,
-                "Idempotency key already used for another dealer")
+                REPLAY_REASON_DEALER)
                 .withDetail(IntegrationFailureMetadataSchema.KEY_IDEMPOTENCY_KEY, "IDEMP-DR-RACE-PARTNER")
                 .withDetail(IntegrationFailureMetadataSchema.KEY_PARTNER_TYPE, "DEALER")
                 .withDetail(IntegrationFailureMetadataSchema.KEY_PARTNER_ID, 1L);
@@ -113,7 +117,7 @@ class AccountingControllerExceptionHandlerTest {
                 response,
                 HttpStatus.BAD_REQUEST,
                 ErrorCode.CONCURRENCY_CONFLICT,
-                "Idempotency key already used for another dealer",
+                REPLAY_REASON_DEALER,
                 "/api/v1/accounting/settlements/dealers");
         Map<String, Object> details = requireDetails(body);
         assertPartnerReplayDetails(details, "IDEMP-DR-RACE-PARTNER", "DEALER", 1L);
@@ -125,7 +129,7 @@ class AccountingControllerExceptionHandlerTest {
                 null, null, null, null, null, null, null, null, null, null, null, null, null, null);
         ApplicationException ex = new ApplicationException(
                 ErrorCode.CONCURRENCY_CONFLICT,
-                "Idempotency key already used for another partner type");
+                REPLAY_REASON_PARTNER_TYPE);
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.setRequestURI("/api/v1/accounting/settlements/partners");
 
@@ -136,7 +140,7 @@ class AccountingControllerExceptionHandlerTest {
                 response,
                 HttpStatus.BAD_REQUEST,
                 ErrorCode.CONCURRENCY_CONFLICT,
-                "Idempotency key already used for another partner type",
+                REPLAY_REASON_PARTNER_TYPE,
                 "/api/v1/accounting/settlements/partners");
         assertThat(body.data()).doesNotContainKey("details");
     }
@@ -147,7 +151,7 @@ class AccountingControllerExceptionHandlerTest {
                 null, null, null, null, null, null, null, null, null, null, null, null, null, null);
         ApplicationException ex = new ApplicationException(
                 ErrorCode.CONCURRENCY_CONFLICT,
-                "Idempotency key already used for another supplier");
+                REPLAY_REASON_SUPPLIER);
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.setRequestURI("/api/v1/accounting/settlements/suppliers");
 
@@ -158,7 +162,7 @@ class AccountingControllerExceptionHandlerTest {
                 response,
                 HttpStatus.BAD_REQUEST,
                 ErrorCode.CONCURRENCY_CONFLICT,
-                "Idempotency key already used for another supplier",
+                REPLAY_REASON_SUPPLIER,
                 "/api/v1/accounting/settlements/suppliers");
         assertThat(body.data()).doesNotContainKey("details");
     }
