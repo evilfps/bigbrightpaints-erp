@@ -8977,3 +8977,23 @@ Loop Update
   - `5986537a` (code)
   - `167d2ebc` (code)
   - `3766bf6e` (code)
+
+[2026-02-16] M18-S6C partner replay contract closure (service + controller)
+- Completed Slice (Committed): fallback branch coverage + controller no-details contract
+  - Commit `2f6e6801`: added `partnerMismatchMessage_fallbackUsesPartnerTypeWording` to guard fallback text branch for `null` partner type.
+  - Commit `44e163e7`: expanded fallback test to cover DEALER/SUPPLIER branches and added controller test `handleApplicationException_partnerReplayConflictWithoutDetailsOmitsDetailsKey`.
+  - Verification: `cd erp-domain && mvn -B -ntp -Dtest=AccountingServiceTest,AccountingControllerExceptionHandlerTest test` (PASS: 101/101).
+
+- Review chain:
+  - Initial review raised low/medium gaps; follow-up commits added missing no-details handler case + non-null branch coverage.
+  - Re-check confirmed medium finding invalid (service-level metadata assertions already exist in `AccountingServiceTest` replay mismatch cases).
+  - Residual accepted risk: fallback branch remains reflection-invoked because no public code path emits non-DEALER/non-SUPPLIER partner type today.
+
+Loop Update
+- tracked_now_ts: `2026-02-16T02:14:20+05:30`
+- active_in_progress: `M18-S7 async-loop review-queue drain complete; move to next ready ledger gate hardening slice`
+- review_queue_status:
+  - `5986537a` resolved (brittle assertions removed)
+  - `167d2ebc` no regression findings
+  - `3766bf6e` + `2c42c27c` merged into later hardening set
+  - `2f6e6801` + `44e163e7` reviewed with medium finding invalidated on re-check
