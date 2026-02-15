@@ -60,6 +60,7 @@ class AccountingControllerExceptionHandlerTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         ApiResponse<Map<String, Object>> body = response.getBody();
         assertThat(body).isNotNull();
+        assertThat(body.success()).isFalse();
         assertThat(body.data()).containsEntry("code", ErrorCode.BUSINESS_INVALID_STATE.getCode());
         assertThat(body.data()).containsEntry("reason", "Payroll must be posted before payment");
         assertThat(body.data()).containsEntry("path", "/api/v1/accounting/payroll/payments");
