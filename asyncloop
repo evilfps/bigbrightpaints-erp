@@ -9256,3 +9256,31 @@ Review Queue Update
 Loop Update
 - tracked_now_ts: `2026-02-16T02:54:35+05:30`
 - active_in_progress: `M19-S5 review queue drain (blocked) + next controller/service contract dedupe slice`
+
+[2026-02-16] M19-S13 idempotency header parity completion (controller)
+- Completed Slice (Committed): expanded header/body parity matrix coverage
+  - Commit `3358cb2a`: `AccountingControllerIdempotencyHeaderParityTest`
+  - Added missing parity cases across non-dealer-receipt endpoints:
+    - `recordDealerHybridReceipt_prefersPrimaryHeaderWhenPrimaryLegacyMismatch`
+    - `recordDealerHybridReceipt_rejectsBodyHeaderMismatch`
+    - `recordSupplierPayment_prefersPrimaryHeaderWhenPrimaryLegacyMismatch`
+    - `recordSupplierPayment_rejectsBodyHeaderMismatch`
+    - `settleSupplier_prefersPrimaryHeaderWhenPrimaryLegacyMismatch`
+    - `settleSupplier_rejectsBodyHeaderMismatch`
+- Verification:
+  - `cd erp-domain && mvn -B -ntp -Dtest=AccountingControllerIdempotencyHeaderParityTest test` (PASS: 12/12)
+
+Review Queue Update
+- subagent dispatch remains blocked by active-agent cap (max 6).
+- pending code commits for required review:
+  - `2962800b`
+  - `50d78915`
+  - `6c51730e`
+  - `2b2fb143`
+  - `7451e7cf`
+  - `a82746af`
+  - `3358cb2a`
+
+Loop Update
+- tracked_now_ts: `2026-02-16T02:56:00+05:30`
+- active_in_progress: `M19-S5 review queue drain (blocked) + additional async-loop contract hardening`
