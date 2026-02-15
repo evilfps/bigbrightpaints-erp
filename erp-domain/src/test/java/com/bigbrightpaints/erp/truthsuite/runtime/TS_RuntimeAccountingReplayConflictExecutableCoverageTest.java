@@ -16,7 +16,6 @@ import com.bigbrightpaints.erp.modules.accounting.dto.SettlementAllocationReques
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingService;
 import com.bigbrightpaints.erp.modules.purchasing.domain.Supplier;
 import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
-import java.lang.reflect.Method;
 import java.math.BigDecimal;
 import java.util.List;
 import org.junit.jupiter.api.Tag;
@@ -70,11 +69,11 @@ class TS_RuntimeAccountingReplayConflictExecutableCoverageTest {
                 expectedLines,
                 "payload mismatch"))
                 .isInstanceOf(ApplicationException.class)
-                .satisfies(throwable -> assertReplayConflict(
-                        (ApplicationException) throwable,
-                        "IDEM-DEALER-MISMATCH",
-                        "DEALER",
-                        11L));
+                .satisfies(throwable -> {
+                    ApplicationException ex = (ApplicationException) throwable;
+                    assertReplayConflict(ex, "IDEM-DEALER-MISMATCH", "DEALER", 11L);
+                    assertThat(ex.getMessage()).contains("dealer");
+                });
     }
 
     @Test
@@ -96,11 +95,11 @@ class TS_RuntimeAccountingReplayConflictExecutableCoverageTest {
                 expectedLines,
                 "payload mismatch"))
                 .isInstanceOf(ApplicationException.class)
-                .satisfies(throwable -> assertReplayConflict(
-                        (ApplicationException) throwable,
-                        "IDEM-SUPPLIER-MISMATCH",
-                        "SUPPLIER",
-                        77L));
+                .satisfies(throwable -> {
+                    ApplicationException ex = (ApplicationException) throwable;
+                    assertReplayConflict(ex, "IDEM-SUPPLIER-MISMATCH", "SUPPLIER", 77L);
+                    assertThat(ex.getMessage()).contains("supplier");
+                });
     }
 
     @Test
@@ -122,11 +121,11 @@ class TS_RuntimeAccountingReplayConflictExecutableCoverageTest {
                 expectedLines,
                 "payload mismatch"))
                 .isInstanceOf(ApplicationException.class)
-                .satisfies(throwable -> assertReplayConflict(
-                        (ApplicationException) throwable,
-                        "IDEM-UNKNOWN-TYPE",
-                        "null",
-                        11L));
+                .satisfies(throwable -> {
+                    ApplicationException ex = (ApplicationException) throwable;
+                    assertReplayConflict(ex, "IDEM-UNKNOWN-TYPE", "null", 11L);
+                    assertThat(ex.getMessage()).contains("partner type");
+                });
     }
 
     @Test
@@ -402,46 +401,6 @@ class TS_RuntimeAccountingReplayConflictExecutableCoverageTest {
                 11L)).isTrue();
     }
 
-    @Test
-    void partnerMismatchSubject_returnsCanonicalLabels() {
-        AccountingService service = accountingService();
-
-        assertThat((String) ReflectionTestUtils.invokeMethod(
-                service,
-                "partnerMismatchSubject",
-                PartnerType.DEALER)).isEqualTo("dealer");
-
-        assertThat((String) ReflectionTestUtils.invokeMethod(
-                service,
-                "partnerMismatchSubject",
-                PartnerType.SUPPLIER)).isEqualTo("supplier");
-
-        assertThat(invokePartnerMismatchSubject(service, null)).isEqualTo("partner type");
-    }
-
-    @Test
-    void partnerMismatchMessage_includesMismatchSubjectSemantics() {
-        AccountingService service = accountingService();
-        String dealerSubject = invokePartnerMismatchSubject(service, PartnerType.DEALER);
-        String supplierSubject = invokePartnerMismatchSubject(service, PartnerType.SUPPLIER);
-        String fallbackSubject = invokePartnerMismatchSubject(service, null);
-
-        String dealerMessage = (String) ReflectionTestUtils.invokeMethod(
-                service,
-                "partnerMismatchMessage",
-                PartnerType.DEALER);
-
-        String supplierMessage = (String) ReflectionTestUtils.invokeMethod(
-                service,
-                "partnerMismatchMessage",
-                PartnerType.SUPPLIER);
-
-        String fallbackMessage = invokePartnerMismatchMessage(service, null);
-
-        assertThat(dealerMessage).contains("another").contains(dealerSubject);
-        assertThat(supplierMessage).contains("another").contains(supplierSubject);
-        assertThat(fallbackMessage).contains("another").contains(fallbackSubject);
-    }
 
     private void assertReplayConflict(ApplicationException ex,
                                       String idempotencyKey,
@@ -558,23 +517,4 @@ class TS_RuntimeAccountingReplayConflictExecutableCoverageTest {
         return supplier;
     }
 
-    private String invokePartnerMismatchSubject(AccountingService service, PartnerType partnerType) {
-        try {
-            Method method = AccountingService.class.getDeclaredMethod("partnerMismatchSubject", PartnerType.class);
-            method.setAccessible(true);
-            return (String) method.invoke(service, partnerType);
-        } catch (Exception ex) {
-            throw new IllegalStateException(ex);
-        }
-    }
-
-    private String invokePartnerMismatchMessage(AccountingService service, PartnerType partnerType) {
-        try {
-            Method method = AccountingService.class.getDeclaredMethod("partnerMismatchMessage", PartnerType.class);
-            method.setAccessible(true);
-            return (String) method.invoke(service, partnerType);
-        } catch (Exception ex) {
-            throw new IllegalStateException(ex);
-        }
-    }
 }
