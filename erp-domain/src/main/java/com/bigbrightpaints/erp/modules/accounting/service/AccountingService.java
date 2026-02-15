@@ -2955,16 +2955,8 @@ public class AccountingService {
                     partnerId);
         }
         if (isJournalEntryPartnerMismatch(entry, partnerType, partnerId)) {
-            String mismatchSubject = partnerMismatchSubject(partnerType);
-            if ("partner type".equals(mismatchSubject)) {
-                throw replayConflictWithPartnerContext(
-                        "Idempotency key already used for another partner type",
-                        idempotencyKey,
-                        partnerType,
-                        partnerId);
-            }
             throw replayConflictWithPartnerContext(
-                    "Idempotency key already used for another " + mismatchSubject,
+                    partnerMismatchMessage(partnerType),
                     idempotencyKey,
                     partnerType,
                     partnerId);
@@ -3014,14 +3006,14 @@ public class AccountingService {
         return true;
     }
 
-    private String partnerMismatchSubject(PartnerType partnerType) {
+    private String partnerMismatchMessage(PartnerType partnerType) {
         if (partnerType == PartnerType.DEALER) {
-            return "dealer";
+            return "Idempotency key already used for another dealer";
         }
         if (partnerType == PartnerType.SUPPLIER) {
-            return "supplier";
+            return "Idempotency key already used for another supplier";
         }
-        return "partner type";
+        return "Idempotency key already used for another partner type";
     }
 
     private void validateCreditNoteIdempotency(String idempotencyKey,
@@ -4935,7 +4927,7 @@ public class AccountingService {
                 .anyMatch(row -> isSettlementAllocationPartnerMismatch(row, partnerType, partnerId));
         if (partnerMismatch) {
             throw replayConflictWithPartnerContext(
-                    "Idempotency key already used for another partner",
+                    partnerMismatchMessage(partnerType),
                     idempotencyKey,
                     partnerType,
                     partnerId);
