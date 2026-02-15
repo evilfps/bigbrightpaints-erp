@@ -196,6 +196,7 @@ mapfile -t missing_pk_tables < <(
         if (unique_pending_open[table_name]) {
           pending_segment = segment
           sub(/^[[:space:]]+/, "", pending_segment)
+          pending_upper = toupper(pending_segment)
           if (pending_segment == "") {
             return
           }
@@ -208,7 +209,7 @@ mapfile -t missing_pk_tables < <(
             continue
           }
 
-          if (pending_segment ~ /^(NULLS|NOT|DISTINCT)([^[:alnum:]_]|$)/) {
+          if (pending_upper ~ /^(NULLS|NOT|DISTINCT)([^[:alnum:]_]|$)/) {
             open_pos = index(segment, "(")
             if (open_pos == 0) {
               return

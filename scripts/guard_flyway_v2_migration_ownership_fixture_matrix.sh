@@ -113,6 +113,20 @@ ALTER TABLE ONLY public.fixture_unique_nulls_not_distinct
 SQL
 )"
 
+run_case "multiline_unique_nulls_not_distinct_lowercase_pass" 0 "$(cat <<'SQL'
+CREATE TABLE public.fixture_unique_nulls_not_distinct_lower (
+    id bigint NOT NULL,
+    token bigint
+);
+
+ALTER TABLE ONLY public.fixture_unique_nulls_not_distinct_lower
+    ADD CONSTRAINT fixture_unique_nulls_not_distinct_lower_id_key UNIQUE nulls not distinct
+    (
+        id
+    );
+SQL
+)"
+
 run_case "missing_pk_contract_fails" 1 "$(cat <<'SQL'
 CREATE TABLE public.fixture_missing_pk (
     id bigint CHECK ((id IS NOT NULL)) NOT NULL,
