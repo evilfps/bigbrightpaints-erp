@@ -31,6 +31,7 @@ done
 require_literal "$PAYROLL_SERVICE" "expectedAccountType" "deterministic missing-account type detail"
 require_literal "$PAYROLL_SERVICE" "requiredPayrollAccounts" "required-account inventory detail"
 require_literal "$PAYROLL_SERVICE" "bootstrapMigration" "bootstrap migration detail"
+require_literal "$PAYROLL_SERVICE" "manualProvisioningRequired" "manual provisioning detail for non-legacy bootstrap accounts"
 require_literal "$PAYROLL_SERVICE" "/api/v1/accounting/accounts" "chart of accounts canonical path"
 
 for legacy_tuple in \
@@ -41,5 +42,6 @@ for legacy_tuple in \
 done
 
 require_literal "$PAYROLL_TEST" "payrollPosting_missingSalaryExpenseAccount_failsWithDeterministicProvisioningGuidance" "missing SALARY-EXP regression coverage"
+require_literal "$PAYROLL_TEST" "payrollPosting_missingEmployeeAdvanceAccount_requiresManualProvisioningGuidance" "missing EMP-ADV regression coverage"
 
 echo "[guard_payroll_account_bootstrap_contract] OK"

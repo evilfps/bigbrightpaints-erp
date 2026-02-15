@@ -50,6 +50,11 @@ public class PayrollService {
             "SALARY-PAYABLE",
             "EMP-ADV"
     );
+    private static final Set<String> LEGACY_BOOTSTRAP_MIGRATION_ACCOUNT_CODES = Set.of(
+            "SALARY-EXP",
+            "WAGE-EXP",
+            "SALARY-PAYABLE"
+    );
 
     private final PayrollRunRepository payrollRunRepository;
     private final PayrollRunLineRepository payrollRunLineRepository;
@@ -916,15 +921,24 @@ public class PayrollService {
         String expectedTypeName = expectedType != null ? expectedType.name() : "UNKNOWN";
 
         return accountRepository.findByCompanyAndCodeIgnoreCase(company, normalizedCode)
-                .orElseThrow(() -> new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE,
-                        "Required payroll account not found: " + normalizedCode
-                                + " (expected type: " + expectedTypeName + "). "
-                                + "Provision this account in Chart of Accounts before posting payroll.")
-                        .withDetail("accountCode", normalizedCode)
-                        .withDetail("expectedAccountType", expectedTypeName)
-                        .withDetail("requiredPayrollAccounts", REQUIRED_PAYROLL_ACCOUNTS)
-                        .withDetail("bootstrapMigration", PAYROLL_BOOTSTRAP_MIGRATION)
-                        .withDetail("canonicalPath", PAYROLL_ACCOUNTS_CANONICAL_PATH));
+                .orElseThrow(() -> {
+                    ApplicationException exception = new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE,
+                            "Required payroll account not found: " + normalizedCode
+                                    + " (expected type: " + expectedTypeName + "). "
+                                    + "Provision this account in Chart of Accounts before posting payroll.")
+                            .withDetail("accountCode", normalizedCode)
+                            .withDetail("expectedAccountType", expectedTypeName)
+                            .withDetail("requiredPayrollAccounts", REQUIRED_PAYROLL_ACCOUNTS)
+                            .withDetail("canonicalPath", PAYROLL_ACCOUNTS_CANONICAL_PATH);
+
+                    if (LEGACY_BOOTSTRAP_MIGRATION_ACCOUNT_CODES.contains(normalizedCode)) {
+                        exception.withDetail("bootstrapMigration", PAYROLL_BOOTSTRAP_MIGRATION);
+                    } else {
+                        exception.withDetail("manualProvisioningRequired", true);
+                    }
+
+                    return exception;
+                });
     }
 
     private String getCurrentUser() {

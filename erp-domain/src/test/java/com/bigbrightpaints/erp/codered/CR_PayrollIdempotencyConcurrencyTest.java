@@ -223,6 +223,52 @@ class CR_PayrollIdempotencyConcurrencyTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void payrollPosting_missingEmployeeAdvanceAccount_requiresManualProvisioningGuidance() {
+        String companyCode = "CR-PAY-MISS-EMP-ADV-" + shortId();
+        Company company = bootstrapCompany(companyCode);
+        ensurePayrollAccounts(company);
+
+        accountRepository.findByCompanyAndCodeIgnoreCase(company, "EMP-ADV").ifPresent(accountRepository::delete);
+        accountRepository.flush();
+
+        LocalDate anchor = TestDateUtils.safeDate(company);
+        LocalDate start = anchor.minusDays(30);
+        LocalDate end = anchor.minusDays(1);
+
+        CompanyContextHolder.setCompanyId(companyCode);
+        var runDto = payrollService.createPayrollRun(new PayrollService.CreatePayrollRunRequest(
+                PayrollRun.RunType.MONTHLY,
+                start,
+                end,
+                "CODE-RED missing employee advance account"
+        ));
+        CompanyContextHolder.clear();
+
+        PayrollRun run = payrollRunRepository.findByCompanyAndId(company, runDto.id()).orElseThrow();
+        run.setStatus(PayrollRun.PayrollStatus.APPROVED);
+        payrollRunRepository.save(run);
+        seedMinimalPayrollLines(company, run, BigDecimal.valueOf(1000), BigDecimal.valueOf(100));
+
+        CompanyContextHolder.setCompanyId(companyCode);
+        try {
+            assertThatThrownBy(() -> payrollService.postPayrollToAccounting(run.getId()))
+                    .isInstanceOf(ApplicationException.class)
+                    .satisfies(ex -> {
+                        ApplicationException appEx = (ApplicationException) ex;
+                        assertThat(appEx.getErrorCode()).isEqualTo(ErrorCode.VALIDATION_INVALID_REFERENCE);
+                        assertThat(appEx.getMessage()).contains("EMP-ADV");
+                        Map<String, Object> details = appEx.getDetails();
+                        assertThat(details).containsEntry("accountCode", "EMP-ADV");
+                        assertThat(details).containsEntry("expectedAccountType", "ASSET");
+                        assertThat(details).containsEntry("manualProvisioningRequired", true);
+                        assertThat(details).doesNotContainKey("bootstrapMigration");
+                    });
+        } finally {
+            CompanyContextHolder.clear();
+        }
+    }
+
+    @Test
     void payrollPosting_mismatchConflictOnReplay() {
         String companyCode = "CR-PAY-POST-MISMATCH-" + shortId();
         Company company = bootstrapCompany(companyCode);
