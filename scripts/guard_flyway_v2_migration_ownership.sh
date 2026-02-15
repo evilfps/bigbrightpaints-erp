@@ -56,15 +56,54 @@ mapfile -t missing_pk_tables < <(
       return normalized == "id"
     }
 
-    function strip_string_literals(raw, cleaned, i, ch, next_ch, prev_ch, sq, in_quote, escape_quote) {
+    function strip_string_literals(raw, cleaned, i, ch, next_ch, prev_ch, sq, in_quote, in_dquote, escape_quote) {
       cleaned = ""
       sq = sprintf("%c", 39)
       in_quote = 0
+      in_dquote = 0
       escape_quote = 0
 
       for (i = 1; i <= length(raw); i++) {
         ch = substr(raw, i, 1)
-        if (!in_quote) {
+        if (in_quote) {
+          if (escape_quote && ch == "\\") {
+            i++
+            continue
+          }
+
+          if (ch == sq) {
+            next_ch = substr(raw, i + 1, 1)
+            if (next_ch == sq) {
+              i++
+              continue
+            }
+            in_quote = 0
+            escape_quote = 0
+          }
+          continue
+        }
+
+        if (in_dquote) {
+          cleaned = cleaned ch
+          if (ch == "\"") {
+            next_ch = substr(raw, i + 1, 1)
+            if (next_ch == "\"") {
+              cleaned = cleaned next_ch
+              i++
+              continue
+            }
+            in_dquote = 0
+          }
+          continue
+        }
+
+        if (ch == "\"") {
+          in_dquote = 1
+          cleaned = cleaned ch
+          continue
+        }
+
+        if (!in_quote && !in_dquote) {
           if (ch == sq) {
             prev_ch = (i > 1) ? substr(raw, i - 1, 1) : ""
             escape_quote = (prev_ch == "E" || prev_ch == "e") ? 1 : 0
@@ -74,21 +113,6 @@ mapfile -t missing_pk_tables < <(
           }
           cleaned = cleaned ch
           continue
-        }
-
-        if (escape_quote && ch == "\\") {
-          i++
-          continue
-        }
-
-        if (ch == sq) {
-          next_ch = substr(raw, i + 1, 1)
-          if (next_ch == sq) {
-            i++
-            continue
-          }
-          in_quote = 0
-          escape_quote = 0
         }
       }
 
@@ -103,7 +127,7 @@ mapfile -t missing_pk_tables < <(
       return opens - closes
     }
 
-    function id_bigint_not_null_on_line(raw, normalized, segment, comma_pos, notnull_pos, isnot_pos) {
+    function id_bigint_not_null_on_line(raw, normalized, segment, comma_pos, probe, notnull_pos, before) {
       normalized = tolower(raw)
       gsub(/"/, "", normalized)
       if (match(normalized, /(^|[(,])[[:space:]]*id[[:space:]]+bigint([^[:alnum:]_]|$)/) == 0) {
@@ -117,12 +141,15 @@ mapfile -t missing_pk_tables < <(
         segment = substr(segment, 1, comma_pos - 1)
       }
 
-      notnull_pos = match(segment, /not[[:space:]]+null([^[:alnum:]_]|$)/)
-      if (notnull_pos == 0) {
-        return 0
+      probe = segment
+      while (match(probe, /not[[:space:]]+null([^[:alnum:]_]|$)/) > 0) {
+        before = substr(probe, 1, RSTART - 1)
+        if (before !~ /is[[:space:]]*$/) {
+          return 1
+        }
+        probe = substr(probe, RSTART + RLENGTH)
       }
-      isnot_pos = match(segment, /is[[:space:]]+not[[:space:]]+null/)
-      return isnot_pos == 0 || notnull_pos < isnot_pos
+      return 0
     }
 
     function mark_pk_contract(table_name, line_raw, line_upper, line_no_quotes, segment, open_pos, close_pos, unique_body) {
