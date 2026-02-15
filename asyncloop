@@ -9477,3 +9477,24 @@ Review Queue Update
 Loop Update
 - tracked_now_ts: `2026-02-16T03:16:20+05:30`
 - active_in_progress: `M19-S5 review queue drain (blocked) + system-map vocabulary scope hardening`
+
+[2026-02-16] M19-S22 final ledger gate-chain refreshed on current head
+- Gate outcomes:
+  - `bash scripts/gate_core.sh` -> PASS
+  - `bash scripts/gate_reconciliation.sh` -> PASS
+  - `PGHOST=127.0.0.1 PGPORT=55432 PGUSER=erp PGPASSWORD=erp PGDATABASE=postgres bash scripts/gate_release.sh` -> PASS
+    - release migration matrix (fresh + upgrade) using Flyway v2 schema history table passed.
+    - predeploy DB scans reported zero findings.
+
+- Head context at run time:
+  - code commit: `b4511068` (dealer-settlement idempotency parity + tests)
+  - docs commit: `2206be67` (system-map parity scope + M19-S21 ledger)
+
+Review Queue Update
+- subagent dispatch remains blocked by active-agent cap (max 6).
+- pending code-review queue:
+  - `2962800b`, `50d78915`, `6c51730e`, `2b2fb143`, `7451e7cf`, `a82746af`, `3358cb2a`, `18c3825d`, `f271fb5e`, `4d0d508f`, `b4511068`
+
+Loop Update
+- tracked_now_ts: `2026-02-16T03:17:40+05:30`
+- active_in_progress: `M19-S5 review queue drain (blocked) + next async-loop hardening slice selection`
