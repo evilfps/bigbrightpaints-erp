@@ -62,6 +62,11 @@ for file in "${producer_files[@]}"; do
         return opens - closes
       }
 
+      function has_integration_failure_token(text, pattern) {
+        pattern = "(^|[^A-Za-z0-9_])(AuditEvent[[:space:]]*\\.[[:space:]]*)?INTEGRATION_FAILURE([^A-Za-z0-9_]|$)"
+        return text ~ pattern
+      }
+
       BEGIN { in_call = 0; in_block_comment = 0; start = 0; depth = 0; buffer = "" }
       {
         cleaned = sanitize_line($0)
@@ -71,7 +76,7 @@ for file in "${producer_files[@]}"; do
           depth = paren_delta(cleaned)
           buffer = cleaned "\n"
           if (depth <= 0) {
-            if (buffer ~ /AuditEvent\.INTEGRATION_FAILURE/) {
+            if (has_integration_failure_token(buffer)) {
               print start
             }
             in_call = 0
@@ -84,7 +89,7 @@ for file in "${producer_files[@]}"; do
           depth += paren_delta(cleaned)
           buffer = buffer cleaned "\n"
           if (depth <= 0) {
-            if (buffer ~ /AuditEvent\.INTEGRATION_FAILURE/) {
+            if (has_integration_failure_token(buffer)) {
               print start
             }
             in_call = 0

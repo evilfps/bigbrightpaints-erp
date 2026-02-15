@@ -116,4 +116,18 @@ class Fixture {
 JAVA
 )"
 
+run_case "static_import_token_pass" 0 "$(cat <<'JAVA'
+package com.example;
+
+import static com.bigbrightpaints.erp.core.audit.AuditEvent.INTEGRATION_FAILURE;
+
+class Fixture {
+    private void staticImportPath() {
+        IntegrationFailureMetadataSchema.applyRequiredFields(metadata, "X", "Y", "Z", "SEV3_TICKET");
+        auditService.logFailure(INTEGRATION_FAILURE, metadata);
+    }
+}
+JAVA
+)"
+
 echo "[guard_integration_failure_metadata_schema_fixture_matrix] OK"
