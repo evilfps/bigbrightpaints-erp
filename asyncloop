@@ -9199,3 +9199,32 @@ Review Queue Update
 Loop Update
 - tracked_now_ts: `2026-02-16T02:50:20+05:30`
 - active_in_progress: `M19-S5 review queue drain (blocked) + next replay contract hardening`
+
+[2026-02-16] M19-S11 final ledger gate refresh on current async-loop head
+- Final Gate Bundle (v2 path) re-run after M19-S6..M19-S10 test-hardening commits
+  - Anchored fast gate:
+    - `DIFF_BASE=06d85e792d2a80cd9fc1f8e5dc15d6dfa15dd93e GATE_FAST_RELEASE_VALIDATION_MODE=true bash scripts/gate_fast.sh` -> PASS
+    - changed-file coverage: line `25/25` (100%), branch `34/34` (100%)
+  - Core gate:
+    - `bash scripts/gate_core.sh` -> PASS
+  - Reconciliation gate:
+    - `bash scripts/gate_reconciliation.sh` -> PASS
+  - Release gate (v2 migrations + predeploy scans):
+    - `PGHOST=127.0.0.1 PGPORT=55432 PGUSER=erp PGPASSWORD=erp PGDATABASE=postgres bash scripts/gate_release.sh` -> PASS
+
+Gate Outcome
+- fast/core/reconciliation/release all green on current head with Flyway v2 migration policy.
+
+Review Queue Update
+- subagent dispatch still blocked by active-agent cap (max 6).
+- pending code commits for required review:
+  - `2962800b`
+  - `50d78915`
+  - `6c51730e`
+  - `2b2fb143`
+  - `7451e7cf`
+
+Loop Update
+- tracked_now_ts: `2026-02-16T02:52:05+05:30`
+- active_in_progress: `M19-S5 review queue drain (blocked by agent cap)`
+- closure_status: `final ledger gates green; remaining blocker is queued commit-review subagent capacity`
