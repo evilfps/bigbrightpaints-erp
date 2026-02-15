@@ -6,6 +6,7 @@ import com.bigbrightpaints.erp.core.audit.IntegrationFailureMetadataSchema;
 import com.bigbrightpaints.erp.shared.dto.ApiResponse;
 import java.lang.reflect.Field;
 import java.util.Map;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.http.HttpStatus;
@@ -353,6 +354,23 @@ class GlobalExceptionHandlerTest {
                 .hasSize(500)
                 .doesNotContain("\n")
                 .doesNotContain("\t");
+    }
+
+    @Test
+    void settlementFailureAllowlist_usesSchemaKeyVocabulary() throws Exception {
+        Field field = GlobalExceptionHandler.class.getDeclaredField("SETTLEMENT_FAILURE_DETAIL_ALLOWLIST");
+        field.setAccessible(true);
+        @SuppressWarnings("unchecked")
+        Set<String> allowlist = (Set<String>) field.get(null);
+        assertThat(allowlist).containsExactlyInAnyOrder(
+                IntegrationFailureMetadataSchema.KEY_IDEMPOTENCY_KEY,
+                IntegrationFailureMetadataSchema.KEY_PARTNER_TYPE,
+                IntegrationFailureMetadataSchema.KEY_PARTNER_ID,
+                IntegrationFailureMetadataSchema.KEY_INVOICE_ID,
+                IntegrationFailureMetadataSchema.KEY_PURCHASE_ID,
+                IntegrationFailureMetadataSchema.KEY_OUTSTANDING_AMOUNT,
+                IntegrationFailureMetadataSchema.KEY_APPLIED_AMOUNT,
+                IntegrationFailureMetadataSchema.KEY_ALLOCATION_COUNT);
     }
 
     private static void setActiveProfile(GlobalExceptionHandler handler, String value) throws Exception {
