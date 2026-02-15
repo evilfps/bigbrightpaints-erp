@@ -16,6 +16,7 @@ import com.bigbrightpaints.erp.modules.accounting.dto.SettlementAllocationReques
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingService;
 import com.bigbrightpaints.erp.modules.purchasing.domain.Supplier;
 import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
+import java.lang.reflect.Method;
 import java.math.BigDecimal;
 import java.util.List;
 import org.junit.jupiter.api.Tag;
@@ -332,6 +333,13 @@ class TS_RuntimeAccountingReplayConflictExecutableCoverageTest {
         assertThat((Boolean) ReflectionTestUtils.invokeMethod(
                 service,
                 "isJournalEntryPartnerMismatch",
+                emptyEntry,
+                PartnerType.SUPPLIER,
+                77L)).isTrue();
+
+        assertThat((Boolean) ReflectionTestUtils.invokeMethod(
+                service,
+                "isJournalEntryPartnerMismatch",
                 dealerEntry,
                 null,
                 11L)).isTrue();
@@ -382,6 +390,13 @@ class TS_RuntimeAccountingReplayConflictExecutableCoverageTest {
         assertThat((Boolean) ReflectionTestUtils.invokeMethod(
                 service,
                 "isSettlementAllocationPartnerMismatch",
+                emptyAllocation,
+                PartnerType.DEALER,
+                11L)).isTrue();
+
+        assertThat((Boolean) ReflectionTestUtils.invokeMethod(
+                service,
+                "isSettlementAllocationPartnerMismatch",
                 dealerAllocation,
                 null,
                 11L)).isTrue();
@@ -400,6 +415,8 @@ class TS_RuntimeAccountingReplayConflictExecutableCoverageTest {
                 service,
                 "partnerMismatchSubject",
                 PartnerType.SUPPLIER)).isEqualTo("supplier");
+
+        assertThat(invokePartnerMismatchSubject(service, null)).isEqualTo("partner type");
     }
 
     private void assertReplayConflict(ApplicationException ex,
@@ -490,5 +507,15 @@ class TS_RuntimeAccountingReplayConflictExecutableCoverageTest {
         Supplier supplier = new Supplier();
         ReflectionTestUtils.setField(supplier, "id", id);
         return supplier;
+    }
+
+    private String invokePartnerMismatchSubject(AccountingService service, PartnerType partnerType) {
+        try {
+            Method method = AccountingService.class.getDeclaredMethod("partnerMismatchSubject", PartnerType.class);
+            method.setAccessible(true);
+            return (String) method.invoke(service, partnerType);
+        } catch (Exception ex) {
+            throw new IllegalStateException(ex);
+        }
     }
 }
