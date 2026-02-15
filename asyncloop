@@ -8176,3 +8176,82 @@ Queue Rotation (Auto-Replenish)
 - [ready] M14-S52 O2C linkage contract restoration in `SalesService` (reinstate expected slip locking + sales journal linkage snippets/contracts with focused truthsuite coverage)
 - [ready] M14-S53 runtime inventory valuation parity fix (`quantityAvailable` vs `quantityTotal` contract restoration with executable coverage assertions)
 - [ready] M14-S54 purchase-return idempotency regression closure (locked-period boundary setup + replay matrix stabilization for partial/final return flows)
+
+Completed Slice (Committed)
+- 2026-02-15: `dbc838f6`
+  - feat(audittrail): dedupe accounting summaries and harden retries.
+  - M16-S1 enterprise duplicate-audit process convergence:
+    - added bounded retry queue + scheduled drain for `EnterpriseAuditTrailService` business event writes.
+    - introduced accounting legacy-summary dedup gate (`erp.audit.accounting.legacy-summary-events.enabled`) and routed accounting summary success writes through policy guard.
+    - set default/runtime dedup policy to `false` in `application.yml` while keeping test profile compatibility at `true`.
+    - added ownership contract doc (`docs/AUDIT_TRAIL_OWNERSHIP.md`) and guard (`scripts/guard_audit_trail_ownership_contract.sh`).
+    - wired ownership guard into `verify_local`, `gate_fast`, and `gate_core`; updated flyway guard-contract fixture expectations.
+    - ignored generated portal map artifact docs in `.gitignore` to reduce duplicate artifact churn.
+
+Verification
+- `cd erp-domain && mvn -B -ntp -Dtest=CR_PurchasingToApAccountingTest,CR_DealerReceiptSettlementAuditTrailTest,CR_BulkPackagingCrossModuleTest test` -> pass (`21` tests, `0` failures, `0` errors).
+- `bash scripts/guard_audit_trail_ownership_contract.sh` -> pass.
+- `FAIL_ON_FINDINGS=true bash scripts/schema_drift_scan.sh --migration-set v2` -> pass (`findings=0`).
+- `FAIL_ON_FINDINGS=true bash scripts/flyway_overlap_scan.sh --migration-set v2` -> pass (`findings=0`).
+- `cd erp-domain && mvn -B -ntp -Dtest=AccountingServiceTest,EnterpriseAuditTrailServiceTest,AccountingAuditTrailServiceTest,AuditTrailEventDefaultsTest test` -> pass (`102` tests, `0` failures, `0` errors).
+
+Post-Commit Review Evidence
+- Commit reviewed: `dbc838f6`
+- `codex review --commit dbc838f6`:
+  - exit status: `0` (captured via timeout wrapper).
+  - summary: no actionable defects flagged for retry queue + dedup policy implementation.
+- Review subagent `019c6128-ca33-78f3-8936-71cc8ba67924`:
+  - finding: guard specificity gap (`enabled:` matcher too broad).
+  - disposition: fixed immediately in follow-up `60c73a0a`.
+
+Follow-up Hardening (Committed)
+- 2026-02-15: `60c73a0a`
+  - fix(guard): enforce exact legacy-summary config path.
+  - changes:
+    - ownership guard now parses `legacy-summary-events` block and validates the expected `enabled` value in target configs.
+
+Verification
+- `bash scripts/guard_audit_trail_ownership_contract.sh` -> pass.
+- `bash scripts/guard_flyway_guard_contract.sh` -> pass.
+
+Post-Commit Review Evidence
+- Commit reviewed: `60c73a0a`
+- `codex review --commit 60c73a0a`:
+  - exit status: `0` (captured via timeout wrapper).
+  - finding: P2 false-negative risk for valid inline YAML comments on `enabled` lines.
+  - disposition: fixed immediately in follow-up `c0a2bf8a`.
+
+Follow-up Hardening (Committed)
+- 2026-02-15: `c0a2bf8a`
+  - fix(guard): allow inline comments on legacy-summary flag.
+  - changes:
+    - guard regex now accepts `enabled: <value> # comment` while preserving strict value checks.
+
+Verification
+- `bash scripts/guard_audit_trail_ownership_contract.sh` -> pass.
+- `bash scripts/guard_flyway_guard_contract.sh` -> pass.
+
+Post-Commit Review Evidence
+- Commit reviewed: `c0a2bf8a`
+- `codex review --commit c0a2bf8a`:
+  - exit status: `0` (captured via timeout wrapper).
+  - summary: no actionable findings.
+- Review subagent `019c6130-8705-7570-add4-a39144264bc9`:
+  - findings: none.
+
+Loop Update
+- 2026-02-15T17:35:37+05:30
+- tracked_now_ts: `2026-02-15T17:35:37+05:30`
+- tracked_elapsed: `87h 41m 45s`
+- active_in_progress: `M16-S2 full verify_local replay after audit dedup cutover (capture next blocker beyond audit ownership contract)`
+- continuity_recheck:
+  - duplicate accounting summary audit processing is now policy-controlled and guard-enforced.
+  - enterprise business-event audit failures now have bounded retry semantics instead of immediate drop.
+  - flyway v2 drift/overlap posture remains stable (`findings=0`).
+
+Queue Rotation (Auto-Replenish)
+- [completed] M16-S1 enterprise duplicate-audit process convergence (ownership split + dedup policy guard + retry hardening)
+- [in_progress] M16-S2 full verify_local replay after audit dedup cutover (capture next blocker beyond audit ownership contract)
+- [ready] M16-S3 enterprise audit retry durability upgrade (evaluate persistent/outbox-backed retry path vs in-memory queue for process restarts)
+- [ready] M16-S4 accounting audit read-model performance hardening (index/query-plan validation for high-cardinality event timelines)
+- [ready] M16-S5 legacy summary audit decommission plan (remove compatibility toggles/tests once all workflows consume canonical structured trails)
