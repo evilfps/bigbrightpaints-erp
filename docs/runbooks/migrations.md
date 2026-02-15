@@ -63,8 +63,26 @@ Standardize safe migration planning, validation, and rollback drills.
   - if one index build fails, do not rerun blindly; capture failure and apply forward-fix migration.
 
 ## V15 Checksum Transition Safeguard
-- If any environment previously applied an earlier local variant of `V15` before this branch converged, run `flyway validate` first and expect a checksum mismatch.
-- Remediation path:
-  1. confirm target SQL for `V15` from the current mainline artifact.
-  2. execute `flyway repair` under change approval.
-  3. rerun `flyway validate` and continue with normal migration flow.
+- If any environment previously applied an earlier local variant of `V15` before this branch converged, run Flyway v2-scoped `validate` first and expect a checksum mismatch at `V15`.
+- Use explicit v2 chain settings (do not run bare `flyway repair`):
+```bash
+mvn -B -ntp -f erp-domain/pom.xml org.flywaydb:flyway-maven-plugin:validate \
+  -Dflyway.url=jdbc:postgresql://$PGHOST:$PGPORT/<db_name> \
+  -Dflyway.user=$PGUSER \
+  -Dflyway.password=$PGPASSWORD \
+  -Dflyway.defaultSchema=${FLYWAY_GUARD_SCHEMA:-public} \
+  -Dflyway.locations=filesystem:$(pwd)/erp-domain/src/main/resources/db/migration_v2 \
+  -Dflyway.table=flyway_schema_history_v2
+```
+- If `validate` reports checksum mismatch at `V15`, run approved v2-scoped repair and continue:
+```bash
+mvn -B -ntp -f erp-domain/pom.xml org.flywaydb:flyway-maven-plugin:repair \
+  -Dflyway.url=jdbc:postgresql://$PGHOST:$PGPORT/<db_name> \
+  -Dflyway.user=$PGUSER \
+  -Dflyway.password=$PGPASSWORD \
+  -Dflyway.defaultSchema=${FLYWAY_GUARD_SCHEMA:-public} \
+  -Dflyway.locations=filesystem:$(pwd)/erp-domain/src/main/resources/db/migration_v2 \
+  -Dflyway.table=flyway_schema_history_v2
+```
+- Then run v2-scoped `migrate`; `V16`..`V18` are idempotent (`CREATE INDEX IF NOT EXISTS`) so mixed pre-convergence index presence will not fail on duplicate index names.
+- Reference: `docs/db/FLYWAY_V2_TRANSIENT_CHECKSUM_REPAIR.md` (same v2 settings pattern).
