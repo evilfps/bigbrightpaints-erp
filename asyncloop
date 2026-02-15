@@ -8960,3 +8960,20 @@ Queue Rotation (Auto-Replenish)
   - Extend negative-path tests for override authorization + audit event consistency.
 - [ready] M18-S10A staging rollback rehearsal evidence normalizer
   - Capture repeatable rollback drill evidence format and ensure scripts emit stable artifact keys.
+
+[2026-02-16] M18-S6B API-boundary partner vocabulary contract (controller exception path)
+- Completed Slice (Committed): controller replay-detail payload lock
+  - Commit `3766bf6e`: added `AccountingControllerExceptionHandlerTest.handleApplicationException_preservesPartnerReplayDetailsForSupplierPath` to assert BAD_REQUEST payload preserves:
+    - `reason` wording: "Idempotency key already used for another supplier"
+    - detail keys: `idempotencyKey`, `partnerType`, `partnerId`
+    - request path contract: `/api/v1/accounting/settlements/suppliers`
+  - Verification: `cd erp-domain && mvn -B -ntp -Dtest=AccountingControllerExceptionHandlerTest,AccountingServiceTest test` (PASS: 98/98).
+  - Review dispatch: attempted subagent launch; blocked by active agent-thread cap (`max 6`) at dispatch time; queued for retry.
+
+Loop Update
+- tracked_now_ts: `2026-02-16T02:05:30+05:30`
+- active_in_progress: `M18-S5A pending subagent review drain + vocabulary contract continuation`
+- review_queue_pending:
+  - `5986537a` (code)
+  - `167d2ebc` (code)
+  - `3766bf6e` (code)
