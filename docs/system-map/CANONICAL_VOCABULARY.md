@@ -25,6 +25,14 @@ Use this file as the naming source of truth for cross-module docs and execution 
   - `partnerId`
 - `partnerType` detail value is uppercase role label (`DEALER`, `SUPPLIER`), or `"null"` when partner type is not provided.
 
+## Idempotency header parity contract
+- Canonical primary header: `Idempotency-Key`.
+- Legacy compatibility header: `X-Idempotency-Key`.
+- Precedence rules at accounting controller boundary:
+  - request body key wins only when it matches the effective header key.
+  - when body key is blank or absent, resolve from headers (primary preferred over legacy).
+  - body/header mismatch is fail-closed (`Idempotency key mismatch between header and request body`).
+
 ## Ledger-gate execution terms
 - `RELEASE_ANCHOR_SHA`: fixed commit SHA before the active hardening train.
 - `DIFF_BASE`: gate-fast diff baseline, set to `RELEASE_ANCHOR_SHA` for strict final ledger runs.
