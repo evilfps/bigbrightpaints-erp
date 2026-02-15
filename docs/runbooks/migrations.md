@@ -61,3 +61,10 @@ Standardize safe migration planning, validation, and rollback drills.
   - run during controlled low-write window.
   - monitor index build progress and query latency during apply.
   - if one index build fails, do not rerun blindly; capture failure and apply forward-fix migration.
+
+## V15 Checksum Transition Safeguard
+- If any environment previously applied an earlier local variant of `V15` before this branch converged, run `flyway validate` first and expect a checksum mismatch.
+- Remediation path:
+  1. confirm target SQL for `V15` from the current mainline artifact.
+  2. execute `flyway repair` under change approval.
+  3. rerun `flyway validate` and continue with normal migration flow.

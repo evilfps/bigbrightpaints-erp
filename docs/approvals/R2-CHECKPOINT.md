@@ -67,3 +67,4 @@ Update this file in every high-risk change set.
 - Rollback/forward-fix strategy:
   - if index-plan regression is detected post-apply, use forward-fix migration to adjust planner-facing index set; do not rewrite applied migration files.
   - if emergency rollback is required, drop newly added indexes with `DROP INDEX CONCURRENTLY` in a compensating migration under maintenance governance.
+  - if an environment reports checksum mismatch for `V15` due pre-convergence local variants, run `flyway repair` under approved migration change control before continue.
