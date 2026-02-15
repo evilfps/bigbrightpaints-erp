@@ -77,6 +77,15 @@ else
   exit 1
 fi
 
+echo "[gate-fast] integration-failure metadata schema guard"
+INTEGRATION_FAILURE_SCHEMA_GUARD_LOG="$ARTIFACT_DIR/integration-failure-metadata-schema-guard.txt"
+if bash "$ROOT_DIR/scripts/guard_integration_failure_metadata_schema.sh" >"$INTEGRATION_FAILURE_SCHEMA_GUARD_LOG" 2>&1; then
+  cat "$INTEGRATION_FAILURE_SCHEMA_GUARD_LOG"
+else
+  cat "$INTEGRATION_FAILURE_SCHEMA_GUARD_LOG" >&2
+  exit 1
+fi
+
 echo "[gate-fast] accounting portal scope contract guard"
 PORTAL_SCOPE_GUARD_LOG="$ARTIFACT_DIR/accounting-portal-scope-guard.txt"
 if bash "$ROOT_DIR/scripts/guard_accounting_portal_scope_contract.sh" >"$PORTAL_SCOPE_GUARD_LOG" 2>&1; then

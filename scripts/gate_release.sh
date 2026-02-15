@@ -32,6 +32,15 @@ else
   exit 1
 fi
 
+echo "[gate-release] integration-failure metadata schema guard"
+INTEGRATION_FAILURE_SCHEMA_GUARD_LOG="$ARTIFACT_DIR/integration-failure-metadata-schema-guard.txt"
+if bash "$ROOT_DIR/scripts/guard_integration_failure_metadata_schema.sh" >"$INTEGRATION_FAILURE_SCHEMA_GUARD_LOG" 2>&1; then
+  cat "$INTEGRATION_FAILURE_SCHEMA_GUARD_LOG"
+else
+  cat "$INTEGRATION_FAILURE_SCHEMA_GUARD_LOG" >&2
+  exit 1
+fi
+
 echo "[gate-release] flyway guard contract guard"
 GUARD_CONTRACT_LOG="$ARTIFACT_DIR/flyway-guard-contract-guard.txt"
 if bash "$ROOT_DIR/scripts/guard_flyway_guard_contract.sh" >"$GUARD_CONTRACT_LOG" 2>&1; then
