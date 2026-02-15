@@ -8680,3 +8680,130 @@ Queue Rotation (Master Plan M18)
 - [ready] M18-S8 sales-target governance fix (admin assigns, salesperson cannot self-target)
 - [ready] M18-S9 JSON API contract gate + frontend parity docs enforcement
 - [ready] M18-S10 staging rehearsal evidence pack + rollback drill completion
+
+Loop Iteration Evidence - 2026-02-15T23:10:11+05:30
+- Completed Slice (Working Tree): M2-S11 Integration failure metadata schema check
+  - Added shared metadata contract helper `IntegrationFailureMetadataSchema` so required keys are emitted via one canonical path.
+  - Wired both non-accounting (`GlobalExceptionHandler`) and accounting (`AccountingService`) integration-failure producers to shared schema application.
+  - Extended schema contract coverage with dedicated helper tests (`IntegrationFailureMetadataSchemaTest`) and constant-based contract assertions.
+- Commands Run:
+  - `rg -n "INTEGRATION_FAILURE|alertRoutingVersion|failureCode|errorCategory|alertRoute" erp-domain/src/main/java erp-domain/src/test/java`
+  - `sed -n '1,260p' erp-domain/src/test/java/com/bigbrightpaints/erp/core/audit/IntegrationFailureMetadataSchemaContractTest.java`
+  - `sed -n '450,700p' erp-domain/src/main/java/com/bigbrightpaints/erp/core/exception/GlobalExceptionHandler.java`
+  - `sed -n '3700,3835p' erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingService.java`
+- Verification:
+  - Not run in this iteration (no explicit test/harness command requested in this turn).
+- Loop Update:
+  - tracked_now_ts: `2026-02-15T23:10:11+05:30`
+  - active_in_progress: `M3-S3 Settlement failure telemetry at source-service boundaries`
+- Queue Rotation (Auto-Replenish):
+  - [ready] M8-S8 Integration-failure producer inventory guard
+    - Enumerate all `AuditEvent.INTEGRATION_FAILURE` producers and add a lightweight fixture to fail when untracked producers skip schema helper usage.
+  - [ready] M9-S3 Failure routing constant dedupe across modules
+    - Extract shared route constants where policy outputs overlap to reduce drift risk and simplify alert-pipeline contracts.
+  - [ready] M3-S4 Settlement partner-context telemetry parity
+    - Ensure dealer/supplier service-level settlement failures include deterministic partner scope metadata before global handling.
+
+Loop Iteration Evidence - 2026-02-15T23:12:19+05:30
+- Completed Slice (Working Tree): M9-S3 Failure routing constant dedupe across modules
+  - Added shared route label contract `IntegrationFailureAlertRoute` under `core.audit`.
+  - Updated `IntegrationFailureAlertRoutingPolicy` and `AccountingEventTrailAlertRoutingPolicy` to reuse shared route constants instead of duplicating string literals.
+  - Updated core routing policy tests to assert against policy constants for drift resistance.
+- Commands Run:
+  - `rg -n "ROUTE_SEV1_PAGE|ROUTE_SEV2_URGENT|ROUTE_SEV3_TICKET|ROUTE_UNMAPPED|SEV1_PAGE|SEV2_URGENT|SEV3_TICKET|UNMAPPED" erp-domain/src/main/java erp-domain/src/test/java`
+  - `sed -n '1,200p' erp-domain/src/test/java/com/bigbrightpaints/erp/core/audit/IntegrationFailureAlertRoutingPolicyTest.java`
+  - `sed -n '1,200p' erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingEventTrailAlertRoutingPolicyTest.java`
+- Verification:
+  - Not run in this iteration (no explicit test/harness command requested in this turn).
+- Loop Update:
+  - tracked_now_ts: `2026-02-15T23:12:19+05:30`
+  - active_in_progress: `M3-S3 Settlement failure telemetry at source-service boundaries`
+- Queue Rotation (Auto-Replenish):
+  - [ready] M8-S9 Integration-failure schema helper adoption guard script
+    - Add CI-safe static guard to fail if any producer writes integration-failure metadata without `IntegrationFailureMetadataSchema`.
+  - [ready] M9-S4 Integration-failure key constants adoption in tests
+    - Replace hard-coded schema key literals in remaining tests with shared contract constants.
+  - [ready] M3-S5 Settlement idempotency-race telemetry contract tests
+    - Add deterministic telemetry assertions for idempotency conflict errors in dealer/supplier settlement paths.
+
+Loop Iteration Evidence - 2026-02-15T23:52:16+05:30
+- Completed Slice (Committed): M2-S11 Integration failure metadata schema check
+  - Commit `ef60476b`: introduced shared `IntegrationFailureMetadataSchema` + `IntegrationFailureAlertRoute`, wired accounting/global emitters to shared schema helper, added schema helper tests.
+  - Verification: `cd erp-domain && mvn -B -ntp -Dtest=IntegrationFailureMetadataSchemaTest,IntegrationFailureMetadataSchemaContractTest,IntegrationFailureAlertRoutingPolicyTest,GlobalExceptionHandlerTest,AccountingEventTrailAlertRoutingPolicyTest,AccountingServiceTest test` (pass).
+  - Post-commit review: subagent review completed; no regressions found.
+
+- Completed Slice (Committed): M8-S9 Integration-failure schema helper adoption guard script
+  - Commit `0cdf4e82`: added `scripts/guard_integration_failure_metadata_schema.sh` and wired into `gate_fast/gate_core/gate_release` with artifacts.
+  - Targeted verification: `bash scripts/guard_integration_failure_metadata_schema.sh` (pass).
+  - Post-commit review loop:
+    - Found false-negative risk for multi-call files; fixed in follow-up commits.
+    - `181d1f9f`, `31f594aa`, `8956b970`, `74186fd7`, `2cb3698a`, `fec2e580`, `d4d63d30` progressively hardened guard behavior (per-log coverage, method scoping, multiline call detection, parenthesis-depth parsing, and string/comment-safe depth counting).
+    - Each follow-up commit validated with `bash scripts/guard_integration_failure_metadata_schema.sh` and reviewed via subagent; final review reported no findings.
+
+- Completed Slice (Committed): M8-S10 Guard contract fixture coverage
+  - Commit `c2074fab`: added `scripts/guard_integration_failure_metadata_schema_fixture_matrix.sh` and wired fixture matrix execution into `scripts/gate_core.sh` and `scripts/gate_release.sh`.
+  - Verification: `bash scripts/guard_integration_failure_metadata_schema.sh && bash scripts/guard_integration_failure_metadata_schema_fixture_matrix.sh` (pass).
+  - Post-commit review: subagent review completed; no regressions found.
+
+- Loop Update:
+  - tracked_now_ts: `2026-02-15T23:52:16+05:30`
+  - active_in_progress: `M9-S4 Integration-failure key constants adoption in tests`
+
+- Queue Rotation (Auto-Replenish):
+  - [ready] M9-S4 Integration-failure key constants adoption in tests
+    - Replace remaining hard-coded metadata key literals with shared schema constants to reduce drift.
+  - [ready] M8-S11 Guard parser block-comment resilience
+    - Extend guard parser to ignore `/* ... */` comment parens in multiline call parsing.
+  - [ready] M3-S3 Settlement failure telemetry at source-service boundaries
+    - Add service-level settlement failure telemetry assertions for dealer/supplier idempotency race and allocation overflow paths.
+
+Loop Iteration Evidence - 2026-02-15T23:58:49+05:30
+- Completed Slice (Committed): M9-S4 Integration-failure key constants adoption in tests
+  - Commit `b9f5f4c3`: replaced hard-coded metadata key literals with `IntegrationFailureMetadataSchema` constants in:
+    - `GlobalExceptionHandlerTest`
+    - `AccountingServiceTest`
+    - `IntegrationFailureMetadataSchemaContractTest`
+  - Verification: `cd erp-domain && mvn -B -ntp -Dtest=GlobalExceptionHandlerTest,AccountingServiceTest,IntegrationFailureMetadataSchemaContractTest test` (pass).
+  - Post-commit review: subagent review completed; no findings.
+
+- Completed Slice (Committed): M8-S11 Guard parser block-comment resilience
+  - Commits `f0e21b61` + `07f2de24`:
+    - Hardened sanitizer to strip block comments and string literals before depth tracking.
+    - Fixed URL-like `//` in string literal handling by ordering string-strip before line-comment strip.
+  - Verification:
+    - `bash scripts/guard_integration_failure_metadata_schema.sh` (pass)
+    - `bash scripts/guard_integration_failure_metadata_schema_fixture_matrix.sh` (pass)
+  - Post-commit review loop:
+    - Found sanitizer ordering risk; fixed immediately in `07f2de24`.
+    - Final subagent review reported no regressions.
+
+- Completed Slice (Committed): M8-S10 fixture matrix gate integration
+  - Commit `c2074fab`: fixture matrix added and wired into `gate_core` + `gate_release`.
+  - Verification: fixture matrix run passes locally.
+  - Post-commit review: no findings.
+
+- Loop Update:
+  - tracked_now_ts: `2026-02-15T23:58:49+05:30`
+  - active_in_progress: `M3-S3 Settlement failure telemetry at source-service boundaries`
+
+- Queue Rotation (Auto-Replenish):
+  - [ready] M3-S3 Settlement failure telemetry at source-service boundaries
+    - Add service-level failure telemetry assertions for dealer/supplier idempotency race + allocation overflow.
+  - [ready] M8-S12 Guard producer call-token normalization
+    - Extend parser coverage for static-imported `INTEGRATION_FAILURE` token forms where `AuditEvent.` prefix is omitted.
+  - [ready] M9-S5 Guard script portability sweep
+    - Add deterministic shellcheck-like sanity checks for bash/awk/rg assumptions used by new guard scripts.
+## 2026-02-16 M3-S3 settlement failure telemetry allowlist + idempotency partner context
+- Scope:
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/core/exception/GlobalExceptionHandler.java`
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingService.java`
+  - `erp-domain/src/test/java/com/bigbrightpaints/erp/core/exception/GlobalExceptionHandlerTest.java`
+- Change summary:
+  - Added settlement failure detail allowlist propagation in global exception telemetry.
+  - Added supplier/dealer idempotency concurrency context (`partnerType`, `partnerId`) into accounting integration-failure metadata.
+  - Added tests covering allowlisted allocation/idempotency metadata propagation.
+- Verification:
+  - `cd erp-domain && mvn -B -ntp -Dtest=GlobalExceptionHandlerTest,AccountingServiceTest test`
+  - Result: PASS (Tests run: 100, Failures: 0, Errors: 0, Skipped: 0)
+- Residual risk:
+  - Allowlist coverage currently bounded to known settlement keys; any new key requires explicit allowlist extension.

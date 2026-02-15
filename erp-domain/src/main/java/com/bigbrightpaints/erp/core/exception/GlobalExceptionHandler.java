@@ -36,6 +36,7 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -46,6 +47,15 @@ import java.util.UUID;
 public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     private static final Logger logger = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+    private static final Set<String> SETTLEMENT_FAILURE_DETAIL_ALLOWLIST = Set.of(
+            "idempotencyKey",
+            "partnerType",
+            "partnerId",
+            "invoiceId",
+            "purchaseId",
+            "outstandingAmount",
+            "appliedAmount",
+            "allocationCount");
 
     @Autowired(required = false)
     private AuditService auditService;
@@ -508,7 +518,24 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         metadata.put("requestMethod", request.getMethod());
         metadata.put("requestPath", requestPath);
         metadata.put("settlementType", resolveSettlementType(requestPath));
+        appendSettlementFailureDetails(metadata, ex);
         auditService.logFailure(AuditEvent.INTEGRATION_FAILURE, metadata);
+    }
+
+    private void appendSettlementFailureDetails(Map<String, String> metadata, ApplicationException ex) {
+        if (metadata == null || ex == null || ex.getDetails() == null || ex.getDetails().isEmpty()) {
+            return;
+        }
+        for (String key : SETTLEMENT_FAILURE_DETAIL_ALLOWLIST) {
+            Object value = ex.getDetails().get(key);
+            if (value == null) {
+                continue;
+            }
+            String normalized = trimMetadata(String.valueOf(value));
+            if (StringUtils.hasText(normalized)) {
+                metadata.put(key, normalized);
+            }
+        }
     }
 
     private String resolveSettlementType(String requestPath) {

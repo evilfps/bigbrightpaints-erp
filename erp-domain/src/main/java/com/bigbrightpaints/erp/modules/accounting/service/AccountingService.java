@@ -1744,7 +1744,9 @@ public class AccountingService {
             }
             throw new ApplicationException(ErrorCode.INTERNAL_CONCURRENCY_FAILURE,
                     "Dealer settlement idempotency key is reserved but allocation not found")
-                    .withDetail("idempotencyKey", trimmedIdempotencyKey);
+                    .withDetail("idempotencyKey", trimmedIdempotencyKey)
+                    .withDetail("partnerType", PartnerType.DEALER.name())
+                    .withDetail("partnerId", dealer.getId());
         }
 
         List<PartnerSettlementAllocation> existingAllocations = findAllocationsByIdempotencyKey(company, trimmedIdempotencyKey);
@@ -1963,7 +1965,9 @@ public class AccountingService {
             }
             throw new ApplicationException(ErrorCode.INTERNAL_CONCURRENCY_FAILURE,
                     "Supplier settlement idempotency key is reserved but allocation not found")
-                    .withDetail("idempotencyKey", trimmedIdempotencyKey);
+                    .withDetail("idempotencyKey", trimmedIdempotencyKey)
+                    .withDetail("partnerType", PartnerType.SUPPLIER.name())
+                    .withDetail("partnerId", supplier.getId());
         }
 
         List<PartnerSettlementAllocation> existingAllocations = findAllocationsByIdempotencyKey(company, trimmedIdempotencyKey);

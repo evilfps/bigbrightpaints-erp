@@ -194,6 +194,62 @@ class GlobalExceptionHandlerTest {
                 .containsEntry("requestPath", "/api/v1/accounting/settlements/suppliers");
     }
 
+    @Test
+    void settlementValidationFailure_propagatesAllowlistedAllocationDetails() throws Exception {
+        GlobalExceptionHandler handler = new GlobalExceptionHandler();
+        setActiveProfile(handler, "dev");
+        AuditService auditService = mock(AuditService.class);
+        setAuditService(handler, auditService);
+
+        ApplicationException ex = new ApplicationException(
+                ErrorCode.VALIDATION_INVALID_INPUT,
+                "Settlement allocation exceeds invoice outstanding amount")
+                .withDetail("invoiceId", 42L)
+                .withDetail("outstandingAmount", "120.00")
+                .withDetail("appliedAmount", "121.00")
+                .withDetail("internalLeak", "should-not-propagate");
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/v1/accounting/settlements/dealers");
+
+        handler.handleApplicationException(ex, request);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, String>> metadataCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(auditService).logFailure(eq(AuditEvent.INTEGRATION_FAILURE), metadataCaptor.capture());
+        Map<String, String> metadata = metadataCaptor.getValue();
+        assertThat(metadata)
+                .containsEntry("invoiceId", "42")
+                .containsEntry("outstandingAmount", "120.00")
+                .containsEntry("appliedAmount", "121.00")
+                .doesNotContainKey("internalLeak");
+    }
+
+    @Test
+    void settlementConcurrencyFailure_propagatesAllowlistedIdempotencyDetails() throws Exception {
+        GlobalExceptionHandler handler = new GlobalExceptionHandler();
+        setActiveProfile(handler, "dev");
+        AuditService auditService = mock(AuditService.class);
+        setAuditService(handler, auditService);
+
+        ApplicationException ex = new ApplicationException(
+                ErrorCode.INTERNAL_CONCURRENCY_FAILURE,
+                "Supplier settlement idempotency key is reserved but allocation not found")
+                .withDetail("idempotencyKey", "SUP-SETTLE-KEY-1")
+                .withDetail("partnerType", "SUPPLIER")
+                .withDetail("partnerId", 55L);
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/v1/accounting/settlements/suppliers");
+
+        handler.handleApplicationException(ex, request);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, String>> metadataCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(auditService).logFailure(eq(AuditEvent.INTEGRATION_FAILURE), metadataCaptor.capture());
+        Map<String, String> metadata = metadataCaptor.getValue();
+        assertThat(metadata)
+                .containsEntry("idempotencyKey", "SUP-SETTLE-KEY-1")
+                .containsEntry("partnerType", "SUPPLIER")
+                .containsEntry("partnerId", "55");
+    }
+
     private static void setActiveProfile(GlobalExceptionHandler handler, String value) throws Exception {
         Field field = GlobalExceptionHandler.class.getDeclaredField("activeProfile");
         field.setAccessible(true);
