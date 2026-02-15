@@ -9431,3 +9431,18 @@ Review Queue Update
 Loop Update
 - tracked_now_ts: `2026-02-16T03:08:40+05:30`
 - active_in_progress: `M19-S5 review queue drain (blocked) with final ledger gates currently green`
+
+[2026-02-16] M19-S20 canonical idempotency parity contract documented (system-map)
+- Completed Slice (Committed): header/body precedence contract in canonical vocabulary
+  - Commit `bcabb753`: `docs/system-map/CANONICAL_VOCABULARY.md`
+  - Added explicit rules for accounting-controller idempotency parity:
+    - primary header: `Idempotency-Key`
+    - legacy header: `X-Idempotency-Key`
+    - body key requires header match; mismatch is fail-closed
+    - blank/absent body key resolves from headers (primary preferred)
+- Verification:
+  - `bash ci/lint-knowledgebase.sh` (PASS)
+
+Loop Update
+- tracked_now_ts: `2026-02-16T03:09:40+05:30`
+- active_in_progress: `M19-S5 review queue drain (blocked by agent cap) + continuous gate/contract hardening`
