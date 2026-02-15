@@ -50,3 +50,14 @@ Standardize safe migration planning, validation, and rollback drills.
 
 ## Enterprise R2 Linkage
 - For any migration in `migration_v2`, update `docs/approvals/R2-CHECKPOINT.md` in the same change set and record rehearsal evidence.
+
+## V15 Execution Notes (2026-02-15)
+- Migration: `erp-domain/src/main/resources/db/migration_v2/V15__accounting_audit_read_model_hotspot_indexes.sql`
+- Change type: performance indexes for accounting audit read-model (`journal_entries`, `journal_lines`, `invoices`, `raw_material_purchases`).
+- Safety profile:
+  - runs with `-- flyway:executeInTransaction=false`.
+  - uses `CREATE INDEX CONCURRENTLY` to reduce write blocking on hot tables.
+- Required rollout posture:
+  - run during controlled low-write window.
+  - monitor index build progress and query latency during apply.
+  - if one index build fails, do not rerun blindly; capture failure and apply forward-fix migration.

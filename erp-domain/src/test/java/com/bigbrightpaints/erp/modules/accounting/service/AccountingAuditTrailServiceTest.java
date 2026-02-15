@@ -110,7 +110,7 @@ class AccountingAuditTrailServiceTest {
 
         when(journalEntryRepository.findAll(any(org.springframework.data.jpa.domain.Specification.class), any(PageRequest.class)))
                 .thenReturn(new PageImpl<>(List.of(entry)));
-        when(journalLineRepository.summarizeTotalsByJournalEntryIds(eq(List.of(11L))))
+        when(journalLineRepository.summarizeTotalsByCompanyAndJournalEntryIds(eq(company), eq(List.of(11L))))
                 .thenReturn(List.of(totals(11L, "2000.00", "2000.00")));
         when(invoiceRepository.findByCompanyAndJournalEntry_IdIn(eq(company), eq(List.of(11L)))).thenReturn(List.of());
         when(rawMaterialPurchaseRepository.findByCompanyAndJournalEntry_IdIn(eq(company), eq(List.of(11L)))).thenReturn(List.of());

@@ -54,3 +54,12 @@ Provide deterministic rollback steps for application and database failures.
 
 ## Enterprise R2 Linkage
 - For high-risk changes, set rollback owner and approval expiry in `docs/approvals/R2-CHECKPOINT.md` before release go/no-go.
+
+## V15 Rollback/Forward-Fix Notes (2026-02-15)
+- Migration: `erp-domain/src/main/resources/db/migration_v2/V15__accounting_audit_read_model_hotspot_indexes.sql`
+- Primary strategy: forward-fix (preferred) if planner or migration timing issues appear after apply.
+- Emergency rollback path for V15 indexes:
+  1. open maintenance governance window and reduce write pressure.
+  2. apply compensating migration with `DROP INDEX CONCURRENTLY` for affected index names.
+  3. rerun accounting audit list smoke checks and reconciliation sanity checks.
+  4. keep compensating migration artifact and verification logs attached to incident record.

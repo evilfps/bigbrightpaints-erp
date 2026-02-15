@@ -99,7 +99,7 @@ public class AccountingAuditTrailService {
             return PageResponse.of(List.of(), data.getTotalElements(), safePage, safeSize);
         }
         Map<Long, JournalTotals> totalsByJournal = journalLineRepository
-                .summarizeTotalsByJournalEntryIds(journalIds)
+                .summarizeTotalsByCompanyAndJournalEntryIds(company, journalIds)
                 .stream()
                 .collect(Collectors.toMap(
                         JournalLineRepository.JournalEntryLineTotals::getJournalEntryId,

@@ -52,3 +52,17 @@ Update this file in every high-risk change set.
 - Rollback/forward-fix strategy:
   - If pre-release failure occurs before rollout, drop pending V14 from deploy set and ship with in-memory retry fallback.
   - If V14 is applied and rollback is needed, use forward-fix only (do not edit applied migration); disable persisted path via service fallback behavior while issuing compensating migration in next version.
+
+## Migration Addendum (2026-02-15, V15)
+- Migration artifact: `erp-domain/src/main/resources/db/migration_v2/V15__accounting_audit_read_model_hotspot_indexes.sql`
+- Risk class: R2 (accounting audit read-model performance indexes on hot tables)
+- Deployment safety control:
+  - migration is explicitly `-- flyway:executeInTransaction=false` and uses `CREATE INDEX CONCURRENTLY` for all indexes to avoid table-wide write blocking during rollout.
+- Validation evidence:
+  - `cd erp-domain && mvn -B -ntp -Dtest=AccountingAuditTrailServiceTest,AccountingControllerActivityContractTest test` -> pass (`6` tests, `0` failures, `0` errors)
+  - `FAIL_ON_FINDINGS=true bash scripts/schema_drift_scan.sh --migration-set v2` -> pass (`findings=0`)
+  - `FAIL_ON_FINDINGS=true bash scripts/flyway_overlap_scan.sh --migration-set v2` -> pass (`findings=0`)
+  - `bash scripts/guard_flyway_guard_contract.sh` -> pass
+- Rollback/forward-fix strategy:
+  - if index-plan regression is detected post-apply, use forward-fix migration to adjust planner-facing index set; do not rewrite applied migration files.
+  - if emergency rollback is required, drop newly added indexes with `DROP INDEX CONCURRENTLY` in a compensating migration under maintenance governance.

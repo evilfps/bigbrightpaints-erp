@@ -77,8 +77,11 @@ public interface JournalLineRepository extends JpaRepository<JournalLine, Long> 
                    coalesce(sum(line.debit), 0) as totalDebit,
                    coalesce(sum(line.credit), 0) as totalCredit
             from JournalLine line
-            where line.journalEntry.id in :journalEntryIds
+            join line.journalEntry entry
+            where entry.company = :company
+              and line.journalEntry.id in :journalEntryIds
             group by line.journalEntry.id
             """)
-    List<JournalEntryLineTotals> summarizeTotalsByJournalEntryIds(@Param("journalEntryIds") Collection<Long> journalEntryIds);
+    List<JournalEntryLineTotals> summarizeTotalsByCompanyAndJournalEntryIds(@Param("company") Company company,
+                                                                             @Param("journalEntryIds") Collection<Long> journalEntryIds);
 }
