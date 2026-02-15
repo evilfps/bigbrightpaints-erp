@@ -122,4 +122,27 @@ ALTER TABLE ONLY public.child_composite_mismatch
 SQL
 )"
 
+run_case "shorthand_uses_latest_primary_key_shape_fail" 1 "$(cat <<'SQL'
+CREATE TABLE public.parent_redefined_pk (
+    company_id bigint NOT NULL,
+    id bigint NOT NULL
+);
+ALTER TABLE ONLY public.parent_redefined_pk
+    ADD CONSTRAINT parent_redefined_pk_pkey PRIMARY KEY (id);
+ALTER TABLE ONLY public.parent_redefined_pk
+    DROP CONSTRAINT parent_redefined_pk_pkey;
+ALTER TABLE ONLY public.parent_redefined_pk
+    ADD CONSTRAINT parent_redefined_pk_pkey PRIMARY KEY (company_id, id);
+
+CREATE TABLE public.child_redefined_pk (
+    id bigint NOT NULL,
+    parent_id bigint NOT NULL
+);
+ALTER TABLE ONLY public.child_redefined_pk
+    ADD CONSTRAINT child_redefined_pk_pkey PRIMARY KEY (id);
+ALTER TABLE ONLY public.child_redefined_pk
+    ADD CONSTRAINT child_redefined_pk_fk FOREIGN KEY (parent_id) REFERENCES public.parent_redefined_pk;
+SQL
+)"
+
 echo "[guard_flyway_v2_referential_contract_fixture_matrix] OK"
