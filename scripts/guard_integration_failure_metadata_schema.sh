@@ -26,6 +26,7 @@ for file in "${producer_files[@]}"; do
     awk '
       function sanitize_line(raw, cleaned, block_start, block_tail, block_end) {
         cleaned = raw
+        gsub(/"([^"\\]|\\.)*"/, "", cleaned)
 
         if (in_block_comment) {
           block_end = index(cleaned, "*/")
@@ -50,7 +51,6 @@ for file in "${producer_files[@]}"; do
         }
 
         sub(/\/\/.*/, "", cleaned)
-        gsub(/"([^"\\]|\\.)*"/, "", cleaned)
         return cleaned
       }
 
