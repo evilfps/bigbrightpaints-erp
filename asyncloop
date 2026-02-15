@@ -7309,3 +7309,144 @@ Queue Rotation (Auto-Replenish)
 - [ready] M14-S48 costing-selection enum drift guard (new/legacy costing tokens must remain centrally mapped via `CostingMethodUtils` with no per-module fallback forks)
 - [ready] M14-S49 catalog-import retry-winner ledger/journal silence guard (stale-retry loser payloads must never produce duplicate accounting side effects while winner replay remains idempotent)
 - [ready] M11-S7 accounting-portal scope invariant lock (HR, PURCHASING, INVENTORY, REPORTS remain under Accounting portal unless replacement portal map + endpoint docs are updated atomically)
+
+Post-Commit Review Evidence
+- Commit reviewed: `43dfad78`
+- `codex review --commit 43dfad78`:
+  - exit status: `0`.
+  - final verdict: docs-only `asyncloop` append; no actionable defects introduced.
+- Review subagent `019c5fff-b3fc-7462-9ddb-5e5f55c280b8`:
+  - findings:
+    - high: none.
+    - medium: none.
+    - low: none actionable.
+  - disposition: accepted; no code/config/runtime impact.
+
+Completed Slice (Committed)
+- 2026-02-15: `1c65ab75`
+  - fix(ci): add deterministic ownership guard fixture matrix.
+  - M15-S29 initial implementation:
+    - added `scripts/guard_flyway_v2_migration_ownership_fixture_matrix.sh` with deterministic fixtures for:
+      - quoted identifiers + apostrophes,
+      - `$` suffix token boundaries,
+      - `CHECK ... IS NOT NULL` ordering,
+      - E-string literal semicolon handling,
+      - missing PK/UNIQUE(id) fail-closed contract.
+    - wired fixture matrix into `scripts/verify_local.sh` and `scripts/gate_release.sh` (`MIGRATION_SET=v2`).
+    - updated `scripts/guard_flyway_guard_contract.sh` callsite assertions/stubs for fixture matrix wiring.
+    - extended ownership parser for multiline `UNIQUE` opening-paren split across lines.
+  - Verification:
+    - `bash -n scripts/guard_flyway_v2_migration_ownership_fixture_matrix.sh` -> pass.
+    - `bash scripts/guard_flyway_v2_migration_ownership_fixture_matrix.sh` -> pass.
+    - `bash scripts/guard_flyway_v2_migration_ownership.sh` -> pass.
+    - `bash scripts/guard_flyway_guard_contract.sh` -> pass.
+    - `bash -n scripts/verify_local.sh` -> pass.
+    - `bash -n scripts/gate_release.sh` -> pass.
+
+Post-Commit Review Evidence
+- Commit reviewed: `1c65ab75`
+- `codex review --commit 1c65ab75`:
+  - command executed with timeout (`timeout 180`); exited `124` before stable final verdict.
+- Review subagent `019c6006-1016-7a13-b39a-2b612ed75569`:
+  - findings:
+    - medium: pending `UNIQUE` state could falsely consume later FK parentheses (`UNIQUE USING INDEX` path).
+    - low: fixture matrix missed multiline `UNIQUE USING INDEX` regression shape.
+  - disposition: medium fixed immediately in `bb0a7e15`; low fixed via fixture expansion.
+
+Follow-up Hardening (Committed)
+- 2026-02-15: `bb0a7e15`
+  - fix(ci): constrain `UNIQUE` pending-state parsing.
+  - changes:
+    - pending state now enters only on terminal/continuation-safe `UNIQUE` contexts.
+    - added fixture for `UNIQUE USING INDEX` + FK sequence false-pass regression.
+  - Verification:
+    - `bash scripts/guard_flyway_v2_migration_ownership.sh` -> pass.
+    - `bash scripts/guard_flyway_v2_migration_ownership_fixture_matrix.sh` -> pass.
+    - `bash scripts/guard_flyway_guard_contract.sh` -> pass.
+
+Post-Commit Review Evidence
+- Commit reviewed: `bb0a7e15`
+- `codex review --commit bb0a7e15`:
+  - command executed with timeout (`timeout 180`); exited `124` before stable final verdict.
+- Review subagent `019c600d-a585-72c0-a9c0-f1f8044cd5a6`:
+  - findings:
+    - medium: `UNIQUE NULLS NOT DISTINCT` multiline variant regressed.
+    - medium: multiline `UNIQUE` + `USING INDEX` continuation still had a false-pass path.
+  - disposition: fixed immediately in `ebcbe8e2`.
+
+Follow-up Hardening (Committed)
+- 2026-02-15: `ebcbe8e2`
+  - fix(ci): refine pending `UNIQUE` qualifier handling.
+  - changes:
+    - added qualifier-aware continuation handling for `NULLS/NOT/DISTINCT`.
+    - added multiline `UNIQUE ... USING INDEX` regression fixture.
+  - Verification:
+    - `bash scripts/guard_flyway_v2_migration_ownership.sh` -> pass.
+    - `bash scripts/guard_flyway_v2_migration_ownership_fixture_matrix.sh` -> pass.
+    - `bash scripts/guard_flyway_guard_contract.sh` -> pass.
+
+Post-Commit Review Evidence
+- Commit reviewed: `ebcbe8e2`
+- `codex review --commit ebcbe8e2`:
+  - command executed with timeout (`timeout 180`); exited `124` before stable final verdict.
+- Review subagent `019c6014-bd64-7860-917d-52c296568a38`:
+  - findings:
+    - medium: qualifier continuation match was case-sensitive (`nulls not distinct` lowercase false-fail).
+  - disposition: fixed immediately in `15a8862f`.
+
+Follow-up Hardening (Committed)
+- 2026-02-15: `15a8862f`
+  - fix(ci): make `UNIQUE` qualifier matching case-insensitive.
+  - changes:
+    - normalized pending qualifier checks with `toupper(...)`.
+    - added lowercase `nulls not distinct` multiline fixture case.
+  - Verification:
+    - `bash -n scripts/guard_flyway_v2_migration_ownership.sh` -> pass.
+    - `bash scripts/guard_flyway_v2_migration_ownership.sh` -> pass.
+    - `bash scripts/guard_flyway_v2_migration_ownership_fixture_matrix.sh` -> pass.
+    - `bash scripts/guard_flyway_guard_contract.sh` -> pass.
+
+Post-Commit Review Evidence
+- Commit reviewed: `15a8862f`
+- `codex review --commit 15a8862f`:
+  - exit status: `0`.
+  - final verdict: scoped case-insensitive qualifier fix + fixture update; no actionable defects introduced.
+- Review subagent `019c6018-ad20-7680-9276-f689090fe5f5`:
+  - findings:
+    - high: none.
+    - medium: none.
+    - low: locale portability advisory on `toupper(...)` in non-C locales.
+  - disposition: accepted as low advisory.
+
+Completed Slice (Resolved)
+- M15-S29 guard fixture matrix hardening (add deterministic fixture script covering quoted identifiers with apostrophes, `$` suffix token boundaries, `CHECK ... IS NOT NULL` ordering, and E-string literal/semicolon edge cases)
+  - closure basis: `1c65ab75` + `bb0a7e15` + `ebcbe8e2` + `15a8862f`.
+  - closure evidence:
+    - ownership guard now has deterministic fixture coverage for target edge families plus multiline/qualifier/`USING INDEX` continuations.
+    - review chain converged to no open high/medium findings.
+
+Loop Update
+- 2026-02-15T12:31:43+05:30
+- tracked_now_ts: `2026-02-15T12:31:43+05:30`
+- tracked_elapsed: `82h 37m 51s`
+- active_in_progress: `M15-S30 referential-guard shorthand REFERENCES coverage (extend canary for PostgreSQL REFERENCES <table> shorthand with PK-column resolution and explicit negative fixtures)`
+- continuity_recheck:
+  - ownership/fixture chain is now stable and wired into release/local preflight.
+  - next parser-hardening frontier remains shorthand FK target resolution in referential guard.
+
+Queue Rotation (Auto-Replenish)
+- [completed] M15-S29 guard fixture matrix hardening (add deterministic fixture script covering quoted identifiers with apostrophes, `$` suffix token boundaries, `CHECK ... IS NOT NULL` ordering, and E-string literal/semicolon edge cases)
+- [in_progress] M15-S30 referential-guard shorthand REFERENCES coverage (extend canary for PostgreSQL REFERENCES <table> shorthand with PK-column resolution and explicit negative fixtures)
+- [ready] M15-S14R2 dealer/admin pending-order parity recurring canary (scheduled rerun after next sales/accounting exposure logic touch)
+- [ready] M15-S8 payroll account default/bootstrap guard (`SALARY-EXP` missing account should fail with deterministic provisioning guidance/guard rails)
+- [ready] M15-S9 sales/dealer accounting method-map docs refresh (internal + user-facing docs for cash/credit/split formulas, account mapping rules, idempotency headers, and pending-order credit exposure semantics)
+- [ready] M15-S10 cross-module idempotency contract unification matrix (standardize header semantics + helper parity across sales/production/accounting endpoint families)
+- [ready] M15-S11 recognized-revenue/pending-credit contract docs + endpoint parity matrix (internal and user-facing portal docs must match shipment gate + pending exposure behavior)
+- [ready] M15-S12 idempotency header contract convergence doc+runtime assert sweep (sales/production/accounting entrypoints must share canonical header semantics and error model)
+- [ready] M15-S15 pending-status normalization performance guard (evaluate/land Flyway V2-safe functional index or normalized-token strategy so aggregate pending-status predicates retain index-friendly plans under high order volume)
+- [ready] M15-S16 dealer-settlement replay e2e defense-in-depth matrix (optional end-to-end `settleDealerInvoices` replay assertion where adjustment debit lines coexist with split payments to further harden payment-account bounded remap behavior)
+- [ready] M15-S18 dispatch replay COGS reference payload parity guard (assert `postCogsJournal` reference/memo/line payload stability on replay anchors and prevent wrong-reference postings under override replay paths)
+- [ready] M15-S19 dispatch replay slip-number fallback + AR-overload guard matrix (cover `hasCogsJournalFor` alternate slip-number fallback and explicitly lock both `postSalesJournal` overload paths against duplicate replay posting)
+- [ready] M14-S48 costing-selection enum drift guard (new/legacy costing tokens must remain centrally mapped via `CostingMethodUtils` with no per-module fallback forks)
+- [ready] M14-S49 catalog-import retry-winner ledger/journal silence guard (stale-retry loser payloads must never produce duplicate accounting side effects while winner replay remains idempotent)
+- [ready] M11-S7 accounting-portal scope invariant lock (HR, PURCHASING, INVENTORY, REPORTS remain under Accounting portal unless replacement portal map + endpoint docs are updated atomically)
