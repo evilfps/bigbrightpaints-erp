@@ -9068,3 +9068,34 @@ Loop Update
 Queue Rotation
 - [ready] M19-S4 runtime replay truthsuite fixture hardening
   - Reduce private-reflection coupling by introducing behavior-level/public-surface replay assertions and minimal dependency fixture wiring.
+
+[2026-02-16] M19-S4 runtime replay truthsuite fixture/coupling hardening (continued)
+- Completed Slice (Committed): remove direct private-helper reflection coupling from runtime replay sentinel
+  - Commit `2962800b`: replaced direct reflection assertions on private `partnerMismatchSubject` / `partnerMismatchMessage` with behavior-level replay-conflict assertions on exception reason semantics.
+  - Scope: `TS_RuntimeAccountingReplayConflictExecutableCoverageTest`
+  - Contract locked:
+    - DEALER mismatch reason contains `dealer`
+    - SUPPLIER mismatch reason contains `supplier`
+    - unknown/null partner type mismatch reason contains `partner type`
+  - Structural simplification:
+    - removed helper methods `invokePartnerMismatchSubject` and `invokePartnerMismatchMessage`
+    - removed `java.lang.reflect.Method` dependency in runtime truthsuite fixture
+- Verification:
+  - `cd erp-domain && mvn -B -ntp -Dtest=TS_RuntimeAccountingReplayConflictExecutableCoverageTest test` (PASS: 12/12)
+
+Review Queue Update
+- attempted subagent review dispatch for `2962800b` blocked by active-agent cap (max 6); queued for immediate retry once a review slot opens.
+
+Loop Update
+- tracked_now_ts: `2026-02-16T02:44:10+05:30`
+- active_in_progress: `M19-S5 review queue drain for commit 2962800b + next replay/api contract dedupe slice`
+- review_queue_pending:
+  - `2962800b` (code, pending subagent slot)
+
+Queue Rotation
+- [in_progress] M19-S5 pending code-review queue drain
+  - acquire subagent slot, run commit review for `2962800b`, apply any regression fixes if found.
+- [ready] M19-S6 replay conflict assertion dedupe across service/runtime tests
+  - centralize repeated conflict-detail assertions to reduce brittle duplicate literals while preserving partner metadata contract.
+- [ready] M19-S7 async-loop artifact pointer normalization
+  - attach latest targeted test and commit-review evidence links with stable key names.
