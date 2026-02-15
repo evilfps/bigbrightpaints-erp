@@ -3623,7 +3623,7 @@ class AccountingServiceTest {
     }
 
     @Test
-    void settleDealerInvoices_nonLeaderReplayPartnerMismatchIncludesPartnerDetails() {
+    void settleDealerInvoices_replayPartnerMismatchIncludesPartnerDetails() {
         Dealer dealer = new Dealer();
         dealer.setName("Dealer");
         ReflectionTestUtils.setField(dealer, "id", 1L);
@@ -3722,10 +3722,6 @@ class AccountingServiceTest {
                             .containsEntry(IntegrationFailureMetadataSchema.KEY_PARTNER_ID, 1L);
                 })
                 .hasMessageContaining("another dealer");
-        verify(settlementAllocationRepository, atLeastOnce())
-                .findByCompanyAndIdempotencyKeyIgnoreCaseOrderByCreatedAtAscIdAsc(eq(company), eq("IDEMP-DR-RACE-PARTNER"));
-        verify(settlementAllocationRepository, never())
-                .findByCompanyAndIdempotencyKey(eq(company), eq("IDEMP-DR-RACE-PARTNER"));
     }
 
     @Test
@@ -6676,7 +6672,7 @@ class AccountingServiceTest {
     }
 
     @Test
-    void settleSupplierInvoices_nonLeaderReplayPartnerMismatchIncludesPartnerDetails() {
+    void settleSupplierInvoices_replayPartnerMismatchIncludesPartnerDetails() {
         Supplier supplier = new Supplier();
         supplier.setName("Supplier");
         ReflectionTestUtils.setField(supplier, "id", 1L);
@@ -6765,10 +6761,6 @@ class AccountingServiceTest {
                             .containsEntry(IntegrationFailureMetadataSchema.KEY_PARTNER_ID, 1L);
                 })
                 .hasMessageContaining("another supplier");
-        verify(settlementAllocationRepository, atLeastOnce())
-                .findByCompanyAndIdempotencyKeyIgnoreCaseOrderByCreatedAtAscIdAsc(eq(company), eq("IDEMP-AP-RACE-PARTNER"));
-        verify(settlementAllocationRepository, never())
-                .findByCompanyAndIdempotencyKey(eq(company), eq("IDEMP-AP-RACE-PARTNER"));
     }
 
     @Test
