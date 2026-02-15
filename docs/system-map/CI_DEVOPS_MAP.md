@@ -36,6 +36,15 @@
 - In release validation mode, vacuous changed-file coverage is fail-closed.
 - Do not weaken line/branch thresholds to bypass broad historical diffs; rotate `RELEASE_ANCHOR_SHA` only after a fully green ledger-gate bundle.
 
+### What `gate_fast` anchored does (operator intent)
+- Anchored mode compares coverage and guard scope against a fixed release anchor, not against moving branch history.
+- It proves that async-loop hardening since `RELEASE_ANCHOR_SHA` is still protected by:
+  - contract guards (catalog/flaky/orchestrator/portal/audit),
+  - critical truthsuite lane,
+  - changed-file line+branch coverage thresholds.
+- It is the first “fail-fast” gate in final ledger closure: if anchored `gate_fast` fails, stop and repair before running broader gates.
+- Practical outcome: prevents false confidence from short local diffs and ensures long-running hardening trains remain measurable and non-vacuous.
+
 ## Async-loop final ledger gate order (staging)
 1. `DIFF_BASE=<RELEASE_ANCHOR_SHA> GATE_FAST_RELEASE_VALIDATION_MODE=true bash scripts/gate_fast.sh`
 2. `bash scripts/gate_core.sh`
