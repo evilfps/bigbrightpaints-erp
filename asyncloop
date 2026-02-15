@@ -7810,3 +7810,127 @@ Queue Rotation (Auto-Replenish)
 - [ready] M14-S48 costing-selection enum drift guard (new/legacy costing tokens must remain centrally mapped via `CostingMethodUtils` with no per-module fallback forks)
 - [ready] M14-S49 catalog-import retry-winner ledger/journal silence guard (stale-retry loser payloads must never produce duplicate accounting side effects while winner replay remains idempotent)
 - [ready] M11-S7 accounting-portal scope invariant lock (HR, PURCHASING, INVENTORY, REPORTS remain under Accounting portal unless replacement portal map + endpoint docs are updated atomically)
+
+Pause Checkpoint
+- timestamp: `2026-02-15T15:13:27+05:30`
+- active_in_progress: `M15-S10 cross-module idempotency contract unification matrix (standardize header semantics + helper parity across sales/production/accounting endpoint families)`
+- owned_uncommitted_paths:
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/core/util/IdempotencyHeaderUtils.java`
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/sales/controller/SalesController.java`
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/controller/AccountingController.java`
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/controller/AccountingCatalogController.java`
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/factory/controller/PackingController.java`
+  - `erp-domain/src/test/java/com/bigbrightpaints/erp/core/util/IdempotencyHeaderUtilsTest.java`
+  - `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/sales/controller/SalesControllerIdempotencyHeaderTest.java`
+  - `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/controller/AccountingControllerIdempotencyHeaderTest.java`
+  - `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/controller/AccountingCatalogControllerIdempotencyHeaderTest.java`
+  - `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/factory/controller/PackingControllerTest.java`
+- targeted_verification:
+  - `mvn -s /tmp/codex-mvn-settings.xml -B -ntp -f erp-domain/pom.xml -Dtest=IdempotencyHeaderUtilsTest,PackingControllerTest,SalesControllerIdempotencyHeaderTest,AccountingControllerIdempotencyHeaderTest,AccountingCatalogControllerIdempotencyHeaderTest test` -> pass (`22` tests, `0` failures, `0` errors)
+  - `bash ci/check-architecture.sh` -> pass
+  - `bash ci/check-enterprise-policy.sh` -> pass
+  - `bash ci/check-orchestrator-layer.sh` -> pass
+  - `bash ci/lint-knowledgebase.sh` -> pass
+  - `bash scripts/verify_local.sh` -> fail
+- last_failure_line:
+  - `[guard_legacy_migration_freeze] FAIL: legacy Flyway v1 chain is frozen`
+  - `[guard_legacy_migration_freeze] Detected changes under erp-domain/src/main/resources/db/migration: WORKTREE ?? erp-domain/src/main/resources/db/migration/V136__enterprise_audit_ml_events.sql`
+- immediate_next_action:
+  - keep M15-S10 active, isolate idempotency-header patch commit without bundling unrelated pre-existing accounting controller deltas, then re-run targeted matrix and rerun `verify_local` after legacy-freeze precondition is clean.
+
+Completed Slice (Committed)
+- 2026-02-15: `165fcf95`
+  - fix(idempotency): unify primary and legacy header resolution.
+  - M15-S10 execution:
+    - added shared `IdempotencyHeaderUtils` to enforce `Idempotency-Key` / `X-Idempotency-Key` precedence with mismatch rejection.
+    - applied shared resolver in sales, factory packing, accounting catalog, inventory adjustment, and purchasing goods-receipt controllers.
+    - extended controller/unit tests for legacy-header fallback and header/body mismatch handling.
+    - ignored local async-loop artifact directories in `.gitignore` and quarantined stray legacy-v1 migration artifact from active v1 path.
+
+Verification
+- `mvn -s /tmp/codex-mvn-settings.xml -B -ntp -f erp-domain/pom.xml -Dtest=IdempotencyHeaderUtilsTest,PackingControllerTest,SalesControllerIdempotencyHeaderTest,AccountingCatalogControllerIdempotencyHeaderTest,InventoryAdjustmentControllerTest,PurchasingWorkflowControllerTest test` -> pass (`28` tests, `0` failures, `0` errors).
+- `bash ci/check-architecture.sh` -> pass.
+- `bash ci/check-enterprise-policy.sh` -> pass.
+- `bash ci/check-orchestrator-layer.sh` -> pass.
+- `bash ci/lint-knowledgebase.sh` -> pass.
+- `bash scripts/guard_legacy_migration_freeze.sh` -> pass.
+- `bash scripts/verify_local.sh` -> fail at `schema_drift_scan` (pre-existing v2 baseline migrations vs intentionally-empty `scripts/schema_drift_scan_allowlist_v2.txt`).
+
+Post-Commit Review Evidence
+- Commit reviewed: `165fcf95`
+- `codex review --commit 165fcf95`:
+  - exit status: `0`.
+  - final verdict: no actionable regressions; idempotency header unification + targeted tests are coherent.
+- Review subagent `019c60bc-1e91-7401-9015-1e0ebab365c8`:
+  - findings:
+    - high: none.
+    - medium: none.
+
+Loop Update
+- 2026-02-15T15:29:03+05:30
+- tracked_now_ts: `2026-02-15T15:29:03+05:30`
+- tracked_elapsed: `85h 35m 11s`
+- active_in_progress: `M15-S10 cross-module idempotency contract unification matrix (standardize header semantics + helper parity across sales/production/accounting endpoint families)`
+- continuity_recheck:
+  - review chain for `165fcf95` is now complete (`codex review` + one review-only subagent).
+  - legacy-v1 freeze precondition is clear; remaining `verify_local` blocker is v2 schema-drift allowlist policy baseline.
+  - next action: complete repo-wide idempotency header parity sweep and close any remaining non-unified controller entry points.
+
+Queue Rotation (Auto-Replenish)
+- [in_progress] M15-S10 cross-module idempotency contract unification matrix (standardize header semantics + helper parity across sales/production/accounting endpoint families)
+- [ready] M15-S11 recognized-revenue/pending-credit contract docs + endpoint parity matrix (internal and user-facing portal docs must match shipment gate + pending exposure behavior)
+- [ready] M15-S12 idempotency header contract convergence doc+runtime assert sweep (sales/production/accounting entrypoints must share canonical header semantics and error model)
+- [ready] M15-S15 pending-status normalization performance guard (evaluate/land Flyway V2-safe functional index or normalized-token strategy so aggregate pending-status predicates retain index-friendly plans under high order volume)
+- [ready] M15-S16 dealer-settlement replay e2e defense-in-depth matrix (optional end-to-end `settleDealerInvoices` replay assertion where adjustment debit lines coexist with split payments to further harden payment-account bounded remap behavior)
+- [ready] M15-S18 dispatch replay COGS reference payload parity guard (assert `postCogsJournal` reference/memo/line payload stability on replay anchors and prevent wrong-reference postings under override replay paths)
+- [ready] M15-S19 dispatch replay slip-number fallback + AR-overload guard matrix (cover `hasCogsJournalFor` alternate slip-number fallback and explicitly lock both `postSalesJournal` overload paths against duplicate replay posting)
+- [ready] M14-S48 costing-selection enum drift guard (new/legacy costing tokens must remain centrally mapped via `CostingMethodUtils` with no per-module fallback forks)
+- [ready] M14-S49 catalog-import retry-winner ledger/journal silence guard (stale-retry loser payloads must never produce duplicate accounting side effects while winner replay remains idempotent)
+- [ready] M11-S7 accounting-portal scope invariant lock (HR, PURCHASING, INVENTORY, REPORTS remain under Accounting portal unless replacement portal map + endpoint docs are updated atomically)
+
+Follow-up Hardening (Committed)
+- 2026-02-15: `2c196f13`
+  - fix(inventory): unify idempotency header parity.
+  - M15-S10 continuation:
+    - updated `OpeningStockImportController` to resolve `Idempotency-Key` + `X-Idempotency-Key` via shared `IdempotencyHeaderUtils`.
+    - updated `RawMaterialController` (`createBatch`, `intake`) to resolve primary/legacy idempotency headers via shared helper.
+    - added controller tests for legacy-header fallback + primary/legacy mismatch rejection (`OpeningStockImportControllerTest`, `RawMaterialControllerTest`).
+
+Verification
+- `mvn -s /tmp/codex-mvn-settings.xml -B -ntp -f erp-domain/pom.xml -Dtest=OpeningStockImportControllerTest,RawMaterialControllerTest,InventoryAdjustmentControllerTest test` -> pass (`12` tests, `0` failures, `0` errors).
+- `bash ci/check-architecture.sh` -> pass.
+- `bash ci/check-enterprise-policy.sh` -> pass.
+- `bash scripts/verify_local.sh` -> fail at `schema_drift_scan` (known v2 baseline + empty allowlist policy).
+
+Post-Commit Review Evidence
+- Commit reviewed: `2c196f13`
+- `codex review --commit 2c196f13`:
+  - exit status: `0`.
+  - final verdict: no actionable regressions; controller parity + tests are coherent.
+- Review subagent `019c60c1-7024-78e3-bf54-8360fe58bf6f`:
+  - findings:
+    - high: none.
+    - medium: none.
+    - low: clients sending mismatched primary/legacy headers now fail fast with validation error (intended stricter parity behavior).
+
+Loop Update
+- 2026-02-15T15:35:18+05:30
+- tracked_now_ts: `2026-02-15T15:35:18+05:30`
+- tracked_elapsed: `85h 41m 26s`
+- active_in_progress: `M15-S10 cross-module idempotency contract unification matrix (standardize header semantics + helper parity across sales/production/accounting endpoint families)`
+- continuity_recheck:
+  - inventory controller parity for legacy idempotency headers is now aligned with shared helper behavior.
+  - `AccountingController` remains primary-header only and is currently dirty with unrelated pre-existing local deltas, so direct parity patch there requires isolation strategy to avoid bundling unknown changes.
+  - `verify_local` remains blocked only by known schema-drift v2 allowlist baseline, not by this commit.
+
+Queue Rotation (Auto-Replenish)
+- [in_progress] M15-S10 cross-module idempotency contract unification matrix (standardize header semantics + helper parity across sales/production/accounting endpoint families)
+- [ready] M15-S11 recognized-revenue/pending-credit contract docs + endpoint parity matrix (internal and user-facing portal docs must match shipment gate + pending exposure behavior)
+- [ready] M15-S12 idempotency header contract convergence doc+runtime assert sweep (sales/production/accounting entrypoints must share canonical header semantics and error model)
+- [ready] M15-S15 pending-status normalization performance guard (evaluate/land Flyway V2-safe functional index or normalized-token strategy so aggregate pending-status predicates retain index-friendly plans under high order volume)
+- [ready] M15-S16 dealer-settlement replay e2e defense-in-depth matrix (optional end-to-end `settleDealerInvoices` replay assertion where adjustment debit lines coexist with split payments to further harden payment-account bounded remap behavior)
+- [ready] M15-S18 dispatch replay COGS reference payload parity guard (assert `postCogsJournal` reference/memo/line payload stability on replay anchors and prevent wrong-reference postings under override replay paths)
+- [ready] M15-S19 dispatch replay slip-number fallback + AR-overload guard matrix (cover `hasCogsJournalFor` alternate slip-number fallback and explicitly lock both `postSalesJournal` overload paths against duplicate replay posting)
+- [ready] M14-S48 costing-selection enum drift guard (new/legacy costing tokens must remain centrally mapped via `CostingMethodUtils` with no per-module fallback forks)
+- [ready] M14-S49 catalog-import retry-winner ledger/journal silence guard (stale-retry loser payloads must never produce duplicate accounting side effects while winner replay remains idempotent)
+- [ready] M11-S7 accounting-portal scope invariant lock (HR, PURCHASING, INVENTORY, REPORTS remain under Accounting portal unless replacement portal map + endpoint docs are updated atomically)
