@@ -9030,3 +9030,21 @@ Queue Rotation (Post-Closure Reseed)
   - Add a shared assertion helper in `AccountingControllerExceptionHandlerTest` to dedupe partner replay payload checks and reduce brittle duplicate literals.
 - [ready] M19-S3 release gate artifact normalization
   - Verify gate artifact outputs for this head are attached to `artifacts/gate-*` consistently and update async ledger evidence pointers.
+
+[2026-02-16] M19-S2 controller error payload contract consolidation (completed)
+- Completed Slice (Committed): dedupe replay error envelope assertions
+  - Commit `b5905af9`: introduced shared helper assertions in `AccountingControllerExceptionHandlerTest` for replay-error envelope checks.
+  - Review findings (medium/low): helper lacked `code`/`traceId` checks and status/code parameterization.
+- Follow-up Fix (Committed)
+  - Commit `986ea73e`: helper now asserts `code` + `traceId` and takes explicit expected status/code.
+  - Review finding (medium): missing `success=false` assertion in non-replay bad-request contract.
+- Follow-up Fix (Committed)
+  - Commit `dde50bc5`: added `body.success().isFalse()` in `handleApplicationException_keepsBadRequestContractWithStructuredPayload`.
+- Verification:
+  - `cd erp-domain && mvn -B -ntp -Dtest=AccountingControllerExceptionHandlerTest test` (PASS).
+- Final review:
+  - subagent re-check for current file state -> **no findings**.
+
+Loop Update
+- tracked_now_ts: `2026-02-16T02:31:10+05:30`
+- active_in_progress: `M19-S1 replay mismatch contract drift sentinel`
