@@ -63,4 +63,4 @@ erp-domain/src/main/java/com/bigbrightpaints/erp/orchestrator/service/CommandDis
 erp-domain/src/main/java/com/bigbrightpaints/erp/orchestrator/service/IntegrationCoordinator.java | Cross-module handoff idempotency
 erp-domain/src/main/java/com/bigbrightpaints/erp/orchestrator/repository/OrchestratorCommandRepository.java | Command dedupe and lifecycle
 erp-domain/src/main/java/com/bigbrightpaints/erp/orchestrator/policy/PolicyEnforcer.java | Policy gates for orchestration
-erp-domain/src/main/java/com/bigbrightpaints/erp/orchestrator/service/OrchestratorIdempotencyService.java | Idempotency key persistence and reuse checks
+erp-domain/src/main/java/com/bigbrightpaints/erp/orchestrator/service/OrchestratorIdempotencyService.java | `idempotencyKey` persistence and reuse checks
