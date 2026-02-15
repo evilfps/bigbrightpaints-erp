@@ -63,10 +63,31 @@ Feature expansion is not the goal unless required to remove workflow risk.
   - manages users, approvals, settings inside own tenant.
 - Enforce by service-layer checks, not controller-only checks.
 
+### 4.4 Superadmin platform control plane (mandatory)
+Superadmin must have tenant-level operational controls:
+- Observability metrics per tenant:
+  - active users,
+  - current concurrent sessions/requests,
+  - DB/storage usage,
+  - API consumption and error-rate summary.
+- Quota and usage controls:
+  - set/increase/decrease user limits,
+  - set/increase/decrease usage limits (API/storage/concurrency as defined by policy tier),
+  - soft-limit warnings and hard-limit enforcement rules.
+- Enforcement controls:
+  - hold/block tenant state with reason code and audit trail,
+  - unblock/resume with controlled workflow and audit trail,
+  - emergency tenant throttle mode for abuse/incident containment.
+- Governance:
+  - all superadmin control actions are immutable-audited,
+  - no tenant admin can override superadmin platform limits.
+
 ### 4.3 Tenant acceptance criteria
 - Header/JWT/company mismatch always fails closed.
 - Tenant bootstrap and tenant admin creation are superadmin-only.
 - Cross-tenant IDOR matrix tests pass for critical APIs.
+- Superadmin metrics and limit controls are available and tested.
+- Hold/block and quota changes are enforced at runtime and audit-linked.
 
 ## 5) Workflow Unification Program (All Major Flows)
 
@@ -267,6 +288,7 @@ Current rule:
 ## 18) Immediate M18 Queue (Stability-Only)
 - `M18-S1`: docs-only review skip policy + runbook alignment.
 - `M18-S2`: multi-tenant authority model (SUPER_ADMIN vs ADMIN) and tenant bootstrap hardening.
+- `M18-S2A`: superadmin control plane (tenant metrics, quota tuning, hold/block, runtime enforcement).
 - `M18-S3`: workflow census + duplicate-path decisions for O2C/P2P/production/payroll.
 - `M18-S4`: approval/override policy matrix hardening across dealer/supplier/accounting.
 - `M18-S5`: split-payment and settlement idempotency/race matrix closure.

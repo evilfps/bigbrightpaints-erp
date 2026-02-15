@@ -8671,6 +8671,7 @@ Master Plan Refresh (Final Scope Contract)
 Queue Rotation (Master Plan M18)
 - [in_progress] M18-S1 docs-only review-skip policy and runbook alignment closure
 - [ready] M18-S2 multi-tenant authority hardening (`SUPER_ADMIN` tenant creation, tenant-scoped `ADMIN` only)
+- [ready] M18-S2A superadmin control plane (`active users`, `DB/storage usage`, `concurrency`, `hold/block`, usage limit tuning and enforcement)
 - [ready] M18-S3 cross-module workflow census + selective redesign decisions (O2C/P2P/production/payroll)
 - [ready] M18-S4 approval and override hardening matrix (dealer/supplier/accounting)
 - [ready] M18-S5 split-payment + settlement idempotency/race closure
