@@ -8871,3 +8871,64 @@ Loop Iteration Evidence - 2026-02-15T23:58:49+05:30
 [2026-02-16] M8-S12C guard false-positive boundary fixture: added fixture `non_integration_event_with_literal_token_arg_pass` to confirm parser does not misclassify non-INTEGRATION_FAILURE events when the literal token appears in non-event argument position. Verification: bash scripts/guard_integration_failure_metadata_schema.sh && bash scripts/guard_integration_failure_metadata_schema_fixture_matrix.sh (PASS).
 
 [2026-02-16] M10-S1 gate-fast catalog unblock: added missing critical truthsuite entries to TEST_CATALOG v2 (`TS_CostingHelperCentralizationContractTest`, `TS_FactoryRawMaterialWacFallbackContractTest`, `TS_P2PPurchaseSettlementBoundaryTest`). Verification: bash scripts/gate_fast.sh reached changed-files coverage stage with critical truth lane PASS (75/75); remaining fail is changed-files coverage thresholds against broad branch diff base.
+
+[2026-02-16] M10-S2 async-loop ledger-gate closure + replay mismatch hardening evidence
+- Completed Slice (Committed): Release guard contract fixture/env stabilization
+  - Commit `6e6bb69b`: `scripts/guard_flyway_guard_contract.sh`
+  - Change: added missing integration-failure guard stubs in fixture contract + isolated fixture env from host `PG*` leakage.
+  - Verification: `bash scripts/guard_flyway_guard_contract.sh` (PASS)
+  - Review: subagent `019c62e1-942d-7810-801f-97d0add72301` -> no findings.
+
+- Completed Slice (Committed): Partner/supplier replay mismatch dedupe in accounting service
+  - Commit `0f164504`: deduped partner mismatch checks via shared helpers in `AccountingService`.
+  - Verification: `cd erp-domain && mvn -B -ntp -Dtest=AccountingServiceTest,TS_RuntimeAccountingReplayConflictExecutableCoverageTest test` (PASS)
+  - Review: subagent `019c62e1-942d-7810-801f-97d0add72301` -> no findings.
+
+- Completed Slice (Committed): Changed-file branch coverage closure for replay helper refactor
+  - Commits `f65528ed` + `80d5c2ac`: expanded runtime replay coverage for helper branch matrix and null partner-edge paths.
+  - Verification:
+    - `DIFF_BASE=06d85e792d2a80cd9fc1f8e5dc15d6dfa15dd93e GATE_FAST_RELEASE_VALIDATION_MODE=true bash scripts/gate_fast.sh`
+    - final result: PASS with changed-file coverage `line 24/24`, `branch 36/36`.
+  - Review: subagent `019c62e1-942d-7810-801f-97d0add72301` -> no findings.
+
+- Ledger Gate Closure Protocol Evidence (same HEAD train, v2 path)
+  - Anchored fast gate:
+    - `DIFF_BASE=06d85e792d2a80cd9fc1f8e5dc15d6dfa15dd93e GATE_FAST_RELEASE_VALIDATION_MODE=true bash scripts/gate_fast.sh` -> PASS
+  - Core gate:
+    - `bash scripts/gate_core.sh` -> PASS
+  - Reconciliation gate:
+    - `bash scripts/gate_reconciliation.sh` -> PASS
+  - Release gate (v2 migrations, local PG):
+    - `PGHOST=127.0.0.1 PGPORT=55432 PGUSER=erp PGPASSWORD=erp PGDATABASE=postgres bash scripts/gate_release.sh` -> PASS
+    - includes v2 fresh+upgrade migration matrix and predeploy scans clean.
+
+- Completed Slice (Committed): M18-S5 replay mismatch metadata assertions from settlement service call-sites
+  - Commit `be833424`: added dealer/supplier replay partner-mismatch assertions in `AccountingServiceTest` to enforce idempotency metadata payload (`idempotencyKey`, `partnerType`, `partnerId`) and conflict reason text.
+  - Verification: `cd erp-domain && mvn -B -ntp -Dtest=AccountingServiceTest test` (PASS)
+  - Review: subagent flagged low/medium test-claim brittleness -> fixed in follow-up commits below.
+
+- Follow-up Review Fixes (Committed)
+  - Commit `5b0a5dc3`: tightened replay interaction assertions (intermediate step).
+    - Verification: `cd erp-domain && mvn -B -ntp -Dtest=AccountingServiceTest test` (PASS after fix iteration)
+    - Review: subagent flagged branch-provenance brittleness.
+  - Commit `ddd52c87`: de-brittled assertions by removing internal query-strategy coupling and narrowing claim surface.
+    - Verification: `cd erp-domain && mvn -B -ntp -Dtest=AccountingServiceTest test` (PASS)
+    - Review: subagent `019c62e1-942d-7810-801f-97d0add72301` -> no findings.
+
+Loop Update
+- tracked_now_ts: `2026-02-16T01:55:20+05:30`
+- active_in_progress: `M18-S5A settlement replay branch-provenance proof pack`
+- continuity_recheck:
+  - All final ledger gates currently green on v2 path.
+  - Replay mismatch metadata is asserted at both helper level and service-level settlement tests.
+  - Next focus: explicit branch provenance proofs without brittle repository coupling.
+
+Queue Rotation (Auto-Replenish)
+- [in_progress] M18-S5A settlement replay branch-provenance proof pack
+  - Add deterministic branch provenance assertions for non-leader replay paths using behavior-level signals (not repository internals).
+- [ready] M18-S4A approval/override policy matrix hardening across dealer/supplier/accounting
+  - Extend negative-path tests for override authorization + audit event consistency.
+- [ready] M18-S6A GST/non-GST settlement posting drift guards
+  - Add invariants that prevent mixed-tax-state replay drift in settlement adjustment paths.
+- [ready] M18-S10A staging rollback rehearsal evidence normalizer
+  - Capture repeatable rollback drill evidence format and ensure scripts emit stable artifact keys.
