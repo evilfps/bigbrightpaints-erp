@@ -8849,3 +8849,5 @@ Loop Iteration Evidence - 2026-02-15T23:58:49+05:30
   - Result: PASS (Tests run: 13, Failures: 0, Errors: 0, Skipped: 0)
 - Next gate:
   - commit review subagent on this commit.
+
+[2026-02-16] M3-S7 non-leader replay settlement detail guards: added service-level tests for dealer/supplier paths asserting ApplicationException detail payload includes idempotencyKey, partnerType, partnerId (source-level). Verification: cd erp-domain && mvn -B -ntp -Dtest=AccountingServiceTest test (PASS).

@@ -3537,6 +3537,92 @@ class AccountingServiceTest {
     }
 
     @Test
+    void settleDealerInvoices_nonLeaderReplayMissingAllocationsIncludesPartnerDetails() {
+        Dealer dealer = new Dealer();
+        dealer.setName("Dealer");
+        ReflectionTestUtils.setField(dealer, "id", 1L);
+
+        Account receivable = new Account();
+        receivable.setCompany(company);
+        receivable.setCode("AR-RACE");
+        receivable.setType(AccountType.ASSET);
+        ReflectionTestUtils.setField(receivable, "id", 10L);
+        dealer.setReceivableAccount(receivable);
+
+        Account cash = new Account();
+        cash.setCompany(company);
+        cash.setCode("CASH-RACE");
+        cash.setType(AccountType.ASSET);
+        ReflectionTestUtils.setField(cash, "id", 20L);
+
+        var invoice = new com.bigbrightpaints.erp.modules.invoice.domain.Invoice();
+        invoice.setCompany(company);
+        invoice.setDealer(dealer);
+        invoice.setCurrency("INR");
+        invoice.setOutstandingAmount(new BigDecimal("1000.00"));
+        invoice.setTotalAmount(new BigDecimal("1000.00"));
+        ReflectionTestUtils.setField(invoice, "id", 5L);
+
+        JournalEntry existingEntry = new JournalEntry();
+        ReflectionTestUtils.setField(existingEntry, "id", 991L);
+        existingEntry.setDealer(dealer);
+        existingEntry.setReferenceNumber("DR-SETTLE-RACE-1");
+
+        JournalReferenceMapping mapping = new JournalReferenceMapping();
+        mapping.setCompany(company);
+        mapping.setLegacyReference("idemp-dr-race-miss");
+        mapping.setCanonicalReference("DR-SETTLE-RACE-1");
+        mapping.setEntityType("DEALER_SETTLEMENT");
+        mapping.setEntityId(null);
+
+        when(dealerRepository.lockByCompanyAndId(eq(company), eq(1L))).thenReturn(Optional.of(dealer));
+        when(companyEntityLookup.requireAccount(eq(company), eq(20L))).thenReturn(cash);
+        when(journalReferenceMappingRepository.findAllByCompanyAndLegacyReferenceIgnoreCase(eq(company), eq("idemp-dr-race-miss")))
+                .thenReturn(List.of(mapping));
+        when(settlementAllocationRepository.findByCompanyAndIdempotencyKey(eq(company), eq("IDEMP-DR-RACE-MISS")))
+                .thenReturn(List.of());
+        when(journalReferenceResolver.findExistingEntry(eq(company), eq("DR-SETTLE-RACE-1")))
+                .thenReturn(Optional.of(existingEntry));
+        when(settlementAllocationRepository.findByCompanyAndIdempotencyKeyIgnoreCaseOrderByCreatedAtAscIdAsc(
+                eq(company), eq("IDEMP-DR-RACE-MISS")))
+                .thenReturn(List.of());
+
+        DealerSettlementRequest request = new DealerSettlementRequest(
+                1L,
+                20L,
+                null,
+                null,
+                null,
+                null,
+                LocalDate.of(2024, 4, 9),
+                "DR-SETTLE-RACE-1",
+                "Dealer settlement replay race",
+                "IDEMP-DR-RACE-MISS",
+                Boolean.FALSE,
+                List.of(new SettlementAllocationRequest(
+                        5L,
+                        null,
+                        new BigDecimal("100.00"),
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        null
+                )),
+                null
+        );
+
+        assertThatThrownBy(() -> accountingService.settleDealerInvoices(request))
+                .isInstanceOfSatisfying(ApplicationException.class, ex -> {
+                    assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.INTERNAL_CONCURRENCY_FAILURE);
+                    assertThat(ex.getDetails())
+                            .containsEntry("idempotencyKey", "IDEMP-DR-RACE-MISS")
+                            .containsEntry("partnerType", "DEALER")
+                            .containsEntry("partnerId", 1L);
+                })
+                .hasMessageContaining("Dealer settlement idempotency key is reserved but allocation not found");
+    }
+
+    @Test
     void settleDealerInvoices_replayPayloadMismatchWinsOverNetCashPrevalidation() {
         Dealer dealer = new Dealer();
         dealer.setName("Replay Dealer");
@@ -6394,6 +6480,83 @@ class AccountingServiceTest {
         assertThatThrownBy(() -> accountingService.settleSupplierInvoices(request))
                 .isInstanceOf(ApplicationException.class)
                 .hasMessageContaining("different journal than settled allocations");
+    }
+
+    @Test
+    void settleSupplierInvoices_nonLeaderReplayMissingAllocationsIncludesPartnerDetails() {
+        Supplier supplier = new Supplier();
+        supplier.setName("Supplier");
+        ReflectionTestUtils.setField(supplier, "id", 1L);
+
+        Account payable = new Account();
+        payable.setCompany(company);
+        payable.setCode("AP-RACE");
+        payable.setType(AccountType.LIABILITY);
+        ReflectionTestUtils.setField(payable, "id", 10L);
+        supplier.setPayableAccount(payable);
+
+        Account cash = new Account();
+        cash.setCompany(company);
+        cash.setCode("CASH-RACE");
+        cash.setType(AccountType.ASSET);
+        ReflectionTestUtils.setField(cash, "id", 20L);
+
+        JournalEntry existingEntry = new JournalEntry();
+        ReflectionTestUtils.setField(existingEntry, "id", 992L);
+        existingEntry.setSupplier(supplier);
+        existingEntry.setReferenceNumber("SUP-SETTLE-RACE-1");
+
+        JournalReferenceMapping mapping = new JournalReferenceMapping();
+        mapping.setCompany(company);
+        mapping.setLegacyReference("idemp-ap-race-miss");
+        mapping.setCanonicalReference("SUP-SETTLE-RACE-1");
+        mapping.setEntityType("SUPPLIER_SETTLEMENT");
+        mapping.setEntityId(null);
+
+        when(supplierRepository.lockByCompanyAndId(eq(company), eq(1L))).thenReturn(Optional.of(supplier));
+        when(companyEntityLookup.requireAccount(eq(company), eq(20L))).thenReturn(cash);
+        when(journalReferenceMappingRepository.findAllByCompanyAndLegacyReferenceIgnoreCase(eq(company), eq("idemp-ap-race-miss")))
+                .thenReturn(List.of(mapping));
+        when(settlementAllocationRepository.findByCompanyAndIdempotencyKey(eq(company), eq("IDEMP-AP-RACE-MISS")))
+                .thenReturn(List.of());
+        when(journalReferenceResolver.findExistingEntry(eq(company), eq("SUP-SETTLE-RACE-1")))
+                .thenReturn(Optional.of(existingEntry));
+        when(settlementAllocationRepository.findByCompanyAndIdempotencyKeyIgnoreCaseOrderByCreatedAtAscIdAsc(
+                eq(company), eq("IDEMP-AP-RACE-MISS")))
+                .thenReturn(List.of());
+
+        SupplierSettlementRequest request = new SupplierSettlementRequest(
+                1L,
+                20L,
+                null,
+                null,
+                null,
+                null,
+                LocalDate.of(2024, 4, 9),
+                "SUP-SETTLE-RACE-1",
+                "Supplier settlement replay race",
+                "IDEMP-AP-RACE-MISS",
+                Boolean.FALSE,
+                List.of(new SettlementAllocationRequest(
+                        null,
+                        null,
+                        new BigDecimal("100.00"),
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        null
+                ))
+        );
+
+        assertThatThrownBy(() -> accountingService.settleSupplierInvoices(request))
+                .isInstanceOfSatisfying(ApplicationException.class, ex -> {
+                    assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.INTERNAL_CONCURRENCY_FAILURE);
+                    assertThat(ex.getDetails())
+                            .containsEntry("idempotencyKey", "IDEMP-AP-RACE-MISS")
+                            .containsEntry("partnerType", "SUPPLIER")
+                            .containsEntry("partnerId", 1L);
+                })
+                .hasMessageContaining("Supplier settlement idempotency key is reserved but allocation not found");
     }
 
     @Test
