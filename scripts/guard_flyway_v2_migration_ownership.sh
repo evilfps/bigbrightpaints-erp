@@ -56,15 +56,48 @@ mapfile -t missing_pk_tables < <(
       return normalized == "id"
     }
 
-    function paren_delta(raw, opens, closes, tmp) {
-      tmp = raw
-      opens = gsub(/\(/, "(", tmp)
-      tmp = raw
-      closes = gsub(/\)/, ")", tmp)
-      return opens - closes
+    function paren_delta(raw, i, ch, in_quote, delta, next_ch, sq) {
+      in_quote = 0
+      delta = 0
+      sq = sprintf("%c", 39)
+      for (i = 1; i <= length(raw); i++) {
+        ch = substr(raw, i, 1)
+        if (ch == sq) {
+          next_ch = substr(raw, i + 1, 1)
+          if (in_quote && next_ch == sq) {
+            i++
+            continue
+          }
+          in_quote = !in_quote
+          continue
+        }
+        if (!in_quote) {
+          if (ch == "(") {
+            delta++
+          } else if (ch == ")") {
+            delta--
+          }
+        }
+      }
+      return delta
     }
 
-    function mark_pk_contract(table_name, line_raw, line_upper, line_no_quotes, open_pos, fragment, close_pos, unique_body) {
+    function id_bigint_not_null_on_line(raw, normalized, segment, comma_pos) {
+      normalized = tolower(raw)
+      gsub(/"/, "", normalized)
+      if (match(normalized, /(^|[(,])[[:space:]]*id[[:space:]]+bigint([^[:alnum:]_]|$)/) == 0) {
+        return 0
+      }
+
+      segment = substr(normalized, RSTART)
+      comma_pos = index(segment, ",")
+      if (comma_pos > 0) {
+        segment = substr(segment, 1, comma_pos - 1)
+      }
+      return segment ~ /not[[:space:]]+null([^[:alnum:]_]|$)/
+    }
+
+    function mark_pk_contract(table_name, line_raw, line_upper, line_no_quotes, segment, open_pos, close_pos, unique_body) {
       if (table_name == "") {
         return
       }
@@ -79,35 +112,38 @@ mapfile -t missing_pk_tables < <(
         return
       }
 
-      if (!unique_open[table_name]) {
-        if (match(line_upper, /UNIQUE[[:space:]]*\(/) == 0) {
+      segment = line_no_quotes
+      while (1) {
+        if (unique_open[table_name]) {
+          close_pos = index(segment, ")")
+          if (close_pos == 0) {
+            if (unique_buffer[table_name] != "") {
+              unique_buffer[table_name] = unique_buffer[table_name] " " segment
+            } else {
+              unique_buffer[table_name] = segment
+            }
+            return
+          }
+
+          unique_body = substr(segment, 1, close_pos - 1)
+          if (unique_buffer[table_name] != "") {
+            unique_body = unique_buffer[table_name] " " unique_body
+          }
+          if (unique_columns_exact_id(unique_body)) {
+            has_pk[table_name] = 1
+          }
+          reset_unique_state(table_name)
+          segment = substr(segment, close_pos + 1)
+          continue
+        }
+
+        if (match(toupper(segment), /UNIQUE[[:space:]]*\(/) == 0) {
           return
         }
         open_pos = RSTART + RLENGTH - 1
-        fragment = substr(line_no_quotes, open_pos + 1)
+        segment = substr(segment, open_pos + 1)
         unique_open[table_name] = 1
         unique_buffer[table_name] = ""
-      } else {
-        fragment = line_no_quotes
-      }
-
-      close_pos = index(fragment, ")")
-      if (close_pos > 0) {
-        unique_body = substr(fragment, 1, close_pos - 1)
-        if (unique_buffer[table_name] != "") {
-          unique_body = unique_buffer[table_name] " " unique_body
-        }
-        if (unique_columns_exact_id(unique_body)) {
-          has_pk[table_name] = 1
-        }
-        reset_unique_state(table_name)
-        return
-      }
-
-      if (unique_buffer[table_name] != "") {
-        unique_buffer[table_name] = unique_buffer[table_name] " " fragment
-      } else {
-        unique_buffer[table_name] = fragment
       }
     }
 
@@ -162,9 +198,7 @@ mapfile -t missing_pk_tables < <(
       }
 
       if (in_create) {
-        lower_no_quotes = tolower(line)
-        gsub(/"/, "", lower_no_quotes)
-        if (lower_no_quotes ~ /(^|[(,])[[:space:]]*id[[:space:]]+bigint[[:space:]]+not[[:space:]]+null([[:space:]]*[,)]|[[:space:]]*$)/) {
+        if (id_bigint_not_null_on_line(line)) {
           create_has_id = 1
         }
 
