@@ -9822,3 +9822,30 @@ Loop Update
 Loop Update
 - tracked_now_ts: `2026-02-16T10:36:35+05:30`
 - active_in_progress: `M8/M9 tranche execution + testing-lane parity hardening + live review drain`
+
+[2026-02-16] M19-S43 V2 migration safety scans anchored clean
+- DB/predeploy gate checks:
+  - `bash scripts/flyway_overlap_scan.sh --migration-set v2` -> PASS (`findings=0`, scanned 18 migrations).
+  - `bash scripts/schema_drift_scan.sh --migration-set v2` -> PASS (`findings=0`).
+- Impact:
+  - V2 overlap/drift safety gates currently hold for scanned migration tree.
+
+[2026-02-16] M19-S44 review-regression fix for testing-lane parity restore
+- Trigger:
+  - review of `1a24e82d` surfaced two actionable issues in restored repository logic:
+    - PostgreSQL-incompatible DSO arithmetic expression.
+    - historical as-of aging undercount due to cutoff-insensitive paid-status filtering.
+- Fix commit: `e1020d1d`
+- Scope:
+  - patched both production and testing-lane `DealerLedgerRepository` to keep parity and eliminate drift:
+    - `findAllUnpaidAsOf(...)` now includes entries paid after cutoff (`paidDate > :asOfDate`).
+    - DSO native query now uses PostgreSQL-safe day-delta average (`AVG((paid_date - entry_date)::numeric)`).
+- Validation:
+  - `cd erp-domain && mvn -B -ntp -Dtest=AgingReportServiceTest,ReportServiceTest test` -> PASS (`2/2` in available suite).
+  - `cd testing/erp-domain && mvn -B -ntp -Dtest=EventPublisherServiceTest,CommandDispatcherTest test` -> PASS (`11/11`).
+- Review:
+  - `codex review --commit e1020d1d` -> running in background (no timeout mode).
+
+Loop Update
+- tracked_now_ts: `2026-02-16T10:38:52+05:30`
+- active_in_progress: `M8/M9 tranche execution + review-fix closure + live review drain`
