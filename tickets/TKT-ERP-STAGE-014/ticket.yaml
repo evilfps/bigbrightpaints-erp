@@ -1,0 +1,45 @@
+ticket_id: TKT-ERP-STAGE-014
+title: ERP Staging Batch 14 - Workflow Decision Log Refresh
+goal: 'M18-S3B docs closure: refresh canonical workflow/duplicate-path decisions from
+  latest merged slices'
+priority: high
+status: planned
+base_branch: harness-engineering-orchestrator
+worktree_root: /home/realnigga/Desktop/orchestrator_erp_worktrees/_tmp_orch_cleanrepo_worktrees
+created_at: '2026-02-16T21:40:12+00:00'
+updated_at: '2026-02-16T21:40:12+00:00'
+r3_required: true
+orchestrator_authority:
+  r1: orchestrator
+  r2: orchestrator
+  r3: human
+slices:
+- id: SLICE-01
+  primary_agent: repo-cartographer
+  reviewers:
+  - orchestrator
+  scope_paths:
+  - docs/CODE-RED/decision-log.md
+  allowed_scope_paths:
+  - docs/
+  - ARCHITECTURE.md
+  - AGENTS.md
+  matched_rules:
+  - docs/
+  lane: w1
+  branch: tickets/tkt-erp-stage-014/repo-cartographer
+  worktree_path: /home/realnigga/Desktop/orchestrator_erp_worktrees/_tmp_orch_cleanrepo_worktrees/TKT-ERP-STAGE-014/repo-cartographer
+  required_checks:
+  - bash ci/lint-knowledgebase.sh
+  status: ready
+  objective: 'M18-S3B docs closure: refresh canonical workflow/duplicate-path decisions
+    from latest merged slices'
+  workflow_upstream_slices: []
+  workflow_downstream_slices: []
+  workflow_external_upstream_agents: []
+  workflow_external_downstream_agents: []
+  cross_workflow_contracts: []
+cross_workflow:
+  model: workflow_agent_edges_v1
+  generated_at: '2026-02-16T21:40:12+00:00'
+  in_ticket_edges: []

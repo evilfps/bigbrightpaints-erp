@@ -1,0 +1,109 @@
+ticket_id: TKT-ERP-STAGE-013
+title: ERP Staging Batch 13 - Settlement Replay Race Matrix
+goal: 'M18-S5B: harden settlement idempotency replay/race diagnostics and deterministic
+  conflict handling'
+priority: high
+status: planned
+base_branch: harness-engineering-orchestrator
+worktree_root: /home/realnigga/Desktop/orchestrator_erp_worktrees/_tmp_orch_cleanrepo_worktrees
+created_at: '2026-02-16T21:40:12+00:00'
+updated_at: '2026-02-16T21:40:12+00:00'
+r3_required: true
+orchestrator_authority:
+  r1: orchestrator
+  r2: orchestrator
+  r3: human
+slices:
+- id: SLICE-01
+  primary_agent: accounting-domain
+  reviewers:
+  - qa-reliability
+  - security-governance
+  scope_paths:
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingService.java
+  allowed_scope_paths:
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/
+  - erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/
+  - erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/accounting/
+  matched_rules:
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/
+  lane: w1
+  branch: tickets/tkt-erp-stage-013/accounting-domain
+  worktree_path: /home/realnigga/Desktop/orchestrator_erp_worktrees/_tmp_orch_cleanrepo_worktrees/TKT-ERP-STAGE-013/accounting-domain
+  required_checks:
+  - cd erp-domain && mvn -B -ntp -Dtest='*Accounting*' test
+  - bash scripts/verify_local.sh
+  status: ready
+  objective: 'M18-S5B: harden settlement idempotency replay/race diagnostics and deterministic
+    conflict handling'
+  workflow_upstream_slices: []
+  workflow_downstream_slices: []
+  workflow_external_upstream_agents:
+  - auth-rbac-company
+  - factory-production
+  - hr-domain
+  - orchestrator-runtime
+  - purchasing-invoice-p2p
+  - sales-domain
+  workflow_external_downstream_agents: []
+  cross_workflow_contracts:
+  - relation: upstream-external
+    agent: auth-rbac-company
+    slice_id: ''
+    contract: finance/admin authority boundaries
+    in_ticket: false
+  - relation: upstream-external
+    agent: factory-production
+    slice_id: ''
+    contract: wip/variance/cogs posting linkage
+    in_ticket: false
+  - relation: upstream-external
+    agent: hr-domain
+    slice_id: ''
+    contract: payroll liability/payment posting linkage
+    in_ticket: false
+  - relation: upstream-external
+    agent: orchestrator-runtime
+    slice_id: ''
+    contract: outbox/idempotency posting orchestration
+    in_ticket: false
+  - relation: upstream-external
+    agent: purchasing-invoice-p2p
+    slice_id: ''
+    contract: ap/posting and settlement linkage
+    in_ticket: false
+  - relation: upstream-external
+    agent: sales-domain
+    slice_id: ''
+    contract: o2c posting and receivable linkage
+    in_ticket: false
+- id: SLICE-02
+  primary_agent: refactor-techdebt-gc
+  reviewers:
+  - qa-reliability
+  scope_paths:
+  - erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeAccountingReplayConflictExecutableCoverageTest.java
+  allowed_scope_paths:
+  - erp-domain/src/main/java/
+  - erp-domain/src/test/java/
+  - docs/
+  matched_rules:
+  - <fallback>
+  lane: w2
+  branch: tickets/tkt-erp-stage-013/refactor-techdebt-gc
+  worktree_path: /home/realnigga/Desktop/orchestrator_erp_worktrees/_tmp_orch_cleanrepo_worktrees/TKT-ERP-STAGE-013/refactor-techdebt-gc
+  required_checks:
+  - bash ci/check-architecture.sh
+  - cd erp-domain && mvn -B -ntp test
+  status: ready
+  objective: 'M18-S5B: harden settlement idempotency replay/race diagnostics and deterministic
+    conflict handling'
+  workflow_upstream_slices: []
+  workflow_downstream_slices: []
+  workflow_external_upstream_agents: []
+  workflow_external_downstream_agents: []
+  cross_workflow_contracts: []
+cross_workflow:
+  model: workflow_agent_edges_v1
+  generated_at: '2026-02-16T21:40:12+00:00'
+  in_ticket_edges: []
