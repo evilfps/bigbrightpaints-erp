@@ -44,6 +44,7 @@ class TaxServiceTest {
         company = new Company();
         company.setCode("BBP");
         when(companyContextService.requireCurrentCompany()).thenReturn(company);
+        when(companyClock.today(company)).thenReturn(LocalDate.of(2024, 12, 15));
     }
 
     @Test
@@ -117,6 +118,15 @@ class TaxServiceTest {
         assertThatThrownBy(() -> taxService.generateGstReturn(period))
                 .isInstanceOf(ApplicationException.class)
                 .hasMessageContaining("Non-GST mode company cannot have GST tax accounts configured");
+    }
+
+    @Test
+    void generateGstReturn_rejectsFuturePeriod() {
+        when(companyClock.today(company)).thenReturn(LocalDate.of(2024, 4, 15));
+
+        assertThatThrownBy(() -> taxService.generateGstReturn(YearMonth.of(2024, 5)))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("GST return period cannot be in the future");
     }
 
     private JournalLine line(BigDecimal debit, BigDecimal credit) {
