@@ -1,5 +1,7 @@
 package com.bigbrightpaints.erp.modules.accounting.service;
 
+import com.bigbrightpaints.erp.core.exception.ApplicationException;
+import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.core.util.MoneyUtils;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalLine;
@@ -13,6 +15,7 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.YearMonth;
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -40,19 +43,17 @@ public class TaxService {
         LocalDate start = target.atDay(1);
         LocalDate end = target.atEndOfMonth();
 
+        if (isNonGstMode(company)) {
+            ensureNonGstCompanyDoesNotCarryGstAccounts(company);
+            return buildGstReturn(target, start, end, BigDecimal.ZERO, BigDecimal.ZERO);
+        }
+
         var taxConfig = companyAccountingSettingsService.requireTaxAccounts();
 
         BigDecimal outputTax = MoneyUtils.roundCurrency(sumTax(company, taxConfig.outputTaxAccountId(), start, end, true));
         BigDecimal inputTax = MoneyUtils.roundCurrency(sumTax(company, taxConfig.inputTaxAccountId(), start, end, false));
 
-        GstReturnDto dto = new GstReturnDto();
-        dto.setPeriod(target);
-        dto.setPeriodStart(start);
-        dto.setPeriodEnd(end);
-        dto.setOutputTax(outputTax);
-        dto.setInputTax(inputTax);
-        dto.setNetPayable(MoneyUtils.roundCurrency(outputTax.subtract(inputTax)));
-        return dto;
+        return buildGstReturn(target, start, end, outputTax, inputTax);
     }
 
     private BigDecimal sumTax(Company company, Long accountId, LocalDate start, LocalDate end, boolean outputTax) {
@@ -72,6 +73,46 @@ public class TaxService {
 
     private BigDecimal safe(BigDecimal value) {
         return value == null ? BigDecimal.ZERO : value;
+    }
+
+    private boolean isNonGstMode(Company company) {
+        BigDecimal defaultGstRate = company.getDefaultGstRate();
+        return defaultGstRate != null && defaultGstRate.compareTo(BigDecimal.ZERO) == 0;
+    }
+
+    private void ensureNonGstCompanyDoesNotCarryGstAccounts(Company company) {
+        List<String> configured = new ArrayList<>();
+        if (company.getGstInputTaxAccountId() != null) {
+            configured.add("gstInputTaxAccountId");
+        }
+        if (company.getGstOutputTaxAccountId() != null) {
+            configured.add("gstOutputTaxAccountId");
+        }
+        if (company.getGstPayableAccountId() != null) {
+            configured.add("gstPayableAccountId");
+        }
+        if (configured.isEmpty()) {
+            return;
+        }
+        throw new ApplicationException(
+                ErrorCode.VALIDATION_INVALID_INPUT,
+                "Non-GST mode company cannot have GST tax accounts configured")
+                .withDetail("configured", configured);
+    }
+
+    private GstReturnDto buildGstReturn(YearMonth period,
+                                        LocalDate periodStart,
+                                        LocalDate periodEnd,
+                                        BigDecimal outputTax,
+                                        BigDecimal inputTax) {
+        GstReturnDto dto = new GstReturnDto();
+        dto.setPeriod(period);
+        dto.setPeriodStart(periodStart);
+        dto.setPeriodEnd(periodEnd);
+        dto.setOutputTax(outputTax);
+        dto.setInputTax(inputTax);
+        dto.setNetPayable(MoneyUtils.roundCurrency(outputTax.subtract(inputTax)));
+        return dto;
     }
 
 }
