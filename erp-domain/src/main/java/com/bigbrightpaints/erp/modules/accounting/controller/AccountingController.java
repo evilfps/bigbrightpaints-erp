@@ -115,6 +115,22 @@ public class AccountingController {
                 .body(ApiResponse.failure(ex.getUserMessage(), errorData));
     }
 
+    @ExceptionHandler(IllegalStateException.class)
+    public ResponseEntity<ApiResponse<Map<String, Object>>> handleIllegalStateException(
+            IllegalStateException ex,
+            HttpServletRequest request) {
+        String message = StringUtils.hasText(ex.getMessage()) ? ex.getMessage() : "Invalid state";
+        String traceId = UUID.randomUUID().toString();
+        Map<String, Object> errorData = new HashMap<>();
+        errorData.put("code", ErrorCode.BUSINESS_INVALID_STATE.getCode());
+        errorData.put("message", message);
+        errorData.put("reason", message);
+        errorData.put("path", request != null ? request.getRequestURI() : null);
+        errorData.put("traceId", traceId);
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ApiResponse.failure(message, errorData));
+    }
+
     @GetMapping("/accounts")
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
     public ResponseEntity<ApiResponse<List<AccountDto>>> accounts() {

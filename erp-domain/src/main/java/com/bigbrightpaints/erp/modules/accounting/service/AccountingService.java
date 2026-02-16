@@ -623,7 +623,7 @@ public class AccountingService {
             if (e.getMessage() != null) {
                 auditMetadata.put("error", e.getMessage());
             }
-            auditService.logFailure(AuditEvent.JOURNAL_ENTRY_POSTED, auditMetadata);
+            logAuditFailureSafe(AuditEvent.JOURNAL_ENTRY_POSTED, auditMetadata);
             throw e;
         }
     }
@@ -3643,18 +3643,34 @@ public class AccountingService {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
-                    auditService.logSuccess(event, capturedMetadata);
+                    logAuditSuccessSafe(event, capturedMetadata);
                 }
             });
             return;
         }
-        auditService.logSuccess(event, capturedMetadata);
+        logAuditSuccessSafe(event, capturedMetadata);
     }
 
     private boolean shouldEmitAuditServiceSuccessEvent(AuditEvent event) {
         return event != AuditEvent.JOURNAL_ENTRY_POSTED
                 && event != AuditEvent.JOURNAL_ENTRY_REVERSED
                 && event != AuditEvent.SETTLEMENT_RECORDED;
+    }
+
+    private void logAuditSuccessSafe(AuditEvent event, Map<String, String> metadata) {
+        try {
+            auditService.logSuccess(event, metadata);
+        } catch (Exception ex) {
+            log.warn("Failed to emit audit success event {}", event, ex);
+        }
+    }
+
+    private void logAuditFailureSafe(AuditEvent event, Map<String, String> metadata) {
+        try {
+            auditService.logFailure(event, metadata);
+        } catch (Exception ex) {
+            log.warn("Failed to emit audit failure event {}", event, ex);
+        }
     }
 
     /**
