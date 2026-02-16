@@ -11,6 +11,19 @@ runtime:
   loop_source: asyncloop
   no_timeout: true
   max_parallel_slices: 4
+  execution_mode_default: codex_exec
+  execution_mode_supported:
+    - codex_exec
+    - tmux
+  codex_exec:
+    require_explicit_model_and_reasoning: true
+    default_model: gpt-5.3-codex
+    reasoning_policy:
+      xhigh: high-risk semantics (accounting, auth, migration, orchestration)
+      high: medium-high complexity feature/bug slice
+      medium: simple bounded task
+  allow_special_permission_grants: true
+  require_orchestrator_monitoring_for_permission_grants: true
   required_slice_outputs:
     - files_changed
     - commands_run
@@ -26,11 +39,24 @@ automation:
   orchestrator_review_template: docs/agents/templates/ORCHESTRATOR_REVIEW.md
   default_worktree_root: ../orchestrator_erp_worktrees
   cleanup_worktrees_on_merge: true
+  cleanup_owned_branches_on_merge: true
+  cleanup_branch_scope: orchestrator_created_only
+  codex_open_command: codex --yolo
   tmux_lanes:
     - w1
     - w2
     - w3
     - w4
+dispatch_protocol:
+  ask_human_next_focus_when_idle: true
+  flow_options_for_human:
+    - codex_exec
+    - tmux
+  require_agent_identity_on_every_submission: true
+  task_packet_isolation_required: true
+  prevent_cross_slice_packet_reads: true
+  agent_yaml_binding_required: true
+  static_review_required_before_merge: true
 cross_module_protocol:
   sequence:
     - contracts_events_interfaces
@@ -171,6 +197,7 @@ review_pipeline:
   require_orchestrator_premerge_review: true
   block_on_cross_slice_overlaps: true
   block_on_scope_violations: true
+  require_static_review_before_merge: true
   require_codex_review_guidelines_check: true
   required_checks:
     - bash ci/lint-knowledgebase.sh

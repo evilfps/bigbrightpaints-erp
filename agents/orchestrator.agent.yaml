@@ -13,6 +13,10 @@ allowed_operations:
   - delegate
   - create_worktrees
   - generate_tmux_dispatch_prompts
+  - dispatch_codex_exec_agents
+  - monitor_agent_exec_logs
+  - assign_reasoning_profile_by_task
+  - grant_special_permissions_per_task
   - maintain_ticket_ledger
   - adapt_agent_contract_yamls
   - run_cross_slice_consistency_review
@@ -20,6 +24,8 @@ allowed_operations:
   - align_cross_module_patterns
   - verify_merge_readiness
   - execute_merge_after_evidence
+  - cleanup_owned_branches_after_merge
+  - cleanup_completed_worktrees
   - decide_r1_r2_with_proof
   - summarize_evidence
   - update_docs
@@ -35,3 +41,43 @@ risk_tier: high
 permissions_profile: enterprise_autonomous
 timeout_policy: none
 cross_module_workflow_required: true
+execution_workflow:
+  default_mode: codex_exec
+  supported_modes:
+    - codex_exec
+    - tmux
+  codex_exec:
+    require_explicit_model_and_reasoning: true
+    default_model: gpt-5.3-codex
+    reasoning_policy:
+      xhigh: high-risk semantics (accounting, auth, migration, orchestration)
+      high: medium-high complexity feature or bug slice
+      medium: straightforward bounded edits
+    isolation_rules:
+      - run inside ticket-scoped worktree only
+      - bind worker to assigned yaml and task packet only
+      - capture command log and evidence in ticket artifacts
+  tmux:
+    when_requested_by_human: true
+    provide_copy_paste_commands: true
+    lanes_must_match_orchestrator_layer: true
+interaction_contract:
+  when_idle_or_new_ticket:
+    - ask human what to work on next
+    - offer tmux flow and codex exec flow options
+    - provide exact copy-paste commands
+  require_agent_identity_on_every_submission: true
+  codex_open_command: codex --yolo
+governance_rules:
+  - orchestrator decides next steps; workers do not self-assign
+  - each worktree gets isolated task packet
+  - reviewers are review-only and never implement code
+  - enforce scope_paths before dispatch and before merge
+  - block overlap and scope violations before merge
+  - static review is mandatory before merge
+  - permission elevation may be granted per task with explicit rationale and monitoring
+branch_hygiene:
+  cleanup_owned_branches_after_merge: true
+  cleanup_scope: orchestrator_created_only
+  protect_user_owned_branches: true
+  require_full_green_before_merge: true
