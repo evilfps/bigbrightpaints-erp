@@ -1739,14 +1739,16 @@ public class AccountingService {
                 JournalEntry entry = resolveReplayJournalEntry(trimmedIdempotencyKey, existingEntry, existingAllocations);
                 linkReferenceMapping(company, trimmedIdempotencyKey, entry, ENTITY_TYPE_DEALER_SETTLEMENT);
                 validateSettlementIdempotencyKey(trimmedIdempotencyKey, PartnerType.DEALER, dealer.getId(), existingAllocations, allocations);
-                validateSettlementJournalLines(trimmedIdempotencyKey, dealer, memo, entry, lineDraft.lines());
+                validatePartnerSettlementJournalLines(
+                        trimmedIdempotencyKey,
+                        PartnerType.DEALER,
+                        dealer.getId(),
+                        memo,
+                        entry,
+                        lineDraft.lines());
                 return buildDealerSettlementResponse(existingAllocations);
             }
-            throw new ApplicationException(ErrorCode.INTERNAL_CONCURRENCY_FAILURE,
-                    "Dealer settlement idempotency key is reserved but allocation not found")
-                    .withDetail(IntegrationFailureMetadataSchema.KEY_IDEMPOTENCY_KEY, trimmedIdempotencyKey)
-                    .withDetail(IntegrationFailureMetadataSchema.KEY_PARTNER_TYPE, PartnerType.DEALER.name())
-                    .withDetail(IntegrationFailureMetadataSchema.KEY_PARTNER_ID, dealer.getId());
+            throw missingReservedSettlementAllocation(trimmedIdempotencyKey, PartnerType.DEALER, dealer.getId());
         }
 
         List<PartnerSettlementAllocation> existingAllocations = findAllocationsByIdempotencyKey(company, trimmedIdempotencyKey);
@@ -1758,7 +1760,13 @@ public class AccountingService {
                     existingAllocations);
             linkReferenceMapping(company, trimmedIdempotencyKey, entry, ENTITY_TYPE_DEALER_SETTLEMENT);
             validateSettlementIdempotencyKey(trimmedIdempotencyKey, PartnerType.DEALER, dealer.getId(), existingAllocations, allocations);
-            validateSettlementJournalLines(trimmedIdempotencyKey, dealer, memo, entry, lineDraft.lines());
+            validatePartnerSettlementJournalLines(
+                    trimmedIdempotencyKey,
+                    PartnerType.DEALER,
+                    dealer.getId(),
+                    memo,
+                    entry,
+                    lineDraft.lines());
             return buildDealerSettlementResponse(existingAllocations);
         }
 
@@ -1861,7 +1869,13 @@ public class AccountingService {
                         concurrent);
                 linkReferenceMapping(company, trimmedIdempotencyKey, existingEntry, ENTITY_TYPE_DEALER_SETTLEMENT);
                 validateSettlementIdempotencyKey(trimmedIdempotencyKey, PartnerType.DEALER, dealer.getId(), concurrent, allocations);
-                validateSettlementJournalLines(trimmedIdempotencyKey, dealer, memo, existingEntry, lineDraft.lines());
+                validatePartnerSettlementJournalLines(
+                        trimmedIdempotencyKey,
+                        PartnerType.DEALER,
+                        dealer.getId(),
+                        memo,
+                        existingEntry,
+                        lineDraft.lines());
                 return buildDealerSettlementResponse(concurrent);
             }
             throw ex;
@@ -1960,14 +1974,16 @@ public class AccountingService {
                 JournalEntry entry = resolveReplayJournalEntry(trimmedIdempotencyKey, existingEntry, existingAllocations);
                 linkReferenceMapping(company, trimmedIdempotencyKey, entry, ENTITY_TYPE_SUPPLIER_SETTLEMENT);
                 validateSettlementIdempotencyKey(trimmedIdempotencyKey, PartnerType.SUPPLIER, supplier.getId(), existingAllocations, allocations);
-                validateSupplierSettlementJournalLines(trimmedIdempotencyKey, supplier, memo, entry, replayLineDraft.lines());
+                validatePartnerSettlementJournalLines(
+                        trimmedIdempotencyKey,
+                        PartnerType.SUPPLIER,
+                        supplier.getId(),
+                        memo,
+                        entry,
+                        replayLineDraft.lines());
                 return buildSupplierSettlementResponse(existingAllocations);
             }
-            throw new ApplicationException(ErrorCode.INTERNAL_CONCURRENCY_FAILURE,
-                    "Supplier settlement idempotency key is reserved but allocation not found")
-                    .withDetail(IntegrationFailureMetadataSchema.KEY_IDEMPOTENCY_KEY, trimmedIdempotencyKey)
-                    .withDetail(IntegrationFailureMetadataSchema.KEY_PARTNER_TYPE, PartnerType.SUPPLIER.name())
-                    .withDetail(IntegrationFailureMetadataSchema.KEY_PARTNER_ID, supplier.getId());
+            throw missingReservedSettlementAllocation(trimmedIdempotencyKey, PartnerType.SUPPLIER, supplier.getId());
         }
 
         List<PartnerSettlementAllocation> existingAllocations = findAllocationsByIdempotencyKey(company, trimmedIdempotencyKey);
@@ -1981,7 +1997,13 @@ public class AccountingService {
                     buildSupplierSettlementLines(company, request, payableAccount, cashAccount, totals, memo);
             linkReferenceMapping(company, trimmedIdempotencyKey, entry, ENTITY_TYPE_SUPPLIER_SETTLEMENT);
             validateSettlementIdempotencyKey(trimmedIdempotencyKey, PartnerType.SUPPLIER, supplier.getId(), existingAllocations, allocations);
-            validateSupplierSettlementJournalLines(trimmedIdempotencyKey, supplier, memo, entry, replayLineDraft.lines());
+            validatePartnerSettlementJournalLines(
+                    trimmedIdempotencyKey,
+                    PartnerType.SUPPLIER,
+                    supplier.getId(),
+                    memo,
+                    entry,
+                    replayLineDraft.lines());
             return buildSupplierSettlementResponse(existingAllocations);
         }
 
@@ -2083,7 +2105,13 @@ public class AccountingService {
                         concurrent);
                 linkReferenceMapping(company, trimmedIdempotencyKey, existingEntry, ENTITY_TYPE_SUPPLIER_SETTLEMENT);
                 validateSettlementIdempotencyKey(trimmedIdempotencyKey, PartnerType.SUPPLIER, supplier.getId(), concurrent, allocations);
-                validateSupplierSettlementJournalLines(trimmedIdempotencyKey, supplier, memo, existingEntry, lineDraft.lines());
+                validatePartnerSettlementJournalLines(
+                        trimmedIdempotencyKey,
+                        PartnerType.SUPPLIER,
+                        supplier.getId(),
+                        memo,
+                        existingEntry,
+                        lineDraft.lines());
                 return buildSupplierSettlementResponse(concurrent);
             }
             throw ex;
@@ -2910,34 +2938,36 @@ public class AccountingService {
                 "Idempotency key already used for a different supplier payment payload");
     }
 
-    private void validateSettlementJournalLines(String idempotencyKey,
-                                                Dealer dealer,
-                                                String memo,
-                                                JournalEntry entry,
-                                                List<JournalEntryRequest.JournalLineRequest> expectedLines) {
+    private void validatePartnerSettlementJournalLines(String idempotencyKey,
+                                                       PartnerType partnerType,
+                                                       Long partnerId,
+                                                       String memo,
+                                                       JournalEntry entry,
+                                                       List<JournalEntryRequest.JournalLineRequest> expectedLines) {
         validatePartnerJournalReplay(
                 idempotencyKey,
-                PartnerType.DEALER,
-                dealer != null ? dealer.getId() : null,
+                partnerType,
+                partnerId,
                 memo,
                 entry,
                 expectedLines,
                 "Idempotency key already used for a different settlement payload");
     }
 
-    private void validateSupplierSettlementJournalLines(String idempotencyKey,
-                                                        Supplier supplier,
-                                                        String memo,
-                                                        JournalEntry entry,
-                                                        List<JournalEntryRequest.JournalLineRequest> expectedLines) {
-        validatePartnerJournalReplay(
-                idempotencyKey,
-                PartnerType.SUPPLIER,
-                supplier != null ? supplier.getId() : null,
-                memo,
-                entry,
-                expectedLines,
-                "Idempotency key already used for a different settlement payload");
+    private ApplicationException missingReservedSettlementAllocation(String idempotencyKey,
+                                                                     PartnerType partnerType,
+                                                                     Long partnerId) {
+        String settlementSubject = partnerType == PartnerType.SUPPLIER ? "Supplier settlement" : "Dealer settlement";
+        ApplicationException exception = new ApplicationException(
+                ErrorCode.INTERNAL_CONCURRENCY_FAILURE,
+                settlementSubject + " idempotency key is reserved but allocation not found")
+                .withDetail(IntegrationFailureMetadataSchema.KEY_IDEMPOTENCY_KEY, idempotencyKey)
+                .withDetail(IntegrationFailureMetadataSchema.KEY_PARTNER_TYPE,
+                        partnerType != null ? partnerType.name() : "null");
+        if (partnerId != null) {
+            exception.withDetail(IntegrationFailureMetadataSchema.KEY_PARTNER_ID, partnerId);
+        }
+        return exception;
     }
 
     private void validatePartnerJournalReplay(String idempotencyKey,
