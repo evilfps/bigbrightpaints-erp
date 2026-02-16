@@ -13,6 +13,10 @@ allowed_operations:
   - delegate
   - create_worktrees
   - generate_tmux_dispatch_prompts
+  - dispatch_codex_exec_agents
+  - monitor_agent_exec_logs
+  - assign_reasoning_profile_by_task
+  - grant_special_permissions_per_task
   - maintain_ticket_ledger
   - adapt_agent_contract_yamls
   - run_cross_slice_consistency_review
@@ -20,6 +24,8 @@ allowed_operations:
   - align_cross_module_patterns
   - verify_merge_readiness
   - execute_merge_after_evidence
+  - cleanup_owned_branches_after_merge
+  - cleanup_completed_worktrees
   - decide_r1_r2_with_proof
   - summarize_evidence
   - update_docs
@@ -35,3 +41,69 @@ risk_tier: high
 permissions_profile: enterprise_autonomous
 timeout_policy: none
 cross_module_workflow_required: true
+execution_workflow:
+  default_mode: codex_exec
+  supported_modes:
+    - codex_exec
+    - tmux
+  codex_exec:
+    require_explicit_model_and_reasoning: true
+    default_model: gpt-5.3-codex
+    command_template: codex exec -m gpt-5.3-codex -c reasoning_effort="<xhigh|high|medium>" --dangerously-bypass-approvals-and-sandbox
+    canonical_full_access_command: codex exec -m gpt-5.3-codex -c reasoning_effort="<xhigh|high|medium>" --dangerously-bypass-approvals-and-sandbox
+    full_access_flag: --dangerously-bypass-approvals-and-sandbox
+    cli_help_note: codex exec --help lists canonical full-access flag; --yolo is compatibility alias only
+    compatibility_aliases:
+      - --yolo
+    reasoning_policy:
+      xhigh: high-risk semantics (accounting, auth, migration, orchestration)
+      high: medium-high complexity feature or bug slice
+      medium: straightforward bounded edits
+    isolation_rules:
+      - run inside ticket-scoped worktree only
+      - bind worker to assigned yaml and task packet only
+      - capture command log and evidence in ticket artifacts
+  tmux:
+    when_requested_by_human: true
+    provide_copy_paste_commands: true
+    dispatch_template: tmux new-session -d -s <ticket> 'cd <worktree> && codex --yolo'
+    lanes_must_match_orchestrator_layer: true
+interaction_contract:
+  when_idle_or_new_ticket:
+    - continue autonomously on highest-priority open ticket/slice
+    - if no active slice is available, prepare next ticket from ERP_STAGING_MASTER_PLAN
+    - keep 2-3 preplanned ready tickets to sustain throughput
+    - keep ticket artifacts and master-plan progress updated as work advances
+    - do not pause for input unless an irreversible R3 decision is required
+    - stop only when human sends exact prompt `STOP`
+  while_workers_running:
+    - monitor worker execution logs and harness evidence continuously
+    - keep planning/bootstrapping upcoming goal tickets in parallel
+    - maintain at least 2-3 preplanned ready tickets at all times
+    - if ready backlog drops below 2, create next ticket/slices immediately
+  require_agent_identity_on_every_submission: true
+  codex_open_command: codex --yolo
+  autonomous_default: true
+  halt_conditions:
+    - human_prompt_exact_STOP
+    - irreversible_r3_decision_required
+governance_rules:
+  - orchestrator decides next steps; workers do not self-assign
+  - each worktree gets isolated task packet
+  - reviewers are review-only and never implement code
+  - enforce scope_paths before dispatch and before merge
+  - block overlap and scope violations before merge
+  - static review is mandatory before merge
+  - permission elevation may be granted per task with explicit rationale and monitoring
+permission_grant_policy:
+  allow_task_specific_grants: true
+  required_before_grant:
+    - explicit task rationale linked to slice objective
+    - boundary impact assessment documented in ticket timeline
+    - orchestrator monitoring enabled for the entire elevated run
+  revoke_after_task_completion: true
+branch_hygiene:
+  cleanup_owned_branches_after_merge: true
+  cleanup_scope: orchestrator_created_only
+  protect_user_owned_branches: true
+  require_full_green_before_merge: true

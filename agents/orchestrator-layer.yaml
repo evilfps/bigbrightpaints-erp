@@ -1,5 +1,5 @@
 version: 1
-last_reviewed: 2026-02-15
+last_reviewed: 2026-02-16
 orchestrator_id: orchestrator
 decision_model:
   mode: proof_first
@@ -11,6 +11,25 @@ runtime:
   loop_source: asyncloop
   no_timeout: true
   max_parallel_slices: 4
+  execution_mode_default: codex_exec
+  execution_mode_supported:
+    - codex_exec
+    - tmux
+  codex_exec:
+    require_explicit_model_and_reasoning: true
+    default_model: gpt-5.3-codex
+    command_template: codex exec -m gpt-5.3-codex -c reasoning_effort="<xhigh|high|medium>" --dangerously-bypass-approvals-and-sandbox
+    canonical_full_access_command: codex exec -m gpt-5.3-codex -c reasoning_effort="<xhigh|high|medium>" --dangerously-bypass-approvals-and-sandbox
+    full_access_flag: --dangerously-bypass-approvals-and-sandbox
+    cli_help_note: codex exec --help lists canonical full-access flag; --yolo is compatibility alias only
+    compatibility_aliases:
+      - --yolo
+    reasoning_policy:
+      xhigh: high-risk semantics (accounting, auth, migration, orchestration)
+      high: medium-high complexity feature/bug slice
+      medium: simple bounded task
+  allow_special_permission_grants: true
+  require_orchestrator_monitoring_for_permission_grants: true
   required_slice_outputs:
     - files_changed
     - commands_run
@@ -26,11 +45,46 @@ automation:
   orchestrator_review_template: docs/agents/templates/ORCHESTRATOR_REVIEW.md
   default_worktree_root: ../orchestrator_erp_worktrees
   cleanup_worktrees_on_merge: true
+  cleanup_owned_branches_on_merge: true
+  cleanup_branch_scope: orchestrator_created_only
+  codex_open_command: codex --yolo
+  throughput_backlog_policy:
+    minimum_preplanned_ready_tickets: 2
+    target_preplanned_ready_tickets: 3
+    enforce_during_active_worker_runs: true
+    replenish_trigger_threshold: 2
+    source_of_truth: docs/system-map/Goal/ERP_STAGING_MASTER_PLAN.md
   tmux_lanes:
     - w1
     - w2
     - w3
     - w4
+dispatch_protocol:
+  ask_human_next_focus_when_idle: false
+  autonomous_continuous_execution: true
+  stop_condition_exact_prompt: STOP
+  when_idle:
+    - continue highest-priority planned ticket automatically
+    - if all active tickets are blocked, create and prepare next goal-aligned ticket
+    - maintain at least 2-3 preplanned ready tickets for throughput
+    - keep `tickets/` artifacts and ERP_STAGING_MASTER_PLAN progress current
+  while_workers_running:
+    - keep monitoring active worker logs/evidence and unblock promptly
+    - keep planning/bootstrapping upcoming goal tickets in parallel
+    - replenish backlog immediately if ready tickets drop below two
+  flow_command_templates:
+    codex_exec: codex exec -m gpt-5.3-codex -c reasoning_effort="<xhigh|high|medium>" --dangerously-bypass-approvals-and-sandbox
+    tmux: tmux new-session -d -s <ticket> 'cd <worktree> && codex --yolo'
+  require_agent_identity_on_every_submission: true
+  task_packet_isolation_required: true
+  prevent_cross_slice_packet_reads: true
+  agent_yaml_binding_required: true
+  static_review_required_before_merge: true
+  permission_grant_governance:
+    allowed: true
+    require_ticket_evidence: true
+    require_orchestrator_live_monitoring: true
+    auto_revoke_after_slice: true
 cross_module_protocol:
   sequence:
     - contracts_events_interfaces
@@ -171,6 +225,7 @@ review_pipeline:
   require_orchestrator_premerge_review: true
   block_on_cross_slice_overlaps: true
   block_on_scope_violations: true
+  require_static_review_before_merge: true
   require_codex_review_guidelines_check: true
   required_checks:
     - bash ci/lint-knowledgebase.sh

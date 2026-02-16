@@ -1,6 +1,6 @@
 # Agent Permissions Model
 
-Last reviewed: 2026-02-15
+Last reviewed: 2026-02-16
 Owner: Security & Governance Agent
 
 ## Permission Tiers
@@ -44,8 +44,10 @@ R1/R2 are orchestrator-owned when evidence is complete.
 - Orchestrator may grant temporary task-bound permission expansions to a worker when a slice is blocked and the unblock path is explicit.
 - Expansions must be:
   - scoped to named paths/modules
+  - tied to a named ticket and slice id
   - justified in ticket timeline/reports with evidence
   - actively monitored during execution
+  - time/goal bounded and removed immediately after unblock objective
   - revoked after the unblock objective is complete
 - Minor temporary drift for context gathering is acceptable, but implementation and commits must return to packet-defined scope unless orchestrator records an explicit scope exception.
 

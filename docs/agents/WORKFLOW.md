@@ -1,6 +1,6 @@
 # Agent Workflow and Lifecycle
 
-Last reviewed: 2026-02-15
+Last reviewed: 2026-02-16
 Owner: Orchestrator Agent
 
 ## Lifecycle
@@ -56,6 +56,19 @@ Owner: Orchestrator Agent
 - merge-time worktree cleanup (default from orchestrator-layer): `python3 scripts/harness_orchestrator.py verify --ticket-id <TKT-ID> --merge --cleanup-worktrees`
 - keep worktrees when needed: `python3 scripts/harness_orchestrator.py verify --ticket-id <TKT-ID> --merge --no-cleanup-worktrees`
 - orchestrator review artifact per slice: `tickets/<TKT-ID>/slices/<SLICE-ID>/orchestrator-review.md`
+
+## Codex Exec Command Standard
+- Canonical non-interactive full-access execution command:
+  - `codex exec -m gpt-5.3-codex -c reasoning_effort="<xhigh|high|medium>" --dangerously-bypass-approvals-and-sandbox`
+- `codex exec --help` documents the canonical full-access flag and may not list `--yolo`.
+- Treat `--yolo` as compatibility alias only; keep the canonical full-access flag in orchestrator command templates.
+- Always set model and reasoning effort explicitly for orchestrated execution agents.
+
+## Throughput While Workers Are Active
+- Orchestrator does not wait for idle periods to plan follow-up work.
+- While workers execute slices, orchestrator must keep at least 2-3 next tickets preplanned and ready.
+- If ready backlog drops below 2, orchestrator immediately prepares the next goal-aligned ticket from `docs/system-map/Goal/ERP_STAGING_MASTER_PLAN.md`.
+- Permission expansions for blocked slices remain task-bound and must follow `docs/agents/PERMISSIONS.md` evidence and monitoring rules.
 
 ## Scope Boundary Enforcement
 - Module agents may read broadly for context, but merge eligibility is blocked if a slice branch edits files outside that agent's `scope_paths`.

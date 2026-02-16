@@ -1,6 +1,6 @@
 # Orchestrator Layer Contract
 
-Last reviewed: 2026-02-15
+Last reviewed: 2026-02-16
 Owner: Orchestrator Agent
 
 This defines how the orchestrator controls all agents in long-running async loops.
@@ -25,6 +25,17 @@ This defines how the orchestrator controls all agents in long-running async loop
 4. For high-risk slices, it adds `security-governance` and `qa-reliability` reviewers.
 5. It runs required guard checks before marking done.
 6. It blocks merge when branch edits violate the assigned agent's `scope_paths`.
+
+## Autonomous Throughput During Active Runs
+- While workers are running, orchestrator keeps monitoring logs/evidence and plans upcoming work in parallel.
+- Throughput target is never below 2 preplanned ready tickets; preferred buffer is 3.
+- Next tickets must be selected from `docs/system-map/Goal/ERP_STAGING_MASTER_PLAN.md` and prepared before active slices finish.
+- Ticket/task-packet isolation still applies; planning ahead does not permit cross-slice packet leakage.
+
+## Codex Exec Flag Canon
+- Canonical full-access orchestrator execution flag: `--dangerously-bypass-approvals-and-sandbox`.
+- `codex exec --help` is the authority for current flag surface and does not always display compatibility aliases.
+- `--yolo` remains accepted as compatibility alias for open-session usage, not as canonical orchestration contract.
 
 ## Review Model (Mandatory)
 - Every slice requires:
