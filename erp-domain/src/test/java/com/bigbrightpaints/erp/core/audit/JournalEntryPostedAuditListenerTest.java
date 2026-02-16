@@ -44,7 +44,7 @@ class JournalEntryPostedAuditListenerTest {
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<Map<String, String>> metadataCaptor = ArgumentCaptor.forClass(Map.class);
-        verify(auditService).logSuccess(eq(AuditEvent.JOURNAL_ENTRY_POSTED), metadataCaptor.capture());
+        verify(auditService).logEvent(eq(AuditEvent.JOURNAL_ENTRY_POSTED), eq(AuditStatus.SUCCESS), metadataCaptor.capture());
         Map<String, String> metadata = metadataCaptor.getValue();
         assertThat(metadata).containsEntry("journalEntryId", "42");
         assertThat(metadata).containsEntry("journalReference", "JE-2026-00042");
@@ -63,7 +63,7 @@ class JournalEntryPostedAuditListenerTest {
 
         listener.onJournalEntryPosted(event);
 
-        verify(auditService, never()).logSuccess(eq(AuditEvent.JOURNAL_ENTRY_POSTED), org.mockito.ArgumentMatchers.anyMap());
+        verify(auditService, never()).logEvent(eq(AuditEvent.JOURNAL_ENTRY_POSTED), eq(AuditStatus.SUCCESS), org.mockito.ArgumentMatchers.anyMap());
     }
 
     @Test
@@ -77,7 +77,7 @@ class JournalEntryPostedAuditListenerTest {
         );
         doThrow(new IllegalStateException("audit-log-down"))
                 .when(auditService)
-                .logSuccess(eq(AuditEvent.JOURNAL_ENTRY_POSTED), org.mockito.ArgumentMatchers.anyMap());
+                .logEvent(eq(AuditEvent.JOURNAL_ENTRY_POSTED), eq(AuditStatus.SUCCESS), org.mockito.ArgumentMatchers.anyMap());
 
         assertThatCode(() -> listener.onJournalEntryPosted(event)).doesNotThrowAnyException();
     }

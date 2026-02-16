@@ -39,7 +39,7 @@ public class JournalEntryPostedAuditListener {
             metadata.put("correlationId", event.correlationId().toString());
         }
         try {
-            auditService.logSuccess(AuditEvent.JOURNAL_ENTRY_POSTED, metadata);
+            auditService.logEvent(AuditEvent.JOURNAL_ENTRY_POSTED, AuditStatus.SUCCESS, metadata);
         } catch (Exception ex) {
             log.warn("Failed to persist JOURNAL_ENTRY_POSTED audit marker for event {}", event.entryId(), ex);
         }
