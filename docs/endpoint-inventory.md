@@ -12,12 +12,20 @@ Related behavior contract:
 Portal scope guardrail:
 - HR, PURCHASING, INVENTORY, and REPORTS come under the Accounting portal in frontend scope.
 
+## M18-S9A parity evidence
+
+- OpenAPI snapshot: `openapi.json` (sha256 `33ddd163c102607970ff0f4c45e95f0c2a9d2965749187f68beb5c012216efa1`)
+- OpenAPI total paths: `228` (includes non-v1 route `GET /api/integration/health`)
+- OpenAPI total operations: `276`
+- Accounting portal endpoint-map parity: `docs/accounting-portal-endpoint-map.md` carries `143` method+path entries over `119` unique paths; all are represented in this inventory and in `openapi.json`.
+
 ## Summary by module
 
 | Module | Path count | Examples |
 |---|---:|---|
-| `accounting` | 57 | /api/v1/accounting/accounts, /api/v1/accounting/accounts/tree, /api/v1/accounting/accounts/tree/{type} |
+| `accounting` | 60 | /api/v1/accounting/accounts, /api/v1/accounting/accounts/tree, /api/v1/accounting/accounts/tree/{type} |
 | `admin` | 10 | /api/v1/admin/approvals, /api/v1/admin/notify, /api/v1/admin/roles |
+| `audit` | 2 | /api/v1/audit/business-events, /api/v1/audit/ml-events |
 | `auth` | 11 | /api/v1/auth/login, /api/v1/auth/logout, /api/v1/auth/me |
 | `companies` | 2 | /api/v1/companies, /api/v1/companies/{id} |
 | `credit` | 3 | /api/v1/credit/override-requests, /api/v1/credit/override-requests/{id}/approve, /api/v1/credit/override-requests/{id}/reject |
@@ -29,6 +37,7 @@ Portal scope guardrail:
 | `finished-goods` | 5 | /api/v1/finished-goods, /api/v1/finished-goods/low-stock, /api/v1/finished-goods/stock-summary |
 | `hr` | 11 | /api/v1/hr/attendance/bulk-mark, /api/v1/hr/attendance/date/{date}, /api/v1/hr/attendance/employee/{employeeId} |
 | `inventory` | 2 | /api/v1/inventory/adjustments, /api/v1/inventory/opening-stock |
+| `integration` | 1 | /api/integration/health |
 | `invoices` | 5 | /api/v1/invoices, /api/v1/invoices/dealers/{dealerId}, /api/v1/invoices/{id} |
 | `multi-company` | 1 | /api/v1/multi-company/companies/switch |
 | `orchestrator` | 12 | /api/v1/orchestrator/dashboard/admin, /api/v1/orchestrator/dashboard/factory, /api/v1/orchestrator/dashboard/finance |
@@ -39,7 +48,7 @@ Portal scope guardrail:
 | `raw-material-batches` | 1 | /api/v1/raw-material-batches/{rawMaterialId} |
 | `raw-materials` | 4 | /api/v1/raw-materials/intake, /api/v1/raw-materials/stock, /api/v1/raw-materials/stock/inventory |
 | `reports` | 12 | /api/v1/reports/account-statement, /api/v1/reports/balance-sheet, /api/v1/reports/balance-warnings |
-| `sales` | 14 | /api/v1/sales/credit-requests, /api/v1/sales/credit-requests/{id}, /api/v1/sales/dealers |
+| `sales` | 17 | /api/v1/sales/credit-requests, /api/v1/sales/credit-requests/{id}, /api/v1/sales/credit-requests/{id}/approve |
 | `suppliers` | 2 | /api/v1/suppliers, /api/v1/suppliers/{id} |
 
 ## High-risk duplicates / aliases (manual review)
@@ -78,6 +87,8 @@ P2P boundary clarification (not duplicate semantics within canonical chain):
 - `GET` `/api/v1/accounting/aging/suppliers/{supplierId}/pdf`
 - `GET` `/api/v1/accounting/audit/digest`
 - `GET` `/api/v1/accounting/audit/digest.csv`
+- `GET` `/api/v1/accounting/audit/transactions`
+- `GET` `/api/v1/accounting/audit/transactions/{journalEntryId}`
 - `POST` `/api/v1/accounting/bad-debts/write-off`
 - `POST` `/api/v1/accounting/catalog/import`
 - `GET, POST` `/api/v1/accounting/catalog/products`
@@ -85,6 +96,7 @@ P2P boundary clarification (not duplicate semantics within canonical chain):
 - `PUT` `/api/v1/accounting/catalog/products/{id}`
 - `GET` `/api/v1/accounting/configuration/health`
 - `POST` `/api/v1/accounting/credit-notes`
+- `GET` `/api/v1/accounting/date-context`
 - `POST` `/api/v1/accounting/debit-notes`
 - `GET, PUT` `/api/v1/accounting/default-accounts`
 - `GET` `/api/v1/accounting/gst/return`
@@ -135,6 +147,11 @@ P2P boundary clarification (not duplicate semantics within canonical chain):
 - `PATCH` `/api/v1/admin/users/{id}/mfa/disable`
 - `PATCH` `/api/v1/admin/users/{id}/suspend`
 - `PATCH` `/api/v1/admin/users/{id}/unsuspend`
+
+## `audit`
+
+- `GET` `/api/v1/audit/business-events`
+- `GET, POST` `/api/v1/audit/ml-events`
 
 ## `auth`
 
@@ -245,6 +262,10 @@ P2P boundary clarification (not duplicate semantics within canonical chain):
 - `GET, POST` `/api/v1/inventory/adjustments`
 - `POST` `/api/v1/inventory/opening-stock`
 
+## `integration`
+
+- `GET` `/api/integration/health`
+
 ## `invoices`
 
 - `GET` `/api/v1/invoices`
@@ -339,9 +360,12 @@ P2P boundary clarification (not duplicate semantics within canonical chain):
 
 - `GET, POST` `/api/v1/sales/credit-requests`
 - `PUT` `/api/v1/sales/credit-requests/{id}`
+- `POST` `/api/v1/sales/credit-requests/{id}/approve`
+- `POST` `/api/v1/sales/credit-requests/{id}/reject`
 - `GET` `/api/v1/sales/dealers`
 - `GET` `/api/v1/sales/dealers/search`
 - `POST` `/api/v1/sales/dispatch/confirm`
+- `POST` `/api/v1/sales/dispatch/reconcile-order-markers`
 - `GET, POST` `/api/v1/sales/orders`
 - `DELETE, PUT` `/api/v1/sales/orders/{id}`
 - `POST` `/api/v1/sales/orders/{id}/cancel`
