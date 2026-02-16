@@ -64,6 +64,7 @@ public class CommandDispatcher {
                 idempotencyKey,
                 request,
                 () -> workflowService.startWorkflow("order-approval"));
+        String canonicalIdempotencyKey = canonicalIdempotencyKey(lease, idempotencyKey);
         return executeWithLease(lease, () -> {
             String traceId = lease.traceId();
             InventoryReservationResult reservation = integrationCoordinator.reserveInventory(request.orderId(), companyId);
@@ -75,14 +76,14 @@ public class CommandDispatcher {
                         "approvedBy", request.approvedBy(),
                         "totalAmount", request.totalAmount(),
                         "traceId", traceId,
-                        "idempotencyKey", idempotencyKey),
+                        "idempotencyKey", canonicalIdempotencyKey),
                 traceId,
                 normalizedRequestId,
-                idempotencyKey);
+                canonicalIdempotencyKey);
             eventPublisherService.enqueue(event);
             traceService.record(traceId, "ORDER_APPROVED", companyId,
-                    Map.of("orderId", request.orderId(), "idempotencyKey", idempotencyKey),
-                    normalizedRequestId, idempotencyKey);
+                    Map.of("orderId", request.orderId(), "idempotencyKey", canonicalIdempotencyKey),
+                    normalizedRequestId, canonicalIdempotencyKey);
             return traceId;
         });
     }
@@ -99,6 +100,7 @@ public class CommandDispatcher {
                 idempotencyKey,
                 Map.of("orderId", orderId, "totalAmount", totalAmount),
                 () -> workflowService.startWorkflow("order-auto-approval"));
+        String canonicalIdempotencyKey = canonicalIdempotencyKey(lease, idempotencyKey);
         return executeWithLease(lease, () -> {
             String traceId = lease.traceId();
             IntegrationCoordinator.AutoApprovalResult result =
@@ -108,14 +110,14 @@ public class CommandDispatcher {
                             "awaitingProduction", result.awaitingProduction(),
                             "totalAmount", totalAmount,
                             "traceId", traceId,
-                            "idempotencyKey", idempotencyKey),
+                            "idempotencyKey", canonicalIdempotencyKey),
                     traceId,
                     normalizedRequestId,
-                    idempotencyKey);
+                    canonicalIdempotencyKey);
             eventPublisherService.enqueue(event);
             traceService.record(traceId, "ORDER_AUTO_APPROVED", companyId,
-                    Map.of("orderId", orderId, "idempotencyKey", idempotencyKey),
-                    normalizedRequestId, idempotencyKey);
+                    Map.of("orderId", orderId, "idempotencyKey", canonicalIdempotencyKey),
+                    normalizedRequestId, canonicalIdempotencyKey);
             return traceId;
         });
     }
@@ -134,6 +136,7 @@ public class CommandDispatcher {
                 idempotencyKey,
                 Map.of("orderId", orderId, "request", request),
                 () -> workflowService.startWorkflow("order-fulfillment"));
+        String canonicalIdempotencyKey = canonicalIdempotencyKey(lease, idempotencyKey);
         return executeWithLease(lease, () -> {
             String traceId = lease.traceId();
             IntegrationCoordinator.AutoApprovalResult result =
@@ -143,18 +146,18 @@ public class CommandDispatcher {
             payload.put("awaitingProduction", result.awaitingProduction());
             payload.put("notes", request.notes());
             payload.put("traceId", traceId);
-            payload.put("idempotencyKey", idempotencyKey);
+            payload.put("idempotencyKey", canonicalIdempotencyKey);
             DomainEvent event = DomainEvent.of("OrderFulfillmentUpdated", companyId, userId, "Order", orderId,
                     payload,
                     traceId,
                     normalizedRequestId,
-                    idempotencyKey);
+                    canonicalIdempotencyKey);
             eventPublisherService.enqueue(event);
             traceService.record(traceId, "ORDER_FULFILLMENT_UPDATED", companyId, Map.of(
                     "orderId", orderId,
                     "status", request.status(),
-                    "idempotencyKey", idempotencyKey),
-                    normalizedRequestId, idempotencyKey);
+                    "idempotencyKey", canonicalIdempotencyKey),
+                    normalizedRequestId, canonicalIdempotencyKey);
             return traceId;
         });
     }
@@ -172,12 +175,13 @@ public class CommandDispatcher {
                 idempotencyKey,
                 request,
                 () -> workflowService.startWorkflow("dispatch"));
+        String canonicalIdempotencyKey = canonicalIdempotencyKey(lease, idempotencyKey);
         if (!lease.shouldExecute()) {
             return lease.traceId();
         }
         if (!featureFlags.isFactoryDispatchEnabled()) {
             recordDeniedCommand(lease, "ORCH.FACTORY.BATCH.DISPATCH", companyId, userId,
-                    idempotencyKey, normalizedRequestId,
+                    canonicalIdempotencyKey, normalizedRequestId,
                     "/api/v1/factory", "Orchestrator factory dispatch is disabled (CODE-RED).",
                     "Batch", request != null ? request.batchId() : null);
             throw new OrchestratorFeatureDisabledException(
@@ -194,17 +198,17 @@ public class CommandDispatcher {
                     companyId,
                     request.postingAmount(),
                     traceId,
-                    idempotencyKey);
+                    canonicalIdempotencyKey);
             DomainEvent event = DomainEvent.of("ProductionBatchDispatchedEvent", companyId, userId, "Batch",
                 request.batchId(), Map.of("dispatchedBy", request.requestedBy(), "traceId", traceId,
-                        "idempotencyKey", idempotencyKey),
+                        "idempotencyKey", canonicalIdempotencyKey),
                 traceId,
                 normalizedRequestId,
-                idempotencyKey);
+                canonicalIdempotencyKey);
             eventPublisherService.enqueue(event);
             traceService.record(traceId, "BATCH_DISPATCHED", companyId,
-                    Map.of("batchId", request.batchId(), "idempotencyKey", idempotencyKey),
-                    normalizedRequestId, idempotencyKey);
+                    Map.of("batchId", request.batchId(), "idempotencyKey", canonicalIdempotencyKey),
+                    normalizedRequestId, canonicalIdempotencyKey);
             return traceId;
         });
     }
@@ -222,12 +226,13 @@ public class CommandDispatcher {
                 idempotencyKey,
                 request,
                 () -> workflowService.startWorkflow("payroll"));
+        String canonicalIdempotencyKey = canonicalIdempotencyKey(lease, idempotencyKey);
         if (!lease.shouldExecute()) {
             return lease.traceId();
         }
         if (!featureFlags.isPayrollEnabled()) {
             recordDeniedCommand(lease, "ORCH.PAYROLL.RUN", companyId, userId,
-                    idempotencyKey, normalizedRequestId,
+                    canonicalIdempotencyKey, normalizedRequestId,
                     "/api/v1/payroll/runs", "Orchestrator payroll run is disabled (CODE-RED).",
                     "Payroll", request != null && request.payrollDate() != null ? request.payrollDate().toString() : null);
             throw new OrchestratorFeatureDisabledException(
@@ -246,17 +251,17 @@ public class CommandDispatcher {
                     request.creditAccountId(),
                     companyId,
                     traceId,
-                    idempotencyKey);
+                    canonicalIdempotencyKey);
             DomainEvent event = DomainEvent.of("PayrollCompletedEvent", companyId, userId, "Payroll",
                 request.payrollDate().toString(), Map.of("initiatedBy", request.initiatedBy(), "traceId", traceId,
-                        "idempotencyKey", idempotencyKey),
+                        "idempotencyKey", canonicalIdempotencyKey),
                 traceId,
                 normalizedRequestId,
-                idempotencyKey);
+                canonicalIdempotencyKey);
             eventPublisherService.enqueue(event);
             traceService.record(traceId, "PAYROLL_COMPLETED", companyId,
-                    Map.of("payrollDate", request.payrollDate(), "idempotencyKey", idempotencyKey),
-                    normalizedRequestId, idempotencyKey);
+                    Map.of("payrollDate", request.payrollDate(), "idempotencyKey", canonicalIdempotencyKey),
+                    normalizedRequestId, canonicalIdempotencyKey);
             return traceId;
         });
     }
@@ -328,6 +333,17 @@ public class CommandDispatcher {
             return normalized;
         }
         return REQUEST_ID_HASH_PREFIX + DigestUtils.sha256Hex(normalized);
+    }
+
+    private String canonicalIdempotencyKey(OrchestratorIdempotencyService.CommandLease lease,
+                                           String fallbackIdempotencyKey) {
+        if (lease != null && lease.command() != null && StringUtils.hasText(lease.command().getIdempotencyKey())) {
+            return lease.command().getIdempotencyKey();
+        }
+        if (!StringUtils.hasText(fallbackIdempotencyKey)) {
+            return fallbackIdempotencyKey;
+        }
+        return fallbackIdempotencyKey.trim();
     }
 
     private String executeWithLease(OrchestratorIdempotencyService.CommandLease lease,

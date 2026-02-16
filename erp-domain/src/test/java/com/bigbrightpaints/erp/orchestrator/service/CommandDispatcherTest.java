@@ -434,4 +434,46 @@ class CommandDispatcherTest {
                 ArgumentMatchers.eq("auto-1"));
         verify(idempotencyService).markSuccess(command);
     }
+
+    @Test
+    void approveOrderUsesCanonicalLeaseIdempotencyKeyForEventAndTrace() {
+        OrchestratorCommand command =
+                new OrchestratorCommand(1L, "ORCH.ORDER.APPROVE", "idem-canonical", "hash", "trace-canonical");
+        ApproveOrderRequest request = new ApproveOrderRequest("201", "approver@bbp.com", new BigDecimal("1200"));
+        when(integrationCoordinator.reserveInventory("201", "COMP"))
+                .thenReturn(new InventoryReservationResult(null, List.of()));
+        when(idempotencyService.start(
+                ArgumentMatchers.eq("ORCH.ORDER.APPROVE"),
+                ArgumentMatchers.eq("  idem-canonical  "),
+                ArgumentMatchers.eq(request),
+                ArgumentMatchers.any()))
+                .thenReturn(new OrchestratorIdempotencyService.CommandLease("trace-canonical", command, true));
+
+        String traceId = commandDispatcher.approveOrder(
+                request,
+                "  idem-canonical  ",
+                "req-canonical",
+                "COMP",
+                "user-1");
+
+        assertThat(traceId).isEqualTo("trace-canonical");
+
+        ArgumentCaptor<DomainEvent> eventCaptor = ArgumentCaptor.forClass(DomainEvent.class);
+        verify(eventPublisherService).enqueue(eventCaptor.capture());
+        DomainEvent published = eventCaptor.getValue();
+        assertThat(published.idempotencyKey()).isEqualTo("idem-canonical");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> payload = (Map<String, Object>) published.payload();
+        assertThat(payload).containsEntry("idempotencyKey", "idem-canonical");
+
+        verify(traceService).record(
+                ArgumentMatchers.eq("trace-canonical"),
+                ArgumentMatchers.eq("ORDER_APPROVED"),
+                ArgumentMatchers.eq("COMP"),
+                ArgumentMatchers.<Map<String, Object>>argThat(map ->
+                        "201".equals(map.get("orderId")) && "idem-canonical".equals(map.get("idempotencyKey"))),
+                ArgumentMatchers.eq("req-canonical"),
+                ArgumentMatchers.eq("idem-canonical"));
+        verify(idempotencyService).markSuccess(command);
+    }
 }
