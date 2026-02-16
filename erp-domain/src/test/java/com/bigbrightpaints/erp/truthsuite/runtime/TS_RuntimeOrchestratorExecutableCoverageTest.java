@@ -349,4 +349,114 @@ class TS_RuntimeOrchestratorExecutableCoverageTest {
                 .hasMessageContaining("greater than zero for dispatch");
         verify(idempotencyService).markFailed(eq(invalidDispatch), any(RuntimeException.class));
     }
+
+    @Test
+    void commandDispatcher_update_fulfillment_path_covers_lease_canonical_idempotency_payload() {
+        WorkflowService workflowService = mock(WorkflowService.class);
+        IntegrationCoordinator integrationCoordinator = mock(IntegrationCoordinator.class);
+        EventPublisherService eventPublisherService = mock(EventPublisherService.class);
+        TraceService traceService = mock(TraceService.class);
+        PolicyEnforcer policyEnforcer = new PolicyEnforcer();
+        OrchestratorIdempotencyService idempotencyService = mock(OrchestratorIdempotencyService.class);
+        OrchestratorFeatureFlags featureFlags = mock(OrchestratorFeatureFlags.class);
+
+        CommandDispatcher dispatcher = new CommandDispatcher(
+                workflowService,
+                integrationCoordinator,
+                eventPublisherService,
+                traceService,
+                policyEnforcer,
+                idempotencyService,
+                featureFlags
+        );
+
+        OrchestratorCommand fulfillmentCommand = new OrchestratorCommand(
+                91L,
+                "ORCH.ORDER.FULFILLMENT.UPDATE",
+                "persisted-fulfillment-key",
+                "hash",
+                "trace-fulfillment");
+        OrchestratorIdempotencyService.CommandLease lease =
+                new OrchestratorIdempotencyService.CommandLease("trace-fulfillment", fulfillmentCommand, true);
+        when(idempotencyService.start(eq("ORCH.ORDER.FULFILLMENT.UPDATE"), eq("idem-fulfillment"), any(), any()))
+                .thenReturn(lease);
+        when(integrationCoordinator.updateFulfillment("SO-900", "processing", "C1"))
+                .thenReturn(new IntegrationCoordinator.AutoApprovalResult("processing", true));
+
+        String trace = dispatcher.updateOrderFulfillment(
+                "SO-900",
+                new OrderFulfillmentRequest("processing", "sync"),
+                "idem-fulfillment",
+                "req-fulfillment",
+                "C1",
+                "ops@bbp.com"
+        );
+
+        assertThat(trace).isEqualTo("trace-fulfillment");
+        verify(eventPublisherService, atLeastOnce()).enqueue(any());
+        verify(traceService).record(
+                eq("trace-fulfillment"),
+                any(),
+                eq("C1"),
+                any(),
+                eq("req-fulfillment"),
+                eq("persisted-fulfillment-key"));
+        verify(idempotencyService).markSuccess(fulfillmentCommand);
+    }
+
+    @Test
+    void commandDispatcher_private_idempotency_and_requestid_helpers_cover_all_branches() {
+        CommandDispatcher dispatcher = new CommandDispatcher(
+                mock(WorkflowService.class),
+                mock(IntegrationCoordinator.class),
+                mock(EventPublisherService.class),
+                mock(TraceService.class),
+                new PolicyEnforcer(),
+                mock(OrchestratorIdempotencyService.class),
+                mock(OrchestratorFeatureFlags.class)
+        );
+
+        String hashInput = "X".repeat(160);
+        String normalizedHashed = (String) ReflectionTestUtils.invokeMethod(
+                dispatcher, "normalizeRequestId", hashInput, "idem-fallback");
+        assertThat(normalizedHashed).startsWith("RIDH|");
+
+        String normalizedFromRequest = (String) ReflectionTestUtils.invokeMethod(
+                dispatcher, "normalizeRequestId", "  req-1  ", "idem-fallback");
+        assertThat(normalizedFromRequest).isEqualTo("req-1");
+
+        String normalizedFromFallback = (String) ReflectionTestUtils.invokeMethod(
+                dispatcher, "normalizeRequestId", "   ", "  idem-fallback  ");
+        assertThat(normalizedFromFallback).isEqualTo("idem-fallback");
+
+        String normalizedNull = (String) ReflectionTestUtils.invokeMethod(
+                dispatcher, "normalizeRequestId", null, "   ");
+        assertThat(normalizedNull).isNull();
+
+        OrchestratorCommand commandWithIdempotency = new OrchestratorCommand(
+                1L, "ORCH.ORDER.APPROVE", "persisted-key", "hash", "trace-1");
+        OrchestratorIdempotencyService.CommandLease leaseWithCommandKey =
+                new OrchestratorIdempotencyService.CommandLease("trace-1", commandWithIdempotency, true);
+        String canonicalFromLease = (String) ReflectionTestUtils.invokeMethod(
+                dispatcher, "canonicalIdempotencyKey", leaseWithCommandKey, "fallback-key");
+        assertThat(canonicalFromLease).isEqualTo("persisted-key");
+
+        OrchestratorCommand commandWithoutIdempotency = new OrchestratorCommand(
+                1L, "ORCH.ORDER.APPROVE", "   ", "hash", "trace-2");
+        OrchestratorIdempotencyService.CommandLease leaseWithoutCommandKey =
+                new OrchestratorIdempotencyService.CommandLease("trace-2", commandWithoutIdempotency, true);
+        String canonicalFromFallback = (String) ReflectionTestUtils.invokeMethod(
+                dispatcher, "canonicalIdempotencyKey", leaseWithoutCommandKey, "  fallback-key  ");
+        assertThat(canonicalFromFallback).isEqualTo("fallback-key");
+
+        OrchestratorIdempotencyService.CommandLease leaseWithNullCommand =
+                new OrchestratorIdempotencyService.CommandLease("trace-3", null, true);
+        String canonicalFromNullCommand = (String) ReflectionTestUtils.invokeMethod(
+                dispatcher, "canonicalIdempotencyKey", leaseWithNullCommand, "  fallback-from-null-command  ");
+        assertThat(canonicalFromNullCommand).isEqualTo("fallback-from-null-command");
+
+        String canonicalNull = (String) ReflectionTestUtils.invokeMethod(
+                dispatcher, "canonicalIdempotencyKey", null, null);
+        assertThat(canonicalNull).isNull();
+    }
 }

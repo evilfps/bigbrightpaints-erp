@@ -6,11 +6,15 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.bigbrightpaints.erp.core.audit.IntegrationFailureMetadataSchema;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
+import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.modules.accounting.controller.AccountingController;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
+import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
+import com.bigbrightpaints.erp.modules.accounting.domain.JournalReferenceMappingRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalLine;
 import com.bigbrightpaints.erp.modules.accounting.domain.PartnerSettlementAllocation;
+import com.bigbrightpaints.erp.modules.accounting.domain.PartnerSettlementAllocationRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.PartnerType;
 import com.bigbrightpaints.erp.modules.accounting.dto.DealerReceiptRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.DealerReceiptSplitRequest;
@@ -23,13 +27,18 @@ import com.bigbrightpaints.erp.modules.accounting.dto.SupplierPaymentRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.SupplierSettlementRequest;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingAuditTrailService;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingService;
+import com.bigbrightpaints.erp.modules.accounting.service.ReferenceNumberService;
+import com.bigbrightpaints.erp.modules.company.domain.Company;
+import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.invoice.domain.Invoice;
 import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchase;
 import com.bigbrightpaints.erp.modules.purchasing.domain.Supplier;
+import com.bigbrightpaints.erp.modules.purchasing.domain.SupplierRepository;
 import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.platform.engine.discovery.DiscoverySelectors;
@@ -708,6 +717,269 @@ class TS_RuntimeAccountingReplayConflictExecutableCoverageTest {
         controller.transactionAuditDetail(77L);
 
         verify(auditService).transactionDetail(77L);
+    }
+
+    @Test
+    void partnerFieldLabel_and_fingerprint_helper_cover_partner_vocab_branches() {
+        AccountingService service = accountingService();
+
+        assertThat((String) ReflectionTestUtils.invokeMethod(service, "partnerFieldLabel", PartnerType.DEALER))
+                .isEqualTo("dealerId");
+        assertThat((String) ReflectionTestUtils.invokeMethod(service, "partnerFieldLabel", PartnerType.SUPPLIER))
+                .isEqualTo("supplierId");
+        assertThat((String) ReflectionTestUtils.invokeMethod(service, "partnerFieldLabel", (PartnerType) null))
+                .isEqualTo("partnerId");
+
+        StringBuilder dealerFingerprint = new StringBuilder();
+        ReflectionTestUtils.invokeMethod(service, "appendPartnerFingerprint", dealerFingerprint, PartnerType.DEALER, 11L);
+        assertThat(dealerFingerprint.toString()).isEqualTo("dealerId=11");
+
+        StringBuilder supplierFingerprint = new StringBuilder();
+        ReflectionTestUtils.invokeMethod(service, "appendPartnerFingerprint", supplierFingerprint, PartnerType.SUPPLIER, null);
+        assertThat(supplierFingerprint.toString()).isEqualTo("supplierId=null");
+    }
+
+    @Test
+    void settleSupplierInvoices_existingAllocations_replay_branch_revalidates_supplier_journal_lines() {
+        AccountingService service = accountingService();
+        CompanyContextService companyContextService =
+                (CompanyContextService) ReflectionTestUtils.getField(service, "companyContextService");
+        SupplierRepository supplierRepository =
+                (SupplierRepository) ReflectionTestUtils.getField(service, "supplierRepository");
+        CompanyEntityLookup companyEntityLookup =
+                (CompanyEntityLookup) ReflectionTestUtils.getField(service, "companyEntityLookup");
+        PartnerSettlementAllocationRepository settlementAllocationRepository =
+                (PartnerSettlementAllocationRepository) ReflectionTestUtils.getField(service, "settlementAllocationRepository");
+        JournalReferenceMappingRepository journalReferenceMappingRepository =
+                (JournalReferenceMappingRepository) ReflectionTestUtils.getField(service, "journalReferenceMappingRepository");
+        ReferenceNumberService referenceNumberService =
+                (ReferenceNumberService) ReflectionTestUtils.getField(service, "referenceNumberService");
+
+        Company company = new Company();
+        ReflectionTestUtils.setField(company, "id", 44L);
+
+        Supplier supplier = supplier(301L);
+        supplier.setName("Supplier Replay");
+        Account payableAccount = account(701L);
+        payableAccount.setCode("AP-701");
+        payableAccount.setName("Accounts Payable");
+        payableAccount.setType(AccountType.LIABILITY);
+        supplier.setPayableAccount(payableAccount);
+
+        Account cashAccount = account(702L);
+        cashAccount.setCode("CASH-702");
+        cashAccount.setName("Cash");
+        cashAccount.setType(AccountType.ASSET);
+        cashAccount.setActive(true);
+
+        RawMaterialPurchase purchase = new RawMaterialPurchase();
+        ReflectionTestUtils.setField(purchase, "id", 900L);
+
+        JournalEntry replayEntry = new JournalEntry();
+        ReflectionTestUtils.setField(replayEntry, "id", 8801L);
+        replayEntry.setReferenceNumber("SUP-SET-REF-1");
+        replayEntry.setSupplier(supplier);
+        replayEntry.setMemo("supplier settle memo");
+        replayEntry.getLines().add(journalLine(701L, "100.00", "0.00"));
+        replayEntry.getLines().add(journalLine(702L, "0.00", "100.00"));
+
+        PartnerSettlementAllocation existingAllocation = partnerAllocationForSupplier(301L, "100.00", "alloc-1");
+        existingAllocation.setPurchase(purchase);
+        existingAllocation.setJournalEntry(replayEntry);
+        existingAllocation.setIdempotencyKey("idem-supplier-settle");
+
+        when(companyContextService.requireCurrentCompany()).thenReturn(company);
+        when(supplierRepository.lockByCompanyAndId(company, 301L)).thenReturn(Optional.of(supplier));
+        when(companyEntityLookup.requireAccount(company, 702L)).thenReturn(cashAccount);
+        when(referenceNumberService.supplierPaymentReference(company, supplier)).thenReturn("SUP-SET-REF-1");
+        when(journalReferenceMappingRepository.findAllByCompanyAndLegacyReferenceIgnoreCase(any(), any()))
+                .thenReturn(List.of());
+        when(journalReferenceMappingRepository.reserveReferenceMapping(any(), any(), any(), any(), any()))
+                .thenReturn(1);
+        when(settlementAllocationRepository.findByCompanyAndIdempotencyKeyIgnoreCaseOrderByCreatedAtAscIdAsc(company, "idem-supplier-settle"))
+                .thenReturn(List.of(), List.of(existingAllocation));
+        when(settlementAllocationRepository.findByCompanyAndIdempotencyKey(company, "idem-supplier-settle"))
+                .thenReturn(List.of());
+
+        SupplierSettlementRequest request = new SupplierSettlementRequest(
+                301L,
+                702L,
+                null,
+                null,
+                null,
+                null,
+                LocalDate.of(2026, 2, 16),
+                null,
+                "supplier settle memo",
+                "idem-supplier-settle",
+                Boolean.FALSE,
+                List.of(new SettlementAllocationRequest(
+                        null,
+                        900L,
+                        new BigDecimal("100.00"),
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        "alloc-1"))
+        );
+
+        PartnerSettlementResponse response = service.settleSupplierInvoices(request);
+
+        assertThat(response).isNotNull();
+        assertThat(response.journalEntry()).isNotNull();
+        assertThat(response.journalEntry().id()).isEqualTo(8801L);
+        assertThat(response.totalApplied()).isEqualByComparingTo("100.00");
+    }
+
+    @Test
+    void settlement_helper_branches_capture_partner_mismatch_and_audit_metadata() {
+        AccountingService service = accountingService();
+
+        ApplicationException missingAllocation = (ApplicationException) ReflectionTestUtils.invokeMethod(
+                service,
+                "missingReservedPartnerAllocation",
+                "Supplier settlement",
+                "IDEM-RESERVED",
+                PartnerType.SUPPLIER,
+                301L);
+        assertThat(missingAllocation.getDetails())
+                .containsEntry(IntegrationFailureMetadataSchema.KEY_PARTNER_TYPE, "SUPPLIER")
+                .containsEntry(IntegrationFailureMetadataSchema.KEY_PARTNER_ID, 301L);
+
+        JournalEntry existing = journalEntryWithDealer(11L, "memo", 101L, "50.00", "0.00");
+        existing.setReferenceNumber("JE-DUP-1");
+        existing.setEntryDate(LocalDate.of(2026, 2, 16));
+        JournalEntry candidate = journalEntryWithDealer(99L, "memo", 101L, "50.00", "0.00");
+        candidate.setReferenceNumber("JE-DUP-1");
+        candidate.setEntryDate(LocalDate.of(2026, 2, 16));
+
+        assertThatThrownBy(() -> ReflectionTestUtils.invokeMethod(
+                service,
+                "ensureDuplicateMatchesExisting",
+                existing,
+                candidate,
+                candidate.getLines()))
+                .isInstanceOf(ApplicationException.class)
+                .satisfies(throwable -> assertThat(((ApplicationException) throwable).getDetails())
+                        .containsKey("partnerMismatchTypes"));
+
+        JournalEntryDto journalEntryDto = new JournalEntryDto(
+                991L,
+                null,
+                "JE-DUP-1",
+                LocalDate.of(2026, 2, 16),
+                "memo",
+                "POSTED",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                List.of(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+        );
+
+        ReflectionTestUtils.invokeMethod(
+                service,
+                "logSettlementAuditSuccess",
+                PartnerType.SUPPLIER,
+                301L,
+                journalEntryDto,
+                LocalDate.of(2026, 2, 16),
+                "idem-audit",
+                1,
+                new BigDecimal("100.00"),
+                new BigDecimal("100.00"),
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO);
+    }
+
+    @Test
+    void settlement_fingerprint_builders_cover_receipt_and_supplier_paths() {
+        AccountingService service = accountingService();
+        Company company = new Company();
+        Dealer dealer = dealer(11L);
+        dealer.setCode("DLR-11");
+
+        DealerReceiptRequest dealerReceiptRequest = new DealerReceiptRequest(
+                11L,
+                201L,
+                new BigDecimal("100.00"),
+                null,
+                "memo",
+                null,
+                List.of(new SettlementAllocationRequest(
+                        401L,
+                        null,
+                        new BigDecimal("100.00"),
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        "alloc"))
+        );
+        String dealerReference = (String) ReflectionTestUtils.invokeMethod(
+                service,
+                "buildDealerReceiptReference",
+                company,
+                dealer,
+                dealerReceiptRequest);
+        assertThat(dealerReference).startsWith("RCPT-");
+
+        DealerReceiptSplitRequest splitRequest = new DealerReceiptSplitRequest(
+                11L,
+                List.of(new DealerReceiptSplitRequest.IncomingLine(201L, new BigDecimal("100.00"))),
+                null,
+                "memo",
+                null
+        );
+        String splitReference = (String) ReflectionTestUtils.invokeMethod(
+                service,
+                "buildDealerReceiptReference",
+                company,
+                dealer,
+                splitRequest);
+        assertThat(splitReference).startsWith("RCPT-");
+
+        SupplierSettlementRequest supplierSettlementRequest = new SupplierSettlementRequest(
+                301L,
+                201L,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "memo",
+                null,
+                Boolean.FALSE,
+                List.of(new SettlementAllocationRequest(
+                        null,
+                        900L,
+                        new BigDecimal("100.00"),
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        "alloc"))
+        );
+        String supplierKey = (String) ReflectionTestUtils.invokeMethod(
+                service,
+                "buildSupplierSettlementIdempotencyKey",
+                supplierSettlementRequest);
+        assertThat(supplierKey).startsWith("SUPPLIER-SETTLEMENT-");
     }
 
     @Test
