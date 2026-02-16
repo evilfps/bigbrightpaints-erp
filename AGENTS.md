@@ -27,7 +27,7 @@ Human-friendly alias: `AGENTMAP.md`.
 8. `docs/agents/WORKFLOW.md` (lifecycle, CI/CD, rollback)
 9. `docs/agents/ENTERPRISE_MODE.md` (near-deployment policy profiles)
 10. `docs/agents/ORCHESTRATION_LAYER.md` (real orchestrator control plane)
-11. Domain contracts: `erp-domain/docs/INDEX.md`
+11. Domain contracts: `docs/INDEX.md`
 12. Async loop runbook: `docs/ASYNC_LOOP_OPERATIONS.md` + `asyncloop`
 13. Ticket harness: `tickets/README.md` + `scripts/harness_orchestrator.py`
 

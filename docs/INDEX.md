@@ -103,7 +103,7 @@ This is the canonical knowledge base entrypoint for agentic work in this reposit
 - Orchestrator routing map: `agents/orchestrator-layer.yaml`
 
 ## Legacy + domain deep references
-- Root map for module links: `erp-domain/docs/INDEX.md`
+- Root map for module links: `docs/INDEX.md`
 - CODE-RED program index: `docs/CODE-RED/START_HERE.md`
 - CI debugging contract: `docs/codex-cloud-ci-debugging-plan.md`
 

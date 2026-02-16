@@ -8,7 +8,7 @@ The canonical architecture specification is `docs/ARCHITECTURE.md`.
 ## Fast Links
 - Canonical architecture spec: `docs/ARCHITECTURE.md`
 - Root docs index: `docs/INDEX.md`
-- Domain docs index: `erp-domain/docs/INDEX.md`
+- Domain docs index: `docs/INDEX.md`
 - Async loop runbook: `docs/ASYNC_LOOP_OPERATIONS.md`
 - CI harness entrypoint: `scripts/verify_local.sh`
 
