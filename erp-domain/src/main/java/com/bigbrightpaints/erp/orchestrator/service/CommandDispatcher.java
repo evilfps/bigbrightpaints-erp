@@ -63,10 +63,7 @@ public class CommandDispatcher {
                 idempotencyKey,
                 request,
                 () -> workflowService.startWorkflow("order-approval"));
-        if (!lease.shouldExecute()) {
-            return lease.traceId();
-        }
-        try {
+        return executeWithLease(lease, () -> {
             String traceId = lease.traceId();
             InventoryReservationResult reservation = integrationCoordinator.reserveInventory(request.orderId(), companyId);
             boolean awaitingProduction = reservation != null && !reservation.shortages().isEmpty();
@@ -85,12 +82,8 @@ public class CommandDispatcher {
             traceService.record(traceId, "ORDER_APPROVED", companyId,
                     Map.of("orderId", request.orderId(), "idempotencyKey", idempotencyKey),
                     normalizedRequestId, idempotencyKey);
-            idempotencyService.markSuccess(lease.command());
             return traceId;
-        } catch (RuntimeException ex) {
-            idempotencyService.markFailed(lease.command(), ex);
-            throw ex;
-        }
+        });
     }
 
     @Transactional
@@ -105,10 +98,7 @@ public class CommandDispatcher {
                 idempotencyKey,
                 Map.of("orderId", orderId, "totalAmount", totalAmount),
                 () -> workflowService.startWorkflow("order-auto-approval"));
-        if (!lease.shouldExecute()) {
-            return lease.traceId();
-        }
-        try {
+        return executeWithLease(lease, () -> {
             String traceId = lease.traceId();
             IntegrationCoordinator.AutoApprovalResult result =
                     integrationCoordinator.autoApproveOrder(orderId, totalAmount, companyId);
@@ -125,12 +115,8 @@ public class CommandDispatcher {
             traceService.record(traceId, "ORDER_AUTO_APPROVED", companyId,
                     Map.of("orderId", orderId, "idempotencyKey", idempotencyKey),
                     normalizedRequestId, idempotencyKey);
-            idempotencyService.markSuccess(lease.command());
             return traceId;
-        } catch (RuntimeException ex) {
-            idempotencyService.markFailed(lease.command(), ex);
-            throw ex;
-        }
+        });
     }
 
     @Transactional
@@ -147,10 +133,7 @@ public class CommandDispatcher {
                 idempotencyKey,
                 Map.of("orderId", orderId, "request", request),
                 () -> workflowService.startWorkflow("order-fulfillment"));
-        if (!lease.shouldExecute()) {
-            return lease.traceId();
-        }
-        try {
+        return executeWithLease(lease, () -> {
             String traceId = lease.traceId();
             IntegrationCoordinator.AutoApprovalResult result =
                     integrationCoordinator.updateFulfillment(orderId, request.status(), companyId);
@@ -171,12 +154,8 @@ public class CommandDispatcher {
                     "status", request.status(),
                     "idempotencyKey", idempotencyKey),
                     normalizedRequestId, idempotencyKey);
-            idempotencyService.markSuccess(lease.command());
             return traceId;
-        } catch (RuntimeException ex) {
-            idempotencyService.markFailed(lease.command(), ex);
-            throw ex;
-        }
+        });
     }
 
     @Transactional(noRollbackFor = OrchestratorFeatureDisabledException.class)
@@ -211,7 +190,7 @@ public class CommandDispatcher {
             idempotencyService.markFailed(lease.command(), ex);
             throw ex;
         }
-        try {
+        return executeWithLease(lease, () -> {
             String traceId = lease.traceId();
             integrationCoordinator.updateProductionStatus(request.batchId(), companyId);
             integrationCoordinator.releaseInventory(request.batchId(), companyId);
@@ -231,12 +210,8 @@ public class CommandDispatcher {
             traceService.record(traceId, "BATCH_DISPATCHED", companyId,
                     Map.of("batchId", request.batchId(), "idempotencyKey", idempotencyKey),
                     normalizedRequestId, idempotencyKey);
-            idempotencyService.markSuccess(lease.command());
             return traceId;
-        } catch (RuntimeException ex) {
-            idempotencyService.markFailed(lease.command(), ex);
-            throw ex;
-        }
+        });
     }
 
     @Transactional(noRollbackFor = OrchestratorFeatureDisabledException.class)
@@ -271,7 +246,7 @@ public class CommandDispatcher {
             idempotencyService.markFailed(lease.command(), ex);
             throw ex;
         }
-        try {
+        return executeWithLease(lease, () -> {
             String traceId = lease.traceId();
             integrationCoordinator.syncEmployees(companyId);
             var payrollRun = integrationCoordinator.generatePayroll(request.payrollDate(), request.postingAmount(), companyId);
@@ -293,12 +268,8 @@ public class CommandDispatcher {
             traceService.record(traceId, "PAYROLL_COMPLETED", companyId,
                     Map.of("payrollDate", request.payrollDate(), "idempotencyKey", idempotencyKey),
                     normalizedRequestId, idempotencyKey);
-            idempotencyService.markSuccess(lease.command());
             return traceId;
-        } catch (RuntimeException ex) {
-            idempotencyService.markFailed(lease.command(), ex);
-            throw ex;
-        }
+        });
     }
 
     public Map<String, Object> integrationHealth() {
@@ -368,5 +339,25 @@ public class CommandDispatcher {
             return normalized;
         }
         return REQUEST_ID_HASH_PREFIX + DigestUtils.sha256Hex(normalized);
+    }
+
+    private String executeWithLease(OrchestratorIdempotencyService.CommandLease lease,
+                                    CommandExecution execution) {
+        if (!lease.shouldExecute()) {
+            return lease.traceId();
+        }
+        try {
+            String traceId = execution.execute();
+            idempotencyService.markSuccess(lease.command());
+            return traceId;
+        } catch (RuntimeException ex) {
+            idempotencyService.markFailed(lease.command(), ex);
+            throw ex;
+        }
+    }
+
+    @FunctionalInterface
+    private interface CommandExecution {
+        String execute();
     }
 }
