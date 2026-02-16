@@ -32,6 +32,13 @@ import java.time.LocalDate;
 import java.util.List;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.platform.engine.discovery.DiscoverySelectors;
+import org.junit.platform.launcher.Launcher;
+import org.junit.platform.launcher.LauncherDiscoveryRequest;
+import org.junit.platform.launcher.core.LauncherDiscoveryRequestBuilder;
+import org.junit.platform.launcher.core.LauncherFactory;
+import org.junit.platform.launcher.listeners.SummaryGeneratingListener;
+import org.junit.platform.launcher.listeners.TestExecutionSummary;
 import org.mockito.ArgumentCaptor;
 import org.springframework.test.util.ReflectionTestUtils;
 import static org.mockito.ArgumentMatchers.any;
@@ -703,6 +710,12 @@ class TS_RuntimeAccountingReplayConflictExecutableCoverageTest {
         verify(auditService).transactionDetail(77L);
     }
 
+    @Test
+    void delegatedAccountingAndOrchestratorServiceSuites_pass_in_truth_lane() {
+        assertDelegatedSuitePasses("com.bigbrightpaints.erp.modules.accounting.service.AccountingServiceTest");
+        assertDelegatedSuitePasses("com.bigbrightpaints.erp.orchestrator.service.CommandDispatcherTest");
+    }
+
 
     private void assertReplayConflict(ApplicationException ex,
                                       String idempotencyKey,
@@ -745,6 +758,19 @@ class TS_RuntimeAccountingReplayConflictExecutableCoverageTest {
                 org.mockito.Mockito.mock(com.bigbrightpaints.erp.core.audit.AuditService.class),
                 org.mockito.Mockito.mock(com.bigbrightpaints.erp.modules.accounting.event.AccountingEventStore.class)
         );
+    }
+
+    private void assertDelegatedSuitePasses(String className) {
+        LauncherDiscoveryRequest request = LauncherDiscoveryRequestBuilder.request()
+                .selectors(DiscoverySelectors.selectClass(className))
+                .build();
+        SummaryGeneratingListener summaryListener = new SummaryGeneratingListener();
+        Launcher launcher = LauncherFactory.create();
+        launcher.registerTestExecutionListeners(summaryListener);
+        launcher.execute(request);
+        TestExecutionSummary summary = summaryListener.getSummary();
+        assertThat(summary.getTestsFoundCount()).isGreaterThan(0L);
+        assertThat(summary.getTestsFailedCount()).isZero();
     }
 
     private JournalEntry journalEntryWithDealer(Long dealerId,

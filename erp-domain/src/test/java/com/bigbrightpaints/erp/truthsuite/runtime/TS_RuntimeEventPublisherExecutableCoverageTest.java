@@ -188,6 +188,39 @@ class TS_RuntimeEventPublisherExecutableCoverageTest {
                 .hasCauseInstanceOf(JsonProcessingException.class);
     }
 
+    @Test
+    void helper_branches_cover_failure_message_resolution_and_backoff_bounds() {
+        EventPublisherService service = new EventPublisherService(
+                mock(OutboxEventRepository.class),
+                mock(RabbitTemplate.class),
+                mock(CompanyContextService.class),
+                objectMapper(),
+                null
+        );
+
+        assertThat((Long) ReflectionTestUtils.invokeMethod(service, "computeBackoffDelay", -3)).isEqualTo(30L);
+        assertThat((Long) ReflectionTestUtils.invokeMethod(service, "computeBackoffDelay", 0)).isEqualTo(30L);
+        assertThat((Long) ReflectionTestUtils.invokeMethod(service, "computeBackoffDelay", 1)).isEqualTo(60L);
+        assertThat((Long) ReflectionTestUtils.invokeMethod(service, "computeBackoffDelay", 11)).isEqualTo(30720L);
+
+        assertThat((String) ReflectionTestUtils.invokeMethod(
+                service,
+                "resolveFailureMessage",
+                (Object) null)).isEqualTo("unknown publish failure");
+        assertThat((String) ReflectionTestUtils.invokeMethod(
+                service,
+                "resolveFailureMessage",
+                new RuntimeException("broker down"))).isEqualTo("broker down");
+        assertThat((String) ReflectionTestUtils.invokeMethod(
+                service,
+                "resolveFailureMessage",
+                new RuntimeException((String) null))).isEqualTo(RuntimeException.class.getName());
+        assertThat((String) ReflectionTestUtils.invokeMethod(
+                service,
+                "resolveFailureMessage",
+                new RuntimeException("   "))).isEqualTo(RuntimeException.class.getName());
+    }
+
     private ObjectMapper objectMapper() {
         return new ObjectMapper().registerModule(new JavaTimeModule());
     }

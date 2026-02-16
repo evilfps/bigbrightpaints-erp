@@ -9,10 +9,26 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.bigbrightpaints.erp.core.util.CompanyClock;
+import com.bigbrightpaints.erp.modules.accounting.service.DealerLedgerService;
+import com.bigbrightpaints.erp.modules.company.domain.Company;
+import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
+import com.bigbrightpaints.erp.modules.invoice.domain.InvoiceRepository;
+import com.bigbrightpaints.erp.modules.invoice.service.InvoicePdfService;
 import com.bigbrightpaints.erp.modules.inventory.service.FinishedGoodsService.InventoryReservationResult;
+import com.bigbrightpaints.erp.modules.sales.controller.DealerController;
+import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
+import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
+import com.bigbrightpaints.erp.modules.sales.domain.SalesOrderRepository;
+import com.bigbrightpaints.erp.modules.sales.service.DealerPortalService;
+import com.bigbrightpaints.erp.modules.sales.service.DealerService;
+import com.bigbrightpaints.erp.modules.sales.service.DunningService;
+import com.bigbrightpaints.erp.core.security.CompanyContextHolder;
+import com.bigbrightpaints.erp.orchestrator.controller.OrchestratorController;
 import com.bigbrightpaints.erp.orchestrator.config.OrchestratorFeatureFlags;
 import com.bigbrightpaints.erp.orchestrator.dto.ApproveOrderRequest;
 import com.bigbrightpaints.erp.orchestrator.dto.DispatchRequest;
+import com.bigbrightpaints.erp.orchestrator.dto.OrderFulfillmentRequest;
 import com.bigbrightpaints.erp.orchestrator.dto.PayrollRunRequest;
 import com.bigbrightpaints.erp.orchestrator.exception.OrchestratorFeatureDisabledException;
 import com.bigbrightpaints.erp.orchestrator.policy.PolicyEnforcer;
@@ -26,9 +42,13 @@ import com.bigbrightpaints.erp.orchestrator.workflow.WorkflowService;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.security.Principal;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.test.util.ReflectionTestUtils;
 
 @Tag("concurrency")
 @Tag("reconciliation")
@@ -159,5 +179,174 @@ class TS_RuntimeOrchestratorExecutableCoverageTest {
 
         verify(idempotencyService).markFailed(eq(payrollCommand), any(RuntimeException.class));
         assertThat(dispatcher.generateTraceId()).isNotBlank();
+    }
+
+    @Test
+    void orchestratorController_idempotency_payload_selection_branches_are_deterministic() {
+        String rawPayload = " raw ";
+        String normalizedPayload = "raw";
+
+        String explicit = (String) ReflectionTestUtils.invokeMethod(
+                OrchestratorController.class,
+                "selectPayloadForIdempotency",
+                " idem-1 ",
+                rawPayload,
+                normalizedPayload);
+        String derived = (String) ReflectionTestUtils.invokeMethod(
+                OrchestratorController.class,
+                "selectPayloadForIdempotency",
+                null,
+                rawPayload,
+                normalizedPayload);
+
+        assertThat(explicit).isEqualTo(rawPayload);
+        assertThat(derived).isEqualTo(normalizedPayload);
+    }
+
+    @Test
+    void orchestratorController_paths_execute_idempotency_payload_selection_call_sites() {
+        CommandDispatcher dispatcher = mock(CommandDispatcher.class);
+        TraceService traceService = mock(TraceService.class);
+        OrchestratorController controller = new OrchestratorController(dispatcher, traceService);
+        Principal principal = () -> "ops@bbp.com";
+        CompanyContextHolder.setCompanyCode("C1");
+        try {
+            when(dispatcher.approveOrder(any(), any(), any(), any(), any())).thenReturn("trace-approve");
+            when(dispatcher.updateOrderFulfillment(any(), any(), any(), any(), any(), any())).thenReturn("trace-fulfill");
+            when(dispatcher.dispatchBatch(any(), any(), any(), any(), any())).thenReturn("trace-dispatch");
+            when(dispatcher.runPayroll(any(), any(), any(), any(), any())).thenReturn("trace-payroll");
+
+            controller.approveOrder(
+                    "SO-1",
+                    new ApproveOrderRequest("SO-1", " ops@bbp.com ", new BigDecimal("100.00")),
+                    "idem-approve",
+                    "req-approve",
+                    principal);
+            controller.fulfillOrder(
+                    "SO-1",
+                    new OrderFulfillmentRequest("processing", " note "),
+                    null,
+                    "req-fulfill",
+                    principal);
+            controller.dispatch(
+                    "B-1",
+                    new DispatchRequest("B-1", " ops@bbp.com ", new BigDecimal("55.00")),
+                    null,
+                    "req-dispatch",
+                    principal);
+            controller.runPayroll(
+                    new PayrollRunRequest(LocalDate.of(2026, 2, 1), " ops@bbp.com ", 11L, 12L, new BigDecimal("500.00")),
+                    null,
+                    "req-payroll",
+                    principal);
+        } finally {
+            CompanyContextHolder.clear();
+        }
+    }
+
+    @Test
+    void dealer_portal_and_controller_ledger_path_use_scoped_lookup_consistently() {
+        DealerRepository dealerRepository = mock(DealerRepository.class);
+        CompanyContextService companyContextService = mock(CompanyContextService.class);
+        DealerLedgerService dealerLedgerService = mock(DealerLedgerService.class);
+        InvoiceRepository invoiceRepository = mock(InvoiceRepository.class);
+        InvoicePdfService invoicePdfService = mock(InvoicePdfService.class);
+        DealerService dealerService = mock(DealerService.class);
+        SalesOrderRepository salesOrderRepository = mock(SalesOrderRepository.class);
+        CompanyClock companyClock = mock(CompanyClock.class);
+
+        DealerPortalService portalService = new DealerPortalService(
+                dealerRepository,
+                companyContextService,
+                dealerLedgerService,
+                invoiceRepository,
+                invoicePdfService,
+                dealerService,
+                salesOrderRepository,
+                companyClock
+        );
+
+        Company company = new Company();
+        ReflectionTestUtils.setField(company, "id", 22L);
+        Dealer dealer = new Dealer();
+        dealer.setCompany(company);
+        ReflectionTestUtils.setField(dealer, "id", 77L);
+        Map<String, Object> ledgerPayload = Map.of("dealerId", 77L, "status", "ok");
+
+        when(companyContextService.requireCurrentCompany()).thenReturn(company);
+        when(dealerRepository.findByCompanyAndId(company, 77L)).thenReturn(Optional.of(dealer));
+        when(dealerService.ledgerView(77L)).thenReturn(ledgerPayload);
+        when(invoiceRepository.findByCompanyAndDealerOrderByIssueDateDesc(company, dealer)).thenReturn(List.of());
+        when(companyClock.today(company)).thenReturn(LocalDate.of(2026, 2, 16));
+
+        assertThat(portalService.getLedgerForDealer(77L)).isEqualTo(ledgerPayload);
+        assertThat(portalService.getInvoicesForDealer(77L)).containsEntry("dealerId", 77L);
+        assertThat(portalService.getAgingForDealer(77L)).containsEntry("dealerId", 77L);
+
+        DealerPortalService portalDelegate = mock(DealerPortalService.class);
+        when(portalDelegate.getLedgerForDealer(77L)).thenReturn(ledgerPayload);
+        DealerController controller = new DealerController(
+                mock(DealerService.class),
+                mock(DunningService.class),
+                portalDelegate
+        );
+
+        var response = controller.dealerLedger(77L);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().data()).isEqualTo(ledgerPayload);
+        verify(portalDelegate).getLedgerForDealer(77L);
+    }
+
+    @Test
+    void commandDispatcher_failure_and_validation_paths_cover_helper_branches() {
+        WorkflowService workflowService = mock(WorkflowService.class);
+        IntegrationCoordinator integrationCoordinator = mock(IntegrationCoordinator.class);
+        EventPublisherService eventPublisherService = mock(EventPublisherService.class);
+        TraceService traceService = mock(TraceService.class);
+        PolicyEnforcer policyEnforcer = new PolicyEnforcer();
+        OrchestratorIdempotencyService idempotencyService = mock(OrchestratorIdempotencyService.class);
+        OrchestratorFeatureFlags featureFlags = mock(OrchestratorFeatureFlags.class);
+        CommandDispatcher dispatcher = new CommandDispatcher(
+                workflowService,
+                integrationCoordinator,
+                eventPublisherService,
+                traceService,
+                policyEnforcer,
+                idempotencyService,
+                featureFlags
+        );
+
+        OrchestratorCommand failingApprove = new OrchestratorCommand(
+                1L, "ORCH.ORDER.APPROVE", "   ", "hash", "trace-failing");
+        when(idempotencyService.start(eq("ORCH.ORDER.APPROVE"), eq("  idem-fallback  "), any(), any()))
+                .thenReturn(new OrchestratorIdempotencyService.CommandLease("trace-failing", failingApprove, true));
+        when(integrationCoordinator.reserveInventory("99", "C1"))
+                .thenThrow(new RuntimeException("reserve failed"));
+
+        assertThatThrownBy(() -> dispatcher.approveOrder(
+                new ApproveOrderRequest("99", "ops@bbp.com", new BigDecimal("10.00")),
+                "  idem-fallback  ",
+                "req-approve-fail",
+                "C1",
+                "ops@bbp.com"))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("reserve failed");
+        verify(idempotencyService).markFailed(eq(failingApprove), any(RuntimeException.class));
+
+        OrchestratorCommand invalidDispatch = new OrchestratorCommand(
+                1L, "ORCH.FACTORY.BATCH.DISPATCH", "idem-dispatch-zero", "hash", "trace-dispatch-zero");
+        when(idempotencyService.start(eq("ORCH.FACTORY.BATCH.DISPATCH"), eq("idem-dispatch-zero"), any(), any()))
+                .thenReturn(new OrchestratorIdempotencyService.CommandLease("trace-dispatch-zero", invalidDispatch, true));
+        when(featureFlags.isFactoryDispatchEnabled()).thenReturn(true);
+
+        assertThatThrownBy(() -> dispatcher.dispatchBatch(
+                new DispatchRequest("B-9", "ops@bbp.com", BigDecimal.ZERO),
+                "idem-dispatch-zero",
+                "req-dispatch-zero",
+                "C1",
+                "ops@bbp.com"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("greater than zero for dispatch");
+        verify(idempotencyService).markFailed(eq(invalidDispatch), any(RuntimeException.class));
     }
 }
