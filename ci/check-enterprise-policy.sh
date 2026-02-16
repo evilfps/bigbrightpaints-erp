@@ -6,6 +6,9 @@ cd "$ROOT_DIR"
 
 R2_FILE="docs/approvals/R2-CHECKPOINT.md"
 
+echo "[enterprise-policy] canonical workflow decision contract guard"
+bash "$ROOT_DIR/scripts/guard_workflow_canonical_paths.sh"
+
 resolve_diff_base() {
   if [[ -n "${ENTERPRISE_DIFF_BASE:-}" ]] && git rev-parse --verify --quiet "$ENTERPRISE_DIFF_BASE" >/dev/null; then
     echo "$ENTERPRISE_DIFF_BASE"
