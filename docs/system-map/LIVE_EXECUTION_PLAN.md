@@ -25,7 +25,7 @@ Mode: Continuous
 1. Keep anchored `gate_fast` fresh on moving head.
 2. Re-run `gate_core`, `gate_reconciliation`, and `gate_release` on cadence for staging evidence.
 3. Record command outcomes in `asyncloop`.
-4. Current note: anchored gate set is green on moving head (`c14640f3`) with diff-base `06d85e792d2a80cd9fc1f8e5dc15d6dfa15dd93e`:
+4. Current note: anchored gate set is green on moving head (`599f7e43`) with diff-base `06d85e792d2a80cd9fc1f8e5dc15d6dfa15dd93e`:
    - `gate_fast` PASS (`line=1.0000`, `branch=0.9245`)
    - `gate_core` PASS
    - `gate_reconciliation` PASS (`114/114`)
@@ -49,7 +49,7 @@ Mode: Continuous
 - Final ledger gates pass on same closure evidence set.
 
 ## Latest closure evidence (2026-02-16)
-1. `DIFF_BASE=06d85e792d2a80cd9fc1f8e5dc15d6dfa15dd93e GATE_FAST_RELEASE_VALIDATION_MODE=true bash scripts/gate_fast.sh` -> PASS
+1. `DIFF_BASE=06d85e792d2a80cd9fc1f8e5dc15d6dfa15dd93e GATE_FAST_RELEASE_VALIDATION_MODE=true bash scripts/gate_fast.sh` -> PASS (`line=1.0000`, `branch=0.9245`)
 2. `DIFF_BASE=06d85e792d2a80cd9fc1f8e5dc15d6dfa15dd93e GATE_FAST_RELEASE_VALIDATION_MODE=true bash scripts/gate_core.sh` -> PASS
 3. `bash scripts/gate_reconciliation.sh` -> PASS
-4. `PGHOST=127.0.0.1 PGPORT=55432 PGUSER=erp PGPASSWORD=erp PGDATABASE=postgres bash scripts/gate_release.sh` -> PASS
+4. `PGHOST=127.0.0.1 PGPORT=55432 PGUSER=erp PGPASSWORD=erp PGDATABASE=postgres bash scripts/gate_release.sh` -> PASS (`release_migration_matrix OK`, predeploy scans zero findings)
