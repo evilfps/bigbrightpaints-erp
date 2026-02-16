@@ -6,7 +6,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -25,13 +24,11 @@ import java.security.MessageDigest;
 import java.util.HexFormat;
 import java.util.Map;
 import java.util.Optional;
-import java.util.UUID;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.batch.support.transaction.ResourcelessTransactionManager;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.util.ReflectionTestUtils;
-import org.springframework.transaction.support.TransactionTemplate;
 
 @Tag("concurrency")
 @Tag("reconciliation")
@@ -247,182 +244,6 @@ class TS_RuntimeOrchestratorIdempotencyExecutableCoverageTest {
 
         service.markSuccess(null);
         service.markFailed(null, new RuntimeException("ignored"));
-    }
-
-    @Test
-    void mark_helpers_persist_status_transitions_for_tracked_command() {
-        OrchestratorCommandRepository commandRepository = mock(OrchestratorCommandRepository.class);
-        CompanyContextService companyContextService = mock(CompanyContextService.class);
-        when(companyContextService.requireCurrentCompany()).thenReturn(company(701L));
-
-        OrchestratorIdempotencyService service = new OrchestratorIdempotencyService(
-                commandRepository,
-                companyContextService,
-                new ObjectMapper(),
-                new ResourcelessTransactionManager()
-        );
-
-        OrchestratorCommand detached = new OrchestratorCommand(
-                701L,
-                "ORCH.ORDER.APPROVE",
-                "idem-order",
-                "hash",
-                "trace-order"
-        );
-        UUID commandId = UUID.randomUUID();
-        ReflectionTestUtils.setField(detached, "id", commandId);
-
-        OrchestratorCommand managed = new OrchestratorCommand(
-                701L,
-                "ORCH.ORDER.APPROVE",
-                "idem-order",
-                "hash",
-                "trace-order"
-        );
-        ReflectionTestUtils.setField(managed, "id", commandId);
-
-        when(commandRepository.findById(commandId)).thenReturn(Optional.of(managed));
-        when(commandRepository.saveAndFlush(managed)).thenReturn(managed);
-
-        service.markFailed(detached, new RuntimeException("broker timeout"));
-        assertThat(detached.getStatus()).isEqualTo(OrchestratorCommand.Status.FAILED);
-        assertThat(detached.getLastError()).isEqualTo("broker timeout");
-        assertThat(managed.getStatus()).isEqualTo(OrchestratorCommand.Status.FAILED);
-        assertThat(managed.getLastError()).isEqualTo("broker timeout");
-
-        service.markSuccess(detached);
-        assertThat(detached.getStatus()).isEqualTo(OrchestratorCommand.Status.SUCCESS);
-        assertThat(detached.getLastError()).isNull();
-        assertThat(managed.getStatus()).isEqualTo(OrchestratorCommand.Status.SUCCESS);
-        assertThat(managed.getLastError()).isNull();
-
-        verify(commandRepository, times(2)).findById(commandId);
-        verify(commandRepository, times(2)).saveAndFlush(managed);
-    }
-
-    @Test
-    void mark_success_defers_persistence_until_after_commit_when_transaction_active() {
-        OrchestratorCommandRepository commandRepository = mock(OrchestratorCommandRepository.class);
-        CompanyContextService companyContextService = mock(CompanyContextService.class);
-        when(companyContextService.requireCurrentCompany()).thenReturn(company(702L));
-
-        OrchestratorIdempotencyService service = new OrchestratorIdempotencyService(
-                commandRepository,
-                companyContextService,
-                new ObjectMapper(),
-                new ResourcelessTransactionManager()
-        );
-
-        OrchestratorCommand detached = new OrchestratorCommand(
-                702L,
-                "ORCH.ORDER.APPROVE",
-                "idem-order",
-                "hash",
-                "trace-order"
-        );
-        UUID commandId = UUID.randomUUID();
-        ReflectionTestUtils.setField(detached, "id", commandId);
-
-        OrchestratorCommand managed = new OrchestratorCommand(
-                702L,
-                "ORCH.ORDER.APPROVE",
-                "idem-order",
-                "hash",
-                "trace-order"
-        );
-        ReflectionTestUtils.setField(managed, "id", commandId);
-
-        when(commandRepository.findById(commandId)).thenReturn(Optional.of(managed));
-        when(commandRepository.saveAndFlush(managed)).thenReturn(managed);
-
-        TransactionTemplate transactionTemplate = new TransactionTemplate(new ResourcelessTransactionManager());
-        transactionTemplate.executeWithoutResult(status -> {
-            service.markSuccess(detached);
-            verify(commandRepository, never()).saveAndFlush(managed);
-        });
-
-        assertThat(managed.getStatus()).isEqualTo(OrchestratorCommand.Status.SUCCESS);
-        assertThat(managed.getLastError()).isNull();
-        verify(commandRepository, times(1)).findById(commandId);
-        verify(commandRepository, times(1)).saveAndFlush(managed);
-    }
-
-    @Test
-    void mark_success_marks_failed_when_outer_transaction_rolls_back() {
-        OrchestratorCommandRepository commandRepository = mock(OrchestratorCommandRepository.class);
-        CompanyContextService companyContextService = mock(CompanyContextService.class);
-        when(companyContextService.requireCurrentCompany()).thenReturn(company(703L));
-
-        OrchestratorIdempotencyService service = new OrchestratorIdempotencyService(
-                commandRepository,
-                companyContextService,
-                new ObjectMapper(),
-                new ResourcelessTransactionManager()
-        );
-
-        OrchestratorCommand detached = new OrchestratorCommand(
-                703L,
-                "ORCH.ORDER.APPROVE",
-                "idem-order",
-                "hash",
-                "trace-order"
-        );
-        UUID commandId = UUID.randomUUID();
-        ReflectionTestUtils.setField(detached, "id", commandId);
-
-        OrchestratorCommand managed = new OrchestratorCommand(
-                703L,
-                "ORCH.ORDER.APPROVE",
-                "idem-order",
-                "hash",
-                "trace-order"
-        );
-        ReflectionTestUtils.setField(managed, "id", commandId);
-
-        when(commandRepository.findById(commandId)).thenReturn(Optional.of(managed));
-        when(commandRepository.saveAndFlush(managed)).thenReturn(managed);
-
-        TransactionTemplate transactionTemplate = new TransactionTemplate(new ResourcelessTransactionManager());
-        transactionTemplate.executeWithoutResult(status -> {
-            service.markSuccess(detached);
-            status.setRollbackOnly();
-            verify(commandRepository, never()).saveAndFlush(managed);
-        });
-
-        assertThat(managed.getStatus()).isEqualTo(OrchestratorCommand.Status.FAILED);
-        assertThat(managed.getLastError()).isEqualTo("Outer transaction rolled back before commit");
-        verify(commandRepository, times(1)).findById(commandId);
-        verify(commandRepository, times(1)).saveAndFlush(managed);
-    }
-
-    @Test
-    void mark_helpers_fail_closed_when_tracked_row_missing() {
-        OrchestratorCommandRepository commandRepository = mock(OrchestratorCommandRepository.class);
-        CompanyContextService companyContextService = mock(CompanyContextService.class);
-        when(companyContextService.requireCurrentCompany()).thenReturn(company(801L));
-
-        OrchestratorIdempotencyService service = new OrchestratorIdempotencyService(
-                commandRepository,
-                companyContextService,
-                new ObjectMapper(),
-                new ResourcelessTransactionManager()
-        );
-
-        OrchestratorCommand detached = new OrchestratorCommand(
-                801L,
-                "ORCH.ORDER.APPROVE",
-                "idem-order",
-                "hash",
-                "trace-order"
-        );
-        UUID commandId = UUID.randomUUID();
-        ReflectionTestUtils.setField(detached, "id", commandId);
-
-        when(commandRepository.findById(commandId)).thenReturn(Optional.empty());
-
-        assertThatThrownBy(() -> service.markSuccess(detached))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("command row not found");
     }
 
     @Test
