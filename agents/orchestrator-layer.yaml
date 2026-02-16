@@ -18,6 +18,8 @@ runtime:
   codex_exec:
     require_explicit_model_and_reasoning: true
     default_model: gpt-5.3-codex
+    command_template: codex exec --model gpt-5.3-codex --reasoning <xhigh|high|medium> --yolo
+    full_access_flag: --yolo
     reasoning_policy:
       xhigh: high-risk semantics (accounting, auth, migration, orchestration)
       high: medium-high complexity feature/bug slice
@@ -52,6 +54,9 @@ dispatch_protocol:
   flow_options_for_human:
     - codex_exec
     - tmux
+  flow_command_templates:
+    codex_exec: codex exec --model gpt-5.3-codex --reasoning <xhigh|high|medium> --yolo
+    tmux: tmux new-session -d -s <ticket> 'cd <worktree> && codex --yolo'
   require_agent_identity_on_every_submission: true
   task_packet_isolation_required: true
   prevent_cross_slice_packet_reads: true
