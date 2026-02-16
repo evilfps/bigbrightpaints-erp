@@ -26,13 +26,13 @@ public class RoleController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SUPER_ADMIN')")
     public ResponseEntity<ApiResponse<List<RoleDto>>> listRoles() {
         return ResponseEntity.ok(ApiResponse.success("Platform roles", roleService.listRoles()));
     }
 
     @GetMapping("/{roleKey}")
-    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SUPER_ADMIN')")
     public ResponseEntity<ApiResponse<RoleDto>> getRoleByKey(@org.springframework.web.bind.annotation.PathVariable String roleKey) {
         String normalized = roleKey == null ? "" : roleKey.trim().toUpperCase(Locale.ROOT);
         if (!normalized.startsWith("ROLE_")) {
@@ -47,7 +47,7 @@ public class RoleController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SUPER_ADMIN')")
     public ResponseEntity<ApiResponse<RoleDto>> createRole(@Valid @RequestBody CreateRoleRequest request) {
         return ResponseEntity.ok(ApiResponse.success("Role saved", roleService.createRole(request)));
     }

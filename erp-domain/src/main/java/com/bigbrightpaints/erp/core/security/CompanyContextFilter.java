@@ -72,7 +72,14 @@ public class CompanyContextFilter extends OncePerRequestFilter {
             String companyCode = StringUtils.hasText(requestedCompany) ? requestedCompany.trim() : null;
             if (companyCode != null) {
                 // Validate user has access to this company
-                if (!validateCompanyAccess(companyCode)) {
+                AccessValidationResult validationResult = validateCompanyAccess(companyCode);
+                if (validationResult == AccessValidationResult.UNAUTHENTICATED) {
+                    log.warn("Rejecting unauthenticated company context attempt. companyCode={}, path={}",
+                            companyCode, request.getRequestURI());
+                    response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Authentication required for company context");
+                    return;
+                }
+                if (validationResult == AccessValidationResult.FORBIDDEN) {
                     log.warn("User attempted to access unauthorized company: {}", companyCode);
                     response.sendError(HttpServletResponse.SC_FORBIDDEN, "Access denied to company: " + companyCode);
                     return;
@@ -85,28 +92,36 @@ public class CompanyContextFilter extends OncePerRequestFilter {
         }
     }
 
-    private boolean validateCompanyAccess(String companyCode) {
+    private AccessValidationResult validateCompanyAccess(String companyCode) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null || !auth.isAuthenticated()) {
-            return false;
+        if (auth == null || !auth.isAuthenticated()
+                || auth.getAuthorities().stream().anyMatch(authority -> "ROLE_ANONYMOUS".equals(authority.getAuthority()))) {
+            return AccessValidationResult.UNAUTHENTICATED;
         }
         Object principal = auth.getPrincipal();
         if (principal instanceof UserPrincipal userPrincipal) {
             UserAccount user = userPrincipal.getUser();
             if (user == null || user.getCompanies() == null) {
-                return false;
+                return AccessValidationResult.FORBIDDEN;
             }
             // Check if user has access to the requested company
-            return user.getCompanies().stream()
+            boolean member = user.getCompanies().stream()
                     .anyMatch(c -> c.getCode().equalsIgnoreCase(companyCode));
+            return member ? AccessValidationResult.ALLOWED : AccessValidationResult.FORBIDDEN;
         }
         // Fail closed for unknown principal types.
-        return false;
+        return AccessValidationResult.FORBIDDEN;
     }
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = request.getServletPath();
         return path.startsWith("/actuator") || path.startsWith("/swagger") || path.startsWith("/v3");
+    }
+
+    private enum AccessValidationResult {
+        ALLOWED,
+        UNAUTHENTICATED,
+        FORBIDDEN
     }
 }

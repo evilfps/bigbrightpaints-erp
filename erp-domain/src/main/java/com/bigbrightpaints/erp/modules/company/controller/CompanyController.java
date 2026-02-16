@@ -32,9 +32,9 @@ public class CompanyController {
     }
 
     @PostMapping
-    @PreAuthorize("denyAll()") // prevent creating new companies from tenant admins
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SUPER_ADMIN')")
     public ResponseEntity<ApiResponse<CompanyDto>> create(@Valid @RequestBody CompanyRequest request) {
-        throw new org.springframework.security.access.AccessDeniedException("Creating companies is not permitted");
+        return ResponseEntity.ok(ApiResponse.success("Company created", companyService.create(request)));
     }
 
     @PutMapping("/{id}")
