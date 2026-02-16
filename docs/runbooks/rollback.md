@@ -40,20 +40,27 @@ Provide deterministic rollback steps for application and database failures.
 - [ ] payroll critical endpoint smoke check
 - [ ] outbox/scheduler health checks
 
-## Evidence to Capture
-- rollback initiator
-- approved by
-- exact commands/manifests used
-- timestamps
-- verification outputs
-- residual risks
+## M18-S10A Evidence Standard (Rollback / Rehearsal)
+Record one immutable evidence entry per rollback event or drill with these required fields:
+- `evidence_id` (`rollback-drill-YYYYMMDD-<short_sha>` or `rollback-incident-<id>`)
+- `release_anchor_sha` (same SHA used by all gate outputs tied to the decision)
+- `trigger_reason` (regression/SLO/migration side effect)
+- `rollback_scope` (application artifact, migration IDs, data restore boundary)
+- `commands_run` (exact command strings/manifests + pass/fail outcome)
+- `release_gate_trace` (`gate_fast`, `gate_core`, `gate_reconciliation`, `gate_release` results, or explicit `not_run` reason)
+- `validation_trace` (smoke/reconciliation outcomes after rollback action)
+- `timestamps_utc` (decision, start, stabilize, close)
+- `artifact_links` (logs/output file paths or incident ticket links)
+- `approvals` (rollback initiator, approver, expiry/SLA if applicable)
+- `residual_risks` (open risks accepted at close)
+- `evidence_links` (`asyncloop` entry + `docs/approvals/R2-CHECKPOINT.md` update)
 
 ## Unknowns and TODOs
 - Production deployment platform-specific rollback command is unspecified.
   - TODO: add exact platform commands once deployment target is documented.
 
 ## Enterprise R2 Linkage
-- For high-risk changes, set rollback owner and approval expiry in `docs/approvals/R2-CHECKPOINT.md` before release go/no-go.
+- For high-risk changes, set rollback owner and approval expiry in `docs/approvals/R2-CHECKPOINT.md` before release go/no-go and use matching `evidence_id` + `release_anchor_sha` values across both records.
 
 ## V15 Rollback/Forward-Fix Notes (2026-02-15)
 - Migration: `erp-domain/src/main/resources/db/migration_v2/V15__accounting_audit_read_model_hotspot_indexes.sql`
