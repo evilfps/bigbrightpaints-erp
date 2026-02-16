@@ -19,13 +19,12 @@ import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.invoice.domain.Invoice;
 import com.bigbrightpaints.erp.modules.invoice.domain.InvoiceRepository;
 import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchase;
-import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchaseRepository;
 import com.bigbrightpaints.erp.shared.dto.PageResponse;
+import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -52,7 +51,7 @@ public class AccountingAuditTrailService {
     private final AccountingEventRepository accountingEventRepository;
     private final PartnerSettlementAllocationRepository settlementAllocationRepository;
     private final InvoiceRepository invoiceRepository;
-    private final RawMaterialPurchaseRepository rawMaterialPurchaseRepository;
+    private final EntityManager entityManager;
 
     public AccountingAuditTrailService(CompanyContextService companyContextService,
                                        JournalEntryRepository journalEntryRepository,
@@ -60,14 +59,14 @@ public class AccountingAuditTrailService {
                                        AccountingEventRepository accountingEventRepository,
                                        PartnerSettlementAllocationRepository settlementAllocationRepository,
                                        InvoiceRepository invoiceRepository,
-                                       RawMaterialPurchaseRepository rawMaterialPurchaseRepository) {
+                                       EntityManager entityManager) {
         this.companyContextService = companyContextService;
         this.journalEntryRepository = journalEntryRepository;
         this.journalLineRepository = journalLineRepository;
         this.accountingEventRepository = accountingEventRepository;
         this.settlementAllocationRepository = settlementAllocationRepository;
         this.invoiceRepository = invoiceRepository;
-        this.rawMaterialPurchaseRepository = rawMaterialPurchaseRepository;
+        this.entityManager = entityManager;
     }
 
     @Transactional(readOnly = true)
@@ -109,10 +108,7 @@ public class AccountingAuditTrailService {
         Map<Long, Invoice> invoiceByJournal = invoiceRepository.findByCompanyAndJournalEntry_IdIn(company, journalIds).stream()
                 .filter(invoice -> invoice.getJournalEntry() != null && invoice.getJournalEntry().getId() != null)
                 .collect(Collectors.toMap(invoice -> invoice.getJournalEntry().getId(), invoice -> invoice, (left, right) -> left));
-        Map<Long, RawMaterialPurchase> purchaseByJournal = rawMaterialPurchaseRepository
-                .findByCompanyAndJournalEntry_IdIn(company, journalIds).stream()
-                .filter(purchase -> purchase.getJournalEntry() != null && purchase.getJournalEntry().getId() != null)
-                .collect(Collectors.toMap(purchase -> purchase.getJournalEntry().getId(), purchase -> purchase, (left, right) -> left));
+        Map<Long, RawMaterialPurchase> purchaseByJournal = findPurchasesByJournalEntryIds(company, journalIds);
         Map<Long, List<PartnerSettlementAllocation>> allocationsByJournal = settlementAllocationRepository
                 .findByCompanyAndJournalEntry_IdIn(company, journalIds).stream()
                 .collect(Collectors.groupingBy(allocation -> allocation.getJournalEntry().getId()));
@@ -161,7 +157,7 @@ public class AccountingAuditTrailService {
         List<PartnerSettlementAllocation> allocations = settlementAllocationRepository
                 .findByCompanyAndJournalEntryOrderByCreatedAtAsc(company, entry);
         Optional<Invoice> invoice = invoiceRepository.findByCompanyAndJournalEntry(company, entry);
-        Optional<RawMaterialPurchase> purchase = rawMaterialPurchaseRepository.findByCompanyAndJournalEntry(company, entry);
+        Optional<RawMaterialPurchase> purchase = findPurchaseByJournalEntry(company, entry);
         List<AccountingEvent> events = accountingEventRepository.findByJournalEntryIdOrderByEventTimestampAsc(entry.getId());
 
         BigDecimal totalDebit = entry.getLines().stream()
@@ -314,6 +310,38 @@ public class AccountingAuditTrailService {
                 entry.getPostedBy(),
                 entry.getLastModifiedBy()
         );
+    }
+
+    private Map<Long, RawMaterialPurchase> findPurchasesByJournalEntryIds(Company company, List<Long> journalEntryIds) {
+        List<RawMaterialPurchase> purchases = entityManager.createQuery("""
+                select p
+                from RawMaterialPurchase p
+                where p.company = :company
+                  and p.journalEntry.id in :journalEntryIds
+                """, RawMaterialPurchase.class)
+                .setParameter("company", company)
+                .setParameter("journalEntryIds", journalEntryIds)
+                .getResultList();
+        return purchases.stream()
+                .filter(purchase -> purchase.getJournalEntry() != null && purchase.getJournalEntry().getId() != null)
+                .collect(Collectors.toMap(
+                        purchase -> purchase.getJournalEntry().getId(),
+                        purchase -> purchase,
+                        (left, right) -> left));
+    }
+
+    private Optional<RawMaterialPurchase> findPurchaseByJournalEntry(Company company, JournalEntry journalEntry) {
+        List<RawMaterialPurchase> purchases = entityManager.createQuery("""
+                select p
+                from RawMaterialPurchase p
+                where p.company = :company
+                  and p.journalEntry = :journalEntry
+                """, RawMaterialPurchase.class)
+                .setParameter("company", company)
+                .setParameter("journalEntry", journalEntry)
+                .setMaxResults(1)
+                .getResultList();
+        return purchases.stream().findFirst();
     }
 
     private Specification<JournalEntry> byCompany(Company company) {
