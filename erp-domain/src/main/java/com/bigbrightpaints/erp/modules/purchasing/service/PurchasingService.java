@@ -605,18 +605,18 @@ public class PurchasingService {
             BigDecimal lineTax = currency(BigDecimal.ZERO);
             BigDecimal lineTaxRate = null;
             BigDecimal netUnitCost = costPerUnit;
-            BigDecimal effectiveTaxRate = resolveLineTaxRateForMode(lineRequest, rawMaterial, company, purchaseTaxMode);
-            if (effectiveTaxRate.compareTo(BigDecimal.ZERO) > 0) {
+            BigDecimal taxRate = resolveLineTaxRateForMode(lineRequest, rawMaterial, company, purchaseTaxMode);
+            if (taxRate.compareTo(BigDecimal.ZERO) > 0) {
                 hasTaxableLines = true;
             }
 
             if (!taxProvided) {
-                lineTaxRate = effectiveTaxRate;
+                lineTaxRate = taxRate;
                 boolean taxInclusive = Boolean.TRUE.equals(lineRequest.taxInclusive());
-                if (effectiveTaxRate.compareTo(BigDecimal.ZERO) > 0) {
+                if (taxRate.compareTo(BigDecimal.ZERO) > 0) {
                     if (taxInclusive) {
                         BigDecimal divisor = BigDecimal.ONE.add(
-                                effectiveTaxRate.divide(new BigDecimal("100"), 6, RoundingMode.HALF_UP));
+                                taxRate.divide(new BigDecimal("100"), 6, RoundingMode.HALF_UP));
                         if (divisor.signum() > 0) {
                             BigDecimal net = lineGross.divide(divisor, 6, RoundingMode.HALF_UP);
                             lineNet = currency(net);
@@ -625,7 +625,7 @@ public class PurchasingService {
                         }
                     } else {
                         lineNet = lineGross;
-                        lineTax = currency(lineNet.multiply(effectiveTaxRate)
+                        lineTax = currency(lineNet.multiply(taxRate)
                                 .divide(new BigDecimal("100"), 6, RoundingMode.HALF_UP));
                     }
                 }
