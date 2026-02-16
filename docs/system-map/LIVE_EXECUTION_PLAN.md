@@ -5,6 +5,7 @@ Mode: Continuous
 
 ## Goal
 - Complete async-loop closure with final ledger gates green and reviewer queue fully drained.
+- Drive completion-gate board from `1/5` to `5/5` (see `docs/system-map/COMPLETION_GATES_STATUS.md`).
 
 ## Active constraints
 - Reviewer subagent dispatch currently blocked by external cap (`agent thread limit reached (max 6)`).
@@ -35,6 +36,11 @@ Mode: Continuous
 2. Prioritize dedupe and role-parity consistency (dealer/supplier behavior symmetry).
 3. Keep v2 contract stability: no public API naming drift.
 4. Canonicalize internal mismatch metadata toward `partner*` while preserving external role-specific payload compatibility.
+
+### Lane D: Completion-gate consolidation (closure lane)
+1. Convert module-level evidence into explicit completion-gate closure packs.
+2. Keep `docs/system-map/COMPLETION_GATES_STATUS.md` current after each gate-affecting tranche.
+3. Do not claim safe-to-deploy until all `5/5` completion gates are marked `CLOSED`.
 
 ## Exit criteria
 - Pending code-review queue is empty (all code commits reviewed).
