@@ -98,6 +98,7 @@ public class AccountingService {
     private static final String SETTLEMENT_DISCOUNT_LINE_DESCRIPTION = "settlement discount";
     private static final String SETTLEMENT_WRITE_OFF_LINE_DESCRIPTION = "settlement write-off";
     private static final String SETTLEMENT_FX_LOSS_LINE_DESCRIPTION = "fx loss on settlement";
+    private static final String INPUT_TAX_LINE_DESCRIPTION_PREFIX = "input tax for ";
 
     private final CompanyContextService companyContextService;
     private final AccountRepository accountRepository;
@@ -2037,6 +2038,7 @@ public class AccountingService {
                 if (purchase.getSupplier() == null || !purchase.getSupplier().getId().equals(supplier.getId())) {
                     throw new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE, "Purchase does not belong to the supplier");
                 }
+                enforceSupplierSettlementPostingParity(company, supplier.getId(), purchase, trimmedIdempotencyKey);
                 // Open-item: applied amount represents gross purchase reduction.
                 BigDecimal cleared = applied;
                 BigDecimal currentOutstanding = remainingByPurchase.getOrDefault(
@@ -5003,6 +5005,154 @@ public class AccountingService {
                     partnerType,
                     partnerId);
         }
+    }
+
+    private void enforceSupplierSettlementPostingParity(Company company,
+                                                        Long supplierId,
+                                                        RawMaterialPurchase purchase,
+                                                        String idempotencyKey) {
+        if (purchase == null || purchase.getId() == null) {
+            return;
+        }
+        Long purchaseId = purchase.getId();
+        Supplier purchaseSupplier = purchase.getSupplier();
+        if (purchaseSupplier == null || purchaseSupplier.getId() == null
+                || (supplierId != null && !Objects.equals(purchaseSupplier.getId(), supplierId))) {
+            throw supplierSettlementPostingDrift(
+                    "Supplier settlement purchase posting drift: purchase supplier context mismatch",
+                    idempotencyKey,
+                    supplierId,
+                    purchaseId);
+        }
+        JournalEntry purchaseJournal = purchase.getJournalEntry();
+        if (purchaseJournal == null) {
+            throw supplierSettlementPostingDrift(
+                    "Supplier settlement purchase posting drift: purchase journal link is missing",
+                    idempotencyKey,
+                    supplierId,
+                    purchaseId);
+        }
+        Supplier journalSupplier = purchaseJournal.getSupplier();
+        if (journalSupplier == null || journalSupplier.getId() == null
+                || !Objects.equals(journalSupplier.getId(), purchaseSupplier.getId())) {
+            throw supplierSettlementPostingDrift(
+                    "Supplier settlement purchase posting drift: purchase journal supplier mismatch",
+                    idempotencyKey,
+                    supplierId,
+                    purchaseId);
+        }
+
+        Account payableAccount = purchaseSupplier.getPayableAccount();
+        if (payableAccount == null || payableAccount.getId() == null) {
+            throw supplierSettlementPostingDrift(
+                    "Supplier settlement purchase posting drift: supplier payable account is missing",
+                    idempotencyKey,
+                    supplierId,
+                    purchaseId);
+        }
+
+        BigDecimal expectedPayableCredit = normalizeAmount(MoneyUtils.zeroIfNull(purchase.getTotalAmount()));
+        BigDecimal actualPayableCredit = payableCreditForAccount(purchaseJournal, payableAccount.getId());
+        if (actualPayableCredit.subtract(expectedPayableCredit).abs().compareTo(ALLOCATION_TOLERANCE) > 0) {
+            throw supplierSettlementPostingDrift(
+                    "Supplier settlement purchase posting drift: AP credit does not match purchase total",
+                    idempotencyKey,
+                    supplierId,
+                    purchaseId)
+                    .withDetail("expectedPayableCredit", expectedPayableCredit)
+                    .withDetail("actualPayableCredit", actualPayableCredit)
+                    .withDetail("payableAccountId", payableAccount.getId())
+                    .withDetail("purchaseJournalEntryId", purchaseJournal.getId());
+        }
+
+        BigDecimal expectedInputTax = normalizeAmount(MoneyUtils.zeroIfNull(purchase.getTaxAmount()));
+        BigDecimal actualInputTaxDebit = inputTaxDebitForPurchaseJournal(company, purchaseJournal);
+        if (expectedInputTax.compareTo(ALLOCATION_TOLERANCE) > 0) {
+            if (actualInputTaxDebit.compareTo(ALLOCATION_TOLERANCE) <= 0
+                    || actualInputTaxDebit.subtract(expectedInputTax).abs().compareTo(ALLOCATION_TOLERANCE) > 0) {
+                throw supplierSettlementPostingDrift(
+                        "Supplier settlement purchase posting drift: GST purchase input tax posting mismatch",
+                        idempotencyKey,
+                        supplierId,
+                        purchaseId)
+                        .withDetail("expectedInputTax", expectedInputTax)
+                        .withDetail("actualInputTaxDebit", actualInputTaxDebit)
+                        .withDetail("purchaseJournalEntryId", purchaseJournal.getId());
+            }
+            return;
+        }
+        if (actualInputTaxDebit.compareTo(ALLOCATION_TOLERANCE) > 0) {
+            throw supplierSettlementPostingDrift(
+                    "Supplier settlement purchase posting drift: non-GST purchase has input tax posting",
+                    idempotencyKey,
+                    supplierId,
+                    purchaseId)
+                    .withDetail("expectedInputTax", expectedInputTax)
+                    .withDetail("actualInputTaxDebit", actualInputTaxDebit)
+                    .withDetail("purchaseJournalEntryId", purchaseJournal.getId());
+        }
+    }
+
+    private BigDecimal payableCreditForAccount(JournalEntry entry, Long payableAccountId) {
+        if (entry == null || payableAccountId == null || entry.getLines() == null || entry.getLines().isEmpty()) {
+            return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+        }
+        BigDecimal total = BigDecimal.ZERO;
+        for (JournalLine line : entry.getLines()) {
+            if (line == null || line.getAccount() == null || line.getAccount().getId() == null) {
+                continue;
+            }
+            if (!Objects.equals(line.getAccount().getId(), payableAccountId)) {
+                continue;
+            }
+            BigDecimal credit = normalizeAmount(line.getCredit());
+            if (credit.compareTo(BigDecimal.ZERO) > 0) {
+                total = total.add(credit);
+            }
+        }
+        return normalizeAmount(total);
+    }
+
+    private BigDecimal inputTaxDebitForPurchaseJournal(Company company, JournalEntry entry) {
+        if (entry == null || entry.getLines() == null || entry.getLines().isEmpty()) {
+            return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+        }
+        BigDecimal total = BigDecimal.ZERO;
+        for (JournalLine line : entry.getLines()) {
+            if (!isInputTaxPurchaseLine(company, line)) {
+                continue;
+            }
+            BigDecimal debit = normalizeAmount(line.getDebit());
+            if (debit.compareTo(BigDecimal.ZERO) > 0) {
+                total = total.add(debit);
+            }
+        }
+        return normalizeAmount(total);
+    }
+
+    private boolean isInputTaxPurchaseLine(Company company, JournalLine line) {
+        if (line == null || line.getAccount() == null) {
+            return false;
+        }
+        Long configuredInputTaxAccountId = company != null ? company.getGstInputTaxAccountId() : null;
+        if (configuredInputTaxAccountId != null && Objects.equals(line.getAccount().getId(), configuredInputTaxAccountId)) {
+            return true;
+        }
+        return normalizeLineDescription(line.getDescription()).startsWith(INPUT_TAX_LINE_DESCRIPTION_PREFIX);
+    }
+
+    private ApplicationException supplierSettlementPostingDrift(String message,
+                                                                String idempotencyKey,
+                                                                Long supplierId,
+                                                                Long purchaseId) {
+        ApplicationException exception = new ApplicationException(ErrorCode.CONCURRENCY_CONFLICT, message)
+                .withDetail(IntegrationFailureMetadataSchema.KEY_PARTNER_TYPE, PartnerType.SUPPLIER.name())
+                .withDetail(IntegrationFailureMetadataSchema.KEY_PARTNER_ID, supplierId)
+                .withDetail(IntegrationFailureMetadataSchema.KEY_PURCHASE_ID, purchaseId);
+        if (StringUtils.hasText(idempotencyKey)) {
+            exception.withDetail(IntegrationFailureMetadataSchema.KEY_IDEMPOTENCY_KEY, idempotencyKey);
+        }
+        return exception;
     }
 
     private boolean isSettlementAllocationPartnerMismatch(PartnerSettlementAllocation row,

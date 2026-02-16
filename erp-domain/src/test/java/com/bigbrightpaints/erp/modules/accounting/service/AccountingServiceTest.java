@@ -1676,8 +1676,33 @@ class AccountingServiceTest {
         RawMaterialPurchase purchase = new RawMaterialPurchase();
         purchase.setCompany(company);
         purchase.setSupplier(supplier);
+        purchase.setTotalAmount(new BigDecimal("200.00"));
+        purchase.setTaxAmount(BigDecimal.ZERO);
         purchase.setOutstandingAmount(new BigDecimal("200.00"));
         ReflectionTestUtils.setField(purchase, "id", 2L);
+
+        Account inventory = new Account();
+        inventory.setCompany(company);
+        inventory.setCode("INV-AP");
+        inventory.setType(AccountType.ASSET);
+        ReflectionTestUtils.setField(inventory, "id", 23L);
+
+        JournalEntry purchaseJournal = new JournalEntry();
+        ReflectionTestUtils.setField(purchaseJournal, "id", 2002L);
+        purchaseJournal.setSupplier(supplier);
+        purchaseJournal.getLines().add(journalLine(
+                purchaseJournal,
+                inventory,
+                "Purchase invoice",
+                new BigDecimal("200.00"),
+                BigDecimal.ZERO));
+        purchaseJournal.getLines().add(journalLine(
+                purchaseJournal,
+                payable,
+                "Purchase invoice",
+                BigDecimal.ZERO,
+                new BigDecimal("200.00")));
+        purchase.setJournalEntry(purchaseJournal);
 
         when(supplierRepository.lockByCompanyAndId(eq(company), eq(1L))).thenReturn(Optional.of(supplier));
         when(rawMaterialPurchaseRepository.lockByCompanyAndId(eq(company), eq(2L))).thenReturn(Optional.of(purchase));
@@ -1735,6 +1760,190 @@ class AccountingServiceTest {
         assertThat(cashLine.credit()).isEqualByComparingTo("85.00");
         assertThat(discountLine.credit()).isEqualByComparingTo("10.00");
         assertThat(fxGainLine.credit()).isEqualByComparingTo("5.00");
+    }
+
+    @Test
+    void settleSupplierInvoices_rejectsGstPurchaseWhenInputTaxPostingMissing() {
+        AccountingService service = spy(accountingService);
+
+        Supplier supplier = new Supplier();
+        supplier.setName("Supplier");
+        ReflectionTestUtils.setField(supplier, "id", 1L);
+
+        Account payable = new Account();
+        payable.setCompany(company);
+        payable.setCode("AP");
+        payable.setType(AccountType.LIABILITY);
+        ReflectionTestUtils.setField(payable, "id", 10L);
+        supplier.setPayableAccount(payable);
+
+        Account cash = new Account();
+        cash.setCompany(company);
+        cash.setCode("CASH");
+        cash.setType(AccountType.ASSET);
+        ReflectionTestUtils.setField(cash, "id", 20L);
+
+        Account inventory = new Account();
+        inventory.setCompany(company);
+        inventory.setCode("INV");
+        inventory.setType(AccountType.ASSET);
+        ReflectionTestUtils.setField(inventory, "id", 21L);
+
+        RawMaterialPurchase purchase = new RawMaterialPurchase();
+        purchase.setCompany(company);
+        purchase.setSupplier(supplier);
+        purchase.setTotalAmount(new BigDecimal("118.00"));
+        purchase.setTaxAmount(new BigDecimal("18.00"));
+        purchase.setOutstandingAmount(new BigDecimal("118.00"));
+        ReflectionTestUtils.setField(purchase, "id", 7001L);
+
+        JournalEntry purchaseJournal = new JournalEntry();
+        ReflectionTestUtils.setField(purchaseJournal, "id", 9701L);
+        purchaseJournal.setSupplier(supplier);
+        purchaseJournal.setReferenceNumber("RMP-GST-MISS-1");
+        purchaseJournal.getLines().add(journalLine(
+                purchaseJournal,
+                inventory,
+                "Purchase invoice GST missing",
+                new BigDecimal("118.00"),
+                BigDecimal.ZERO));
+        purchaseJournal.getLines().add(journalLine(
+                purchaseJournal,
+                payable,
+                "Purchase invoice GST missing",
+                BigDecimal.ZERO,
+                new BigDecimal("118.00")));
+        purchase.setJournalEntry(purchaseJournal);
+
+        when(supplierRepository.lockByCompanyAndId(eq(company), eq(1L))).thenReturn(Optional.of(supplier));
+        when(companyEntityLookup.requireAccount(eq(company), eq(20L))).thenReturn(cash);
+        when(rawMaterialPurchaseRepository.lockByCompanyAndId(eq(company), eq(7001L))).thenReturn(Optional.of(purchase));
+
+        SupplierSettlementRequest request = new SupplierSettlementRequest(
+                1L,
+                20L,
+                null,
+                null,
+                null,
+                null,
+                LocalDate.of(2024, 4, 9),
+                "SUP-GST-MISS-1",
+                "Supplier settlement GST mismatch",
+                "IDEMP-SUP-GST-MISS-1",
+                Boolean.FALSE,
+                List.of(new SettlementAllocationRequest(
+                        null,
+                        7001L,
+                        new BigDecimal("50.00"),
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        null
+                ))
+        );
+
+        assertThatThrownBy(() -> service.settleSupplierInvoices(request))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("GST purchase input tax posting mismatch");
+        verify(service, never()).createJournalEntry(any(JournalEntryRequest.class));
+    }
+
+    @Test
+    void settleSupplierInvoices_rejectsNonGstPurchaseWhenInputTaxPostingExists() {
+        AccountingService service = spy(accountingService);
+
+        Supplier supplier = new Supplier();
+        supplier.setName("Supplier");
+        ReflectionTestUtils.setField(supplier, "id", 1L);
+
+        Account payable = new Account();
+        payable.setCompany(company);
+        payable.setCode("AP");
+        payable.setType(AccountType.LIABILITY);
+        ReflectionTestUtils.setField(payable, "id", 10L);
+        supplier.setPayableAccount(payable);
+
+        Account cash = new Account();
+        cash.setCompany(company);
+        cash.setCode("CASH");
+        cash.setType(AccountType.ASSET);
+        ReflectionTestUtils.setField(cash, "id", 20L);
+
+        Account inventory = new Account();
+        inventory.setCompany(company);
+        inventory.setCode("INV");
+        inventory.setType(AccountType.ASSET);
+        ReflectionTestUtils.setField(inventory, "id", 21L);
+
+        Account inputTax = new Account();
+        inputTax.setCompany(company);
+        inputTax.setCode("GST-IN");
+        inputTax.setType(AccountType.ASSET);
+        ReflectionTestUtils.setField(inputTax, "id", 22L);
+
+        RawMaterialPurchase purchase = new RawMaterialPurchase();
+        purchase.setCompany(company);
+        purchase.setSupplier(supplier);
+        purchase.setTotalAmount(new BigDecimal("100.00"));
+        purchase.setTaxAmount(BigDecimal.ZERO);
+        purchase.setOutstandingAmount(new BigDecimal("100.00"));
+        ReflectionTestUtils.setField(purchase, "id", 7002L);
+
+        JournalEntry purchaseJournal = new JournalEntry();
+        ReflectionTestUtils.setField(purchaseJournal, "id", 9702L);
+        purchaseJournal.setSupplier(supplier);
+        purchaseJournal.setReferenceNumber("RMP-NONGST-MISS-1");
+        purchaseJournal.getLines().add(journalLine(
+                purchaseJournal,
+                inventory,
+                "Purchase invoice non-GST",
+                new BigDecimal("82.00"),
+                BigDecimal.ZERO));
+        purchaseJournal.getLines().add(journalLine(
+                purchaseJournal,
+                inputTax,
+                "Input tax for purchase invoice non-GST",
+                new BigDecimal("18.00"),
+                BigDecimal.ZERO));
+        purchaseJournal.getLines().add(journalLine(
+                purchaseJournal,
+                payable,
+                "Purchase invoice non-GST",
+                BigDecimal.ZERO,
+                new BigDecimal("100.00")));
+        purchase.setJournalEntry(purchaseJournal);
+
+        when(supplierRepository.lockByCompanyAndId(eq(company), eq(1L))).thenReturn(Optional.of(supplier));
+        when(companyEntityLookup.requireAccount(eq(company), eq(20L))).thenReturn(cash);
+        when(rawMaterialPurchaseRepository.lockByCompanyAndId(eq(company), eq(7002L))).thenReturn(Optional.of(purchase));
+
+        SupplierSettlementRequest request = new SupplierSettlementRequest(
+                1L,
+                20L,
+                null,
+                null,
+                null,
+                null,
+                LocalDate.of(2024, 4, 9),
+                "SUP-NONGST-MISS-1",
+                "Supplier settlement non-GST mismatch",
+                "IDEMP-SUP-NONGST-MISS-1",
+                Boolean.FALSE,
+                List.of(new SettlementAllocationRequest(
+                        null,
+                        7002L,
+                        new BigDecimal("50.00"),
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        null
+                ))
+        );
+
+        assertThatThrownBy(() -> service.settleSupplierInvoices(request))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("non-GST purchase has input tax posting");
+        verify(service, never()).createJournalEntry(any(JournalEntryRequest.class));
     }
 
     @Test
@@ -1835,8 +2044,33 @@ class AccountingServiceTest {
         RawMaterialPurchase purchase = new RawMaterialPurchase();
         purchase.setCompany(company);
         purchase.setSupplier(supplier);
+        purchase.setTotalAmount(new BigDecimal("100.00"));
+        purchase.setTaxAmount(BigDecimal.ZERO);
         purchase.setOutstandingAmount(new BigDecimal("100.00"));
         ReflectionTestUtils.setField(purchase, "id", 740L);
+
+        Account inventory = new Account();
+        inventory.setCompany(company);
+        inventory.setCode("INV-OLD");
+        inventory.setType(AccountType.ASSET);
+        ReflectionTestUtils.setField(inventory, "id", 30L);
+
+        JournalEntry purchaseJournal = new JournalEntry();
+        ReflectionTestUtils.setField(purchaseJournal, "id", 1740L);
+        purchaseJournal.setSupplier(supplier);
+        purchaseJournal.getLines().add(journalLine(
+                purchaseJournal,
+                inventory,
+                "Purchase invoice old",
+                new BigDecimal("100.00"),
+                BigDecimal.ZERO));
+        purchaseJournal.getLines().add(journalLine(
+                purchaseJournal,
+                payable,
+                "Purchase invoice old",
+                BigDecimal.ZERO,
+                new BigDecimal("100.00")));
+        purchase.setJournalEntry(purchaseJournal);
 
         when(supplierRepository.lockByCompanyAndId(eq(company), eq(1L))).thenReturn(Optional.of(supplier));
         when(companyEntityLookup.requireAccount(eq(company), eq(20L))).thenReturn(cash);
@@ -3469,8 +3703,34 @@ class AccountingServiceTest {
         RawMaterialPurchase purchase = new RawMaterialPurchase();
         purchase.setCompany(company);
         purchase.setSupplier(supplier);
+        purchase.setTotalAmount(new BigDecimal("100.00"));
+        purchase.setTaxAmount(BigDecimal.ZERO);
         purchase.setOutstandingAmount(new BigDecimal("100.00"));
         ReflectionTestUtils.setField(purchase, "id", 704L);
+
+        Account inventory = new Account();
+        inventory.setCompany(company);
+        inventory.setCode("INV-SETTLE-RACE");
+        inventory.setType(AccountType.ASSET);
+        ReflectionTestUtils.setField(inventory, "id", 22L);
+
+        JournalEntry purchaseJournal = new JournalEntry();
+        ReflectionTestUtils.setField(purchaseJournal, "id", 959L);
+        purchaseJournal.setSupplier(supplier);
+        purchaseJournal.setReferenceNumber("RMP-SETTLE-RACE-1");
+        purchaseJournal.getLines().add(journalLine(
+                purchaseJournal,
+                inventory,
+                "Purchase invoice race",
+                new BigDecimal("100.00"),
+                BigDecimal.ZERO));
+        purchaseJournal.getLines().add(journalLine(
+                purchaseJournal,
+                payable,
+                "Purchase invoice race",
+                BigDecimal.ZERO,
+                new BigDecimal("100.00")));
+        purchase.setJournalEntry(purchaseJournal);
 
         JournalEntry createdEntry = new JournalEntry();
         ReflectionTestUtils.setField(createdEntry, "id", 960L);
@@ -4092,12 +4352,62 @@ class AccountingServiceTest {
         RawMaterialPurchase purchaseA = new RawMaterialPurchase();
         purchaseA.setCompany(company);
         purchaseA.setSupplier(supplier);
+        purchaseA.setTotalAmount(new BigDecimal("100.00"));
+        purchaseA.setTaxAmount(BigDecimal.ZERO);
         ReflectionTestUtils.setField(purchaseA, "id", 801L);
 
         RawMaterialPurchase purchaseB = new RawMaterialPurchase();
         purchaseB.setCompany(company);
         purchaseB.setSupplier(supplier);
+        purchaseB.setTotalAmount(new BigDecimal("200.00"));
+        purchaseB.setTaxAmount(BigDecimal.ZERO);
         ReflectionTestUtils.setField(purchaseB, "id", 802L);
+
+        Account inventoryA = new Account();
+        inventoryA.setCompany(company);
+        inventoryA.setCode("INV-SETTLE-REPLAY-A");
+        inventoryA.setType(AccountType.ASSET);
+        ReflectionTestUtils.setField(inventoryA, "id", 31L);
+
+        Account inventoryB = new Account();
+        inventoryB.setCompany(company);
+        inventoryB.setCode("INV-SETTLE-REPLAY-B");
+        inventoryB.setType(AccountType.ASSET);
+        ReflectionTestUtils.setField(inventoryB, "id", 32L);
+
+        JournalEntry purchaseJournalA = new JournalEntry();
+        ReflectionTestUtils.setField(purchaseJournalA, "id", 1801L);
+        purchaseJournalA.setSupplier(supplier);
+        purchaseJournalA.getLines().add(journalLine(
+                purchaseJournalA,
+                inventoryA,
+                "Purchase replay A",
+                new BigDecimal("100.00"),
+                BigDecimal.ZERO));
+        purchaseJournalA.getLines().add(journalLine(
+                purchaseJournalA,
+                payable,
+                "Purchase replay A",
+                BigDecimal.ZERO,
+                new BigDecimal("100.00")));
+        purchaseA.setJournalEntry(purchaseJournalA);
+
+        JournalEntry purchaseJournalB = new JournalEntry();
+        ReflectionTestUtils.setField(purchaseJournalB, "id", 1802L);
+        purchaseJournalB.setSupplier(supplier);
+        purchaseJournalB.getLines().add(journalLine(
+                purchaseJournalB,
+                inventoryB,
+                "Purchase replay B",
+                new BigDecimal("200.00"),
+                BigDecimal.ZERO));
+        purchaseJournalB.getLines().add(journalLine(
+                purchaseJournalB,
+                payable,
+                "Purchase replay B",
+                BigDecimal.ZERO,
+                new BigDecimal("200.00")));
+        purchaseB.setJournalEntry(purchaseJournalB);
 
         JournalEntry existingEntry = new JournalEntry();
         ReflectionTestUtils.setField(existingEntry, "id", 1951L);
