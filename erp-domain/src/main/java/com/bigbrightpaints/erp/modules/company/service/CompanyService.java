@@ -4,11 +4,15 @@ import com.bigbrightpaints.erp.core.audit.AuditEvent;
 import com.bigbrightpaints.erp.core.audit.AuditService;
 import com.bigbrightpaints.erp.modules.auth.domain.UserPrincipal;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
+import com.bigbrightpaints.erp.modules.company.domain.CompanyLifecycleState;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
 import com.bigbrightpaints.erp.modules.company.dto.CompanyDto;
+import com.bigbrightpaints.erp.modules.company.dto.CompanyLifecycleStateDto;
+import com.bigbrightpaints.erp.modules.company.dto.CompanyLifecycleStateRequest;
 import com.bigbrightpaints.erp.modules.company.dto.CompanyRequest;
 import jakarta.transaction.Transactional;
 import java.util.HashMap;
+import java.util.List;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
@@ -17,12 +21,19 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
-import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
 public class CompanyService {
+
+    private static final String LIFECYCLE_STATE_METADATA_KEY = "companyLifecycleState";
+    private static final String LIFECYCLE_PREVIOUS_STATE_METADATA_KEY = "companyPreviousLifecycleState";
+    private static final String LIFECYCLE_REASON_METADATA_KEY = "companyLifecycleReason";
+    private static final String LIFECYCLE_EVIDENCE_METADATA_KEY = "lifecycleEvidence";
+    private static final String LIFECYCLE_EVIDENCE_VALUE = "immutable-audit-log";
+    private static final String LIFECYCLE_UPDATED_REASON = "tenant-lifecycle-state-updated";
+    private static final String LIFECYCLE_SUPER_ADMIN_REQUIRED_REASON = "super-admin-required-for-tenant-lifecycle-control";
 
     private final CompanyRepository repository;
     private final AuditService auditService;
@@ -32,7 +43,8 @@ public class CompanyService {
     }
 
     @Autowired
-    public CompanyService(CompanyRepository repository, AuditService auditService) {
+    public CompanyService(CompanyRepository repository,
+                          AuditService auditService) {
         this.repository = repository;
         this.auditService = auditService;
     }
@@ -82,9 +94,53 @@ public class CompanyService {
         return toDto(findByCode(companyCode));
     }
 
+    @Transactional
+    public CompanyLifecycleStateDto updateLifecycleState(Long companyId, CompanyLifecycleStateRequest request) {
+        CompanyLifecycleState requestedState = CompanyLifecycleState.fromRequestValue(request.state());
+        String lifecycleReason = normalizeLifecycleReason(request.reason());
+        Authentication authentication = requireSuperAdminForLifecycleControl(companyId, requestedState, lifecycleReason);
+
+        Company company = repository.lockById(companyId)
+                .orElseThrow(() -> new IllegalArgumentException("Company not found"));
+
+        CompanyLifecycleState previousState = resolveLifecycleStateById(company.getId());
+        company.setLifecycleState(requestedState);
+        company.setLifecycleReason(lifecycleReason);
+        persistLifecycleAuditEvidence(company, previousState, requestedState, lifecycleReason, authentication);
+        return new CompanyLifecycleStateDto(
+                company.getId(),
+                company.getCode(),
+                previousState.name(),
+                requestedState.name(),
+                lifecycleReason);
+    }
+
     public Company findByCode(String code) {
         return repository.findByCodeIgnoreCase(code)
                 .orElseThrow(() -> new IllegalArgumentException("Company not found: " + code));
+    }
+
+    public boolean isRuntimeAccessAllowed(Long companyId) {
+        return resolveLifecycleStateById(companyId) == CompanyLifecycleState.ACTIVE;
+    }
+
+    public CompanyLifecycleState resolveLifecycleStateByCode(String companyCode) {
+        if (!StringUtils.hasText(companyCode)) {
+            return CompanyLifecycleState.BLOCKED;
+        }
+        return repository.findByCodeIgnoreCase(companyCode.trim())
+                .map(Company::getId)
+                .map(this::resolveLifecycleStateById)
+                .orElse(CompanyLifecycleState.BLOCKED);
+    }
+
+    public CompanyLifecycleState resolveLifecycleStateById(Long companyId) {
+        if (companyId == null) {
+            return CompanyLifecycleState.BLOCKED;
+        }
+        return repository.findById(companyId)
+                .map(company -> company.getLifecycleState() == null ? CompanyLifecycleState.ACTIVE : company.getLifecycleState())
+                .orElse(CompanyLifecycleState.BLOCKED);
     }
 
     private void requireMembershipById(Long companyId, Set<Company> allowedCompanies) {
@@ -121,6 +177,23 @@ public class CompanyService {
                 company.getDefaultGstRate());
     }
 
+    private Authentication requireSuperAdminForLifecycleControl(Long companyId,
+                                                                CompanyLifecycleState requestedState,
+                                                                String lifecycleReason) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (!hasAuthority(authentication, "ROLE_SUPER_ADMIN")) {
+            Company target = companyId == null ? null : repository.findById(companyId).orElse(null);
+            auditLifecycleDenied(
+                    companyId,
+                    target == null ? null : target.getCode(),
+                    requestedState,
+                    lifecycleReason,
+                    authentication);
+            throw new AccessDeniedException("SUPER_ADMIN authority required for tenant lifecycle control");
+        }
+        return authentication;
+    }
+
     private Authentication requireSuperAdminForTenantBootstrap(String requestedCompanyCode) {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (!hasAuthority(authentication, "ROLE_SUPER_ADMIN")) {
@@ -137,6 +210,66 @@ public class CompanyService {
         return authentication.getAuthorities().stream()
                 .map(GrantedAuthority::getAuthority)
                 .anyMatch(granted -> authority.equalsIgnoreCase(granted));
+    }
+
+    private String normalizeLifecycleReason(String reason) {
+        if (!StringUtils.hasText(reason)) {
+            throw new IllegalArgumentException("Lifecycle reason is required");
+        }
+        return reason.trim();
+    }
+
+    private void persistLifecycleAuditEvidence(Company company,
+                                               CompanyLifecycleState previousState,
+                                               CompanyLifecycleState requestedState,
+                                               String lifecycleReason,
+                                               Authentication authentication) {
+        if (auditService == null) {
+            return;
+        }
+        HashMap<String, String> metadata = new HashMap<>();
+        metadata.put("actor", resolveActor(authentication));
+        metadata.put("reason", LIFECYCLE_UPDATED_REASON);
+        metadata.put("tenantScope", resolveTenantScope(authentication));
+        metadata.put("targetCompanyCode", company.getCode());
+        metadata.put("targetCompanyId", String.valueOf(company.getId()));
+        metadata.put(LIFECYCLE_PREVIOUS_STATE_METADATA_KEY, previousState.name());
+        metadata.put(LIFECYCLE_STATE_METADATA_KEY, requestedState.name());
+        metadata.put(LIFECYCLE_REASON_METADATA_KEY, lifecycleReason);
+        metadata.put(LIFECYCLE_EVIDENCE_METADATA_KEY, LIFECYCLE_EVIDENCE_VALUE);
+        auditService.logAuthSuccess(
+                AuditEvent.CONFIGURATION_CHANGED,
+                resolveActor(authentication),
+                company.getCode(),
+                metadata);
+    }
+
+    private void auditLifecycleDenied(Long companyId,
+                                      String targetCompanyCode,
+                                      CompanyLifecycleState requestedState,
+                                      String lifecycleReason,
+                                      Authentication authentication) {
+        if (auditService == null) {
+            return;
+        }
+        HashMap<String, String> metadata = new HashMap<>();
+        metadata.put("actor", resolveActor(authentication));
+        metadata.put("reason", LIFECYCLE_SUPER_ADMIN_REQUIRED_REASON);
+        metadata.put("tenantScope", resolveTenantScope(authentication));
+        if (companyId != null) {
+            metadata.put("targetCompanyId", String.valueOf(companyId));
+        }
+        if (StringUtils.hasText(targetCompanyCode)) {
+            metadata.put("targetCompanyCode", targetCompanyCode.trim());
+        }
+        metadata.put(LIFECYCLE_STATE_METADATA_KEY, requestedState.name());
+        metadata.put(LIFECYCLE_REASON_METADATA_KEY, lifecycleReason);
+        metadata.put(LIFECYCLE_EVIDENCE_METADATA_KEY, LIFECYCLE_EVIDENCE_VALUE);
+        auditService.logAuthFailure(
+                AuditEvent.ACCESS_DENIED,
+                resolveActor(authentication),
+                targetCompanyCode,
+                metadata);
     }
 
     private void auditAuthorityDecision(boolean granted, String reason, String targetCompanyCode, Authentication authentication) {

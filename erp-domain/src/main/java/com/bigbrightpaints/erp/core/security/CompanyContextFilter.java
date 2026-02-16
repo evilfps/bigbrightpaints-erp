@@ -2,6 +2,9 @@ package com.bigbrightpaints.erp.core.security;
 
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccount;
 import com.bigbrightpaints.erp.modules.auth.domain.UserPrincipal;
+import com.bigbrightpaints.erp.modules.company.domain.Company;
+import com.bigbrightpaints.erp.modules.company.domain.CompanyLifecycleState;
+import com.bigbrightpaints.erp.modules.company.service.CompanyService;
 import io.jsonwebtoken.Claims;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -23,6 +26,11 @@ import java.io.IOException;
 public class CompanyContextFilter extends OncePerRequestFilter {
 
     private static final Logger log = LoggerFactory.getLogger(CompanyContextFilter.class);
+    private final CompanyService companyService;
+
+    public CompanyContextFilter(CompanyService companyService) {
+        this.companyService = companyService;
+    }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
@@ -127,10 +135,20 @@ public class CompanyContextFilter extends OncePerRequestFilter {
             if (user == null || user.getCompanies() == null) {
                 return AccessValidationResult.FORBIDDEN;
             }
-            // Check if user has access to the requested company
-            boolean member = user.getCompanies().stream()
-                    .anyMatch(c -> c.getCode().equalsIgnoreCase(companyCode));
-            return member ? AccessValidationResult.ALLOWED : AccessValidationResult.FORBIDDEN;
+            Company matchedCompany = user.getCompanies().stream()
+                    .filter(c -> c.getCode().equalsIgnoreCase(companyCode))
+                    .findFirst()
+                    .orElse(null);
+            if (matchedCompany == null) {
+                return AccessValidationResult.FORBIDDEN;
+            }
+            CompanyLifecycleState lifecycleState = companyService.resolveLifecycleStateById(matchedCompany.getId());
+            if (lifecycleState != CompanyLifecycleState.ACTIVE) {
+                log.warn("Rejecting request for tenant lifecycle state {}. companyCode={}, user={}",
+                        lifecycleState, companyCode, user.getEmail());
+                return AccessValidationResult.FORBIDDEN;
+            }
+            return AccessValidationResult.ALLOWED;
         }
         // Fail closed for unknown principal types.
         return AccessValidationResult.FORBIDDEN;

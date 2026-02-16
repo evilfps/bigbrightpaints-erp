@@ -74,6 +74,13 @@ public class Company extends VersionedEntity {
     @Column(name = "base_currency", nullable = false)
     private String baseCurrency = "INR";
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "lifecycle_state", nullable = false)
+    private CompanyLifecycleState lifecycleState = CompanyLifecycleState.ACTIVE;
+
+    @Column(name = "lifecycle_reason")
+    private String lifecycleReason;
+
     @PrePersist
     public void prePersist() {
         if (publicId == null) {
@@ -84,6 +91,9 @@ public class Company extends VersionedEntity {
         }
         if (timezone == null) {
             timezone = "UTC";
+        }
+        if (lifecycleState == null) {
+            lifecycleState = CompanyLifecycleState.ACTIVE;
         }
     }
 
@@ -228,6 +238,26 @@ public class Company extends VersionedEntity {
         } else {
             this.baseCurrency = baseCurrency.trim().toUpperCase();
         }
+    }
+
+    public CompanyLifecycleState getLifecycleState() {
+        return lifecycleState;
+    }
+
+    public void setLifecycleState(CompanyLifecycleState lifecycleState) {
+        this.lifecycleState = lifecycleState == null ? CompanyLifecycleState.ACTIVE : lifecycleState;
+    }
+
+    public String getLifecycleReason() {
+        return lifecycleReason;
+    }
+
+    public void setLifecycleReason(String lifecycleReason) {
+        if (lifecycleReason == null || lifecycleReason.isBlank()) {
+            this.lifecycleReason = null;
+            return;
+        }
+        this.lifecycleReason = lifecycleReason.trim();
     }
 
     @Override

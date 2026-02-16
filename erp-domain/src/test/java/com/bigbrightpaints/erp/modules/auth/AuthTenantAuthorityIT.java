@@ -109,6 +109,88 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
     }
 
     @Test
+    void admin_cannot_block_tenant_lifecycle_state() throws InterruptedException {
+        String token = login(ADMIN_EMAIL, TENANT_A);
+        Long tenantAId = companyRepository.findByCodeIgnoreCase(TENANT_A).map(Company::getId).orElseThrow();
+
+        ResponseEntity<Map> response = updateLifecycleState(tenantAId, token, TENANT_A, "BLOCKED", "Repeated policy breach");
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+
+        AuditLog denied = awaitAuditEvent(AuditEvent.ACCESS_DENIED, log ->
+                ADMIN_EMAIL.equalsIgnoreCase(log.getUsername())
+                        && "super-admin-required-for-tenant-lifecycle-control".equals(log.getMetadata().get("reason"))
+                        && "BLOCKED".equalsIgnoreCase(log.getMetadata().get("companyLifecycleState"))
+                        && "Repeated policy breach".equals(log.getMetadata().get("companyLifecycleReason")));
+        assertThat(denied.getMetadata()).containsEntry("actor", ADMIN_EMAIL);
+        assertThat(denied.getMetadata().get("tenantScope")).contains(TENANT_A);
+    }
+
+    @Test
+    void super_admin_can_hold_and_block_tenant_and_runtime_enforcement_denies_access() throws InterruptedException {
+        String adminToken = login(ADMIN_EMAIL, TENANT_A);
+        String superToken = login(SUPER_ADMIN_EMAIL, ROOT_TENANT);
+        Long tenantAId = companyRepository.findByCodeIgnoreCase(TENANT_A).map(Company::getId).orElseThrow();
+
+        ResponseEntity<Map> baselineMe = rest.exchange(
+                "/api/v1/auth/me",
+                HttpMethod.GET,
+                new HttpEntity<>(jsonHeaders(adminToken, TENANT_A)),
+                Map.class);
+        assertThat(baselineMe.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+        String holdReason = "Compliance review in progress";
+        ResponseEntity<Map> holdResponse = updateLifecycleState(tenantAId, superToken, ROOT_TENANT, "HOLD", holdReason);
+        assertThat(holdResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> holdData = (Map<String, Object>) holdResponse.getBody().get("data");
+        assertThat(holdData).containsEntry("lifecycleState", "HOLD");
+        assertThat(holdData).containsEntry("previousLifecycleState", "ACTIVE");
+        assertThat(holdData).containsEntry("reason", holdReason);
+
+        AuditLog holdEvidence = awaitAuditEvent(AuditEvent.CONFIGURATION_CHANGED, log ->
+                SUPER_ADMIN_EMAIL.equalsIgnoreCase(log.getUsername())
+                        && TENANT_A.equalsIgnoreCase(log.getMetadata().get("targetCompanyCode"))
+                        && "tenant-lifecycle-state-updated".equals(log.getMetadata().get("reason"))
+                        && "HOLD".equalsIgnoreCase(log.getMetadata().get("companyLifecycleState"))
+                        && holdReason.equals(log.getMetadata().get("companyLifecycleReason")));
+        assertThat(holdEvidence.getMetadata().get("lifecycleEvidence")).isEqualTo("immutable-audit-log");
+
+        ResponseEntity<Map> meDuringHold = rest.exchange(
+                "/api/v1/auth/me",
+                HttpMethod.GET,
+                new HttpEntity<>(jsonHeaders(adminToken, TENANT_A)),
+                Map.class);
+        assertThat(meDuringHold.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+
+        String blockReason = "Critical security incident";
+        ResponseEntity<Map> blockResponse = updateLifecycleState(tenantAId, superToken, ROOT_TENANT, "BLOCKED", blockReason);
+        assertThat(blockResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+        AuditLog blockEvidence = awaitAuditEvent(AuditEvent.CONFIGURATION_CHANGED, log ->
+                SUPER_ADMIN_EMAIL.equalsIgnoreCase(log.getUsername())
+                        && TENANT_A.equalsIgnoreCase(log.getMetadata().get("targetCompanyCode"))
+                        && "BLOCKED".equalsIgnoreCase(log.getMetadata().get("companyLifecycleState"))
+                        && blockReason.equals(log.getMetadata().get("companyLifecycleReason")));
+        assertThat(blockEvidence.getMetadata().get("lifecycleEvidence")).isEqualTo("immutable-audit-log");
+
+        ResponseEntity<Map> meDuringBlock = rest.exchange(
+                "/api/v1/auth/me",
+                HttpMethod.GET,
+                new HttpEntity<>(jsonHeaders(adminToken, TENANT_A)),
+                Map.class);
+        assertThat(meDuringBlock.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+    }
+
+    @Test
+    void lifecycle_state_change_requires_reason_metadata() {
+        String superToken = login(SUPER_ADMIN_EMAIL, ROOT_TENANT);
+        Long tenantAId = companyRepository.findByCodeIgnoreCase(TENANT_A).map(Company::getId).orElseThrow();
+
+        ResponseEntity<Map> response = updateLifecycleState(tenantAId, superToken, ROOT_TENANT, "HOLD", " ");
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+    }
+
+    @Test
     void admin_cannot_create_tenant_admin_user() throws InterruptedException {
         String token = login(ADMIN_EMAIL, TENANT_A);
         Long tenantAId = companyRepository.findByCodeIgnoreCase(TENANT_A).map(Company::getId).orElseThrow();
@@ -220,6 +302,21 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
             headers.set("X-Company-Code", companyCode);
         }
         return headers;
+    }
+
+    private ResponseEntity<Map> updateLifecycleState(Long companyId,
+                                                     String token,
+                                                     String companyCode,
+                                                     String state,
+                                                     String reason) {
+        return rest.exchange(
+                "/api/v1/companies/" + companyId + "/lifecycle-state",
+                HttpMethod.POST,
+                new HttpEntity<>(Map.of(
+                        "state", state,
+                        "reason", reason
+                ), jsonHeaders(token, companyCode)),
+                Map.class);
     }
 
     private AuditLog awaitAuditEvent(AuditEvent eventType, Predicate<AuditLog> matcher) throws InterruptedException {
