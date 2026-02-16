@@ -1,5 +1,33 @@
 # Decision Log (CODE-RED)
 
+## 2026-02-17 - Release Gate Verifies Rollback Evidence + Traceability Artifacts
+Decision:
+- `gate_release` is the canonical closure gate for rollback rehearsal evidence.
+- The gate must fail closed when required artifacts are missing.
+- The gate writes a release traceability manifest that includes the release SHA and artifact hashes.
+
+Rationale:
+- Staging readiness must be auditable and reproducible from one immutable release anchor.
+- Rollback rehearsal without artifact proof is treated as incomplete.
+
+Enforcement:
+- `scripts/gate_release.sh` validates required artifacts and emits `artifacts/gate-release/release-gate-traceability.json`.
+- `scripts/release_migration_matrix.sh` emits rollback rehearsal evidence, including upgrade-seed scan proof.
+- Runbook expectations are aligned in `docs/runbooks/migrations.md` and `docs/runbooks/rollback.md`.
+
+## 2026-02-17 - P2P/GST Truth Contracts Are Semantic, Not Variable-Name-Coupled
+Decision:
+- Tax and settlement truthsuite contracts must validate deterministic rounding/settlement semantics, not local variable names.
+- Contract updates must remain consistent across GST and P2P truth tests to avoid cross-lane false blockers.
+
+Rationale:
+- Source-string tests are useful as drift sentinels, but brittle variable-name coupling creates non-functional failures.
+- Deterministic replay and settlement guards are the invariant; symbol names are not.
+
+Enforcement:
+- `TS_GstRoundingDeterminismContractTest` and `TS_P2PPurchaseJournalLinkageTest` were reconciled to keep strict-lane gate compatibility.
+- `TS_P2PPurchaseSettlementBoundaryTest` now asserts supplier settlement fail-closed guards (on-account adjustment restrictions, over-allocation cap, non-negative remaining clamp).
+
 ## 2026-02-05 - Period Close Is Atomic + Uses Canonical Posting
 Decision:
 - Period close acquires a DB lock on the accounting period row; concurrent postings block until the close commits.
