@@ -1,6 +1,8 @@
 package com.bigbrightpaints.erp.core.audit;
 
 import com.bigbrightpaints.erp.modules.accounting.event.AccountingEventStore;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
@@ -14,6 +16,8 @@ import java.util.Map;
  */
 @Component
 public class JournalEntryPostedAuditListener {
+
+    private static final Logger log = LoggerFactory.getLogger(JournalEntryPostedAuditListener.class);
 
     private final AuditService auditService;
 
@@ -34,6 +38,10 @@ public class JournalEntryPostedAuditListener {
         if (event.correlationId() != null) {
             metadata.put("correlationId", event.correlationId().toString());
         }
-        auditService.logSuccess(AuditEvent.JOURNAL_ENTRY_POSTED, metadata);
+        try {
+            auditService.logSuccess(AuditEvent.JOURNAL_ENTRY_POSTED, metadata);
+        } catch (Exception ex) {
+            log.warn("Failed to persist JOURNAL_ENTRY_POSTED audit marker for event {}", event.entryId(), ex);
+        }
     }
 }
