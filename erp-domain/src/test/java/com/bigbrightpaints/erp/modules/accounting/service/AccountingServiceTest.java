@@ -2102,6 +2102,152 @@ class AccountingServiceTest {
     }
 
     @Test
+    void recordDealerReceipt_nonLeaderReplayMissingAllocationIncludesPartnerDetails() {
+        Dealer dealer = new Dealer();
+        dealer.setName("Replay Dealer");
+        ReflectionTestUtils.setField(dealer, "id", 1L);
+
+        Account receivable = new Account();
+        receivable.setCompany(company);
+        receivable.setCode("AR-RACE-MISS");
+        receivable.setType(AccountType.ASSET);
+        ReflectionTestUtils.setField(receivable, "id", 10L);
+        dealer.setReceivableAccount(receivable);
+
+        Account cash = new Account();
+        cash.setCompany(company);
+        cash.setCode("CASH-RACE-MISS");
+        cash.setType(AccountType.ASSET);
+        ReflectionTestUtils.setField(cash, "id", 20L);
+
+        JournalEntry existingEntry = new JournalEntry();
+        ReflectionTestUtils.setField(existingEntry, "id", 921L);
+        existingEntry.setDealer(dealer);
+        existingEntry.setReferenceNumber("DR-RACE-MISS-1");
+        existingEntry.setMemo("Dealer receipt replay race");
+
+        JournalReferenceMapping mapping = new JournalReferenceMapping();
+        mapping.setCompany(company);
+        mapping.setLegacyReference("idemp-dr-race-miss");
+        mapping.setCanonicalReference("DR-RACE-MISS-1");
+        mapping.setEntityType("DEALER_RECEIPT");
+        mapping.setEntityId(null);
+
+        when(dealerRepository.lockByCompanyAndId(eq(company), eq(1L))).thenReturn(Optional.of(dealer));
+        when(companyEntityLookup.requireAccount(eq(company), eq(20L))).thenReturn(cash);
+        when(journalReferenceMappingRepository.findAllByCompanyAndLegacyReferenceIgnoreCase(eq(company), eq("idemp-dr-race-miss")))
+                .thenReturn(List.of(mapping));
+        when(journalReferenceResolver.findExistingEntry(eq(company), eq("DR-RACE-MISS-1")))
+                .thenReturn(Optional.of(existingEntry));
+        when(settlementAllocationRepository.findByCompanyAndJournalEntryOrderByCreatedAtAsc(eq(company), eq(existingEntry)))
+                .thenReturn(List.of());
+        when(settlementAllocationRepository.findByCompanyAndIdempotencyKeyIgnoreCaseOrderByCreatedAtAscIdAsc(
+                eq(company), eq("IDEMP-DR-RACE-MISS")))
+                .thenReturn(List.of());
+        when(settlementAllocationRepository.findByCompanyAndIdempotencyKey(eq(company), eq("IDEMP-DR-RACE-MISS")))
+                .thenReturn(List.of());
+
+        SettlementAllocationRequest allocation = new SettlementAllocationRequest(
+                501L,
+                null,
+                new BigDecimal("100.00"),
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                null
+        );
+
+        DealerReceiptRequest request = new DealerReceiptRequest(
+                1L,
+                20L,
+                new BigDecimal("100.00"),
+                "DR-RACE-MISS-1",
+                "Dealer receipt replay race",
+                "IDEMP-DR-RACE-MISS",
+                List.of(allocation)
+        );
+
+        assertThatThrownBy(() -> accountingService.recordDealerReceipt(request))
+                .isInstanceOfSatisfying(ApplicationException.class, ex -> {
+                    assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.INTERNAL_CONCURRENCY_FAILURE);
+                    assertPartnerReplayDetails(ex, "IDEMP-DR-RACE-MISS", "DEALER", 1L);
+                })
+                .hasMessageContaining("Dealer receipt idempotency key is reserved but allocation not found");
+    }
+
+    @Test
+    void recordDealerReceiptSplit_nonLeaderReplayMissingAllocationIncludesPartnerDetails() {
+        Dealer dealer = new Dealer();
+        dealer.setName("Replay Dealer");
+        ReflectionTestUtils.setField(dealer, "id", 1L);
+
+        Account receivable = new Account();
+        receivable.setCompany(company);
+        receivable.setCode("AR-SPLIT-RACE-MISS");
+        receivable.setType(AccountType.ASSET);
+        ReflectionTestUtils.setField(receivable, "id", 10L);
+        dealer.setReceivableAccount(receivable);
+
+        Account cash = new Account();
+        cash.setCompany(company);
+        cash.setCode("CASH-SPLIT-RACE-MISS");
+        cash.setType(AccountType.ASSET);
+        ReflectionTestUtils.setField(cash, "id", 20L);
+
+        Account bank = new Account();
+        bank.setCompany(company);
+        bank.setCode("BANK-SPLIT-RACE-MISS");
+        bank.setType(AccountType.ASSET);
+        ReflectionTestUtils.setField(bank, "id", 21L);
+
+        JournalEntry existingEntry = new JournalEntry();
+        ReflectionTestUtils.setField(existingEntry, "id", 922L);
+        existingEntry.setDealer(dealer);
+        existingEntry.setReferenceNumber("DR-SPLIT-RACE-MISS-1");
+        existingEntry.setMemo("Dealer split replay race");
+
+        JournalReferenceMapping mapping = new JournalReferenceMapping();
+        mapping.setCompany(company);
+        mapping.setLegacyReference("idemp-dr-split-race-miss");
+        mapping.setCanonicalReference("DR-SPLIT-RACE-MISS-1");
+        mapping.setEntityType("DEALER_RECEIPT_SPLIT");
+        mapping.setEntityId(null);
+
+        when(dealerRepository.lockByCompanyAndId(eq(company), eq(1L))).thenReturn(Optional.of(dealer));
+        when(companyEntityLookup.requireAccount(eq(company), eq(20L))).thenReturn(cash);
+        when(companyEntityLookup.requireAccount(eq(company), eq(21L))).thenReturn(bank);
+        when(journalReferenceMappingRepository.findAllByCompanyAndLegacyReferenceIgnoreCase(eq(company), eq("idemp-dr-split-race-miss")))
+                .thenReturn(List.of(mapping));
+        when(journalReferenceResolver.findExistingEntry(eq(company), eq("DR-SPLIT-RACE-MISS-1")))
+                .thenReturn(Optional.of(existingEntry));
+        when(settlementAllocationRepository.findByCompanyAndJournalEntryOrderByCreatedAtAsc(eq(company), eq(existingEntry)))
+                .thenReturn(List.of());
+        when(settlementAllocationRepository.findByCompanyAndIdempotencyKeyIgnoreCaseOrderByCreatedAtAscIdAsc(
+                eq(company), eq("IDEMP-DR-SPLIT-RACE-MISS")))
+                .thenReturn(List.of());
+        when(settlementAllocationRepository.findByCompanyAndIdempotencyKey(eq(company), eq("IDEMP-DR-SPLIT-RACE-MISS")))
+                .thenReturn(List.of());
+
+        DealerReceiptSplitRequest request = new DealerReceiptSplitRequest(
+                1L,
+                List.of(
+                        new DealerReceiptSplitRequest.IncomingLine(20L, new BigDecimal("70.00")),
+                        new DealerReceiptSplitRequest.IncomingLine(21L, new BigDecimal("30.00"))
+                ),
+                "DR-SPLIT-RACE-MISS-1",
+                "Dealer split replay race",
+                "IDEMP-DR-SPLIT-RACE-MISS"
+        );
+
+        assertThatThrownBy(() -> accountingService.recordDealerReceiptSplit(request))
+                .isInstanceOfSatisfying(ApplicationException.class, ex -> {
+                    assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.INTERNAL_CONCURRENCY_FAILURE);
+                    assertPartnerReplayDetails(ex, "IDEMP-DR-SPLIT-RACE-MISS", "DEALER", 1L);
+                })
+                .hasMessageContaining("Dealer receipt idempotency key is reserved but allocation not found");
+    }
+
+    @Test
     void recordSupplierPayment_nonLeaderReplayRepairsReferenceMapping() {
         Supplier supplier = new Supplier();
         supplier.setName("Replay Supplier");
@@ -2191,6 +2337,78 @@ class AccountingServiceTest {
         assertThat(mapping.getEntityId()).isEqualTo(903L);
         assertThat(mapping.getEntityType()).isEqualTo("SUPPLIER_PAYMENT");
         assertThat(mapping.getCanonicalReference()).isEqualTo("SUP-PAY-REPLAY-1");
+    }
+
+    @Test
+    void recordSupplierPayment_nonLeaderReplayMissingAllocationIncludesPartnerDetails() {
+        Supplier supplier = new Supplier();
+        supplier.setName("Replay Supplier");
+        ReflectionTestUtils.setField(supplier, "id", 1L);
+
+        Account payable = new Account();
+        payable.setCompany(company);
+        payable.setCode("AP-RACE-MISS");
+        payable.setType(AccountType.LIABILITY);
+        ReflectionTestUtils.setField(payable, "id", 10L);
+        supplier.setPayableAccount(payable);
+
+        Account cash = new Account();
+        cash.setCompany(company);
+        cash.setCode("CASH-RACE-MISS");
+        cash.setType(AccountType.ASSET);
+        ReflectionTestUtils.setField(cash, "id", 20L);
+
+        JournalEntry existingEntry = new JournalEntry();
+        ReflectionTestUtils.setField(existingEntry, "id", 923L);
+        existingEntry.setSupplier(supplier);
+        existingEntry.setReferenceNumber("SUP-PAY-RACE-MISS-1");
+        existingEntry.setMemo("Supplier payment replay race");
+
+        JournalReferenceMapping mapping = new JournalReferenceMapping();
+        mapping.setCompany(company);
+        mapping.setLegacyReference("idemp-sup-pay-race-miss");
+        mapping.setCanonicalReference("SUP-PAY-RACE-MISS-1");
+        mapping.setEntityType("SUPPLIER_PAYMENT");
+        mapping.setEntityId(null);
+
+        when(supplierRepository.lockByCompanyAndId(eq(company), eq(1L))).thenReturn(Optional.of(supplier));
+        when(companyEntityLookup.requireAccount(eq(company), eq(20L))).thenReturn(cash);
+        when(journalReferenceMappingRepository.findAllByCompanyAndLegacyReferenceIgnoreCase(eq(company), eq("idemp-sup-pay-race-miss")))
+                .thenReturn(List.of(mapping));
+        when(journalReferenceResolver.findExistingEntry(eq(company), eq("SUP-PAY-RACE-MISS-1")))
+                .thenReturn(Optional.of(existingEntry));
+        when(settlementAllocationRepository.findByCompanyAndIdempotencyKeyIgnoreCaseOrderByCreatedAtAscIdAsc(
+                eq(company), eq("IDEMP-SUP-PAY-RACE-MISS")))
+                .thenReturn(List.of());
+        when(settlementAllocationRepository.findByCompanyAndIdempotencyKey(eq(company), eq("IDEMP-SUP-PAY-RACE-MISS")))
+                .thenReturn(List.of());
+
+        SettlementAllocationRequest allocation = new SettlementAllocationRequest(
+                null,
+                601L,
+                new BigDecimal("100.00"),
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                null
+        );
+
+        SupplierPaymentRequest request = new SupplierPaymentRequest(
+                1L,
+                20L,
+                new BigDecimal("100.00"),
+                "SUP-PAY-RACE-MISS-1",
+                "Supplier payment replay race",
+                "IDEMP-SUP-PAY-RACE-MISS",
+                List.of(allocation)
+        );
+
+        assertThatThrownBy(() -> accountingService.recordSupplierPayment(request))
+                .isInstanceOfSatisfying(ApplicationException.class, ex -> {
+                    assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.INTERNAL_CONCURRENCY_FAILURE);
+                    assertPartnerReplayDetails(ex, "IDEMP-SUP-PAY-RACE-MISS", "SUPPLIER", 1L);
+                })
+                .hasMessageContaining("Supplier payment idempotency key is reserved but allocation not found");
     }
 
     @Test

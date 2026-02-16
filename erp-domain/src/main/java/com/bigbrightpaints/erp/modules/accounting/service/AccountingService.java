@@ -831,9 +831,11 @@ public class AccountingService {
                         existingAllocations, allocations);
                 return toDto(entry);
             }
-            throw new ApplicationException(ErrorCode.INTERNAL_CONCURRENCY_FAILURE,
-                    "Dealer receipt idempotency key is reserved but allocation not found")
-                    .withDetail(IntegrationFailureMetadataSchema.KEY_IDEMPOTENCY_KEY, idempotencyKey);
+            throw missingReservedPartnerAllocation(
+                    "Dealer receipt",
+                    idempotencyKey,
+                    PartnerType.DEALER,
+                    dealer.getId());
         }
 
         List<PartnerSettlementAllocation> existingAllocations = findAllocationsByIdempotencyKey(company, idempotencyKey);
@@ -999,9 +1001,11 @@ public class AccountingService {
                 validateSplitReceiptIdempotency(idempotencyKey, dealer, memo, entry, lines);
                 return toDto(entry);
             }
-            throw new ApplicationException(ErrorCode.INTERNAL_CONCURRENCY_FAILURE,
-                    "Dealer receipt idempotency key is reserved but allocation not found")
-                    .withDetail(IntegrationFailureMetadataSchema.KEY_IDEMPOTENCY_KEY, idempotencyKey);
+            throw missingReservedPartnerAllocation(
+                    "Dealer receipt",
+                    idempotencyKey,
+                    PartnerType.DEALER,
+                    dealer.getId());
         }
         List<PartnerSettlementAllocation> existingAllocations = findAllocationsByIdempotencyKey(company, idempotencyKey);
         if (!existingAllocations.isEmpty()) {
@@ -1573,9 +1577,11 @@ public class AccountingService {
                         entry, existingAllocations, allocations);
                 return toDto(entry);
             }
-            throw new ApplicationException(ErrorCode.INTERNAL_CONCURRENCY_FAILURE,
-                    "Supplier payment idempotency key is reserved but allocation not found")
-                    .withDetail(IntegrationFailureMetadataSchema.KEY_IDEMPOTENCY_KEY, idempotencyKey);
+            throw missingReservedPartnerAllocation(
+                    "Supplier payment",
+                    idempotencyKey,
+                    PartnerType.SUPPLIER,
+                    supplier.getId());
         }
 
         List<PartnerSettlementAllocation> existingAllocations = findAllocationsByIdempotencyKey(company, idempotencyKey);
@@ -1748,7 +1754,11 @@ public class AccountingService {
                         lineDraft.lines());
                 return buildDealerSettlementResponse(existingAllocations);
             }
-            throw missingReservedSettlementAllocation(trimmedIdempotencyKey, PartnerType.DEALER, dealer.getId());
+            throw missingReservedPartnerAllocation(
+                    "Dealer settlement",
+                    trimmedIdempotencyKey,
+                    PartnerType.DEALER,
+                    dealer.getId());
         }
 
         List<PartnerSettlementAllocation> existingAllocations = findAllocationsByIdempotencyKey(company, trimmedIdempotencyKey);
@@ -1983,7 +1993,11 @@ public class AccountingService {
                         replayLineDraft.lines());
                 return buildSupplierSettlementResponse(existingAllocations);
             }
-            throw missingReservedSettlementAllocation(trimmedIdempotencyKey, PartnerType.SUPPLIER, supplier.getId());
+            throw missingReservedPartnerAllocation(
+                    "Supplier settlement",
+                    trimmedIdempotencyKey,
+                    PartnerType.SUPPLIER,
+                    supplier.getId());
         }
 
         List<PartnerSettlementAllocation> existingAllocations = findAllocationsByIdempotencyKey(company, trimmedIdempotencyKey);
@@ -2954,16 +2968,17 @@ public class AccountingService {
                 "Idempotency key already used for a different settlement payload");
     }
 
-    private ApplicationException missingReservedSettlementAllocation(String idempotencyKey,
-                                                                     PartnerType partnerType,
-                                                                     Long partnerId) {
-        String settlementSubject = partnerType == PartnerType.SUPPLIER ? "Supplier settlement" : "Dealer settlement";
+    private ApplicationException missingReservedPartnerAllocation(String subject,
+                                                                  String idempotencyKey,
+                                                                  PartnerType partnerType,
+                                                                  Long partnerId) {
         ApplicationException exception = new ApplicationException(
                 ErrorCode.INTERNAL_CONCURRENCY_FAILURE,
-                settlementSubject + " idempotency key is reserved but allocation not found")
-                .withDetail(IntegrationFailureMetadataSchema.KEY_IDEMPOTENCY_KEY, idempotencyKey)
-                .withDetail(IntegrationFailureMetadataSchema.KEY_PARTNER_TYPE,
-                        partnerType != null ? partnerType.name() : "null");
+                subject + " idempotency key is reserved but allocation not found")
+                .withDetail(IntegrationFailureMetadataSchema.KEY_IDEMPOTENCY_KEY, idempotencyKey);
+        if (partnerType != null) {
+            exception.withDetail(IntegrationFailureMetadataSchema.KEY_PARTNER_TYPE, partnerType.name());
+        }
         if (partnerId != null) {
             exception.withDetail(IntegrationFailureMetadataSchema.KEY_PARTNER_ID, partnerId);
         }
