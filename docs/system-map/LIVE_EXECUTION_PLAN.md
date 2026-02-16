@@ -10,7 +10,7 @@ Mode: Continuous
 ## Active constraints
 - Reviewer subagent dispatch currently blocked by external cap (`agent thread limit reached (max 6)`).
 - Direct `codex review --commit <sha>` fallback is active while the cap persists.
-- Current live review in flight: `none (queue clear as of 5d860078)`.
+- Current live review in flight: `none (queue clear as of c14640f3)`.
 - Release gate local prerequisite is now explicit: run `gate_release` against local v2 matrix DB env (`PGHOST=127.0.0.1 PGPORT=55432 PGUSER=erp PGPASSWORD=erp PGDATABASE=postgres`).
 
 ## Live plan lanes
@@ -25,8 +25,8 @@ Mode: Continuous
 1. Keep anchored `gate_fast` fresh on moving head.
 2. Re-run `gate_core`, `gate_reconciliation`, and `gate_release` on cadence for staging evidence.
 3. Record command outcomes in `asyncloop`.
-4. Current note: final ledger gate set is green on head (`29033cf3`) with anchored diff-base:
-   - `gate_fast` PASS (`line=0.9703`, `branch=0.9239`)
+4. Current note: anchored gate set is green on moving head (`c14640f3`) with diff-base `06d85e792d2a80cd9fc1f8e5dc15d6dfa15dd93e`:
+   - `gate_fast` PASS (`line=1.0000`, `branch=0.9245`)
    - `gate_core` PASS
    - `gate_reconciliation` PASS (`114/114`)
    - `gate_release` PASS on local v2 matrix env (`127.0.0.1:55432`)
@@ -36,7 +36,7 @@ Mode: Continuous
 2. Prioritize dedupe and role-parity consistency (dealer/supplier behavior symmetry).
 3. Keep v2 contract stability: no public API naming drift.
 4. Canonicalize internal mismatch metadata toward `partner*` while preserving external role-specific payload compatibility.
-5. Latest landed slice: `5d860078` centralizes partner field-label/fingerprint helpers in `AccountingService` to reduce dealer/supplier duplication without changing role-specific external semantics.
+5. Latest landed slice: `c14640f3` closes anchored runtime coverage deltas for `AccountingService` + `CommandDispatcher` with targeted truthsuite tests, preserving production behavior while raising changed-file coverage to gate threshold.
 
 ### Lane D: Completion-gate consolidation (closure lane)
 1. Convert module-level evidence into explicit completion-gate closure packs.
