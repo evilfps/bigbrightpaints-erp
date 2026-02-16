@@ -77,7 +77,7 @@ public interface DealerLedgerRepository extends JpaRepository<DealerLedgerEntry,
 
     @Query("SELECT e FROM DealerLedgerEntry e WHERE e.company = :company " +
            "AND e.entryDate <= :asOfDate " +
-           "AND e.paymentStatus NOT IN ('PAID','VOID','REVERSED') " +
+           "AND (e.paymentStatus NOT IN ('PAID','VOID','REVERSED') OR e.paidDate > :asOfDate) " +
            "AND e.invoiceNumber IS NOT NULL ORDER BY e.dealer.id, e.dueDate ASC")
     List<DealerLedgerEntry> findAllUnpaidAsOf(@Param("company") Company company,
                                               @Param("asOfDate") java.time.LocalDate asOfDate);
@@ -87,7 +87,7 @@ public interface DealerLedgerRepository extends JpaRepository<DealerLedgerEntry,
     List<DealerLedgerEntry> findOverdueAsOf(@Param("company") Company company, @Param("asOfDate") java.time.LocalDate asOfDate);
 
     // DSO calculation support - using native query for date arithmetic compatibility
-    @Query(value = "SELECT AVG(EXTRACT(EPOCH FROM (paid_date - entry_date)) / 86400) " +
+    @Query(value = "SELECT AVG((paid_date - entry_date)::numeric) " +
            "FROM dealer_ledger_entries WHERE company_id = :companyId AND dealer_id = :dealerId AND paid_date IS NOT NULL", 
            nativeQuery = true)
     Double calculateAverageDSO(@Param("companyId") Long companyId, @Param("dealerId") Long dealerId);
