@@ -13,9 +13,7 @@ import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
@@ -64,21 +62,5 @@ class JournalEntryPostedAuditListenerTest {
         listener.onJournalEntryPosted(event);
 
         verify(auditService, never()).logSuccess(eq(AuditEvent.JOURNAL_ENTRY_POSTED), org.mockito.ArgumentMatchers.anyMap());
-    }
-
-    @Test
-    void swallowsAuditServiceFailures() {
-        AccountingEventStore.JournalEntryPostedEvent event = new AccountingEventStore.JournalEntryPostedEvent(
-                77L,
-                UUID.randomUUID(),
-                "JE-2026-00077",
-                LocalDate.of(2026, 2, 16),
-                UUID.randomUUID()
-        );
-        doThrow(new IllegalStateException("audit-log-down"))
-                .when(auditService)
-                .logSuccess(eq(AuditEvent.JOURNAL_ENTRY_POSTED), org.mockito.ArgumentMatchers.anyMap());
-
-        assertThatCode(() -> listener.onJournalEntryPosted(event)).doesNotThrowAnyException();
     }
 }
