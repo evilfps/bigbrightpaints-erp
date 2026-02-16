@@ -5,7 +5,7 @@ Mode: Continuous
 
 ## Goal
 - Complete async-loop closure with final ledger gates green and reviewer queue fully drained.
-- Drive completion-gate board from `1/5` to `5/5` (see `docs/system-map/COMPLETION_GATES_STATUS.md`).
+- Drive completion-gate board from `2/5` to `5/5` (see `docs/system-map/COMPLETION_GATES_STATUS.md`).
 
 ## Active constraints
 - Reviewer subagent dispatch currently blocked by external cap (`agent thread limit reached (max 6)`).

@@ -5,8 +5,8 @@ Anchor: `06d85e792d2a80cd9fc1f8e5dc15d6dfa15dd93e`
 Current head evidence SHA: `c510e065`
 
 ## Summary
-- Closed: `1/5`
-- Pending: `4/5`
+- Closed: `2/5`
+- Pending: `3/5`
 
 ## Gate status board
 
@@ -14,9 +14,12 @@ Current head evidence SHA: `c510e065`
 - Reason: no consolidated "no known critical/high" closure pack has been recorded yet across all auth/company isolation surfaces.
 - Evidence in progress: `asyncloop` tracks M0/M1 security slices as active.
 
-2. Accounting safety gates (`double-entry`, `subledger-GL reconciliation`, `idempotency/period-close`, `cross-module posting links`): `PENDING`
-- Reason: reconciliation and many accounting truth checks are green, but full cross-module posting-link closure pack is still open under module slices.
-- Evidence in progress: `asyncloop` tracks M2/M3/M4/M5/M6 closure work.
+2. Accounting safety gates (`double-entry`, `subledger-GL reconciliation`, `idempotency/period-close`, `cross-module posting links`): `CLOSED`
+- Evidence:
+  - `cd erp-domain && mvn -B -ntp -Dtest=TS_DoubleEntryMathInvariantTest,TS_SubledgerControlReconciliationContractTest,TS_RuntimeAccountingFacadePeriodCloseBoundaryTest,TS_CrossModuleLinkageContractTest,TS_O2CDispatchCanonicalPostingTest,TS_P2PPurchaseJournalLinkageTest test` -> PASS (`36/36`).
+  - `bash scripts/gate_reconciliation.sh` -> PASS (`114/114`).
+- Closure note:
+  - accounting safety invariants are currently green on head with direct truth-suite evidence plus reconciliation gate evidence.
 
 3. No confirmed cross-tenant/cross-partner IDOR or privilege abuse paths: `PENDING`
 - Reason: partial dealer/sales boundary hardening is landed, but full cross-module/tenant closure matrix is not yet consolidated in one final pack.
@@ -34,6 +37,4 @@ Current head evidence SHA: `c510e065`
 
 ## Immediate next closure queue
 1. Security/IDOR closure pack: finalize M0/M1/M6 negative matrix and publish one consolidated verdict with zero high/critical findings.
-2. Accounting cross-module posting-link closure pack: finalize M2-M6 invariant evidence in one report.
-3. Workflow E2E closure pack: record deterministic fail-safe edge behavior for O2C, P2P, inventory/dispatch, payroll, and period-close.
-
+2. Workflow E2E closure pack: record deterministic fail-safe edge behavior for O2C, P2P, inventory/dispatch, payroll, and period-close.

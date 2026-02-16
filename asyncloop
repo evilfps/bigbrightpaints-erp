@@ -10142,3 +10142,22 @@ Loop Update
 Loop Update
 - tracked_now_ts: `2026-02-16T12:34:30+05:30`
 - active_in_progress: `M10 completion-gate closure push + M2/M3 internal vocabulary dedupe continuation (partner-internal, role-specific external contracts preserved)`
+
+[2026-02-16] M19-S72 accounting-safety completion gate promoted to CLOSED
+- Scope:
+  - executed direct accounting-safety invariant truth pack covering:
+    - double-entry math invariants
+    - subledger/GL reconciliation contracts
+    - period-close boundary/idempotency surface
+    - cross-module posting linkage (O2C + P2P + crossmodule contract)
+  - updated system-map completion board to reflect accounting safety closure.
+- Validation:
+  - `cd erp-domain && mvn -B -ntp -Dtest=TS_DoubleEntryMathInvariantTest,TS_SubledgerControlReconciliationContractTest,TS_RuntimeAccountingFacadePeriodCloseBoundaryTest,TS_CrossModuleLinkageContractTest,TS_O2CDispatchCanonicalPostingTest,TS_P2PPurchaseJournalLinkageTest test` -> PASS (`36/36`).
+  - `bash scripts/gate_reconciliation.sh` previously PASS (`114/114`) on current head lane.
+- Completion board delta:
+  - from `1/5 CLOSED` to `2/5 CLOSED`.
+  - remaining pending gates: security foundation, cross-tenant/partner IDOR closure matrix, module workflow E2E closure pack.
+
+Loop Update
+- tracked_now_ts: `2026-02-16T12:37:10+05:30`
+- active_in_progress: `M10 completion-gate push (security + IDOR + workflow E2E closure packs) with ongoing M8/M9 freshness`
