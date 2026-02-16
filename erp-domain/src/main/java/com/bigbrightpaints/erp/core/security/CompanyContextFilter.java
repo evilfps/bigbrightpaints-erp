@@ -7,8 +7,10 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import java.nio.charset.StandardCharsets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.MediaType;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
@@ -66,7 +68,28 @@ public class CompanyContextFilter extends OncePerRequestFilter {
                 }
                 requestedCompany = resolvedTokenCompany;
             } else {
-                // Do not allow unauthenticated requests to set tenant context via header.
+                if (StringUtils.hasText(requestedCompany) && requiresAuthenticatedCompanyContext(request)) {
+                    AccessValidationResult validationResult = validateCompanyAccess(requestedCompany.trim());
+                    if (validationResult == AccessValidationResult.UNAUTHENTICATED) {
+                        log.warn("Rejecting unauthenticated company context attempt. companyCode={}, path={}",
+                                requestedCompany, request.getRequestURI());
+                        writeFailClosedResponse(
+                                response,
+                                HttpServletResponse.SC_UNAUTHORIZED,
+                                "Authentication required for company context");
+                        return;
+                    }
+                    if (validationResult == AccessValidationResult.FORBIDDEN) {
+                        log.warn("Rejecting company context attempt without token-backed company claim. companyCode={}, path={}",
+                                requestedCompany, request.getRequestURI());
+                        writeFailClosedResponse(
+                                response,
+                                HttpServletResponse.SC_FORBIDDEN,
+                                "Access denied to company: " + requestedCompany);
+                        return;
+                    }
+                }
+                // Do not allow requests without token company claims to set tenant context via header.
                 requestedCompany = null;
             }
             String companyCode = StringUtils.hasText(requestedCompany) ? requestedCompany.trim() : null;
@@ -117,6 +140,32 @@ public class CompanyContextFilter extends OncePerRequestFilter {
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = request.getServletPath();
         return path.startsWith("/actuator") || path.startsWith("/swagger") || path.startsWith("/v3");
+    }
+
+    private void writeFailClosedResponse(HttpServletResponse response, int status, String message) throws IOException {
+        response.setStatus(status);
+        response.setCharacterEncoding(StandardCharsets.UTF_8.name());
+        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+        response.getWriter().write("{\"success\":false,\"message\":\"" + escapeJson(message) + "\"}");
+        response.getWriter().flush();
+    }
+
+    private String escapeJson(String value) {
+        if (value == null) {
+            return "";
+        }
+        return value.replace("\\", "\\\\").replace("\"", "\\\"");
+    }
+
+    private boolean requiresAuthenticatedCompanyContext(HttpServletRequest request) {
+        if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
+            return false;
+        }
+        String path = request.getServletPath();
+        return !"/api/v1/auth/login".equals(path)
+                && !"/api/v1/auth/refresh-token".equals(path)
+                && !"/api/v1/auth/password/forgot".equals(path)
+                && !"/api/v1/auth/password/reset".equals(path);
     }
 
     private enum AccessValidationResult {
