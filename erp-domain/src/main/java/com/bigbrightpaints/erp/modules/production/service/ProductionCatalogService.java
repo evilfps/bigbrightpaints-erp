@@ -472,9 +472,17 @@ public class ProductionCatalogService {
                         request.minDiscountPercent(), request.minSellingPrice(),
                         request.metadata()
                 );
-                ProductionProductDto dto = createProduct(create);
-                variants.add(dto);
-                created++;
+                try {
+                    ProductionProductDto dto = createProduct(create);
+                    variants.add(dto);
+                    created++;
+                } catch (RuntimeException ex) {
+                    if (isSkippableVariantDuplicate(ex, company, sku)) {
+                        skipped++;
+                        continue;
+                    }
+                    throw ex;
+                }
             }
         }
         return new BulkVariantResponse(created, skipped, variants);
@@ -1546,6 +1554,24 @@ public class ProductionCatalogService {
             cursor = cursor.getCause();
         }
         return false;
+    }
+
+    private boolean isSkippableVariantDuplicate(Throwable error, Company company, String sku) {
+        if (!StringUtils.hasText(sku)) {
+            return false;
+        }
+        if (!(isDataIntegrityViolation(error) || isDuplicateSkuValidation(error))) {
+            return false;
+        }
+        return productRepository.findByCompanyAndSkuCode(company, sku).isPresent();
+    }
+
+    private boolean isDuplicateSkuValidation(Throwable error) {
+        if (!(error instanceof IllegalArgumentException ex) || !StringUtils.hasText(ex.getMessage())) {
+            return false;
+        }
+        String message = ex.getMessage().toLowerCase(Locale.ROOT);
+        return message.contains("sku") && message.contains("already exists");
     }
 
     private boolean isRetryableImportFailure(Throwable error) {
