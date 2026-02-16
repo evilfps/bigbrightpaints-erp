@@ -84,14 +84,14 @@ Deep Module-by-Module Execution Plan
   - Payroll run calculation/post/pay flows.
   - Liability clearing and payroll journal linkage.
   - Notification/config safety and period/date constraints.
-- [in_progress] M8 Orchestrator/Outbox/Async Exactly-Once Semantics
+- [done] M8 Orchestrator/Outbox/Async Exactly-Once Semantics
   - Outbox command dedupe, retry safety, and side-effect idempotency.
   - Scheduler/batch operations race and replay behavior.
-- [in_progress] M9 DB + Performance + Duplicate Logic Audit
+- [done] M9 DB + Performance + Duplicate Logic Audit
   - Heavy queries/index coverage for hot endpoints.
   - Duplicate/redundant function/service/controller paths causing divergence risk.
   - Migration overlap/drift, startup config validation, predeploy scan scripts.
-- [in_progress] M10 Release Readiness Consolidation
+- [done] M10 Release Readiness Consolidation
   - Final risk ledger, unresolved blockers, reproduction commands, rollback/safety notes.
   - Confirm staging handoff checklist with evidence.
 
@@ -10248,3 +10248,23 @@ Loop Update
 Loop Update
 - tracked_now_ts: `2026-02-16T13:08:50+05:30`
 - active_in_progress: `M8/M9 async exactly-once + duplicate-logic hardening continuation after orchestrator lease dedupe`
+
+[2026-02-16] M19-S78 final M8/M9 async hardening tranche landed and validated
+- Commit: `d618ee04`
+- Scope:
+  - deduped dispatch/payroll feature-gated lease execution into shared `executeFeatureGuardedCommand(...)` in `CommandDispatcher`.
+  - preserved exactly-once/replay short-circuit semantics while removing duplicated fail-closed branches.
+  - added replay short-circuit runtime coverage to prove replay paths bypass feature-flag and posting-amount validation checks.
+  - updated orchestrator exactly-once truth contract assertions to track the shared helper pattern.
+- Validation:
+  - `cd erp-domain && mvn -B -ntp -Dtest=TS_RuntimeOrchestratorExecutableCoverageTest,TS_RuntimeAccountingReplayConflictExecutableCoverageTest test` -> PASS (`36/36`).
+  - `DIFF_BASE=06d85e792d2a80cd9fc1f8e5dc15d6dfa15dd93e GATE_FAST_RELEASE_VALIDATION_MODE=true bash scripts/gate_fast.sh` -> PASS (`line_ratio=0.9964`, `branch_ratio=0.9216`).
+- Review:
+  - `codex review --commit d618ee04` -> no functional regression findings.
+
+Loop Update
+- tracked_now_ts: `2026-02-16T13:46:30+05:30`
+- active_in_progress: `none`
+- async_loop_status: `COMPLETE`
+- completion_gates_status: `5/5 CLOSED`
+- closure_note: `M8 and M9 are complete on validated head; async-loop execution stopped per operator instruction.`

@@ -1,11 +1,17 @@
 # Live Execution Plan (Async-Loop)
 
 Last updated: 2026-02-16
-Mode: Continuous
+Mode: Completed (operator stop authorized after M8/M9 closure)
 
 ## Goal
 - Complete async-loop closure with final ledger gates green and reviewer queue fully drained.
 - Completion-gate board is `5/5` CLOSED on current head evidence (see `docs/system-map/COMPLETION_GATES_STATUS.md`).
+
+## Final closure state (2026-02-16)
+- Async-loop status: `COMPLETE`.
+- M8/M9 status: `CLOSED` on validated head (`d618ee04`).
+- Latest code review: `codex review --commit d618ee04` -> no functional regression findings.
+- Review queue status: clear through `d618ee04`.
 
 ## Active constraints
 - Reviewer subagent dispatch currently blocked by external cap (`agent thread limit reached (max 6)`).
@@ -47,9 +53,12 @@ Mode: Continuous
 - Pending code-review queue is empty (all code commits reviewed).
 - No unresolved high/critical findings remain.
 - Final ledger gates pass on same closure evidence set.
+- M8/M9 async hardening lane is complete and recorded in `asyncloop`.
 
 ## Latest closure evidence (2026-02-16)
 1. `DIFF_BASE=06d85e792d2a80cd9fc1f8e5dc15d6dfa15dd93e GATE_FAST_RELEASE_VALIDATION_MODE=true bash scripts/gate_fast.sh` -> PASS (`line=1.0000`, `branch=0.9245`)
 2. `DIFF_BASE=06d85e792d2a80cd9fc1f8e5dc15d6dfa15dd93e GATE_FAST_RELEASE_VALIDATION_MODE=true bash scripts/gate_core.sh` -> PASS
 3. `bash scripts/gate_reconciliation.sh` -> PASS
 4. `PGHOST=127.0.0.1 PGPORT=55432 PGUSER=erp PGPASSWORD=erp PGDATABASE=postgres bash scripts/gate_release.sh` -> PASS (`release_migration_matrix OK`, predeploy scans zero findings)
+5. `cd erp-domain && mvn -B -ntp -Dtest=TS_RuntimeOrchestratorExecutableCoverageTest,TS_RuntimeAccountingReplayConflictExecutableCoverageTest test` -> PASS (`36/36`)
+6. `DIFF_BASE=06d85e792d2a80cd9fc1f8e5dc15d6dfa15dd93e GATE_FAST_RELEASE_VALIDATION_MODE=true bash scripts/gate_fast.sh` -> PASS (`line_ratio=0.9964`, `branch_ratio=0.9216`) after M8/M9 final dedupe tranche (`d618ee04`)
