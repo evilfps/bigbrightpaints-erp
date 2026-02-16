@@ -1,0 +1,85 @@
+ticket_id: TKT-ERP-STAGE-020
+title: ERP Staging Batch 20 - GST Period Boundary Guard
+goal: M18-S6C enforce deterministic GST return period boundary by rejecting future
+  periods
+priority: high
+status: done
+base_branch: harness-engineering-orchestrator
+worktree_root: /home/realnigga/Desktop/orchestrator_erp_worktrees/_tmp_orch_cleanrepo_worktrees
+created_at: '2026-02-16T22:28:26+00:00'
+updated_at: '2026-02-16T22:30:24+00:00'
+r3_required: true
+orchestrator_authority:
+  r1: orchestrator
+  r2: orchestrator
+  r3: human
+slices:
+- id: SLICE-01
+  primary_agent: accounting-domain
+  reviewers:
+  - qa-reliability
+  - security-governance
+  scope_paths:
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/TaxService.java
+  - erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/service/TaxServiceTest.java
+  allowed_scope_paths:
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/
+  - erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/
+  - erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/accounting/
+  matched_rules:
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/
+  - erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/
+  lane: w1
+  branch: tickets/tkt-erp-stage-020/accounting-domain
+  worktree_path: /home/realnigga/Desktop/orchestrator_erp_worktrees/_tmp_orch_cleanrepo_worktrees/TKT-ERP-STAGE-020/accounting-domain
+  required_checks:
+  - bash ci/check-architecture.sh
+  - cd erp-domain && mvn -B -ntp -Dtest=TaxServiceTest test
+  status: merged
+  objective: M18-S6C enforce deterministic GST return period boundary by rejecting
+    future periods
+  workflow_upstream_slices: []
+  workflow_downstream_slices: []
+  workflow_external_upstream_agents:
+  - auth-rbac-company
+  - factory-production
+  - hr-domain
+  - orchestrator-runtime
+  - purchasing-invoice-p2p
+  - sales-domain
+  workflow_external_downstream_agents: []
+  cross_workflow_contracts:
+  - relation: upstream-external
+    agent: auth-rbac-company
+    slice_id: ''
+    contract: finance/admin authority boundaries
+    in_ticket: false
+  - relation: upstream-external
+    agent: factory-production
+    slice_id: ''
+    contract: wip/variance/cogs posting linkage
+    in_ticket: false
+  - relation: upstream-external
+    agent: hr-domain
+    slice_id: ''
+    contract: payroll liability/payment posting linkage
+    in_ticket: false
+  - relation: upstream-external
+    agent: orchestrator-runtime
+    slice_id: ''
+    contract: outbox/idempotency posting orchestration
+    in_ticket: false
+  - relation: upstream-external
+    agent: purchasing-invoice-p2p
+    slice_id: ''
+    contract: ap/posting and settlement linkage
+    in_ticket: false
+  - relation: upstream-external
+    agent: sales-domain
+    slice_id: ''
+    contract: o2c posting and receivable linkage
+    in_ticket: false
+cross_workflow:
+  model: workflow_agent_edges_v1
+  generated_at: '2026-02-16T22:30:15+00:00'
+  in_ticket_edges: []
