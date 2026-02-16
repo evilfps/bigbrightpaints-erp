@@ -3,11 +3,11 @@ title: ERP Staging Batch 5 - Tenant Hold/Block Runtime Enforcement
 goal: M18-S2A tenant hold/block controls with super-admin authority and fail-closed
   runtime enforcement
 priority: high
-status: planned
+status: merged
 base_branch: harness-engineering-orchestrator
 worktree_root: /home/realnigga/Desktop/orchestrator_erp_worktrees/_tmp_orch_cleanrepo_worktrees
 created_at: '2026-02-16T18:27:11+00:00'
-updated_at: '2026-02-16T18:27:11+00:00'
+updated_at: '2026-02-16T18:57:48+00:00'
 r3_required: true
 orchestrator_authority:
   r1: orchestrator
@@ -38,7 +38,7 @@ slices:
   - cd erp-domain && mvn -B -ntp -Dtest='AuthTenantAuthorityIT,*Company*' test
   - bash ci/check-architecture.sh
   - bash ci/check-enterprise-policy.sh
-  status: ready
+  status: merged
   objective: M18-S2A tenant hold/block controls with super-admin authority and fail-closed
     runtime enforcement
   acceptance_criteria:
@@ -113,7 +113,7 @@ slices:
   - cd erp-domain && mvn -B -ntp -Dtest='AuthTenantAuthorityIT' test
   - bash ci/check-architecture.sh
   - bash ci/check-enterprise-policy.sh
-  status: ready
+  status: dropped_overlap
   objective: M18-S2A tenant hold/block controls with super-admin authority and fail-closed
     runtime enforcement
   acceptance_criteria:
@@ -133,3 +133,7 @@ cross_workflow:
   - upstream_slice: SLICE-01
     downstream_slice: SLICE-02
     contract: tenant lifecycle status consumed by runtime company context enforcement
+merge_summary:
+  merged_into: harness-engineering-orchestrator
+  merge_sha: 2005bfc3
+  overlap_resolution: SLICE-02 dropped; canonical runtime enforcement merged from SLICE-01 path
