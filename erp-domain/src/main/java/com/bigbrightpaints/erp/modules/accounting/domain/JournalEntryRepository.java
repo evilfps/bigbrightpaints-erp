@@ -32,6 +32,7 @@ public interface JournalEntryRepository extends JpaRepository<JournalEntry, Long
     Page<JournalEntry> findByCompanyAndSupplierOrderByEntryDateDescIdDesc(Company company, Supplier supplier, Pageable pageable);
     @EntityGraph(attributePaths = {"lines", "lines.account"})
     Optional<JournalEntry> findById(Long id);
+    @EntityGraph(attributePaths = {"lines", "lines.account"})
     Optional<JournalEntry> findByCompanyAndId(Company company, Long id);
     Optional<JournalEntry> findByCompanyAndReferenceNumber(Company company, String referenceNumber);
     Optional<JournalEntry> findFirstByCompanyAndReferenceNumberStartingWith(Company company, String referencePrefix);

@@ -131,7 +131,7 @@ public class BusinessLogicRegressionTest extends AbstractIntegrationTest {
         }
 
         // Verify all entries are balanced
-        List<JournalEntry> entries = journalEntryRepository.findAll();
+        List<JournalEntry> entries = journalEntryRepository.findByCompanyOrderByEntryDateDesc(company);
 
         for (JournalEntry entry : entries) {
             BigDecimal totalDebits = entry.getLines().stream()

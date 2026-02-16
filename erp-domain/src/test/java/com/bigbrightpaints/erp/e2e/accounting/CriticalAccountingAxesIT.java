@@ -951,14 +951,16 @@ class CriticalAccountingAxesIT extends AbstractIntegrationTest {
     }
 
     private BigDecimal sumDebitForCompany() {
-        return journalLineRepository.findAll().stream()
+        return journalEntryRepository.findByCompanyOrderByEntryDateDesc(company).stream()
+                .flatMap(entry -> entry.getLines().stream())
                 .map(JournalLine::getDebit)
                 .filter(val -> val != null)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
     private BigDecimal sumCreditForCompany() {
-        return journalLineRepository.findAll().stream()
+        return journalEntryRepository.findByCompanyOrderByEntryDateDesc(company).stream()
+                .flatMap(entry -> entry.getLines().stream())
                 .map(JournalLine::getCredit)
                 .filter(val -> val != null)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);

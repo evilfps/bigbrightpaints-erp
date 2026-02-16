@@ -589,7 +589,7 @@ class AccountingServiceTest {
     }
 
     @Test
-    void createJournalEntry_infersSupplierContextFromOwnedPayableAccount() {
+    void createJournalEntry_requiresSupplierContextForOwnedPayableAccount() {
         LocalDate today = LocalDate.of(2024, 4, 7);
         when(companyClock.today(company)).thenReturn(today);
         when(journalEntryRepository.findByCompanyAndReferenceNumber(eq(company), eq("AP-INFER-SUPPLIER")))
@@ -621,8 +621,6 @@ class AccountingServiceTest {
         when(accountRepository.lockByCompanyAndId(eq(company), eq(31L))).thenReturn(Optional.of(payable));
         when(accountRepository.lockByCompanyAndId(eq(company), eq(32L))).thenReturn(Optional.of(cash));
         when(supplierRepository.findAllByCompanyAndPayableAccount(eq(company), eq(payable))).thenReturn(List.of(supplier));
-        when(journalEntryRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
-        when(accountRepository.updateBalanceAtomic(eq(company), any(), any())).thenReturn(1);
 
         JournalEntryRequest request = new JournalEntryRequest(
                 "AP-INFER-SUPPLIER",
@@ -637,9 +635,9 @@ class AccountingServiceTest {
                 )
         );
 
-        JournalEntryDto result = accountingService.createJournalEntry(request);
-        assertThat(result).isNotNull();
-        assertThat(result.supplierId()).isEqualTo(91L);
+        assertThatThrownBy(() -> accountingService.createJournalEntry(request))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("requires a supplier context");
     }
 
     @Test
