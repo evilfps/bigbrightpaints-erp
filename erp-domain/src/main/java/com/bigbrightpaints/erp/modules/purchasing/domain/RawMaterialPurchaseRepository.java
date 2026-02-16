@@ -1,5 +1,6 @@
 package com.bigbrightpaints.erp.modules.purchasing.domain;
 
+import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.EntityGraph;
@@ -29,6 +30,12 @@ public interface RawMaterialPurchaseRepository extends JpaRepository<RawMaterial
     Optional<RawMaterialPurchase> findByCompanyAndId(Company company, Long id);
     Optional<RawMaterialPurchase> findByCompanyAndInvoiceNumberIgnoreCase(Company company, String invoiceNumber);
     Optional<RawMaterialPurchase> findByCompanyAndGoodsReceipt(Company company, GoodsReceipt goodsReceipt);
+
+    @EntityGraph(attributePaths = {"supplier", "journalEntry", "purchaseOrder", "goodsReceipt"})
+    Optional<RawMaterialPurchase> findByCompanyAndJournalEntry(Company company, JournalEntry journalEntry);
+
+    @EntityGraph(attributePaths = {"supplier", "journalEntry", "purchaseOrder", "goodsReceipt"})
+    List<RawMaterialPurchase> findByCompanyAndJournalEntry_IdIn(Company company, List<Long> journalEntryIds);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT p FROM RawMaterialPurchase p WHERE p.company = :company AND p.id = :id")
