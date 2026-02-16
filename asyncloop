@@ -10268,3 +10268,36 @@ Loop Update
 - async_loop_status: `COMPLETE`
 - completion_gates_status: `5/5 CLOSED`
 - closure_note: `M8 and M9 are complete on validated head; async-loop execution stopped per operator instruction.`
+
+[2026-02-16] M18-S3A canonical workflow decision registry + CI guard closure (TKT-ERP-STAGE-006)
+- Completed Slice (Committed): release-ops guard enforcement lane
+  - Commit `b1803e73`: added `scripts/guard_workflow_canonical_paths.sh` and wired it into `ci/check-enterprise-policy.sh`.
+  - Verification:
+    - `bash scripts/guard_workflow_canonical_paths.sh` -> PASS
+    - `bash ci/check-enterprise-policy.sh` -> PASS
+    - `bash ci/check-architecture.sh` -> PASS
+- Completed Slice (Committed): repo-cartographer decision docs lane
+  - Commit `90727d3a`: updated canonical workflow decision contracts in:
+    - `docs/system-map/CROSS_MODULE_WORKFLOWS.md`
+    - `docs/endpoint-inventory.md`
+    - `docs/system-map/REPO_OVERVIEW.md`
+  - Verification:
+    - `bash ci/lint-knowledgebase.sh` -> PASS
+- Merge evidence:
+  - `cccfc824` merged `tickets/tkt-erp-stage-006/release-ops` into `harness-engineering-orchestrator`.
+  - `196954a7` merged `tickets/tkt-erp-stage-006/repo-cartographer` into `harness-engineering-orchestrator`.
+- Review evidence:
+  - `qa-reliability` approved SLICE-01 and SLICE-02.
+  - `security-governance` approved SLICE-01.
+- Note:
+  - Harness auto-cleanup failed initially due untracked `.harness/` residue in slice worktrees; orchestrator performed forced cleanup and normalized ticket closure.
+
+Loop Update
+- tracked_now_ts: `2026-02-16T19:14:30+00:00`
+- active_in_progress: `M18-S6A GST/non-GST settlement posting drift guards`
+
+Queue Rotation (Auto-Replenish)
+- [in_progress] M18-S6A GST/non-GST settlement posting drift guards
+- [ready] M18-S9A OpenAPI contract drift guard + portal parity check hardening
+- [ready] M18-S10A staging rollback rehearsal evidence normalizer
+- [ready] M18-S7A variant lifecycle duplicate-path decision follow-through (template/variant canonical write ownership)

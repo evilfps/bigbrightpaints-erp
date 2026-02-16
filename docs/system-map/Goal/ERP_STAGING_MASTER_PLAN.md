@@ -334,3 +334,4 @@ Current rule:
 - 2026-02-16: `TKT-ERP-STAGE-001` merged into `harness-engineering-orchestrator` (M18-S2 and M18-S8 baseline hardening).
 - 2026-02-16: `TKT-ERP-STAGE-002` merged into `harness-engineering-orchestrator` with full strict-lane proof (`verify_local` green on commit `9dab6f5b`) for M18-S4 closure slice.
 - 2026-02-16: `TKT-ERP-STAGE-005` merged into `harness-engineering-orchestrator` (`2005bfc3`) for M18-S2A tenant hold/block runtime enforcement with overlap arbitration (`SLICE-02` dropped, `SLICE-01` canonicalized).
+- 2026-02-16: `TKT-ERP-STAGE-006` merged into `harness-engineering-orchestrator` (`cccfc824`, `196954a7`) for M18-S3A canonical workflow decision registry + CI guard enforcement (`scripts/guard_workflow_canonical_paths.sh` integrated into `ci/check-enterprise-policy.sh`).
