@@ -7,6 +7,14 @@ ARTIFACT_DIR="$ROOT_DIR/artifacts/gate-release"
 TRUTH_TEST_ROOT="$ROOT_DIR/erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite"
 rm -rf "$ARTIFACT_DIR"
 mkdir -p "$ARTIFACT_DIR"
+GATE_START_UTC="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+RELEASE_SHA="unknown"
+TRACEABILITY_STRICT_MODE="false"
+if resolved_sha="$(git -C "$ROOT_DIR" rev-parse HEAD 2>/dev/null)"; then
+  RELEASE_SHA="$resolved_sha"
+  TRACEABILITY_STRICT_MODE="true"
+fi
+TRACEABILITY_FILE="$ARTIFACT_DIR/release-gate-traceability.json"
 
 echo "[gate-release] validate catalog"
 python3 "$ROOT_DIR/scripts/validate_test_catalog.py" \
@@ -165,5 +173,73 @@ echo "[gate-release] truth suite strict mode"
 
 echo "[gate-release] fresh + upgrade migration matrix"
 MIGRATION_SET="$MIGRATION_SET" bash "$ROOT_DIR/scripts/release_migration_matrix.sh" --migration-set v2 --artifact-dir "$ARTIFACT_DIR"
+
+if [[ "$TRACEABILITY_STRICT_MODE" == "true" ]]; then
+  echo "[gate-release] verify release evidence artifacts"
+  required_release_artifacts=(
+    "$ARTIFACT_DIR/migration-matrix.json"
+    "$ARTIFACT_DIR/predeploy-scans-fresh.txt"
+    "$ARTIFACT_DIR/predeploy-scans-upgrade-seed.txt"
+    "$ARTIFACT_DIR/predeploy-scans-upgrade.txt"
+    "$ARTIFACT_DIR/rollback-rehearsal-evidence.json"
+  )
+  for required_artifact in "${required_release_artifacts[@]}"; do
+    if [[ ! -f "$required_artifact" ]]; then
+      echo "[gate-release] missing required artifact: $required_artifact" >&2
+      exit 1
+    fi
+  done
+else
+  echo "[gate-release] traceability strict mode disabled (no git SHA context); skipping release artifact completeness enforcement"
+fi
+
+echo "[gate-release] build traceability manifest"
+python3 - "$ARTIFACT_DIR" "$MIGRATION_SET" "$GATE_START_UTC" "$RELEASE_SHA" <<'PY'
+import hashlib
+import json
+import os
+import sys
+import time
+
+artifact_dir, migration_set, started_at_utc, release_sha = sys.argv[1:5]
+manifest_path = os.path.join(artifact_dir, "release-gate-traceability.json")
+tmp_path = manifest_path + ".tmp"
+artifacts = []
+
+for name in sorted(os.listdir(artifact_dir)):
+    path = os.path.join(artifact_dir, name)
+    if not os.path.isfile(path):
+        continue
+    if path == manifest_path:
+        continue
+    digest = hashlib.sha256()
+    with open(path, "rb") as handle:
+        for chunk in iter(lambda: handle.read(65536), b""):
+            digest.update(chunk)
+    stat_result = os.stat(path)
+    artifacts.append(
+        {
+            "path": f"artifacts/gate-release/{name}",
+            "sha256": digest.hexdigest(),
+            "bytes": stat_result.st_size,
+        }
+    )
+
+payload = {
+    "gate": "gate-release",
+    "release_sha": release_sha,
+    "migration_set": migration_set,
+    "started_at_utc": started_at_utc,
+    "finished_at_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+    "artifact_count": len(artifacts),
+    "artifacts": artifacts,
+}
+
+with open(tmp_path, "w", encoding="utf-8") as handle:
+    json.dump(payload, handle, indent=2, sort_keys=True)
+    handle.write("\n")
+os.replace(tmp_path, manifest_path)
+PY
+cat "$TRACEABILITY_FILE"
 
 echo "[gate-release] OK"
