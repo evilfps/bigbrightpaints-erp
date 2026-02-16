@@ -68,16 +68,13 @@ public class DealerController {
     @GetMapping("/{dealerId}/ledger")
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SALES','ROLE_ACCOUNTING','ROLE_DEALER')")
     public ResponseEntity<ApiResponse<Map<String, Object>>> dealerLedger(@PathVariable Long dealerId) {
-        // If dealer role, verify they can only see their own ledger
-        dealerPortalService.verifyDealerAccess(dealerId);
-        Map<String, Object> payload = dealerService.ledgerView(dealerId);
+        Map<String, Object> payload = dealerPortalService.getLedgerForDealer(dealerId);
         return ResponseEntity.ok(ApiResponse.success("Dealer ledger", payload));
     }
 
     @GetMapping("/{dealerId}/invoices")
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SALES','ROLE_ACCOUNTING','ROLE_DEALER')")
     public ResponseEntity<ApiResponse<Map<String, Object>>> dealerInvoices(@PathVariable Long dealerId) {
-        dealerPortalService.verifyDealerAccess(dealerId);
         Map<String, Object> payload = dealerPortalService.getInvoicesForDealer(dealerId);
         return ResponseEntity.ok(ApiResponse.success("Dealer invoices", payload));
     }
@@ -85,7 +82,6 @@ public class DealerController {
     @GetMapping("/{dealerId}/aging")
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SALES','ROLE_ACCOUNTING','ROLE_DEALER')")
     public ResponseEntity<ApiResponse<Map<String, Object>>> dealerAging(@PathVariable Long dealerId) {
-        dealerPortalService.verifyDealerAccess(dealerId);
         Map<String, Object> payload = dealerPortalService.getAgingForDealer(dealerId);
         return ResponseEntity.ok(ApiResponse.success("Dealer aging", payload));
     }

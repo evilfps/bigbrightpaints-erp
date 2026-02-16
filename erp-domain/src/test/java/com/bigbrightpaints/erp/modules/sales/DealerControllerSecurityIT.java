@@ -28,6 +28,7 @@ class DealerControllerSecurityIT extends AbstractIntegrationTest {
     private static final String COMPANY_CODE = "DEALER-SEC";
     private static final String DEALER_A_EMAIL = "dealer-a@bbp.com";
     private static final String DEALER_B_EMAIL = "dealer-b@bbp.com";
+    private static final String ADMIN_EMAIL = "dealer-admin@bbp.com";
     private static final String PASSWORD = "DealerPass123!";
 
     @Autowired
@@ -48,6 +49,8 @@ class DealerControllerSecurityIT extends AbstractIntegrationTest {
                 DEALER_A_EMAIL, PASSWORD, "Dealer A User", COMPANY_CODE, List.of("ROLE_DEALER"));
         UserAccount dealerBUser = dataSeeder.ensureUser(
                 DEALER_B_EMAIL, PASSWORD, "Dealer B User", COMPANY_CODE, List.of("ROLE_DEALER"));
+        dataSeeder.ensureUser(
+                ADMIN_EMAIL, PASSWORD, "Dealer Admin User", COMPANY_CODE, List.of("ROLE_ADMIN"));
 
         Company company = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();
         dealerA = upsertDealer(company, "D-SEC-A", "Dealer A", dealerAUser);
@@ -78,6 +81,78 @@ class DealerControllerSecurityIT extends AbstractIntegrationTest {
                 Map.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+    }
+
+    @Test
+    @DisplayName("Dealer cannot access another dealer invoices (returns 403, not 500)")
+    void dealerCannotReadAnotherDealerInvoices() {
+        HttpHeaders headers = authHeaders(DEALER_A_EMAIL, PASSWORD);
+        ResponseEntity<Map> response = rest.exchange(
+                "/api/v1/dealers/" + dealerB.getId() + "/invoices",
+                HttpMethod.GET,
+                new HttpEntity<>(headers),
+                Map.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+    }
+
+    @Test
+    @DisplayName("Dealer cannot access another dealer aging (returns 403, not 500)")
+    void dealerCannotReadAnotherDealerAging() {
+        HttpHeaders headers = authHeaders(DEALER_A_EMAIL, PASSWORD);
+        ResponseEntity<Map> response = rest.exchange(
+                "/api/v1/dealers/" + dealerB.getId() + "/aging",
+                HttpMethod.GET,
+                new HttpEntity<>(headers),
+                Map.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+    }
+
+    @Test
+    @DisplayName("Dealer can access own invoices and aging")
+    void dealerCanReadOwnInvoicesAndAging() {
+        HttpHeaders headers = authHeaders(DEALER_A_EMAIL, PASSWORD);
+        ResponseEntity<Map> invoices = rest.exchange(
+                "/api/v1/dealers/" + dealerA.getId() + "/invoices",
+                HttpMethod.GET,
+                new HttpEntity<>(headers),
+                Map.class);
+        ResponseEntity<Map> aging = rest.exchange(
+                "/api/v1/dealers/" + dealerA.getId() + "/aging",
+                HttpMethod.GET,
+                new HttpEntity<>(headers),
+                Map.class);
+
+        assertThat(invoices.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(aging.getStatusCode()).isEqualTo(HttpStatus.OK);
+    }
+
+    @Test
+    @DisplayName("Admin gets not-found for missing dealer read endpoints")
+    void adminGetsNotFoundForMissingDealerReadEndpoints() {
+        HttpHeaders headers = authHeaders(ADMIN_EMAIL, PASSWORD);
+        long missingDealerId = 999_999_999L;
+
+        ResponseEntity<Map> ledger = rest.exchange(
+                "/api/v1/dealers/" + missingDealerId + "/ledger",
+                HttpMethod.GET,
+                new HttpEntity<>(headers),
+                Map.class);
+        ResponseEntity<Map> invoices = rest.exchange(
+                "/api/v1/dealers/" + missingDealerId + "/invoices",
+                HttpMethod.GET,
+                new HttpEntity<>(headers),
+                Map.class);
+        ResponseEntity<Map> aging = rest.exchange(
+                "/api/v1/dealers/" + missingDealerId + "/aging",
+                HttpMethod.GET,
+                new HttpEntity<>(headers),
+                Map.class);
+
+        assertThat(ledger.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(invoices.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(aging.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     }
 
     private HttpHeaders authHeaders(String email, String password) {

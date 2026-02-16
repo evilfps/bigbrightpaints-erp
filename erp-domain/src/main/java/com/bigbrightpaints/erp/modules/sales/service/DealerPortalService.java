@@ -113,7 +113,8 @@ public class DealerPortalService {
     @Transactional(readOnly = true)
     public Map<String, Object> getLedgerForDealer(Long dealerId) {
         verifyDealerAccess(dealerId);
-        return dealerService.ledgerView(dealerId);
+        Dealer dealer = requireDealerForScopedRead(dealerId);
+        return dealerService.ledgerView(dealer.getId());
     }
 
     @Transactional(readOnly = true)
@@ -125,9 +126,7 @@ public class DealerPortalService {
     @Transactional(readOnly = true)
     public Map<String, Object> getInvoicesForDealer(Long dealerId) {
         verifyDealerAccess(dealerId);
-        Company company = companyContextService.requireCurrentCompany();
-        Dealer dealer = dealerRepository.findByCompanyAndId(company, dealerId)
-                .orElseThrow(() -> new IllegalArgumentException("Dealer not found"));
+        Dealer dealer = requireDealerForScopedRead(dealerId);
         return buildInvoicesView(dealer);
     }
 
@@ -173,9 +172,7 @@ public class DealerPortalService {
     @Transactional(readOnly = true)
     public Map<String, Object> getAgingForDealer(Long dealerId) {
         verifyDealerAccess(dealerId);
-        Company company = companyContextService.requireCurrentCompany();
-        Dealer dealer = dealerRepository.findByCompanyAndId(company, dealerId)
-                .orElseThrow(() -> new IllegalArgumentException("Dealer not found"));
+        Dealer dealer = requireDealerForScopedRead(dealerId);
         return buildAgingView(dealer);
     }
 
@@ -378,6 +375,12 @@ public class DealerPortalService {
             throw new AccessDeniedException("Ambiguous dealer mapping for " + identity);
         }
         return candidates.get(0);
+    }
+
+    private Dealer requireDealerForScopedRead(Long dealerId) {
+        Company company = companyContextService.requireCurrentCompany();
+        return dealerRepository.findByCompanyAndId(company, dealerId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Dealer not found"));
     }
 
     private BigDecimal resolvePendingOrderExposure(Dealer dealer, Long excludeOrderId) {
