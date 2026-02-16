@@ -12,9 +12,9 @@ class TS_OrchestratorExactlyOnceOutboxTest {
     private static final String COMMAND_DISPATCHER =
             "src/main/java/com/bigbrightpaints/erp/orchestrator/service/CommandDispatcher.java";
     private static final String ORCH_IDEMPOTENCY_MIGRATION =
-            "src/main/resources/db/migration/V118__orchestrator_command_idempotency.sql";
+            "src/main/resources/db/migration_v2/V6__orchestrator.sql";
     private static final String ORCH_AUDIT_MIGRATION =
-            "src/main/resources/db/migration/V121__orchestrator_audit_outbox_identifiers.sql";
+            "src/main/resources/db/migration_v2/V6__orchestrator.sql";
 
     @Test
     void commandDispatcherUsesLeaseBasedExactlyOncePattern() {
@@ -32,24 +32,25 @@ class TS_OrchestratorExactlyOnceOutboxTest {
     void legacyBypassPathsAreFailClosedBehindFeatureFlags() {
         TruthSuiteFileAssert.assertContains(
                 COMMAND_DISPATCHER,
-                "if (!featureFlags.isFactoryDispatchEnabled()) {",
-                "recordDeniedCommand(lease, \"ORCH.FACTORY.BATCH.DISPATCH\"",
-                "if (!featureFlags.isPayrollEnabled()) {",
-                "recordDeniedCommand(lease, \"ORCH.PAYROLL.RUN\"",
-                "\"/api/v1/payroll/runs\", \"Orchestrator payroll run is disabled (CODE-RED).\"");
+                "return executeFeatureGuardedCommand(",
+                "\"ORCH.FACTORY.BATCH.DISPATCH\",",
+                "featureFlags::isFactoryDispatchEnabled,",
+                "\"ORCH.PAYROLL.RUN\",",
+                "featureFlags::isPayrollEnabled,",
+                "recordDeniedCommand(",
+                "throw new OrchestratorFeatureDisabledException(disabledMessage, canonicalPath);");
     }
 
     @Test
     void schemaContainsOrchestratorIdempotencyAndAuditIdentifiers() {
         TruthSuiteFileAssert.assertContains(
                 ORCH_IDEMPOTENCY_MIGRATION,
-                "CREATE TABLE IF NOT EXISTS orchestrator_commands",
-                "CREATE UNIQUE INDEX IF NOT EXISTS ux_orchestrator_commands_scope");
+                "CREATE TABLE public.orchestrator_commands",
+                "CREATE UNIQUE INDEX ux_orchestrator_commands_scope");
         TruthSuiteFileAssert.assertContains(
                 ORCH_AUDIT_MIGRATION,
-                "ALTER TABLE orchestrator_outbox",
-                "ADD COLUMN IF NOT EXISTS trace_id",
-                "ADD COLUMN IF NOT EXISTS request_id",
-                "ADD COLUMN IF NOT EXISTS idempotency_key");
+                "trace_id character varying(128),",
+                "request_id character varying(128),",
+                "idempotency_key character varying(255)");
     }
 }

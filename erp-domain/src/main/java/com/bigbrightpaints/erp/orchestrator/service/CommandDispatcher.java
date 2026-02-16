@@ -15,6 +15,7 @@ import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.BooleanSupplier;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -184,20 +185,19 @@ public class CommandDispatcher {
         OrchestratorIdempotencyService.CommandLease lease = leaseEnvelope.lease();
         String normalizedRequestId = leaseEnvelope.normalizedRequestId();
         String canonicalIdempotencyKey = leaseEnvelope.canonicalIdempotencyKey();
-        if (!lease.shouldExecute()) {
-            return lease.traceId();
-        }
-        if (!featureFlags.isFactoryDispatchEnabled()) {
-            recordDeniedCommand(lease, "ORCH.FACTORY.BATCH.DISPATCH", companyId, userId,
-                    canonicalIdempotencyKey, normalizedRequestId,
-                    "/api/v1/factory", "Orchestrator factory dispatch is disabled (CODE-RED).",
-                    "Batch", request != null ? request.batchId() : null);
-            throw new OrchestratorFeatureDisabledException(
-                    "Orchestrator factory dispatch is disabled (CODE-RED).",
-                    "/api/v1/factory");
-        }
-        ensurePositivePostingAmount(lease.command(), request != null ? request.postingAmount() : null, "dispatch");
-        return executeWithLease(lease, () -> {
+        return executeFeatureGuardedCommand(
+                leaseEnvelope,
+                "ORCH.FACTORY.BATCH.DISPATCH",
+                companyId,
+                userId,
+                "/api/v1/factory",
+                "Orchestrator factory dispatch is disabled (CODE-RED).",
+                "Batch",
+                request != null ? request.batchId() : null,
+                request != null ? request.postingAmount() : null,
+                "dispatch",
+                featureFlags::isFactoryDispatchEnabled,
+                () -> {
             String traceId = lease.traceId();
             integrationCoordinator.updateProductionStatus(request.batchId(), companyId);
             integrationCoordinator.releaseInventory(request.batchId(), companyId);
@@ -218,7 +218,7 @@ public class CommandDispatcher {
                     Map.of("batchId", request.batchId(), "idempotencyKey", canonicalIdempotencyKey),
                     normalizedRequestId, canonicalIdempotencyKey);
             return traceId;
-        });
+                });
     }
 
     @Transactional(noRollbackFor = OrchestratorFeatureDisabledException.class)
@@ -237,20 +237,19 @@ public class CommandDispatcher {
         OrchestratorIdempotencyService.CommandLease lease = leaseEnvelope.lease();
         String normalizedRequestId = leaseEnvelope.normalizedRequestId();
         String canonicalIdempotencyKey = leaseEnvelope.canonicalIdempotencyKey();
-        if (!lease.shouldExecute()) {
-            return lease.traceId();
-        }
-        if (!featureFlags.isPayrollEnabled()) {
-            recordDeniedCommand(lease, "ORCH.PAYROLL.RUN", companyId, userId,
-                    canonicalIdempotencyKey, normalizedRequestId,
-                    "/api/v1/payroll/runs", "Orchestrator payroll run is disabled (CODE-RED).",
-                    "Payroll", request != null && request.payrollDate() != null ? request.payrollDate().toString() : null);
-            throw new OrchestratorFeatureDisabledException(
-                    "Orchestrator payroll run is disabled (CODE-RED).",
-                    "/api/v1/payroll/runs");
-        }
-        ensurePositivePostingAmount(lease.command(), request != null ? request.postingAmount() : null, "payroll");
-        return executeWithLease(lease, () -> {
+        return executeFeatureGuardedCommand(
+                leaseEnvelope,
+                "ORCH.PAYROLL.RUN",
+                companyId,
+                userId,
+                "/api/v1/payroll/runs",
+                "Orchestrator payroll run is disabled (CODE-RED).",
+                "Payroll",
+                request != null && request.payrollDate() != null ? request.payrollDate().toString() : null,
+                request != null ? request.postingAmount() : null,
+                "payroll",
+                featureFlags::isPayrollEnabled,
+                () -> {
             String traceId = lease.traceId();
             integrationCoordinator.syncEmployees(companyId);
             var payrollRun = integrationCoordinator.generatePayroll(request.payrollDate(), request.postingAmount(), companyId);
@@ -273,7 +272,7 @@ public class CommandDispatcher {
                     Map.of("payrollDate", request.payrollDate(), "idempotencyKey", canonicalIdempotencyKey),
                     normalizedRequestId, canonicalIdempotencyKey);
             return traceId;
-        });
+                });
     }
 
     public Map<String, Object> integrationHealth() {
@@ -384,6 +383,40 @@ public class CommandDispatcher {
             idempotencyService.markFailed(lease.command(), ex);
             throw ex;
         }
+    }
+
+    private String executeFeatureGuardedCommand(LeaseEnvelope leaseEnvelope,
+                                                String commandName,
+                                                String companyId,
+                                                String userId,
+                                                String canonicalPath,
+                                                String disabledMessage,
+                                                String entity,
+                                                String entityId,
+                                                BigDecimal postingAmount,
+                                                String operation,
+                                                BooleanSupplier featureEnabled,
+                                                CommandExecution execution) {
+        OrchestratorIdempotencyService.CommandLease lease = leaseEnvelope.lease();
+        if (!lease.shouldExecute()) {
+            return lease.traceId();
+        }
+        if (!featureEnabled.getAsBoolean()) {
+            recordDeniedCommand(
+                    lease,
+                    commandName,
+                    companyId,
+                    userId,
+                    leaseEnvelope.canonicalIdempotencyKey(),
+                    leaseEnvelope.normalizedRequestId(),
+                    canonicalPath,
+                    disabledMessage,
+                    entity,
+                    entityId);
+            throw new OrchestratorFeatureDisabledException(disabledMessage, canonicalPath);
+        }
+        ensurePositivePostingAmount(lease.command(), postingAmount, operation);
+        return executeWithLease(lease, execution);
     }
 
     private void ensurePositivePostingAmount(OrchestratorCommand command,
