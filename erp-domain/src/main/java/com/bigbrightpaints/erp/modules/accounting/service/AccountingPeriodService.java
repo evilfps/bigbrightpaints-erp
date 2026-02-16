@@ -121,13 +121,16 @@ public class AccountingPeriodService {
         if (period.getStatus() == AccountingPeriodStatus.LOCKED) {
             return toDto(period);
         }
+        String note = request != null && StringUtils.hasText(request.note()) ? request.note().trim() : null;
+        if (!StringUtils.hasText(note)) {
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT, "Close reason is required");
+        }
         periodCloseHook.onPeriodCloseLocked(company, period);
         boolean force = request != null && Boolean.TRUE.equals(request.force());
         assertNoUninvoicedReceipts(company, period);
         if (!force) {
             assertChecklistComplete(company, period);
         }
-        String note = request != null && StringUtils.hasText(request.note()) ? request.note().trim() : null;
         if (note != null) {
             period.setChecklistNotes(note);
         }
@@ -187,12 +190,13 @@ public class AccountingPeriodService {
         if (period.getStatus() == AccountingPeriodStatus.LOCKED || period.getStatus() == AccountingPeriodStatus.CLOSED) {
             return toDto(period);
         }
+        if (request == null || !StringUtils.hasText(request.reason())) {
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT, "Lock reason is required");
+        }
         period.setStatus(AccountingPeriodStatus.LOCKED);
         period.setLockedAt(CompanyTime.now(company));
         period.setLockedBy(resolveCurrentUsername());
-        if (request != null && StringUtils.hasText(request.reason())) {
-            period.setLockReason(request.reason().trim());
-        }
+        period.setLockReason(request.reason().trim());
         return toDto(accountingPeriodRepository.save(period));
     }
 
