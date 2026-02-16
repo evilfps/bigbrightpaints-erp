@@ -9967,3 +9967,46 @@ Loop Update
 Loop Update
 - tracked_now_ts: `2026-02-16T11:41:05+05:30`
 - active_in_progress: `M2/M3 accounting settlement idempotency dedupe + canonical partner-internal vocabulary hardening`
+
+[2026-02-16] M19-S55 direct review closure for controller idempotency dedupe tranche
+- Review closure update:
+  - `codex review --commit 1d186855` -> clean; no actionable regressions.
+
+[2026-02-16] M19-S56 settlement allocation/audit metadata dedupe centralized (accounting service)
+- Commit: `80096117`
+- Scope:
+  - centralized partner settlement allocation summary mapping in `AccountingService` via `toSettlementAllocationSummaries(...)`.
+  - centralized settlement audit metadata emission via `logSettlementAuditSuccess(...)` with canonical partner metadata keys.
+  - removed duplicate dealer/supplier response/audit construction paths while preserving existing settlement posting behavior.
+- Validation:
+  - `cd erp-domain && mvn -B -ntp -Dtest=AccountingServiceTest,TS_RuntimeAccountingReplayConflictExecutableCoverageTest test` -> PASS (`121/121`).
+- Review:
+  - `codex review --commit 80096117` -> clean; no actionable regressions.
+
+[2026-02-16] M19-S57 testing-lane parity: dealer settlement idempotency header + allocation summary dedupe
+- Commit: `77eba61a`
+- Scope:
+  - `testing/erp-domain` accounting controller now applies `Idempotency-Key` for dealer settlement endpoint through the same header-only helper path as other settlement/receipt endpoints.
+  - `testing/erp-domain` accounting service now reuses centralized `toSettlementAllocationSummaries(...)` to remove dealer/supplier duplicate mapping logic.
+- Validation:
+  - `cd testing/erp-domain && mvn -B -ntp -DskipTests compile` -> PASS.
+- Review:
+  - `codex review --commit 77eba61a` -> clean; no actionable regressions.
+
+[2026-02-16] M19-S58 V2 migration safety scans refreshed on moving head
+- Commands:
+  - `bash scripts/flyway_overlap_scan.sh --migration-set v2` -> PASS (findings `0`).
+  - `bash scripts/schema_drift_scan.sh --migration-set v2` -> PASS (findings `0`).
+
+[2026-02-16] M19-S59 anchored gate_fast freshness after settlement dedupe tranche
+- Command:
+  - `DIFF_BASE=06d85e792d2a80cd9fc1f8e5dc15d6dfa15dd93e GATE_FAST_RELEASE_VALIDATION_MODE=true bash scripts/gate_fast.sh`
+- Outcome:
+  - truth critical suite passed (`94/94`).
+  - changed-files coverage gate remains failing on active long-running diff base (`files_considered=9`, line ratio `0.3856`, branch ratio `0.4783`).
+- Classification:
+  - not a runtime-test failure; coverage uplift remains an open lane item for final gate closure.
+
+Loop Update
+- tracked_now_ts: `2026-02-16T11:50:37+05:30`
+- active_in_progress: `M9 coverage-uplift tranche for anchored gate_fast closure + next M8/M9 dedupe slice`
