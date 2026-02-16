@@ -2,10 +2,10 @@ package com.bigbrightpaints.erp.modules.auth;
 
 import com.bigbrightpaints.erp.core.audit.AuditEvent;
 import com.bigbrightpaints.erp.core.audit.AuditLog;
-import com.bigbrightpaints.erp.core.audit.AuditLogRepository;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
 import com.bigbrightpaints.erp.test.AbstractIntegrationTest;
+import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -41,7 +41,7 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
     private CompanyRepository companyRepository;
 
     @Autowired
-    private AuditLogRepository auditLogRepository;
+    private EntityManager entityManager;
 
     @BeforeEach
     void setUp() {
@@ -224,7 +224,11 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
 
     private AuditLog awaitAuditEvent(AuditEvent eventType, Predicate<AuditLog> matcher) throws InterruptedException {
         for (int i = 0; i < 40; i++) {
-            List<AuditLog> logs = auditLogRepository.findByEventTypeOrderByTimestampDesc(eventType);
+            List<AuditLog> logs = entityManager.createQuery(
+                            "select distinct al from AuditLog al left join fetch al.metadata where al.eventType = :eventType order by al.timestamp desc",
+                            AuditLog.class)
+                    .setParameter("eventType", eventType)
+                    .getResultList();
             for (AuditLog log : logs) {
                 if (matcher.test(log)) {
                     return log;
