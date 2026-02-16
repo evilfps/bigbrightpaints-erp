@@ -40,6 +40,16 @@ public class TaxService {
     public GstReturnDto generateGstReturn(YearMonth period) {
         Company company = companyContextService.requireCurrentCompany();
         YearMonth target = period != null ? period : YearMonth.from(companyClock.today(company));
+        if (period != null) {
+            YearMonth currentPeriod = YearMonth.from(companyClock.today(company));
+            if (target.isAfter(currentPeriod)) {
+                throw new ApplicationException(
+                        ErrorCode.VALIDATION_INVALID_DATE,
+                        "GST return period cannot be in the future")
+                        .withDetail("requestedPeriod", target.toString())
+                        .withDetail("currentPeriod", currentPeriod.toString());
+            }
+        }
         LocalDate start = target.atDay(1);
         LocalDate end = target.atEndOfMonth();
 
