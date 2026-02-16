@@ -153,6 +153,17 @@ class EventPublisherServiceTest {
     }
 
     @Test
+    void computeBackoffDelay_usesIntegerDoublingAndCapsExponent() {
+        EventPublisherService service = new EventPublisherService(outboxEventRepository, rabbitTemplate, companyContextService, objectMapper, null);
+
+        Long firstRetryDelay = ReflectionTestUtils.invokeMethod(service, "computeBackoffDelay", 0);
+        Long cappedDelay = ReflectionTestUtils.invokeMethod(service, "computeBackoffDelay", 20);
+
+        assertThat(firstRetryDelay).isEqualTo(30L);
+        assertThat(cappedDelay).isEqualTo(30L * 1024L);
+    }
+
+    @Test
     void publishPendingEvents_returnsEarlyWhenAlreadyPublishing() {
         EventPublisherService service = new EventPublisherService(outboxEventRepository, rabbitTemplate, companyContextService, objectMapper, null);
         AtomicBoolean mutex = (AtomicBoolean) ReflectionTestUtils.getField(service, "publishingInProgress");

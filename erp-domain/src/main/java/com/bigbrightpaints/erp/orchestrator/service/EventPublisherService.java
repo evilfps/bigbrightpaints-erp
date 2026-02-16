@@ -104,8 +104,8 @@ public class EventPublisherService {
     }
 
     private long computeBackoffDelay(int retryCount) {
-        int exponent = Math.min(retryCount, 10);
-        return (long) Math.pow(2, exponent) * RETRY_BASE_DELAY_SECONDS;
+        int exponent = Math.max(0, Math.min(retryCount, 10));
+        return RETRY_BASE_DELAY_SECONDS * (1L << exponent);
     }
 
     private String resolveFailureMessage(Exception ex) {
