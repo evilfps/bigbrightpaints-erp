@@ -1,5 +1,6 @@
 package com.bigbrightpaints.erp.modules.accounting.service;
 
+import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalLine;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalLineRepository;
@@ -18,7 +19,9 @@ import java.time.YearMonth;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 @ExtendWith(MockitoExtension.class)
 class TaxServiceTest {
@@ -87,6 +90,33 @@ class TaxServiceTest {
         assertThat(dto.getOutputTax()).isEqualByComparingTo("10.01");
         assertThat(dto.getInputTax()).isEqualByComparingTo("2.01");
         assertThat(dto.getNetPayable()).isEqualByComparingTo("8.00");
+    }
+
+    @Test
+    void generateGstReturn_nonGstModeWithNoGstAccounts_returnsZeroes() {
+        YearMonth period = YearMonth.of(2024, 3);
+        company.setDefaultGstRate(BigDecimal.ZERO);
+        company.setGstInputTaxAccountId(null);
+        company.setGstOutputTaxAccountId(null);
+        company.setGstPayableAccountId(null);
+
+        GstReturnDto dto = taxService.generateGstReturn(period);
+
+        assertThat(dto.getOutputTax()).isEqualByComparingTo("0.00");
+        assertThat(dto.getInputTax()).isEqualByComparingTo("0.00");
+        assertThat(dto.getNetPayable()).isEqualByComparingTo("0.00");
+        verifyNoInteractions(companyAccountingSettingsService, journalLineRepository);
+    }
+
+    @Test
+    void generateGstReturn_nonGstModeWithConfiguredGstAccounts_failsClosed() {
+        YearMonth period = YearMonth.of(2024, 3);
+        company.setDefaultGstRate(BigDecimal.ZERO);
+        company.setGstInputTaxAccountId(1L);
+
+        assertThatThrownBy(() -> taxService.generateGstReturn(period))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Non-GST mode company cannot have GST tax accounts configured");
     }
 
     private JournalLine line(BigDecimal debit, BigDecimal credit) {
