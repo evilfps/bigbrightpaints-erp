@@ -1006,61 +1006,6 @@ class AccountingServiceTest {
     }
 
     @Test
-    void createJournalEntry_emitsSuccessAuditWhenEventTrailPersists() {
-        ReflectionTestUtils.setField(accountingService, "strictAccountingEventTrail", false);
-        LocalDate today = LocalDate.of(2024, 3, 23);
-        when(companyClock.today(company)).thenReturn(today);
-        AccountingPeriod period = new AccountingPeriod();
-        period.setYear(today.getYear());
-        period.setMonth(today.getMonthValue());
-        when(accountingPeriodService.requireOpenPeriod(company, today)).thenReturn(period);
-        when(journalEntryRepository.findByCompanyAndReferenceNumber(eq(company), eq("EVT-AUDIT-SUCCESS")))
-                .thenReturn(Optional.empty());
-
-        Account debitAccount = new Account();
-        ReflectionTestUtils.setField(debitAccount, "id", 221L);
-        debitAccount.setCompany(company);
-        debitAccount.setBalance(BigDecimal.ZERO);
-        debitAccount.setCode("DEBIT-AUDIT");
-        Account creditAccount = new Account();
-        ReflectionTestUtils.setField(creditAccount, "id", 222L);
-        creditAccount.setCompany(company);
-        creditAccount.setBalance(BigDecimal.ZERO);
-        creditAccount.setCode("CREDIT-AUDIT");
-        when(accountRepository.lockByCompanyAndId(eq(company), eq(221L))).thenReturn(Optional.of(debitAccount));
-        when(accountRepository.lockByCompanyAndId(eq(company), eq(222L))).thenReturn(Optional.of(creditAccount));
-        when(journalEntryRepository.save(any())).thenAnswer(invocation -> {
-            JournalEntry saved = invocation.getArgument(0);
-            ReflectionTestUtils.setField(saved, "id", 2210L);
-            return saved;
-        });
-        when(accountRepository.updateBalanceAtomic(eq(company), any(), any())).thenReturn(1);
-
-        JournalEntryRequest request = new JournalEntryRequest(
-                "EVT-AUDIT-SUCCESS",
-                today,
-                "Best effort event trail success audit emission",
-                null,
-                null,
-                Boolean.FALSE,
-                List.of(
-                        new JournalEntryRequest.JournalLineRequest(221L, "Debit line", new BigDecimal("15.00"), BigDecimal.ZERO),
-                        new JournalEntryRequest.JournalLineRequest(222L, "Credit line", BigDecimal.ZERO, new BigDecimal("15.00"))
-                )
-        );
-
-        JournalEntryDto result = accountingService.createJournalEntry(request);
-        assertThat(result.referenceNumber()).isEqualTo("EVT-AUDIT-SUCCESS");
-
-        ArgumentCaptor<Map<String, String>> successMetadataCaptor = ArgumentCaptor.forClass(Map.class);
-        verify(auditService).logSuccess(eq(AuditEvent.JOURNAL_ENTRY_POSTED), successMetadataCaptor.capture());
-        assertThat(successMetadataCaptor.getValue())
-                .containsEntry("journalEntryId", "2210")
-                .containsEntry("referenceNumber", "EVT-AUDIT-SUCCESS")
-                .containsEntry("status", "POSTED");
-    }
-
-    @Test
     void createJournalEntry_bestEffortEventTrailValidationFailureClassified() {
         ReflectionTestUtils.setField(accountingService, "strictAccountingEventTrail", false);
         LocalDate today = LocalDate.of(2024, 3, 24);

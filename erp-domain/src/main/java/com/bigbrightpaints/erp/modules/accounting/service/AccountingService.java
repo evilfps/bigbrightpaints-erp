@@ -3655,7 +3655,8 @@ public class AccountingService {
     }
 
     private boolean shouldEmitAuditServiceSuccessEvent(AuditEvent event) {
-        return event != AuditEvent.JOURNAL_ENTRY_REVERSED
+        return event != AuditEvent.JOURNAL_ENTRY_POSTED
+                && event != AuditEvent.JOURNAL_ENTRY_REVERSED
                 && event != AuditEvent.SETTLEMENT_RECORDED;
     }
 
