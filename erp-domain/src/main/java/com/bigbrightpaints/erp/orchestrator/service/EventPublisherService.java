@@ -95,7 +95,7 @@ public class EventPublisherService {
                 } catch (Exception ex) {
                     log.error("Failed to publish event {}", event.getId(), ex);
                     long delaySeconds = computeBackoffDelay(event.getRetryCount());
-                    event.scheduleRetry(ex.getMessage(), MAX_RETRY_ATTEMPTS, delaySeconds);
+                    event.scheduleRetry(resolveFailureMessage(ex), MAX_RETRY_ATTEMPTS, delaySeconds);
                 }
             }
         } finally {
@@ -106,6 +106,17 @@ public class EventPublisherService {
     private long computeBackoffDelay(int retryCount) {
         int exponent = Math.min(retryCount, 10);
         return (long) Math.pow(2, exponent) * RETRY_BASE_DELAY_SECONDS;
+    }
+
+    private String resolveFailureMessage(Exception ex) {
+        if (ex == null) {
+            return "unknown publish failure";
+        }
+        String message = ex.getMessage();
+        if (message != null && !message.isBlank()) {
+            return message;
+        }
+        return ex.getClass().getName();
     }
 
     public Map<String, Object> healthSnapshot() {

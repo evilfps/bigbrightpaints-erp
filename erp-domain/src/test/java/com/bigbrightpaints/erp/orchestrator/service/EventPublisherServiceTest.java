@@ -134,6 +134,25 @@ class EventPublisherServiceTest {
     }
 
     @Test
+    void publishPendingEvents_recordsExceptionClassWhenFailureMessageMissing() {
+        EventPublisherService service = new EventPublisherService(outboxEventRepository, rabbitTemplate, companyContextService, objectMapper, null);
+
+        OutboxEvent pending = new OutboxEvent("SalesOrder", "42", "OrderApprovedEvent", "{\"ok\":true}");
+        when(outboxEventRepository
+                .findTop10ByStatusAndDeadLetterFalseAndNextAttemptAtLessThanEqualOrderByCreatedAtAsc(
+                        eq(OutboxEvent.Status.PENDING), any(Instant.class)))
+                .thenReturn(List.of(pending));
+        doThrow(new RuntimeException())
+                .when(rabbitTemplate)
+                .convertAndSend("bbp.orchestrator.events", "OrderApprovedEvent", "{\"ok\":true}");
+
+        service.publishPendingEvents();
+
+        assertThat(pending.getRetryCount()).isEqualTo(1);
+        assertThat(pending.getLastError()).isEqualTo(RuntimeException.class.getName());
+    }
+
+    @Test
     void publishPendingEvents_returnsEarlyWhenAlreadyPublishing() {
         EventPublisherService service = new EventPublisherService(outboxEventRepository, rabbitTemplate, companyContextService, objectMapper, null);
         AtomicBoolean mutex = (AtomicBoolean) ReflectionTestUtils.getField(service, "publishingInProgress");
