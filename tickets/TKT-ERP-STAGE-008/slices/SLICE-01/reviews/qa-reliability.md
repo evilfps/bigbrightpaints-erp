@@ -3,11 +3,11 @@
 ticket: TKT-ERP-STAGE-008
 slice: SLICE-01
 reviewer: qa-reliability
-status: pending
+status: approved
 
 ## Findings
-- pending
+- OpenAPI frontend mapping utility added at requested focus path; release-lane checks pass.
 
 ## Evidence
-- commands: pending
-- artifacts: pending
+- commands: bash ci/lint-knowledgebase.sh; bash ci/check-architecture.sh
+- artifacts: scripts/map_openapi_frontend.py

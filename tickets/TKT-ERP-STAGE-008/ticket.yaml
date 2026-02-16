@@ -3,11 +3,11 @@ title: ERP Staging Batch 8 - M18-S9A OpenAPI Drift + Portal Parity
 goal: 'M18-S9A smallest shippable closure: tighten OpenAPI drift enforcement and portal
   endpoint-map parity'
 priority: high
-status: planned
+status: merged
 base_branch: harness-engineering-orchestrator
 worktree_root: /home/realnigga/Desktop/orchestrator_erp_worktrees/_tmp_orch_cleanrepo_worktrees
 created_at: '2026-02-16T19:15:38+00:00'
-updated_at: '2026-02-16T19:15:38+00:00'
+updated_at: '2026-02-17T02:01:00+00:00'
 r3_required: false
 orchestrator_authority:
   r1: orchestrator
@@ -35,7 +35,7 @@ slices:
   required_checks:
   - bash ci/lint-knowledgebase.sh
   - bash ci/check-architecture.sh
-  status: ready
+  status: merged
   objective: 'M18-S9A smallest shippable closure: tighten OpenAPI drift enforcement
     and portal endpoint-map parity'
   workflow_upstream_slices: []
@@ -70,7 +70,7 @@ slices:
   worktree_path: /home/realnigga/Desktop/orchestrator_erp_worktrees/_tmp_orch_cleanrepo_worktrees/TKT-ERP-STAGE-008/frontend-documentation
   required_checks:
   - bash ci/lint-knowledgebase.sh
-  status: ready
+  status: merged
   objective: 'M18-S9A smallest shippable closure: tighten OpenAPI drift enforcement
     and portal endpoint-map parity'
   workflow_upstream_slices: []
@@ -95,7 +95,7 @@ slices:
   worktree_path: /home/realnigga/Desktop/orchestrator_erp_worktrees/_tmp_orch_cleanrepo_worktrees/TKT-ERP-STAGE-008/repo-cartographer
   required_checks:
   - bash ci/lint-knowledgebase.sh
-  status: ready
+  status: merged
   objective: 'M18-S9A smallest shippable closure: tighten OpenAPI drift enforcement
     and portal endpoint-map parity'
   workflow_upstream_slices: []
@@ -105,5 +105,12 @@ slices:
   cross_workflow_contracts: []
 cross_workflow:
   model: workflow_agent_edges_v1
-  generated_at: '2026-02-16T19:15:38+00:00'
+  generated_at: '2026-02-16T20:30:32+00:00'
   in_ticket_edges: []
+merge_summary:
+  merged_into: harness-engineering-orchestrator
+  merge_shas:
+  - fb9690f7
+  - 0fbfae28
+  - 089a393d
+  closure_note: all slices merged with required checks and reviewer approvals

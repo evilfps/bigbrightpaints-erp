@@ -30,8 +30,8 @@ M18-S9A smallest shippable closure: tighten OpenAPI drift enforcement and portal
   - upstream-external -> data-migration: migration rehearsal and release gating
 
 ## Required Checks Before Done
-- `bash scripts/gate_release.sh`
-- `bash scripts/gate_reconciliation.sh`
+- `bash ci/lint-knowledgebase.sh`
+- `bash ci/check-architecture.sh`
 
 ## Reviewer Contract
 - Review-only agents do not commit code.

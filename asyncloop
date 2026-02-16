@@ -10339,3 +10339,35 @@ Queue Rotation (Auto-Replenish)
 - [in_progress] M18-S9A OpenAPI contract drift guard + portal parity check hardening
 - [ready] M18-S10A staging rollback rehearsal evidence normalizer
 - [ready] M18-S7A variant lifecycle duplicate-path decision follow-through (template/variant canonical write ownership)
+
+[2026-02-17] M18-S9A OpenAPI drift + portal parity closure (TKT-ERP-STAGE-008)
+- Completed Slice (Committed): release-ops parity utility lane
+  - Commit `a872e4f1`: added `scripts/map_openapi_frontend.py` generator utility in requested release scope.
+  - Verification:
+    - `bash ci/lint-knowledgebase.sh` -> PASS
+    - `bash ci/check-architecture.sh` -> PASS
+- Completed Slice (Committed): frontend-documentation parity lock lane
+  - Commit `1003123d`: added explicit M18-S9A parity closure contract and drift ledger to accounting endpoint-map + handoff docs.
+  - Verification:
+    - `bash ci/lint-knowledgebase.sh` -> PASS
+- Completed Slice (Committed): repo-cartographer inventory sync lane
+  - Commit `e5c4e2e4`: synchronized `docs/endpoint-inventory.md` with OpenAPI parity evidence and missing path coverage.
+  - Verification:
+    - `bash ci/lint-knowledgebase.sh` -> PASS
+- Merge evidence:
+  - `fb9690f7` merged `tickets/tkt-erp-stage-008/release-ops`.
+  - `0fbfae28` merged `tickets/tkt-erp-stage-008/frontend-documentation`.
+  - `089a393d` merged `tickets/tkt-erp-stage-008/repo-cartographer`.
+- Review evidence:
+  - `qa-reliability` and `security-governance` approved SLICE-01.
+  - `repo-cartographer` approved SLICE-02.
+  - `orchestrator` approved SLICE-03.
+
+Loop Update
+- tracked_now_ts: `2026-02-17T02:01:00+00:00`
+- active_in_progress: `M18-S10A staging rollback rehearsal evidence normalizer (next ticket bootstrap)`
+
+Queue Rotation (Auto-Replenish)
+- [in_progress] M18-S10A staging rollback rehearsal evidence normalizer
+- [ready] M18-S7A variant lifecycle duplicate-path decision follow-through (template/variant canonical write ownership)
+- [ready] M18-S4 approval/override matrix hardening follow-through lanes

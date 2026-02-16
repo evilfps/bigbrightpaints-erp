@@ -3,18 +3,18 @@
 - title: ERP Staging Batch 8 - M18-S9A OpenAPI Drift + Portal Parity
 - goal: M18-S9A smallest shippable closure: tighten OpenAPI drift enforcement and portal endpoint-map parity
 - priority: high
-- status: planned
+- status: merged
 - base_branch: harness-engineering-orchestrator
 - created_at: 2026-02-16T19:15:38+00:00
-- updated_at: 2026-02-16T19:15:38+00:00
+- updated_at: 2026-02-17T02:01:00+00:00
 
 ## Slice Board
 
 | Slice | Agent | Lane | Status | Branch |
 | --- | --- | --- | --- | --- |
-| SLICE-01 | release-ops | w1 | ready | `tickets/tkt-erp-stage-008/release-ops` |
-| SLICE-02 | frontend-documentation | w2 | ready | `tickets/tkt-erp-stage-008/frontend-documentation` |
-| SLICE-03 | repo-cartographer | w3 | ready | `tickets/tkt-erp-stage-008/repo-cartographer` |
+| SLICE-01 | release-ops | w1 | merged | `tickets/tkt-erp-stage-008/release-ops` |
+| SLICE-02 | frontend-documentation | w2 | merged | `tickets/tkt-erp-stage-008/frontend-documentation` |
+| SLICE-03 | repo-cartographer | w3 | merged | `tickets/tkt-erp-stage-008/repo-cartographer` |
 
 ## Operator Commands
 
