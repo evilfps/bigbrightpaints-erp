@@ -55,7 +55,7 @@ These are cross-portal APIs reused in Accounting Portal for auth/session/profile
 
 ## Task 1: Endpoint Expectations
 
-- Full endpoint expectation map: `/home/realnigga/Desktop/orchestrator_erp/docs/accounting-portal-endpoint-map.md`
+- Full endpoint expectation map: `docs/accounting-portal-endpoint-map.md`
 - Scoped endpoint count: **143**
 - Accounting Core (GL, Periods, Journals, Controls): **58** endpoints
 - Invoice & Receivables: **5** endpoints
@@ -63,6 +63,18 @@ These are cross-portal APIs reused in Accounting Portal for auth/session/profile
 - Inventory & Costing: **21** endpoints
 - HR & Payroll: **32** endpoints
 - Reports & Reconciliation: **13** endpoints
+
+### M18-S9A Parity Closure (Do Not Drift)
+
+- Endpoint-map parity lock: this handoff must continue to include all **143** accounting-portal-owned rows from `docs/accounting-portal-endpoint-map.md`.
+- Current handoff inventory total is **152** unique `METHOD /api/v1/...` rows = `143` portal-owned + `9` intentional dependencies.
+- Intentional dependency-only rows (`+9` vs endpoint map):
+  - Shared foundation APIs (7): `GET /api/v1/auth/me`, `GET /api/v1/auth/profile`, `PUT /api/v1/auth/profile`, `POST /api/v1/auth/password/change`, `GET /api/v1/companies`, `POST /api/v1/multi-company/companies/switch`, `POST /api/v1/auth/logout`
+  - Dealer support APIs (2): `GET /api/v1/sales/dealers`, `GET /api/v1/sales/dealers/search`
+- OpenAPI drift ledger (backend code-verified; pending OpenAPI refresh):
+  - `GET /api/v1/accounting/audit/transactions`
+  - `GET /api/v1/accounting/audit/transactions/{journalEntryId}`
+- Legacy digest endpoints (`GET /api/v1/accounting/audit/digest*`) remain in snapshot and should be treated as deprecated for new UI flows.
 
 ## Task 2: Frontend API Inventory (Grouped by Domain)
 
