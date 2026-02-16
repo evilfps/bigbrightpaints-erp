@@ -9,7 +9,7 @@ Mode: Continuous
 ## Active constraints
 - Reviewer subagent dispatch currently blocked by external cap (`agent thread limit reached (max 6)`).
 - Direct `codex review --commit <sha>` fallback is active while the cap persists.
-- Current live review in flight: `f0bb9019`.
+- Current live review in flight: `aa217359`.
 
 ## Live plan lanes
 
@@ -23,6 +23,7 @@ Mode: Continuous
 1. Keep anchored `gate_fast` fresh on moving head.
 2. Re-run `gate_core`, `gate_reconciliation`, and `gate_release` on cadence for staging evidence.
 3. Record command outcomes in `asyncloop`.
+4. Current note: latest `gate_fast` truth tests passed; changed-files coverage check is currently diff-base constrained (baseline artifact), not a slice-local runtime failure.
 
 ### Lane C: Consistency hardening (throughput lane)
 1. Prefer small, evidence-backed slices with low blast radius.

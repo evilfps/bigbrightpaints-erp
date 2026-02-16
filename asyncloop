@@ -9886,3 +9886,36 @@ Loop Update
 Loop Update
 - tracked_now_ts: `2026-02-16T10:54:58+05:30`
 - active_in_progress: `M8/M9 async-loop hardening + commit-review drain + system-map lane freshness`
+
+[2026-02-16] M19-S48 direct review closure for duplicate-journal metadata tranche
+- Review closure update:
+  - `codex review --commit f0bb9019` -> clean; no actionable regressions.
+
+[2026-02-16] M19-S49 orchestrator canonical idempotency propagation hardening (exactly-once metadata lane)
+- Commit: `aa217359`
+- Scope:
+  - `CommandDispatcher` now propagates canonical lease idempotency key across event payloads, event envelopes, trace records, and downstream accounting side-effect calls.
+  - Removes mixed raw-vs-normalized idempotency-key propagation and binds orchestration/audit payloads to the persisted canonical key.
+  - Added focused regression test:
+    - `CommandDispatcherTest.approveOrderUsesCanonicalLeaseIdempotencyKeyForEventAndTrace`.
+- Validation:
+  - `cd erp-domain && mvn -B -ntp -Dtest=CommandDispatcherTest,TS_RuntimeOrchestratorIdempotencyExecutableCoverageTest test` -> PASS (`22/22`).
+- Review:
+  - `codex review --commit aa217359` -> running in background (no timeout mode).
+
+Loop Update
+- tracked_now_ts: `2026-02-16T11:01:12+05:30`
+- active_in_progress: `M8 orchestrator exactly-once metadata hardening + live commit-review drain`
+
+[2026-02-16] M19-S50 gate_fast freshness run on moving head (post-M8 metadata tranche)
+- Command:
+  - `bash scripts/gate_fast.sh`
+- Outcome:
+  - Truth critical suite execution passed (`94/94`).
+  - Gate failed on changed-files coverage ratio due broad diff base (`base=8c30c0febbe4c1fee16ed0f58cbc7106e22e81e2`, `files_considered=237`, line ratio `0.0263`, branch ratio `0.0192`), not due test failures in current slice.
+- Classification:
+  - treated as baseline-scope coverage artifact; not a functional regression signal for current orchestrator idempotency propagation tranche.
+
+Loop Update
+- tracked_now_ts: `2026-02-16T11:02:03+05:30`
+- active_in_progress: `M8 review drain + lane-B gate freshness evidence continuation`
