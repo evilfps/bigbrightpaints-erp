@@ -27,11 +27,14 @@
   - `bash scripts/gate_core.sh` -> PASS
   - `PGHOST=127.0.0.1 PGPORT=55432 PGUSER=erp PGPASSWORD=erp PGDATABASE=postgres bash scripts/gate_reconciliation.sh` -> PASS
   - `PGHOST=127.0.0.1 PGPORT=55432 PGUSER=erp PGPASSWORD=erp PGDATABASE=postgres bash scripts/gate_release.sh` -> PASS
+- Full strict harness parity:
+  - `bash scripts/verify_local.sh` -> PASS (`Tests run: 1296, Failures: 0, Errors: 0, Skipped: 4`)
 - Logs:
   - `/tmp/tkt036_gate_fast_anchor07cc.log`
   - `/tmp/tkt036_gate_core.log`
   - `/tmp/tkt036_gate_reconciliation.log`
   - `/tmp/tkt036_gate_release.log`
+  - `/tmp/tkt036_verify_local_post.log`
 
 ## Operator Commands
 
