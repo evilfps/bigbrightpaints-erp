@@ -87,6 +87,23 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
     long countApiFailureActivityByCompanyId(@Param("companyId") Long companyId);
 
     /**
+     * Count distinct tenant sessions observed in request-context audit rows.
+     */
+    @Query("SELECT COUNT(DISTINCT al.sessionId) FROM AuditLog al " +
+           "WHERE al.companyId = :companyId " +
+           "AND al.sessionId IS NOT NULL AND al.sessionId <> '' " +
+           "AND al.requestMethod IS NOT NULL AND al.requestMethod <> '' " +
+           "AND al.requestPath IS NOT NULL AND al.requestPath <> ''")
+    long countDistinctSessionActivityByCompanyId(@Param("companyId") Long companyId);
+
+    /**
+     * Estimate tenant audit storage footprint in bytes (PostgreSQL row-size aggregate).
+     */
+    @Query(value = "SELECT COALESCE(SUM(pg_column_size(al)), 0) FROM audit_logs al WHERE al.company_id = :companyId",
+            nativeQuery = true)
+    long estimateAuditStorageBytesByCompanyId(@Param("companyId") Long companyId);
+
+    /**
      * Delete old audit logs.
      */
     void deleteByTimestampBefore(LocalDateTime cutoff);

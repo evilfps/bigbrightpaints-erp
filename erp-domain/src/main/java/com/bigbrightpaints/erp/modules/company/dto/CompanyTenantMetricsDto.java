@@ -8,6 +8,8 @@ public record CompanyTenantMetricsDto(
         long activeUserCount,
         long apiActivityCount,
         long apiErrorCount,
-        long apiErrorRateInBasisPoints
+        long apiErrorRateInBasisPoints,
+        long distinctSessionCount,
+        long auditStorageBytes
 ) {
 }

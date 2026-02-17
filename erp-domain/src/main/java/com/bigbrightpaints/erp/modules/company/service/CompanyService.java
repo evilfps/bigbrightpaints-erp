@@ -165,6 +165,8 @@ public class CompanyService {
         long apiActivityCount = countApiActivity(companyId);
         long apiErrorCount = countApiFailureActivity(companyId);
         long apiErrorRateInBasisPoints = calculateErrorRateInBasisPoints(apiActivityCount, apiErrorCount);
+        long distinctSessionCount = countDistinctSessionActivity(companyId);
+        long auditStorageBytes = estimateAuditStorageBytes(companyId);
         auditAuthorityDecision(true, METRICS_READ_REASON, company.getCode(), authentication);
         return new CompanyTenantMetricsDto(
                 company.getId(),
@@ -174,7 +176,9 @@ public class CompanyService {
                 activeUserCount,
                 apiActivityCount,
                 apiErrorCount,
-                apiErrorRateInBasisPoints);
+                apiErrorRateInBasisPoints,
+                distinctSessionCount,
+                auditStorageBytes);
     }
 
     private void requireMembershipById(Long companyId, Set<Company> allowedCompanies) {
@@ -385,6 +389,20 @@ public class CompanyService {
             return 0L;
         }
         return auditLogRepository.countApiFailureActivityByCompanyId(companyId);
+    }
+
+    private long countDistinctSessionActivity(Long companyId) {
+        if (auditLogRepository == null || companyId == null) {
+            return 0L;
+        }
+        return auditLogRepository.countDistinctSessionActivityByCompanyId(companyId);
+    }
+
+    private long estimateAuditStorageBytes(Long companyId) {
+        if (auditLogRepository == null || companyId == null) {
+            return 0L;
+        }
+        return auditLogRepository.estimateAuditStorageBytesByCompanyId(companyId);
     }
 
     private long calculateErrorRateInBasisPoints(long apiActivityCount, long apiErrorCount) {

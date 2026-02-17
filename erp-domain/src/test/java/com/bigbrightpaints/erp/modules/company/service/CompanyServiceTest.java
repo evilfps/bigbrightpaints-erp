@@ -141,6 +141,8 @@ class CompanyServiceTest {
         when(userAccountRepository.countDistinctByCompanies_IdAndEnabledTrue(1L)).thenReturn(3L);
         when(auditLogRepository.countApiActivityByCompanyId(1L)).thenReturn(20L);
         when(auditLogRepository.countApiFailureActivityByCompanyId(1L)).thenReturn(5L);
+        when(auditLogRepository.countDistinctSessionActivityByCompanyId(1L)).thenReturn(2L);
+        when(auditLogRepository.estimateAuditStorageBytesByCompanyId(1L)).thenReturn(4_096L);
 
         CompanyTenantMetricsDto metrics = companyService.getTenantMetrics(1L);
 
@@ -152,6 +154,8 @@ class CompanyServiceTest {
         assertThat(metrics.apiActivityCount()).isEqualTo(20L);
         assertThat(metrics.apiErrorCount()).isEqualTo(5L);
         assertThat(metrics.apiErrorRateInBasisPoints()).isEqualTo(2500L);
+        assertThat(metrics.distinctSessionCount()).isEqualTo(2L);
+        assertThat(metrics.auditStorageBytes()).isEqualTo(4_096L);
     }
 
     @Test
@@ -167,6 +171,8 @@ class CompanyServiceTest {
         verify(userAccountRepository, never()).countDistinctByCompanies_IdAndEnabledTrue(1L);
         verify(auditLogRepository, never()).countApiActivityByCompanyId(1L);
         verify(auditLogRepository, never()).countApiFailureActivityByCompanyId(1L);
+        verify(auditLogRepository, never()).countDistinctSessionActivityByCompanyId(1L);
+        verify(auditLogRepository, never()).estimateAuditStorageBytesByCompanyId(1L);
     }
 
     private Company company(Long id, String code) {

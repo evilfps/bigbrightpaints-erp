@@ -269,15 +269,23 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
                 "activeUserCount",
                 "apiActivityCount",
                 "apiErrorCount",
-                "apiErrorRateInBasisPoints");
+                "apiErrorRateInBasisPoints",
+                "distinctSessionCount",
+                "auditStorageBytes");
         Number apiActivityCount = (Number) data.get("apiActivityCount");
         Number apiErrorCount = (Number) data.get("apiErrorCount");
         Number apiErrorRateInBasisPoints = (Number) data.get("apiErrorRateInBasisPoints");
+        Number distinctSessionCount = (Number) data.get("distinctSessionCount");
+        Number auditStorageBytes = (Number) data.get("auditStorageBytes");
         assertThat(apiActivityCount).isNotNull();
         assertThat(apiErrorCount).isNotNull();
         assertThat(apiErrorRateInBasisPoints).isNotNull();
+        assertThat(distinctSessionCount).isNotNull();
+        assertThat(auditStorageBytes).isNotNull();
         assertThat(apiActivityCount.longValue()).isGreaterThanOrEqualTo(apiErrorCount.longValue());
         assertThat(apiErrorRateInBasisPoints.longValue()).isBetween(0L, 10_000L);
+        assertThat(distinctSessionCount.longValue()).isGreaterThanOrEqualTo(0L);
+        assertThat(auditStorageBytes.longValue()).isGreaterThanOrEqualTo(0L);
     }
 
     @Test
