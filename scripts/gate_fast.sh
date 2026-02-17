@@ -154,19 +154,25 @@ if structural_only:
     print(f"  - structural file: {path}")
 
 warnings: list[tuple[str, list[str]]] = []
+blocking_findings: list[tuple[str, list[str]]] = []
 coverage_skipped = summary.get("coverage_skipped_files") or []
 files_with_unmapped = summary.get("files_with_unmapped_lines") or []
 if coverage_skipped:
-  warnings.append(("coverage_skipped_files", coverage_skipped))
+  blocking_findings.append(("coverage_skipped_files", coverage_skipped))
 if files_with_unmapped:
   warnings.append(("files_with_unmapped_lines", files_with_unmapped))
+
+for label, items in blocking_findings:
+  print(f"[gate-fast] FAIL: {label}:")
+  for item in items:
+    print(f"  - {item}")
 
 for label, items in warnings:
   print(f"[gate-fast] WARN: {label}:")
   for item in items:
     print(f"  - {item}")
 
-if release_mode and warnings:
+if release_mode and blocking_findings:
   print("[gate-fast] FAIL: release validation mode requires coverage for all changed files/lines.", file=sys.stderr)
   sys.exit(1)
 PY
