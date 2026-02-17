@@ -887,11 +887,23 @@ def count_ahead(repo_root: Path, base_branch: str, branch: str) -> int:
 
 def branch_merged_into_base(repo_root: Path, base_branch: str, branch: str) -> bool:
     ref = branch
-    if not branch_exists(repo_root, branch) and remote_branch_exists(repo_root, branch):
+    has_local = branch_exists(repo_root, branch)
+    has_remote = remote_branch_exists(repo_root, branch)
+
+    if not has_local and has_remote:
         ref = f"origin/{branch}"
 
-    proc = run(["git", "merge-base", "--is-ancestor", ref, base_branch], cwd=repo_root, check=False)
-    return proc.returncode == 0
+    if has_local or has_remote:
+        proc = run(["git", "merge-base", "--is-ancestor", ref, base_branch], cwd=repo_root, check=False)
+        return proc.returncode == 0
+
+    # Branch may have been cleaned up post-merge; fall back to merge-commit traceability.
+    grep = run(
+        ["git", "log", base_branch, "--merges", "--grep", f"Merge branch '{branch}'", "-n", "1", "--oneline"],
+        cwd=repo_root,
+        check=False,
+    )
+    return grep.returncode == 0 and bool(grep.stdout.strip())
 
 
 def changed_files(repo_root: Path, base_branch: str, branch: str) -> list[str]:
@@ -1045,6 +1057,23 @@ def verify_ticket(args: argparse.Namespace) -> int:
                     f"status: merged\n\n"
                     f"## Notes\n"
                     f"- Branch already merged into `{base_branch}`.\n",
+                    encoding="utf-8",
+                )
+            elif str(s.get("status", "")).strip() == "merged":
+                # Preserve merged status after branch/worktree cleanup when refs are intentionally deleted.
+                s["status"] = "merged"
+                merged_count += 1
+                report_lines.append(f"## {sid} ({s.get('primary_agent')})")
+                report_lines.append("- status: merged")
+                report_lines.append(f"- branch: `{branch}` no longer exists (expected post-merge cleanup); preserving merged status")
+                report_lines.append("")
+                orchestrator_review.write_text(
+                    f"# Orchestrator Review\n\n"
+                    f"ticket: {args.ticket_id}\n"
+                    f"slice: {sid}\n"
+                    f"status: merged\n\n"
+                    f"## Notes\n"
+                    f"- Branch/worktree cleaned up after merge; preserving merged status.\n",
                     encoding="utf-8",
                 )
             else:

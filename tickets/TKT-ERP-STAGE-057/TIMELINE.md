@@ -7,3 +7,6 @@
 - `2026-02-17T17:05:30+00:00` verify run completed (merge_mode=on)
 - `2026-02-17T17:12:21+00:00` verify run completed (merge_mode=on)
 - `2026-02-17T17:12:49+00:00` verify run completed (merge_mode=off)
+- `2026-02-17T17:17:07+00:00` verify run completed (merge_mode=off)
+- `2026-02-17T17:17:30+00:00` verify run completed (merge_mode=off)
+- `2026-02-17T17:17:50+00:00` verify run completed (merge_mode=off)

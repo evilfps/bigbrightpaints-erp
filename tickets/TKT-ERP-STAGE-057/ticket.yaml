@@ -7,7 +7,7 @@ status: done
 base_branch: tmp/orch-exec-20260217
 worktree_root: /home/realnigga/Desktop/orchestrator_erp_worktrees/_tmp_orch_exec_worktrees
 created_at: '2026-02-17T16:47:24+00:00'
-updated_at: '2026-02-17T17:12:49+00:00'
+updated_at: '2026-02-17T17:17:50+00:00'
 r3_required: true
 orchestrator_authority:
   r1: orchestrator
@@ -44,5 +44,5 @@ slices:
   cross_workflow_contracts: []
 cross_workflow:
   model: workflow_agent_edges_v1
-  generated_at: '2026-02-17T17:12:48+00:00'
+  generated_at: '2026-02-17T17:17:48+00:00'
   in_ticket_edges: []
