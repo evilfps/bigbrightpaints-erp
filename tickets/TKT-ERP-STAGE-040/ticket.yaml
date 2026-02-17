@@ -1,0 +1,80 @@
+ticket_id: TKT-ERP-STAGE-040
+title: Ticket Closure Parity Reconciliation
+goal: Close stale ticket metadata and align active ledger with merged evidence
+priority: high
+status: completed
+base_branch: harness-engineering-orchestrator
+worktree_root: /home/realnigga/Desktop/orchestrator_erp_worktrees/_tmp_harness_integrate_worktrees
+created_at: '2026-02-17T10:52:02+00:00'
+updated_at: '2026-02-17T10:56:04Z'
+r3_required: true
+orchestrator_authority:
+  r1: orchestrator
+  r2: orchestrator
+  r3: human
+slices:
+- id: SLICE-01
+  primary_agent: orchestrator
+  reviewers:
+  - qa-reliability
+  - repo-cartographer
+  - security-governance
+  scope_paths:
+  - tickets/TKT-ERP-STAGE-001/SUMMARY.md
+  - tickets/TKT-ERP-STAGE-001/TIMELINE.md
+  - tickets/TKT-ERP-STAGE-001/ticket.yaml
+  - tickets/TKT-ERP-STAGE-030/SUMMARY.md
+  - tickets/TKT-ERP-STAGE-030/TIMELINE.md
+  - tickets/TKT-ERP-STAGE-030/ticket.yaml
+  allowed_scope_paths:
+  - docs/
+  - agents/
+  - skills/
+  - ci/
+  - tickets/
+  - asyncloop
+  - scripts/harness_orchestrator.py
+  matched_rules:
+  - tickets/
+  lane: w1
+  branch: tickets/tkt-erp-stage-040/orchestrator
+  worktree_path: /home/realnigga/Desktop/orchestrator_erp_worktrees/_tmp_harness_integrate_worktrees/TKT-ERP-STAGE-040/orchestrator
+  required_checks:
+  - bash ci/lint-knowledgebase.sh
+  - bash ci/check-architecture.sh
+  - bash ci/check-enterprise-policy.sh
+  status: merged
+  objective: Close stale ticket metadata and align active ledger with merged evidence
+  workflow_upstream_slices: []
+  workflow_downstream_slices: []
+  workflow_external_upstream_agents: []
+  workflow_external_downstream_agents: []
+  cross_workflow_contracts: []
+- id: SLICE-02
+  primary_agent: repo-cartographer
+  reviewers:
+  - orchestrator
+  scope_paths:
+  - docs/system-map/Goal/ERP_STAGING_MASTER_PLAN.md
+  allowed_scope_paths:
+  - docs/
+  - ARCHITECTURE.md
+  - AGENTS.md
+  matched_rules:
+  - docs/
+  lane: w2
+  branch: tickets/tkt-erp-stage-040/repo-cartographer
+  worktree_path: /home/realnigga/Desktop/orchestrator_erp_worktrees/_tmp_harness_integrate_worktrees/TKT-ERP-STAGE-040/repo-cartographer
+  required_checks:
+  - bash ci/lint-knowledgebase.sh
+  status: merged
+  objective: Close stale ticket metadata and align active ledger with merged evidence
+  workflow_upstream_slices: []
+  workflow_downstream_slices: []
+  workflow_external_upstream_agents: []
+  workflow_external_downstream_agents: []
+  cross_workflow_contracts: []
+cross_workflow:
+  model: workflow_agent_edges_v1
+  generated_at: '2026-02-17T10:52:02+00:00'
+  in_ticket_edges: []

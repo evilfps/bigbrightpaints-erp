@@ -2,7 +2,7 @@ ticket_id: TKT-ERP-STAGE-001
 title: ERP Staging Batch 1
 goal: First shippable implementation from ERP_STAGING_MASTER_PLAN
 priority: high
-status: in_progress
+status: completed
 base_branch: async-loop-predeploy-audit
 worktree_root: /home/realnigga/Desktop/orchestrator_erp_worktrees
 planning_source: docs/system-map/Goal/ERP_STAGING_MASTER_PLAN.md
@@ -11,7 +11,7 @@ context_goal_documents:
 - docs/system-map/Goal/ERP_ENTERPRISE_DEPLOYMENT_DEEP_SPEC.md
 batch_label: Batch-1
 created_at: '2026-02-16T08:32:02+00:00'
-updated_at: '2026-02-16T08:44:26+00:00'
+updated_at: '2026-02-17T10:56:04Z'
 r3_required: true
 orchestrator_authority:
   r1: orchestrator
@@ -55,7 +55,7 @@ slices:
   - Header/JWT/company mismatch fails closed with explicit 401/403 behavior.
   - Cross-tenant IDOR attempts are blocked on critical tenant and auth endpoints.
   - Audit trail captures actor, reason, and tenant scope for authority-sensitive actions.
-  status: waiting_for_push
+  status: merged
   objective: M18-S2 tenant authority and bootstrap hardening with fail-closed tenant
     isolation enforcement.
   workflow_upstream_slices: []
@@ -135,7 +135,7 @@ slices:
     tenant.
   - Target create/update/delete actions are audit-linked with actor and reason metadata.
   - Target reporting outputs reflect assigned ownership and fulfillment truthfully.
-  status: waiting_for_push
+  status: merged
   objective: M18-S8 sales-target governance hardening for admin-assigned, tenant-scoped
     target control.
   workflow_upstream_slices:

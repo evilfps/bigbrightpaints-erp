@@ -3,18 +3,18 @@
 - title: Async Base Parity Reconciliation
 - goal: Resolve Stage-029 full-suite regressions on async-loop-predeploy-audit parity lane
 - priority: high
-- status: in_review
+- status: completed
 - base_branch: async-loop-predeploy-audit
 - created_at: 2026-02-17T06:39:57+00:00
-- updated_at: 2026-02-17T08:35:08+00:00
+- updated_at: 2026-02-17T10:56:04Z
 
 ## Slice Board
 
-| Slice | Agent | Lane | Status | Branch |
-| --- | --- | --- | --- | --- |
-| SLICE-01 | accounting-domain | w1 | ready | `tickets/tkt-erp-stage-030/accounting-domain` |
-| SLICE-02 | purchasing-invoice-p2p | w2 | ready | `tickets/tkt-erp-stage-030/purchasing-invoice-p2p` |
-| SLICE-03 | refactor-techdebt-gc | w3 | ready | `tickets/tkt-erp-stage-030/refactor-techdebt-gc` |
+| Slice | Agent | Lane | Status | Branch | Source Commit | Integrated Commit |
+| --- | --- | --- | --- | --- | --- | --- |
+| SLICE-01 | accounting-domain | w1 | merged | `tickets/tkt-erp-stage-030/accounting-domain` | `c07cc5aa` | `3e2a36b3` |
+| SLICE-02 | purchasing-invoice-p2p | w2 | merged | `tickets/tkt-erp-stage-030/purchasing-invoice-p2p` | `3794bd7f` | `3e2a36b3` |
+| SLICE-03 | refactor-techdebt-gc | w3 | merged | `tickets/tkt-erp-stage-030/refactor-techdebt-gc` | `a1f6853f` | `3e2a36b3` |
 
 ## Operator Commands
 
@@ -33,7 +33,7 @@ Verify + merge eligible slices:
 Verify + merge + cleanup worktrees:
 `python3 scripts/harness_orchestrator.py verify --ticket-id TKT-ERP-STAGE-030 --merge --cleanup-worktrees`
 
-## Latest Execution Evidence
+## Closure Evidence
 
 - strict-lane integration commit pushed on `harness-engineering-orchestrator`: `3e2a36b3`
 - full strict harness run passed on integration worktree:
