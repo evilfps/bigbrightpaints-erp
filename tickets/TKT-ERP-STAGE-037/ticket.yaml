@@ -1,0 +1,82 @@
+ticket_id: TKT-ERP-STAGE-037
+title: Gate-Fast Vacuous Coverage Policy Hardening
+goal: Fail closed on real coverage gaps while avoiding false vacuous failures for
+  interface-only diffs
+priority: high
+status: planned
+base_branch: harness-engineering-orchestrator
+worktree_root: /home/realnigga/Desktop/orchestrator_erp_worktrees/_tmp_harness_integrate_worktrees
+created_at: '2026-02-17T09:54:49+00:00'
+updated_at: '2026-02-17T09:54:49+00:00'
+r3_required: true
+orchestrator_authority:
+  r1: orchestrator
+  r2: orchestrator
+  r3: human
+slices:
+- id: SLICE-01
+  primary_agent: release-ops
+  reviewers:
+  - qa-reliability
+  - security-governance
+  scope_paths:
+  - scripts/changed_files_coverage.py
+  - scripts/gate_fast.sh
+  allowed_scope_paths:
+  - .github/workflows/
+  - scripts/
+  - docs/runbooks/
+  - docker-compose.yml
+  - erp-domain/Dockerfile
+  matched_rules:
+  - scripts/
+  lane: w1
+  branch: tickets/tkt-erp-stage-037/release-ops
+  worktree_path: /home/realnigga/Desktop/orchestrator_erp_worktrees/_tmp_harness_integrate_worktrees/TKT-ERP-STAGE-037/release-ops
+  required_checks:
+  - bash scripts/gate_release.sh
+  - bash scripts/gate_reconciliation.sh
+  status: ready
+  objective: Fail closed on real coverage gaps while avoiding false vacuous failures
+    for interface-only diffs
+  workflow_upstream_slices: []
+  workflow_downstream_slices: []
+  workflow_external_upstream_agents:
+  - data-migration
+  workflow_external_downstream_agents: []
+  cross_workflow_contracts:
+  - relation: upstream-external
+    agent: data-migration
+    slice_id: ''
+    contract: migration rehearsal and release gating
+    in_ticket: false
+- id: SLICE-02
+  primary_agent: repo-cartographer
+  reviewers:
+  - orchestrator
+  scope_paths:
+  - docs/ASYNC_LOOP_OPERATIONS.md
+  - docs/system-map/Goal/ERP_STAGING_MASTER_PLAN.md
+  allowed_scope_paths:
+  - docs/
+  - ARCHITECTURE.md
+  - AGENTS.md
+  matched_rules:
+  - docs/
+  lane: w2
+  branch: tickets/tkt-erp-stage-037/repo-cartographer
+  worktree_path: /home/realnigga/Desktop/orchestrator_erp_worktrees/_tmp_harness_integrate_worktrees/TKT-ERP-STAGE-037/repo-cartographer
+  required_checks:
+  - bash ci/lint-knowledgebase.sh
+  status: ready
+  objective: Fail closed on real coverage gaps while avoiding false vacuous failures
+    for interface-only diffs
+  workflow_upstream_slices: []
+  workflow_downstream_slices: []
+  workflow_external_upstream_agents: []
+  workflow_external_downstream_agents: []
+  cross_workflow_contracts: []
+cross_workflow:
+  model: workflow_agent_edges_v1
+  generated_at: '2026-02-17T09:54:49+00:00'
+  in_ticket_edges: []
