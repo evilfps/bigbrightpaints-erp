@@ -208,8 +208,13 @@ class PurchasingServiceTest {
         );
 
         assertThatThrownBy(() -> purchasingService.recordPurchaseReturn(request))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("Cannot return more than on-hand inventory");
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Cannot return more than on-hand inventory")
+                .satisfies(ex -> {
+                    ApplicationException appEx = (ApplicationException) ex;
+                    assertThat(appEx.getDetails().get("reasonCode")).isEqualTo("ON_HAND_STOCK_INSUFFICIENT");
+                    assertThat(appEx.getDetails().get("workflow")).isEqualTo("purchase_return");
+                });
 
         verify(rawMaterialRepository).deductStockIfSufficient(eq(20L), eq(BigDecimal.valueOf(150)));
     }
@@ -311,6 +316,42 @@ class PurchasingServiceTest {
 
         verify(accountingFacade, never()).postPurchaseReturn(any(), any(), any(), any(), any(), any(), any());
         verify(rawMaterialRepository, never()).deductStockIfSufficient(any(), any());
+    }
+
+    @Test
+    @DisplayName("recordPurchaseReturn fails closed for terminal purchase status with reason contract")
+    void recordPurchaseReturn_terminalStatus_failsClosed() {
+        when(companyContextService.requireCurrentCompany()).thenReturn(company);
+        when(companyEntityLookup.requireSupplier(company, 10L)).thenReturn(supplier);
+        RawMaterialPurchase purchase = new RawMaterialPurchase();
+        ReflectionTestUtils.setField(purchase, "id", 62L);
+        purchase.setSupplier(supplier);
+        purchase.setStatus("VOID");
+        when(purchaseRepository.lockByCompanyAndId(company, 62L)).thenReturn(Optional.of(purchase));
+
+        PurchaseReturnRequest request = new PurchaseReturnRequest(
+                10L,
+                62L,
+                20L,
+                BigDecimal.ONE,
+                BigDecimal.ONE,
+                null,
+                null,
+                "Closed invoice"
+        );
+
+        assertThatThrownBy(() -> purchasingService.recordPurchaseReturn(request))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("does not allow returns")
+                .satisfies(ex -> {
+                    ApplicationException appEx = (ApplicationException) ex;
+                    assertThat(appEx.getDetails().get("reasonCode")).isEqualTo("PURCHASE_STATUS_TERMINAL");
+                    assertThat(appEx.getDetails().get("purchaseStatus")).isEqualTo("VOID");
+                    assertThat(appEx.getDetails().get("workflow")).isEqualTo("purchase_return");
+                });
+
+        verify(rawMaterialRepository, never()).lockByCompanyAndId(any(), any());
+        verify(accountingFacade, never()).postPurchaseReturn(any(), any(), any(), any(), any(), any(), any());
     }
 
     @Test

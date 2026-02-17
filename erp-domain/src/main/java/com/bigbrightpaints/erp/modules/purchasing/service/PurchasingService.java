@@ -71,6 +71,11 @@ public class PurchasingService {
     private static final BigDecimal MAX_GST_RATE = new BigDecimal("28.00");
     private static final BigDecimal UNIT_COST_TOLERANCE = new BigDecimal("0.01");
     private static final BigDecimal QUANTITY_TOLERANCE = new BigDecimal("0.0001");
+    private static final String WORKFLOW_PURCHASE_RETURN = "purchase_return";
+    private static final String REASON_PURCHASE_STATUS_TERMINAL = "PURCHASE_STATUS_TERMINAL";
+    private static final String REASON_ON_HAND_STOCK_INSUFFICIENT = "ON_HAND_STOCK_INSUFFICIENT";
+    private static final String REASON_BATCH_STOCK_CONFLICT = "BATCH_STOCK_CONFLICT";
+    private static final String REASON_BATCH_STOCK_INSUFFICIENT = "BATCH_STOCK_INSUFFICIENT";
 
     private final CompanyContextService companyContextService;
     private final RawMaterialPurchaseRepository purchaseRepository;
@@ -858,6 +863,7 @@ public class PurchasingService {
         }
         RawMaterialPurchase purchase = purchaseRepository.lockByCompanyAndId(company, request.purchaseId())
                 .orElseThrow(() -> new IllegalArgumentException("Raw material purchase not found"));
+        assertPurchaseReturnAllowed(purchase);
         if (purchase.getSupplier() == null || !purchase.getSupplier().getId().equals(supplier.getId())) {
             throw new IllegalArgumentException("Purchase does not belong to the supplier");
         }
@@ -925,7 +931,13 @@ public class PurchasingService {
         // Use atomic UPDATE to prevent negative stock under concurrent access
         int updated = rawMaterialRepository.deductStockIfSufficient(material.getId(), quantity);
         if (updated == 0) {
-            throw new IllegalArgumentException("Cannot return more than on-hand inventory for " + material.getName());
+            throw new ApplicationException(ErrorCode.BUSINESS_CONSTRAINT_VIOLATION,
+                    "Cannot return more than on-hand inventory for " + material.getName())
+                    .withDetail("reasonCode", REASON_ON_HAND_STOCK_INSUFFICIENT)
+                    .withDetail("workflow", WORKFLOW_PURCHASE_RETURN)
+                    .withDetail("purchaseId", purchase.getId())
+                    .withDetail("rawMaterialId", material.getId())
+                    .withDetail("requestedQuantity", quantity);
         }
 
         List<RawMaterialMovement> movements = issueReturnFromBatches(material, quantity, unitCost, reference, entry.id());
@@ -1040,8 +1052,14 @@ public class PurchasingService {
 
             int updated = rawMaterialBatchRepository.deductQuantityIfSufficient(batch.getId(), take);
             if (updated == 0) {
-                throw new IllegalArgumentException(
-                        "Concurrent modification detected or insufficient quantity for batch " + batch.getBatchCode());
+                throw new ApplicationException(ErrorCode.CONCURRENCY_CONFLICT,
+                        "Concurrent modification detected or insufficient quantity for batch " + batch.getBatchCode())
+                        .withDetail("reasonCode", REASON_BATCH_STOCK_CONFLICT)
+                        .withDetail("workflow", WORKFLOW_PURCHASE_RETURN)
+                        .withDetail("batchId", batch.getId())
+                        .withDetail("batchCode", batch.getBatchCode())
+                        .withDetail("rawMaterialId", material.getId())
+                        .withDetail("requestedQuantity", take);
             }
 
             RawMaterialMovement movement = new RawMaterialMovement();
@@ -1059,9 +1077,29 @@ public class PurchasingService {
         }
 
         if (remaining.compareTo(BigDecimal.ZERO) > 0) {
-            throw new IllegalArgumentException("Insufficient batch availability for " + material.getName());
+            throw new ApplicationException(ErrorCode.BUSINESS_CONSTRAINT_VIOLATION,
+                    "Insufficient batch availability for " + material.getName())
+                    .withDetail("reasonCode", REASON_BATCH_STOCK_INSUFFICIENT)
+                    .withDetail("workflow", WORKFLOW_PURCHASE_RETURN)
+                    .withDetail("rawMaterialId", material.getId())
+                    .withDetail("remainingQuantity", remaining);
         }
         return movements;
+    }
+
+    private void assertPurchaseReturnAllowed(RawMaterialPurchase purchase) {
+        if (purchase == null) {
+            return;
+        }
+        String status = purchase.getStatus();
+        if (status != null && ("VOID".equalsIgnoreCase(status) || "REVERSED".equalsIgnoreCase(status))) {
+            throw new ApplicationException(ErrorCode.BUSINESS_CONSTRAINT_VIOLATION,
+                    "Purchase status does not allow returns: " + status)
+                    .withDetail("reasonCode", REASON_PURCHASE_STATUS_TERMINAL)
+                    .withDetail("workflow", WORKFLOW_PURCHASE_RETURN)
+                    .withDetail("purchaseId", purchase.getId())
+                    .withDetail("purchaseStatus", status);
+        }
     }
 
     private void applyPurchaseReturnToOutstanding(RawMaterialPurchase purchase, BigDecimal totalAmount) {
