@@ -53,17 +53,6 @@ public class OpenApiSnapshotIT extends AbstractIntegrationTest {
 
         Path openApiSnapshotPath = resolveRepoRoot().resolve("openapi.json");
         String currentSpec = canonicalizeJson(json.getBody());
-        assertThat(Files.exists(openApiSnapshotPath))
-                .withFailMessage("Missing OpenAPI snapshot at %s. Remediation: rerun intentionally with -D%s=true "
-                                + "or %s=true (with -D%s=true or %s=true) to generate it.",
-                        openApiSnapshotPath,
-                        SNAPSHOT_REFRESH_PROPERTY,
-                        SNAPSHOT_REFRESH_ENV,
-                        SNAPSHOT_VERIFY_PROPERTY,
-                        SNAPSHOT_VERIFY_ENV)
-                .isTrue();
-
-        String snapshotSpec = canonicalizeJson(Files.readString(openApiSnapshotPath, StandardCharsets.UTF_8));
         if (refreshRequested()) {
             assertThat(verifyRequested())
                     .withFailMessage("Refresh requires verify mode. Set -D%s=true (or %s=true) together with "
@@ -77,6 +66,17 @@ public class OpenApiSnapshotIT extends AbstractIntegrationTest {
             return;
         }
 
+        assertThat(Files.exists(openApiSnapshotPath))
+                .withFailMessage("Missing OpenAPI snapshot at %s. Remediation: rerun intentionally with -D%s=true "
+                                + "or %s=true (with -D%s=true or %s=true) to generate it.",
+                        openApiSnapshotPath,
+                        SNAPSHOT_REFRESH_PROPERTY,
+                        SNAPSHOT_REFRESH_ENV,
+                        SNAPSHOT_VERIFY_PROPERTY,
+                        SNAPSHOT_VERIFY_ENV)
+                .isTrue();
+
+        String snapshotSpec = canonicalizeJson(Files.readString(openApiSnapshotPath, StandardCharsets.UTF_8));
         String currentSpecHash = sha256Hex(currentSpec);
         String snapshotSpecHash = sha256Hex(snapshotSpec);
         List<String> currentOps = extractOperationSignatures(currentSpec);
