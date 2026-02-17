@@ -439,6 +439,7 @@ Current rule:
 - 2026-02-18: `TKT-ERP-STAGE-063` completed on `tmp/orch-exec-20260217` (`verify report: 20260218-010733`) as merged no-op closure because both slice branches were already contained in base with required portal contract and onboarding documentation present.
 - 2026-02-18: `TKT-ERP-STAGE-064` bootstrapped for migration/rollback rehearsal parity on release-candidate SHA (`release-ops` + `repo-cartographer` lanes) and added to active preplanned queue.
 - 2026-02-18: `TKT-ERP-STAGE-064` completed on `tmp/orch-exec-20260217` (`18278495`, `168039a9`; verify report `20260218-011837`) with ordered merges (`release-ops` -> `repo-cartographer`), reviewer evidence closed, and merged-head release gates green (`lint-knowledgebase`, `gate_release`, `gate_reconciliation` PASS).
+- 2026-02-18: `TKT-ERP-STAGE-065` completed on `tmp/orch-exec-20260217` (`5d9f2c6e`, `6181a20a`; verify report `20260218-013853`) with ordered merges (`release-ops` -> `repo-cartographer`), one-SHA gate parity enforcement merged (`RELEASE_SHA` fail-closed checks + traceability manifests), and merged-head gate proof green in anchored mode (`gate_fast`, `gate_core`, `gate_reconciliation`, `gate_release` PASS on `RELEASE_SHA=7515b3fb9d79120a2d20ea1be1b449a4f39acf87`).
 
 ## 20) V1 Deployment Priority Stack (Senior Orchestrator Order)
 Deployment is blocked until priorities below are satisfied in order:
@@ -521,7 +522,7 @@ Current deployment sequence is now explicitly ticketized to avoid drift:
   - active migration chain and rollback evidence must be deterministic
   - run `bash scripts/release_migration_matrix.sh --migration-set v2` on the pinned release-candidate SHA and archive outputs in artifacts + `asyncloop`
   - rollback rehearsal evidence must reuse that same `release_anchor_sha` and link `asyncloop` + `docs/approvals/R2-CHECKPOINT.md`
-5. `TKT-ERP-STAGE-065` (P0): one-SHA release gate closure on integration head
+5. `TKT-ERP-STAGE-065` (P0): one-SHA release gate closure on integration head (completed 2026-02-18)
   - pin immutable `RELEASE_HEAD_SHA=$(git rev-parse HEAD)` after integration-base refresh
   - `gate_fast`, `gate_core`, `gate_reconciliation`, `gate_release` all green with per-gate `head_sha_before/head_sha_after` equal to `RELEASE_HEAD_SHA`
   - closure evidence includes `RELEASE_ANCHOR_SHA`, gate logs/artifacts, and `artifacts/gate-fast/changed-coverage.json` with `"vacuous": false`
