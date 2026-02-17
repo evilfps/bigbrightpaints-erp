@@ -1,7 +1,7 @@
 # Cross Workflow Plan
 
 Ticket: `TKT-ERP-STAGE-049`
-Generated: `2026-02-17T14:02:32+00:00`
+Generated: `2026-02-17T14:12:20+00:00`
 
 ## In-Ticket Dependency Edges
 
@@ -18,4 +18,3 @@ Generated: `2026-02-17T14:02:32+00:00`
 - Downstream slices: none
 - External upstream agents to watch: none
 - External downstream agents to watch: accounting-domain, factory-production, hr-domain, inventory-domain, purchasing-invoice-p2p, reports-admin-portal, sales-domain
-

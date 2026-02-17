@@ -3,11 +3,11 @@ title: Tenant Control Plane Controller Fail-Fast Parity
 goal: 'M18-S2A: enforce superadmin-only controller prefilters for tenant bootstrap,
   lifecycle-state, and tenant-metrics endpoints'
 priority: high
-status: blocked
+status: done
 base_branch: tmp/orch-exec-20260217
 worktree_root: /home/realnigga/Desktop/orchestrator_erp_worktrees/_tmp_orch_exec_worktrees
 created_at: '2026-02-17T13:31:19+00:00'
-updated_at: '2026-02-17T14:02:32+00:00'
+updated_at: '2026-02-17T14:12:20+00:00'
 r3_required: true
 orchestrator_authority:
   r1: orchestrator
@@ -40,7 +40,7 @@ slices:
   - cd erp-domain && mvn -B -ntp -Dtest='AuthTenantAuthorityIT,CompanyControllerIT'
     test
   - bash scripts/verify_local.sh
-  status: scope_violation
+  status: merged
   objective: 'M18-S2A: enforce superadmin-only controller prefilters for tenant bootstrap,
     lifecycle-state, and tenant-metrics endpoints'
   workflow_upstream_slices: []
@@ -92,5 +92,5 @@ slices:
     in_ticket: false
 cross_workflow:
   model: workflow_agent_edges_v1
-  generated_at: '2026-02-17T14:02:31+00:00'
+  generated_at: '2026-02-17T14:12:20+00:00'
   in_ticket_edges: []
