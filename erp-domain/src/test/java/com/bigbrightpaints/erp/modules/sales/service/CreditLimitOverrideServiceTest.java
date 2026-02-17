@@ -1,5 +1,6 @@
 package com.bigbrightpaints.erp.modules.sales.service;
 
+import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.modules.accounting.service.DealerLedgerService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
@@ -9,6 +10,7 @@ import com.bigbrightpaints.erp.modules.sales.domain.CreditLimitOverrideRequestRe
 import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrderRepository;
+import com.bigbrightpaints.erp.modules.sales.dto.CreditLimitOverrideDecisionRequest;
 import com.bigbrightpaints.erp.modules.sales.dto.CreditLimitOverrideRequestDto;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -17,10 +19,12 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -84,10 +88,28 @@ class CreditLimitOverrideServiceTest {
         when(creditLimitOverrideRequestRepository.findByCompanyAndId(company, 11L))
                 .thenReturn(Optional.of(request));
 
-        CreditLimitOverrideRequestDto response = service.approveRequest(11L, null, "admin@bbp.com");
+        CreditLimitOverrideRequestDto response = service.approveRequest(
+                11L,
+                new CreditLimitOverrideDecisionRequest("  Approved with documentation  ", Instant.parse("2026-02-16T10:00:00Z")),
+                "admin@bbp.com");
 
         assertThat(response.status()).isEqualTo("APPROVED");
+        assertThat(response.reason()).isEqualTo("Approved with documentation");
         assertThat(request.getStatus()).isEqualTo("APPROVED");
+    }
+
+    @Test
+    void rejectRequest_failsClosedWhenDecisionReasonMissing() {
+        CreditLimitOverrideRequest request = new CreditLimitOverrideRequest();
+        request.setCompany(company);
+        request.setStatus("PENDING");
+
+        when(creditLimitOverrideRequestRepository.findByCompanyAndId(company, 12L))
+                .thenReturn(Optional.of(request));
+
+        assertThatThrownBy(() -> service.rejectRequest(12L, null, "accounting@bbp.com"))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("decision requires reason");
     }
 
     @Test

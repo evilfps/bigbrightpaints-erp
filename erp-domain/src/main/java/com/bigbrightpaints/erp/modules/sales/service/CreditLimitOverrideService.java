@@ -129,13 +129,12 @@ public class CreditLimitOverrideService {
             throw new ApplicationException(ErrorCode.BUSINESS_INVALID_STATE,
                     "Only pending override requests can be approved");
         }
+        String decisionReason = requireDecisionReason(request, "approve");
         overrideRequest.setStatus(STATUS_APPROVED);
         overrideRequest.setReviewedBy(reviewedBy);
         overrideRequest.setReviewedAt(CompanyTime.now(overrideRequest.getCompany()));
-        if (request != null && request.reason() != null && !request.reason().isBlank()) {
-            overrideRequest.setReason(request.reason());
-        }
-        if (request != null && request.expiresAt() != null) {
+        overrideRequest.setReason(decisionReason);
+        if (request.expiresAt() != null) {
             overrideRequest.setExpiresAt(request.expiresAt());
         } else if (overrideRequest.getExpiresAt() == null) {
             overrideRequest.setExpiresAt(CompanyTime.now(overrideRequest.getCompany()).plus(1, ChronoUnit.DAYS));
@@ -150,12 +149,11 @@ public class CreditLimitOverrideService {
             throw new ApplicationException(ErrorCode.BUSINESS_INVALID_STATE,
                     "Only pending override requests can be rejected");
         }
+        String decisionReason = requireDecisionReason(request, "reject");
         overrideRequest.setStatus(STATUS_REJECTED);
         overrideRequest.setReviewedBy(reviewedBy);
         overrideRequest.setReviewedAt(CompanyTime.now(overrideRequest.getCompany()));
-        if (request != null && request.reason() != null && !request.reason().isBlank()) {
-            overrideRequest.setReason(request.reason());
-        }
+        overrideRequest.setReason(decisionReason);
         return toDto(overrideRequest);
     }
 
@@ -286,6 +284,17 @@ public class CreditLimitOverrideService {
             return "";
         }
         return status.trim().toUpperCase(Locale.ROOT);
+    }
+
+    private String requireDecisionReason(CreditLimitOverrideDecisionRequest request, String operation) {
+        if (request == null || !StringUtils.hasText(request.reason())) {
+            throw new ApplicationException(ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD,
+                    "Credit override " + operation + " decision requires reason")
+                    .withDetail("field", "reason")
+                    .withDetail("operation", operation)
+                    .withDetail("resourceType", "credit_limit_override_request");
+        }
+        return request.reason().trim();
     }
 
     private CreditLimitOverrideRequestDto toDto(CreditLimitOverrideRequest request) {

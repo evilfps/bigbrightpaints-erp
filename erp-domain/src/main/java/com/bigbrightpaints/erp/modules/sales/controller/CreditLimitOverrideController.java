@@ -50,7 +50,7 @@ public class CreditLimitOverrideController {
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
     public ResponseEntity<ApiResponse<CreditLimitOverrideRequestDto>> approveRequest(
             @PathVariable Long id,
-            @RequestBody(required = false) CreditLimitOverrideDecisionRequest request,
+            @Valid @RequestBody CreditLimitOverrideDecisionRequest request,
             Principal principal) {
         String reviewedBy = principal != null ? principal.getName() : "system";
         CreditLimitOverrideRequestDto response = creditLimitOverrideService.approveRequest(id, request, reviewedBy);
@@ -61,7 +61,7 @@ public class CreditLimitOverrideController {
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
     public ResponseEntity<ApiResponse<CreditLimitOverrideRequestDto>> rejectRequest(
             @PathVariable Long id,
-            @RequestBody(required = false) CreditLimitOverrideDecisionRequest request,
+            @Valid @RequestBody CreditLimitOverrideDecisionRequest request,
             Principal principal) {
         String reviewedBy = principal != null ? principal.getName() : "system";
         CreditLimitOverrideRequestDto response = creditLimitOverrideService.rejectRequest(id, request, reviewedBy);
