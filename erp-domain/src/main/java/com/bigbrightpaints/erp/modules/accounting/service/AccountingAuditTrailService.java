@@ -19,12 +19,13 @@ import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.invoice.domain.Invoice;
 import com.bigbrightpaints.erp.modules.invoice.domain.InvoiceRepository;
 import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchase;
+import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchaseRepository;
 import com.bigbrightpaints.erp.shared.dto.PageResponse;
-import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -51,7 +52,7 @@ public class AccountingAuditTrailService {
     private final AccountingEventRepository accountingEventRepository;
     private final PartnerSettlementAllocationRepository settlementAllocationRepository;
     private final InvoiceRepository invoiceRepository;
-    private final EntityManager entityManager;
+    private final RawMaterialPurchaseRepository rawMaterialPurchaseRepository;
 
     public AccountingAuditTrailService(CompanyContextService companyContextService,
                                        JournalEntryRepository journalEntryRepository,
@@ -59,14 +60,14 @@ public class AccountingAuditTrailService {
                                        AccountingEventRepository accountingEventRepository,
                                        PartnerSettlementAllocationRepository settlementAllocationRepository,
                                        InvoiceRepository invoiceRepository,
-                                       EntityManager entityManager) {
+                                       RawMaterialPurchaseRepository rawMaterialPurchaseRepository) {
         this.companyContextService = companyContextService;
         this.journalEntryRepository = journalEntryRepository;
         this.journalLineRepository = journalLineRepository;
         this.accountingEventRepository = accountingEventRepository;
         this.settlementAllocationRepository = settlementAllocationRepository;
         this.invoiceRepository = invoiceRepository;
-        this.entityManager = entityManager;
+        this.rawMaterialPurchaseRepository = rawMaterialPurchaseRepository;
     }
 
     @Transactional(readOnly = true)
@@ -108,7 +109,7 @@ public class AccountingAuditTrailService {
         Map<Long, Invoice> invoiceByJournal = invoiceRepository.findByCompanyAndJournalEntry_IdIn(company, journalIds).stream()
                 .filter(invoice -> invoice.getJournalEntry() != null && invoice.getJournalEntry().getId() != null)
                 .collect(Collectors.toMap(invoice -> invoice.getJournalEntry().getId(), invoice -> invoice, (left, right) -> left));
-        Map<Long, RawMaterialPurchase> purchaseByJournal = findPurchasesByJournalEntryIds(company, journalIds);
+        Map<Long, RawMaterialPurchase> purchaseByJournal = purchasesByJournalEntry(company, journalIds);
         Map<Long, List<PartnerSettlementAllocation>> allocationsByJournal = settlementAllocationRepository
                 .findByCompanyAndJournalEntry_IdIn(company, journalIds).stream()
                 .collect(Collectors.groupingBy(allocation -> allocation.getJournalEntry().getId()));
@@ -312,40 +313,33 @@ public class AccountingAuditTrailService {
         );
     }
 
-    private Map<Long, RawMaterialPurchase> findPurchasesByJournalEntryIds(Company company, List<Long> journalEntryIds) {
-        List<RawMaterialPurchase> purchases = entityManager.createQuery("""
-                select p
-                from RawMaterialPurchase p
-                where p.company = :company
-                  and p.journalEntry.id in :journalEntryIds
-                """, RawMaterialPurchase.class)
-                .setParameter("company", company)
-                .setParameter("journalEntryIds", journalEntryIds)
-                .getResultList();
-        return purchases.stream()
+    private Specification<JournalEntry> byCompany(Company company) {
+        return (root, query, cb) -> cb.equal(root.get("company"), company);
+    }
+
+    private Map<Long, RawMaterialPurchase> purchasesByJournalEntry(Company company, List<Long> journalIds) {
+        if (journalIds == null || journalIds.isEmpty()) {
+            return Map.of();
+        }
+        Set<Long> journalIdSet = Set.copyOf(journalIds);
+        return rawMaterialPurchaseRepository.findByCompanyOrderByInvoiceDateDesc(company).stream()
                 .filter(purchase -> purchase.getJournalEntry() != null && purchase.getJournalEntry().getId() != null)
+                .filter(purchase -> journalIdSet.contains(purchase.getJournalEntry().getId()))
                 .collect(Collectors.toMap(
                         purchase -> purchase.getJournalEntry().getId(),
                         purchase -> purchase,
                         (left, right) -> left));
     }
 
-    private Optional<RawMaterialPurchase> findPurchaseByJournalEntry(Company company, JournalEntry journalEntry) {
-        List<RawMaterialPurchase> purchases = entityManager.createQuery("""
-                select p
-                from RawMaterialPurchase p
-                where p.company = :company
-                  and p.journalEntry = :journalEntry
-                """, RawMaterialPurchase.class)
-                .setParameter("company", company)
-                .setParameter("journalEntry", journalEntry)
-                .setMaxResults(1)
-                .getResultList();
-        return purchases.stream().findFirst();
-    }
-
-    private Specification<JournalEntry> byCompany(Company company) {
-        return (root, query, cb) -> cb.equal(root.get("company"), company);
+    private Optional<RawMaterialPurchase> findPurchaseByJournalEntry(Company company, JournalEntry entry) {
+        if (entry == null || entry.getId() == null) {
+            return Optional.empty();
+        }
+        Long journalEntryId = entry.getId();
+        return rawMaterialPurchaseRepository.findByCompanyOrderByInvoiceDateDesc(company).stream()
+                .filter(purchase -> purchase.getJournalEntry() != null
+                        && journalEntryId.equals(purchase.getJournalEntry().getId()))
+                .findFirst();
     }
 
     private Specification<JournalEntry> byEntryDateRange(LocalDate from, LocalDate to) {

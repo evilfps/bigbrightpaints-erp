@@ -565,7 +565,7 @@ public class EnterpriseAuditTrailService {
             return new IdentitySnapshot(null, "anonymous", true, false,
                     "anon:" + anonymize(companyId, "anonymous"));
         }
-        boolean consent = resolveAiPersonalizationConsentOptIn(actor);
+        boolean consent = resolveAiPersonalizationOptIn(actor);
         if (consent) {
             String identifier = StringUtils.hasText(actor.getEmail())
                     ? actor.getEmail().toLowerCase()
@@ -576,17 +576,21 @@ public class EnterpriseAuditTrailService {
         return new IdentitySnapshot(null, "anon:" + anon, true, false, "anon:" + anon);
     }
 
-    private boolean resolveAiPersonalizationConsentOptIn(UserAccount actor) {
+    private boolean resolveAiPersonalizationOptIn(UserAccount actor) {
         if (actor == null) {
             return false;
         }
-        try {
-            Object raw = actor.getClass().getMethod("isAiPersonalizationOptIn").invoke(actor);
-            return raw instanceof Boolean enabled && enabled;
-        } catch (ReflectiveOperationException ignored) {
-            // Fail closed when the consent field is unavailable on the user model.
-            return false;
+        for (String methodName : List.of("isAiPersonalizationOptIn", "getAiPersonalizationOptIn")) {
+            try {
+                Object result = UserAccount.class.getMethod(methodName).invoke(actor);
+                if (result instanceof Boolean booleanResult) {
+                    return booleanResult;
+                }
+            } catch (ReflectiveOperationException ignored) {
+                // Maintain compatibility across UserAccount contract variants.
+            }
         }
+        return false;
     }
 
     private String anonymize(Long companyId, String raw) {
