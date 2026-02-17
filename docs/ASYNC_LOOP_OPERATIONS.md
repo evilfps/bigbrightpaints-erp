@@ -39,8 +39,9 @@ to move the ERP toward staging/predeployment readiness.
 ## Section 14.3 Final Gate Protocol
 When closing the async-loop final ledger gate (ERP Staging Plan Section 14.3):
 1. Pin an immutable `RELEASE_ANCHOR_SHA` before the active hardening run.
-2. Run strict fast-lane validation with the anchor:
+2. Run strict fast-lane validation with the anchor and enforce non-vacuous changed-file coverage (release validation mode fails closed if coverage is vacuous):
    - `DIFF_BASE=<RELEASE_ANCHOR_SHA> GATE_FAST_RELEASE_VALIDATION_MODE=true bash scripts/gate_fast.sh`
+   - Capture `artifacts/gate-fast/changed-coverage.json` showing `"vacuous": false` as part of the ledger evidence.
 3. Execute the remaining ledger gates on the same `HEAD`:
    - `bash scripts/gate_core.sh`
    - `bash scripts/gate_reconciliation.sh`

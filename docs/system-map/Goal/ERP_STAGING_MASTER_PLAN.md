@@ -254,8 +254,9 @@ Acceptance criteria:
 
 ### 14.3 Async-loop final ledger gate closure protocol
 1. Select an immutable `RELEASE_ANCHOR_SHA` immediately before the active hardening train.
-2. Run strict `gate_fast` with anchor:
+2. Run strict `gate_fast` with anchor; release validation mode must fail closed on vacuous changed-file coverage:
    - `DIFF_BASE=<RELEASE_ANCHOR_SHA> GATE_FAST_RELEASE_VALIDATION_MODE=true bash scripts/gate_fast.sh`
+   - Record the resulting `artifacts/gate-fast/changed-coverage.json` showing `"vacuous": false` as part of the closure evidence.
 3. Run remaining ledger gates on the same `HEAD` SHA:
    - `bash scripts/gate_core.sh`
    - `bash scripts/gate_reconciliation.sh`
