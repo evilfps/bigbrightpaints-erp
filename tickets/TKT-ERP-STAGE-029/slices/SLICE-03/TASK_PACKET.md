@@ -5,8 +5,8 @@ Slice: `SLICE-03`
 Primary Agent: `repo-cartographer`
 Reviewers: `orchestrator`
 Lane: `w3`
-Branch: `tickets/tkt-erp-stage-029/repo-cartographer`
-Worktree: `/home/realnigga/Desktop/orchestrator_erp_worktrees/_tmp_orch_cleanrepo_worktrees/TKT-ERP-STAGE-029/repo-cartographer`
+Branch: `tickets/tkt-erp-stage-029/repo-cartographer-v2`
+Worktree: `/home/realnigga/Desktop/orchestrator_erp_worktrees/_tmp_orch_cleanrepo_worktrees/TKT-ERP-STAGE-029/repo-cartographer-v2`
 
 ## Objective
 Sync Stage-028 evidence into slice branches for merge eligibility

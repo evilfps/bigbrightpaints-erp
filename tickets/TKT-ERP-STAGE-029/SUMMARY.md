@@ -3,18 +3,18 @@
 - title: ERP Staging Batch 29
 - goal: Sync Stage-028 evidence into slice branches for merge eligibility
 - priority: high
-- status: planned
+- status: blocked
 - base_branch: async-loop-predeploy-audit
 - created_at: 2026-02-17T06:00:50+00:00
-- updated_at: 2026-02-17T06:00:50+00:00
+- updated_at: 2026-02-17T06:37:53+00:00
 
 ## Slice Board
 
 | Slice | Agent | Lane | Status | Branch |
 | --- | --- | --- | --- | --- |
-| SLICE-01 | orchestrator | w1 | ready | `tickets/tkt-erp-stage-029/orchestrator` |
-| SLICE-02 | refactor-techdebt-gc | w2 | ready | `tickets/tkt-erp-stage-029/refactor-techdebt-gc` |
-| SLICE-03 | repo-cartographer | w3 | ready | `tickets/tkt-erp-stage-029/repo-cartographer` |
+| SLICE-01 | orchestrator | w1 | pending_review | `tickets/tkt-erp-stage-029/orchestrator-v2` |
+| SLICE-02 | refactor-techdebt-gc | w2 | checks_failed | `tickets/tkt-erp-stage-029/refactor-techdebt-gc-v2` |
+| SLICE-03 | repo-cartographer | w3 | pending_review | `tickets/tkt-erp-stage-029/repo-cartographer-v2` |
 
 ## Operator Commands
 

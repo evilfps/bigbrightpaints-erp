@@ -5,8 +5,8 @@ Slice: `SLICE-02`
 Primary Agent: `refactor-techdebt-gc`
 Reviewers: `qa-reliability`
 Lane: `w2`
-Branch: `tickets/tkt-erp-stage-029/refactor-techdebt-gc`
-Worktree: `/home/realnigga/Desktop/orchestrator_erp_worktrees/_tmp_orch_cleanrepo_worktrees/TKT-ERP-STAGE-029/refactor-techdebt-gc`
+Branch: `tickets/tkt-erp-stage-029/refactor-techdebt-gc-v2`
+Worktree: `/home/realnigga/Desktop/orchestrator_erp_worktrees/_tmp_orch_cleanrepo_worktrees/TKT-ERP-STAGE-029/refactor-techdebt-gc-v2`
 
 ## Objective
 Sync Stage-028 evidence into slice branches for merge eligibility

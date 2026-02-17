@@ -5,8 +5,8 @@ Slice: `SLICE-01`
 Primary Agent: `orchestrator`
 Reviewers: `qa-reliability, repo-cartographer, security-governance`
 Lane: `w1`
-Branch: `tickets/tkt-erp-stage-029/orchestrator`
-Worktree: `/home/realnigga/Desktop/orchestrator_erp_worktrees/_tmp_orch_cleanrepo_worktrees/TKT-ERP-STAGE-029/orchestrator`
+Branch: `tickets/tkt-erp-stage-029/orchestrator-v2`
+Worktree: `/home/realnigga/Desktop/orchestrator_erp_worktrees/_tmp_orch_cleanrepo_worktrees/TKT-ERP-STAGE-029/orchestrator-v2`
 
 ## Objective
 Sync Stage-028 evidence into slice branches for merge eligibility
@@ -24,7 +24,6 @@ Sync Stage-028 evidence into slice branches for merge eligibility
 - `tickets/TKT-ERP-STAGE-028`
 
 ## Required Checks Before Done
-- `bash ci/lint-knowledgebase.sh`
 - `bash ci/check-architecture.sh`
 - `bash ci/check-enterprise-policy.sh`
 

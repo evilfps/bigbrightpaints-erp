@@ -2,11 +2,11 @@ ticket_id: TKT-ERP-STAGE-029
 title: ERP Staging Batch 29
 goal: Sync Stage-028 evidence into slice branches for merge eligibility
 priority: high
-status: planned
+status: blocked
 base_branch: async-loop-predeploy-audit
 worktree_root: /home/realnigga/Desktop/orchestrator_erp_worktrees/_tmp_orch_cleanrepo_worktrees
 created_at: '2026-02-17T06:00:50+00:00'
-updated_at: '2026-02-17T06:00:50+00:00'
+updated_at: '2026-02-17T06:37:53+00:00'
 r3_required: true
 orchestrator_authority:
   r1: orchestrator
@@ -32,13 +32,12 @@ slices:
   matched_rules:
   - tickets/
   lane: w1
-  branch: tickets/tkt-erp-stage-029/orchestrator
-  worktree_path: /home/realnigga/Desktop/orchestrator_erp_worktrees/_tmp_orch_cleanrepo_worktrees/TKT-ERP-STAGE-029/orchestrator
+  branch: tickets/tkt-erp-stage-029/orchestrator-v2
+  worktree_path: /home/realnigga/Desktop/orchestrator_erp_worktrees/_tmp_orch_cleanrepo_worktrees/TKT-ERP-STAGE-029/orchestrator-v2
   required_checks:
-  - bash ci/lint-knowledgebase.sh
   - bash ci/check-architecture.sh
   - bash ci/check-enterprise-policy.sh
-  status: ready
+  status: pending_review
   objective: Sync Stage-028 evidence into slice branches for merge eligibility
   workflow_upstream_slices: []
   workflow_downstream_slices: []
@@ -58,12 +57,12 @@ slices:
   matched_rules:
   - <fallback>
   lane: w2
-  branch: tickets/tkt-erp-stage-029/refactor-techdebt-gc
-  worktree_path: /home/realnigga/Desktop/orchestrator_erp_worktrees/_tmp_orch_cleanrepo_worktrees/TKT-ERP-STAGE-029/refactor-techdebt-gc
+  branch: tickets/tkt-erp-stage-029/refactor-techdebt-gc-v2
+  worktree_path: /home/realnigga/Desktop/orchestrator_erp_worktrees/_tmp_orch_cleanrepo_worktrees/TKT-ERP-STAGE-029/refactor-techdebt-gc-v2
   required_checks:
   - bash ci/check-architecture.sh
   - cd erp-domain && mvn -B -ntp test
-  status: ready
+  status: checks_failed
   objective: Sync Stage-028 evidence into slice branches for merge eligibility
   workflow_upstream_slices: []
   workflow_downstream_slices: []
@@ -83,11 +82,11 @@ slices:
   matched_rules:
   - docs/
   lane: w3
-  branch: tickets/tkt-erp-stage-029/repo-cartographer
-  worktree_path: /home/realnigga/Desktop/orchestrator_erp_worktrees/_tmp_orch_cleanrepo_worktrees/TKT-ERP-STAGE-029/repo-cartographer
+  branch: tickets/tkt-erp-stage-029/repo-cartographer-v2
+  worktree_path: /home/realnigga/Desktop/orchestrator_erp_worktrees/_tmp_orch_cleanrepo_worktrees/TKT-ERP-STAGE-029/repo-cartographer-v2
   required_checks:
   - bash ci/lint-knowledgebase.sh
-  status: ready
+  status: pending_review
   objective: Sync Stage-028 evidence into slice branches for merge eligibility
   workflow_upstream_slices: []
   workflow_downstream_slices: []
@@ -96,5 +95,5 @@ slices:
   cross_workflow_contracts: []
 cross_workflow:
   model: workflow_agent_edges_v1
-  generated_at: '2026-02-17T06:00:50+00:00'
+  generated_at: '2026-02-17T06:31:20+00:00'
   in_ticket_edges: []

@@ -1,7 +1,7 @@
 # Cross Workflow Plan
 
 Ticket: `TKT-ERP-STAGE-029`
-Generated: `2026-02-17T06:00:55+00:00`
+Generated: `2026-02-17T06:37:53+00:00`
 
 ## In-Ticket Dependency Edges
 
