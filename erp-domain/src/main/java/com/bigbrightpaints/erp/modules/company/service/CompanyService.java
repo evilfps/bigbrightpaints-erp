@@ -79,6 +79,12 @@ public class CompanyService {
         company.setCode(request.code());
         company.setTimezone(request.timezone());
         company.setDefaultGstRate(request.defaultGstRate());
+        company.setQuotaMaxActiveUsers(resolveQuotaForCreate(request.quotaMaxActiveUsers()));
+        company.setQuotaMaxApiRequests(resolveQuotaForCreate(request.quotaMaxApiRequests()));
+        company.setQuotaMaxStorageBytes(resolveQuotaForCreate(request.quotaMaxStorageBytes()));
+        company.setQuotaMaxConcurrentSessions(resolveQuotaForCreate(request.quotaMaxConcurrentSessions()));
+        company.setQuotaSoftLimitEnabled(resolveQuotaFlagForCreate(request.quotaSoftLimitEnabled(), false));
+        company.setQuotaHardLimitEnabled(resolveQuotaFlagForCreate(request.quotaHardLimitEnabled(), true));
         Company saved = repository.save(company);
         auditAuthorityDecision(true, "tenant-bootstrap-created", request.code(), authentication);
         return toDto(saved);
@@ -94,6 +100,12 @@ public class CompanyService {
         company.setCode(request.code());
         company.setTimezone(request.timezone());
         company.setDefaultGstRate(request.defaultGstRate());
+        company.setQuotaMaxActiveUsers(resolveQuotaForUpdate(request.quotaMaxActiveUsers(), company.getQuotaMaxActiveUsers()));
+        company.setQuotaMaxApiRequests(resolveQuotaForUpdate(request.quotaMaxApiRequests(), company.getQuotaMaxApiRequests()));
+        company.setQuotaMaxStorageBytes(resolveQuotaForUpdate(request.quotaMaxStorageBytes(), company.getQuotaMaxStorageBytes()));
+        company.setQuotaMaxConcurrentSessions(resolveQuotaForUpdate(request.quotaMaxConcurrentSessions(), company.getQuotaMaxConcurrentSessions()));
+        company.setQuotaSoftLimitEnabled(resolveQuotaFlagForUpdate(request.quotaSoftLimitEnabled(), company.isQuotaSoftLimitEnabled()));
+        company.setQuotaHardLimitEnabled(resolveQuotaFlagForUpdate(request.quotaHardLimitEnabled(), company.isQuotaHardLimitEnabled()));
         return toDto(company);
     }
 
@@ -173,6 +185,12 @@ public class CompanyService {
                 company.getCode(),
                 state.name(),
                 company.getLifecycleReason(),
+                company.getQuotaMaxActiveUsers(),
+                company.getQuotaMaxApiRequests(),
+                company.getQuotaMaxStorageBytes(),
+                company.getQuotaMaxConcurrentSessions(),
+                company.isQuotaSoftLimitEnabled(),
+                company.isQuotaHardLimitEnabled(),
                 activeUserCount,
                 apiActivityCount,
                 apiErrorCount,
@@ -411,5 +429,21 @@ public class CompanyService {
         }
         long boundedErrorCount = Math.min(apiErrorCount, apiActivityCount);
         return (boundedErrorCount * ERROR_RATE_BASIS_POINTS_SCALE) / apiActivityCount;
+    }
+
+    private long resolveQuotaForCreate(Long requestedQuota) {
+        return requestedQuota == null ? 0L : requestedQuota;
+    }
+
+    private long resolveQuotaForUpdate(Long requestedQuota, long existingQuota) {
+        return requestedQuota == null ? existingQuota : requestedQuota;
+    }
+
+    private boolean resolveQuotaFlagForCreate(Boolean requestedFlag, boolean defaultValue) {
+        return requestedFlag == null ? defaultValue : requestedFlag;
+    }
+
+    private boolean resolveQuotaFlagForUpdate(Boolean requestedFlag, boolean existingFlag) {
+        return requestedFlag == null ? existingFlag : requestedFlag;
     }
 }

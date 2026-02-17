@@ -17,6 +17,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
@@ -266,22 +267,46 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
         assertThat(data.get("companyCode")).isEqualTo(TENANT_A);
         assertThat(data).containsKeys(
                 "lifecycleState",
+                "quotaMaxActiveUsers",
+                "quotaMaxApiRequests",
+                "quotaMaxStorageBytes",
+                "quotaMaxConcurrentSessions",
+                "quotaSoftLimitEnabled",
+                "quotaHardLimitEnabled",
                 "activeUserCount",
                 "apiActivityCount",
                 "apiErrorCount",
                 "apiErrorRateInBasisPoints",
                 "distinctSessionCount",
                 "auditStorageBytes");
+        Number quotaMaxActiveUsers = (Number) data.get("quotaMaxActiveUsers");
+        Number quotaMaxApiRequests = (Number) data.get("quotaMaxApiRequests");
+        Number quotaMaxStorageBytes = (Number) data.get("quotaMaxStorageBytes");
+        Number quotaMaxConcurrentSessions = (Number) data.get("quotaMaxConcurrentSessions");
+        Boolean quotaSoftLimitEnabled = (Boolean) data.get("quotaSoftLimitEnabled");
+        Boolean quotaHardLimitEnabled = (Boolean) data.get("quotaHardLimitEnabled");
         Number apiActivityCount = (Number) data.get("apiActivityCount");
         Number apiErrorCount = (Number) data.get("apiErrorCount");
         Number apiErrorRateInBasisPoints = (Number) data.get("apiErrorRateInBasisPoints");
         Number distinctSessionCount = (Number) data.get("distinctSessionCount");
         Number auditStorageBytes = (Number) data.get("auditStorageBytes");
+        assertThat(quotaMaxActiveUsers).isNotNull();
+        assertThat(quotaMaxApiRequests).isNotNull();
+        assertThat(quotaMaxStorageBytes).isNotNull();
+        assertThat(quotaMaxConcurrentSessions).isNotNull();
+        assertThat(quotaSoftLimitEnabled).isNotNull();
+        assertThat(quotaHardLimitEnabled).isNotNull();
         assertThat(apiActivityCount).isNotNull();
         assertThat(apiErrorCount).isNotNull();
         assertThat(apiErrorRateInBasisPoints).isNotNull();
         assertThat(distinctSessionCount).isNotNull();
         assertThat(auditStorageBytes).isNotNull();
+        assertThat(quotaMaxActiveUsers.longValue()).isGreaterThanOrEqualTo(0L);
+        assertThat(quotaMaxApiRequests.longValue()).isGreaterThanOrEqualTo(0L);
+        assertThat(quotaMaxStorageBytes.longValue()).isGreaterThanOrEqualTo(0L);
+        assertThat(quotaMaxConcurrentSessions.longValue()).isGreaterThanOrEqualTo(0L);
+        assertThat(quotaSoftLimitEnabled).isFalse();
+        assertThat(quotaHardLimitEnabled).isTrue();
         assertThat(apiActivityCount.longValue()).isGreaterThanOrEqualTo(apiErrorCount.longValue());
         assertThat(apiErrorRateInBasisPoints.longValue()).isBetween(0L, 10_000L);
         assertThat(distinctSessionCount.longValue()).isGreaterThanOrEqualTo(0L);
@@ -300,7 +325,13 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
                 "Blocked Admin Update",
                 TENANT_A,
                 "UTC",
-                18.0);
+                18.0,
+                120L,
+                3_000L,
+                2_097_152L,
+                7L,
+                false,
+                false);
         assertThat(adminResponse.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
 
         String superAdminToken = login(SUPER_ADMIN_EMAIL, TENANT_A);
@@ -311,8 +342,32 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
                 "Allowed Super Admin Update",
                 TENANT_A,
                 "UTC",
-                18.0);
+                18.0,
+                120L,
+                3_000L,
+                2_097_152L,
+                7L,
+                false,
+                false);
         assertThat(superAdminResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+        ResponseEntity<Map> metricsResponse = rest.exchange(
+                "/api/v1/companies/" + tenantAId + "/tenant-metrics",
+                HttpMethod.GET,
+                new HttpEntity<>(jsonHeaders(superAdminToken, TENANT_A)),
+                Map.class);
+        assertThat(metricsResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        Map<String, Object> metricsBody = metricsResponse.getBody();
+        assertThat(metricsBody).isNotNull();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> metricsData = (Map<String, Object>) metricsBody.get("data");
+        assertThat(metricsData).isNotNull();
+        assertThat(metricsData).containsEntry("quotaMaxActiveUsers", 120);
+        assertThat(metricsData).containsEntry("quotaMaxApiRequests", 3000);
+        assertThat(metricsData).containsEntry("quotaMaxStorageBytes", 2_097_152);
+        assertThat(metricsData).containsEntry("quotaMaxConcurrentSessions", 7);
+        assertThat(metricsData).containsEntry("quotaSoftLimitEnabled", false);
+        assertThat(metricsData).containsEntry("quotaHardLimitEnabled", true);
     }
 
     @Test
@@ -394,15 +449,62 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
                                               String code,
                                               String timezone,
                                               double defaultGstRate) {
+        return updateCompany(
+                companyId,
+                token,
+                companyCode,
+                name,
+                code,
+                timezone,
+                defaultGstRate,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null);
+    }
+
+    private ResponseEntity<Map> updateCompany(Long companyId,
+                                              String token,
+                                              String companyCode,
+                                              String name,
+                                              String code,
+                                              String timezone,
+                                              double defaultGstRate,
+                                              Long quotaMaxActiveUsers,
+                                              Long quotaMaxApiRequests,
+                                              Long quotaMaxStorageBytes,
+                                              Long quotaMaxConcurrentSessions,
+                                              Boolean quotaSoftLimitEnabled,
+                                              Boolean quotaHardLimitEnabled) {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("name", name);
+        payload.put("code", code);
+        payload.put("timezone", timezone);
+        payload.put("defaultGstRate", defaultGstRate);
+        if (quotaMaxActiveUsers != null) {
+            payload.put("quotaMaxActiveUsers", quotaMaxActiveUsers);
+        }
+        if (quotaMaxApiRequests != null) {
+            payload.put("quotaMaxApiRequests", quotaMaxApiRequests);
+        }
+        if (quotaMaxStorageBytes != null) {
+            payload.put("quotaMaxStorageBytes", quotaMaxStorageBytes);
+        }
+        if (quotaMaxConcurrentSessions != null) {
+            payload.put("quotaMaxConcurrentSessions", quotaMaxConcurrentSessions);
+        }
+        if (quotaSoftLimitEnabled != null) {
+            payload.put("quotaSoftLimitEnabled", quotaSoftLimitEnabled);
+        }
+        if (quotaHardLimitEnabled != null) {
+            payload.put("quotaHardLimitEnabled", quotaHardLimitEnabled);
+        }
         return rest.exchange(
                 "/api/v1/companies/" + companyId,
                 HttpMethod.PUT,
-                new HttpEntity<>(Map.of(
-                        "name", name,
-                        "code", code,
-                        "timezone", timezone,
-                        "defaultGstRate", defaultGstRate
-                ), jsonHeaders(token, companyCode)),
+                new HttpEntity<>(payload, jsonHeaders(token, companyCode)),
                 Map.class);
     }
 

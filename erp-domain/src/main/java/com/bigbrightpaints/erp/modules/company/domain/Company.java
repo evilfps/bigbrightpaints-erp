@@ -81,6 +81,24 @@ public class Company extends VersionedEntity {
     @Column(name = "lifecycle_reason")
     private String lifecycleReason;
 
+    @Column(name = "quota_max_active_users", nullable = false)
+    private Long quotaMaxActiveUsers = 0L;
+
+    @Column(name = "quota_max_api_requests", nullable = false)
+    private Long quotaMaxApiRequests = 0L;
+
+    @Column(name = "quota_max_storage_bytes", nullable = false)
+    private Long quotaMaxStorageBytes = 0L;
+
+    @Column(name = "quota_max_concurrent_sessions", nullable = false)
+    private Long quotaMaxConcurrentSessions = 0L;
+
+    @Column(name = "quota_soft_limit_enabled", nullable = false)
+    private Boolean quotaSoftLimitEnabled = false;
+
+    @Column(name = "quota_hard_limit_enabled", nullable = false)
+    private Boolean quotaHardLimitEnabled = true;
+
     @PrePersist
     public void prePersist() {
         if (publicId == null) {
@@ -95,6 +113,12 @@ public class Company extends VersionedEntity {
         if (lifecycleState == null) {
             lifecycleState = CompanyLifecycleState.ACTIVE;
         }
+        initializeQuotaDefaults();
+    }
+
+    @PreUpdate
+    public void preUpdate() {
+        initializeQuotaDefaults();
     }
 
     public Long getId() {
@@ -258,6 +282,91 @@ public class Company extends VersionedEntity {
             return;
         }
         this.lifecycleReason = lifecycleReason.trim();
+    }
+
+    public long getQuotaMaxActiveUsers() {
+        return sanitizeQuota(quotaMaxActiveUsers);
+    }
+
+    public void setQuotaMaxActiveUsers(Long quotaMaxActiveUsers) {
+        this.quotaMaxActiveUsers = sanitizeQuota(quotaMaxActiveUsers);
+    }
+
+    public long getQuotaMaxApiRequests() {
+        return sanitizeQuota(quotaMaxApiRequests);
+    }
+
+    public void setQuotaMaxApiRequests(Long quotaMaxApiRequests) {
+        this.quotaMaxApiRequests = sanitizeQuota(quotaMaxApiRequests);
+    }
+
+    public long getQuotaMaxStorageBytes() {
+        return sanitizeQuota(quotaMaxStorageBytes);
+    }
+
+    public void setQuotaMaxStorageBytes(Long quotaMaxStorageBytes) {
+        this.quotaMaxStorageBytes = sanitizeQuota(quotaMaxStorageBytes);
+    }
+
+    public long getQuotaMaxConcurrentSessions() {
+        return sanitizeQuota(quotaMaxConcurrentSessions);
+    }
+
+    public void setQuotaMaxConcurrentSessions(Long quotaMaxConcurrentSessions) {
+        this.quotaMaxConcurrentSessions = sanitizeQuota(quotaMaxConcurrentSessions);
+    }
+
+    public boolean isQuotaSoftLimitEnabled() {
+        return Boolean.TRUE.equals(quotaSoftLimitEnabled);
+    }
+
+    public void setQuotaSoftLimitEnabled(Boolean quotaSoftLimitEnabled) {
+        this.quotaSoftLimitEnabled = Boolean.TRUE.equals(quotaSoftLimitEnabled);
+        enforceFailClosedQuotaPolicy();
+    }
+
+    public boolean isQuotaHardLimitEnabled() {
+        return !Boolean.FALSE.equals(quotaHardLimitEnabled);
+    }
+
+    public void setQuotaHardLimitEnabled(Boolean quotaHardLimitEnabled) {
+        this.quotaHardLimitEnabled = quotaHardLimitEnabled == null || quotaHardLimitEnabled;
+        enforceFailClosedQuotaPolicy();
+    }
+
+    private long sanitizeQuota(Long value) {
+        if (value == null || value < 0L) {
+            return 0L;
+        }
+        return value;
+    }
+
+    private void initializeQuotaDefaults() {
+        if (quotaMaxActiveUsers == null) {
+            quotaMaxActiveUsers = 0L;
+        }
+        if (quotaMaxApiRequests == null) {
+            quotaMaxApiRequests = 0L;
+        }
+        if (quotaMaxStorageBytes == null) {
+            quotaMaxStorageBytes = 0L;
+        }
+        if (quotaMaxConcurrentSessions == null) {
+            quotaMaxConcurrentSessions = 0L;
+        }
+        if (quotaSoftLimitEnabled == null) {
+            quotaSoftLimitEnabled = false;
+        }
+        if (quotaHardLimitEnabled == null) {
+            quotaHardLimitEnabled = true;
+        }
+        enforceFailClosedQuotaPolicy();
+    }
+
+    private void enforceFailClosedQuotaPolicy() {
+        if (!Boolean.TRUE.equals(quotaSoftLimitEnabled) && !Boolean.TRUE.equals(quotaHardLimitEnabled)) {
+            quotaHardLimitEnabled = true;
+        }
     }
 
     @Override
