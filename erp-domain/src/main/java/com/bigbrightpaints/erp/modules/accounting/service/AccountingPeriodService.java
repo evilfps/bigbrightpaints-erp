@@ -34,6 +34,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -42,6 +43,11 @@ import java.util.Optional;
 public class AccountingPeriodService {
 
     private static final BigDecimal RECONCILIATION_TOLERANCE = new BigDecimal("0.01");
+    private static final String UNRESOLVED_CONTROLS_PREFIX = "Checklist controls unresolved for this period: ";
+    private static final List<String> RECONCILIATION_CONTROL_ORDER = List.of(
+            "inventoryReconciled",
+            "arReconciled",
+            "apReconciled");
 
     private final AccountingPeriodRepository accountingPeriodRepository;
     private final CompanyContextService companyContextService;
@@ -462,6 +468,10 @@ public class AccountingPeriodService {
             throw new IllegalStateException("There are " + drafts + " draft entries in this period");
         }
         ChecklistDiagnostics diagnostics = evaluateChecklistDiagnostics(company, period);
+        List<String> unresolvedControls = diagnostics.unresolvedControlsInPolicyOrder();
+        if (!unresolvedControls.isEmpty()) {
+            throw new IllegalStateException(UNRESOLVED_CONTROLS_PREFIX + String.join(", ", unresolvedControls));
+        }
         if (!diagnostics.inventoryReconciled()) {
             throw new IllegalStateException("Inventory reconciliation variance exceeds tolerance (" +
                     formatVariance(diagnostics.inventoryVariance()) + ")");
@@ -545,6 +555,9 @@ public class AccountingPeriodService {
                 List.of("DRAFT", "PENDING"));
         boolean draftsCleared = draftEntries == 0;
         ChecklistDiagnostics diagnostics = evaluateChecklistDiagnostics(company, period);
+        boolean inventoryControlResolved = diagnostics.inventoryControlResolved();
+        boolean arControlResolved = diagnostics.arControlResolved();
+        boolean apControlResolved = diagnostics.apControlResolved();
         boolean inventoryReconciled = diagnostics.inventoryReconciled();
         boolean arReconciled = diagnostics.arReconciled();
         boolean apReconciled = diagnostics.apReconciled();
@@ -552,15 +565,21 @@ public class AccountingPeriodService {
         boolean unlinkedCleared = diagnostics.unlinkedDocuments() == 0;
         boolean unpostedCleared = diagnostics.unpostedDocuments() == 0;
         boolean receiptsCleared = diagnostics.uninvoicedReceipts() == 0;
-        String inventoryDetail = inventoryReconciled
+        String inventoryDetail = !inventoryControlResolved
+                ? "Control unresolved: inventory reconciliation result unavailable"
+                : (inventoryReconciled
                 ? "Variance " + formatVariance(diagnostics.inventoryVariance()) + " within tolerance"
-                : "Variance " + formatVariance(diagnostics.inventoryVariance()) + " exceeds tolerance";
-        String arDetail = arReconciled
+                : "Variance " + formatVariance(diagnostics.inventoryVariance()) + " exceeds tolerance");
+        String arDetail = !arControlResolved
+                ? "Control unresolved: AR reconciliation result unavailable"
+                : (arReconciled
                 ? "Variance " + formatVariance(diagnostics.arVariance()) + " within tolerance"
-                : "Variance " + formatVariance(diagnostics.arVariance()) + " exceeds tolerance";
-        String apDetail = apReconciled
+                : "Variance " + formatVariance(diagnostics.arVariance()) + " exceeds tolerance");
+        String apDetail = !apControlResolved
+                ? "Control unresolved: AP reconciliation result unavailable"
+                : (apReconciled
                 ? "Variance " + formatVariance(diagnostics.apVariance()) + " within tolerance"
-                : "Variance " + formatVariance(diagnostics.apVariance()) + " exceeds tolerance";
+                : "Variance " + formatVariance(diagnostics.apVariance()) + " exceeds tolerance");
         List<MonthEndChecklistItemDto> items = List.of(
                 new MonthEndChecklistItemDto(
                         "bankReconciled",
@@ -721,24 +740,50 @@ public class AccountingPeriodService {
             long unbalancedJournals,
             long uninvoicedReceipts
     ) {
+        List<String> unresolvedControlsInPolicyOrder() {
+            List<String> unresolved = new ArrayList<>(RECONCILIATION_CONTROL_ORDER.size());
+            if (!inventoryControlResolved()) {
+                unresolved.add(RECONCILIATION_CONTROL_ORDER.get(0));
+            }
+            if (!arControlResolved()) {
+                unresolved.add(RECONCILIATION_CONTROL_ORDER.get(1));
+            }
+            if (!apControlResolved()) {
+                unresolved.add(RECONCILIATION_CONTROL_ORDER.get(2));
+            }
+            return List.copyOf(unresolved);
+        }
+
+        boolean inventoryControlResolved() {
+            return inventory != null && inventory.variance() != null;
+        }
+
         boolean inventoryReconciled() {
-            return varianceWithinTolerance(inventoryVariance());
+            return inventoryControlResolved() && varianceWithinTolerance(inventoryVariance());
         }
 
         BigDecimal inventoryVariance() {
             return inventory != null ? inventory.variance() : BigDecimal.ZERO;
         }
 
+        boolean arControlResolved() {
+            return periodReconciliation != null && periodReconciliation.arVariance() != null;
+        }
+
         boolean arReconciled() {
-            return periodReconciliation != null && periodReconciliation.arReconciled();
+            return arControlResolved() && periodReconciliation.arReconciled();
         }
 
         BigDecimal arVariance() {
             return periodReconciliation != null ? periodReconciliation.arVariance() : BigDecimal.ZERO;
         }
 
+        boolean apControlResolved() {
+            return periodReconciliation != null && periodReconciliation.apVariance() != null;
+        }
+
         boolean apReconciled() {
-            return periodReconciliation != null && periodReconciliation.apReconciled();
+            return apControlResolved() && periodReconciliation.apReconciled();
         }
 
         BigDecimal apVariance() {
@@ -746,7 +791,7 @@ public class AccountingPeriodService {
         }
 
         private boolean varianceWithinTolerance(BigDecimal variance) {
-            return variance == null || variance.abs().compareTo(RECONCILIATION_TOLERANCE) <= 0;
+            return variance != null && variance.abs().compareTo(RECONCILIATION_TOLERANCE) <= 0;
         }
     }
 
