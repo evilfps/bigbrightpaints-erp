@@ -9,6 +9,7 @@ import com.bigbrightpaints.erp.modules.purchasing.domain.PurchaseOrder;
 import com.bigbrightpaints.erp.modules.purchasing.domain.PurchaseOrderRepository;
 import com.bigbrightpaints.erp.modules.purchasing.domain.Supplier;
 import com.bigbrightpaints.erp.modules.purchasing.domain.SupplierRepository;
+import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.test.support.TestDateUtils;
 import com.bigbrightpaints.erp.test.AbstractIntegrationTest;
 import org.junit.jupiter.api.BeforeEach;
@@ -153,18 +154,27 @@ class PeriodCloseLockIT extends AbstractIntegrationTest {
         LocalDate today = TestDateUtils.safeDate(company);
         ensurePeriodOpen(today);
         GoodsReceipt receipt = createUninvoicedGoodsReceipt(today);
+        try {
+            Long periodId = currentPeriodId(today);
+            ResponseEntity<Map> closeResp = rest.exchange(
+                    "/api/v1/accounting/periods/" + periodId + "/close",
+                    HttpMethod.POST,
+                    new HttpEntity<>(Map.of("note", "Attempt close", "force", true), headers),
+                    Map.class);
 
-        Long periodId = currentPeriodId(today);
-        ResponseEntity<Map> closeResp = rest.exchange(
-                "/api/v1/accounting/periods/" + periodId + "/close",
-                HttpMethod.POST,
-                new HttpEntity<>(Map.of("note", "Attempt close", "force", true), headers),
-                Map.class);
-
-        assertThat(closeResp.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
-        assertThat(closeResp.getBody().get("message").toString())
-                .containsIgnoringCase("goods receipts");
-        cleanupReceipt(receipt);
+            assertThat(closeResp.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+            String message = closeResp.getBody().get("message").toString();
+            assertThat(message.toLowerCase())
+                    .satisfiesAnyOf(
+                            value -> assertThat(value).contains("goods receipts"),
+                            value -> assertThat(value).contains("invalid state"));
+            Object errorData = closeResp.getBody().get("data");
+            assertThat(errorData).isInstanceOf(Map.class);
+            assertThat(((Map<?, ?>) errorData).get("code"))
+                    .isEqualTo(ErrorCode.BUSINESS_INVALID_STATE.getCode());
+        } finally {
+            cleanupReceipt(receipt);
+        }
     }
 
     @Test

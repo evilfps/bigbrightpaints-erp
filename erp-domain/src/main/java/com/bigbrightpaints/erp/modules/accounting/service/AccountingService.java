@@ -373,15 +373,8 @@ public class AccountingService {
             List<Supplier> supplierOwners = supplierRepository.findAllByCompanyAndPayableAccount(company, account);
             if (!supplierOwners.isEmpty()) {
                 if (supplierContext == null) {
-                    if (supplierOwners.size() == 1) {
-                        supplierContext = supplierOwners.get(0);
-                        supplier = supplierContext;
-                        supplierPayableAccount = supplierContext.getPayableAccount();
-                        entry.setSupplier(supplierContext);
-                    } else {
-                        throw new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE,
-                                "Supplier payable account " + account.getCode() + " requires a supplier context");
-                    }
+                    throw new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE,
+                            "Supplier payable account " + account.getCode() + " requires a supplier context");
                 }
                 Long supplierContextId = supplierContext.getId();
                 if (supplierOwners.stream().noneMatch(owner -> owner.getId().equals(supplierContextId))) {
@@ -3652,7 +3645,8 @@ public class AccountingService {
     }
 
     private boolean shouldEmitAuditServiceSuccessEvent(AuditEvent event) {
-        return event != AuditEvent.JOURNAL_ENTRY_REVERSED
+        return event != AuditEvent.JOURNAL_ENTRY_POSTED
+                && event != AuditEvent.JOURNAL_ENTRY_REVERSED
                 && event != AuditEvent.SETTLEMENT_RECORDED;
     }
 

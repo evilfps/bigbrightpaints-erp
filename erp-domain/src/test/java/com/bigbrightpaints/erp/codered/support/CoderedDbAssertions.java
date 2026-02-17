@@ -139,19 +139,17 @@ public final class CoderedDbAssertions {
             Integer count = jdbcTemplate.queryForObject(
                     """
                     select count(*)
-                    from audit_logs al
-                    join audit_log_metadata md on md.audit_log_id = al.id
-                    where al.event_type = 'JOURNAL_ENTRY_POSTED'
-                      and md.metadata_key = 'journalEntryId'
-                      and md.metadata_value = ?
+                    from accounting_events ae
+                    where ae.event_type = 'JOURNAL_ENTRY_POSTED'
+                      and ae.journal_entry_id = ?
                     """,
                     Integer.class,
-                    journalEntryId.toString()
+                    journalEntryId
             );
             return count != null && count > 0;
         });
         assertThat(found)
-                .as("audit log entry for journal %s", journalEntryId)
+                .as("accounting event entry for journal %s", journalEntryId)
                 .isTrue();
     }
 

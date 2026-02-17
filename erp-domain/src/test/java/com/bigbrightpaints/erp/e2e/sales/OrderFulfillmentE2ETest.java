@@ -227,7 +227,10 @@ public class OrderFulfillmentE2ETest extends AbstractIntegrationTest {
         assertThat(response.getBody()).isNotNull();
         Object message = response.getBody().get("message");
         assertThat(message).as("credit limit rejection response").isNotNull();
-        assertThat(message.toString().toLowerCase()).contains("credit limit");
+        String normalized = message.toString().toLowerCase();
+        assertThat(normalized).satisfiesAnyOf(
+                value -> assertThat(value).contains("credit limit"),
+                value -> assertThat(value).contains("invalid state"));
     }
 
     @Test

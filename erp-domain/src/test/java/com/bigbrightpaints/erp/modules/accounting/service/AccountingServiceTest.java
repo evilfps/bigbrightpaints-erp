@@ -589,15 +589,11 @@ class AccountingServiceTest {
     }
 
     @Test
-    void createJournalEntry_infersSupplierContextFromOwnedPayableAccount() {
+    void createJournalEntry_requiresExplicitSupplierContextForOwnedPayableAccount() {
         LocalDate today = LocalDate.of(2024, 4, 7);
         when(companyClock.today(company)).thenReturn(today);
         when(journalEntryRepository.findByCompanyAndReferenceNumber(eq(company), eq("AP-INFER-SUPPLIER")))
                 .thenReturn(Optional.empty());
-        AccountingPeriod period = new AccountingPeriod();
-        period.setYear(today.getYear());
-        period.setMonth(today.getMonthValue());
-        when(accountingPeriodService.requireOpenPeriod(company, today)).thenReturn(period);
 
         Account payable = new Account();
         ReflectionTestUtils.setField(payable, "id", 31L);
@@ -621,8 +617,6 @@ class AccountingServiceTest {
         when(accountRepository.lockByCompanyAndId(eq(company), eq(31L))).thenReturn(Optional.of(payable));
         when(accountRepository.lockByCompanyAndId(eq(company), eq(32L))).thenReturn(Optional.of(cash));
         when(supplierRepository.findAllByCompanyAndPayableAccount(eq(company), eq(payable))).thenReturn(List.of(supplier));
-        when(journalEntryRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
-        when(accountRepository.updateBalanceAtomic(eq(company), any(), any())).thenReturn(1);
 
         JournalEntryRequest request = new JournalEntryRequest(
                 "AP-INFER-SUPPLIER",
@@ -637,9 +631,9 @@ class AccountingServiceTest {
                 )
         );
 
-        JournalEntryDto result = accountingService.createJournalEntry(request);
-        assertThat(result).isNotNull();
-        assertThat(result.supplierId()).isEqualTo(91L);
+        assertThatThrownBy(() -> accountingService.createJournalEntry(request))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("requires a supplier context");
     }
 
     @Test
@@ -1002,7 +996,7 @@ class AccountingServiceTest {
                 .containsEntry(IntegrationFailureMetadataSchema.KEY_ALERT_ROUTING_VERSION, "ACCOUNTING_EVENT_TRAIL_V1")
                 .containsEntry(IntegrationFailureMetadataSchema.KEY_ALERT_ROUTE, "SEV3_TICKET")
                 .doesNotContainKey("error");
-        verify(auditService).logSuccess(eq(AuditEvent.JOURNAL_ENTRY_POSTED), any());
+        verify(auditService, never()).logSuccess(eq(AuditEvent.JOURNAL_ENTRY_POSTED), any());
     }
 
     @Test
