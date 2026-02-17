@@ -109,10 +109,7 @@ public class AccountingAuditTrailService {
         Map<Long, Invoice> invoiceByJournal = invoiceRepository.findByCompanyAndJournalEntry_IdIn(company, journalIds).stream()
                 .filter(invoice -> invoice.getJournalEntry() != null && invoice.getJournalEntry().getId() != null)
                 .collect(Collectors.toMap(invoice -> invoice.getJournalEntry().getId(), invoice -> invoice, (left, right) -> left));
-        Map<Long, RawMaterialPurchase> purchaseByJournal = rawMaterialPurchaseRepository
-                .findByCompanyAndJournalEntry_IdIn(company, journalIds).stream()
-                .filter(purchase -> purchase.getJournalEntry() != null && purchase.getJournalEntry().getId() != null)
-                .collect(Collectors.toMap(purchase -> purchase.getJournalEntry().getId(), purchase -> purchase, (left, right) -> left));
+        Map<Long, RawMaterialPurchase> purchaseByJournal = purchasesByJournalEntry(company, journalIds);
         Map<Long, List<PartnerSettlementAllocation>> allocationsByJournal = settlementAllocationRepository
                 .findByCompanyAndJournalEntry_IdIn(company, journalIds).stream()
                 .collect(Collectors.groupingBy(allocation -> allocation.getJournalEntry().getId()));
@@ -161,7 +158,7 @@ public class AccountingAuditTrailService {
         List<PartnerSettlementAllocation> allocations = settlementAllocationRepository
                 .findByCompanyAndJournalEntryOrderByCreatedAtAsc(company, entry);
         Optional<Invoice> invoice = invoiceRepository.findByCompanyAndJournalEntry(company, entry);
-        Optional<RawMaterialPurchase> purchase = rawMaterialPurchaseRepository.findByCompanyAndJournalEntry(company, entry);
+        Optional<RawMaterialPurchase> purchase = findPurchaseByJournalEntry(company, entry);
         List<AccountingEvent> events = accountingEventRepository.findByJournalEntryIdOrderByEventTimestampAsc(entry.getId());
 
         BigDecimal totalDebit = entry.getLines().stream()
@@ -318,6 +315,31 @@ public class AccountingAuditTrailService {
 
     private Specification<JournalEntry> byCompany(Company company) {
         return (root, query, cb) -> cb.equal(root.get("company"), company);
+    }
+
+    private Map<Long, RawMaterialPurchase> purchasesByJournalEntry(Company company, List<Long> journalIds) {
+        if (journalIds == null || journalIds.isEmpty()) {
+            return Map.of();
+        }
+        Set<Long> journalIdSet = Set.copyOf(journalIds);
+        return rawMaterialPurchaseRepository.findByCompanyOrderByInvoiceDateDesc(company).stream()
+                .filter(purchase -> purchase.getJournalEntry() != null && purchase.getJournalEntry().getId() != null)
+                .filter(purchase -> journalIdSet.contains(purchase.getJournalEntry().getId()))
+                .collect(Collectors.toMap(
+                        purchase -> purchase.getJournalEntry().getId(),
+                        purchase -> purchase,
+                        (left, right) -> left));
+    }
+
+    private Optional<RawMaterialPurchase> findPurchaseByJournalEntry(Company company, JournalEntry entry) {
+        if (entry == null || entry.getId() == null) {
+            return Optional.empty();
+        }
+        Long journalEntryId = entry.getId();
+        return rawMaterialPurchaseRepository.findByCompanyOrderByInvoiceDateDesc(company).stream()
+                .filter(purchase -> purchase.getJournalEntry() != null
+                        && journalEntryId.equals(purchase.getJournalEntry().getId()))
+                .findFirst();
     }
 
     private Specification<JournalEntry> byEntryDateRange(LocalDate from, LocalDate to) {

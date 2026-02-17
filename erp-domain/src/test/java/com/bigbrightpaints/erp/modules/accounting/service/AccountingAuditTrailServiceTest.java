@@ -113,7 +113,7 @@ class AccountingAuditTrailServiceTest {
         when(journalLineRepository.summarizeTotalsByCompanyAndJournalEntryIds(eq(company), eq(List.of(11L))))
                 .thenReturn(List.of(totals(11L, "2000.00", "2000.00")));
         when(invoiceRepository.findByCompanyAndJournalEntry_IdIn(eq(company), eq(List.of(11L)))).thenReturn(List.of());
-        when(rawMaterialPurchaseRepository.findByCompanyAndJournalEntry_IdIn(eq(company), eq(List.of(11L)))).thenReturn(List.of());
+        when(rawMaterialPurchaseRepository.findByCompanyOrderByInvoiceDateDesc(company)).thenReturn(List.of());
         when(settlementAllocationRepository.findByCompanyAndJournalEntry_IdIn(eq(company), eq(List.of(11L)))).thenReturn(List.of());
 
         PageResponse<AccountingTransactionAuditListItemDto> result = service.listTransactions(
@@ -189,7 +189,7 @@ class AccountingAuditTrailServiceTest {
         when(journalEntryRepository.findByCompanyAndId(company, 42L)).thenReturn(Optional.of(entry));
         when(settlementAllocationRepository.findByCompanyAndJournalEntryOrderByCreatedAtAsc(company, entry)).thenReturn(List.of());
         when(invoiceRepository.findByCompanyAndJournalEntry(company, entry)).thenReturn(Optional.empty());
-        when(rawMaterialPurchaseRepository.findByCompanyAndJournalEntry(company, entry)).thenReturn(Optional.empty());
+        when(rawMaterialPurchaseRepository.findByCompanyOrderByInvoiceDateDesc(company)).thenReturn(List.of());
         when(accountingEventRepository.findByJournalEntryIdOrderByEventTimestampAsc(42L)).thenReturn(List.of(event));
 
         AccountingTransactionAuditDetailDto detail = service.transactionDetail(42L);

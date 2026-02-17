@@ -8,6 +8,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDate;
@@ -15,7 +16,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
-public interface JournalEntryRepository extends JpaRepository<JournalEntry, Long> {
+public interface JournalEntryRepository extends JpaRepository<JournalEntry, Long>, JpaSpecificationExecutor<JournalEntry> {
     @EntityGraph(attributePaths = {"lines", "lines.account"})
     List<JournalEntry> findByCompanyOrderByEntryDateDesc(Company company);
     @EntityGraph(attributePaths = {"lines", "lines.account"})
