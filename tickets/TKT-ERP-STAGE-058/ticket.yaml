@@ -1,0 +1,155 @@
+ticket_id: TKT-ERP-STAGE-058
+title: Tenant Quota Controls Foundation
+goal: Implement superadmin-governed tenant quota fields and fail-closed update/read
+  contract baseline
+priority: high
+status: planned
+base_branch: tmp/orch-exec-20260217
+worktree_root: /home/realnigga/Desktop/orchestrator_erp_worktrees/_tmp_orch_exec_worktrees
+created_at: '2026-02-17T17:16:18+00:00'
+updated_at: '2026-02-17T17:16:18+00:00'
+r3_required: true
+orchestrator_authority:
+  r1: orchestrator
+  r2: orchestrator
+  r3: human
+slices:
+- id: SLICE-01
+  primary_agent: auth-rbac-company
+  reviewers:
+  - qa-reliability
+  - security-governance
+  scope_paths:
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/company/controller/CompanyController.java
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/company/domain/Company.java
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/company/dto/
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/company/service/CompanyService.java
+  allowed_scope_paths:
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/auth/
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/rbac/
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/company/
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/core/security/
+  - erp-domain/src/test/java/com/bigbrightpaints/erp/modules/auth/
+  matched_rules:
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/company/
+  lane: w1
+  branch: tickets/tkt-erp-stage-058/auth-rbac-company
+  worktree_path: /home/realnigga/Desktop/orchestrator_erp_worktrees/_tmp_orch_exec_worktrees/TKT-ERP-STAGE-058/auth-rbac-company
+  required_checks:
+  - bash ci/check-architecture.sh
+  status: ready
+  objective: Implement superadmin-governed tenant quota fields and fail-closed update/read
+    contract baseline
+  workflow_upstream_slices: []
+  workflow_downstream_slices: []
+  workflow_external_upstream_agents: []
+  workflow_external_downstream_agents:
+  - accounting-domain
+  - factory-production
+  - hr-domain
+  - inventory-domain
+  - purchasing-invoice-p2p
+  - reports-admin-portal
+  - sales-domain
+  cross_workflow_contracts:
+  - relation: downstream-external
+    agent: accounting-domain
+    slice_id: ''
+    contract: finance/admin authority boundaries
+    in_ticket: false
+  - relation: downstream-external
+    agent: factory-production
+    slice_id: ''
+    contract: tenant-scoped manufacturing operations
+    in_ticket: false
+  - relation: downstream-external
+    agent: hr-domain
+    slice_id: ''
+    contract: payroll/PII access boundaries
+    in_ticket: false
+  - relation: downstream-external
+    agent: inventory-domain
+    slice_id: ''
+    contract: tenant context and role checks
+    in_ticket: false
+  - relation: downstream-external
+    agent: purchasing-invoice-p2p
+    slice_id: ''
+    contract: tenant-scoped supplier/AP access rules
+    in_ticket: false
+  - relation: downstream-external
+    agent: reports-admin-portal
+    slice_id: ''
+    contract: admin/report access boundaries
+    in_ticket: false
+  - relation: downstream-external
+    agent: sales-domain
+    slice_id: ''
+    contract: tenant and role boundary contract
+    in_ticket: false
+- id: SLICE-02
+  primary_agent: data-migration
+  reviewers:
+  - qa-reliability
+  - release-ops
+  - security-governance
+  scope_paths:
+  - erp-domain/src/main/resources/db/migration_v2/
+  allowed_scope_paths:
+  - erp-domain/src/main/resources/db/migration_v2/
+  - scripts/
+  - docs/runbooks/migrations.md
+  matched_rules:
+  - erp-domain/src/main/resources/db/migration_v2/
+  lane: w2
+  branch: tickets/tkt-erp-stage-058/data-migration
+  worktree_path: /home/realnigga/Desktop/orchestrator_erp_worktrees/_tmp_orch_exec_worktrees/TKT-ERP-STAGE-058/data-migration
+  required_checks:
+  - bash scripts/flyway_overlap_scan.sh --migration-set v2
+  - bash scripts/schema_drift_scan.sh --migration-set v2
+  - bash scripts/release_migration_matrix_v2.sh
+  status: ready
+  objective: Implement superadmin-governed tenant quota fields and fail-closed update/read
+    contract baseline
+  workflow_upstream_slices: []
+  workflow_downstream_slices: []
+  workflow_external_upstream_agents: []
+  workflow_external_downstream_agents:
+  - release-ops
+  cross_workflow_contracts:
+  - relation: downstream-external
+    agent: release-ops
+    slice_id: ''
+    contract: migration rehearsal and release gating
+    in_ticket: false
+- id: SLICE-03
+  primary_agent: refactor-techdebt-gc
+  reviewers:
+  - qa-reliability
+  scope_paths:
+  - erp-domain/src/test/java/com/bigbrightpaints/erp/modules/auth/AuthTenantAuthorityIT.java
+  - erp-domain/src/test/java/com/bigbrightpaints/erp/modules/company/
+  allowed_scope_paths:
+  - erp-domain/src/main/java/
+  - erp-domain/src/test/java/
+  - docs/
+  matched_rules:
+  - <fallback>
+  lane: w3
+  branch: tickets/tkt-erp-stage-058/refactor-techdebt-gc
+  worktree_path: /home/realnigga/Desktop/orchestrator_erp_worktrees/_tmp_orch_exec_worktrees/TKT-ERP-STAGE-058/refactor-techdebt-gc
+  required_checks:
+  - bash ci/check-architecture.sh
+  - cd erp-domain && mvn -B -ntp test
+  status: ready
+  objective: Implement superadmin-governed tenant quota fields and fail-closed update/read
+    contract baseline
+  workflow_upstream_slices: []
+  workflow_downstream_slices: []
+  workflow_external_upstream_agents: []
+  workflow_external_downstream_agents: []
+  cross_workflow_contracts: []
+cross_workflow:
+  model: workflow_agent_edges_v1
+  generated_at: '2026-02-17T17:16:18+00:00'
+  in_ticket_edges: []

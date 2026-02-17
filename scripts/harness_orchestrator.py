@@ -471,6 +471,7 @@ def write_packet_files(repo_root: Path, ticket: dict[str, Any], slice_data: dict
         "Implement this slice with minimal safe patching and proof-backed output.",
         "",
         "Required output:",
+        f"- identity line: `I am {slice_data['primary_agent']} and I own {sid}.`",
         "- files_changed",
         "- commands_run",
         "- harness_results",
