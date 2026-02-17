@@ -11,11 +11,10 @@ import static org.mockito.Mockito.when;
 import com.bigbrightpaints.erp.core.audit.AuditEvent;
 import com.bigbrightpaints.erp.core.audit.AuditService;
 import com.bigbrightpaints.erp.core.service.NumberSequenceService;
+import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.purchasing.domain.Supplier;
-import java.time.YearMonth;
-import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -33,12 +32,14 @@ class ReferenceNumberServiceTest {
     private NumberSequenceService numberSequenceService;
     @Mock
     private AuditService auditService;
+    @Mock
+    private CompanyClock companyClock;
 
     private ReferenceNumberService referenceNumberService;
 
     @BeforeEach
     void setup() {
-        referenceNumberService = new ReferenceNumberService(numberSequenceService, auditService);
+        referenceNumberService = new ReferenceNumberService(numberSequenceService, auditService, companyClock);
     }
 
     @Test
@@ -47,8 +48,8 @@ class ReferenceNumberServiceTest {
         company.setCode("ACME");
         company.setTimezone("UTC");
 
-        YearMonth currentPeriod = YearMonth.now(ZoneId.of("UTC"));
-        String period = currentPeriod.format(DateTimeFormatter.ofPattern("yyyyMM"));
+        when(companyClock.today(company)).thenReturn(LocalDate.of(2026, 3, 2));
+        String period = "202603";
         String expectedKey = "JRN-%s-%s".formatted(company.getCode(), period);
 
         when(numberSequenceService.nextValue(company, expectedKey)).thenReturn(5L);

@@ -3,6 +3,7 @@ package com.bigbrightpaints.erp.modules.accounting.service;
 import com.bigbrightpaints.erp.core.audit.AuditEvent;
 import com.bigbrightpaints.erp.core.audit.AuditService;
 import com.bigbrightpaints.erp.core.service.NumberSequenceService;
+import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.purchasing.domain.Supplier;
 import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
@@ -28,14 +29,20 @@ public class ReferenceNumberService {
 
     private final NumberSequenceService numberSequenceService;
     private final AuditService auditService;
+    private final CompanyClock companyClock;
 
-    public ReferenceNumberService(NumberSequenceService numberSequenceService, AuditService auditService) {
+    public ReferenceNumberService(
+            NumberSequenceService numberSequenceService,
+            AuditService auditService,
+            CompanyClock companyClock
+    ) {
         this.numberSequenceService = numberSequenceService;
         this.auditService = auditService;
+        this.companyClock = companyClock;
     }
 
     public String nextJournalReference(Company company) {
-        YearMonth period = YearMonth.now(resolveZone(company));
+        YearMonth period = resolvePeriod(company);
         String key = "JRN-%s-%s".formatted(company.getCode(), formatPeriod(period));
         return generate(company, key, "journal");
     }
@@ -59,7 +66,7 @@ public class ReferenceNumberService {
     }
 
     public String payrollPaymentReference(Company company) {
-        YearMonth period = YearMonth.now(resolveZone(company));
+        YearMonth period = resolvePeriod(company);
         String key = "PAYROLL-%s".formatted(formatPeriod(period));
         return generate(company, key, "payroll");
     }
@@ -71,13 +78,13 @@ public class ReferenceNumberService {
     }
 
     public String costAllocationReference(Company company) {
-        YearMonth period = YearMonth.now(resolveZone(company));
+        YearMonth period = resolvePeriod(company);
         String key = "COST-ALLOC-%s".formatted(formatPeriod(period));
         return generate(company, key, "cost-allocation");
     }
 
     public String invoiceJournalReference(Company company) {
-        YearMonth period = YearMonth.now(resolveZone(company));
+        YearMonth period = resolvePeriod(company);
         String key = "INVJ-%s-%s".formatted(company.getCode(), formatPeriod(period));
         return generate(company, key, "invoice-journal");
     }
@@ -137,11 +144,29 @@ public class ReferenceNumberService {
     }
 
     private ZoneId resolveZone(Company company) {
+        String timezone = company != null ? company.getTimezone() : null;
+        String companyCode = company != null ? company.getCode() : "unknown";
         try {
-            return ZoneId.of(company.getTimezone() == null ? "UTC" : company.getTimezone());
+            return ZoneId.of(timezone == null ? "UTC" : timezone);
         } catch (Exception ex) {
-            log.warn("Invalid timezone '{}' for company {}, defaulting to UTC", company.getTimezone(), company.getCode());
+            log.warn("Invalid timezone '{}' for company {}, defaulting to UTC", timezone, companyCode);
             return ZoneId.of("UTC");
+        }
+    }
+
+    private YearMonth resolvePeriod(Company company) {
+        try {
+            return YearMonth.from(companyClock.today(company));
+        } catch (Exception ex) {
+            String timezone = company != null ? company.getTimezone() : null;
+            String companyCode = company != null ? company.getCode() : "unknown";
+            log.warn(
+                    "Unable to resolve company clock period for company {} timezone '{}'; falling back to timezone-derived now",
+                    companyCode,
+                    timezone,
+                    ex
+            );
+            return YearMonth.now(resolveZone(company));
         }
     }
 

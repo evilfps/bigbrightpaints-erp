@@ -10,10 +10,12 @@ import static org.mockito.Mockito.when;
 
 import com.bigbrightpaints.erp.core.audit.AuditService;
 import com.bigbrightpaints.erp.core.service.NumberSequenceService;
+import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.modules.accounting.service.ReferenceNumberService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.purchasing.domain.Supplier;
 import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
+import java.time.LocalDate;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -26,12 +28,15 @@ class TS_RuntimeReferenceNumberServiceExecutableCoverageTest {
     void reference_generation_is_deterministic_with_timezone_fallback_and_metadata_audit() {
         NumberSequenceService numberSequenceService = mock(NumberSequenceService.class);
         AuditService auditService = mock(AuditService.class);
+        CompanyClock companyClock = mock(CompanyClock.class);
         when(numberSequenceService.nextValue(any(Company.class), any(String.class)))
                 .thenReturn(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L, 11L, 12L, 13L);
 
-        ReferenceNumberService service = new ReferenceNumberService(numberSequenceService, auditService);
-
         Company invalidTimezoneCompany = company(10L, "TRUTH", "Invalid/Timezone");
+        when(companyClock.today(any(Company.class))).thenReturn(LocalDate.of(2026, 2, 16));
+        when(companyClock.today(eq(invalidTimezoneCompany))).thenThrow(new IllegalArgumentException("invalid timezone"));
+
+        ReferenceNumberService service = new ReferenceNumberService(numberSequenceService, auditService, companyClock);
         Dealer dealer = new Dealer();
         dealer.setCode("dealer-001");
         Supplier supplier = new Supplier();
@@ -58,7 +63,11 @@ class TS_RuntimeReferenceNumberServiceExecutableCoverageTest {
 
     @Test
     void purchase_reference_key_is_compacted_and_hashed_to_max_length() {
-        ReferenceNumberService service = new ReferenceNumberService(mock(NumberSequenceService.class), mock(AuditService.class));
+        ReferenceNumberService service = new ReferenceNumberService(
+                mock(NumberSequenceService.class),
+                mock(AuditService.class),
+                mock(CompanyClock.class)
+        );
 
         Company longCompany = company(20L,
                 "COMPANY-CODE-WITH-VERY-LONG-TOKEN-TO-FORCE-COMPACTION-1234567890",
@@ -80,9 +89,10 @@ class TS_RuntimeReferenceNumberServiceExecutableCoverageTest {
     void sanitize_fallbacks_use_gen_tokens_for_missing_inputs() {
         NumberSequenceService numberSequenceService = mock(NumberSequenceService.class);
         AuditService auditService = mock(AuditService.class);
+        CompanyClock companyClock = mock(CompanyClock.class);
         when(numberSequenceService.nextValue(any(Company.class), any(String.class))).thenReturn(1L, 2L, 3L, 4L);
 
-        ReferenceNumberService service = new ReferenceNumberService(numberSequenceService, auditService);
+        ReferenceNumberService service = new ReferenceNumberService(numberSequenceService, auditService, companyClock);
 
         Company company = company(30L, "", null);
         Dealer dealer = new Dealer();
@@ -108,9 +118,10 @@ class TS_RuntimeReferenceNumberServiceExecutableCoverageTest {
     void purchase_key_compaction_covers_small_max_lengths_and_nullable_entities() {
         NumberSequenceService numberSequenceService = mock(NumberSequenceService.class);
         AuditService auditService = mock(AuditService.class);
+        CompanyClock companyClock = mock(CompanyClock.class);
         when(numberSequenceService.nextValue(any(), any(String.class))).thenReturn(1L, 2L, 3L);
 
-        ReferenceNumberService service = new ReferenceNumberService(numberSequenceService, auditService);
+        ReferenceNumberService service = new ReferenceNumberService(numberSequenceService, auditService, companyClock);
 
         Company maxSevenCompany = company(41L, "C".repeat(22), "UTC");
         Supplier maxSevenSupplier = new Supplier();

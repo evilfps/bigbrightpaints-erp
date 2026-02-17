@@ -11,6 +11,7 @@ import static org.mockito.Mockito.when;
 
 import com.bigbrightpaints.erp.core.audit.AuditService;
 import com.bigbrightpaints.erp.core.service.NumberSequenceService;
+import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
@@ -41,10 +42,12 @@ class TS_RuntimeModuleExecutableCoverageTest {
     void referenceNumbers_cover_all_reference_categories_and_length_guards() {
         NumberSequenceService numberSequenceService = mock(NumberSequenceService.class);
         AuditService auditService = mock(AuditService.class);
+        CompanyClock companyClock = mock(CompanyClock.class);
         when(numberSequenceService.nextValue(any(Company.class), any(String.class)))
                 .thenReturn(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L, 11L, 12L);
+        when(companyClock.today(any(Company.class))).thenReturn(LocalDate.of(2026, 2, 16));
 
-        ReferenceNumberService service = new ReferenceNumberService(numberSequenceService, auditService);
+        ReferenceNumberService service = new ReferenceNumberService(numberSequenceService, auditService, companyClock);
         Company company = company("TRUTH", "Asia/Kolkata");
 
         Dealer dealer = new Dealer();
