@@ -1,6 +1,6 @@
 # Rollback Runbook
 
-Last reviewed: 2026-02-15
+Last reviewed: 2026-02-18
 Owner: Release & Ops Agent
 
 ## Purpose
@@ -61,6 +61,15 @@ Record one immutable evidence entry per rollback event or drill with these requi
 
 ## Enterprise R2 Linkage
 - For high-risk changes, set rollback owner and approval expiry in `docs/approvals/R2-CHECKPOINT.md` before release go/no-go and use matching `evidence_id` + `release_anchor_sha` values across both records.
+
+## Stage-064 Release-Candidate Rehearsal Checklist (Single SHA)
+For `TKT-ERP-STAGE-064`, migration and rollback rehearsal evidence must be tied to one immutable candidate SHA:
+1. Capture `RELEASE_CANDIDATE_SHA=$(git rev-parse HEAD)` and use that same value for `release_anchor_sha`.
+2. Run migration rehearsal using the canonical command:
+   - `bash scripts/release_migration_matrix.sh --migration-set v2`
+3. Record migration rehearsal command output/log paths and the exact migration set exercised in `artifact_links`.
+4. If rollback is rehearsed, record the drill with matching `release_anchor_sha` and include post-action smoke/reconciliation outcomes in `validation_trace`.
+5. Link both migration and rollback evidence entries in `asyncloop`, then mirror the approval/evidence pointer in `docs/approvals/R2-CHECKPOINT.md`.
 
 ## V15 Rollback/Forward-Fix Notes (2026-02-15)
 - Migration: `erp-domain/src/main/resources/db/migration_v2/V15__accounting_audit_read_model_hotspot_indexes.sql`

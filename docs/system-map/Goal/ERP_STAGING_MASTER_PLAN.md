@@ -512,6 +512,8 @@ Current deployment sequence is now explicitly ticketized to avoid drift:
   - complete user onboarding runbooks and role-by-role first-use flows
 4. `TKT-ERP-STAGE-064` (P0): migration + rollback rehearsal parity on release candidate SHA
   - active migration chain and rollback evidence must be deterministic
+  - run `bash scripts/release_migration_matrix.sh --migration-set v2` on the pinned release-candidate SHA and archive outputs in artifacts + `asyncloop`
+  - rollback rehearsal evidence must reuse that same `release_anchor_sha` and link `asyncloop` + `docs/approvals/R2-CHECKPOINT.md`
 5. `TKT-ERP-STAGE-065` (P0): one-SHA release gate closure
   - `gate_fast`, `gate_core`, `gate_reconciliation`, `gate_release` all green on same SHA
 6. `TKT-ERP-STAGE-066` (P0): final staging go/no-go evidence pack

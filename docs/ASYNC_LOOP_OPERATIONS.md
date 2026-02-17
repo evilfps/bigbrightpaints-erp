@@ -87,6 +87,15 @@ For integration PR and merge-queue operation:
 4. Do not carry forward stale gate claims from pre-conflict SHAs; gate evidence is valid only for the post-resolution `HEAD`.
 5. For deployment gating, only accept final Section 14.3 closure evidence produced on integration `HEAD` after merge sequencing is complete.
 
+## Section 14.7 Stage-064 Migration/Rollback Rehearsal Parity
+For `TKT-ERP-STAGE-064` before one-SHA release closure work:
+1. Pin `RELEASE_CANDIDATE_SHA=$(git rev-parse HEAD)` and treat it as the rehearsal `release_anchor_sha`.
+2. Run canonical migration rehearsal:
+   - `bash scripts/release_migration_matrix.sh --migration-set v2`
+3. Record rehearsal outputs under artifacts and append command + SHA evidence in `asyncloop`.
+4. If a rollback drill is executed, log it using `docs/runbooks/rollback.md` evidence fields and keep `release_anchor_sha` identical to Step 1.
+5. Fail closed if migration/rollback evidence references mixed SHAs; resolve parity before advancing to `TKT-ERP-STAGE-065`.
+
 
 ## Execution Loop (One Iteration)
 1. Pick highest-risk `in_progress` or top `ready` slice from `asyncloop`.
