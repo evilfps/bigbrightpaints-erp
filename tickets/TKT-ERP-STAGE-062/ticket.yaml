@@ -3,11 +3,11 @@ title: Workflow UX Simplification Hardening
 goal: Simplify messy backend workflows with deterministic reason-coded fail-closed
   behavior
 priority: high
-status: planned
+status: done
 base_branch: tmp/orch-exec-20260217
 worktree_root: /home/realnigga/Desktop/orchestrator_erp_worktrees/_tmp_orch_exec_worktrees
 created_at: '2026-02-17T17:52:15+00:00'
-updated_at: '2026-02-17T17:52:15+00:00'
+updated_at: '2026-02-17T19:35:13+00:00'
 r3_required: true
 orchestrator_authority:
   r1: orchestrator
@@ -35,7 +35,7 @@ slices:
   required_checks:
   - cd erp-domain && mvn -B -ntp -Dtest='*Accounting*' test
   - bash scripts/verify_local.sh
-  status: ready
+  status: merged
   objective: Simplify messy backend workflows with deterministic reason-coded fail-closed
     behavior
   workflow_upstream_slices:
@@ -99,7 +99,7 @@ slices:
   worktree_path: /home/realnigga/Desktop/orchestrator_erp_worktrees/_tmp_orch_exec_worktrees/TKT-ERP-STAGE-062/purchasing-invoice-p2p
   required_checks:
   - bash ci/check-architecture.sh
-  status: ready
+  status: merged
   objective: Simplify messy backend workflows with deterministic reason-coded fail-closed
     behavior
   workflow_upstream_slices: []
@@ -146,7 +146,7 @@ slices:
   required_checks:
   - cd erp-domain && mvn -B -ntp -Dtest='*Sales*' test
   - bash ci/check-architecture.sh
-  status: ready
+  status: merged
   objective: Simplify messy backend workflows with deterministic reason-coded fail-closed
     behavior
   workflow_upstream_slices: []
@@ -197,7 +197,7 @@ slices:
   required_checks:
   - bash ci/check-architecture.sh
   - cd erp-domain && mvn -B -ntp test
-  status: ready
+  status: merged
   objective: Simplify messy backend workflows with deterministic reason-coded fail-closed
     behavior
   workflow_upstream_slices: []
@@ -207,7 +207,7 @@ slices:
   cross_workflow_contracts: []
 cross_workflow:
   model: workflow_agent_edges_v1
-  generated_at: '2026-02-17T17:52:15+00:00'
+  generated_at: '2026-02-17T19:35:11+00:00'
   in_ticket_edges:
   - upstream_slice: SLICE-02
     downstream_slice: SLICE-01

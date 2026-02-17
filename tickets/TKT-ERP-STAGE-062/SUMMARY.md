@@ -3,19 +3,19 @@
 - title: Workflow UX Simplification Hardening
 - goal: Simplify messy backend workflows with deterministic reason-coded fail-closed behavior
 - priority: high
-- status: planned
+- status: done
 - base_branch: tmp/orch-exec-20260217
 - created_at: 2026-02-17T17:52:15+00:00
-- updated_at: 2026-02-17T17:52:15+00:00
+- updated_at: 2026-02-17T19:35:13+00:00
 
 ## Slice Board
 
 | Slice | Agent | Lane | Status | Branch |
 | --- | --- | --- | --- | --- |
-| SLICE-01 | accounting-domain | w1 | ready | `tickets/tkt-erp-stage-062/accounting-domain` |
-| SLICE-02 | purchasing-invoice-p2p | w2 | ready | `tickets/tkt-erp-stage-062/purchasing-invoice-p2p` |
-| SLICE-03 | sales-domain | w3 | ready | `tickets/tkt-erp-stage-062/sales-domain` |
-| SLICE-04 | refactor-techdebt-gc | w4 | ready | `tickets/tkt-erp-stage-062/refactor-techdebt-gc` |
+| SLICE-01 | accounting-domain | w1 | merged | `tickets/tkt-erp-stage-062/accounting-domain` |
+| SLICE-02 | purchasing-invoice-p2p | w2 | merged | `tickets/tkt-erp-stage-062/purchasing-invoice-p2p` |
+| SLICE-03 | sales-domain | w3 | merged | `tickets/tkt-erp-stage-062/sales-domain` |
+| SLICE-04 | refactor-techdebt-gc | w4 | merged | `tickets/tkt-erp-stage-062/refactor-techdebt-gc` |
 
 ## Operator Commands
 
