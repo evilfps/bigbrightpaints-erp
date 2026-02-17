@@ -224,8 +224,15 @@ public class AccountingPeriodService {
         period.setReopenReason(reason);
         // Auto-reverse closing journal if present
         if (period.getClosingJournalEntryId() != null) {
-            journalEntryRepository.findByCompanyAndId(company, period.getClosingJournalEntryId())
-                    .ifPresent(closing -> reverseClosingJournalIfNeeded(closing, period, reason));
+            Optional<JournalEntry> closingJournal = journalEntryRepository
+                    .findByCompanyAndId(company, period.getClosingJournalEntryId());
+            if (closingJournal.isEmpty()) {
+                throw new ApplicationException(
+                        ErrorCode.BUSINESS_INVALID_STATE,
+                        "Closing journal entry " + period.getClosingJournalEntryId() +
+                                " is missing for period " + period.getLabel());
+            }
+            closingJournal.ifPresent(closing -> reverseClosingJournalIfNeeded(closing, period, reason));
             period.setClosingJournalEntryId(null);
         }
         snapshotService.deleteSnapshotForPeriod(company, period);
@@ -364,9 +371,75 @@ public class AccountingPeriodService {
                                             AccountingPeriod period,
                                             BigDecimal netIncome,
                                             String note) {
-        String reference = "PERIOD-CLOSE-" + period.getYear() + String.format("%02d", period.getMonth());
-        return journalEntryRepository.findByCompanyAndReferenceNumber(company, reference)
-                .orElseGet(() -> createSystemJournal(company, period, reference, note, netIncome));
+        String baseReference = "PERIOD-CLOSE-" + period.getYear() + String.format("%02d", period.getMonth());
+        Optional<JournalEntry> baseEntry = journalEntryRepository.findByCompanyAndReferenceNumber(company, baseReference);
+        List<JournalEntry> recoveryEntries = journalEntryRepository
+                .findByCompanyAndReferenceNumberStartingWith(company, baseReference + "-R");
+
+        List<JournalEntry> activeCandidates = new ArrayList<>();
+        baseEntry.filter(this::isActiveClosingJournal).ifPresent(activeCandidates::add);
+        for (JournalEntry candidate : recoveryEntries) {
+            if (isActiveClosingJournal(candidate)) {
+                activeCandidates.add(candidate);
+            }
+        }
+
+        if (activeCandidates.size() > 1) {
+            throw new ApplicationException(
+                    ErrorCode.BUSINESS_INVALID_STATE,
+                    "Multiple active closing journals exist for period " + period.getLabel());
+        }
+        if (!activeCandidates.isEmpty()) {
+            return activeCandidates.get(0);
+        }
+
+        String reference = resolveClosingReference(baseReference, baseEntry.isPresent(), recoveryEntries);
+        return createSystemJournal(company, period, reference, note, netIncome);
+    }
+
+    private String resolveClosingReference(String baseReference,
+                                          boolean baseReferenceExists,
+                                          List<JournalEntry> recoveryEntries) {
+        int maxCycle = 0;
+        for (JournalEntry entry : recoveryEntries) {
+            int parsedCycle = parseRecoveryCycle(baseReference, entry);
+            if (parsedCycle > maxCycle) {
+                maxCycle = parsedCycle;
+            }
+        }
+        if (maxCycle > 0 || baseReferenceExists) {
+            return baseReference + "-R" + (maxCycle + 1);
+        }
+        return baseReference;
+    }
+
+    private int parseRecoveryCycle(String baseReference, JournalEntry entry) {
+        if (entry == null || !StringUtils.hasText(entry.getReferenceNumber())) {
+            return -1;
+        }
+        String prefix = baseReference + "-R";
+        String reference = entry.getReferenceNumber();
+        if (!reference.startsWith(prefix)) {
+            return -1;
+        }
+        String suffix = reference.substring(prefix.length());
+        if (!StringUtils.hasText(suffix)) {
+            return -1;
+        }
+        try {
+            int value = Integer.parseInt(suffix);
+            return value > 0 ? value : -1;
+        } catch (NumberFormatException ignored) {
+            return -1;
+        }
+    }
+
+    private boolean isActiveClosingJournal(JournalEntry entry) {
+        if (entry == null) {
+            return false;
+        }
+        String status = entry.getStatus() != null ? entry.getStatus().toUpperCase() : "";
+        return !"REVERSED".equals(status) && !"VOIDED".equals(status) && entry.getReversalEntry() == null;
     }
 
     private JournalEntry createSystemJournal(Company company,

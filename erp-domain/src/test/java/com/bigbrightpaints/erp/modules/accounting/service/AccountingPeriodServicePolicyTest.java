@@ -3,7 +3,9 @@ package com.bigbrightpaints.erp.modules.accounting.service;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
+import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
+import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriod;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriodRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriodStatus;
@@ -13,6 +15,7 @@ import com.bigbrightpaints.erp.modules.accounting.domain.JournalLineRepository;
 import com.bigbrightpaints.erp.modules.accounting.dto.AccountingPeriodCloseRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.AccountingPeriodLockRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.AccountingPeriodReopenRequest;
+import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.MonthEndChecklistUpdateRequest;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
@@ -37,6 +40,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -330,6 +334,80 @@ class AccountingPeriodServicePolicyTest {
         verify(accountingFacade).reverseClosingEntryForPeriodReopen(closing, period, "reopen adjustment");
     }
 
+    @Test
+    void reopenPeriod_failsClosedWhenClosingJournalLinkMissing() {
+        Company company = company(1L, "POLICY");
+        AccountingPeriod period = openPeriod(company, 2026, 2);
+        period.setStatus(AccountingPeriodStatus.CLOSED);
+        period.setClosingJournalEntryId(901L);
+        when(companyContextService.requireCurrentCompany()).thenReturn(company);
+        when(accountingPeriodRepository.lockByCompanyAndId(company, 15L)).thenReturn(Optional.of(period));
+        when(journalEntryRepository.findByCompanyAndId(company, 901L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.reopenPeriod(15L, new AccountingPeriodReopenRequest("reopen adjustment")))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Closing journal entry 901 is missing");
+        verify(accountingPeriodRepository, never()).save(any(AccountingPeriod.class));
+    }
+
+    @Test
+    void closePeriod_whenBaseClosingReferenceIsReversed_usesRecoveryReference() {
+        Company company = company(1L, "POLICY");
+        AccountingPeriod period = openPeriod(company, 2026, 2);
+        when(companyContextService.requireCurrentCompany()).thenReturn(company);
+        when(accountingPeriodRepository.lockByCompanyAndId(company, 30L)).thenReturn(Optional.of(period));
+        when(goodsReceiptRepository.countByCompanyAndReceiptDateBetweenAndStatusNot(
+                company, period.getStartDate(), period.getEndDate(), "INVOICED")).thenReturn(0L);
+        when(journalLineRepository.summarizeByAccountType(
+                company, period.getStartDate(), period.getEndDate()))
+                .thenReturn(List.<Object[]>of(
+                        new Object[]{AccountType.REVENUE, BigDecimal.ZERO, new BigDecimal("100.00")}));
+
+        JournalEntry reversedBase = new JournalEntry();
+        reversedBase.setReferenceNumber("PERIOD-CLOSE-202602");
+        reversedBase.setStatus("REVERSED");
+        when(journalEntryRepository.findByCompanyAndReferenceNumber(company, "PERIOD-CLOSE-202602"))
+                .thenReturn(Optional.of(reversedBase));
+        when(journalEntryRepository.findByCompanyAndReferenceNumberStartingWith(company, "PERIOD-CLOSE-202602-R"))
+                .thenReturn(List.of());
+
+        when(accountRepository.findByCompanyAndCodeIgnoreCase(company, "RETAINED_EARNINGS"))
+                .thenReturn(Optional.of(equityAccount(company, 1001L, "RETAINED_EARNINGS", "Retained Earnings")));
+        when(accountRepository.findByCompanyAndCodeIgnoreCase(company, "PERIOD_RESULT"))
+                .thenReturn(Optional.of(equityAccount(company, 1002L, "PERIOD_RESULT", "Period Result")));
+        when(companyClock.today(company)).thenReturn(period.getEndDate());
+        when(accountingFacadeProvider.getObject()).thenReturn(accountingFacade);
+        when(accountingFacade.postSimpleJournal(
+                eq("PERIOD-CLOSE-202602-R1"),
+                any(LocalDate.class),
+                anyString(),
+                any(Long.class),
+                any(Long.class),
+                any(BigDecimal.class),
+                eq(true)))
+                .thenReturn(journalEntryDto(950L, "PERIOD-CLOSE-202602-R1", period.getEndDate()));
+
+        JournalEntry postedRecovery = new JournalEntry();
+        postedRecovery.setReferenceNumber("PERIOD-CLOSE-202602-R1");
+        postedRecovery.setStatus("POSTED");
+        ReflectionTestUtils.setField(postedRecovery, "id", 950L);
+        when(journalEntryRepository.findByCompanyAndId(company, 950L)).thenReturn(Optional.of(postedRecovery));
+        when(accountingPeriodRepository.save(period)).thenReturn(period);
+        when(accountingPeriodRepository.findByCompanyAndYearAndMonth(company, 2026, 3))
+                .thenReturn(Optional.of(openPeriod(company, 2026, 3)));
+
+        assertThat(service.closePeriod(30L, new AccountingPeriodCloseRequest(true, "reclose after reopen"))
+                .closingJournalEntryId()).isEqualTo(950L);
+        verify(accountingFacade).postSimpleJournal(
+                eq("PERIOD-CLOSE-202602-R1"),
+                any(LocalDate.class),
+                anyString(),
+                any(Long.class),
+                any(Long.class),
+                any(BigDecimal.class),
+                eq(true));
+    }
+
     private Company company(Long id, String code) {
         Company company = new Company();
         company.setCode(code);
@@ -349,5 +427,45 @@ class AccountingPeriodServicePolicyTest {
         period.setEndDate(startDate.plusMonths(1).minusDays(1));
         period.setStatus(AccountingPeriodStatus.OPEN);
         return period;
+    }
+
+    private Account equityAccount(Company company, Long id, String code, String name) {
+        Account account = new Account();
+        account.setCompany(company);
+        account.setCode(code);
+        account.setName(name);
+        account.setType(AccountType.EQUITY);
+        ReflectionTestUtils.setField(account, "id", id);
+        return account;
+    }
+
+    private JournalEntryDto journalEntryDto(Long id, String reference, LocalDate entryDate) {
+        return new JournalEntryDto(
+                id,
+                null,
+                reference,
+                entryDate,
+                "period close",
+                "POSTED",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                List.of(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+        );
     }
 }
