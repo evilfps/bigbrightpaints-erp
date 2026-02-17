@@ -43,6 +43,19 @@ class TS_RuntimeOrchestratorIdempotencyExecutableCoverageTest {
         OrchestratorCommandRepository commandRepository = mock(OrchestratorCommandRepository.class);
         CompanyContextService companyContextService = mock(CompanyContextService.class);
         when(companyContextService.requireCurrentCompany()).thenReturn(company(101L));
+        when(commandRepository.reserveScope(101L, "ORCH.ORDER.APPROVE", "idem-1", expectedHash(101L, "ORCH.ORDER.APPROVE",
+                Map.of("orderId", "SO-1", "total", "100.00")), "trace-new"))
+                .thenReturn(1);
+
+        OrchestratorCommand reserved = new OrchestratorCommand(
+                101L,
+                "ORCH.ORDER.APPROVE",
+                "idem-1",
+                expectedHash(101L, "ORCH.ORDER.APPROVE", Map.of("orderId", "SO-1", "total", "100.00")),
+                "trace-new"
+        );
+        when(commandRepository.lockByScope(101L, "ORCH.ORDER.APPROVE", "idem-1"))
+                .thenReturn(Optional.of(reserved));
 
         OrchestratorIdempotencyService service = new OrchestratorIdempotencyService(
                 commandRepository,
@@ -62,7 +75,9 @@ class TS_RuntimeOrchestratorIdempotencyExecutableCoverageTest {
         assertThat(lease.traceId()).isEqualTo("trace-new");
         assertThat(lease.command().getIdempotencyKey()).isEqualTo("idem-1");
         assertThat(lease.command().getStatus()).isEqualTo(OrchestratorCommand.Status.IN_PROGRESS);
-        verify(commandRepository).saveAndFlush(any(OrchestratorCommand.class));
+        verify(commandRepository).reserveScope(101L, "ORCH.ORDER.APPROVE", "idem-1",
+                expectedHash(101L, "ORCH.ORDER.APPROVE", Map.of("orderId", "SO-1", "total", "100.00")),
+                "trace-new");
     }
 
     @Test
@@ -70,8 +85,7 @@ class TS_RuntimeOrchestratorIdempotencyExecutableCoverageTest {
         OrchestratorCommandRepository commandRepository = mock(OrchestratorCommandRepository.class);
         CompanyContextService companyContextService = mock(CompanyContextService.class);
         when(companyContextService.requireCurrentCompany()).thenReturn(company(201L));
-        when(commandRepository.saveAndFlush(any(OrchestratorCommand.class)))
-                .thenThrow(new DataIntegrityViolationException("duplicate key"));
+        when(commandRepository.reserveScope(any(), any(), any(), any(), any())).thenReturn(0);
 
         Map<String, Object> payload = Map.of("batchId", "B-1", "qty", "10");
         String requestHash = expectedHash(201L, "ORCH.FACTORY.BATCH.DISPATCH", payload);
@@ -113,8 +127,7 @@ class TS_RuntimeOrchestratorIdempotencyExecutableCoverageTest {
         OrchestratorCommandRepository commandRepository = mock(OrchestratorCommandRepository.class);
         CompanyContextService companyContextService = mock(CompanyContextService.class);
         when(companyContextService.requireCurrentCompany()).thenReturn(company(301L));
-        when(commandRepository.saveAndFlush(any(OrchestratorCommand.class)))
-                .thenThrow(new DataIntegrityViolationException("duplicate key"));
+        when(commandRepository.reserveScope(any(), any(), any(), any(), any())).thenReturn(0);
 
         Map<String, Object> payload = Map.of("orderId", "SO-2");
         String requestHash = expectedHash(301L, "ORCH.ORDER.APPROVE", payload);
@@ -153,8 +166,7 @@ class TS_RuntimeOrchestratorIdempotencyExecutableCoverageTest {
         OrchestratorCommandRepository commandRepository = mock(OrchestratorCommandRepository.class);
         CompanyContextService companyContextService = mock(CompanyContextService.class);
         when(companyContextService.requireCurrentCompany()).thenReturn(company(401L));
-        when(commandRepository.saveAndFlush(any(OrchestratorCommand.class)))
-                .thenThrow(new DataIntegrityViolationException("duplicate key"));
+        when(commandRepository.reserveScope(any(), any(), any(), any(), any())).thenReturn(0);
 
         OrchestratorCommand mismatched = new OrchestratorCommand(
                 401L,
@@ -459,6 +471,19 @@ class TS_RuntimeOrchestratorIdempotencyExecutableCoverageTest {
             }
         };
 
+        String fallbackHash = sha256Hex("601|ORCH.ORDER.APPROVE|fallback-payload");
+        when(commandRepository.reserveScope(601L, "ORCH.ORDER.APPROVE", "idem-fallback", fallbackHash, "trace-fallback"))
+                .thenReturn(1);
+        OrchestratorCommand reserved = new OrchestratorCommand(
+                601L,
+                "ORCH.ORDER.APPROVE",
+                "idem-fallback",
+                fallbackHash,
+                "trace-fallback"
+        );
+        when(commandRepository.lockByScope(601L, "ORCH.ORDER.APPROVE", "idem-fallback"))
+                .thenReturn(Optional.of(reserved));
+
         OrchestratorIdempotencyService.CommandLease lease = service.start(
                 "ORCH.ORDER.APPROVE",
                 "idem-fallback",
@@ -468,7 +493,7 @@ class TS_RuntimeOrchestratorIdempotencyExecutableCoverageTest {
 
         assertThat(lease.shouldExecute()).isTrue();
         assertThat(lease.command().getRequestHash())
-                .isEqualTo(sha256Hex("601|ORCH.ORDER.APPROVE|fallback-payload"));
+                .isEqualTo(fallbackHash);
     }
 
     private Company company(Long id) {
