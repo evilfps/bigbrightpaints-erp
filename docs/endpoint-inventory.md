@@ -1,7 +1,7 @@
 # Endpoint Inventory (OpenAPI)
 
 Source: `openapi.json`
-Updated: 2026-02-16
+Updated: 2026-02-17
 
 Related behavior contract:
 - `docs/PORTAL_DISCOUNT_REFERENCE_BEHAVIOR_GUIDE.md`
@@ -12,12 +12,14 @@ Related behavior contract:
 Portal scope guardrail:
 - HR, PURCHASING, INVENTORY, and REPORTS come under the Accounting portal in frontend scope.
 
-## M18-S9A parity evidence
+## M17-S1 canonical API contract gate (parity evidence)
 
+- Canonical machine contract source: repo-root `openapi.json`.
 - OpenAPI snapshot: `openapi.json` (sha256 `33ddd163c102607970ff0f4c45e95f0c2a9d2965749187f68beb5c012216efa1`)
 - OpenAPI total paths: `228` (includes non-v1 route `GET /api/integration/health`)
 - OpenAPI total operations: `276`
 - Accounting portal endpoint-map parity: `docs/accounting-portal-endpoint-map.md` carries `143` method+path entries over `119` unique paths; all are represented in this inventory and in `openapi.json`.
+- Guard remediation flow (fail-closed): if parity drifts, refresh this evidence from canonical `openapi.json`, update `docs/accounting-portal-endpoint-map.md`, `docs/accounting-portal-frontend-engineer-handoff.md`, and this inventory in the same change, then run `bash scripts/guard_accounting_portal_scope_contract.sh`.
 
 ## Summary by module
 
