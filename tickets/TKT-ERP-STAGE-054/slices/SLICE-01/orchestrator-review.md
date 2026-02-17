@@ -5,5 +5,4 @@ slice: SLICE-01
 status: merged
 
 ## Notes
-- Slice branch merged into base via commit `9b76ecd8`.
-- Required checks confirmed green on merged SHA, including full `mvn test`.
+- Branch already merged into `tmp/orch-exec-20260217`.

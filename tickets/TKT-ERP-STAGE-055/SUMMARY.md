@@ -6,23 +6,13 @@
 - status: done
 - base_branch: tmp/orch-exec-20260217
 - created_at: 2026-02-17T16:09:53+00:00
-- updated_at: 2026-02-17T16:28:10+00:00
+- updated_at: 2026-02-17T16:32:49+00:00
 
 ## Slice Board
 
 | Slice | Agent | Lane | Status | Branch |
 | --- | --- | --- | --- | --- |
 | SLICE-01 | refactor-techdebt-gc | w1 | merged | `tickets/tkt-erp-stage-055/refactor-techdebt-gc` |
-
-## Closure Evidence
-
-- merge commit on base: `1543ac80`
-- slice commit: `fa25cef2`
-- PR: not created (direct-merge lane on integration branch)
-- checks:
-  - `bash ci/check-architecture.sh` PASS
-  - `cd erp-domain && mvn -B -ntp -Dtest=TS_RuntimeOrchestratorIdempotencyExecutableCoverageTest test` PASS
-  - `cd erp-domain && mvn -B -ntp test` PASS (`Tests run: 1321, Failures: 0, Errors: 0, Skipped: 4`)
 
 ## Operator Commands
 

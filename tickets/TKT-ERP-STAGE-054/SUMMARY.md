@@ -6,25 +6,13 @@
 - status: done
 - base_branch: tmp/orch-exec-20260217
 - created_at: 2026-02-17T15:57:56+00:00
-- updated_at: 2026-02-17T16:28:10+00:00
+- updated_at: 2026-02-17T16:32:44+00:00
 
 ## Slice Board
 
 | Slice | Agent | Lane | Status | Branch |
 | --- | --- | --- | --- | --- |
 | SLICE-01 | orchestrator-runtime | w1 | merged | `tickets/tkt-erp-stage-054/orchestrator-runtime` |
-
-## Closure Evidence
-
-- merge commit on base: `9b76ecd8`
-- slice commit: `e1fc732f`
-- PR: not created (direct-merge lane on integration branch)
-- branch push parity: `tmp/orch-exec-20260217` and `harness-engineering-orchestrator` at `1543ac80`
-- checks:
-  - `bash ci/check-architecture.sh` PASS
-  - `bash scripts/guard_orchestrator_correlation_contract.sh` PASS
-  - `cd erp-domain && mvn -B -ntp -Dtest=OrchestratorIdempotencyServiceTest test` PASS
-  - `cd erp-domain && mvn -B -ntp test` PASS (`Tests run: 1321, Failures: 0, Errors: 0, Skipped: 4`)
 
 ## Operator Commands
 

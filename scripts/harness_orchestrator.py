@@ -884,6 +884,15 @@ def count_ahead(repo_root: Path, base_branch: str, branch: str) -> int:
     return int(out) if out.isdigit() else 0
 
 
+def branch_merged_into_base(repo_root: Path, base_branch: str, branch: str) -> bool:
+    ref = branch
+    if not branch_exists(repo_root, branch) and remote_branch_exists(repo_root, branch):
+        ref = f"origin/{branch}"
+
+    proc = run(["git", "merge-base", "--is-ancestor", ref, base_branch], cwd=repo_root, check=False)
+    return proc.returncode == 0
+
+
 def changed_files(repo_root: Path, base_branch: str, branch: str) -> list[str]:
     ref = branch
     if not branch_exists(repo_root, branch) and remote_branch_exists(repo_root, branch):
@@ -1016,20 +1025,37 @@ def verify_ticket(args: argparse.Namespace) -> int:
         overlaps_now = overlap_map.get(sid, [])
         orchestrator_review = slice_dir / "orchestrator-review.md"
         if ahead <= 0:
-            s["status"] = "waiting_for_push"
-            report_lines.append(f"## {sid} ({s.get('primary_agent')})")
-            report_lines.append("- status: waiting_for_push")
-            report_lines.append(f"- branch: `{branch}` has no commits ahead of `{base_branch}`")
-            report_lines.append("")
-            orchestrator_review.write_text(
-                f"# Orchestrator Review\n\n"
-                f"ticket: {args.ticket_id}\n"
-                f"slice: {sid}\n"
-                f"status: waiting_for_push\n\n"
-                f"## Notes\n"
-                f"- Branch has no commits ahead of `{base_branch}`.\n",
-                encoding="utf-8",
-            )
+            if branch_merged_into_base(repo_root, base_branch, branch):
+                s["status"] = "merged"
+                merged_count += 1
+                report_lines.append(f"## {sid} ({s.get('primary_agent')})")
+                report_lines.append("- status: merged")
+                report_lines.append(f"- branch: `{branch}` is already merged into `{base_branch}`")
+                report_lines.append("")
+                orchestrator_review.write_text(
+                    f"# Orchestrator Review\n\n"
+                    f"ticket: {args.ticket_id}\n"
+                    f"slice: {sid}\n"
+                    f"status: merged\n\n"
+                    f"## Notes\n"
+                    f"- Branch already merged into `{base_branch}`.\n",
+                    encoding="utf-8",
+                )
+            else:
+                s["status"] = "waiting_for_push"
+                report_lines.append(f"## {sid} ({s.get('primary_agent')})")
+                report_lines.append("- status: waiting_for_push")
+                report_lines.append(f"- branch: `{branch}` has no commits ahead of `{base_branch}`")
+                report_lines.append("")
+                orchestrator_review.write_text(
+                    f"# Orchestrator Review\n\n"
+                    f"ticket: {args.ticket_id}\n"
+                    f"slice: {sid}\n"
+                    f"status: waiting_for_push\n\n"
+                    f"## Notes\n"
+                    f"- Branch has no commits ahead of `{base_branch}`.\n",
+                    encoding="utf-8",
+                )
             continue
 
         if overlaps_now:
