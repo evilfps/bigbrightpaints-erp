@@ -152,6 +152,10 @@ for file in "${files_to_scan[@]}"; do
   done < <(awk -F'`' '{for(i=2;i<=NF;i+=2) print $i}' "$file")
 done
 
+if ! python3 scripts/check_ticket_status_parity.py; then
+  fail "ticket status parity guard failed (remediation: reconcile ticket.yaml, SUMMARY.md, and TIMELINE.md statuses)"
+fi
+
 if [[ "$errors" -gt 0 ]]; then
   printf '[knowledgebase-lint] %d issue(s) found.\n' "$errors" >&2
   exit 1

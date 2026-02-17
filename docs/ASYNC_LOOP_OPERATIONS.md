@@ -28,6 +28,7 @@ to move the ERP toward staging/predeployment readiness.
 - Docs-only commit exception:
   - skip commit review/subagent,
   - run `bash ci/lint-knowledgebase.sh` and log pass status.
+  - `lint-knowledgebase` now fail-closes if ticket status metadata drifts (`scripts/check_ticket_status_parity.py`).
 - Subagents are for commit review only. Main implementation/audit work stays in
   the primary agent.
 - Maintain backlog floor: at least 3 `ready` slices in `asyncloop`.
@@ -52,6 +53,7 @@ When closing the async-loop final ledger gate (ERP Staging Plan Section 14.3):
    - `expiry` must be `>= start` and `<= start + 14 calendar days`; missing/invalid/expired metadata fails closed and blocks Section 14.3 closure.
 5. Store every gate command output + artifact path inside `asyncloop` for traceability.
 6. Rotate `RELEASE_ANCHOR_SHA` only after all ledger gates pass and evidence is recorded.
+7. Before ticket closure, run `python3 scripts/check_ticket_status_parity.py` (or `bash ci/lint-knowledgebase.sh`) so `ticket.yaml`, `SUMMARY.md`, and `TIMELINE.md` status markers cannot drift.
 
 
 ## Execution Loop (One Iteration)

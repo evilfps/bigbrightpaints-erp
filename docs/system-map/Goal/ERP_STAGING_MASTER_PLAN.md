@@ -268,6 +268,8 @@ Acceptance criteria:
 5. Store command outputs and artifact paths in `asyncloop`.
 6. Rotate `RELEASE_ANCHOR_SHA` only after all required ledger gates pass and evidence is recorded.
 7. Operators must mirror the detailed checklist in `docs/ASYNC_LOOP_OPERATIONS.md#section-14.3-final-gate-protocol` so the runbook and plan stay lockstep.
+8. Enforce ticket closure metadata parity before marking tickets done:
+   - run `python3 scripts/check_ticket_status_parity.py` (or `bash ci/lint-knowledgebase.sh`) so `ticket.yaml`, `SUMMARY.md`, and `TIMELINE.md` cannot drift.
 
 ### 14.4 Reviewer queue saturation checkpoint
 When reviewer-agent capacity is externally saturated:
@@ -373,3 +375,4 @@ Current rule:
 - 2026-02-17: `TKT-ERP-STAGE-038` merged into `harness-engineering-orchestrator` (`586a12ed`, `0d77fffd`) for flake-quarantine contract tightening: `scripts/check_flaky_tags.py` now fails closed on missing/invalid/expired quarantine expiry metadata and policy docs were aligned to require expiry-bounded quarantine plus dual release signal-quality evidence; closure proof is green (`lint-knowledgebase`, `check-architecture`, `check-enterprise-policy`, `gate_reconciliation`, `gate_release`, `verify_local` PASS with `Tests run: 1296, Failures: 0, Errors: 0, Skipped: 4`).
 - 2026-02-17: `TKT-ERP-STAGE-039` merged into `harness-engineering-orchestrator` (`5cf59b8c`, `e3b79ab7`) for quarantine metadata contract enforcement: `scripts/check_flaky_tags.py` now fails closed unless quarantine entries carry valid `owner`, `repro`/`repro_notes`, `start`, and `expiry` metadata with `expiry <= start + 14 days`, and Section 14.3 runbooks/docs were updated to keep operator protocol synchronized with runtime policy; closure proof is green (`lint-knowledgebase`, `check-architecture`, `check-enterprise-policy`, `gate_reconciliation`, `gate_release`, `verify_local` PASS with `Tests run: 1296, Failures: 0, Errors: 0, Skipped: 4`).
 - 2026-02-17: `TKT-ERP-STAGE-040` completed as control-plane closure parity reconciliation: stale statuses in `TKT-ERP-STAGE-001` and `TKT-ERP-STAGE-030` were backfilled to match merged evidence, and ticket ledger traceability was aligned without runtime code changes (`lint-knowledgebase`, `check-architecture`, `check-enterprise-policy` PASS).
+- 2026-02-17: `TKT-ERP-STAGE-041` merged into `harness-engineering-orchestrator` for closure-drift fail-fast hardening: added `scripts/check_ticket_status_parity.py`, wired it into `ci/lint-knowledgebase.sh`, and codified the parity requirement in async-loop/runbook closure protocol; strict release checks are green (`lint-knowledgebase`, `gate_reconciliation`, `gate_release` PASS).
