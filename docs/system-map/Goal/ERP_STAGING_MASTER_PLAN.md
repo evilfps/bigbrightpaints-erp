@@ -298,6 +298,14 @@ When reviewer-agent capacity is externally saturated:
 5. Keep runbook and plan synchronized by following `docs/ASYNC_LOOP_OPERATIONS.md` Section 14.4/14.5.
 6. Before marking a slice done, run `bash ci/lint-knowledgebase.sh` so ticket metadata parity remains enforced.
 
+### 14.7 Merge-ready ticket sequencing and deployment-gate discipline
+For integration PR and merge-queue posture:
+1. Sequence merge-ready tickets by dependency and risk ordering, not by local completion order.
+2. Require integration-base freshness before merge-ready promotion (fetch + rebase/merge onto current integration branch) and rerun required lane checks on refreshed `HEAD`.
+3. Treat shared-path conflicts as fail-closed blockers until resolved on latest base with explicit evidence (conflict paths + upstream SHA).
+4. Invalidate pre-conflict gate evidence; only post-resolution `HEAD` gate outputs are admissible.
+5. Accept Section 14.3 final closure only from integration `HEAD` after merge sequencing is complete and recorded in `asyncloop`.
+
 ## 15) Virtual Accountant Vision (Deferred Until Stable Base)
 This remains strategic vision after stabilization:
 - NLP/LLM parses user intent,

@@ -76,6 +76,17 @@ Lane rules:
 5. If a failure repeats on unchanged `HEAD`, fail closed, open a blocker entry, and escalate at `R2` instead of looping retries.
 6. Before slice closure, run `bash ci/lint-knowledgebase.sh` so ticket metadata parity remains enforced.
 
+## Section 14.6 Merge-Ready Ticket Sequencing and Deployment-Gate Discipline
+For integration PR and merge-queue operation:
+1. Sequence tickets by dependency evidence, not by local completion timestamp.
+2. Before opening or updating a merge-ready PR, confirm base freshness against integration branch (`git fetch` + rebase/merge) and re-run required lane checks on the refreshed `HEAD`.
+3. If PR conflict appears in shared workflow/rule files, fail closed:
+   - mark ticket `blocked`,
+   - capture conflicting paths + upstream SHA in evidence,
+   - reopen only after replaying on the latest integration base.
+4. Do not carry forward stale gate claims from pre-conflict SHAs; gate evidence is valid only for the post-resolution `HEAD`.
+5. For deployment gating, only accept final Section 14.3 closure evidence produced on integration `HEAD` after merge sequencing is complete.
+
 
 ## Execution Loop (One Iteration)
 1. Pick highest-risk `in_progress` or top `ready` slice from `asyncloop`.
