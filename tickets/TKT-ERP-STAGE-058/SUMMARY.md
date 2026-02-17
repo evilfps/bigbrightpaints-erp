@@ -6,14 +6,14 @@
 - status: in_progress
 - base_branch: tmp/orch-exec-20260217
 - created_at: 2026-02-17T17:16:18+00:00
-- updated_at: 2026-02-17T23:36:30+00:00
+- updated_at: 2026-02-17T23:47:30+00:00
 
 ## Slice Board
 
 | Slice | Agent | Lane | Status | Branch |
 | --- | --- | --- | --- | --- |
 | SLICE-01 | auth-rbac-company | w1 | in_progress | `tickets/tkt-erp-stage-058/auth-rbac-company` |
-| SLICE-02 | data-migration | w2 | in_progress | `tickets/tkt-erp-stage-058/data-migration` |
+| SLICE-02 | data-migration | w2 | pending_review | `tickets/tkt-erp-stage-058/data-migration` |
 | SLICE-03 | refactor-techdebt-gc | w3 | in_progress | `tickets/tkt-erp-stage-058/refactor-techdebt-gc` |
 
 ## Operator Commands

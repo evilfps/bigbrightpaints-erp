@@ -30,7 +30,7 @@ Implement superadmin-governed tenant quota fields and fail-closed update/read co
 ## Required Checks Before Done
 - `bash scripts/flyway_overlap_scan.sh --migration-set v2`
 - `bash scripts/schema_drift_scan.sh --migration-set v2`
-- `bash scripts/release_migration_matrix_v2.sh`
+- `bash scripts/release_migration_matrix.sh --migration-set v2`
 
 ## Reviewer Contract
 - Review-only agents do not commit code.

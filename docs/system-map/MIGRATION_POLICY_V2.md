@@ -26,7 +26,7 @@
 2. Drift scan: `bash scripts/schema_drift_scan.sh --migration-set v2`
 3. Legacy freeze guard before commit/deploy: `bash scripts/guard_legacy_migration_freeze.sh`
 4. CI verification with `MIGRATION_SET=v2 bash scripts/verify_local.sh` and `gate_release` matrix.
-5. Release matrix validation: `bash scripts/release_migration_matrix_v2.sh`.
+5. Release matrix validation: `bash scripts/release_migration_matrix.sh --migration-set v2`.
 6. For any applied schema change, add a new v2 migration only; never mutate existing migration file content.
 
 ## Convergence policy

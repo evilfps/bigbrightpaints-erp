@@ -7,7 +7,7 @@ status: in_progress
 base_branch: tmp/orch-exec-20260217
 worktree_root: /home/realnigga/Desktop/orchestrator_erp_worktrees/_tmp_orch_exec_worktrees
 created_at: '2026-02-17T17:16:18+00:00'
-updated_at: '2026-02-17T23:36:30+00:00'
+updated_at: '2026-02-17T23:47:30+00:00'
 r3_required: true
 orchestrator_authority:
   r1: orchestrator
@@ -107,8 +107,8 @@ slices:
   required_checks:
   - bash scripts/flyway_overlap_scan.sh --migration-set v2
   - bash scripts/schema_drift_scan.sh --migration-set v2
-  - bash scripts/release_migration_matrix_v2.sh
-  status: in_progress
+  - bash scripts/release_migration_matrix.sh --migration-set v2
+  status: pending_review
   objective: Implement superadmin-governed tenant quota fields and fail-closed update/read
     contract baseline
   workflow_upstream_slices: []

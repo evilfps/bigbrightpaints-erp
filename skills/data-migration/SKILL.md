@@ -20,7 +20,7 @@ description: Plan Flyway v2 migrations with dry-run, validation, and rollback dr
 ## Required tools/commands
 - `bash scripts/flyway_overlap_scan.sh --migration-set v2`
 - `bash scripts/schema_drift_scan.sh --migration-set v2`
-- `bash scripts/release_migration_matrix_v2.sh`
+- `bash scripts/release_migration_matrix.sh --migration-set v2`
 
 ## Outputs
 - New migration file(s)
