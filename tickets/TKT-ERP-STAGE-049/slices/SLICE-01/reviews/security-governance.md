@@ -3,11 +3,11 @@
 ticket: TKT-ERP-STAGE-049
 slice: SLICE-01
 reviewer: security-governance
-status: pending
+status: approved
 
 ## Findings
-- pending
+- No security regressions found; superadmin-only prefilters reduce attack surface and preserve fail-closed tenant control boundaries.
 
 ## Evidence
-- commands: pending
-- artifacts: pending
+- commands: bash ci/check-architecture.sh; cd erp-domain && mvn -B -ntp -Dtest='AuthTenantAuthorityIT,CompanyControllerIT' test
+- artifacts: commit:784fda14
