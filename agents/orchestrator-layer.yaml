@@ -18,8 +18,8 @@ runtime:
   codex_exec:
     require_explicit_model_and_reasoning: true
     default_model: gpt-5.3-codex
-    command_template: codex exec -m gpt-5.3-codex -c reasoning_effort="<xhigh|high|medium>" --dangerously-bypass-approvals-and-sandbox
-    canonical_full_access_command: codex exec -m gpt-5.3-codex -c reasoning_effort="<xhigh|high|medium>" --dangerously-bypass-approvals-and-sandbox
+    command_template: codex exec -m gpt-5.3-codex -c model_reasoning_effort="<high|medium|low|minimal>" --dangerously-bypass-approvals-and-sandbox
+    canonical_full_access_command: codex exec -m gpt-5.3-codex -c model_reasoning_effort="<high|medium|low|minimal>" --dangerously-bypass-approvals-and-sandbox
     full_access_flag: --dangerously-bypass-approvals-and-sandbox
     cli_help_note: codex exec --help lists canonical full-access flag; --yolo is compatibility alias only
     compatibility_aliases:
@@ -73,7 +73,7 @@ dispatch_protocol:
     - keep planning/bootstrapping upcoming goal tickets in parallel
     - replenish backlog immediately if ready tickets drop below two
   flow_command_templates:
-    codex_exec: codex exec -m gpt-5.3-codex -c reasoning_effort="<xhigh|high|medium>" --dangerously-bypass-approvals-and-sandbox
+    codex_exec: codex exec -m gpt-5.3-codex -c model_reasoning_effort="<high|medium|low|minimal>" --dangerously-bypass-approvals-and-sandbox
     tmux: tmux new-session -d -s <ticket> 'cd <worktree> && codex --yolo'
   require_agent_identity_on_every_submission: true
   task_packet_isolation_required: true
@@ -257,3 +257,17 @@ completion_contract:
     - review_pipeline_complete
     - evidence_recorded_in_asyncloop
     - no_scope_violations
+branch_execution_policy:
+  merge_sequence:
+    - merge one ticket slice branch at a time into base
+    - rerun required checks on merged base SHA after each merge
+    - push base immediately after merged-sha checks pass
+    - only then proceed to next ticket merge
+  worktree_base:
+    - bootstrap new ticket worktrees from latest pushed base HEAD
+    - never bootstrap from old slice branches
+    - if local base is behind, fetch + fast-forward before ticket bootstrap
+  pr_and_branch_hygiene:
+    - if PR workflow is used, record PR URL in ticket summary/timeline
+    - if direct merge workflow is used, record direct-merge rationale in timeline
+    - delete only orchestrator-created branches after merge confirmation

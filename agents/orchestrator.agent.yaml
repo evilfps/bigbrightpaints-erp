@@ -49,8 +49,8 @@ execution_workflow:
   codex_exec:
     require_explicit_model_and_reasoning: true
     default_model: gpt-5.3-codex
-    command_template: codex exec -m gpt-5.3-codex -c reasoning_effort="<xhigh|high|medium>" --dangerously-bypass-approvals-and-sandbox
-    canonical_full_access_command: codex exec -m gpt-5.3-codex -c reasoning_effort="<xhigh|high|medium>" --dangerously-bypass-approvals-and-sandbox
+    command_template: codex exec -m gpt-5.3-codex -c model_reasoning_effort="<high|medium|low|minimal>" --dangerously-bypass-approvals-and-sandbox
+    canonical_full_access_command: codex exec -m gpt-5.3-codex -c model_reasoning_effort="<high|medium|low|minimal>" --dangerously-bypass-approvals-and-sandbox
     full_access_flag: --dangerously-bypass-approvals-and-sandbox
     cli_help_note: codex exec --help lists canonical full-access flag; --yolo is compatibility alias only
     compatibility_aliases:
@@ -107,3 +107,16 @@ branch_hygiene:
   cleanup_scope: orchestrator_created_only
   protect_user_owned_branches: true
   require_full_green_before_merge: true
+  sequence_policy:
+    - merge one ticket slice branch at a time into base
+    - after each merge, run required checks on merged base SHA before next merge
+    - push base branch immediately after successful merged-sha checks
+    - update ticket status and closure artifacts before starting next ticket
+  worktree_base_policy:
+    - new ticket worktrees must be created from latest pushed base branch HEAD
+    - never branch new ticket worktrees from prior ticket slice branches
+    - if base is behind remote, fetch and fast-forward base before bootstrap
+  pr_tracking_policy:
+    - if using direct merges (no PR), record explicit reason in ticket timeline
+    - if PR is created, record URL in ticket summary and close/delete slice branch only after merge
+    - verify remote branch and PR state before branch deletion
