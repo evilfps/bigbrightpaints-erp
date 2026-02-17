@@ -475,15 +475,17 @@
       "id": "ts-runtime-reference-number-executable-coverage",
       "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeReferenceNumberServiceExecutableCoverageTest.java",
       "owner": "erp-domain-team",
-      "class": "useful",
+      "class": "critical",
       "module": "RuntimeCoverage",
       "gate_membership": [
+        "gate-fast",
         "gate-core",
         "gate-release",
         "gate-reconciliation",
         "gate-quality"
       ],
       "tags": [
+        "critical",
         "concurrency",
         "reconciliation"
       ],
