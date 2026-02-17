@@ -33,6 +33,8 @@ Worktree: `<path>`
 - Include residual risk + blocker if unresolved.
 
 ## Required Output
+- Begin response with identity line:
+  - `I am <agent-id> and I own <SLICE-ID>.`
 - files_changed
 - commands_run
 - harness_results
