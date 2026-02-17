@@ -1,6 +1,6 @@
 # Async Loop Operations Runbook
 
-Last reviewed: 2026-02-15
+Last reviewed: 2026-02-17
 Owner: Orchestrator Agent
 
 This runbook defines the non-stop autonomous workflow used in this repository
@@ -54,6 +54,27 @@ When closing the async-loop final ledger gate (ERP Staging Plan Section 14.3):
 5. Store every gate command output + artifact path inside `asyncloop` for traceability.
 6. Rotate `RELEASE_ANCHOR_SHA` only after all ledger gates pass and evidence is recorded.
 7. Before ticket closure, run `python3 scripts/check_ticket_status_parity.py` (or `bash ci/lint-knowledgebase.sh`) so `ticket.yaml`, `SUMMARY.md`, and `TIMELINE.md` status markers cannot drift.
+
+## Section 14.4 Deterministic Verify Strategy (High-Signal Lanes)
+For autonomous codex-exec operation, use the smallest fail-closed lane that matches slice risk:
+1. `docs_lane` (docs-only): run `bash ci/lint-knowledgebase.sh` only.
+2. `fast_lane` (default code slices): run `bash scripts/gate_fast.sh`.
+3. `strict_lane` (accounting/auth/migrations/orchestrator semantics): run `bash scripts/gate_fast.sh` then `bash scripts/gate_core.sh`.
+4. `ledger_lane` (Section 14.3 closure only): run anchored `gate_fast` release mode plus `gate_core`, `gate_reconciliation`, and `gate_release` on the same `HEAD`.
+
+Lane rules:
+- Promote lanes only when changed-path risk or failure class requires stronger proof.
+- Do not run `gate_reconciliation`/`gate_release` for routine slices.
+- No blind reruns: rerun a lane only after a concrete change (code/config/docs/quarantine metadata).
+- Flake and quarantine policies stay fail-closed; never bypass with ad-hoc retries.
+
+## Section 14.5 Autonomous Operator Workflow (Codex-Exec)
+1. Capture `VERIFY_HEAD_SHA=$(git rev-parse HEAD)` and lane base (`DIFF_BASE` or `RELEASE_ANCHOR_SHA`) before running checks.
+2. Record selected lane (`docs_lane`, `fast_lane`, `strict_lane`, `ledger_lane`) in `asyncloop`.
+3. Execute lane commands in deterministic order and store artifact paths under `artifacts/gate-*`.
+4. Append command, exit status, SHA, and artifact references to `asyncloop` immediately after each run.
+5. If a failure repeats on unchanged `HEAD`, fail closed, open a blocker entry, and escalate at `R2` instead of looping retries.
+6. Before slice closure, run `bash ci/lint-knowledgebase.sh` so ticket metadata parity remains enforced.
 
 
 ## Execution Loop (One Iteration)

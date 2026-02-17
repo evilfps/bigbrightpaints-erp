@@ -1,6 +1,6 @@
 # ERP Staging Master Plan (Final Stability Plan)
 
-Last reviewed: 2026-02-15
+Last reviewed: 2026-02-17
 Owner: Orchestrator Agent
 Status: Active
 
@@ -277,6 +277,26 @@ When reviewer-agent capacity is externally saturated:
 2. Append queue status + blocked reason in `asyncloop` with pending commit SHAs.
 3. Retry reviewer-subagent dispatch at least once each loop cycle.
 4. Before final staging closure, ensure every queued code commit has reviewer outcome (findings or explicit no-findings).
+
+### 14.5 Deterministic high-signal verify strategy (codex-exec)
+- Reliability objective: reduce flake/time overhead by defaulting to the smallest fail-closed verify lane.
+- Lane model:
+  - `docs_lane`: `bash ci/lint-knowledgebase.sh` for docs-only slices.
+  - `fast_lane`: `bash scripts/gate_fast.sh` for default bounded code slices.
+  - `strict_lane`: `bash scripts/gate_fast.sh` then `bash scripts/gate_core.sh` for accounting/auth/migration/orchestrator semantics.
+  - `ledger_lane`: Section 14.3 full anchored ledger gate sequence on one SHA.
+- Promotion/demotion rules:
+  - promote only when risk scope or failing signal requires stronger proof,
+  - do not downgrade after a failure without explicit evidence-backed scope reduction,
+  - keep quarantine/flake checks fail-closed (no ad-hoc retry bypass).
+
+### 14.6 Autonomous operator workflow (codex-exec)
+1. Pin `VERIFY_HEAD_SHA` and lane base (`DIFF_BASE` or `RELEASE_ANCHOR_SHA`) before running any lane command.
+2. Execute lane commands in deterministic order with no duplicate reruns on unchanged `HEAD`.
+3. Record command list, exit outcomes, and artifact paths in `asyncloop` for every run.
+4. On repeated failure at unchanged `HEAD`, fail closed, log blocker evidence, and escalate via `R2`.
+5. Keep runbook and plan synchronized by following `docs/ASYNC_LOOP_OPERATIONS.md` Section 14.4/14.5.
+6. Before marking a slice done, run `bash ci/lint-knowledgebase.sh` so ticket metadata parity remains enforced.
 
 ## 15) Virtual Accountant Vision (Deferred Until Stable Base)
 This remains strategic vision after stabilization:
