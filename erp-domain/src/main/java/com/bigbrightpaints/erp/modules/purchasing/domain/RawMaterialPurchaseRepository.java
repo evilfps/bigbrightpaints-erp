@@ -30,7 +30,11 @@ public interface RawMaterialPurchaseRepository extends JpaRepository<RawMaterial
     Optional<RawMaterialPurchase> findByCompanyAndId(Company company, Long id);
     Optional<RawMaterialPurchase> findByCompanyAndInvoiceNumberIgnoreCase(Company company, String invoiceNumber);
     Optional<RawMaterialPurchase> findByCompanyAndGoodsReceipt(Company company, GoodsReceipt goodsReceipt);
+
+    @EntityGraph(attributePaths = {"supplier", "journalEntry", "purchaseOrder", "goodsReceipt"})
     Optional<RawMaterialPurchase> findByCompanyAndJournalEntry(Company company, JournalEntry journalEntry);
+
+    @EntityGraph(attributePaths = {"supplier", "journalEntry", "purchaseOrder", "goodsReceipt"})
     List<RawMaterialPurchase> findByCompanyAndJournalEntry_IdIn(Company company, List<Long> journalEntryIds);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
