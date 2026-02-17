@@ -277,6 +277,33 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
     }
 
     @Test
+    void tenant_configuration_update_is_super_admin_only() {
+        Long tenantAId = companyRepository.findByCodeIgnoreCase(TENANT_A).map(Company::getId).orElseThrow();
+
+        String adminToken = login(ADMIN_EMAIL, TENANT_A);
+        ResponseEntity<Map> adminResponse = updateCompany(
+                tenantAId,
+                adminToken,
+                TENANT_A,
+                "Blocked Admin Update",
+                TENANT_A,
+                "UTC",
+                18.0);
+        assertThat(adminResponse.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+
+        String superAdminToken = login(SUPER_ADMIN_EMAIL, TENANT_A);
+        ResponseEntity<Map> superAdminResponse = updateCompany(
+                tenantAId,
+                superAdminToken,
+                TENANT_A,
+                "Allowed Super Admin Update",
+                TENANT_A,
+                "UTC",
+                18.0);
+        assertThat(superAdminResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+    }
+
+    @Test
     void tenant_mismatch_and_cross_tenant_idor_fail_closed() {
         String token = login(ADMIN_EMAIL, TENANT_A);
         Long tenantBId = companyRepository.findByCodeIgnoreCase(TENANT_B).map(Company::getId).orElseThrow();
@@ -344,6 +371,25 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
                 new HttpEntity<>(Map.of(
                         "state", state,
                         "reason", reason
+                ), jsonHeaders(token, companyCode)),
+                Map.class);
+    }
+
+    private ResponseEntity<Map> updateCompany(Long companyId,
+                                              String token,
+                                              String companyCode,
+                                              String name,
+                                              String code,
+                                              String timezone,
+                                              double defaultGstRate) {
+        return rest.exchange(
+                "/api/v1/companies/" + companyId,
+                HttpMethod.PUT,
+                new HttpEntity<>(Map.of(
+                        "name", name,
+                        "code", code,
+                        "timezone", timezone,
+                        "defaultGstRate", defaultGstRate
                 ), jsonHeaders(token, companyCode)),
                 Map.class);
     }

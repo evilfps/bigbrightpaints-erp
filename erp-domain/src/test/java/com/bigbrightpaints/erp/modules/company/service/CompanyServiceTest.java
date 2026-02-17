@@ -78,6 +78,7 @@ class CompanyServiceTest {
 
     @Test
     void update_deniesWhenNotMember() {
+        authenticateAs("ROLE_SUPER_ADMIN");
         Company allowed = company(1L, "ACME");
         CompanyRequest request = new CompanyRequest("New Name", "NEW", "UTC", BigDecimal.TEN);
 
@@ -90,6 +91,7 @@ class CompanyServiceTest {
 
     @Test
     void update_allowsMember() {
+        authenticateAs("ROLE_SUPER_ADMIN");
         Company allowed = company(1L, "ACME");
         CompanyRequest request = new CompanyRequest("New Name", "NEW", "UTC", BigDecimal.TEN);
         when(repository.findById(1L)).thenReturn(Optional.of(allowed));
@@ -99,6 +101,19 @@ class CompanyServiceTest {
         assertThat(dto.id()).isEqualTo(1L);
         assertThat(dto.name()).isEqualTo("New Name");
         assertThat(dto.code()).isEqualTo("NEW");
+    }
+
+    @Test
+    void update_deniesTenantAdminEvenWhenMember() {
+        authenticateAs("ROLE_ADMIN");
+        Company allowed = company(1L, "ACME");
+        CompanyRequest request = new CompanyRequest("New Name", "NEW", "UTC", BigDecimal.TEN);
+
+        assertThatThrownBy(() -> companyService.update(1L, request, Set.of(allowed)))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessageContaining("SUPER_ADMIN authority required for tenant configuration updates");
+
+        verify(repository, never()).findById(anyLong());
     }
 
     @Test

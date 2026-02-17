@@ -87,4 +87,39 @@ public class CompanyControllerIT extends AbstractIntegrationTest {
                 Map.class);
         assertThat(superAdminResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
     }
+
+    @Test
+    void tenant_configuration_update_requires_super_admin() {
+        Long companyId = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow().getId();
+        Map<String, Object> updateRequest = Map.of(
+                "name", "Config Updated",
+                "code", COMPANY_CODE,
+                "timezone", "UTC",
+                "defaultGstRate", 18.0
+        );
+
+        String adminToken = loginToken(ADMIN_EMAIL, COMPANY_CODE);
+        HttpHeaders adminHeaders = new HttpHeaders();
+        adminHeaders.setBearerAuth(adminToken);
+        adminHeaders.setContentType(MediaType.APPLICATION_JSON);
+        adminHeaders.set("X-Company-Code", COMPANY_CODE);
+        ResponseEntity<Map> adminResponse = rest.exchange(
+                "/api/v1/companies/" + companyId,
+                HttpMethod.PUT,
+                new HttpEntity<>(updateRequest, adminHeaders),
+                Map.class);
+        assertThat(adminResponse.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+
+        String superAdminToken = loginToken(SUPER_ADMIN_EMAIL, COMPANY_CODE);
+        HttpHeaders superAdminHeaders = new HttpHeaders();
+        superAdminHeaders.setBearerAuth(superAdminToken);
+        superAdminHeaders.setContentType(MediaType.APPLICATION_JSON);
+        superAdminHeaders.set("X-Company-Code", COMPANY_CODE);
+        ResponseEntity<Map> superAdminResponse = rest.exchange(
+                "/api/v1/companies/" + companyId,
+                HttpMethod.PUT,
+                new HttpEntity<>(updateRequest, superAdminHeaders),
+                Map.class);
+        assertThat(superAdminResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+    }
 }

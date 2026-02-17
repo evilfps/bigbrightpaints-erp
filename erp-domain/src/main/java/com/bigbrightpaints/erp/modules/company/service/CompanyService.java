@@ -81,6 +81,7 @@ public class CompanyService {
 
     @Transactional
     public CompanyDto update(Long id, CompanyRequest request, Set<Company> allowedCompanies) {
+        requireSuperAdminForTenantConfigurationUpdate();
         requireMembershipById(id, allowedCompanies);
         Company company = repository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Company not found"));
@@ -234,6 +235,13 @@ public class CompanyService {
             throw new AccessDeniedException("SUPER_ADMIN authority required for tenant metrics");
         }
         return authentication;
+    }
+
+    private void requireSuperAdminForTenantConfigurationUpdate() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (!hasAuthority(authentication, "ROLE_SUPER_ADMIN")) {
+            throw new AccessDeniedException("SUPER_ADMIN authority required for tenant configuration updates");
+        }
     }
 
     private boolean hasAuthority(Authentication authentication, String authority) {

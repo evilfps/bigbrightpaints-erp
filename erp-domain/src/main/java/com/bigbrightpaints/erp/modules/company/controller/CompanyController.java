@@ -58,7 +58,7 @@ public class CompanyController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
+    @PreAuthorize("hasAuthority('ROLE_SUPER_ADMIN')")
     public ResponseEntity<ApiResponse<CompanyDto>> update(@AuthenticationPrincipal com.bigbrightpaints.erp.modules.auth.domain.UserPrincipal principal,
                                                            @PathVariable Long id,
                                                            @Valid @RequestBody CompanyRequest request) {
