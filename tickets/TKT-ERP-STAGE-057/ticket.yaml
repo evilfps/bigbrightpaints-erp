@@ -3,88 +3,17 @@ title: Tenant Metrics Control Plane Coverage Expansion
 goal: Extend superadmin tenant metrics toward mandatory control-plane coverage with
   deterministic, test-backed fields
 priority: high
-status: planned
+status: done
 base_branch: tmp/orch-exec-20260217
 worktree_root: /home/realnigga/Desktop/orchestrator_erp_worktrees/_tmp_orch_exec_worktrees
 created_at: '2026-02-17T16:47:24+00:00'
-updated_at: '2026-02-17T16:47:24+00:00'
+updated_at: '2026-02-17T17:12:49+00:00'
 r3_required: true
 orchestrator_authority:
   r1: orchestrator
   r2: orchestrator
   r3: human
 slices:
-- id: SLICE-01
-  primary_agent: auth-rbac-company
-  reviewers:
-  - qa-reliability
-  - security-governance
-  scope_paths:
-  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/company/dto/CompanyTenantMetricsDto.java
-  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/company/service/CompanyService.java
-  allowed_scope_paths:
-  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/auth/
-  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/rbac/
-  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/company/
-  - erp-domain/src/main/java/com/bigbrightpaints/erp/core/security/
-  - erp-domain/src/test/java/com/bigbrightpaints/erp/modules/auth/
-  matched_rules:
-  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/company/
-  lane: w1
-  branch: tickets/tkt-erp-stage-057/auth-rbac-company
-  worktree_path: /home/realnigga/Desktop/orchestrator_erp_worktrees/_tmp_orch_exec_worktrees/TKT-ERP-STAGE-057/auth-rbac-company
-  required_checks:
-  - bash ci/check-architecture.sh
-  status: ready
-  objective: Extend superadmin tenant metrics toward mandatory control-plane coverage
-    with deterministic, test-backed fields
-  workflow_upstream_slices: []
-  workflow_downstream_slices: []
-  workflow_external_upstream_agents: []
-  workflow_external_downstream_agents:
-  - accounting-domain
-  - factory-production
-  - hr-domain
-  - inventory-domain
-  - purchasing-invoice-p2p
-  - reports-admin-portal
-  - sales-domain
-  cross_workflow_contracts:
-  - relation: downstream-external
-    agent: accounting-domain
-    slice_id: ''
-    contract: finance/admin authority boundaries
-    in_ticket: false
-  - relation: downstream-external
-    agent: factory-production
-    slice_id: ''
-    contract: tenant-scoped manufacturing operations
-    in_ticket: false
-  - relation: downstream-external
-    agent: hr-domain
-    slice_id: ''
-    contract: payroll/PII access boundaries
-    in_ticket: false
-  - relation: downstream-external
-    agent: inventory-domain
-    slice_id: ''
-    contract: tenant context and role checks
-    in_ticket: false
-  - relation: downstream-external
-    agent: purchasing-invoice-p2p
-    slice_id: ''
-    contract: tenant-scoped supplier/AP access rules
-    in_ticket: false
-  - relation: downstream-external
-    agent: reports-admin-portal
-    slice_id: ''
-    contract: admin/report access boundaries
-    in_ticket: false
-  - relation: downstream-external
-    agent: sales-domain
-    slice_id: ''
-    contract: tenant and role boundary contract
-    in_ticket: false
 - id: SLICE-02
   primary_agent: refactor-techdebt-gc
   reviewers:
@@ -105,7 +34,7 @@ slices:
   required_checks:
   - bash ci/check-architecture.sh
   - cd erp-domain && mvn -B -ntp test
-  status: ready
+  status: merged
   objective: Extend superadmin tenant metrics toward mandatory control-plane coverage
     with deterministic, test-backed fields
   workflow_upstream_slices: []
@@ -115,5 +44,5 @@ slices:
   cross_workflow_contracts: []
 cross_workflow:
   model: workflow_agent_edges_v1
-  generated_at: '2026-02-17T16:47:24+00:00'
+  generated_at: '2026-02-17T17:12:48+00:00'
   in_ticket_edges: []

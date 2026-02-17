@@ -898,7 +898,12 @@ def changed_files(repo_root: Path, base_branch: str, branch: str) -> list[str]:
     if not branch_exists(repo_root, branch) and remote_branch_exists(repo_root, branch):
         ref = f"origin/{branch}"
 
-    proc = run(["git", "diff", "--name-only", f"{base_branch}..{ref}"], cwd=repo_root, check=False)
+    merge_base_proc = run(["git", "merge-base", base_branch, ref], cwd=repo_root, check=False)
+    diff_base = merge_base_proc.stdout.strip() if merge_base_proc.returncode == 0 else base_branch
+    if not diff_base:
+        diff_base = base_branch
+
+    proc = run(["git", "diff", "--name-only", f"{diff_base}..{ref}"], cwd=repo_root, check=False)
     if proc.returncode != 0:
         return []
     return [line.strip() for line in proc.stdout.splitlines() if line.strip()]

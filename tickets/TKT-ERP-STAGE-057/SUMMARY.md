@@ -3,17 +3,16 @@
 - title: Tenant Metrics Control Plane Coverage Expansion
 - goal: Extend superadmin tenant metrics toward mandatory control-plane coverage with deterministic, test-backed fields
 - priority: high
-- status: planned
+- status: done
 - base_branch: tmp/orch-exec-20260217
 - created_at: 2026-02-17T16:47:24+00:00
-- updated_at: 2026-02-17T16:47:24+00:00
+- updated_at: 2026-02-17T17:12:49+00:00
 
 ## Slice Board
 
 | Slice | Agent | Lane | Status | Branch |
 | --- | --- | --- | --- | --- |
-| SLICE-01 | auth-rbac-company | w1 | ready | `tickets/tkt-erp-stage-057/auth-rbac-company` |
-| SLICE-02 | refactor-techdebt-gc | w2 | ready | `tickets/tkt-erp-stage-057/refactor-techdebt-gc` |
+| SLICE-02 | refactor-techdebt-gc | w2 | merged | `tickets/tkt-erp-stage-057/refactor-techdebt-gc` |
 
 ## Operator Commands
 
