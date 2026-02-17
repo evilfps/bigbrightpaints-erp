@@ -54,8 +54,12 @@ import com.bigbrightpaints.erp.test.support.CanonicalErpDatasetBuilder;
 import com.bigbrightpaints.erp.test.support.TestDateUtils;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestMethodOrder;
+import org.junit.jupiter.api.parallel.Execution;
+import org.junit.jupiter.api.parallel.ExecutionMode;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.http.HttpEntity;
@@ -78,9 +82,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 @DisplayName("ERP Invariants: Golden Paths")
 @Tag("critical")
 @Tag("reconciliation")
+@TestMethodOrder(MethodOrderer.MethodName.class)
+@Execution(ExecutionMode.SAME_THREAD)
 public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
 
     private static final String PASSWORD = "test123";
+    private static final Instant DETERMINISTIC_BASE_INSTANT = Instant.parse("2024-01-01T00:00:00Z");
     private static final List<String> BASE_ROLES = List.of(
             "ROLE_ADMIN", "ROLE_ACCOUNTING", "ROLE_SALES", "ROLE_FACTORY", "dispatch.confirm"
     );
@@ -118,6 +125,7 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
     private CanonicalErpDataset prod;
     private CanonicalErpDataset payroll;
     private CanonicalErpDataset r2r;
+    private long deterministicSequence = 1L;
 
     @BeforeAll
     void setupFixtures() {
@@ -693,7 +701,7 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
         PurchaseWorkflowIds workflow = createPurchaseOrderAndReceipt(headers, returnDataset.supplier().getId(),
                 material.getId(), new BigDecimal("10"), new BigDecimal("15.00"), entryDate);
 
-        String invoiceNumber = "P2P-RET-INV-" + System.nanoTime();
+        String invoiceNumber = nextDeterministicToken("P2P-RET-INV");
         Map<String, Object> purchaseReq = new HashMap<>();
         purchaseReq.put("supplierId", returnDataset.supplier().getId());
         purchaseReq.put("invoiceNumber", invoiceNumber);
@@ -711,7 +719,7 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
                 .orElseThrow(() -> new AssertionError("Raw material missing after purchase"));
         assertThat(afterPurchase.getCurrentStock()).isEqualByComparingTo(new BigDecimal("10"));
 
-        String returnRef = "P2P-RET-" + System.nanoTime();
+        String returnRef = nextDeterministicToken("P2P-RET");
         Map<String, Object> returnReq = new HashMap<>();
         returnReq.put("supplierId", returnDataset.supplier().getId());
         returnReq.put("purchaseId", purchaseId);
@@ -800,7 +808,7 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
         packingRequest.put("productionLogId", logId);
         packingRequest.put("packedDate", entryDate);
         packingRequest.put("packedBy", "packer");
-        packingRequest.put("idempotencyKey", "INV-PACK-" + logId + "-" + System.nanoTime());
+        packingRequest.put("idempotencyKey", nextDeterministicToken("INV-PACK-" + logId));
         packingRequest.put("lines", List.of(packingLine));
 
         ResponseEntity<Map> packingResp = rest.exchange("/api/v1/factory/packing-records",
@@ -1168,7 +1176,7 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
         batch.setCostPerUnit(unitCost);
         batch.setBatchCode("BATCH-" + sku);
         batch.setUnit(saved.getUnitType());
-        batch.setReceivedAt(Instant.now());
+        batch.setReceivedAt(nextDeterministicInstant());
         rawMaterialBatchRepository.save(batch);
         return saved;
     }
@@ -1215,7 +1223,7 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
         batch.setCostPerUnit(unitCost);
         batch.setBatchCode("BATCH-" + sku);
         batch.setUnit(saved.getUnitType());
-        batch.setReceivedAt(Instant.now());
+        batch.setReceivedAt(nextDeterministicInstant());
         rawMaterialBatchRepository.save(batch);
         return saved;
     }
@@ -1230,10 +1238,18 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
         batch.setRawMaterial(saved);
         batch.setQuantity(topUp);
         batch.setCostPerUnit(unitCost);
-        batch.setBatchCode("BATCH-" + saved.getSku() + "-" + System.currentTimeMillis());
+        batch.setBatchCode(nextDeterministicToken("BATCH-" + saved.getSku()));
         batch.setUnit(saved.getUnitType());
-        batch.setReceivedAt(Instant.now());
+        batch.setReceivedAt(nextDeterministicInstant());
         rawMaterialBatchRepository.save(batch);
+    }
+
+    private String nextDeterministicToken(String prefix) {
+        return prefix + "-" + deterministicSequence++;
+    }
+
+    private Instant nextDeterministicInstant() {
+        return DETERMINISTIC_BASE_INSTANT.plusSeconds(deterministicSequence++);
     }
 
     private ProductionBrand ensureBrand(Company company, String code, String name) {
@@ -1261,7 +1277,7 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
 
         Map<String, Object> poReq = new HashMap<>();
         poReq.put("supplierId", supplierId);
-        poReq.put("orderNumber", "PO-" + System.nanoTime());
+        poReq.put("orderNumber", nextDeterministicToken("PO"));
         poReq.put("orderDate", entryDate);
         poReq.put("lines", List.of(line));
 
@@ -1274,13 +1290,13 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
         Long purchaseOrderId = ((Number) poData.get("id")).longValue();
 
         Map<String, Object> grLine = new HashMap<>(line);
-        grLine.put("batchCode", "GRN-" + System.nanoTime());
+        grLine.put("batchCode", nextDeterministicToken("GRN-BATCH"));
 
         Map<String, Object> grReq = new HashMap<>();
         grReq.put("purchaseOrderId", purchaseOrderId);
-        grReq.put("receiptNumber", "GRN-" + System.nanoTime());
+        grReq.put("receiptNumber", nextDeterministicToken("GRN"));
         grReq.put("receiptDate", entryDate);
-        grReq.put("idempotencyKey", "GRN-IDEMP-" + System.nanoTime());
+        grReq.put("idempotencyKey", nextDeterministicToken("GRN-IDEMP"));
         grReq.put("lines", List.of(grLine));
 
         ResponseEntity<Map> grResp = rest.exchange(

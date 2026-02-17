@@ -263,6 +263,9 @@
                     <excludedGroups>${test.excludedGroups}</excludedGroups>
                     <failIfNoTests>${test.failIfNoTests}</failIfNoTests>
                     <forkedProcessExitTimeoutInSeconds>180</forkedProcessExitTimeoutInSeconds>
+                    <systemPropertyVariables>
+                        <junit.jupiter.execution.parallel.enabled>false</junit.jupiter.execution.parallel.enabled>
+                    </systemPropertyVariables>
                     <includes>
                         <include>**/*Tests.java</include>
                         <include>**/*Test.java</include>
