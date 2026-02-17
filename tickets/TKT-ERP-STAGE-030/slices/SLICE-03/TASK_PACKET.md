@@ -17,7 +17,6 @@ Resolve Stage-029 full-suite regressions on async-loop-predeploy-audit parity la
 - `docs/`
 
 ## Requested Focus Paths
-- `erp-domain/src/main/java/com/bigbrightpaints/erp/core/audittrail/EnterpriseAuditTrailService.java`
 - `erp-domain/src/test/java/com/bigbrightpaints/erp/codered/CR_BulkPackagingCrossModuleTest.java`
 - `erp-domain/src/test/java/com/bigbrightpaints/erp/codered/CR_DealerReceiptSettlementAuditTrailTest.java`
 - `erp-domain/src/test/java/com/bigbrightpaints/erp/codered/CR_PurchasingToApAccountingTest.java`
@@ -30,7 +29,7 @@ Resolve Stage-029 full-suite regressions on async-loop-predeploy-audit parity la
 
 ## Required Checks Before Done
 - `bash ci/check-architecture.sh`
-- `cd erp-domain && mvn -B -ntp test`
+- `deferred-full-suite-on-integration: executed after SLICE-01 and SLICE-02 merge`
 
 ## Reviewer Contract
 - Review-only agents do not commit code.

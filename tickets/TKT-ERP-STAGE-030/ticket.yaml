@@ -20,10 +20,12 @@ slices:
   - qa-reliability
   - security-governance
   scope_paths:
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/core/audittrail/EnterpriseAuditTrailService.java
   - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/domain/JournalEntryRepository.java
   - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingAuditTrailService.java
   - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/ReferenceNumberService.java
   allowed_scope_paths:
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/core/audittrail/
   - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/
   - erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/
   - erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/accounting/
@@ -34,7 +36,6 @@ slices:
   worktree_path: /home/realnigga/Desktop/orchestrator_erp_worktrees/_tmp_orch_cleanrepo_worktrees/TKT-ERP-STAGE-030/accounting-domain
   required_checks:
   - cd erp-domain && mvn -B -ntp -Dtest='*Accounting*' test
-  - bash scripts/verify_local.sh
   status: ready
   objective: Resolve Stage-029 full-suite regressions on async-loop-predeploy-audit
     parity lane
@@ -130,7 +131,6 @@ slices:
   reviewers:
   - qa-reliability
   scope_paths:
-  - erp-domain/src/main/java/com/bigbrightpaints/erp/core/audittrail/EnterpriseAuditTrailService.java
   - erp-domain/src/test/java/com/bigbrightpaints/erp/codered/CR_BulkPackagingCrossModuleTest.java
   - erp-domain/src/test/java/com/bigbrightpaints/erp/codered/CR_DealerReceiptSettlementAuditTrailTest.java
   - erp-domain/src/test/java/com/bigbrightpaints/erp/codered/CR_PurchasingToApAccountingTest.java
@@ -151,11 +151,13 @@ slices:
   worktree_path: /home/realnigga/Desktop/orchestrator_erp_worktrees/_tmp_orch_cleanrepo_worktrees/TKT-ERP-STAGE-030/refactor-techdebt-gc
   required_checks:
   - bash ci/check-architecture.sh
-  - cd erp-domain && mvn -B -ntp test
+  - deferred-full-suite-on-integration: executed after SLICE-01 and SLICE-02 merge
   status: ready
   objective: Resolve Stage-029 full-suite regressions on async-loop-predeploy-audit
     parity lane
-  workflow_upstream_slices: []
+  workflow_upstream_slices:
+  - SLICE-01
+  - SLICE-02
   workflow_downstream_slices: []
   workflow_external_upstream_agents: []
   workflow_external_downstream_agents: []

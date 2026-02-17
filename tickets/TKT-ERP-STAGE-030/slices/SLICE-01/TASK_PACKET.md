@@ -12,11 +12,13 @@ Worktree: `/home/realnigga/Desktop/orchestrator_erp_worktrees/_tmp_orch_cleanrep
 Resolve Stage-029 full-suite regressions on async-loop-predeploy-audit parity lane
 
 ## Agent Write Boundary (Enforced)
+- `erp-domain/src/main/java/com/bigbrightpaints/erp/core/audittrail/`
 - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/`
 - `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/`
 - `erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/accounting/`
 
 ## Requested Focus Paths
+- `erp-domain/src/main/java/com/bigbrightpaints/erp/core/audittrail/EnterpriseAuditTrailService.java`
 - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/domain/JournalEntryRepository.java`
 - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingAuditTrailService.java`
 - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/ReferenceNumberService.java`
@@ -36,7 +38,6 @@ Resolve Stage-029 full-suite regressions on async-loop-predeploy-audit parity la
 
 ## Required Checks Before Done
 - `cd erp-domain && mvn -B -ntp -Dtest='*Accounting*' test`
-- `bash scripts/verify_local.sh`
 
 ## Reviewer Contract
 - Review-only agents do not commit code.
