@@ -3,16 +3,16 @@
 - title: Superadmin Tenant Config Update Guard
 - goal: Close M18-S2A gap by enforcing superadmin-only tenant configuration updates
 - priority: high
-- status: blocked
+- status: done
 - base_branch: tmp/orch-exec-20260217
 - created_at: 2026-02-17T13:01:27+00:00
-- updated_at: 2026-02-17T13:34:30+00:00
+- updated_at: 2026-02-17T13:43:50+00:00
 
 ## Slice Board
 
 | Slice | Agent | Lane | Status | Branch |
 | --- | --- | --- | --- | --- |
-| SLICE-01 | auth-rbac-company | w1 | scope_violation | `tickets/tkt-erp-stage-048/auth-rbac-company` |
+| SLICE-01 | auth-rbac-company | w1 | merged | `tickets/tkt-erp-stage-048/auth-rbac-company` |
 
 ## Operator Commands
 
