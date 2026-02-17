@@ -3,11 +3,11 @@
 ticket: TKT-ERP-STAGE-030
 slice: SLICE-01
 reviewer: security-governance
-status: pending
+status: approved
 
 ## Findings
-- pending
+- Fail-closed audittrail compatibility preserved; no scope overreach detected.
 
 ## Evidence
-- commands: pending
-- artifacts: pending
+- commands: bash ci/check-architecture.sh
+- artifacts: tickets/TKT-ERP-STAGE-030/slices/SLICE-01/reviews/security-governance.md

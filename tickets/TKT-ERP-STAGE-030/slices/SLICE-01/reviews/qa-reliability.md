@@ -3,11 +3,11 @@
 ticket: TKT-ERP-STAGE-030
 slice: SLICE-01
 reviewer: qa-reliability
-status: pending
+status: approved
 
 ## Findings
-- pending
+- Accounting parity restored; *Accounting* gate green with no failing tests in current run.
 
 ## Evidence
-- commands: pending
-- artifacts: pending
+- commands: cd erp-domain && mvn -B -ntp -Dtest='*Accounting*' test
+- artifacts: /tmp/stage030_slice01_accounting.out
