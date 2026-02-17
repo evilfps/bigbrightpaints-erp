@@ -12,14 +12,16 @@ Total scoped endpoints: **143**
 
 ## M18-S9A Parity Closure (Endpoint Map vs Handoff)
 
-- This document is the OpenAPI snapshot for accounting-portal-owned endpoints only.
-- Count lock for parity checks: **143** unique `METHOD /api/v1/...` rows.
+- M17-S1 canonical API contract source-of-truth is `openapi.json`; guard behavior is non-mutating (parity checks validate and fail on drift, but do not rewrite docs).
+- M17-S2 parity baseline for this slice is a curated lock of **143** unique `METHOD /api/v1/...` rows.
+- The `143` lock is a curated frontend parity baseline and does not claim full accounting-portal OpenAPI coverage.
 - The handoff inventory may only add **9** non-owned dependencies on top of these 143 rows:
   - Shared foundation APIs (7): `GET /api/v1/auth/me`, `GET /api/v1/auth/profile`, `PUT /api/v1/auth/profile`, `POST /api/v1/auth/password/change`, `GET /api/v1/companies`, `POST /api/v1/multi-company/companies/switch`, `POST /api/v1/auth/logout`
   - Dealer support APIs (2): `GET /api/v1/sales/dealers`, `GET /api/v1/sales/dealers/search`
-- OpenAPI drift ledger (backend code-verified; pending OpenAPI refresh):
+- Explicit outside-lock ledger (present in `docs/endpoint-inventory.md` and `openapi.json`):
   - `GET /api/v1/accounting/audit/transactions`
   - `GET /api/v1/accounting/audit/transactions/{journalEntryId}`
+  - `GET /api/v1/accounting/date-context`
 - Legacy `GET /api/v1/accounting/audit/digest*` endpoints are still present in this OpenAPI snapshot and should be treated as deprecated in new frontend flows.
 
 ## Accounting Core (GL, Periods, Journals, Controls)

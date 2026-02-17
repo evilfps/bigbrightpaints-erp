@@ -20,7 +20,7 @@ Guardrail reference: `docs/ACCOUNTING_PORTAL_SCOPE_GUARDRAIL.md`
 3. Error schema is not standardized in many endpoints; frontend must implement resilient generic error handling with fallback parsing.
 4. Accountant-critical controls (period lock, journal reversals, payroll posting, inventory valuation) are treated as high-risk actions with confirmation dialogs + audit-friendly UX.
 5. Enterprise readiness requires server-side enforcement of period lock and posting immutability; frontend only reflects/guards UX.
-6. Scoped endpoint counts in Task 1 map accounting-portal-owned APIs; a few cross-domain support endpoints (for dealer lookup) are listed in Task 2/3 for practical frontend dependencies.
+6. Scoped endpoint counts in Task 1 track a curated accounting-portal parity baseline; a few cross-domain support endpoints (for dealer lookup) are listed in Task 2/3 for practical frontend dependencies.
 
 ## Verified Backend RBAC Baseline (Exact, Code-Verified)
 
@@ -66,14 +66,17 @@ These are cross-portal APIs reused in Accounting Portal for auth/session/profile
 
 ### M18-S9A Parity Closure (Do Not Drift)
 
-- Endpoint-map parity lock: this handoff must continue to include all **143** accounting-portal-owned rows from `docs/accounting-portal-endpoint-map.md`.
+- M17-S1 canonical API contract source-of-truth is `openapi.json`; parity checks are non-mutating and fail on drift instead of rewriting docs.
+- M17-S2 handoff parity expectation is the curated **143**-row baseline from `docs/accounting-portal-endpoint-map.md`, with only the documented `+9` dependency rows allowed beyond that set.
+- Endpoint-map parity lock in this handoff is the same curated **143** baseline (it does not claim full accounting-portal OpenAPI coverage).
 - Current handoff inventory total is **152** unique `METHOD /api/v1/...` rows = `143` portal-owned + `9` intentional dependencies.
 - Intentional dependency-only rows (`+9` vs endpoint map):
   - Shared foundation APIs (7): `GET /api/v1/auth/me`, `GET /api/v1/auth/profile`, `PUT /api/v1/auth/profile`, `POST /api/v1/auth/password/change`, `GET /api/v1/companies`, `POST /api/v1/multi-company/companies/switch`, `POST /api/v1/auth/logout`
   - Dealer support APIs (2): `GET /api/v1/sales/dealers`, `GET /api/v1/sales/dealers/search`
-- OpenAPI drift ledger (backend code-verified; pending OpenAPI refresh):
+- Explicit outside-lock ledger (present in `docs/endpoint-inventory.md` and `openapi.json`):
   - `GET /api/v1/accounting/audit/transactions`
   - `GET /api/v1/accounting/audit/transactions/{journalEntryId}`
+  - `GET /api/v1/accounting/date-context`
 - Legacy digest endpoints (`GET /api/v1/accounting/audit/digest*`) remain in snapshot and should be treated as deprecated for new UI flows.
 
 ## Task 2: Frontend API Inventory (Grouped by Domain)
