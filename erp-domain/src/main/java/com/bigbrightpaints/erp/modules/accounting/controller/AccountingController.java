@@ -48,6 +48,9 @@ import java.time.format.DateTimeParseException;
 @RequestMapping("/api/v1/accounting")
 public class AccountingController {
 
+    private static final String DEFAULT_ACCOUNTING_WORKFLOW_REASON = "Accounting workflow request rejected";
+    private static final String DEFAULT_ACCOUNTING_STATE_REASON = "Invalid accounting state";
+
     private final AccountingService accountingService;
     private final AccountingFacade accountingFacade;
     private final SalesReturnService salesReturnService;
@@ -100,19 +103,24 @@ public class AccountingController {
     public ResponseEntity<ApiResponse<Map<String, Object>>> handleApplicationException(
             ApplicationException ex,
             HttpServletRequest request) {
+        ErrorCode errorCode = resolveErrorCode(ex);
+        String reason = resolveFailClosedReason(
+                ex != null ? ex.getUserMessage() : null,
+                errorCode.getDefaultMessage(),
+                DEFAULT_ACCOUNTING_WORKFLOW_REASON);
         String traceId = UUID.randomUUID().toString();
         Map<String, Object> errorData = new HashMap<>();
-        errorData.put("code", ex.getErrorCode().getCode());
-        errorData.put("message", ex.getUserMessage());
-        errorData.put("reason", ex.getUserMessage());
+        errorData.put("code", errorCode.getCode());
+        errorData.put("message", reason);
+        errorData.put("reason", reason);
         errorData.put("path", request != null ? request.getRequestURI() : null);
         errorData.put("traceId", traceId);
-        Map<String, Object> details = ex.getDetails();
+        Map<String, Object> details = ex != null ? ex.getDetails() : Map.of();
         if (!details.isEmpty()) {
             errorData.put("details", details);
         }
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(ApiResponse.failure(ex.getUserMessage(), errorData));
+                .body(ApiResponse.failure(reason, errorData));
     }
 
     /**
@@ -123,7 +131,9 @@ public class AccountingController {
             IllegalStateException ex,
             HttpServletRequest request) {
         String traceId = UUID.randomUUID().toString();
-        String reason = StringUtils.hasText(ex.getMessage()) ? ex.getMessage() : "Invalid accounting state";
+        String reason = resolveFailClosedReason(
+                ex != null ? ex.getMessage() : null,
+                DEFAULT_ACCOUNTING_STATE_REASON);
         Map<String, Object> errorData = new HashMap<>();
         errorData.put("code", ErrorCode.BUSINESS_INVALID_STATE.getCode());
         errorData.put("message", reason);
@@ -132,6 +142,25 @@ public class AccountingController {
         errorData.put("traceId", traceId);
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(ApiResponse.failure(reason, errorData));
+    }
+
+    private ErrorCode resolveErrorCode(ApplicationException ex) {
+        if (ex != null && ex.getErrorCode() != null) {
+            return ex.getErrorCode();
+        }
+        return ErrorCode.UNKNOWN_ERROR;
+    }
+
+    private String resolveFailClosedReason(String primaryReason, String... fallbacks) {
+        if (StringUtils.hasText(primaryReason)) {
+            return primaryReason.trim();
+        }
+        for (String fallback : fallbacks) {
+            if (StringUtils.hasText(fallback)) {
+                return fallback.trim();
+            }
+        }
+        return DEFAULT_ACCOUNTING_WORKFLOW_REASON;
     }
 
     @GetMapping("/accounts")

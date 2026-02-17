@@ -70,6 +70,52 @@ class AccountingControllerExceptionHandlerTest {
     }
 
     @Test
+    void handleApplicationException_fallsClosedToErrorCodeDefaultMessageWhenReasonBlank() {
+        AccountingController controller = controller();
+        ApplicationException ex = new ApplicationException(
+                ErrorCode.BUSINESS_INVALID_STATE,
+                "   ");
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setRequestURI("/api/v1/accounting/periods/17/close");
+
+        ResponseEntity<ApiResponse<Map<String, Object>>> response =
+                controller.handleApplicationException(ex, request);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        ApiResponse<Map<String, Object>> body = response.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.success()).isFalse();
+        assertThat(body.message()).isEqualTo(ErrorCode.BUSINESS_INVALID_STATE.getDefaultMessage());
+        assertThat(body.data()).containsEntry("code", ErrorCode.BUSINESS_INVALID_STATE.getCode());
+        assertThat(body.data()).containsEntry("reason", ErrorCode.BUSINESS_INVALID_STATE.getDefaultMessage());
+        assertThat(body.data()).containsEntry("path", "/api/v1/accounting/periods/17/close");
+        assertThat(body.data()).containsKey("traceId");
+    }
+
+    @Test
+    void handleApplicationException_failsClosedToUnknownErrorCodeWhenCodeMissing() {
+        AccountingController controller = controller();
+        ApplicationException ex = new ApplicationException(
+                null,
+                (String) null);
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setRequestURI("/api/v1/accounting/workflows/post");
+
+        ResponseEntity<ApiResponse<Map<String, Object>>> response =
+                controller.handleApplicationException(ex, request);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        ApiResponse<Map<String, Object>> body = response.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.success()).isFalse();
+        assertThat(body.message()).isEqualTo(ErrorCode.UNKNOWN_ERROR.getDefaultMessage());
+        assertThat(body.data()).containsEntry("code", ErrorCode.UNKNOWN_ERROR.getCode());
+        assertThat(body.data()).containsEntry("reason", ErrorCode.UNKNOWN_ERROR.getDefaultMessage());
+        assertThat(body.data()).containsEntry("path", "/api/v1/accounting/workflows/post");
+        assertThat(body.data()).containsKey("traceId");
+    }
+
+    @Test
     void handleApplicationException_preservesPartnerReplayDetailsForSupplierPath() {
         AccountingController controller = controller();
         ApplicationException ex = new ApplicationException(
@@ -179,6 +225,27 @@ class AccountingControllerExceptionHandlerTest {
         assertThat(body.data()).containsEntry("code", ErrorCode.BUSINESS_INVALID_STATE.getCode());
         assertThat(body.data()).containsEntry("message", "Uninvoiced goods receipts exist in this period (2)");
         assertThat(body.data()).containsEntry("reason", "Uninvoiced goods receipts exist in this period (2)");
+        assertThat(body.data()).containsEntry("path", "/api/v1/accounting/periods/17/close");
+        assertThat(body.data()).containsKey("traceId");
+    }
+
+    @Test
+    void handleIllegalStateException_usesDeterministicFallbackWhenReasonBlank() {
+        AccountingController controller = controller();
+        IllegalStateException ex = new IllegalStateException("  ");
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setRequestURI("/api/v1/accounting/periods/17/close");
+
+        ResponseEntity<ApiResponse<Map<String, Object>>> response =
+                controller.handleIllegalStateException(ex, request);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        ApiResponse<Map<String, Object>> body = response.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.success()).isFalse();
+        assertThat(body.message()).isEqualTo("Invalid accounting state");
+        assertThat(body.data()).containsEntry("code", ErrorCode.BUSINESS_INVALID_STATE.getCode());
+        assertThat(body.data()).containsEntry("reason", "Invalid accounting state");
         assertThat(body.data()).containsEntry("path", "/api/v1/accounting/periods/17/close");
         assertThat(body.data()).containsKey("traceId");
     }
