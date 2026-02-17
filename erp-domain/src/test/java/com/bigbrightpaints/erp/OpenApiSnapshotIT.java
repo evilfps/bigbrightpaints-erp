@@ -1,8 +1,11 @@
 package com.bigbrightpaints.erp;
 
 import com.fasterxml.jackson.databind.MapperFeature;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.bigbrightpaints.erp.test.AbstractIntegrationTest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,6 +18,11 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -43,17 +51,8 @@ public class OpenApiSnapshotIT extends AbstractIntegrationTest {
         assertThat(json.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(json.getBody()).as("OpenAPI payload").isNotBlank();
 
-        if (!verifyRequested()) {
-            return;
-        }
-
         Path openApiSnapshotPath = resolveRepoRoot().resolve("openapi.json");
         String currentSpec = canonicalizeJson(json.getBody());
-        if (refreshRequested()) {
-            Files.writeString(openApiSnapshotPath, currentSpec, StandardCharsets.UTF_8);
-            return;
-        }
-
         assertThat(Files.exists(openApiSnapshotPath))
                 .withFailMessage("Missing OpenAPI snapshot at %s. Remediation: rerun intentionally with -D%s=true "
                                 + "or %s=true (with -D%s=true or %s=true) to generate it.",
@@ -65,11 +64,63 @@ public class OpenApiSnapshotIT extends AbstractIntegrationTest {
                 .isTrue();
 
         String snapshotSpec = canonicalizeJson(Files.readString(openApiSnapshotPath, StandardCharsets.UTF_8));
+        if (refreshRequested()) {
+            assertThat(verifyRequested())
+                    .withFailMessage("Refresh requires verify mode. Set -D%s=true (or %s=true) together with "
+                                    + "-D%s=true (or %s=true).",
+                            SNAPSHOT_VERIFY_PROPERTY,
+                            SNAPSHOT_VERIFY_ENV,
+                            SNAPSHOT_REFRESH_PROPERTY,
+                            SNAPSHOT_REFRESH_ENV)
+                    .isTrue();
+            Files.writeString(openApiSnapshotPath, currentSpec, StandardCharsets.UTF_8);
+            return;
+        }
+
+        String currentSpecHash = sha256Hex(currentSpec);
+        String snapshotSpecHash = sha256Hex(snapshotSpec);
+        List<String> currentOps = extractOperationSignatures(currentSpec);
+        List<String> snapshotOps = extractOperationSignatures(snapshotSpec);
+
+        assertThat(snapshotOps)
+                .withFailMessage("OpenAPI snapshot at %s has no operations. Refresh snapshot intentionally with "
+                                + "-D%s=true (or %s=true) and -D%s=true (or %s=true).",
+                        openApiSnapshotPath,
+                        SNAPSHOT_VERIFY_PROPERTY,
+                        SNAPSHOT_VERIFY_ENV,
+                        SNAPSHOT_REFRESH_PROPERTY,
+                        SNAPSHOT_REFRESH_ENV)
+                .isNotEmpty();
+
+        assertThat(currentOps)
+                .withFailMessage("OpenAPI breaking operation drift detected at %s. currentOps=%d snapshotOps=%d "
+                                + "(delta=%d) currentHash=%s snapshotHash=%s. Snapshot operations must remain present "
+                                + "in the runtime contract. For full parity (including additive drift), rerun with "
+                                + "-D%s=true (or %s=true) and refresh using -D%s=true (or %s=true).",
+                        openApiSnapshotPath,
+                        currentOps.size(),
+                        snapshotOps.size(),
+                        currentOps.size() - snapshotOps.size(),
+                        currentSpecHash,
+                        snapshotSpecHash,
+                        SNAPSHOT_VERIFY_PROPERTY,
+                        SNAPSHOT_VERIFY_ENV,
+                        SNAPSHOT_REFRESH_PROPERTY,
+                        SNAPSHOT_REFRESH_ENV)
+                .containsAll(snapshotOps);
+
+        if (!verifyRequested()) {
+            return;
+        }
+
         assertThat(currentSpec)
                 .withFailMessage("OpenAPI snapshot drift detected at %s. Verify mode is non-mutating unless refresh is enabled. "
+                                + "Parity signal (sha256) current=%s snapshot=%s. "
                                 + "Remediation: rerun intentionally with -D%s=true (or %s=true) and -D%s=true "
                                 + "(or %s=true), then commit updated openapi.json.",
                         openApiSnapshotPath,
+                        currentSpecHash,
+                        snapshotSpecHash,
                         SNAPSHOT_VERIFY_PROPERTY,
                         SNAPSHOT_VERIFY_ENV,
                         SNAPSHOT_REFRESH_PROPERTY,
@@ -101,6 +152,78 @@ public class OpenApiSnapshotIT extends AbstractIntegrationTest {
     }
 
     private static String canonicalizeJson(String spec) throws IOException {
-        return CANONICAL_JSON.writeValueAsString(CANONICAL_JSON.readTree(spec));
+        JsonNode parsedSpec = CANONICAL_JSON.readTree(spec);
+        return CANONICAL_JSON.writeValueAsString(canonicalizeNode(parsedSpec));
+    }
+
+    private static List<String> extractOperationSignatures(String spec) throws IOException {
+        JsonNode root = CANONICAL_JSON.readTree(spec);
+        JsonNode paths = root.get("paths");
+        List<String> operations = new ArrayList<>();
+        if (paths == null || !paths.isObject()) {
+            return operations;
+        }
+        paths.fields().forEachRemaining(pathEntry -> {
+            JsonNode methods = pathEntry.getValue();
+            if (methods == null || !methods.isObject()) {
+                return;
+            }
+            methods.fieldNames().forEachRemaining(method -> {
+                if (isHttpMethod(method)) {
+                    operations.add(method.toUpperCase() + " " + pathEntry.getKey());
+                }
+            });
+        });
+        Collections.sort(operations);
+        return operations;
+    }
+
+    private static boolean isHttpMethod(String method) {
+        return "get".equalsIgnoreCase(method)
+                || "put".equalsIgnoreCase(method)
+                || "post".equalsIgnoreCase(method)
+                || "delete".equalsIgnoreCase(method)
+                || "patch".equalsIgnoreCase(method)
+                || "options".equalsIgnoreCase(method)
+                || "head".equalsIgnoreCase(method)
+                || "trace".equalsIgnoreCase(method);
+    }
+
+    private static JsonNode canonicalizeNode(JsonNode node) {
+        if (node == null || node.isNull() || node.isValueNode()) {
+            return node;
+        }
+        if (node.isArray()) {
+            ArrayNode canonicalArray = CANONICAL_JSON.createArrayNode();
+            for (JsonNode item : node) {
+                canonicalArray.add(canonicalizeNode(item));
+            }
+            return canonicalArray;
+        }
+        if (node.isObject()) {
+            ObjectNode canonicalObject = CANONICAL_JSON.createObjectNode();
+            List<String> fieldNames = new ArrayList<>();
+            node.fieldNames().forEachRemaining(fieldNames::add);
+            Collections.sort(fieldNames);
+            for (String fieldName : fieldNames) {
+                canonicalObject.set(fieldName, canonicalizeNode(node.get(fieldName)));
+            }
+            return canonicalObject;
+        }
+        return node;
+    }
+
+    private static String sha256Hex(String value) {
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8));
+            StringBuilder builder = new StringBuilder(digest.length * 2);
+            for (byte b : digest) {
+                builder.append(Character.forDigit((b >>> 4) & 0x0f, 16));
+                builder.append(Character.forDigit(b & 0x0f, 16));
+            }
+            return builder.toString();
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 algorithm is unavailable", e);
+        }
     }
 }
