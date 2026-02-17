@@ -13,6 +13,7 @@ import com.bigbrightpaints.erp.modules.accounting.domain.JournalLineRepository;
 import com.bigbrightpaints.erp.modules.accounting.dto.AccountingPeriodCloseRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.AccountingPeriodLockRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.AccountingPeriodReopenRequest;
+import com.bigbrightpaints.erp.modules.accounting.dto.MonthEndChecklistUpdateRequest;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.hr.domain.PayrollRun;
@@ -277,6 +278,21 @@ class AccountingPeriodServicePolicyTest {
         assertThatThrownBy(() -> service.confirmInventoryCount(21L, null, "post-close mutation"))
                 .isInstanceOf(ApplicationException.class)
                 .hasMessageContaining("Checklist cannot be updated for a closed period");
+        assertThat(period.isInventoryCounted()).isFalse();
+    }
+
+    @Test
+    void updateMonthEndChecklist_rejectsChecklistMutationOnClosedPeriod() {
+        Company company = company(1L, "POLICY");
+        AccountingPeriod period = openPeriod(company, 2026, 2);
+        period.setStatus(AccountingPeriodStatus.CLOSED);
+        when(companyContextService.requireCurrentCompany()).thenReturn(company);
+        when(companyEntityLookup.requireAccountingPeriod(company, 22L)).thenReturn(period);
+
+        assertThatThrownBy(() -> service.updateMonthEndChecklist(22L, new MonthEndChecklistUpdateRequest(true, true, "post-close mutation")))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Checklist cannot be updated for a closed period");
+        assertThat(period.isBankReconciled()).isFalse();
         assertThat(period.isInventoryCounted()).isFalse();
     }
 

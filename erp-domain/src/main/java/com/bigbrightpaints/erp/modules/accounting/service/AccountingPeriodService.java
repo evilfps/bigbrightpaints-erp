@@ -242,6 +242,7 @@ public class AccountingPeriodService {
     public MonthEndChecklistDto updateMonthEndChecklist(Long periodId, MonthEndChecklistUpdateRequest request) {
         Company company = companyContextService.requireCurrentCompany();
         AccountingPeriod period = resolvePeriod(company, periodId);
+        assertChecklistMutable(period);
         if (request != null) {
             if (request.bankReconciled() != null) {
                 period.setBankReconciled(request.bankReconciled());
