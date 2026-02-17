@@ -1,0 +1,86 @@
+ticket_id: TKT-ERP-STAGE-032
+title: CI Gate Strategy Refactor
+goal: High-signal deterministic staging gates and reduced flaky/full-suite overhead
+  per ERP_STAGING_MASTER_PLAN section 14
+priority: high
+status: completed
+base_branch: harness-engineering-orchestrator
+worktree_root: /home/realnigga/Desktop/orchestrator_erp_worktrees/_tmp_harness_integrate_worktrees
+created_at: '2026-02-17T08:37:01+00:00'
+updated_at: '2026-02-17T09:10:58+00:00'
+r3_required: true
+orchestrator_authority:
+  r1: orchestrator
+  r2: orchestrator
+  r3: human
+slices:
+- id: SLICE-01
+  primary_agent: release-ops
+  reviewers:
+  - qa-reliability
+  - security-governance
+  scope_paths:
+  - scripts/gate_core.sh
+  - scripts/gate_fast.sh
+  - scripts/gate_reconciliation.sh
+  - scripts/gate_release.sh
+  - scripts/verify_local.sh
+  allowed_scope_paths:
+  - .github/workflows/
+  - scripts/
+  - docs/runbooks/
+  - docker-compose.yml
+  - erp-domain/Dockerfile
+  matched_rules:
+  - scripts/
+  lane: w1
+  branch: tickets/tkt-erp-stage-032/release-ops
+  worktree_path: /home/realnigga/Desktop/orchestrator_erp_worktrees/_tmp_harness_integrate_worktrees/TKT-ERP-STAGE-032/release-ops
+  required_checks:
+  - bash scripts/gate_release.sh
+  - bash scripts/gate_reconciliation.sh
+  status: merged
+  objective: High-signal deterministic staging gates and reduced flaky/full-suite
+    overhead per ERP_STAGING_MASTER_PLAN section 14
+  workflow_upstream_slices: []
+  workflow_downstream_slices: []
+  workflow_external_upstream_agents:
+  - data-migration
+  workflow_external_downstream_agents: []
+  cross_workflow_contracts:
+  - relation: upstream-external
+    agent: data-migration
+    slice_id: ''
+    contract: migration rehearsal and release gating
+    in_ticket: false
+- id: SLICE-02
+  primary_agent: refactor-techdebt-gc
+  reviewers:
+  - qa-reliability
+  scope_paths:
+  - erp-domain/pom.xml
+  - erp-domain/src/test/java/com/bigbrightpaints/erp/invariants/ErpInvariantsSuiteIT.java
+  allowed_scope_paths:
+  - erp-domain/src/main/java/
+  - erp-domain/src/test/java/
+  - docs/
+  matched_rules:
+  - <fallback>
+  lane: w2
+  branch: tickets/tkt-erp-stage-032/refactor-techdebt-gc
+  worktree_path: /home/realnigga/Desktop/orchestrator_erp_worktrees/_tmp_harness_integrate_worktrees/TKT-ERP-STAGE-032/refactor-techdebt-gc
+  required_checks:
+  - bash ci/check-architecture.sh
+  - cd erp-domain && mvn -B -ntp test
+  status: merged
+  objective: High-signal deterministic staging gates and reduced flaky/full-suite
+    overhead per ERP_STAGING_MASTER_PLAN section 14
+  workflow_upstream_slices: []
+  workflow_downstream_slices: []
+  workflow_external_upstream_agents: []
+  workflow_external_downstream_agents: []
+  cross_workflow_contracts: []
+cross_workflow:
+  model: workflow_agent_edges_v1
+  generated_at: '2026-02-17T08:37:01+00:00'
+  in_ticket_edges: []
