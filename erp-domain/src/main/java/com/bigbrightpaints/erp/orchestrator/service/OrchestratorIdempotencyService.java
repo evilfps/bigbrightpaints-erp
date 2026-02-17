@@ -17,7 +17,6 @@ import java.util.UUID;
 import java.util.function.Supplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
@@ -63,35 +62,38 @@ public class OrchestratorIdempotencyService {
         String key = normalizeKey(idempotencyKey);
         String requestHash = hashRequest(company.getId(), commandName, requestPayload);
 
-        try {
-            return txTemplate.execute(status -> {
-                String traceId = traceIdSupplier.get();
-                OrchestratorCommand command = new OrchestratorCommand(company.getId(), commandName, key, requestHash, traceId);
-                commandRepository.saveAndFlush(command);
-                return new CommandLease(traceId, command, true);
-            });
-        } catch (DataIntegrityViolationException ex) {
-            return txTemplate.execute(status -> {
-                OrchestratorCommand existing = commandRepository.lockByScope(company.getId(), commandName, key)
-                        .orElseThrow(() -> new IllegalStateException("Idempotency reservation exists but command row not found"));
+        return txTemplate.execute(status -> {
+            String traceId = traceIdSupplier.get();
+            boolean reserved = commandRepository.reserveScope(
+                    company.getId(),
+                    commandName,
+                    key,
+                    requestHash,
+                    traceId) > 0;
 
-                if (!requestHash.equals(existing.getRequestHash())) {
-                    throw new ApplicationException(
-                            ErrorCode.CONCURRENCY_CONFLICT,
-                            "Idempotency key already used with different payload"
-                    ).withDetail("commandName", commandName)
-                            .withDetail("idempotencyKey", key);
-                }
+            OrchestratorCommand existing = commandRepository.lockByScope(company.getId(), commandName, key)
+                    .orElseThrow(() -> new IllegalStateException("Idempotency reservation exists but command row not found"));
 
-                if (existing.getStatus() == OrchestratorCommand.Status.FAILED) {
-                    existing.markRetry();
-                    commandRepository.save(existing);
-                    return new CommandLease(existing.getTraceId(), existing, true);
-                }
+            if (reserved) {
+                return new CommandLease(existing.getTraceId(), existing, true);
+            }
 
-                return new CommandLease(existing.getTraceId(), existing, false);
-            });
-        }
+            if (!requestHash.equals(existing.getRequestHash())) {
+                throw new ApplicationException(
+                        ErrorCode.CONCURRENCY_CONFLICT,
+                        "Idempotency key already used with different payload"
+                ).withDetail("commandName", commandName)
+                        .withDetail("idempotencyKey", key);
+            }
+
+            if (existing.getStatus() == OrchestratorCommand.Status.FAILED) {
+                existing.markRetry();
+                commandRepository.save(existing);
+                return new CommandLease(existing.getTraceId(), existing, true);
+            }
+
+            return new CommandLease(existing.getTraceId(), existing, false);
+        });
     }
 
     public void markSuccess(OrchestratorCommand command) {
