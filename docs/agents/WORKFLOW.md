@@ -115,6 +115,8 @@ High-risk deltas (auth/payroll/ledger/migrations/permissions/destructive ops) re
 Frontend doc changes must preserve portal ownership taxonomy:
 - Accounting Portal: accounting + inventory + hr + reports + invoice
 - Factory Portal: factory + production + manufacturing
+- Superadmin control plane: separate platform surface with dedicated login and JSON-rendered UI contracts
+- Canonical frontend handoff manifest: `docs/frontend-v1-portal-handoff.yaml`
 
 ## Rollback and Migration Controls
 Application rollback:

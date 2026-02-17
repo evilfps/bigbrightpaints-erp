@@ -1,0 +1,79 @@
+ticket_id: TKT-ERP-STAGE-063
+title: Portal Contracts And Onboarding Handoff
+goal: Deliver deploy-ready portal-by-portal frontend handoff contracts and onboarding
+  flows
+priority: high
+status: planned
+base_branch: tmp/orch-exec-20260217
+worktree_root: /home/realnigga/Desktop/orchestrator_erp_worktrees/_tmp_orch_exec_worktrees
+created_at: '2026-02-17T17:52:16+00:00'
+updated_at: '2026-02-17T17:52:16+00:00'
+r3_required: true
+orchestrator_authority:
+  r1: orchestrator
+  r2: orchestrator
+  r3: human
+slices:
+- id: SLICE-01
+  primary_agent: frontend-documentation
+  reviewers:
+  - repo-cartographer
+  scope_paths:
+  - docs/accounting-portal-endpoint-map.md
+  - docs/accounting-portal-frontend-engineer-handoff.md
+  - docs/admin-portal-endpoint-map.md
+  - docs/dealer-portal-endpoint-map.md
+  - docs/frontend-v1-portal-handoff.yaml
+  - docs/manufacturing-portal-endpoint-map.md
+  - docs/sales-portal-endpoint-map.md
+  allowed_scope_paths:
+  - docs/accounting-portal-endpoint-map.md
+  - docs/admin-portal-endpoint-map.md
+  - docs/dealer-portal-endpoint-map.md
+  - docs/manufacturing-portal-endpoint-map.md
+  - docs/sales-portal-endpoint-map.md
+  - docs/*portal*handoff*.md
+  matched_rules:
+  - docs/*portal*
+  lane: w1
+  branch: tickets/tkt-erp-stage-063/frontend-documentation
+  worktree_path: /home/realnigga/Desktop/orchestrator_erp_worktrees/_tmp_orch_exec_worktrees/TKT-ERP-STAGE-063/frontend-documentation
+  required_checks:
+  - bash ci/lint-knowledgebase.sh
+  status: ready
+  objective: Deliver deploy-ready portal-by-portal frontend handoff contracts and
+    onboarding flows
+  workflow_upstream_slices: []
+  workflow_downstream_slices: []
+  workflow_external_upstream_agents: []
+  workflow_external_downstream_agents: []
+  cross_workflow_contracts: []
+- id: SLICE-02
+  primary_agent: repo-cartographer
+  reviewers:
+  - orchestrator
+  scope_paths:
+  - docs/onboarding/
+  allowed_scope_paths:
+  - docs/
+  - ARCHITECTURE.md
+  - AGENTS.md
+  matched_rules:
+  - docs/
+  lane: w2
+  branch: tickets/tkt-erp-stage-063/repo-cartographer
+  worktree_path: /home/realnigga/Desktop/orchestrator_erp_worktrees/_tmp_orch_exec_worktrees/TKT-ERP-STAGE-063/repo-cartographer
+  required_checks:
+  - bash ci/lint-knowledgebase.sh
+  status: ready
+  objective: Deliver deploy-ready portal-by-portal frontend handoff contracts and
+    onboarding flows
+  workflow_upstream_slices: []
+  workflow_downstream_slices: []
+  workflow_external_upstream_agents: []
+  workflow_external_downstream_agents: []
+  cross_workflow_contracts: []
+cross_workflow:
+  model: workflow_agent_edges_v1
+  generated_at: '2026-02-17T17:52:16+00:00'
+  in_ticket_edges: []

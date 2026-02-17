@@ -57,9 +57,11 @@ This is the canonical knowledge base entrypoint for agentic work in this reposit
 
 ### Frontend portal taxonomy and ownership map
 - Supported frontend portals (exact set): `ADMIN`, `ACCOUNTING`, `SALES`, `FACTORY`, `DEALER`.
+- Superadmin control plane is a separate platform surface (not a tenant portal) with dedicated login and JSON-rendered UI contracts.
 - Accounting Portal owns backend domains: `accounting`, `inventory`, `hr`, `reports`, `invoice`.
 - Factory Portal owns backend domains: `factory`, `production`, `manufacturing`.
 - TODO: if portal taxonomy changes, update this map and all `*-portal-*` docs in the same patch.
+- Frontend v1 handoff manifest: `docs/frontend-v1-portal-handoff.yaml`
 
 ## Start Here
 - Human alias map: `AGENTMAP.md`
@@ -83,6 +85,10 @@ This is the canonical knowledge base entrypoint for agentic work in this reposit
 - Reliability + observability + SLO placeholders: `docs/RELIABILITY.md`
 - Rollback runbook: `docs/runbooks/rollback.md`
 - Migration runbook: `docs/runbooks/migrations.md`
+- Onboarding runbooks:
+  - `docs/onboarding/v1-tenant-bootstrap.md`
+  - `docs/onboarding/v1-accounting-first-posting.md`
+  - `docs/onboarding/v1-period-close-rehearsal.md`
 
 ## CI and Mechanical Enforcement
 - Existing gate workflow: `.github/workflows/ci.yml`

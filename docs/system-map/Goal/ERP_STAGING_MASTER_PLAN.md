@@ -424,3 +424,70 @@ Current rule:
 - 2026-02-17: data-migration command contract normalized from stale `release_migration_matrix_v2.sh` alias to canonical `scripts/release_migration_matrix.sh --migration-set v2` across agent contracts/runbooks/active packet evidence to prevent recurring false blockers.
 - 2026-02-17: `TKT-ERP-STAGE-059` bootstrapped + dispatched as next M18-S2A successor (`Tenant Quota Runtime Enforcement`) with isolated auth-rbac-company + refactor-techdebt-gc slices on `tmp/orch-exec-20260217`.
 - 2026-02-17: `TKT-ERP-STAGE-060` bootstrapped + dispatched for quota contract/docs parity (`openapi + portal docs + drift guard + planning sync`) with five isolated slices (`auth-rbac-company`, `release-ops`, `frontend-documentation`, `refactor-techdebt-gc`, `repo-cartographer`).
+- 2026-02-17: `TKT-ERP-STAGE-061` bootstrapped + dispatched for pre-deploy accounting/data safety finalization (accounting invariants + reconciliation gate evidence).
+- 2026-02-17: `TKT-ERP-STAGE-062` bootstrapped + dispatched for backend workflow UX simplification hardening (reason-coded fail-closed behavior across accounting/p2p/sales).
+- 2026-02-17: `TKT-ERP-STAGE-063` bootstrapped + dispatched for portal contracts and onboarding handoff completion (`frontend-documentation` + `repo-cartographer` lanes).
+
+## 20) V1 Deployment Priority Stack (Senior Orchestrator Order)
+Deployment is blocked until priorities below are satisfied in order:
+
+1. Accounting/Data Safety (P0)
+  - close all unresolved accounting correctness risks (double-entry, control-account reconciliation, period lock/close integrity, idempotency conflicts)
+  - fail-closed behavior for risky writes must be verified by truth tests and reconciliation gates
+  - no unresolved migration or rollback uncertainty for active schema set
+2. Tenant/Security Safety (P0)
+  - superadmin/admin boundary enforcement must be complete and test-backed
+  - cross-tenant IDOR and company mismatch matrix must be green on critical APIs
+  - tenant lifecycle/quota actions must be immutable-audited
+3. Workflow Clarity + Backend UX (P1)
+  - simplify messy backend workflows by reducing ambiguous transitions, normalizing reason codes, and returning actionable error messages
+  - enforce canonical action sequences for close/reopen, settlement, approval, and lifecycle control
+4. Frontend Contract/Handoff Readiness (P1)
+  - portal-by-portal contract packs must be complete and synchronized with OpenAPI
+  - onboarding docs must exist for bootstrap, first posting, and period close rehearsal
+5. Final Staging Go/No-Go (P0)
+  - same-SHA gate proof for `gate_fast`, `gate_core`, `gate_reconciliation`, `gate_release`
+  - reviewer evidence complete for every merge-bound slice
+
+## 21) Backend UX Simplification Program (Pre-Deploy)
+Focus is backend workflow usability, not cosmetic UI polish:
+
+- convert cryptic validation failures into explicit, domain-actionable errors with reason codes
+- add guided workflow contracts for high-risk operations:
+  - period close/reopen
+  - AP/AR settlement and replay conflict resolution
+  - approval/override chains
+  - tenant lifecycle/quota control actions
+- enforce deterministic state-machine transitions; reject out-of-order actions with corrective hints
+- remove duplicate/messy code paths where they create behavioral ambiguity
+
+Acceptance evidence:
+- targeted policy/truth tests for each simplified workflow
+- no regression in accounting safety checks
+- updated contract docs/examples for success + failure paths
+
+## 22) Onboarding Program (Pre-Deploy)
+Required onboarding deliverables are now in scope before v1 staging handoff:
+
+- `docs/onboarding/v1-tenant-bootstrap.md`
+- `docs/onboarding/v1-accounting-first-posting.md`
+- `docs/onboarding/v1-period-close-rehearsal.md`
+
+These flows are mandatory for deployment readiness because they reduce operator error at first-use and enforce safe defaults.
+
+## 23) Frontend Handoff Program (Portal-by-Portal)
+Canonical handoff manifest:
+- `docs/frontend-v1-portal-handoff.yaml`
+
+Required frontend surfaces:
+- Tenant portals: `ADMIN`, `ACCOUNTING`, `FACTORY`, `SALES`, `DEALER`
+- Platform control plane: `SUPER_ADMIN_CONSOLE` (separate surface with dedicated login + JSON-rendered UI contract)
+
+Portal handoff is complete only when each portal has:
+- endpoint map and role matrix
+- payload and error examples
+- state-transition guidance for workflow-driven screens
+- tenant/RBAC constraints documented for frontend engineers
+
+Post-v1 note:
+- after stable deploy, run dedicated test-suite cleanup program to reduce noisy/flaky coverage and preserve high-signal confidence lanes.

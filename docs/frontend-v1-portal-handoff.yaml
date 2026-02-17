@@ -1,0 +1,188 @@
+version: 1
+owner: orchestrator
+last_updated: 2026-02-17
+status: active
+purpose: >
+  Deploy-ready frontend handoff contract for ERP v1. Defines portal-by-portal backend
+  contracts, UX flow expectations, and acceptance evidence required before implementation handoff.
+
+global_contracts:
+  api_base_path: /api/v1
+  api_source_of_truth:
+    - erp-domain/openapi.json
+    - openapi.json
+  auth_model:
+    - JWT bearer auth
+    - X-Company-Code tenant header for tenant-scoped surfaces
+  error_model_required:
+    - 401 unauthenticated
+    - 403 forbidden
+    - 404 not_found
+    - 409 conflict
+    - 422 validation
+    - 500 internal_error
+  safety_invariants:
+    - tenant mismatch fails closed
+    - accounting writes are idempotent and auditable
+    - period lock/close rules are enforced server-side
+    - no cross-tenant IDOR for non-superadmin actors
+  frontend_readiness_gates:
+    - openapi drift guard green
+    - portal endpoint map doc updated
+    - contract examples include happy path + failure path
+    - target truthsuite/policy checks green for touched workflows
+
+deployment_priority:
+  phase_0_must_be_green_before_handoff:
+    - accounting reconciliation and period-close invariants
+    - tenant/superadmin authority boundaries
+    - migration and rollback evidence
+  phase_1_handoff:
+    - portal-by-portal implementation packets
+    - onboarding and guided workflow UX packet
+  phase_2_after_v1_deploy:
+    - test suite cleanup and signal-to-noise reduction
+
+portals:
+  - id: SUPER_ADMIN_CONSOLE
+    surface_type: platform_control_plane
+    modules:
+      - company
+      - auth
+      - rbac
+      - audit
+    login_flow:
+      entry: dedicated super-admin login screen
+      required_authority: ROLE_SUPER_ADMIN
+      tenant_scope_rule: explicit tenant context required before tenant business actions
+    ui_mode:
+      json_rendered_ui: true
+      description: >
+        UI should be generated from backend-provided JSON schema/config blocks for tenant controls,
+        quotas, lifecycle state actions, and observability cards.
+    key_flows:
+      - tenant bootstrap/create
+      - tenant lifecycle hold/block/unblock with reason code
+      - tenant metrics and quota controls (read/update)
+      - platform-level audit trail review
+    required_contract_artifacts:
+      - docs/admin-portal-endpoint-map.md
+      - docs/super-admin-json-ui-contract.md
+      - openapi quota/lifecycle/metrics schemas and examples
+    ux_requirements:
+      - guardrail-first forms with explicit reason capture
+      - fail-closed error messaging with corrective next action
+      - no silent partial success responses
+
+  - id: ADMIN
+    surface_type: tenant_admin
+    modules:
+      - auth
+      - rbac
+      - company (tenant-safe settings only)
+      - reports
+    key_flows:
+      - user and role management in-tenant
+      - approval/override queue handling
+      - tenant-safe configuration updates
+    required_contract_artifacts:
+      - docs/admin-portal-endpoint-map.md
+      - role matrix and permission denial examples
+    ux_requirements:
+      - clear boundary messaging for superadmin-only actions
+      - workflow-oriented action grouping (users, approvals, settings)
+
+  - id: ACCOUNTING
+    surface_type: tenant_finance_ops
+    modules:
+      - accounting
+      - inventory
+      - invoice
+      - reports
+      - hr
+      - purchasing
+    key_flows:
+      - AP/AR posting and settlements
+      - period close/reopen checklist
+      - payroll post and liability clearing
+      - inventory/accounting reconciliation surfaces
+    required_contract_artifacts:
+      - docs/accounting-portal-endpoint-map.md
+      - docs/accounting-portal-frontend-engineer-handoff.md
+      - accounting policy and reason-code contract examples
+    ux_requirements:
+      - guided posting with pre-post preview and invariant warnings
+      - explicit lock-state indicators for period-sensitive actions
+      - fail-closed responses that map to actionable remediation
+
+  - id: FACTORY
+    surface_type: tenant_manufacturing_ops
+    modules:
+      - factory
+      - production
+      - manufacturing
+    key_flows:
+      - production run logging
+      - packing and finished-goods transitions
+      - cost-allocation linkage visibility
+    required_contract_artifacts:
+      - docs/manufacturing-portal-endpoint-map.md
+      - state-transition matrix with allowed actions by status
+    ux_requirements:
+      - state-machine-aware screens (show next allowed action only)
+      - idempotent retry-safe action UX for operation terminals
+
+  - id: SALES
+    surface_type: tenant_o2c_ops
+    modules:
+      - sales
+    key_flows:
+      - order/dispatch/invoice progression
+      - credit approvals and exception reasons
+      - sales target governance and reporting
+    required_contract_artifacts:
+      - docs/sales-portal-endpoint-map.md
+      - approval reason-code contract examples
+    ux_requirements:
+      - transparent state progression timeline
+      - explicit credit-policy denial/approval feedback
+
+  - id: DEALER
+    surface_type: external_partner_portal
+    modules:
+      - dealer
+      - sales (dealer-scoped subset)
+      - invoice (dealer visibility subset)
+    key_flows:
+      - dealer order placement and tracking
+      - invoice/payment visibility
+      - dealer claim/return submissions
+    required_contract_artifacts:
+      - docs/dealer-portal-endpoint-map.md
+      - portal auth/session timeout and tenant-safety matrix
+    ux_requirements:
+      - simplified action-first navigation
+      - strict read/write scope messaging on denied actions
+
+onboarding_program:
+  objective: make first-time tenant setup and first posting flow deterministic for non-expert operators
+  required_flows:
+    - tenant bootstrap checklist (superadmin)
+    - tenant admin first-login checklist
+    - chart-of-accounts + tax mode readiness checklist
+    - first AP/AR posting guided wizard
+    - first period-close rehearsal checklist with dry-run evidence
+  artifacts_required:
+    - docs/onboarding/v1-tenant-bootstrap.md
+    - docs/onboarding/v1-accounting-first-posting.md
+    - docs/onboarding/v1-period-close-rehearsal.md
+
+handoff_acceptance:
+  backend:
+    - required checks green for touched modules
+    - review evidence recorded (qa + security for high-risk slices)
+    - no unresolved accounting or tenant-isolation P0 blockers
+  frontend:
+    - portal contract packet delivered for each portal
+    - endpoint examples include success + failure cases
+    - RBAC/tenant matrix validated against backend enforcement
