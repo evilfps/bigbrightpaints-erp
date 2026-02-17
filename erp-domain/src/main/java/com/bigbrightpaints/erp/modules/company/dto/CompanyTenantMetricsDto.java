@@ -5,6 +5,9 @@ public record CompanyTenantMetricsDto(
         String companyCode,
         String lifecycleState,
         String lifecycleReason,
-        long activeUserCount
+        long activeUserCount,
+        long apiActivityCount,
+        long apiErrorCount,
+        long apiErrorRateInBasisPoints
 ) {
 }

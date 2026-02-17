@@ -7,6 +7,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.bigbrightpaints.erp.core.audit.AuditLogRepository;
 import com.bigbrightpaints.erp.core.audit.AuditService;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
@@ -42,11 +43,14 @@ class CompanyServiceTest {
     @Mock
     private UserAccountRepository userAccountRepository;
 
+    @Mock
+    private AuditLogRepository auditLogRepository;
+
     private CompanyService companyService;
 
     @BeforeEach
     void setUp() {
-        companyService = new CompanyService(repository, auditService, userAccountRepository);
+        companyService = new CompanyService(repository, auditService, userAccountRepository, auditLogRepository);
     }
 
     @AfterEach
@@ -135,6 +139,8 @@ class CompanyServiceTest {
         company.setLifecycleReason("compliance-review");
         when(repository.findById(1L)).thenReturn(Optional.of(company));
         when(userAccountRepository.countDistinctByCompanies_IdAndEnabledTrue(1L)).thenReturn(3L);
+        when(auditLogRepository.countApiActivityByCompanyId(1L)).thenReturn(20L);
+        when(auditLogRepository.countApiFailureActivityByCompanyId(1L)).thenReturn(5L);
 
         CompanyTenantMetricsDto metrics = companyService.getTenantMetrics(1L);
 
@@ -143,6 +149,9 @@ class CompanyServiceTest {
         assertThat(metrics.lifecycleState()).isEqualTo("HOLD");
         assertThat(metrics.lifecycleReason()).isEqualTo("compliance-review");
         assertThat(metrics.activeUserCount()).isEqualTo(3L);
+        assertThat(metrics.apiActivityCount()).isEqualTo(20L);
+        assertThat(metrics.apiErrorCount()).isEqualTo(5L);
+        assertThat(metrics.apiErrorRateInBasisPoints()).isEqualTo(2500L);
     }
 
     @Test
@@ -156,6 +165,8 @@ class CompanyServiceTest {
                 .hasMessageContaining("SUPER_ADMIN authority required for tenant metrics");
 
         verify(userAccountRepository, never()).countDistinctByCompanies_IdAndEnabledTrue(1L);
+        verify(auditLogRepository, never()).countApiActivityByCompanyId(1L);
+        verify(auditLogRepository, never()).countApiFailureActivityByCompanyId(1L);
     }
 
     private Company company(Long id, String code) {

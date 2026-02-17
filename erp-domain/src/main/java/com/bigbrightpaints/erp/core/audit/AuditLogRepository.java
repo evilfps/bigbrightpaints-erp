@@ -68,6 +68,25 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
     List<AuditLog> findByTraceIdOrderByTimestamp(String traceId);
 
     /**
+     * Count tenant-scoped API activity rows with request context.
+     */
+    @Query("SELECT COUNT(al) FROM AuditLog al " +
+           "WHERE al.companyId = :companyId " +
+           "AND al.requestMethod IS NOT NULL AND al.requestMethod <> '' " +
+           "AND al.requestPath IS NOT NULL AND al.requestPath <> ''")
+    long countApiActivityByCompanyId(@Param("companyId") Long companyId);
+
+    /**
+     * Count tenant-scoped API activity rows marked as failures.
+     */
+    @Query("SELECT COUNT(al) FROM AuditLog al " +
+           "WHERE al.companyId = :companyId " +
+           "AND al.requestMethod IS NOT NULL AND al.requestMethod <> '' " +
+           "AND al.requestPath IS NOT NULL AND al.requestPath <> '' " +
+           "AND al.status = 'FAILURE'")
+    long countApiFailureActivityByCompanyId(@Param("companyId") Long companyId);
+
+    /**
      * Delete old audit logs.
      */
     void deleteByTimestampBefore(LocalDateTime cutoff);

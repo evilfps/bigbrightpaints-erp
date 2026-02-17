@@ -273,7 +273,20 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
         Map<String, Object> data = (Map<String, Object>) body.get("data");
         assertThat(data).isNotNull();
         assertThat(data.get("companyCode")).isEqualTo(TENANT_A);
-        assertThat(data).containsKeys("lifecycleState", "activeUserCount");
+        assertThat(data).containsKeys(
+                "lifecycleState",
+                "activeUserCount",
+                "apiActivityCount",
+                "apiErrorCount",
+                "apiErrorRateInBasisPoints");
+        Number apiActivityCount = (Number) data.get("apiActivityCount");
+        Number apiErrorCount = (Number) data.get("apiErrorCount");
+        Number apiErrorRateInBasisPoints = (Number) data.get("apiErrorRateInBasisPoints");
+        assertThat(apiActivityCount).isNotNull();
+        assertThat(apiErrorCount).isNotNull();
+        assertThat(apiErrorRateInBasisPoints).isNotNull();
+        assertThat(apiActivityCount.longValue()).isGreaterThanOrEqualTo(apiErrorCount.longValue());
+        assertThat(apiErrorRateInBasisPoints.longValue()).isBetween(0L, 10_000L);
     }
 
     @Test

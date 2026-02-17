@@ -1,6 +1,7 @@
 package com.bigbrightpaints.erp.modules.company.service;
 
 import com.bigbrightpaints.erp.core.audit.AuditEvent;
+import com.bigbrightpaints.erp.core.audit.AuditLogRepository;
 import com.bigbrightpaints.erp.core.audit.AuditService;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
 import com.bigbrightpaints.erp.modules.auth.domain.UserPrincipal;
@@ -38,22 +39,26 @@ public class CompanyService {
     private static final String LIFECYCLE_SUPER_ADMIN_REQUIRED_REASON = "super-admin-required-for-tenant-lifecycle-control";
     private static final String METRICS_SUPER_ADMIN_REQUIRED_REASON = "super-admin-required-for-tenant-metrics-read";
     private static final String METRICS_READ_REASON = "tenant-metrics-read";
+    private static final long ERROR_RATE_BASIS_POINTS_SCALE = 10_000L;
 
     private final CompanyRepository repository;
     private final AuditService auditService;
     private final UserAccountRepository userAccountRepository;
+    private final AuditLogRepository auditLogRepository;
 
     public CompanyService(CompanyRepository repository) {
-        this(repository, null, null);
+        this(repository, null, null, null);
     }
 
     @Autowired
     public CompanyService(CompanyRepository repository,
                           AuditService auditService,
-                          UserAccountRepository userAccountRepository) {
+                          UserAccountRepository userAccountRepository,
+                          AuditLogRepository auditLogRepository) {
         this.repository = repository;
         this.auditService = auditService;
         this.userAccountRepository = userAccountRepository;
+        this.auditLogRepository = auditLogRepository;
     }
 
     public List<CompanyDto> findAll() {
@@ -157,13 +162,19 @@ public class CompanyService {
                 .orElseThrow(() -> new IllegalArgumentException("Company not found"));
         CompanyLifecycleState state = company.getLifecycleState() == null ? CompanyLifecycleState.ACTIVE : company.getLifecycleState();
         long activeUserCount = countActiveUsers(companyId);
+        long apiActivityCount = countApiActivity(companyId);
+        long apiErrorCount = countApiFailureActivity(companyId);
+        long apiErrorRateInBasisPoints = calculateErrorRateInBasisPoints(apiActivityCount, apiErrorCount);
         auditAuthorityDecision(true, METRICS_READ_REASON, company.getCode(), authentication);
         return new CompanyTenantMetricsDto(
                 company.getId(),
                 company.getCode(),
                 state.name(),
                 company.getLifecycleReason(),
-                activeUserCount);
+                activeUserCount,
+                apiActivityCount,
+                apiErrorCount,
+                apiErrorRateInBasisPoints);
     }
 
     private void requireMembershipById(Long companyId, Set<Company> allowedCompanies) {
@@ -360,5 +371,27 @@ public class CompanyService {
             return 0L;
         }
         return userAccountRepository.countDistinctByCompanies_IdAndEnabledTrue(companyId);
+    }
+
+    private long countApiActivity(Long companyId) {
+        if (auditLogRepository == null || companyId == null) {
+            return 0L;
+        }
+        return auditLogRepository.countApiActivityByCompanyId(companyId);
+    }
+
+    private long countApiFailureActivity(Long companyId) {
+        if (auditLogRepository == null || companyId == null) {
+            return 0L;
+        }
+        return auditLogRepository.countApiFailureActivityByCompanyId(companyId);
+    }
+
+    private long calculateErrorRateInBasisPoints(long apiActivityCount, long apiErrorCount) {
+        if (apiActivityCount <= 0L || apiErrorCount <= 0L) {
+            return 0L;
+        }
+        long boundedErrorCount = Math.min(apiErrorCount, apiActivityCount);
+        return (boundedErrorCount * ERROR_RATE_BASIS_POINTS_SCALE) / apiActivityCount;
     }
 }
