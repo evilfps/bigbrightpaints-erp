@@ -81,4 +81,34 @@ public class PayrollRunIdempotencyIT extends AbstractIntegrationTest {
         assertThat(payrollRunRepository.findByCompanyAndIdempotencyKey(companyA, idempotencyKey)).isPresent();
         assertThat(payrollRunRepository.findByCompanyAndIdempotencyKey(companyB, idempotencyKey)).isPresent();
     }
+
+    @Test
+    void posted_run_without_journal_link_fails_closed() {
+        Company company = dataSeeder.ensureCompany("IDEMP-POST-NOLINK", "Idempotency Posted Co");
+        LocalDate periodStart = LocalDate.now().minusDays(14);
+        LocalDate periodEnd = LocalDate.now().minusDays(8);
+
+        PayrollRun run = new PayrollRun();
+        run.setCompany(company);
+        run.setRunType(PayrollRun.RunType.WEEKLY);
+        run.setPeriodStart(periodStart);
+        run.setPeriodEnd(periodEnd);
+        run.setRunDate(periodEnd);
+        run.setRunNumber("PR-W-FAIL-CLOSED-" + System.nanoTime());
+        run.setStatus(PayrollRun.PayrollStatus.POSTED);
+        run.setCreatedBy("SYSTEM");
+        PayrollRun saved = payrollRunRepository.save(run);
+
+        CompanyContextHolder.setCompanyId(company.getCode());
+        assertThatThrownBy(() -> payrollService.postPayrollToAccounting(saved.getId()))
+                .isInstanceOf(ApplicationException.class)
+                .satisfies(ex -> {
+                    ApplicationException appEx = (ApplicationException) ex;
+                    assertThat(appEx.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_INVALID_STATE);
+                    assertThat(appEx.getMessage()).contains("missing posting journal linkage");
+                    assertThat(appEx.getDetails())
+                            .containsEntry("payrollRunId", saved.getId())
+                            .containsEntry("currentStatus", PayrollRun.PayrollStatus.POSTED.name());
+                });
+    }
 }

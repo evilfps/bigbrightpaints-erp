@@ -399,10 +399,18 @@ public class PayrollService {
     public PayrollRunDto postPayrollToAccounting(Long payrollRunId) {
         Company company = companyContextService.requireCurrentCompany();
         PayrollRun run = companyEntityLookup.lockPayrollRun(company, payrollRunId);
-        boolean hasJournal = run.getJournalEntryId() != null;
+        boolean hasPostingJournalLink = hasPostingJournalLink(run);
         boolean statusPosted = run.getStatus() == PayrollRun.PayrollStatus.POSTED;
 
-        if (!statusPosted && !hasJournal && run.getStatus() != PayrollRun.PayrollStatus.APPROVED) {
+        if (statusPosted && !hasPostingJournalLink) {
+            throw new ApplicationException(ErrorCode.BUSINESS_INVALID_STATE,
+                    "Payroll run is POSTED but missing posting journal linkage")
+                    .withDetail("payrollRunId", payrollRunId)
+                    .withDetail("currentStatus", run.getStatus().name())
+                    .withDetail("invariant", "posted_requires_journal_link");
+        }
+
+        if (!statusPosted && !hasPostingJournalLink && run.getStatus() != PayrollRun.PayrollStatus.APPROVED) {
             throw new ApplicationException(ErrorCode.BUSINESS_INVALID_STATE,
                     "Can only post approved payroll")
                     .withDetail("payrollRunId", payrollRunId)
@@ -480,7 +488,7 @@ public class PayrollService {
         String memo = "Payroll - " + (runNumber != null ? runNumber : "RUN");
         JournalEntryDto journal = accountingFacade.postPayrollRun(runNumber, run.getId(), postingDate, memo, lines);
 
-        if (hasJournal && run.getJournalEntryId() != null && !run.getJournalEntryId().equals(journal.id())) {
+        if (hasPostingJournalLink && run.getJournalEntryId() != null && !run.getJournalEntryId().equals(journal.id())) {
             throw new ApplicationException(ErrorCode.CONCURRENCY_CONFLICT,
                     "Payroll run already linked to a different posting journal")
                     .withDetail("payrollRunId", run.getId())
@@ -657,6 +665,16 @@ public class PayrollService {
 
     private boolean hasPositive(BigDecimal value) {
         return value != null && value.compareTo(BigDecimal.ZERO) > 0;
+    }
+
+    private boolean hasPostingJournalLink(PayrollRun run) {
+        if (run == null) {
+            return false;
+        }
+        if (run.getJournalEntryId() != null) {
+            return true;
+        }
+        return run.getJournalEntry() != null && run.getJournalEntry().getId() != null;
     }
 
     /**
