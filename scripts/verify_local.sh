@@ -25,6 +25,18 @@ esac
 echo "[verify_local] root=$ROOT_DIR"
 echo "[verify_local] migration_set=$MIGRATION_SET"
 
+SKIP_RELEASE_DUPLICATE_GUARDS="${VERIFY_LOCAL_SKIP_RELEASE_DUPLICATE_GUARDS:-false}"
+if [[ "$SKIP_RELEASE_DUPLICATE_GUARDS" == "true" && "${VERIFY_LOCAL_RELEASE_PREFLIGHT_DONE:-false}" != "true" ]]; then
+  echo "[verify_local] ignore release duplicate-guard delegation (VERIFY_LOCAL_RELEASE_PREFLIGHT_DONE=true not set)"
+  SKIP_RELEASE_DUPLICATE_GUARDS=false
+fi
+
+SKIP_MVN_VERIFY="${VERIFY_LOCAL_SKIP_MVN_VERIFY:-false}"
+if [[ "$SKIP_MVN_VERIFY" == "true" && "${VERIFY_LOCAL_SKIP_TESTS:-false}" != "true" ]]; then
+  echo "[verify_local] ignore mvn verify delegation (VERIFY_LOCAL_SKIP_TESTS=true not set)"
+  SKIP_MVN_VERIFY=false
+fi
+
 echo "[verify_local] legacy migration freeze guard"
 bash "$ROOT_DIR/scripts/guard_legacy_migration_freeze.sh" --no-range
 
@@ -34,8 +46,12 @@ FAIL_ON_FINDINGS=true bash "$ROOT_DIR/scripts/schema_drift_scan.sh" --migration-
 echo "[verify_local] flyway overlap scan (heuristic)"
 FAIL_ON_FINDINGS=true bash "$ROOT_DIR/scripts/flyway_overlap_scan.sh" --migration-set "$MIGRATION_SET"
 
-echo "[verify_local] orchestrator correlation contract guard"
-bash "$ROOT_DIR/scripts/guard_orchestrator_correlation_contract.sh"
+if [[ "$SKIP_RELEASE_DUPLICATE_GUARDS" == "true" ]]; then
+  echo "[verify_local] skip orchestrator correlation contract guard (delegated by caller)"
+else
+  echo "[verify_local] orchestrator correlation contract guard"
+  bash "$ROOT_DIR/scripts/guard_orchestrator_correlation_contract.sh"
+fi
 
 echo "[verify_local] openapi contract drift guard"
 bash "$ROOT_DIR/scripts/guard_openapi_contract_drift.sh"
@@ -47,24 +63,36 @@ echo "[verify_local] audit trail ownership contract guard"
 bash "$ROOT_DIR/scripts/guard_audit_trail_ownership_contract.sh"
 
 if [[ "$MIGRATION_SET" == "v2" ]]; then
-  echo "[verify_local] payroll account bootstrap contract guard"
-  bash "$ROOT_DIR/scripts/guard_payroll_account_bootstrap_contract.sh"
+  if [[ "$SKIP_RELEASE_DUPLICATE_GUARDS" == "true" ]]; then
+    echo "[verify_local] skip payroll account bootstrap contract guard (delegated by caller)"
+    echo "[verify_local] skip flyway v2 migration ownership guard (delegated by caller)"
+    echo "[verify_local] skip flyway v2 migration ownership fixture matrix (delegated by caller)"
+    echo "[verify_local] skip flyway v2 referential contract canary (delegated by caller)"
+    echo "[verify_local] skip flyway v2 referential contract fixture matrix (delegated by caller)"
+  else
+    echo "[verify_local] payroll account bootstrap contract guard"
+    bash "$ROOT_DIR/scripts/guard_payroll_account_bootstrap_contract.sh"
 
-  echo "[verify_local] flyway v2 migration ownership guard"
-  bash "$ROOT_DIR/scripts/guard_flyway_v2_migration_ownership.sh"
+    echo "[verify_local] flyway v2 migration ownership guard"
+    bash "$ROOT_DIR/scripts/guard_flyway_v2_migration_ownership.sh"
 
-  echo "[verify_local] flyway v2 migration ownership fixture matrix"
-  bash "$ROOT_DIR/scripts/guard_flyway_v2_migration_ownership_fixture_matrix.sh"
+    echo "[verify_local] flyway v2 migration ownership fixture matrix"
+    bash "$ROOT_DIR/scripts/guard_flyway_v2_migration_ownership_fixture_matrix.sh"
 
-  echo "[verify_local] flyway v2 referential contract canary"
-  bash "$ROOT_DIR/scripts/guard_flyway_v2_referential_contract.sh"
+    echo "[verify_local] flyway v2 referential contract canary"
+    bash "$ROOT_DIR/scripts/guard_flyway_v2_referential_contract.sh"
 
-  echo "[verify_local] flyway v2 referential contract fixture matrix"
-  bash "$ROOT_DIR/scripts/guard_flyway_v2_referential_contract_fixture_matrix.sh"
+    echo "[verify_local] flyway v2 referential contract fixture matrix"
+    bash "$ROOT_DIR/scripts/guard_flyway_v2_referential_contract_fixture_matrix.sh"
+  fi
 fi
 
-echo "[verify_local] flyway guard contract guard"
-bash "$ROOT_DIR/scripts/guard_flyway_guard_contract.sh"
+if [[ "$SKIP_RELEASE_DUPLICATE_GUARDS" == "true" ]]; then
+  echo "[verify_local] skip flyway guard contract guard (delegated by caller)"
+else
+  echo "[verify_local] flyway guard contract guard"
+  bash "$ROOT_DIR/scripts/guard_flyway_guard_contract.sh"
+fi
 
 if [[ "$MIGRATION_SET" == "v2" ]]; then
   ALLOW_GUARD_DB_MISMATCH="${ALLOW_FLYWAY_GUARD_DB_MISMATCH:-false}"
@@ -109,7 +137,9 @@ fi
 echo "[verify_local] time api scan"
 bash "$ROOT_DIR/scripts/time_api_scan.sh"
 
-if [[ "${VERIFY_LOCAL_SKIP_TESTS:-false}" == "true" ]]; then
+if [[ "$SKIP_MVN_VERIFY" == "true" ]]; then
+  echo "[verify_local] skip mvn verify (delegated by caller)"
+elif [[ "${VERIFY_LOCAL_SKIP_TESTS:-false}" == "true" ]]; then
   echo "[verify_local] mvn verify (skip tests)"
   (cd "$ROOT_DIR/erp-domain" && mvn "${MVN_ARGS[@]}" -DskipTests -Djacoco.skip=true verify)
 else
