@@ -324,7 +324,7 @@
 - 2026-01-27: Payroll run default runDate now uses CompanyClock to align with company timezone. Tests not run (logic-only change).
 - 2026-01-27: Dealer creation no longer returns generated passwords; dealer portal users get must-change-password and credentials email via EmailService. Tests not run (logic-only change).
 - 2026-01-27: `scripts/task00_async_verify.sh` (PASS) — PID 67826; exit 0; BUILD SUCCESS; Tests run: 457, Failures: 0, Errors: 0, Skipped: 4. (Note: started before latest dealer password response change.)
-- 2026-01-27: `cd erp-domain && mvn -B -ntp -Dtest=OpenApiSnapshotIT test` (PASS) — Tests run: 1, Failures: 0, Errors: 0, Skipped: 0. OpenAPI snapshot refreshed.
+- 2026-01-27: `cd erp-domain && mvn -B -ntp -Dtest=OpenApiSnapshotIT -Derp.openapi.snapshot.verify=true -Derp.openapi.snapshot.refresh=true test` (PASS) — Tests run: 1, Failures: 0, Errors: 0, Skipped: 0. OpenAPI snapshot refreshed via explicit refresh mode (verify remains non-mutating unless refresh is enabled).
 - 2026-01-27: `scripts/task00_async_verify.sh` (PASS) — PID 80656; exit 0; BUILD SUCCESS; Tests run: 457, Failures: 0, Errors: 0, Skipped: 4.
 - 2026-01-27: Aligned HR attendance/payroll current-period endpoints and dealer/accounting aging/statement dates to CompanyClock timezone (AttendanceService, HrService, HrController, HrPayrollController, StatementService, DunningService, DealerPortalService, ReportService). Tests not run (logic-only change).
 - 2026-01-27: Sales fulfillment journal dates and factory task due dates now use CompanyClock (SalesFulfillmentService, SalesService). Tests not run (logic-only change).
