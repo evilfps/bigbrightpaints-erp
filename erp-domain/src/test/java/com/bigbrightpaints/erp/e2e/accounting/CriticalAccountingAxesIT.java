@@ -237,6 +237,7 @@ class CriticalAccountingAxesIT extends AbstractIntegrationTest {
     @DisplayName("GST per-item vs exempt lines post correct tax and rounding")
     @Transactional
     void gstEdgeCasesAndReturns() {
+        enableGstMode(new BigDecimal("18.00"));
         FinishedGood taxable = createFinishedGood("FG-TAX-" + UUID.randomUUID(), "FIFO");
         FinishedGood exempt = createFinishedGood("FG-EXEMPT-" + UUID.randomUUID(), "FIFO");
         SalesOrder order = createOrderWithMixedGst(taxable, exempt);
@@ -275,6 +276,7 @@ class CriticalAccountingAxesIT extends AbstractIntegrationTest {
     @DisplayName("GST return includes input and output tax for the period")
     @Transactional
     void gstReturnIncludesInputAndOutputTax() {
+        enableGstMode(new BigDecimal("18.00"));
         LocalDate today = LocalDate.now();
         YearMonth period = YearMonth.from(today);
         var before = taxService.generateGstReturn(period);
@@ -968,6 +970,11 @@ class CriticalAccountingAxesIT extends AbstractIntegrationTest {
 
     private void refreshAccounts() {
         accounts.replaceAll((k, v) -> accountRepository.findById(v.getId()).orElseThrow());
+    }
+
+    private void enableGstMode(BigDecimal defaultGstRate) {
+        company.setDefaultGstRate(defaultGstRate);
+        company = companyRepository.save(company);
     }
 
     private String login(String email, String password) {
