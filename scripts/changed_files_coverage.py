@@ -52,6 +52,9 @@ def parse_args() -> argparse.Namespace:
     return p.parse_args()
 
 
+INTERFACE_DECL_RE = re.compile(r"^\s*(?:public\s+)?(?:sealed\s+|non-sealed\s+)?(?:abstract\s+)?interface\s+\w+")
+
+
 def parse_changed_lines(diff_text: str) -> dict[str, set[int]]:
     changed: dict[str, set[int]] = {}
     cur_file = None
@@ -94,6 +97,44 @@ def build_jacoco_line_map(jacoco_xml: str, src_root: str) -> dict[str, dict[int,
     return mapped
 
 
+def load_source_info(path: str, cache: dict[str, tuple[list[str], bool]]) -> tuple[list[str], bool]:
+    info = cache.get(path)
+    if info is not None:
+        return info
+    lines: list[str] = []
+    is_interface = False
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            lines = fh.readlines()
+    except FileNotFoundError:
+        cache[path] = (lines, is_interface)
+        return lines, is_interface
+
+    for line in lines:
+        if INTERFACE_DECL_RE.match(line):
+            is_interface = True
+            break
+    cache[path] = (lines, is_interface)
+    return lines, is_interface
+
+
+def is_structural_source_line(text: str, is_interface_file: bool) -> bool:
+    stripped = text.strip()
+    if not stripped:
+        return True
+    if stripped.startswith("//") or stripped.startswith("/*") or stripped.startswith("*") or stripped == "*/":
+        return True
+    if stripped.startswith("package ") or stripped.startswith("import "):
+        return True
+    if stripped.startswith("@"):
+        return True
+    if stripped in {"{", "}", ";", "};"}:
+        return True
+    if is_interface_file and ";" in stripped and "{" not in stripped:
+        return True
+    return False
+
+
 def main() -> int:
     args = parse_args()
     base = resolve_diff_base(args.diff_base)
@@ -119,21 +160,34 @@ def main() -> int:
     branch_total = 0
     files_considered = 0
     per_file: dict[str, dict[str, float | int]] = {}
+    structural_files: list[str] = []
+    files_with_unmapped_lines: list[str] = []
+    skipped_files: list[str] = []
+
+    source_cache: dict[str, tuple[list[str], bool]] = {}
 
     for file_path, changed_lines in changed.items():
         if not changed_lines:
             continue
         line_map = jacoco.get(file_path)
         if line_map is None:
+            skipped_files.append(file_path)
             continue
+        lines, is_interface_file = load_source_info(file_path, source_cache)
         files_considered += 1
         f_line_cov = 0
         f_line_total = 0
         f_branch_cov = 0
         f_branch_total = 0
+        f_structural_lines = 0
+        f_unmapped_lines = 0
         for ln in sorted(changed_lines):
             stats = line_map.get(ln)
             if stats is None:
+                if 1 <= ln <= len(lines) and is_structural_source_line(lines[ln - 1], is_interface_file):
+                    f_structural_lines += 1
+                else:
+                    f_unmapped_lines += 1
                 continue
             mi, ci, mb, cb = stats
             if mi + ci > 0:
@@ -143,22 +197,45 @@ def main() -> int:
             if mb + cb > 0:
                 f_branch_total += mb + cb
                 f_branch_cov += cb
+            if (mi + ci) == 0 and (mb + cb) == 0:
+                f_structural_lines += 1
         line_cov += f_line_cov
         line_total += f_line_total
         branch_cov += f_branch_cov
         branch_total += f_branch_total
+        if f_line_total == 0 and f_branch_total == 0 and f_structural_lines > 0 and f_unmapped_lines == 0:
+            structural_files.append(file_path)
+        if f_unmapped_lines > 0:
+            files_with_unmapped_lines.append(file_path)
         per_file[file_path] = {
+            "changed_lines": len(changed_lines),
             "line_covered": f_line_cov,
             "line_total": f_line_total,
             "branch_covered": f_branch_cov,
             "branch_total": f_branch_total,
             "line_ratio": (f_line_cov / f_line_total) if f_line_total else 1.0,
             "branch_ratio": (f_branch_cov / f_branch_total) if f_branch_total else 1.0,
+            "structural_lines": f_structural_lines,
+            "unmapped_lines": f_unmapped_lines,
         }
 
     line_ratio = (line_cov / line_total) if line_total else 1.0
     branch_ratio = (branch_cov / branch_total) if branch_total else 1.0
-    vacuous = files_considered == 0 or line_total == 0
+    structural_only = (
+        files_considered > 0
+        and line_total == 0
+        and branch_total == 0
+        and len(structural_files) == files_considered
+        and len(structural_files) > 0
+        and not files_with_unmapped_lines
+        and not skipped_files
+    )
+    vacuous = files_considered == 0 or (line_total == 0 and not structural_only)
+    vacuous_reason = ""
+    if files_considered == 0:
+        vacuous_reason = "no_files_considered"
+    elif line_total == 0 and not structural_only:
+        vacuous_reason = "no_instrumented_lines"
 
     summary = {
         "diff_base": base,
@@ -172,6 +249,11 @@ def main() -> int:
         "branch_ratio": branch_ratio,
         "branch_threshold": args.threshold_branch,
         "vacuous": vacuous,
+        "vacuous_reason": vacuous_reason,
+        "structural_only": structural_only,
+        "structural_files": sorted(structural_files),
+        "coverage_skipped_files": sorted(skipped_files),
+        "files_with_unmapped_lines": sorted(files_with_unmapped_lines),
         "passes": (line_ratio >= args.threshold_line
                    and branch_ratio >= args.threshold_branch
                    and not (args.fail_on_vacuous and vacuous)),
@@ -189,7 +271,7 @@ def main() -> int:
     if args.fail_on_vacuous and vacuous:
         print(
             "[changed_files_coverage] FAIL: vacuous changed-files coverage "
-            f"(files_considered={files_considered}, line_total={line_total})",
+            f"(files_considered={files_considered}, line_total={line_total}, reason={vacuous_reason})",
             file=sys.stderr,
         )
         return 1

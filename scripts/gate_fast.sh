@@ -137,4 +137,38 @@ fi
 
 python3 "$ROOT_DIR/scripts/changed_files_coverage.py" "${coverage_args[@]}"
 
+python3 - "$ARTIFACT_DIR/changed-coverage.json" "$RELEASE_VALIDATION_MODE" <<'PY'
+import json
+import sys
+
+summary_path = sys.argv[1]
+release_mode = sys.argv[2].lower() == "true"
+with open(summary_path, "r", encoding="utf-8") as fh:
+  summary = json.load(fh)
+
+structural_only = summary.get("structural_only", False)
+structural_files = summary.get("structural_files") or []
+if structural_only:
+  print(f"[gate-fast] structural-only diff detected ({len(structural_files)} files)")
+  for path in structural_files:
+    print(f"  - structural file: {path}")
+
+warnings: list[tuple[str, list[str]]] = []
+coverage_skipped = summary.get("coverage_skipped_files") or []
+files_with_unmapped = summary.get("files_with_unmapped_lines") or []
+if coverage_skipped:
+  warnings.append(("coverage_skipped_files", coverage_skipped))
+if files_with_unmapped:
+  warnings.append(("files_with_unmapped_lines", files_with_unmapped))
+
+for label, items in warnings:
+  print(f"[gate-fast] WARN: {label}:")
+  for item in items:
+    print(f"  - {item}")
+
+if release_mode and warnings:
+  print("[gate-fast] FAIL: release validation mode requires coverage for all changed files/lines.", file=sys.stderr)
+  sys.exit(1)
+PY
+
 echo "[gate-fast] OK"
