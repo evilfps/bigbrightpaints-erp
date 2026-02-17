@@ -104,6 +104,29 @@ public class SalesControllerIT extends AbstractIntegrationTest {
         return (String) rest.postForEntity("/api/v1/auth/login", req, Map.class).getBody().get("accessToken");
     }
 
+    private HttpHeaders authenticatedHeaders(String token) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(token);
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.set("X-Company-Id", COMPANY_CODE);
+        return headers;
+    }
+
+    private Long createCreditRequest(HttpHeaders headers, String reason) {
+        Map<String, Object> request = new HashMap<>();
+        request.put("amountRequested", new BigDecimal("1500.00"));
+        request.put("reason", reason);
+
+        ResponseEntity<Map> createResponse = rest.exchange(
+                "/api/v1/sales/credit-requests",
+                HttpMethod.POST,
+                new HttpEntity<>(request, headers),
+                Map.class);
+        assertThat(createResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        Map<?, ?> data = (Map<?, ?>) createResponse.getBody().get("data");
+        return ((Number) data.get("id")).longValue();
+    }
+
     @Test
     void create_dealer_and_sales_order() {
         String token = loginToken();
@@ -181,5 +204,51 @@ public class SalesControllerIT extends AbstractIntegrationTest {
                 new HttpEntity<>(payload, headers),
                 Map.class);
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+    }
+
+    @Test
+    void credit_request_approve_requires_decision_reason_metadata() {
+        String token = loginToken();
+        HttpHeaders headers = authenticatedHeaders(token);
+        Long creditRequestId = createCreditRequest(headers, "Temporary limit extension");
+
+        ResponseEntity<Map> missingReasonResponse = rest.exchange(
+                "/api/v1/sales/credit-requests/" + creditRequestId + "/approve",
+                HttpMethod.POST,
+                new HttpEntity<>(Map.of(), headers),
+                Map.class);
+        assertThat(missingReasonResponse.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+
+        ResponseEntity<Map> approveResponse = rest.exchange(
+                "/api/v1/sales/credit-requests/" + creditRequestId + "/approve",
+                HttpMethod.POST,
+                new HttpEntity<>(Map.of("reason", "Approved after reviewing ledger exposure"), headers),
+                Map.class);
+        assertThat(approveResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        Map<?, ?> approvedData = (Map<?, ?>) approveResponse.getBody().get("data");
+        assertThat(approvedData.get("status")).isEqualTo("APPROVED");
+    }
+
+    @Test
+    void credit_request_reject_requires_decision_reason_metadata() {
+        String token = loginToken();
+        HttpHeaders headers = authenticatedHeaders(token);
+        Long creditRequestId = createCreditRequest(headers, "Overrun request without collateral");
+
+        ResponseEntity<Map> missingReasonResponse = rest.exchange(
+                "/api/v1/sales/credit-requests/" + creditRequestId + "/reject",
+                HttpMethod.POST,
+                new HttpEntity<>(Map.of(), headers),
+                Map.class);
+        assertThat(missingReasonResponse.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+
+        ResponseEntity<Map> rejectResponse = rest.exchange(
+                "/api/v1/sales/credit-requests/" + creditRequestId + "/reject",
+                HttpMethod.POST,
+                new HttpEntity<>(Map.of("reason", "Rejected due to overdue invoices and no guarantee"), headers),
+                Map.class);
+        assertThat(rejectResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        Map<?, ?> rejectedData = (Map<?, ?>) rejectResponse.getBody().get("data");
+        assertThat(rejectedData.get("status")).isEqualTo("REJECTED");
     }
 }

@@ -1774,18 +1774,22 @@ public class SalesService {
     }
 
     @Transactional
-    public CreditRequestDto approveCreditRequest(Long id) {
+    public CreditRequestDto approveCreditRequest(Long id, String decisionReason) {
         CreditRequest creditRequest = requireCreditRequest(id);
         requirePendingCreditRequest(creditRequest, "approved");
+        String normalizedDecisionReason = requireCreditDecisionReason(decisionReason, "approve");
         creditRequest.setStatus("APPROVED");
+        auditCreditRequestDecision(AuditEvent.TRANSACTION_APPROVED, creditRequest, normalizedDecisionReason);
         return toDto(creditRequest);
     }
 
     @Transactional
-    public CreditRequestDto rejectCreditRequest(Long id) {
+    public CreditRequestDto rejectCreditRequest(Long id, String decisionReason) {
         CreditRequest creditRequest = requireCreditRequest(id);
         requirePendingCreditRequest(creditRequest, "rejected");
+        String normalizedDecisionReason = requireCreditDecisionReason(decisionReason, "reject");
         creditRequest.setStatus("REJECTED");
+        auditCreditRequestDecision(AuditEvent.TRANSACTION_REJECTED, creditRequest, normalizedDecisionReason);
         return toDto(creditRequest);
     }
 
@@ -1814,6 +1818,38 @@ public class SalesService {
                     .withDetail("currentStatus", currentStatus)
                     .withDetail("requiredStatus", CREDIT_REQUEST_STATUS_PENDING);
         }
+    }
+
+    private String requireCreditDecisionReason(String reason, String operation) {
+        if (!StringUtils.hasText(reason)) {
+            throw new ApplicationException(ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD,
+                    "Credit request " + operation + " decision requires reason")
+                    .withDetail("field", "reason")
+                    .withDetail("operation", operation)
+                    .withDetail("resourceType", "credit_request");
+        }
+        return reason.trim();
+    }
+
+    private void auditCreditRequestDecision(AuditEvent event, CreditRequest creditRequest, String decisionReason) {
+        Map<String, String> metadata = new HashMap<>();
+        metadata.put("resourceType", "credit_request");
+        metadata.put("decisionStatus", normalizeCreditRequestStatus(creditRequest.getStatus(), false));
+        metadata.put("decisionReason", decisionReason);
+        metadata.put("reason", decisionReason);
+        if (creditRequest.getId() != null) {
+            metadata.put("creditRequestId", creditRequest.getId().toString());
+        }
+        if (creditRequest.getPublicId() != null) {
+            metadata.put("creditRequestPublicId", creditRequest.getPublicId().toString());
+        }
+        if (creditRequest.getDealer() != null && creditRequest.getDealer().getId() != null) {
+            metadata.put("dealerId", creditRequest.getDealer().getId().toString());
+        }
+        if (StringUtils.hasText(creditRequest.getReason())) {
+            metadata.put("requestReason", creditRequest.getReason().trim());
+        }
+        auditService.logSuccess(event, metadata);
     }
 
     private CreditRequestDto toDto(CreditRequest request) {

@@ -323,7 +323,7 @@ class SalesServiceTest {
     }
 
     @Test
-    void approveCreditRequestUpdatesStatusOnly() {
+    void approveCreditRequestUpdatesStatusAndAuditsDecisionReason() {
         Dealer dealer = dealerWithCreditLimit(77L, new BigDecimal("2500"));
         CreditRequest existing = new CreditRequest();
         existing.setCompany(company);
@@ -335,12 +335,20 @@ class SalesServiceTest {
 
         when(companyEntityLookup.requireCreditRequest(company, 910L)).thenReturn(existing);
 
-        CreditRequestDto dto = salesService.approveCreditRequest(910L);
+        CreditRequestDto dto = salesService.approveCreditRequest(910L, "  Exposure validated by accounting review  ");
 
         assertEquals("APPROVED", dto.status());
         assertEquals(new BigDecimal("600"), existing.getAmountRequested());
         assertEquals("Temporary headroom needed", existing.getReason());
         assertEquals(dealer.getId(), existing.getDealer().getId());
+
+        ArgumentCaptor<Map<String, String>> metadataCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(auditService).logSuccess(eq(AuditEvent.TRANSACTION_APPROVED), metadataCaptor.capture());
+        Map<String, String> metadata = metadataCaptor.getValue();
+        assertEquals("APPROVED", metadata.get("decisionStatus"));
+        assertEquals("Exposure validated by accounting review", metadata.get("decisionReason"));
+        assertEquals("Exposure validated by accounting review", metadata.get("reason"));
+        assertEquals("Temporary headroom needed", metadata.get("requestReason"));
     }
 
     @Test
@@ -354,14 +362,33 @@ class SalesServiceTest {
         when(companyEntityLookup.requireCreditRequest(company, 912L)).thenReturn(existing);
 
         ApplicationException ex = assertThrows(ApplicationException.class,
-                () -> salesService.approveCreditRequest(912L));
+                () -> salesService.approveCreditRequest(912L, "Already reviewed"));
 
         assertEquals(ErrorCode.BUSINESS_INVALID_STATE, ex.getErrorCode());
         assertEquals("APPROVED", existing.getStatus());
+        verifyNoInteractions(auditService);
     }
 
     @Test
-    void rejectCreditRequestUpdatesStatusOnly() {
+    void approveCreditRequestRequiresDecisionReason() {
+        CreditRequest existing = new CreditRequest();
+        existing.setCompany(company);
+        existing.setAmountRequested(new BigDecimal("600"));
+        existing.setStatus("PENDING");
+        setField(existing, "id", 914L);
+
+        when(companyEntityLookup.requireCreditRequest(company, 914L)).thenReturn(existing);
+
+        ApplicationException ex = assertThrows(ApplicationException.class,
+                () -> salesService.approveCreditRequest(914L, "   "));
+
+        assertEquals(ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD, ex.getErrorCode());
+        assertEquals("PENDING", existing.getStatus());
+        verifyNoInteractions(auditService);
+    }
+
+    @Test
+    void rejectCreditRequestUpdatesStatusAndAuditsDecisionReason() {
         Dealer dealer = dealerWithCreditLimit(78L, new BigDecimal("3000"));
         CreditRequest existing = new CreditRequest();
         existing.setCompany(company);
@@ -373,12 +400,20 @@ class SalesServiceTest {
 
         when(companyEntityLookup.requireCreditRequest(company, 911L)).thenReturn(existing);
 
-        CreditRequestDto dto = salesService.rejectCreditRequest(911L);
+        CreditRequestDto dto = salesService.rejectCreditRequest(911L, " Insufficient collateral documentation ");
 
         assertEquals("REJECTED", dto.status());
         assertEquals(new BigDecimal("725"), existing.getAmountRequested());
         assertEquals("Dealer requested temporary overrun", existing.getReason());
         assertEquals(dealer.getId(), existing.getDealer().getId());
+
+        ArgumentCaptor<Map<String, String>> metadataCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(auditService).logSuccess(eq(AuditEvent.TRANSACTION_REJECTED), metadataCaptor.capture());
+        Map<String, String> metadata = metadataCaptor.getValue();
+        assertEquals("REJECTED", metadata.get("decisionStatus"));
+        assertEquals("Insufficient collateral documentation", metadata.get("decisionReason"));
+        assertEquals("Insufficient collateral documentation", metadata.get("reason"));
+        assertEquals("Dealer requested temporary overrun", metadata.get("requestReason"));
     }
 
     @Test
@@ -392,10 +427,29 @@ class SalesServiceTest {
         when(companyEntityLookup.requireCreditRequest(company, 913L)).thenReturn(existing);
 
         ApplicationException ex = assertThrows(ApplicationException.class,
-                () -> salesService.rejectCreditRequest(913L));
+                () -> salesService.rejectCreditRequest(913L, "Already final"));
 
         assertEquals(ErrorCode.BUSINESS_INVALID_STATE, ex.getErrorCode());
         assertEquals("REJECTED", existing.getStatus());
+        verifyNoInteractions(auditService);
+    }
+
+    @Test
+    void rejectCreditRequestRequiresDecisionReason() {
+        CreditRequest existing = new CreditRequest();
+        existing.setCompany(company);
+        existing.setAmountRequested(new BigDecimal("725"));
+        existing.setStatus("PENDING");
+        setField(existing, "id", 915L);
+
+        when(companyEntityLookup.requireCreditRequest(company, 915L)).thenReturn(existing);
+
+        ApplicationException ex = assertThrows(ApplicationException.class,
+                () -> salesService.rejectCreditRequest(915L, " "));
+
+        assertEquals(ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD, ex.getErrorCode());
+        assertEquals("PENDING", existing.getStatus());
+        verifyNoInteractions(auditService);
     }
 
     @Test
