@@ -103,6 +103,21 @@ For `TKT-ERP-STAGE-064` before one-SHA release closure work:
 4. If a rollback drill is executed, log it using `docs/runbooks/rollback.md` evidence fields and keep `release_anchor_sha` identical to Step 1.
 5. Fail closed if migration/rollback evidence references mixed SHAs; resolve parity before advancing to `TKT-ERP-STAGE-065`.
 
+## Section 14.8 Stage-066 Final Go/No-Go Evidence Pack
+When closing `TKT-ERP-STAGE-066`:
+1. Pin immutable `GO_NO_GO_SHA=$(git rev-parse HEAD)` on integration head.
+2. Verify prerequisite P0 tickets are fully merged and done:
+   - `tickets/TKT-ERP-STAGE-061/ticket.yaml`
+   - `tickets/TKT-ERP-STAGE-062/ticket.yaml`
+   - `tickets/TKT-ERP-STAGE-065/ticket.yaml`
+3. Run minimum closure checks on `GO_NO_GO_SHA`:
+   - `bash ci/lint-knowledgebase.sh`
+   - `bash ci/check-architecture.sh`
+   - `bash ci/check-enterprise-policy.sh`
+4. Record unresolved P0 blocker matrix in ticket evidence; closure is valid only when blocker count is exactly zero.
+5. Update `docs/approvals/R2-CHECKPOINT.md` with scope, authority, expiry, and evidence tied to `GO_NO_GO_SHA`.
+6. Treat this checkpoint as `R2 complete / R3 pending`; production go-live still requires explicit human `R3` decision.
+
 
 ## Execution Loop (One Iteration)
 1. Pick highest-risk `in_progress` or top `ready` slice from `asyncloop`.

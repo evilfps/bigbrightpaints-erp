@@ -312,6 +312,21 @@ For integration PR and merge-queue posture:
 4. Invalidate pre-conflict gate evidence; only post-resolution `HEAD` gate outputs are admissible.
 5. Accept Section 14.3 final closure only from integration `HEAD` after merge sequencing is complete and recorded in `asyncloop`.
 
+### 14.8 Stage-066 final go/no-go evidence protocol
+For `TKT-ERP-STAGE-066` closure:
+1. Pin immutable `GO_NO_GO_SHA=$(git rev-parse HEAD)` on integration branch after Stage-065 merges.
+2. Validate prerequisite P0 ticket state is fully closed (`status: done`, merge-complete slices):
+   - `tickets/TKT-ERP-STAGE-061/ticket.yaml`
+   - `tickets/TKT-ERP-STAGE-062/ticket.yaml`
+   - `tickets/TKT-ERP-STAGE-065/ticket.yaml`
+3. Run closure checks on `GO_NO_GO_SHA`:
+   - `bash ci/lint-knowledgebase.sh`
+   - `bash ci/check-architecture.sh`
+   - `bash ci/check-enterprise-policy.sh`
+4. Record blocker matrix in ticket evidence; unresolved P0 blocker count must be `0`.
+5. Update `docs/approvals/R2-CHECKPOINT.md` with scope, authority, expiry, and proof tied to `GO_NO_GO_SHA`.
+6. Mark result as `R2 complete / R3 pending`; only explicit human `R3` can authorize production go-live.
+
 ## 15) Virtual Accountant Vision (Deferred Until Stable Base)
 This remains strategic vision after stabilization:
 - NLP/LLM parses user intent,
