@@ -455,6 +455,8 @@ Current rule:
 - 2026-02-18: `TKT-ERP-STAGE-064` bootstrapped for migration/rollback rehearsal parity on release-candidate SHA (`release-ops` + `repo-cartographer` lanes) and added to active preplanned queue.
 - 2026-02-18: `TKT-ERP-STAGE-064` completed on `tmp/orch-exec-20260217` (`18278495`, `168039a9`; verify report `20260218-011837`) with ordered merges (`release-ops` -> `repo-cartographer`), reviewer evidence closed, and merged-head release gates green (`lint-knowledgebase`, `gate_release`, `gate_reconciliation` PASS).
 - 2026-02-18: `TKT-ERP-STAGE-065` completed on `tmp/orch-exec-20260217` (`5d9f2c6e`, `6181a20a`; verify report `20260218-013853`) with ordered merges (`release-ops` -> `repo-cartographer`), one-SHA gate parity enforcement merged (`RELEASE_SHA` fail-closed checks + traceability manifests), and merged-head gate proof green in anchored mode (`gate_fast`, `gate_core`, `gate_reconciliation`, `gate_release` PASS on `RELEASE_SHA=7515b3fb9d79120a2d20ea1be1b449a4f39acf87`).
+- 2026-02-18: `TKT-ERP-STAGE-066` completed on `tmp/orch-exec-20260217` (`0418f0f7`, `ed337848`; verify report `20260218-015317`) with ordered merges (`orchestrator` -> `repo-cartographer`), final go/no-go evidence matrix closed (`061`, `062`, `065` all `done`), and governance closure checks green (`lint-knowledgebase`, `check-architecture`, `check-enterprise-policy` PASS).
+- 2026-02-18: `TKT-ERP-STAGE-067` bootstrapped + dispatched as immediate follow-up for Stage-14.3 strict release-anchor normalization (`release-ops` + `repo-cartographer` lanes) to close remaining non-vacuous `gate_fast` release-mode evidence gap.
 
 ## 20) V1 Deployment Priority Stack (Senior Orchestrator Order)
 Deployment is blocked until priorities below are satisfied in order:
@@ -541,9 +543,12 @@ Current deployment sequence is now explicitly ticketized to avoid drift:
   - pin immutable `RELEASE_HEAD_SHA=$(git rev-parse HEAD)` after integration-base refresh
   - `gate_fast`, `gate_core`, `gate_reconciliation`, `gate_release` all green with per-gate `head_sha_before/head_sha_after` equal to `RELEASE_HEAD_SHA`
   - closure evidence includes `RELEASE_ANCHOR_SHA`, gate logs/artifacts, and `artifacts/gate-fast/changed-coverage.json` with `"vacuous": false`
-6. `TKT-ERP-STAGE-066` (P0): final staging go/no-go evidence pack
+6. `TKT-ERP-STAGE-066` (P0): final staging go/no-go evidence pack (completed 2026-02-18)
   - reviewer outcomes complete for all merge-bound slices
   - unresolved P0 accounting/security/tenant blockers must be zero
+7. `TKT-ERP-STAGE-067` (P0): strict release-anchor normalization for non-vacuous `gate_fast` release-mode closure
+  - define deterministic release-anchor selection rule for integration head closures
+  - ensure `GATE_FAST_RELEASE_VALIDATION_MODE=true` remains non-vacuous without broad historical drift amplification
 
 Do not reorder the above without explicit R2 evidence and updated dependency rationale.
 
