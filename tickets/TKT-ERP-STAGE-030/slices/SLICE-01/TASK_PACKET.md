@@ -54,6 +54,7 @@ You are `accounting-domain`.
 Implement this slice with minimal safe patching and proof-backed output.
 
 Required output:
+- identity
 - files_changed
 - commands_run
 - harness_results
