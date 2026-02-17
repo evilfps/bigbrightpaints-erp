@@ -6,6 +6,22 @@ ARTIFACT_DIR="$ROOT_DIR/artifacts/gate-core"
 TRUTH_TEST_ROOT="$ROOT_DIR/erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite"
 rm -rf "$ARTIFACT_DIR"
 mkdir -p "$ARTIFACT_DIR"
+GATE_START_UTC="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+RELEASE_SHA="${RELEASE_SHA:-}"
+if [[ -z "$RELEASE_SHA" ]] && resolved_sha="$(git -C "$ROOT_DIR" rev-parse HEAD 2>/dev/null)"; then
+  RELEASE_SHA="$resolved_sha"
+fi
+if [[ -z "$RELEASE_SHA" || "$RELEASE_SHA" == "unknown" ]]; then
+  echo "[gate-core] ERROR: unable to resolve release SHA; set RELEASE_SHA explicitly or run within a git checkout with HEAD available" >&2
+  exit 1
+fi
+if resolved_head_sha="$(git -C "$ROOT_DIR" rev-parse HEAD 2>/dev/null)"; then
+  if [[ "$RELEASE_SHA" != "$resolved_head_sha" ]]; then
+    echo "[gate-core] ERROR: RELEASE_SHA mismatch; expected checkout HEAD $resolved_head_sha but got $RELEASE_SHA" >&2
+    exit 1
+  fi
+fi
+TRACEABILITY_FILE="$ARTIFACT_DIR/gate-core-traceability.json"
 
 echo "[gate-core] validate catalog"
 python3 "$ROOT_DIR/scripts/validate_test_catalog.py" \
@@ -94,5 +110,53 @@ python3 "$ROOT_DIR/scripts/module_coverage_gate.py" \
   --min-active-classes 7 \
   --min-active-packages 4 \
   --output "$ARTIFACT_DIR/module-coverage.json"
+
+echo "[gate-core] build traceability manifest"
+python3 - "$ARTIFACT_DIR" "$GATE_START_UTC" "$RELEASE_SHA" <<'PY'
+import hashlib
+import json
+import os
+import sys
+import time
+
+artifact_dir, started_at_utc, release_sha = sys.argv[1:4]
+manifest_path = os.path.join(artifact_dir, "gate-core-traceability.json")
+tmp_path = manifest_path + ".tmp"
+artifacts = []
+
+for name in sorted(os.listdir(artifact_dir)):
+    path = os.path.join(artifact_dir, name)
+    if not os.path.isfile(path):
+        continue
+    if path == manifest_path:
+        continue
+    digest = hashlib.sha256()
+    with open(path, "rb") as handle:
+        for chunk in iter(lambda: handle.read(65536), b""):
+            digest.update(chunk)
+    stat_result = os.stat(path)
+    artifacts.append(
+        {
+            "path": f"artifacts/gate-core/{name}",
+            "sha256": digest.hexdigest(),
+            "bytes": stat_result.st_size,
+        }
+    )
+
+payload = {
+    "gate": "gate-core",
+    "release_sha": release_sha,
+    "started_at_utc": started_at_utc,
+    "finished_at_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+    "artifact_count": len(artifacts),
+    "artifacts": artifacts,
+}
+
+with open(tmp_path, "w", encoding="utf-8") as handle:
+    json.dump(payload, handle, indent=2, sort_keys=True)
+    handle.write("\n")
+os.replace(tmp_path, manifest_path)
+PY
+cat "$TRACEABILITY_FILE"
 
 echo "[gate-core] OK"

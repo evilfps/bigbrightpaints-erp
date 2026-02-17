@@ -16,6 +16,12 @@ if [[ -z "$RELEASE_SHA" || "$RELEASE_SHA" == "unknown" ]]; then
   echo "[gate-release] ERROR: unable to resolve release SHA; set RELEASE_SHA explicitly or run within a git checkout with HEAD available" >&2
   exit 1
 fi
+if resolved_head_sha="$(git -C "$ROOT_DIR" rev-parse HEAD 2>/dev/null)"; then
+  if [[ "$RELEASE_SHA" != "$resolved_head_sha" ]]; then
+    echo "[gate-release] ERROR: RELEASE_SHA mismatch; expected checkout HEAD $resolved_head_sha but got $RELEASE_SHA" >&2
+    exit 1
+  fi
+fi
 TRACEABILITY_FILE="$ARTIFACT_DIR/release-gate-traceability.json"
 
 # Keep local release matrix runs deterministic on integration worktrees while
