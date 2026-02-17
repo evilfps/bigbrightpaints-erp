@@ -252,12 +252,14 @@ Acceptance criteria:
 - Predeploy scans clean.
 - Rollback drill executed and documented.
 
-### 14.3 Async-loop final ledger gate closure protocol
-1. Select an immutable `RELEASE_ANCHOR_SHA` immediately before the active hardening train.
+### 14.3 Async-loop final ledger gate closure protocol (Stage-065 one-SHA contract)
+1. Refresh to integration `HEAD` and pin:
+   - `RELEASE_HEAD_SHA=$(git rev-parse HEAD)`
+   - immutable `RELEASE_ANCHOR_SHA` immediately before the active hardening train.
 2. Run strict `gate_fast` with anchor; release validation mode must fail closed on vacuous changed-file coverage:
    - `DIFF_BASE=<RELEASE_ANCHOR_SHA> GATE_FAST_RELEASE_VALIDATION_MODE=true bash scripts/gate_fast.sh`
    - Record the resulting `artifacts/gate-fast/changed-coverage.json` showing `"vacuous": false` as part of the closure evidence.
-3. Run remaining ledger gates on the same `HEAD` SHA:
+3. Run remaining ledger gates without changing `HEAD`:
    - `bash scripts/gate_core.sh`
    - `bash scripts/gate_reconciliation.sh`
    - `bash scripts/gate_release.sh`
@@ -265,10 +267,14 @@ Acceptance criteria:
    - `scripts/test_quarantine.txt` entries use: `<test_path> | owner=<owner> | repro=<repro> | start=YYYY-MM-DD | expiry=YYYY-MM-DD`.
    - Required keys are `owner`, `repro`, `start`, and `expiry`.
    - `expiry` must be `>= start` and `<= start + 14 calendar days`; missing/invalid/expired metadata fails closed and blocks Section 14.3 closure.
-5. Store command outputs and artifact paths in `asyncloop`.
-6. Rotate `RELEASE_ANCHOR_SHA` only after all required ledger gates pass and evidence is recorded.
-7. Operators must mirror the detailed checklist in `docs/ASYNC_LOOP_OPERATIONS.md#section-14.3-final-gate-protocol` so the runbook and plan stay lockstep.
-8. Enforce ticket closure metadata parity before marking tickets done:
+5. Store command outputs and artifact paths in `asyncloop`, including per-gate one-SHA proof fields:
+   - `gate_name`
+   - `head_sha_before` and `head_sha_after`
+   - `exit_code`
+6. Fail closed if any recorded SHA differs from `RELEASE_HEAD_SHA`; mixed-SHA evidence is invalid for Stage-065 closure.
+7. Rotate `RELEASE_ANCHOR_SHA` only after all required ledger gates pass and one-SHA evidence is recorded.
+8. Operators must mirror the detailed checklist in `docs/ASYNC_LOOP_OPERATIONS.md#section-14.3-final-gate-protocol-stage-065-one-sha-closure` so the runbook and plan stay lockstep.
+9. Enforce ticket closure metadata parity before marking tickets done:
    - run `python3 scripts/check_ticket_status_parity.py` (or `bash ci/lint-knowledgebase.sh`) so `ticket.yaml`, `SUMMARY.md`, and `TIMELINE.md` cannot drift.
 
 ### 14.4 Reviewer queue saturation checkpoint
@@ -515,8 +521,10 @@ Current deployment sequence is now explicitly ticketized to avoid drift:
   - active migration chain and rollback evidence must be deterministic
   - run `bash scripts/release_migration_matrix.sh --migration-set v2` on the pinned release-candidate SHA and archive outputs in artifacts + `asyncloop`
   - rollback rehearsal evidence must reuse that same `release_anchor_sha` and link `asyncloop` + `docs/approvals/R2-CHECKPOINT.md`
-5. `TKT-ERP-STAGE-065` (P0): one-SHA release gate closure
-  - `gate_fast`, `gate_core`, `gate_reconciliation`, `gate_release` all green on same SHA
+5. `TKT-ERP-STAGE-065` (P0): one-SHA release gate closure on integration head
+  - pin immutable `RELEASE_HEAD_SHA=$(git rev-parse HEAD)` after integration-base refresh
+  - `gate_fast`, `gate_core`, `gate_reconciliation`, `gate_release` all green with per-gate `head_sha_before/head_sha_after` equal to `RELEASE_HEAD_SHA`
+  - closure evidence includes `RELEASE_ANCHOR_SHA`, gate logs/artifacts, and `artifacts/gate-fast/changed-coverage.json` with `"vacuous": false`
 6. `TKT-ERP-STAGE-066` (P0): final staging go/no-go evidence pack
   - reviewer outcomes complete for all merge-bound slices
   - unresolved P0 accounting/security/tenant blockers must be zero

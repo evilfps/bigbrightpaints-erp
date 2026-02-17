@@ -37,13 +37,15 @@ to move the ERP toward staging/predeployment readiness.
 - Decisions must be proof-backed (tests/guards/traces), not assumption-backed.
 - Scope priority source is `docs/system-map/Goal/ERP_STAGING_MASTER_PLAN.md`.
 
-## Section 14.3 Final Gate Protocol
-When closing the async-loop final ledger gate (ERP Staging Plan Section 14.3):
-1. Pin an immutable `RELEASE_ANCHOR_SHA` before the active hardening run.
+## Section 14.3 Final Gate Protocol (Stage-065 One-SHA Closure)
+When closing the async-loop final ledger gate (ERP Staging Plan Section 14.3) for `TKT-ERP-STAGE-065`:
+1. Refresh to integration `HEAD` and pin:
+   - `RELEASE_HEAD_SHA=$(git rev-parse HEAD)`
+   - immutable `RELEASE_ANCHOR_SHA` for diff-based validation.
 2. Run strict fast-lane validation with the anchor and enforce non-vacuous changed-file coverage (release validation mode fails closed if coverage is vacuous):
    - `DIFF_BASE=<RELEASE_ANCHOR_SHA> GATE_FAST_RELEASE_VALIDATION_MODE=true bash scripts/gate_fast.sh`
    - Capture `artifacts/gate-fast/changed-coverage.json` showing `"vacuous": false` as part of the ledger evidence.
-3. Execute the remaining ledger gates on the same `HEAD`:
+3. Execute the remaining ledger gates without changing `HEAD`:
    - `bash scripts/gate_core.sh`
    - `bash scripts/gate_reconciliation.sh`
    - `bash scripts/gate_release.sh`
@@ -51,9 +53,14 @@ When closing the async-loop final ledger gate (ERP Staging Plan Section 14.3):
    - `scripts/test_quarantine.txt` entries use: `<test_path> | owner=<owner> | repro=<repro> | start=YYYY-MM-DD | expiry=YYYY-MM-DD`.
    - Required keys are `owner`, `repro`, `start`, and `expiry`.
    - `expiry` must be `>= start` and `<= start + 14 calendar days`; missing/invalid/expired metadata fails closed and blocks Section 14.3 closure.
-5. Store every gate command output + artifact path inside `asyncloop` for traceability.
-6. Rotate `RELEASE_ANCHOR_SHA` only after all ledger gates pass and evidence is recorded.
-7. Before ticket closure, run `python3 scripts/check_ticket_status_parity.py` (or `bash ci/lint-knowledgebase.sh`) so `ticket.yaml`, `SUMMARY.md`, and `TIMELINE.md` status markers cannot drift.
+5. For all four gates, append one-SHA proof fields in `asyncloop`:
+   - `gate_name`
+   - `head_sha_before` and `head_sha_after`
+   - `exit_code`
+   - log + artifact paths
+6. Fail closed if any recorded SHA differs from `RELEASE_HEAD_SHA`; mixed-SHA evidence is invalid for Stage-065 closure.
+7. Rotate `RELEASE_ANCHOR_SHA` only after all ledger gates pass and one-SHA evidence is recorded.
+8. Before ticket closure, run `python3 scripts/check_ticket_status_parity.py` (or `bash ci/lint-knowledgebase.sh`) so `ticket.yaml`, `SUMMARY.md`, and `TIMELINE.md` status markers cannot drift.
 
 ## Section 14.4 Deterministic Verify Strategy (High-Signal Lanes)
 For autonomous codex-exec operation, use the smallest fail-closed lane that matches slice risk:
