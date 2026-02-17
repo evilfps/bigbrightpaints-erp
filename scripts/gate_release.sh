@@ -165,6 +165,7 @@ echo "[gate-release] strict local verify"
 MIGRATION_SET="$MIGRATION_SET" \
 FLYWAY_GUARD_DB_NAME="$VERIFY_LOCAL_GUARD_DB_NAME" \
 ALLOW_FLYWAY_GUARD_DB_MISMATCH="$ALLOW_GUARD_DB_MISMATCH" \
+VERIFY_LOCAL_TEST_STRATEGY=high-signal \
 VERIFY_LOCAL_SKIP_TESTS=true \
 VERIFY_LOCAL_SKIP_MVN_VERIFY=true \
 VERIFY_LOCAL_SKIP_RELEASE_DUPLICATE_GUARDS=true \
@@ -178,7 +179,7 @@ echo "[gate-release] truth suite strict mode"
 (
   cd "$ROOT_DIR/erp-domain"
   rm -rf target/surefire-reports target/site/jacoco target/jacoco.exec
-  mvn -B -ntp -Pgate-release test
+  mvn -B -ntp -Dsurefire.runOrder=alphabetical -Pgate-release test
 )
 
 echo "[gate-release] fresh + upgrade migration matrix"

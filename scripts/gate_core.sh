@@ -80,7 +80,7 @@ echo "[gate-core] run critical+concurrency+reconciliation truth tests"
 (
   cd "$ROOT_DIR/erp-domain"
   rm -rf target/surefire-reports target/site/jacoco target/jacoco.exec
-  mvn -B -ntp -Pgate-core test
+  mvn -B -ntp -Dsurefire.runOrder=alphabetical -Pgate-core test
 )
 
 echo "[gate-core] module coverage gate"

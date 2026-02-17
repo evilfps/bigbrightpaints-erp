@@ -25,6 +25,22 @@ esac
 echo "[verify_local] root=$ROOT_DIR"
 echo "[verify_local] migration_set=$MIGRATION_SET"
 
+VERIFY_LOCAL_TEST_STRATEGY="${VERIFY_LOCAL_TEST_STRATEGY:-high-signal}"
+case "$VERIFY_LOCAL_TEST_STRATEGY" in
+  high-signal|full)
+    ;;
+  *)
+    echo "[verify_local] invalid VERIFY_LOCAL_TEST_STRATEGY: $VERIFY_LOCAL_TEST_STRATEGY (expected high-signal or full)" >&2
+    exit 2
+    ;;
+esac
+
+HIGH_SIGNAL_PROFILE="${VERIFY_LOCAL_HIGH_SIGNAL_PROFILE:-gate-core}"
+if [[ "$VERIFY_LOCAL_TEST_STRATEGY" == "high-signal" && "$HIGH_SIGNAL_PROFILE" != "gate-core" ]]; then
+  echo "[verify_local] invalid VERIFY_LOCAL_HIGH_SIGNAL_PROFILE: $HIGH_SIGNAL_PROFILE (expected gate-core)" >&2
+  exit 2
+fi
+
 SKIP_RELEASE_DUPLICATE_GUARDS="${VERIFY_LOCAL_SKIP_RELEASE_DUPLICATE_GUARDS:-false}"
 if [[ "$SKIP_RELEASE_DUPLICATE_GUARDS" == "true" && "${VERIFY_LOCAL_RELEASE_PREFLIGHT_DONE:-false}" != "true" ]]; then
   echo "[verify_local] ignore release duplicate-guard delegation (VERIFY_LOCAL_RELEASE_PREFLIGHT_DONE=true not set)"
@@ -142,9 +158,16 @@ if [[ "$SKIP_MVN_VERIFY" == "true" ]]; then
 elif [[ "${VERIFY_LOCAL_SKIP_TESTS:-false}" == "true" ]]; then
   echo "[verify_local] mvn verify (skip tests)"
   (cd "$ROOT_DIR/erp-domain" && mvn "${MVN_ARGS[@]}" -DskipTests -Djacoco.skip=true verify)
+elif [[ "$VERIFY_LOCAL_TEST_STRATEGY" == "high-signal" ]]; then
+  echo "[verify_local] mvn test (deterministic high-signal lane: $HIGH_SIGNAL_PROFILE)"
+  (
+    cd "$ROOT_DIR/erp-domain"
+    rm -rf target/surefire-reports target/site/jacoco target/jacoco.exec
+    mvn "${MVN_ARGS[@]}" -Dsurefire.runOrder=alphabetical -P"$HIGH_SIGNAL_PROFILE" test
+  )
 else
-  echo "[verify_local] mvn verify"
-  (cd "$ROOT_DIR/erp-domain" && mvn "${MVN_ARGS[@]}" verify)
+  echo "[verify_local] mvn verify (full suite)"
+  (cd "$ROOT_DIR/erp-domain" && mvn "${MVN_ARGS[@]}" -Dsurefire.runOrder=alphabetical verify)
 fi
 
 echo "[verify_local] OK"
