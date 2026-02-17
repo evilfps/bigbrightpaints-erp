@@ -211,7 +211,8 @@ For each portal (`ADMIN`, `ACCOUNTING`, `SALES`, `FACTORY`, `DEALER`):
 ### 8.2 Flake and noise management
 - quarantine flaky tests with owner + expiry date,
 - require deterministic reproduction notes,
-- reject permanent quarantine without fix plan.
+- reject permanent quarantine without fix plan,
+- enforce quarantine ledger entries with owner, reproduction notes, and an expiry no later than 14 calendar days after quarantine start; expired entries block release lanes until remedied.
 
 ### 8.3 Deploy-blocking invariant coverage
 Maintain a live map from each P0 blocker class to specific test names and guard scripts.
@@ -232,7 +233,8 @@ Each promotion candidate must publish:
 - migration matrix output,
 - predeploy scan output,
 - smoke and health results,
-- residual risk ledger.
+- residual risk ledger,
+- release signal-quality notes proving two consecutive `gate_release` runs on the candidate SHA with zero expired quarantines, including lane, date, and build URL references logged in `asyncloop`.
 
 ### 9.3 Migration safety (Flyway v2)
 Required commands on release lane:

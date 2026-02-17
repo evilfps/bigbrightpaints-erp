@@ -123,11 +123,13 @@ Deliverables:
   - reconciliation lane
   - nightly flake/soak lane
 - Flake budget policy and quarantine workflow with expiry.
+- Quarantine ledger entries must include owner, reproduction notes, and an expiry date no later than 14 calendar days after quarantine start; expired entries block release decisions until fixed and re-enabled.
 - Coverage of deploy-blocking invariants mapped to named tests.
 
 Exit criteria:
 - Release decision based on invariant coverage and flake budget, not raw test count.
 - Known flaky tests either fixed or quarantined with owner+expiry.
+- Release go/no-go requires two consecutive `gate_release` runs on the candidate SHA with zero expired quarantines and documented signal-quality notes (lane, date, build url) in `asyncloop`.
 
 ### Phase 4: CI and Release Gate Hardening
 Objective: make CI the mechanical enforcement of enterprise policy.
