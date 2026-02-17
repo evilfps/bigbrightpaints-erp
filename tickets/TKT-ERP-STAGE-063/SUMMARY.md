@@ -3,17 +3,17 @@
 - title: Portal Contracts And Onboarding Handoff
 - goal: Deliver deploy-ready portal-by-portal frontend handoff contracts and onboarding flows
 - priority: high
-- status: planned
+- status: done
 - base_branch: tmp/orch-exec-20260217
 - created_at: 2026-02-17T17:52:16+00:00
-- updated_at: 2026-02-17T17:52:16+00:00
+- updated_at: 2026-02-17T19:37:33+00:00
 
 ## Slice Board
 
 | Slice | Agent | Lane | Status | Branch |
 | --- | --- | --- | --- | --- |
-| SLICE-01 | frontend-documentation | w1 | ready | `tickets/tkt-erp-stage-063/frontend-documentation` |
-| SLICE-02 | repo-cartographer | w2 | ready | `tickets/tkt-erp-stage-063/repo-cartographer` |
+| SLICE-01 | frontend-documentation | w1 | merged | `tickets/tkt-erp-stage-063/frontend-documentation` |
+| SLICE-02 | repo-cartographer | w2 | merged | `tickets/tkt-erp-stage-063/repo-cartographer` |
 
 ## Operator Commands
 
