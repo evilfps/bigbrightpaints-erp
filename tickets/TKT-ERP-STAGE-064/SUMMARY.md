@@ -3,17 +3,17 @@
 - title: Migration Rollback Rehearsal Parity On Release Candidate SHA
 - goal: Produce deterministic migration+rollback rehearsal evidence on a single release candidate SHA for staging
 - priority: high
-- status: planned
+- status: done
 - base_branch: tmp/orch-exec-20260217
 - created_at: 2026-02-17T18:42:41+00:00
-- updated_at: 2026-02-17T18:42:41+00:00
+- updated_at: 2026-02-17T19:48:37+00:00
 
 ## Slice Board
 
 | Slice | Agent | Lane | Status | Branch |
 | --- | --- | --- | --- | --- |
-| SLICE-01 | release-ops | w1 | ready | `tickets/tkt-erp-stage-064/release-ops` |
-| SLICE-02 | repo-cartographer | w2 | ready | `tickets/tkt-erp-stage-064/repo-cartographer` |
+| SLICE-01 | release-ops | w1 | merged | `tickets/tkt-erp-stage-064/release-ops` |
+| SLICE-02 | repo-cartographer | w2 | merged | `tickets/tkt-erp-stage-064/repo-cartographer` |
 
 ## Operator Commands
 

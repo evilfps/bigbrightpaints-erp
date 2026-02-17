@@ -432,6 +432,7 @@ Current rule:
 - 2026-02-17: `TKT-ERP-STAGE-063` bootstrapped + dispatched for portal contracts and onboarding handoff completion (`frontend-documentation` + `repo-cartographer` lanes).
 - 2026-02-18: `TKT-ERP-STAGE-063` completed on `tmp/orch-exec-20260217` (`verify report: 20260218-010733`) as merged no-op closure because both slice branches were already contained in base with required portal contract and onboarding documentation present.
 - 2026-02-18: `TKT-ERP-STAGE-064` bootstrapped for migration/rollback rehearsal parity on release-candidate SHA (`release-ops` + `repo-cartographer` lanes) and added to active preplanned queue.
+- 2026-02-18: `TKT-ERP-STAGE-064` completed on `tmp/orch-exec-20260217` (`18278495`, `168039a9`; verify report `20260218-011837`) with ordered merges (`release-ops` -> `repo-cartographer`), reviewer evidence closed, and merged-head release gates green (`lint-knowledgebase`, `gate_release`, `gate_reconciliation` PASS).
 
 ## 20) V1 Deployment Priority Stack (Senior Orchestrator Order)
 Deployment is blocked until priorities below are satisfied in order:
