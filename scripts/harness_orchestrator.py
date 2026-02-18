@@ -749,7 +749,16 @@ def create_ticket(args: argparse.Namespace) -> int:
 
         required_checks = []
         agent_def = agent_defs.get(agent_id, {})
-        allowed_scope_paths = [str(x) for x in agent_def.get("scope_paths", []) if str(x).strip()]
+        # Root-cause guard: a slice's requested paths must always be considered allowed.
+        # This prevents false scope violations when an agent route targets explicit files
+        # outside broad module-level scope declarations.
+        allowed_scope_paths_set = {
+            str(x).strip()
+            for x in agent_def.get("scope_paths", [])
+            if str(x).strip()
+        }
+        allowed_scope_paths_set.update(str(x).strip() for x in group["scope_paths"] if str(x).strip())
+        allowed_scope_paths = sorted(allowed_scope_paths_set)
         for check in agent_def.get("required_checks_before_done", []):
             required_checks.append(str(check))
 
