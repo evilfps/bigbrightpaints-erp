@@ -20,7 +20,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.server.ResponseStatusException;
 
-@Service
+@Service("companyTenantRuntimeEnforcementService")
 public class TenantRuntimeEnforcementService {
 
     private static final int MIN_LIMIT = 1;

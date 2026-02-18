@@ -35,7 +35,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
-@Service
+@Service("coreTenantRuntimeEnforcementService")
 public class TenantRuntimeEnforcementService {
 
     private static final Logger log = LoggerFactory.getLogger(TenantRuntimeEnforcementService.class);
