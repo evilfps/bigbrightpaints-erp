@@ -81,6 +81,7 @@ This is the canonical knowledge base entrypoint for agentic work in this reposit
 ## Risk and Reliability
 - Security + governance + initial risk register: `docs/SECURITY.md`
 - Reliability + observability + SLO placeholders: `docs/RELIABILITY.md`
+- Tenant runtime quota/hold/block enforcement + audit chain: `docs/tenant-runtime-enforcement.md`
 - Rollback runbook: `docs/runbooks/rollback.md`
 - Migration runbook: `docs/runbooks/migrations.md`
 
