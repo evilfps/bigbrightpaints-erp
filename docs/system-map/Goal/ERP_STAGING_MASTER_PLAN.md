@@ -1,6 +1,6 @@
 # ERP Staging Master Plan (Final Stability Plan)
 
-Last reviewed: 2026-02-17
+Last reviewed: 2026-02-18
 Owner: Orchestrator Agent
 Status: Active
 
@@ -447,7 +447,9 @@ Current rule:
 - 2026-02-17: `TKT-ERP-STAGE-058` completed on `tmp/orch-exec-20260217` (`merge: stage-058 slice-02 data-migration`, `merge: stage-058 slice-01 auth-rbac-company`, closure `ba6421ad`) with canonical tenant quota foundation now landed across both migration chains (`db/migration/V137__company_quota_controls.sql` + `db/migration_v2/V20__company_quota_controls.sql`), runtime contract aligned to `quotaMax*` + fail-closed quota enforcement, and merged-SHA proof green (`AuthTenantAuthorityIT`, `CompanyQuotaContractTest`, `check-architecture`, `check-enterprise-policy` PASS).
 - 2026-02-17: data-migration command contract normalized from stale `release_migration_matrix_v2.sh` alias to canonical `scripts/release_migration_matrix.sh --migration-set v2` across agent contracts/runbooks/active packet evidence to prevent recurring false blockers.
 - 2026-02-17: `TKT-ERP-STAGE-059` bootstrapped + dispatched as next M18-S2A successor (`Tenant Quota Runtime Enforcement`) with isolated auth-rbac-company + refactor-techdebt-gc slices on `tmp/orch-exec-20260217`.
+- 2026-02-18: `TKT-ERP-STAGE-059` completed on `tmp/orch-exec-20260217` (`baa840a1`, `8546e957`) after root-cause alignment with purchase-return idempotency replay semantics; merged-head strict proof green (`check-architecture`, full `mvn test`) and ticket verify closure recorded.
 - 2026-02-17: `TKT-ERP-STAGE-060` bootstrapped + dispatched for quota contract/docs parity (`openapi + portal docs + drift guard + planning sync`) with five isolated slices (`auth-rbac-company`, `release-ops`, `frontend-documentation`, `refactor-techdebt-gc`, `repo-cartographer`).
+- 2026-02-18: `TKT-ERP-STAGE-060` completed on `tmp/orch-exec-20260217` (`a791f337`) with OpenAPI snapshot parity restored (`openapi.json`, `erp-domain/openapi.json`), full-suite proof green (`mvn test`), and orchestration root-cause fix to prevent false scope violations during verify.
 - 2026-02-17: `TKT-ERP-STAGE-061` bootstrapped + dispatched for pre-deploy accounting/data safety finalization (accounting invariants + reconciliation gate evidence).
 - 2026-02-18: `TKT-ERP-STAGE-061` completed on `tmp/orch-exec-20260217` (`a7f7357a`, `9e25df63`) with ordered slice merges (`release-ops` then `accounting-domain`) and merged-SHA required checks green (`gate_release`, `gate_reconciliation`, `*Accounting*`, `verify_local`).
 - 2026-02-17: `TKT-ERP-STAGE-062` bootstrapped + dispatched for backend workflow UX simplification hardening (reason-coded fail-closed behavior across accounting/p2p/sales).
@@ -459,6 +461,8 @@ Current rule:
 - 2026-02-18: `TKT-ERP-STAGE-065` completed on `tmp/orch-exec-20260217` (`5d9f2c6e`, `6181a20a`; verify report `20260218-013853`) with ordered merges (`release-ops` -> `repo-cartographer`), one-SHA gate parity enforcement merged (`RELEASE_SHA` fail-closed checks + traceability manifests), and merged-head gate proof green in anchored mode (`gate_fast`, `gate_core`, `gate_reconciliation`, `gate_release` PASS on `RELEASE_SHA=7515b3fb9d79120a2d20ea1be1b449a4f39acf87`).
 - 2026-02-18: `TKT-ERP-STAGE-066` completed on `tmp/orch-exec-20260217` (`0418f0f7`, `ed337848`; verify report `20260218-015317`) with ordered merges (`orchestrator` -> `repo-cartographer`), final go/no-go evidence matrix closed (`061`, `062`, `065` all `done`), and governance closure checks green (`lint-knowledgebase`, `check-architecture`, `check-enterprise-policy` PASS).
 - 2026-02-18: `TKT-ERP-STAGE-067` bootstrapped + dispatched as immediate follow-up for Stage-14.3 strict release-anchor normalization (`release-ops` + `repo-cartographer` lanes) to close remaining non-vacuous `gate_fast` release-mode evidence gap.
+- 2026-02-18: `TKT-ERP-STAGE-067` completed on `tmp/orch-exec-20260217` (`5516254c`, `29f58fdf`, closure `fcca4a98`) with strict release-anchor normalization and non-vacuous `gate_fast` closure evidence captured on one SHA.
+- 2026-02-18: `TKT-ERP-STAGE-068` completed on `tmp/orch-exec-20260217` (`663210c0`, `dc987af0`) as purchase-return idempotency root-cause closure; replay-safe terminal semantics now preserve fail-closed behavior for non-replay requests and full-suite proof returned green.
 
 ## 20) V1 Deployment Priority Stack (Senior Orchestrator Order)
 Deployment is blocked until priorities below are satisfied in order:
@@ -548,7 +552,7 @@ Current deployment sequence is now explicitly ticketized to avoid drift:
 6. `TKT-ERP-STAGE-066` (P0): final staging go/no-go evidence pack (completed 2026-02-18)
   - reviewer outcomes complete for all merge-bound slices
   - unresolved P0 accounting/security/tenant blockers must be zero
-7. `TKT-ERP-STAGE-067` (P0): strict release-anchor normalization for non-vacuous `gate_fast` release-mode closure
+7. `TKT-ERP-STAGE-067` (P0): strict release-anchor normalization for non-vacuous `gate_fast` release-mode closure (completed 2026-02-18)
   - define deterministic release-anchor selection rule for integration head closures
   - ensure `GATE_FAST_RELEASE_VALIDATION_MODE=true` remains non-vacuous without broad historical drift amplification
 
