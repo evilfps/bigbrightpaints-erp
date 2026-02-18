@@ -3,6 +3,8 @@ package com.bigbrightpaints.erp.modules.sales.controller;
 import com.bigbrightpaints.erp.modules.sales.dto.*;
 import com.bigbrightpaints.erp.modules.sales.service.DealerService;
 import com.bigbrightpaints.erp.modules.sales.service.SalesService;
+import com.bigbrightpaints.erp.core.exception.ApplicationException;
+import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.util.IdempotencyHeaderUtils;
 import com.bigbrightpaints.erp.shared.dto.ApiResponse;
 import io.micrometer.core.annotation.Timed;
@@ -104,10 +106,19 @@ public class SalesController {
         if (request == null) {
             return null;
         }
+        String primaryHeader = normalizeIdempotencyHeader(idempotencyKeyHeader);
+        String legacyHeader = normalizeIdempotencyHeader(legacyIdempotencyKeyHeader);
+        if (primaryHeader != null && legacyHeader != null && !primaryHeader.equals(legacyHeader)) {
+            throw new ApplicationException(
+                    ErrorCode.VALIDATION_INVALID_INPUT,
+                    "Idempotency key mismatch between Idempotency-Key and X-Idempotency-Key headers"
+            ).withDetail("idempotencyKey", primaryHeader)
+                    .withDetail("legacyIdempotencyKey", legacyHeader);
+        }
         String resolvedKey = IdempotencyHeaderUtils.resolveBodyOrHeaderKey(
                 request.idempotencyKey(),
-                idempotencyKeyHeader,
-                legacyIdempotencyKeyHeader
+                primaryHeader,
+                legacyHeader
         );
         if (!StringUtils.hasText(resolvedKey) || StringUtils.hasText(request.idempotencyKey())) {
             return request;
@@ -124,6 +135,13 @@ public class SalesController {
                 resolvedKey,
                 request.paymentMode()
         );
+    }
+
+    private String normalizeIdempotencyHeader(String headerValue) {
+        if (!StringUtils.hasText(headerValue)) {
+            return null;
+        }
+        return headerValue.trim();
     }
 
     /* Promotions */
