@@ -174,6 +174,46 @@
       "quality_flake_monitor": true
     },
     {
+      "id": "ts-accounting-export-audit-governance-contract",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/reports/TS_AccountingExportAuditGovernanceContractTest.java",
+      "owner": "erp-domain-team",
+      "class": "critical",
+      "module": "Reports",
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-quality"
+      ],
+      "tags": [
+        "critical",
+        "security"
+      ],
+      "accounting_math_critical": true,
+      "cross_module_critical": true,
+      "quality_flake_monitor": true
+    },
+    {
+      "id": "ts-accounting-controller-export-audit-runtime-coverage",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/reports/TS_AccountingControllerExportAuditRuntimeCoverageTest.java",
+      "owner": "erp-domain-team",
+      "class": "critical",
+      "module": "Reports",
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-quality"
+      ],
+      "tags": [
+        "critical",
+        "security"
+      ],
+      "accounting_math_critical": true,
+      "cross_module_critical": true,
+      "quality_flake_monitor": true
+    },
+    {
       "id": "ts-catalog-company-idempotency",
       "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/catalog/TS_CatalogImportCompanyScopedIdempotencyTest.java",
       "owner": "erp-domain-team",

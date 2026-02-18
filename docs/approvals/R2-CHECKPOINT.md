@@ -6,6 +6,22 @@ Status: template-initialized
 
 Update this file in every high-risk change set.
 
+## Change Record (2026-02-19, TKT-ERP-STAGE-088)
+- Branch / PR: PR 18 (admin-only accounting export governance + deterministic audit evidence)
+- Paths touched:
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/controller/AccountingController.java`
+  - `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/controller/AccountingControllerExportGovernanceContractTest.java`
+  - `erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/reports/TS_AccountingExportAuditGovernanceContractTest.java`
+  - `erp-domain/src/test/java/com/bigbrightpaints/erp/test/AbstractIntegrationTest.java`
+- Risk rationale: high-risk accounting controller behavior and export-audit evidence contract changed; strict-lane verification required.
+- Approval mode: orchestrator
+- Human escalation required: no
+- Verification commands:
+  - `bash ci/check-architecture.sh` -> pass
+  - `bash ci/check-enterprise-policy.sh` -> pass
+  - `cd erp-domain && mvn -B -ntp -Dtest='AccountingControllerExportGovernanceContractTest,TS_AccountingExportAuditGovernanceContractTest' test` -> pass
+  - `bash scripts/verify_local.sh` -> pass
+
 ## Scope
 - Branch / PR: `async-loop-predeploy-audit` (M16-S3 retry durability hardening)
 - Paths touched: `erp-domain/src/main/java/com/bigbrightpaints/erp/core/audittrail/*`, `erp-domain/src/main/resources/db/migration_v2/V14__audit_action_event_retry_queue.sql`, `docs/approvals/R2-CHECKPOINT.md`

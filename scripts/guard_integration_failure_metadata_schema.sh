@@ -14,14 +14,44 @@ fail() {
   exit 1
 }
 
-for required_command in rg awk; do
+for required_command in awk; do
   command -v "$required_command" >/dev/null 2>&1 \
     || fail "required command not found: $required_command"
 done
 
+search_matching_files() {
+  local pattern="$1"
+  local root="$2"
+  if command -v rg >/dev/null 2>&1; then
+    rg -l "$pattern" "$root" || true
+    return
+  fi
+  grep -R -l -E -- "$pattern" "$root" || true
+}
+
+search_line_numbers() {
+  local pattern="$1"
+  local file="$2"
+  if command -v rg >/dev/null 2>&1; then
+    rg -n "$pattern" "$file" | cut -d: -f1 || true
+    return
+  fi
+  grep -n -E -- "$pattern" "$file" | cut -d: -f1 || true
+}
+
+has_pattern() {
+  local pattern="$1"
+  local file="$2"
+  if command -v rg >/dev/null 2>&1; then
+    rg -q "$pattern" "$file"
+    return
+  fi
+  grep -Eq -- "$pattern" "$file"
+}
+
 [[ -d "$SOURCE_ROOT" ]] || fail "missing source root: $SOURCE_ROOT"
 
-mapfile -t producer_files < <(rg -l "$LOG_FAILURE_PATTERN" "$SOURCE_ROOT")
+mapfile -t producer_files < <(search_matching_files "$LOG_FAILURE_PATTERN" "$SOURCE_ROOT")
 
 [[ "${#producer_files[@]}" -gt 0 ]] || fail "no files with logFailure calls found under $SOURCE_ROOT"
 
@@ -109,11 +139,11 @@ for file in "${producer_files[@]}"; do
   [[ "${#log_lines[@]}" -gt 0 ]] || continue
   processed_producers=$((processed_producers + 1))
 
-  if rg -q "$MANUAL_REQUIRED_KEY_PATTERN" "$file"; then
+  if has_pattern "$MANUAL_REQUIRED_KEY_PATTERN" "$file"; then
     fail "producer $file still writes required metadata keys manually; use IntegrationFailureMetadataSchema only"
   fi
 
-  mapfile -t helper_lines < <(rg -n "$SCHEMA_PATTERN" "$file" | cut -d: -f1)
+  mapfile -t helper_lines < <(search_line_numbers "$SCHEMA_PATTERN" "$file")
   [[ "${#helper_lines[@]}" -gt 0 ]] || fail "producer $file does not call IntegrationFailureMetadataSchema.applyRequiredFields"
 
   for log_line in "${log_lines[@]}"; do

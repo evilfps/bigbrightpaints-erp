@@ -1,5 +1,7 @@
 package com.bigbrightpaints.erp.modules.accounting.controller;
 
+import com.bigbrightpaints.erp.core.audit.AuditEvent;
+import com.bigbrightpaints.erp.core.audit.AuditService;
 import com.bigbrightpaints.erp.modules.accounting.dto.*;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingPeriodService;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingService;
@@ -63,6 +65,9 @@ public class AccountingController {
     private final AccountingAuditTrailService accountingAuditTrailService;
     private final CompanyContextService companyContextService;
     private final CompanyClock companyClock;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private AuditService auditService;
 
     public AccountingController(AccountingService accountingService,
                                 AccountingFacade accountingFacade,
@@ -697,6 +702,7 @@ public class AccountingController {
         String csv = accountingService.auditDigestCsv(
                 from != null ? java.time.LocalDate.parse(from) : null,
                 to != null ? java.time.LocalDate.parse(to) : null);
+        logAccountingExport("ACCOUNTING_AUDIT_DIGEST", null, "csv");
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=audit-digest.csv")
                 .body(csv);
@@ -887,6 +893,18 @@ public class AccountingController {
         return ResponseEntity.ok(ApiResponse.success(
                 "Days Sales Outstanding report",
                 agingReportService.getDealerDSO(dealerId)));
+    }
+
+    private void logAccountingExport(String resourceType, Long resourceId, String format) {
+        if (auditService == null) {
+            return;
+        }
+        Map<String, String> metadata = new HashMap<>();
+        metadata.put("resourceType", resourceType);
+        metadata.put("resourceId", resourceId != null ? resourceId.toString() : "");
+        metadata.put("operation", "EXPORT");
+        metadata.put("format", format);
+        auditService.logSuccess(AuditEvent.DATA_EXPORT, metadata);
     }
 
 }

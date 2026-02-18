@@ -19,20 +19,52 @@ escape_regex() {
   printf '%s' "$1" | sed -E 's/[][(){}.^$*+?|\\]/\\&/g'
 }
 
+has_regex_match() {
+  local pattern="$1"
+  local file="$2"
+  if command -v rg >/dev/null 2>&1; then
+    rg -q -- "$pattern" "$file"
+    return
+  fi
+  if command -v perl >/dev/null 2>&1; then
+    SCOPE_PATTERN="$pattern" perl -ne 'BEGIN { $p = $ENV{"SCOPE_PATTERN"}; $matched = 0 } $matched = 1 if /$p/; END { exit($matched ? 0 : 1) }' "$file"
+    return
+  fi
+  grep -Eq -- "$pattern" "$file"
+}
+
+require_regex_match() {
+  local pattern="$1"
+  local file="$2"
+  local message="$3"
+  has_regex_match "$pattern" "$file" || fail "$message"
+}
+
+require_literal() {
+  local text="$1"
+  local file="$2"
+  local message="$3"
+  if command -v rg >/dev/null 2>&1; then
+    rg -q --fixed-strings -- "$text" "$file" || fail "$message"
+    return
+  fi
+  grep -Fq -- "$text" "$file" || fail "$message"
+}
+
 assert_endpoint_contract() {
   local module="$1"
   local endpoint="$2"
   local escaped_endpoint
   escaped_endpoint="$(escape_regex "$endpoint")"
 
-  rg -q -- "^- \\x60[A-Z]+(, [A-Z]+)*\\x60 \\x60$escaped_endpoint\\x60\\r?$" "$ENDPOINT_INVENTORY_DOC" \
-    || fail "required $module endpoint evidence missing in endpoint inventory bullets ($endpoint) in $ENDPOINT_INVENTORY_DOC"
+  require_regex_match "^- \\x60[A-Z]+(, [A-Z]+)*\\x60 \\x60$escaped_endpoint\\x60\\r?$" "$ENDPOINT_INVENTORY_DOC" \
+    "required $module endpoint evidence missing in endpoint inventory bullets ($endpoint) in $ENDPOINT_INVENTORY_DOC"
 
-  rg -q -- "^\\| \\x60[A-Z]+(, [A-Z]+)* $escaped_endpoint\\x60 \\|([^|]*\\|)*\\r?$" "$ENDPOINT_MAP_DOC" \
-    || fail "required $module endpoint evidence missing in endpoint map rows ($endpoint) in $ENDPOINT_MAP_DOC"
+  require_regex_match "^\\| \\x60[A-Z]+(, [A-Z]+)* $escaped_endpoint\\x60 \\|([^|]*\\|)*\\r?$" "$ENDPOINT_MAP_DOC" \
+    "required $module endpoint evidence missing in endpoint map rows ($endpoint) in $ENDPOINT_MAP_DOC"
 
-  rg -q -- "^\\| \\x60[^|]+\\x60 \\| [A-Z]+ \\| \\x60$escaped_endpoint\\x60 \\|([^|]*\\|)*\\r?$" "$HANDOFF_DOC" \
-    || fail "required $module endpoint evidence missing in handoff rows ($endpoint) in $HANDOFF_DOC"
+  require_regex_match "^\\| \\x60[^|]+\\x60 \\| [A-Z]+ \\| \\x60$escaped_endpoint\\x60 \\|([^|]*\\|)*\\r?$" "$HANDOFF_DOC" \
+    "required $module endpoint evidence missing in handoff rows ($endpoint) in $HANDOFF_DOC"
 }
 
 assert_portal_parity_contract() {
@@ -167,7 +199,7 @@ for path in "$GUARDRAIL_DOC" "$ENDPOINT_MAP_DOC" "$HANDOFF_DOC" "$ENDPOINT_INVEN
 done
 
 for path in "$GUARDRAIL_DOC" "$ENDPOINT_MAP_DOC" "$HANDOFF_DOC" "$ENDPOINT_INVENTORY_DOC"; do
-  rg -q "$SCOPE_SENTENCE" "$path" || fail "missing accounting portal scope invariant in $path"
+  require_literal "$SCOPE_SENTENCE" "$path" "missing accounting portal scope invariant in $path"
 done
 
 for heading in \
@@ -175,15 +207,13 @@ for heading in \
   "## Inventory & Costing" \
   "## HR & Payroll" \
   "## Reports & Reconciliation"; do
-  rg -q "$heading" "$ENDPOINT_MAP_DOC" \
-    || fail "accounting endpoint map missing required domain heading: $heading"
-  rg -q "$heading" "$HANDOFF_DOC" \
-    || fail "accounting frontend handoff missing required domain heading: $heading"
+  require_literal "$heading" "$ENDPOINT_MAP_DOC" "accounting endpoint map missing required domain heading: $heading"
+  require_literal "$heading" "$HANDOFF_DOC" "accounting frontend handoff missing required domain heading: $heading"
 done
 
 for module in hr purchasing inventory reports; do
-  rg -q "\\| \`$module\` \\| [1-9][0-9]* \\|" "$ENDPOINT_INVENTORY_DOC" \
-    || fail "endpoint inventory summary missing required module row with non-zero path count: $module"
+  require_regex_match "\\| \`$module\` \\| [1-9][0-9]* \\|" "$ENDPOINT_INVENTORY_DOC" \
+    "endpoint inventory summary missing required module row with non-zero path count: $module"
 done
 
 for required in \
@@ -203,21 +233,20 @@ for controller in \
   "### hr-controller" \
   "### hr-payroll-controller" \
   "### report-controller"; do
-  rg -q "$controller" "$ENDPOINT_MAP_DOC" \
-    || fail "accounting endpoint map missing required controller section: $controller"
+  require_literal "$controller" "$ENDPOINT_MAP_DOC" "accounting endpoint map missing required controller section: $controller"
 done
 
-rg -q "docs/ACCOUNTING_PORTAL_SCOPE_GUARDRAIL.md" "$ENDPOINT_MAP_DOC" \
-  || fail "accounting endpoint map must reference the scope guardrail doc"
-rg -q "docs/ACCOUNTING_PORTAL_SCOPE_GUARDRAIL.md" "$ENDPOINT_INVENTORY_DOC" \
-  || fail "endpoint inventory must reference the scope guardrail doc"
+require_literal "docs/ACCOUNTING_PORTAL_SCOPE_GUARDRAIL.md" "$ENDPOINT_MAP_DOC" \
+  "accounting endpoint map must reference the scope guardrail doc"
+require_literal "docs/ACCOUNTING_PORTAL_SCOPE_GUARDRAIL.md" "$ENDPOINT_INVENTORY_DOC" \
+  "endpoint inventory must reference the scope guardrail doc"
 
-rg -q "Change-Control Rule" "$GUARDRAIL_DOC" \
-  || fail "scope guardrail doc must keep change-control section"
-rg -q "Updated portal endpoint map and frontend handoff docs" "$GUARDRAIL_DOC" \
-  || fail "scope guardrail doc must require portal-map + handoff updates for scope changes"
-rg -q 'Updated `?docs/endpoint-inventory\.md`? module mapping and examples' "$GUARDRAIL_DOC" \
-  || fail "scope guardrail doc must require endpoint inventory updates for scope changes"
+require_literal "Change-Control Rule" "$GUARDRAIL_DOC" \
+  "scope guardrail doc must keep change-control section"
+require_literal "Updated portal endpoint map and frontend handoff docs" "$GUARDRAIL_DOC" \
+  "scope guardrail doc must require portal-map + handoff updates for scope changes"
+require_regex_match 'Updated `?docs/endpoint-inventory\.md`? module mapping and examples' "$GUARDRAIL_DOC" \
+  "scope guardrail doc must require endpoint inventory updates for scope changes"
 
 assert_portal_parity_contract
 
