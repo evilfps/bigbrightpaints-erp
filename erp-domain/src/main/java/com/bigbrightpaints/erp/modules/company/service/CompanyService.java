@@ -146,7 +146,32 @@ public class CompanyService {
     }
 
     public boolean isRuntimeAccessAllowed(Long companyId) {
-        return resolveLifecycleStateById(companyId) == CompanyLifecycleState.ACTIVE;
+        if (companyId == null) {
+            return false;
+        }
+        Company company = repository.findById(companyId).orElse(null);
+        if (company == null) {
+            return false;
+        }
+        CompanyLifecycleState lifecycleState = company.getLifecycleState() == null
+                ? CompanyLifecycleState.ACTIVE
+                : company.getLifecycleState();
+        if (lifecycleState != CompanyLifecycleState.ACTIVE) {
+            return false;
+        }
+        if (!company.isQuotaHardLimitEnabled()) {
+            return true;
+        }
+        if (isQuotaExceeded(countActiveUsers(companyId), company.getQuotaMaxActiveUsers())) {
+            return false;
+        }
+        if (isQuotaExceeded(countApiActivity(companyId), company.getQuotaMaxApiRequests())) {
+            return false;
+        }
+        if (isQuotaExceeded(estimateAuditStorageBytes(companyId), company.getQuotaMaxStorageBytes())) {
+            return false;
+        }
+        return !isQuotaExceeded(countDistinctSessionActivity(companyId), company.getQuotaMaxConcurrentSessions());
     }
 
     public CompanyLifecycleState resolveLifecycleStateByCode(String companyCode) {
@@ -445,5 +470,9 @@ public class CompanyService {
 
     private boolean resolveQuotaFlagForUpdate(Boolean requestedFlag, boolean existingFlag) {
         return requestedFlag == null ? existingFlag : requestedFlag;
+    }
+
+    private boolean isQuotaExceeded(long observedValue, long quotaLimit) {
+        return quotaLimit > 0L && observedValue > quotaLimit;
     }
 }
