@@ -6,6 +6,7 @@ import com.bigbrightpaints.erp.core.config.SystemSetting;
 import com.bigbrightpaints.erp.core.config.SystemSettingsRepository;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
+import com.bigbrightpaints.erp.core.util.CompanyTime;
 import com.bigbrightpaints.erp.modules.admin.dto.TenantRuntimeMetricsDto;
 import com.bigbrightpaints.erp.modules.admin.dto.TenantRuntimePolicyUpdateRequest;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccount;
@@ -62,7 +63,7 @@ public class TenantRuntimePolicyService {
         RuntimePolicy updated = merge(previous, request);
 
         String policyReference = UUID.randomUUID().toString();
-        Instant updatedAt = Instant.now();
+        Instant updatedAt = CompanyTime.now();
 
         persistSetting(keyHoldState(company.getId()), updated.holdState());
         persistSetting(keyHoldReason(company.getId()), updated.holdReason());
@@ -348,7 +349,7 @@ public class TenantRuntimePolicyService {
     }
 
     private long currentMinute() {
-        return Instant.now().getEpochSecond() / 60;
+        return CompanyTime.now().getEpochSecond() / 60;
     }
 
     private String safe(String value) {

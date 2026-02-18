@@ -6,11 +6,11 @@ import com.bigbrightpaints.erp.core.config.SystemSetting;
 import com.bigbrightpaints.erp.core.config.SystemSettingsRepository;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
+import com.bigbrightpaints.erp.core.util.CompanyTime;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import java.time.Instant;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -248,7 +248,7 @@ public class TenantRuntimeEnforcementInterceptor implements HandlerInterceptor {
         metadata.put("traceId", safe(headerValue(request, "X-Trace-Id")));
         metadata.put("userAgent", safe(headerValue(request, "User-Agent")));
         metadata.putAll(details);
-        metadata.put("occurredAt", Instant.now().toString());
+        metadata.put("occurredAt", CompanyTime.now().toString());
         auditService.logFailure(AuditEvent.ACCESS_DENIED, metadata);
     }
 
@@ -306,7 +306,7 @@ public class TenantRuntimeEnforcementInterceptor implements HandlerInterceptor {
     }
 
     private long currentMinute() {
-        return Instant.now().getEpochSecond() / 60;
+        return CompanyTime.now().getEpochSecond() / 60;
     }
 
     private String keyHoldState(Long companyId) {
