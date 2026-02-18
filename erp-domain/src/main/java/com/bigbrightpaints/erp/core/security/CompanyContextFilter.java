@@ -2,6 +2,7 @@ package com.bigbrightpaints.erp.core.security;
 
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccount;
 import com.bigbrightpaints.erp.modules.auth.domain.UserPrincipal;
+import com.bigbrightpaints.erp.modules.company.service.TenantRuntimeEnforcementService;
 import io.jsonwebtoken.Claims;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -21,10 +22,17 @@ import java.io.IOException;
 public class CompanyContextFilter extends OncePerRequestFilter {
 
     private static final Logger log = LoggerFactory.getLogger(CompanyContextFilter.class);
+    private final TenantRuntimeEnforcementService tenantRuntimeEnforcementService;
+
+    public CompanyContextFilter(TenantRuntimeEnforcementService tenantRuntimeEnforcementService) {
+        this.tenantRuntimeEnforcementService = tenantRuntimeEnforcementService;
+    }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
+        TenantRuntimeEnforcementService.TenantRequestAdmission admission =
+                TenantRuntimeEnforcementService.TenantRequestAdmission.notTracked();
         try {
             String headerCompanyCode = request.getHeader("X-Company-Code");
             String legacyHeaderCompanyId = request.getHeader("X-Company-Id");
@@ -77,10 +85,31 @@ public class CompanyContextFilter extends OncePerRequestFilter {
                     response.sendError(HttpServletResponse.SC_FORBIDDEN, "Access denied to company: " + companyCode);
                     return;
                 }
+                admission = tenantRuntimeEnforcementService.beginRequest(
+                        companyCode,
+                        request.getRequestURI(),
+                        request.getMethod(),
+                        resolveCurrentActor());
+                if (!admission.isAdmitted()) {
+                    response.setStatus(admission.statusCode());
+                    response.setContentType("application/json");
+                    response.setCharacterEncoding("UTF-8");
+                    String message = admission.message();
+                    if (StringUtils.hasText(message)) {
+                        String escaped = message
+                                .replace("\\", "\\\\")
+                                .replace("\"", "\\\"");
+                        response.getWriter().write("{\"message\":\"" + escaped + "\"}");
+                    } else {
+                        response.getWriter().write("{\"message\":\"Access denied\"}");
+                    }
+                    return;
+                }
                 CompanyContextHolder.setCompanyCode(companyCode);
             }
             filterChain.doFilter(request, response);
         } finally {
+            tenantRuntimeEnforcementService.completeRequest(admission, response.getStatus());
             CompanyContextHolder.clear();
         }
     }
@@ -102,6 +131,14 @@ public class CompanyContextFilter extends OncePerRequestFilter {
         }
         // Fail closed for unknown principal types.
         return false;
+    }
+
+    private String resolveCurrentActor() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !StringUtils.hasText(auth.getName())) {
+            return null;
+        }
+        return auth.getName().trim();
     }
 
     @Override

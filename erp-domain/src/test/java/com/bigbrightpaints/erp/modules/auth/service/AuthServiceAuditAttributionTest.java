@@ -10,6 +10,7 @@ import com.bigbrightpaints.erp.modules.auth.domain.UserAccount;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
 import com.bigbrightpaints.erp.modules.auth.web.LoginRequest;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
+import com.bigbrightpaints.erp.modules.company.service.TenantRuntimeEnforcementService;
 import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -52,6 +53,8 @@ class AuthServiceAuditAttributionTest {
     private TokenBlacklistService tokenBlacklistService;
     @Mock
     private AuditService auditService;
+    @Mock
+    private TenantRuntimeEnforcementService tenantRuntimeEnforcementService;
 
     private AuthService authService;
 
@@ -68,7 +71,8 @@ class AuthServiceAuditAttributionTest {
                 passwordService,
                 emailService,
                 tokenBlacklistService,
-                auditService);
+                auditService,
+                tenantRuntimeEnforcementService);
     }
 
     @Test
