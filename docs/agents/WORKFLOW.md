@@ -1,6 +1,6 @@
 # Agent Workflow and Lifecycle
 
-Last reviewed: 2026-02-15
+Last reviewed: 2026-02-18
 Owner: Orchestrator Agent
 
 ## Lifecycle
@@ -73,8 +73,15 @@ High-risk deltas (auth/payroll/ledger/migrations/permissions/destructive ops) re
 - map finding to file/invariant
 - suggest minimal remediation
 - attach evidence (test/guard output)
-- enforce at least one reviewer agent per slice (orchestrator layer rule)
-- docs-only exception: reviewer-agent and commit-review steps can be skipped when no runtime/config/schema/test files changed; require `bash ci/lint-knowledgebase.sh` pass evidence.
+- enforce at least one reviewer agent per slice (orchestrator layer rule), except lane-qualified docs-only slices.
+- lane-qualified docs-only review skip policy:
+  - `fast_lane` docs-only slices (non-strict docs changes only): skip reviewer-agent + commit-review; require `bash ci/lint-knowledgebase.sh`.
+  - `strict_lane` control-plane docs slices (`docs/agents/`, `docs/ASYNC_LOOP_OPERATIONS.md`, `docs/system-map/REVIEW_QUEUE_POLICY.md`, `agents/orchestrator-layer.yaml`, `asyncloop`, `scripts/harness_orchestrator.py`, `ci/`): reviewer-agent + commit-review may be skipped only when no runtime/config/schema/test files changed, and the strict guard trio must pass:
+    - `bash ci/lint-knowledgebase.sh`
+    - `bash ci/check-architecture.sh`
+    - `bash ci/check-enterprise-policy.sh`
+- runtime/config/schema/test changes never qualify for docs-only review skip.
+- evaluate lane and required checks with `scripts/harness_orchestrator.py`.
 
 Frontend doc changes must preserve portal ownership taxonomy:
 - Accounting Portal: accounting + inventory + hr + reports + invoice

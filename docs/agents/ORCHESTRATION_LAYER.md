@@ -1,6 +1,6 @@
 # Orchestrator Layer Contract
 
-Last reviewed: 2026-02-15
+Last reviewed: 2026-02-18
 Owner: Orchestrator Agent
 
 This defines how the orchestrator controls all agents in long-running async loops.
@@ -28,7 +28,22 @@ This defines how the orchestrator controls all agents in long-running async loop
   - one reviewer agent minimum
   - codex review guideline checks
   - architecture/doc/enterprise policy guard checks
+- Lane-qualified docs-only exception:
+  - docs-only slices may skip reviewer-agent and commit-review steps.
+  - strict-lane control-plane docs changes still require:
+    - `bash ci/lint-knowledgebase.sh`
+    - `bash ci/check-architecture.sh`
+    - `bash ci/check-enterprise-policy.sh`
+  - resolve lane/check mapping with `scripts/harness_orchestrator.py`.
 - Evidence must be appended to `asyncloop` for traceability.
+
+## Strict-Lane Runbook Alignment
+- Strict-lane docs-only operations must keep policy text aligned across:
+  - `docs/agents/WORKFLOW.md`
+  - `docs/ASYNC_LOOP_OPERATIONS.md`
+  - `docs/system-map/REVIEW_QUEUE_POLICY.md`
+  - `asyncloop`
+- Review-only agents provide findings/evidence and do not commit code.
 
 ## Commit Ownership Model
 - Primary implementation agent commits slice code.
