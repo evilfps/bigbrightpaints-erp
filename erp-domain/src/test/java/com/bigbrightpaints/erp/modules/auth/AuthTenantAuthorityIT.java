@@ -3,6 +3,7 @@ package com.bigbrightpaints.erp.modules.auth;
 import com.bigbrightpaints.erp.core.audit.AuditEvent;
 import com.bigbrightpaints.erp.core.audit.AuditLog;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
+import com.bigbrightpaints.erp.modules.company.domain.CompanyLifecycleState;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
 import com.bigbrightpaints.erp.test.AbstractIntegrationTest;
 import jakarta.persistence.EntityManager;
@@ -53,6 +54,9 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
         // Give super admin access to a regular tenant for delegated tenant-admin creation.
         dataSeeder.ensureUser(SUPER_ADMIN_EMAIL, PASSWORD, "Super Admin", TENANT_A,
                 List.of("ROLE_SUPER_ADMIN", "ROLE_ADMIN"));
+        resetTenantRuntimePolicy(TENANT_A);
+        resetTenantRuntimePolicy(TENANT_B);
+        resetTenantRuntimePolicy(ROOT_TENANT);
     }
 
     @Test
@@ -552,6 +556,20 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
                 HttpMethod.PUT,
                 new HttpEntity<>(payload, jsonHeaders(token, companyCode)),
                 Map.class);
+    }
+
+    private void resetTenantRuntimePolicy(String companyCode) {
+        companyRepository.findByCodeIgnoreCase(companyCode).ifPresent(company -> {
+            company.setLifecycleState(CompanyLifecycleState.ACTIVE);
+            company.setLifecycleReason("baseline-active");
+            company.setQuotaMaxActiveUsers(1_000L);
+            company.setQuotaMaxApiRequests(1_000_000L);
+            company.setQuotaMaxStorageBytes(1_000_000_000L);
+            company.setQuotaMaxConcurrentSessions(1_000L);
+            company.setQuotaSoftLimitEnabled(false);
+            company.setQuotaHardLimitEnabled(true);
+            companyRepository.save(company);
+        });
     }
 
     private AuditLog awaitAuditEvent(AuditEvent eventType, Predicate<AuditLog> matcher) throws InterruptedException {

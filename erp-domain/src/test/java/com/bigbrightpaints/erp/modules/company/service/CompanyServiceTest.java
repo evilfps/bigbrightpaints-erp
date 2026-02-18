@@ -189,6 +189,7 @@ class CompanyServiceTest {
     @Test
     void isRuntimeAccessAllowed_allowsWhenHardLimitEnforcementDisabled() {
         Company company = company(1L, "ACME");
+        company.setQuotaSoftLimitEnabled(true);
         company.setQuotaHardLimitEnabled(false);
         company.setQuotaMaxActiveUsers(1L);
         when(repository.findById(1L)).thenReturn(Optional.of(company));
