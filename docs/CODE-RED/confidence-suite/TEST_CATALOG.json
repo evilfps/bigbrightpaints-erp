@@ -89,6 +89,27 @@
       "quality_flake_monitor": true
     },
     {
+      "id": "ts-p2p-gst-decisioning-fail-closed",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/p2p/TS_P2PGstDecisioningFailClosedTest.java",
+      "owner": "erp-domain-team",
+      "class": "critical",
+      "module": "P2P",
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-reconciliation",
+        "gate-quality"
+      ],
+      "tags": [
+        "critical",
+        "reconciliation"
+      ],
+      "accounting_math_critical": true,
+      "cross_module_critical": true,
+      "quality_flake_monitor": true
+    },
+    {
       "id": "ts-payroll-liability-clearing",
       "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/payroll/TS_PayrollLiabilityClearingPolicyTest.java",
       "owner": "erp-domain-team",
