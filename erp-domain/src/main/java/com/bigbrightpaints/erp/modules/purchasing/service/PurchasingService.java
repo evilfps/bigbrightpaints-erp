@@ -863,9 +863,21 @@ public class PurchasingService {
         }
         RawMaterialPurchase purchase = purchaseRepository.lockByCompanyAndId(company, request.purchaseId())
                 .orElseThrow(() -> new IllegalArgumentException("Raw material purchase not found"));
-        assertPurchaseReturnAllowed(purchase);
         if (purchase.getSupplier() == null || !purchase.getSupplier().getId().equals(supplier.getId())) {
             throw new IllegalArgumentException("Purchase does not belong to the supplier");
+        }
+        BigDecimal quantity = positive(request.quantity(), "quantity");
+        BigDecimal unitCost = positive(request.unitCost(), "unitCost");
+        String reference = StringUtils.hasText(request.referenceNumber())
+                ? request.referenceNumber().trim()
+                : referenceNumberService.purchaseReturnReference(company, supplier);
+        LocalDate returnDate = request.returnDate() != null ? request.returnDate() : companyClock.today(company);
+        List<RawMaterialMovement> existingMovements = movementRepository
+                .findByRawMaterialCompanyAndReferenceTypeAndReferenceId(company,
+                        InventoryReference.PURCHASE_RETURN,
+                        reference);
+        if (existingMovements.isEmpty()) {
+            assertPurchaseReturnAllowed(purchase);
         }
         RawMaterial material = rawMaterialRepository.lockByCompanyAndId(company, request.rawMaterialId())
                 .orElseThrow(() -> new IllegalArgumentException("Raw material not found"));
@@ -878,24 +890,14 @@ public class PurchasingService {
         if (material.getInventoryAccountId() == null) {
             throw new IllegalStateException("Raw material " + material.getName() + " is missing an inventory account mapping");
         }
-        BigDecimal quantity = positive(request.quantity(), "quantity");
-        BigDecimal unitCost = positive(request.unitCost(), "unitCost");
-        BigDecimal lineNet = currency(MoneyUtils.safeMultiply(quantity, unitCost));
-        BigDecimal taxAmount = computeReturnTax(purchase, material, quantity);
-        BigDecimal totalAmount = currency(lineNet.add(taxAmount));
         String memo = returnMemo(material, supplier, request.reason());
-        String reference = StringUtils.hasText(request.referenceNumber())
-                ? request.referenceNumber().trim()
-                : referenceNumberService.purchaseReturnReference(company, supplier);
-        LocalDate returnDate = request.returnDate() != null ? request.returnDate() : companyClock.today(company);
-        List<RawMaterialMovement> existingMovements = movementRepository
-                .findByRawMaterialCompanyAndReferenceTypeAndReferenceId(company,
-                        InventoryReference.PURCHASE_RETURN,
-                        reference);
         if (!existingMovements.isEmpty()) {
             return returnExistingPurchaseReturn(purchase, material, supplier, quantity, unitCost, reference,
                     returnDate, memo, existingMovements);
         }
+        BigDecimal lineNet = currency(MoneyUtils.safeMultiply(quantity, unitCost));
+        BigDecimal taxAmount = computeReturnTax(purchase, material, quantity);
+        BigDecimal totalAmount = currency(lineNet.add(taxAmount));
         BigDecimal remainingReturnableQty = remainingReturnableQuantity(purchase, material);
         if (remainingReturnableQty.compareTo(BigDecimal.ZERO) <= 0) {
             throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
