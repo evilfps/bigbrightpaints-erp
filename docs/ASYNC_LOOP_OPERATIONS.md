@@ -1,6 +1,6 @@
 # Async Loop Operations Runbook
 
-Last reviewed: 2026-02-17
+Last reviewed: 2026-02-18
 Owner: Orchestrator Agent
 
 This runbook defines the non-stop autonomous workflow used in this repository
@@ -84,6 +84,20 @@ Lane rules:
 4. Append command, exit status, SHA, and artifact references to `asyncloop` immediately after each run.
 5. If a failure repeats on unchanged `HEAD`, fail closed, open a blocker entry, and escalate at `R2` instead of looping retries.
 6. Before slice closure, run `bash ci/lint-knowledgebase.sh` so ticket metadata parity remains enforced.
+
+### Verify Lock + Progress Contract
+- `python3 scripts/harness_orchestrator.py verify ...` is now single-run per ticket:
+  - lock file: `tickets/<ticket-id>/.locks/verify.lock`
+  - if a live lock exists, verify fails fast with holder PID and lock path.
+  - stale locks from dead PIDs are auto-removed on the next verify attempt.
+- Verify emits explicit live progress lines:
+  - `[harness][verify] verify start ...`
+  - `[harness][verify] slice ... ahead=... changed_files=...`
+  - `[harness][verify] slice ... running check ...`
+  - `[harness][verify] slice ... check PASS|FAIL ...`
+- Operator rule:
+  - never launch a second verify for the same ticket while a live lock holder exists,
+  - treat lock contention as coordination signal, not as a retry cue.
 
 ## Section 14.6 Merge-Ready Ticket Sequencing and Deployment-Gate Discipline
 For integration PR and merge-queue operation:
