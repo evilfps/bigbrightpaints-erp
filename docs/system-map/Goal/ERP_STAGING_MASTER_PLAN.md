@@ -256,8 +256,10 @@ Acceptance criteria:
 1. Refresh to integration `HEAD` and pin:
    - `RELEASE_HEAD_SHA=$(git rev-parse HEAD)`
    - immutable `RELEASE_ANCHOR_SHA` immediately before the active hardening train.
-2. Run strict `gate_fast` with anchor; release validation mode must fail closed on vacuous changed-file coverage:
-   - `DIFF_BASE=<RELEASE_ANCHOR_SHA> GATE_FAST_RELEASE_VALIDATION_MODE=true bash scripts/gate_fast.sh`
+2. Run strict `gate_fast` with the pinned anchor; release validation mode must fail closed on vacuous changed-file coverage:
+   - `RELEASE_ANCHOR_SHA=<40-char-sha> GATE_FAST_RELEASE_VALIDATION_MODE=true bash scripts/gate_fast.sh`
+   - Optional compatibility form (must resolve to the same commit): `DIFF_BASE=<RELEASE_ANCHOR_SHA> RELEASE_ANCHOR_SHA=<RELEASE_ANCHOR_SHA> GATE_FAST_RELEASE_VALIDATION_MODE=true bash scripts/gate_fast.sh`
+   - `gate_fast` release mode fails closed when the anchor is missing, not a fixed 40-character SHA, or when `DIFF_BASE` and `RELEASE_ANCHOR_SHA` do not match.
    - Record the resulting `artifacts/gate-fast/changed-coverage.json` showing `"vacuous": false` as part of the closure evidence.
 3. Run remaining ledger gates without changing `HEAD`:
    - `bash scripts/gate_core.sh`

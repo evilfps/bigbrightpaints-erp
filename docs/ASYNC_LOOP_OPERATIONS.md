@@ -42,8 +42,10 @@ When closing the async-loop final ledger gate (ERP Staging Plan Section 14.3) fo
 1. Refresh to integration `HEAD` and pin:
    - `RELEASE_HEAD_SHA=$(git rev-parse HEAD)`
    - immutable `RELEASE_ANCHOR_SHA` for diff-based validation.
-2. Run strict fast-lane validation with the anchor and enforce non-vacuous changed-file coverage (release validation mode fails closed if coverage is vacuous):
-   - `DIFF_BASE=<RELEASE_ANCHOR_SHA> GATE_FAST_RELEASE_VALIDATION_MODE=true bash scripts/gate_fast.sh`
+2. Run strict fast-lane validation with the pinned anchor and enforce non-vacuous changed-file coverage (release validation mode fails closed if coverage is vacuous):
+   - `RELEASE_ANCHOR_SHA=<40-char-sha> GATE_FAST_RELEASE_VALIDATION_MODE=true bash scripts/gate_fast.sh`
+   - Optional compatibility form (must resolve to the same commit): `DIFF_BASE=<RELEASE_ANCHOR_SHA> RELEASE_ANCHOR_SHA=<RELEASE_ANCHOR_SHA> GATE_FAST_RELEASE_VALIDATION_MODE=true bash scripts/gate_fast.sh`
+   - `gate_fast` release mode now fails closed when the anchor is missing, not a fixed 40-character SHA, or when `DIFF_BASE` and `RELEASE_ANCHOR_SHA` do not match.
    - Capture `artifacts/gate-fast/changed-coverage.json` showing `"vacuous": false` as part of the ledger evidence.
 3. Execute the remaining ledger gates without changing `HEAD`:
    - `bash scripts/gate_core.sh`
