@@ -54,19 +54,49 @@ resolve_diff_base() {
   echo "HEAD~1"
 }
 
+normalize_commit_ref() {
+  local ref="$1"
+  git -C "$ROOT_DIR" rev-parse --verify --quiet "${ref}^{commit}" 2>/dev/null
+}
+
 if [[ "$RELEASE_VALIDATION_MODE" == "true" ]]; then
   REQUIRE_DIFF_BASE="true"
+  if [[ -z "${DIFF_BASE:-}" && -n "${RELEASE_ANCHOR_SHA:-}" ]]; then
+    DIFF_BASE="$RELEASE_ANCHOR_SHA"
+  fi
 fi
 
 if [[ "$REQUIRE_DIFF_BASE" == "true" ]]; then
   if [[ -z "${DIFF_BASE:-}" ]]; then
-    echo "[gate-fast] FAIL: explicit DIFF_BASE is required when GATE_FAST_REQUIRE_DIFF_BASE=true"
+    echo "[gate-fast] FAIL: explicit DIFF_BASE is required when GATE_FAST_REQUIRE_DIFF_BASE=true (or set RELEASE_ANCHOR_SHA in release validation mode)"
     exit 2
   fi
-  if [[ "$DIFF_BASE" =~ ^HEAD~ ]]; then
-    echo "[gate-fast] FAIL: HEAD~N is not allowed in release validation mode; use a fixed RELEASE_ANCHOR_SHA"
+fi
+
+if [[ "$RELEASE_VALIDATION_MODE" == "true" ]]; then
+  if [[ ! "$DIFF_BASE" =~ ^[0-9a-fA-F]{40}$ ]]; then
+    echo "[gate-fast] FAIL: release validation mode requires DIFF_BASE/RELEASE_ANCHOR_SHA as a fixed 40-character commit SHA, got '$DIFF_BASE'" >&2
     exit 2
   fi
+  normalized_diff_base="$(normalize_commit_ref "$DIFF_BASE")"
+  if [[ -z "$normalized_diff_base" ]]; then
+    echo "[gate-fast] FAIL: unable to resolve release anchor commit from '$DIFF_BASE'" >&2
+    exit 2
+  fi
+  DIFF_BASE="$normalized_diff_base"
+  if [[ -n "${RELEASE_ANCHOR_SHA:-}" ]]; then
+    normalized_release_anchor="$(normalize_commit_ref "$RELEASE_ANCHOR_SHA")"
+    if [[ -z "$normalized_release_anchor" ]]; then
+      echo "[gate-fast] FAIL: unable to resolve RELEASE_ANCHOR_SHA '$RELEASE_ANCHOR_SHA'" >&2
+      exit 2
+    fi
+    if [[ "$normalized_release_anchor" != "$DIFF_BASE" ]]; then
+      echo "[gate-fast] FAIL: DIFF_BASE and RELEASE_ANCHOR_SHA must reference the same commit in release validation mode" >&2
+      echo "[gate-fast] DIFF_BASE=$DIFF_BASE RELEASE_ANCHOR_SHA=$normalized_release_anchor" >&2
+      exit 2
+    fi
+  fi
+  echo "[gate-fast] release validation anchor sha: $DIFF_BASE"
 fi
 
 echo "[gate-fast] validate catalog"
