@@ -3079,10 +3079,16 @@ public class AccountingService {
         if (allocations == null) {
             return;
         }
+        Set<Long> seenInvoiceIds = new HashSet<>();
         for (SettlementAllocationRequest allocation : allocations) {
             if (allocation.invoiceId() == null) {
                 throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
                         "Invoice allocation is required for dealer settlements");
+            }
+            if (!seenInvoiceIds.add(allocation.invoiceId())) {
+                throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                        "Dealer settlements cannot include duplicate invoice allocations")
+                        .withDetail("invoiceId", allocation.invoiceId());
             }
             if (allocation.purchaseId() != null) {
                 throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
@@ -3100,6 +3106,7 @@ public class AccountingService {
         if (allocations == null) {
             return;
         }
+        Set<Long> seenPurchaseIds = new HashSet<>();
         for (SettlementAllocationRequest allocation : allocations) {
             if (allocation.invoiceId() != null) {
                 throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
@@ -3115,6 +3122,11 @@ public class AccountingService {
                     || fxAdjustment.compareTo(BigDecimal.ZERO) != 0)) {
                 throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
                         "On-account supplier settlement allocations cannot include discount/write-off/FX adjustments");
+            }
+            if (allocation.purchaseId() != null && !seenPurchaseIds.add(allocation.purchaseId())) {
+                throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                        "Supplier settlements cannot include duplicate purchase allocations")
+                        .withDetail("purchaseId", allocation.purchaseId());
             }
             validateSupplierAllocationCashContribution(allocation.purchaseId(), applied, discount, writeOff, fxAdjustment);
         }
