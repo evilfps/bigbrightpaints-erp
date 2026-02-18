@@ -15,9 +15,9 @@ Portal scope guardrail:
 ## M17-S1 canonical API contract gate (parity evidence)
 
 - Canonical machine contract source: repo-root `openapi.json`.
-- OpenAPI snapshot: `openapi.json` (sha256 `33ddd163c102607970ff0f4c45e95f0c2a9d2965749187f68beb5c012216efa1`)
-- OpenAPI total paths: `228` (includes non-v1 route `GET /api/integration/health`)
-- OpenAPI total operations: `276`
+- OpenAPI snapshot: `openapi.json` (sha256 `afb15346d6a0295c0b4429f0fa893579e7ae80d223adacd2a42699e266ba4e79`)
+- OpenAPI total paths: `230` (includes non-v1 route `GET /api/integration/health`)
+- OpenAPI total operations: `278`
 - Accounting portal endpoint-map parity: `docs/accounting-portal-endpoint-map.md` carries `143` method+path entries over `119` unique paths; all are represented in this inventory and in `openapi.json`.
 - Guard remediation flow (fail-closed): if parity drifts, refresh this evidence from canonical `openapi.json`, update `docs/accounting-portal-endpoint-map.md`, `docs/accounting-portal-frontend-engineer-handoff.md`, and this inventory in the same change, then run `bash scripts/guard_accounting_portal_scope_contract.sh`.
 
@@ -29,7 +29,7 @@ Portal scope guardrail:
 | `admin` | 10 | /api/v1/admin/approvals, /api/v1/admin/notify, /api/v1/admin/roles |
 | `audit` | 2 | /api/v1/audit/business-events, /api/v1/audit/ml-events |
 | `auth` | 11 | /api/v1/auth/login, /api/v1/auth/logout, /api/v1/auth/me |
-| `companies` | 2 | /api/v1/companies, /api/v1/companies/{id} |
+| `companies` | 4 | /api/v1/companies, /api/v1/companies/{id}, /api/v1/companies/{id}/tenant-metrics |
 | `credit` | 3 | /api/v1/credit/override-requests, /api/v1/credit/override-requests/{id}/approve, /api/v1/credit/override-requests/{id}/reject |
 | `dealer-portal` | 7 | /api/v1/dealer-portal/aging, /api/v1/dealer-portal/credit-requests, /api/v1/dealer-portal/invoices |
 | `dealers` | 7 | /api/v1/dealers, /api/v1/dealers/search, /api/v1/dealers/{dealerId} |
@@ -173,6 +173,8 @@ P2P boundary clarification (not duplicate semantics within canonical chain):
 
 - `GET, POST` `/api/v1/companies`
 - `DELETE, PUT` `/api/v1/companies/{id}`
+- `POST` `/api/v1/companies/{id}/lifecycle-state`
+- `GET` `/api/v1/companies/{id}/tenant-metrics`
 
 ## `credit`
 
