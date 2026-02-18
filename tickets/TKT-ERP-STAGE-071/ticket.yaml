@@ -1,0 +1,87 @@
+ticket_id: TKT-ERP-STAGE-071
+title: Period Close Actionable Denial Diagnostics
+goal: Replace raw unresolved-control keys with deterministic actionable period-close
+  diagnostics
+priority: high
+status: done
+base_branch: tmp/orch-exec-20260217
+worktree_root: /home/realnigga/Desktop/orchestrator_erp_worktrees/_tmp_orch_exec_worktrees
+created_at: '2026-02-18T07:28:51+00:00'
+updated_at: '2026-02-18T07:48:03+00:00'
+r3_required: true
+orchestrator_authority:
+  r1: orchestrator
+  r2: orchestrator
+  r3: human
+slices:
+- id: SLICE-01
+  primary_agent: accounting-domain
+  reviewers:
+  - qa-reliability
+  - security-governance
+  scope_paths:
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingPeriodService.java
+  - erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingPeriodServicePolicyTest.java
+  allowed_scope_paths:
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingPeriodService.java
+  - erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/
+  - erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingPeriodServicePolicyTest.java
+  - erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/accounting/
+  matched_rules:
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/
+  - erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/
+  lane: w1
+  branch: tickets/tkt-erp-stage-071/accounting-domain
+  worktree_path: /home/realnigga/Desktop/orchestrator_erp_worktrees/_tmp_orch_exec_worktrees/TKT-ERP-STAGE-071/accounting-domain
+  required_checks:
+  - cd erp-domain && mvn -B -ntp -Dtest='*Accounting*' test
+  - bash scripts/verify_local.sh
+  status: merged
+  objective: Replace raw unresolved-control keys with deterministic actionable period-close
+    diagnostics
+  workflow_upstream_slices: []
+  workflow_downstream_slices: []
+  workflow_external_upstream_agents:
+  - auth-rbac-company
+  - factory-production
+  - hr-domain
+  - orchestrator-runtime
+  - purchasing-invoice-p2p
+  - sales-domain
+  workflow_external_downstream_agents: []
+  cross_workflow_contracts:
+  - relation: upstream-external
+    agent: auth-rbac-company
+    slice_id: ''
+    contract: finance/admin authority boundaries
+    in_ticket: false
+  - relation: upstream-external
+    agent: factory-production
+    slice_id: ''
+    contract: wip/variance/cogs posting linkage
+    in_ticket: false
+  - relation: upstream-external
+    agent: hr-domain
+    slice_id: ''
+    contract: payroll liability/payment posting linkage
+    in_ticket: false
+  - relation: upstream-external
+    agent: orchestrator-runtime
+    slice_id: ''
+    contract: outbox/idempotency posting orchestration
+    in_ticket: false
+  - relation: upstream-external
+    agent: purchasing-invoice-p2p
+    slice_id: ''
+    contract: ap/posting and settlement linkage
+    in_ticket: false
+  - relation: upstream-external
+    agent: sales-domain
+    slice_id: ''
+    contract: o2c posting and receivable linkage
+    in_ticket: false
+cross_workflow:
+  model: workflow_agent_edges_v1
+  generated_at: '2026-02-18T07:48:01+00:00'
+  in_ticket_edges: []
