@@ -28,9 +28,19 @@ class TS_PayrollLiabilityClearingPolicyTest {
     void markAsPaidRequiresPaymentJournalLink() {
         TruthSuiteFileAssert.assertContains(
                 PAYROLL_SERVICE,
+                "private static final String PAYROLL_PAYMENTS_CANONICAL_PATH = \"/api/v1/accounting/payroll/payments\";",
                 "if (run.getPaymentJournalEntryId() == null) {",
                 "\"Payroll payment journal is required before marking payroll as PAID\"",
-                "\"canonicalPath\", \"/api/v1/accounting/payroll/payments\"");
+                "\"canonicalPath\", PAYROLL_PAYMENTS_CANONICAL_PATH");
+    }
+
+    @Test
+    void markAsPaidUsesCanonicalPaymentJournalReference() {
+        TruthSuiteFileAssert.assertContains(
+                PAYROLL_SERVICE,
+                "var paymentJournal = companyEntityLookup.requireJournalEntry(company, run.getPaymentJournalEntryId());",
+                "String canonicalPaymentReference = paymentJournal.getReferenceNumber();",
+                "line.setPaymentReference(canonicalPaymentReference);");
     }
 
     @Test

@@ -37,6 +37,7 @@ public class PayrollService {
 
     private static final BigDecimal ADVANCE_DEDUCTION_CAP = new BigDecimal("0.20");
     private static final String PAYROLL_ACCOUNTS_CANONICAL_PATH = "/api/v1/accounting/accounts";
+    private static final String PAYROLL_PAYMENTS_CANONICAL_PATH = "/api/v1/accounting/payroll/payments";
     private static final String PAYROLL_MIGRATION_SET = "v2";
     private static final Map<String, AccountType> REQUIRED_PAYROLL_ACCOUNT_TYPES = Map.of(
             "SALARY-EXP", AccountType.EXPENSE,
@@ -568,8 +569,18 @@ public class PayrollService {
         if (run.getPaymentJournalEntryId() == null) {
             throw new ApplicationException(ErrorCode.BUSINESS_INVALID_STATE,
                     "Payroll payment journal is required before marking payroll as PAID")
-                    .withDetail("canonicalPath", "/api/v1/accounting/payroll/payments");
+                    .withDetail("canonicalPath", PAYROLL_PAYMENTS_CANONICAL_PATH);
         }
+        var paymentJournal = companyEntityLookup.requireJournalEntry(company, run.getPaymentJournalEntryId());
+        String canonicalPaymentReference = paymentJournal.getReferenceNumber();
+        if (!StringUtils.hasText(canonicalPaymentReference)) {
+            throw new ApplicationException(ErrorCode.BUSINESS_INVALID_STATE,
+                    "Payroll payment journal reference is missing; re-record payment through accounting payroll payments")
+                    .withDetail("payrollRunId", payrollRunId)
+                    .withDetail("paymentJournalEntryId", run.getPaymentJournalEntryId())
+                    .withDetail("canonicalPath", PAYROLL_PAYMENTS_CANONICAL_PATH);
+        }
+        canonicalPaymentReference = canonicalPaymentReference.trim();
 
         if (run.getStatus() != PayrollRun.PayrollStatus.POSTED
                 && run.getStatus() != PayrollRun.PayrollStatus.PAID) {
@@ -585,7 +596,7 @@ public class PayrollService {
                 continue;
             }
             line.setPaymentStatus(PayrollRunLine.PaymentStatus.PAID);
-            line.setPaymentReference(paymentReference);
+            line.setPaymentReference(canonicalPaymentReference);
             dirtyLines.add(line);
             
             // Deduct advance from employee if applicable
