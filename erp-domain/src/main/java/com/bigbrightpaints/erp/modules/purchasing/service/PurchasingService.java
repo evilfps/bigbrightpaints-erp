@@ -863,7 +863,6 @@ public class PurchasingService {
         }
         RawMaterialPurchase purchase = purchaseRepository.lockByCompanyAndId(company, request.purchaseId())
                 .orElseThrow(() -> new IllegalArgumentException("Raw material purchase not found"));
-        assertPurchaseReturnAllowed(purchase);
         if (purchase.getSupplier() == null || !purchase.getSupplier().getId().equals(supplier.getId())) {
             throw new IllegalArgumentException("Purchase does not belong to the supplier");
         }
@@ -896,6 +895,7 @@ public class PurchasingService {
             return returnExistingPurchaseReturn(purchase, material, supplier, quantity, unitCost, reference,
                     returnDate, memo, existingMovements);
         }
+        assertPurchaseReturnAllowed(purchase);
         BigDecimal remainingReturnableQty = remainingReturnableQuantity(purchase, material);
         if (remainingReturnableQty.compareTo(BigDecimal.ZERO) <= 0) {
             throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
