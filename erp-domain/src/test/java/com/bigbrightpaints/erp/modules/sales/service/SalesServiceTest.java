@@ -680,6 +680,7 @@ class SalesServiceTest {
         assertEquals(55L, response.packingSlipId());
         assertEquals(10L, response.salesOrderId());
         assertEquals(777L, response.finalInvoiceId());
+        verify(companyAccountingSettingsService, never()).requireTaxAccounts();
         verifyNoInteractions(creditLimitOverrideService);
     }
 
@@ -822,6 +823,83 @@ class SalesServiceTest {
         assertEquals(new BigDecimal("100.00"), revenueCaptor.getValue().get(3L));
         assertEquals(new BigDecimal("10.00"), discountCaptor.getValue().get(4L));
         assertEquals(0, taxCaptor.getValue().size());
+    }
+
+    @Test
+    void confirmDispatchFailsClosedWhenTaxableLineMissingTaxAccount() {
+        Dealer dealer = dealerWithCreditLimit(42L, BigDecimal.valueOf(1000));
+        Account receivable = new Account();
+        receivable.setName("AR");
+        setField(receivable, "id", 900L);
+        dealer.setReceivableAccount(receivable);
+
+        SalesOrder order = new SalesOrder();
+        setField(order, "id", 10L);
+        order.setCompany(company);
+        order.setDealer(dealer);
+        order.setOrderNumber("SO-10");
+        order.setStatus("READY_TO_SHIP");
+
+        SalesOrderItem item = new SalesOrderItem();
+        setField(item, "id", 1L);
+        item.setSalesOrder(order);
+        item.setProductCode("SKU-TAX");
+        item.setDescription("Taxed item");
+        item.setQuantity(BigDecimal.ONE);
+        item.setUnitPrice(new BigDecimal("100.00"));
+        item.setGstRate(new BigDecimal("18.0000"));
+        order.getItems().add(item);
+
+        FinishedGood finishedGood = buildFinishedGood("SKU-TAX");
+        finishedGood.setCurrentStock(BigDecimal.ONE);
+        finishedGood.setRevenueAccountId(3L);
+        finishedGood.setTaxAccountId(null);
+
+        FinishedGoodBatch batch = new FinishedGoodBatch();
+        batch.setFinishedGood(finishedGood);
+        batch.setBatchCode("B-1");
+        batch.setQuantityTotal(BigDecimal.ONE);
+        batch.setQuantityAvailable(BigDecimal.ONE);
+        batch.setUnitCost(BigDecimal.ZERO);
+
+        PackagingSlip slip = new PackagingSlip();
+        setField(slip, "id", 55L);
+        slip.setCompany(company);
+        slip.setSalesOrder(order);
+        slip.setSlipNumber("PS-55");
+        slip.setStatus("PENDING");
+
+        PackagingSlipLine slipLine = new PackagingSlipLine();
+        setField(slipLine, "id", 99L);
+        slipLine.setPackagingSlip(slip);
+        slipLine.setFinishedGoodBatch(batch);
+        slipLine.setOrderedQuantity(BigDecimal.ONE);
+        slipLine.setQuantity(BigDecimal.ONE);
+        slipLine.setUnitCost(BigDecimal.ZERO);
+        slip.getLines().add(slipLine);
+
+        when(packagingSlipRepository.findAndLockByIdAndCompany(55L, company)).thenReturn(Optional.of(slip));
+        when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 10L)).thenReturn(List.of(slip));
+        when(companyEntityLookup.requireSalesOrder(company, 10L)).thenReturn(order);
+        when(dealerRepository.lockByCompanyAndId(company, dealer.getId())).thenReturn(Optional.of(dealer));
+
+        ApplicationException ex = assertThrows(
+                ApplicationException.class,
+                () -> salesService.confirmDispatch(new DispatchConfirmRequest(
+                        55L, null, List.of(), null, "admin", Boolean.TRUE, null, null)));
+
+        assertEquals(ErrorCode.VALIDATION_INVALID_REFERENCE, ex.getErrorCode());
+        verify(companyAccountingSettingsService, never()).requireTaxAccounts();
+        verify(accountingFacade, never()).postSalesJournal(
+                anyLong(),
+                anyString(),
+                any(),
+                anyString(),
+                anyMap(),
+                anyMap(),
+                anyMap(),
+                any(),
+                anyString());
     }
 
     @Test

@@ -45,4 +45,22 @@ class TS_O2CDispatchCanonicalPostingTest {
                 source.contains("accountingService."),
                 "Sales dispatch flow must route posting through AccountingFacade only");
     }
+
+    @Test
+    void taxableDispatchLinesFailClosedWithoutConfiguredTaxAccount() {
+        TruthSuiteFileAssert.assertContains(
+                SALES_SERVICE,
+                "resolveGstOutputAccountForTaxableDispatchLine(",
+                "if (finishedGood == null || finishedGood.getTaxAccountId() == null)",
+                "is missing GST liability account for taxable dispatch");
+    }
+
+    @Test
+    void gstAccountResolutionIsGuardedByPositiveLineTax() {
+        TruthSuiteFileAssert.assertContainsInOrder(
+                SALES_SERVICE,
+                "if (lineTax.compareTo(BigDecimal.ZERO) > 0)",
+                "resolveGstOutputAccountForTaxableDispatchLine(",
+                "taxByAccount.merge(gstOutputAccountId, lineTax, BigDecimal::add);");
+    }
 }

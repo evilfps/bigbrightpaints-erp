@@ -2339,13 +2339,11 @@ public class SalesService {
                     discountByAccount.merge(discountAccountId, discountNet, BigDecimal::add);
                 }
                 if (lineTax.compareTo(BigDecimal.ZERO) > 0) {
-                    if (gstOutputAccountId == null) {
-                        gstOutputAccountId = companyAccountingSettingsService.requireTaxAccounts().outputTaxAccountId();
-                    }
-                    if (fg.getTaxAccountId() != null && !fg.getTaxAccountId().equals(gstOutputAccountId)) {
-                        throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
-                                "Finished good " + fg.getProductCode() + " tax account must match GST output account");
-                    }
+                    gstOutputAccountId = resolveGstOutputAccountForTaxableDispatchLine(
+                            fg,
+                            slipLine.getId(),
+                            lineTax,
+                            gstOutputAccountId);
                     taxByAccount.merge(gstOutputAccountId, lineTax, BigDecimal::add);
                 }
 
@@ -2442,13 +2440,11 @@ public class SalesService {
                     discountByAccount.merge(discountAccountId, discountNet, BigDecimal::add);
                 }
                 if (lineTax.compareTo(BigDecimal.ZERO) > 0) {
-                    if (gstOutputAccountId == null) {
-                        gstOutputAccountId = companyAccountingSettingsService.requireTaxAccounts().outputTaxAccountId();
-                    }
-                    if (fg.getTaxAccountId() != null && !fg.getTaxAccountId().equals(gstOutputAccountId)) {
-                        throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
-                                "Finished good " + fg.getProductCode() + " tax account must match GST output account");
-                    }
+                    gstOutputAccountId = resolveGstOutputAccountForTaxableDispatchLine(
+                            fg,
+                            slipLine.getId(),
+                            lineTax,
+                            gstOutputAccountId);
                     taxByAccount.merge(gstOutputAccountId, lineTax, BigDecimal::add);
                 }
 
@@ -2893,6 +2889,34 @@ public class SalesService {
             return finishedGood.getDiscountAccountId();
         }
         return defaults != null ? defaults.discountAccountId() : null;
+    }
+
+    private Long resolveGstOutputAccountForTaxableDispatchLine(FinishedGood finishedGood,
+                                                               Long packingSlipLineId,
+                                                               BigDecimal lineTax,
+                                                               Long currentOutputAccountId) {
+        if (lineTax == null || lineTax.compareTo(BigDecimal.ZERO) <= 0) {
+            return currentOutputAccountId;
+        }
+        if (finishedGood == null || finishedGood.getTaxAccountId() == null) {
+            String productCode = finishedGood != null ? finishedGood.getProductCode() : "UNKNOWN";
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE,
+                    "Finished good " + productCode + " is missing GST liability account for taxable dispatch")
+                    .withDetail("packingSlipLineId", packingSlipLineId)
+                    .withDetail("lineTax", lineTax);
+        }
+        Long outputAccountId = currentOutputAccountId;
+        if (outputAccountId == null) {
+            outputAccountId = companyAccountingSettingsService.requireTaxAccounts().outputTaxAccountId();
+        }
+        if (!finishedGood.getTaxAccountId().equals(outputAccountId)) {
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                    "Finished good " + finishedGood.getProductCode() + " tax account must match GST output account")
+                    .withDetail("packingSlipLineId", packingSlipLineId)
+                    .withDetail("finishedGoodTaxAccountId", finishedGood.getTaxAccountId())
+                    .withDetail("gstOutputAccountId", outputAccountId);
+        }
+        return outputAccountId;
     }
 
     private LineAmounts computeDispatchLineAmounts(BigDecimal gross,
