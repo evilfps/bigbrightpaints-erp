@@ -1,5 +1,7 @@
 package com.bigbrightpaints.erp.modules.accounting.controller;
 
+import com.bigbrightpaints.erp.core.audit.AuditEvent;
+import com.bigbrightpaints.erp.core.audit.AuditService;
 import com.bigbrightpaints.erp.modules.accounting.dto.*;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingPeriodService;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingService;
@@ -26,6 +28,9 @@ import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -62,6 +67,8 @@ public class AccountingController {
     private final AccountingAuditTrailService accountingAuditTrailService;
     private final CompanyContextService companyContextService;
     private final CompanyClock companyClock;
+    @Autowired(required = false)
+    private AuditService auditService;
 
     public AccountingController(AccountingService accountingService,
                                 AccountingFacade accountingFacade,
@@ -545,13 +552,14 @@ public class AccountingController {
                     schema = @Schema(type = "string", format = "binary")
             )
     )
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
+    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
     public ResponseEntity<byte[]> dealerStatementPdf(@PathVariable Long dealerId,
                                                      @RequestParam(required = false) String from,
                                                      @RequestParam(required = false) String to) {
         byte[] pdf = statementService.dealerStatementPdf(dealerId,
                 from != null ? java.time.LocalDate.parse(from) : null,
                 to != null ? java.time.LocalDate.parse(to) : null);
+        logAccountingExport("ACCOUNTING_DEALER_STATEMENT", dealerId, "pdf");
         return ResponseEntity.ok()
                 .header("Content-Disposition", "attachment; filename=dealer-statement.pdf")
                 .body(pdf);
@@ -567,13 +575,14 @@ public class AccountingController {
                     schema = @Schema(type = "string", format = "binary")
             )
     )
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
+    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
     public ResponseEntity<byte[]> supplierStatementPdf(@PathVariable Long supplierId,
                                                        @RequestParam(required = false) String from,
                                                        @RequestParam(required = false) String to) {
         byte[] pdf = statementService.supplierStatementPdf(supplierId,
                 from != null ? java.time.LocalDate.parse(from) : null,
                 to != null ? java.time.LocalDate.parse(to) : null);
+        logAccountingExport("ACCOUNTING_SUPPLIER_STATEMENT", supplierId, "pdf");
         return ResponseEntity.ok()
                 .header("Content-Disposition", "attachment; filename=supplier-statement.pdf")
                 .body(pdf);
@@ -589,13 +598,14 @@ public class AccountingController {
                     schema = @Schema(type = "string", format = "binary")
             )
     )
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
+    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
     public ResponseEntity<byte[]> dealerAgingPdf(@PathVariable Long dealerId,
                                                  @RequestParam(required = false) String asOf,
                                                  @RequestParam(required = false) String buckets) {
         byte[] pdf = statementService.dealerAgingPdf(dealerId,
                 asOf != null ? java.time.LocalDate.parse(asOf) : null,
                 buckets);
+        logAccountingExport("ACCOUNTING_DEALER_AGING", dealerId, "pdf");
         return ResponseEntity.ok()
                 .header("Content-Disposition", "attachment; filename=dealer-aging.pdf")
                 .body(pdf);
@@ -611,13 +621,14 @@ public class AccountingController {
                     schema = @Schema(type = "string", format = "binary")
             )
     )
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
+    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
     public ResponseEntity<byte[]> supplierAgingPdf(@PathVariable Long supplierId,
                                                    @RequestParam(required = false) String asOf,
                                                    @RequestParam(required = false) String buckets) {
         byte[] pdf = statementService.supplierAgingPdf(supplierId,
                 asOf != null ? java.time.LocalDate.parse(asOf) : null,
                 buckets);
+        logAccountingExport("ACCOUNTING_SUPPLIER_AGING", supplierId, "pdf");
         return ResponseEntity.ok()
                 .header("Content-Disposition", "attachment; filename=supplier-aging.pdf")
                 .body(pdf);
@@ -656,13 +667,17 @@ public class AccountingController {
 
     @GetMapping(value = "/audit/digest.csv", produces = "text/csv")
     @Deprecated(forRemoval = false, since = "2026-02-11")
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
+    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
     public ResponseEntity<String> auditDigestCsv(@RequestParam(required = false) String from,
                                                  @RequestParam(required = false) String to) {
         String csv = accountingService.auditDigestCsv(
                 from != null ? java.time.LocalDate.parse(from) : null,
                 to != null ? java.time.LocalDate.parse(to) : null);
-        return ResponseEntity.ok(csv);
+        logAccountingExport("ACCOUNTING_AUDIT_DIGEST", null, "csv");
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType("text/csv"))
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=audit-digest.csv")
+                .body(csv);
     }
 
     @GetMapping("/audit/transactions")
@@ -850,6 +865,18 @@ public class AccountingController {
         return ResponseEntity.ok(ApiResponse.success(
                 "Days Sales Outstanding report",
                 agingReportService.getDealerDSO(dealerId)));
+    }
+
+    private void logAccountingExport(String resourceType, Long resourceId, String format) {
+        if (auditService == null) {
+            return;
+        }
+        Map<String, String> metadata = new HashMap<>();
+        metadata.put("resourceType", resourceType);
+        metadata.put("resourceId", resourceId != null ? resourceId.toString() : "");
+        metadata.put("operation", "EXPORT");
+        metadata.put("format", format);
+        auditService.logSuccess(AuditEvent.DATA_EXPORT, metadata);
     }
 
 }

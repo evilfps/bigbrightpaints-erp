@@ -92,3 +92,28 @@ Update this file in every high-risk change set.
   - Commands run: `cd erp-domain && mvn -B -ntp -Dtest='*Payroll*' test`; `bash scripts/verify_local.sh`
   - Result summary: `BUILD SUCCESS` (`*Payroll*` suite passed; `verify_local` passed with `Tests run: 1264, Failures: 0, Errors: 0, Skipped: 4`)
   - Artifacts/links: `erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/payroll/TS_PayrollLiabilityClearingPolicyTest.java`
+
+## STAGE-091 Addendum (2026-02-19, SLICE-01 accounting-domain)
+- Branch / PR: stage-091 accounting-domain branch / PR #27 (https://github.com/anasibnanwar-XYE/bigbrightpaints-erp/pull/27)
+- High-risk paths:
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/controller/AccountingController.java`
+  - `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/controller/AccountingExportGovernanceIT.java`
+  - `erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeAccountingControllerExportCoverageTest.java`
+- Why this is R2: accounting export endpoints enforce admin-only policy and audit metadata semantics for financial data egress.
+- Approval mode: orchestrator
+- Human escalation required: no
+- Rollback owner: release governance + accounting owner
+- Verification evidence:
+  - Commands run:
+    - `cd erp-domain && mvn -B -ntp -Dtest='AccountingExportGovernanceIT' test`
+    - `cd erp-domain && mvn -B -ntp -Dtest='*Accounting*' test`
+    - `bash ci/check-architecture.sh`
+    - `bash ci/check-enterprise-policy.sh`
+    - `bash scripts/verify_local.sh`
+    - `DIFF_BASE=50f271db3f1a37df7874ffdea6271677533cecbc bash scripts/gate_fast.sh`
+  - Result summary: all commands above passed on branch head; changed-file coverage for `AccountingController.java` met gate-fast thresholds (line 18 of 18, branch 4 of 4).
+  - Artifacts/links:
+    - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/controller/AccountingController.java`
+    - `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/controller/AccountingExportGovernanceIT.java`
+    - `erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeAccountingControllerExportCoverageTest.java`
+    - `docs/CODE-RED/confidence-suite/TEST_CATALOG.json`
