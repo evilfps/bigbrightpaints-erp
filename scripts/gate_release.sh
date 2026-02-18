@@ -164,6 +164,6 @@ echo "[gate-release] truth suite strict mode"
 )
 
 echo "[gate-release] fresh + upgrade migration matrix"
-MIGRATION_SET="$MIGRATION_SET" bash "$ROOT_DIR/scripts/release_migration_matrix.sh" --migration-set v2 --artifact-dir "$ARTIFACT_DIR"
+MIGRATION_SET="$MIGRATION_SET" bash "$ROOT_DIR/scripts/release_migration_matrix.sh" --artifact-dir "$ARTIFACT_DIR"
 
 echo "[gate-release] OK"
