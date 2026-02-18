@@ -1,6 +1,6 @@
 # Migration Runbook (Flyway v2)
 
-Last reviewed: 2026-02-15
+Last reviewed: 2026-02-18
 Owner: Data Migration Agent
 
 ## Purpose
@@ -30,6 +30,13 @@ Standardize safe migration planning, validation, and rollback drills.
 3. Run critical smoke checks and reconciliation checks.
 4. Execute rollback drill (restore or forward-fix rehearsal).
 5. Record outcomes and timings.
+
+## Strict-Lane Alignment (M18-S1)
+- Docs-only slices may skip commit-review/subagent review and must show evidence for `bash ci/lint-knowledgebase.sh`.
+- Runtime/config/schema/test slices remain strict-lane and require reviewer evidence plus lane gates.
+- For release-ops strict-lane slices touching `.github/workflows/`, `scripts/`, `docker-compose.yml`, or `erp-domain/Dockerfile`, run both:
+  1. `bash scripts/gate_release.sh`
+  2. `bash scripts/gate_reconciliation.sh`
 
 ## Production Gate (Human Approval Required)
 - R2 approval required for production migration execution.
