@@ -130,7 +130,7 @@ public class HrController {
     }
 
     @PostMapping("/payroll-runs")
-    public ResponseEntity<ApiResponse<Map<String, Object>>> createPayrollRun(@Valid @RequestBody PayrollRunRequest request) {
+    public ResponseEntity<ApiResponse<Map<String, Object>>> createPayrollRun() {
         return legacyPayrollRunsGone();
     }
 
