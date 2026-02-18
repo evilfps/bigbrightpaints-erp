@@ -58,7 +58,7 @@ class DealerControllerSecurityIT extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("Dealer cannot access another dealer ledger (returns 403, not 500)")
+    @DisplayName("Dealer role is blocked from backoffice dealer ledger endpoint")
     void dealerCannotReadAnotherDealerLedger() {
         HttpHeaders headers = authHeaders(DEALER_A_EMAIL, PASSWORD);
         ResponseEntity<Map> response = rest.exchange(
@@ -71,8 +71,8 @@ class DealerControllerSecurityIT extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("Dealer can access own ledger")
-    void dealerCanReadOwnLedger() {
+    @DisplayName("Dealer role is blocked from backoffice own ledger endpoint")
+    void dealerCannotReadOwnLedgerFromBackofficeEndpoint() {
         HttpHeaders headers = authHeaders(DEALER_A_EMAIL, PASSWORD);
         ResponseEntity<Map> response = rest.exchange(
                 "/api/v1/dealers/" + dealerA.getId() + "/ledger",
@@ -80,11 +80,11 @@ class DealerControllerSecurityIT extends AbstractIntegrationTest {
                 new HttpEntity<>(headers),
                 Map.class);
 
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
     }
 
     @Test
-    @DisplayName("Dealer cannot access another dealer invoices (returns 403, not 500)")
+    @DisplayName("Dealer role is blocked from backoffice dealer invoices endpoint")
     void dealerCannotReadAnotherDealerInvoices() {
         HttpHeaders headers = authHeaders(DEALER_A_EMAIL, PASSWORD);
         ResponseEntity<Map> response = rest.exchange(
@@ -97,7 +97,7 @@ class DealerControllerSecurityIT extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("Dealer cannot access another dealer aging (returns 403, not 500)")
+    @DisplayName("Dealer role is blocked from backoffice dealer aging endpoint")
     void dealerCannotReadAnotherDealerAging() {
         HttpHeaders headers = authHeaders(DEALER_A_EMAIL, PASSWORD);
         ResponseEntity<Map> response = rest.exchange(
@@ -110,8 +110,8 @@ class DealerControllerSecurityIT extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("Dealer can access own invoices and aging")
-    void dealerCanReadOwnInvoicesAndAging() {
+    @DisplayName("Dealer role is blocked from backoffice own invoices and aging endpoints")
+    void dealerCannotReadOwnInvoicesAndAgingFromBackofficeEndpoints() {
         HttpHeaders headers = authHeaders(DEALER_A_EMAIL, PASSWORD);
         ResponseEntity<Map> invoices = rest.exchange(
                 "/api/v1/dealers/" + dealerA.getId() + "/invoices",
@@ -124,6 +124,31 @@ class DealerControllerSecurityIT extends AbstractIntegrationTest {
                 new HttpEntity<>(headers),
                 Map.class);
 
+        assertThat(invoices.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(aging.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+    }
+
+    @Test
+    @DisplayName("Admin can access dealer backoffice read endpoints")
+    void adminCanReadDealerBackofficeEndpoints() {
+        HttpHeaders headers = authHeaders(ADMIN_EMAIL, PASSWORD);
+        ResponseEntity<Map> ledger = rest.exchange(
+                "/api/v1/dealers/" + dealerA.getId() + "/ledger",
+                HttpMethod.GET,
+                new HttpEntity<>(headers),
+                Map.class);
+        ResponseEntity<Map> invoices = rest.exchange(
+                "/api/v1/dealers/" + dealerA.getId() + "/invoices",
+                HttpMethod.GET,
+                new HttpEntity<>(headers),
+                Map.class);
+        ResponseEntity<Map> aging = rest.exchange(
+                "/api/v1/dealers/" + dealerA.getId() + "/aging",
+                HttpMethod.GET,
+                new HttpEntity<>(headers),
+                Map.class);
+
+        assertThat(ledger.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(invoices.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(aging.getStatusCode()).isEqualTo(HttpStatus.OK);
     }

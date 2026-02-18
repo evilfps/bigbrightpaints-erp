@@ -1,5 +1,7 @@
 package com.bigbrightpaints.erp.modules.sales.controller;
 
+import com.bigbrightpaints.erp.core.audit.AuditEvent;
+import com.bigbrightpaints.erp.core.audit.AuditService;
 import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 import com.bigbrightpaints.erp.modules.sales.dto.CreditRequestDto;
 import com.bigbrightpaints.erp.modules.sales.dto.CreditRequestRequest;
@@ -12,6 +14,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
+import java.util.HashMap;
 import java.util.Map;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -35,11 +38,14 @@ public class DealerPortalController {
 
     private final DealerPortalService dealerPortalService;
     private final SalesService salesService;
+    private final AuditService auditService;
 
     public DealerPortalController(DealerPortalService dealerPortalService,
-                                  SalesService salesService) {
+                                  SalesService salesService,
+                                  AuditService auditService) {
         this.dealerPortalService = dealerPortalService;
         this.salesService = salesService;
+        this.auditService = auditService;
     }
 
     /**
@@ -117,9 +123,20 @@ public class DealerPortalController {
     )
     public ResponseEntity<byte[]> getMyInvoicePdf(@PathVariable Long invoiceId) {
         InvoicePdfService.PdfDocument pdf = dealerPortalService.getMyInvoicePdf(invoiceId);
+        logDealerInvoiceExport(invoiceId, pdf.fileName());
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + pdf.fileName() + "\"")
                 .contentType(MediaType.APPLICATION_PDF)
                 .body(pdf.content());
+    }
+
+    private void logDealerInvoiceExport(Long invoiceId, String fileName) {
+        Map<String, String> metadata = new HashMap<>();
+        metadata.put("resourceType", "DEALER_INVOICE");
+        metadata.put("resourceId", invoiceId != null ? invoiceId.toString() : "");
+        metadata.put("operation", "EXPORT");
+        metadata.put("format", "pdf");
+        metadata.put("fileName", fileName != null ? fileName : "");
+        auditService.logSuccess(AuditEvent.DATA_EXPORT, metadata);
     }
 }

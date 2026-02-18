@@ -66,21 +66,21 @@ public class DealerController {
     }
 
     @GetMapping("/{dealerId}/ledger")
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SALES','ROLE_ACCOUNTING','ROLE_DEALER')")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SALES','ROLE_ACCOUNTING')")
     public ResponseEntity<ApiResponse<Map<String, Object>>> dealerLedger(@PathVariable Long dealerId) {
         Map<String, Object> payload = dealerPortalService.getLedgerForDealer(dealerId);
         return ResponseEntity.ok(ApiResponse.success("Dealer ledger", payload));
     }
 
     @GetMapping("/{dealerId}/invoices")
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SALES','ROLE_ACCOUNTING','ROLE_DEALER')")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SALES','ROLE_ACCOUNTING')")
     public ResponseEntity<ApiResponse<Map<String, Object>>> dealerInvoices(@PathVariable Long dealerId) {
         Map<String, Object> payload = dealerPortalService.getInvoicesForDealer(dealerId);
         return ResponseEntity.ok(ApiResponse.success("Dealer invoices", payload));
     }
 
     @GetMapping("/{dealerId}/aging")
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SALES','ROLE_ACCOUNTING','ROLE_DEALER')")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SALES','ROLE_ACCOUNTING')")
     public ResponseEntity<ApiResponse<Map<String, Object>>> dealerAging(@PathVariable Long dealerId) {
         Map<String, Object> payload = dealerPortalService.getAgingForDealer(dealerId);
         return ResponseEntity.ok(ApiResponse.success("Dealer aging", payload));
