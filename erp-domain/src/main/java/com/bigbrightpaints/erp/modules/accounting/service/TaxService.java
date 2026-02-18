@@ -76,6 +76,9 @@ public class TaxService {
             return BigDecimal.ZERO;
         }
         List<JournalLine> lines = journalLineRepository.findLinesForAccountBetween(company, accountId, start, end);
+        if (lines == null || lines.isEmpty()) {
+            return BigDecimal.ZERO;
+        }
         BigDecimal total = BigDecimal.ZERO;
         for (JournalLine line : lines) {
             BigDecimal debit = safe(line.getDebit());

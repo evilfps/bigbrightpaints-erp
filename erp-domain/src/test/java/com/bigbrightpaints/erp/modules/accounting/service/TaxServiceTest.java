@@ -94,6 +94,27 @@ class TaxServiceTest {
     }
 
     @Test
+    void generateGstReturn_treatsNullRepositoryResultsAsZero() {
+        LocalDate today = LocalDate.of(2024, 3, 18);
+        YearMonth period = YearMonth.from(today);
+        LocalDate start = period.atDay(1);
+        LocalDate end = period.atEndOfMonth();
+
+        when(companyClock.today(company)).thenReturn(today);
+        when(companyAccountingSettingsService.requireTaxAccounts())
+                .thenReturn(new CompanyAccountingSettingsService.TaxAccountConfiguration(1L, 2L, 3L));
+        when(journalLineRepository.findLinesForAccountBetween(company, 2L, start, end)).thenReturn(null);
+        when(journalLineRepository.findLinesForAccountBetween(company, 1L, start, end)).thenReturn(null);
+
+        GstReturnDto dto = taxService.generateGstReturn(null);
+
+        assertThat(dto.getPeriod()).isEqualTo(period);
+        assertThat(dto.getOutputTax()).isEqualByComparingTo("0.00");
+        assertThat(dto.getInputTax()).isEqualByComparingTo("0.00");
+        assertThat(dto.getNetPayable()).isEqualByComparingTo("0.00");
+    }
+
+    @Test
     void generateGstReturn_routesLiabilitySignalWithoutDoubleRoundingAcrossAccounts() {
         YearMonth period = YearMonth.of(2024, 6);
         LocalDate start = period.atDay(1);
