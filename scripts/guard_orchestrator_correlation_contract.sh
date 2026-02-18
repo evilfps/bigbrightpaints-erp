@@ -22,7 +22,7 @@ require_multiline_pattern() {
     return
   fi
   if command -v perl >/dev/null 2>&1; then
-    CORR_PATTERN="$pattern" perl -0777 -ne 'BEGIN { $p = $ENV{"CORR_PATTERN"} } exit 0 if /$p/sm; END { exit 1 }' "$file" \
+    CORR_PATTERN="$pattern" perl -0777 -ne 'BEGIN { $p = $ENV{"CORR_PATTERN"}; $matched = 0 } $matched = 1 if /$p/sm; END { exit($matched ? 0 : 1) }' "$file" \
       || fail "$label"
     return
   fi
