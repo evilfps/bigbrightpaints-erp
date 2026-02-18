@@ -3087,8 +3087,9 @@ public class AccountingService {
             }
             if (!seenInvoiceIds.add(allocation.invoiceId())) {
                 throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
-                        "Dealer settlements cannot include duplicate invoice allocations")
-                        .withDetail("invoiceId", allocation.invoiceId());
+                        "Dealer settlements cannot include duplicate invoice allocations; combine repeated invoice lines into one allocation")
+                        .withDetail("invoiceId", allocation.invoiceId())
+                        .withDetail("hint", "Combine all amounts for a given invoiceId into a single allocation line.");
             }
             if (allocation.purchaseId() != null) {
                 throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
@@ -3125,8 +3126,9 @@ public class AccountingService {
             }
             if (allocation.purchaseId() != null && !seenPurchaseIds.add(allocation.purchaseId())) {
                 throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
-                        "Supplier settlements cannot include duplicate purchase allocations")
-                        .withDetail("purchaseId", allocation.purchaseId());
+                        "Supplier settlements cannot include duplicate purchase allocations; combine repeated purchase lines into one allocation")
+                        .withDetail("purchaseId", allocation.purchaseId())
+                        .withDetail("hint", "Combine all amounts for a given purchaseId into a single allocation line.");
             }
             validateSupplierAllocationCashContribution(allocation.purchaseId(), applied, discount, writeOff, fxAdjustment);
         }
