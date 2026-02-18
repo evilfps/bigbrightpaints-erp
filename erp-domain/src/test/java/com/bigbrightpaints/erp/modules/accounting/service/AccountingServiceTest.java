@@ -6433,6 +6433,62 @@ class AccountingServiceTest {
     }
 
     @Test
+    void settleDealerInvoices_rejectsDuplicateInvoiceAllocationTargets() {
+        Dealer dealer = new Dealer();
+        dealer.setName("Dealer");
+        Account arAccount = new Account();
+        arAccount.setCompany(company);
+        arAccount.setCode("AR");
+        arAccount.setType(AccountType.ASSET);
+        dealer.setReceivableAccount(arAccount);
+        ReflectionTestUtils.setField(dealer, "id", 1L);
+        ReflectionTestUtils.setField(arAccount, "id", 10L);
+
+        when(dealerRepository.lockByCompanyAndId(eq(company), eq(1L))).thenReturn(Optional.of(dealer));
+
+        DealerSettlementRequest request = new DealerSettlementRequest(
+                1L,
+                20L,
+                null,
+                null,
+                null,
+                null,
+                LocalDate.of(2024, 5, 1),
+                "REF-DUP-DEALER",
+                "Dealer settlement",
+                "IDEMP-DUP-DEALER",
+                Boolean.FALSE,
+                List.of(
+                        new SettlementAllocationRequest(
+                                5L,
+                                null,
+                                new BigDecimal("60.00"),
+                                BigDecimal.ZERO,
+                                BigDecimal.ZERO,
+                                BigDecimal.ZERO,
+                                "first slice"
+                        ),
+                        new SettlementAllocationRequest(
+                                5L,
+                                null,
+                                new BigDecimal("40.00"),
+                                BigDecimal.ZERO,
+                                BigDecimal.ZERO,
+                                BigDecimal.ZERO,
+                                "duplicate slice"
+                        )
+                ),
+                null
+        );
+
+        assertThatThrownBy(() -> accountingService.settleDealerInvoices(request))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("duplicate invoice allocations");
+        verify(journalReferenceMappingRepository, never())
+                .reserveReferenceMapping(any(), any(), any(), any(), any());
+    }
+
+    @Test
     void settleDealerInvoices_nonLeaderReplayAllowsInactiveCashAccountAndRepairsReferenceMapping() {
         Dealer dealer = new Dealer();
         dealer.setName("Replay Dealer");
@@ -6811,6 +6867,68 @@ class AccountingServiceTest {
                 .isInstanceOf(ApplicationException.class)
                 .hasMessageContaining("On-account supplier settlement allocations cannot include discount/write-off/FX adjustments");
         verify(service, never()).createJournalEntry(any(JournalEntryRequest.class));
+        verify(journalReferenceMappingRepository, never())
+                .reserveReferenceMapping(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void settleSupplierInvoices_rejectsDuplicatePurchaseAllocationTargets() {
+        Supplier supplier = new Supplier();
+        supplier.setName("Supplier");
+        Account payable = new Account();
+        payable.setCompany(company);
+        payable.setCode("AP");
+        payable.setType(AccountType.LIABILITY);
+        ReflectionTestUtils.setField(payable, "id", 10L);
+        supplier.setPayableAccount(payable);
+        ReflectionTestUtils.setField(supplier, "id", 1L);
+
+        Account cash = new Account();
+        cash.setCompany(company);
+        cash.setCode("CASH");
+        cash.setType(AccountType.ASSET);
+        ReflectionTestUtils.setField(cash, "id", 20L);
+
+        when(supplierRepository.lockByCompanyAndId(eq(company), eq(1L))).thenReturn(Optional.of(supplier));
+        when(companyEntityLookup.requireAccount(eq(company), eq(20L))).thenReturn(cash);
+
+        SupplierSettlementRequest request = new SupplierSettlementRequest(
+                1L,
+                20L,
+                21L,
+                null,
+                null,
+                null,
+                LocalDate.of(2024, 5, 1),
+                "REF-DUP-SUPPLIER",
+                "Supplier settlement",
+                "IDEMP-DUP-SUPPLIER",
+                Boolean.FALSE,
+                List.of(
+                        new SettlementAllocationRequest(
+                                null,
+                                2L,
+                                new BigDecimal("100.00"),
+                                BigDecimal.ZERO,
+                                BigDecimal.ZERO,
+                                BigDecimal.ZERO,
+                                "first allocation"
+                        ),
+                        new SettlementAllocationRequest(
+                                null,
+                                2L,
+                                new BigDecimal("25.00"),
+                                BigDecimal.ZERO,
+                                BigDecimal.ZERO,
+                                BigDecimal.ZERO,
+                                "duplicate allocation"
+                        )
+                )
+        );
+
+        assertThatThrownBy(() -> accountingService.settleSupplierInvoices(request))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("duplicate purchase allocations");
         verify(journalReferenceMappingRepository, never())
                 .reserveReferenceMapping(any(), any(), any(), any(), any());
     }
