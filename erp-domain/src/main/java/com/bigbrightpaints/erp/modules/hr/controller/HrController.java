@@ -125,15 +125,19 @@ public class HrController {
 
     /* Payroll */
     @GetMapping("/payroll-runs")
-    public ResponseEntity<ApiResponse<List<PayrollRunDto>>> payrollRuns() {
-        return ResponseEntity.ok(ApiResponse.success(hrService.listPayrollRuns()));
+    public ResponseEntity<ApiResponse<Map<String, Object>>> payrollRuns() {
+        return legacyPayrollRunsGone();
     }
 
     @PostMapping("/payroll-runs")
     public ResponseEntity<ApiResponse<Map<String, Object>>> createPayrollRun(@Valid @RequestBody PayrollRunRequest request) {
+        return legacyPayrollRunsGone();
+    }
+
+    private ResponseEntity<ApiResponse<Map<String, Object>>> legacyPayrollRunsGone() {
         return ResponseEntity.status(HttpStatus.GONE)
                 .body(ApiResponse.failure(
-                        "Legacy payroll run creation is deprecated; use /api/v1/payroll/runs",
+                        "Legacy payroll runs endpoint is deprecated; use /api/v1/payroll/runs",
                         Map.of("canonicalPath", "/api/v1/payroll/runs")));
     }
 }

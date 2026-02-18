@@ -77,9 +77,18 @@ public class HrControllerIT extends AbstractIntegrationTest {
                 HttpMethod.GET,
                 new HttpEntity<>(headers),
                 Map.class);
-        assertThat(payrollRuns.getStatusCode()).isEqualTo(HttpStatus.OK);
-        List runs = (List) payrollRuns.getBody().get("data");
-        assertThat(runs).isNotEmpty();
+        assertThat(payrollRuns.getStatusCode()).isEqualTo(HttpStatus.GONE);
+        Map<?, ?> legacyGetData = (Map<?, ?>) payrollRuns.getBody().get("data");
+        assertThat(legacyGetData.get("canonicalPath")).isEqualTo("/api/v1/payroll/runs");
+
+        ResponseEntity<Map> legacyCreatePayroll = rest.exchange(
+                "/api/v1/hr/payroll-runs",
+                HttpMethod.POST,
+                new HttpEntity<>(payrollRequest, headers),
+                Map.class);
+        assertThat(legacyCreatePayroll.getStatusCode()).isEqualTo(HttpStatus.GONE);
+        Map<?, ?> legacyCreateData = (Map<?, ?>) legacyCreatePayroll.getBody().get("data");
+        assertThat(legacyCreateData.get("canonicalPath")).isEqualTo("/api/v1/payroll/runs");
     }
 
     private String loginToken() {
