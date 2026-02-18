@@ -6483,7 +6483,8 @@ class AccountingServiceTest {
 
         assertThatThrownBy(() -> accountingService.settleDealerInvoices(request))
                 .isInstanceOf(ApplicationException.class)
-                .hasMessageContaining("duplicate invoice allocations");
+                .hasMessageContaining("duplicate invoice allocations")
+                .hasMessageContaining("combine repeated invoice lines into one allocation");
         verify(journalReferenceMappingRepository, never())
                 .reserveReferenceMapping(any(), any(), any(), any(), any());
     }
@@ -6928,7 +6929,8 @@ class AccountingServiceTest {
 
         assertThatThrownBy(() -> accountingService.settleSupplierInvoices(request))
                 .isInstanceOf(ApplicationException.class)
-                .hasMessageContaining("duplicate purchase allocations");
+                .hasMessageContaining("duplicate purchase allocations")
+                .hasMessageContaining("combine repeated purchase lines into one allocation");
         verify(journalReferenceMappingRepository, never())
                 .reserveReferenceMapping(any(), any(), any(), any(), any());
     }
