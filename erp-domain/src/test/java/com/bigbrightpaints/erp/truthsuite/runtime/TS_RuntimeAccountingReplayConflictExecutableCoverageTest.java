@@ -1152,6 +1152,7 @@ class TS_RuntimeAccountingReplayConflictExecutableCoverageTest {
                 null,
                 accountingAuditTrailService,
                 null,
+                null,
                 null
         );
     }
