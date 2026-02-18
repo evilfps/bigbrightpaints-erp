@@ -656,6 +656,26 @@
       "accounting_math_critical": true,
       "cross_module_critical": false,
       "quality_flake_monitor": true
+    },
+    {
+      "id": "ts-runtime-accounting-payroll-posting-executable-coverage",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeAccountingPayrollPostingExecutableCoverageTest.java",
+      "owner": "erp-domain-team",
+      "class": "critical",
+      "module": "Accounting",
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-reconciliation",
+        "gate-quality"
+      ],
+      "tags": [
+        "critical"
+      ],
+      "accounting_math_critical": true,
+      "cross_module_critical": true,
+      "quality_flake_monitor": true
     }
   ]
 }

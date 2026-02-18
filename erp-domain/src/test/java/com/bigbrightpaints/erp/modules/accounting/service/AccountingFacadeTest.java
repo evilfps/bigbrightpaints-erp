@@ -10,6 +10,7 @@ import com.bigbrightpaints.erp.modules.accounting.domain.JournalReferenceMapping
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalLineDto;
+import com.bigbrightpaints.erp.modules.accounting.dto.PayrollPaymentRequest;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.purchasing.domain.SupplierRepository;
@@ -34,6 +35,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -73,8 +77,8 @@ class AccountingFacadeTest {
         );
         company = new Company();
         company.setBaseCurrency("INR");
-        when(companyContextService.requireCurrentCompany()).thenReturn(company);
-        when(companyClock.today(company)).thenReturn(LocalDate.of(2024, 4, 9));
+        lenient().when(companyContextService.requireCurrentCompany()).thenReturn(company);
+        lenient().when(companyClock.today(company)).thenReturn(LocalDate.of(2024, 4, 9));
     }
 
     @Test
@@ -144,6 +148,93 @@ class AccountingFacadeTest {
         );
 
         assertThat(requestCaptor.getValue().referenceNumber()).isEqualTo(hashReference);
+    }
+
+    @Test
+    void postPayrollRun_delegatesToAccountingServiceCanonicalMethod() {
+        JournalEntryDto expected = new JournalEntryDto(
+                61L,
+                null,
+                "PAYROLL-PR-W-202602",
+                LocalDate.of(2026, 2, 1),
+                null,
+                "POSTED",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                List.<JournalLineDto>of(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+        );
+        List<JournalEntryRequest.JournalLineRequest> lines = List.of(
+                new JournalEntryRequest.JournalLineRequest(10L, "Payroll expense", new BigDecimal("1000.00"), BigDecimal.ZERO),
+                new JournalEntryRequest.JournalLineRequest(11L, "Payroll payable", BigDecimal.ZERO, new BigDecimal("1000.00"))
+        );
+        when(accountingService.postPayrollRun("PR-W-202602", 77L, LocalDate.of(2026, 2, 1), "Payroll - PR-W-202602", lines))
+                .thenReturn(expected);
+
+        JournalEntryDto actual = accountingFacade.postPayrollRun(
+                "PR-W-202602",
+                77L,
+                LocalDate.of(2026, 2, 1),
+                "Payroll - PR-W-202602",
+                lines
+        );
+
+        assertThat(actual).isSameAs(expected);
+        verify(accountingService).postPayrollRun("PR-W-202602", 77L, LocalDate.of(2026, 2, 1), "Payroll - PR-W-202602", lines);
+        verify(accountingService, never()).createJournalEntry(any());
+    }
+
+    @Test
+    void recordPayrollPayment_delegatesToAccountingService() {
+        PayrollPaymentRequest request = new PayrollPaymentRequest(9L, 2L, 1L, new BigDecimal("800.00"), "PAYROLL-PAY-9", "Payroll clear");
+        JournalEntryDto expected = new JournalEntryDto(
+                88L,
+                null,
+                "PAYROLL-PAY-9",
+                LocalDate.of(2026, 2, 9),
+                null,
+                "POSTED",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                List.<JournalLineDto>of(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+        );
+        when(accountingService.recordPayrollPayment(request)).thenReturn(expected);
+
+        JournalEntryDto actual = accountingFacade.recordPayrollPayment(request);
+
+        assertThat(actual).isSameAs(expected);
+        verify(accountingService).recordPayrollPayment(request);
     }
 
     private String buildExpectedHash(String base,
