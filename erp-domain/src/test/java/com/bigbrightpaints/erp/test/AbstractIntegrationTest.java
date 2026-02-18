@@ -35,6 +35,8 @@ public abstract class AbstractIntegrationTest {
         registry.add("spring.datasource.username", POSTGRES::getUsername);
         registry.add("spring.datasource.password", POSTGRES::getPassword);
         registry.add("spring.flyway.enabled", () -> true);
+        registry.add("spring.flyway.locations", () -> "classpath:db/migration_v2");
+        registry.add("spring.flyway.table", () -> "flyway_schema_history_v2");
         registry.add("spring.jpa.open-in-view", () -> true);
         // Disable AMQP/Rabbit auto-config in tests to avoid external dependency
         registry.add("spring.autoconfigure.exclude", () ->
