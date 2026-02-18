@@ -16,7 +16,11 @@ require_literal() {
   local file="$1"
   local needle="$2"
   local label="$3"
-  rg -q --fixed-strings -- "$needle" "$file" || fail "missing $label in $file"
+  if command -v rg >/dev/null 2>&1; then
+    rg -q --fixed-strings -- "$needle" "$file" || fail "missing $label in $file"
+    return
+  fi
+  grep -Fq -- "$needle" "$file" || fail "missing $label in $file"
 }
 
 require_duplicate_risk_contract() {
