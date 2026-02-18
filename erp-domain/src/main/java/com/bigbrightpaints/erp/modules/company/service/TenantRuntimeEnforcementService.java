@@ -2,6 +2,7 @@ package com.bigbrightpaints.erp.modules.company.service;
 
 import com.bigbrightpaints.erp.core.audit.AuditEvent;
 import com.bigbrightpaints.erp.core.audit.AuditService;
+import com.bigbrightpaints.erp.core.util.CompanyTime;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
@@ -68,7 +69,7 @@ public class TenantRuntimeEnforcementService {
             return TenantRequestAdmission.rejected(stateRejection);
         }
 
-        long minuteBucket = Instant.now().getEpochSecond() / 60L;
+        long minuteBucket = CompanyTime.now().getEpochSecond() / 60L;
         int requestsInMinute = incrementMinuteCount(usageCounters, minuteBucket);
         int maxRequestsPerMinute = policy.effectiveMaxRequestsPerMinute(defaultMaxRequestsPerMinute);
         if (requestsInMinute > maxRequestsPerMinute) {
@@ -184,7 +185,7 @@ public class TenantRuntimeEnforcementService {
         String normalizedReason = normalizeReason(reasonCode);
         String previousChainId;
         String newChainId = UUID.randomUUID().toString();
-        Instant now = Instant.now();
+        Instant now = CompanyTime.now();
         synchronized (policy) {
             previousChainId = policy.auditChainId;
             if (maxConcurrentRequests != null) {
@@ -248,7 +249,7 @@ public class TenantRuntimeEnforcementService {
         String normalizedReason = normalizeReason(reasonCode);
         String previousChainId;
         String newChainId = UUID.randomUUID().toString();
-        Instant now = Instant.now();
+        Instant now = CompanyTime.now();
         synchronized (policy) {
             previousChainId = policy.auditChainId;
             policy.state = targetState;
@@ -373,7 +374,7 @@ public class TenantRuntimeEnforcementService {
                 defaultMaxRequestsPerMinute,
                 defaultMaxActiveUsers,
                 UUID.randomUUID().toString(),
-                Instant.now()));
+                CompanyTime.now()));
     }
 
     private TenantRuntimeCounters countersFor(String companyCode) {
