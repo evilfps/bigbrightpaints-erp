@@ -1,6 +1,8 @@
 package com.bigbrightpaints.erp.modules.admin;
 
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccount;
+import com.bigbrightpaints.erp.modules.company.domain.Company;
+import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
 import com.bigbrightpaints.erp.test.AbstractIntegrationTest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -29,6 +31,9 @@ public class AdminUserSecurityIT extends AbstractIntegrationTest {
 
     @Autowired
     private TestRestTemplate rest;
+
+    @Autowired
+    private CompanyRepository companyRepository;
 
     private UserAccount otherCompanyUser;
 
@@ -113,6 +118,46 @@ public class AdminUserSecurityIT extends AbstractIntegrationTest {
                 new HttpEntity<>(headers),
                 Map.class);
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+    }
+
+    @Test
+    void admin_user_create_is_blocked_when_active_user_quota_reached() {
+        String token = login(ADMIN_EMAIL, ADMIN_PASSWORD, COMPANY);
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(token);
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.set("X-Company-Code", COMPANY);
+
+        ResponseEntity<Map> policyResponse = rest.exchange(
+                "/api/v1/admin/tenant-runtime/policy",
+                HttpMethod.PUT,
+                new HttpEntity<>(Map.of(
+                        "maxActiveUsers", 2,
+                        "holdState", "ACTIVE",
+                        "changeReason", "Quota enforcement test"
+                ), headers),
+                Map.class);
+        assertThat(policyResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+        Company activeCompany = companyRepository.findByCodeIgnoreCase(COMPANY).orElseThrow();
+        Map<String, Object> createPayload = Map.of(
+                "email", "quota-limited-user@bbp.com",
+                "displayName", "Quota Limited User",
+                "roles", List.of("ROLE_SALES"),
+                "companyIds", List.of(activeCompany.getId())
+        );
+        ResponseEntity<Map> createResponse = rest.exchange(
+                "/api/v1/admin/users",
+                HttpMethod.POST,
+                new HttpEntity<>(createPayload, headers),
+                Map.class);
+
+        assertThat(createResponse.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(createResponse.getBody()).isNotNull();
+        assertThat(createResponse.getBody().get("success")).isEqualTo(Boolean.FALSE);
+        Map<?, ?> errorData = (Map<?, ?>) createResponse.getBody().get("data");
+        assertThat(errorData).isNotNull();
+        assertThat(errorData.get("code")).isEqualTo("BUS_006");
     }
 
     private String login(String email, String password, String companyCode) {

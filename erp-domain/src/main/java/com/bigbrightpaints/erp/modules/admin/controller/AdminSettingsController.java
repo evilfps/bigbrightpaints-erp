@@ -4,6 +4,7 @@ import com.bigbrightpaints.erp.core.config.SystemSettingsService;
 import com.bigbrightpaints.erp.core.notification.EmailService;
 import com.bigbrightpaints.erp.shared.dto.ApiResponse;
 import com.bigbrightpaints.erp.modules.admin.dto.*;
+import com.bigbrightpaints.erp.modules.admin.service.TenantRuntimePolicyService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.hr.domain.PayrollRun;
@@ -43,6 +44,7 @@ public class AdminSettingsController {
     private final SystemSettingsService systemSettingsService;
     private final EmailService emailService;
     private final CompanyContextService companyContextService;
+    private final TenantRuntimePolicyService tenantRuntimePolicyService;
     private final CreditRequestRepository creditRequestRepository;
     private final CreditLimitOverrideRequestRepository creditLimitOverrideRequestRepository;
     private final PayrollRunRepository payrollRunRepository;
@@ -50,12 +52,14 @@ public class AdminSettingsController {
     public AdminSettingsController(SystemSettingsService systemSettingsService,
                                    EmailService emailService,
                                    CompanyContextService companyContextService,
+                                   TenantRuntimePolicyService tenantRuntimePolicyService,
                                    CreditRequestRepository creditRequestRepository,
                                    CreditLimitOverrideRequestRepository creditLimitOverrideRequestRepository,
                                    PayrollRunRepository payrollRunRepository) {
         this.systemSettingsService = systemSettingsService;
         this.emailService = emailService;
         this.companyContextService = companyContextService;
+        this.tenantRuntimePolicyService = tenantRuntimePolicyService;
         this.creditRequestRepository = creditRequestRepository;
         this.creditLimitOverrideRequestRepository = creditLimitOverrideRequestRepository;
         this.payrollRunRepository = payrollRunRepository;
@@ -72,6 +76,19 @@ public class AdminSettingsController {
     public ApiResponse<SystemSettingsDto> updateSettings(@Valid @RequestBody SystemSettingsUpdateRequest request) {
         SystemSettingsDto dto = systemSettingsService.update(request);
         return ApiResponse.success("Settings updated", dto);
+    }
+
+    @GetMapping("/tenant-runtime/metrics")
+    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
+    public ApiResponse<TenantRuntimeMetricsDto> tenantRuntimeMetrics() {
+        return ApiResponse.success("Tenant runtime metrics", tenantRuntimePolicyService.metrics());
+    }
+
+    @PutMapping("/tenant-runtime/policy")
+    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
+    public ApiResponse<TenantRuntimeMetricsDto> updateTenantRuntimePolicy(
+            @Valid @RequestBody TenantRuntimePolicyUpdateRequest request) {
+        return ApiResponse.success("Tenant runtime policy updated", tenantRuntimePolicyService.updatePolicy(request));
     }
 
     @PostMapping("/notify")

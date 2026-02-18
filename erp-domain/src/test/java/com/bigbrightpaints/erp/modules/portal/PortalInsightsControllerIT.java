@@ -261,6 +261,47 @@ public class PortalInsightsControllerIT extends AbstractIntegrationTest {
         assertThat(revenue.get("detail")).isEqualTo("Last 30d: ₹100000.00");
     }
 
+    @Test
+    void portalEndpoints_areRuntimeBlockedWhenTenantHoldStateIsBlocked() {
+        HttpHeaders headers = authenticatedHeaders();
+
+        ResponseEntity<Map> policyResponse = rest.exchange(
+                "/api/v1/admin/tenant-runtime/policy",
+                HttpMethod.PUT,
+                new HttpEntity<>(Map.of(
+                        "holdState", "BLOCKED",
+                        "holdReason", "Incident containment",
+                        "changeReason", "Security drill"
+                ), headers),
+                Map.class
+        );
+        assertThat(policyResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        Map<?, ?> policyBody = policyResponse.getBody();
+        assertThat(policyBody).isNotNull();
+        Map<?, ?> policyData = (Map<?, ?>) policyBody.get("data");
+        assertThat(policyData).isNotNull();
+        assertThat(policyData.get("holdState")).isEqualTo("BLOCKED");
+        String policyReference = String.valueOf(policyData.get("policyReference"));
+        assertThat(policyReference).isNotBlank();
+
+        ResponseEntity<Map> dashboard = rest.exchange(
+                "/api/v1/portal/dashboard",
+                HttpMethod.GET,
+                new HttpEntity<>(headers),
+                Map.class
+        );
+        assertThat(dashboard.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(dashboard.getBody()).isNotNull();
+        assertThat(dashboard.getBody().get("success")).isEqualTo(Boolean.FALSE);
+        Map<?, ?> errorData = (Map<?, ?>) dashboard.getBody().get("data");
+        assertThat(errorData).isNotNull();
+        assertThat(errorData.get("code")).isEqualTo("BUS_001");
+        assertThat(String.valueOf(errorData.get("message"))).containsIgnoringCase("blocked");
+        if (errorData.get("details") instanceof Map<?, ?> details) {
+            assertThat(details.get("policyReference")).isEqualTo(policyReference);
+        }
+    }
+
     private SalesOrder saveSalesOrder(String orderNumber, String status, BigDecimal totalAmount) {
         SalesOrder order = new SalesOrder();
         order.setCompany(company);

@@ -4,6 +4,7 @@ import com.bigbrightpaints.erp.core.config.SystemSettingsService;
 import com.bigbrightpaints.erp.core.notification.EmailService;
 import com.bigbrightpaints.erp.modules.admin.dto.AdminApprovalItemDto;
 import com.bigbrightpaints.erp.modules.admin.dto.AdminApprovalsResponse;
+import com.bigbrightpaints.erp.modules.admin.service.TenantRuntimePolicyService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.hr.domain.PayrollRun;
@@ -47,6 +48,7 @@ class AdminSettingsControllerApprovalsContractTest {
         SystemSettingsService systemSettingsService = mock(SystemSettingsService.class);
         EmailService emailService = mock(EmailService.class);
         CompanyContextService companyContextService = mock(CompanyContextService.class);
+        TenantRuntimePolicyService tenantRuntimePolicyService = mock(TenantRuntimePolicyService.class);
         CreditRequestRepository creditRequestRepository = mock(CreditRequestRepository.class);
         CreditLimitOverrideRequestRepository creditLimitOverrideRequestRepository =
                 mock(CreditLimitOverrideRequestRepository.class);
@@ -55,6 +57,7 @@ class AdminSettingsControllerApprovalsContractTest {
                 systemSettingsService,
                 emailService,
                 companyContextService,
+                tenantRuntimePolicyService,
                 creditRequestRepository,
                 creditLimitOverrideRequestRepository,
                 payrollRunRepository
@@ -245,6 +248,7 @@ class AdminSettingsControllerApprovalsContractTest {
         SystemSettingsService systemSettingsService = mock(SystemSettingsService.class);
         EmailService emailService = mock(EmailService.class);
         CompanyContextService companyContextService = mock(CompanyContextService.class);
+        TenantRuntimePolicyService tenantRuntimePolicyService = mock(TenantRuntimePolicyService.class);
         CreditRequestRepository creditRequestRepository = mock(CreditRequestRepository.class);
         CreditLimitOverrideRequestRepository creditLimitOverrideRequestRepository =
                 mock(CreditLimitOverrideRequestRepository.class);
@@ -253,6 +257,7 @@ class AdminSettingsControllerApprovalsContractTest {
                 systemSettingsService,
                 emailService,
                 companyContextService,
+                tenantRuntimePolicyService,
                 creditRequestRepository,
                 creditLimitOverrideRequestRepository,
                 payrollRunRepository
