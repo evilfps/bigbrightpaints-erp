@@ -70,7 +70,7 @@ Update this file in every high-risk change set.
   - if an environment reports checksum mismatch for `V15` due pre-convergence local variants, run the v2-scoped repair workflow (`migration_v2` + `flyway_schema_history_v2`) from `docs/db/FLYWAY_V2_TRANSIENT_CHECKSUM_REPAIR.md` under approved migration change control before continue.
 
 ## STAGE-089 Addendum (2026-02-19, SLICE-02 hr-domain)
-- Branch / PR: `tickets/tkt-erp-stage-089/hr-domain` / PR #23
+- Branch / PR: stage-089 hr-domain / PR #23 (https://github.com/anasibnanwar-XYE/bigbrightpaints-erp/pull/23)
 - High-risk paths: `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/hr/service/PayrollService.java`
 - Why this is R2: payroll mark-paid boundary controls accounting reference integrity and salary-payable clearing safety.
 - Approval mode: orchestrator
@@ -79,4 +79,4 @@ Update this file in every high-risk change set.
 - Verification evidence:
   - Commands run: `cd erp-domain && mvn -B -ntp -Dtest='*Payroll*' test`; `bash scripts/verify_local.sh`
   - Result summary: `BUILD SUCCESS` (`*Payroll*` suite passed; `verify_local` passed with `Tests run: 1264, Failures: 0, Errors: 0, Skipped: 4`)
-  - Artifacts/links: `erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/payroll/TS_PayrollLiabilityClearingPolicyTest.java`, `/tmp/stage089_hr_verify.log`
+  - Artifacts/links: `erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/payroll/TS_PayrollLiabilityClearingPolicyTest.java`
