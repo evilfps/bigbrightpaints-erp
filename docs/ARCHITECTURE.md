@@ -44,7 +44,7 @@ This document is the canonical architecture spec for agent runs. Keep it short a
   - active: `erp-domain/src/main/resources/db/migration_v2`
 - Migration policy references:
   - `erp-domain/docs/FLYWAY_AUDIT_AND_STRATEGY.md`
-  - `docs/db/MIGRATION_V2_WORKFLOW.md`
+  - `docs/runbooks/migrations.md`
 - Predeploy data guards:
   - `scripts/flyway_overlap_scan.sh`
   - `scripts/schema_drift_scan.sh`

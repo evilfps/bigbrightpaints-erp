@@ -63,7 +63,7 @@ This is the canonical knowledge base entrypoint for agentic work in this reposit
 
 ## Start Here
 - Human alias map: `AGENTMAP.md`
-- Alias-only legacy filename: `AGENT.md` (not runtime)
+- Alias-only legacy filename: `AGENT.MD` (not runtime)
 - Agent map: `AGENTS.md`
 - Final staging master plan: `docs/system-map/Goal/ERP_STAGING_MASTER_PLAN.md`
 - Canonical enterprise stabilization plan: `docs/system-map/Goal/ENTERPRISE_BACKEND_STABILIZATION_PLAN.md`
@@ -104,7 +104,7 @@ This is the canonical knowledge base entrypoint for agentic work in this reposit
 - Orchestrator routing map: `agents/orchestrator-layer.yaml`
 
 ## Legacy + domain deep references
-- Root map for module links: `erp-domain/docs/INDEX.md`
+- Root map for module links: `docs/system-map/README.md`
 - CODE-RED program index: `docs/CODE-RED/START_HERE.md`
 - CI debugging contract: `docs/codex-cloud-ci-debugging-plan.md`
 

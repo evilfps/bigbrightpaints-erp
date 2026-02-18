@@ -1,6 +1,6 @@
 # Async Loop Operations Runbook
 
-Last reviewed: 2026-02-15
+Last reviewed: 2026-02-18
 Owner: Orchestrator Agent
 
 This runbook defines the non-stop autonomous workflow used in this repository
@@ -28,13 +28,22 @@ to move the ERP toward staging/predeployment readiness.
 - Docs-only commit exception:
   - skip commit review/subagent,
   - run `bash ci/lint-knowledgebase.sh` and log pass status.
+- Lane alignment rule:
+  - `fast_lane` is docs-only work and follows the docs-only commit exception.
+  - `strict_lane` is required for accounting, auth/RBAC, migrations, orchestrator semantics, and any runtime/config/schema/test logic change.
+  - `strict_lane` minimum harness evidence:
+    - `bash ci/lint-knowledgebase.sh`
+    - `bash ci/check-architecture.sh`
+    - `bash ci/check-enterprise-policy.sh`
+    - `bash ci/check-orchestrator-layer.sh`
+    - `bash scripts/verify_local.sh`
 - Subagents are for commit review only. Main implementation/audit work stays in
   the primary agent.
 - Maintain backlog floor: at least 3 `ready` slices in `asyncloop`.
 - After a completed slice, immediately add a new concrete slice.
 - Orchestrator routing/review must follow `agents/orchestrator-layer.yaml`.
 - Decisions must be proof-backed (tests/guards/traces), not assumption-backed.
-- Scope priority source is `docs/ERP_STAGING_MASTER_PLAN.md`.
+- Scope priority source is `docs/system-map/Goal/ERP_STAGING_MASTER_PLAN.md`.
 
 ## Execution Loop (One Iteration)
 1. Pick highest-risk `in_progress` or top `ready` slice from `asyncloop`.
@@ -45,7 +54,7 @@ to move the ERP toward staging/predeployment readiness.
 6. Commit with:
   - concise subject,
   - bullet comments describing exactly what changed and why.
-7. Run commit review + review subagent.
+7. For `strict_lane` commits, run commit review + review subagent.
 8. If review finds issues:
   - fix immediately,
   - re-test,

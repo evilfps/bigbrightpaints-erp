@@ -1,6 +1,6 @@
 # ERP Staging Master Plan (Final Stability Plan)
 
-Last reviewed: 2026-02-15
+Last reviewed: 2026-02-18
 Owner: Orchestrator Agent
 Status: Active
 
@@ -25,6 +25,16 @@ Feature expansion is not the goal unless required to remove workflow risk.
   - still run `bash ci/lint-knowledgebase.sh` before commit.
 - Code-risk review rule:
   - for any runtime/config/schema/test logic change, run commit review + reviewer subagent.
+- Lane alignment rule:
+  - `fast_lane` applies to docs-only commits and uses only the docs-only review rule above.
+  - `strict_lane` applies to accounting, auth/RBAC, migrations, orchestrator semantics, and any runtime/config/schema/test logic change.
+  - `strict_lane` minimum harness and review pack:
+    - `bash ci/lint-knowledgebase.sh`
+    - `bash ci/check-architecture.sh`
+    - `bash ci/check-enterprise-policy.sh`
+    - `bash ci/check-orchestrator-layer.sh`
+    - `bash scripts/verify_local.sh`
+    - commit review + one reviewer subagent
 - Review-queue saturation rule:
   - if reviewer subagent dispatch is blocked by agent-cap limits, continue bounded slices with full proof (targeted tests + required gates),
   - record blocked review queue in `asyncloop` after each slice,
