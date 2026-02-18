@@ -599,6 +599,21 @@ public class PurchasingService {
                         .withDetail("receiptUnit", receiptUnit)
                         .withDetail("invoiceUnit", unit);
             }
+            if (taxProvided && (lineRequest.taxRate() != null || lineRequest.taxInclusive() != null)) {
+                throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                        "taxAmount cannot be combined with line-level taxRate or taxInclusive")
+                        .withDetail("rawMaterialId", rawMaterial.getId());
+            }
+            BigDecimal resolvedTaxRate = null;
+            if (!taxProvided) {
+                resolvedTaxRate = resolveLineTaxRate(lineRequest, rawMaterial, company);
+                if (Boolean.TRUE.equals(lineRequest.taxInclusive())
+                        && resolvedTaxRate.compareTo(BigDecimal.ZERO) <= 0) {
+                    throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                            "Tax-inclusive purchase line requires a positive GST rate")
+                            .withDetail("rawMaterialId", rawMaterial.getId());
+                }
+            }
             BigDecimal lineGrossRaw = MoneyUtils.safeMultiply(quantity, costPerUnit);
             BigDecimal lineGross = taxProvided ? lineGrossRaw : currency(lineGrossRaw);
             BigDecimal lineNet = lineGross;

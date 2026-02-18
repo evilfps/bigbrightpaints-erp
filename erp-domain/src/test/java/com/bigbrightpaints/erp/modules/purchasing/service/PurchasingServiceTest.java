@@ -522,6 +522,68 @@ class PurchasingServiceTest {
     }
 
     @Test
+    @DisplayName("createPurchase rejects mixed manual tax and line-level tax directives")
+    void createPurchase_rejectsMixedManualAndLineTax() {
+        when(companyContextService.requireCurrentCompany()).thenReturn(company);
+        when(companyEntityLookup.requireSupplier(company, 10L)).thenReturn(supplier);
+        when(purchaseRepository.lockByCompanyAndInvoiceNumberIgnoreCase(company, "INV-003A"))
+                .thenReturn(Optional.empty());
+        when(rawMaterialRepository.lockByCompanyAndId(company, 20L)).thenReturn(Optional.of(rawMaterial));
+        stubGoodsReceipt(311L, 211L, BigDecimal.TEN, BigDecimal.valueOf(5));
+
+        RawMaterialPurchaseRequest request = new RawMaterialPurchaseRequest(
+                10L,
+                "INV-003A",
+                LocalDate.now(),
+                "Mixed tax directives",
+                211L,
+                311L,
+                new BigDecimal("9.00"),
+                List.of(new RawMaterialPurchaseLineRequest(
+                        20L, null, BigDecimal.TEN, "KG", BigDecimal.valueOf(5),
+                        new BigDecimal("18.00"), Boolean.FALSE, null))
+        );
+
+        assertThatThrownBy(() -> purchasingService.createPurchase(request))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("taxAmount cannot be combined with line-level taxRate or taxInclusive");
+
+        verify(accountingFacade, never()).postPurchaseJournal(any(), any(), any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("createPurchase fails closed when taxInclusive is true without positive GST rate")
+    void createPurchase_taxInclusiveWithoutPositiveRate_rejected() {
+        when(companyContextService.requireCurrentCompany()).thenReturn(company);
+        when(companyEntityLookup.requireSupplier(company, 10L)).thenReturn(supplier);
+        when(purchaseRepository.lockByCompanyAndInvoiceNumberIgnoreCase(company, "INV-003B"))
+                .thenReturn(Optional.empty());
+        when(rawMaterialRepository.lockByCompanyAndId(company, 20L)).thenReturn(Optional.of(rawMaterial));
+        stubGoodsReceipt(312L, 212L, BigDecimal.TEN, new BigDecimal("5.90"));
+
+        rawMaterial.setGstRate(BigDecimal.ZERO);
+
+        RawMaterialPurchaseRequest request = new RawMaterialPurchaseRequest(
+                10L,
+                "INV-003B",
+                LocalDate.now(),
+                "Invalid tax inclusive without GST rate",
+                212L,
+                312L,
+                null,
+                List.of(new RawMaterialPurchaseLineRequest(
+                        20L, null, BigDecimal.TEN, "KG", new BigDecimal("5.90"),
+                        null, Boolean.TRUE, null))
+        );
+
+        assertThatThrownBy(() -> purchasingService.createPurchase(request))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Tax-inclusive purchase line requires a positive GST rate");
+
+        verify(accountingFacade, never()).postPurchaseJournal(any(), any(), any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
     @DisplayName("createPurchase auto-computes tax when taxAmount omitted (exclusive)")
     void createPurchase_autoComputesTaxExclusive() {
         when(companyContextService.requireCurrentCompany()).thenReturn(company);
