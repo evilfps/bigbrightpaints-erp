@@ -3,10 +3,11 @@
 - title: Tenant Quota Controls Foundation
 - goal: Implement superadmin-governed tenant quota fields and fail-closed update/read contract baseline
 - priority: high
-- status: planned
+- status: superseded
 - base_branch: tmp/orch-exec-20260217
 - created_at: 2026-02-17T17:16:18+00:00
-- updated_at: 2026-02-17T17:16:18+00:00
+- updated_at: 2026-02-19T13:10:40+00:00
+- superseded_by: TKT-ERP-STAGE-092
 
 ## Slice Board
 

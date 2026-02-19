@@ -1,16 +1,13 @@
-ticket_id: TKT-ERP-STAGE-058
+ticket_id: TKT-ERP-STAGE-092
 title: Tenant Quota Controls Foundation
 goal: Implement superadmin-governed tenant quota fields and fail-closed update/read
-  contract baseline
+  contract baseline on canonical branch
 priority: high
-status: superseded
-base_branch: tmp/orch-exec-20260217
-worktree_root: /home/realnigga/Desktop/orchestrator_erp_worktrees/_tmp_orch_exec_worktrees
-created_at: '2026-02-17T17:16:18+00:00'
-updated_at: '2026-02-19T13:10:40+00:00'
-superseded_by: TKT-ERP-STAGE-092
-superseded_reason: stale base branch and pre-existing stage branch worktree collisions; reissued on canonical base
-  harness-engineering-orchestrator
+status: planned
+base_branch: harness-engineering-orchestrator
+worktree_root: /home/realnigga/Desktop/orchestrator_erp_worktrees
+created_at: '2026-02-19T13:10:22+00:00'
+updated_at: '2026-02-19T13:10:22+00:00'
 r3_required: true
 orchestrator_authority:
   r1: orchestrator
@@ -36,13 +33,13 @@ slices:
   matched_rules:
   - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/company/
   lane: w1
-  branch: tickets/tkt-erp-stage-058/auth-rbac-company
-  worktree_path: /home/realnigga/Desktop/orchestrator_erp_worktrees/_tmp_orch_exec_worktrees/TKT-ERP-STAGE-058/auth-rbac-company
+  branch: tickets/tkt-erp-stage-092/auth-rbac-company
+  worktree_path: /home/realnigga/Desktop/orchestrator_erp_worktrees/TKT-ERP-STAGE-092/auth-rbac-company
   required_checks:
   - bash ci/check-architecture.sh
   status: ready
   objective: Implement superadmin-governed tenant quota fields and fail-closed update/read
-    contract baseline
+    contract baseline on canonical branch
   workflow_upstream_slices: []
   workflow_downstream_slices: []
   workflow_external_upstream_agents: []
@@ -105,15 +102,15 @@ slices:
   matched_rules:
   - erp-domain/src/main/resources/db/migration_v2/
   lane: w2
-  branch: tickets/tkt-erp-stage-058/data-migration
-  worktree_path: /home/realnigga/Desktop/orchestrator_erp_worktrees/_tmp_orch_exec_worktrees/TKT-ERP-STAGE-058/data-migration
+  branch: tickets/tkt-erp-stage-092/data-migration
+  worktree_path: /home/realnigga/Desktop/orchestrator_erp_worktrees/TKT-ERP-STAGE-092/data-migration
   required_checks:
   - bash scripts/flyway_overlap_scan.sh --migration-set v2
   - bash scripts/schema_drift_scan.sh --migration-set v2
   - bash scripts/release_migration_matrix_v2.sh
   status: ready
   objective: Implement superadmin-governed tenant quota fields and fail-closed update/read
-    contract baseline
+    contract baseline on canonical branch
   workflow_upstream_slices: []
   workflow_downstream_slices: []
   workflow_external_upstream_agents: []
@@ -139,14 +136,14 @@ slices:
   matched_rules:
   - <fallback>
   lane: w3
-  branch: tickets/tkt-erp-stage-058/refactor-techdebt-gc
-  worktree_path: /home/realnigga/Desktop/orchestrator_erp_worktrees/_tmp_orch_exec_worktrees/TKT-ERP-STAGE-058/refactor-techdebt-gc
+  branch: tickets/tkt-erp-stage-092/refactor-techdebt-gc
+  worktree_path: /home/realnigga/Desktop/orchestrator_erp_worktrees/TKT-ERP-STAGE-092/refactor-techdebt-gc
   required_checks:
   - bash ci/check-architecture.sh
   - cd erp-domain && mvn -B -ntp test
   status: ready
   objective: Implement superadmin-governed tenant quota fields and fail-closed update/read
-    contract baseline
+    contract baseline on canonical branch
   workflow_upstream_slices: []
   workflow_downstream_slices: []
   workflow_external_upstream_agents: []
@@ -154,5 +151,5 @@ slices:
   cross_workflow_contracts: []
 cross_workflow:
   model: workflow_agent_edges_v1
-  generated_at: '2026-02-17T17:16:18+00:00'
+  generated_at: '2026-02-19T13:10:22+00:00'
   in_ticket_edges: []
