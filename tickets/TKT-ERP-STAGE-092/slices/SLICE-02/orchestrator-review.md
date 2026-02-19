@@ -2,7 +2,7 @@
 
 ticket: TKT-ERP-STAGE-092
 slice: SLICE-02
-status: in_review
+status: merged
 
 ## Notes
 - Slice patch is minimal and scoped to migration guard portability:
@@ -22,4 +22,5 @@ status: in_review
   - `security-governance` -> approved
 
 ## Merge Readiness
-- Ready for merge from slice branch after commit; no unresolved blockers in required SLICE-02 checks.
+- Merged to `harness-engineering-orchestrator` as commit `7787085d`.
+- No unresolved blockers in required SLICE-02 checks.
