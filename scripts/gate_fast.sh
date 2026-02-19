@@ -148,6 +148,47 @@ fi
 
 DIFF_BASE="$(resolve_diff_base)"
 echo "[gate-fast] changed-files coverage against base=$DIFF_BASE"
+
+RUNTIME_SOURCE_DIFF="$(git diff --name-only "${DIFF_BASE}...HEAD" -- erp-domain/src/main/java | sed '/^[[:space:]]*$/d' || true)"
+if [[ -z "$RUNTIME_SOURCE_DIFF" ]]; then
+  echo "[gate-fast] no runtime source changes under erp-domain/src/main/java; skipping changed-files coverage enforcement"
+  python3 - "$ARTIFACT_DIR/changed-coverage.json" "$DIFF_BASE" <<'PY'
+import json
+import sys
+
+out_path = sys.argv[1]
+diff_base = sys.argv[2]
+summary = {
+    "diff_base": diff_base,
+    "files_considered": 0,
+    "line_covered": 0,
+    "line_total": 0,
+    "line_ratio": 1.0,
+    "line_threshold": 0.95,
+    "branch_covered": 0,
+    "branch_total": 0,
+    "branch_ratio": 1.0,
+    "branch_threshold": 0.9,
+    "vacuous": False,
+    "vacuous_reason": "",
+    "structural_only": False,
+    "structural_files": [],
+    "coverage_skipped_files": [],
+    "files_with_unmapped_lines": [],
+    "skipped": True,
+    "reason": "no_runtime_source_changes",
+    "passes": True,
+    "per_file": {},
+}
+with open(out_path, "w", encoding="utf-8") as fh:
+  json.dump(summary, fh, indent=2)
+print("[gate-fast] changed-files coverage summary:")
+print(json.dumps(summary, indent=2))
+PY
+  echo "[gate-fast] OK"
+  exit 0
+fi
+
 coverage_args=(
   --jacoco "$ROOT_DIR/erp-domain/target/site/jacoco/jacoco.xml"
   --diff-base "$DIFF_BASE"
