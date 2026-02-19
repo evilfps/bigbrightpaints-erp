@@ -5,8 +5,12 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ARTIFACT_DIR="$ROOT_DIR/artifacts/gate-fast"
 TRUTH_TEST_ROOT="$ROOT_DIR/erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite"
 COMPAT_BASH_ENV_BOOTSTRAP="$ROOT_DIR/scripts/bash_env_bootstrap.sh"
-if [[ "${BASH_ENV:-}" != "$COMPAT_BASH_ENV_BOOTSTRAP" ]]; then
-  export BBP_ORIGINAL_BASH_ENV="${BASH_ENV:-}"
+if [[ "${BASH_ENV:-}" != "$COMPAT_BASH_ENV_BOOTSTRAP" && -n "${BASH_ENV:-}" ]]; then
+  export BBP_CHAINED_BASH_ENV="${BASH_ENV:-}"
+  export BBP_CHAINED_BASH_ENV_PARENT_PID="$$"
+else
+  unset BBP_CHAINED_BASH_ENV
+  unset BBP_CHAINED_BASH_ENV_PARENT_PID
 fi
 export BASH_ENV="$COMPAT_BASH_ENV_BOOTSTRAP"
 REQUIRE_DIFF_BASE="${GATE_FAST_REQUIRE_DIFF_BASE:-false}"
@@ -187,11 +191,15 @@ if [[ "$RELEASE_VALIDATION_MODE" == "true" ]]; then
     echo "[gate-fast] FAIL: release validation mode requires git context for immutable anchor validation"
     exit 2
   fi
-  if [[ ! "$DIFF_BASE" =~ ^[0-9a-fA-F]{7,40}$ ]]; then
-    echo "[gate-fast] FAIL: DIFF_BASE must be an immutable commit SHA token in release validation mode (branch/tag refs are not allowed)"
+  if [[ ! "$DIFF_BASE" =~ ^[0-9a-fA-F]{40}$ ]]; then
+    echo "[gate-fast] FAIL: DIFF_BASE must be a full 40-character commit SHA in release validation mode"
     exit 2
   fi
-  if ! resolved_diff_base="$(git -C "$ROOT_DIR" rev-parse --verify --quiet "${DIFF_BASE}^{commit}" 2>/dev/null)"; then
+  if git -C "$ROOT_DIR" for-each-ref --format='%(refname:short)' | grep -Fxq "$DIFF_BASE"; then
+    echo "[gate-fast] FAIL: DIFF_BASE must be a literal commit ID and must not match any ref name"
+    exit 2
+  fi
+  if ! resolved_diff_base="$(git -C "$ROOT_DIR" rev-parse --verify --quiet --end-of-options "${DIFF_BASE}^{commit}" 2>/dev/null)"; then
     echo "[gate-fast] FAIL: DIFF_BASE must resolve to a commit SHA in release validation mode"
     exit 2
   fi

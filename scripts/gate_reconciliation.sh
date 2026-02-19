@@ -5,8 +5,12 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ARTIFACT_DIR="$ROOT_DIR/artifacts/gate-reconciliation"
 TRUTH_TEST_ROOT="$ROOT_DIR/erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite"
 COMPAT_BASH_ENV_BOOTSTRAP="$ROOT_DIR/scripts/bash_env_bootstrap.sh"
-if [[ "${BASH_ENV:-}" != "$COMPAT_BASH_ENV_BOOTSTRAP" ]]; then
-  export BBP_ORIGINAL_BASH_ENV="${BASH_ENV:-}"
+if [[ "${BASH_ENV:-}" != "$COMPAT_BASH_ENV_BOOTSTRAP" && -n "${BASH_ENV:-}" ]]; then
+  export BBP_CHAINED_BASH_ENV="${BASH_ENV:-}"
+  export BBP_CHAINED_BASH_ENV_PARENT_PID="$$"
+else
+  unset BBP_CHAINED_BASH_ENV
+  unset BBP_CHAINED_BASH_ENV_PARENT_PID
 fi
 export BASH_ENV="$COMPAT_BASH_ENV_BOOTSTRAP"
 rm -rf "$ARTIFACT_DIR"
