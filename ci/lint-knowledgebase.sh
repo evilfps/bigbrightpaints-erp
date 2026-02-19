@@ -35,6 +35,38 @@ fail() {
   errors=$((errors + 1))
 }
 
+is_valid_iso_date() {
+  local candidate="$1"
+  python3 - "$candidate" <<'PY'
+import datetime
+import sys
+
+value = sys.argv[1]
+try:
+    datetime.date.fromisoformat(value)
+except ValueError:
+    sys.exit(1)
+PY
+}
+
+normalize_path() {
+  local target="$1"
+  python3 - "$target" <<'PY'
+import os
+import sys
+
+print(os.path.normpath(os.path.abspath(sys.argv[1])))
+PY
+}
+
+is_path_within_root() {
+  local candidate="$1"
+  case "$candidate" in
+    "$ROOT_DIR" | "$ROOT_DIR"/*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 for f in "${required_files[@]}"; do
   if [[ ! -f "$f" ]]; then
     fail "missing required file: $f (remediation: create and link it from docs/INDEX.md)"
@@ -50,7 +82,7 @@ for f in "${required_files[@]}"; do
     fi
 
     reviewed_date="$(grep -E '^Last reviewed: [0-9]{4}-[0-9]{2}-[0-9]{2}$' "$f" | head -n1 | sed 's/^Last reviewed: //')"
-    if ! date -d "$reviewed_date" >/dev/null 2>&1; then
+    if ! is_valid_iso_date "$reviewed_date"; then
       fail "$f has invalid Last reviewed date '$reviewed_date' (remediation: use real calendar date)"
       continue
     fi
@@ -107,13 +139,13 @@ check_ref() {
 
   local candidate_rel candidate_root
   if [[ "$ref" == /* ]]; then
-    candidate_rel="$(realpath -m "$ROOT_DIR/${ref#/}")"
+    candidate_rel="$(normalize_path "$ROOT_DIR/${ref#/}")"
   else
-    candidate_rel="$(realpath -m "$(dirname "$src_file")/$ref")"
+    candidate_rel="$(normalize_path "$(dirname "$src_file")/$ref")"
   fi
-  candidate_root="$(realpath -m "$ROOT_DIR/${ref#/}")"
+  candidate_root="$(normalize_path "$ROOT_DIR/${ref#/}")"
 
-  if [[ "$candidate_rel" != "$ROOT_DIR"* ]] && [[ "$candidate_root" != "$ROOT_DIR"* ]]; then
+  if ! is_path_within_root "$candidate_rel" && ! is_path_within_root "$candidate_root"; then
     return 0
   fi
 

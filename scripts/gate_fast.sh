@@ -4,9 +4,11 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ARTIFACT_DIR="$ROOT_DIR/artifacts/gate-fast"
 TRUTH_TEST_ROOT="$ROOT_DIR/erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite"
-if [[ -z "${BASH_ENV:-}" ]]; then
-  export BASH_ENV="$ROOT_DIR/scripts/bash_compat.sh"
+COMPAT_BASH_ENV_BOOTSTRAP="$ROOT_DIR/scripts/bash_env_bootstrap.sh"
+if [[ "${BASH_ENV:-}" != "$COMPAT_BASH_ENV_BOOTSTRAP" ]]; then
+  export BBP_ORIGINAL_BASH_ENV="${BASH_ENV:-}"
 fi
+export BASH_ENV="$COMPAT_BASH_ENV_BOOTSTRAP"
 REQUIRE_DIFF_BASE="${GATE_FAST_REQUIRE_DIFF_BASE:-false}"
 RELEASE_VALIDATION_MODE="${GATE_FAST_RELEASE_VALIDATION_MODE:-false}"
 SYNC_PR_MODE="${GATE_FAST_SYNC_PR_MODE:-false}"
@@ -64,7 +66,8 @@ resolve_diff_base() {
 resolve_canonical_base() {
   if [[ "$GIT_CONTEXT_AVAILABLE" != "true" ]]; then
     if [[ "$CANONICAL_BASE_REQUIRED" == "true" ]]; then
-      echo "[gate-fast] WARN: canonical base verification skipped (git context unavailable)"
+      echo "[gate-fast] FAIL: canonical base verification requires git context"
+      exit 2
     fi
     return 0
   fi
@@ -184,10 +187,15 @@ if [[ "$RELEASE_VALIDATION_MODE" == "true" ]]; then
     echo "[gate-fast] FAIL: release validation mode requires git context for immutable anchor validation"
     exit 2
   fi
-  if ! git -C "$ROOT_DIR" rev-parse --verify --quiet "${DIFF_BASE}^{commit}" >/dev/null; then
+  if [[ ! "$DIFF_BASE" =~ ^[0-9a-fA-F]{7,40}$ ]]; then
+    echo "[gate-fast] FAIL: DIFF_BASE must be an immutable commit SHA token in release validation mode (branch/tag refs are not allowed)"
+    exit 2
+  fi
+  if ! resolved_diff_base="$(git -C "$ROOT_DIR" rev-parse --verify --quiet "${DIFF_BASE}^{commit}" 2>/dev/null)"; then
     echo "[gate-fast] FAIL: DIFF_BASE must resolve to a commit SHA in release validation mode"
     exit 2
   fi
+  DIFF_BASE="$resolved_diff_base"
   if ! git -C "$ROOT_DIR" merge-base --is-ancestor "$DIFF_BASE" "$RESOLVED_RELEASE_HEAD_SHA"; then
     echo "[gate-fast] FAIL: DIFF_BASE=$DIFF_BASE is not an ancestor of HEAD=$RESOLVED_RELEASE_HEAD_SHA"
     exit 2

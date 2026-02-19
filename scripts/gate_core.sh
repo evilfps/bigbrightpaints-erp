@@ -4,9 +4,11 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ARTIFACT_DIR="$ROOT_DIR/artifacts/gate-core"
 TRUTH_TEST_ROOT="$ROOT_DIR/erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite"
-if [[ -z "${BASH_ENV:-}" ]]; then
-  export BASH_ENV="$ROOT_DIR/scripts/bash_compat.sh"
+COMPAT_BASH_ENV_BOOTSTRAP="$ROOT_DIR/scripts/bash_env_bootstrap.sh"
+if [[ "${BASH_ENV:-}" != "$COMPAT_BASH_ENV_BOOTSTRAP" ]]; then
+  export BBP_ORIGINAL_BASH_ENV="${BASH_ENV:-}"
 fi
+export BASH_ENV="$COMPAT_BASH_ENV_BOOTSTRAP"
 rm -rf "$ARTIFACT_DIR"
 mkdir -p "$ARTIFACT_DIR"
 GATE_START_UTC="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
@@ -42,7 +44,8 @@ if [[ "$GIT_CONTEXT_AVAILABLE" == "true" ]]; then
     exit 2
   fi
 elif [[ "$CANONICAL_BASE_REQUIRED" == "true" ]]; then
-  echo "[gate-core] WARN: canonical base verification skipped (git context unavailable)"
+  echo "[gate-core] FAIL: canonical base verification requires git context"
+  exit 2
 fi
 TRACEABILITY_FILE="$ARTIFACT_DIR/gate-core-traceability.json"
 

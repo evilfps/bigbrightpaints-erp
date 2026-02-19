@@ -4,6 +4,7 @@ import json
 import re
 import sys
 from pathlib import Path
+from typing import Optional
 
 
 ACTIVE_STATUSES = {
@@ -38,7 +39,7 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def normalize_status(raw: str | None) -> str:
+def normalize_status(raw: Optional[str]) -> str:
     if not raw:
         return ""
     return raw.strip().strip("'\"").lower()
