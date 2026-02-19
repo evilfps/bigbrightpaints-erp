@@ -31,24 +31,24 @@ This defines how the orchestrator controls all agents in long-running async loop
 - Reviewer agents are review-only and cannot claim implementation ownership.
 - Unclaimed submissions are rejected in orchestrator pre-merge review.
 
-## Subagent Model Routing
-Orchestrator selects model/reasoning by role and risk:
-- `orchestrator`: `gpt-5.3-codex` with `xhigh`
-- `planning`: `gpt-5.2-codex` with `xhigh`
-- `planning_architecture`: `gpt-5.2-codex` with `xhigh`
-- `backend_arch`: `gpt-5.2-codex` with `xhigh`
-- `product_analyst`: `gpt-5.2-codex` with `xhigh`
-- `cross_module`: `gpt-5.3-codex` with `xhigh`
-- `cross_module_high`: `gpt-5.3-codex` with `high`
-- `security_auditor`: `gpt-5.3-codex` with `xhigh`
-- `code_reviewer`: `gpt-5.3-codex` with `xhigh`
-- `performance`: `gpt-5.3-codex` with `high`
-- `frontend_arch` / `frontend_documentation`: `gpt-5.3-codex` with `high`
-- legacy fallback buckets remain defined (`reviewer`, `implementation_high_risk`, `implementation_standard`, `exploration`)
+## Subagent Role Routing
+Orchestrator selects runtime role by scope and risk:
+- `orchestrator`
+- `planning`
+- `planning_architecture`
+- `backend_arch`
+- `product_analyst`
+- `cross_module`
+- `cross_module_high`
+- `security_auditor`
+- `code_reviewer`
+- `performance`
+- `frontend_arch` / `frontend_documentation`
+- legacy fallback buckets: `reviewer`, `implementation_high_risk`, `implementation_standard`, `exploration`
 
 Existing YAML agent IDs map into these custom roles through `runtime.subagents.agent_role_mapping` in `agents/orchestrator-layer.yaml` and project-level role config in `.codex/config.toml`.
 
-Fallback decision must be logged in ticket timeline.
+Fallback role/profile decision must be logged in ticket timeline.
 
 ## Review Model (Mandatory)
 - Every slice requires:

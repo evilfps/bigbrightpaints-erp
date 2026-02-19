@@ -15,7 +15,7 @@ Worktree:
 Command template:
 ```bash
 cd /home/realnigga/Desktop/orchestrator_erp_worktrees/_tmp_orch_cleanrepo_worktrees/TKT-ERP-STAGE-005/auth-rbac-company
-codex exec -m gpt-5.3-codex -c reasoning_effort="xhigh" --dangerously-bypass-approvals-and-sandbox "<paste prompt below>"
+codex exec --dangerously-bypass-approvals-and-sandbox "<paste prompt below>"
 ```
 
 Prompt:
@@ -59,7 +59,7 @@ Worktree:
 Command template:
 ```bash
 cd /home/realnigga/Desktop/orchestrator_erp_worktrees/_tmp_orch_cleanrepo_worktrees/TKT-ERP-STAGE-005/refactor-techdebt-gc
-codex exec -m gpt-5.3-codex -c reasoning_effort="high" --dangerously-bypass-approvals-and-sandbox "<paste prompt below>"
+codex exec --dangerously-bypass-approvals-and-sandbox "<paste prompt below>"
 ```
 
 Prompt:

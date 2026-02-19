@@ -3,16 +3,16 @@
 - title: Gate and Lint Portability Hardening
 - goal: Fix gate closure fail-open and Bash/Python/macOS portability blockers: enforce immutable anchor validation, robust BASH_ENV compatibility, and deterministic knowledgebase lint behavior.
 - priority: high
-- status: in_progress
+- status: completed
 - base_branch: harness-engineering-orchestrator
 - created_at: 2026-02-19T19:14:56+00:00
-- updated_at: 2026-02-19T19:15:02Z
+- updated_at: 2026-02-19T19:57:30Z
 
 ## Slice Board
 
 | Slice | Agent | Lane | Status | Branch |
 | --- | --- | --- | --- | --- |
-| SLICE-01 | release-ops | w1 | in_progress | `tickets/tkt-erp-stage-094/release-ops` |
+| SLICE-01 | release-ops | w1 | done | `tickets/tkt-erp-stage-094/release-ops` |
 
 ## Operator Commands
 

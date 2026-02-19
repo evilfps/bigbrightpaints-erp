@@ -14,10 +14,7 @@ Execute full Section 14.3 ledger gate closure on one canonical SHA with fixed re
 ## Custom Multi-Agent Role (Codex)
 - role: `planning_architecture`
 - config_file: `.codex/agents/planning_architecture.toml`
-- preferred_model: `gpt-5.2-codex`
-- preferred_reasoning: `xhigh`
-- fallbacks:
-  - model=`gpt-5.3-codex` reasoning=`high`
+- runtime_profile: `resolved at runtime from role config`
 
 ## Agent Write Boundary (Enforced)
 - `docs/`

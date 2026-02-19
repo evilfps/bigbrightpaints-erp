@@ -179,7 +179,7 @@ run_case "verify_skip_with_marker" 0 \
 
 # Case 6: gate_release fails closed on mismatch by default.
 run_case "release_mismatch_fail_closed" 4 \
-  'FLYWAY_GUARD_DB_NAME=guard_db PGDATABASE=other_db ./scripts/gate_release.sh'
+  'GATE_REQUIRE_CANONICAL_BASE=false FLYWAY_GUARD_DB_NAME=guard_db PGDATABASE=other_db ./scripts/gate_release.sh'
 require_output "release_mismatch_fail_closed" "FLYWAY_GUARD_DB_NAME and PGDATABASE differ."
 
 # Case 7: gate_release propagates allow/delegation flags to verify_local call.
@@ -196,6 +196,6 @@ STUB_VERIFY_WRAPPER
 chmod +x "$TMP_ROOT/scripts/verify_local.sh"
 
 run_case "release_allow_propagation" 0 \
-  'ALLOW_FLYWAY_GUARD_DB_MISMATCH=true FLYWAY_GUARD_DB_NAME=guard_db PGDATABASE=other_db ./scripts/gate_release.sh'
+  'GATE_REQUIRE_CANONICAL_BASE=false ALLOW_FLYWAY_GUARD_DB_MISMATCH=true FLYWAY_GUARD_DB_NAME=guard_db PGDATABASE=other_db ./scripts/gate_release.sh'
 
 echo "[guard_flyway_guard_contract] OK"

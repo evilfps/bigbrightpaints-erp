@@ -64,27 +64,28 @@ Claim collisions are merge-blocking. Unclaimed implementation submissions are re
 - Create one worktree per agent per slice under `../orchestrator_erp_worktrees/<TKT-ID>/`.
 - Never branch new slice worktrees from older slice branches.
 
-## Subagent Model Policy
-Use Codex multi-agent role configuration for model/reasoning selection:
-- `orchestrator`: `gpt-5.3-codex` + `xhigh`
-- `planning`: `gpt-5.2-codex` + `xhigh`
-- `planning_architecture`: `gpt-5.2-codex` + `xhigh`
-- `backend_arch`: `gpt-5.2-codex` + `xhigh`
-- `product_analyst`: `gpt-5.2-codex` + `xhigh`
-- `cross_module`: `gpt-5.3-codex` + `xhigh`
-- `cross_module_high`: `gpt-5.3-codex` + `high`
-- `security_auditor`: `gpt-5.3-codex` + `xhigh`
-- `code_reviewer`: `gpt-5.3-codex` + `xhigh`
-- `performance`: `gpt-5.3-codex` + `high`
-- `frontend_arch` / `frontend_documentation`: `gpt-5.3-codex` + `high`
+## Subagent Role Policy
+Use Codex multi-agent role configuration for role/risk selection:
+- `orchestrator`
+- `planning`
+- `planning_architecture`
+- `backend_arch`
+- `product_analyst`
+- `cross_module`
+- `cross_module_high`
+- `security_auditor`
+- `code_reviewer`
+- `performance`
+- `frontend_arch` / `frontend_documentation`
+- legacy fallback buckets: `reviewer`, `implementation_high_risk`, `implementation_standard`, `exploration`
 
-If preferred model is unavailable, orchestrator must document fallback choice in ticket timeline.
+If a preferred runtime profile is unavailable, orchestrator must document the fallback role/profile choice in ticket timeline.
 
 ## Agent-ID to Role Mapping
 - Existing YAML agent IDs are mapped to custom multi-agent roles in:
   - `agents/orchestrator-layer.yaml` -> `runtime.subagents.agent_role_mapping`
   - `.codex/config.toml` -> `[agents.<role-or-id>]` tables
-- `scripts/harness_orchestrator.py` injects role, model, and reasoning metadata into each generated `TASK_PACKET.md`.
+- `scripts/harness_orchestrator.py` injects role/config metadata into each generated `tickets/<TKT-ID>/slices/<SLICE-ID>/TASK_PACKET.md`.
 
 ## Cross-Module Contract-First Protocol
 When touching multiple domains, use this order:

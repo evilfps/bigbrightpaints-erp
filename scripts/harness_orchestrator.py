@@ -521,12 +521,7 @@ def write_packet_files(repo_root: Path, ticket: dict[str, Any], slice_data: dict
     reviews_dir.mkdir(parents=True, exist_ok=True)
 
     preferred_role = str(slice_data.get("multi_agent_role", "")).strip()
-    preferred_model = str(slice_data.get("multi_agent_model", "")).strip()
-    preferred_reasoning = str(slice_data.get("multi_agent_reasoning", "")).strip()
     preferred_config_file = str(slice_data.get("multi_agent_config_file", "")).strip()
-    fallback_profiles = slice_data.get("multi_agent_fallback", [])
-    if not isinstance(fallback_profiles, list):
-        fallback_profiles = []
 
     prompt_lines = [
         f"You are `{slice_data['primary_agent']}`.",
@@ -569,17 +564,7 @@ Worktree: `{slice_data['worktree_path']}`
         packet += f"- role: `{preferred_role}`\n"
         if preferred_config_file:
             packet += f"- config_file: `{preferred_config_file}`\n"
-        if preferred_model:
-            packet += f"- preferred_model: `{preferred_model}`\n"
-        if preferred_reasoning:
-            packet += f"- preferred_reasoning: `{preferred_reasoning}`\n"
-        if fallback_profiles:
-            packet += "- fallbacks:\n"
-            for fb in fallback_profiles:
-                if isinstance(fb, dict):
-                    model = str(fb.get("model", "")).strip()
-                    reasoning = str(fb.get("reasoning", "")).strip()
-                    packet += f"  - model=`{model}` reasoning=`{reasoning}`\n"
+        packet += "- runtime_profile: `resolved at runtime from role config`\n"
         packet += "\n"
 
     packet += """## Agent Write Boundary (Enforced)

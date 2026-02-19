@@ -208,6 +208,10 @@ if [[ "$RELEASE_VALIDATION_MODE" == "true" ]]; then
     echo "[gate-fast] FAIL: DIFF_BASE=$DIFF_BASE is not an ancestor of HEAD=$RESOLVED_RELEASE_HEAD_SHA"
     exit 2
   fi
+  if [[ "$DIFF_BASE" == "$RESOLVED_RELEASE_HEAD_SHA" ]]; then
+    echo "[gate-fast] FAIL: DIFF_BASE must be older than HEAD in release validation mode"
+    exit 2
+  fi
 fi
 
 echo "[gate-fast] validate catalog"
@@ -307,7 +311,10 @@ fi
 DIFF_BASE="$(resolve_diff_base)"
 echo "[gate-fast] changed-files coverage against base=$DIFF_BASE"
 
-RUNTIME_SOURCE_DIFF="$(git diff --name-only "${DIFF_BASE}...HEAD" -- erp-domain/src/main/java | sed '/^[[:space:]]*$/d' || true)"
+if ! RUNTIME_SOURCE_DIFF="$(git -C "$ROOT_DIR" diff --name-only "${DIFF_BASE}...${RESOLVED_RELEASE_HEAD_SHA}" -- erp-domain/src/main/java | sed '/^[[:space:]]*$/d')"; then
+  echo "[gate-fast] FAIL: unable to compute changed runtime sources against base=$DIFF_BASE"
+  exit 2
+fi
 if [[ -z "$RUNTIME_SOURCE_DIFF" ]]; then
   echo "[gate-fast] no runtime source changes under erp-domain/src/main/java; skipping changed-files coverage enforcement"
   python3 - "$ARTIFACT_DIR/changed-coverage.json" "$DIFF_BASE" <<'PY'

@@ -14,12 +14,10 @@ Fix gate closure fail-open and Bash/Python/macOS portability blockers: enforce i
 ## Custom Multi-Agent Role (Codex)
 - role: `cross_module`
 - config_file: `.codex/agents/cross_module.toml`
-- preferred_model: `gpt-5.3-codex`
-- preferred_reasoning: `xhigh`
-- fallbacks:
-  - model=`gpt-5.3-codex` reasoning=`high`
+- runtime_profile: `resolved at runtime from role config`
 
 ## Agent Write Boundary (Enforced)
+- `ci/`
 - `.github/workflows/`
 - `scripts/`
 - `docs/runbooks/`

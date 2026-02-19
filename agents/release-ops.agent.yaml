@@ -1,6 +1,7 @@
 id: release-ops
 name: Release and Ops Agent
 scope_paths:
+  - ci/
   - .github/workflows/
   - scripts/
   - docs/runbooks/
