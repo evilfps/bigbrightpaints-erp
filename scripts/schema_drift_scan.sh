@@ -150,7 +150,7 @@ done < <(
   if [[ "$SEARCH_TOOL" == "rg" ]]; then
     rg -l --glob '*.sql' -i "\\bUPDATE\\b" "$MIGRATIONS_DIR" || true
   else
-    grep -RIl --include='*.sql' -i -e "UPDATE" "$MIGRATIONS_DIR" || true
+    grep -RIl --include='*.sql' -i -E '(^|[^[:alnum:]_])UPDATE([^[:alnum:]_]|$)' "$MIGRATIONS_DIR" || true
   fi
 )
 
@@ -165,7 +165,7 @@ else
         has_from=true
       fi
     else
-      if grep -qi -e "FROM" "$f"; then
+      if grep -qi -E '(^|[^[:alnum:]_])FROM([^[:alnum:]_]|$)' "$f"; then
         has_from=true
       fi
     fi
@@ -180,7 +180,7 @@ else
       if [[ "$SEARCH_TOOL" == "rg" ]]; then
         rg -n --glob '*.sql' -i "\\bUPDATE\\b|\\bFROM\\b" "$f" | head -n 30 || true
       else
-        grep -n -i -E "UPDATE|FROM" "$f" | head -n 30 || true
+        grep -n -i -E '(^|[^[:alnum:]_])(UPDATE|FROM)([^[:alnum:]_]|$)' "$f" | head -n 30 || true
       fi
       echo "  ---"
     fi
