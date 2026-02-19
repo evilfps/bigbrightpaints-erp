@@ -393,7 +393,7 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
                 HttpMethod.GET,
                 new HttpEntity<>(jsonHeaders(null, TENANT_A)),
                 Map.class);
-        assertThat(unauthenticatedWithHeader.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        assertThat(unauthenticatedWithHeader.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
 
         ResponseEntity<Map> idorUpdate = rest.exchange(
                 "/api/v1/companies/" + tenantBId,

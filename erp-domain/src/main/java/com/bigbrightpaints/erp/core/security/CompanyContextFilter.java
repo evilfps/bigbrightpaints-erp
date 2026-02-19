@@ -2,6 +2,8 @@ package com.bigbrightpaints.erp.core.security;
 
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccount;
 import com.bigbrightpaints.erp.modules.auth.domain.UserPrincipal;
+import com.bigbrightpaints.erp.modules.company.domain.CompanyLifecycleState;
+import com.bigbrightpaints.erp.modules.company.service.CompanyService;
 import com.bigbrightpaints.erp.modules.company.service.TenantRuntimeEnforcementService;
 import io.jsonwebtoken.Claims;
 import jakarta.servlet.FilterChain;
@@ -23,9 +25,12 @@ public class CompanyContextFilter extends OncePerRequestFilter {
 
     private static final Logger log = LoggerFactory.getLogger(CompanyContextFilter.class);
     private final TenantRuntimeEnforcementService tenantRuntimeEnforcementService;
+    private final CompanyService companyService;
 
-    public CompanyContextFilter(TenantRuntimeEnforcementService tenantRuntimeEnforcementService) {
+    public CompanyContextFilter(TenantRuntimeEnforcementService tenantRuntimeEnforcementService,
+                                CompanyService companyService) {
         this.tenantRuntimeEnforcementService = tenantRuntimeEnforcementService;
+        this.companyService = companyService;
     }
 
     @Override
@@ -75,6 +80,11 @@ public class CompanyContextFilter extends OncePerRequestFilter {
                 requestedCompany = resolvedTokenCompany;
             } else {
                 // Do not allow unauthenticated requests to set tenant context via header.
+                if (StringUtils.hasText(requestedCompany)) {
+                    response.sendError(HttpServletResponse.SC_FORBIDDEN,
+                            "Access denied to company-scoped request");
+                    return;
+                }
                 requestedCompany = null;
             }
             String companyCode = StringUtils.hasText(requestedCompany) ? requestedCompany.trim() : null;
@@ -83,6 +93,11 @@ public class CompanyContextFilter extends OncePerRequestFilter {
                 if (!validateCompanyAccess(companyCode)) {
                     log.warn("User attempted to access unauthorized company: {}", companyCode);
                     response.sendError(HttpServletResponse.SC_FORBIDDEN, "Access denied to company: " + companyCode);
+                    return;
+                }
+                if (companyService.resolveLifecycleStateByCode(companyCode) != CompanyLifecycleState.ACTIVE) {
+                    response.sendError(HttpServletResponse.SC_FORBIDDEN,
+                            "Tenant lifecycle state does not allow access");
                     return;
                 }
                 admission = tenantRuntimeEnforcementService.beginRequest(
