@@ -55,9 +55,7 @@ public class CompanyController {
 
     @GetMapping("/{id}/tenant-metrics")
     @PreAuthorize("hasAuthority('ROLE_SUPER_ADMIN')")
-    public ResponseEntity<ApiResponse<CompanyTenantMetricsDto>> getTenantMetrics(@AuthenticationPrincipal UserPrincipal principal,
-                                                                                  @PathVariable Long id) {
-        requireCompanyContext(principal);
+    public ResponseEntity<ApiResponse<CompanyTenantMetricsDto>> getTenantMetrics(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.success(
                 "Company tenant metrics fetched",
                 companyService.getTenantMetrics(id)));

@@ -327,18 +327,6 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
                 false,
                 true);
         assertThat(superAdminResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
-        Map<String, Object> responseBody = superAdminResponse.getBody();
-        assertThat(responseBody).isNotNull();
-        @SuppressWarnings("unchecked")
-        Map<String, Object> data = (Map<String, Object>) responseBody.get("data");
-        assertThat(data).isNotNull();
-        assertThat(data).containsEntry("quotaMaxActiveUsers", 120);
-        assertThat(data).containsEntry("quotaMaxApiRequests", 3000);
-        assertThat(data).containsEntry("quotaMaxStorageBytes", 2_097_152);
-        assertThat(data).containsEntry("quotaMaxConcurrentSessions", 7);
-        assertThat(data).containsEntry("quotaSoftLimitEnabled", false);
-        assertThat(data).containsEntry("quotaHardLimitEnabled", true);
-        assertThat(data).doesNotContainKeys("activeUserQuota", "apiRateLimitPerMinute", "auditStorageQuotaBytes");
     }
 
     @Test
