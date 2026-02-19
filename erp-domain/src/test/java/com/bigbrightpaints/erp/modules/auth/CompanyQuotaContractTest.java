@@ -73,6 +73,44 @@ class CompanyQuotaContractTest {
     }
 
     @Test
+    void tenant_quota_update_fails_closed_when_authentication_context_is_missing() {
+        CompanyRepository repository = mock(CompanyRepository.class);
+        Company company = company(1L, "TENANT_A");
+        when(repository.findById(1L)).thenReturn(Optional.of(company));
+        CompanyService service = new CompanyService(repository);
+        SecurityContextHolder.clearContext();
+
+        CompanyRequest request = new CompanyRequest(
+                "Tenant A",
+                "TENANT_A",
+                "UTC",
+                BigDecimal.valueOf(18),
+                120L,
+                3_000L,
+                2_097_152L,
+                7L,
+                false,
+                false);
+
+        assertThatThrownBy(() -> service.update(1L, request, Set.of(company)))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessageContaining("SUPER_ADMIN authority required for tenant configuration updates");
+    }
+
+    @Test
+    void tenant_metrics_read_fails_closed_when_authentication_context_is_missing() {
+        CompanyRepository repository = mock(CompanyRepository.class);
+        Company company = company(1L, "TENANT_A");
+        when(repository.findById(1L)).thenReturn(Optional.of(company));
+        CompanyService service = new CompanyService(repository);
+        SecurityContextHolder.clearContext();
+
+        assertThatThrownBy(() -> service.getTenantMetrics(1L))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessageContaining("SUPER_ADMIN authority required for tenant metrics");
+    }
+
+    @Test
     void super_admin_update_applies_canonical_quota_fields_and_fail_closed_policy() {
         CompanyRepository repository = mock(CompanyRepository.class);
         Company company = company(1L, "TENANT_A");
