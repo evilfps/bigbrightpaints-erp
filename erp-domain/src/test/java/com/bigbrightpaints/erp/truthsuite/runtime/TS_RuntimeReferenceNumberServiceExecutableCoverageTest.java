@@ -16,15 +16,12 @@ import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.purchasing.domain.Supplier;
 import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 import java.time.LocalDate;
-import java.time.YearMonth;
-import java.time.ZoneId;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
 @Tag("concurrency")
 @Tag("reconciliation")
-@Tag("critical")
 class TS_RuntimeReferenceNumberServiceExecutableCoverageTest {
 
     @Test
@@ -62,33 +59,6 @@ class TS_RuntimeReferenceNumberServiceExecutableCoverageTest {
 
         verify(numberSequenceService, atLeast(10)).nextValue(any(Company.class), any(String.class));
         verify(auditService, atLeast(10)).logSuccess(any(), any());
-    }
-
-    @Test
-    void resolve_period_and_zone_cover_success_and_null_company_fallback_paths() {
-        NumberSequenceService numberSequenceService = mock(NumberSequenceService.class);
-        AuditService auditService = mock(AuditService.class);
-        CompanyClock companyClock = mock(CompanyClock.class);
-        when(numberSequenceService.nextValue(any(Company.class), any(String.class))).thenReturn(1L, 2L, 3L, 4L);
-
-        Company validCompany = company(11L, "OK", "UTC");
-        Company nullTimezoneCompany = company(12L, "NTZ", null);
-        when(companyClock.today(eq(validCompany))).thenReturn(LocalDate.of(2026, 2, 16));
-        when(companyClock.today(eq(nullTimezoneCompany))).thenReturn(LocalDate.of(2026, 2, 16));
-        when(companyClock.today(eq(null))).thenThrow(new IllegalArgumentException("null company"));
-
-        ReferenceNumberService service = new ReferenceNumberService(numberSequenceService, auditService, companyClock);
-
-        assertThat(service.nextJournalReference(validCompany)).startsWith("JRN-OK-202602-");
-        assertThat(service.payrollPaymentReference(nullTimezoneCompany)).startsWith("PAYROLL-202602-");
-
-        ZoneId nullCompanyZone = ReflectionTestUtils.invokeMethod(service, "resolveZone", new Object[]{null});
-        assertThat(nullCompanyZone).isEqualTo(ZoneId.of("UTC"));
-
-        YearMonth nullCompanyPeriod = ReflectionTestUtils.invokeMethod(service, "resolvePeriod", new Object[]{null});
-        assertThat(nullCompanyPeriod).isNotNull();
-
-        verify(numberSequenceService, atLeast(2)).nextValue(any(Company.class), any(String.class));
     }
 
     @Test

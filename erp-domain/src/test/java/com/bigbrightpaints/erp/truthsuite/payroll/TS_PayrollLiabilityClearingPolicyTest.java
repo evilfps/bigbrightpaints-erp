@@ -10,6 +10,10 @@ class TS_PayrollLiabilityClearingPolicyTest {
 
     private static final String PAYROLL_SERVICE =
             "src/main/java/com/bigbrightpaints/erp/modules/hr/service/PayrollService.java";
+    private static final String ACCOUNTING_CONTROLLER =
+            "src/main/java/com/bigbrightpaints/erp/modules/accounting/controller/AccountingController.java";
+    private static final String ACCOUNTING_FACADE =
+            "src/main/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingFacade.java";
     private static final String ACCOUNTING_SERVICE =
             "src/main/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingService.java";
 
@@ -40,9 +44,19 @@ class TS_PayrollLiabilityClearingPolicyTest {
     void markAsPaidRequiresPaymentJournalLink() {
         TruthSuiteFileAssert.assertContains(
                 PAYROLL_SERVICE,
+                "private static final String PAYROLL_PAYMENTS_CANONICAL_PATH = \"/api/v1/accounting/payroll/payments\";",
                 "if (run.getPaymentJournalEntryId() == null) {",
                 "\"Payroll payment journal is required before marking payroll as PAID\"",
-                "\"canonicalPath\", \"/api/v1/accounting/payroll/payments\"");
+                "\"canonicalPath\", PAYROLL_PAYMENTS_CANONICAL_PATH");
+    }
+
+    @Test
+    void markAsPaidUsesCanonicalPaymentJournalReference() {
+        TruthSuiteFileAssert.assertContains(
+                PAYROLL_SERVICE,
+                "var paymentJournal = companyEntityLookup.requireJournalEntry(company, run.getPaymentJournalEntryId());",
+                "String canonicalPaymentReference = paymentJournal.getReferenceNumber();",
+                "line.setPaymentReference(canonicalPaymentReference);");
     }
 
     @Test
@@ -52,5 +66,17 @@ class TS_PayrollLiabilityClearingPolicyTest {
                 "\"Salary payable account (SALARY-PAYABLE) is required to record payroll payments\"",
                 "if (payableAmount.subtract(amount).abs().compareTo(ALLOCATION_TOLERANCE) > 0) {",
                 "\"Payroll payment amount does not match salary payable from the posted payroll journal\"");
+    }
+
+    @Test
+    void payrollPaymentUsesCanonicalAccountingBoundary() {
+        TruthSuiteFileAssert.assertContains(
+                ACCOUNTING_CONTROLLER,
+                "@PostMapping(\"/payroll/payments\")",
+                "accountingFacade.recordPayrollPayment(request)");
+        TruthSuiteFileAssert.assertContains(
+                ACCOUNTING_FACADE,
+                "public JournalEntryDto recordPayrollPayment(PayrollPaymentRequest request) {",
+                "return accountingService.recordPayrollPayment(request);");
     }
 }

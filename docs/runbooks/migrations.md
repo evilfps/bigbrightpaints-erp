@@ -1,6 +1,6 @@
 # Migration Runbook (Flyway v2)
 
-Last reviewed: 2026-02-15
+Last reviewed: 2026-02-18
 Owner: Data Migration Agent
 
 ## Purpose
@@ -31,25 +31,19 @@ Standardize safe migration planning, validation, and rollback drills.
 4. Execute rollback drill (restore or forward-fix rehearsal).
 5. Record outcomes and timings.
 
-## M18-S10A Evidence Standard (Staging Rehearsal)
-Record one immutable evidence entry per rehearsal run with these required fields:
-- `evidence_id` (`staging-rehearsal-YYYYMMDD-<short_sha>`)
-- `release_anchor_sha` (same SHA used by all gate outputs)
-- `environment` (target env + dataset snapshot/backup identifier)
-- `migration_set` (`migration_v2` IDs applied/rehearsed)
-- `commands_run` (exact command strings + pass/fail outcome)
-- `release_gate_trace` (`gate_fast`, `gate_core`, `gate_reconciliation`, `gate_release` results, or explicit `not_run` reason)
-- `migration_guard_trace` (`schema_drift_scan`, `flyway_overlap_scan`, `release_migration_matrix_v2` results)
-- `rollback_rehearsal_trace` (forward-fix vs restore path + timestamps)
-- `artifact_links` (logs/output file paths or ticket links)
-- `approvals` (rollback owner, approver, UTC timestamp)
-- `evidence_links` (`asyncloop` entry + `docs/approvals/R2-CHECKPOINT.md` update)
+## Strict-Lane Alignment (M18-S1)
+- Docs-only slices may skip commit-review/subagent review and must show evidence for `bash ci/lint-knowledgebase.sh`.
+- Runtime/config/schema/test slices remain strict-lane and require reviewer evidence plus lane gates.
+- For release-ops strict-lane slices touching `.github/workflows/`, `scripts/`, `docker-compose.yml`, or `erp-domain/Dockerfile`, run both:
+  1. `bash scripts/gate_release.sh`
+  2. `bash scripts/gate_reconciliation.sh`
 
 ## Production Gate (Human Approval Required)
 - R2 approval required for production migration execution.
 - Required evidence:
-  - full `M18-S10A Evidence Standard` record above
   - migration diff summary
+  - validation outputs
+  - rollback owner and plan
   - expected downtime/impact (if any)
 
 ## Failure Handling
@@ -62,7 +56,7 @@ Record one immutable evidence entry per rehearsal run with these required fields
   - TODO: link authoritative DB operations runbook and SRE ownership.
 
 ## Enterprise R2 Linkage
-- For any migration in `migration_v2`, update `docs/approvals/R2-CHECKPOINT.md` in the same change set and include the same `release_anchor_sha` and `evidence_id` from the M18-S10A record.
+- For any migration in `migration_v2`, update `docs/approvals/R2-CHECKPOINT.md` in the same change set and record rehearsal evidence.
 
 ## V15 Execution Notes (2026-02-15)
 - Migration: `erp-domain/src/main/resources/db/migration_v2/V15__accounting_audit_read_model_hotspot_indexes.sql`

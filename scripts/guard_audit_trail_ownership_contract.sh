@@ -59,7 +59,8 @@ for required in \
   "Legacy summary success writes for these events in \`AuditService\` are fully decommissioned (not toggle-controlled)." \
   "No profile may re-enable legacy summary success writes" \
   "Change-Control Rule"; do
-  require_literal "$required" "$DOC" "ownership doc is missing required contract phrase: $required"
+  require_literal "$required" "$DOC" \
+    "ownership doc is missing required contract phrase: $required"
 done
 
 if has_regex_match 'erp\.audit\.accounting\.legacy-summary-events\.enabled' "$ACCOUNTING_SERVICE"; then

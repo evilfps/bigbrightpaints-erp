@@ -1,6 +1,6 @@
 # Async Loop Operations Runbook
 
-Last reviewed: 2026-02-17
+Last reviewed: 2026-02-18
 Owner: Orchestrator Agent
 
 This runbook defines the non-stop autonomous workflow used in this repository
@@ -28,7 +28,15 @@ to move the ERP toward staging/predeployment readiness.
 - Docs-only commit exception:
   - skip commit review/subagent,
   - run `bash ci/lint-knowledgebase.sh` and log pass status.
-  - `lint-knowledgebase` now fail-closes if ticket status metadata drifts (`scripts/check_ticket_status_parity.py`).
+- Lane alignment rule:
+  - `fast_lane` is docs-only work and follows the docs-only commit exception.
+  - `strict_lane` is required for accounting, auth/RBAC, migrations, orchestrator semantics, and any runtime/config/schema/test logic change.
+  - `strict_lane` minimum harness evidence:
+    - `bash ci/lint-knowledgebase.sh`
+    - `bash ci/check-architecture.sh`
+    - `bash ci/check-enterprise-policy.sh`
+    - `bash ci/check-orchestrator-layer.sh`
+    - `bash scripts/verify_local.sh`
 - Subagents are for commit review only. Main implementation/audit work stays in
   the primary agent.
 - Maintain backlog floor: at least 3 `ready` slices in `asyncloop`.
@@ -36,57 +44,6 @@ to move the ERP toward staging/predeployment readiness.
 - Orchestrator routing/review must follow `agents/orchestrator-layer.yaml`.
 - Decisions must be proof-backed (tests/guards/traces), not assumption-backed.
 - Scope priority source is `docs/system-map/Goal/ERP_STAGING_MASTER_PLAN.md`.
-
-## Section 14.3 Final Gate Protocol
-When closing the async-loop final ledger gate (ERP Staging Plan Section 14.3):
-1. Pin an immutable `RELEASE_ANCHOR_SHA` before the active hardening run.
-2. Run strict fast-lane validation with the anchor and enforce non-vacuous changed-file coverage (release validation mode fails closed if coverage is vacuous):
-   - `DIFF_BASE=<RELEASE_ANCHOR_SHA> GATE_FAST_RELEASE_VALIDATION_MODE=true bash scripts/gate_fast.sh`
-   - Capture `artifacts/gate-fast/changed-coverage.json` showing `"vacuous": false` as part of the ledger evidence.
-3. Execute the remaining ledger gates on the same `HEAD`:
-   - `bash scripts/gate_core.sh`
-   - `bash scripts/gate_reconciliation.sh`
-   - `bash scripts/gate_release.sh`
-4. Enforce the runtime quarantine contract before accepting `gate_reconciliation`/`gate_release` outcomes:
-   - `scripts/test_quarantine.txt` entries use: `<test_path> | owner=<owner> | repro=<repro> | start=YYYY-MM-DD | expiry=YYYY-MM-DD`.
-   - Required keys are `owner`, `repro`, `start`, and `expiry`.
-   - `expiry` must be `>= start` and `<= start + 14 calendar days`; missing/invalid/expired metadata fails closed and blocks Section 14.3 closure.
-5. Store every gate command output + artifact path inside `asyncloop` for traceability.
-6. Rotate `RELEASE_ANCHOR_SHA` only after all ledger gates pass and evidence is recorded.
-7. Before ticket closure, run `python3 scripts/check_ticket_status_parity.py` (or `bash ci/lint-knowledgebase.sh`) so `ticket.yaml`, `SUMMARY.md`, and `TIMELINE.md` status markers cannot drift.
-
-## Section 14.4 Deterministic Verify Strategy (High-Signal Lanes)
-For autonomous codex-exec operation, use the smallest fail-closed lane that matches slice risk:
-1. `docs_lane` (docs-only): run `bash ci/lint-knowledgebase.sh` only.
-2. `fast_lane` (default code slices): run `bash scripts/gate_fast.sh`.
-3. `strict_lane` (accounting/auth/migrations/orchestrator semantics): run `bash scripts/gate_fast.sh` then `bash scripts/gate_core.sh`.
-4. `ledger_lane` (Section 14.3 closure only): run anchored `gate_fast` release mode plus `gate_core`, `gate_reconciliation`, and `gate_release` on the same `HEAD`.
-
-Lane rules:
-- Promote lanes only when changed-path risk or failure class requires stronger proof.
-- Do not run `gate_reconciliation`/`gate_release` for routine slices.
-- No blind reruns: rerun a lane only after a concrete change (code/config/docs/quarantine metadata).
-- Flake and quarantine policies stay fail-closed; never bypass with ad-hoc retries.
-
-## Section 14.5 Autonomous Operator Workflow (Codex-Exec)
-1. Capture `VERIFY_HEAD_SHA=$(git rev-parse HEAD)` and lane base (`DIFF_BASE` or `RELEASE_ANCHOR_SHA`) before running checks.
-2. Record selected lane (`docs_lane`, `fast_lane`, `strict_lane`, `ledger_lane`) in `asyncloop`.
-3. Execute lane commands in deterministic order and store artifact paths under `artifacts/gate-*`.
-4. Append command, exit status, SHA, and artifact references to `asyncloop` immediately after each run.
-5. If a failure repeats on unchanged `HEAD`, fail closed, open a blocker entry, and escalate at `R2` instead of looping retries.
-6. Before slice closure, run `bash ci/lint-knowledgebase.sh` so ticket metadata parity remains enforced.
-
-## Section 14.6 Merge-Ready Ticket Sequencing and Deployment-Gate Discipline
-For integration PR and merge-queue operation:
-1. Sequence tickets by dependency evidence, not by local completion timestamp.
-2. Before opening or updating a merge-ready PR, confirm base freshness against integration branch (`git fetch` + rebase/merge) and re-run required lane checks on the refreshed `HEAD`.
-3. If PR conflict appears in shared workflow/rule files, fail closed:
-   - mark ticket `blocked`,
-   - capture conflicting paths + upstream SHA in evidence,
-   - reopen only after replaying on the latest integration base.
-4. Do not carry forward stale gate claims from pre-conflict SHAs; gate evidence is valid only for the post-resolution `HEAD`.
-5. For deployment gating, only accept final Section 14.3 closure evidence produced on integration `HEAD` after merge sequencing is complete.
-
 
 ## Execution Loop (One Iteration)
 1. Pick highest-risk `in_progress` or top `ready` slice from `asyncloop`.
@@ -97,7 +54,7 @@ For integration PR and merge-queue operation:
 6. Commit with:
   - concise subject,
   - bullet comments describing exactly what changed and why.
-7. Run commit review + review subagent.
+7. For `strict_lane` commits, run commit review + review subagent.
 8. If review finds issues:
   - fix immediately,
   - re-test,

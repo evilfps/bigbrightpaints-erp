@@ -74,10 +74,19 @@ for cmd in psql dropdb createdb mvn; do
 done
 
 PGHOST="${PGHOST:-127.0.0.1}"
-PGPORT="${PGPORT:-5432}"
 PGUSER="${PGUSER:-${SPRING_DATASOURCE_USERNAME:-erp}}"
 PGPASSWORD="${PGPASSWORD:-${SPRING_DATASOURCE_PASSWORD:-erp}}"
 PGDATABASE="${PGDATABASE:-postgres}"
+
+if [[ -z "${PGPORT:-}" ]]; then
+  if command -v docker >/dev/null 2>&1 && docker inspect gate_release_pg >/dev/null 2>&1; then
+    mapped_port="$(docker port gate_release_pg 5432/tcp 2>/dev/null | head -n 1 | awk -F: '{print $NF}')"
+    if [[ -n "$mapped_port" ]]; then
+      PGPORT="$mapped_port"
+    fi
+  fi
+fi
+PGPORT="${PGPORT:-5432}"
 export PGHOST PGPORT PGUSER PGPASSWORD PGDATABASE
 
 mkdir -p "$ARTIFACT_DIR"

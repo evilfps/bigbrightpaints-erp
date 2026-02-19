@@ -81,6 +81,7 @@ This is the canonical knowledge base entrypoint for agentic work in this reposit
 ## Risk and Reliability
 - Security + governance + initial risk register: `docs/SECURITY.md`
 - Reliability + observability + SLO placeholders: `docs/RELIABILITY.md`
+- Tenant runtime quota/hold/block enforcement + audit chain: `docs/tenant-runtime-enforcement.md`
 - Rollback runbook: `docs/runbooks/rollback.md`
 - Migration runbook: `docs/runbooks/migrations.md`
 
@@ -103,7 +104,7 @@ This is the canonical knowledge base entrypoint for agentic work in this reposit
 - Orchestrator routing map: `agents/orchestrator-layer.yaml`
 
 ## Legacy + domain deep references
-- Root map for module links: `erp-domain/docs/MODULE_FLOW_MAP.md`
+- Root map for module links: `docs/system-map/README.md`
 - CODE-RED program index: `docs/CODE-RED/START_HERE.md`
 - CI debugging contract: `docs/codex-cloud-ci-debugging-plan.md`
 

@@ -18,6 +18,7 @@ import com.bigbrightpaints.erp.modules.auth.web.RefreshTokenRequest;
 import com.bigbrightpaints.erp.modules.auth.web.ResetPasswordRequest;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
+import com.bigbrightpaints.erp.modules.company.service.TenantRuntimeEnforcementService;
 import io.jsonwebtoken.Claims;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -49,6 +50,7 @@ public class AuthService {
     private final EmailService emailService;
     private final TokenBlacklistService tokenBlacklistService;
     private final AuditService auditService;
+    private final TenantRuntimeEnforcementService tenantRuntimeEnforcementService;
 
     public AuthService(AuthenticationManager authenticationManager,
                        JwtTokenService tokenService,
@@ -60,7 +62,8 @@ public class AuthService {
                        PasswordService passwordService,
                        EmailService emailService,
                        TokenBlacklistService tokenBlacklistService,
-                       AuditService auditService) {
+                       AuditService auditService,
+                       TenantRuntimeEnforcementService tenantRuntimeEnforcementService) {
         this.authenticationManager = authenticationManager;
         this.tokenService = tokenService;
         this.refreshTokenService = refreshTokenService;
@@ -72,6 +75,7 @@ public class AuthService {
         this.emailService = emailService;
         this.tokenBlacklistService = tokenBlacklistService;
         this.auditService = auditService;
+        this.tenantRuntimeEnforcementService = tenantRuntimeEnforcementService;
     }
 
     public AuthResponse login(LoginRequest request) {
@@ -84,6 +88,10 @@ public class AuthService {
                     new UsernamePasswordAuthenticationToken(request.email(), request.password()));
             UserPrincipal principal = (UserPrincipal) authentication.getPrincipal();
             Company company = resolveCompanyForUser(principal.getUser(), request.companyCode());
+            tenantRuntimeEnforcementService.enforceAuthOperationAllowed(
+                    company.getCode(),
+                    user.getEmail(),
+                    "LOGIN");
             mfaService.verifyDuringLogin(principal.getUser(), request.mfaCode(), request.recoveryCode());
             resetLock(user);
             auditService.logAuthSuccess(AuditEvent.LOGIN_SUCCESS, user.getEmail(),
@@ -165,6 +173,10 @@ public class AuthService {
         }
         enforceLock(user);
         Company company = resolveCompanyForUser(user, request.companyCode());
+        tenantRuntimeEnforcementService.enforceAuthOperationAllowed(
+                company.getCode(),
+                userEmail,
+                "REFRESH_TOKEN");
         Map<String, Object> claims = Map.of("name", userEmail);
         String accessToken = tokenService.generateAccessToken(userEmail, company.getCode(), claims);
         String refreshToken = refreshTokenService.issue(userEmail,

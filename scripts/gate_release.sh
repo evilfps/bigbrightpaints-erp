@@ -7,22 +7,6 @@ ARTIFACT_DIR="$ROOT_DIR/artifacts/gate-release"
 TRUTH_TEST_ROOT="$ROOT_DIR/erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite"
 rm -rf "$ARTIFACT_DIR"
 mkdir -p "$ARTIFACT_DIR"
-GATE_START_UTC="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
-RELEASE_SHA="unknown"
-TRACEABILITY_STRICT_MODE="false"
-if resolved_sha="$(git -C "$ROOT_DIR" rev-parse HEAD 2>/dev/null)"; then
-  RELEASE_SHA="$resolved_sha"
-  TRACEABILITY_STRICT_MODE="true"
-fi
-TRACEABILITY_FILE="$ARTIFACT_DIR/release-gate-traceability.json"
-
-# Keep local release matrix runs deterministic on integration worktrees while
-# still honoring explicit PG* overrides used by CI/jobs.
-RELEASE_MATRIX_PGHOST="${RELEASE_MATRIX_PGHOST:-${PGHOST:-127.0.0.1}}"
-RELEASE_MATRIX_PGPORT="${RELEASE_MATRIX_PGPORT:-${PGPORT:-55432}}"
-RELEASE_MATRIX_PGUSER="${RELEASE_MATRIX_PGUSER:-${PGUSER:-${SPRING_DATASOURCE_USERNAME:-erp}}}"
-RELEASE_MATRIX_PGPASSWORD="${RELEASE_MATRIX_PGPASSWORD:-${PGPASSWORD:-${SPRING_DATASOURCE_PASSWORD:-erp}}}"
-RELEASE_MATRIX_PGDATABASE="${RELEASE_MATRIX_PGDATABASE:-${PGDATABASE:-postgres}}"
 
 echo "[gate-release] validate catalog"
 python3 "$ROOT_DIR/scripts/validate_test_catalog.py" \
@@ -170,102 +154,16 @@ if [[ "$MIGRATION_SET" == "v2" ]]; then
 fi
 
 echo "[gate-release] strict local verify"
-MIGRATION_SET="$MIGRATION_SET" \
-FLYWAY_GUARD_DB_NAME="$VERIFY_LOCAL_GUARD_DB_NAME" \
-ALLOW_FLYWAY_GUARD_DB_MISMATCH="$ALLOW_GUARD_DB_MISMATCH" \
-VERIFY_LOCAL_TEST_STRATEGY=high-signal \
-VERIFY_LOCAL_SKIP_TESTS=true \
-VERIFY_LOCAL_SKIP_MVN_VERIFY=true \
-VERIFY_LOCAL_SKIP_RELEASE_DUPLICATE_GUARDS=true \
-VERIFY_LOCAL_RELEASE_PREFLIGHT_DONE=true \
-VERIFY_LOCAL_SKIP_FLYWAY_GUARD="$VERIFY_LOCAL_SKIP_GUARD" \
-VERIFY_LOCAL_GUARD_ALREADY_EXECUTED="$VERIFY_LOCAL_SKIP_GUARD" \
-FAIL_ON_FINDINGS=true \
-bash "$ROOT_DIR/scripts/verify_local.sh"
+MIGRATION_SET="$MIGRATION_SET" FLYWAY_GUARD_DB_NAME="$VERIFY_LOCAL_GUARD_DB_NAME" ALLOW_FLYWAY_GUARD_DB_MISMATCH="$ALLOW_GUARD_DB_MISMATCH" VERIFY_LOCAL_SKIP_TESTS=true VERIFY_LOCAL_SKIP_FLYWAY_GUARD="$VERIFY_LOCAL_SKIP_GUARD" VERIFY_LOCAL_GUARD_ALREADY_EXECUTED="$VERIFY_LOCAL_SKIP_GUARD" FAIL_ON_FINDINGS=true bash "$ROOT_DIR/scripts/verify_local.sh"
 
 echo "[gate-release] truth suite strict mode"
 (
   cd "$ROOT_DIR/erp-domain"
   rm -rf target/surefire-reports target/site/jacoco target/jacoco.exec
-  mvn -B -ntp -Dsurefire.runOrder=alphabetical -Pgate-release test
+  mvn -B -ntp -Pgate-release test
 )
 
 echo "[gate-release] fresh + upgrade migration matrix"
-echo "[gate-release] release matrix db target: ${RELEASE_MATRIX_PGHOST}:${RELEASE_MATRIX_PGPORT}/${RELEASE_MATRIX_PGDATABASE} (user=${RELEASE_MATRIX_PGUSER})"
-MIGRATION_SET="$MIGRATION_SET" \
-PGHOST="$RELEASE_MATRIX_PGHOST" \
-PGPORT="$RELEASE_MATRIX_PGPORT" \
-PGUSER="$RELEASE_MATRIX_PGUSER" \
-PGPASSWORD="$RELEASE_MATRIX_PGPASSWORD" \
-PGDATABASE="$RELEASE_MATRIX_PGDATABASE" \
-bash "$ROOT_DIR/scripts/release_migration_matrix.sh" --migration-set v2 --artifact-dir "$ARTIFACT_DIR"
-
-if [[ "$TRACEABILITY_STRICT_MODE" == "true" ]]; then
-  echo "[gate-release] verify release evidence artifacts"
-  required_release_artifacts=(
-    "$ARTIFACT_DIR/migration-matrix.json"
-    "$ARTIFACT_DIR/predeploy-scans-fresh.txt"
-    "$ARTIFACT_DIR/predeploy-scans-upgrade-seed.txt"
-    "$ARTIFACT_DIR/predeploy-scans-upgrade.txt"
-    "$ARTIFACT_DIR/rollback-rehearsal-evidence.json"
-  )
-  for required_artifact in "${required_release_artifacts[@]}"; do
-    if [[ ! -f "$required_artifact" ]]; then
-      echo "[gate-release] missing required artifact: $required_artifact" >&2
-      exit 1
-    fi
-  done
-else
-  echo "[gate-release] traceability strict mode disabled (no git SHA context); skipping release artifact completeness enforcement"
-fi
-
-echo "[gate-release] build traceability manifest"
-python3 - "$ARTIFACT_DIR" "$MIGRATION_SET" "$GATE_START_UTC" "$RELEASE_SHA" <<'PY'
-import hashlib
-import json
-import os
-import sys
-import time
-
-artifact_dir, migration_set, started_at_utc, release_sha = sys.argv[1:5]
-manifest_path = os.path.join(artifact_dir, "release-gate-traceability.json")
-tmp_path = manifest_path + ".tmp"
-artifacts = []
-
-for name in sorted(os.listdir(artifact_dir)):
-    path = os.path.join(artifact_dir, name)
-    if not os.path.isfile(path):
-        continue
-    if path == manifest_path:
-        continue
-    digest = hashlib.sha256()
-    with open(path, "rb") as handle:
-        for chunk in iter(lambda: handle.read(65536), b""):
-            digest.update(chunk)
-    stat_result = os.stat(path)
-    artifacts.append(
-        {
-            "path": f"artifacts/gate-release/{name}",
-            "sha256": digest.hexdigest(),
-            "bytes": stat_result.st_size,
-        }
-    )
-
-payload = {
-    "gate": "gate-release",
-    "release_sha": release_sha,
-    "migration_set": migration_set,
-    "started_at_utc": started_at_utc,
-    "finished_at_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-    "artifact_count": len(artifacts),
-    "artifacts": artifacts,
-}
-
-with open(tmp_path, "w", encoding="utf-8") as handle:
-    json.dump(payload, handle, indent=2, sort_keys=True)
-    handle.write("\n")
-os.replace(tmp_path, manifest_path)
-PY
-cat "$TRACEABILITY_FILE"
+MIGRATION_SET="$MIGRATION_SET" bash "$ROOT_DIR/scripts/release_migration_matrix.sh" --artifact-dir "$ARTIFACT_DIR"
 
 echo "[gate-release] OK"

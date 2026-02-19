@@ -1,6 +1,6 @@
 # Agent Workflow and Lifecycle
 
-Last reviewed: 2026-02-16
+Last reviewed: 2026-02-18
 Owner: Orchestrator Agent
 
 ## Lifecycle
@@ -39,42 +39,6 @@ Owner: Orchestrator Agent
 - Write operations are risk-aware and mechanically guarded.
 - Async continuity is maintained in `asyncloop` and async runbooks.
 - Orchestrator dispatch and review sequencing are defined in `agents/orchestrator-layer.yaml`.
-- Ticket orchestration and tmux dispatch are driven by `scripts/harness_orchestrator.py`.
-
-## Ticketed Worktree Flow (Harness Engineering)
-1. Create ticket and slices:
-- `python3 scripts/harness_orchestrator.py bootstrap --title "<title>" --goal "<goal>" --paths "<path1,path2>"`
-2. Dispatch tmux command block:
-- `python3 scripts/harness_orchestrator.py dispatch --ticket-id <TKT-ID>`
-3. Run workers in isolated worktrees:
-- each lane opens its assigned worktree and executes the generated task packet in the worktree harness folder.
-4. Record reviewer outcomes:
-- `python3 scripts/harness_orchestrator.py review --ticket-id <TKT-ID> --slice-id <SLICE-ID> --reviewer <agent-id> --status approved|changes_requested|blocked`
-5. Verify and merge loop:
-- verify only: `python3 scripts/harness_orchestrator.py verify --ticket-id <TKT-ID>`
-- verify + merge: `python3 scripts/harness_orchestrator.py verify --ticket-id <TKT-ID> --merge`
-- merge-time worktree cleanup (default from orchestrator-layer): `python3 scripts/harness_orchestrator.py verify --ticket-id <TKT-ID> --merge --cleanup-worktrees`
-- keep worktrees when needed: `python3 scripts/harness_orchestrator.py verify --ticket-id <TKT-ID> --merge --no-cleanup-worktrees`
-- orchestrator review artifact per slice: `tickets/<TKT-ID>/slices/<SLICE-ID>/orchestrator-review.md`
-
-## Codex Exec Command Standard
-- Canonical non-interactive full-access execution command:
-  - `codex exec -m gpt-5.3-codex -c reasoning_effort="<xhigh|high|medium>" --dangerously-bypass-approvals-and-sandbox`
-- `codex exec --help` documents the canonical full-access flag and may not list `--yolo`.
-- Treat `--yolo` as compatibility alias only; keep the canonical full-access flag in orchestrator command templates.
-- Always set model and reasoning effort explicitly for orchestrated execution agents.
-
-## Throughput While Workers Are Active
-- Orchestrator does not wait for idle periods to plan follow-up work.
-- While workers execute slices, orchestrator must keep at least 2-3 next tickets preplanned and ready.
-- If ready backlog drops below 2, orchestrator immediately prepares the next goal-aligned ticket from `docs/system-map/Goal/ERP_STAGING_MASTER_PLAN.md`.
-- Permission expansions for blocked slices remain task-bound and must follow `docs/agents/PERMISSIONS.md` evidence and monitoring rules.
-
-## Scope Boundary Enforcement
-- Module agents may read broadly for context, but merge eligibility is blocked if a slice branch edits files outside that agent's `scope_paths`.
-- Scope compliance is checked during ticket verify runs and logged per slice.
-- Reviewer agents remain review-only and must not commit implementation code.
-- Cross-slice overlap detection is enforced for different implementation agents. If two slices touch the same files, status becomes `coordination_required` until orchestrator consolidates/replans.
 
 ## Cross-Module Contract-First Protocol
 When touching multiple domains, use this order:
@@ -109,8 +73,15 @@ High-risk deltas (auth/payroll/ledger/migrations/permissions/destructive ops) re
 - map finding to file/invariant
 - suggest minimal remediation
 - attach evidence (test/guard output)
-- enforce at least one reviewer agent per slice (orchestrator layer rule)
-- docs-only exception: reviewer-agent and commit-review steps can be skipped when no runtime/config/schema/test files changed; require `bash ci/lint-knowledgebase.sh` pass evidence.
+- enforce at least one reviewer agent per slice (orchestrator layer rule), except lane-qualified docs-only slices.
+- lane-qualified docs-only review skip policy:
+  - `fast_lane` docs-only slices (non-strict docs changes only): skip reviewer-agent + commit-review; require `bash ci/lint-knowledgebase.sh`.
+  - `strict_lane` control-plane docs slices (`docs/agents/`, `docs/ASYNC_LOOP_OPERATIONS.md`, `docs/system-map/REVIEW_QUEUE_POLICY.md`, `agents/orchestrator-layer.yaml`, `asyncloop`, `scripts/harness_orchestrator.py`, `ci/`): reviewer-agent + commit-review may be skipped only when no runtime/config/schema/test files changed, and the strict guard trio must pass:
+    - `bash ci/lint-knowledgebase.sh`
+    - `bash ci/check-architecture.sh`
+    - `bash ci/check-enterprise-policy.sh`
+- runtime/config/schema/test changes never qualify for docs-only review skip.
+- evaluate lane and required checks with `scripts/harness_orchestrator.py`.
 
 Frontend doc changes must preserve portal ownership taxonomy:
 - Accounting Portal: accounting + inventory + hr + reports + invoice

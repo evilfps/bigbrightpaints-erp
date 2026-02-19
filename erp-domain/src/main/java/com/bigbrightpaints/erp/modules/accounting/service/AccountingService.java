@@ -1135,6 +1135,32 @@ public class AccountingService {
     }
 
     @Transactional
+    public JournalEntryDto postPayrollRun(String runNumber,
+                                          Long runId,
+                                          LocalDate postingDate,
+                                          String memo,
+                                          List<JournalEntryRequest.JournalLineRequest> lines) {
+        String runToken = resolvePayrollRunToken(runNumber, runId);
+        if (!StringUtils.hasText(runToken)) {
+            throw new ApplicationException(ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD,
+                    "Payroll run number or id is required for posting");
+        }
+        Company company = companyContextService.requireCurrentCompany();
+        LocalDate entryDate = postingDate != null ? postingDate : companyClock.today(company);
+        String resolvedMemo = StringUtils.hasText(memo) ? memo : "Payroll - " + runToken;
+        JournalEntryRequest request = new JournalEntryRequest(
+                "PAYROLL-" + runToken,
+                entryDate,
+                resolvedMemo,
+                null,
+                null,
+                false,
+                lines
+        );
+        return createJournalEntry(request);
+    }
+
+    @Transactional
     public JournalEntryDto recordPayrollPayment(PayrollPaymentRequest request) {
         Company company = companyContextService.requireCurrentCompany();
         PayrollRun run = companyEntityLookup.lockPayrollRun(company, request.payrollRunId());
@@ -1226,13 +1252,18 @@ public class AccountingService {
         if (StringUtils.hasText(request.referenceNumber())) {
             return request.referenceNumber().trim();
         }
-        String runToken = StringUtils.hasText(run.getRunNumber())
-                ? run.getRunNumber().trim()
-                : (run.getId() != null ? "LEGACY-" + run.getId() : null);
+        String runToken = resolvePayrollRunToken(run.getRunNumber(), run.getId());
         if (!StringUtils.hasText(runToken)) {
             return referenceNumberService.payrollPaymentReference(company);
         }
         return "PAYROLL-PAY-" + runToken;
+    }
+
+    private String resolvePayrollRunToken(String runNumber, Long runId) {
+        if (StringUtils.hasText(runNumber)) {
+            return runNumber.trim();
+        }
+        return runId != null ? "LEGACY-" + runId : null;
     }
 
     private void validatePayrollPaymentIdempotency(PayrollPaymentRequest request,

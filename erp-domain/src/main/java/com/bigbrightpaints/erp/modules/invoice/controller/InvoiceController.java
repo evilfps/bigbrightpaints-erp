@@ -1,5 +1,7 @@
 package com.bigbrightpaints.erp.modules.invoice.controller;
 
+import com.bigbrightpaints.erp.core.audit.AuditEvent;
+import com.bigbrightpaints.erp.core.audit.AuditService;
 import com.bigbrightpaints.erp.core.notification.EmailService;
 import com.bigbrightpaints.erp.modules.invoice.dto.InvoiceDto;
 import com.bigbrightpaints.erp.modules.invoice.service.InvoicePdfService;
@@ -16,7 +18,9 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.format.DateTimeFormatter;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/invoices")
@@ -26,13 +30,16 @@ public class InvoiceController {
     private final InvoiceService invoiceService;
     private final InvoicePdfService invoicePdfService;
     private final EmailService emailService;
+    private final AuditService auditService;
 
     public InvoiceController(InvoiceService invoiceService,
                              InvoicePdfService invoicePdfService,
-                             EmailService emailService) {
+                             EmailService emailService,
+                             AuditService auditService) {
         this.invoiceService = invoiceService;
         this.invoicePdfService = invoicePdfService;
         this.emailService = emailService;
+        this.auditService = auditService;
     }
 
     @GetMapping
@@ -57,8 +64,10 @@ public class InvoiceController {
                     schema = @Schema(type = "string", format = "binary")
             )
     )
+    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
     public ResponseEntity<byte[]> downloadInvoicePdf(@PathVariable Long id) {
         InvoicePdfService.PdfDocument pdf = invoicePdfService.renderInvoicePdf(id);
+        logInvoiceExport(id, pdf.fileName(), "pdf");
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + pdf.fileName() + "\"")
                 .contentType(MediaType.APPLICATION_PDF)
@@ -105,5 +114,15 @@ public class InvoiceController {
         );
         
         return ResponseEntity.ok(ApiResponse.success("Invoice email sent to " + dealerEmail));
+    }
+
+    private void logInvoiceExport(Long invoiceId, String fileName, String format) {
+        Map<String, String> metadata = new HashMap<>();
+        metadata.put("resourceType", "INVOICE");
+        metadata.put("resourceId", invoiceId != null ? invoiceId.toString() : "");
+        metadata.put("operation", "EXPORT");
+        metadata.put("format", format);
+        metadata.put("fileName", fileName != null ? fileName : "");
+        auditService.logSuccess(AuditEvent.DATA_EXPORT, metadata);
     }
 }

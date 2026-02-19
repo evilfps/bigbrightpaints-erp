@@ -27,6 +27,7 @@ import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryReversalRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.InventoryRevaluationRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.PartnerSettlementResponse;
+import com.bigbrightpaints.erp.modules.accounting.dto.PayrollPaymentRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.SettlementAllocationRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.SettlementPaymentRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.SupplierPaymentRequest;
@@ -35,6 +36,7 @@ import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.hr.domain.PayrollRunLineRepository;
 import com.bigbrightpaints.erp.modules.hr.domain.PayrollRunRepository;
+import com.bigbrightpaints.erp.modules.hr.domain.PayrollRun;
 import com.bigbrightpaints.erp.modules.invoice.domain.InvoiceRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGood;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatch;
@@ -193,6 +195,87 @@ class AccountingServiceTest {
                 .thenReturn(1);
         lenient().when(journalReferenceMappingRepository.findByCompanyAndLegacyReferenceIgnoreCase(any(), any()))
                 .thenAnswer(invocation -> Optional.of(new JournalReferenceMapping()));
+    }
+
+    @Test
+    void postPayrollRun_rejectsMissingRunIdentity() {
+        assertThatThrownBy(() -> accountingService.postPayrollRun(
+                "   ",
+                null,
+                LocalDate.of(2026, 2, 12),
+                "Payroll",
+                List.of()))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Payroll run number or id is required for posting");
+    }
+
+    @Test
+    void postPayrollRun_usesLegacyRunTokenForReferenceAndMemo() {
+        AccountingService serviceSpy = spy(accountingService);
+        when(companyClock.today(company)).thenReturn(LocalDate.of(2026, 2, 12));
+        List<JournalEntryRequest.JournalLineRequest> lines = List.of(
+                new JournalEntryRequest.JournalLineRequest(11L, "Payroll expense", new BigDecimal("1000.00"), BigDecimal.ZERO),
+                new JournalEntryRequest.JournalLineRequest(12L, "Payroll payable", BigDecimal.ZERO, new BigDecimal("1000.00"))
+        );
+
+        ArgumentCaptor<JournalEntryRequest> requestCaptor = ArgumentCaptor.forClass(JournalEntryRequest.class);
+        doReturn(null).when(serviceSpy).createJournalEntry(requestCaptor.capture());
+
+        serviceSpy.postPayrollRun(null, 44L, null, null, lines);
+
+        JournalEntryRequest posted = requestCaptor.getValue();
+        assertThat(posted.referenceNumber()).isEqualTo("PAYROLL-LEGACY-44");
+        assertThat(posted.entryDate()).isEqualTo(LocalDate.of(2026, 2, 12));
+        assertThat(posted.memo()).isEqualTo("Payroll - LEGACY-44");
+        assertThat(posted.lines()).isEqualTo(lines);
+    }
+
+    @Test
+    void resolvePayrollPaymentReference_usesLegacyTokenWhenRunNumberMissing() {
+        PayrollRun run = new PayrollRun();
+        ReflectionTestUtils.setField(run, "id", 77L);
+        PayrollPaymentRequest request = new PayrollPaymentRequest(
+                77L,
+                2L,
+                1L,
+                new BigDecimal("800.00"),
+                null,
+                "Payroll clear"
+        );
+
+        String reference = ReflectionTestUtils.invokeMethod(
+                accountingService,
+                "resolvePayrollPaymentReference",
+                run,
+                request,
+                company
+        );
+
+        assertThat(reference).isEqualTo("PAYROLL-PAY-LEGACY-77");
+    }
+
+    @Test
+    void resolvePayrollPaymentReference_fallsBackToSequenceWhenRunIdentityMissing() {
+        PayrollRun run = new PayrollRun();
+        PayrollPaymentRequest request = new PayrollPaymentRequest(
+                7L,
+                2L,
+                1L,
+                new BigDecimal("800.00"),
+                null,
+                "Payroll clear"
+        );
+        when(referenceNumberService.payrollPaymentReference(company)).thenReturn("PAYROLL-PAY-AUTO-1");
+
+        String reference = ReflectionTestUtils.invokeMethod(
+                accountingService,
+                "resolvePayrollPaymentReference",
+                run,
+                request,
+                company
+        );
+
+        assertThat(reference).isEqualTo("PAYROLL-PAY-AUTO-1");
     }
 
     @Test

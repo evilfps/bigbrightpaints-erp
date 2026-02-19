@@ -28,7 +28,9 @@ import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -65,8 +67,7 @@ public class AccountingController {
     private final AccountingAuditTrailService accountingAuditTrailService;
     private final CompanyContextService companyContextService;
     private final CompanyClock companyClock;
-
-    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    @Autowired(required = false)
     private AuditService auditService;
 
     public AccountingController(AccountingService accountingService,
@@ -119,25 +120,6 @@ public class AccountingController {
         }
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(ApiResponse.failure(ex.getUserMessage(), errorData));
-    }
-
-    /**
-     * Preserve exact fail-closed reason text for accounting state guards.
-     */
-    @ExceptionHandler(IllegalStateException.class)
-    public ResponseEntity<ApiResponse<Map<String, Object>>> handleIllegalStateException(
-            IllegalStateException ex,
-            HttpServletRequest request) {
-        String traceId = UUID.randomUUID().toString();
-        String reason = StringUtils.hasText(ex.getMessage()) ? ex.getMessage() : "Invalid accounting state";
-        Map<String, Object> errorData = new HashMap<>();
-        errorData.put("code", ErrorCode.BUSINESS_INVALID_STATE.getCode());
-        errorData.put("message", reason);
-        errorData.put("reason", reason);
-        errorData.put("path", request != null ? request.getRequestURI() : null);
-        errorData.put("traceId", traceId);
-        return ResponseEntity.status(HttpStatus.CONFLICT)
-                .body(ApiResponse.failure(reason, errorData));
     }
 
     @GetMapping("/accounts")
@@ -438,29 +420,14 @@ public class AccountingController {
     private String resolveHeaderOnlyIdempotencyKey(String bodyIdempotencyKey,
                                                    String idempotencyKeyHeader,
                                                    String legacyIdempotencyKeyHeader) {
-        String canonicalHeader = trimToNull(idempotencyKeyHeader);
-        String legacyHeader = trimToNull(legacyIdempotencyKeyHeader);
-        if (canonicalHeader != null && legacyHeader != null && !canonicalHeader.equals(legacyHeader)) {
-            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
-                    "Idempotency key mismatch between Idempotency-Key and X-Idempotency-Key")
-                    .withDetail("idempotencyKey", canonicalHeader)
-                    .withDetail("legacyIdempotencyKey", legacyHeader);
-        }
         String resolvedKey = com.bigbrightpaints.erp.core.util.IdempotencyHeaderUtils.resolveBodyOrHeaderKey(
                 bodyIdempotencyKey,
-                canonicalHeader,
-                legacyHeader);
+                idempotencyKeyHeader,
+                legacyIdempotencyKeyHeader);
         if (!StringUtils.hasText(resolvedKey) || StringUtils.hasText(bodyIdempotencyKey)) {
             return null;
         }
         return resolvedKey;
-    }
-
-    private String trimToNull(String value) {
-        if (!StringUtils.hasText(value)) {
-            return null;
-        }
-        return value.trim();
     }
 
     @GetMapping("/gst/return")
@@ -585,13 +552,14 @@ public class AccountingController {
                     schema = @Schema(type = "string", format = "binary")
             )
     )
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
+    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
     public ResponseEntity<byte[]> dealerStatementPdf(@PathVariable Long dealerId,
                                                      @RequestParam(required = false) String from,
                                                      @RequestParam(required = false) String to) {
         byte[] pdf = statementService.dealerStatementPdf(dealerId,
                 from != null ? java.time.LocalDate.parse(from) : null,
                 to != null ? java.time.LocalDate.parse(to) : null);
+        logAccountingExport("ACCOUNTING_DEALER_STATEMENT", dealerId, "pdf");
         return ResponseEntity.ok()
                 .header("Content-Disposition", "attachment; filename=dealer-statement.pdf")
                 .body(pdf);
@@ -607,13 +575,14 @@ public class AccountingController {
                     schema = @Schema(type = "string", format = "binary")
             )
     )
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
+    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
     public ResponseEntity<byte[]> supplierStatementPdf(@PathVariable Long supplierId,
                                                        @RequestParam(required = false) String from,
                                                        @RequestParam(required = false) String to) {
         byte[] pdf = statementService.supplierStatementPdf(supplierId,
                 from != null ? java.time.LocalDate.parse(from) : null,
                 to != null ? java.time.LocalDate.parse(to) : null);
+        logAccountingExport("ACCOUNTING_SUPPLIER_STATEMENT", supplierId, "pdf");
         return ResponseEntity.ok()
                 .header("Content-Disposition", "attachment; filename=supplier-statement.pdf")
                 .body(pdf);
@@ -629,13 +598,14 @@ public class AccountingController {
                     schema = @Schema(type = "string", format = "binary")
             )
     )
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
+    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
     public ResponseEntity<byte[]> dealerAgingPdf(@PathVariable Long dealerId,
                                                  @RequestParam(required = false) String asOf,
                                                  @RequestParam(required = false) String buckets) {
         byte[] pdf = statementService.dealerAgingPdf(dealerId,
                 asOf != null ? java.time.LocalDate.parse(asOf) : null,
                 buckets);
+        logAccountingExport("ACCOUNTING_DEALER_AGING", dealerId, "pdf");
         return ResponseEntity.ok()
                 .header("Content-Disposition", "attachment; filename=dealer-aging.pdf")
                 .body(pdf);
@@ -651,13 +621,14 @@ public class AccountingController {
                     schema = @Schema(type = "string", format = "binary")
             )
     )
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
+    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
     public ResponseEntity<byte[]> supplierAgingPdf(@PathVariable Long supplierId,
                                                    @RequestParam(required = false) String asOf,
                                                    @RequestParam(required = false) String buckets) {
         byte[] pdf = statementService.supplierAgingPdf(supplierId,
                 asOf != null ? java.time.LocalDate.parse(asOf) : null,
                 buckets);
+        logAccountingExport("ACCOUNTING_SUPPLIER_AGING", supplierId, "pdf");
         return ResponseEntity.ok()
                 .header("Content-Disposition", "attachment; filename=supplier-aging.pdf")
                 .body(pdf);
@@ -685,7 +656,7 @@ public class AccountingController {
     /* Audit digest */
     @GetMapping("/audit/digest")
     @Deprecated(forRemoval = false, since = "2026-02-11")
-    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
     public ResponseEntity<ApiResponse<AuditDigestResponse>> auditDigest(@RequestParam(required = false) String from,
                                                                         @RequestParam(required = false) String to) {
         return ResponseEntity.ok(ApiResponse.success(
@@ -704,6 +675,7 @@ public class AccountingController {
                 to != null ? java.time.LocalDate.parse(to) : null);
         logAccountingExport("ACCOUNTING_AUDIT_DIGEST", null, "csv");
         return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType("text/csv"))
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=audit-digest.csv")
                 .body(csv);
     }

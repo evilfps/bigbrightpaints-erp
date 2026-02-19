@@ -1,6 +1,6 @@
 # Rollback Runbook
 
-Last reviewed: 2026-02-15
+Last reviewed: 2026-02-18
 Owner: Release & Ops Agent
 
 ## Purpose
@@ -54,6 +54,12 @@ Record one immutable evidence entry per rollback event or drill with these requi
 - `approvals` (rollback initiator, approver, expiry/SLA if applicable)
 - `residual_risks` (open risks accepted at close)
 - `evidence_links` (`asyncloop` entry + `docs/approvals/R2-CHECKPOINT.md` update)
+
+## Strict-Lane Alignment (M18-S1)
+- Docs-only slices may skip commit-review/subagent review and must still pass `bash ci/lint-knowledgebase.sh`.
+- Runtime/config/schema/test slices stay strict-lane and must include release-lane evidence from:
+  1. `bash scripts/gate_release.sh`
+  2. `bash scripts/gate_reconciliation.sh`
 
 ## Unknowns and TODOs
 - Production deployment platform-specific rollback command is unspecified.

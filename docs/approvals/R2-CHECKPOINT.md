@@ -84,3 +84,52 @@ Update this file in every high-risk change set.
   - if index-plan regression is detected post-apply, use forward-fix migration to adjust planner-facing index set; do not rewrite applied migration files.
   - if emergency rollback is required, drop newly added indexes with `DROP INDEX CONCURRENTLY` in a compensating migration under maintenance governance.
   - if an environment reports checksum mismatch for `V15` due pre-convergence local variants, run the v2-scoped repair workflow (`migration_v2` + `flyway_schema_history_v2`) from `docs/db/FLYWAY_V2_TRANSIENT_CHECKSUM_REPAIR.md` under approved migration change control before continue.
+
+## STAGE-089 Addendum (2026-02-19, SLICE-01 accounting-domain)
+- Branch / PR: stage-089 accounting-domain / PR #22 (https://github.com/anasibnanwar-XYE/bigbrightpaints-erp/pull/22)
+- High-risk paths: `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingService.java`, `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingFacade.java`
+- Why this is R2: accounting payroll-payment posting contract and run-token resolution are fail-closed financial controls and require checkpointed proof.
+- Approval mode: orchestrator
+- Human escalation required: no
+- Rollback owner: release governance + accounting owner
+- Verification evidence:
+  - Commands run: `cd erp-domain && mvn -B -ntp -Dtest='*Accounting*' test`
+  - Result summary: `BUILD SUCCESS` (`Tests run: 255, Failures: 0, Errors: 0, Skipped: 2`)
+  - Artifacts/links: `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingServiceTest.java`, `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingFacadeTest.java`
+
+## STAGE-089 Addendum (2026-02-19, SLICE-02 hr-domain)
+- Branch / PR: stage-089 hr-domain / PR #23 (https://github.com/anasibnanwar-XYE/bigbrightpaints-erp/pull/23)
+- High-risk paths: `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/hr/service/PayrollService.java`
+- Why this is R2: payroll mark-paid boundary controls accounting reference integrity and salary-payable clearing safety.
+- Approval mode: orchestrator
+- Human escalation required: no
+- Rollback owner: release governance + payroll owner
+- Verification evidence:
+  - Commands run: `cd erp-domain && mvn -B -ntp -Dtest='*Payroll*' test`; `bash scripts/verify_local.sh`
+  - Result summary: `BUILD SUCCESS` (`*Payroll*` suite passed; `verify_local` passed with `Tests run: 1264, Failures: 0, Errors: 0, Skipped: 4`)
+  - Artifacts/links: `erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/payroll/TS_PayrollLiabilityClearingPolicyTest.java`
+
+## STAGE-091 Addendum (2026-02-19, SLICE-01 accounting-domain)
+- Branch / PR: stage-091 accounting-domain branch / PR #27 (https://github.com/anasibnanwar-XYE/bigbrightpaints-erp/pull/27)
+- High-risk paths:
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/controller/AccountingController.java`
+  - `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/controller/AccountingExportGovernanceIT.java`
+  - `erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeAccountingControllerExportCoverageTest.java`
+- Why this is R2: accounting export endpoints enforce admin-only policy and audit metadata semantics for financial data egress.
+- Approval mode: orchestrator
+- Human escalation required: no
+- Rollback owner: release governance + accounting owner
+- Verification evidence:
+  - Commands run:
+    - `cd erp-domain && mvn -B -ntp -Dtest='AccountingExportGovernanceIT' test`
+    - `cd erp-domain && mvn -B -ntp -Dtest='*Accounting*' test`
+    - `bash ci/check-architecture.sh`
+    - `bash ci/check-enterprise-policy.sh`
+    - `bash scripts/verify_local.sh`
+    - `DIFF_BASE=50f271db3f1a37df7874ffdea6271677533cecbc bash scripts/gate_fast.sh`
+  - Result summary: all commands above passed on branch head; changed-file coverage for `AccountingController.java` met gate-fast thresholds (line 18 of 18, branch 4 of 4).
+  - Artifacts/links:
+    - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/controller/AccountingController.java`
+    - `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/controller/AccountingExportGovernanceIT.java`
+    - `erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeAccountingControllerExportCoverageTest.java`
+    - `docs/CODE-RED/confidence-suite/TEST_CATALOG.json`

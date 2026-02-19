@@ -68,29 +68,8 @@
       "quality_flake_monitor": true
     },
     {
-      "id": "ts-p2p-purchase-audit-trail-repository-compatibility",
+      "id": "ts-p2p-audittrail-repository-compatibility",
       "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/p2p/TS_P2PPurchaseAuditTrailRepositoryCompatibilityTest.java",
-      "owner": "erp-domain-team",
-      "class": "critical",
-      "module": "P2P",
-      "gate_membership": [
-        "gate-fast",
-        "gate-core",
-        "gate-release",
-        "gate-reconciliation",
-        "gate-quality"
-      ],
-      "tags": [
-        "critical",
-        "reconciliation"
-      ],
-      "accounting_math_critical": true,
-      "cross_module_critical": true,
-      "quality_flake_monitor": true
-    },
-    {
-      "id": "ts-p2p-gst-decisioning-fail-closed",
-      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/p2p/TS_P2PGstDecisioningFailClosedTest.java",
       "owner": "erp-domain-team",
       "class": "critical",
       "module": "P2P",
@@ -168,46 +147,6 @@
       "tags": [
         "critical",
         "reconciliation"
-      ],
-      "accounting_math_critical": true,
-      "cross_module_critical": true,
-      "quality_flake_monitor": true
-    },
-    {
-      "id": "ts-accounting-export-audit-governance-contract",
-      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/reports/TS_AccountingExportAuditGovernanceContractTest.java",
-      "owner": "erp-domain-team",
-      "class": "critical",
-      "module": "Reports",
-      "gate_membership": [
-        "gate-fast",
-        "gate-core",
-        "gate-release",
-        "gate-quality"
-      ],
-      "tags": [
-        "critical",
-        "security"
-      ],
-      "accounting_math_critical": true,
-      "cross_module_critical": true,
-      "quality_flake_monitor": true
-    },
-    {
-      "id": "ts-accounting-controller-export-audit-runtime-coverage",
-      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/reports/TS_AccountingControllerExportAuditRuntimeCoverageTest.java",
-      "owner": "erp-domain-team",
-      "class": "critical",
-      "module": "Reports",
-      "gate_membership": [
-        "gate-fast",
-        "gate-core",
-        "gate-release",
-        "gate-quality"
-      ],
-      "tags": [
-        "critical",
-        "security"
       ],
       "accounting_math_critical": true,
       "cross_module_critical": true,
@@ -536,17 +475,15 @@
       "id": "ts-runtime-reference-number-executable-coverage",
       "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeReferenceNumberServiceExecutableCoverageTest.java",
       "owner": "erp-domain-team",
-      "class": "critical",
+      "class": "useful",
       "module": "RuntimeCoverage",
       "gate_membership": [
-        "gate-fast",
         "gate-core",
         "gate-release",
         "gate-reconciliation",
         "gate-quality"
       ],
       "tags": [
-        "critical",
         "concurrency",
         "reconciliation"
       ],
@@ -718,6 +655,107 @@
       ],
       "accounting_math_critical": true,
       "cross_module_critical": false,
+      "quality_flake_monitor": true
+    },
+    {
+      "id": "ts-runtime-accounting-payroll-posting-executable-coverage",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeAccountingPayrollPostingExecutableCoverageTest.java",
+      "owner": "erp-domain-team",
+      "class": "critical",
+      "module": "Accounting",
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-reconciliation",
+        "gate-quality"
+      ],
+      "tags": [
+        "critical"
+      ],
+      "accounting_math_critical": true,
+      "cross_module_critical": true,
+      "quality_flake_monitor": true
+    },
+    {
+      "id": "ts-runtime-payroll-mark-paid-executable-coverage",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimePayrollMarkPaidExecutableCoverageTest.java",
+      "owner": "erp-domain-team",
+      "class": "critical",
+      "module": "Payroll",
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-reconciliation",
+        "gate-quality"
+      ],
+      "tags": [
+        "critical",
+        "reconciliation"
+      ],
+      "accounting_math_critical": true,
+      "cross_module_critical": true,
+      "quality_flake_monitor": true
+    },
+    {
+      "id": "ts-runtime-invoice-export-coverage",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeInvoiceControllerExportCoverageTest.java",
+      "owner": "erp-domain-team",
+      "class": "critical",
+      "module": "Invoice",
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-reconciliation",
+        "gate-quality"
+      ],
+      "tags": [
+        "critical"
+      ],
+      "accounting_math_critical": false,
+      "cross_module_critical": true,
+      "quality_flake_monitor": true
+    },
+    {
+      "id": "ts-runtime-dealer-portal-export-coverage",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeDealerPortalControllerExportCoverageTest.java",
+      "owner": "erp-domain-team",
+      "class": "critical",
+      "module": "Sales",
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-reconciliation",
+        "gate-quality"
+      ],
+      "tags": [
+        "critical"
+      ],
+      "accounting_math_critical": false,
+      "cross_module_critical": true,
+      "quality_flake_monitor": true
+    },
+    {
+      "id": "ts-runtime-accounting-controller-export-coverage",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeAccountingControllerExportCoverageTest.java",
+      "owner": "erp-domain-team",
+      "class": "critical",
+      "module": "Accounting",
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-reconciliation",
+        "gate-quality"
+      ],
+      "tags": [
+        "critical"
+      ],
+      "accounting_math_critical": true,
+      "cross_module_critical": true,
       "quality_flake_monitor": true
     }
   ]

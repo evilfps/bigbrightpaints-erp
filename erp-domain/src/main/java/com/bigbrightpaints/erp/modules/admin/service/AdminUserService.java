@@ -41,6 +41,7 @@ public class AdminUserService {
     private final RefreshTokenService refreshTokenService;
     private final DealerRepository dealerRepository;
     private final AccountRepository accountRepository;
+    private final TenantRuntimePolicyService tenantRuntimePolicyService;
 
     public AdminUserService(UserAccountRepository userRepository,
                             CompanyContextService companyContextService,
@@ -51,7 +52,8 @@ public class AdminUserService {
                             TokenBlacklistService tokenBlacklistService,
                             RefreshTokenService refreshTokenService,
                             DealerRepository dealerRepository,
-                            AccountRepository accountRepository) {
+                            AccountRepository accountRepository,
+                            TenantRuntimePolicyService tenantRuntimePolicyService) {
         this.userRepository = userRepository;
         this.companyContextService = companyContextService;
         this.roleRepository = roleRepository;
@@ -62,6 +64,7 @@ public class AdminUserService {
         this.refreshTokenService = refreshTokenService;
         this.dealerRepository = dealerRepository;
         this.accountRepository = accountRepository;
+        this.tenantRuntimePolicyService = tenantRuntimePolicyService;
     }
 
     public List<UserDto> listUsers() {
@@ -74,6 +77,7 @@ public class AdminUserService {
     @Transactional
     public UserDto createUser(CreateUserRequest request) {
         Company company = companyContextService.requireCurrentCompany();
+        tenantRuntimePolicyService.assertCanAddEnabledUser(company, "ADMIN_USER_CREATE");
         boolean isTemporaryPassword = !StringUtils.hasText(request.password());
         String tempPassword = isTemporaryPassword ? PasswordUtils.generateTemporaryPassword(12) : request.password();
         UserAccount user = new UserAccount(request.email(), passwordEncoder.encode(tempPassword), request.displayName());
@@ -163,6 +167,9 @@ public class AdminUserService {
         user.setDisplayName(request.displayName());
         boolean requiresReauth = false;
         if (request.enabled() != null) {
+            if (request.enabled() && !user.isEnabled()) {
+                tenantRuntimePolicyService.assertCanAddEnabledUser(company, "ADMIN_USER_ENABLE");
+            }
             if (!request.enabled() && user.isEnabled()) {
                 requiresReauth = true; // User being disabled
             }
@@ -205,6 +212,9 @@ public class AdminUserService {
         Company company = companyContextService.requireCurrentCompany();
         // Use pessimistic lock to prevent race condition on concurrent status changes
         userRepository.lockByIdAndCompanyId(id, company.getId()).ifPresent(user -> {
+            if (!user.isEnabled()) {
+                tenantRuntimePolicyService.assertCanAddEnabledUser(company, "ADMIN_USER_UNSUSPEND");
+            }
             user.setEnabled(true);
             userRepository.save(user);
         });

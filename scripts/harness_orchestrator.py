@@ -1,1439 +1,184 @@
 #!/usr/bin/env python3
+"""Resolve lane and required checks for orchestrator slice validation."""
+
 from __future__ import annotations
 
 import argparse
-import datetime as dt
-import fnmatch
-import os
-import re
-import shlex
+import json
 import subprocess
 import sys
-from pathlib import Path
-from typing import Any
 
-import yaml
+STRICT_RUNTIME_PREFIXES = (
+    "erp-domain/src/main/resources/db/migration_v2/",
+    "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/",
+    "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/auth/",
+    "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/rbac/",
+    "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/company/",
+    "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/hr/",
+    "erp-domain/src/main/java/com/bigbrightpaints/erp/orchestrator/",
+)
 
+DOCS_ONLY_PREFIXES = ("docs/", "agents/", "skills/", "ci/", "tickets/")
+DOCS_ONLY_EXACT = {"asyncloop", "scripts/harness_orchestrator.py"}
 
-RISK_ORDER = {
-    "critical": 0,
-    "high": 1,
-    "medium": 2,
-    "low": 3,
+STRICT_DOC_PREFIXES = ("docs/agents/", "ci/")
+STRICT_DOC_EXACT = {
+    "docs/ASYNC_LOOP_OPERATIONS.md",
+    "docs/system-map/REVIEW_QUEUE_POLICY.md",
+    "agents/orchestrator-layer.yaml",
+    "asyncloop",
+    "scripts/harness_orchestrator.py",
 }
 
-BASE_BRANCH_FALLBACK = "async-loop-predeploy-audit"
-
-
-# Lightweight domain-edge model used by the orchestrator for cross-workflow planning.
-# Edges are directional: upstream -> downstream.
-WORKFLOW_AGENT_EDGES: list[tuple[str, str, str]] = [
-    ("auth-rbac-company", "sales-domain", "tenant and role boundary contract"),
-    ("auth-rbac-company", "inventory-domain", "tenant context and role checks"),
-    ("auth-rbac-company", "purchasing-invoice-p2p", "tenant-scoped supplier/AP access rules"),
-    ("auth-rbac-company", "factory-production", "tenant-scoped manufacturing operations"),
-    ("auth-rbac-company", "reports-admin-portal", "admin/report access boundaries"),
-    ("auth-rbac-company", "hr-domain", "payroll/PII access boundaries"),
-    ("auth-rbac-company", "accounting-domain", "finance/admin authority boundaries"),
-    ("sales-domain", "inventory-domain", "dispatch and stock movement linkage"),
-    ("sales-domain", "accounting-domain", "o2c posting and receivable linkage"),
-    ("purchasing-invoice-p2p", "inventory-domain", "grn/stock intake coupling"),
-    ("purchasing-invoice-p2p", "accounting-domain", "ap/posting and settlement linkage"),
-    ("factory-production", "inventory-domain", "production/packing stock transitions"),
-    ("factory-production", "accounting-domain", "wip/variance/cogs posting linkage"),
-    ("hr-domain", "accounting-domain", "payroll liability/payment posting linkage"),
-    ("orchestrator-runtime", "sales-domain", "async orchestration command contract"),
-    ("orchestrator-runtime", "inventory-domain", "exactly-once side-effect orchestration"),
-    ("orchestrator-runtime", "accounting-domain", "outbox/idempotency posting orchestration"),
-    ("data-migration", "release-ops", "migration rehearsal and release gating"),
+FAST_LANE_CHECKS = ["bash ci/lint-knowledgebase.sh"]
+STRICT_LANE_CHECKS = [
+    "bash ci/lint-knowledgebase.sh",
+    "bash ci/check-architecture.sh",
+    "bash ci/check-enterprise-policy.sh",
 ]
 
-
-def utc_now() -> str:
-    return dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat()
+IGNORED_PREFIXES = (".harness/", ".codex/")
 
 
-def run(cmd: list[str], cwd: Path | None = None, check: bool = True) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        cmd,
-        cwd=str(cwd) if cwd else None,
-        text=True,
-        capture_output=True,
-        check=check,
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Classify orchestrator lane and print required review/check policy."
     )
-
-
-def run_shell(command: str, cwd: Path, check: bool = True) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        ["bash", "-lc", command],
-        cwd=str(cwd),
-        text=True,
-        capture_output=True,
-        check=check,
+    parser.add_argument(
+        "--changed-file",
+        action="append",
+        default=[],
+        help="Explicit changed path (repeatable). If omitted, read from git.",
     )
+    parser.add_argument(
+        "--diff-base",
+        default="",
+        help="Optional diff base for range changes (used with --changed-file omitted).",
+    )
+    parser.add_argument(
+        "--checks-only",
+        action="store_true",
+        help="Print required checks only (one command per line).",
+    )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit policy as JSON.",
+    )
+    return parser.parse_args()
 
 
-def load_yaml(path: Path) -> dict[str, Any]:
-    with path.open("r", encoding="utf-8") as fh:
-        data = yaml.safe_load(fh)
-    return data if isinstance(data, dict) else {}
-
-
-def save_yaml(path: Path, data: dict[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", encoding="utf-8") as fh:
-        yaml.safe_dump(data, fh, sort_keys=False)
-
-
-def slugify(value: str) -> str:
-    out = re.sub(r"[^a-zA-Z0-9]+", "-", value.strip()).strip("-").lower()
-    return out or "slice"
-
-
-def project_root() -> Path:
-    return Path(__file__).resolve().parents[1]
-
-
-def detect_default_base_branch() -> str:
-    repo_root = project_root()
+def run_git(args: list[str]) -> list[str]:
     try:
-        result = run(["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd=repo_root)
+        output = subprocess.check_output(["git", *args], text=True).strip()
     except subprocess.CalledProcessError:
-        return BASE_BRANCH_FALLBACK
-
-    branch = result.stdout.strip()
-    if branch and branch != "HEAD":
-        return branch
-    return BASE_BRANCH_FALLBACK
-
-
-def default_worktree_root(repo_root: Path) -> Path:
-    return repo_root.parent / f"{repo_root.name}_worktrees"
-
-
-def default_tmux_lanes(orchestrator_layer: dict[str, Any]) -> list[str]:
-    automation = orchestrator_layer.get("automation", {})
-    lanes = automation.get("tmux_lanes")
-    if isinstance(lanes, list) and lanes:
-        return [str(x) for x in lanes]
-    return ["w1", "w2", "w3", "w4"]
-
-
-def parse_paths(paths: str, path_items: list[str]) -> list[str]:
-    values: list[str] = []
-    if paths:
-        values.extend([p.strip() for p in paths.split(",") if p.strip()])
-    values.extend([p.strip() for p in path_items if p.strip()])
-    deduped = sorted(set(values))
-    if not deduped:
-        raise ValueError("no scope paths provided; use --paths or one/more --path")
-    return deduped
-
-
-def load_contracts(repo_root: Path) -> tuple[dict[str, Any], dict[str, Any], dict[str, dict[str, Any]]]:
-    orchestrator_layer = load_yaml(repo_root / "agents" / "orchestrator-layer.yaml")
-    catalog = load_yaml(repo_root / "agents" / "catalog.yaml")
-
-    agent_defs: dict[str, dict[str, Any]] = {}
-    for agent_file in sorted((repo_root / "agents").glob("*.agent.yaml")):
-        data = load_yaml(agent_file)
-        agent_id = str(data.get("id", "")).strip()
-        if agent_id:
-            agent_defs[agent_id] = data
-
-    if not orchestrator_layer:
-        raise RuntimeError("missing/invalid agents/orchestrator-layer.yaml")
-    if not catalog:
-        raise RuntimeError("missing/invalid agents/catalog.yaml")
-    return orchestrator_layer, catalog, agent_defs
-
-
-def path_matches_rule(target: str, rule_path: str) -> bool:
-    t = target.rstrip("/")
-    r = rule_path.rstrip("/")
-
-    if "*" in r or "?" in r or "[" in r:
-        return fnmatch.fnmatch(t, r)
-
-    return t.startswith(r) or r.startswith(t)
-
-
-def path_in_allowed_scope(path: str, allowed_scope: str) -> bool:
-    p = path.rstrip("/")
-    s = allowed_scope.rstrip("/")
-    if "*" in s or "?" in s or "[" in s:
-        return fnmatch.fnmatch(p, s)
-    return p.startswith(s)
-
-
-def resolve_route(orchestrator_layer: dict[str, Any], target_path: str) -> dict[str, Any]:
-    best: dict[str, Any] | None = None
-    best_score = -1
-
-    for rule in orchestrator_layer.get("routing_rules", []):
-        match = rule.get("match", {})
-        rule_paths = match.get("paths", [])
-        if not isinstance(rule_paths, list):
-            continue
-
-        for rule_path in rule_paths:
-            rule_path_s = str(rule_path)
-            if not path_matches_rule(target_path, rule_path_s):
-                continue
-            score = len(rule_path_s)
-            if score > best_score:
-                best = {
-                    "primary_agent": str(rule.get("primary_agent", "")).strip(),
-                    "reviewers": [str(x).strip() for x in rule.get("reviewers", []) if str(x).strip()],
-                    "rule_path": rule_path_s,
-                }
-                best_score = score
-
-    if best:
-        return best
-
-    # Fallback for unmatched paths.
-    return {
-        "primary_agent": "refactor-techdebt-gc",
-        "reviewers": ["qa-reliability"],
-        "rule_path": "<fallback>",
-    }
-
-
-def risk_for_agent(catalog: dict[str, Any], agent_id: str) -> str:
-    for entry in catalog.get("agents", []):
-        if str(entry.get("id", "")).strip() == agent_id:
-            return str(entry.get("risk_tier", "medium")).strip().lower()
-    return "medium"
-
-
-def branch_exists(repo_root: Path, branch: str) -> bool:
-    proc = run(["git", "show-ref", "--verify", f"refs/heads/{branch}"], cwd=repo_root, check=False)
-    return proc.returncode == 0
-
-
-def remote_branch_exists(repo_root: Path, branch: str) -> bool:
-    proc = run(["git", "show-ref", "--verify", f"refs/remotes/origin/{branch}"], cwd=repo_root, check=False)
-    return proc.returncode == 0
-
-
-def ensure_worktree(repo_root: Path, worktree_path: Path, branch: str, base_branch: str) -> None:
-    worktree_path.parent.mkdir(parents=True, exist_ok=True)
-    if worktree_path.exists() and (worktree_path / ".git").exists():
-        return
-
-    if branch_exists(repo_root, branch):
-        cmd = ["git", "worktree", "add", str(worktree_path), branch]
-    else:
-        cmd = ["git", "worktree", "add", "-b", branch, str(worktree_path), base_branch]
-
-    proc = run(cmd, cwd=repo_root, check=False)
-    if proc.returncode != 0:
-        raise RuntimeError(
-            f"failed creating worktree for branch={branch} at {worktree_path}\n{proc.stderr.strip()}"
-        )
-
-
-def ticket_dir(repo_root: Path, ticket_id: str) -> Path:
-    return repo_root / "tickets" / ticket_id
-
-
-def ticket_file(repo_root: Path, ticket_id: str) -> Path:
-    return ticket_dir(repo_root, ticket_id) / "ticket.yaml"
-
-
-def read_ticket(repo_root: Path, ticket_id: str) -> dict[str, Any]:
-    path = ticket_file(repo_root, ticket_id)
-    if not path.exists():
-        raise RuntimeError(f"ticket not found: {path}")
-    data = load_yaml(path)
-    if not data:
-        raise RuntimeError(f"invalid ticket file: {path}")
-    return data
-
-
-def write_ticket(repo_root: Path, ticket: dict[str, Any]) -> None:
-    ticket["updated_at"] = utc_now()
-    save_yaml(ticket_file(repo_root, str(ticket["ticket_id"])), ticket)
-
-
-def append_timeline(repo_root: Path, ticket_id: str, line: str) -> None:
-    path = ticket_dir(repo_root, ticket_id) / "TIMELINE.md"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    if not path.exists():
-        path.write_text("# Timeline\n\n", encoding="utf-8")
-    with path.open("a", encoding="utf-8") as fh:
-        fh.write(f"- `{utc_now()}` {line}\n")
-
-
-def reviewers_high_risk(orchestrator_layer: dict[str, Any]) -> list[str]:
-    values = orchestrator_layer.get("review_pipeline", {}).get("high_risk_additional_reviewers", [])
-    if isinstance(values, list):
-        return [str(v).strip() for v in values if str(v).strip()]
-    return []
-
-
-def annotate_ticket_workflow(ticket: dict[str, Any]) -> dict[str, Any]:
-    slices = [s for s in ticket.get("slices", []) if isinstance(s, dict)]
-    by_id: dict[str, dict[str, Any]] = {}
-    agent_to_slices: dict[str, list[str]] = {}
-
-    for s in slices:
-        sid = str(s.get("id", "")).strip()
-        agent = str(s.get("primary_agent", "")).strip()
-        if not sid or not agent:
-            continue
-        by_id[sid] = s
-        agent_to_slices.setdefault(agent, []).append(sid)
-
-    upstream_map: dict[str, set[str]] = {sid: set() for sid in by_id}
-    downstream_map: dict[str, set[str]] = {sid: set() for sid in by_id}
-    ext_upstream_agents: dict[str, set[str]] = {sid: set() for sid in by_id}
-    ext_downstream_agents: dict[str, set[str]] = {sid: set() for sid in by_id}
-    contract_map: dict[str, set[tuple[str, str, str, str]]] = {sid: set() for sid in by_id}
-    in_ticket_edges: set[tuple[str, str, str]] = set()
-
-    for src_agent, dst_agent, contract in WORKFLOW_AGENT_EDGES:
-        src_sids = agent_to_slices.get(src_agent, [])
-        dst_sids = agent_to_slices.get(dst_agent, [])
-
-        if src_sids and dst_sids:
-            for src_sid in src_sids:
-                for dst_sid in dst_sids:
-                    if src_sid == dst_sid:
-                        continue
-                    downstream_map[src_sid].add(dst_sid)
-                    upstream_map[dst_sid].add(src_sid)
-                    in_ticket_edges.add((src_sid, dst_sid, contract))
-                    contract_map[src_sid].add(("downstream", dst_agent, dst_sid, contract))
-                    contract_map[dst_sid].add(("upstream", src_agent, src_sid, contract))
-            continue
-
-        if src_sids and not dst_sids:
-            for src_sid in src_sids:
-                ext_downstream_agents[src_sid].add(dst_agent)
-                contract_map[src_sid].add(("downstream-external", dst_agent, "", contract))
-            continue
-
-        if dst_sids and not src_sids:
-            for dst_sid in dst_sids:
-                ext_upstream_agents[dst_sid].add(src_agent)
-                contract_map[dst_sid].add(("upstream-external", src_agent, "", contract))
-
-    for sid, slice_data in by_id.items():
-        slice_data["workflow_upstream_slices"] = sorted(upstream_map[sid])
-        slice_data["workflow_downstream_slices"] = sorted(downstream_map[sid])
-        slice_data["workflow_external_upstream_agents"] = sorted(ext_upstream_agents[sid])
-        slice_data["workflow_external_downstream_agents"] = sorted(ext_downstream_agents[sid])
-        slice_data["cross_workflow_contracts"] = [
-            {
-                "relation": relation,
-                "agent": agent,
-                "slice_id": link_sid,
-                "contract": contract,
-                "in_ticket": relation in {"upstream", "downstream"},
-            }
-            for relation, agent, link_sid, contract in sorted(contract_map[sid])
-        ]
-
-    ticket["cross_workflow"] = {
-        "model": "workflow_agent_edges_v1",
-        "generated_at": utc_now(),
-        "in_ticket_edges": [
-            {"upstream_slice": src_sid, "downstream_slice": dst_sid, "contract": contract}
-            for src_sid, dst_sid, contract in sorted(in_ticket_edges)
-        ],
-    }
-    return ticket["cross_workflow"]
-
-
-def slice_dependency_order(ticket: dict[str, Any]) -> list[str]:
-    slices = [s for s in ticket.get("slices", []) if isinstance(s, dict)]
-    ids = [str(s.get("id", "")).strip() for s in slices if str(s.get("id", "")).strip()]
-    id_set = set(ids)
-    indegree: dict[str, int] = {sid: 0 for sid in ids}
-    outgoing: dict[str, set[str]] = {sid: set() for sid in ids}
-
-    for s in slices:
-        sid = str(s.get("id", "")).strip()
-        if sid not in id_set:
-            continue
-        for upstream_sid in s.get("workflow_upstream_slices", []):
-            up = str(upstream_sid).strip()
-            if up in id_set and up != sid and sid not in outgoing[up]:
-                outgoing[up].add(sid)
-                indegree[sid] += 1
-
-    queue = sorted([sid for sid, deg in indegree.items() if deg == 0])
-    ordered: list[str] = []
-    while queue:
-        sid = queue.pop(0)
-        ordered.append(sid)
-        for nxt in sorted(outgoing[sid]):
-            indegree[nxt] -= 1
-            if indegree[nxt] == 0:
-                queue.append(nxt)
-        queue.sort()
-
-    if len(ordered) < len(ids):
-        leftovers = [sid for sid in ids if sid not in ordered]
-        ordered.extend(sorted(leftovers))
-    return ordered
-
-
-def write_cross_workflow_plan(repo_root: Path, ticket: dict[str, Any]) -> Path:
-    tid = str(ticket["ticket_id"])
-    path = ticket_dir(repo_root, tid) / "CROSS_WORKFLOW_PLAN.md"
-    by_id = {
-        str(s.get("id", "")).strip(): s
-        for s in ticket.get("slices", [])
-        if isinstance(s, dict) and str(s.get("id", "")).strip()
-    }
-    edges = ticket.get("cross_workflow", {}).get("in_ticket_edges", [])
-    merge_order = slice_dependency_order(ticket)
-
-    lines = [
-        "# Cross Workflow Plan",
-        "",
-        f"Ticket: `{tid}`",
-        f"Generated: `{utc_now()}`",
-        "",
-        "## In-Ticket Dependency Edges",
-        "",
-    ]
-
-    if not edges:
-        lines.append("- none")
-    else:
-        lines.extend(
-            [
-                "| Upstream Slice | Upstream Agent | Downstream Slice | Downstream Agent | Contract |",
-                "| --- | --- | --- | --- | --- |",
-            ]
-        )
-        for edge in edges:
-            src_sid = str(edge.get("upstream_slice", "")).strip()
-            dst_sid = str(edge.get("downstream_slice", "")).strip()
-            contract = str(edge.get("contract", "")).strip()
-            src_agent = str(by_id.get(src_sid, {}).get("primary_agent", "unknown"))
-            dst_agent = str(by_id.get(dst_sid, {}).get("primary_agent", "unknown"))
-            lines.append(f"| {src_sid} | {src_agent} | {dst_sid} | {dst_agent} | {contract} |")
-
-    lines.extend(
-        [
-            "",
-            "## Recommended Merge Order",
-            "",
-        ]
-    )
-    if not merge_order:
-        lines.append("- none")
-    else:
-        for idx, sid in enumerate(merge_order, start=1):
-            agent = str(by_id.get(sid, {}).get("primary_agent", "unknown"))
-            lines.append(f"{idx}. `{sid}` ({agent})")
-
-    lines.extend(
-        [
-            "",
-            "## Slice Coordination Notes",
-            "",
-        ]
-    )
-    for sid in merge_order:
-        s = by_id.get(sid, {})
-        upstream = [str(x) for x in s.get("workflow_upstream_slices", []) if str(x).strip()]
-        downstream = [str(x) for x in s.get("workflow_downstream_slices", []) if str(x).strip()]
-        ext_up = [str(x) for x in s.get("workflow_external_upstream_agents", []) if str(x).strip()]
-        ext_down = [str(x) for x in s.get("workflow_external_downstream_agents", []) if str(x).strip()]
-
-        lines.append(f"### {sid} ({s.get('primary_agent')})")
-        lines.append(f"- Upstream slices: {', '.join(upstream) if upstream else 'none'}")
-        lines.append(f"- Downstream slices: {', '.join(downstream) if downstream else 'none'}")
-        lines.append(f"- External upstream agents to watch: {', '.join(ext_up) if ext_up else 'none'}")
-        lines.append(f"- External downstream agents to watch: {', '.join(ext_down) if ext_down else 'none'}")
-        lines.append("")
-
-    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-    return path
-
-
-def write_packet_files(repo_root: Path, ticket: dict[str, Any], slice_data: dict[str, Any]) -> None:
-    tid = str(ticket["ticket_id"])
-    sid = str(slice_data["id"])
-    slice_dir = ticket_dir(repo_root, tid) / "slices" / sid
-    reviews_dir = slice_dir / "reviews"
-    slice_dir.mkdir(parents=True, exist_ok=True)
-    reviews_dir.mkdir(parents=True, exist_ok=True)
-
-    prompt_lines = [
-        f"You are `{slice_data['primary_agent']}`.",
-        "Implement this slice with minimal safe patching and proof-backed output.",
-        "",
-        "Required output:",
-        f"- identity line: `I am {slice_data['primary_agent']} and I own {sid}.`",
-        "- files_changed",
-        "- commands_run",
-        "- harness_results",
-        "- residual_risks",
-        "- blockers_or_next_step",
-    ]
-
-    packet = f"""# Task Packet
-
-Ticket: `{tid}`
-Slice: `{sid}`
-Primary Agent: `{slice_data['primary_agent']}`
-Reviewers: `{', '.join(slice_data.get('reviewers', [])) or 'none'}`
-Lane: `{slice_data['lane']}`
-Branch: `{slice_data['branch']}`
-Worktree: `{slice_data['worktree_path']}`
-
-## Objective
-{slice_data.get('objective', ticket.get('goal', 'Unspecified objective'))}
-
-## Agent Write Boundary (Enforced)
-"""
-    for p in slice_data.get("allowed_scope_paths", []):
-        packet += f"- `{p}`\n"
-
-    packet += "\n## Requested Focus Paths\n"
-    for p in slice_data.get("scope_paths", []):
-        packet += f"- `{p}`\n"
-
-    acceptance_criteria = [
-        str(x).strip()
-        for x in slice_data.get("acceptance_criteria", ticket.get("acceptance_criteria", []))
-        if str(x).strip()
-    ]
-    if acceptance_criteria:
-        packet += "\n## Acceptance Criteria\n"
-        for item in acceptance_criteria:
-            packet += f"- {item}\n"
-
-    upstream_slices = [str(x).strip() for x in slice_data.get("workflow_upstream_slices", []) if str(x).strip()]
-    downstream_slices = [str(x).strip() for x in slice_data.get("workflow_downstream_slices", []) if str(x).strip()]
-    ext_up_agents = [str(x).strip() for x in slice_data.get("workflow_external_upstream_agents", []) if str(x).strip()]
-    ext_down_agents = [str(x).strip() for x in slice_data.get("workflow_external_downstream_agents", []) if str(x).strip()]
-    contracts = [c for c in slice_data.get("cross_workflow_contracts", []) if isinstance(c, dict)]
-
-    if upstream_slices or downstream_slices or ext_up_agents or ext_down_agents or contracts:
-        packet += "\n## Cross-Workflow Dependencies\n"
-        packet += f"- Upstream slices: {', '.join(upstream_slices) if upstream_slices else 'none'}\n"
-        packet += f"- Downstream slices: {', '.join(downstream_slices) if downstream_slices else 'none'}\n"
-        packet += f"- External upstream agents to watch: {', '.join(ext_up_agents) if ext_up_agents else 'none'}\n"
-        packet += f"- External downstream agents to watch: {', '.join(ext_down_agents) if ext_down_agents else 'none'}\n"
-        if contracts:
-            packet += "- Contract edges:\n"
-            for c in contracts:
-                relation = str(c.get("relation", "edge"))
-                agent = str(c.get("agent", "unknown"))
-                contract = str(c.get("contract", ""))
-                linked_sid = str(c.get("slice_id", "")).strip()
-                suffix = f" (slice {linked_sid})" if linked_sid else ""
-                packet += f"  - {relation} -> {agent}{suffix}: {contract}\n"
-
-    packet += "\n## Required Checks Before Done\n"
-    checks = slice_data.get("required_checks", [])
-    if checks:
-        for c in checks:
-            packet += f"- `{c}`\n"
-    else:
-        packet += "- none (recon/doc only)\n"
-
-    packet += "\n## Reviewer Contract\n"
-    packet += "- Review-only agents do not commit code.\n"
-    packet += "- Add one review file per reviewer under `tickets/<id>/slices/<slice>/reviews/`.\n"
-    packet += "- Mark review status as `approved` only with concrete evidence.\n"
-    packet += "\n## Shipability Bar\n"
-    packet += "- The patch must be minimal, deterministic, and test-backed.\n"
-    packet += "- Do not change behavior outside explicit scope without evidence and rationale.\n"
-    packet += "- If any safety invariant is uncertain, fail closed and document blocker with evidence.\n"
-
-    packet += "\n## Agent Prompt (Copy/Paste)\n```text\n"
-    packet += "\n".join(prompt_lines)
-    packet += "\n```\n"
-
-    (slice_dir / "TASK_PACKET.md").write_text(packet, encoding="utf-8")
-
-    for reviewer in slice_data.get("reviewers", []):
-        review_file = reviews_dir / f"{reviewer}.md"
-        if review_file.exists():
-            continue
-        review_file.write_text(
-            f"# Review Evidence\n\n"
-            f"ticket: {tid}\n"
-            f"slice: {sid}\n"
-            f"reviewer: {reviewer}\n"
-            f"status: pending\n\n"
-            f"## Findings\n"
-            f"- pending\n\n"
-            f"## Evidence\n"
-            f"- commands: pending\n"
-            f"- artifacts: pending\n",
-            encoding="utf-8",
-        )
-
-    # Also mirror packet into each worktree for direct agent access.
-    wt = Path(str(slice_data["worktree_path"]))
-    harness_dir = wt / ".harness"
-    harness_dir.mkdir(parents=True, exist_ok=True)
-    (harness_dir / "TASK_PACKET.md").write_text(packet, encoding="utf-8")
-
-
-def write_ticket_summary(repo_root: Path, ticket: dict[str, Any]) -> None:
-    tid = str(ticket["ticket_id"])
-    path = ticket_dir(repo_root, tid) / "SUMMARY.md"
-
-    lines = [
-        f"# Ticket {tid}",
-        "",
-        f"- title: {ticket.get('title', '')}",
-        f"- goal: {ticket.get('goal', '')}",
-        f"- priority: {ticket.get('priority', '')}",
-        f"- status: {ticket.get('status', '')}",
-        f"- base_branch: {ticket.get('base_branch', '')}",
-        f"- created_at: {ticket.get('created_at', '')}",
-        f"- updated_at: {ticket.get('updated_at', '')}",
-        "",
-        "## Slice Board",
-        "",
-        "| Slice | Agent | Lane | Status | Branch |",
-        "| --- | --- | --- | --- | --- |",
-    ]
-
-    for s in ticket.get("slices", []):
-        lines.append(
-            f"| {s.get('id')} | {s.get('primary_agent')} | {s.get('lane')} | {s.get('status')} | `{s.get('branch')}` |"
-        )
-
-    lines.extend(
-        [
-            "",
-            "## Operator Commands",
-            "",
-            "Read cross-workflow dependency plan:",
-            f"`cat {ticket_dir(repo_root, tid) / 'CROSS_WORKFLOW_PLAN.md'}`",
-            "",
-            "Generate tmux launch block:",
-            f"`python3 scripts/harness_orchestrator.py dispatch --ticket-id {tid}`",
-            "",
-            "Verify / readiness pass:",
-            f"`python3 scripts/harness_orchestrator.py verify --ticket-id {tid}`",
-            "",
-            "Verify + merge eligible slices:",
-            f"`python3 scripts/harness_orchestrator.py verify --ticket-id {tid} --merge`",
-            "",
-            "Verify + merge + cleanup worktrees:",
-            f"`python3 scripts/harness_orchestrator.py verify --ticket-id {tid} --merge --cleanup-worktrees`",
-        ]
-    )
-
-    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-
-
-def write_tmux_commands(repo_root: Path, ticket: dict[str, Any]) -> str:
-    tid = str(ticket["ticket_id"])
-    command_dir = ticket_dir(repo_root, tid) / "commands"
-    command_dir.mkdir(parents=True, exist_ok=True)
-
-    lines = [
-        "#!/usr/bin/env bash",
-        "set -euo pipefail",
-        "",
-        f"# Ticket {tid}",
-    ]
-
-    human_lines = [
-        f"Ticket `{tid}` tmux launch commands:",
-        "",
-    ]
-
-    for s in ticket.get("slices", []):
-        lane = str(s.get("lane"))
-        wt = str(s.get("worktree_path"))
-        sid = str(s.get("id"))
-        agent = str(s.get("primary_agent"))
-
-        cmds = [
-            f"tmux send-keys -t {shlex.quote(lane)} {shlex.quote(f'cd {wt}')} Enter",
-            f"tmux send-keys -t {shlex.quote(lane)} {shlex.quote('cat .harness/TASK_PACKET.md')} Enter",
-            f"tmux send-keys -t {shlex.quote(lane)} {shlex.quote('printf "\\n# Paste TASK_PACKET prompt into the assigned agent CLI in this lane.\\n"')} Enter",
-        ]
-        lines.extend(cmds)
-        lines.append("")
-
-        human_lines.append(f"- Slice `{sid}` ({agent}) on lane `{lane}`")
-        human_lines.append(f"  - `cd {wt}`")
-        human_lines.append("  - `cat .harness/TASK_PACKET.md`")
-
-    script_path = command_dir / "tmux-launch.sh"
-    script_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-    os.chmod(script_path, 0o755)
-
-    attach_path = command_dir / "tmux-attach.sh"
-    attach_lines = [
-        "#!/usr/bin/env bash",
-        "set -euo pipefail",
-        "",
-        "tmux ls",
-    ]
-    for s in ticket.get("slices", []):
-        lane = str(s.get("lane"))
-        attach_lines.append(f"echo 'attach: tmux attach -t {lane}'")
-    attach_path.write_text("\n".join(attach_lines) + "\n", encoding="utf-8")
-    os.chmod(attach_path, 0o755)
-
-    return "\n".join(human_lines)
-
-
-def create_ticket(args: argparse.Namespace) -> int:
-    repo_root = project_root()
-    orchestrator_layer, catalog, agent_defs = load_contracts(repo_root)
-
-    scope_paths = parse_paths(args.paths, args.path)
-    base_branch = args.base_branch
-    worktree_root = Path(args.worktree_root).expanduser() if args.worktree_root else default_worktree_root(repo_root)
-    lanes = [x.strip() for x in args.tmux_lanes.split(",") if x.strip()] if args.tmux_lanes else default_tmux_lanes(orchestrator_layer)
-    if not lanes:
-        raise RuntimeError("no tmux lanes configured")
-
-    ts = dt.datetime.now().strftime("%Y%m%d-%H%M%S")
-    ticket_id = args.ticket_id or f"TKT-{ts}-{slugify(args.title)[:24]}"
-    tdir = ticket_dir(repo_root, ticket_id)
-    if tdir.exists():
-        raise RuntimeError(f"ticket already exists: {tdir}")
-
-    grouped: dict[str, dict[str, Any]] = {}
-    for p in scope_paths:
-        route = resolve_route(orchestrator_layer, p)
-        primary = route["primary_agent"]
-        if not primary:
-            primary = "refactor-techdebt-gc"
-
-        g = grouped.setdefault(
-            primary,
-            {
-                "scope_paths": set(),
-                "reviewers": set(),
-                "matched_rules": set(),
-            },
-        )
-        g["scope_paths"].add(p)
-        g["reviewers"].update(route["reviewers"])
-        g["matched_rules"].add(route["rule_path"])
-
-    high_risk_reviewers = reviewers_high_risk(orchestrator_layer)
-
-    sorted_agents = sorted(
-        grouped.keys(),
-        key=lambda a: (
-            RISK_ORDER.get(risk_for_agent(catalog, a), 99),
-            a,
-        ),
-    )
-
-    slices: list[dict[str, Any]] = []
-    for idx, agent_id in enumerate(sorted_agents, start=1):
-        lane = lanes[(idx - 1) % len(lanes)]
-        group = grouped[agent_id]
-
-        reviewers = set(group["reviewers"])
-        risk_tier = risk_for_agent(catalog, agent_id)
-        if risk_tier in {"high", "critical"}:
-            reviewers.update(high_risk_reviewers)
-        reviewers.discard(agent_id)
-
-        branch = f"tickets/{ticket_id.lower()}/{agent_id}"
-        wt = worktree_root / ticket_id / agent_id
-
-        required_checks = []
-        agent_def = agent_defs.get(agent_id, {})
-        allowed_scope_paths = [str(x) for x in agent_def.get("scope_paths", []) if str(x).strip()]
-        for check in agent_def.get("required_checks_before_done", []):
-            required_checks.append(str(check))
-
-        slices.append(
-            {
-                "id": f"SLICE-{idx:02d}",
-                "primary_agent": agent_id,
-                "reviewers": sorted(reviewers),
-                "scope_paths": sorted(group["scope_paths"]),
-                "allowed_scope_paths": allowed_scope_paths,
-                "matched_rules": sorted(group["matched_rules"]),
-                "lane": lane,
-                "branch": branch,
-                "worktree_path": str(wt),
-                "required_checks": required_checks,
-                "status": "ready",
-                "objective": args.goal,
-            }
-        )
-
-    ticket = {
-        "ticket_id": ticket_id,
-        "title": args.title,
-        "goal": args.goal,
-        "priority": args.priority,
-        "status": "planned",
-        "base_branch": base_branch,
-        "worktree_root": str(worktree_root),
-        "created_at": utc_now(),
-        "updated_at": utc_now(),
-        "r3_required": True,
-        "orchestrator_authority": {"r1": "orchestrator", "r2": "orchestrator", "r3": "human"},
-        "slices": slices,
-    }
-    annotate_ticket_workflow(ticket)
-
-    if args.create_worktrees:
-        for s in slices:
-            ensure_worktree(repo_root, Path(str(s["worktree_path"])), str(s["branch"]), base_branch)
-
-    save_yaml(ticket_file(repo_root, ticket_id), ticket)
-    for s in slices:
-        write_packet_files(repo_root, ticket, s)
-
-    append_timeline(repo_root, ticket_id, "ticket created and slices planned")
-    write_cross_workflow_plan(repo_root, ticket)
-    write_ticket_summary(repo_root, ticket)
-    block = write_tmux_commands(repo_root, ticket)
-
-    print(f"[harness] created ticket: {ticket_id}")
-    print(f"[harness] slices: {len(slices)}")
-    print(f"[harness] ticket file: {ticket_file(repo_root, ticket_id)}")
-    print(f"[harness] launch script: {ticket_dir(repo_root, ticket_id) / 'commands' / 'tmux-launch.sh'}")
-    print()
-    print(block)
-    return 0
-
-
-def dispatch_ticket(args: argparse.Namespace) -> int:
-    repo_root = project_root()
-    ticket = read_ticket(repo_root, args.ticket_id)
-    annotate_ticket_workflow(ticket)
-
-    if args.create_missing_worktrees:
-        for s in ticket.get("slices", []):
-            ensure_worktree(
-                repo_root,
-                Path(str(s["worktree_path"])),
-                str(s["branch"]),
-                str(ticket.get("base_branch")),
-            )
-        write_ticket(repo_root, ticket)
-
-    for s in ticket.get("slices", []):
-        write_packet_files(repo_root, ticket, s)
-    block = write_tmux_commands(repo_root, ticket)
-    write_cross_workflow_plan(repo_root, ticket)
-    append_timeline(repo_root, str(ticket["ticket_id"]), "dispatch command block regenerated")
-    write_ticket_summary(repo_root, ticket)
-
-    print(block)
-    print()
-    print(f"Run: bash {ticket_dir(repo_root, str(ticket['ticket_id'])) / 'commands' / 'tmux-launch.sh'}")
-    return 0
-
-
-def set_review_status(args: argparse.Namespace) -> int:
-    repo_root = project_root()
-    ticket = read_ticket(repo_root, args.ticket_id)
-
-    target_slice = None
-    for s in ticket.get("slices", []):
-        if str(s.get("id")) == args.slice_id:
-            target_slice = s
-            break
-    if not target_slice:
-        raise RuntimeError(f"slice not found: {args.slice_id}")
-
-    review_file = ticket_dir(repo_root, args.ticket_id) / "slices" / args.slice_id / "reviews" / f"{args.reviewer}.md"
-    review_file.parent.mkdir(parents=True, exist_ok=True)
-
-    body = [
-        "# Review Evidence",
-        "",
-        f"ticket: {args.ticket_id}",
-        f"slice: {args.slice_id}",
-        f"reviewer: {args.reviewer}",
-        f"status: {args.status}",
-        "",
-        "## Findings",
-        f"- {args.findings or 'none'}",
-        "",
-        "## Evidence",
-        f"- commands: {args.commands or 'unspecified'}",
-        f"- artifacts: {args.artifacts or 'unspecified'}",
-    ]
-    review_file.write_text("\n".join(body) + "\n", encoding="utf-8")
-
-    append_timeline(repo_root, args.ticket_id, f"review updated: {args.slice_id} {args.reviewer} -> {args.status}")
-    print(f"[harness] review saved: {review_file}")
-    return 0
-
-
-def count_ahead(repo_root: Path, base_branch: str, branch: str) -> int:
-    ref = branch
-    if not branch_exists(repo_root, branch) and remote_branch_exists(repo_root, branch):
-        ref = f"origin/{branch}"
-
-    proc = run(["git", "rev-list", "--count", f"{base_branch}..{ref}"], cwd=repo_root, check=False)
-    if proc.returncode != 0:
-        return 0
-    out = proc.stdout.strip()
-    return int(out) if out.isdigit() else 0
-
-
-def branch_merged_into_base(repo_root: Path, base_branch: str, branch: str) -> bool:
-    ref = branch
-    has_local = branch_exists(repo_root, branch)
-    has_remote = remote_branch_exists(repo_root, branch)
-
-    if not has_local and has_remote:
-        ref = f"origin/{branch}"
-
-    if has_local or has_remote:
-        proc = run(["git", "merge-base", "--is-ancestor", ref, base_branch], cwd=repo_root, check=False)
-        return proc.returncode == 0
-
-    # Branch may have been cleaned up post-merge; fall back to merge-commit traceability.
-    grep = run(
-        ["git", "log", base_branch, "--merges", "--grep", f"Merge branch '{branch}'", "-n", "1", "--oneline"],
-        cwd=repo_root,
-        check=False,
-    )
-    return grep.returncode == 0 and bool(grep.stdout.strip())
-
-
-def changed_files(repo_root: Path, base_branch: str, branch: str) -> list[str]:
-    ref = branch
-    if not branch_exists(repo_root, branch) and remote_branch_exists(repo_root, branch):
-        ref = f"origin/{branch}"
-
-    merge_base_proc = run(["git", "merge-base", base_branch, ref], cwd=repo_root, check=False)
-    diff_base = merge_base_proc.stdout.strip() if merge_base_proc.returncode == 0 else base_branch
-    if not diff_base:
-        diff_base = base_branch
-
-    proc = run(["git", "diff", "--name-only", f"{diff_base}..{ref}"], cwd=repo_root, check=False)
-    if proc.returncode != 0:
         return []
-    return [line.strip() for line in proc.stdout.splitlines() if line.strip()]
+    return [line.strip() for line in output.splitlines() if line.strip()]
 
 
-def out_of_scope_files(files: list[str], allowed_scopes: list[str]) -> list[str]:
-    if not allowed_scopes:
-        return files
-
-    violations = []
-    for f in files:
-        if not any(path_in_allowed_scope(f, scope) for scope in allowed_scopes):
-            violations.append(f)
-    return sorted(violations)
+def gather_changed_files(diff_base: str) -> list[str]:
+    changed = set()
+    if diff_base:
+        changed.update(run_git(["diff", "--name-only", f"{diff_base}...HEAD"]))
+    changed.update(run_git(["diff", "--name-only"]))
+    changed.update(run_git(["ls-files", "--others", "--exclude-standard"]))
+    return [path for path in sorted(changed) if not matches_prefix(path, IGNORED_PREFIXES)]
 
 
-def cross_slice_overlaps(
-    slice_changed: dict[str, set[str]],
-    slice_agents: dict[str, str],
-) -> dict[str, list[tuple[str, str]]]:
-    overlap_map: dict[str, list[tuple[str, str]]] = {sid: [] for sid in slice_changed}
-    ids = sorted(slice_changed.keys())
-    for i, sid_a in enumerate(ids):
-        for sid_b in ids[i + 1 :]:
-            if slice_agents.get(sid_a) == slice_agents.get(sid_b):
-                continue
-            overlap = sorted(slice_changed[sid_a].intersection(slice_changed[sid_b]))
-            if not overlap:
-                continue
-            for f in overlap:
-                overlap_map[sid_a].append((sid_b, f))
-                overlap_map[sid_b].append((sid_a, f))
-    return overlap_map
+def matches_prefix(path: str, prefixes: tuple[str, ...]) -> bool:
+    return any(path.startswith(prefix) for prefix in prefixes)
 
 
-def reviewer_approved(path: Path) -> bool:
-    if not path.exists():
-        return False
-    text = path.read_text(encoding="utf-8", errors="replace").lower()
-    for line in text.splitlines():
-        if line.strip().startswith("status:"):
-            return line.split(":", 1)[1].strip() == "approved"
-    return False
+def matches_prefix_or_exact(path: str, prefixes: tuple[str, ...], exact: set[str]) -> bool:
+    return path in exact or matches_prefix(path, prefixes)
 
 
-def ensure_base_checked_out(repo_root: Path, base_branch: str, allow_dirty: bool) -> None:
-    if not allow_dirty:
-        st = run(["git", "status", "--porcelain"], cwd=repo_root, check=False)
-        if st.stdout.strip():
-            raise RuntimeError("working tree is dirty; commit/stash before merge or pass --allow-dirty")
-    checkout = run(["git", "checkout", base_branch], cwd=repo_root, check=False)
-    if checkout.returncode != 0:
-        raise RuntimeError(f"cannot checkout base branch {base_branch}: {checkout.stderr.strip()}")
+def is_docs_only(paths: list[str]) -> bool:
+    if not paths:
+        return True
+    return all(matches_prefix_or_exact(path, DOCS_ONLY_PREFIXES, DOCS_ONLY_EXACT) for path in paths)
 
 
-def verify_ticket(args: argparse.Namespace) -> int:
-    repo_root = project_root()
-    orchestrator_layer, _, _ = load_contracts(repo_root)
-    ticket = read_ticket(repo_root, args.ticket_id)
-    annotate_ticket_workflow(ticket)
-    base_branch = str(ticket.get("base_branch"))
-    cleanup_default = bool(orchestrator_layer.get("automation", {}).get("cleanup_worktrees_on_merge", False))
-    cleanup_enabled = cleanup_default if args.cleanup_worktrees is None else bool(args.cleanup_worktrees)
+def classify(paths: list[str]) -> dict[str, object]:
+    if any(matches_prefix(path, STRICT_RUNTIME_PREFIXES) for path in paths):
+        return {
+            "lane": "strict_lane",
+            "classification": "runtime_or_schema_strict",
+            "docs_only_review_skip": False,
+            "required_checks": STRICT_LANE_CHECKS,
+            "required_review": "commit_review_and_review_agent_required",
+        }
 
-    run(["git", "fetch", "origin", "--prune"], cwd=repo_root, check=False)
+    if is_docs_only(paths):
+        if any(matches_prefix_or_exact(path, STRICT_DOC_PREFIXES, STRICT_DOC_EXACT) for path in paths):
+            return {
+                "lane": "strict_lane",
+                "classification": "docs_only_control_plane_strict",
+                "docs_only_review_skip": True,
+                "required_checks": STRICT_LANE_CHECKS,
+                "required_review": "docs_only_review_skip_allowed",
+            }
+        return {
+            "lane": "fast_lane",
+            "classification": "docs_only_fast",
+            "docs_only_review_skip": True,
+            "required_checks": FAST_LANE_CHECKS,
+            "required_review": "docs_only_review_skip_allowed",
+        }
 
-    if args.merge:
-        ensure_base_checked_out(repo_root, base_branch, args.allow_dirty)
-
-    # Senior-orchestrator pre-merge reconnaissance:
-    # collect per-slice ahead state and changed files, then detect cross-slice overlaps.
-    slice_ahead: dict[str, int] = {}
-    slice_changed: dict[str, set[str]] = {}
-    slice_agents: dict[str, str] = {}
-    by_id = {
-        str(s.get("id", "")).strip(): s
-        for s in ticket.get("slices", [])
-        if isinstance(s, dict) and str(s.get("id", "")).strip()
+    return {
+        "lane": "fast_lane",
+        "classification": "mixed_non_strict",
+        "docs_only_review_skip": False,
+        "required_checks": STRICT_LANE_CHECKS,
+        "required_review": "commit_review_and_review_agent_required",
     }
-    ordered_ids = slice_dependency_order(ticket)
-    ordered_slices = [by_id[sid] for sid in ordered_ids if sid in by_id]
-    for s in ticket.get("slices", []):
-        sid = str(s.get("id", "")).strip()
-        if sid not in {str(x.get("id", "")).strip() for x in ordered_slices}:
-            ordered_slices.append(s)
 
-    for s in ordered_slices:
-        sid = str(s.get("id"))
-        branch = str(s.get("branch"))
-        agent = str(s.get("primary_agent"))
-        ahead = count_ahead(repo_root, base_branch, branch)
-        slice_ahead[sid] = ahead
-        slice_agents[sid] = agent
-        if ahead > 0:
-            slice_changed[sid] = set(changed_files(repo_root, base_branch, branch))
 
-    overlap_map = cross_slice_overlaps(slice_changed, slice_agents)
-
-    report_lines = [
-        f"# Verify Report - {args.ticket_id}",
-        "",
-        f"- generated_at: {utc_now()}",
-        f"- merge_mode: {'on' if args.merge else 'off'}",
-        "",
+def build_policy(paths: list[str]) -> dict[str, object]:
+    resolved = classify(paths)
+    resolved["changed_files"] = paths
+    resolved["review_only_agents_commit_code"] = False
+    resolved["runbook_alignment_targets"] = [
+        "docs/agents/WORKFLOW.md",
+        "docs/ASYNC_LOOP_OPERATIONS.md",
+        "docs/system-map/REVIEW_QUEUE_POLICY.md",
+        "asyncloop",
     ]
-
-    merged_count = 0
-    ready_count = 0
-    failed_count = 0
-
-    for s in ticket.get("slices", []):
-        sid = str(s.get("id"))
-        branch = str(s.get("branch"))
-        wt = Path(str(s.get("worktree_path")))
-        checks = [str(c) for c in s.get("required_checks", []) if str(c).strip()]
-        reviewers = [str(r) for r in s.get("reviewers", []) if str(r).strip()]
-        allowed_scope_paths = [str(p) for p in s.get("allowed_scope_paths", []) if str(p).strip()]
-        slice_dir = ticket_dir(repo_root, args.ticket_id) / "slices" / sid
-        harness_dir = slice_dir / "harness"
-        harness_dir.mkdir(parents=True, exist_ok=True)
-
-        ahead = slice_ahead.get(sid, 0)
-        changed_now = sorted(slice_changed.get(sid, set()))
-        overlaps_now = overlap_map.get(sid, [])
-        orchestrator_review = slice_dir / "orchestrator-review.md"
-        if ahead <= 0:
-            if branch_merged_into_base(repo_root, base_branch, branch):
-                s["status"] = "merged"
-                merged_count += 1
-                report_lines.append(f"## {sid} ({s.get('primary_agent')})")
-                report_lines.append("- status: merged")
-                report_lines.append(f"- branch: `{branch}` is already merged into `{base_branch}`")
-                report_lines.append("")
-                orchestrator_review.write_text(
-                    f"# Orchestrator Review\n\n"
-                    f"ticket: {args.ticket_id}\n"
-                    f"slice: {sid}\n"
-                    f"status: merged\n\n"
-                    f"## Notes\n"
-                    f"- Branch already merged into `{base_branch}`.\n",
-                    encoding="utf-8",
-                )
-            elif str(s.get("status", "")).strip() == "merged":
-                # Preserve merged status after branch/worktree cleanup when refs are intentionally deleted.
-                s["status"] = "merged"
-                merged_count += 1
-                report_lines.append(f"## {sid} ({s.get('primary_agent')})")
-                report_lines.append("- status: merged")
-                report_lines.append(f"- branch: `{branch}` no longer exists (expected post-merge cleanup); preserving merged status")
-                report_lines.append("")
-                orchestrator_review.write_text(
-                    f"# Orchestrator Review\n\n"
-                    f"ticket: {args.ticket_id}\n"
-                    f"slice: {sid}\n"
-                    f"status: merged\n\n"
-                    f"## Notes\n"
-                    f"- Branch/worktree cleaned up after merge; preserving merged status.\n",
-                    encoding="utf-8",
-                )
-            else:
-                s["status"] = "waiting_for_push"
-                report_lines.append(f"## {sid} ({s.get('primary_agent')})")
-                report_lines.append("- status: waiting_for_push")
-                report_lines.append(f"- branch: `{branch}` has no commits ahead of `{base_branch}`")
-                report_lines.append("")
-                orchestrator_review.write_text(
-                    f"# Orchestrator Review\n\n"
-                    f"ticket: {args.ticket_id}\n"
-                    f"slice: {sid}\n"
-                    f"status: waiting_for_push\n\n"
-                    f"## Notes\n"
-                    f"- Branch has no commits ahead of `{base_branch}`.\n",
-                    encoding="utf-8",
-                )
-            continue
-
-        if overlaps_now:
-            s["status"] = "coordination_required"
-            failed_count += 1
-            overlap_log = harness_dir / "coordination-overlap.log"
-            lines = []
-            for other_sid, f in overlaps_now:
-                lines.append(f"{sid} overlaps with {other_sid}: {f}")
-            overlap_log.write_text("\n".join(lines) + "\n", encoding="utf-8")
-            report_lines.append(f"## {sid} ({s.get('primary_agent')})")
-            report_lines.append("- status: coordination_required")
-            report_lines.append("- reason: cross-slice overlap with another implementation agent")
-            report_lines.append(f"- overlap_log: `{overlap_log}`")
-            report_lines.append("")
-            orchestrator_review.write_text(
-                f"# Orchestrator Review\n\n"
-                f"ticket: {args.ticket_id}\n"
-                f"slice: {sid}\n"
-                f"status: coordination_required\n\n"
-                f"## Notes\n"
-                f"- Cross-slice overlap detected. Merge blocked pending orchestrator/manual consolidation.\n\n"
-                f"## Overlaps\n"
-                + "".join([f"- {sid} with {other_sid}: `{f}`\n" for other_sid, f in overlaps_now]),
-                encoding="utf-8",
-            )
-            continue
-
-        violations = out_of_scope_files(changed_now, allowed_scope_paths)
-        if violations:
-            s["status"] = "scope_violation"
-            failed_count += 1
-            violation_log = harness_dir / "scope-violation.log"
-            violation_log.write_text(
-                "Changed files outside allowed scope:\n"
-                + "\n".join(violations)
-                + "\n\nAllowed scopes:\n"
-                + "\n".join(allowed_scope_paths)
-                + "\n",
-                encoding="utf-8",
-            )
-            report_lines.append(f"## {sid} ({s.get('primary_agent')})")
-            report_lines.append("- status: scope_violation")
-            report_lines.append(f"- changed_files_count: {len(changed_now)}")
-            report_lines.append(f"- violation_log: `{violation_log}`")
-            report_lines.append("")
-            orchestrator_review.write_text(
-                f"# Orchestrator Review\n\n"
-                f"ticket: {args.ticket_id}\n"
-                f"slice: {sid}\n"
-                f"status: scope_violation\n\n"
-                f"## Notes\n"
-                f"- Branch changed files outside agent write boundary.\n"
-                f"- See: `{violation_log}`\n",
-                encoding="utf-8",
-            )
-            continue
-
-        if not wt.exists():
-            s["status"] = "blocked_missing_worktree"
-            failed_count += 1
-            report_lines.append(f"## {sid} ({s.get('primary_agent')})")
-            report_lines.append("- status: blocked_missing_worktree")
-            report_lines.append(f"- missing worktree: `{wt}`")
-            report_lines.append("")
-            orchestrator_review.write_text(
-                f"# Orchestrator Review\n\n"
-                f"ticket: {args.ticket_id}\n"
-                f"slice: {sid}\n"
-                f"status: blocked_missing_worktree\n\n"
-                f"## Notes\n"
-                f"- Expected worktree missing: `{wt}`\n",
-                encoding="utf-8",
-            )
-            continue
-
-        check_fail = False
-        check_log = []
-        for idx, cmd in enumerate(checks, start=1):
-            proc = run_shell(cmd, cwd=wt, check=False)
-            cmd_log = harness_dir / f"check-{idx:02d}.log"
-            cmd_log.write_text(
-                f"$ {cmd}\n\nSTDOUT:\n{proc.stdout}\n\nSTDERR:\n{proc.stderr}\n",
-                encoding="utf-8",
-            )
-            ok = proc.returncode == 0
-            check_log.append((cmd, ok, cmd_log))
-            if not ok:
-                check_fail = True
-                break
-
-        if check_fail:
-            s["status"] = "checks_failed"
-            failed_count += 1
-            report_lines.append(f"## {sid} ({s.get('primary_agent')})")
-            report_lines.append("- status: checks_failed")
-            for cmd, ok, path in check_log:
-                report_lines.append(f"- check: `{cmd}` => {'PASS' if ok else 'FAIL'} (`{path}`)")
-            report_lines.append("")
-            orchestrator_review.write_text(
-                f"# Orchestrator Review\n\n"
-                f"ticket: {args.ticket_id}\n"
-                f"slice: {sid}\n"
-                f"status: checks_failed\n\n"
-                f"## Notes\n"
-                f"- Required checks failed. See harness logs in `{harness_dir}`.\n",
-                encoding="utf-8",
-            )
-            continue
-
-        pending_reviewers = []
-        for reviewer in reviewers:
-            rf = slice_dir / "reviews" / f"{reviewer}.md"
-            if not reviewer_approved(rf):
-                pending_reviewers.append(reviewer)
-
-        if pending_reviewers:
-            s["status"] = "pending_review"
-            ready_count += 1
-            report_lines.append(f"## {sid} ({s.get('primary_agent')})")
-            report_lines.append("- status: pending_review")
-            report_lines.append(f"- pending_reviewers: {', '.join(pending_reviewers)}")
-            report_lines.append("")
-            orchestrator_review.write_text(
-                f"# Orchestrator Review\n\n"
-                f"ticket: {args.ticket_id}\n"
-                f"slice: {sid}\n"
-                f"status: pending_review\n\n"
-                f"## Notes\n"
-                f"- Awaiting reviewer approvals: {', '.join(pending_reviewers)}\n",
-                encoding="utf-8",
-            )
-            continue
-
-        s["status"] = "verified"
-        ready_count += 1
-
-        if args.merge:
-            merge_proc = run(["git", "merge", "--no-ff", "--no-edit", branch], cwd=repo_root, check=False)
-            merge_log = harness_dir / "merge.log"
-            merge_log.write_text(
-                f"$ git merge --no-ff --no-edit {branch}\n\nSTDOUT:\n{merge_proc.stdout}\n\nSTDERR:\n{merge_proc.stderr}\n",
-                encoding="utf-8",
-            )
-            if merge_proc.returncode != 0:
-                s["status"] = "merge_failed"
-                failed_count += 1
-                report_lines.append(f"## {sid} ({s.get('primary_agent')})")
-                report_lines.append("- status: merge_failed")
-                report_lines.append(f"- merge_log: `{merge_log}`")
-                report_lines.append("")
-                orchestrator_review.write_text(
-                    f"# Orchestrator Review\n\n"
-                    f"ticket: {args.ticket_id}\n"
-                    f"slice: {sid}\n"
-                    f"status: merge_failed\n\n"
-                    f"## Notes\n"
-                    f"- Merge failed. See `{merge_log}`.\n",
-                    encoding="utf-8",
-                )
-                continue
-
-            s["status"] = "merged"
-            merged_count += 1
-            if args.push_base:
-                push_proc = run(["git", "push", "origin", base_branch], cwd=repo_root, check=False)
-                push_log = harness_dir / "push.log"
-                push_log.write_text(
-                    f"$ git push origin {base_branch}\n\nSTDOUT:\n{push_proc.stdout}\n\nSTDERR:\n{push_proc.stderr}\n",
-                    encoding="utf-8",
-                )
-                if push_proc.returncode != 0:
-                    s["status"] = "push_failed"
-                    failed_count += 1
-                    report_lines.append(f"## {sid} ({s.get('primary_agent')})")
-                    report_lines.append("- status: push_failed")
-                    report_lines.append(f"- push_log: `{push_log}`")
-                    report_lines.append("")
-                    orchestrator_review.write_text(
-                        f"# Orchestrator Review\n\n"
-                        f"ticket: {args.ticket_id}\n"
-                        f"slice: {sid}\n"
-                        f"status: push_failed\n\n"
-                        f"## Notes\n"
-                        f"- Push failed. See `{push_log}`.\n",
-                        encoding="utf-8",
-                    )
-                    continue
-
-            if cleanup_enabled:
-                cleanup_log = harness_dir / "cleanup-worktree.log"
-                if wt.exists():
-                    cleanup_proc = run(["git", "worktree", "remove", str(wt)], cwd=repo_root, check=False)
-                    cleanup_log.write_text(
-                        f"$ git worktree remove {wt}\n\nSTDOUT:\n{cleanup_proc.stdout}\n\nSTDERR:\n{cleanup_proc.stderr}\n",
-                        encoding="utf-8",
-                    )
-                    if cleanup_proc.returncode != 0:
-                        s["status"] = "cleanup_failed"
-                        failed_count += 1
-                        report_lines.append(f"## {sid} ({s.get('primary_agent')})")
-                        report_lines.append("- status: cleanup_failed")
-                        report_lines.append(f"- cleanup_log: `{cleanup_log}`")
-                        report_lines.append("")
-                        orchestrator_review.write_text(
-                            f"# Orchestrator Review\n\n"
-                            f"ticket: {args.ticket_id}\n"
-                            f"slice: {sid}\n"
-                            f"status: cleanup_failed\n\n"
-                            f"## Notes\n"
-                            f"- Merge succeeded but worktree cleanup failed. See `{cleanup_log}`.\n",
-                            encoding="utf-8",
-                        )
-                        continue
-                else:
-                    cleanup_log.write_text(
-                        f"worktree already absent: {wt}\n",
-                        encoding="utf-8",
-                    )
-
-        report_lines.append(f"## {sid} ({s.get('primary_agent')})")
-        report_lines.append(f"- status: {s['status']}")
-        for cmd, ok, path in check_log:
-            report_lines.append(f"- check: `{cmd}` => {'PASS' if ok else 'FAIL'} (`{path}`)")
-        report_lines.append("")
-        orchestrator_review.write_text(
-            f"# Orchestrator Review\n\n"
-            f"ticket: {args.ticket_id}\n"
-            f"slice: {sid}\n"
-            f"status: {s['status']}\n\n"
-            f"## Notes\n"
-            f"- Scope boundaries respected.\n"
-            f"- Required checks passed.\n"
-            f"- Reviewer approvals complete.\n",
-            encoding="utf-8",
-        )
-
-    all_statuses = {str(s.get("status")) for s in ticket.get("slices", [])}
-    if all(x == "merged" for x in all_statuses):
-        ticket["status"] = "done"
-    elif any(x in {"checks_failed", "merge_failed", "push_failed", "blocked_missing_worktree", "scope_violation", "coordination_required", "cleanup_failed"} for x in all_statuses):
-        ticket["status"] = "blocked"
-    elif any(x in {"verified", "pending_review", "waiting_for_push"} for x in all_statuses):
-        ticket["status"] = "in_progress"
-
-    write_ticket(repo_root, ticket)
-    write_cross_workflow_plan(repo_root, ticket)
-    write_ticket_summary(repo_root, ticket)
-
-    report_dir = ticket_dir(repo_root, args.ticket_id) / "reports"
-    report_dir.mkdir(parents=True, exist_ok=True)
-    report_path = report_dir / f"verify-{dt.datetime.now().strftime('%Y%m%d-%H%M%S')}.md"
-
-    report_lines.insert(4, f"- ticket_status: {ticket.get('status')}")
-    report_lines.insert(5, f"- merged_count: {merged_count}")
-    report_lines.insert(6, f"- verified_or_pending_review_count: {ready_count}")
-    report_lines.insert(7, f"- failed_count: {failed_count}")
-
-    report_path.write_text("\n".join(report_lines) + "\n", encoding="utf-8")
-    append_timeline(repo_root, args.ticket_id, f"verify run completed (merge_mode={'on' if args.merge else 'off'})")
-
-    print(f"[harness] verify report: {report_path}")
-    print(f"[harness] ticket status: {ticket.get('status')}")
-    print(f"[harness] merged={merged_count} ready={ready_count} failed={failed_count}")
-    return 0 if failed_count == 0 else 1
-
-
-def status_ticket(args: argparse.Namespace) -> int:
-    repo_root = project_root()
-    ticket = read_ticket(repo_root, args.ticket_id)
-    print(f"ticket_id: {ticket.get('ticket_id')}")
-    print(f"title: {ticket.get('title')}")
-    print(f"status: {ticket.get('status')}")
-    print(f"base_branch: {ticket.get('base_branch')}")
-    print("slices:")
-    for s in ticket.get("slices", []):
-        print(
-            f"  - {s.get('id')}: agent={s.get('primary_agent')} lane={s.get('lane')} status={s.get('status')} branch={s.get('branch')}"
-        )
-    return 0
-
-
-def parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(description="Harness orchestration helper for worktree/ticket automation")
-    sub = p.add_subparsers(dest="cmd", required=True)
-
-    inferred_base_branch = detect_default_base_branch()
-
-    create = sub.add_parser("bootstrap", help="Create ticket, plan slices, create worktrees, generate tmux commands")
-    create.add_argument("--title", required=True)
-    create.add_argument("--goal", required=True)
-    create.add_argument("--priority", default="high")
-    create.add_argument(
-        "--base-branch",
-        default=inferred_base_branch,
-        help=f"Target branch for slicing; defaults to current branch ({inferred_base_branch}) unless overridden",
-    )
-    create.add_argument("--paths", default="", help="Comma-separated target paths")
-    create.add_argument("--path", action="append", default=[], help="Repeatable target path")
-    create.add_argument("--ticket-id", default="")
-    create.add_argument("--worktree-root", default="")
-    create.add_argument("--tmux-lanes", default="", help="Comma-separated lanes, e.g. w1,w2,w3,w4")
-    create.add_argument("--create-worktrees", action=argparse.BooleanOptionalAction, default=True)
-    create.set_defaults(func=create_ticket)
-
-    dispatch = sub.add_parser("dispatch", help="Regenerate and print tmux command block for an existing ticket")
-    dispatch.add_argument("--ticket-id", required=True)
-    dispatch.add_argument("--create-missing-worktrees", action="store_true")
-    dispatch.set_defaults(func=dispatch_ticket)
-
-    review = sub.add_parser("review", help="Set reviewer evidence status for a slice")
-    review.add_argument("--ticket-id", required=True)
-    review.add_argument("--slice-id", required=True)
-    review.add_argument("--reviewer", required=True)
-    review.add_argument("--status", choices=["approved", "changes_requested", "blocked", "pending"], required=True)
-    review.add_argument("--findings", default="")
-    review.add_argument("--commands", default="")
-    review.add_argument("--artifacts", default="")
-    review.set_defaults(func=set_review_status)
-
-    verify = sub.add_parser("verify", help="Run checks, evaluate reviews, optionally merge")
-    verify.add_argument("--ticket-id", required=True)
-    verify.add_argument("--merge", action="store_true")
-    verify.add_argument("--push-base", action="store_true")
-    verify.add_argument("--cleanup-worktrees", action=argparse.BooleanOptionalAction, default=None)
-    verify.add_argument("--allow-dirty", action="store_true")
-    verify.set_defaults(func=verify_ticket)
-
-    status = sub.add_parser("status", help="Print compact ticket status")
-    status.add_argument("--ticket-id", required=True)
-    status.set_defaults(func=status_ticket)
-
-    return p
+    return resolved
 
 
 def main() -> int:
-    p = parser()
-    args = p.parse_args()
-    try:
-        return int(args.func(args))
-    except Exception as exc:  # pylint: disable=broad-except
-        print(f"[harness] ERROR: {exc}", file=sys.stderr)
-        return 1
+    args = parse_args()
+    if args.changed_file:
+        changed_files = [
+            path
+            for path in sorted(set(args.changed_file))
+            if not matches_prefix(path, IGNORED_PREFIXES)
+        ]
+    else:
+        changed_files = gather_changed_files(args.diff_base)
+    policy = build_policy(changed_files)
+
+    required_checks = policy["required_checks"]
+    if args.checks_only:
+        for cmd in required_checks:
+            print(cmd)
+        return 0
+
+    if args.json:
+        print(json.dumps(policy, indent=2))
+        return 0
+
+    print(f"lane: {policy['lane']}")
+    print(f"classification: {policy['classification']}")
+    print(f"docs_only_review_skip: {policy['docs_only_review_skip']}")
+    print(f"required_review: {policy['required_review']}")
+    print("review_only_agents_commit_code: false")
+    print("required_checks:")
+    for cmd in required_checks:
+        print(f"- {cmd}")
+    return 0
 
 
 if __name__ == "__main__":

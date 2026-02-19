@@ -2,18 +2,14 @@ package com.bigbrightpaints.erp.core.security;
 
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccount;
 import com.bigbrightpaints.erp.modules.auth.domain.UserPrincipal;
-import com.bigbrightpaints.erp.modules.company.domain.Company;
-import com.bigbrightpaints.erp.modules.company.domain.CompanyLifecycleState;
-import com.bigbrightpaints.erp.modules.company.service.CompanyService;
+import com.bigbrightpaints.erp.modules.company.service.TenantRuntimeEnforcementService;
 import io.jsonwebtoken.Claims;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import java.nio.charset.StandardCharsets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.http.MediaType;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
@@ -26,15 +22,17 @@ import java.io.IOException;
 public class CompanyContextFilter extends OncePerRequestFilter {
 
     private static final Logger log = LoggerFactory.getLogger(CompanyContextFilter.class);
-    private final CompanyService companyService;
+    private final TenantRuntimeEnforcementService tenantRuntimeEnforcementService;
 
-    public CompanyContextFilter(CompanyService companyService) {
-        this.companyService = companyService;
+    public CompanyContextFilter(TenantRuntimeEnforcementService tenantRuntimeEnforcementService) {
+        this.tenantRuntimeEnforcementService = tenantRuntimeEnforcementService;
     }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
+        TenantRuntimeEnforcementService.TenantRequestAdmission admission =
+                TenantRuntimeEnforcementService.TenantRequestAdmission.notTracked();
         try {
             String headerCompanyCode = request.getHeader("X-Company-Code");
             String legacyHeaderCompanyId = request.getHeader("X-Company-Id");
@@ -76,119 +74,76 @@ public class CompanyContextFilter extends OncePerRequestFilter {
                 }
                 requestedCompany = resolvedTokenCompany;
             } else {
-                if (StringUtils.hasText(requestedCompany) && requiresAuthenticatedCompanyContext(request)) {
-                    AccessValidationResult validationResult = validateCompanyAccess(requestedCompany.trim());
-                    if (validationResult == AccessValidationResult.UNAUTHENTICATED) {
-                        log.warn("Rejecting unauthenticated company context attempt. companyCode={}, path={}",
-                                requestedCompany, request.getRequestURI());
-                        writeFailClosedResponse(
-                                response,
-                                HttpServletResponse.SC_UNAUTHORIZED,
-                                "Authentication required for company context");
-                        return;
-                    }
-                    if (validationResult == AccessValidationResult.FORBIDDEN) {
-                        log.warn("Rejecting company context attempt without token-backed company claim. companyCode={}, path={}",
-                                requestedCompany, request.getRequestURI());
-                        writeFailClosedResponse(
-                                response,
-                                HttpServletResponse.SC_FORBIDDEN,
-                                "Access denied to company: " + requestedCompany);
-                        return;
-                    }
-                }
-                // Do not allow requests without token company claims to set tenant context via header.
+                // Do not allow unauthenticated requests to set tenant context via header.
                 requestedCompany = null;
             }
             String companyCode = StringUtils.hasText(requestedCompany) ? requestedCompany.trim() : null;
             if (companyCode != null) {
                 // Validate user has access to this company
-                AccessValidationResult validationResult = validateCompanyAccess(companyCode);
-                if (validationResult == AccessValidationResult.UNAUTHENTICATED) {
-                    log.warn("Rejecting unauthenticated company context attempt. companyCode={}, path={}",
-                            companyCode, request.getRequestURI());
-                    response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Authentication required for company context");
-                    return;
-                }
-                if (validationResult == AccessValidationResult.FORBIDDEN) {
+                if (!validateCompanyAccess(companyCode)) {
                     log.warn("User attempted to access unauthorized company: {}", companyCode);
                     response.sendError(HttpServletResponse.SC_FORBIDDEN, "Access denied to company: " + companyCode);
+                    return;
+                }
+                admission = tenantRuntimeEnforcementService.beginRequest(
+                        companyCode,
+                        request.getRequestURI(),
+                        request.getMethod(),
+                        resolveCurrentActor());
+                if (!admission.isAdmitted()) {
+                    response.setStatus(admission.statusCode());
+                    response.setContentType("application/json");
+                    response.setCharacterEncoding("UTF-8");
+                    String message = admission.message();
+                    if (StringUtils.hasText(message)) {
+                        String escaped = message
+                                .replace("\\", "\\\\")
+                                .replace("\"", "\\\"");
+                        response.getWriter().write("{\"message\":\"" + escaped + "\"}");
+                    } else {
+                        response.getWriter().write("{\"message\":\"Access denied\"}");
+                    }
                     return;
                 }
                 CompanyContextHolder.setCompanyCode(companyCode);
             }
             filterChain.doFilter(request, response);
         } finally {
+            tenantRuntimeEnforcementService.completeRequest(admission, response.getStatus());
             CompanyContextHolder.clear();
         }
     }
 
-    private AccessValidationResult validateCompanyAccess(String companyCode) {
+    private boolean validateCompanyAccess(String companyCode) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null || !auth.isAuthenticated()
-                || auth.getAuthorities().stream().anyMatch(authority -> "ROLE_ANONYMOUS".equals(authority.getAuthority()))) {
-            return AccessValidationResult.UNAUTHENTICATED;
+        if (auth == null || !auth.isAuthenticated()) {
+            return false;
         }
         Object principal = auth.getPrincipal();
         if (principal instanceof UserPrincipal userPrincipal) {
             UserAccount user = userPrincipal.getUser();
             if (user == null || user.getCompanies() == null) {
-                return AccessValidationResult.FORBIDDEN;
+                return false;
             }
-            Company matchedCompany = user.getCompanies().stream()
-                    .filter(c -> c.getCode().equalsIgnoreCase(companyCode))
-                    .findFirst()
-                    .orElse(null);
-            if (matchedCompany == null) {
-                return AccessValidationResult.FORBIDDEN;
-            }
-            CompanyLifecycleState lifecycleState = companyService.resolveLifecycleStateById(matchedCompany.getId());
-            if (lifecycleState != CompanyLifecycleState.ACTIVE) {
-                log.warn("Rejecting request for tenant lifecycle state {}. companyCode={}, user={}",
-                        lifecycleState, companyCode, user.getEmail());
-                return AccessValidationResult.FORBIDDEN;
-            }
-            return AccessValidationResult.ALLOWED;
+            // Check if user has access to the requested company
+            return user.getCompanies().stream()
+                    .anyMatch(c -> c.getCode().equalsIgnoreCase(companyCode));
         }
         // Fail closed for unknown principal types.
-        return AccessValidationResult.FORBIDDEN;
+        return false;
+    }
+
+    private String resolveCurrentActor() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !StringUtils.hasText(auth.getName())) {
+            return null;
+        }
+        return auth.getName().trim();
     }
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = request.getServletPath();
         return path.startsWith("/actuator") || path.startsWith("/swagger") || path.startsWith("/v3");
-    }
-
-    private void writeFailClosedResponse(HttpServletResponse response, int status, String message) throws IOException {
-        response.setStatus(status);
-        response.setCharacterEncoding(StandardCharsets.UTF_8.name());
-        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-        response.getWriter().write("{\"success\":false,\"message\":\"" + escapeJson(message) + "\"}");
-        response.getWriter().flush();
-    }
-
-    private String escapeJson(String value) {
-        if (value == null) {
-            return "";
-        }
-        return value.replace("\\", "\\\\").replace("\"", "\\\"");
-    }
-
-    private boolean requiresAuthenticatedCompanyContext(HttpServletRequest request) {
-        if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
-            return false;
-        }
-        String path = request.getServletPath();
-        return !"/api/v1/auth/login".equals(path)
-                && !"/api/v1/auth/refresh-token".equals(path)
-                && !"/api/v1/auth/password/forgot".equals(path)
-                && !"/api/v1/auth/password/reset".equals(path);
-    }
-
-    private enum AccessValidationResult {
-        ALLOWED,
-        UNAUTHENTICATED,
-        FORBIDDEN
     }
 }
