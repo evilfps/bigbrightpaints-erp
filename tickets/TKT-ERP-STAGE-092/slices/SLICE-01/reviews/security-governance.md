@@ -14,6 +14,7 @@ status: approved
 - commands:
   - `bash ci/check-architecture.sh` -> PASS
   - `cd erp-domain && mvn -B -ntp test -Dtest=CompanyQuotaContractTest` -> PASS
+  - `cd erp-domain && mvn -B -ntp test -Dtest=AuthTenantAuthorityIT` -> FAIL (pre-existing baseline assertions at lines 155 and 396 on both slice/base)
   - static review on branch head `86658424`
 - artifacts:
   - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/company/controller/CompanyController.java`

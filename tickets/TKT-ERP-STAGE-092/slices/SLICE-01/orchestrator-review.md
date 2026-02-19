@@ -2,19 +2,19 @@
 
 ticket: TKT-ERP-STAGE-092
 slice: SLICE-01
-status: in_review
+status: merged
 
 ## Notes
-- Slice implemented on branch `tickets/tkt-erp-stage-092/auth-rbac-company` with head `86658424` (includes corrective follow-up after security review).
+- Slice implemented on branch `tickets/tkt-erp-stage-092/auth-rbac-company` with head `86658424` (corrective follow-up after security review), then merged into base as commit `a1047c52`.
 - Required slice check passed:
   - `bash ci/check-architecture.sh` -> PASS
 - Focused contract test passed:
   - `cd erp-domain && mvn -B -ntp test -Dtest=CompanyQuotaContractTest` -> PASS
-- Integration proof pending infra:
-  - `cd erp-domain && mvn -B -ntp test -Dtest=AuthTenantAuthorityIT` -> FAIL due missing Docker socket (`/var/run/docker.sock`).
+- Integration run executed with Docker bridge:
+  - `cd erp-domain && mvn -B -ntp test -Dtest=AuthTenantAuthorityIT` -> FAIL (2 known baseline assertions: line 155 expected 403 got 200, line 396 expected 401 got 403).
 - Reviewer statuses:
   - `qa-reliability` -> approved
   - `security-governance` -> approved
 
 ## Merge Readiness
-- Not merged yet. Keep slice in `in_review` until Docker-backed integration test evidence is captured on this machine or equivalent CI lane.
+- Merged. Remaining failures are pre-existing baseline issues reproduced on untouched base branch under the same Docker-backed run.

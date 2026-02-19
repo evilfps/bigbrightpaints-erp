@@ -6,13 +6,13 @@
 - status: in_progress
 - base_branch: harness-engineering-orchestrator
 - created_at: 2026-02-19T13:10:22+00:00
-- updated_at: 2026-02-19T17:25:33Z
+- updated_at: 2026-02-19T17:35:31Z
 
 ## Slice Board
 
 | Slice | Agent | Lane | Status | Branch |
 | --- | --- | --- | --- | --- |
-| SLICE-01 | auth-rbac-company | w1 | in_review | `tickets/tkt-erp-stage-092/auth-rbac-company` |
+| SLICE-01 | auth-rbac-company | w1 | merged | `tickets/tkt-erp-stage-092/auth-rbac-company` |
 | SLICE-02 | data-migration | w2 | ready | `tickets/tkt-erp-stage-092/data-migration` |
 | SLICE-03 | refactor-techdebt-gc | w3 | ready | `tickets/tkt-erp-stage-092/refactor-techdebt-gc` |
 
