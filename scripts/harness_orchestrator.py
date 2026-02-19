@@ -202,6 +202,36 @@ def remote_branch_exists(repo_root: Path, branch: str) -> bool:
     return proc.returncode == 0
 
 
+def resolve_base_ref(repo_root: Path, requested_base: str) -> str:
+    base = requested_base.strip()
+    if not base:
+        raise RuntimeError("base branch cannot be empty")
+
+    if base.startswith("origin/"):
+        remote_ref = f"refs/remotes/{base}"
+        proc = run(["git", "show-ref", "--verify", remote_ref], cwd=repo_root, check=False)
+        if proc.returncode != 0:
+            raise RuntimeError(f"base branch not found: {base}")
+        return base
+
+    has_local = branch_exists(repo_root, base)
+    has_remote = remote_branch_exists(repo_root, base)
+
+    if has_local and has_remote:
+        local_sha = run(["git", "rev-parse", f"refs/heads/{base}"], cwd=repo_root).stdout.strip()
+        remote_sha = run(["git", "rev-parse", f"refs/remotes/origin/{base}"], cwd=repo_root).stdout.strip()
+        if local_sha != remote_sha:
+            return f"origin/{base}"
+        return base
+
+    if has_remote:
+        return f"origin/{base}"
+    if has_local:
+        return base
+
+    raise RuntimeError(f"base branch not found locally/remotely: {base}")
+
+
 def ensure_worktree(repo_root: Path, worktree_path: Path, branch: str, base_branch: str) -> None:
     worktree_path.parent.mkdir(parents=True, exist_ok=True)
     if worktree_path.exists() and (worktree_path / ".git").exists():
@@ -680,7 +710,8 @@ def create_ticket(args: argparse.Namespace) -> int:
     orchestrator_layer, catalog, agent_defs = load_contracts(repo_root)
 
     scope_paths = parse_paths(args.paths, args.path)
-    base_branch = args.base_branch
+    requested_base_branch = args.base_branch
+    base_branch = resolve_base_ref(repo_root, requested_base_branch)
     worktree_root = Path(args.worktree_root).expanduser() if args.worktree_root else default_worktree_root(repo_root)
     lanes = [x.strip() for x in args.tmux_lanes.split(",") if x.strip()] if args.tmux_lanes else default_tmux_lanes(orchestrator_layer)
     if not lanes:
@@ -765,6 +796,7 @@ def create_ticket(args: argparse.Namespace) -> int:
         "priority": args.priority,
         "status": "planned",
         "base_branch": base_branch,
+        "requested_base_branch": requested_base_branch,
         "worktree_root": str(worktree_root),
         "created_at": utc_now(),
         "updated_at": utc_now(),
@@ -791,6 +823,8 @@ def create_ticket(args: argparse.Namespace) -> int:
     print(f"[harness] slices: {len(slices)}")
     print(f"[harness] ticket file: {ticket_file(repo_root, ticket_id)}")
     print(f"[harness] launch script: {ticket_dir(repo_root, ticket_id) / 'commands' / 'tmux-launch.sh'}")
+    if base_branch != requested_base_branch:
+        print(f"[harness] base branch resolved: requested={requested_base_branch} resolved={base_branch}")
     print()
     print(block)
     return 0
@@ -1312,7 +1346,7 @@ def parser() -> argparse.ArgumentParser:
     create.add_argument("--title", required=True)
     create.add_argument("--goal", required=True)
     create.add_argument("--priority", default="high")
-    create.add_argument("--base-branch", default="async-loop-predeploy-audit")
+    create.add_argument("--base-branch", default="harness-engineering-orchestrator")
     create.add_argument("--paths", default="", help="Comma-separated target paths")
     create.add_argument("--path", action="append", default=[], help="Repeatable target path")
     create.add_argument("--ticket-id", default="")
