@@ -67,8 +67,7 @@ public class AccountingController {
     private final AccountingAuditTrailService accountingAuditTrailService;
     private final CompanyContextService companyContextService;
     private final CompanyClock companyClock;
-    @Autowired(required = false)
-    private AuditService auditService;
+    private final AuditService auditService;
 
     public AccountingController(AccountingService accountingService,
                                 AccountingFacade accountingFacade,
@@ -84,6 +83,39 @@ public class AccountingController {
                                 AccountingAuditTrailService accountingAuditTrailService,
                                 CompanyContextService companyContextService,
                                 CompanyClock companyClock) {
+        this(accountingService,
+                accountingFacade,
+                salesReturnService,
+                accountingPeriodService,
+                reconciliationService,
+                statementService,
+                taxService,
+                temporalBalanceService,
+                accountHierarchyService,
+                agingReportService,
+                companyDefaultAccountsService,
+                accountingAuditTrailService,
+                companyContextService,
+                companyClock,
+                null);
+    }
+
+    @Autowired
+    public AccountingController(AccountingService accountingService,
+                                AccountingFacade accountingFacade,
+                                SalesReturnService salesReturnService,
+                                AccountingPeriodService accountingPeriodService,
+                                ReconciliationService reconciliationService,
+                                StatementService statementService,
+                                TaxService taxService,
+                                TemporalBalanceService temporalBalanceService,
+                                AccountHierarchyService accountHierarchyService,
+                                AgingReportService agingReportService,
+                                CompanyDefaultAccountsService companyDefaultAccountsService,
+                                AccountingAuditTrailService accountingAuditTrailService,
+                                CompanyContextService companyContextService,
+                                CompanyClock companyClock,
+                                AuditService auditService) {
         this.accountingService = accountingService;
         this.accountingFacade = accountingFacade;
         this.salesReturnService = salesReturnService;
@@ -98,6 +130,7 @@ public class AccountingController {
         this.accountingAuditTrailService = accountingAuditTrailService;
         this.companyContextService = companyContextService;
         this.companyClock = companyClock;
+        this.auditService = auditService;
     }
 
     /**
