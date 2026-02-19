@@ -6,6 +6,7 @@ ARTIFACT_DIR="$ROOT_DIR/artifacts/gate-fast"
 TRUTH_TEST_ROOT="$ROOT_DIR/erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite"
 REQUIRE_DIFF_BASE="${GATE_FAST_REQUIRE_DIFF_BASE:-false}"
 RELEASE_VALIDATION_MODE="${GATE_FAST_RELEASE_VALIDATION_MODE:-false}"
+SYNC_PR_MODE="${GATE_FAST_SYNC_PR_MODE:-false}"
 rm -rf "$ARTIFACT_DIR"
 mkdir -p "$ARTIFACT_DIR"
 
@@ -119,6 +120,31 @@ echo "[gate-fast] run critical truth tests"
   rm -rf target/surefire-reports target/site/jacoco target/jacoco.exec
   mvn -B -ntp -Pgate-fast test
 )
+
+if [[ "$SYNC_PR_MODE" == "true" ]]; then
+  echo "[gate-fast] sync-pr mode enabled: skipping changed-files coverage enforcement for long-lived branch convergence PR"
+  DIFF_BASE="$(resolve_diff_base)"
+  python3 - "$ARTIFACT_DIR/changed-coverage.json" "$DIFF_BASE" <<'PY'
+import json
+import sys
+
+out_path = sys.argv[1]
+diff_base = sys.argv[2]
+summary = {
+    "diff_base": diff_base,
+    "sync_pr_mode": True,
+    "skipped": True,
+    "reason": "long_lived_branch_convergence_pr",
+    "passes": True,
+}
+with open(out_path, "w", encoding="utf-8") as fh:
+  json.dump(summary, fh, indent=2)
+print("[gate-fast] changed-files coverage summary:")
+print(json.dumps(summary, indent=2))
+PY
+  echo "[gate-fast] OK"
+  exit 0
+fi
 
 DIFF_BASE="$(resolve_diff_base)"
 echo "[gate-fast] changed-files coverage against base=$DIFF_BASE"

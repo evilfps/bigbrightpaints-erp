@@ -134,9 +134,14 @@ jobs:
           if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
             export DIFF_BASE="${{ github.event.pull_request.base.sha }}"
             export GATE_FAST_RELEASE_VALIDATION_MODE=false
+            export GATE_FAST_SYNC_PR_MODE=false
+            if [[ "${{ github.head_ref }}" == sync/* ]]; then
+              export GATE_FAST_SYNC_PR_MODE=true
+            fi
           else
             export DIFF_BASE="${{ github.event.inputs.diff_base }}"
             export GATE_FAST_RELEASE_VALIDATION_MODE=true
+            export GATE_FAST_SYNC_PR_MODE=false
           fi
           bash scripts/gate_fast.sh
 

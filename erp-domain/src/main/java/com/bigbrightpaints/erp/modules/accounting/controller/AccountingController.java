@@ -656,7 +656,7 @@ public class AccountingController {
     /* Audit digest */
     @GetMapping("/audit/digest")
     @Deprecated(forRemoval = false, since = "2026-02-11")
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
+    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
     public ResponseEntity<ApiResponse<AuditDigestResponse>> auditDigest(@RequestParam(required = false) String from,
                                                                         @RequestParam(required = false) String to) {
         return ResponseEntity.ok(ApiResponse.success(

@@ -15,11 +15,15 @@ Command:
 - `bash scripts/gate_fast.sh`
 - Local long-lived branch usage:
   - `DIFF_BASE=$(git rev-parse HEAD~1) bash scripts/gate_fast.sh`
-  - CI/PR still resolves merge-base against `origin/main` (or `GITHUB_BASE_SHA`) unless `DIFF_BASE` is explicitly set.
+  - CI/PR resolves `DIFF_BASE` from the pull-request base SHA unless overridden.
 - Branch-as-trunk final certification usage:
   - `GATE_FAST_RELEASE_VALIDATION_MODE=true DIFF_BASE=<RELEASE_ANCHOR_SHA> bash scripts/gate_fast.sh`
   - In this mode, `DIFF_BASE` is mandatory and `HEAD~N` values are rejected.
   - `RELEASE_ANCHOR_SHA` must be a fixed baseline commit before the current hardening train on this branch.
+- Long-lived branch convergence PR usage:
+  - `GATE_FAST_SYNC_PR_MODE=true bash scripts/gate_fast.sh`
+  - This mode runs all gate-fast guards + critical truth tests and intentionally skips changed-file coverage enforcement.
+  - Allowed only for orchestrated `sync/*` convergence PRs where the source hardening line is already release-certified.
 
 Enforced:
 - Only tests in `.../truthsuite/**`.
