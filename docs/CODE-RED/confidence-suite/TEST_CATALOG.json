@@ -900,6 +900,46 @@
       "accounting_math_critical": true,
       "cross_module_critical": true,
       "quality_flake_monitor": true
+    },
+    {
+      "id": "ts-o2c-approval-runtime-coverage",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/o2c/TS_truthsuite_o2c_Approval_RuntimeTest.java",
+      "owner": "erp-domain-team",
+      "class": "critical",
+      "module": "O2C",
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-reconciliation",
+        "gate-quality"
+      ],
+      "tags": [
+        "critical"
+      ],
+      "accounting_math_critical": true,
+      "cross_module_critical": true,
+      "quality_flake_monitor": true
+    },
+    {
+      "id": "ts-o2c-override-runtime-coverage",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/o2c/TS_truthsuite_o2c_Override_RuntimeTest.java",
+      "owner": "erp-domain-team",
+      "class": "critical",
+      "module": "O2C",
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-reconciliation",
+        "gate-quality"
+      ],
+      "tags": [
+        "critical"
+      ],
+      "accounting_math_critical": true,
+      "cross_module_critical": true,
+      "quality_flake_monitor": true
     }
   ]
 }

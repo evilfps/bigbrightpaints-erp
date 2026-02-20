@@ -121,6 +121,12 @@ public class SalesService {
     private static final String DEFAULT_ORDER_PAYMENT_MODE = "CREDIT";
     private static final Set<String> VALID_ORDER_PAYMENT_MODES = Set.of("CASH", "CREDIT", "SPLIT");
     private static final Set<String> CREDIT_EXPOSURE_PAYMENT_MODES = Set.of("CASH", "CREDIT", "SPLIT");
+    private static final String DISPATCH_REASON_CODE_CREDIT_LIMIT = "CREDIT_LIMIT_EXCEPTION";
+    private static final String DISPATCH_REASON_CODE_PRICE_OVERRIDE = "PRICE_OVERRIDE";
+    private static final String DISPATCH_REASON_CODE_DISCOUNT_OVERRIDE = "DISCOUNT_OVERRIDE";
+    private static final String DISPATCH_REASON_CODE_TAX_OVERRIDE = "TAX_OVERRIDE";
+    private static final String DISPATCH_REASON_CODE_LINE_OVERRIDE = "LINE_OVERRIDE";
+    private static final String DISPATCH_REASON_CODE_COMPOSITE_OVERRIDE = "COMPOSITE_OVERRIDE";
 
     private final CompanyContextService companyContextService;
     private final DealerRepository dealerRepository;
@@ -2002,11 +2008,23 @@ public class SalesService {
             }
         }
         boolean hasRequestedOverrides = lineOverrides.values().stream().anyMatch(this::isDispatchOverrideApplied);
+        boolean hasPriceOverride = lineOverrides.values().stream().anyMatch(line -> line != null && line.priceOverride() != null);
+        boolean hasDiscountOverride = lineOverrides.values().stream().anyMatch(line -> line != null && line.discount() != null);
+        boolean hasTaxOverride = lineOverrides.values().stream()
+                .anyMatch(line -> line != null && (line.taxRate() != null || line.taxInclusive() != null));
         Map<Long, BigDecimal> shipQtyByLineId = new HashMap<>();
 
         boolean orderTaxInclusive = order.isGstInclusive();
         Map<String, BigDecimal> minPriceBySku = new HashMap<>();
         boolean alreadyDispatched = "DISPATCHED".equalsIgnoreCase(slip.getStatus());
+        boolean hasCreditException = Boolean.TRUE.equals(request.adminOverrideCreditLimit()) && !alreadyDispatched;
+        boolean hasDispatchException = hasRequestedOverrides || hasCreditException;
+        String dispatchReasonCode = resolveDispatchExceptionReasonCode(
+                hasCreditException,
+                hasPriceOverride,
+                hasDiscountOverride,
+                hasTaxOverride,
+                hasRequestedOverrides);
         if (existingInvoice == null && alreadyDispatched) {
             existingInvoice = resolveExistingInvoiceForSlip(company, order, slip, slipNumber, singleActiveSlipForOrder);
         }
@@ -2032,6 +2050,13 @@ public class SalesService {
             if (!StringUtils.hasText(request.overrideReason())) {
                 throw new ApplicationException(ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD,
                         "overrideReason is required when dispatch overrides are applied");
+            }
+            overrideReason = request.overrideReason().trim();
+        } else if (hasCreditException) {
+            if (!StringUtils.hasText(request.overrideReason())) {
+                throw new ApplicationException(ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD,
+                        "overrideReason is required when adminOverrideCreditLimit is true")
+                        .withDetail("field", "overrideReason");
             }
             overrideReason = request.overrideReason().trim();
         }
@@ -2099,8 +2124,24 @@ public class SalesService {
                 if (existingCogsJournalId != null) {
                     finishedGoodsService.linkDispatchMovementsToJournal(slip.getId(), existingCogsJournalId);
                 }
+                if (hasDispatchException) {
+                    requireDispatchExceptionApproval(
+                            company,
+                            order.getDealer(),
+                            slip,
+                            order,
+                            null,
+                            request.overrideRequestId(),
+                            dispatchReasonCode
+                    );
+                }
                 logDispatchAudit(slip, order, existingInvoice, existingJeId, existingCogsJournalId,
-                        existingInvoice != null ? existingInvoice.getTotalAmount() : null, true, hasRequestedOverrides, overrideReason);
+                        existingInvoice != null ? existingInvoice.getTotalAmount() : null,
+                        true,
+                        hasDispatchException,
+                        overrideReason,
+                        dispatchReasonCode,
+                        request.overrideRequestId());
                 return new DispatchConfirmResponse(slip.getId(), salesOrderId, existingInvoiceId, existingJeId, List.of(), true, List.of());
             }
         }
@@ -2468,7 +2509,19 @@ public class SalesService {
                     "No shippable quantity available for dispatch");
         }
 
-        if (!Boolean.TRUE.equals(request.adminOverrideCreditLimit())) {
+        if (hasDispatchException) {
+            requireDispatchExceptionApproval(
+                    company,
+                    dealer,
+                    slip,
+                    order,
+                    totalAmount,
+                    request.overrideRequestId(),
+                    dispatchReasonCode
+            );
+        }
+
+        if (!hasCreditException) {
             enforceDispatchCreditLimit(company, dealer, slip, order, totalAmount, request.overrideRequestId());
         }
 
@@ -2718,7 +2771,19 @@ public class SalesService {
             salesOrderRepository.save(order);
         }
 
-        logDispatchAudit(slip, order, invoice, arJournalEntryId, cogsJournalId, totalAmount, alreadyDispatched, hasRequestedOverrides, overrideReason);
+        logDispatchAudit(
+                slip,
+                order,
+                invoice,
+                arJournalEntryId,
+                cogsJournalId,
+                totalAmount,
+                alreadyDispatched,
+                hasDispatchException,
+                overrideReason,
+                dispatchReasonCode,
+                request.overrideRequestId()
+        );
         return new DispatchConfirmResponse(
                 slip.getId(),
                 salesOrderId,
@@ -2765,7 +2830,9 @@ public class SalesService {
                                   BigDecimal totalAmount,
                                   boolean alreadyDispatched,
                                   boolean hasOverrides,
-                                  String overrideReason) {
+                                  String overrideReason,
+                                  String overrideReasonCode,
+                                  Long overrideRequestId) {
         Map<String, String> metadata = new HashMap<>();
         if (slip != null && slip.getId() != null) {
             metadata.put("packingSlipId", slip.getId().toString());
@@ -2796,7 +2863,79 @@ public class SalesService {
         if (StringUtils.hasText(overrideReason)) {
             metadata.put("dispatchOverrideReason", overrideReason.trim());
         }
+        if (StringUtils.hasText(overrideReasonCode)) {
+            metadata.put("dispatchOverrideReasonCode", overrideReasonCode);
+        }
+        if (overrideRequestId != null) {
+            metadata.put("overrideRequestId", overrideRequestId.toString());
+        }
         auditService.logSuccess(AuditEvent.DISPATCH_CONFIRMED, metadata);
+    }
+
+    private void requireDispatchExceptionApproval(Company company,
+                                                  Dealer dealer,
+                                                  PackagingSlip slip,
+                                                  SalesOrder order,
+                                                  BigDecimal dispatchAmount,
+                                                  Long overrideRequestId,
+                                                  String reasonCode) {
+        if (overrideRequestId == null) {
+            throw new ApplicationException(ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD,
+                    "overrideRequestId is required when dispatch exceptions are applied")
+                    .withDetail("field", "overrideRequestId")
+                    .withDetail("reasonCode", reasonCode);
+        }
+        boolean approved = creditLimitOverrideService.isOverrideApproved(
+                overrideRequestId,
+                company,
+                dealer,
+                slip,
+                order,
+                dispatchAmount
+        );
+        if (approved) {
+            return;
+        }
+        throw new ApplicationException(ErrorCode.BUSINESS_INVALID_STATE,
+                "Dispatch exceptions require an approved maker-checker override request")
+                .withDetail("overrideRequestId", overrideRequestId)
+                .withDetail("reasonCode", reasonCode);
+    }
+
+    private String resolveDispatchExceptionReasonCode(boolean hasCreditException,
+                                                      boolean hasPriceOverride,
+                                                      boolean hasDiscountOverride,
+                                                      boolean hasTaxOverride,
+                                                      boolean hasAnyLineOverride) {
+        int lineOverrideKinds = 0;
+        if (hasPriceOverride) {
+            lineOverrideKinds++;
+        }
+        if (hasDiscountOverride) {
+            lineOverrideKinds++;
+        }
+        if (hasTaxOverride) {
+            lineOverrideKinds++;
+        }
+        if (!hasCreditException && lineOverrideKinds == 0) {
+            return null;
+        }
+        if (hasCreditException && lineOverrideKinds == 0) {
+            return DISPATCH_REASON_CODE_CREDIT_LIMIT;
+        }
+        if (!hasCreditException && lineOverrideKinds == 1) {
+            if (hasPriceOverride) {
+                return DISPATCH_REASON_CODE_PRICE_OVERRIDE;
+            }
+            if (hasDiscountOverride) {
+                return DISPATCH_REASON_CODE_DISCOUNT_OVERRIDE;
+            }
+            return DISPATCH_REASON_CODE_TAX_OVERRIDE;
+        }
+        if (!hasCreditException && hasAnyLineOverride && lineOverrideKinds == 0) {
+            return DISPATCH_REASON_CODE_LINE_OVERRIDE;
+        }
+        return DISPATCH_REASON_CODE_COMPOSITE_OVERRIDE;
     }
 
     private boolean isDispatchOverrideApplied(DispatchConfirmRequest.DispatchLine line) {
