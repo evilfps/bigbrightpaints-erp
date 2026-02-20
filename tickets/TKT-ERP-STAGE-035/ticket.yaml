@@ -3,11 +3,11 @@ title: Section 14.3 Full Anchor Gate Closure
 goal: Run full ledger gate set on one SHA with fixed release anchor and record immutable
   evidence
 priority: high
-status: blocked
+status: superseded
 base_branch: async-loop-predeploy-audit
 worktree_root: /home/realnigga/Desktop/orchestrator_erp_worktrees/_tmp_harness_integrate_worktrees
 created_at: '2026-02-17T09:29:46+00:00'
-updated_at: '2026-02-20T07:36:26+00:00'
+updated_at: '2026-02-20T07:38:37+00:00'
 r3_required: true
 orchestrator_authority:
   r1: orchestrator

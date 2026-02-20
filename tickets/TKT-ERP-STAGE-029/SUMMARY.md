@@ -3,10 +3,10 @@
 - title: ERP Staging Batch 29
 - goal: Sync Stage-028 evidence into slice branches for merge eligibility
 - priority: high
-- status: blocked
+- status: superseded
 - base_branch: async-loop-predeploy-audit
 - created_at: 2026-02-17T06:00:50+00:00
-- updated_at: 2026-02-20T07:36:26+00:00
+- updated_at: 2026-02-20T07:38:37+00:00
 
 ## Slice Board
 
@@ -16,9 +16,9 @@
 | SLICE-02 | refactor-techdebt-gc | w2 | checks_failed | `tickets/tkt-erp-stage-029/refactor-techdebt-gc-v2` |
 | SLICE-03 | repo-cartographer | w3 | pending_review | `tickets/tkt-erp-stage-029/repo-cartographer-v2` |
 
-## Blocker Note
+## Supersede Note
 
-- Ticket remains blocked on stale base branch (`async-loop-predeploy-audit`) and deferred to canonical-base work in TKT-ERP-STAGE-093; status stays blocked for timeline marker compatibility.
+- Ticket is superseded from stale base branch (`async-loop-predeploy-audit`) and replaced by canonical-base work in TKT-ERP-STAGE-093.
 
 ## Operator Commands
 

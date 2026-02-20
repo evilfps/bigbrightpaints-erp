@@ -3,10 +3,10 @@
 - title: Section 14.3 Full Anchor Gate Closure
 - goal: Run full ledger gate set on one SHA with fixed release anchor and record immutable evidence
 - priority: high
-- status: blocked
+- status: superseded
 - base_branch: async-loop-predeploy-audit
 - created_at: 2026-02-17T09:29:46+00:00
-- updated_at: 2026-02-20T07:36:26+00:00
+- updated_at: 2026-02-20T07:38:37+00:00
 
 ## Slice Board
 
@@ -22,7 +22,7 @@
 
 ## Closure Decision
 
-- Deferred to canonical-base work in TKT-ERP-STAGE-093; keep status blocked for timeline marker compatibility.
+- Superseded by canonical-base work in TKT-ERP-STAGE-093.
 - No code from stage-035 slices is eligible for merge on the stale base branch.
 
 ## Operator Commands
