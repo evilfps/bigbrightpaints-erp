@@ -106,6 +106,7 @@ public class InvoiceSettlementPolicy {
         BigDecimal discount = requireNonNegative(discountAmount, "discount amount");
         BigDecimal writeOff = requireNonNegative(writeOffAmount, "write-off amount");
         BigDecimal fxAdjustment = fxAdjustmentAmount != null ? fxAdjustmentAmount : BigDecimal.ZERO;
+        validateReference(reference);
 
         if (discount.compareTo(BigDecimal.ZERO) > 0
                 || writeOff.compareTo(BigDecimal.ZERO) > 0

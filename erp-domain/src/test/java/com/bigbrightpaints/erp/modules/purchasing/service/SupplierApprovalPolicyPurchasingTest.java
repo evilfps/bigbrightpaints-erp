@@ -31,7 +31,7 @@ class SupplierApprovalPolicyPurchasingTest {
                 "checker-user",
                 SupplierApprovalReasonCode.SUPPLIER_EXCEPTION,
                 Instant.parse("2026-02-20T00:00:00Z"),
-                Map.of("ticket", "TKT-ERP-STAGE-095"));
+                Map.of("ticket", "TKT-ERP-STAGE-095", "approvalSource", "workflow"));
 
         assertThrows(IllegalArgumentException.class, () -> policy.requireSettlementOverrideApproval(decision));
     }
@@ -44,7 +44,7 @@ class SupplierApprovalPolicyPurchasingTest {
                 "same-user",
                 SupplierApprovalReasonCode.SUPPLIER_EXCEPTION,
                 Instant.parse("2026-02-20T00:00:00Z"),
-                Map.of("ticket", "TKT-ERP-STAGE-095")));
+                Map.of("ticket", "TKT-ERP-STAGE-095", "approvalSource", "workflow")));
     }
 
     @Test
@@ -60,5 +60,16 @@ class SupplierApprovalPolicyPurchasingTest {
         assertEquals("SETTLEMENT_OVERRIDE", decision.immutableAuditMetadata().get("reasonCode"));
         assertThrows(UnsupportedOperationException.class,
                 () -> decision.immutableAuditMetadata().put("newKey", "newValue"));
+    }
+
+    @Test
+    void supplierApprovalMetadataRequiresTicket() {
+        assertThrows(IllegalArgumentException.class, () -> new SupplierApprovalDecision(
+                "APP-4",
+                "maker-user",
+                "checker-user",
+                SupplierApprovalReasonCode.SUPPLIER_EXCEPTION,
+                Instant.parse("2026-02-20T00:00:00Z"),
+                Map.of("approvalSource", "workflow")));
     }
 }

@@ -103,7 +103,7 @@ class InvoiceSettlementPolicyTest {
                 "checker-user",
                 SettlementApprovalReasonCode.SUPPLIER_EXCEPTION,
                 Instant.parse("2026-02-20T00:00:00Z"),
-                Map.of("ticket", "TKT-ERP-STAGE-095"));
+                Map.of("ticket", "TKT-ERP-STAGE-095", "approvalSource", "workflow"));
 
         assertThrows(IllegalArgumentException.class, () ->
                 policy.applySettlementWithOverride(
@@ -126,7 +126,7 @@ class InvoiceSettlementPolicyTest {
                 "checker-user",
                 SettlementApprovalReasonCode.SETTLEMENT_OVERRIDE,
                 Instant.parse("2026-02-20T00:00:00Z"),
-                Map.of("ticket", "TKT-ERP-STAGE-095"));
+                Map.of("ticket", "TKT-ERP-STAGE-095", "approvalSource", "workflow"));
 
         policy.applySettlementWithOverride(
                 invoice,
@@ -149,10 +149,43 @@ class InvoiceSettlementPolicyTest {
                 "checker-user",
                 SettlementApprovalReasonCode.SUPPLIER_EXCEPTION,
                 Instant.parse("2026-02-20T00:00:00Z"),
-                Map.of("ticket", "TKT-ERP-STAGE-095"));
+                Map.of("ticket", "TKT-ERP-STAGE-095", "approvalSource", "workflow"));
 
         SettlementApprovalDecision resolved = policy.requireSupplierExceptionApproval(approval);
         assertThrows(UnsupportedOperationException.class,
                 () -> resolved.immutableAuditMetadata().put("newKey", "newValue"));
+    }
+
+    @Test
+    void settlementOverrideFailsClosedWhenReferenceMissing() {
+        policy.ensureIssuable(invoice);
+        SettlementApprovalDecision approval = new SettlementApprovalDecision(
+                "APP-4",
+                "maker-user",
+                "checker-user",
+                SettlementApprovalReasonCode.SETTLEMENT_OVERRIDE,
+                Instant.parse("2026-02-20T00:00:00Z"),
+                Map.of("ticket", "TKT-ERP-STAGE-095", "approvalSource", "workflow"));
+
+        assertThrows(IllegalArgumentException.class, () ->
+                policy.applySettlementWithOverride(
+                        invoice,
+                        BigDecimal.valueOf(40),
+                        BigDecimal.TEN,
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        " ",
+                        approval));
+    }
+
+    @Test
+    void settlementApprovalMetadataRequiresSourceKey() {
+        assertThrows(IllegalArgumentException.class, () -> new SettlementApprovalDecision(
+                "APP-5",
+                "maker-user",
+                "checker-user",
+                SettlementApprovalReasonCode.SETTLEMENT_OVERRIDE,
+                Instant.parse("2026-02-20T00:00:00Z"),
+                Map.of("ticket", "TKT-ERP-STAGE-095")));
     }
 }
