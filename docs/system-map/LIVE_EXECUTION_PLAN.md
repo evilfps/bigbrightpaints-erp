@@ -9,14 +9,14 @@ Mode: Active (gate regression; deployment blocked)
 
 ## Current state (2026-02-20)
 - Async-loop status: `ACTIVE`.
-- Canonical head: `a6f74013cd852d6160fedb283db29988637b7eba` with anchor `06d85e792d2a80cd9fc1f8e5dc15d6dfa15dd93e`.
+- Canonical head: `edc7cd7439bff5a83d5055057814dc65fb056b60` with anchor `06d85e792d2a80cd9fc1f8e5dc15d6dfa15dd93e`.
 - `gate_fast`: `FAIL` (changed-files coverage below threshold; line_ratio `0.3163`, branch_ratio `0.3320`).
 - `gate_core`: `PASS`.
 - `gate_reconciliation`: `PASS`.
-- `gate_release`: `FAIL` (Postgres connection refused at `127.0.0.1:55432`).
+- `gate_release`: `PASS` (SSH run with Postgres service on `127.0.0.1:55432`).
 - Evidence ledger:
-  - local run: `artifacts/gate-ledger/a6f74013cd852d6160fedb283db29988637b7eba`
-  - ssh host run: `/home/realnigga/tmp/bigbrightpaints-erp-gate096/artifacts/gate-ledger/a6f74013cd852d6160fedb283db29988637b7eba`
+  - local run (pre-sync baseline): `artifacts/gate-ledger/a6f74013cd852d6160fedb283db29988637b7eba`
+  - ssh host run (latest): `/home/realnigga/tmp/bigbrightpaints-erp-gate096/artifacts/gate-ledger/edc7cd7439bff5a83d5055057814dc65fb056b60`
 
 ## Active constraints (refresh required)
 - Review dispatch capacity last confirmed blocked by external cap (max 6) on 2026-02-16; recheck required.
@@ -36,11 +36,11 @@ Mode: Active (gate regression; deployment blocked)
 1. Keep anchored `gate_fast` fresh on moving head.
 2. Re-run `gate_core`, `gate_reconciliation`, and `gate_release` on cadence for staging evidence.
 3. Record command outcomes in `asyncloop`.
-4. Current note (2026-02-20): anchored gate set on canonical head `a6f74013cd852d6160fedb283db29988637b7eba` with anchor `06d85e792d2a80cd9fc1f8e5dc15d6dfa15dd93e`:
+4. Current note (2026-02-20): anchored gate set on canonical head `edc7cd7439bff5a83d5055057814dc65fb056b60` with anchor `06d85e792d2a80cd9fc1f8e5dc15d6dfa15dd93e`:
    - `gate_fast` FAIL (changed-files coverage below threshold; line_ratio `0.3163`, branch_ratio `0.3320`)
    - `gate_core` PASS
    - `gate_reconciliation` PASS
-   - `gate_release` FAIL (Postgres connection refused at `127.0.0.1:55432`)
+   - `gate_release` PASS (SSH run with Postgres service on `127.0.0.1:55432`)
 
 ### Lane C: Consistency hardening (throughput lane)
 1. Prefer small, evidence-backed slices with low blast radius.
@@ -61,11 +61,11 @@ Mode: Active (gate regression; deployment blocked)
 - M8/M9 async hardening lane is complete and recorded in `asyncloop`.
 
 ## Latest gate evidence (2026-02-20)
-1. Canonical head: `a6f74013cd852d6160fedb283db29988637b7eba` with anchor `06d85e792d2a80cd9fc1f8e5dc15d6dfa15dd93e`.
+1. Canonical head: `edc7cd7439bff5a83d5055057814dc65fb056b60` with anchor `06d85e792d2a80cd9fc1f8e5dc15d6dfa15dd93e`.
 2. `gate_fast`: `FAIL` (changed-files coverage below threshold; line_ratio `0.3163`, branch_ratio `0.3320`).
 3. `gate_core`: `PASS`.
 4. `gate_reconciliation`: `PASS`.
-5. `gate_release`: `FAIL` (Postgres connection refused at `127.0.0.1:55432`).
+5. `gate_release`: `PASS` (SSH run with Postgres service on `127.0.0.1:55432`).
 6. Evidence ledger:
-   - local run: `artifacts/gate-ledger/a6f74013cd852d6160fedb283db29988637b7eba`
-   - ssh host run: `/home/realnigga/tmp/bigbrightpaints-erp-gate096/artifacts/gate-ledger/a6f74013cd852d6160fedb283db29988637b7eba`
+   - local run (pre-sync baseline): `artifacts/gate-ledger/a6f74013cd852d6160fedb283db29988637b7eba`
+   - ssh host run (latest): `/home/realnigga/tmp/bigbrightpaints-erp-gate096/artifacts/gate-ledger/edc7cd7439bff5a83d5055057814dc65fb056b60`

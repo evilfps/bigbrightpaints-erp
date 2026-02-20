@@ -5,4 +5,5 @@
 - `2026-02-20T10:06:49Z` `SLICE-01` gate ladder re-run over SSH (`asus-tuf-tail-ip`) on same canonical head: `gate_fast=FAIL`, `gate_core=PASS`, `gate_reconciliation=PASS`, `gate_release=FAIL` (Postgres connection refused at `127.0.0.1:55432`).
 - `2026-02-20T10:07:49+00:00` review updated: SLICE-02 orchestrator -> approved
 - `2026-02-20T10:08:10Z` `SLICE-02` docs refresh merged from `tickets/tkt-erp-stage-096/repo-cartographer` (cherry-pick `f2adb23c`) to reflect current gate-freshness blocker on canonical head.
-- `2026-02-20T10:08:16Z` ticket marked blocked pending `gate_fast` changed-files coverage closure and `gate_release` DB connectivity restoration.
+- `2026-02-20T10:14:42Z` `SLICE-01` full gate ladder re-run over SSH on latest canonical head `edc7cd7439bff5a83d5055057814dc65fb056b60` with Postgres service (`bbp-gate-pg` on `127.0.0.1:55432`): `gate_fast=FAIL`, `gate_core=PASS`, `gate_reconciliation=PASS`, `gate_release=PASS`.
+- `2026-02-20T10:15:36Z` ticket marked blocked pending `gate_fast` changed-files coverage closure on anchor `06d85e792d2a80cd9fc1f8e5dc15d6dfa15dd93e`.
