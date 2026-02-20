@@ -191,7 +191,7 @@ slices:
   multi_agent_fallback: &id002
   - model: gpt-5.3-codex
     reasoning: medium
-  status: ready
+  status: in_review
   objective: Raise anchored gate_fast changed-files line/branch coverage by adding
     deterministic tests for highest-deficit tenant runtime, company, admin/portal,
     purchasing, sales, and accounting-period services.
