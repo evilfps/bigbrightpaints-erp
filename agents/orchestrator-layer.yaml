@@ -419,6 +419,11 @@ review_pipeline:
   block_on_scope_violations: true
   require_static_review_before_merge: true
   require_codex_review_guidelines_check: true
+  docs_only_policy:
+    skip_review_subagents: true
+    skip_codex_review_comment: true
+    required_checks:
+      - bash ci/lint-knowledgebase.sh
   required_checks:
     - bash ci/lint-knowledgebase.sh
     - bash ci/check-architecture.sh

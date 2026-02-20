@@ -32,6 +32,7 @@ Quality gate:
 - Reject out-of-scope edits, duplicated implementations, and unverified high-risk changes.
 - Require a dedicated `code_reviewer` pass for non-doc commits before merge readiness.
 - Require findings-first review output with severity and file anchors; no summary-only approvals.
+- For docs-only commits, do not trigger `@codex review` comments and do not run review subagents.
 """
 
 sandbox_mode = "workspace-write"

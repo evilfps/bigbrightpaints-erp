@@ -272,6 +272,7 @@ governance_rules:
   - every worker must claim ticket slice before edits and release claim on done/blocked
   - each worktree gets isolated task packet
   - reviewers are review-only and never implement code
+  - docs-only commits must skip review subagents and must never trigger `@codex review` PR comments
   - non-doc commits require dedicated code_reviewer output with severity-tagged findings or explicit no-findings + residual-risk statement
   - enforce scope_paths before dispatch and before merge
   - block overlap and scope violations before merge
