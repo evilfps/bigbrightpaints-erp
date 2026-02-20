@@ -1,6 +1,7 @@
 package com.bigbrightpaints.erp.truthsuite.o2c;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -67,6 +68,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.TransactionStatus;
@@ -314,6 +316,312 @@ class TS_truthsuite_o2c_Approval_RuntimeTest {
         assertEquals("805", metadata.get("overrideRequestId"));
     }
 
+    @Test
+    void confirmDispatchFailsWhenAdminCreditOverrideMissingReason() {
+        Dealer dealer = dealerWithCreditLimitAndReceivable(42L, BigDecimal.valueOf(100));
+        SalesOrder order = newOrderWithSingleItem(dealer, new BigDecimal("200.00"));
+        PackagingSlip slip = pendingSlip(order);
+        slip.getLines().add(defaultSlipLine(slip));
+
+        when(packagingSlipRepository.findAndLockByIdAndCompany(55L, company)).thenReturn(Optional.of(slip));
+        when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 10L)).thenReturn(List.of(slip));
+        when(companyEntityLookup.requireSalesOrder(company, 10L)).thenReturn(order);
+
+        ApplicationException ex = assertThrows(
+                ApplicationException.class,
+                () -> salesService.confirmDispatch(new DispatchConfirmRequest(
+                        55L,
+                        null,
+                        List.of(),
+                        null,
+                        "admin",
+                        Boolean.TRUE,
+                        null,
+                        901L))
+        );
+
+        assertEquals(ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD, ex.getErrorCode());
+        assertTrue(ex.getMessage().contains("adminOverrideCreditLimit"));
+    }
+
+    @Test
+    void confirmDispatchAllowsAdminCreditOverrideAndAuditsCreditReasonCode() {
+        Dealer dealer = dealerWithCreditLimitAndReceivable(42L, BigDecimal.valueOf(100));
+        SalesOrder order = newOrderWithSingleItem(dealer, new BigDecimal("200.00"));
+        PackagingSlip slip = pendingSlip(order);
+        slip.getLines().add(defaultSlipLine(slip));
+        stubDispatchPersistence(order, slip);
+        when(dealerRepository.lockByCompanyAndId(company, dealer.getId())).thenReturn(Optional.of(dealer));
+        when(creditLimitOverrideService.isOverrideApproved(
+                eq(801L),
+                eq(company),
+                eq(dealer),
+                eq(slip),
+                eq(order),
+                any())).thenReturn(true);
+
+        DispatchConfirmResponse response = salesService.confirmDispatch(new DispatchConfirmRequest(
+                55L,
+                null,
+                List.of(),
+                null,
+                "admin",
+                Boolean.TRUE,
+                "Approved credit exception",
+                801L));
+
+        assertEquals(55L, response.packingSlipId());
+        assertEquals(10L, response.salesOrderId());
+        assertEquals(777L, response.finalInvoiceId());
+
+        ArgumentCaptor<Map<String, String>> metadataCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(auditService).logSuccess(eq(AuditEvent.DISPATCH_CONFIRMED), metadataCaptor.capture());
+        Map<String, String> metadata = metadataCaptor.getValue();
+        assertEquals("CREDIT_LIMIT_EXCEPTION", metadata.get("dispatchOverrideReasonCode"));
+        assertEquals("801", metadata.get("overrideRequestId"));
+    }
+
+    @Test
+    void confirmDispatchAllowsDiscountOverrideAndAuditsDiscountReasonCode() {
+        Dealer dealer = dealerWithCreditLimitAndReceivable(42L, BigDecimal.valueOf(2000));
+        SalesOrder order = newOrderWithSingleItem(dealer, new BigDecimal("100.00"));
+        PackagingSlip slip = pendingSlip(order);
+        slip.getLines().add(defaultSlipLine(slip));
+        stubDispatchPersistence(order, slip);
+        when(dealerRepository.lockByCompanyAndId(company, dealer.getId())).thenReturn(Optional.of(dealer));
+        when(dealerLedgerService.currentBalance(42L)).thenReturn(BigDecimal.ZERO);
+        when(creditLimitOverrideService.isOverrideApproved(
+                eq(802L),
+                eq(company),
+                eq(dealer),
+                eq(slip),
+                eq(order),
+                any())).thenReturn(true);
+
+        DispatchConfirmResponse response = salesService.confirmDispatch(new DispatchConfirmRequest(
+                55L,
+                null,
+                List.of(new DispatchConfirmRequest.DispatchLine(
+                        99L,
+                        null,
+                        BigDecimal.ONE,
+                        null,
+                        new BigDecimal("10.00"),
+                        null,
+                        null,
+                        null)),
+                null,
+                "admin",
+                Boolean.FALSE,
+                "Discount exception approved",
+                802L));
+
+        assertEquals(777L, response.finalInvoiceId());
+        ArgumentCaptor<Map<String, String>> metadataCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(auditService).logSuccess(eq(AuditEvent.DISPATCH_CONFIRMED), metadataCaptor.capture());
+        Map<String, String> metadata = metadataCaptor.getValue();
+        assertEquals("DISCOUNT_OVERRIDE", metadata.get("dispatchOverrideReasonCode"));
+        assertEquals("802", metadata.get("overrideRequestId"));
+    }
+
+    @Test
+    void confirmDispatchWithoutOverridesCompletesAndOmitsOverrideMetadata() {
+        Dealer dealer = dealerWithCreditLimitAndReceivable(42L, BigDecimal.valueOf(2000));
+        SalesOrder order = newOrderWithSingleItem(dealer, new BigDecimal("100.00"));
+        PackagingSlip slip = pendingSlip(order);
+        slip.getLines().add(defaultSlipLine(slip));
+        stubDispatchPersistence(order, slip);
+        when(dealerRepository.lockByCompanyAndId(company, dealer.getId())).thenReturn(Optional.of(dealer));
+        when(dealerLedgerService.currentBalance(42L)).thenReturn(BigDecimal.ZERO);
+
+        DispatchConfirmResponse response = salesService.confirmDispatch(new DispatchConfirmRequest(
+                55L,
+                null,
+                List.of(),
+                null,
+                "admin",
+                Boolean.FALSE,
+                null,
+                null));
+
+        assertEquals(777L, response.finalInvoiceId());
+        ArgumentCaptor<Map<String, String>> metadataCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(auditService).logSuccess(eq(AuditEvent.DISPATCH_CONFIRMED), metadataCaptor.capture());
+        Map<String, String> metadata = metadataCaptor.getValue();
+        assertEquals("false", metadata.get("dispatchOverridesApplied"));
+        assertEquals(null, metadata.get("dispatchOverrideReasonCode"));
+        assertEquals(null, metadata.get("overrideRequestId"));
+    }
+
+    @Test
+    void confirmDispatchReplayFastPathWithoutExceptionsSkipsOverrideApproval() {
+        SalesOrder order = new SalesOrder();
+        setField(order, "id", 10L);
+        order.setCompany(company);
+        order.setStatus("SHIPPED");
+
+        PackagingSlip slip = new PackagingSlip();
+        setField(slip, "id", 55L);
+        slip.setCompany(company);
+        slip.setSalesOrder(order);
+        slip.setSlipNumber("PS-55");
+        slip.setStatus("DISPATCHED");
+        slip.setInvoiceId(777L);
+        slip.setJournalEntryId(222L);
+        slip.setCogsJournalEntryId(333L);
+
+        Invoice existingInvoice = new Invoice();
+        setField(existingInvoice, "id", 777L);
+        existingInvoice.setTotalAmount(new BigDecimal("90.00"));
+
+        when(packagingSlipRepository.findAndLockByIdAndCompany(55L, company)).thenReturn(Optional.of(slip));
+        when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 10L)).thenReturn(List.of(slip));
+        when(companyEntityLookup.requireSalesOrder(company, 10L)).thenReturn(order);
+        when(invoiceRepository.findByCompanyAndId(company, 777L)).thenReturn(Optional.of(existingInvoice));
+
+        DispatchConfirmResponse response = salesService.confirmDispatch(new DispatchConfirmRequest(
+                55L,
+                null,
+                List.of(),
+                null,
+                "admin",
+                Boolean.FALSE,
+                null,
+                null));
+
+        assertEquals(222L, response.arJournalEntryId());
+        assertEquals(true, response.cogsPostings().isEmpty());
+    }
+
+    @Test
+    void confirmDispatchReplayFastPathHandlesLegacyMissingInvoiceEntity() {
+        SalesOrder order = new SalesOrder();
+        setField(order, "id", 10L);
+        order.setCompany(company);
+        order.setStatus("SHIPPED");
+
+        PackagingSlip slip = new PackagingSlip();
+        setField(slip, "id", 55L);
+        slip.setCompany(company);
+        slip.setSalesOrder(order);
+        slip.setSlipNumber("PS-55");
+        slip.setStatus("DISPATCHED");
+        slip.setInvoiceId(777L);
+        slip.setJournalEntryId(222L);
+        slip.setCogsJournalEntryId(333L);
+
+        when(packagingSlipRepository.findAndLockByIdAndCompany(55L, company)).thenReturn(Optional.of(slip));
+        when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 10L)).thenReturn(List.of(slip));
+        when(companyEntityLookup.requireSalesOrder(company, 10L)).thenReturn(order);
+        when(invoiceRepository.findByCompanyAndId(company, 777L)).thenReturn(Optional.empty());
+
+        DispatchConfirmResponse response = salesService.confirmDispatch(new DispatchConfirmRequest(
+                55L,
+                null,
+                List.of(),
+                null,
+                "admin",
+                Boolean.FALSE,
+                null,
+                null));
+
+        assertEquals(777L, response.finalInvoiceId());
+        assertEquals(222L, response.arJournalEntryId());
+    }
+
+    @Test
+    void resolveDispatchExceptionReasonCodeCoversAllDeclaredOutcomes() {
+        String none = ReflectionTestUtils.invokeMethod(
+                salesService,
+                "resolveDispatchExceptionReasonCode",
+                false,
+                false,
+                false,
+                false,
+                false);
+        assertNull(none);
+
+        String creditOnly = ReflectionTestUtils.invokeMethod(
+                salesService,
+                "resolveDispatchExceptionReasonCode",
+                true,
+                false,
+                false,
+                false,
+                false);
+        assertEquals("CREDIT_LIMIT_EXCEPTION", creditOnly);
+
+        String priceOnly = ReflectionTestUtils.invokeMethod(
+                salesService,
+                "resolveDispatchExceptionReasonCode",
+                false,
+                true,
+                false,
+                false,
+                true);
+        assertEquals("PRICE_OVERRIDE", priceOnly);
+
+        String discountOnly = ReflectionTestUtils.invokeMethod(
+                salesService,
+                "resolveDispatchExceptionReasonCode",
+                false,
+                false,
+                true,
+                false,
+                true);
+        assertEquals("DISCOUNT_OVERRIDE", discountOnly);
+
+        String taxOnly = ReflectionTestUtils.invokeMethod(
+                salesService,
+                "resolveDispatchExceptionReasonCode",
+                false,
+                false,
+                false,
+                true,
+                true);
+        assertEquals("TAX_OVERRIDE", taxOnly);
+
+        String lineOnly = ReflectionTestUtils.invokeMethod(
+                salesService,
+                "resolveDispatchExceptionReasonCode",
+                false,
+                false,
+                false,
+                false,
+                true);
+        assertNull(lineOnly);
+
+        String compositeFromMultipleLines = ReflectionTestUtils.invokeMethod(
+                salesService,
+                "resolveDispatchExceptionReasonCode",
+                false,
+                true,
+                true,
+                false,
+                true);
+        assertEquals("COMPOSITE_OVERRIDE", compositeFromMultipleLines);
+
+        String compositeWhenAnyOverrideFlagIsFalse = ReflectionTestUtils.invokeMethod(
+                salesService,
+                "resolveDispatchExceptionReasonCode",
+                false,
+                true,
+                true,
+                false,
+                false);
+        assertEquals("COMPOSITE_OVERRIDE", compositeWhenAnyOverrideFlagIsFalse);
+
+        String composite = ReflectionTestUtils.invokeMethod(
+                salesService,
+                "resolveDispatchExceptionReasonCode",
+                true,
+                true,
+                false,
+                false,
+                true);
+        assertEquals("COMPOSITE_OVERRIDE", composite);
+    }
+
     private SalesOrder newOrderWithSingleItem(Dealer dealer, BigDecimal unitPrice) {
         SalesOrder order = new SalesOrder();
         setField(order, "id", 10L);
@@ -371,6 +679,30 @@ class TS_truthsuite_o2c_Approval_RuntimeTest {
         slipLine.setQuantity(BigDecimal.ONE);
         slipLine.setUnitCost(BigDecimal.ZERO);
         return slipLine;
+    }
+
+    private Dealer dealerWithCreditLimitAndReceivable(long id, BigDecimal limit) {
+        Dealer dealer = dealerWithCreditLimit(id, limit);
+        Account receivable = new Account();
+        receivable.setName("AR");
+        setField(receivable, "id", 900L);
+        dealer.setReceivableAccount(receivable);
+        return dealer;
+    }
+
+    private void stubDispatchPersistence(SalesOrder order, PackagingSlip slip) {
+        when(packagingSlipRepository.findAndLockByIdAndCompany(55L, company)).thenReturn(Optional.of(slip));
+        when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 10L)).thenReturn(List.of(slip));
+        when(companyEntityLookup.requireSalesOrder(company, 10L)).thenReturn(order);
+        when(invoiceNumberService.nextInvoiceNumber(company)).thenReturn("INV-55");
+        when(invoiceRepository.save(any(Invoice.class))).thenAnswer(invocation -> {
+            Invoice invoice = invocation.getArgument(0);
+            setField(invoice, "id", 777L);
+            return invoice;
+        });
+        when(salesOrderRepository.save(any(SalesOrder.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(packagingSlipRepository.save(any(PackagingSlip.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(accountRepository.findById(any(Long.class))).thenReturn(Optional.empty());
     }
 
     private Dealer dealerWithCreditLimit(long id, BigDecimal limit) {
