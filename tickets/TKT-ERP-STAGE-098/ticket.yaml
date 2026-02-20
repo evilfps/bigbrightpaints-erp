@@ -1,0 +1,375 @@
+ticket_id: TKT-ERP-STAGE-098
+title: Gate Fast Threshold Closure Tranche 1
+goal: Raise anchored gate_fast changed-files line/branch coverage by adding deterministic
+  tests for highest-deficit tenant runtime, company, admin/portal, purchasing, sales,
+  and accounting-period services.
+priority: high
+status: in_progress
+base_branch: harness-engineering-orchestrator
+requested_base_branch: harness-engineering-orchestrator
+worktree_root: /Users/anas/Documents/orchestrator_erp/bigbrightpaints-erp_worktrees
+created_at: '2026-02-20T10:48:51+00:00'
+updated_at: '2026-02-20T11:12:36Z'
+r3_required: true
+orchestrator_authority:
+  r1: orchestrator
+  r2: orchestrator
+  r3: human
+slices:
+- id: SLICE-01
+  primary_agent: accounting-domain
+  reviewers:
+  - qa-reliability
+  - security-governance
+  scope_paths:
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingPeriodService.java
+  allowed_scope_paths:
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/
+  - erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/
+  - erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/accounting/
+  matched_rules:
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/
+  lane: w1
+  branch: tickets/tkt-erp-stage-098/accounting-domain
+  worktree_path: /Users/anas/Documents/orchestrator_erp/bigbrightpaints-erp_worktrees/TKT-ERP-STAGE-098/accounting-domain
+  required_checks:
+  - cd erp-domain && mvn -B -ntp -Dtest='*Accounting*' test
+  - bash scripts/verify_local.sh
+  multi_agent_role: cross_module
+  multi_agent_config_file: .codex/agents/cross_module.toml
+  multi_agent_model: gpt-5.3-codex
+  multi_agent_reasoning: xhigh
+  multi_agent_fallback: &id001
+  - model: gpt-5.3-codex
+    reasoning: high
+  status: merged
+  objective: Raise anchored gate_fast changed-files line/branch coverage by adding
+    deterministic tests for highest-deficit tenant runtime, company, admin/portal,
+    purchasing, sales, and accounting-period services.
+  workflow_upstream_slices:
+  - SLICE-02
+  - SLICE-03
+  - SLICE-05
+  workflow_downstream_slices: []
+  workflow_external_upstream_agents:
+  - factory-production
+  - hr-domain
+  - orchestrator-runtime
+  workflow_external_downstream_agents: []
+  cross_workflow_contracts:
+  - relation: upstream
+    agent: auth-rbac-company
+    slice_id: SLICE-02
+    contract: finance/admin authority boundaries
+    in_ticket: true
+  - relation: upstream
+    agent: purchasing-invoice-p2p
+    slice_id: SLICE-03
+    contract: ap/posting and settlement linkage
+    in_ticket: true
+  - relation: upstream
+    agent: sales-domain
+    slice_id: SLICE-05
+    contract: o2c posting and receivable linkage
+    in_ticket: true
+  - relation: upstream-external
+    agent: factory-production
+    slice_id: ''
+    contract: wip/variance/cogs posting linkage
+    in_ticket: false
+  - relation: upstream-external
+    agent: hr-domain
+    slice_id: ''
+    contract: payroll liability/payment posting linkage
+    in_ticket: false
+  - relation: upstream-external
+    agent: orchestrator-runtime
+    slice_id: ''
+    contract: outbox/idempotency posting orchestration
+    in_ticket: false
+- id: SLICE-02
+  primary_agent: auth-rbac-company
+  reviewers:
+  - qa-reliability
+  - security-governance
+  scope_paths:
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/company/service/CompanyService.java
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/company/service/TenantRuntimeEnforcementService.java
+  allowed_scope_paths:
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/auth/
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/rbac/
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/company/
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/core/security/
+  - erp-domain/src/test/java/com/bigbrightpaints/erp/modules/auth/
+  matched_rules:
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/company/
+  lane: w2
+  branch: tickets/tkt-erp-stage-098/auth-rbac-company
+  worktree_path: /Users/anas/Documents/orchestrator_erp/bigbrightpaints-erp_worktrees/TKT-ERP-STAGE-098/auth-rbac-company
+  required_checks:
+  - bash ci/check-architecture.sh
+  multi_agent_role: cross_module
+  multi_agent_config_file: .codex/agents/cross_module.toml
+  multi_agent_model: gpt-5.3-codex
+  multi_agent_reasoning: xhigh
+  multi_agent_fallback: *id001
+  status: merged
+  objective: Raise anchored gate_fast changed-files line/branch coverage by adding
+    deterministic tests for highest-deficit tenant runtime, company, admin/portal,
+    purchasing, sales, and accounting-period services.
+  workflow_upstream_slices: []
+  workflow_downstream_slices:
+  - SLICE-01
+  - SLICE-03
+  - SLICE-04
+  - SLICE-05
+  workflow_external_upstream_agents: []
+  workflow_external_downstream_agents:
+  - factory-production
+  - hr-domain
+  - inventory-domain
+  cross_workflow_contracts:
+  - relation: downstream
+    agent: accounting-domain
+    slice_id: SLICE-01
+    contract: finance/admin authority boundaries
+    in_ticket: true
+  - relation: downstream
+    agent: purchasing-invoice-p2p
+    slice_id: SLICE-03
+    contract: tenant-scoped supplier/AP access rules
+    in_ticket: true
+  - relation: downstream
+    agent: reports-admin-portal
+    slice_id: SLICE-04
+    contract: admin/report access boundaries
+    in_ticket: true
+  - relation: downstream
+    agent: sales-domain
+    slice_id: SLICE-05
+    contract: tenant and role boundary contract
+    in_ticket: true
+  - relation: downstream-external
+    agent: factory-production
+    slice_id: ''
+    contract: tenant-scoped manufacturing operations
+    in_ticket: false
+  - relation: downstream-external
+    agent: hr-domain
+    slice_id: ''
+    contract: payroll/PII access boundaries
+    in_ticket: false
+  - relation: downstream-external
+    agent: inventory-domain
+    slice_id: ''
+    contract: tenant context and role checks
+    in_ticket: false
+- id: SLICE-03
+  primary_agent: purchasing-invoice-p2p
+  reviewers:
+  - qa-reliability
+  - security-governance
+  scope_paths:
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/purchasing/service/PurchasingService.java
+  allowed_scope_paths:
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/purchasing/
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/invoice/
+  - erp-domain/src/test/java/com/bigbrightpaints/erp/modules/purchasing/
+  - erp-domain/src/test/java/com/bigbrightpaints/erp/modules/invoice/
+  - erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/p2p/
+  matched_rules:
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/purchasing/
+  lane: w3
+  branch: tickets/tkt-erp-stage-098/purchasing-invoice-p2p
+  worktree_path: /Users/anas/Documents/orchestrator_erp/bigbrightpaints-erp_worktrees/TKT-ERP-STAGE-098/purchasing-invoice-p2p
+  required_checks:
+  - bash ci/check-architecture.sh
+  multi_agent_role: cross_module_high
+  multi_agent_config_file: .codex/agents/cross_module_high.toml
+  multi_agent_model: gpt-5.3-codex
+  multi_agent_reasoning: high
+  multi_agent_fallback: &id002
+  - model: gpt-5.3-codex
+    reasoning: medium
+  status: ready
+  objective: Raise anchored gate_fast changed-files line/branch coverage by adding
+    deterministic tests for highest-deficit tenant runtime, company, admin/portal,
+    purchasing, sales, and accounting-period services.
+  workflow_upstream_slices:
+  - SLICE-02
+  workflow_downstream_slices:
+  - SLICE-01
+  workflow_external_upstream_agents: []
+  workflow_external_downstream_agents:
+  - inventory-domain
+  cross_workflow_contracts:
+  - relation: downstream
+    agent: accounting-domain
+    slice_id: SLICE-01
+    contract: ap/posting and settlement linkage
+    in_ticket: true
+  - relation: downstream-external
+    agent: inventory-domain
+    slice_id: ''
+    contract: grn/stock intake coupling
+    in_ticket: false
+  - relation: upstream
+    agent: auth-rbac-company
+    slice_id: SLICE-02
+    contract: tenant-scoped supplier/AP access rules
+    in_ticket: true
+- id: SLICE-04
+  primary_agent: reports-admin-portal
+  reviewers:
+  - qa-reliability
+  - security-governance
+  scope_paths:
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/admin/service/TenantRuntimePolicyService.java
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/portal/service/TenantRuntimeEnforcementInterceptor.java
+  allowed_scope_paths:
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/reports/
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/admin/
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/portal/
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/demo/
+  - erp-domain/src/test/java/com/bigbrightpaints/erp/modules/reports/
+  - erp-domain/src/test/java/com/bigbrightpaints/erp/modules/admin/
+  - erp-domain/src/test/java/com/bigbrightpaints/erp/modules/portal/
+  matched_rules:
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/admin/
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/portal/
+  lane: w4
+  branch: tickets/tkt-erp-stage-098/reports-admin-portal
+  worktree_path: /Users/anas/Documents/orchestrator_erp/bigbrightpaints-erp_worktrees/TKT-ERP-STAGE-098/reports-admin-portal
+  required_checks:
+  - bash ci/check-architecture.sh
+  multi_agent_role: cross_module_high
+  multi_agent_config_file: .codex/agents/cross_module_high.toml
+  multi_agent_model: gpt-5.3-codex
+  multi_agent_reasoning: high
+  multi_agent_fallback: *id002
+  status: merged
+  objective: Raise anchored gate_fast changed-files line/branch coverage by adding
+    deterministic tests for highest-deficit tenant runtime, company, admin/portal,
+    purchasing, sales, and accounting-period services.
+  workflow_upstream_slices:
+  - SLICE-02
+  workflow_downstream_slices: []
+  workflow_external_upstream_agents: []
+  workflow_external_downstream_agents: []
+  cross_workflow_contracts:
+  - relation: upstream
+    agent: auth-rbac-company
+    slice_id: SLICE-02
+    contract: admin/report access boundaries
+    in_ticket: true
+- id: SLICE-05
+  primary_agent: sales-domain
+  reviewers:
+  - qa-reliability
+  - security-governance
+  scope_paths:
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/sales/service/SalesService.java
+  allowed_scope_paths:
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/sales/
+  - erp-domain/src/test/java/com/bigbrightpaints/erp/modules/sales/
+  - erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/o2c/
+  matched_rules:
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/sales/
+  lane: w1
+  branch: tickets/tkt-erp-stage-098/sales-domain
+  worktree_path: /Users/anas/Documents/orchestrator_erp/bigbrightpaints-erp_worktrees/TKT-ERP-STAGE-098/sales-domain
+  required_checks:
+  - cd erp-domain && mvn -B -ntp -Dtest='*Sales*' test
+  - bash ci/check-architecture.sh
+  multi_agent_role: cross_module_high
+  multi_agent_config_file: .codex/agents/cross_module_high.toml
+  multi_agent_model: gpt-5.3-codex
+  multi_agent_reasoning: high
+  multi_agent_fallback: *id002
+  status: ready
+  objective: Raise anchored gate_fast changed-files line/branch coverage by adding
+    deterministic tests for highest-deficit tenant runtime, company, admin/portal,
+    purchasing, sales, and accounting-period services.
+  workflow_upstream_slices:
+  - SLICE-02
+  workflow_downstream_slices:
+  - SLICE-01
+  workflow_external_upstream_agents:
+  - orchestrator-runtime
+  workflow_external_downstream_agents:
+  - inventory-domain
+  cross_workflow_contracts:
+  - relation: downstream
+    agent: accounting-domain
+    slice_id: SLICE-01
+    contract: o2c posting and receivable linkage
+    in_ticket: true
+  - relation: downstream-external
+    agent: inventory-domain
+    slice_id: ''
+    contract: dispatch and stock movement linkage
+    in_ticket: false
+  - relation: upstream
+    agent: auth-rbac-company
+    slice_id: SLICE-02
+    contract: tenant and role boundary contract
+    in_ticket: true
+  - relation: upstream-external
+    agent: orchestrator-runtime
+    slice_id: ''
+    contract: async orchestration command contract
+    in_ticket: false
+- id: SLICE-06
+  primary_agent: refactor-techdebt-gc
+  reviewers:
+  - qa-reliability
+  scope_paths:
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/core/security/TenantRuntimeEnforcementService.java
+  allowed_scope_paths:
+  - erp-domain/src/main/java/
+  - erp-domain/src/test/java/
+  - docs/
+  matched_rules:
+  - <fallback>
+  lane: w2
+  branch: tickets/tkt-erp-stage-098/refactor-techdebt-gc
+  worktree_path: /Users/anas/Documents/orchestrator_erp/bigbrightpaints-erp_worktrees/TKT-ERP-STAGE-098/refactor-techdebt-gc
+  required_checks:
+  - bash ci/check-architecture.sh
+  - cd erp-domain && mvn -B -ntp test
+  multi_agent_role: cross_module_high
+  multi_agent_config_file: .codex/agents/cross_module_high.toml
+  multi_agent_model: gpt-5.3-codex
+  multi_agent_reasoning: high
+  multi_agent_fallback: *id002
+  status: ready
+  objective: Raise anchored gate_fast changed-files line/branch coverage by adding
+    deterministic tests for highest-deficit tenant runtime, company, admin/portal,
+    purchasing, sales, and accounting-period services.
+  workflow_upstream_slices: []
+  workflow_downstream_slices: []
+  workflow_external_upstream_agents: []
+  workflow_external_downstream_agents: []
+  cross_workflow_contracts: []
+cross_workflow:
+  model: workflow_agent_edges_v1
+  generated_at: '2026-02-20T10:48:51+00:00'
+  in_ticket_edges:
+  - upstream_slice: SLICE-02
+    downstream_slice: SLICE-01
+    contract: finance/admin authority boundaries
+  - upstream_slice: SLICE-02
+    downstream_slice: SLICE-03
+    contract: tenant-scoped supplier/AP access rules
+  - upstream_slice: SLICE-02
+    downstream_slice: SLICE-04
+    contract: admin/report access boundaries
+  - upstream_slice: SLICE-02
+    downstream_slice: SLICE-05
+    contract: tenant and role boundary contract
+  - upstream_slice: SLICE-03
+    downstream_slice: SLICE-01
+    contract: ap/posting and settlement linkage
+  - upstream_slice: SLICE-05
+    downstream_slice: SLICE-01
+    contract: o2c posting and receivable linkage

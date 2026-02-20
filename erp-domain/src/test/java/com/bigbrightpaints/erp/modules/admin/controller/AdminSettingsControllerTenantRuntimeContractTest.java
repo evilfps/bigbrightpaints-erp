@@ -14,6 +14,7 @@ import java.time.Instant;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -44,6 +45,7 @@ class AdminSettingsControllerTenantRuntimeContractTest {
         ApiResponse<TenantRuntimeMetricsDto> response = controller.tenantRuntimeMetrics();
 
         assertThat(response.success()).isTrue();
+        assertThat(response.message()).isEqualTo("Tenant runtime metrics");
         assertThat(response.data()).isEqualTo(snapshot);
         verify(tenantRuntimePolicyService).metrics();
     }
@@ -80,7 +82,29 @@ class AdminSettingsControllerTenantRuntimeContractTest {
         ApiResponse<TenantRuntimeMetricsDto> response = controller.updateTenantRuntimePolicy(request);
 
         assertThat(response.success()).isTrue();
+        assertThat(response.message()).isEqualTo("Tenant runtime policy updated");
         assertThat(response.data()).isEqualTo(updated);
+        verify(tenantRuntimePolicyService).updatePolicy(request);
+    }
+
+    @Test
+    void updateTenantRuntimePolicy_propagatesServiceFailureContract() {
+        TenantRuntimePolicyService tenantRuntimePolicyService = mock(TenantRuntimePolicyService.class);
+        AdminSettingsController controller = newController(tenantRuntimePolicyService);
+        TenantRuntimePolicyUpdateRequest request = new TenantRuntimePolicyUpdateRequest(
+                200,
+                1000,
+                35,
+                "HOLD",
+                "Fraud investigation",
+                "Risk-control update"
+        );
+        when(tenantRuntimePolicyService.updatePolicy(request))
+                .thenThrow(new IllegalArgumentException("Unsupported holdState: PAUSED"));
+
+        assertThatThrownBy(() -> controller.updateTenantRuntimePolicy(request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Unsupported holdState: PAUSED");
         verify(tenantRuntimePolicyService).updatePolicy(request);
     }
 

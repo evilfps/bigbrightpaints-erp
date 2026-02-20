@@ -2,11 +2,15 @@ package com.bigbrightpaints.erp.modules.company.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import com.bigbrightpaints.erp.core.audit.AuditEvent;
 import com.bigbrightpaints.erp.core.audit.AuditLogRepository;
 import com.bigbrightpaints.erp.core.audit.AuditService;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
@@ -14,6 +18,8 @@ import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyLifecycleState;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
 import com.bigbrightpaints.erp.modules.company.dto.CompanyDto;
+import com.bigbrightpaints.erp.modules.company.dto.CompanyLifecycleStateDto;
+import com.bigbrightpaints.erp.modules.company.dto.CompanyLifecycleStateRequest;
 import com.bigbrightpaints.erp.modules.company.dto.CompanyRequest;
 import com.bigbrightpaints.erp.modules.company.dto.CompanyTenantMetricsDto;
 import java.math.BigDecimal;
@@ -237,6 +243,112 @@ class CompanyServiceTest {
 
         assertThat(companyService.isRuntimeAccessAllowed(1L)).isTrue();
         verify(userAccountRepository, never()).countDistinctByCompanies_IdAndEnabledTrue(1L);
+    }
+
+    @Test
+    void updateLifecycleState_transitionsState_andWritesAuditEvidence() {
+        authenticateAs("ROLE_SUPER_ADMIN");
+        Company company = company(1L, "ACME");
+        company.setLifecycleState(CompanyLifecycleState.ACTIVE);
+        when(repository.lockById(1L)).thenReturn(Optional.of(company));
+        when(repository.findById(1L)).thenReturn(Optional.of(company));
+
+        CompanyLifecycleStateDto response =
+                companyService.updateLifecycleState(1L, new CompanyLifecycleStateRequest("HOLD", "  compliance-review  "));
+
+        assertThat(response.previousLifecycleState()).isEqualTo("ACTIVE");
+        assertThat(response.lifecycleState()).isEqualTo("HOLD");
+        assertThat(response.reason()).isEqualTo("compliance-review");
+        assertThat(company.getLifecycleState()).isEqualTo(CompanyLifecycleState.HOLD);
+        assertThat(company.getLifecycleReason()).isEqualTo("compliance-review");
+        verify(auditService).logAuthSuccess(
+                eq(AuditEvent.CONFIGURATION_CHANGED),
+                eq("tester@bbp.com"),
+                eq("ACME"),
+                anyMap());
+    }
+
+    @Test
+    void updateLifecycleState_deniesNonSuperAdmin_andAuditsAccessDenied() {
+        authenticateAs("ROLE_ADMIN");
+        Company company = company(1L, "ACME");
+        when(repository.findById(1L)).thenReturn(Optional.of(company));
+
+        assertThatThrownBy(() -> companyService.updateLifecycleState(
+                1L,
+                new CompanyLifecycleStateRequest("BLOCKED", "fraud-investigation")))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessageContaining("SUPER_ADMIN authority required for tenant lifecycle control");
+
+        verify(repository, never()).lockById(anyLong());
+        verify(auditService).logAuthFailure(
+                eq(AuditEvent.ACCESS_DENIED),
+                eq("tester@bbp.com"),
+                eq("ACME"),
+                anyMap());
+    }
+
+    @Test
+    void isRuntimeAccessAllowed_deniesWhenLifecycleStateIsNotActive() {
+        Company company = company(1L, "ACME");
+        company.setLifecycleState(CompanyLifecycleState.HOLD);
+        when(repository.findById(1L)).thenReturn(Optional.of(company));
+
+        assertThat(companyService.isRuntimeAccessAllowed(1L)).isFalse();
+        verifyNoInteractions(userAccountRepository, auditLogRepository);
+    }
+
+    @Test
+    void isRuntimeAccessAllowed_deniesWhenHardQuotaEnvelopeIsIncomplete() {
+        Company company = company(1L, "ACME");
+        company.setQuotaHardLimitEnabled(true);
+        company.setQuotaSoftLimitEnabled(false);
+        company.setQuotaMaxActiveUsers(100L);
+        company.setQuotaMaxApiRequests(0L);
+        company.setQuotaMaxStorageBytes(100_000L);
+        company.setQuotaMaxConcurrentSessions(100L);
+        when(repository.findById(1L)).thenReturn(Optional.of(company));
+
+        assertThat(companyService.isRuntimeAccessAllowed(1L)).isFalse();
+        verifyNoInteractions(userAccountRepository, auditLogRepository);
+    }
+
+    @Test
+    void isRuntimeAccessAllowed_failsClosedWhenMetricLookupThrows() {
+        Company company = company(1L, "ACME");
+        configureHardLimitEnvelope(company);
+        when(repository.findById(1L)).thenReturn(Optional.of(company));
+        when(userAccountRepository.countDistinctByCompanies_IdAndEnabledTrue(1L))
+                .thenThrow(new RuntimeException("telemetry-store-down"));
+
+        assertThat(companyService.isRuntimeAccessAllowed(1L)).isFalse();
+    }
+
+    @Test
+    void isRuntimeAccessAllowed_allowsWhenLifecycleAndQuotasAreHealthy() {
+        Company company = company(1L, "ACME");
+        configureHardLimitEnvelope(company);
+        when(repository.findById(1L)).thenReturn(Optional.of(company));
+        when(userAccountRepository.countDistinctByCompanies_IdAndEnabledTrue(1L)).thenReturn(50L);
+        when(auditLogRepository.countApiActivityByCompanyId(1L)).thenReturn(20L);
+        when(auditLogRepository.estimateAuditStorageBytesByCompanyId(1L)).thenReturn(10_000L);
+        when(auditLogRepository.countDistinctSessionActivityByCompanyId(1L)).thenReturn(5L);
+
+        assertThat(companyService.isRuntimeAccessAllowed(1L)).isTrue();
+    }
+
+    @Test
+    void resolveLifecycleStateByCode_failsClosedForBlankOrUnknown_andDefaultsNullStateToActive() {
+        Company company = company(1L, "ACME");
+        company.setLifecycleState(null);
+        when(repository.findByCodeIgnoreCase("ACME")).thenReturn(Optional.of(company));
+        when(repository.findByCodeIgnoreCase("NOPE")).thenReturn(Optional.empty());
+        when(repository.findById(1L)).thenReturn(Optional.of(company));
+
+        assertThat(companyService.resolveLifecycleStateByCode("   ")).isEqualTo(CompanyLifecycleState.BLOCKED);
+        assertThat(companyService.resolveLifecycleStateByCode("NOPE")).isEqualTo(CompanyLifecycleState.BLOCKED);
+        assertThat(companyService.resolveLifecycleStateByCode(" ACME ")).isEqualTo(CompanyLifecycleState.ACTIVE);
+        assertThat(companyService.resolveLifecycleStateById(null)).isEqualTo(CompanyLifecycleState.BLOCKED);
     }
 
     private void configureHardLimitEnvelope(Company company) {
