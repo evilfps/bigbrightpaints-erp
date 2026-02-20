@@ -133,3 +133,25 @@ Update this file in every high-risk change set.
     - `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/controller/AccountingExportGovernanceIT.java`
     - `erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeAccountingControllerExportCoverageTest.java`
     - `docs/CODE-RED/confidence-suite/TEST_CATALOG.json`
+
+## STAGE-095 Addendum (2026-02-20, SLICE-01 accounting-domain)
+- Branch / PR: stage-095 accounting-domain branch / PR #33 (https://github.com/anasibnanwar-XYE/bigbrightpaints-erp/pull/33)
+- High-risk paths:
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/controller/AccountingController.java`
+- Why this is R2: idempotency header parity on accounting money-movement endpoints is a fail-closed financial control boundary.
+- Approval mode: orchestrator
+- Human escalation required: no
+- Rollback owner: release governance + accounting owner
+- Verification evidence:
+  - Commands run:
+    - `cd erp-domain && mvn -B -ntp -Dtest=AccountingControllerIdempotencyHeaderParityTest test`
+    - `cd erp-domain && mvn -B -ntp -Dtest='*AccountingController*' test`
+    - `cd erp-domain && mvn -B -ntp -Dtest='*Accounting*' test`
+    - `bash ci/check-architecture.sh`
+    - `bash scripts/verify_local.sh`
+    - `bash ci/check-enterprise-policy.sh`
+  - Result summary: targeted deterministic suites passed; `*Accounting*` failures were limited to missing local Docker/Testcontainers runtime (6 integration errors); `verify_local` failed on macOS bash portability (`mapfile` not found in `scripts/guard_flyway_v2_migration_ownership.sh`); architecture and enterprise policy checks passed after this checkpoint update.
+  - Artifacts/links:
+    - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/controller/AccountingController.java`
+    - `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/controller/AccountingControllerIdempotencyHeaderParityTest.java`
+    - `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/controller/AccountingControllerExceptionHandlerTest.java`
