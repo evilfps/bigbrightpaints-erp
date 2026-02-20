@@ -3,10 +3,10 @@
 - title: ERP Staging Batch 95 - Approval/Override Policy Matrix Completion
 - goal: M18-S4 approval governance: enforce approval/override matrix with maker-checker, reason codes, and immutable audit metadata across sales, purchasing, and accounting exception flows
 - priority: high
-- status: in_progress
+- status: merged
 - base_branch: harness-engineering-orchestrator
 - created_at: 2026-02-20T07:45:13+00:00
-- updated_at: 2026-02-20T09:26:01Z
+- updated_at: 2026-02-20T09:37:48Z
 
 ## Slice Board
 
@@ -15,7 +15,7 @@
 | SLICE-01 | accounting-domain | w1 | merged | `tickets/tkt-erp-stage-095/accounting-domain` |
 | SLICE-02 | purchasing-invoice-p2p | w2 | merged | `tickets/tkt-erp-stage-095/purchasing-invoice-p2p` |
 | SLICE-03 | sales-domain | w3 | merged | `tickets/tkt-erp-stage-095/sales-domain` |
-| SLICE-04 | refactor-techdebt-gc | w4 | ready | `tickets/tkt-erp-stage-095/refactor-techdebt-gc` |
+| SLICE-04 | refactor-techdebt-gc | w4 | dropped_overlap | `tickets/tkt-erp-stage-095/refactor-techdebt-gc` |
 
 ## Operator Commands
 
