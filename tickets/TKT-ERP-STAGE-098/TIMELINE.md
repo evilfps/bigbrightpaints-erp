@@ -21,6 +21,19 @@
   - `bash ci/check-architecture.sh` -> `PASS`
   - `cd erp-domain && mvn -B -ntp test` -> `FAIL` (same pre-existing compile blocker: `Fatal error compiling: java.lang.ExceptionInInitializerError: com.sun.tools.javac.code.TypeTag :: UNKNOWN`)
   - slice status moved to `in_review`
+- `2026-02-20T19:51:48Z` claim event: `slice_id=SLICE-05`, `agent_id=sales-domain`, `branch=tickets/tkt-erp-stage-098/sales-domain`, `worktree=/Users/anas/Documents/orchestrator_erp/bigbrightpaints-erp_worktrees/TKT-ERP-STAGE-098/sales-domain`, `started_at_utc=2026-02-20T19:51:48Z`.
+- `2026-02-20T19:56:39Z` `SLICE-05` implementation completed: added deterministic `SalesServiceTest` coverage for `updateStatus` / orchestrator status validation, dispatch confirmation truth branches, paged/non-paged `listOrders` filtering, and dealer CRUD + receivable account sync.
+- `2026-02-20T19:56:39Z` validation outcomes:
+  - `cd erp-domain && mvn -B -ntp -Dtest='*Sales*' test` FAIL at compile phase with `Fatal error compiling: java.lang.ExceptionInInitializerError: com.sun.tools.javac.code.TypeTag :: UNKNOWN` (environment/compiler blocker before test execution).
+  - `bash ci/check-architecture.sh` PASS.
+- `2026-02-20T19:57:27Z` post-edit revalidation rerun:
+  - `cd erp-domain && mvn -B -ntp -Dtest='*Sales*' test` FAIL with same compiler blocker (`TypeTag :: UNKNOWN`) before test execution.
+  - `bash ci/check-architecture.sh` PASS.
+- `2026-02-20T20:03:46Z` review-fix follow-up for `SLICE-05`:
+  - added missing import `com.bigbrightpaints.erp.modules.sales.dto.DealerDto` in `SalesServiceTest`.
+  - corrected ticket artifact slice states to keep `SLICE-03` at baseline and keep this workflow status ownership on `SLICE-05`.
+  - `cd erp-domain && mvn -B -ntp -Dtest='*Sales*' test` FAIL with compiler blocker `TypeTag :: UNKNOWN` before tests execute.
+  - `bash ci/check-architecture.sh` PASS.
 - `2026-02-21T01:59:50+05:30` `SLICE-06` clean validation rerun on release-ops merge branch:
   - `cd erp-domain && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home PATH="$JAVA_HOME/bin:$PATH" mvn -B -ntp -Dtest=EnterpriseAuditTrailServiceTest clean test` -> `PASS`
   - `bash ci/check-architecture.sh` -> `PASS`
