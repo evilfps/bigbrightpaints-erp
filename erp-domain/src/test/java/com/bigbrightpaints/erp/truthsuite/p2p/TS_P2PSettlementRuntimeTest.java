@@ -99,6 +99,90 @@ class TS_P2PSettlementRuntimeTest {
                 () -> policy.requireSupplierExceptionApproval(settlementOverride));
     }
 
+    @Test
+    void settlementOverrideSkipsApprovalWhenNoOverrideComponentsArePresent() {
+        policy.applySettlementWithOverride(
+                invoice,
+                BigDecimal.valueOf(25),
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                "SETTLE-OVERRIDE-106",
+                null);
+
+        assertEquals(BigDecimal.valueOf(75), invoice.getOutstandingAmount());
+        assertEquals(InvoiceSettlementPolicy.InvoiceStatus.PARTIAL.name(), invoice.getStatus());
+    }
+
+    @Test
+    void settlementOverrideEvaluatesWriteOffAndFxAdjustmentApprovalPaths() {
+        policy.applySettlementWithOverride(
+                invoice,
+                BigDecimal.valueOf(20),
+                BigDecimal.ZERO,
+                BigDecimal.valueOf(5),
+                BigDecimal.ZERO,
+                "SETTLE-OVERRIDE-107A",
+                approvedOverride("APP-SET-107A"));
+
+        assertEquals(BigDecimal.valueOf(75), invoice.getOutstandingAmount());
+
+        policy.applySettlementWithOverride(
+                invoice,
+                BigDecimal.valueOf(10),
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.valueOf(5),
+                "SETTLE-OVERRIDE-107B",
+                approvedOverride("APP-SET-107B"));
+
+        assertEquals(BigDecimal.valueOf(60), invoice.getOutstandingAmount());
+        assertEquals(InvoiceSettlementPolicy.InvoiceStatus.PARTIAL.name(), invoice.getStatus());
+    }
+
+    @Test
+    void settlementOverrideRejectsNegativeDiscountAndWriteOff() {
+        assertThrows(IllegalArgumentException.class, () ->
+                policy.applySettlementWithOverride(
+                        invoice,
+                        BigDecimal.valueOf(30),
+                        BigDecimal.valueOf(-1),
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        "SETTLE-OVERRIDE-108A",
+                        approvedOverride("APP-SET-108A")));
+
+        assertThrows(IllegalArgumentException.class, () ->
+                policy.applySettlementWithOverride(
+                        invoice,
+                        BigDecimal.valueOf(30),
+                        BigDecimal.ZERO,
+                        BigDecimal.valueOf(-1),
+                        BigDecimal.ZERO,
+                        "SETTLE-OVERRIDE-108B",
+                        approvedOverride("APP-SET-108B")));
+    }
+
+    @Test
+    void settlementOverrideCoversNullAppliedAndFxAmounts() {
+        policy.applySettlementWithOverride(
+                invoice,
+                null,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                null,
+                "SETTLE-OVERRIDE-109",
+                null);
+
+        assertEquals(BigDecimal.valueOf(100), invoice.getOutstandingAmount());
+        assertEquals(InvoiceSettlementPolicy.InvoiceStatus.ISSUED.name(), invoice.getStatus());
+    }
+
+    @Test
+    void settlementOverrideFailsClosedWhenSupplierExceptionApprovalMissing() {
+        assertThrows(IllegalStateException.class, () -> policy.requireSupplierExceptionApproval(null));
+    }
+
     private SettlementApprovalDecision approvedOverride(String approvalId) {
         return new SettlementApprovalDecision(
                 approvalId,

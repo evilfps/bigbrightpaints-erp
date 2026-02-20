@@ -9,9 +9,12 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 @Tag("critical")
@@ -93,5 +96,138 @@ class TS_P2PApprovalRuntimeTest {
                 () -> policy.requireSupplierExceptionApproval(settlementOverride));
         assertThrows(IllegalArgumentException.class,
                 () -> policy.requireSettlementOverrideApproval(supplierException));
+    }
+
+    @Test
+    void settlementApprovalDecisionEnforcesMakerCheckerAndRequireApprovedContextBranches() {
+        assertThrows(IllegalArgumentException.class, () -> new SettlementApprovalDecision(
+                "APP-SET-003",
+                "same-user",
+                "same-user",
+                SettlementApprovalReasonCode.SETTLEMENT_OVERRIDE,
+                Instant.parse("2026-02-20T00:00:00Z"),
+                Map.of("ticket", "TKT-ERP-STAGE-095", "approvalSource", "workflow")));
+
+        SettlementApprovalDecision valid = new SettlementApprovalDecision(
+                "APP-SET-004",
+                "maker-a",
+                "checker-b",
+                SettlementApprovalReasonCode.SETTLEMENT_OVERRIDE,
+                Instant.parse("2026-02-20T00:00:00Z"),
+                Map.of("ticket", "TKT-ERP-STAGE-095", "approvalSource", "workflow"));
+        assertSame(valid, SettlementApprovalDecision.requireApproved(valid, "Settlement override"));
+
+        IllegalStateException missingApproval = assertThrows(IllegalStateException.class,
+                () -> SettlementApprovalDecision.requireApproved(null, "  "));
+        assertEquals("Settlement approval is required", missingApproval.getMessage());
+    }
+
+    @Test
+    void settlementApprovalDecisionRejectsNullMetadataAndBlankTextInputs() {
+        assertThrows(IllegalArgumentException.class, () -> new SettlementApprovalDecision(
+                "APP-SET-005",
+                "maker-a",
+                "checker-b",
+                SettlementApprovalReasonCode.SETTLEMENT_OVERRIDE,
+                Instant.parse("2026-02-20T00:00:00Z"),
+                null));
+
+        assertThrows(IllegalArgumentException.class, () -> new SettlementApprovalDecision(
+                " ",
+                "maker-a",
+                "checker-b",
+                SettlementApprovalReasonCode.SETTLEMENT_OVERRIDE,
+                Instant.parse("2026-02-20T00:00:00Z"),
+                Map.of("ticket", "TKT-ERP-STAGE-095", "approvalSource", "workflow")));
+    }
+
+    @Test
+    void settlementApprovalDecisionNormalizesMetadataAndDropsBlankEntries() {
+        Map<String, String> rawMetadata = new LinkedHashMap<>();
+        rawMetadata.put("ticket", "TKT-ERP-STAGE-095");
+        rawMetadata.put("approvalSource", "workflow");
+        rawMetadata.put(" ", "ignored-key");
+        rawMetadata.put("source", "   ");
+
+        SettlementApprovalDecision decision = new SettlementApprovalDecision(
+                "APP-SET-006",
+                "maker-a",
+                "checker-b",
+                SettlementApprovalReasonCode.SUPPLIER_EXCEPTION,
+                Instant.parse("2026-02-20T00:00:00Z"),
+                rawMetadata);
+
+        assertEquals("workflow", decision.immutableAuditMetadata().get("approvalSource"));
+        assertFalse(decision.immutableAuditMetadata().containsKey(" "));
+        assertFalse(decision.immutableAuditMetadata().containsKey("source"));
+    }
+
+    @Test
+    void supplierApprovalDecisionCoversRequireApprovedAndMetadataValidationBranches() {
+        SupplierApprovalDecision valid = new SupplierApprovalDecision(
+                "APP-SUP-005",
+                "maker-a",
+                "checker-b",
+                SupplierApprovalReasonCode.SUPPLIER_EXCEPTION,
+                Instant.parse("2026-02-20T00:00:00Z"),
+                Map.of("ticket", "TKT-ERP-STAGE-095", "approvalSource", "workflow"));
+        assertSame(valid, SupplierApprovalDecision.requireApproved(valid, "Supplier exception"));
+
+        IllegalStateException missingApproval = assertThrows(IllegalStateException.class,
+                () -> SupplierApprovalDecision.requireApproved(null, " "));
+        assertEquals("Supplier approval is required", missingApproval.getMessage());
+
+        assertThrows(IllegalArgumentException.class, () -> new SupplierApprovalDecision(
+                "APP-SUP-006",
+                "maker-a",
+                "checker-b",
+                SupplierApprovalReasonCode.SUPPLIER_EXCEPTION,
+                Instant.parse("2026-02-20T00:00:00Z"),
+                null));
+
+        assertThrows(IllegalArgumentException.class, () -> new SupplierApprovalDecision(
+                "APP-SUP-007",
+                "maker-a",
+                "checker-b",
+                SupplierApprovalReasonCode.SUPPLIER_EXCEPTION,
+                Instant.parse("2026-02-20T00:00:00Z"),
+                Map.of("approvalSource", "workflow")));
+
+        assertThrows(IllegalArgumentException.class, () -> new SupplierApprovalDecision(
+                "APP-SUP-008",
+                "maker-a",
+                "checker-b",
+                SupplierApprovalReasonCode.SUPPLIER_EXCEPTION,
+                Instant.parse("2026-02-20T00:00:00Z"),
+                Map.of("ticket", "TKT-ERP-STAGE-095")));
+
+        assertThrows(IllegalArgumentException.class, () -> new SupplierApprovalDecision(
+                " ",
+                "maker-a",
+                "checker-b",
+                SupplierApprovalReasonCode.SUPPLIER_EXCEPTION,
+                Instant.parse("2026-02-20T00:00:00Z"),
+                Map.of("ticket", "TKT-ERP-STAGE-095", "approvalSource", "workflow")));
+    }
+
+    @Test
+    void supplierApprovalDecisionNormalizesMetadataAndDropsBlankEntries() {
+        Map<String, String> rawMetadata = new LinkedHashMap<>();
+        rawMetadata.put("ticket", "TKT-ERP-STAGE-095");
+        rawMetadata.put("workflowSource", "portal");
+        rawMetadata.put("", "ignored-key");
+        rawMetadata.put("source", "   ");
+
+        SupplierApprovalDecision decision = new SupplierApprovalDecision(
+                "APP-SUP-009",
+                "maker-a",
+                "checker-b",
+                SupplierApprovalReasonCode.SETTLEMENT_OVERRIDE,
+                Instant.parse("2026-02-20T00:00:00Z"),
+                rawMetadata);
+
+        assertEquals("portal", decision.immutableAuditMetadata().get("workflowSource"));
+        assertFalse(decision.immutableAuditMetadata().containsKey(""));
+        assertFalse(decision.immutableAuditMetadata().containsKey("source"));
     }
 }
