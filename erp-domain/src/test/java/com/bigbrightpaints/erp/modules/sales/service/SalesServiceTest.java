@@ -26,6 +26,7 @@ import com.bigbrightpaints.erp.modules.invoice.domain.Invoice;
 import com.bigbrightpaints.erp.modules.invoice.domain.InvoiceRepository;
 import com.bigbrightpaints.erp.modules.factory.domain.FactoryTaskRepository;
 import com.bigbrightpaints.erp.modules.sales.dto.SalesOrderDto;
+import com.bigbrightpaints.erp.modules.sales.dto.DealerDto;
 import com.bigbrightpaints.erp.modules.sales.dto.CreditRequestDto;
 import com.bigbrightpaints.erp.modules.sales.dto.CreditRequestRequest;
 import com.bigbrightpaints.erp.modules.inventory.dto.PackagingSlipDto;

@@ -17,3 +17,8 @@
 - `2026-02-20T19:57:27Z` post-edit revalidation rerun:
   - `cd erp-domain && mvn -B -ntp -Dtest='*Sales*' test` FAIL with same compiler blocker (`TypeTag :: UNKNOWN`) before test execution.
   - `bash ci/check-architecture.sh` PASS.
+- `2026-02-20T20:03:46Z` review-fix follow-up for `SLICE-05`:
+  - added missing import `com.bigbrightpaints.erp.modules.sales.dto.DealerDto` in `SalesServiceTest`.
+  - corrected ticket artifact slice states to keep `SLICE-03` at baseline and keep this workflow status ownership on `SLICE-05`.
+  - `cd erp-domain && mvn -B -ntp -Dtest='*Sales*' test` FAIL with compiler blocker `TypeTag :: UNKNOWN` before tests execute.
+  - `bash ci/check-architecture.sh` PASS.
