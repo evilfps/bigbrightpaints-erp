@@ -92,6 +92,52 @@ public class InvoiceSettlementPolicy {
     }
 
     /**
+     * Applies settlement with explicit override components.
+     * Non-zero discount/write-off/FX adjustments require maker-checker approval.
+     */
+    public void applySettlementWithOverride(Invoice invoice,
+                                            BigDecimal appliedAmount,
+                                            BigDecimal discountAmount,
+                                            BigDecimal writeOffAmount,
+                                            BigDecimal fxAdjustmentAmount,
+                                            String reference,
+                                            SettlementApprovalDecision approval) {
+        BigDecimal applied = appliedAmount != null ? appliedAmount : BigDecimal.ZERO;
+        BigDecimal discount = requireNonNegative(discountAmount, "discount amount");
+        BigDecimal writeOff = requireNonNegative(writeOffAmount, "write-off amount");
+        BigDecimal fxAdjustment = fxAdjustmentAmount != null ? fxAdjustmentAmount : BigDecimal.ZERO;
+        validateReference(reference);
+
+        if (discount.compareTo(BigDecimal.ZERO) > 0
+                || writeOff.compareTo(BigDecimal.ZERO) > 0
+                || fxAdjustment.compareTo(BigDecimal.ZERO) != 0) {
+            SettlementApprovalDecision resolved = requireSettlementOverrideApproval(approval);
+            if (resolved.immutableAuditMetadata().isEmpty()) {
+                throw new IllegalStateException("Settlement override approval audit metadata is required");
+            }
+        }
+
+        BigDecimal clearedAmount = applied.add(discount).add(writeOff).add(fxAdjustment);
+        applySettlement(invoice, clearedAmount, reference);
+    }
+
+    public SettlementApprovalDecision requireSupplierExceptionApproval(SettlementApprovalDecision approval) {
+        SettlementApprovalDecision resolved = SettlementApprovalDecision.requireApproved(approval, "Supplier exception");
+        if (resolved.reasonCode() != SettlementApprovalReasonCode.SUPPLIER_EXCEPTION) {
+            throw new IllegalArgumentException("Supplier exception approval must use SUPPLIER_EXCEPTION reason code");
+        }
+        return resolved;
+    }
+
+    private SettlementApprovalDecision requireSettlementOverrideApproval(SettlementApprovalDecision approval) {
+        SettlementApprovalDecision resolved = SettlementApprovalDecision.requireApproved(approval, "Settlement override");
+        if (resolved.reasonCode() != SettlementApprovalReasonCode.SETTLEMENT_OVERRIDE) {
+            throw new IllegalArgumentException("Settlement override approval must use SETTLEMENT_OVERRIDE reason code");
+        }
+        return resolved;
+    }
+
+    /**
      * Update invoice status based on outstanding amount.
      * Call this after any modification to outstanding amount.
      */
@@ -159,5 +205,13 @@ public class InvoiceSettlementPolicy {
             return;
         }
         throw new IllegalArgumentException("Payment reference is required");
+    }
+
+    private BigDecimal requireNonNegative(BigDecimal amount, String label) {
+        BigDecimal resolved = amount != null ? amount : BigDecimal.ZERO;
+        if (resolved.compareTo(BigDecimal.ZERO) < 0) {
+            throw new IllegalArgumentException("Invalid " + label);
+        }
+        return resolved;
     }
 }
