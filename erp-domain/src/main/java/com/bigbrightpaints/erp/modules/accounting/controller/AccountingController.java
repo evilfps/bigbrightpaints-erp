@@ -453,6 +453,17 @@ public class AccountingController {
     private String resolveHeaderOnlyIdempotencyKey(String bodyIdempotencyKey,
                                                    String idempotencyKeyHeader,
                                                    String legacyIdempotencyKeyHeader) {
+        String normalizedPrimaryHeader = trimToNull(idempotencyKeyHeader);
+        String normalizedLegacyHeader = trimToNull(legacyIdempotencyKeyHeader);
+        if (normalizedPrimaryHeader != null
+                && normalizedLegacyHeader != null
+                && !normalizedPrimaryHeader.equals(normalizedLegacyHeader)) {
+            throw new ApplicationException(
+                    ErrorCode.VALIDATION_INVALID_INPUT,
+                    "Idempotency key mismatch between Idempotency-Key and X-Idempotency-Key headers")
+                    .withDetail("headerKey", normalizedPrimaryHeader)
+                    .withDetail("legacyHeaderKey", normalizedLegacyHeader);
+        }
         String resolvedKey = com.bigbrightpaints.erp.core.util.IdempotencyHeaderUtils.resolveBodyOrHeaderKey(
                 bodyIdempotencyKey,
                 idempotencyKeyHeader,
@@ -461,6 +472,13 @@ public class AccountingController {
             return null;
         }
         return resolvedKey;
+    }
+
+    private String trimToNull(String value) {
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        return value.trim();
     }
 
     @GetMapping("/gst/return")
