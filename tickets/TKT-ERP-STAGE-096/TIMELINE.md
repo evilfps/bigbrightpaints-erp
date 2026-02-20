@@ -1,0 +1,8 @@
+# Timeline
+
+- `2026-02-20T09:42:41+00:00` ticket created and slices planned
+- `2026-02-20T10:01:24Z` `SLICE-01` gate ladder executed locally on canonical head `a6f74013cd852d6160fedb283db29988637b7eba`: `gate_fast=FAIL` (`line_ratio=0.3163`, `branch_ratio=0.3320`), `gate_core=PASS`, `gate_reconciliation=PASS`, `gate_release=FAIL` (Postgres connection refused at `127.0.0.1:5432`).
+- `2026-02-20T10:06:49Z` `SLICE-01` gate ladder re-run over SSH (`asus-tuf-tail-ip`) on same canonical head: `gate_fast=FAIL`, `gate_core=PASS`, `gate_reconciliation=PASS`, `gate_release=FAIL` (Postgres connection refused at `127.0.0.1:55432`).
+- `2026-02-20T10:07:49+00:00` review updated: SLICE-02 orchestrator -> approved
+- `2026-02-20T10:08:10Z` `SLICE-02` docs refresh merged from `tickets/tkt-erp-stage-096/repo-cartographer` (cherry-pick `f2adb23c`) to reflect current gate-freshness blocker on canonical head.
+- `2026-02-20T10:08:16Z` ticket marked blocked pending `gate_fast` changed-files coverage closure and `gate_release` DB connectivity restoration.
