@@ -226,7 +226,7 @@ class EnterpriseAuditTrailServiceTest {
         Predicate ge = mock(Predicate.class);
         Predicate lt = mock(Predicate.class);
         Predicate combined = mock(Predicate.class);
-        when(root.get("occurredAt")).thenReturn(occurredPath);
+        when(root.<Instant>get("occurredAt")).thenReturn(occurredPath);
         when(cb.greaterThanOrEqualTo(any(Path.class), any(Instant.class))).thenReturn(ge);
         when(cb.lessThan(any(Path.class), any(Instant.class))).thenReturn(lt);
         when(cb.and(ge, lt)).thenReturn(combined);
@@ -257,7 +257,7 @@ class EnterpriseAuditTrailServiceTest {
         Predicate ge = mock(Predicate.class);
         Predicate lt = mock(Predicate.class);
         Predicate combined = mock(Predicate.class);
-        when(root.get("occurredAt")).thenReturn(occurredPath);
+        when(root.<Instant>get("occurredAt")).thenReturn(occurredPath);
         when(cb.greaterThanOrEqualTo(any(Path.class), any(Instant.class))).thenReturn(ge);
         when(cb.lessThan(any(Path.class), any(Instant.class))).thenReturn(lt);
         when(cb.and(ge, lt)).thenReturn(combined);
