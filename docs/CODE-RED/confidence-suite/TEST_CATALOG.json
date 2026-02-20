@@ -281,6 +281,28 @@
       "quality_flake_monitor": true
     },
     {
+      "id": "ts-accounting-controller-idempotency-header-parity-runtime",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/accounting/TS_AccountingControllerIdempotencyHeaderParityRuntimeCoverageTest.java",
+      "owner": "erp-domain-team",
+      "class": "critical",
+      "module": "Accounting",
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-reconciliation",
+        "gate-quality"
+      ],
+      "tags": [
+        "critical",
+        "reconciliation",
+        "concurrency"
+      ],
+      "accounting_math_critical": false,
+      "cross_module_critical": false,
+      "quality_flake_monitor": true
+    },
+    {
       "id": "ts-gst-rounding-determinism",
       "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/tax/TS_GstRoundingDeterminismContractTest.java",
       "owner": "erp-domain-team",
