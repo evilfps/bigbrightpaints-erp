@@ -67,3 +67,4 @@
 - `2026-02-21T13:39:08+05:30` `SLICE-03` merged into release-ops integration branch:
   - `bash ci/check-architecture.sh` -> `PASS`
   - slice remains `in_review` pending QA/security review sign-off.
+- `2026-02-21T14:51:14+05:30` `SLICE-03` QA/security review sign-off recorded; slice status moved to `merged`.
