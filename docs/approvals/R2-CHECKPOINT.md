@@ -1,6 +1,6 @@
 # R2 Checkpoint (Active Approval Record)
 
-Last reviewed: 2026-02-15
+Last reviewed: 2026-02-21
 Owner: Security & Governance Agent
 Status: template-initialized
 
@@ -155,3 +155,24 @@ Update this file in every high-risk change set.
     - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/controller/AccountingController.java`
     - `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/controller/AccountingControllerIdempotencyHeaderParityTest.java`
     - `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/controller/AccountingControllerExceptionHandlerTest.java`
+
+## STAGE-102 Addendum (2026-02-21, release-ops)
+- Branch / PR: `tickets/tkt-erp-stage-102/release-ops` / PR #35 (https://github.com/anasibnanwar-XYE/bigbrightpaints-erp/pull/35)
+- High-risk paths:
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/company/controller/CompanyController.java`
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/company/service/CompanyService.java`
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingFacade.java`
+- Why this is R2: super-admin tenant update authorization and accounting purchase idempotency dedupe are fail-closed control boundaries and require proof-backed governance evidence.
+- Approval mode: orchestrator
+- Human escalation required: no
+- Rollback owner: release governance + company/accounting owners
+- Verification evidence:
+  - Commands run:
+    - `cd erp-domain && mvn -B -ntp -Dtest=CompanyServiceTest,AccountingFacadeTest test`
+    - `bash ci/check-enterprise-policy.sh`
+    - `cd erp-domain && mvn -B -ntp -Dtest=CompanyControllerIT test`
+  - Result summary: targeted service/unit suites passed (`Tests run: 25, Failures: 0, Errors: 0`); enterprise policy guard passed after this checkpoint update; integration test remained blocked on local environment runtime (`Could not find a valid Docker environment`, client API `1.32` vs daemon minimum `1.44`) with JaCoCo + JDK `25` instrumentation incompatibility (`Unsupported class file major version 69`).
+  - Artifacts/links:
+    - `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/company/service/CompanyServiceTest.java`
+    - `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingFacadeTest.java`
+    - `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/company/CompanyControllerIT.java`
