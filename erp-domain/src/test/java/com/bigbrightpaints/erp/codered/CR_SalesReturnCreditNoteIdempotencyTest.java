@@ -33,9 +33,12 @@ import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrder;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrderRepository;
+import com.bigbrightpaints.erp.modules.sales.dto.CreditLimitOverrideDecisionRequest;
+import com.bigbrightpaints.erp.modules.sales.dto.CreditLimitOverrideRequestCreateRequest;
 import com.bigbrightpaints.erp.modules.sales.dto.DispatchConfirmRequest;
 import com.bigbrightpaints.erp.modules.sales.dto.SalesOrderItemRequest;
 import com.bigbrightpaints.erp.modules.sales.dto.SalesOrderRequest;
+import com.bigbrightpaints.erp.modules.sales.service.CreditLimitOverrideService;
 import com.bigbrightpaints.erp.modules.sales.service.SalesReturnService;
 import com.bigbrightpaints.erp.modules.sales.service.SalesService;
 import com.bigbrightpaints.erp.test.AbstractIntegrationTest;
@@ -69,6 +72,7 @@ class CR_SalesReturnCreditNoteIdempotencyTest extends AbstractIntegrationTest {
     @Autowired private FinishedGoodsService finishedGoodsService;
     @Autowired private FinishedGoodRepository finishedGoodRepository;
     @Autowired private SalesService salesService;
+    @Autowired private CreditLimitOverrideService creditLimitOverrideService;
     @Autowired private SalesReturnService salesReturnService;
     @Autowired private SalesOrderRepository salesOrderRepository;
     @Autowired private PackagingSlipRepository packagingSlipRepository;
@@ -97,6 +101,12 @@ class CR_SalesReturnCreditNoteIdempotencyTest extends AbstractIntegrationTest {
 
         SalesOrder order = createOrder(company, dealer, fg.getProductCode(), new BigDecimal("5"), new BigDecimal("15.50"));
         PackagingSlip slip = packagingSlipRepository.findByCompanyAndSalesOrderId(company, order.getId()).orElseThrow();
+        Long overrideRequestId = createApprovedDispatchOverride(
+                companyCode,
+                dealer.getId(),
+                slip.getId(),
+                order.getId(),
+                order.getTotalAmount());
 
         DispatchConfirmRequest request = new DispatchConfirmRequest(
                 slip.getId(),
@@ -116,7 +126,7 @@ class CR_SalesReturnCreditNoteIdempotencyTest extends AbstractIntegrationTest {
                 "codered",
                 true,
                 "discount override for credit-note idempotency regression",
-                null
+                overrideRequestId
         );
 
         CompanyContextHolder.setCompanyId(companyCode);
@@ -184,6 +194,12 @@ class CR_SalesReturnCreditNoteIdempotencyTest extends AbstractIntegrationTest {
 
         SalesOrder order = createOrder(company, dealer, fg.getProductCode(), new BigDecimal("5"), new BigDecimal("15.50"));
         PackagingSlip slip = packagingSlipRepository.findByCompanyAndSalesOrderId(company, order.getId()).orElseThrow();
+        Long overrideRequestId = createApprovedDispatchOverride(
+                companyCode,
+                dealer.getId(),
+                slip.getId(),
+                order.getId(),
+                order.getTotalAmount());
 
         DispatchConfirmRequest request = new DispatchConfirmRequest(
                 slip.getId(),
@@ -203,7 +219,7 @@ class CR_SalesReturnCreditNoteIdempotencyTest extends AbstractIntegrationTest {
                 "codered",
                 true,
                 "discount override for credit-note idempotency regression",
-                null
+                overrideRequestId
         );
 
         CompanyContextHolder.setCompanyId(companyCode);
@@ -295,6 +311,12 @@ class CR_SalesReturnCreditNoteIdempotencyTest extends AbstractIntegrationTest {
 
         SalesOrder order = createOrder(company, dealer, fg.getProductCode(), new BigDecimal("5"), new BigDecimal("15.50"));
         PackagingSlip slip = packagingSlipRepository.findByCompanyAndSalesOrderId(company, order.getId()).orElseThrow();
+        Long overrideRequestId = createApprovedDispatchOverride(
+                companyCode,
+                dealer.getId(),
+                slip.getId(),
+                order.getId(),
+                order.getTotalAmount());
 
         DispatchConfirmRequest request = new DispatchConfirmRequest(
                 slip.getId(),
@@ -314,7 +336,7 @@ class CR_SalesReturnCreditNoteIdempotencyTest extends AbstractIntegrationTest {
                 "codered",
                 true,
                 "discount override for credit-note idempotency regression",
-                null
+                overrideRequestId
         );
 
         CompanyContextHolder.setCompanyId(companyCode);
@@ -543,6 +565,36 @@ class CR_SalesReturnCreditNoteIdempotencyTest extends AbstractIntegrationTest {
         ));
         CompanyContextHolder.clear();
         return salesOrderRepository.findById(orderDto.id()).orElseThrow();
+    }
+
+    private Long createApprovedDispatchOverride(String companyCode,
+                                                Long dealerId,
+                                                Long slipId,
+                                                Long orderId,
+                                                BigDecimal dispatchAmount) {
+        CompanyContextHolder.setCompanyId(companyCode);
+        try {
+            var created = creditLimitOverrideService.createRequest(
+                    new CreditLimitOverrideRequestCreateRequest(
+                            dealerId,
+                            slipId,
+                            orderId,
+                            dispatchAmount,
+                            "CODE-RED dispatch exception approval",
+                            Instant.now().plus(Duration.ofHours(2))
+                    ),
+                    "codered-maker");
+            var approved = creditLimitOverrideService.approveRequest(
+                    created.id(),
+                    new CreditLimitOverrideDecisionRequest(
+                            "CODE-RED dispatch exception approved",
+                            Instant.now().plus(Duration.ofHours(4))
+                    ),
+                    "codered-checker");
+            return approved.id();
+        } finally {
+            CompanyContextHolder.clear();
+        }
     }
 
     private static String shortId() {

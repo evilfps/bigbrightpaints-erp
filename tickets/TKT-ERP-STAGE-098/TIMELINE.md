@@ -9,3 +9,81 @@
   - targeted deterministic suite (85 tests) PASS
   - anchored `gate_fast` rerun FAIL (`line_ratio=0.3134212567882079`, `branch_ratio=0.33048211508553654`)
 - `2026-02-20T11:12:36Z` ticket remains `in_progress`; next execution focuses on lane-aligned coverage for `SLICE-03` and `SLICE-05`.
+- `2026-02-20T19:16:51Z` claim started:
+  - `slice_id`: `SLICE-03`
+  - `agent_id`: `purchasing-invoice-p2p`
+  - `branch`: `tickets/tkt-erp-stage-098/purchasing-invoice-p2p`
+  - `worktree`: `<worktree_path>`
+  - `started_at_utc`: `2026-02-20T19:16:51Z`
+- `2026-02-20T19:24:36Z` `SLICE-03` (`purchasing-invoice-p2p`) implementation completed and moved to review.
+  - Code: added deterministic goods receipt coverage in `PurchasingServiceGoodsReceiptTest` (5 tests).
+  - Validation command: `JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home mvn -s /tmp/mvn-settings.xml -Dmaven.repo.local=/tmp/m2repo -f erp-domain/pom.xml -Dtest=PurchasingServiceGoodsReceiptTest test` -> `FAIL` at `testCompile` due pre-existing generic-stubbing compile error in `src/test/java/com/bigbrightpaints/erp/core/audittrail/EnterpriseAuditTrailServiceTest.java:229,260`.
+  - Validation command: `JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home mvn -s /tmp/mvn-settings.xml -Dmaven.repo.local=/tmp/m2repo -f erp-domain/pom.xml -Dtest=PurchasingServiceTest test` -> `FAIL` with same pre-existing `EnterpriseAuditTrailServiceTest` compile error.
+  - Validation command: `JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home MAVEN_ARGS='-s /tmp/mvn-settings.xml -Dmaven.repo.local=/tmp/m2repo' bash ci/check-architecture.sh` -> `PASS`.
+- `2026-02-20T19:31:26Z` `SLICE-03` review-fix patch applied.
+  - Added `createGoodsReceipt_dataIntegrityRace_reloadsExistingReceipt` to cover idempotency-key race fallback after `DataIntegrityViolationException` by reloading and validating existing receipt.
+  - Added `createGoodsReceipt_legacyReplayBackfillsHash` to cover legacy replay where `idempotencyHash` is null and must be backfilled via `goodsReceiptRepository.save(existing)`.
+  - Validation command: `mvn -f erp-domain/pom.xml -Dtest=PurchasingServiceGoodsReceiptTest test` -> `FAIL` at `testCompile` due pre-existing generic-stubbing compile error in `src/test/java/com/bigbrightpaints/erp/core/audittrail/EnterpriseAuditTrailServiceTest.java:229,260`.
+  - Validation command: `bash ci/check-architecture.sh` -> `PASS`.
+- `2026-02-20T19:38:10Z` claim event:
+  - `slice_id`: `SLICE-06`
+  - `agent_id`: `refactor-techdebt-gc`
+  - `branch`: `tickets/tkt-erp-stage-098/refactor-techdebt-gc`
+  - `worktree`: `<worktree_path>`
+  - `started_at_utc`: `2026-02-20T19:38:10Z`
+  - `status_transition`: `ready -> taken -> in_progress`
+- `2026-02-20T19:39:35Z` `SLICE-06` validation outcomes:
+  - `cd erp-domain && mvn -B -ntp -Dtest=EnterpriseAuditTrailServiceTest test` -> `FAIL` (pre-existing compile blocker before tests: `Fatal error compiling: java.lang.ExceptionInInitializerError: com.sun.tools.javac.code.TypeTag :: UNKNOWN`)
+  - `bash ci/check-architecture.sh` -> `PASS`
+  - `cd erp-domain && mvn -B -ntp test` -> `FAIL` (same pre-existing compile blocker: `Fatal error compiling: java.lang.ExceptionInInitializerError: com.sun.tools.javac.code.TypeTag :: UNKNOWN`)
+  - slice status moved to `in_review`
+- `2026-02-20T19:51:48Z` claim event: `slice_id=SLICE-05`, `agent_id=sales-domain`, `branch=tickets/tkt-erp-stage-098/sales-domain`, `worktree=<worktree_path>`, `started_at_utc=2026-02-20T19:51:48Z`.
+- `2026-02-20T19:56:39Z` `SLICE-05` implementation completed: added deterministic `SalesServiceTest` coverage for `updateStatus` / orchestrator status validation, dispatch confirmation truth branches, paged/non-paged `listOrders` filtering, and dealer CRUD + receivable account sync.
+- `2026-02-20T19:56:39Z` validation outcomes:
+  - `cd erp-domain && mvn -B -ntp -Dtest='*Sales*' test` FAIL at compile phase with `Fatal error compiling: java.lang.ExceptionInInitializerError: com.sun.tools.javac.code.TypeTag :: UNKNOWN` (environment/compiler blocker before test execution).
+  - `bash ci/check-architecture.sh` PASS.
+- `2026-02-20T19:57:27Z` post-edit revalidation rerun:
+  - `cd erp-domain && mvn -B -ntp -Dtest='*Sales*' test` FAIL with same compiler blocker (`TypeTag :: UNKNOWN`) before test execution.
+  - `bash ci/check-architecture.sh` PASS.
+- `2026-02-20T20:03:46Z` review-fix follow-up for `SLICE-05`:
+  - added missing import `com.bigbrightpaints.erp.modules.sales.dto.DealerDto` in `SalesServiceTest`.
+  - corrected ticket artifact slice states to keep `SLICE-03` at baseline and keep this workflow status ownership on `SLICE-05`.
+  - `cd erp-domain && mvn -B -ntp -Dtest='*Sales*' test` FAIL with compiler blocker `TypeTag :: UNKNOWN` before tests execute.
+  - `bash ci/check-architecture.sh` PASS.
+- `2026-02-21T01:59:50+05:30` `SLICE-06` clean validation rerun on release-ops merge branch:
+  - `cd erp-domain && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home PATH="$JAVA_HOME/bin:$PATH" mvn -B -ntp -Dtest=EnterpriseAuditTrailServiceTest clean test` -> `PASS`
+  - `bash ci/check-architecture.sh` -> `PASS`
+  - slice status moved to `merged`
+- `2026-02-21T02:03:00+05:30` SSH parity check on `<ssh_host>` (`harness-engineering-orchestrator`) confirms pre-fix failure:
+  - `cd erp-domain && mvn -B -ntp -Dtest=EnterpriseAuditTrailServiceTest clean test` -> `FAIL`
+  - compiler error matches pre-fix mismatch at `EnterpriseAuditTrailServiceTest.java:229` and `EnterpriseAuditTrailServiceTest.java:260` (`Path<Instant>` not assignable to `Path<Object>`)
+- `2026-02-21T02:19:42+05:30` `SLICE-05` validation rerun on release-ops merge branch:
+  - `cd erp-domain && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home PATH="$JAVA_HOME/bin:$PATH" mvn -B -ntp -Dtest='*Sales*' test` -> `FAIL`
+  - failure scope is Docker/Testcontainers initialization in integration tests (`AbstractIntegrationTest`) while unit/service sales tests pass.
+  - `bash ci/check-architecture.sh` -> `PASS`
+- `2026-02-21T02:31:05+05:30` escalated host-access rerun for `SLICE-05`:
+  - `cd erp-domain && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home PATH="$JAVA_HOME/bin:$PATH" mvn -B -ntp -Dtest='*Sales*' test` -> `FAIL`
+  - `Testcontainers` still reports no valid Docker environment in this workstation context; gate remains environment-blocked for integration tests.
+- `2026-02-21T13:39:08+05:30` `SLICE-03` merged into release-ops integration branch:
+  - `bash ci/check-architecture.sh` -> `PASS`
+  - slice remains `in_review` pending QA/security review sign-off.
+- `2026-02-21T14:51:14+05:30` `SLICE-03` QA/security review sign-off recorded; slice status moved to `merged`.
+- `2026-02-21T14:52:07+05:30` `SLICE-06` status corrected back to `in_review` pending full `mvn -B -ntp test` in a Docker-capable environment.
+- `2026-02-21T14:56:33+05:30` local Docker/Colima troubleshooting for `SLICE-05` gate:
+  - `colima start` succeeded and Docker socket is available at `/Users/anas/.colima/default/docker.sock`.
+  - `mvn -B -ntp -Dtest='*Sales*' test` still fails in `AbstractIntegrationTest` with Testcontainers error: `client version 1.32 is too old. Minimum supported API version is 1.44`.
+  - Result: required Docker-backed gates remain blocked until Testcontainers/docker-java API version mismatch is resolved.
+- `2026-02-21T15:20:40+05:30` `SLICE-05` gate rerun succeeded after local Docker/Testcontainers API alignment:
+  - `cd erp-domain && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home DOCKER_HOST=unix:///Users/anas/.colima/default/docker.sock TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock TESTCONTAINERS_HOST_OVERRIDE=localhost mvn -B -ntp -Dapi.version=1.44 -Dtest='*Sales*' test` -> `PASS` (`141` tests; `0` failures, `0` errors).
+  - `bash ci/check-architecture.sh` -> `PASS`.
+- `2026-02-21T15:21:47+05:30` `SLICE-05` contract-hardening follow-up:
+  - updated `CR_SalesReturnCreditNoteIdempotencyTest` to create approved dispatch overrides via `CreditLimitOverrideService` and pass non-null `overrideRequestId` for dispatch exception scenarios.
+  - replaced fixed override amount with `order.getTotalAmount()` to avoid brittle test-data coupling.
+  - reran `cd erp-domain && mvn -B -ntp -Dapi.version=1.44 -Dtest='*Sales*' test` -> `PASS`.
+  - slice status moved to `merged`.
+- `2026-02-21T15:27:26+05:30` full-suite probe for `SLICE-06` readiness:
+  - `cd erp-domain && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home DOCKER_HOST=unix:///Users/anas/.colima/default/docker.sock TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock TESTCONTAINERS_HOST_OVERRIDE=localhost mvn -B -ntp -Dapi.version=1.44 test` -> `FAIL` (observed broader unrelated suite failures; run ended with exit `143` during long suite execution).
+  - notable failures observed before termination include:
+    - `com.bigbrightpaints.erp.codered.CR_DispatchBusinessMathFuzzTest` (`overrideRequestId` required when dispatch exceptions are applied).
+    - `com.bigbrightpaints.erp.modules.accounting.controller.AccountingCatalogControllerIdempotencyHeaderTest` (header mismatch expectation drift).
+  - `SLICE-06` remains `in_review` pending a clean full-suite pass.

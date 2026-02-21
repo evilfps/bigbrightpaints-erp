@@ -26,6 +26,7 @@ import com.bigbrightpaints.erp.modules.invoice.domain.Invoice;
 import com.bigbrightpaints.erp.modules.invoice.domain.InvoiceRepository;
 import com.bigbrightpaints.erp.modules.factory.domain.FactoryTaskRepository;
 import com.bigbrightpaints.erp.modules.sales.dto.SalesOrderDto;
+import com.bigbrightpaints.erp.modules.sales.dto.DealerDto;
 import com.bigbrightpaints.erp.modules.sales.dto.CreditRequestDto;
 import com.bigbrightpaints.erp.modules.sales.dto.CreditRequestRequest;
 import com.bigbrightpaints.erp.modules.inventory.dto.PackagingSlipDto;
@@ -72,6 +73,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -450,6 +452,423 @@ class SalesServiceTest {
         assertEquals(ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD, ex.getErrorCode());
         assertEquals("PENDING", existing.getStatus());
         verifyNoInteractions(auditService);
+    }
+
+    @Test
+    void updateStatusRejectsUnknownStatus() {
+        SalesOrder order = new SalesOrder();
+        order.setCompany(company);
+        order.setStatus("BOOKED");
+        setField(order, "id", 921L);
+
+        when(companyEntityLookup.requireSalesOrder(company, 921L)).thenReturn(order);
+
+        ApplicationException ex = assertThrows(ApplicationException.class,
+                () -> salesService.updateStatus(921L, "archived"));
+
+        assertEquals(ErrorCode.VALIDATION_INVALID_INPUT, ex.getErrorCode());
+        assertTrue(ex.getMessage().contains("Unknown order status"));
+        assertEquals("BOOKED", order.getStatus());
+    }
+
+    @Test
+    void updateStatusRejectsBlankStatus() {
+        SalesOrder order = new SalesOrder();
+        order.setCompany(company);
+        order.setStatus("BOOKED");
+        setField(order, "id", 920L);
+
+        when(companyEntityLookup.requireSalesOrder(company, 920L)).thenReturn(order);
+
+        ApplicationException ex = assertThrows(ApplicationException.class,
+                () -> salesService.updateStatus(920L, " "));
+
+        assertEquals(ErrorCode.VALIDATION_INVALID_INPUT, ex.getErrorCode());
+        assertTrue(ex.getMessage().contains("Status is required"));
+    }
+
+    @Test
+    void updateStatusRejectsWorkflowOnlyStatus() {
+        SalesOrder order = new SalesOrder();
+        order.setCompany(company);
+        order.setStatus("BOOKED");
+        setField(order, "id", 922L);
+
+        when(companyEntityLookup.requireSalesOrder(company, 922L)).thenReturn(order);
+
+        ApplicationException ex = assertThrows(ApplicationException.class,
+                () -> salesService.updateStatus(922L, "confirmed"));
+
+        assertEquals(ErrorCode.VALIDATION_INVALID_INPUT, ex.getErrorCode());
+        assertTrue(ex.getMessage().contains("workflow endpoints"));
+        assertEquals("BOOKED", order.getStatus());
+    }
+
+    @Test
+    void updateStatusAllowsManualStatus() {
+        SalesOrder order = new SalesOrder();
+        order.setCompany(company);
+        order.setStatus("BOOKED");
+        setField(order, "id", 923L);
+
+        when(companyEntityLookup.requireSalesOrder(company, 923L)).thenReturn(order);
+        when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 923L)).thenReturn(List.of());
+
+        SalesOrderDto dto = salesService.updateStatus(923L, " on_hold ");
+
+        assertEquals("ON_HOLD", dto.status());
+        assertEquals("ON_HOLD", order.getStatus());
+    }
+
+    @Test
+    void updateOrchestratorWorkflowStatusRejectsInvalidStatus() {
+        SalesOrder order = new SalesOrder();
+        order.setCompany(company);
+        order.setStatus("BOOKED");
+        setField(order, "id", 924L);
+
+        when(companyEntityLookup.requireSalesOrder(company, 924L)).thenReturn(order);
+
+        ApplicationException ex = assertThrows(ApplicationException.class,
+                () -> salesService.updateOrchestratorWorkflowStatus(924L, "ON_HOLD"));
+
+        assertEquals(ErrorCode.VALIDATION_INVALID_INPUT, ex.getErrorCode());
+        assertTrue(ex.getMessage().contains("cannot be set by orchestrator"));
+        assertEquals("BOOKED", order.getStatus());
+    }
+
+    @Test
+    void updateOrchestratorWorkflowStatusRejectsBlankStatus() {
+        SalesOrder order = new SalesOrder();
+        order.setCompany(company);
+        order.setStatus("BOOKED");
+        setField(order, "id", 926L);
+
+        when(companyEntityLookup.requireSalesOrder(company, 926L)).thenReturn(order);
+
+        ApplicationException ex = assertThrows(ApplicationException.class,
+                () -> salesService.updateOrchestratorWorkflowStatus(926L, " "));
+
+        assertEquals(ErrorCode.VALIDATION_INVALID_INPUT, ex.getErrorCode());
+        assertTrue(ex.getMessage().contains("Status is required"));
+    }
+
+    @Test
+    void updateOrchestratorWorkflowStatusAcceptsAllowedStatus() {
+        SalesOrder order = new SalesOrder();
+        order.setCompany(company);
+        order.setStatus("BOOKED");
+        setField(order, "id", 925L);
+
+        when(companyEntityLookup.requireSalesOrder(company, 925L)).thenReturn(order);
+        when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 925L)).thenReturn(List.of());
+
+        salesService.updateOrchestratorWorkflowStatus(925L, " ready_to_ship ");
+
+        assertEquals("READY_TO_SHIP", order.getStatus());
+    }
+
+    @Test
+    void hasDispatchConfirmationReturnsFalseWhenNoSlipsFound() {
+        SalesOrder order = new SalesOrder();
+        setField(order, "id", 930L);
+
+        when(companyEntityLookup.requireSalesOrder(company, 930L)).thenReturn(order);
+        when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 930L)).thenReturn(List.of());
+
+        assertFalse(salesService.hasDispatchConfirmation(930L));
+    }
+
+    @Test
+    void hasDispatchConfirmationReturnsFalseWhenDispatchMarkersAreIncomplete() {
+        SalesOrder order = new SalesOrder();
+        setField(order, "id", 931L);
+
+        PackagingSlip slip = new PackagingSlip();
+        slip.setStatus("DISPATCHED");
+        slip.setInvoiceId(11L);
+
+        when(companyEntityLookup.requireSalesOrder(company, 931L)).thenReturn(order);
+        when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 931L)).thenReturn(List.of(slip));
+
+        assertFalse(salesService.hasDispatchConfirmation(931L));
+    }
+
+    @Test
+    void hasDispatchConfirmationReturnsTrueWhenDispatchTruthExists() {
+        SalesOrder order = new SalesOrder();
+        setField(order, "id", 932L);
+
+        PackagingSlip slip = new PackagingSlip();
+        slip.setStatus("DISPATCHED");
+        slip.setSlipNumber("PS-932");
+        slip.setInvoiceId(12L);
+        slip.setJournalEntryId(13L);
+
+        when(companyEntityLookup.requireSalesOrder(company, 932L)).thenReturn(order);
+        when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 932L)).thenReturn(List.of(slip));
+        when(accountingFacade.hasCogsJournalFor("PS-932")).thenReturn(true);
+
+        assertTrue(salesService.hasDispatchConfirmation(932L));
+    }
+
+    @Test
+    void listOrdersPagedUsesCompanyPathWhenStatusBlankAndDealerMissing() {
+        SalesOrder order = new SalesOrder();
+        setField(order, "id", 941L);
+        order.setStatus("BOOKED");
+        order.setOrderNumber("SO-941");
+
+        when(salesOrderRepository.findIdsByCompanyOrderByCreatedAtDescIdDesc(eq(company), any(PageRequest.class)))
+                .thenReturn(new PageImpl<>(List.of(941L)));
+        when(salesOrderRepository.findByCompanyAndIdInOrderByCreatedAtDescIdDesc(company, List.of(941L)))
+                .thenReturn(List.of(order));
+
+        List<SalesOrderDto> results = salesService.listOrders(" ", -3, 400);
+
+        assertEquals(1, results.size());
+        assertEquals(941L, results.get(0).id());
+        ArgumentCaptor<PageRequest> pageCaptor = ArgumentCaptor.forClass(PageRequest.class);
+        verify(salesOrderRepository).findIdsByCompanyOrderByCreatedAtDescIdDesc(eq(company), pageCaptor.capture());
+        assertEquals(0, pageCaptor.getValue().getPageNumber());
+        assertEquals(200, pageCaptor.getValue().getPageSize());
+        verify(salesOrderRepository, never())
+                .findIdsByCompanyAndDealerAndStatusOrderByCreatedAtDescIdDesc(any(), any(), anyString(), any());
+    }
+
+    @Test
+    void listOrdersPagedUsesDealerAndStatusPath() {
+        Dealer dealer = new Dealer();
+        dealer.setCompany(company);
+        dealer.setName("Dealer A");
+        setField(dealer, "id", 501L);
+
+        SalesOrder order = new SalesOrder();
+        order.setDealer(dealer);
+        order.setStatus("CONFIRMED");
+        order.setOrderNumber("SO-942");
+        setField(order, "id", 942L);
+
+        when(companyEntityLookup.requireDealer(company, 501L)).thenReturn(dealer);
+        when(salesOrderRepository.findIdsByCompanyAndDealerAndStatusOrderByCreatedAtDescIdDesc(
+                eq(company), eq(dealer), eq("CONFIRMED"), any(PageRequest.class)))
+                .thenReturn(new PageImpl<>(List.of(942L)));
+        when(salesOrderRepository.findByCompanyAndIdInOrderByCreatedAtDescIdDesc(company, List.of(942L)))
+                .thenReturn(List.of(order));
+
+        List<SalesOrderDto> results = salesService.listOrders("CONFIRMED", 501L, 2, 25);
+
+        assertEquals(1, results.size());
+        assertEquals(942L, results.get(0).id());
+        ArgumentCaptor<PageRequest> pageCaptor = ArgumentCaptor.forClass(PageRequest.class);
+        verify(salesOrderRepository).findIdsByCompanyAndDealerAndStatusOrderByCreatedAtDescIdDesc(
+                eq(company), eq(dealer), eq("CONFIRMED"), pageCaptor.capture());
+        assertEquals(2, pageCaptor.getValue().getPageNumber());
+        assertEquals(25, pageCaptor.getValue().getPageSize());
+    }
+
+    @Test
+    void listOrdersPagedReturnsEmptyWhenNoIdsFound() {
+        when(salesOrderRepository.findIdsByCompanyAndStatusOrderByCreatedAtDescIdDesc(eq(company), eq("ON_HOLD"), any(PageRequest.class)))
+                .thenReturn(new PageImpl<>(List.of()));
+
+        List<SalesOrderDto> results = salesService.listOrders("ON_HOLD", 0, 10);
+
+        assertTrue(results.isEmpty());
+        verify(salesOrderRepository, never()).findByCompanyAndIdInOrderByCreatedAtDescIdDesc(any(), any());
+    }
+
+    @Test
+    void listOrdersNonPagedUsesDealerPathWhenStatusBlank() {
+        Dealer dealer = new Dealer();
+        dealer.setCompany(company);
+        dealer.setName("Dealer B");
+        setField(dealer, "id", 502L);
+
+        SalesOrder order = new SalesOrder();
+        order.setDealer(dealer);
+        order.setStatus("BOOKED");
+        order.setOrderNumber("SO-943");
+        setField(order, "id", 943L);
+
+        when(companyEntityLookup.requireDealer(company, 502L)).thenReturn(dealer);
+        when(salesOrderRepository.findByCompanyAndDealerOrderByCreatedAtDesc(company, dealer)).thenReturn(List.of(order));
+
+        List<SalesOrderDto> results = salesService.listOrders("   ", 502L);
+
+        assertEquals(1, results.size());
+        assertEquals(943L, results.get(0).id());
+        verify(salesOrderRepository).findByCompanyAndDealerOrderByCreatedAtDesc(company, dealer);
+    }
+
+    @Test
+    void listOrdersNonPagedUsesStatusPathWhenDealerMissing() {
+        SalesOrder order = new SalesOrder();
+        order.setStatus("ON_HOLD");
+        order.setOrderNumber("SO-944");
+        setField(order, "id", 944L);
+
+        when(salesOrderRepository.findByCompanyAndStatusOrderByCreatedAtDesc(company, "ON_HOLD"))
+                .thenReturn(List.of(order));
+
+        List<SalesOrderDto> results = salesService.listOrders("ON_HOLD");
+
+        assertEquals(1, results.size());
+        assertEquals(944L, results.get(0).id());
+        verify(salesOrderRepository).findByCompanyAndStatusOrderByCreatedAtDesc(company, "ON_HOLD");
+        verify(salesOrderRepository, never()).findByCompanyOrderByCreatedAtDesc(company);
+    }
+
+    @Test
+    void createDealerCreatesUniqueReceivableAccountAndLinksControlAccount() {
+        Account existingReceivable = new Account();
+        existingReceivable.setCompany(company);
+        existingReceivable.setCode("AR-DLR");
+        when(accountRepository.findByCompanyAndCodeIgnoreCase(company, "AR-DLR")).thenReturn(Optional.of(existingReceivable));
+        when(accountRepository.findByCompanyAndCodeIgnoreCase(company, "AR-DLR-1")).thenReturn(Optional.empty());
+
+        Account arControl = new Account();
+        arControl.setCompany(company);
+        arControl.setCode("AR");
+        arControl.setType(com.bigbrightpaints.erp.modules.accounting.domain.AccountType.ASSET);
+        when(accountRepository.findByCompanyAndCodeIgnoreCase(company, "AR")).thenReturn(Optional.of(arControl));
+
+        when(accountRepository.save(any(Account.class))).thenAnswer(invocation -> {
+            Account saved = invocation.getArgument(0);
+            setField(saved, "id", 811L);
+            return saved;
+        });
+        when(dealerRepository.save(any(Dealer.class))).thenAnswer(invocation -> {
+            Dealer saved = invocation.getArgument(0);
+            setField(saved, "id", 812L);
+            return saved;
+        });
+        when(dealerLedgerService.currentBalance(812L)).thenReturn(BigDecimal.ZERO);
+
+        DealerDto dto = salesService.createDealer(new com.bigbrightpaints.erp.modules.sales.dto.DealerRequest(
+                "Dealer Link",
+                "DLR",
+                "dealer@example.com",
+                "555-1010",
+                new BigDecimal("5000")
+        ));
+
+        assertEquals(812L, dto.id());
+        assertEquals("DLR", dto.code());
+        ArgumentCaptor<Account> accountCaptor = ArgumentCaptor.forClass(Account.class);
+        verify(accountRepository).save(accountCaptor.capture());
+        assertEquals("AR-DLR-1", accountCaptor.getValue().getCode());
+        assertEquals("Dealer Link Receivable", accountCaptor.getValue().getName());
+        assertEquals(arControl, accountCaptor.getValue().getParent());
+    }
+
+    @Test
+    void updateDealerSyncsReceivableAccountCodeAndName() {
+        Dealer dealer = new Dealer();
+        dealer.setCompany(company);
+        dealer.setName("Old Dealer");
+        dealer.setCode("OLD");
+        setField(dealer, "id", 813L);
+
+        Account receivable = new Account();
+        receivable.setCompany(company);
+        receivable.setCode("AR-OLD-1");
+        receivable.setName("Old Dealer Receivable");
+        dealer.setReceivableAccount(receivable);
+
+        when(companyEntityLookup.requireDealer(company, 813L)).thenReturn(dealer);
+        when(accountRepository.findByCompanyAndCodeIgnoreCase(company, "AR-NEW-1")).thenReturn(Optional.empty());
+        when(dealerLedgerService.currentBalance(813L)).thenReturn(BigDecimal.ZERO);
+
+        DealerDto dto = salesService.updateDealer(813L, new com.bigbrightpaints.erp.modules.sales.dto.DealerRequest(
+                "New Dealer",
+                "NEW",
+                "new@example.com",
+                "555-2020",
+                new BigDecimal("7200")
+        ));
+
+        assertEquals("NEW", dto.code());
+        assertEquals("AR-NEW-1", receivable.getCode());
+        assertEquals("New Dealer Receivable", receivable.getName());
+        verify(accountRepository).save(receivable);
+    }
+
+    @Test
+    void updateDealerSkipsReceivableCodeUpdateWhenNewCodeAlreadyExists() {
+        Dealer dealer = new Dealer();
+        dealer.setCompany(company);
+        dealer.setName("Same Name");
+        dealer.setCode("OLD");
+        setField(dealer, "id", 814L);
+
+        Account receivable = new Account();
+        receivable.setCompany(company);
+        receivable.setCode("AR-OLD-2");
+        receivable.setName("Same Name Receivable");
+        dealer.setReceivableAccount(receivable);
+
+        when(companyEntityLookup.requireDealer(company, 814L)).thenReturn(dealer);
+        when(accountRepository.findByCompanyAndCodeIgnoreCase(company, "AR-NEW-2")).thenReturn(Optional.of(new Account()));
+        when(dealerLedgerService.currentBalance(814L)).thenReturn(BigDecimal.ZERO);
+
+        DealerDto dto = salesService.updateDealer(814L, new com.bigbrightpaints.erp.modules.sales.dto.DealerRequest(
+                "Same Name",
+                "NEW",
+                "same@example.com",
+                "555-3030",
+                new BigDecimal("8100")
+        ));
+
+        assertEquals("NEW", dto.code());
+        assertEquals("AR-OLD-2", receivable.getCode());
+        assertEquals("Same Name Receivable", receivable.getName());
+        verify(accountRepository, never()).save(receivable);
+    }
+
+    @Test
+    void updateDealerSkipsReceivableSyncWhenNoLinkedAccount() {
+        Dealer dealer = new Dealer();
+        dealer.setCompany(company);
+        dealer.setName("No Account");
+        dealer.setCode("NACC");
+        setField(dealer, "id", 815L);
+        dealer.setReceivableAccount(null);
+
+        when(companyEntityLookup.requireDealer(company, 815L)).thenReturn(dealer);
+        when(dealerLedgerService.currentBalance(815L)).thenReturn(BigDecimal.ZERO);
+
+        DealerDto dto = salesService.updateDealer(815L, new com.bigbrightpaints.erp.modules.sales.dto.DealerRequest(
+                "No Account Updated",
+                "NACC2",
+                "none@example.com",
+                "555-4040",
+                new BigDecimal("6100")
+        ));
+
+        assertEquals("NACC2", dto.code());
+        verifyNoInteractions(accountRepository);
+    }
+
+    @Test
+    void deleteDealerDeactivatesReceivableAccountBeforeDelete() {
+        Dealer dealer = new Dealer();
+        dealer.setCompany(company);
+        setField(dealer, "id", 816L);
+
+        Account receivable = new Account();
+        receivable.setCompany(company);
+        receivable.setCode("AR-DEL");
+        receivable.setActive(true);
+        dealer.setReceivableAccount(receivable);
+
+        when(companyEntityLookup.requireDealer(company, 816L)).thenReturn(dealer);
+
+        salesService.deleteDealer(816L);
+
+        assertFalse(receivable.isActive());
+        verify(accountRepository).save(receivable);
+        verify(dealerRepository).delete(dealer);
     }
 
     @Test
