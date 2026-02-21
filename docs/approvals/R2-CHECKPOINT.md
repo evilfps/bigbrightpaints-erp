@@ -157,7 +157,7 @@ Update this file in every high-risk change set.
     - `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/controller/AccountingControllerExceptionHandlerTest.java`
 
 ## STAGE-102 Addendum (2026-02-21, release-ops)
-- Branch / PR: `tickets/tkt-erp-stage-102/release-ops` / PR #35 (https://github.com/anasibnanwar-XYE/bigbrightpaints-erp/pull/35)
+- Branch / PR: ticket branch `tkt-erp-stage-102` (release-ops lane) / PR #35 (https://github.com/anasibnanwar-XYE/bigbrightpaints-erp/pull/35)
 - High-risk paths:
   - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/company/controller/CompanyController.java`
   - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/company/service/CompanyService.java`
