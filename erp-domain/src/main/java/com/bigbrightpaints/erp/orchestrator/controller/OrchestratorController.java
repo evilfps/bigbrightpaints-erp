@@ -85,7 +85,7 @@ public class OrchestratorController {
         String companyCode = requireCompanyCode();
         OrderFulfillmentRequest normalized = new OrderFulfillmentRequest(
                 normalizeFulfillmentStatus(request.status()),
-                canonicalNullableText(request.notes()));
+                canonicalText(request.notes()));
         String traceId = commandDispatcher.updateOrderFulfillment(
                 orderId,
                 selectPayloadForIdempotency(idempotencyKey, request, normalized),
@@ -220,10 +220,6 @@ public class OrchestratorController {
 
     private static String canonicalText(String value) {
         return value == null ? "" : value.trim();
-    }
-
-    private static String canonicalNullableText(String value) {
-        return value == null ? null : value.trim();
     }
 
     private static <T> T selectPayloadForIdempotency(String idempotencyKey,
