@@ -39,6 +39,7 @@ import org.springframework.util.StringUtils;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -397,8 +398,7 @@ public class AccountingFacade {
         if (existingByBase.isPresent()) {
             return toSimpleDto(existingByBase.get());
         }
-        Optional<JournalEntry> legacyByPrefix = journalEntryRepository
-                .findFirstByCompanyAndReferenceNumberStartingWith(company, baseReference + "-");
+        Optional<JournalEntry> legacyByPrefix = findLegacyPurchaseCanonicalEntry(company, baseReference);
         if (legacyByPrefix.isPresent()) {
             ensurePurchaseReferenceMapping(company, baseReference, legacyByPrefix.get());
             return toSimpleDto(legacyByPrefix.get());
@@ -1588,6 +1588,46 @@ public class AccountingFacade {
         mapping.setEntityType("PURCHASE_JOURNAL");
         mapping.setEntityId(entry.getId());
         journalReferenceMappingRepository.save(mapping);
+    }
+
+    private Optional<JournalEntry> findLegacyPurchaseCanonicalEntry(Company company, String baseReference) {
+        if (company == null || !StringUtils.hasText(baseReference)) {
+            return Optional.empty();
+        }
+        return journalEntryRepository.findByCompanyAndReferenceNumberStartingWith(company, baseReference + "-").stream()
+                .filter(entry -> isCanonicalPurchaseReference(baseReference, entry.getReferenceNumber()))
+                .min(Comparator.comparingLong((JournalEntry entry) ->
+                                purchaseReferenceSequence(baseReference, entry.getReferenceNumber()))
+                        .thenComparing(JournalEntry::getId, Comparator.nullsLast(Comparator.naturalOrder())));
+    }
+
+    private boolean isCanonicalPurchaseReference(String baseReference, String candidateReference) {
+        if (!StringUtils.hasText(baseReference) || !StringUtils.hasText(candidateReference)) {
+            return false;
+        }
+        String prefix = baseReference + "-";
+        if (!candidateReference.startsWith(prefix)) {
+            return false;
+        }
+        String suffix = candidateReference.substring(prefix.length());
+        if (suffix.isEmpty()) {
+            return false;
+        }
+        for (int i = 0; i < suffix.length(); i++) {
+            if (!Character.isDigit(suffix.charAt(i))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private long purchaseReferenceSequence(String baseReference, String candidateReference) {
+        String suffix = candidateReference.substring((baseReference + "-").length());
+        try {
+            return Long.parseLong(suffix);
+        } catch (NumberFormatException ex) {
+            return Long.MAX_VALUE;
+        }
     }
 
     private Supplier requireSupplier(Company company, Long supplierId) {

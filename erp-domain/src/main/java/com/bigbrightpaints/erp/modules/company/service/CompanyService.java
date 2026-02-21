@@ -94,7 +94,6 @@ public class CompanyService {
     @Transactional
     public CompanyDto update(Long id, CompanyRequest request, Set<Company> allowedCompanies) {
         requireSuperAdminForTenantConfigurationUpdate();
-        requireMembershipById(id, allowedCompanies);
         Company company = repository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Company not found"));
         company.setName(request.name());

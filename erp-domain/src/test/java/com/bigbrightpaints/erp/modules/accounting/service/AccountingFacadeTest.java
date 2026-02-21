@@ -13,6 +13,7 @@ import com.bigbrightpaints.erp.modules.accounting.dto.JournalLineDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.PayrollPaymentRequest;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
+import com.bigbrightpaints.erp.modules.purchasing.domain.Supplier;
 import com.bigbrightpaints.erp.modules.purchasing.domain.SupplierRepository;
 import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
@@ -196,6 +197,62 @@ class AccountingFacadeTest {
 
         assertThat(actual).isSameAs(expected);
         verify(accountingService).postPayrollRun("PR-W-202602", 77L, LocalDate.of(2026, 2, 1), "Payroll - PR-W-202602", lines);
+        verify(accountingService, never()).createJournalEntry(any());
+    }
+
+    @Test
+    void postPurchaseJournal_legacyPrefixFallback_ignoresReversalSuffix() {
+        Long supplierId = 88L;
+        Supplier supplier = new Supplier();
+        Account payable = new Account();
+        payable.setCode("AP");
+        payable.setName("Accounts Payable");
+        ReflectionTestUtils.setField(payable, "id", 301L);
+        supplier.setPayableAccount(payable);
+        when(companyEntityLookup.requireSupplier(eq(company), eq(supplierId))).thenReturn(supplier);
+
+        Long inventoryAccountId = 201L;
+        Account inventory = new Account();
+        ReflectionTestUtils.setField(inventory, "id", inventoryAccountId);
+        when(companyEntityLookup.requireAccount(eq(company), eq(inventoryAccountId))).thenReturn(inventory);
+
+        String baseReference = "RMP-ACME-SUP-INV100";
+        when(referenceNumberService.purchaseReferenceKey(eq(company), eq(supplier), eq("INV-100")))
+                .thenReturn(baseReference);
+        when(journalReferenceResolver.findExistingEntry(eq(company), eq(baseReference))).thenReturn(Optional.empty());
+
+        JournalEntry reversal = new JournalEntry();
+        ReflectionTestUtils.setField(reversal, "id", 501L);
+        reversal.setReferenceNumber(baseReference + "-0001-REV");
+        reversal.setEntryDate(LocalDate.of(2026, 1, 12));
+
+        JournalEntry canonical = new JournalEntry();
+        ReflectionTestUtils.setField(canonical, "id", 500L);
+        canonical.setReferenceNumber(baseReference + "-0001");
+        canonical.setEntryDate(LocalDate.of(2026, 1, 13));
+
+        JournalEntry laterSequenceButOlderDate = new JournalEntry();
+        ReflectionTestUtils.setField(laterSequenceButOlderDate, "id", 499L);
+        laterSequenceButOlderDate.setReferenceNumber(baseReference + "-0002");
+        laterSequenceButOlderDate.setEntryDate(LocalDate.of(2026, 1, 10));
+
+        when(journalEntryRepository.findByCompanyAndReferenceNumberStartingWith(eq(company), eq(baseReference + "-")))
+                .thenReturn(List.of(reversal, laterSequenceButOlderDate, canonical));
+        when(journalReferenceMappingRepository.findByCompanyAndLegacyReferenceIgnoreCase(eq(company), eq(baseReference)))
+                .thenReturn(Optional.empty());
+
+        JournalEntryDto dto = accountingFacade.postPurchaseJournal(
+                supplierId,
+                "INV-100",
+                LocalDate.of(2026, 1, 10),
+                "legacy replay",
+                Map.of(inventoryAccountId, new BigDecimal("100.00")),
+                null,
+                new BigDecimal("100.00"),
+                null
+        );
+
+        assertThat(dto.referenceNumber()).isEqualTo(baseReference + "-0001");
         verify(accountingService, never()).createJournalEntry(any());
     }
 
