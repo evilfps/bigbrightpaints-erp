@@ -191,6 +191,18 @@ class OrchestratorIdempotencyServiceTest {
         verify(commandRepository).save(existing);
     }
 
+    @Test
+    void startFailsClosedWhenPayloadSerializationIsNonDeterministic() {
+        assertThatThrownBy(() -> service.start(
+                "ORCH.ORDER.APPROVE",
+                "idem-bad-payload",
+                new Object(),
+                () -> "trace-seed"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Unable to deterministically hash orchestrator payload");
+        verify(commandRepository, never()).reserveScope(any(), any(), any(), any(), any());
+    }
+
     private static class NoOpTransactionManager extends AbstractPlatformTransactionManager {
         @Override
         protected Object doGetTransaction() {

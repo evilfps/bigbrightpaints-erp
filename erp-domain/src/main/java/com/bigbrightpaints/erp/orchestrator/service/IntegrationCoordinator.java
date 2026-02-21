@@ -136,18 +136,31 @@ public class IntegrationCoordinator {
 
     @Transactional
     public InventoryReservationResult reserveInventory(String orderId, String companyId) {
+        return reserveInventory(orderId, companyId, null, null);
+    }
+
+    @Transactional
+    public InventoryReservationResult reserveInventory(String orderId,
+                                                      String companyId,
+                                                      String traceId,
+                                                      String idempotencyKey) {
+        String correlation = correlationSuffix(traceId, idempotencyKey);
         return withCompanyContext(companyId, () -> {
             Long id = parseNumericId(orderId);
             if (id == null) {
                 return null;
             }
+            attachOrderTrace(id, traceId);
             SalesOrder order = salesService.getOrderWithItems(id);
             InventoryReservationResult reservation = finishedGoodsService.reserveForOrder(order);
             if (!reservation.shortages().isEmpty()) {
-                scheduleUrgentProduction(order, reservation.shortages());
-                log.warn("Order {} has {} pending shortage line(s); queued urgent production", id, reservation.shortages().size());
+                scheduleUrgentProduction(order, reservation.shortages(), traceId, idempotencyKey);
+                log.warn("Order {} has {} pending shortage line(s); queued urgent production{}",
+                        id,
+                        reservation.shortages().size(),
+                        correlation);
             } else {
-                log.info("Reserved inventory for order {}", id);
+                log.info("Reserved inventory for order {}{}", id, correlation);
             }
             salesService.updateOrchestratorWorkflowStatus(id, "RESERVED");
             return reservation;
@@ -176,9 +189,19 @@ public class IntegrationCoordinator {
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public AutoApprovalResult autoApproveOrder(String orderId, BigDecimal amount, String companyId) {
+        return autoApproveOrder(orderId, amount, companyId, null, null);
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public AutoApprovalResult autoApproveOrder(String orderId,
+                                               BigDecimal amount,
+                                               String companyId,
+                                               String traceId,
+                                               String idempotencyKey) {
+        String correlation = correlationSuffix(traceId, idempotencyKey);
         String normalizedCompanyId = normalizeCompanyId(companyId);
         if (normalizedCompanyId == null) {
-            log.warn("Cannot auto-approve order {} without a company context", orderId);
+            log.warn("Cannot auto-approve order {} without a company context{}", orderId, correlation);
             return new AutoApprovalResult("PENDING_PRODUCTION", true);
         }
         Long numericId = parseNumericId(orderId);
@@ -188,9 +211,13 @@ public class IntegrationCoordinator {
         AtomicReference<String> status = new AtomicReference<>("PENDING_PRODUCTION");
         AtomicBoolean awaitingProduction = new AtomicBoolean(false);
         runWithCompanyContext(normalizedCompanyId, () -> {
+            attachOrderTrace(numericId, traceId);
             OrderAutoApprovalState state = lockAutoApprovalState(normalizedCompanyId, numericId);
             if (state.isCompleted()) {
-                log.info("Auto-approval already completed for order {} (company {})", orderId, normalizedCompanyId);
+                log.info("Auto-approval already completed for order {} (company {}){}",
+                        orderId,
+                        normalizedCompanyId,
+                        correlation);
                 status.set(state.isDispatchFinalized() ? "SHIPPED" : "READY_TO_SHIP");
                 return;
             }
@@ -198,7 +225,7 @@ public class IntegrationCoordinator {
             try {
                 InventoryReservationResult reservation = null;
                 if (!state.isInventoryReserved()) {
-                    reservation = reserveInventory(orderId, normalizedCompanyId);
+                    reservation = reserveInventory(orderId, normalizedCompanyId, traceId, idempotencyKey);
                     awaitingProduction.set(reservation != null && !reservation.shortages().isEmpty());
                     state.markInventoryReserved();
                 } else if (reservation == null) {
@@ -209,7 +236,11 @@ public class IntegrationCoordinator {
                             awaitingProduction.get() ? "PENDING_PRODUCTION" : "READY_TO_SHIP");
                     state.markOrderStatusUpdated();
                 }
-                log.info("Auto-approved order {} for company {}; awaitingProduction={}", orderId, normalizedCompanyId, awaitingProduction.get());
+                log.info("Auto-approved order {} for company {}; awaitingProduction={}{}",
+                        orderId,
+                        normalizedCompanyId,
+                        awaitingProduction.get(),
+                        correlation);
                 status.set(awaitingProduction.get() ? "PENDING_PRODUCTION" : "READY_TO_SHIP");
                 if (!awaitingProduction.get()) {
                     state.markCompleted();
@@ -217,7 +248,11 @@ public class IntegrationCoordinator {
             } catch (RuntimeException ex) {
                 state.markFailed(ex.getMessage());
                 status.set("FAILED");
-                log.error("Auto-approval failed for order {} (company {})", orderId, normalizedCompanyId, ex);
+                log.error("Auto-approval failed for order {} (company {}){}",
+                        orderId,
+                        normalizedCompanyId,
+                        correlation,
+                        ex);
                 throw ex;
             }
         });
@@ -226,17 +261,34 @@ public class IntegrationCoordinator {
 
     @Transactional
     public void updateProductionStatus(String planId, String companyId) {
+        updateProductionStatus(planId, companyId, null, null);
+    }
+
+    @Transactional
+    public void updateProductionStatus(String planId,
+                                       String companyId,
+                                       String traceId,
+                                       String idempotencyKey) {
+        String correlation = correlationSuffix(traceId, idempotencyKey);
         requireFactoryDispatchEnabled();
         runWithCompanyContext(companyId, () -> {
             Long id = parseNumericId(planId);
             if (id != null) {
                 ProductionPlanDto plan = factoryService.updatePlanStatus(id, "COMPLETED");
-                log.info("Marked production plan {} as completed", planId);
+                log.info("Marked production plan {} as completed{}", planId, correlation);
                 extractOrderIdFromPlan(plan)
                         .ifPresent(orderId -> {
-                            AutoApprovalResult result = autoApproveOrder(String.valueOf(orderId), null, companyId);
-                            log.info("Resumed auto-approval for order {} after plan completion; status={}, awaitingProduction={}",
-                                    orderId, result.orderStatus(), result.awaitingProduction());
+                            AutoApprovalResult result = autoApproveOrder(
+                                    String.valueOf(orderId),
+                                    null,
+                                    companyId,
+                                    traceId,
+                                    idempotencyKey);
+                            log.info("Resumed auto-approval for order {} after plan completion; status={}, awaitingProduction={}{}",
+                                    orderId,
+                                    result.orderStatus(),
+                                    result.awaitingProduction(),
+                                    correlation);
                         });
             }
         });
@@ -244,11 +296,21 @@ public class IntegrationCoordinator {
 
     @Transactional
     public AutoApprovalResult updateFulfillment(String orderId, String requestedStatus, String companyId) {
+        return updateFulfillment(orderId, requestedStatus, companyId, null, null);
+    }
+
+    @Transactional
+    public AutoApprovalResult updateFulfillment(String orderId,
+                                                String requestedStatus,
+                                                String companyId,
+                                                String traceId,
+                                                String idempotencyKey) {
         return withCompanyContext(companyId, () -> {
             Long id = parseNumericId(orderId);
             if (id == null) {
                 return new AutoApprovalResult("INVALID", false);
             }
+            attachOrderTrace(id, traceId);
             String status = requestedStatus == null ? "" : requestedStatus.trim().toUpperCase();
             switch (status) {
                 case "PROCESSING":
@@ -260,7 +322,7 @@ public class IntegrationCoordinator {
                     salesService.cancelOrder(id, "Cancelled");
                     return new AutoApprovalResult("CANCELLED", false);
                 case "READY_TO_SHIP":
-                    return autoApproveOrder(orderId, null, companyId);
+                    return autoApproveOrder(orderId, null, companyId, traceId, idempotencyKey);
                 case "SHIPPED":
                 case "DISPATCHED":
                 case "FULFILLED":
@@ -282,15 +344,24 @@ public class IntegrationCoordinator {
 
     @Transactional
     public void releaseInventory(String batchId, String companyId) {
+        releaseInventory(batchId, companyId, null, null);
+    }
+
+    @Transactional
+    public void releaseInventory(String batchId,
+                                 String companyId,
+                                 String traceId,
+                                 String idempotencyKey) {
+        String correlation = correlationSuffix(traceId, idempotencyKey);
         requireFactoryDispatchEnabled();
         runWithCompanyContext(companyId, () -> {
             ProductionBatchRequest request = new ProductionBatchRequest(
                     batchId + "-DISPATCH",
                     0.0,
                     "system",
-                    "Auto release for dispatch " + batchId);
+                    correlationMemo("Auto release for dispatch " + batchId, traceId, idempotencyKey));
             factoryService.logBatch(null, request);
-            log.info("Logged release batch {}", batchId);
+            log.info("Logged release batch {}{}", batchId, correlation);
         });
     }
 
@@ -324,10 +395,18 @@ public class IntegrationCoordinator {
 
     @Transactional(readOnly = true)
     public void syncEmployees(String companyId) {
+        syncEmployees(companyId, null, null);
+    }
+
+    @Transactional(readOnly = true)
+    public void syncEmployees(String companyId,
+                              String traceId,
+                              String idempotencyKey) {
+        String correlation = correlationSuffix(traceId, idempotencyKey);
         requirePayrollEnabled();
         runWithCompanyContext(companyId, () -> {
             hrService.listEmployees();
-            log.info("Synced employees view for company {}", companyId);
+            log.info("Synced employees view for company {}{}", companyId, correlation);
         });
     }
 
@@ -335,10 +414,27 @@ public class IntegrationCoordinator {
     public PayrollRunDto generatePayroll(LocalDate payrollDate,
                                          BigDecimal totalAmount,
                                          String companyId) {
+        return generatePayroll(payrollDate, totalAmount, companyId, null, null);
+    }
+
+    @Transactional
+    public PayrollRunDto generatePayroll(LocalDate payrollDate,
+                                         BigDecimal totalAmount,
+                                         String companyId,
+                                         String traceId,
+                                         String idempotencyKey) {
         requirePayrollEnabled();
-        throw new ApplicationException(ErrorCode.BUSINESS_CONSTRAINT_VIOLATION,
+        ApplicationException ex = new ApplicationException(
+                ErrorCode.BUSINESS_CONSTRAINT_VIOLATION,
                 "Orchestrator payroll run is deprecated; use /api/v1/payroll/runs")
                 .withDetail("canonicalPath", "/api/v1/payroll/runs");
+        if (StringUtils.hasText(traceId)) {
+            ex.withDetail("traceId", traceId.trim());
+        }
+        if (StringUtils.hasText(idempotencyKey)) {
+            ex.withDetail("idempotencyKey", idempotencyKey.trim());
+        }
+        throw ex;
     }
 
     @Transactional
@@ -461,22 +557,37 @@ public class IntegrationCoordinator {
     }
 
     private void scheduleUrgentProduction(SalesOrder order, List<InventoryShortage> shortages) {
+        scheduleUrgentProduction(order, shortages, null, null);
+    }
+
+    private void scheduleUrgentProduction(SalesOrder order,
+                                          List<InventoryShortage> shortages,
+                                          String traceId,
+                                          String idempotencyKey) {
         if (shortages == null || shortages.isEmpty()) {
             return;
         }
         LocalDate today = companyClock.today(order.getCompany());
         for (InventoryShortage shortage : shortages) {
+            String correlationNotes = correlationMemo(
+                    "Urgent replenishment for order " + order.getOrderNumber(),
+                    traceId,
+                    idempotencyKey);
             ProductionPlanRequest planRequest = new ProductionPlanRequest(
                     "URG-" + order.getId() + "-" + shortage.productCode(),
                     shortage.productName() + " (" + shortage.productCode() + ")",
                     shortage.shortageQuantity().doubleValue(),
                     today,
-                    "Urgent replenishment for order " + order.getOrderNumber());
+                    correlationNotes);
             factoryService.createPlan(planRequest);
 
+            String correlationDescription = correlationMemo(
+                    "Short by " + shortage.shortageQuantity() + " units for order " + order.getOrderNumber(),
+                    traceId,
+                    idempotencyKey);
             FactoryTaskRequest taskRequest = new FactoryTaskRequest(
                     "Urgent build " + shortage.productCode(),
-                    "Short by " + shortage.shortageQuantity() + " units for order " + order.getOrderNumber(),
+                    correlationDescription,
                     "production",
                     "URGENT",
                     today.plusDays(1),
@@ -604,6 +715,24 @@ public class IntegrationCoordinator {
             builder.append(" [idem=").append(idempotencyKey.trim()).append("]");
         }
         return builder.toString();
+    }
+
+    private String correlationSuffix(String traceId, String idempotencyKey) {
+        StringBuilder builder = new StringBuilder();
+        if (StringUtils.hasText(traceId)) {
+            builder.append(" [trace=").append(traceId.trim()).append("]");
+        }
+        if (StringUtils.hasText(idempotencyKey)) {
+            builder.append(" [idem=").append(idempotencyKey.trim()).append("]");
+        }
+        return builder.toString();
+    }
+
+    private void attachOrderTrace(Long orderId, String traceId) {
+        if (orderId == null || !StringUtils.hasText(traceId)) {
+            return;
+        }
+        salesService.attachTraceId(orderId, traceId.trim());
     }
 
     private Long parseNumericId(String id) {
