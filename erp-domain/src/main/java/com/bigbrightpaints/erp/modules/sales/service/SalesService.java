@@ -92,6 +92,10 @@ public class SalesService {
             "REJECTED",
             "CLOSED"
     );
+    private static final Set<String> TERMINAL_MANUAL_STATUSES = Set.of(
+            "REJECTED",
+            "CLOSED"
+    );
     private static final Set<String> ORCHESTRATOR_WORKFLOW_STATUSES = Set.of(
             "PROCESSING",
             "READY_TO_SHIP",
@@ -808,6 +812,11 @@ public class SalesService {
             throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
                     "Status " + normalized + " cannot be set by orchestrator");
         }
+        String currentStatus = normalizeStatusToken(order.getStatus());
+        if (TERMINAL_MANUAL_STATUSES.contains(currentStatus)) {
+            throw new ApplicationException(ErrorCode.BUSINESS_INVALID_STATE,
+                    "Cannot update fulfillment order with status " + currentStatus);
+        }
         assertOrderMutable(order, "update fulfillment");
         if (normalized.equalsIgnoreCase(order.getStatus())) {
             return;
@@ -829,7 +838,22 @@ public class SalesService {
     @Transactional
     public void attachTraceId(Long id, String traceId) {
         SalesOrder order = requireOrder(id);
-        order.setTraceId(traceId);
+        String existingTraceId = normalizeTraceId(order.getTraceId());
+        String incomingTraceId = normalizeTraceId(traceId);
+        if (!StringUtils.hasText(existingTraceId)) {
+            if (StringUtils.hasText(incomingTraceId)) {
+                order.setTraceId(incomingTraceId);
+            }
+            return;
+        }
+        if (!StringUtils.hasText(incomingTraceId)) {
+            return;
+        }
+        if (existingTraceId.equals(incomingTraceId)) {
+            return;
+        }
+        log.warn("Ignoring conflicting trace attach for sales order {}: existingTraceId={}, incomingTraceId={}",
+                order.getId(), existingTraceId, incomingTraceId);
     }
 
     private SalesOrder requireOrder(Long id) {
@@ -2846,6 +2870,10 @@ public class SalesService {
         if (order != null && StringUtils.hasText(order.getOrderNumber())) {
             metadata.put("salesOrderNumber", order.getOrderNumber());
         }
+        String traceId = order != null ? normalizeTraceId(order.getTraceId()) : null;
+        if (StringUtils.hasText(traceId)) {
+            metadata.put("traceId", traceId);
+        }
         if (invoice != null && invoice.getId() != null) {
             metadata.put("invoiceId", invoice.getId().toString());
         }
@@ -2961,6 +2989,20 @@ public class SalesService {
             combined = combined.substring(0, 1000);
         }
         return combined;
+    }
+
+    private String normalizeTraceId(String traceId) {
+        if (!StringUtils.hasText(traceId)) {
+            return null;
+        }
+        return traceId.trim();
+    }
+
+    private String normalizeStatusToken(String status) {
+        if (!StringUtils.hasText(status)) {
+            return "";
+        }
+        return status.trim().toUpperCase(Locale.ROOT);
     }
 
     private String buildCogsReference(String referenceId) {
