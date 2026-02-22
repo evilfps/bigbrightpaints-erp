@@ -36,14 +36,14 @@ class OpeningStockImportControllerTest {
     }
 
     @Test
-    void importOpeningStock_prefersPrimaryHeaderWhenPrimaryLegacyMismatch() {
+    void importOpeningStock_rejectsWhenPrimaryLegacyHeadersMismatch() {
         OpeningStockImportController controller = new OpeningStockImportController(openingStockImportService);
         MockMultipartFile file = csvFile();
-        OpeningStockImportResponse response = new OpeningStockImportResponse(1, 1, 1, 0, 0, List.of());
-        when(openingStockImportService.importOpeningStock(file, "primary-key")).thenReturn(response);
 
-        controller.importOpeningStock("primary-key", "legacy-key", file);
-        verify(openingStockImportService).importOpeningStock(file, "primary-key");
+        assertThatThrownBy(() -> controller.importOpeningStock("primary-key", "legacy-key", file))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Idempotency key mismatch between Idempotency-Key and X-Idempotency-Key headers");
+        verifyNoInteractions(openingStockImportService);
     }
 
     private MockMultipartFile csvFile() {

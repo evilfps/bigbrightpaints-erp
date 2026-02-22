@@ -37,13 +37,14 @@ class RawMaterialControllerTest {
     }
 
     @Test
-    void createBatch_prefersPrimaryHeaderWhenPrimaryLegacyMismatch() {
+    void createBatch_rejectsWhenPrimaryLegacyHeadersMismatch() {
         RawMaterialController controller = new RawMaterialController(rawMaterialService);
         RawMaterialBatchRequest request = batchRequest();
-        when(rawMaterialService.createBatch(42L, request, "primary-key")).thenReturn(batchDto());
 
-        controller.createBatch(42L, "primary-key", "legacy-key", request);
-        verify(rawMaterialService).createBatch(42L, request, "primary-key");
+        assertThatThrownBy(() -> controller.createBatch(42L, "primary-key", "legacy-key", request))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Idempotency key mismatch between Idempotency-Key and X-Idempotency-Key headers");
+        verifyNoInteractions(rawMaterialService);
     }
 
     @Test
@@ -58,13 +59,14 @@ class RawMaterialControllerTest {
     }
 
     @Test
-    void intake_prefersPrimaryHeaderWhenPrimaryLegacyMismatch() {
+    void intake_rejectsWhenPrimaryLegacyHeadersMismatch() {
         RawMaterialController controller = new RawMaterialController(rawMaterialService);
         RawMaterialIntakeRequest request = intakeRequest();
-        when(rawMaterialService.intake(request, "primary-key")).thenReturn(batchDto());
 
-        controller.intake("primary-key", "legacy-key", request);
-        verify(rawMaterialService).intake(request, "primary-key");
+        assertThatThrownBy(() -> controller.intake("primary-key", "legacy-key", request))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Idempotency key mismatch between Idempotency-Key and X-Idempotency-Key headers");
+        verifyNoInteractions(rawMaterialService);
     }
 
     private RawMaterialBatchRequest batchRequest() {

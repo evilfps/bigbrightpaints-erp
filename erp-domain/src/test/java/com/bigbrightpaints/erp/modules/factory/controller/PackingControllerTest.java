@@ -18,6 +18,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -150,10 +151,8 @@ class PackingControllerTest {
     }
 
     @Test
-    void recordPacking_prefersPrimaryHeaderWhenPrimaryLegacyMismatch() {
+    void recordPacking_rejectsWhenPrimaryLegacyHeadersMismatch() {
         PackingController controller = new PackingController(packingService, bulkPackingService);
-        when(packingService.recordPacking(any())).thenReturn(null);
-
         PackingRequest request = new PackingRequest(
                 1L,
                 LocalDate.of(2026, 2, 6),
@@ -162,10 +161,9 @@ class PackingControllerTest {
                 List.of(new PackingLineRequest("10L", new BigDecimal("1"), 1, 1, 1))
         );
 
-        controller.recordPacking("header-key", "legacy-key", null, request);
-
-        ArgumentCaptor<PackingRequest> captor = ArgumentCaptor.forClass(PackingRequest.class);
-        verify(packingService).recordPacking(captor.capture());
-        assertThat(captor.getValue().idempotencyKey()).isEqualTo("header-key");
+        assertThatThrownBy(() -> controller.recordPacking("header-key", "legacy-key", null, request))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Idempotency key mismatch between Idempotency-Key and X-Idempotency-Key headers");
+        verifyNoInteractions(packingService, bulkPackingService);
     }
 }
