@@ -25,6 +25,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -98,6 +99,39 @@ class TenantRuntimeEnforcementInterceptorTest {
 
         assertThat(allowed).isTrue();
         verify(companyContextService, never()).requireCurrentCompany();
+        verifyNoInteractions(auditService);
+    }
+
+    @Test
+    void preHandle_enforcesAccountingReportsPath_withBlankHoldStateAndMalformedQuotas() throws Exception {
+        settings.put(keyHoldState(55L), "   ");
+        settings.put(keyMaxRequestsPerMinute(55L), "bad-rpm");
+        settings.put(keyMaxConcurrentRequests(55L), "bad-concurrency");
+        settings.put(keyPolicyReference(55L), "policy-accounting");
+
+        MockHttpServletRequest request = request("GET", "/api/v1/accounting/reports/pnl-summary");
+
+        boolean allowed = interceptor.preHandle(request, new MockHttpServletResponse(), new Object());
+
+        assertThat(allowed).isTrue();
+        assertThat(request.getAttribute(attrEnforced())).isEqualTo(Boolean.TRUE);
+        assertThat(request.getAttribute(attrCompanyId())).isEqualTo(55L);
+        verifyNoInteractions(auditService);
+    }
+
+    @Test
+    void preHandle_treatsUnsupportedHoldStateAsActiveFallback() throws Exception {
+        settings.put(keyHoldState(55L), "PAUSED");
+        settings.put(keyMaxRequestsPerMinute(55L), "20");
+        settings.put(keyMaxConcurrentRequests(55L), "4");
+
+        MockHttpServletRequest request = request("GET", "/api/v1/portal/dashboard");
+
+        boolean allowed = interceptor.preHandle(request, new MockHttpServletResponse(), new Object());
+
+        assertThat(allowed).isTrue();
+        assertThat(request.getAttribute(attrEnforced())).isEqualTo(Boolean.TRUE);
+        assertThat(request.getAttribute(attrCompanyId())).isEqualTo(55L);
         verifyNoInteractions(auditService);
     }
 
@@ -265,6 +299,28 @@ class TenantRuntimeEnforcementInterceptorTest {
     }
 
     @Test
+    void afterCompletion_returnsEarlyWhenCompanyAttributeIsNotLong() {
+        MockHttpServletRequest request = request("GET", "/api/v1/portal/dashboard");
+        request.setAttribute(attrEnforced(), Boolean.TRUE);
+        request.setAttribute(attrCompanyId(), "55");
+
+        interceptor.afterCompletion(request, new MockHttpServletResponse(), new Object(), null);
+
+        verify(systemSettingsRepository, never()).save(any(SystemSetting.class));
+    }
+
+    @Test
+    void afterCompletion_returnsEarlyWhenInFlightCounterMissingForCompany() {
+        MockHttpServletRequest request = request("GET", "/api/v1/portal/dashboard");
+        request.setAttribute(attrEnforced(), Boolean.TRUE);
+        request.setAttribute(attrCompanyId(), 999L);
+
+        interceptor.afterCompletion(request, new MockHttpServletResponse(), new Object(), null);
+
+        verify(systemSettingsRepository, never()).save(any(SystemSetting.class));
+    }
+
+    @Test
     void afterCompletion_resetsNegativeCounterToZero() throws Exception {
         settings.put(keyHoldState(55L), "ACTIVE");
         settings.put(keyMaxRequestsPerMinute(55L), "10");
@@ -277,6 +333,20 @@ class TenantRuntimeEnforcementInterceptorTest {
         interceptor.afterCompletion(request, new MockHttpServletResponse(), new Object(), null);
 
         assertThat(settings.get(keyMetricInFlight(55L))).isEqualTo("0");
+    }
+
+    @Test
+    void headerValue_returnsNullForNullRequestOrBlankHeaderName() {
+        String valueFromNullRequest = ReflectionTestUtils.invokeMethod(interceptor, "headerValue", null, "X-Request-Id");
+        String valueFromBlankHeader = ReflectionTestUtils.invokeMethod(
+                interceptor,
+                "headerValue",
+                request("GET", "/api/v1/portal/dashboard"),
+                "   "
+        );
+
+        assertThat(valueFromNullRequest).isNull();
+        assertThat(valueFromBlankHeader).isNull();
     }
 
     private void freezeTime(Instant now) {

@@ -2,6 +2,9 @@ package com.bigbrightpaints.erp.modules.admin.controller;
 
 import com.bigbrightpaints.erp.core.config.SystemSettingsService;
 import com.bigbrightpaints.erp.core.notification.EmailService;
+import com.bigbrightpaints.erp.modules.admin.dto.AdminNotifyRequest;
+import com.bigbrightpaints.erp.modules.admin.dto.SystemSettingsDto;
+import com.bigbrightpaints.erp.modules.admin.dto.SystemSettingsUpdateRequest;
 import com.bigbrightpaints.erp.modules.admin.dto.TenantRuntimeMetricsDto;
 import com.bigbrightpaints.erp.modules.admin.dto.TenantRuntimePolicyUpdateRequest;
 import com.bigbrightpaints.erp.modules.admin.service.TenantRuntimePolicyService;
@@ -20,6 +23,112 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class AdminSettingsControllerTenantRuntimeContractTest {
+
+    @Test
+    void getSettings_returnsCurrentSnapshot() {
+        SystemSettingsService systemSettingsService = mock(SystemSettingsService.class);
+        SystemSettingsDto snapshot = new SystemSettingsDto(
+                java.util.List.of("https://admin.bigbrightpaints.com"),
+                true,
+                true,
+                true,
+                "ops@bigbrightpaints.com",
+                "https://mail.bigbrightpaints.com",
+                false,
+                true
+        );
+        when(systemSettingsService.snapshot()).thenReturn(snapshot);
+
+        AdminSettingsController controller = new AdminSettingsController(
+                systemSettingsService,
+                mock(EmailService.class),
+                mock(CompanyContextService.class),
+                mock(TenantRuntimePolicyService.class),
+                mock(CreditRequestRepository.class),
+                mock(CreditLimitOverrideRequestRepository.class),
+                mock(PayrollRunRepository.class)
+        );
+
+        ApiResponse<SystemSettingsDto> response = controller.getSettings();
+
+        assertThat(response.success()).isTrue();
+        assertThat(response.message()).isEqualTo("Settings fetched");
+        assertThat(response.data()).isEqualTo(snapshot);
+        verify(systemSettingsService).snapshot();
+    }
+
+    @Test
+    void updateSettings_delegatesToSettingsService() {
+        SystemSettingsService systemSettingsService = mock(SystemSettingsService.class);
+        SystemSettingsUpdateRequest request = new SystemSettingsUpdateRequest(
+                java.util.List.of("https://portal.bigbrightpaints.com"),
+                false,
+                true,
+                true,
+                "noreply@bigbrightpaints.com",
+                "https://mail.bigbrightpaints.com",
+                true,
+                false
+        );
+        SystemSettingsDto updated = new SystemSettingsDto(
+                java.util.List.of("https://portal.bigbrightpaints.com"),
+                false,
+                true,
+                true,
+                "noreply@bigbrightpaints.com",
+                "https://mail.bigbrightpaints.com",
+                true,
+                false
+        );
+        when(systemSettingsService.update(request)).thenReturn(updated);
+
+        AdminSettingsController controller = new AdminSettingsController(
+                systemSettingsService,
+                mock(EmailService.class),
+                mock(CompanyContextService.class),
+                mock(TenantRuntimePolicyService.class),
+                mock(CreditRequestRepository.class),
+                mock(CreditLimitOverrideRequestRepository.class),
+                mock(PayrollRunRepository.class)
+        );
+
+        ApiResponse<SystemSettingsDto> response = controller.updateSettings(request);
+
+        assertThat(response.success()).isTrue();
+        assertThat(response.message()).isEqualTo("Settings updated");
+        assertThat(response.data()).isEqualTo(updated);
+        verify(systemSettingsService).update(request);
+    }
+
+    @Test
+    void notifyUser_dispatchesEmailAndReturnsSuccessContract() {
+        EmailService emailService = mock(EmailService.class);
+        AdminSettingsController controller = new AdminSettingsController(
+                mock(SystemSettingsService.class),
+                emailService,
+                mock(CompanyContextService.class),
+                mock(TenantRuntimePolicyService.class),
+                mock(CreditRequestRepository.class),
+                mock(CreditLimitOverrideRequestRepository.class),
+                mock(PayrollRunRepository.class)
+        );
+        AdminNotifyRequest request = new AdminNotifyRequest(
+                "admin.user@bigbrightpaints.com",
+                "Tenant runtime maintenance",
+                "Maintenance window starts at 23:00 UTC"
+        );
+
+        ApiResponse<String> response = controller.notifyUser(request);
+
+        assertThat(response.success()).isTrue();
+        assertThat(response.message()).isEqualTo("Notification sent");
+        assertThat(response.data()).isEqualTo("Email dispatched");
+        verify(emailService).sendSimpleEmail(
+                "admin.user@bigbrightpaints.com",
+                "Tenant runtime maintenance",
+                "Maintenance window starts at 23:00 UTC"
+        );
+    }
 
     @Test
     void tenantRuntimeMetrics_returnsPolicyAndUsageSnapshot() {
