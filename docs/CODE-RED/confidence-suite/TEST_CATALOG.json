@@ -575,7 +575,7 @@
     },
     {
       "id": "ts-runtime-tenant-runtime-enforcement",
-      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/suites/TS_GateCoreSuite.java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeTenantRuntimeEnforcementTest.java",
       "owner": "erp-domain-team",
       "class": "critical",
       "module": "RuntimeCoverage",
@@ -586,7 +586,11 @@
         "gate-reconciliation",
         "gate-quality"
       ],
-      "tags": [],
+      "tags": [
+        "critical",
+        "concurrency",
+        "reconciliation"
+      ],
       "accounting_math_critical": false,
       "cross_module_critical": true,
       "quality_flake_monitor": true
