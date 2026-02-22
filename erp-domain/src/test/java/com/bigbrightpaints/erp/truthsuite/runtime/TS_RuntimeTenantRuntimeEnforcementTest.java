@@ -33,6 +33,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.context.SecurityContextHolder;
 
 @ExtendWith(MockitoExtension.class)
+@Tag("critical")
 @Tag("concurrency")
 @Tag("reconciliation")
 class TS_RuntimeTenantRuntimeEnforcementTest {
