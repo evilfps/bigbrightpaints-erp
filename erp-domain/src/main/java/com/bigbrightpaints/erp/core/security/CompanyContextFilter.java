@@ -179,8 +179,7 @@ public class CompanyContextFilter extends OncePerRequestFilter {
         }
         return auth.getAuthorities().stream()
                 .map(granted -> granted.getAuthority())
-                .anyMatch(authority -> "ROLE_ADMIN".equalsIgnoreCase(authority)
-                        || "ROLE_SUPER_ADMIN".equalsIgnoreCase(authority));
+                .anyMatch(authority -> "ROLE_ADMIN".equalsIgnoreCase(authority));
     }
 
     private boolean isLifecycleControlRequest(HttpServletRequest request) {
