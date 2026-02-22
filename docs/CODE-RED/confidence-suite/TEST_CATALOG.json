@@ -574,6 +574,28 @@
       "quality_flake_monitor": true
     },
     {
+      "id": "ts-runtime-tenant-runtime-enforcement",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeTenantRuntimeEnforcementTest.java",
+      "owner": "erp-domain-team",
+      "class": "critical",
+      "module": "RuntimeCoverage",
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-reconciliation",
+        "gate-quality"
+      ],
+      "tags": [
+        "critical",
+        "concurrency",
+        "reconciliation"
+      ],
+      "accounting_math_critical": false,
+      "cross_module_critical": true,
+      "quality_flake_monitor": true
+    },
+    {
       "id": "ts-runtime-orchestrator-idempotency-executable-coverage",
       "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeOrchestratorIdempotencyExecutableCoverageTest.java",
       "owner": "erp-domain-team",
