@@ -155,3 +155,22 @@ Update this file in every high-risk change set.
     - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/controller/AccountingController.java`
     - `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/controller/AccountingControllerIdempotencyHeaderParityTest.java`
     - `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/controller/AccountingControllerExceptionHandlerTest.java`
+
+## STAGE-103 Addendum (2026-02-22, orchestrator-runtime-hotfix)
+- Branch / PR: `tickets-tkt-erp-stage-103-orchestrator-runtime-hotfix` / PR #44 (https://github.com/anasibnanwar-XYE/bigbrightpaints-erp/pull/44)
+- High-risk paths:
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/orchestrator/service/OrchestratorIdempotencyService.java`
+  - `erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeOrchestratorExecutableCoverageTest.java`
+- Why this is R2: orchestrator idempotency hash/fallback and canonical runtime decision wiring are high-risk reliability controls on order workflow execution.
+- Approval mode: orchestrator
+- Human escalation required: no
+- Rollback owner: release governance + orchestrator owner
+- Verification evidence:
+  - Commands run:
+    - `mvn -B -ntp -f erp-domain/pom.xml -s /Users/anas/Documents/orchestrator_erp/bigbrightpaints-erp_worktrees/chore/codex-cloud-testing/.mvn/settings.xml -Dtest='TS_RuntimeOrchestratorExecutableCoverageTest,TS_RuntimeOrchestratorIdempotencyExecutableCoverageTest' test`
+    - `bash ci/check-architecture.sh`
+    - `bash ci/check-enterprise-policy.sh`
+  - Result summary: targeted orchestrator truthsuite lane passed (`Tests run: 20, Failures: 0, Errors: 0`) and architecture/policy checks passed after this checkpoint update.
+  - Artifacts/links:
+    - `erp-domain/src/main/java/com/bigbrightpaints/erp/orchestrator/service/OrchestratorIdempotencyService.java`
+    - `erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeOrchestratorExecutableCoverageTest.java`

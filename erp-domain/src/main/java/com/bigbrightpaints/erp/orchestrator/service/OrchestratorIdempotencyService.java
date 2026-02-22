@@ -196,7 +196,7 @@ public class OrchestratorIdempotencyService {
             return hashMapper.writeValueAsString(requestPayload);
         } catch (JsonProcessingException ex) {
             throw new IllegalStateException(
-                    "Unable to deterministically hash orchestrator payload for " + commandName,
+                    "Unable to deterministically hash orchestrator payload for command " + commandName,
                     ex);
         }
     }
