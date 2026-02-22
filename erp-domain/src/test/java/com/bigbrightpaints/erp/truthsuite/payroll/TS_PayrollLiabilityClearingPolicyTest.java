@@ -29,6 +29,35 @@ class TS_PayrollLiabilityClearingPolicyTest {
     }
 
     @Test
+    void payrollPostingDateClampsToCompanyTodayBoundary() {
+        TruthSuiteFileAssert.assertContainsInOrder(
+                PAYROLL_SERVICE,
+                "LocalDate postingDate = run.getPeriodEnd();",
+                "LocalDate today = companyClock.today(company);",
+                "if (postingDate == null || postingDate.isAfter(today)) {",
+                "postingDate = today;",
+                "JournalEntryDto journal = accountingFacade.postPayrollRun(runNumber, run.getId(), postingDate, memo, lines);");
+    }
+
+    @Test
+    void payrollPostedAuditEventRequiresCanonicalMetadataKeys() {
+        TruthSuiteFileAssert.assertContains(
+                PAYROLL_SERVICE,
+                "Map<String, String> auditMetadata = requiredPayrollPostedAuditMetadata(",
+                "metadata.put(\"payrollRunId\", requiredAuditMetadataValue(\"payrollRunId\", run.getId()));",
+                "metadata.put(\"runNumber\", requiredAuditMetadataValue(\"runNumber\", run.getRunNumber()));",
+                "metadata.put(\"runType\", requiredAuditMetadataValue(\"runType\", run.getRunType()));",
+                "metadata.put(\"periodStart\", requiredAuditMetadataValue(\"periodStart\", run.getPeriodStart()));",
+                "metadata.put(\"periodEnd\", requiredAuditMetadataValue(\"periodEnd\", run.getPeriodEnd()));",
+                "metadata.put(\"journalEntryId\", requiredAuditMetadataValue(\"journalEntryId\", journal.id()));",
+                "metadata.put(\"postingDate\", requiredAuditMetadataValue(\"postingDate\", postingDate));",
+                "metadata.put(\"totalGrossPay\", requiredAuditMetadataValue(\"totalGrossPay\", totalGrossPay));",
+                "metadata.put(\"totalAdvances\", requiredAuditMetadataValue(\"totalAdvances\", totalAdvances));",
+                "metadata.put(\"netPayable\", requiredAuditMetadataValue(\"netPayable\", salaryPayableAmount));",
+                "auditService.logSuccess(AuditEvent.PAYROLL_POSTED, auditMetadata);");
+    }
+
+    @Test
     void payrollPostingGuardTracksStatusAndJournalLinkageForReplaySafety() {
         TruthSuiteFileAssert.assertContains(
                 PAYROLL_SERVICE,

@@ -536,31 +536,13 @@ public class PayrollService {
             payrollRunRepository.save(run);
         }
         if (!statusPosted) {
-            Map<String, String> auditMetadata = new HashMap<>();
-            if (run.getId() != null) {
-                auditMetadata.put("payrollRunId", run.getId().toString());
-            }
-            if (run.getRunNumber() != null) {
-                auditMetadata.put("runNumber", run.getRunNumber());
-            }
-            if (run.getRunType() != null) {
-                auditMetadata.put("runType", run.getRunType().name());
-            }
-            if (run.getPeriodStart() != null) {
-                auditMetadata.put("periodStart", run.getPeriodStart().toString());
-            }
-            if (run.getPeriodEnd() != null) {
-                auditMetadata.put("periodEnd", run.getPeriodEnd().toString());
-            }
-            if (journal != null && journal.id() != null) {
-                auditMetadata.put("journalEntryId", journal.id().toString());
-            }
-            if (postingDate != null) {
-                auditMetadata.put("postingDate", postingDate.toString());
-            }
-            auditMetadata.put("totalGrossPay", totalGrossPay.toPlainString());
-            auditMetadata.put("totalAdvances", totalAdvances.toPlainString());
-            auditMetadata.put("netPayable", salaryPayableAmount.toPlainString());
+            Map<String, String> auditMetadata = requiredPayrollPostedAuditMetadata(
+                    run,
+                    journal,
+                    postingDate,
+                    totalGrossPay,
+                    totalAdvances,
+                    salaryPayableAmount);
             auditService.logSuccess(AuditEvent.PAYROLL_POSTED, auditMetadata);
         }
         return toDto(run);
@@ -686,6 +668,44 @@ public class PayrollService {
             return true;
         }
         return run.getJournalEntry() != null && run.getJournalEntry().getId() != null;
+    }
+
+    private Map<String, String> requiredPayrollPostedAuditMetadata(PayrollRun run,
+                                                                    JournalEntryDto journal,
+                                                                    LocalDate postingDate,
+                                                                    BigDecimal totalGrossPay,
+                                                                    BigDecimal totalAdvances,
+                                                                    BigDecimal salaryPayableAmount) {
+        Map<String, String> metadata = new HashMap<>();
+        metadata.put("payrollRunId", requiredAuditMetadataValue("payrollRunId", run.getId()));
+        metadata.put("runNumber", requiredAuditMetadataValue("runNumber", run.getRunNumber()));
+        metadata.put("runType", requiredAuditMetadataValue("runType", run.getRunType()));
+        metadata.put("periodStart", requiredAuditMetadataValue("periodStart", run.getPeriodStart()));
+        metadata.put("periodEnd", requiredAuditMetadataValue("periodEnd", run.getPeriodEnd()));
+        metadata.put("journalEntryId", requiredAuditMetadataValue("journalEntryId", journal.id()));
+        metadata.put("postingDate", requiredAuditMetadataValue("postingDate", postingDate));
+        metadata.put("totalGrossPay", requiredAuditMetadataValue("totalGrossPay", totalGrossPay));
+        metadata.put("totalAdvances", requiredAuditMetadataValue("totalAdvances", totalAdvances));
+        metadata.put("netPayable", requiredAuditMetadataValue("netPayable", salaryPayableAmount));
+        return metadata;
+    }
+
+    private String requiredAuditMetadataValue(String key, Object value) {
+        if (value == null) {
+            throw missingPayrollPostedMetadataException(key);
+        }
+        String normalized = value instanceof BigDecimal decimal ? decimal.toPlainString() : value.toString();
+        if (!StringUtils.hasText(normalized)) {
+            throw missingPayrollPostedMetadataException(key);
+        }
+        return normalized;
+    }
+
+    private ApplicationException missingPayrollPostedMetadataException(String key) {
+        return new ApplicationException(ErrorCode.BUSINESS_INVALID_STATE,
+                "Payroll posting audit metadata is missing required key: " + key)
+                .withDetail("auditEvent", AuditEvent.PAYROLL_POSTED.name())
+                .withDetail("metadataKey", key);
     }
 
     /**
