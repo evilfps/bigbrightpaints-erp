@@ -602,6 +602,21 @@ class SalesServiceTest {
     }
 
     @Test
+    void updateOrchestratorWorkflowStatusAllowsBlankCurrentStatus() {
+        SalesOrder order = new SalesOrder();
+        order.setCompany(company);
+        order.setStatus("   ");
+        setField(order, "id", 929L);
+
+        when(companyEntityLookup.requireSalesOrder(company, 929L)).thenReturn(order);
+        when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 929L)).thenReturn(List.of());
+
+        salesService.updateOrchestratorWorkflowStatus(929L, " ready_to_ship ");
+
+        assertEquals("READY_TO_SHIP", order.getStatus());
+    }
+
+    @Test
     void attachTraceIdSetsFirstTraceAndDoesNotOverwriteDifferingTrace() {
         SalesOrder order = new SalesOrder();
         order.setCompany(company);
@@ -610,7 +625,13 @@ class SalesServiceTest {
 
         when(companyEntityLookup.requireSalesOrder(company, 933L)).thenReturn(order);
 
+        salesService.attachTraceId(933L, "   ");
+        assertNull(order.getTraceId());
+
         salesService.attachTraceId(933L, " trace-101 ");
+        assertEquals("trace-101", order.getTraceId());
+
+        salesService.attachTraceId(933L, "   ");
         assertEquals("trace-101", order.getTraceId());
 
         salesService.attachTraceId(933L, "trace-202");
