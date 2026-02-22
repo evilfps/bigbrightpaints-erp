@@ -169,7 +169,6 @@ class AuthServiceAuditAttributionTest {
         RefreshTokenRequest request = new RefreshTokenRequest("refresh-old", "acme");
         Instant issuedAt = Instant.parse("2026-01-01T00:00:00Z");
         UserAccount user = userWithCompany("user@example.com", "ACME");
-        user.setDisplayName("User Example");
         RefreshTokenService.TokenRecord record = new RefreshTokenService.TokenRecord(
                 "user@example.com",
                 issuedAt,
@@ -183,7 +182,7 @@ class AuthServiceAuditAttributionTest {
                 eq("user@example.com"),
                 eq("ACME"),
                 argThat((Map<String, Object> claims) ->
-                        claims != null && "user@example.com".equals(claims.get("name")))))
+                        claims != null && user.getEmail().equals(claims.get("name")))))
                 .thenReturn("access-new");
         when(refreshTokenService.issue(eq("user@example.com"), any(Instant.class))).thenReturn("refresh-new");
         when(properties.getRefreshTokenTtlSeconds()).thenReturn(3600L);
@@ -195,7 +194,7 @@ class AuthServiceAuditAttributionTest {
         assertThat(response.accessToken()).isEqualTo("access-new");
         assertThat(response.refreshToken()).isEqualTo("refresh-new");
         assertThat(response.companyCode()).isEqualTo("ACME");
-        assertThat(response.displayName()).isEqualTo("user@example.com");
+        assertThat(response.displayName()).isEqualTo(user.getEmail());
         verify(tenantRuntimeEnforcementService).enforceAuthOperationAllowed("ACME", "user@example.com", "REFRESH_TOKEN");
     }
 
