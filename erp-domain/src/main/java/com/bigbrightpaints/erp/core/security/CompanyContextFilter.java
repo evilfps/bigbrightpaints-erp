@@ -104,9 +104,12 @@ public class CompanyContextFilter extends OncePerRequestFilter {
                             "Tenant lifecycle state does not allow access");
                     return;
                 }
+                String runtimePath = StringUtils.hasText(request.getServletPath())
+                        ? request.getServletPath()
+                        : request.getRequestURI();
                 admission = tenantRuntimeEnforcementService.beginRequest(
                         companyCode,
-                        request.getRequestURI(),
+                        runtimePath,
                         request.getMethod(),
                         resolveCurrentActor());
                 if (!admission.isAdmitted()) {

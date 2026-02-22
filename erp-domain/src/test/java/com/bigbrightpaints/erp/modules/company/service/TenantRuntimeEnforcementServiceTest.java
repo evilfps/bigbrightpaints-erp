@@ -76,7 +76,8 @@ class TenantRuntimeEnforcementServiceTest {
                 auditService,
                 3,
                 3,
-                3);
+                3,
+                60);
 
         lenient().when(companyRepository.findByCodeIgnoreCase(any())).thenAnswer(invocation -> {
             String code = invocation.getArgument(0, String.class);
@@ -143,6 +144,102 @@ class TenantRuntimeEnforcementServiceTest {
         assertThat(rejected.message()).isEqualTo("Tenant is currently on hold");
         assertThat(service.snapshot("ACME").metrics().rejectedRequests()).isEqualTo(1L);
         verify(auditService).logAuthFailure(eq(AuditEvent.ACCESS_DENIED), eq("ACTOR@BBP.COM"), eq("ACME"), anyMap());
+    }
+
+    @Test
+    void holdTenant_allowsReadOnlyRequests_throughRequestPathEnforcement() {
+        service.holdTenant("ACME", "compliance_review", "ops@bbp.com");
+
+        TenantRuntimeEnforcementService.TenantRequestAdmission admission =
+                service.beginRequest("ACME", "/api/v1/private", "GET", "actor@bbp.com");
+
+        service.completeRequest(admission, 200);
+        TenantRuntimeEnforcementService.TenantRuntimeSnapshot snapshot = service.snapshot("ACME");
+
+        assertThat(admission.isAdmitted()).isTrue();
+        assertThat(snapshot.metrics().totalRequests()).isEqualTo(1L);
+        assertThat(snapshot.metrics().rejectedRequests()).isEqualTo(0L);
+        assertThat(snapshot.metrics().inFlightRequests()).isEqualTo(0);
+    }
+
+    @Test
+    void beginRequest_allowsTenantRuntimePolicyControlPath_whenHeldOrBlocked() {
+        service.holdTenant("ACME", "maintenance_hold", "ops@bbp.com");
+        TenantRuntimeEnforcementService.TenantRequestAdmission heldAdmission = service.beginRequest(
+                "ACME",
+                "/api/v1/admin/tenant-runtime/policy",
+                "PUT",
+                "ops@bbp.com");
+        service.completeRequest(heldAdmission, 200);
+
+        service.blockTenant("ACME", "incident_block", "ops@bbp.com");
+        TenantRuntimeEnforcementService.TenantRequestAdmission blockedAdmission = service.beginRequest(
+                "ACME",
+                "/api/v1/admin/tenant-runtime/policy",
+                "PUT",
+                "ops@bbp.com");
+        TenantRuntimeEnforcementService.TenantRequestAdmission blockedAdmissionWithContextPath = service.beginRequest(
+                "ACME",
+                "/erp/api/v1/admin/tenant-runtime/policy",
+                "PUT",
+                "ops@bbp.com");
+        TenantRuntimeEnforcementService.TenantRequestAdmission blockedMalformedPrefixAdmission = service.beginRequest(
+                "ACME",
+                "/erpapi/v1/admin/tenant-runtime/policy",
+                "PUT",
+                "ops@bbp.com");
+        TenantRuntimeEnforcementService.TenantRequestAdmission blockedPolicyRead = service.beginRequest(
+                "ACME",
+                "/api/v1/admin/tenant-runtime/policy",
+                "GET",
+                "ops@bbp.com");
+        TenantRuntimeEnforcementService.TenantRequestAdmission blockedNonControl = service.beginRequest(
+                "ACME",
+                "/api/v1/private",
+                "GET",
+                "ops@bbp.com");
+        service.completeRequest(blockedAdmission, 200);
+
+        assertThat(heldAdmission.isAdmitted()).isTrue();
+        assertThat(blockedAdmission.isAdmitted()).isTrue();
+        assertThat(blockedAdmissionWithContextPath.isAdmitted()).isFalse();
+        assertThat(blockedAdmissionWithContextPath.statusCode()).isEqualTo(HttpStatus.FORBIDDEN.value());
+        assertThat(blockedMalformedPrefixAdmission.isAdmitted()).isFalse();
+        assertThat(blockedMalformedPrefixAdmission.statusCode()).isEqualTo(HttpStatus.FORBIDDEN.value());
+        assertThat(blockedPolicyRead.isAdmitted()).isFalse();
+        assertThat(blockedPolicyRead.statusCode()).isEqualTo(HttpStatus.FORBIDDEN.value());
+        assertThat(blockedNonControl.isAdmitted()).isFalse();
+        assertThat(blockedNonControl.statusCode()).isEqualTo(HttpStatus.FORBIDDEN.value());
+        assertThat(blockedNonControl.message()).isEqualTo("Tenant is currently blocked");
+    }
+
+    @Test
+    void beginRequest_policyControlPathBypassesRateAndConcurrencyQuotas() {
+        service.updateQuotas("ACME", 1, 1, 10, "quota_test", "ops@bbp.com");
+
+        TenantRuntimeEnforcementService.TenantRequestAdmission first = service.beginRequest(
+                "ACME",
+                "/api/v1/private",
+                "GET",
+                "actor@bbp.com");
+        service.completeRequest(first, 200);
+
+        TenantRuntimeEnforcementService.TenantRequestAdmission quotaRejected = service.beginRequest(
+                "ACME",
+                "/api/v1/private",
+                "GET",
+                "actor@bbp.com");
+        TenantRuntimeEnforcementService.TenantRequestAdmission controlAdmission = service.beginRequest(
+                "ACME",
+                "/api/v1/admin/tenant-runtime/policy",
+                "PUT",
+                "ops@bbp.com");
+        service.completeRequest(controlAdmission, 200);
+
+        assertThat(first.isAdmitted()).isTrue();
+        assertThat(quotaRejected.isAdmitted()).isFalse();
+        assertThat(quotaRejected.statusCode()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS.value());
+        assertThat(controlAdmission.isAdmitted()).isTrue();
     }
 
     @Test
@@ -224,6 +321,67 @@ class TenantRuntimeEnforcementServiceTest {
         assertThat(admission.isAdmitted()).isFalse();
         assertThat(admission.statusCode()).isEqualTo(HttpStatus.FORBIDDEN.value());
         assertThat(admission.message()).isEqualTo("Tenant is currently blocked");
+    }
+
+    @Test
+    void beginRequest_usesCachedPolicy_withoutReloadingPersistedSettingsPerRequest() {
+        persistedSettingsByKey.put(keyHoldState(1L), "BLOCKED");
+        persistedSettingsByKey.put(keyHoldReason(1L), "policy_block");
+        persistedSettingsByKey.put(keyPolicyReference(1L), "policy-ref-01");
+
+        TenantRuntimeEnforcementService.TenantRequestAdmission first =
+                service.beginRequest("ACME", "/api/v1/private", "GET", "actor@bbp.com");
+        assertThat(first.isAdmitted()).isFalse();
+        clearInvocations(systemSettingsRepository, companyRepository);
+
+        TenantRuntimeEnforcementService.TenantRequestAdmission second =
+                service.beginRequest("ACME", "/api/v1/private", "GET", "actor@bbp.com");
+
+        assertThat(second.isAdmitted()).isFalse();
+        assertThat(second.statusCode()).isEqualTo(HttpStatus.FORBIDDEN.value());
+        verifyNoInteractions(systemSettingsRepository, companyRepository);
+    }
+
+    @Test
+    void completeRequest_policyControlSuccessInvalidatesCachedPolicyImmediately() {
+        TenantRuntimeEnforcementService.TenantRequestAdmission warmed = service.beginRequest(
+                "ACME",
+                "/api/v1/private",
+                "GET",
+                "actor@bbp.com");
+        assertThat(warmed.isAdmitted()).isTrue();
+        service.completeRequest(warmed, 200);
+
+        persistedSettingsByKey.put(keyHoldState(1L), "BLOCKED");
+        persistedSettingsByKey.put(keyHoldReason(1L), "policy_block");
+        persistedSettingsByKey.put(keyPolicyReference(1L), "policy-ref-02");
+        persistedSettingsByKey.put(keyPolicyUpdatedAt(1L), "2026-02-20T10:16:00Z");
+
+        TenantRuntimeEnforcementService.TenantRequestAdmission staleAllowed = service.beginRequest(
+                "ACME",
+                "/api/v1/private",
+                "GET",
+                "actor@bbp.com");
+        assertThat(staleAllowed.isAdmitted()).isTrue();
+        service.completeRequest(staleAllowed, 200);
+
+        TenantRuntimeEnforcementService.TenantRequestAdmission controlAdmission = service.beginRequest(
+                "ACME",
+                "/api/v1/admin/tenant-runtime/policy",
+                "PUT",
+                "ops@bbp.com");
+        assertThat(controlAdmission.isAdmitted()).isTrue();
+        service.completeRequest(controlAdmission, 200);
+
+        TenantRuntimeEnforcementService.TenantRequestAdmission blockedAfterInvalidate = service.beginRequest(
+                "ACME",
+                "/api/v1/private",
+                "GET",
+                "actor@bbp.com");
+
+        assertThat(blockedAfterInvalidate.isAdmitted()).isFalse();
+        assertThat(blockedAfterInvalidate.statusCode()).isEqualTo(HttpStatus.FORBIDDEN.value());
+        assertThat(blockedAfterInvalidate.message()).isEqualTo("Tenant is currently blocked");
     }
 
     @Test
@@ -324,5 +482,9 @@ class TenantRuntimeEnforcementServiceTest {
 
     private String keyPolicyReference(Long companyId) {
         return "tenant.runtime.policy-reference." + companyId;
+    }
+
+    private String keyPolicyUpdatedAt(Long companyId) {
+        return "tenant.runtime.policy-updated-at." + companyId;
     }
 }

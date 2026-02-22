@@ -16,6 +16,7 @@ import com.bigbrightpaints.erp.modules.company.domain.CompanyLifecycleState;
 import com.bigbrightpaints.erp.modules.company.service.CompanyService;
 import com.bigbrightpaints.erp.modules.company.service.TenantRuntimeEnforcementService;
 import io.jsonwebtoken.Claims;
+import java.util.Arrays;
 import java.lang.reflect.Constructor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -175,6 +176,37 @@ class TS_RuntimeTenantRuntimeEnforcementTest {
     }
 
     @Test
+    void contextPathRequest_usesServletPath_forRuntimeAdmission() throws Exception {
+        authenticateForCompany("actor@bbp.com", "ACME");
+        when(companyService.resolveLifecycleStateByCode("ACME")).thenReturn(CompanyLifecycleState.ACTIVE);
+        TenantRuntimeEnforcementService.TenantRequestAdmission admittedAdmission =
+                admission(true, "ACME", 200, null);
+        when(tenantRuntimeEnforcementService.beginRequest(
+                "ACME",
+                "/api/v1/admin/tenant-runtime/policy",
+                "PUT",
+                "actor@bbp.com"))
+                .thenReturn(admittedAdmission);
+
+        MockHttpServletRequest request = new MockHttpServletRequest("PUT", "/erp/api/v1/admin/tenant-runtime/policy");
+        request.setContextPath("/erp");
+        request.setServletPath("/api/v1/admin/tenant-runtime/policy");
+        request.setAttribute("jwtClaims", claims("ACME", null));
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        MockFilterChain chain = new MockFilterChain();
+
+        filter.doFilter(request, response, chain);
+
+        assertThat(chain.getRequest()).isNotNull();
+        verify(tenantRuntimeEnforcementService).beginRequest(
+                "ACME",
+                "/api/v1/admin/tenant-runtime/policy",
+                "PUT",
+                "actor@bbp.com");
+        verify(tenantRuntimeEnforcementService).completeRequest(eq(admittedAdmission), eq(200));
+    }
+
+    @Test
     void runtimeAdmissionDenied_writesEscapedJsonPayload_andCompletes() throws Exception {
         authenticateForCompany("actor@bbp.com", "ACME");
         when(companyService.resolveLifecycleStateByCode("ACME")).thenReturn(CompanyLifecycleState.ACTIVE);
@@ -280,8 +312,16 @@ class TS_RuntimeTenantRuntimeEnforcementTest {
         try {
             Constructor<TenantRuntimeEnforcementService.TenantRequestAdmission> ctor =
                     (Constructor<TenantRuntimeEnforcementService.TenantRequestAdmission>)
-                            TenantRuntimeEnforcementService.TenantRequestAdmission.class.getDeclaredConstructors()[0];
+                            Arrays.stream(TenantRuntimeEnforcementService.TenantRequestAdmission.class
+                                            .getDeclaredConstructors())
+                                    .filter(candidate -> candidate.getParameterCount() == 6
+                                            || candidate.getParameterCount() == 7)
+                                    .findFirst()
+                                    .orElseThrow();
             ctor.setAccessible(true);
+            if (ctor.getParameterCount() == 7) {
+                return ctor.newInstance(admitted, companyCode, "chain-id", null, statusCode, message, false);
+            }
             return ctor.newInstance(admitted, companyCode, "chain-id", null, statusCode, message);
         } catch (ReflectiveOperationException ex) {
             throw new IllegalStateException("Unable to construct tenant request admission for test", ex);

@@ -30,6 +30,7 @@ public class TenantRuntimeEnforcementService {
     private static final String DEFAULT_REASON = "POLICY_ACTIVE";
     private static final String DEFAULT_POLICY_REFERENCE = "bootstrap";
     private static final String UNKNOWN_ACTOR = "UNKNOWN_AUTH_ACTOR";
+    private static final String TENANT_RUNTIME_POLICY_PATH = "/api/v1/admin/tenant-runtime/policy";
 
     private final CompanyRepository companyRepository;
     private final SystemSettingsRepository systemSettingsRepository;
@@ -38,6 +39,7 @@ public class TenantRuntimeEnforcementService {
     private final int defaultMaxConcurrentRequests;
     private final int defaultMaxRequestsPerMinute;
     private final int defaultMaxActiveUsers;
+    private final long persistedPolicyCacheTtlMillis;
     private final ConcurrentMap<String, TenantRuntimePolicy> policies = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, TenantRuntimeCounters> counters = new ConcurrentHashMap<>();
 
@@ -48,7 +50,8 @@ public class TenantRuntimeEnforcementService {
             AuditService auditService,
             @Value("${erp.tenant.runtime.default-max-concurrent-requests:200}") int defaultMaxConcurrentRequests,
             @Value("${erp.tenant.runtime.default-max-requests-per-minute:5000}") int defaultMaxRequestsPerMinute,
-            @Value("${erp.tenant.runtime.default-max-active-users:500}") int defaultMaxActiveUsers) {
+            @Value("${erp.tenant.runtime.default-max-active-users:500}") int defaultMaxActiveUsers,
+            @Value("${erp.tenant.runtime.policy-cache-seconds:15}") long policyCacheSeconds) {
         this.companyRepository = companyRepository;
         this.systemSettingsRepository = systemSettingsRepository;
         this.userAccountRepository = userAccountRepository;
@@ -56,6 +59,7 @@ public class TenantRuntimeEnforcementService {
         this.defaultMaxConcurrentRequests = sanitizeLimit(defaultMaxConcurrentRequests);
         this.defaultMaxRequestsPerMinute = sanitizeLimit(defaultMaxRequestsPerMinute);
         this.defaultMaxActiveUsers = sanitizeLimit(defaultMaxActiveUsers);
+        this.persistedPolicyCacheTtlMillis = Math.max(1L, policyCacheSeconds) * 1000L;
     }
 
     public TenantRequestAdmission beginRequest(String companyCode,
@@ -68,12 +72,23 @@ public class TenantRuntimeEnforcementService {
         }
         TenantRuntimePolicy policy = policyFor(normalizedCompany);
         TenantRuntimeCounters usageCounters = countersFor(normalizedCompany);
+        boolean policyControlRequest = isTenantRuntimePolicyControlRequest(requestPath, requestMethod);
 
-        TenantRuntimeRejection stateRejection = stateRejection(policy, normalizedCompany);
+        TenantRuntimeRejection stateRejection = stateRejection(
+                policy,
+                normalizedCompany,
+                policyControlRequest,
+                requestMethod);
         if (stateRejection != null) {
             usageCounters.rejectedRequests.incrementAndGet();
             auditRejection(stateRejection, actor, requestPath, requestMethod);
             return TenantRequestAdmission.rejected(stateRejection);
+        }
+
+        if (policyControlRequest) {
+            usageCounters.totalRequests.incrementAndGet();
+            usageCounters.inFlightRequests.incrementAndGet();
+            return TenantRequestAdmission.admittedPolicyControl(normalizedCompany, policy.auditChainId, usageCounters);
         }
 
         long minuteBucket = CompanyTime.now().getEpochSecond() / 60L;
@@ -128,6 +143,9 @@ public class TenantRuntimeEnforcementService {
         if (responseStatus >= 400) {
             admission.counters().errorResponses.incrementAndGet();
         }
+        if (admission.isPolicyControlRequest() && responseStatus < 400) {
+            invalidatePolicyCache(admission.companyCode());
+        }
     }
 
     public void enforceAuthOperationAllowed(String companyCode, String actor, String operation) {
@@ -136,10 +154,10 @@ public class TenantRuntimeEnforcementService {
         TenantRuntimePolicy policy = policyFor(normalizedCompany);
         TenantRuntimeCounters usageCounters = countersFor(normalizedCompany);
 
-        TenantRuntimeRejection stateRejection = stateRejection(policy, normalizedCompany);
+        TenantRuntimeRejection stateRejection = stateRejection(policy, normalizedCompany, false, "POST");
         if (stateRejection != null) {
             usageCounters.rejectedRequests.incrementAndGet();
-            auditRejection(stateRejection, actor, null, null);
+            auditRejection(stateRejection, actor, scope, "POST");
             throw stateRejection.asException();
         }
 
@@ -207,6 +225,7 @@ public class TenantRuntimeEnforcementService {
             policy.reasonCode = normalizedReason;
             policy.updatedAt = now;
             policy.auditChainId = newChainId;
+            policy.policyRefreshAfterEpochMillis = System.currentTimeMillis() + persistedPolicyCacheTtlMillis;
         }
         auditPolicyChange(
                 "UPDATE_TENANT_QUOTAS",
@@ -242,6 +261,14 @@ public class TenantRuntimeEnforcementService {
                         activeUsers));
     }
 
+    public void invalidatePolicyCache(String companyCode) {
+        String normalizedCompany = normalizeCompanyCode(companyCode);
+        if (normalizedCompany == null) {
+            return;
+        }
+        policies.remove(normalizedCompany);
+    }
+
     private TenantRuntimeSnapshot updateState(String companyCode,
                                               TenantRuntimeState targetState,
                                               String reasonCode,
@@ -263,6 +290,7 @@ public class TenantRuntimeEnforcementService {
             policy.reasonCode = normalizedReason;
             policy.auditChainId = newChainId;
             policy.updatedAt = now;
+            policy.policyRefreshAfterEpochMillis = System.currentTimeMillis() + persistedPolicyCacheTtlMillis;
         }
         auditPolicyChange(
                 action,
@@ -298,8 +326,14 @@ public class TenantRuntimeEnforcementService {
         auditService.logAuthSuccess(AuditEvent.CONFIGURATION_CHANGED, actor, companyCode, metadata);
     }
 
-    private TenantRuntimeRejection stateRejection(TenantRuntimePolicy policy, String companyCode) {
-        if (policy.state == TenantRuntimeState.HOLD) {
+    private TenantRuntimeRejection stateRejection(TenantRuntimePolicy policy,
+                                                  String companyCode,
+                                                  boolean policyControlRequest,
+                                                  String requestMethod) {
+        if (policyControlRequest) {
+            return null;
+        }
+        if (policy.state == TenantRuntimeState.HOLD && isMutatingRequest(requestMethod)) {
             return new TenantRuntimeRejection(
                     companyCode,
                     policy.state,
@@ -326,6 +360,31 @@ public class TenantRuntimeEnforcementService {
                     TenantRuntimeState.ACTIVE.name());
         }
         return null;
+    }
+
+    private boolean isMutatingRequest(String requestMethod) {
+        if (!StringUtils.hasText(requestMethod)) {
+            return true;
+        }
+        String normalizedMethod = requestMethod.trim().toUpperCase(Locale.ROOT);
+        return switch (normalizedMethod) {
+            case "GET", "HEAD", "OPTIONS", "TRACE" -> false;
+            default -> true;
+        };
+    }
+
+    private boolean isTenantRuntimePolicyControlRequest(String requestPath, String requestMethod) {
+        if (!StringUtils.hasText(requestMethod) || !"PUT".equalsIgnoreCase(requestMethod.trim())) {
+            return false;
+        }
+        if (!StringUtils.hasText(requestPath)) {
+            return false;
+        }
+        String normalizedPath = requestPath.trim();
+        while (normalizedPath.endsWith("/") && normalizedPath.length() > 1) {
+            normalizedPath = normalizedPath.substring(0, normalizedPath.length() - 1);
+        }
+        return TENANT_RUNTIME_POLICY_PATH.equals(normalizedPath);
     }
 
     private void auditRejection(TenantRuntimeRejection rejection, String actor, String requestPath, String requestMethod) {
@@ -374,18 +433,29 @@ public class TenantRuntimeEnforcementService {
     }
 
     private TenantRuntimePolicy policyFor(String companyCode) {
-        TenantRuntimePolicy persisted = loadPersistedPolicy(companyCode);
-        return policies.compute(companyCode, (key, current) -> {
-            if (persisted != null && shouldUsePersistedPolicy(current, persisted)) {
-                return persisted;
+        TenantRuntimePolicy current = policies.get(companyCode);
+        long nowMillis = System.currentTimeMillis();
+        if (current != null && current.policyRefreshAfterEpochMillis > nowMillis) {
+            return current;
+        }
+        return policies.compute(companyCode, (key, cached) -> {
+            long refreshCheckAt = System.currentTimeMillis();
+            if (cached != null && cached.policyRefreshAfterEpochMillis > refreshCheckAt) {
+                return cached;
             }
-            if (current != null) {
-                return current;
+            TenantRuntimePolicy persisted = loadPersistedPolicy(key);
+            TenantRuntimePolicy resolved;
+            if (persisted != null && shouldUsePersistedPolicy(cached, persisted)) {
+                resolved = persisted;
+            } else if (cached != null) {
+                resolved = cached;
+            } else if (persisted != null) {
+                resolved = persisted;
+            } else {
+                resolved = defaultPolicy();
             }
-            if (persisted != null) {
-                return persisted;
-            }
-            return defaultPolicy();
+            resolved.policyRefreshAfterEpochMillis = refreshCheckAt + persistedPolicyCacheTtlMillis;
+            return resolved;
         });
     }
 
@@ -461,7 +531,8 @@ public class TenantRuntimeEnforcementService {
                 maxRequestsPerMinute,
                 maxActiveUsers,
                 auditChainId,
-                updatedAt);
+                updatedAt,
+                0L);
     }
 
     private TenantRuntimePolicy defaultPolicy() {
@@ -472,7 +543,8 @@ public class TenantRuntimeEnforcementService {
                 defaultMaxRequestsPerMinute,
                 defaultMaxActiveUsers,
                 UUID.randomUUID().toString(),
-                CompanyTime.now());
+                CompanyTime.now(),
+                0L);
     }
 
     private TenantRuntimeState normalizeState(String rawState) {
@@ -612,7 +684,7 @@ public class TenantRuntimeEnforcementService {
 
     public static final class TenantRequestAdmission {
         private static final TenantRequestAdmission NOT_TRACKED =
-                new TenantRequestAdmission(false, null, null, null, HttpStatus.OK.value(), null);
+                new TenantRequestAdmission(false, null, null, null, HttpStatus.OK.value(), null, false);
 
         private final boolean admitted;
         private final String companyCode;
@@ -620,6 +692,7 @@ public class TenantRuntimeEnforcementService {
         private final TenantRuntimeCounters counters;
         private final int statusCode;
         private final String message;
+        private final boolean policyControlRequest;
 
         private TenantRequestAdmission(boolean admitted,
                                        String companyCode,
@@ -627,12 +700,23 @@ public class TenantRuntimeEnforcementService {
                                        TenantRuntimeCounters counters,
                                        int statusCode,
                                        String message) {
+            this(admitted, companyCode, auditChainId, counters, statusCode, message, false);
+        }
+
+        private TenantRequestAdmission(boolean admitted,
+                                       String companyCode,
+                                       String auditChainId,
+                                       TenantRuntimeCounters counters,
+                                       int statusCode,
+                                       String message,
+                                       boolean policyControlRequest) {
             this.admitted = admitted;
             this.companyCode = companyCode;
             this.auditChainId = auditChainId;
             this.counters = counters;
             this.statusCode = statusCode;
             this.message = message;
+            this.policyControlRequest = policyControlRequest;
         }
 
         public static TenantRequestAdmission notTracked() {
@@ -643,6 +727,19 @@ public class TenantRuntimeEnforcementService {
                                                       String auditChainId,
                                                       TenantRuntimeCounters counters) {
             return new TenantRequestAdmission(true, companyCode, auditChainId, counters, HttpStatus.OK.value(), null);
+        }
+
+        public static TenantRequestAdmission admittedPolicyControl(String companyCode,
+                                                                   String auditChainId,
+                                                                   TenantRuntimeCounters counters) {
+            return new TenantRequestAdmission(
+                    true,
+                    companyCode,
+                    auditChainId,
+                    counters,
+                    HttpStatus.OK.value(),
+                    null,
+                    true);
         }
 
         public static TenantRequestAdmission rejected(TenantRuntimeRejection rejection) {
@@ -678,6 +775,10 @@ public class TenantRuntimeEnforcementService {
         public String auditChainId() {
             return auditChainId;
         }
+
+        private boolean isPolicyControlRequest() {
+            return policyControlRequest;
+        }
     }
 
     private static final class TenantRuntimePolicy {
@@ -688,6 +789,7 @@ public class TenantRuntimeEnforcementService {
         private volatile int maxActiveUsers;
         private volatile String auditChainId;
         private volatile Instant updatedAt;
+        private volatile long policyRefreshAfterEpochMillis;
 
         private TenantRuntimePolicy(TenantRuntimeState state,
                                     String reasonCode,
@@ -695,7 +797,8 @@ public class TenantRuntimeEnforcementService {
                                     int maxRequestsPerMinute,
                                     int maxActiveUsers,
                                     String auditChainId,
-                                    Instant updatedAt) {
+                                    Instant updatedAt,
+                                    long policyRefreshAfterEpochMillis) {
             this.state = state;
             this.reasonCode = reasonCode;
             this.maxConcurrentRequests = maxConcurrentRequests;
@@ -703,6 +806,7 @@ public class TenantRuntimeEnforcementService {
             this.maxActiveUsers = maxActiveUsers;
             this.auditChainId = auditChainId;
             this.updatedAt = updatedAt;
+            this.policyRefreshAfterEpochMillis = policyRefreshAfterEpochMillis;
         }
 
         private int effectiveMaxConcurrentRequests(int fallback) {
