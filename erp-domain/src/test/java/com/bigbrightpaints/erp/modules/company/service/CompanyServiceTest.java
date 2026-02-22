@@ -87,16 +87,18 @@ class CompanyServiceTest {
     }
 
     @Test
-    void update_deniesWhenNotMember() {
+    void update_allowsSuperAdminWithoutTenantMembership() {
         authenticateAs("ROLE_SUPER_ADMIN");
+        Company target = company(2L, "BBP");
         Company allowed = company(1L, "ACME");
         CompanyRequest request = new CompanyRequest("New Name", "NEW", "UTC", BigDecimal.TEN);
+        when(repository.findById(2L)).thenReturn(Optional.of(target));
 
-        assertThatThrownBy(() -> companyService.update(2L, request, Set.of(allowed)))
-                .isInstanceOf(AccessDeniedException.class)
-                .hasMessageContaining("Not allowed");
+        CompanyDto dto = companyService.update(2L, request, Set.of(allowed));
 
-        verify(repository, never()).findById(anyLong());
+        assertThat(dto.id()).isEqualTo(2L);
+        assertThat(dto.name()).isEqualTo("New Name");
+        assertThat(dto.code()).isEqualTo("NEW");
     }
 
     @Test

@@ -67,9 +67,6 @@ public class CompanyController {
                                                            @PathVariable Long id,
                                                            @Valid @RequestBody CompanyRequest request) {
         Set<Company> allowedCompanies = requireCompanyContext(principal);
-        if (allowedCompanies.stream().noneMatch(c -> c.getId().equals(id))) {
-            throw new AccessDeniedException("Not allowed to update company");
-        }
         return ResponseEntity.ok(ApiResponse.success("Company updated",
                 companyService.update(id, request, allowedCompanies)));
     }
