@@ -25,6 +25,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -99,6 +100,82 @@ class TenantRuntimeEnforcementInterceptorTest {
         assertThat(allowed).isTrue();
         verify(companyContextService, never()).requireCurrentCompany();
         verifyNoInteractions(auditService);
+    }
+
+    @Test
+    void preHandle_enforcesAccountingReportsPath_withMissingHoldStateAndMalformedQuotas() throws Exception {
+        settings.put(keyMaxRequestsPerMinute(55L), "bad-rpm");
+        settings.put(keyMaxConcurrentRequests(55L), "bad-concurrency");
+        settings.put(keyPolicyReference(55L), "policy-accounting");
+
+        MockHttpServletRequest request = request("GET", "/api/v1/accounting/reports/pnl-summary");
+
+        boolean allowed = interceptor.preHandle(request, new MockHttpServletResponse(), new Object());
+
+        assertThat(allowed).isTrue();
+        assertThat(request.getAttribute(attrEnforced())).isEqualTo(Boolean.TRUE);
+        assertThat(request.getAttribute(attrCompanyId())).isEqualTo(55L);
+        verifyNoInteractions(auditService);
+    }
+
+    @Test
+    void preHandle_deniesWhenHoldStateIsUnsupported_failClosed() {
+        settings.put(keyHoldState(55L), "PAUSED");
+        settings.put(keyHoldReason(55L), "Unexpected runtime hold state");
+        settings.put(keyPolicyReference(55L), "policy-paused");
+
+        MockHttpServletRequest request = request("GET", "/api/v1/portal/dashboard");
+        request.setRemoteAddr("198.51.100.31");
+        request.addHeader("X-Request-Id", "req-paused-1");
+        request.addHeader("X-Trace-Id", "trace-paused-1");
+        request.addHeader("User-Agent", "runtime-paused-test");
+
+        assertThatThrownBy(() -> interceptor.preHandle(request, new MockHttpServletResponse(), new Object()))
+                .isInstanceOf(ApplicationException.class)
+                .satisfies(error -> {
+                    ApplicationException exception = (ApplicationException) error;
+                    assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_INVALID_STATE);
+                    assertThat(exception.getDetails())
+                            .containsEntry("companyCode", "ACME")
+                            .containsEntry("holdState", "BLOCKED")
+                            .containsEntry("holdReason", "Unexpected runtime hold state")
+                            .containsEntry("policyReference", "policy-paused")
+                            .containsEntry("path", "/api/v1/portal/dashboard");
+                });
+
+        ArgumentCaptor<Map<String, String>> metadataCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(auditService).logFailure(eq(AuditEvent.ACCESS_DENIED), metadataCaptor.capture());
+        assertThat(metadataCaptor.getValue())
+                .containsEntry("action", "TENANT_RUNTIME_STATE_DENIED")
+                .containsEntry("holdState", "BLOCKED")
+                .containsEntry("holdReason", "Unexpected runtime hold state")
+                .containsEntry("reason", "Tenant runtime state is BLOCKED")
+                .containsEntry("requestId", "req-paused-1")
+                .containsEntry("traceId", "trace-paused-1")
+                .containsEntry("userAgent", "runtime-paused-test")
+                .containsEntry("remoteAddr", "198.51.100.31");
+    }
+
+    @Test
+    void preHandle_deniesWhenHoldStateIsBlank_failClosed() {
+        settings.put(keyHoldState(55L), "   ");
+        settings.put(keyHoldReason(55L), "Malformed runtime hold state");
+        settings.put(keyPolicyReference(55L), "policy-blank");
+
+        MockHttpServletRequest request = request("GET", "/api/v1/portal/dashboard");
+
+        assertThatThrownBy(() -> interceptor.preHandle(request, new MockHttpServletResponse(), new Object()))
+                .isInstanceOf(ApplicationException.class)
+                .satisfies(error -> {
+                    ApplicationException exception = (ApplicationException) error;
+                    assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_INVALID_STATE);
+                    assertThat(exception.getDetails())
+                            .containsEntry("companyCode", "ACME")
+                            .containsEntry("holdState", "BLOCKED")
+                            .containsEntry("holdReason", "Malformed runtime hold state")
+                            .containsEntry("policyReference", "policy-blank")
+                            .containsEntry("path", "/api/v1/portal/dashboard");
+                });
     }
 
     @Test
@@ -265,6 +342,28 @@ class TenantRuntimeEnforcementInterceptorTest {
     }
 
     @Test
+    void afterCompletion_returnsEarlyWhenCompanyAttributeIsNotLong() {
+        MockHttpServletRequest request = request("GET", "/api/v1/portal/dashboard");
+        request.setAttribute(attrEnforced(), Boolean.TRUE);
+        request.setAttribute(attrCompanyId(), "55");
+
+        interceptor.afterCompletion(request, new MockHttpServletResponse(), new Object(), null);
+
+        verify(systemSettingsRepository, never()).save(any(SystemSetting.class));
+    }
+
+    @Test
+    void afterCompletion_returnsEarlyWhenInFlightCounterMissingForCompany() {
+        MockHttpServletRequest request = request("GET", "/api/v1/portal/dashboard");
+        request.setAttribute(attrEnforced(), Boolean.TRUE);
+        request.setAttribute(attrCompanyId(), 999L);
+
+        interceptor.afterCompletion(request, new MockHttpServletResponse(), new Object(), null);
+
+        verify(systemSettingsRepository, never()).save(any(SystemSetting.class));
+    }
+
+    @Test
     void afterCompletion_resetsNegativeCounterToZero() throws Exception {
         settings.put(keyHoldState(55L), "ACTIVE");
         settings.put(keyMaxRequestsPerMinute(55L), "10");
@@ -277,6 +376,20 @@ class TenantRuntimeEnforcementInterceptorTest {
         interceptor.afterCompletion(request, new MockHttpServletResponse(), new Object(), null);
 
         assertThat(settings.get(keyMetricInFlight(55L))).isEqualTo("0");
+    }
+
+    @Test
+    void headerValue_returnsNullForNullRequestOrBlankHeaderName() {
+        String valueFromNullRequest = ReflectionTestUtils.invokeMethod(interceptor, "headerValue", null, "X-Request-Id");
+        String valueFromBlankHeader = ReflectionTestUtils.invokeMethod(
+                interceptor,
+                "headerValue",
+                request("GET", "/api/v1/portal/dashboard"),
+                "   "
+        );
+
+        assertThat(valueFromNullRequest).isNull();
+        assertThat(valueFromBlankHeader).isNull();
     }
 
     private void freezeTime(Instant now) {

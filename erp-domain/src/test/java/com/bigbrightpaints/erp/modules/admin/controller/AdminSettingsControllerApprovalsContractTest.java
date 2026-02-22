@@ -244,6 +244,111 @@ class AdminSettingsControllerApprovalsContractTest {
     }
 
     @Test
+    void approvals_appliesUnknownFallbacksForStatusDealerAndAmounts() {
+        SystemSettingsService systemSettingsService = mock(SystemSettingsService.class);
+        EmailService emailService = mock(EmailService.class);
+        CompanyContextService companyContextService = mock(CompanyContextService.class);
+        TenantRuntimePolicyService tenantRuntimePolicyService = mock(TenantRuntimePolicyService.class);
+        CreditRequestRepository creditRequestRepository = mock(CreditRequestRepository.class);
+        CreditLimitOverrideRequestRepository creditLimitOverrideRequestRepository =
+                mock(CreditLimitOverrideRequestRepository.class);
+        PayrollRunRepository payrollRunRepository = mock(PayrollRunRepository.class);
+        AdminSettingsController controller = new AdminSettingsController(
+                systemSettingsService,
+                emailService,
+                companyContextService,
+                tenantRuntimePolicyService,
+                creditRequestRepository,
+                creditLimitOverrideRequestRepository,
+                payrollRunRepository
+        );
+
+        Company company = new Company();
+        ReflectionTestUtils.setField(company, "id", 503L);
+        when(companyContextService.requireCurrentCompany()).thenReturn(company);
+
+        CreditRequest creditRequest = new CreditRequest();
+        creditRequest.setCompany(company);
+        creditRequest.setDealer(null);
+        creditRequest.setAmountRequested(null);
+        creditRequest.setReason("  Need urgent raw material  ");
+        creditRequest.setStatus("   ");
+        ReflectionTestUtils.setField(creditRequest, "id", 40L);
+        ReflectionTestUtils.setField(creditRequest, "publicId", UUID.fromString("88888888-8888-8888-8888-888888888888"));
+        ReflectionTestUtils.setField(creditRequest, "createdAt", Instant.parse("2026-04-12T09:00:00Z"));
+
+        Dealer unknownDealer = new Dealer();
+        unknownDealer.setName(" ");
+        PackagingSlip blankSlip = new PackagingSlip();
+        blankSlip.setSlipNumber(" ");
+        SalesOrder blankOrder = new SalesOrder();
+        blankOrder.setOrderNumber(" ");
+        CreditLimitOverrideRequest overrideRequest = new CreditLimitOverrideRequest();
+        overrideRequest.setCompany(company);
+        overrideRequest.setDealer(unknownDealer);
+        overrideRequest.setPackagingSlip(blankSlip);
+        overrideRequest.setSalesOrder(blankOrder);
+        overrideRequest.setDispatchAmount(null);
+        overrideRequest.setCurrentExposure(null);
+        overrideRequest.setCreditLimit(null);
+        overrideRequest.setRequiredHeadroom(null);
+        overrideRequest.setRequestedBy("  ");
+        overrideRequest.setStatus(null);
+        ReflectionTestUtils.setField(overrideRequest, "id", 41L);
+        ReflectionTestUtils.setField(overrideRequest, "publicId", UUID.fromString("99999999-9999-9999-9999-999999999999"));
+        ReflectionTestUtils.setField(overrideRequest, "createdAt", Instant.parse("2026-04-12T08:00:00Z"));
+
+        PayrollRun payrollRun = new PayrollRun();
+        payrollRun.setCompany(company);
+        payrollRun.setRunNumber("PR-NULL-STATUS");
+        payrollRun.setRunType(PayrollRun.RunType.MONTHLY);
+        payrollRun.setPeriodStart(LocalDate.of(2026, 4, 1));
+        payrollRun.setPeriodEnd(LocalDate.of(2026, 4, 30));
+        payrollRun.setStatus((PayrollRun.PayrollStatus) null);
+        ReflectionTestUtils.setField(payrollRun, "id", 42L);
+        ReflectionTestUtils.setField(payrollRun, "publicId", UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"));
+        ReflectionTestUtils.setField(payrollRun, "createdAt", Instant.parse("2026-04-12T07:00:00Z"));
+
+        when(creditRequestRepository.findPendingByCompanyOrderByCreatedAtDesc(company))
+                .thenReturn(List.of(creditRequest));
+        when(creditLimitOverrideRequestRepository.findPendingByCompanyOrderByCreatedAtDesc(company))
+                .thenReturn(List.of(overrideRequest));
+        when(payrollRunRepository.findByCompanyAndStatusOrderByCreatedAtDesc(company, PayrollRun.PayrollStatus.CALCULATED))
+                .thenReturn(List.of(payrollRun));
+
+        ApiResponse<AdminApprovalsResponse> response = controller.approvals();
+
+        assertThat(response.success()).isTrue();
+        assertThat(response.data()).isNotNull();
+        assertThat(response.data().creditRequests()).hasSize(2);
+
+        AdminApprovalItemDto creditApproval = response.data().creditRequests().stream()
+                .filter(item -> "CREDIT_REQUEST".equals(item.type()))
+                .findFirst()
+                .orElseThrow();
+        assertThat(creditApproval.reference()).isEqualTo("CR-40");
+        assertThat(creditApproval.status()).isEqualTo("UNKNOWN");
+        assertThat(creditApproval.summary()).contains("for Unknown dealer amount 0");
+        assertThat(creditApproval.summary()).contains("(reason: Need urgent raw material)");
+
+        AdminApprovalItemDto overrideApproval = response.data().creditRequests().stream()
+                .filter(item -> "CREDIT_LIMIT_OVERRIDE_REQUEST".equals(item.type()))
+                .findFirst()
+                .orElseThrow();
+        assertThat(overrideApproval.reference()).isEqualTo("CLO-41");
+        assertThat(overrideApproval.status()).isEqualTo("UNKNOWN");
+        assertThat(overrideApproval.summary()).contains("for Unknown dealer");
+        assertThat(overrideApproval.summary()).contains("dispatch 0");
+        assertThat(overrideApproval.summary()).doesNotContain("requested by");
+        assertThat(overrideApproval.sourcePortal()).isEqualTo("FACTORY_PORTAL");
+
+        assertThat(response.data().payrollRuns()).hasSize(1);
+        AdminApprovalItemDto payrollApproval = response.data().payrollRuns().get(0);
+        assertThat(payrollApproval.reference()).isEqualTo("PR-NULL-STATUS");
+        assertThat(payrollApproval.status()).isEqualTo("UNKNOWN");
+    }
+
+    @Test
     void approvals_payrollFallbackReferenceUsesIdWhenRunNumberMissing() {
         SystemSettingsService systemSettingsService = mock(SystemSettingsService.class);
         EmailService emailService = mock(EmailService.class);

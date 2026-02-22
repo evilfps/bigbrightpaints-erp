@@ -439,7 +439,7 @@ class TS_RuntimeOrchestratorIdempotencyExecutableCoverageTest {
     }
 
     @Test
-    void start_hashes_unserializable_payload_via_string_fallback() {
+    void start_fails_closed_when_payload_cannot_be_serialized_deterministically() {
         OrchestratorCommandRepository commandRepository = mock(OrchestratorCommandRepository.class);
         CompanyContextService companyContextService = mock(CompanyContextService.class);
         when(companyContextService.requireCurrentCompany()).thenReturn(company(601L));
@@ -471,29 +471,15 @@ class TS_RuntimeOrchestratorIdempotencyExecutableCoverageTest {
             }
         };
 
-        String fallbackHash = sha256Hex("601|ORCH.ORDER.APPROVE|fallback-payload");
-        when(commandRepository.reserveScope(601L, "ORCH.ORDER.APPROVE", "idem-fallback", fallbackHash, "trace-fallback"))
-                .thenReturn(1);
-        OrchestratorCommand reserved = new OrchestratorCommand(
-                601L,
-                "ORCH.ORDER.APPROVE",
-                "idem-fallback",
-                fallbackHash,
-                "trace-fallback"
-        );
-        when(commandRepository.lockByScope(601L, "ORCH.ORDER.APPROVE", "idem-fallback"))
-                .thenReturn(Optional.of(reserved));
-
-        OrchestratorIdempotencyService.CommandLease lease = service.start(
+        assertThatThrownBy(() -> service.start(
                 "ORCH.ORDER.APPROVE",
                 "idem-fallback",
                 payload,
                 () -> "trace-fallback"
-        );
-
-        assertThat(lease.shouldExecute()).isTrue();
-        assertThat(lease.command().getRequestHash())
-                .isEqualTo(fallbackHash);
+        )).isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Unable to deterministically hash orchestrator payload");
+        verify(commandRepository, never()).reserveScope(any(), any(), any(), any(), any());
+        verify(commandRepository, never()).lockByScope(any(), any(), any());
     }
 
     private Company company(Long id) {

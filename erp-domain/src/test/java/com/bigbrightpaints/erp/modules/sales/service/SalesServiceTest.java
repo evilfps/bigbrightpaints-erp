@@ -569,6 +569,79 @@ class SalesServiceTest {
     }
 
     @Test
+    void updateOrchestratorWorkflowStatusRejectsTerminalManualCurrentStatus() {
+        SalesOrder order = new SalesOrder();
+        order.setCompany(company);
+        order.setStatus("REJECTED");
+        setField(order, "id", 927L);
+
+        when(companyEntityLookup.requireSalesOrder(company, 927L)).thenReturn(order);
+
+        ApplicationException ex = assertThrows(ApplicationException.class,
+                () -> salesService.updateOrchestratorWorkflowStatus(927L, " ready_to_ship "));
+
+        assertEquals(ErrorCode.BUSINESS_INVALID_STATE, ex.getErrorCode());
+        assertTrue(ex.getMessage().contains("REJECTED"));
+        assertEquals("REJECTED", order.getStatus());
+        verifyNoInteractions(packagingSlipRepository);
+    }
+
+    @Test
+    void updateOrchestratorWorkflowStatusAllowsOnHoldCurrentStatus() {
+        SalesOrder order = new SalesOrder();
+        order.setCompany(company);
+        order.setStatus("ON_HOLD");
+        setField(order, "id", 928L);
+
+        when(companyEntityLookup.requireSalesOrder(company, 928L)).thenReturn(order);
+        when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 928L)).thenReturn(List.of());
+
+        salesService.updateOrchestratorWorkflowStatus(928L, " ready_to_ship ");
+
+        assertEquals("READY_TO_SHIP", order.getStatus());
+    }
+
+    @Test
+    void updateOrchestratorWorkflowStatusAllowsBlankCurrentStatus() {
+        SalesOrder order = new SalesOrder();
+        order.setCompany(company);
+        order.setStatus("   ");
+        setField(order, "id", 929L);
+
+        when(companyEntityLookup.requireSalesOrder(company, 929L)).thenReturn(order);
+        when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 929L)).thenReturn(List.of());
+
+        salesService.updateOrchestratorWorkflowStatus(929L, " ready_to_ship ");
+
+        assertEquals("READY_TO_SHIP", order.getStatus());
+    }
+
+    @Test
+    void attachTraceIdSetsFirstTraceAndDoesNotOverwriteDifferingTrace() {
+        SalesOrder order = new SalesOrder();
+        order.setCompany(company);
+        order.setStatus("BOOKED");
+        setField(order, "id", 933L);
+
+        when(companyEntityLookup.requireSalesOrder(company, 933L)).thenReturn(order);
+
+        salesService.attachTraceId(933L, "   ");
+        assertNull(order.getTraceId());
+
+        salesService.attachTraceId(933L, " trace-101 ");
+        assertEquals("trace-101", order.getTraceId());
+
+        salesService.attachTraceId(933L, "   ");
+        assertEquals("trace-101", order.getTraceId());
+
+        salesService.attachTraceId(933L, "trace-202");
+        assertEquals("trace-101", order.getTraceId());
+
+        salesService.attachTraceId(933L, " trace-101 ");
+        assertEquals("trace-101", order.getTraceId());
+    }
+
+    @Test
     void hasDispatchConfirmationReturnsFalseWhenNoSlipsFound() {
         SalesOrder order = new SalesOrder();
         setField(order, "id", 930L);
@@ -1593,6 +1666,7 @@ class SalesServiceTest {
         order.setDealer(dealer);
         order.setOrderNumber("SO-CASH-10");
         order.setStatus("READY_TO_SHIP");
+        order.setTraceId("TRACE-CASH-10");
         order.setIdempotencyHash(DigestUtils.sha256Hex("42|200|INR|NONE|false|0||CASH|SKU-CASH:1:200:0"));
 
         SalesOrderItem item = new SalesOrderItem();
@@ -2174,6 +2248,7 @@ class SalesServiceTest {
         setField(order, "id", 10L);
         order.setCompany(company);
         order.setStatus("SHIPPED");
+        order.setTraceId("TRACE-FASTPATH-805");
 
         PackagingSlip slip = new PackagingSlip();
         setField(slip, "id", 55L);
@@ -2243,6 +2318,7 @@ class SalesServiceTest {
         assertEquals("Replay override in fast path", metadata.get("dispatchOverrideReason"));
         assertEquals("DISCOUNT_OVERRIDE", metadata.get("dispatchOverrideReasonCode"));
         assertEquals("805", metadata.get("overrideRequestId"));
+        assertEquals("TRACE-FASTPATH-805", metadata.get("traceId"));
     }
 
     @Test

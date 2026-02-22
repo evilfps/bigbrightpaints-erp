@@ -268,6 +268,7 @@ class TS_truthsuite_o2c_Approval_RuntimeTest {
         setField(order, "id", 10L);
         order.setCompany(company);
         order.setStatus("SHIPPED");
+        order.setTraceId("TRACE-FASTPATH-805");
 
         PackagingSlip slip = new PackagingSlip();
         setField(slip, "id", 55L);
@@ -314,6 +315,7 @@ class TS_truthsuite_o2c_Approval_RuntimeTest {
         assertEquals("Replay override in fast path", metadata.get("dispatchOverrideReason"));
         assertEquals("DISCOUNT_OVERRIDE", metadata.get("dispatchOverrideReasonCode"));
         assertEquals("805", metadata.get("overrideRequestId"));
+        assertEquals("TRACE-FASTPATH-805", metadata.get("traceId"));
     }
 
     @Test
@@ -422,6 +424,54 @@ class TS_truthsuite_o2c_Approval_RuntimeTest {
         Map<String, String> metadata = metadataCaptor.getValue();
         assertEquals("DISCOUNT_OVERRIDE", metadata.get("dispatchOverrideReasonCode"));
         assertEquals("802", metadata.get("overrideRequestId"));
+    }
+
+    @Test
+    void orchestratorWorkflowStatusRejectsTerminalManualAndAllowsBlankCurrentStatus() {
+        SalesOrder rejected = new SalesOrder();
+        rejected.setCompany(company);
+        rejected.setStatus("REJECTED");
+        setField(rejected, "id", 701L);
+        when(companyEntityLookup.requireSalesOrder(company, 701L)).thenReturn(rejected);
+
+        ApplicationException rejectedStatus = assertThrows(
+                ApplicationException.class,
+                () -> salesService.updateOrchestratorWorkflowStatus(701L, " ready_to_ship "));
+        assertEquals(ErrorCode.BUSINESS_INVALID_STATE, rejectedStatus.getErrorCode());
+
+        SalesOrder blank = new SalesOrder();
+        blank.setCompany(company);
+        blank.setStatus("   ");
+        setField(blank, "id", 702L);
+        when(companyEntityLookup.requireSalesOrder(company, 702L)).thenReturn(blank);
+        when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 702L)).thenReturn(List.of());
+
+        salesService.updateOrchestratorWorkflowStatus(702L, " ready_to_ship ");
+        assertEquals("READY_TO_SHIP", blank.getStatus());
+    }
+
+    @Test
+    void attachTraceIdCoversBlankConflictAndReplayBranches() {
+        SalesOrder order = new SalesOrder();
+        order.setCompany(company);
+        order.setStatus("BOOKED");
+        setField(order, "id", 703L);
+        when(companyEntityLookup.requireSalesOrder(company, 703L)).thenReturn(order);
+
+        salesService.attachTraceId(703L, "   ");
+        assertNull(order.getTraceId());
+
+        salesService.attachTraceId(703L, " trace-101 ");
+        assertEquals("trace-101", order.getTraceId());
+
+        salesService.attachTraceId(703L, " ");
+        assertEquals("trace-101", order.getTraceId());
+
+        salesService.attachTraceId(703L, "trace-202");
+        assertEquals("trace-101", order.getTraceId());
+
+        salesService.attachTraceId(703L, " trace-101 ");
+        assertEquals("trace-101", order.getTraceId());
     }
 
     @Test

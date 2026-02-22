@@ -19,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -278,6 +279,36 @@ public class OrchestratorControllerIT extends AbstractIntegrationTest {
         assertThat(secondResponse.getStatusCode()).isEqualTo(HttpStatus.ACCEPTED);
         String traceId = (String) firstResponse.getBody().get("traceId");
         assertThat(secondResponse.getBody().get("traceId")).isEqualTo(traceId);
+        assertThat(outboxEventRepository.count()).isEqualTo(outboxBefore + 1);
+    }
+
+    @Test
+    void fulfillment_auto_key_treats_blank_and_missing_notes_as_equivalent() {
+        String token = loginToken();
+        HttpHeaders headers = authHeaders(token);
+        long outboxBefore = outboxEventRepository.count();
+
+        Map<String, Object> firstBody = new HashMap<>();
+        firstBody.put("status", "PROCESSING");
+        Map<String, Object> secondBody = Map.of(
+                "status", "PROCESSING",
+                "notes", "   ");
+
+        ResponseEntity<Map> firstResponse = rest.exchange(
+                "/api/v1/orchestrator/orders/" + seededOrderId + "/fulfillment",
+                HttpMethod.POST,
+                new HttpEntity<>(firstBody, headers),
+                Map.class);
+
+        ResponseEntity<Map> secondResponse = rest.exchange(
+                "/api/v1/orchestrator/orders/" + seededOrderId + "/fulfillment",
+                HttpMethod.POST,
+                new HttpEntity<>(secondBody, headers),
+                Map.class);
+
+        assertThat(firstResponse.getStatusCode()).isEqualTo(HttpStatus.ACCEPTED);
+        assertThat(secondResponse.getStatusCode()).isEqualTo(HttpStatus.ACCEPTED);
+        assertThat(secondResponse.getBody().get("traceId")).isEqualTo(firstResponse.getBody().get("traceId"));
         assertThat(outboxEventRepository.count()).isEqualTo(outboxBefore + 1);
     }
 

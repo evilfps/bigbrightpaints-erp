@@ -10,6 +10,7 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.clearInvocations;
 
 import com.bigbrightpaints.erp.core.audit.AuditEvent;
 import com.bigbrightpaints.erp.core.audit.AuditService;
@@ -102,6 +103,16 @@ class TenantRuntimeEnforcementServiceTest {
     }
 
     @Test
+    void completeRequest_ignoresNullAndNotAdmittedHandles() {
+        service.completeRequest(null, 503);
+        service.completeRequest(TenantRuntimeEnforcementService.TenantRequestAdmission.notTracked(), 503);
+
+        TenantRuntimeEnforcementService.TenantRuntimeSnapshot snapshot = service.snapshot("ACME");
+        assertThat(snapshot.metrics().errorResponses()).isZero();
+        assertThat(snapshot.metrics().inFlightRequests()).isZero();
+    }
+
+    @Test
     void holdTenant_rejectsNewRequests_withLockedStatusAndAuditFailure() {
         TenantRuntimeEnforcementService.TenantRuntimeSnapshot holdSnapshot =
                 service.holdTenant("ACME", "compliance_review", "ops@bbp.com");
@@ -131,6 +142,36 @@ class TenantRuntimeEnforcementServiceTest {
                 });
 
         assertThat(service.snapshot("ACME").metrics().rejectedRequests()).isEqualTo(1L);
+    }
+
+    @Test
+    void enforceAuthOperationAllowed_failClosedWhenCompanyNotFound() {
+        assertThatThrownBy(() -> service.enforceAuthOperationAllowed("UNKNOWN", "actor@bbp.com", "login"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Company not found: UNKNOWN");
+    }
+
+    @Test
+    void holdTenant_failClosedWhenCompanyNotFound() {
+        assertThatThrownBy(() -> service.holdTenant("UNKNOWN", "ops_hold", "ops@bbp.com"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Company not found: UNKNOWN");
+    }
+
+    @Test
+    void enforceAuthOperationAllowed_onHeldTenantRejectsWithoutActiveUserLookup() {
+        service.holdTenant("ACME", "compliance_pause", "ops@bbp.com");
+        clearInvocations(userAccountRepository);
+
+        assertThatThrownBy(() -> service.enforceAuthOperationAllowed("ACME", "actor@bbp.com", "login"))
+                .isInstanceOf(ResponseStatusException.class)
+                .satisfies(error -> {
+                    ResponseStatusException ex = (ResponseStatusException) error;
+                    assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.LOCKED);
+                    assertThat(ex.getReason()).isEqualTo("Tenant is currently on hold");
+                });
+
+        verifyNoInteractions(userAccountRepository);
     }
 
     @Test
