@@ -602,6 +602,36 @@ class SalesServiceTest {
     }
 
     @Test
+    void updateOrchestratorWorkflowStatusAllowsHoldReleaseBackToBooked() {
+        SalesOrder order = new SalesOrder();
+        order.setCompany(company);
+        order.setStatus("ON_HOLD");
+        setField(order, "id", 931L);
+
+        when(companyEntityLookup.requireSalesOrder(company, 931L)).thenReturn(order);
+        when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 931L)).thenReturn(List.of());
+
+        salesService.updateOrchestratorWorkflowStatus(931L, " booked ");
+
+        assertEquals("BOOKED", order.getStatus());
+    }
+
+    @Test
+    void updateOrchestratorWorkflowStatusAllowsHoldReleaseBackToConfirmed() {
+        SalesOrder order = new SalesOrder();
+        order.setCompany(company);
+        order.setStatus("ON_HOLD");
+        setField(order, "id", 932L);
+
+        when(companyEntityLookup.requireSalesOrder(company, 932L)).thenReturn(order);
+        when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 932L)).thenReturn(List.of());
+
+        salesService.updateOrchestratorWorkflowStatus(932L, " confirmed ");
+
+        assertEquals("CONFIRMED", order.getStatus());
+    }
+
+    @Test
     void updateOrchestratorWorkflowStatusAllowsBlankCurrentStatus() {
         SalesOrder order = new SalesOrder();
         order.setCompany(company);
