@@ -17,6 +17,7 @@ import com.bigbrightpaints.erp.modules.purchasing.domain.Supplier;
 import com.bigbrightpaints.erp.modules.purchasing.domain.SupplierRepository;
 import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
+import com.bigbrightpaints.erp.modules.sales.util.SalesOrderReference;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -254,6 +255,182 @@ class AccountingFacadeTest {
 
         assertThat(dto.referenceNumber()).isEqualTo(baseReference + "-0001");
         verify(accountingService, never()).createJournalEntry(any());
+    }
+
+    @Test
+    void postSalesJournal_idempotentHitDelegatesToAccountingServiceForDuplicateValidation() {
+        Long dealerId = 77L;
+        Dealer dealer = new Dealer();
+        Account receivable = new Account();
+        receivable.setCode("AR");
+        receivable.setName("Accounts Receivable");
+        ReflectionTestUtils.setField(receivable, "id", 701L);
+        dealer.setReceivableAccount(receivable);
+        when(companyEntityLookup.requireDealer(eq(company), eq(dealerId))).thenReturn(dealer);
+
+        String orderNumber = "SO-1001";
+        String canonicalReference = SalesOrderReference.invoiceReference(orderNumber);
+        JournalEntry existing = new JournalEntry();
+        ReflectionTestUtils.setField(existing, "id", 777L);
+        existing.setReferenceNumber(canonicalReference);
+        existing.setEntryDate(LocalDate.of(2026, 1, 5));
+        existing.setStatus("POSTED");
+        existing.setDealer(dealer);
+        when(journalReferenceResolver.findExistingEntry(eq(company), eq(canonicalReference)))
+                .thenReturn(Optional.of(existing));
+
+        JournalEntryDto replay = new JournalEntryDto(
+                777L,
+                null,
+                canonicalReference,
+                LocalDate.of(2026, 1, 5),
+                null,
+                "POSTED",
+                dealerId,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                List.<JournalLineDto>of(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+        );
+        ArgumentCaptor<JournalEntryRequest> requestCaptor = ArgumentCaptor.forClass(JournalEntryRequest.class);
+        when(accountingService.createJournalEntry(requestCaptor.capture())).thenReturn(replay);
+        when(companyEntityLookup.requireJournalEntry(eq(company), eq(777L))).thenReturn(existing);
+
+        JournalEntryDto dto = accountingFacade.postSalesJournal(
+                dealerId,
+                orderNumber,
+                null,
+                "sales replay",
+                Map.of(9001L, new BigDecimal("120.00")),
+                Map.of(9002L, new BigDecimal("21.60")),
+                new BigDecimal("141.60"),
+                null
+        );
+
+        assertThat(dto.id()).isEqualTo(777L);
+        assertThat(dto.referenceNumber()).isEqualTo(canonicalReference);
+        assertThat(requestCaptor.getValue().referenceNumber()).isEqualTo(canonicalReference);
+        verify(accountingService).createJournalEntry(any());
+    }
+
+    @Test
+    void postSalesJournal_idempotentReplayWithoutId_keepsExistingEntryForReferenceMapping() {
+        Long dealerId = 88L;
+        Dealer dealer = new Dealer();
+        Account receivable = new Account();
+        receivable.setCode("AR");
+        receivable.setName("Accounts Receivable");
+        ReflectionTestUtils.setField(receivable, "id", 702L);
+        dealer.setReceivableAccount(receivable);
+        when(companyEntityLookup.requireDealer(eq(company), eq(dealerId))).thenReturn(dealer);
+
+        String orderNumber = "SO-1002";
+        String canonicalReference = SalesOrderReference.invoiceReference(orderNumber);
+        JournalEntry existing = new JournalEntry();
+        ReflectionTestUtils.setField(existing, "id", 888L);
+        existing.setReferenceNumber(canonicalReference);
+        existing.setEntryDate(LocalDate.of(2026, 1, 6));
+        existing.setStatus("POSTED");
+        existing.setDealer(dealer);
+        when(journalReferenceResolver.findExistingEntry(eq(company), eq(canonicalReference)))
+                .thenReturn(Optional.of(existing));
+
+        JournalEntryDto replayWithoutId = new JournalEntryDto(
+                null,
+                null,
+                canonicalReference,
+                LocalDate.of(2026, 1, 6),
+                null,
+                "POSTED",
+                dealerId,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                List.<JournalLineDto>of(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+        );
+        when(accountingService.createJournalEntry(any(JournalEntryRequest.class))).thenReturn(replayWithoutId);
+
+        JournalEntryDto dto = accountingFacade.postSalesJournal(
+                dealerId,
+                orderNumber,
+                null,
+                "sales replay without id",
+                Map.of(9001L, new BigDecimal("100.00")),
+                Map.of(9002L, new BigDecimal("18.00")),
+                new BigDecimal("118.00"),
+                null
+        );
+
+        assertThat(dto.referenceNumber()).isEqualTo(canonicalReference);
+        verify(accountingService).createJournalEntry(any());
+        verify(companyEntityLookup, never()).requireJournalEntry(eq(company), any(Long.class));
+    }
+
+    @Test
+    void postSalesJournal_idempotentReplayNull_returnsNullAndSkipsEntryLookup() {
+        Long dealerId = 99L;
+        Dealer dealer = new Dealer();
+        Account receivable = new Account();
+        receivable.setCode("AR");
+        receivable.setName("Accounts Receivable");
+        ReflectionTestUtils.setField(receivable, "id", 703L);
+        dealer.setReceivableAccount(receivable);
+        when(companyEntityLookup.requireDealer(eq(company), eq(dealerId))).thenReturn(dealer);
+
+        String orderNumber = "SO-1003";
+        String canonicalReference = SalesOrderReference.invoiceReference(orderNumber);
+        JournalEntry existing = new JournalEntry();
+        ReflectionTestUtils.setField(existing, "id", 889L);
+        existing.setReferenceNumber(canonicalReference);
+        existing.setEntryDate(LocalDate.of(2026, 1, 7));
+        existing.setStatus("POSTED");
+        existing.setDealer(dealer);
+        when(journalReferenceResolver.findExistingEntry(eq(company), eq(canonicalReference)))
+                .thenReturn(Optional.of(existing));
+        when(accountingService.createJournalEntry(any(JournalEntryRequest.class))).thenReturn(null);
+
+        JournalEntryDto replay = accountingFacade.postSalesJournal(
+                dealerId,
+                orderNumber,
+                null,
+                "sales replay null",
+                Map.of(9001L, new BigDecimal("100.00")),
+                Map.of(9002L, new BigDecimal("18.00")),
+                new BigDecimal("118.00"),
+                null
+        );
+
+        assertThat(replay).isNull();
+        verify(accountingService).createJournalEntry(any());
+        verify(companyEntityLookup, never()).requireJournalEntry(eq(company), any(Long.class));
     }
 
     @Test

@@ -16,6 +16,7 @@ import java.time.ZoneOffset;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -78,6 +79,11 @@ class TenantRuntimeEnforcementInterceptorTest {
         });
     }
 
+    @AfterEach
+    void tearDown() {
+        ReflectionTestUtils.setField(CompanyTime.class, "companyClock", null);
+    }
+
     @Test
     void preHandle_bypassesWhenPathIsNotEnforced() throws Exception {
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/admin/settings");
@@ -100,6 +106,24 @@ class TenantRuntimeEnforcementInterceptorTest {
         assertThat(allowed).isTrue();
         verify(companyContextService, never()).requireCurrentCompany();
         verifyNoInteractions(auditService);
+    }
+
+    @Test
+    void isMutatingMethod_treatsBlankMethodAsMutating() {
+        Boolean result = ReflectionTestUtils.invokeMethod(interceptor, "isMutatingMethod", (String) null);
+
+        assertThat(result).isTrue();
+    }
+
+    @Test
+    void isMutatingMethod_treatsHeadAndOptionsAsNonMutating() {
+        Boolean head = ReflectionTestUtils.invokeMethod(interceptor, "isMutatingMethod", " HEAD ");
+        Boolean options = ReflectionTestUtils.invokeMethod(interceptor, "isMutatingMethod", "options");
+        Boolean patch = ReflectionTestUtils.invokeMethod(interceptor, "isMutatingMethod", "PATCH");
+
+        assertThat(head).isFalse();
+        assertThat(options).isFalse();
+        assertThat(patch).isTrue();
     }
 
     @Test
@@ -225,6 +249,30 @@ class TenantRuntimeEnforcementInterceptorTest {
                 .containsEntry("traceId", "trace-state-1")
                 .containsEntry("userAgent", "runtime-state-test")
                 .containsEntry("occurredAt", FIXED_NOW.toString());
+    }
+
+    @Test
+    void preHandle_holdState_allowsReadOnlyAndBlocksMutatingRequests() throws Exception {
+        settings.put(keyHoldState(55L), "HOLD");
+        settings.put(keyHoldReason(55L), "Temporary hold");
+        settings.put(keyPolicyReference(55L), "policy-hold");
+
+        MockHttpServletRequest readRequest = request("GET", "/api/v1/portal/dashboard");
+        boolean readAllowed = interceptor.preHandle(readRequest, new MockHttpServletResponse(), new Object());
+        assertThat(readAllowed).isTrue();
+        assertThat(readRequest.getAttribute(attrEnforced())).isEqualTo(Boolean.TRUE);
+        assertThat(readRequest.getAttribute(attrCompanyId())).isEqualTo(55L);
+
+        MockHttpServletRequest writeRequest = request("POST", "/api/v1/portal/dashboard");
+        assertThatThrownBy(() -> interceptor.preHandle(writeRequest, new MockHttpServletResponse(), new Object()))
+                .isInstanceOf(ApplicationException.class)
+                .satisfies(error -> {
+                    ApplicationException exception = (ApplicationException) error;
+                    assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_INVALID_STATE);
+                    assertThat(exception.getDetails())
+                            .containsEntry("holdState", "HOLD")
+                            .containsEntry("path", "/api/v1/portal/dashboard");
+                });
     }
 
     @Test

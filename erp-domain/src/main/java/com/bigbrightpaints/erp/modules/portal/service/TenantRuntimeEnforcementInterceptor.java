@@ -63,7 +63,9 @@ public class TenantRuntimeEnforcementInterceptor implements HandlerInterceptor {
         RuntimePolicy policy = loadPolicy(companyId);
         long minuteEpoch = currentMinute();
 
-        if (!HOLD_STATE_ACTIVE.equals(policy.holdState())) {
+        boolean holdBlocksThisRequest = HOLD_STATE_BLOCKED.equals(policy.holdState())
+                || (HOLD_STATE_HOLD.equals(policy.holdState()) && isMutatingMethod(request.getMethod()));
+        if (holdBlocksThisRequest) {
             int blockedCount = blockedCounter(companyId).incrementBlocked(minuteEpoch);
             persistMetricSnapshot(companyId, minuteEpoch, 0, blockedCount, inFlightCount(companyId));
             String failureReason = "Tenant runtime state is " + policy.holdState();
@@ -121,6 +123,14 @@ public class TenantRuntimeEnforcementInterceptor implements HandlerInterceptor {
         request.setAttribute(ATTR_ENFORCED, Boolean.TRUE);
         request.setAttribute(ATTR_COMPANY_ID, companyId);
         return true;
+    }
+
+    private boolean isMutatingMethod(String method) {
+        if (!StringUtils.hasText(method)) {
+            return true;
+        }
+        String normalized = method.trim().toUpperCase(Locale.ROOT);
+        return !"GET".equals(normalized) && !"HEAD".equals(normalized) && !"OPTIONS".equals(normalized);
     }
 
     @Override

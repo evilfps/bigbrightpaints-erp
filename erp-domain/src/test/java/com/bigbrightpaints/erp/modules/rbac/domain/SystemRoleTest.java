@@ -13,6 +13,7 @@ class SystemRoleTest {
     void roleNames_containsAllRoles() {
         List<String> names = SystemRole.roleNames();
         assertThat(names).containsExactlyInAnyOrder(
+                "ROLE_SUPER_ADMIN",
                 "ROLE_ADMIN",
                 "ROLE_ACCOUNTING",
                 "ROLE_FACTORY",
@@ -25,6 +26,7 @@ class SystemRoleTest {
     void roleNameSet_containsAllRoles() {
         Set<String> names = SystemRole.roleNameSet();
         assertThat(names).containsExactlyInAnyOrder(
+                "ROLE_SUPER_ADMIN",
                 "ROLE_ADMIN",
                 "ROLE_ACCOUNTING",
                 "ROLE_FACTORY",

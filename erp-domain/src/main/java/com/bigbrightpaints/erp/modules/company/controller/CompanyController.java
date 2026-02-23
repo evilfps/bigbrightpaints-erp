@@ -63,12 +63,10 @@ public class CompanyController {
 
     @PutMapping("/{id}")
     @PreAuthorize("hasAuthority('ROLE_SUPER_ADMIN')")
-    public ResponseEntity<ApiResponse<CompanyDto>> update(@AuthenticationPrincipal UserPrincipal principal,
-                                                           @PathVariable Long id,
+    public ResponseEntity<ApiResponse<CompanyDto>> update(@PathVariable Long id,
                                                            @Valid @RequestBody CompanyRequest request) {
-        Set<Company> allowedCompanies = requireCompanyContext(principal);
         return ResponseEntity.ok(ApiResponse.success("Company updated",
-                companyService.update(id, request, allowedCompanies)));
+                companyService.update(id, request, Set.of())));
     }
 
     @DeleteMapping("/{id}")

@@ -1,6 +1,6 @@
 # Rollback Runbook
 
-Last reviewed: 2026-02-18
+Last reviewed: 2026-02-22
 Owner: Release & Ops Agent
 
 ## Purpose
@@ -80,3 +80,16 @@ Record one immutable evidence entry per rollback event or drill with these requi
   2. apply compensating migration with `DROP INDEX` for affected index names.
   3. rerun accounting audit list smoke checks and reconciliation sanity checks.
   4. keep compensating migration artifact and verification logs attached to incident record.
+
+## V21 Rollback/Forward-Fix Notes (2026-02-22)
+- Migration: `erp-domain/src/main/resources/db/migration_v2/V21__super_admin_role_seed.sql`
+- Primary strategy: forward-fix (preferred). Because this migration is idempotent seed data, rollback should be handled by a compensating migration instead of editing applied history.
+- Forward-fix path:
+  1. open controlled maintenance window if role/permission mapping drift affects access.
+  2. apply compensating `migration_v2` script to remove or correct incorrect `role_permissions` rows and permission seeds.
+  3. rerun tenant admin access smoke checks and role-permission reconciliation queries.
+  4. attach compensating migration artifact and verification logs to the incident/change record.
+- Emergency rollback path (pre-apply only):
+  1. halt deployment before V21 is applied.
+  2. run Flyway v2 `validate` and confirm pending set is intact.
+  3. resume rollout only after approval with corrected migration plan.

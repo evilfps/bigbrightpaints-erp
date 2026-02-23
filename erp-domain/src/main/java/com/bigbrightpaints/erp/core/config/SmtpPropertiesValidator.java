@@ -26,6 +26,9 @@ public class SmtpPropertiesValidator {
     @Value("${spring.mail.username:}")
     private String smtpUser;
 
+    @Value("${spring.mail.properties.mail.smtp.auth:true}")
+    private boolean smtpAuthEnabled = true;
+
     @PostConstruct
     void validateSmtp() {
         if (!mailEnabled) {
@@ -34,6 +37,10 @@ public class SmtpPropertiesValidator {
         }
         if (!StringUtils.hasText(smtpHost)) {
             throw new IllegalStateException("SMTP host is missing (spring.mail.host)");
+        }
+        if (!smtpAuthEnabled) {
+            log.info("SMTP credential validation skipped because spring.mail.properties.mail.smtp.auth=false");
+            return;
         }
         if (!StringUtils.hasText(smtpPassword)) {
             throw new IllegalStateException("SMTP password is missing (spring.mail.password)");

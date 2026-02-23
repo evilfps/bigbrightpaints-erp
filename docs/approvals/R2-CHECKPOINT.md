@@ -213,3 +213,25 @@ Update this file in every high-risk change set.
   - Artifacts/links:
     - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/hr/service/PayrollService.java`
     - `erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/payroll/TS_PayrollLiabilityClearingPolicyTest.java`
+
+## STAGE-015 Addendum (2026-02-23, harness-fixes)
+- Branch / PR: `tickets-tkt-erp-stage-015-harness-fixes` / PR #45 (https://github.com/anasibnanwar-XYE/bigbrightpaints-erp/pull/45)
+- High-risk paths:
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/core/security/CompanyContextFilter.java`
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/company/service/TenantRuntimeEnforcementService.java`
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingFacade.java`
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/company/controller/CompanyController.java`
+- Why this is R2: tenant-runtime admission bypass rules, lifecycle-recovery authorization, and accounting idempotency replay checks are fail-closed control paths.
+- Approval mode: orchestrator
+- Human escalation required: no
+- Rollback owner: release governance + security/company/accounting owners
+- Verification evidence:
+  - Commands run:
+    - `mvn -B -ntp -f erp-domain/pom.xml -Dtest=TS_RuntimeTenantRuntimeEnforcementTest,TenantRuntimeEnforcementServiceTest,TenantRuntimeEnforcementInterceptorTest,AccountingFacadeTest test`
+    - `bash ci/check-enterprise-policy.sh`
+  - Result summary: targeted runtime/accounting test lane passed (`Tests run: 64, Failures: 0, Errors: 0, Skipped: 0`) and enterprise policy guard passed after this checkpoint update.
+  - Artifacts/links:
+    - `erp-domain/src/main/java/com/bigbrightpaints/erp/core/security/CompanyContextFilter.java`
+    - `erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeTenantRuntimeEnforcementTest.java`
+    - `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/company/service/TenantRuntimeEnforcementServiceTest.java`
+    - `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingFacadeTest.java`

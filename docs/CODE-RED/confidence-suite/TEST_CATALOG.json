@@ -1109,6 +1109,173 @@
       "accounting_math_critical": true,
       "cross_module_critical": true,
       "quality_flake_monitor": true
+    },
+    {
+      "id": "ts-runtime-tenant-runtime-enforcement-service-exec",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeTenantRuntimeEnforcementServiceExecutableCoverageTest.java",
+      "owner": "erp-domain-team",
+      "class": "critical",
+      "module": "Runtime",
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-reconciliation",
+        "gate-quality"
+      ],
+      "tags": [
+        "critical",
+        "concurrency",
+        "reconciliation"
+      ],
+      "accounting_math_critical": false,
+      "cross_module_critical": true,
+      "quality_flake_monitor": true
+    },
+    {
+      "id": "ts-runtime-tenant-runtime-enforcement-interceptor-exec",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeTenantRuntimeEnforcementInterceptorExecutableCoverageTest.java",
+      "owner": "erp-domain-team",
+      "class": "critical",
+      "module": "Runtime",
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-reconciliation",
+        "gate-quality"
+      ],
+      "tags": [
+        "critical",
+        "concurrency",
+        "reconciliation"
+      ],
+      "accounting_math_critical": false,
+      "cross_module_critical": true,
+      "quality_flake_monitor": true
+    },
+    {
+      "id": "ts-runtime-accounting-facade-exec",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeAccountingFacadeExecutableCoverageTest.java",
+      "owner": "erp-domain-team",
+      "class": "critical",
+      "module": "Accounting",
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-reconciliation",
+        "gate-quality"
+      ],
+      "tags": [
+        "critical",
+        "reconciliation"
+      ],
+      "accounting_math_critical": true,
+      "cross_module_critical": true,
+      "quality_flake_monitor": true
+    },
+    {
+      "id": "ts-runtime-smtp-properties-validator-exec",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeSmtpPropertiesValidatorExecutableCoverageTest.java",
+      "owner": "erp-domain-team",
+      "class": "critical",
+      "module": "Runtime",
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-reconciliation",
+        "gate-quality"
+      ],
+      "tags": [
+        "critical"
+      ],
+      "accounting_math_critical": false,
+      "cross_module_critical": false,
+      "quality_flake_monitor": true
+    },
+    {
+      "id": "ts-runtime-system-role-exec",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeSystemRoleExecutableCoverageTest.java",
+      "owner": "erp-domain-team",
+      "class": "critical",
+      "module": "Security",
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-reconciliation",
+        "gate-quality"
+      ],
+      "tags": [
+        "critical"
+      ],
+      "accounting_math_critical": false,
+      "cross_module_critical": true,
+      "quality_flake_monitor": true
+    },
+    {
+      "id": "ts-runtime-company-controller-exec",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeCompanyControllerExecutableCoverageTest.java",
+      "owner": "erp-domain-team",
+      "class": "critical",
+      "module": "Company",
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-reconciliation",
+        "gate-quality"
+      ],
+      "tags": [
+        "critical",
+        "reconciliation"
+      ],
+      "accounting_math_critical": false,
+      "cross_module_critical": true,
+      "quality_flake_monitor": true
+    },
+    {
+      "id": "ts-runtime-company-context-filter-exec",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeCompanyContextFilterExecutableCoverageTest.java",
+      "owner": "erp-domain-team",
+      "class": "critical",
+      "module": "Security",
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-reconciliation",
+        "gate-quality"
+      ],
+      "tags": [
+        "critical",
+        "concurrency"
+      ],
+      "accounting_math_critical": false,
+      "cross_module_critical": true,
+      "quality_flake_monitor": true
+    },
+    {
+      "id": "ts-runtime-ticket-015-exec-coverage-bridge",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeTicket015ExecutableCoverageBridgeTest.java",
+      "owner": "erp-domain-team",
+      "class": "critical",
+      "module": "Runtime",
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-reconciliation",
+        "gate-quality"
+      ],
+      "tags": [
+        "critical"
+      ],
+      "accounting_math_critical": false,
+      "cross_module_critical": true,
+      "quality_flake_monitor": true
     }
   ]
 }

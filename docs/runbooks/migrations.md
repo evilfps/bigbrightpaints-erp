@@ -1,6 +1,6 @@
 # Migration Runbook (Flyway v2)
 
-Last reviewed: 2026-02-18
+Last reviewed: 2026-02-22
 Owner: Data Migration Agent
 
 ## Purpose
@@ -97,3 +97,19 @@ mvn -B -ntp -f erp-domain/pom.xml org.flywaydb:flyway-maven-plugin:repair \
 ```
 - Then run v2-scoped `migrate`; `V16`..`V18` are idempotent (`CREATE INDEX IF NOT EXISTS`) so mixed pre-convergence index presence will not fail on duplicate index names.
 - Reference: `docs/db/FLYWAY_V2_TRANSIENT_CHECKSUM_REPAIR.md` (same v2 settings pattern).
+
+## V21 Execution Notes (2026-02-22)
+- Migration: `erp-domain/src/main/resources/db/migration_v2/V21__super_admin_role_seed.sql`
+- Change type: idempotent role/permission seed alignment for `ROLE_SUPER_ADMIN` control-plane access.
+- Forward plan:
+  - apply V21 as part of standard v2 chain rollout;
+  - verify `ROLE_SUPER_ADMIN` and required permission links exist once per environment;
+  - confirm no duplicate role-permission edges were introduced.
+- Dry-run / validation commands:
+  1. `bash scripts/flyway_overlap_scan.sh --migration-set v2`
+  2. `bash scripts/schema_drift_scan.sh --migration-set v2`
+  3. `mvn -B -ntp -f erp-domain/pom.xml -DskipTests flyway:validate -Pflyway-v2`
+- Rollback/forward-fix strategy:
+  - do not edit applied migration files;
+  - if bad permission links are detected post-apply, ship a compensating v2 migration to remove/replace incorrect `role_permissions` rows;
+  - if rollout must pause pre-apply, hold deployment and re-run v2 validate before resume.

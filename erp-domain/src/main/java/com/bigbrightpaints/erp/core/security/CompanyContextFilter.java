@@ -89,22 +89,29 @@ public class CompanyContextFilter extends OncePerRequestFilter {
             }
             String companyCode = StringUtils.hasText(requestedCompany) ? requestedCompany.trim() : null;
             if (companyCode != null) {
-                // Validate user has access to this company
-                if (!validateCompanyAccess(companyCode)) {
+                CompanyLifecycleState lifecycleState = companyService.resolveLifecycleStateByCode(companyCode);
+                boolean lifecycleControlBypass = lifecycleState != CompanyLifecycleState.ACTIVE
+                        && isLifecycleControlRequest(request)
+                        && hasSuperAdminAuthority();
+                // Recovery endpoints for non-active tenants are intended for super-admin operators
+                // even when they are not explicitly attached to the tenant membership list.
+                if (!lifecycleControlBypass && !validateCompanyAccess(companyCode)) {
                     log.warn("User attempted to access unauthorized company: {}", companyCode);
                     response.sendError(HttpServletResponse.SC_FORBIDDEN, "Access denied to company: " + companyCode);
                     return;
                 }
-                if (companyService.resolveLifecycleStateByCode(companyCode) != CompanyLifecycleState.ACTIVE) {
+                if (lifecycleState != CompanyLifecycleState.ACTIVE && !lifecycleControlBypass) {
                     response.sendError(HttpServletResponse.SC_FORBIDDEN,
                             "Tenant lifecycle state does not allow access");
                     return;
                 }
+                String runtimePath = resolveApplicationPath(request);
                 admission = tenantRuntimeEnforcementService.beginRequest(
                         companyCode,
-                        request.getRequestURI(),
+                        runtimePath,
                         request.getMethod(),
-                        resolveCurrentActor());
+                        resolveCurrentActor(),
+                        hasTenantRuntimePolicyControlAuthority());
                 if (!admission.isAdmitted()) {
                     response.setStatus(admission.statusCode());
                     response.setContentType("application/json");
@@ -154,6 +161,66 @@ public class CompanyContextFilter extends OncePerRequestFilter {
             return null;
         }
         return auth.getName().trim();
+    }
+
+    private boolean hasSuperAdminAuthority() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) {
+            return false;
+        }
+        return auth.getAuthorities().stream()
+                .anyMatch(granted -> "ROLE_SUPER_ADMIN".equalsIgnoreCase(granted.getAuthority()));
+    }
+
+    private boolean hasTenantRuntimePolicyControlAuthority() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) {
+            return false;
+        }
+        return auth.getAuthorities().stream()
+                .map(granted -> granted.getAuthority())
+                .anyMatch(authority -> "ROLE_ADMIN".equalsIgnoreCase(authority));
+    }
+
+    private boolean isLifecycleControlRequest(HttpServletRequest request) {
+        String path = resolveApplicationPath(request);
+        if (!StringUtils.hasText(path)) {
+            return false;
+        }
+        if (!path.startsWith("/api/v1/companies/")) {
+            return false;
+        }
+        boolean lifecycleMutation = "POST".equalsIgnoreCase(request.getMethod())
+                && path.endsWith("/lifecycle-state");
+        boolean tenantMetricsRead = "GET".equalsIgnoreCase(request.getMethod())
+                && path.endsWith("/tenant-metrics");
+        return lifecycleMutation || tenantMetricsRead;
+    }
+
+    private String resolveApplicationPath(HttpServletRequest request) {
+        if (request == null) {
+            return null;
+        }
+        String servletPath = request.getServletPath();
+        if (StringUtils.hasText(servletPath)) {
+            return servletPath.trim();
+        }
+        String requestUri = request.getRequestURI();
+        if (!StringUtils.hasText(requestUri)) {
+            return null;
+        }
+        String normalizedUri = requestUri.trim();
+        String contextPath = request.getContextPath();
+        if (StringUtils.hasText(contextPath)) {
+            String normalizedContextPath = contextPath.trim();
+            if (normalizedUri.equals(normalizedContextPath)) {
+                return "/";
+            }
+            if (normalizedUri.startsWith(normalizedContextPath + "/")) {
+                normalizedUri = normalizedUri.substring(normalizedContextPath.length());
+            }
+        }
+        return normalizedUri;
     }
 
     @Override

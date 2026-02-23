@@ -323,9 +323,13 @@ public class AccountingFacade {
                 lines);
 
         if (existing.isPresent()) {
-            JournalEntryDto idempotent = accountingService.createJournalEntry(request);
-            ensureSalesJournalReferenceMapping(company, existing.get(), canonicalReference, aliasReference);
-            return idempotent;
+            JournalEntryDto replay = accountingService.createJournalEntry(request);
+            JournalEntry mappedEntry = existing.get();
+            if (replay != null && replay.id() != null) {
+                mappedEntry = companyEntityLookup.requireJournalEntry(company, replay.id());
+            }
+            ensureSalesJournalReferenceMapping(company, mappedEntry, canonicalReference, aliasReference);
+            return replay;
         }
 
         log.info("Posting sales journal: reference={}, dealer={}, amount={}",
