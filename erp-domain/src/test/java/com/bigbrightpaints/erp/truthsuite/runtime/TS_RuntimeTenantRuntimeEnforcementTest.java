@@ -9,6 +9,8 @@ import static org.mockito.Mockito.when;
 
 import com.bigbrightpaints.erp.core.security.CompanyContextFilter;
 import com.bigbrightpaints.erp.core.security.CompanyContextHolder;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccount;
 import com.bigbrightpaints.erp.modules.auth.domain.UserPrincipal;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
@@ -18,6 +20,7 @@ import com.bigbrightpaints.erp.modules.company.service.TenantRuntimeEnforcementS
 import io.jsonwebtoken.Claims;
 import java.util.Arrays;
 import java.lang.reflect.Constructor;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterEach;
@@ -39,6 +42,8 @@ import org.springframework.security.core.context.SecurityContextHolder;
 @Tag("concurrency")
 @Tag("reconciliation")
 class TS_RuntimeTenantRuntimeEnforcementTest {
+
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     @Mock
     private TenantRuntimeEnforcementService tenantRuntimeEnforcementService;
@@ -396,7 +401,14 @@ class TS_RuntimeTenantRuntimeEnforcementTest {
 
         assertThat(response.getStatus()).isEqualTo(429);
         assertThat(response.getContentType()).isEqualTo("application/json;charset=UTF-8");
-        assertThat(response.getContentAsString()).isEqualTo("{\"message\":\"quota \\\"hit\\\" \\\\\\\\ retry\"}");
+        Map<String, Object> payload = OBJECT_MAPPER.readValue(
+                response.getContentAsString(), new TypeReference<>() {});
+        assertThat(payload).containsEntry("success", Boolean.FALSE);
+        assertThat(payload).containsEntry("message", "quota \"hit\" \\\\ retry");
+        Map<?, ?> data = (Map<?, ?>) payload.get("data");
+        assertThat(data).isNotNull();
+        assertThat(data.get("code")).isEqualTo("BUS_001");
+        assertThat(data.get("message")).isEqualTo("quota \"hit\" \\\\ retry");
         assertThat(chain.getRequest()).isNull();
         verify(tenantRuntimeEnforcementService).completeRequest(eq(deniedAdmission), eq(429));
     }
