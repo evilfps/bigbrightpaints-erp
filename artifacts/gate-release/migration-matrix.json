@@ -1,15 +1,24 @@
 {
-  "expected_count": 132,
-  "expected_max_version": 132,
-  "upgrade_seed_version": 131,
+  "migration_set": "v2",
+  "flyway_history_table": "flyway_schema_history_v2",
+  "expected_count": 21,
+  "expected_max_version": 21,
+  "upgrade_seed_version": 20,
+  "upgrade_seed_expected_count": 20,
   "fresh": {
-    "database": "codered_release_fresh_local_1770381061",
-    "history_count": 132,
-    "history_max_version": 132
+    "database": "codered_release_fresh_local_1771842527",
+    "history_count": 21,
+    "history_max_version": 21
+  },
+  "rollback_rehearsal_seed": {
+    "database": "codered_release_upgrade_local_1771842527",
+    "history_count": 20,
+    "history_max_version": 20,
+    "scan_artifact": "artifacts/gate-release/predeploy-scans-upgrade-seed.txt"
   },
   "upgrade": {
-    "database": "codered_release_upgrade_local_1770381061",
-    "history_count": 132,
-    "history_max_version": 132
+    "database": "codered_release_upgrade_local_1771842527",
+    "history_count": 21,
+    "history_max_version": 21
   }
 }

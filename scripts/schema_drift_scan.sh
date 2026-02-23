@@ -148,9 +148,9 @@ while IFS= read -r f; do
   update_files+=("$f")
 done < <(
   if [[ "$SEARCH_TOOL" == "rg" ]]; then
-    rg -l --glob '*.sql' -i "\\bUPDATE\\b" "$MIGRATIONS_DIR" || true
+    rg -l --glob '*.sql' -i "^[[:space:]]*UPDATE[[:space:]]+" "$MIGRATIONS_DIR" || true
   else
-    grep -RIl --include='*.sql' -i -E '(^|[^[:alnum:]_])UPDATE([^[:alnum:]_]|$)' "$MIGRATIONS_DIR" || true
+    grep -RIl --include='*.sql' -i -E '^[[:space:]]*UPDATE[[:space:]]+' "$MIGRATIONS_DIR" || true
   fi
 )
 
@@ -178,9 +178,9 @@ else
       echo "  $f"
       # Show a small excerpt around UPDATE statements.
       if [[ "$SEARCH_TOOL" == "rg" ]]; then
-        rg -n --glob '*.sql' -i "\\bUPDATE\\b|\\bFROM\\b" "$f" | head -n 30 || true
+        rg -n --glob '*.sql' -i "^[[:space:]]*UPDATE[[:space:]]+|\\bFROM\\b" "$f" | head -n 30 || true
       else
-        grep -n -i -E '(^|[^[:alnum:]_])(UPDATE|FROM)([^[:alnum:]_]|$)' "$f" | head -n 30 || true
+        grep -n -i -E '^[[:space:]]*UPDATE[[:space:]]+|(^|[^[:alnum:]_])FROM([^[:alnum:]_]|$)' "$f" | head -n 30 || true
       fi
       echo "  ---"
     fi

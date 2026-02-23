@@ -1,7 +1,7 @@
 {
-  "catalog_path": "/home/realnigga/Desktop/orchestrator_erp/docs/CODE-RED/confidence-suite/TEST_CATALOG.json",
-  "tests_root": "/home/realnigga/Desktop/orchestrator_erp/erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite",
-  "tests_cataloged": 26,
+  "catalog_path": "/Users/anas/Documents/orchestrator_erp/bigbrightpaints-erp_worktrees/TKT-ERP-STAGE-104/release-ops-v2/docs/CODE-RED/confidence-suite/TEST_CATALOG.json",
+  "tests_root": "/Users/anas/Documents/orchestrator_erp/bigbrightpaints-erp_worktrees/TKT-ERP-STAGE-104/release-ops-v2/erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite",
+  "tests_cataloged": 64,
   "errors": [],
   "passes": true
 }
