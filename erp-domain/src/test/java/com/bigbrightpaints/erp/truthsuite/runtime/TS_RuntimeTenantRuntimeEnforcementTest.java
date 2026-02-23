@@ -9,6 +9,8 @@ import static org.mockito.Mockito.when;
 
 import com.bigbrightpaints.erp.core.security.CompanyContextFilter;
 import com.bigbrightpaints.erp.core.security.CompanyContextHolder;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccount;
 import com.bigbrightpaints.erp.modules.auth.domain.UserPrincipal;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
@@ -16,7 +18,9 @@ import com.bigbrightpaints.erp.modules.company.domain.CompanyLifecycleState;
 import com.bigbrightpaints.erp.modules.company.service.CompanyService;
 import com.bigbrightpaints.erp.modules.company.service.TenantRuntimeEnforcementService;
 import io.jsonwebtoken.Claims;
+import java.util.Arrays;
 import java.lang.reflect.Constructor;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterEach;
@@ -30,6 +34,7 @@ import org.springframework.mock.web.MockFilterChain;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 
 @ExtendWith(MockitoExtension.class)
@@ -37,6 +42,8 @@ import org.springframework.security.core.context.SecurityContextHolder;
 @Tag("concurrency")
 @Tag("reconciliation")
 class TS_RuntimeTenantRuntimeEnforcementTest {
+
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     @Mock
     private TenantRuntimeEnforcementService tenantRuntimeEnforcementService;
@@ -144,13 +151,245 @@ class TS_RuntimeTenantRuntimeEnforcementTest {
     }
 
     @Test
+    void allowsSuperAdminLifecycleControlWhenTenantIsNotActive() throws Exception {
+        authenticateSuperAdminForCompany("super-admin@bbp.com", "ACME");
+        when(companyService.resolveLifecycleStateByCode("ACME")).thenReturn(CompanyLifecycleState.HOLD);
+        TenantRuntimeEnforcementService.TenantRequestAdmission admittedAdmission =
+                admission(true, "ACME", 200, null);
+        when(tenantRuntimeEnforcementService.beginRequest(
+                "ACME",
+                "/api/v1/companies/1/lifecycle-state",
+                "POST",
+                "super-admin@bbp.com",
+                false))
+                .thenReturn(admittedAdmission);
+
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/v1/companies/1/lifecycle-state");
+        request.setAttribute("jwtClaims", claims("ACME", null));
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        MockFilterChain chain = new MockFilterChain();
+
+        filter.doFilter(request, response, chain);
+
+        assertThat(chain.getRequest()).isNotNull();
+        verify(companyService).resolveLifecycleStateByCode("ACME");
+        verify(tenantRuntimeEnforcementService).beginRequest(
+                "ACME",
+                "/api/v1/companies/1/lifecycle-state",
+                "POST",
+                "super-admin@bbp.com",
+                false);
+        verify(tenantRuntimeEnforcementService).completeRequest(eq(admittedAdmission), eq(200));
+    }
+
+    @Test
+    void allowsSuperAdminLifecycleControlWithoutTenantMembershipWhenTenantIsNotActive() throws Exception {
+        authenticateSuperAdminWithoutCompany("super-admin@bbp.com");
+        when(companyService.resolveLifecycleStateByCode("ACME")).thenReturn(CompanyLifecycleState.HOLD);
+        TenantRuntimeEnforcementService.TenantRequestAdmission admittedAdmission =
+                admission(true, "ACME", 200, null);
+        when(tenantRuntimeEnforcementService.beginRequest(
+                "ACME",
+                "/api/v1/companies/1/lifecycle-state",
+                "POST",
+                "super-admin@bbp.com",
+                false))
+                .thenReturn(admittedAdmission);
+
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/v1/companies/1/lifecycle-state");
+        request.setAttribute("jwtClaims", claims("ACME", null));
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        MockFilterChain chain = new MockFilterChain();
+
+        filter.doFilter(request, response, chain);
+
+        assertThat(chain.getRequest()).isNotNull();
+        verify(companyService).resolveLifecycleStateByCode("ACME");
+        verify(tenantRuntimeEnforcementService).beginRequest(
+                "ACME",
+                "/api/v1/companies/1/lifecycle-state",
+                "POST",
+                "super-admin@bbp.com",
+                false);
+        verify(tenantRuntimeEnforcementService).completeRequest(eq(admittedAdmission), eq(200));
+    }
+
+    @Test
+    void allowsSuperAdminLifecycleControlWhenTenantIsNotActive_withContextPath() throws Exception {
+        authenticateSuperAdminForCompany("super-admin@bbp.com", "ACME");
+        when(companyService.resolveLifecycleStateByCode("ACME")).thenReturn(CompanyLifecycleState.HOLD);
+        TenantRuntimeEnforcementService.TenantRequestAdmission admittedAdmission =
+                admission(true, "ACME", 200, null);
+        when(tenantRuntimeEnforcementService.beginRequest(
+                "ACME",
+                "/api/v1/companies/1/lifecycle-state",
+                "POST",
+                "super-admin@bbp.com",
+                false))
+                .thenReturn(admittedAdmission);
+
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/erp/api/v1/companies/1/lifecycle-state");
+        request.setContextPath("/erp");
+        request.setServletPath("/api/v1/companies/1/lifecycle-state");
+        request.setAttribute("jwtClaims", claims("ACME", null));
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        MockFilterChain chain = new MockFilterChain();
+
+        filter.doFilter(request, response, chain);
+
+        assertThat(chain.getRequest()).isNotNull();
+        verify(companyService).resolveLifecycleStateByCode("ACME");
+        verify(tenantRuntimeEnforcementService).beginRequest(
+                "ACME",
+                "/api/v1/companies/1/lifecycle-state",
+                "POST",
+                "super-admin@bbp.com",
+                false);
+        verify(tenantRuntimeEnforcementService).completeRequest(eq(admittedAdmission), eq(200));
+    }
+
+    @Test
+    void allowsSuperAdminLifecycleControlWhenTenantIsNotActive_withContextPathAndEmptyServletPath() throws Exception {
+        authenticateSuperAdminForCompany("super-admin@bbp.com", "ACME");
+        when(companyService.resolveLifecycleStateByCode("ACME")).thenReturn(CompanyLifecycleState.HOLD);
+        TenantRuntimeEnforcementService.TenantRequestAdmission admittedAdmission =
+                admission(true, "ACME", 200, null);
+        when(tenantRuntimeEnforcementService.beginRequest(
+                "ACME",
+                "/api/v1/companies/1/lifecycle-state",
+                "POST",
+                "super-admin@bbp.com",
+                false))
+                .thenReturn(admittedAdmission);
+
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/erp/api/v1/companies/1/lifecycle-state");
+        request.setContextPath("/erp");
+        request.setServletPath("");
+        request.setAttribute("jwtClaims", claims("ACME", null));
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        MockFilterChain chain = new MockFilterChain();
+
+        filter.doFilter(request, response, chain);
+
+        assertThat(chain.getRequest()).isNotNull();
+        verify(companyService).resolveLifecycleStateByCode("ACME");
+        verify(tenantRuntimeEnforcementService).beginRequest(
+                "ACME",
+                "/api/v1/companies/1/lifecycle-state",
+                "POST",
+                "super-admin@bbp.com",
+                false);
+        verify(tenantRuntimeEnforcementService).completeRequest(eq(admittedAdmission), eq(200));
+    }
+
+    @Test
+    void allowsSuperAdminTenantMetricsReadWhenTenantIsNotActive_withContextPathAndEmptyServletPath() throws Exception {
+        authenticateSuperAdminForCompany("super-admin@bbp.com", "ACME");
+        when(companyService.resolveLifecycleStateByCode("ACME")).thenReturn(CompanyLifecycleState.HOLD);
+        TenantRuntimeEnforcementService.TenantRequestAdmission admittedAdmission =
+                admission(true, "ACME", 200, null);
+        when(tenantRuntimeEnforcementService.beginRequest(
+                "ACME",
+                "/api/v1/companies/1/tenant-metrics",
+                "GET",
+                "super-admin@bbp.com",
+                false))
+                .thenReturn(admittedAdmission);
+
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/erp/api/v1/companies/1/tenant-metrics");
+        request.setContextPath("/erp");
+        request.setServletPath("");
+        request.setAttribute("jwtClaims", claims("ACME", null));
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        MockFilterChain chain = new MockFilterChain();
+
+        filter.doFilter(request, response, chain);
+
+        assertThat(chain.getRequest()).isNotNull();
+        verify(companyService).resolveLifecycleStateByCode("ACME");
+        verify(tenantRuntimeEnforcementService).beginRequest(
+                "ACME",
+                "/api/v1/companies/1/tenant-metrics",
+                "GET",
+                "super-admin@bbp.com",
+                false);
+        verify(tenantRuntimeEnforcementService).completeRequest(eq(admittedAdmission), eq(200));
+    }
+
+    @Test
+    void contextPathRequest_withEmptyServletPath_usesContextStrippedPath_forRuntimeAdmission() throws Exception {
+        authenticateForCompany("actor@bbp.com", "ACME");
+        when(companyService.resolveLifecycleStateByCode("ACME")).thenReturn(CompanyLifecycleState.ACTIVE);
+        TenantRuntimeEnforcementService.TenantRequestAdmission admittedAdmission =
+                admission(true, "ACME", 200, null);
+        when(tenantRuntimeEnforcementService.beginRequest(
+                "ACME",
+                "/api/v1/admin/tenant-runtime/policy",
+                "PUT",
+                "actor@bbp.com",
+                false))
+                .thenReturn(admittedAdmission);
+
+        MockHttpServletRequest request = new MockHttpServletRequest("PUT", "/erp/api/v1/admin/tenant-runtime/policy");
+        request.setContextPath("/erp");
+        request.setServletPath("");
+        request.setAttribute("jwtClaims", claims("ACME", null));
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        MockFilterChain chain = new MockFilterChain();
+
+        filter.doFilter(request, response, chain);
+
+        assertThat(chain.getRequest()).isNotNull();
+        verify(tenantRuntimeEnforcementService).beginRequest(
+                "ACME",
+                "/api/v1/admin/tenant-runtime/policy",
+                "PUT",
+                "actor@bbp.com",
+                false);
+        verify(tenantRuntimeEnforcementService).completeRequest(eq(admittedAdmission), eq(200));
+    }
+
+    @Test
+    void contextPathRequest_usesServletPath_forRuntimeAdmission() throws Exception {
+        authenticateForCompany("actor@bbp.com", "ACME");
+        when(companyService.resolveLifecycleStateByCode("ACME")).thenReturn(CompanyLifecycleState.ACTIVE);
+        TenantRuntimeEnforcementService.TenantRequestAdmission admittedAdmission =
+                admission(true, "ACME", 200, null);
+        when(tenantRuntimeEnforcementService.beginRequest(
+                "ACME",
+                "/api/v1/admin/tenant-runtime/policy",
+                "PUT",
+                "actor@bbp.com",
+                false))
+                .thenReturn(admittedAdmission);
+
+        MockHttpServletRequest request = new MockHttpServletRequest("PUT", "/erp/api/v1/admin/tenant-runtime/policy");
+        request.setContextPath("/erp");
+        request.setServletPath("/api/v1/admin/tenant-runtime/policy");
+        request.setAttribute("jwtClaims", claims("ACME", null));
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        MockFilterChain chain = new MockFilterChain();
+
+        filter.doFilter(request, response, chain);
+
+        assertThat(chain.getRequest()).isNotNull();
+        verify(tenantRuntimeEnforcementService).beginRequest(
+                "ACME",
+                "/api/v1/admin/tenant-runtime/policy",
+                "PUT",
+                "actor@bbp.com",
+                false);
+        verify(tenantRuntimeEnforcementService).completeRequest(eq(admittedAdmission), eq(200));
+    }
+
+    @Test
     void runtimeAdmissionDenied_writesEscapedJsonPayload_andCompletes() throws Exception {
         authenticateForCompany("actor@bbp.com", "ACME");
         when(companyService.resolveLifecycleStateByCode("ACME")).thenReturn(CompanyLifecycleState.ACTIVE);
 
         TenantRuntimeEnforcementService.TenantRequestAdmission deniedAdmission =
                 admission(false, "ACME", 429, "quota \"hit\" \\\\ retry");
-        when(tenantRuntimeEnforcementService.beginRequest("ACME", "/api/v1/private", "POST", "actor@bbp.com"))
+        when(tenantRuntimeEnforcementService.beginRequest("ACME", "/api/v1/private", "POST", "actor@bbp.com", false))
                 .thenReturn(deniedAdmission);
 
         MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/v1/private");
@@ -162,7 +401,14 @@ class TS_RuntimeTenantRuntimeEnforcementTest {
 
         assertThat(response.getStatus()).isEqualTo(429);
         assertThat(response.getContentType()).isEqualTo("application/json;charset=UTF-8");
-        assertThat(response.getContentAsString()).isEqualTo("{\"message\":\"quota \\\"hit\\\" \\\\\\\\ retry\"}");
+        Map<String, Object> payload = OBJECT_MAPPER.readValue(
+                response.getContentAsString(), new TypeReference<>() {});
+        assertThat(payload).containsEntry("success", Boolean.FALSE);
+        assertThat(payload).containsEntry("message", "quota \"hit\" \\\\ retry");
+        Map<?, ?> data = (Map<?, ?>) payload.get("data");
+        assertThat(data).isNotNull();
+        assertThat(data.get("code")).isEqualTo("BUS_001");
+        assertThat(data.get("message")).isEqualTo("quota \"hit\" \\\\ retry");
         assertThat(chain.getRequest()).isNull();
         verify(tenantRuntimeEnforcementService).completeRequest(eq(deniedAdmission), eq(429));
     }
@@ -174,7 +420,7 @@ class TS_RuntimeTenantRuntimeEnforcementTest {
 
         TenantRuntimeEnforcementService.TenantRequestAdmission admittedAdmission =
                 admission(true, "ACME", 200, null);
-        when(tenantRuntimeEnforcementService.beginRequest("ACME", "/api/v1/private", "GET", "actor@bbp.com"))
+        when(tenantRuntimeEnforcementService.beginRequest("ACME", "/api/v1/private", "GET", "actor@bbp.com", false))
                 .thenReturn(admittedAdmission);
 
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/private");
@@ -226,6 +472,31 @@ class TS_RuntimeTenantRuntimeEnforcementTest {
                 new UsernamePasswordAuthenticationToken(principal, "n/a", principal.getAuthorities()));
     }
 
+    private void authenticateSuperAdminForCompany(String email, String companyCode) {
+        Company company = new Company();
+        company.setCode(companyCode);
+
+        UserAccount user = new UserAccount(email, "hash", "Super Admin");
+        user.addCompany(company);
+
+        UserPrincipal principal = new UserPrincipal(user);
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken(
+                        principal,
+                        "n/a",
+                        java.util.List.of(new SimpleGrantedAuthority("ROLE_SUPER_ADMIN"))));
+    }
+
+    private void authenticateSuperAdminWithoutCompany(String email) {
+        UserAccount user = new UserAccount(email, "hash", "Super Admin");
+        UserPrincipal principal = new UserPrincipal(user);
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken(
+                        principal,
+                        "n/a",
+                        java.util.List.of(new SimpleGrantedAuthority("ROLE_SUPER_ADMIN"))));
+    }
+
     @SuppressWarnings("unchecked")
     private TenantRuntimeEnforcementService.TenantRequestAdmission admission(boolean admitted,
                                                                              String companyCode,
@@ -234,8 +505,16 @@ class TS_RuntimeTenantRuntimeEnforcementTest {
         try {
             Constructor<TenantRuntimeEnforcementService.TenantRequestAdmission> ctor =
                     (Constructor<TenantRuntimeEnforcementService.TenantRequestAdmission>)
-                            TenantRuntimeEnforcementService.TenantRequestAdmission.class.getDeclaredConstructors()[0];
+                            Arrays.stream(TenantRuntimeEnforcementService.TenantRequestAdmission.class
+                                            .getDeclaredConstructors())
+                                    .filter(candidate -> candidate.getParameterCount() == 6
+                                            || candidate.getParameterCount() == 7)
+                                    .findFirst()
+                                    .orElseThrow();
             ctor.setAccessible(true);
+            if (ctor.getParameterCount() == 7) {
+                return ctor.newInstance(admitted, companyCode, "chain-id", null, statusCode, message, false);
+            }
             return ctor.newInstance(admitted, companyCode, "chain-id", null, statusCode, message);
         } catch (ReflectiveOperationException ex) {
             throw new IllegalStateException("Unable to construct tenant request admission for test", ex);

@@ -11,6 +11,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,6 +22,9 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 @DisplayName("Tenant runtime enforcement through auth and request filters")
 class TenantRuntimeEnforcementAuthIT extends AbstractIntegrationTest {
@@ -36,9 +40,15 @@ class TenantRuntimeEnforcementAuthIT extends AbstractIntegrationTest {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
+    @AfterEach
+    void clearSecurityContext() {
+        SecurityContextHolder.clearContext();
+    }
+
     @Test
     void heldTenantBlocksLogin_andEmitsAuditChain() throws InterruptedException {
         Scenario scenario = seedScenario("HOLD");
+        authenticateSuperAdmin("ops@bbp.com");
         TenantRuntimeSnapshot snapshot = tenantRuntimeEnforcementService.holdTenant(
                 scenario.companyCode(),
                 "COMPLIANCE_REVIEW",
@@ -58,6 +68,7 @@ class TenantRuntimeEnforcementAuthIT extends AbstractIntegrationTest {
     void blockedTenantBlocksAuthenticatedRuntimeRequest_withAuditChain() throws InterruptedException {
         Scenario scenario = seedScenario("BLOCK");
         String token = login(scenario.email(), scenario.companyCode());
+        authenticateSuperAdmin("ops@bbp.com");
         TenantRuntimeSnapshot snapshot = tenantRuntimeEnforcementService.blockTenant(
                 scenario.companyCode(),
                 "ABUSE_INCIDENT",
@@ -84,6 +95,7 @@ class TenantRuntimeEnforcementAuthIT extends AbstractIntegrationTest {
         dataSeeder.ensureUser(firstUser, PASSWORD, "Quota A", companyCode, List.of("ROLE_ADMIN"));
         dataSeeder.ensureUser(secondUser, PASSWORD, "Quota B", companyCode, List.of("ROLE_ADMIN"));
 
+        authenticateSuperAdmin("ops@bbp.com");
         TenantRuntimeSnapshot snapshot = tenantRuntimeEnforcementService.updateQuotas(
                 companyCode,
                 null,
@@ -108,6 +120,7 @@ class TenantRuntimeEnforcementAuthIT extends AbstractIntegrationTest {
         String token = login(scenario.email(), scenario.companyCode());
         avoidMinuteBoundaryRace();
 
+        authenticateSuperAdmin("ops@bbp.com");
         TenantRuntimeSnapshot snapshot = tenantRuntimeEnforcementService.updateQuotas(
                 scenario.companyCode(),
                 50,
@@ -221,6 +234,13 @@ class TenantRuntimeEnforcementAuthIT extends AbstractIntegrationTest {
 
     private String suffix() {
         return Long.toString(System.nanoTime(), 36);
+    }
+
+    private void authenticateSuperAdmin(String actor) {
+        SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(
+                actor,
+                "n/a",
+                List.of(new SimpleGrantedAuthority("ROLE_SUPER_ADMIN"))));
     }
 
     private record Scenario(String companyCode, String email) {

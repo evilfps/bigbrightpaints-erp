@@ -16,7 +16,10 @@ import com.bigbrightpaints.erp.modules.company.dto.CompanyTenantMetricsDto;
 import jakarta.transaction.Transactional;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.function.LongSupplier;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
@@ -31,6 +34,7 @@ import java.util.stream.Collectors;
 @Service
 public class CompanyService {
 
+    private static final Logger log = LoggerFactory.getLogger(CompanyService.class);
     private static final String LIFECYCLE_STATE_METADATA_KEY = "companyLifecycleState";
     private static final String LIFECYCLE_PREVIOUS_STATE_METADATA_KEY = "companyPreviousLifecycleState";
     private static final String LIFECYCLE_REASON_METADATA_KEY = "companyLifecycleReason";
@@ -40,26 +44,39 @@ public class CompanyService {
     private static final String LIFECYCLE_SUPER_ADMIN_REQUIRED_REASON = "super-admin-required-for-tenant-lifecycle-control";
     private static final String METRICS_SUPER_ADMIN_REQUIRED_REASON = "super-admin-required-for-tenant-metrics-read";
     private static final String METRICS_READ_REASON = "tenant-metrics-read";
+    private static final String RUNTIME_POLICY_SUPER_ADMIN_REQUIRED_REASON =
+            "super-admin-required-for-tenant-runtime-policy-control";
+    private static final String RUNTIME_POLICY_UPDATED_REASON = "tenant-runtime-policy-updated";
     private static final long ERROR_RATE_BASIS_POINTS_SCALE = 10_000L;
 
     private final CompanyRepository repository;
     private final AuditService auditService;
     private final UserAccountRepository userAccountRepository;
     private final AuditLogRepository auditLogRepository;
+    private final TenantRuntimeEnforcementService tenantRuntimeEnforcementService;
 
     public CompanyService(CompanyRepository repository) {
-        this(repository, null, null, null);
+        this(repository, null, null, null, null);
+    }
+
+    public CompanyService(CompanyRepository repository,
+                          AuditService auditService,
+                          UserAccountRepository userAccountRepository,
+                          AuditLogRepository auditLogRepository) {
+        this(repository, auditService, userAccountRepository, auditLogRepository, null);
     }
 
     @Autowired
     public CompanyService(CompanyRepository repository,
                           AuditService auditService,
                           UserAccountRepository userAccountRepository,
-                          AuditLogRepository auditLogRepository) {
+                          AuditLogRepository auditLogRepository,
+                          TenantRuntimeEnforcementService tenantRuntimeEnforcementService) {
         this.repository = repository;
         this.auditService = auditService;
         this.userAccountRepository = userAccountRepository;
         this.auditLogRepository = auditLogRepository;
+        this.tenantRuntimeEnforcementService = tenantRuntimeEnforcementService;
     }
 
     public List<CompanyDto> findAll() {
@@ -240,6 +257,39 @@ public class CompanyService {
                 auditStorageBytes);
     }
 
+    @Transactional
+    public TenantRuntimeEnforcementService.TenantRuntimeSnapshot updateTenantRuntimePolicy(
+            Long companyId,
+            TenantRuntimePolicyMutationRequest request) {
+        if (tenantRuntimeEnforcementService == null) {
+            throw new IllegalStateException("Tenant runtime enforcement service unavailable");
+        }
+        if (!hasRuntimePolicyMutation(request)) {
+            throw new IllegalArgumentException("Runtime policy mutation payload is required");
+        }
+        Authentication authentication = requireSuperAdminForTenantRuntimePolicyControl(companyId);
+        Company company = repository.findById(companyId)
+                .orElseThrow(() -> new IllegalArgumentException("Company not found"));
+        String actor = resolveActor(authentication);
+        String companyCode = company.getCode();
+        TenantRuntimeEnforcementService.TenantRuntimeState targetState = parseRuntimeState(request.holdState());
+        TenantRuntimeEnforcementService.TenantRuntimeSnapshot snapshot = tenantRuntimeEnforcementService.updatePolicy(
+                companyCode,
+                targetState,
+                request.reasonCode(),
+                request.maxConcurrentRequests(),
+                request.maxRequestsPerMinute(),
+                request.maxActiveUsers(),
+                actor);
+        try {
+            auditAuthorityDecision(true, RUNTIME_POLICY_UPDATED_REASON, companyCode, authentication);
+        } catch (RuntimeException ex) {
+            // Keep runtime policy updates durable even if audit storage is transiently unavailable.
+            log.warn("Tenant runtime policy authority audit logging failed for company {}", companyCode, ex);
+        }
+        return snapshot;
+    }
+
     private void requireMembershipById(Long companyId, Set<Company> allowedCompanies) {
         if (companyId == null || allowedCompanies == null || allowedCompanies.isEmpty()) {
             throw new AccessDeniedException("Not allowed to access company");
@@ -311,6 +361,17 @@ public class CompanyService {
         return authentication;
     }
 
+    private Authentication requireSuperAdminForTenantRuntimePolicyControl(Long companyId) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (!hasAuthority(authentication, "ROLE_SUPER_ADMIN")) {
+            Company target = companyId == null ? null : repository.findById(companyId).orElse(null);
+            String targetCompanyCode = target == null ? null : target.getCode();
+            auditAuthorityDecision(false, RUNTIME_POLICY_SUPER_ADMIN_REQUIRED_REASON, targetCompanyCode, authentication);
+            throw new AccessDeniedException("SUPER_ADMIN authority required for tenant runtime policy control");
+        }
+        return authentication;
+    }
+
     private void requireSuperAdminForTenantConfigurationUpdate() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (!hasAuthority(authentication, "ROLE_SUPER_ADMIN")) {
@@ -332,6 +393,29 @@ public class CompanyService {
             throw new IllegalArgumentException("Lifecycle reason is required");
         }
         return reason.trim();
+    }
+
+    private TenantRuntimeEnforcementService.TenantRuntimeState parseRuntimeState(String holdState) {
+        if (!StringUtils.hasText(holdState)) {
+            return null;
+        }
+        String normalized = holdState.trim().toUpperCase(Locale.ROOT);
+        return switch (normalized) {
+            case "ACTIVE" -> TenantRuntimeEnforcementService.TenantRuntimeState.ACTIVE;
+            case "HOLD" -> TenantRuntimeEnforcementService.TenantRuntimeState.HOLD;
+            case "BLOCKED" -> TenantRuntimeEnforcementService.TenantRuntimeState.BLOCKED;
+            default -> throw new IllegalArgumentException("Unsupported runtime holdState: " + holdState);
+        };
+    }
+
+    private boolean hasRuntimePolicyMutation(TenantRuntimePolicyMutationRequest request) {
+        if (request == null) {
+            return false;
+        }
+        return StringUtils.hasText(request.holdState())
+                || request.maxConcurrentRequests() != null
+                || request.maxRequestsPerMinute() != null
+                || request.maxActiveUsers() != null;
     }
 
     private void persistLifecycleAuditEvidence(Company company,
@@ -513,5 +597,12 @@ public class CompanyService {
 
     private boolean isQuotaExceeded(long observedValue, long quotaLimit) {
         return quotaLimit > 0L && observedValue > quotaLimit;
+    }
+
+    public record TenantRuntimePolicyMutationRequest(String holdState,
+                                                     String reasonCode,
+                                                     Integer maxConcurrentRequests,
+                                                     Integer maxRequestsPerMinute,
+                                                     Integer maxActiveUsers) {
     }
 }

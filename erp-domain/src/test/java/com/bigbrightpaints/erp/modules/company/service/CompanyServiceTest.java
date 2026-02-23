@@ -23,6 +23,7 @@ import com.bigbrightpaints.erp.modules.company.dto.CompanyLifecycleStateRequest;
 import com.bigbrightpaints.erp.modules.company.dto.CompanyRequest;
 import com.bigbrightpaints.erp.modules.company.dto.CompanyTenantMetricsDto;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -52,11 +53,19 @@ class CompanyServiceTest {
     @Mock
     private AuditLogRepository auditLogRepository;
 
+    @Mock
+    private TenantRuntimeEnforcementService tenantRuntimeEnforcementService;
+
     private CompanyService companyService;
 
     @BeforeEach
     void setUp() {
-        companyService = new CompanyService(repository, auditService, userAccountRepository, auditLogRepository);
+        companyService = new CompanyService(
+                repository,
+                auditService,
+                userAccountRepository,
+                auditLogRepository,
+                tenantRuntimeEnforcementService);
     }
 
     @AfterEach
@@ -288,6 +297,102 @@ class CompanyServiceTest {
                 eq("tester@bbp.com"),
                 eq("ACME"),
                 anyMap());
+    }
+
+    @Test
+    void updateTenantRuntimePolicy_deniesNonSuperAdmin() {
+        authenticateAs("ROLE_ADMIN");
+        Company company = company(1L, "ACME");
+        when(repository.findById(1L)).thenReturn(Optional.of(company));
+        CompanyService.TenantRuntimePolicyMutationRequest request =
+                new CompanyService.TenantRuntimePolicyMutationRequest("HOLD", "maintenance", null, null, null);
+
+        assertThatThrownBy(() -> companyService.updateTenantRuntimePolicy(1L, request))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessageContaining("SUPER_ADMIN authority required for tenant runtime policy control");
+
+        verifyNoInteractions(tenantRuntimeEnforcementService);
+    }
+
+    @Test
+    void updateTenantRuntimePolicy_appliesStateAndQuotaMutationForSuperAdmin() {
+        authenticateAs("ROLE_SUPER_ADMIN");
+        Company company = company(1L, "ACME");
+        when(repository.findById(1L)).thenReturn(Optional.of(company));
+
+        TenantRuntimeEnforcementService.TenantRuntimeSnapshot mergedSnapshot =
+                new TenantRuntimeEnforcementService.TenantRuntimeSnapshot(
+                        "ACME",
+                        TenantRuntimeEnforcementService.TenantRuntimeState.HOLD,
+                        "MAINTENANCE",
+                        "chain-merged",
+                        Instant.parse("2026-01-01T00:00:01Z"),
+                        8,
+                        25,
+                        40,
+                        new TenantRuntimeEnforcementService.TenantRuntimeMetrics(1, 0, 0, 0, 1, 0, 5L));
+        when(tenantRuntimeEnforcementService.updatePolicy(
+                "ACME",
+                TenantRuntimeEnforcementService.TenantRuntimeState.HOLD,
+                "maintenance",
+                8,
+                25,
+                40,
+                "tester@bbp.com")).thenReturn(mergedSnapshot);
+
+        CompanyService.TenantRuntimePolicyMutationRequest request =
+                new CompanyService.TenantRuntimePolicyMutationRequest("HOLD", "maintenance", 8, 25, 40);
+
+        TenantRuntimeEnforcementService.TenantRuntimeSnapshot response =
+                companyService.updateTenantRuntimePolicy(1L, request);
+
+        assertThat(response.companyCode()).isEqualTo("ACME");
+        assertThat(response.state()).isEqualTo(TenantRuntimeEnforcementService.TenantRuntimeState.HOLD);
+        assertThat(response.maxConcurrentRequests()).isEqualTo(8);
+        assertThat(response.maxRequestsPerMinute()).isEqualTo(25);
+        assertThat(response.maxActiveUsers()).isEqualTo(40);
+        verify(tenantRuntimeEnforcementService).updatePolicy(
+                "ACME",
+                TenantRuntimeEnforcementService.TenantRuntimeState.HOLD,
+                "maintenance",
+                8,
+                25,
+                40,
+                "tester@bbp.com");
+    }
+
+    @Test
+    void updateTenantRuntimePolicy_failsClosedForMissingPayloadAndUnknownCompany() {
+        authenticateAs("ROLE_SUPER_ADMIN");
+
+        CompanyService.TenantRuntimePolicyMutationRequest emptyMutation =
+                new CompanyService.TenantRuntimePolicyMutationRequest(null, null, null, null, null);
+        assertThatThrownBy(() -> companyService.updateTenantRuntimePolicy(1L, emptyMutation))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Runtime policy mutation payload is required");
+
+        CompanyService.TenantRuntimePolicyMutationRequest holdMutation =
+                new CompanyService.TenantRuntimePolicyMutationRequest("HOLD", "maintenance", null, null, null);
+        when(repository.findById(404L)).thenReturn(Optional.empty());
+        assertThatThrownBy(() -> companyService.updateTenantRuntimePolicy(404L, holdMutation))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Company not found");
+    }
+
+    @Test
+    void updateTenantRuntimePolicy_failsClosedForUnknownHoldState() {
+        authenticateAs("ROLE_SUPER_ADMIN");
+        Company company = company(1L, "ACME");
+        when(repository.findById(1L)).thenReturn(Optional.of(company));
+
+        CompanyService.TenantRuntimePolicyMutationRequest request =
+                new CompanyService.TenantRuntimePolicyMutationRequest("PAUSED", "maintenance", null, null, null);
+
+        assertThatThrownBy(() -> companyService.updateTenantRuntimePolicy(1L, request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Unsupported runtime holdState");
+
+        verifyNoInteractions(tenantRuntimeEnforcementService);
     }
 
     @Test

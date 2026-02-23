@@ -20,6 +20,7 @@ public class CompanyControllerIT extends AbstractIntegrationTest {
     private static final String ROOT_COMPANY_CODE = "ROOT";
     private static final String ADMIN_EMAIL = "admin@bbp.com";
     private static final String SUPER_ADMIN_EMAIL = "super-admin@bbp.com";
+    private static final String SUPER_ADMIN_ONLY_EMAIL = "super-admin-only@bbp.com";
     private static final String ADMIN_PASSWORD = "admin123";
 
     @org.junit.jupiter.api.BeforeEach
@@ -29,6 +30,8 @@ public class CompanyControllerIT extends AbstractIntegrationTest {
                 java.util.List.of("ROLE_SUPER_ADMIN", "ROLE_ADMIN"));
         dataSeeder.ensureUser(SUPER_ADMIN_EMAIL, ADMIN_PASSWORD, "Super Admin", COMPANY_CODE,
                 java.util.List.of("ROLE_SUPER_ADMIN", "ROLE_ADMIN"));
+        dataSeeder.ensureUser(SUPER_ADMIN_ONLY_EMAIL, ADMIN_PASSWORD, "Super Admin Only", ROOT_COMPANY_CODE,
+                java.util.List.of("ROLE_SUPER_ADMIN"));
     }
 
     private String loginToken() {
@@ -148,5 +151,81 @@ public class CompanyControllerIT extends AbstractIntegrationTest {
                 Map.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+    }
+
+    @Test
+    void tenant_runtime_policy_update_requires_super_admin() {
+        Long companyId = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow().getId();
+        Map<String, Object> runtimePolicyRequest = Map.of(
+                "maxConcurrentRequests", 80,
+                "maxRequestsPerMinute", 500,
+                "maxActiveUsers", 200,
+                "reasonCode", "capacity-adjustment"
+        );
+
+        String adminToken = loginToken(ADMIN_EMAIL, COMPANY_CODE);
+        HttpHeaders adminHeaders = new HttpHeaders();
+        adminHeaders.setBearerAuth(adminToken);
+        adminHeaders.setContentType(MediaType.APPLICATION_JSON);
+        adminHeaders.set("X-Company-Code", COMPANY_CODE);
+        ResponseEntity<Map> adminResponse = rest.exchange(
+                "/api/v1/companies/" + companyId + "/tenant-runtime/policy",
+                HttpMethod.PUT,
+                new HttpEntity<>(runtimePolicyRequest, adminHeaders),
+                Map.class);
+        assertThat(adminResponse.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+
+        String superAdminToken = loginToken(SUPER_ADMIN_ONLY_EMAIL, ROOT_COMPANY_CODE);
+        HttpHeaders superAdminHeaders = new HttpHeaders();
+        superAdminHeaders.setBearerAuth(superAdminToken);
+        superAdminHeaders.setContentType(MediaType.APPLICATION_JSON);
+        superAdminHeaders.set("X-Company-Code", ROOT_COMPANY_CODE);
+        ResponseEntity<Map> superAdminResponse = rest.exchange(
+                "/api/v1/companies/" + companyId + "/tenant-runtime/policy",
+                HttpMethod.PUT,
+                new HttpEntity<>(runtimePolicyRequest, superAdminHeaders),
+                Map.class);
+        assertThat(superAdminResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        Map<String, Object> body = superAdminResponse.getBody();
+        assertThat(body).isNotNull();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> data = (Map<String, Object>) body.get("data");
+        assertThat(data).isNotNull();
+        assertThat(data).containsEntry("companyCode", COMPANY_CODE);
+        assertThat(data).containsEntry("maxConcurrentRequests", 80);
+        assertThat(data).containsEntry("maxRequestsPerMinute", 500);
+        assertThat(data).containsEntry("maxActiveUsers", 200);
+    }
+
+    @Test
+    void tenant_runtime_policy_update_fails_closed_for_invalid_values_and_unknown_company() {
+        Long companyId = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow().getId();
+        String superAdminToken = loginToken(SUPER_ADMIN_EMAIL, ROOT_COMPANY_CODE);
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(superAdminToken);
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.set("X-Company-Code", ROOT_COMPANY_CODE);
+
+        Map<String, Object> invalidPolicyRequest = Map.of(
+                "maxRequestsPerMinute", 0,
+                "reasonCode", "invalid-rate"
+        );
+        ResponseEntity<Map> invalidResponse = rest.exchange(
+                "/api/v1/companies/" + companyId + "/tenant-runtime/policy",
+                HttpMethod.PUT,
+                new HttpEntity<>(invalidPolicyRequest, headers),
+                Map.class);
+        assertThat(invalidResponse.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+
+        Map<String, Object> validPolicyRequest = Map.of(
+                "holdState", "HOLD",
+                "reasonCode", "maintenance-window"
+        );
+        ResponseEntity<Map> unknownCompanyResponse = rest.exchange(
+                "/api/v1/companies/999999/tenant-runtime/policy",
+                HttpMethod.PUT,
+                new HttpEntity<>(validPolicyRequest, headers),
+                Map.class);
+        assertThat(unknownCompanyResponse.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
     }
 }

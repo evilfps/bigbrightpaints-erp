@@ -33,6 +33,7 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
 
     private static final String ADMIN_EMAIL = "tenant-admin@bbp.com";
     private static final String SUPER_ADMIN_EMAIL = "super-admin@bbp.com";
+    private static final String SUPER_ADMIN_ONLY_EMAIL = "super-admin-only@bbp.com";
     private static final String PASSWORD = "Passw0rd!";
 
     @Autowired
@@ -53,6 +54,8 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
         // Give super admin access to a regular tenant for delegated tenant-admin creation.
         dataSeeder.ensureUser(SUPER_ADMIN_EMAIL, PASSWORD, "Super Admin", TENANT_A,
                 List.of("ROLE_SUPER_ADMIN", "ROLE_ADMIN"));
+        dataSeeder.ensureUser(SUPER_ADMIN_ONLY_EMAIL, PASSWORD, "Super Admin Only", ROOT_TENANT,
+                List.of("ROLE_SUPER_ADMIN"));
     }
 
     @Test
@@ -376,6 +379,67 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
     }
 
     @Test
+    void tenant_runtime_policy_endpoint_is_super_admin_only_and_fail_closed_for_invalid_input() {
+        Long tenantAId = companyRepository.findByCodeIgnoreCase(TENANT_A).map(Company::getId).orElseThrow();
+        String adminToken = login(ADMIN_EMAIL, TENANT_A);
+        String superAdminOnlyToken = login(SUPER_ADMIN_ONLY_EMAIL, ROOT_TENANT);
+
+        ResponseEntity<Map> adminDenied = updateTenantRuntimePolicy(
+                tenantAId,
+                adminToken,
+                TENANT_A,
+                "HOLD",
+                "runtime-maintenance",
+                null,
+                null,
+                null);
+        assertThat(adminDenied.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+
+        ResponseEntity<Map> invalidPayload = updateTenantRuntimePolicy(
+                tenantAId,
+                superAdminOnlyToken,
+                ROOT_TENANT,
+                "HOLD",
+                " ",
+                null,
+                null,
+                null);
+        assertThat(invalidPayload.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+
+        ResponseEntity<Map> superAdminHold = updateTenantRuntimePolicy(
+                tenantAId,
+                superAdminOnlyToken,
+                ROOT_TENANT,
+                "HOLD",
+                "runtime-maintenance",
+                75,
+                450,
+                150);
+        assertThat(superAdminHold.getStatusCode()).isEqualTo(HttpStatus.OK);
+        Map<String, Object> holdBody = superAdminHold.getBody();
+        assertThat(holdBody).isNotNull();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> holdData = (Map<String, Object>) holdBody.get("data");
+        assertThat(holdData).isNotNull();
+        assertThat(holdData).containsEntry("companyCode", TENANT_A);
+        assertThat(holdData).containsEntry("state", "HOLD");
+        assertThat(holdData).containsEntry("maxConcurrentRequests", 75);
+        assertThat(holdData).containsEntry("maxRequestsPerMinute", 450);
+        assertThat(holdData).containsEntry("maxActiveUsers", 150);
+
+        ResponseEntity<Map> superAdminResume = updateTenantRuntimePolicy(
+                tenantAId,
+                superAdminOnlyToken,
+                ROOT_TENANT,
+                "ACTIVE",
+                "runtime-recovered",
+                null,
+                null,
+                null);
+        assertThat(superAdminResume.getStatusCode()).isEqualTo(HttpStatus.OK);
+    }
+
+    @Test
     void tenant_mismatch_and_cross_tenant_idor_fail_closed() {
         String token = login(ADMIN_EMAIL, TENANT_A);
         Long tenantBId = companyRepository.findByCodeIgnoreCase(TENANT_B).map(Company::getId).orElseThrow();
@@ -508,6 +572,37 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
         }
         return rest.exchange(
                 "/api/v1/companies/" + companyId,
+                HttpMethod.PUT,
+                new HttpEntity<>(payload, jsonHeaders(token, companyCode)),
+                Map.class);
+    }
+
+    private ResponseEntity<Map> updateTenantRuntimePolicy(Long companyId,
+                                                          String token,
+                                                          String companyCode,
+                                                          String holdState,
+                                                          String reasonCode,
+                                                          Integer maxConcurrentRequests,
+                                                          Integer maxRequestsPerMinute,
+                                                          Integer maxActiveUsers) {
+        Map<String, Object> payload = new HashMap<>();
+        if (holdState != null) {
+            payload.put("holdState", holdState);
+        }
+        if (reasonCode != null) {
+            payload.put("reasonCode", reasonCode);
+        }
+        if (maxConcurrentRequests != null) {
+            payload.put("maxConcurrentRequests", maxConcurrentRequests);
+        }
+        if (maxRequestsPerMinute != null) {
+            payload.put("maxRequestsPerMinute", maxRequestsPerMinute);
+        }
+        if (maxActiveUsers != null) {
+            payload.put("maxActiveUsers", maxActiveUsers);
+        }
+        return rest.exchange(
+                "/api/v1/companies/" + companyId + "/tenant-runtime/policy",
                 HttpMethod.PUT,
                 new HttpEntity<>(payload, jsonHeaders(token, companyCode)),
                 Map.class);

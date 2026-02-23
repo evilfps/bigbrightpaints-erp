@@ -781,6 +781,27 @@
       "quality_flake_monitor": true
     },
     {
+      "id": "ts-runtime-company-context-filter-exec",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeCompanyContextFilterExecutableCoverageTest.java",
+      "owner": "erp-domain-team",
+      "class": "critical",
+      "module": "Security",
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-reconciliation",
+        "gate-quality"
+      ],
+      "tags": [
+        "critical",
+        "concurrency"
+      ],
+      "accounting_math_critical": false,
+      "cross_module_critical": true,
+      "quality_flake_monitor": true
+    },
+    {
       "id": "ts-runtime-tenant-runtime-enforcement",
       "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeTenantRuntimeEnforcementTest.java",
       "owner": "erp-domain-team",
