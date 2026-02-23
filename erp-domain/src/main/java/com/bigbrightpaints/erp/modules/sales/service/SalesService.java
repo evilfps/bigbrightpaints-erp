@@ -97,7 +97,10 @@ public class SalesService {
             "CLOSED"
     );
     private static final Set<String> ORCHESTRATOR_WORKFLOW_STATUSES = Set.of(
+            "BOOKED",
+            "CONFIRMED",
             "PROCESSING",
+            "PENDING_INVENTORY",
             "READY_TO_SHIP",
             "PENDING_PRODUCTION",
             "RESERVED"
