@@ -12,9 +12,9 @@ This record captures the final human `R3` decision for staging release readiness
 - Decision timestamp (UTC): `pending`
 
 ## Decision Authority (Human Only)
-- Approver name: `pending`
-- Approver role: `pending`
-- Decision: `PENDING`
+- Approver name: `Anas`
+- Approver role: `Owner`
+- Decision: `GO, GIVE ME ASSURANCE ITS READY`
 
 ## Required Evidence
 - Completion gate board: `docs/system-map/COMPLETION_GATES_STATUS.md`
@@ -44,7 +44,7 @@ This record captures the final human `R3` decision for staging release readiness
 - Rollback SLA: `immediate rollback decision for accounting/security regressions`
 
 ## Final Notes
-- Conditions attached to approval: `pending human reviewer notes`
+- Conditions attached to approval: `LOOKS GOOD BUT NEED FULL DOCS UPDATED,CLEANER DOCS AND REMOVE THE UNUSED OLD DOCS KEEP THE TICKETS ONE BUT REMOVE UNNESCCARY DOCS AND MAKE THE CODEBASE FINALLY CLEAN.WITH FRONTEND DOCS FULLY READY FOR IMPLEMENTATION.IN 5 PORTALS ADMIN(ADMIN SHOULD HAVE AUTH, AUDIT TRAILS AND ALL UX FUNCTIONALITY WHICH MAKES SENSE FOR ADMIN AS U KNOW.SUM ALL OF THE BACKEND ENPOINTS AS PER THESE PORTAL I HAVE DECIDED.),ACCOUNTANT(SUPPLIER,REPORTS,INVOICE,HR/PURCHASING,INVENTORY,AS I HAVE MENTIONED WHAT I WANT IN THE FRONTEND PORTAL CONTRACTS EARLIER),SALES PORTAL,FACTORY PORTAL(PRODUCTION),DEALER AND ALSO WE HAVE NOW SUPERADMIN,MAKE GOOD CLEAR AND UNDERSTANDBLE DOCS OF WHAT ENDPOINTS FRONTEND SHOULD HAVE AND WHAT TO USE FOR THE FRONTEND TOKEN STRATEGIES AND WHAT THE API EXPECTS A GOOD CONTRACT TO START WORKING AND DOCS SHOULD BE VERY HELPFUL THAT THE FRONTEND JUST FOCUS MORE ON DESIGN AND INTEGRATION`
 - Post-release validation requirements:
   - run smoke checks from `docs/CODE-RED/RELEASE_RUNBOOK.md`
   - monitor outbox/retry/dead-letter counters during first business cycle
