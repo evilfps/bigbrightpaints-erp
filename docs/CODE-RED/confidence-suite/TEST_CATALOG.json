@@ -259,6 +259,28 @@
       "quality_flake_monitor": true
     },
     {
+      "id": "ts-orchestrator-idempotency-coverage",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/orchestrator/TS_OrchestratorIdempotencyCoverageTest.java",
+      "owner": "erp-domain-team",
+      "class": "critical",
+      "module": "Orchestrator",
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-reconciliation",
+        "gate-quality"
+      ],
+      "tags": [
+        "critical",
+        "concurrency",
+        "reconciliation"
+      ],
+      "accounting_math_critical": false,
+      "cross_module_critical": true,
+      "quality_flake_monitor": true
+    },
+    {
       "id": "ts-double-entry-math",
       "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/accounting/TS_DoubleEntryMathInvariantTest.java",
       "owner": "erp-domain-team",
