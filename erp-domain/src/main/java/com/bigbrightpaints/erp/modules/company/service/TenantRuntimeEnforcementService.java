@@ -287,6 +287,12 @@ public class TenantRuntimeEnforcementService {
             throw new IllegalArgumentException("Company not found: " + normalizedCompany);
         }
         Long companyId = company.getId();
+        boolean requiresFreshQuotaBaseline = validatedMaxConcurrentRequests == null
+                || validatedMaxRequestsPerMinute == null
+                || validatedMaxActiveUsers == null;
+        TenantRuntimePolicy persistedQuotaBaseline = requiresFreshQuotaBaseline
+                ? loadPersistedPolicyStrict(companyId)
+                : null;
         TenantRuntimePolicy policy = policyFor(normalizedCompany);
         String normalizedReason = stateMutation
                 ? requireStateReason(reasonCode, targetState)
@@ -297,15 +303,16 @@ public class TenantRuntimeEnforcementService {
         synchronized (policy) {
             previousChainId = policy.auditChainId;
             TenantRuntimeState nextState = stateMutation ? targetState : policy.state;
+            TenantRuntimePolicy quotaBaseline = persistedQuotaBaseline != null ? persistedQuotaBaseline : policy;
             int nextMaxConcurrentRequests = validatedMaxConcurrentRequests != null
                     ? validatedMaxConcurrentRequests
-                    : policy.maxConcurrentRequests;
+                    : quotaBaseline.maxConcurrentRequests;
             int nextMaxRequestsPerMinute = validatedMaxRequestsPerMinute != null
                     ? validatedMaxRequestsPerMinute
-                    : policy.maxRequestsPerMinute;
+                    : quotaBaseline.maxRequestsPerMinute;
             int nextMaxActiveUsers = validatedMaxActiveUsers != null
                     ? validatedMaxActiveUsers
-                    : policy.maxActiveUsers;
+                    : quotaBaseline.maxActiveUsers;
             String nextReason = policy.reasonCode;
             if (stateMutation || quotaMutation) {
                 nextReason = normalizedReason;
@@ -676,6 +683,51 @@ public class TenantRuntimeEnforcementService {
                 0L);
     }
 
+    private TenantRuntimePolicy loadPersistedPolicyStrict(Long companyId) {
+        if (companyId == null) {
+            return null;
+        }
+        String persistedState = readSettingStrict(keyHoldState(companyId));
+        String persistedReason = readSettingStrict(keyHoldReason(companyId));
+        String persistedMaxConcurrent = readSettingStrict(keyMaxConcurrentRequests(companyId));
+        String persistedMaxPerMinute = readSettingStrict(keyMaxRequestsPerMinute(companyId));
+        String persistedMaxActiveUsers = readSettingStrict(keyMaxActiveUsers(companyId));
+        String persistedPolicyReference = readSettingStrict(keyPolicyReference(companyId));
+        String persistedUpdatedAt = readSettingStrict(keyPolicyUpdatedAt(companyId));
+
+        boolean hasPersistedPolicy = StringUtils.hasText(persistedState)
+                || StringUtils.hasText(persistedReason)
+                || StringUtils.hasText(persistedMaxConcurrent)
+                || StringUtils.hasText(persistedMaxPerMinute)
+                || StringUtils.hasText(persistedMaxActiveUsers)
+                || StringUtils.hasText(persistedPolicyReference)
+                || StringUtils.hasText(persistedUpdatedAt);
+        if (!hasPersistedPolicy) {
+            return null;
+        }
+
+        TenantRuntimeState state = normalizeState(persistedState);
+        String reason = StringUtils.hasText(persistedReason)
+                ? persistedReason.trim()
+                : DEFAULT_REASON;
+        int maxConcurrentRequests = parsePositiveInt(persistedMaxConcurrent, defaultMaxConcurrentRequests);
+        int maxRequestsPerMinute = parsePositiveInt(persistedMaxPerMinute, defaultMaxRequestsPerMinute);
+        int maxActiveUsers = parsePositiveInt(persistedMaxActiveUsers, defaultMaxActiveUsers);
+        String auditChainId = StringUtils.hasText(persistedPolicyReference)
+                ? persistedPolicyReference.trim()
+                : DEFAULT_POLICY_REFERENCE;
+        Instant updatedAt = parseInstantOrNow(persistedUpdatedAt);
+        return new TenantRuntimePolicy(
+                state,
+                reason,
+                maxConcurrentRequests,
+                maxRequestsPerMinute,
+                maxActiveUsers,
+                auditChainId,
+                updatedAt,
+                0L);
+    }
+
     private TenantRuntimePolicy defaultPolicy() {
         return new TenantRuntimePolicy(
                 TenantRuntimeState.ACTIVE,
@@ -732,6 +784,12 @@ public class TenantRuntimeEnforcementService {
         } catch (RuntimeException ignored) {
             return fallback;
         }
+    }
+
+    private String readSettingStrict(String key) {
+        return systemSettingsRepository.findById(key)
+                .map(SystemSetting::getValue)
+                .orElse(null);
     }
 
     private String keyHoldState(Long companyId) {

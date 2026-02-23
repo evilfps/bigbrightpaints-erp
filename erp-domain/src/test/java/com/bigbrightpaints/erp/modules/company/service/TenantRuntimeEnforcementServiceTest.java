@@ -627,6 +627,75 @@ class TenantRuntimeEnforcementServiceTest {
     }
 
     @Test
+    void updatePolicy_partialMutation_mergesOmittedQuotasFromPersistedSettings_notStaleCache() throws Exception {
+        persistedSettingsByKey.put(keyHoldState(1L), "ACTIVE");
+        persistedSettingsByKey.put(keyHoldReason(1L), "POLICY_ACTIVE");
+        persistedSettingsByKey.put(keyMaxConcurrentRequests(1L), "9");
+        persistedSettingsByKey.put(keyMaxRequestsPerMinute(1L), "11");
+        persistedSettingsByKey.put(keyMaxActiveUsers(1L), "13");
+        persistedSettingsByKey.put(keyPolicyReference(1L), "persisted-chain");
+        persistedSettingsByKey.put(keyPolicyUpdatedAt(1L), "2026-01-02T00:00:00Z");
+
+        Object staleCachedPolicy = tenantRuntimePolicy(
+                TenantRuntimeEnforcementService.TenantRuntimeState.ACTIVE,
+                "POLICY_ACTIVE",
+                1,
+                2,
+                3,
+                "cached-chain",
+                Instant.parse("2026-01-01T00:00:00Z"),
+                System.currentTimeMillis() + 60_000L);
+        @SuppressWarnings("unchecked")
+        ConcurrentMap<String, Object> policies =
+                (ConcurrentMap<String, Object>) ReflectionTestUtils.getField(service, "policies");
+        assertThat(policies).isNotNull();
+        policies.put("ACME", staleCachedPolicy);
+
+        TenantRuntimeEnforcementService.TenantRuntimeSnapshot snapshot = service.updatePolicy(
+                "ACME",
+                TenantRuntimeEnforcementService.TenantRuntimeState.HOLD,
+                "maintenance",
+                null,
+                null,
+                null,
+                "ops@bbp.com");
+
+        assertThat(snapshot.state()).isEqualTo(TenantRuntimeEnforcementService.TenantRuntimeState.HOLD);
+        assertThat(snapshot.maxConcurrentRequests()).isEqualTo(9);
+        assertThat(snapshot.maxRequestsPerMinute()).isEqualTo(11);
+        assertThat(snapshot.maxActiveUsers()).isEqualTo(13);
+        assertThat(persistedSettingsByKey.get(keyMaxConcurrentRequests(1L))).isEqualTo("9");
+        assertThat(persistedSettingsByKey.get(keyMaxRequestsPerMinute(1L))).isEqualTo("11");
+        assertThat(persistedSettingsByKey.get(keyMaxActiveUsers(1L))).isEqualTo("13");
+    }
+
+    @Test
+    void updatePolicy_partialMutation_failsClosedWhenPersistedBaselineReadFails() {
+        persistedSettingsByKey.put(keyHoldState(1L), "ACTIVE");
+        persistedSettingsByKey.put(keyHoldReason(1L), "POLICY_ACTIVE");
+        persistedSettingsByKey.put(keyMaxConcurrentRequests(1L), "9");
+        persistedSettingsByKey.put(keyMaxRequestsPerMinute(1L), "11");
+        persistedSettingsByKey.put(keyMaxActiveUsers(1L), "13");
+        when(systemSettingsRepository.findById(any())).thenThrow(new RuntimeException("settings-store-down"));
+
+        assertThatThrownBy(() -> service.updatePolicy(
+                "ACME",
+                TenantRuntimeEnforcementService.TenantRuntimeState.HOLD,
+                "maintenance",
+                null,
+                null,
+                null,
+                "ops@bbp.com"))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("settings-store-down");
+
+        assertThat(persistedSettingsByKey.get(keyHoldState(1L))).isEqualTo("ACTIVE");
+        assertThat(persistedSettingsByKey.get(keyMaxConcurrentRequests(1L))).isEqualTo("9");
+        assertThat(persistedSettingsByKey.get(keyMaxRequestsPerMinute(1L))).isEqualTo("11");
+        assertThat(persistedSettingsByKey.get(keyMaxActiveUsers(1L))).isEqualTo("13");
+    }
+
+    @Test
     void runtimePolicyMutations_failClosedForInvalidReasonAndQuotaValues() {
         assertThatThrownBy(() -> service.holdTenant("ACME", "   ", "ops@bbp.com"))
                 .isInstanceOf(IllegalArgumentException.class)
