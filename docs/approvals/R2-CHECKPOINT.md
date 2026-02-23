@@ -237,7 +237,8 @@ Update this file in every high-risk change set.
     - `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingFacadeTest.java`
 
 ## STAGE-102 Addendum (2026-02-23, auth-rbac-company-repair-v2)
-- Branch / PR: `tickets/tkt-erp-stage-102/auth-rbac-company-repair-v2` / PR #65 (https://github.com/anasibnanwar-XYE/bigbrightpaints-erp/pull/65)
+- Ticket path / PR: `tickets/TKT-ERP-STAGE-102` / PR #65 (https://github.com/anasibnanwar-XYE/bigbrightpaints-erp/pull/65)
+- Source branch: `tickets-tkt-erp-stage-102-auth-rbac-company-repair-v2`
 - High-risk paths:
   - `erp-domain/src/main/java/com/bigbrightpaints/erp/core/security/CompanyContextFilter.java`
   - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/company/controller/CompanyController.java`
