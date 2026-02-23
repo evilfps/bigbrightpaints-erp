@@ -13,6 +13,105 @@ else
   unset BBP_CHAINED_BASH_ENV
   unset BBP_CHAINED_BASH_ENV_PARENT_PID
 fi
+
+probe_pg() {
+  local host="$1"
+  local port="$2"
+  local user="$3"
+  local password="$4"
+  local database="$5"
+  if ! command -v psql >/dev/null 2>&1; then
+    return 1
+  fi
+  PGPASSWORD="$password" psql \
+    -h "$host" \
+    -p "$port" \
+    -U "$user" \
+    -d "$database" \
+    -Atqc "select 1" >/dev/null 2>&1
+}
+
+ensure_release_matrix_postgres() {
+  local auto_start="${AUTO_START_GATE_RELEASE_PG:-true}"
+  local host="${PGHOST:-127.0.0.1}"
+  local user="${PGUSER:-${SPRING_DATASOURCE_USERNAME:-erp}}"
+  local password="${PGPASSWORD:-${SPRING_DATASOURCE_PASSWORD:-erp}}"
+  local database="${PGDATABASE:-postgres}"
+  local configured_port="${PGPORT:-}"
+  local probe_port="${configured_port:-5432}"
+  local container="gate_release_pg"
+
+  if [[ "$auto_start" != "true" ]]; then
+    return 0
+  fi
+
+  case "$host" in
+    127.0.0.1|localhost) ;;
+    *)
+      return 0
+      ;;
+  esac
+
+  if probe_pg "$host" "$probe_port" "$user" "$password" "$database"; then
+    return 0
+  fi
+
+  if ! command -v docker >/dev/null 2>&1; then
+    echo "[gate-release] postgres unreachable at $host:$probe_port and docker is unavailable; migration matrix may fail." >&2
+    return 0
+  fi
+
+  if docker inspect "$container" >/dev/null 2>&1; then
+    if [[ -z "$configured_port" ]]; then
+      local mapped_port
+      mapped_port="$(docker port "$container" 5432/tcp 2>/dev/null | head -n 1 | awk -F: '{print $NF}')"
+      if [[ -n "$mapped_port" ]]; then
+        probe_port="$mapped_port"
+        export PGPORT="$mapped_port"
+      fi
+    fi
+    if probe_pg "$host" "$probe_port" "$user" "$password" "$database"; then
+      echo "[gate-release] using existing $container on $host:$probe_port"
+      return 0
+    fi
+  fi
+
+  local start_port="${configured_port:-55432}"
+  echo "[gate-release] starting local postgres container $container on $host:$start_port for migration matrix"
+  docker rm -f "$container" >/dev/null 2>&1 || true
+  docker run -d --name "$container" \
+    -e POSTGRES_USER="$user" \
+    -e POSTGRES_PASSWORD="$password" \
+    -e POSTGRES_DB="$database" \
+    -p "${start_port}:5432" \
+    postgres:16 >/dev/null
+
+  local ready=false
+  for _ in $(seq 1 60); do
+    if docker exec "$container" pg_isready -U "$user" -d "$database" >/dev/null 2>&1; then
+      ready=true
+      break
+    fi
+    sleep 1
+  done
+
+  if [[ "$ready" != "true" ]]; then
+    echo "[gate-release] FAIL: postgres container $container did not become ready in time." >&2
+    exit 1
+  fi
+
+  export PGHOST="$host"
+  export PGPORT="$start_port"
+  export PGUSER="$user"
+  export PGPASSWORD="$password"
+  export PGDATABASE="$database"
+
+  if ! probe_pg "$host" "$start_port" "$user" "$password" "$database"; then
+    echo "[gate-release] FAIL: unable to connect to auto-started postgres at $host:$start_port." >&2
+    exit 1
+  fi
+}
+
 export BASH_ENV="$COMPAT_BASH_ENV_BOOTSTRAP"
 rm -rf "$ARTIFACT_DIR"
 mkdir -p "$ARTIFACT_DIR"
@@ -258,6 +357,9 @@ echo "[gate-release] truth suite strict mode"
   rm -rf target/surefire-reports target/site/jacoco target/jacoco.exec
   mvn -B -ntp -Pgate-release test
 )
+
+echo "[gate-release] ensure migration matrix database connectivity"
+ensure_release_matrix_postgres
 
 echo "[gate-release] fresh + upgrade migration matrix"
 MIGRATION_SET="$MIGRATION_SET" bash "$ROOT_DIR/scripts/release_migration_matrix.sh" --artifact-dir "$ARTIFACT_DIR"
