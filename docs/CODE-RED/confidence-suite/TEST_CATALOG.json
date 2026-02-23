@@ -1400,6 +1400,90 @@
       "accounting_math_critical": false,
       "cross_module_critical": true,
       "quality_flake_monitor": true
+    },
+    {
+      "id": "ts-runtime-accounting-audit-trail-service-executable-coverage",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeAccountingAuditTrailServiceExecutableCoverageTest.java",
+      "owner": "erp-domain-team",
+      "class": "critical",
+      "module": "Accounting",
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-reconciliation",
+        "gate-quality"
+      ],
+      "tags": [
+        "critical",
+        "reconciliation"
+      ],
+      "accounting_math_critical": true,
+      "cross_module_critical": true,
+      "quality_flake_monitor": true
+    },
+    {
+      "id": "ts-runtime-tax-service-executable-coverage",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeTaxServiceExecutableCoverageTest.java",
+      "owner": "erp-domain-team",
+      "class": "critical",
+      "module": "Tax",
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-reconciliation",
+        "gate-quality"
+      ],
+      "tags": [
+        "critical",
+        "reconciliation"
+      ],
+      "accounting_math_critical": true,
+      "cross_module_critical": true,
+      "quality_flake_monitor": true
+    },
+    {
+      "id": "ts-runtime-accounting-period-service-regression-executable-coverage",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeAccountingPeriodServiceRegressionExecutableCoverageTest.java",
+      "owner": "erp-domain-team",
+      "class": "critical",
+      "module": "Accounting",
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-reconciliation",
+        "gate-quality"
+      ],
+      "tags": [
+        "critical",
+        "reconciliation"
+      ],
+      "accounting_math_critical": true,
+      "cross_module_critical": true,
+      "quality_flake_monitor": true
+    },
+    {
+      "id": "ts-runtime-accounting-period-policy-executable-coverage",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeAccountingPeriodPolicyExecutableCoverageTest.java",
+      "owner": "erp-domain-team",
+      "class": "critical",
+      "module": "Accounting",
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-reconciliation",
+        "gate-quality"
+      ],
+      "tags": [
+        "critical",
+        "reconciliation"
+      ],
+      "accounting_math_critical": true,
+      "cross_module_critical": true,
+      "quality_flake_monitor": true
     }
   ]
 }
