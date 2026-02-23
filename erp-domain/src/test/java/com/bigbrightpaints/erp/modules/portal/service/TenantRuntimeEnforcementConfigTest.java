@@ -1,6 +1,7 @@
 package com.bigbrightpaints.erp.modules.portal.service;
 
-import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -20,11 +21,13 @@ class TenantRuntimeEnforcementConfigTest {
     private InterceptorRegistration registration;
 
     @Test
-    void addInterceptors_doesNotRegisterPortalInterceptor_whenRuntimeEnforcementIsCentralized() {
+    void addInterceptors_registersTenantRuntimeInterceptorForApiV1Paths() {
+        when(registry.addInterceptor(tenantRuntimeEnforcementInterceptor)).thenReturn(registration);
         TenantRuntimeEnforcementConfig config = new TenantRuntimeEnforcementConfig(tenantRuntimeEnforcementInterceptor);
 
         config.addInterceptors(registry);
 
-        verifyNoInteractions(registry, registration);
+        verify(registry).addInterceptor(tenantRuntimeEnforcementInterceptor);
+        verify(registration).addPathPatterns("/api/v1/**");
     }
 }
