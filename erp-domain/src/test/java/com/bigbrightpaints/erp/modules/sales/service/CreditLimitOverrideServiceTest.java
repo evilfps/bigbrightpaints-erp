@@ -1,6 +1,8 @@
 package com.bigbrightpaints.erp.modules.sales.service;
 
 import com.bigbrightpaints.erp.core.audit.AuditService;
+import com.bigbrightpaints.erp.core.exception.ApplicationException;
+import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.modules.accounting.service.DealerLedgerService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
@@ -24,6 +26,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -98,6 +101,28 @@ class CreditLimitOverrideServiceTest {
 
         assertThat(response.status()).isEqualTo("APPROVED");
         assertThat(request.getStatus()).isEqualTo("APPROVED");
+    }
+
+    @Test
+    void approveRequest_rejectsNonPendingStatus() {
+        CreditLimitOverrideRequest request = new CreditLimitOverrideRequest();
+        request.setCompany(company);
+        request.setStatus("REJECTED");
+        request.setRequestedBy("maker@bbp.com");
+
+        when(creditLimitOverrideRequestRepository.findByCompanyAndId(company, 99L))
+                .thenReturn(Optional.of(request));
+
+        ApplicationException ex = assertThrows(
+                ApplicationException.class,
+                () -> service.approveRequest(
+                        99L,
+                        new CreditLimitOverrideDecisionRequest("Approved", null),
+                        "checker@bbp.com")
+        );
+
+        assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_INVALID_STATE);
+        assertThat(ex.getMessage()).contains("Only pending override requests can be approved");
     }
 
     @Test
@@ -289,6 +314,63 @@ class CreditLimitOverrideServiceTest {
                 null,
                 null,
                 new BigDecimal("100.00"));
+
+        assertThat(approved).isFalse();
+    }
+
+    @Test
+    void isOverrideApproved_failsClosedWhenDispatchAmountProvidedWithoutDealerContext() {
+        CreditLimitOverrideRequest request = new CreditLimitOverrideRequest();
+        request.setCompany(company);
+        request.setStatus("APPROVED");
+        request.setDispatchAmount(new BigDecimal("120.00"));
+        request.setRequiredHeadroom(new BigDecimal("20.00"));
+        request.setRequestedBy("maker@bbp.com");
+        request.setReviewedBy("checker@bbp.com");
+        request.setReviewedAt(Instant.parse("2026-02-20T00:00:00Z"));
+        request.setReason("[CREDIT_LIMIT_EXCEPTION_APPROVED] Approved for urgent dispatch");
+
+        when(creditLimitOverrideRequestRepository.findByCompanyAndId(company, 26L))
+                .thenReturn(Optional.of(request));
+
+        boolean approved = service.isOverrideApproved(
+                26L,
+                company,
+                null,
+                null,
+                null,
+                new BigDecimal("120.00"));
+
+        assertThat(approved).isFalse();
+    }
+
+    @Test
+    void isOverrideApproved_rejectsWhenDealerBindingDoesNotMatchCurrentContext() {
+        CreditLimitOverrideRequest request = new CreditLimitOverrideRequest();
+        request.setCompany(company);
+        request.setStatus("APPROVED");
+        request.setRequestedBy("maker@bbp.com");
+        request.setReviewedBy("checker@bbp.com");
+        request.setReviewedAt(Instant.parse("2026-02-20T00:00:00Z"));
+        request.setReason("[CREDIT_LIMIT_EXCEPTION_APPROVED] Approved for urgent dispatch");
+
+        Dealer approvedDealer = new Dealer();
+        org.springframework.test.util.ReflectionTestUtils.setField(approvedDealer, "id", 500L);
+        request.setDealer(approvedDealer);
+
+        Dealer runtimeDealer = new Dealer();
+        org.springframework.test.util.ReflectionTestUtils.setField(runtimeDealer, "id", 42L);
+
+        when(creditLimitOverrideRequestRepository.findByCompanyAndId(company, 27L))
+                .thenReturn(Optional.of(request));
+
+        boolean approved = service.isOverrideApproved(
+                27L,
+                company,
+                runtimeDealer,
+                null,
+                null,
+                null);
 
         assertThat(approved).isFalse();
     }
