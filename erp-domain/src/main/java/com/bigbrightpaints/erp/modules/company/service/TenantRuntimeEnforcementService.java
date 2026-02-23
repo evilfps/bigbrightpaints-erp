@@ -26,6 +26,9 @@ public class TenantRuntimeEnforcementService {
     private static final int MIN_LIMIT = 1;
     private static final String DEFAULT_REASON = "POLICY_ACTIVE";
     private static final String UNKNOWN_ACTOR = "UNKNOWN_AUTH_ACTOR";
+    private static final String TENANT_RUNTIME_POLICY_PATH = "/api/v1/admin/tenant-runtime/policy";
+    private static final String CANONICAL_COMPANY_RUNTIME_POLICY_PREFIX = "/api/v1/companies/";
+    private static final String CANONICAL_COMPANY_RUNTIME_POLICY_SUFFIX = "/tenant-runtime/policy";
 
     private final CompanyRepository companyRepository;
     private final UserAccountRepository userAccountRepository;
@@ -55,18 +58,40 @@ public class TenantRuntimeEnforcementService {
                                                String requestPath,
                                                String requestMethod,
                                                String actor) {
+        return beginRequest(companyCode, requestPath, requestMethod, actor, false);
+    }
+
+    public TenantRequestAdmission beginRequest(String companyCode,
+                                               String requestPath,
+                                               String requestMethod,
+                                               String actor,
+                                               boolean policyControlPrivilegedActor) {
         String normalizedCompany = normalizeCompanyCode(companyCode);
         if (normalizedCompany == null) {
             return TenantRequestAdmission.notTracked();
         }
         TenantRuntimePolicy policy = policyFor(normalizedCompany);
         TenantRuntimeCounters usageCounters = countersFor(normalizedCompany);
+        boolean policyControlRequest = isTenantRuntimePolicyControlRequest(
+                requestPath,
+                requestMethod,
+                policyControlPrivilegedActor);
 
-        TenantRuntimeRejection stateRejection = stateRejection(policy, normalizedCompany);
+        TenantRuntimeRejection stateRejection = stateRejection(
+                policy,
+                normalizedCompany,
+                policyControlRequest,
+                requestMethod);
         if (stateRejection != null) {
             usageCounters.rejectedRequests.incrementAndGet();
             auditRejection(stateRejection, actor, requestPath, requestMethod);
             return TenantRequestAdmission.rejected(stateRejection);
+        }
+
+        if (policyControlRequest) {
+            usageCounters.totalRequests.incrementAndGet();
+            usageCounters.inFlightRequests.incrementAndGet();
+            return TenantRequestAdmission.admitted(normalizedCompany, policy.auditChainId, usageCounters);
         }
 
         long minuteBucket = CompanyTime.now().getEpochSecond() / 60L;
@@ -129,7 +154,7 @@ public class TenantRuntimeEnforcementService {
         TenantRuntimePolicy policy = policyFor(normalizedCompany);
         TenantRuntimeCounters usageCounters = countersFor(normalizedCompany);
 
-        TenantRuntimeRejection stateRejection = stateRejection(policy, normalizedCompany);
+        TenantRuntimeRejection stateRejection = stateRejection(policy, normalizedCompany, false, "POST");
         if (stateRejection != null) {
             usageCounters.rejectedRequests.incrementAndGet();
             auditRejection(stateRejection, actor, null, null);
@@ -203,6 +228,56 @@ public class TenantRuntimeEnforcementService {
         }
         auditPolicyChange(
                 "UPDATE_TENANT_QUOTAS",
+                normalizedCompany,
+                normalizeActor(actor),
+                normalizedReason,
+                previousChainId,
+                policy.auditChainId,
+                policy);
+        return snapshot(normalizedCompany);
+    }
+
+    public TenantRuntimeSnapshot updatePolicy(String companyCode,
+                                              TenantRuntimeState targetState,
+                                              String reasonCode,
+                                              Integer maxConcurrentRequests,
+                                              Integer maxRequestsPerMinute,
+                                              Integer maxActiveUsers,
+                                              String actor) {
+        String normalizedCompany = requireCompanyCode(companyCode);
+        companyRepository.findByCodeIgnoreCase(normalizedCompany)
+                .orElseThrow(() -> new IllegalArgumentException("Company not found: " + normalizedCompany));
+        if (targetState == null
+                && maxConcurrentRequests == null
+                && maxRequestsPerMinute == null
+                && maxActiveUsers == null) {
+            throw new IllegalArgumentException("Runtime policy mutation payload is required");
+        }
+        TenantRuntimePolicy policy = policyFor(normalizedCompany);
+        String normalizedReason = normalizeReason(reasonCode);
+        String previousChainId;
+        String newChainId = UUID.randomUUID().toString();
+        Instant now = CompanyTime.now();
+        synchronized (policy) {
+            previousChainId = policy.auditChainId;
+            if (targetState != null) {
+                policy.state = targetState;
+            }
+            if (maxConcurrentRequests != null) {
+                policy.maxConcurrentRequests = sanitizeLimit(maxConcurrentRequests);
+            }
+            if (maxRequestsPerMinute != null) {
+                policy.maxRequestsPerMinute = sanitizeLimit(maxRequestsPerMinute);
+            }
+            if (maxActiveUsers != null) {
+                policy.maxActiveUsers = sanitizeLimit(maxActiveUsers);
+            }
+            policy.reasonCode = normalizedReason;
+            policy.updatedAt = now;
+            policy.auditChainId = newChainId;
+        }
+        auditPolicyChange(
+                "UPDATE_TENANT_RUNTIME_POLICY",
                 normalizedCompany,
                 normalizeActor(actor),
                 normalizedReason,
@@ -291,8 +366,14 @@ public class TenantRuntimeEnforcementService {
         auditService.logAuthSuccess(AuditEvent.CONFIGURATION_CHANGED, actor, companyCode, metadata);
     }
 
-    private TenantRuntimeRejection stateRejection(TenantRuntimePolicy policy, String companyCode) {
-        if (policy.state == TenantRuntimeState.HOLD) {
+    private TenantRuntimeRejection stateRejection(TenantRuntimePolicy policy,
+                                                  String companyCode,
+                                                  boolean policyControlRequest,
+                                                  String requestMethod) {
+        if (policyControlRequest) {
+            return null;
+        }
+        if (policy.state == TenantRuntimeState.HOLD && isMutatingRequest(requestMethod)) {
             return new TenantRuntimeRejection(
                     companyCode,
                     policy.state,
@@ -319,6 +400,51 @@ public class TenantRuntimeEnforcementService {
                     TenantRuntimeState.ACTIVE.name());
         }
         return null;
+    }
+
+    private boolean isMutatingRequest(String requestMethod) {
+        if (!StringUtils.hasText(requestMethod)) {
+            return true;
+        }
+        String normalizedMethod = requestMethod.trim().toUpperCase();
+        return !("GET".equals(normalizedMethod)
+                || "HEAD".equals(normalizedMethod)
+                || "OPTIONS".equals(normalizedMethod)
+                || "TRACE".equals(normalizedMethod));
+    }
+
+    private boolean isTenantRuntimePolicyControlRequest(String requestPath,
+                                                        String requestMethod,
+                                                        boolean policyControlPrivilegedActor) {
+        if (!policyControlPrivilegedActor) {
+            return false;
+        }
+        if (!StringUtils.hasText(requestMethod) || !"PUT".equalsIgnoreCase(requestMethod.trim())) {
+            return false;
+        }
+        if (!StringUtils.hasText(requestPath)) {
+            return false;
+        }
+        String normalizedPath = requestPath.trim();
+        while (normalizedPath.endsWith("/") && normalizedPath.length() > 1) {
+            normalizedPath = normalizedPath.substring(0, normalizedPath.length() - 1);
+        }
+        if (TENANT_RUNTIME_POLICY_PATH.equals(normalizedPath)) {
+            return true;
+        }
+        return isCanonicalCompanyRuntimePolicyPath(normalizedPath);
+    }
+
+    private boolean isCanonicalCompanyRuntimePolicyPath(String normalizedPath) {
+        if (!StringUtils.hasText(normalizedPath)
+                || !normalizedPath.startsWith(CANONICAL_COMPANY_RUNTIME_POLICY_PREFIX)
+                || !normalizedPath.endsWith(CANONICAL_COMPANY_RUNTIME_POLICY_SUFFIX)) {
+            return false;
+        }
+        int prefixLength = CANONICAL_COMPANY_RUNTIME_POLICY_PREFIX.length();
+        int suffixLength = CANONICAL_COMPANY_RUNTIME_POLICY_SUFFIX.length();
+        String companyIdSegment = normalizedPath.substring(prefixLength, normalizedPath.length() - suffixLength);
+        return StringUtils.hasText(companyIdSegment) && !companyIdSegment.contains("/");
     }
 
     private void auditRejection(TenantRuntimeRejection rejection, String actor, String requestPath, String requestMethod) {

@@ -149,4 +149,66 @@ public class CompanyControllerIT extends AbstractIntegrationTest {
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
     }
+
+    @Test
+    void tenant_runtime_policy_update_requires_super_admin() {
+        Long companyId = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow().getId();
+        Map<String, Object> updateRequest = Map.of(
+                "holdState", "ACTIVE",
+                "reasonCode", "policy-refresh",
+                "maxConcurrentRequests", 15,
+                "maxRequestsPerMinute", 120,
+                "maxActiveUsers", 45
+        );
+
+        String adminToken = loginToken(ADMIN_EMAIL, COMPANY_CODE);
+        HttpHeaders adminHeaders = new HttpHeaders();
+        adminHeaders.setBearerAuth(adminToken);
+        adminHeaders.setContentType(MediaType.APPLICATION_JSON);
+        adminHeaders.set("X-Company-Code", COMPANY_CODE);
+        ResponseEntity<Map> adminResponse = rest.exchange(
+                "/api/v1/companies/" + companyId + "/tenant-runtime/policy",
+                HttpMethod.PUT,
+                new HttpEntity<>(updateRequest, adminHeaders),
+                Map.class);
+        assertThat(adminResponse.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+
+        String superAdminToken = loginToken(SUPER_ADMIN_EMAIL, COMPANY_CODE);
+        HttpHeaders superAdminHeaders = new HttpHeaders();
+        superAdminHeaders.setBearerAuth(superAdminToken);
+        superAdminHeaders.setContentType(MediaType.APPLICATION_JSON);
+        superAdminHeaders.set("X-Company-Code", COMPANY_CODE);
+        ResponseEntity<Map> superAdminResponse = rest.exchange(
+                "/api/v1/companies/" + companyId + "/tenant-runtime/policy",
+                HttpMethod.PUT,
+                new HttpEntity<>(updateRequest, superAdminHeaders),
+                Map.class);
+        assertThat(superAdminResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+    }
+
+    @Test
+    void tenant_runtime_policy_update_allows_super_admin_outside_target_tenant_membership() {
+        Long companyId = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow().getId();
+        String rootOnlySuperAdminEmail = "root-only-super-admin-runtime@bbp.com";
+        dataSeeder.ensureUser(rootOnlySuperAdminEmail, ADMIN_PASSWORD, "Root Only Super Admin", ROOT_COMPANY_CODE,
+                java.util.List.of("ROLE_SUPER_ADMIN", "ROLE_ADMIN"));
+        Map<String, Object> updateRequest = Map.of(
+                "holdState", "ACTIVE",
+                "reasonCode", "recovery-complete",
+                "maxConcurrentRequests", 25
+        );
+
+        String rootToken = loginToken(rootOnlySuperAdminEmail, ROOT_COMPANY_CODE);
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(rootToken);
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.set("X-Company-Code", ROOT_COMPANY_CODE);
+        ResponseEntity<Map> response = rest.exchange(
+                "/api/v1/companies/" + companyId + "/tenant-runtime/policy",
+                HttpMethod.PUT,
+                new HttpEntity<>(updateRequest, headers),
+                Map.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+    }
 }
