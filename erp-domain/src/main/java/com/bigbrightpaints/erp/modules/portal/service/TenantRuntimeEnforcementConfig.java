@@ -15,7 +15,7 @@ public class TenantRuntimeEnforcementConfig implements WebMvcConfigurer {
 
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
-        // Runtime enforcement is centralized in CompanyContextFilter via TenantRuntimeEnforcementService.
-        // Keeping portal-level interceptor unregistered avoids duplicate checks and counter skew.
+        registry.addInterceptor(tenantRuntimeEnforcementInterceptor)
+                .addPathPatterns("/api/v1/**");
     }
 }
