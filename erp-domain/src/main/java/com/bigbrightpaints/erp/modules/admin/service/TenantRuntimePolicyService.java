@@ -13,11 +13,13 @@ import com.bigbrightpaints.erp.modules.auth.domain.UserAccount;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
+import com.bigbrightpaints.erp.modules.company.service.TenantRuntimeEnforcementService;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -39,26 +41,60 @@ public class TenantRuntimePolicyService {
     private final SystemSettingsRepository systemSettingsRepository;
     private final UserAccountRepository userAccountRepository;
     private final AuditService auditService;
+    private final TenantRuntimeEnforcementService tenantRuntimeEnforcementService;
 
     public TenantRuntimePolicyService(CompanyContextService companyContextService,
                                       SystemSettingsRepository systemSettingsRepository,
                                       UserAccountRepository userAccountRepository,
                                       AuditService auditService) {
+        this(companyContextService, systemSettingsRepository, userAccountRepository, auditService, null);
+    }
+
+    @Autowired
+    public TenantRuntimePolicyService(CompanyContextService companyContextService,
+                                      SystemSettingsRepository systemSettingsRepository,
+                                      UserAccountRepository userAccountRepository,
+                                      AuditService auditService,
+                                      TenantRuntimeEnforcementService tenantRuntimeEnforcementService) {
         this.companyContextService = companyContextService;
         this.systemSettingsRepository = systemSettingsRepository;
         this.userAccountRepository = userAccountRepository;
         this.auditService = auditService;
+        this.tenantRuntimeEnforcementService = tenantRuntimeEnforcementService;
     }
 
     @Transactional(readOnly = true)
     public TenantRuntimeMetricsDto metrics() {
         Company company = companyContextService.requireCurrentCompany();
+        if (tenantRuntimeEnforcementService != null) {
+            return snapshotFromRuntimeEnforcementService(company);
+        }
         return snapshot(company);
     }
 
     @Transactional
     public TenantRuntimeMetricsDto updatePolicy(TenantRuntimePolicyUpdateRequest request) {
         Company company = companyContextService.requireCurrentCompany();
+        if (tenantRuntimeEnforcementService != null) {
+            TenantRuntimeEnforcementService.TenantRuntimeSnapshot beforeUpdate =
+                    tenantRuntimeEnforcementService.snapshot(company.getCode());
+            TenantRuntimeEnforcementService.TenantRuntimeSnapshot updated =
+                    tenantRuntimeEnforcementService.updatePolicy(
+                            company.getCode(),
+                            resolveTargetState(request != null ? request.holdState() : null),
+                            request != null ? request.holdReason() : null,
+                            request != null ? request.maxConcurrentRequests() : null,
+                            request != null ? request.maxRequestsPerMinute() : null,
+                            request != null ? request.maxActiveUsers() : null,
+                            null
+                    );
+            auditPolicyUpdate(
+                    company,
+                    runtimePolicyFromSnapshot(beforeUpdate),
+                    runtimePolicyFromSnapshot(updated),
+                    request != null ? request.changeReason() : null);
+            return toMetricsDto(company, updated);
+        }
         RuntimePolicy previous = loadPolicy(company.getId());
         RuntimePolicy updated = merge(previous, request);
 
@@ -90,8 +126,17 @@ public class TenantRuntimePolicyService {
         if (company == null) {
             return;
         }
-        RuntimePolicy policy = loadPolicy(company.getId());
-        long enabledUsers = countEnabledUsers(company.getId());
+        RuntimePolicy policy;
+        long enabledUsers;
+        if (tenantRuntimeEnforcementService != null) {
+            TenantRuntimeEnforcementService.TenantRuntimeSnapshot snapshot =
+                    tenantRuntimeEnforcementService.snapshot(company.getCode());
+            policy = runtimePolicyFromSnapshot(snapshot);
+            enabledUsers = Math.max(snapshot.metrics().activeUsers(), 0L);
+        } else {
+            policy = loadPolicy(company.getId());
+            enabledUsers = countEnabledUsers(company.getId());
+        }
         if (enabledUsers >= policy.maxActiveUsers()) {
             String message = "Active user quota exceeded for tenant " + company.getCode();
             auditUserQuotaDenied(company, policy, enabledUsers, operation, message);
@@ -102,6 +147,67 @@ public class TenantRuntimePolicyService {
                     .withDetail("maxActiveUsers", policy.maxActiveUsers())
                     .withDetail("policyReference", policy.policyReference());
         }
+    }
+
+    private TenantRuntimeMetricsDto snapshotFromRuntimeEnforcementService(Company company) {
+        TenantRuntimeEnforcementService.TenantRuntimeSnapshot snapshot =
+                tenantRuntimeEnforcementService.snapshot(company.getCode());
+        return toMetricsDto(company, snapshot);
+    }
+
+    private TenantRuntimeMetricsDto toMetricsDto(Company company,
+                                                 TenantRuntimeEnforcementService.TenantRuntimeSnapshot snapshot) {
+        long totalUsers = countTotalUsers(company.getId());
+        long enabledUsers = Math.max(snapshot.metrics().activeUsers(), 0L);
+        int requestsThisMinute = Math.max(snapshot.metrics().minuteRequestCount(), 0);
+        int blockedThisMinute = (int) Math.max(0L, Math.min(snapshot.metrics().rejectedRequests(), Integer.MAX_VALUE));
+        int inFlightRequests = Math.max(snapshot.metrics().inFlightRequests(), 0);
+        String holdState = snapshot.state().name();
+        String holdReason = TenantRuntimeEnforcementService.TenantRuntimeState.ACTIVE == snapshot.state()
+                ? null
+                : trimToNull(snapshot.reasonCode());
+        return new TenantRuntimeMetricsDto(
+                company.getCode(),
+                holdState,
+                holdReason,
+                snapshot.maxActiveUsers(),
+                snapshot.maxRequestsPerMinute(),
+                snapshot.maxConcurrentRequests(),
+                enabledUsers,
+                totalUsers,
+                requestsThisMinute,
+                blockedThisMinute,
+                inFlightRequests,
+                snapshot.auditChainId(),
+                snapshot.updatedAt()
+        );
+    }
+
+    private RuntimePolicy runtimePolicyFromSnapshot(TenantRuntimeEnforcementService.TenantRuntimeSnapshot snapshot) {
+        return new RuntimePolicy(
+                snapshot.state().name(),
+                TenantRuntimeEnforcementService.TenantRuntimeState.ACTIVE == snapshot.state()
+                        ? null
+                        : trimToNull(snapshot.reasonCode()),
+                snapshot.maxActiveUsers(),
+                snapshot.maxRequestsPerMinute(),
+                snapshot.maxConcurrentRequests(),
+                snapshot.auditChainId(),
+                snapshot.updatedAt()
+        );
+    }
+
+    private TenantRuntimeEnforcementService.TenantRuntimeState resolveTargetState(String holdState) {
+        if (!StringUtils.hasText(holdState)) {
+            return null;
+        }
+        String normalized = holdState.trim().toUpperCase(Locale.ROOT);
+        return switch (normalized) {
+            case HOLD_STATE_ACTIVE -> TenantRuntimeEnforcementService.TenantRuntimeState.ACTIVE;
+            case HOLD_STATE_HOLD -> TenantRuntimeEnforcementService.TenantRuntimeState.HOLD;
+            case HOLD_STATE_BLOCKED -> TenantRuntimeEnforcementService.TenantRuntimeState.BLOCKED;
+            default -> TenantRuntimeEnforcementService.TenantRuntimeState.BLOCKED;
+        };
     }
 
     private TenantRuntimeMetricsDto snapshot(Company company) {

@@ -14,6 +14,7 @@ import com.bigbrightpaints.erp.modules.auth.domain.UserAccount;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
+import com.bigbrightpaints.erp.modules.company.service.TenantRuntimeEnforcementService;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -402,6 +403,135 @@ class TenantRuntimePolicyServiceTest {
         service.assertCanAddEnabledUser(null, "ENABLE_USER");
 
         verifyNoInteractions(userAccountRepository, auditService, systemSettingsRepository);
+    }
+
+    @Test
+    void metrics_delegatesToTenantRuntimeEnforcementService_whenAvailable() {
+        TenantRuntimeEnforcementService tenantRuntimeEnforcementService = mock(TenantRuntimeEnforcementService.class);
+        TenantRuntimePolicyService delegatedService = new TenantRuntimePolicyService(
+                companyContextService,
+                systemSettingsRepository,
+                userAccountRepository,
+                auditService,
+                tenantRuntimeEnforcementService
+        );
+        when(userAccountRepository.findDistinctByCompanies_Id(42L))
+                .thenReturn(List.of(user(true), user(false), user(true)));
+        when(tenantRuntimeEnforcementService.snapshot("ACME")).thenReturn(
+                new TenantRuntimeEnforcementService.TenantRuntimeSnapshot(
+                        "ACME",
+                        TenantRuntimeEnforcementService.TenantRuntimeState.HOLD,
+                        "INCIDENT_CONTAINMENT",
+                        "audit-chain-1",
+                        FIXED_NOW,
+                        30,
+                        900,
+                        120,
+                        new TenantRuntimeEnforcementService.TenantRuntimeMetrics(71, 8, 2, 3, 11, 2)
+                )
+        );
+
+        TenantRuntimeMetricsDto metrics = delegatedService.metrics();
+
+        assertThat(metrics.companyCode()).isEqualTo("ACME");
+        assertThat(metrics.holdState()).isEqualTo("HOLD");
+        assertThat(metrics.holdReason()).isEqualTo("INCIDENT_CONTAINMENT");
+        assertThat(metrics.maxActiveUsers()).isEqualTo(120);
+        assertThat(metrics.maxRequestsPerMinute()).isEqualTo(900);
+        assertThat(metrics.maxConcurrentRequests()).isEqualTo(30);
+        assertThat(metrics.enabledUsers()).isEqualTo(2);
+        assertThat(metrics.totalUsers()).isEqualTo(3);
+        assertThat(metrics.requestsThisMinute()).isEqualTo(11);
+        assertThat(metrics.blockedThisMinute()).isEqualTo(8);
+        assertThat(metrics.inFlightRequests()).isEqualTo(3);
+        assertThat(metrics.policyReference()).isEqualTo("audit-chain-1");
+        assertThat(metrics.policyUpdatedAt()).isEqualTo(FIXED_NOW);
+    }
+
+    @Test
+    void updatePolicy_delegatesToTenantRuntimeEnforcementService_andNormalizesUnknownHoldStateToBlocked() {
+        TenantRuntimeEnforcementService tenantRuntimeEnforcementService = mock(TenantRuntimeEnforcementService.class);
+        TenantRuntimePolicyService delegatedService = new TenantRuntimePolicyService(
+                companyContextService,
+                systemSettingsRepository,
+                userAccountRepository,
+                auditService,
+                tenantRuntimeEnforcementService
+        );
+        when(userAccountRepository.findDistinctByCompanies_Id(42L))
+                .thenReturn(List.of(user(true), user(false)));
+        when(tenantRuntimeEnforcementService.snapshot("ACME")).thenReturn(
+                new TenantRuntimeEnforcementService.TenantRuntimeSnapshot(
+                        "ACME",
+                        TenantRuntimeEnforcementService.TenantRuntimeState.ACTIVE,
+                        "POLICY_ACTIVE",
+                        "audit-chain-before",
+                        FIXED_NOW.minusSeconds(60),
+                        40,
+                        1200,
+                        250,
+                        new TenantRuntimeEnforcementService.TenantRuntimeMetrics(3, 0, 0, 0, 1, 1)
+                )
+        );
+        TenantRuntimePolicyUpdateRequest request = new TenantRuntimePolicyUpdateRequest(
+                55,
+                800,
+                21,
+                "PAUSED",
+                "Manual override",
+                "Controlled rollout"
+        );
+        when(tenantRuntimeEnforcementService.updatePolicy(
+                eq("ACME"),
+                eq(TenantRuntimeEnforcementService.TenantRuntimeState.BLOCKED),
+                eq("Manual override"),
+                eq(21),
+                eq(800),
+                eq(55),
+                eq(null)
+        )).thenReturn(
+                new TenantRuntimeEnforcementService.TenantRuntimeSnapshot(
+                        "ACME",
+                        TenantRuntimeEnforcementService.TenantRuntimeState.BLOCKED,
+                        "Manual override",
+                        "audit-chain-2",
+                        FIXED_NOW,
+                        21,
+                        800,
+                        55,
+                        new TenantRuntimeEnforcementService.TenantRuntimeMetrics(10, 1, 0, 0, 4, 1)
+                )
+        );
+
+        TenantRuntimeMetricsDto updated = delegatedService.updatePolicy(request);
+
+        assertThat(updated.holdState()).isEqualTo("BLOCKED");
+        assertThat(updated.holdReason()).isEqualTo("Manual override");
+        assertThat(updated.maxConcurrentRequests()).isEqualTo(21);
+        assertThat(updated.maxRequestsPerMinute()).isEqualTo(800);
+        assertThat(updated.maxActiveUsers()).isEqualTo(55);
+        assertThat(updated.enabledUsers()).isEqualTo(1);
+        assertThat(updated.totalUsers()).isEqualTo(2);
+        assertThat(updated.policyReference()).isEqualTo("audit-chain-2");
+        verify(tenantRuntimeEnforcementService).updatePolicy(
+                "ACME",
+                TenantRuntimeEnforcementService.TenantRuntimeState.BLOCKED,
+                "Manual override",
+                21,
+                800,
+                55,
+                null
+        );
+        ArgumentCaptor<Map<String, String>> metadataCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(auditService).logSuccess(eq(AuditEvent.CONFIGURATION_CHANGED), metadataCaptor.capture());
+        assertThat(metadataCaptor.getValue())
+                .containsEntry("companyCode", "ACME")
+                .containsEntry("oldHoldState", "ACTIVE")
+                .containsEntry("newHoldState", "BLOCKED")
+                .containsEntry("oldMaxActiveUsers", "250")
+                .containsEntry("newMaxActiveUsers", "55")
+                .containsEntry("changeReason", "Controlled rollout")
+                .containsEntry("policyReference", "audit-chain-2");
     }
 
     private void freezeTime(Instant now) {

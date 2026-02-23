@@ -85,7 +85,7 @@ public class AdminSettingsController {
     }
 
     @PutMapping("/tenant-runtime/policy")
-    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
+    @PreAuthorize("hasAuthority('ROLE_SUPER_ADMIN')")
     public ApiResponse<TenantRuntimeMetricsDto> updateTenantRuntimePolicy(
             @Valid @RequestBody TenantRuntimePolicyUpdateRequest request) {
         return ApiResponse.success("Tenant runtime policy updated", tenantRuntimePolicyService.updatePolicy(request));
