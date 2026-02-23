@@ -30,9 +30,12 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.test.util.ReflectionTestUtils;
 
 @ExtendWith(MockitoExtension.class)
 class TenantRuntimeEnforcementServiceTest {
+
+    private static final long ACME_ID = 1L;
 
     @Mock
     private CompanyRepository companyRepository;
@@ -60,6 +63,7 @@ class TenantRuntimeEnforcementServiceTest {
                 0,
                 60);
         Company acme = new Company();
+        ReflectionTestUtils.setField(acme, "id", ACME_ID);
         acme.setCode("ACME");
         companies.put("ACME", acme);
 
@@ -88,8 +92,8 @@ class TenantRuntimeEnforcementServiceTest {
 
     @Test
     void holdState_blocksMutatingRequests_andWritesAuditChain() {
-        settings.put("tenant.runtime.acme.state", "HOLD");
-        settings.put("tenant.runtime.acme.reason-code", "REVIEW_PENDING");
+        settings.put(keyHoldState(ACME_ID), "HOLD");
+        settings.put(keyHoldReason(ACME_ID), "REVIEW_PENDING");
 
         MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/v1/sales/orders");
 
@@ -97,14 +101,14 @@ class TenantRuntimeEnforcementServiceTest {
 
         assertThat(accessHandle.allowed()).isFalse();
         assertThat(accessHandle.httpStatus()).isEqualTo(423);
-        assertThat(accessHandle.reasonCode()).isEqualTo("TENANT_HOLD");
+        assertThat(accessHandle.reasonCode()).isEqualTo("TENANT_ON_HOLD");
         verify(auditService).logFailure(eq(AuditEvent.ACCESS_DENIED), anyMap());
         verify(enterpriseAuditTrailService).recordBusinessEvent(any(AuditActionEventCommand.class));
     }
 
     @Test
     void holdState_allowsReadOnlyRequests() {
-        settings.put("tenant.runtime.acme.state", "HOLD");
+        settings.put(keyHoldState(ACME_ID), "HOLD");
 
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/reports/trial-balance");
 
@@ -121,19 +125,19 @@ class TenantRuntimeEnforcementServiceTest {
 
     @Test
     void blockedState_blocksReadAndWriteRequests() {
-        settings.put("tenant.runtime.acme.state", "BLOCKED");
+        settings.put(keyHoldState(ACME_ID), "BLOCKED");
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/portal/dashboard");
 
         TenantRuntimeEnforcementService.AccessHandle accessHandle = service.acquire("ACME", request);
 
         assertThat(accessHandle.allowed()).isFalse();
-        assertThat(accessHandle.httpStatus()).isEqualTo(423);
+        assertThat(accessHandle.httpStatus()).isEqualTo(403);
         assertThat(accessHandle.reasonCode()).isEqualTo("TENANT_BLOCKED");
     }
 
     @Test
     void requestPerMinuteQuota_isEnforced() {
-        settings.put("tenant.runtime.acme.quota.max-requests-per-minute", "1");
+        settings.put(keyMaxRequestsPerMinute(ACME_ID), "1");
 
         MockHttpServletRequest request1 = new MockHttpServletRequest("GET", "/api/v1/portal/dashboard");
         MockHttpServletRequest request2 = new MockHttpServletRequest("GET", "/api/v1/portal/dashboard");
@@ -150,7 +154,7 @@ class TenantRuntimeEnforcementServiceTest {
 
     @Test
     void concurrentQuota_isEnforced_andReleasedOnClose() {
-        settings.put("tenant.runtime.acme.quota.max-concurrent", "1");
+        settings.put(keyMaxConcurrentRequests(ACME_ID), "1");
 
         MockHttpServletRequest request1 = new MockHttpServletRequest("GET", "/api/v1/portal/dashboard");
         MockHttpServletRequest request2 = new MockHttpServletRequest("GET", "/api/v1/portal/dashboard");
@@ -192,6 +196,46 @@ class TenantRuntimeEnforcementServiceTest {
     }
 
     @Test
+    void acquire_failsClosed_whenCompanyIdCannotBeResolved() {
+        Company unresolved = new Company();
+        unresolved.setCode("NOID");
+        companies.put("NOID", unresolved);
+
+        TenantRuntimeEnforcementService.AccessHandle accessHandle =
+                service.acquire("NOID", new MockHttpServletRequest("GET", "/api/v1/auth/me"));
+
+        assertThat(accessHandle.allowed()).isFalse();
+        assertThat(accessHandle.httpStatus()).isEqualTo(403);
+        assertThat(accessHandle.reasonCode()).isEqualTo("TENANT_NOT_FOUND");
+        verifyNoInteractions(auditService, enterpriseAuditTrailService);
+    }
+
+    @Test
+    void invalidPersistedHoldState_normalizesToBlockedFailClosed() {
+        settings.put(keyHoldState(ACME_ID), "mystery");
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/portal/dashboard");
+
+        TenantRuntimeEnforcementService.AccessHandle accessHandle = service.acquire("ACME", request);
+
+        assertThat(accessHandle.allowed()).isFalse();
+        assertThat(accessHandle.httpStatus()).isEqualTo(403);
+        assertThat(accessHandle.reasonCode()).isEqualTo("TENANT_BLOCKED");
+    }
+
+    @Test
+    void fallsBackToLegacyTenantCodeKeys_whenCompanyIdKeysAreAbsent() {
+        settings.put(legacyKey("acme", "state"), "HOLD");
+        settings.put(legacyKey("acme", "reason-code"), "LEGACY_HOLD");
+
+        TenantRuntimeEnforcementService.AccessHandle accessHandle =
+                service.acquire("ACME", new MockHttpServletRequest("POST", "/api/v1/private"));
+
+        assertThat(accessHandle.allowed()).isFalse();
+        assertThat(accessHandle.httpStatus()).isEqualTo(423);
+        assertThat(accessHandle.reasonCode()).isEqualTo("TENANT_ON_HOLD");
+    }
+
+    @Test
     void snapshotAndSnapshotAll_returnEmptyUntilTenantObserved() {
         assertThat(service.snapshot(null)).isEmpty();
         assertThat(service.snapshot("ACME")).isEmpty();
@@ -208,18 +252,18 @@ class TenantRuntimeEnforcementServiceTest {
 
     @Test
     void evictPolicyCache_forcesPolicyReloadOnNextRequest() {
-        settings.put("tenant.runtime.acme.state", "HOLD");
+        settings.put(keyHoldState(ACME_ID), "HOLD");
 
         TenantRuntimeEnforcementService.AccessHandle deniedWhileCached =
                 service.acquire("ACME", new MockHttpServletRequest("POST", "/api/v1/sales/orders"));
         assertThat(deniedWhileCached.allowed()).isFalse();
-        assertThat(deniedWhileCached.reasonCode()).isEqualTo("TENANT_HOLD");
+        assertThat(deniedWhileCached.reasonCode()).isEqualTo("TENANT_ON_HOLD");
 
-        settings.put("tenant.runtime.acme.state", "ACTIVE");
+        settings.put(keyHoldState(ACME_ID), "ACTIVE");
         TenantRuntimeEnforcementService.AccessHandle stillDeniedFromCache =
                 service.acquire("ACME", new MockHttpServletRequest("POST", "/api/v1/sales/orders"));
         assertThat(stillDeniedFromCache.allowed()).isFalse();
-        assertThat(stillDeniedFromCache.reasonCode()).isEqualTo("TENANT_HOLD");
+        assertThat(stillDeniedFromCache.reasonCode()).isEqualTo("TENANT_ON_HOLD");
 
         service.evictPolicyCache(" ACME ");
         TenantRuntimeEnforcementService.AccessHandle allowedAfterEviction =
@@ -231,7 +275,7 @@ class TenantRuntimeEnforcementServiceTest {
     @Test
     void denyPath_continuesWhenLegacyAuditWriteFails_andRestoresContext() {
         CompanyContextHolder.setCompanyCode("PREVIOUS_COMPANY");
-        settings.put("tenant.runtime.acme.state", "BLOCKED");
+        settings.put(keyHoldState(ACME_ID), "BLOCKED");
         doThrow(new RuntimeException("legacy-audit-down"))
                 .when(auditService)
                 .logFailure(eq(AuditEvent.ACCESS_DENIED), anyMap());
@@ -243,5 +287,25 @@ class TenantRuntimeEnforcementServiceTest {
         assertThat(denied.reasonCode()).isEqualTo("TENANT_BLOCKED");
         assertThat(CompanyContextHolder.getCompanyCode()).isEqualTo("PREVIOUS_COMPANY");
         verify(enterpriseAuditTrailService).recordBusinessEvent(any(AuditActionEventCommand.class));
+    }
+
+    private String keyHoldState(long companyId) {
+        return "tenant.runtime.hold-state." + companyId;
+    }
+
+    private String keyHoldReason(long companyId) {
+        return "tenant.runtime.hold-reason." + companyId;
+    }
+
+    private String keyMaxConcurrentRequests(long companyId) {
+        return "tenant.runtime.max-concurrent-requests." + companyId;
+    }
+
+    private String keyMaxRequestsPerMinute(long companyId) {
+        return "tenant.runtime.max-requests-per-minute." + companyId;
+    }
+
+    private String legacyKey(String tenantCodeToken, String suffix) {
+        return "tenant.runtime." + tenantCodeToken + "." + suffix;
     }
 }

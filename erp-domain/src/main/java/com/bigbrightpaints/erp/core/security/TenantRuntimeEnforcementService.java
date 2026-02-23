@@ -43,6 +43,13 @@ public class TenantRuntimeEnforcementService {
     private static final int HTTP_STATUS_TOO_MANY_REQUESTS = 429;
     private static final String SETTINGS_PREFIX = "tenant.runtime.";
     private static final String DEFAULT_TOKEN = "default";
+    private static final String LEGACY_SETTINGS_PREFIX = SETTINGS_PREFIX;
+    private static final String KEY_HOLD_STATE_PREFIX = SETTINGS_PREFIX + "hold-state.";
+    private static final String KEY_HOLD_REASON_PREFIX = SETTINGS_PREFIX + "hold-reason.";
+    private static final String KEY_MAX_CONCURRENT_REQUESTS_PREFIX = SETTINGS_PREFIX + "max-concurrent-requests.";
+    private static final String KEY_MAX_REQUESTS_PER_MINUTE_PREFIX = SETTINGS_PREFIX + "max-requests-per-minute.";
+    private static final String KEY_POLICY_REFERENCE_PREFIX = SETTINGS_PREFIX + "policy-reference.";
+    private static final String KEY_POLICY_UPDATED_AT_PREFIX = SETTINGS_PREFIX + "policy-updated-at.";
     private static final String MODULE = "tenant-control-plane";
     private static final String ACTION = "TENANT_RUNTIME_ENFORCEMENT_DENIED";
     private static final String ENTITY_TYPE = "TENANT";
@@ -92,19 +99,25 @@ public class TenantRuntimeEnforcementService {
                     "Access denied to company: " + normalizedCompanyCode,
                     "TENANT_NOT_FOUND");
         }
+        Long companyId = company.getId();
+        if (companyId == null) {
+            return AccessHandle.denied(HttpServletResponse.SC_FORBIDDEN,
+                    "Access denied to company: " + normalizedCompanyCode,
+                    "TENANT_NOT_FOUND");
+        }
         String tenantToken = normalizeTenantToken(normalizedCompanyCode);
         TenantRuntimeMetrics metrics = runtimeMetrics.computeIfAbsent(tenantToken,
                 key -> createMetrics(normalizedCompanyCode));
         metrics.totalRequests.incrementAndGet();
 
-        TenantRuntimePolicy policy = resolvePolicy(tenantToken);
+        TenantRuntimePolicy policy = resolvePolicy(tenantToken, companyId);
         if (policy.state() == TenantRuntimeState.BLOCKED) {
-            return deny(company, request, policy, metrics, HTTP_STATUS_TENANT_LOCKED,
-                    "TENANT_BLOCKED", "Tenant is blocked by platform control plane");
+            return deny(company, request, policy, metrics, HttpServletResponse.SC_FORBIDDEN,
+                    "TENANT_BLOCKED", "Tenant is currently blocked");
         }
         if (policy.state() == TenantRuntimeState.HOLD && isMutating(request.getMethod())) {
             return deny(company, request, policy, metrics, HTTP_STATUS_TENANT_LOCKED,
-                    "TENANT_HOLD", "Tenant is on hold for mutating operations");
+                    "TENANT_ON_HOLD", "Tenant is currently on hold");
         }
         if (policy.maxRequestsPerMinute() > 0 && !consumeRateQuota(metrics, policy.maxRequestsPerMinute())) {
             return deny(company, request, policy, metrics, HTTP_STATUS_TOO_MANY_REQUESTS,
@@ -151,7 +164,7 @@ public class TenantRuntimeEnforcementService {
                               String reasonCode,
                               String defaultMessage) {
         metrics.deniedRequests.incrementAndGet();
-        if ("TENANT_HOLD".equals(reasonCode)) {
+        if ("TENANT_ON_HOLD".equals(reasonCode)) {
             metrics.holdDeniedRequests.incrementAndGet();
         } else if ("TENANT_BLOCKED".equals(reasonCode)) {
             metrics.blockDeniedRequests.incrementAndGet();
@@ -237,40 +250,65 @@ public class TenantRuntimeEnforcementService {
         }
     }
 
-    private TenantRuntimePolicy resolvePolicy(String tenantToken) {
+    private TenantRuntimePolicy resolvePolicy(String tenantToken, Long companyId) {
         long nowMillis = System.currentTimeMillis();
         CachedPolicy cached = policyCache.get(tenantToken);
         if (cached != null && cached.expiresAtMillis() > nowMillis) {
             return cached.policy();
         }
-        TenantRuntimePolicy fresh = loadPolicy(tenantToken);
+        TenantRuntimePolicy fresh = loadPolicy(tenantToken, companyId);
         policyCache.put(tenantToken, new CachedPolicy(fresh, nowMillis + policyCacheTtlMillis));
         return fresh;
     }
 
-    private TenantRuntimePolicy loadPolicy(String tenantToken) {
+    private TenantRuntimePolicy loadPolicy(String tenantToken, Long companyId) {
+        String stateByCompanyId = setting(keyHoldState(companyId));
+        String reasonByCompanyId = setting(keyHoldReason(companyId));
+        String maxConcurrentByCompanyId = setting(keyMaxConcurrentRequests(companyId));
+        String maxRateByCompanyId = setting(keyMaxRequestsPerMinute(companyId));
+        String policyReferenceByCompanyId = setting(keyPolicyReference(companyId));
+        String policyUpdatedAtByCompanyId = setting(keyPolicyUpdatedAt(companyId));
+
+        boolean hasCompanyIdPolicy = StringUtils.hasText(stateByCompanyId)
+                || StringUtils.hasText(reasonByCompanyId)
+                || StringUtils.hasText(maxConcurrentByCompanyId)
+                || StringUtils.hasText(maxRateByCompanyId)
+                || StringUtils.hasText(policyReferenceByCompanyId)
+                || StringUtils.hasText(policyUpdatedAtByCompanyId);
+        if (hasCompanyIdPolicy) {
+            TenantRuntimeState tenantState = TenantRuntimeState.parse(stateByCompanyId, TenantRuntimeState.ACTIVE);
+            int maxConcurrent = parseNonNegative(maxConcurrentByCompanyId, defaultMaxConcurrentRequests);
+            int maxRate = parseNonNegative(maxRateByCompanyId, defaultMaxRequestsPerMinute);
+            String reasonCode = trimToNull(reasonByCompanyId);
+            return new TenantRuntimePolicy(tenantState, reasonCode, maxConcurrent, maxRate);
+        }
+
+        return loadLegacyPolicy(tenantToken);
+    }
+
+    private TenantRuntimePolicy loadLegacyPolicy(String tenantToken) {
         TenantRuntimeState defaultState = TenantRuntimeState.parse(
-                setting(key(DEFAULT_TOKEN, "state")),
+                setting(legacyKey(DEFAULT_TOKEN, "state")),
                 TenantRuntimeState.ACTIVE);
         TenantRuntimeState tenantState = TenantRuntimeState.parse(
-                setting(key(tenantToken, "state")),
+                setting(legacyKey(tenantToken, "state")),
                 defaultState);
 
         int defaultConcurrent = parseNonNegative(
-                setting(key(DEFAULT_TOKEN, "quota.max-concurrent")),
+                setting(legacyKey(DEFAULT_TOKEN, "quota.max-concurrent")),
                 defaultMaxConcurrentRequests);
         int maxConcurrent = parseNonNegative(
-                setting(key(tenantToken, "quota.max-concurrent")),
+                setting(legacyKey(tenantToken, "quota.max-concurrent")),
                 defaultConcurrent);
 
         int defaultRate = parseNonNegative(
-                setting(key(DEFAULT_TOKEN, "quota.max-requests-per-minute")),
+                setting(legacyKey(DEFAULT_TOKEN, "quota.max-requests-per-minute")),
                 defaultMaxRequestsPerMinute);
         int maxRate = parseNonNegative(
-                setting(key(tenantToken, "quota.max-requests-per-minute")),
+                setting(legacyKey(tenantToken, "quota.max-requests-per-minute")),
                 defaultRate);
 
-        String reasonCode = trimToNull(setting(key(tenantToken, "reason-code")));
+        String reasonCode = trimToNull(setting(legacyKey(tenantToken, "reason-code")));
         return new TenantRuntimePolicy(tenantState, reasonCode, maxConcurrent, maxRate);
     }
 
@@ -360,8 +398,32 @@ public class TenantRuntimeEnforcementService {
         }
     }
 
-    private String key(String tenantToken, String suffix) {
-        return SETTINGS_PREFIX + tenantToken + "." + suffix;
+    private String legacyKey(String tenantToken, String suffix) {
+        return LEGACY_SETTINGS_PREFIX + tenantToken + "." + suffix;
+    }
+
+    private String keyHoldState(Long companyId) {
+        return KEY_HOLD_STATE_PREFIX + companyId;
+    }
+
+    private String keyHoldReason(Long companyId) {
+        return KEY_HOLD_REASON_PREFIX + companyId;
+    }
+
+    private String keyMaxConcurrentRequests(Long companyId) {
+        return KEY_MAX_CONCURRENT_REQUESTS_PREFIX + companyId;
+    }
+
+    private String keyMaxRequestsPerMinute(Long companyId) {
+        return KEY_MAX_REQUESTS_PER_MINUTE_PREFIX + companyId;
+    }
+
+    private String keyPolicyReference(Long companyId) {
+        return KEY_POLICY_REFERENCE_PREFIX + companyId;
+    }
+
+    private String keyPolicyUpdatedAt(Long companyId) {
+        return KEY_POLICY_UPDATED_AT_PREFIX + companyId;
     }
 
     private String normalizeTenantToken(String companyCode) {
@@ -456,11 +518,13 @@ public class TenantRuntimeEnforcementService {
             if (!StringUtils.hasText(raw)) {
                 return fallback;
             }
-            try {
-                return TenantRuntimeState.valueOf(raw.trim().toUpperCase(Locale.ROOT));
-            } catch (IllegalArgumentException ex) {
-                return fallback;
-            }
+            String normalized = raw.trim().toUpperCase(Locale.ROOT);
+            return switch (normalized) {
+                case "ACTIVE" -> TenantRuntimeState.ACTIVE;
+                case "HOLD" -> TenantRuntimeState.HOLD;
+                case "BLOCKED" -> TenantRuntimeState.BLOCKED;
+                default -> TenantRuntimeState.BLOCKED;
+            };
         }
     }
 
