@@ -10,6 +10,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.bigbrightpaints.erp.core.audit.AuditService;
+import com.bigbrightpaints.erp.core.config.SystemSettingsRepository;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
 import com.bigbrightpaints.erp.modules.company.controller.CompanyController;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
@@ -193,15 +194,25 @@ class TS_RuntimeTenantPolicyControlExecutableCoverageTest {
     void tenantRuntimeEnforcementService_policyControl_and_updatePolicy_paths_are_executable() {
         com.bigbrightpaints.erp.modules.company.domain.CompanyRepository repository =
                 mock(com.bigbrightpaints.erp.modules.company.domain.CompanyRepository.class);
+        SystemSettingsRepository systemSettingsRepository = mock(SystemSettingsRepository.class);
         UserAccountRepository userAccountRepository = mock(UserAccountRepository.class);
         AuditService auditService = mock(AuditService.class);
         Company company = company(21L, "ACME");
         when(repository.findByCodeIgnoreCase("ACME")).thenReturn(Optional.of(company));
         when(repository.findByCodeIgnoreCase("UNKNOWN")).thenReturn(Optional.empty());
         when(userAccountRepository.countDistinctByCompanies_IdAndEnabledTrue(21L)).thenReturn(1L);
+        when(systemSettingsRepository.findById(any())).thenReturn(Optional.empty());
 
         TenantRuntimeEnforcementService service =
-                new TenantRuntimeEnforcementService(repository, userAccountRepository, auditService, 100, 100, 100);
+                new TenantRuntimeEnforcementService(
+                        repository,
+                        systemSettingsRepository,
+                        userAccountRepository,
+                        auditService,
+                        100,
+                        100,
+                        100,
+                        15);
 
         service.holdTenant("ACME", "manual-hold", "ops");
 
@@ -236,7 +247,7 @@ class TS_RuntimeTenantPolicyControlExecutableCoverageTest {
         TenantRuntimeEnforcementService.TenantRequestAdmission policyControl =
                 service.beginRequest("ACME", "/api/v1/admin/tenant-runtime/policy", "PUT", "super", true);
         assertThat(policyControl.isAdmitted()).isTrue();
-        service.completeRequest(policyControl, 200);
+        service.completeRequest(policyControl, 500);
         TenantRuntimeEnforcementService.TenantRequestAdmission nonPutPolicyControl =
                 service.beginRequest("ACME", "/api/v1/admin/tenant-runtime/policy", "PATCH", "super", true);
         assertThat(nonPutPolicyControl.isAdmitted()).isFalse();
@@ -263,7 +274,7 @@ class TS_RuntimeTenantPolicyControlExecutableCoverageTest {
         TenantRuntimeEnforcementService.TenantRequestAdmission canonicalPolicyControl =
                 service.beginRequest("ACME", "/api/v1/companies/21/tenant-runtime/policy/", "PUT", "super", true);
         assertThat(canonicalPolicyControl.isAdmitted()).isTrue();
-        service.completeRequest(canonicalPolicyControl, 200);
+        service.completeRequest(canonicalPolicyControl, 500);
 
         // Invalid canonical path falls back to normal hold rejection.
         TenantRuntimeEnforcementService.TenantRequestAdmission invalidCanonical =

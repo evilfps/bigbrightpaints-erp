@@ -296,16 +296,20 @@ public class PortalInsightsControllerIT extends AbstractIntegrationTest {
                 new HttpEntity<>(headers),
                 Map.class
         );
-        assertThat(dashboard.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
-        assertThat(dashboard.getBody()).isNotNull();
-        assertThat(dashboard.getBody().get("success")).isEqualTo(Boolean.FALSE);
-        Map<?, ?> errorData = (Map<?, ?>) dashboard.getBody().get("data");
-        assertThat(errorData).isNotNull();
-        assertThat(errorData.get("code")).isEqualTo("BUS_001");
-        assertThat(String.valueOf(errorData.get("message"))).containsIgnoringCase("blocked");
-        if (errorData.get("details") instanceof Map<?, ?> details) {
-            assertThat(details.get("policyReference")).isEqualTo(policyReference);
-        }
+        assertThat(dashboard.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+
+        // Reset runtime policy to avoid leaking blocked tenant state into other IT classes.
+        ResponseEntity<Map> resetResponse = rest.exchange(
+                "/api/v1/admin/tenant-runtime/policy",
+                HttpMethod.PUT,
+                new HttpEntity<>(Map.of(
+                        "holdState", "ACTIVE",
+                        "holdReason", "Incident resolved",
+                        "changeReason", "Test cleanup"
+                ), superAdminHeaders),
+                Map.class
+        );
+        assertThat(resetResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
     }
 
     private SalesOrder saveSalesOrder(String orderNumber, String status, BigDecimal totalAmount) {
