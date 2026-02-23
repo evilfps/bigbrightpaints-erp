@@ -905,6 +905,27 @@
       "quality_flake_monitor": true
     },
     {
+      "id": "ts-p2p-supplier-approval-coverage",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/p2p/TS_P2PSupplierApprovalCoverageTest.java",
+      "owner": "erp-domain-team",
+      "class": "critical",
+      "module": "P2P",
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-reconciliation",
+        "gate-quality"
+      ],
+      "tags": [
+        "critical",
+        "reconciliation"
+      ],
+      "accounting_math_critical": true,
+      "cross_module_critical": true,
+      "quality_flake_monitor": true
+    },
+    {
       "id": "ts-p2p-settlement-runtime",
       "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/p2p/TS_P2PSettlementRuntimeTest.java",
       "owner": "erp-domain-team",
@@ -968,6 +989,26 @@
     {
       "id": "ts-o2c-approval-runtime-coverage",
       "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/o2c/TS_truthsuite_o2c_Approval_RuntimeTest.java",
+      "owner": "erp-domain-team",
+      "class": "critical",
+      "module": "O2C",
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-reconciliation",
+        "gate-quality"
+      ],
+      "tags": [
+        "critical"
+      ],
+      "accounting_math_critical": true,
+      "cross_module_critical": true,
+      "quality_flake_monitor": true
+    },
+    {
+      "id": "ts-o2c-approval-decision-coverage",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/o2c/TS_O2CApprovalDecisionCoverageTest.java",
       "owner": "erp-domain-team",
       "class": "critical",
       "module": "O2C",
