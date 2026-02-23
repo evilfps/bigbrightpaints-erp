@@ -42,6 +42,18 @@ class TS_OrchestratorExactlyOnceOutboxTest {
     }
 
     @Test
+    void correlationIdentifiersPropagateAcrossSalesInventoryAndProductionLegs() {
+        TruthSuiteFileAssert.assertContains(
+                COMMAND_DISPATCHER,
+                "integrationCoordinator.reserveInventory(",
+                "integrationCoordinator.updateFulfillment(",
+                "integrationCoordinator.updateProductionStatus(",
+                "integrationCoordinator.releaseInventory(",
+                "integrationCoordinator.syncEmployees(",
+                "integrationCoordinator.generatePayroll(");
+    }
+
+    @Test
     void schemaContainsOrchestratorIdempotencyAndAuditIdentifiers() {
         TruthSuiteFileAssert.assertContains(
                 ORCH_IDEMPOTENCY_MIGRATION,

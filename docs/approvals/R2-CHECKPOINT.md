@@ -1,6 +1,6 @@
 # R2 Checkpoint (Active Approval Record)
 
-Last reviewed: 2026-02-15
+Last reviewed: 2026-02-21
 Owner: Security & Governance Agent
 Status: template-initialized
 
@@ -155,3 +155,61 @@ Update this file in every high-risk change set.
     - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/controller/AccountingController.java`
     - `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/controller/AccountingControllerIdempotencyHeaderParityTest.java`
     - `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/controller/AccountingControllerExceptionHandlerTest.java`
+
+## STAGE-102 Addendum (2026-02-21, release-ops)
+- Branch / PR: ticket branch `tkt-erp-stage-102` (release-ops lane) / PR #35 (https://github.com/anasibnanwar-XYE/bigbrightpaints-erp/pull/35)
+- High-risk paths:
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/company/controller/CompanyController.java`
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/company/service/CompanyService.java`
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingFacade.java`
+- Why this is R2: super-admin tenant update authorization and accounting purchase idempotency dedupe are fail-closed control boundaries and require proof-backed governance evidence.
+- Approval mode: orchestrator
+- Human escalation required: no
+- Rollback owner: release governance + company/accounting owners
+- Verification evidence:
+  - Commands run:
+    - `cd erp-domain && mvn -B -ntp -Dtest=CompanyServiceTest,AccountingFacadeTest test`
+    - `bash ci/check-enterprise-policy.sh`
+    - `cd erp-domain && mvn -B -ntp -Dtest=CompanyControllerIT test`
+  - Result summary: targeted service/unit suites passed (`Tests run: 25, Failures: 0, Errors: 0`); enterprise policy guard passed after this checkpoint update; integration test remained blocked on local environment runtime (`Could not find a valid Docker environment`, client API `1.32` vs daemon minimum `1.44`) with JaCoCo + JDK `25` instrumentation incompatibility (`Unsupported class file major version 69`).
+  - Artifacts/links:
+    - `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/company/service/CompanyServiceTest.java`
+    - `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingFacadeTest.java`
+    - `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/company/CompanyControllerIT.java`
+
+## STAGE-103 Addendum (2026-02-22, orchestrator-runtime-hotfix)
+- Branch / PR: `tickets-tkt-erp-stage-103-orchestrator-runtime-hotfix` / PR #44 (https://github.com/anasibnanwar-XYE/bigbrightpaints-erp/pull/44)
+- High-risk paths:
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/orchestrator/service/OrchestratorIdempotencyService.java`
+  - `erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeOrchestratorExecutableCoverageTest.java`
+- Why this is R2: orchestrator idempotency hash/fallback and canonical runtime decision wiring are high-risk reliability controls on order workflow execution.
+- Approval mode: orchestrator
+- Human escalation required: no
+- Rollback owner: release governance + orchestrator owner
+- Verification evidence:
+  - Commands run:
+    - `mvn -B -ntp -f erp-domain/pom.xml -s /Users/anas/Documents/orchestrator_erp/bigbrightpaints-erp_worktrees/chore/codex-cloud-testing/.mvn/settings.xml -Dtest='TS_RuntimeOrchestratorExecutableCoverageTest,TS_RuntimeOrchestratorIdempotencyExecutableCoverageTest' test`
+    - `bash ci/check-architecture.sh`
+    - `bash ci/check-enterprise-policy.sh`
+  - Result summary: targeted orchestrator truthsuite lane passed (`Tests run: 20, Failures: 0, Errors: 0`) and architecture/policy checks passed after this checkpoint update.
+- Artifacts/links:
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/orchestrator/service/OrchestratorIdempotencyService.java`
+  - `erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeOrchestratorExecutableCoverageTest.java`
+
+## STAGE-101 Addendum (2026-02-23, hr-domain)
+- Branch / PR: hr-domain branch for TKT-ERP-STAGE-101 / PR #49 (https://github.com/anasibnanwar-XYE/bigbrightpaints-erp/pull/49)
+- High-risk paths:
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/hr/service/PayrollService.java`
+- Why this is R2: payroll posting metadata completeness and period-boundary controls are fail-closed controls that protect accounting liability-clearing integrity.
+- Approval mode: orchestrator
+- Human escalation required: no
+- Rollback owner: release governance + payroll/accounting owners
+- Verification evidence:
+  - Commands run:
+    - `cd erp-domain && mvn -B -ntp -Dtest='*Payroll*' test`
+    - `bash scripts/verify_local.sh`
+    - `bash ci/check-enterprise-policy.sh`
+  - Result summary: targeted payroll suite passed and `verify_local` passed in the branch validation lane; enterprise-policy check updated to include this checkpoint evidence for high-risk payroll module changes.
+  - Artifacts/links:
+    - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/hr/service/PayrollService.java`
+    - `erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/payroll/TS_PayrollLiabilityClearingPolicyTest.java`

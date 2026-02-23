@@ -113,7 +113,7 @@ class TS_RuntimeOrchestratorExecutableCoverageTest {
 
         when(idempotencyService.start(eq("ORCH.ORDER.APPROVE"), eq("idem-order"), any(), any()))
                 .thenReturn(orderLease);
-        when(integrationCoordinator.reserveInventory("42", "C1"))
+        when(integrationCoordinator.reserveInventory("42", "C1", "trace-order", "idem-order"))
                 .thenReturn(new InventoryReservationResult(null, List.of()));
 
         String trace = dispatcher.approveOrder(
@@ -321,7 +321,7 @@ class TS_RuntimeOrchestratorExecutableCoverageTest {
                 1L, "ORCH.ORDER.APPROVE", "   ", "hash", "trace-failing");
         when(idempotencyService.start(eq("ORCH.ORDER.APPROVE"), eq("  idem-fallback  "), any(), any()))
                 .thenReturn(new OrchestratorIdempotencyService.CommandLease("trace-failing", failingApprove, true));
-        when(integrationCoordinator.reserveInventory("99", "C1"))
+        when(integrationCoordinator.reserveInventory("99", "C1", "trace-failing", "idem-fallback"))
                 .thenThrow(new RuntimeException("reserve failed"));
 
         assertThatThrownBy(() -> dispatcher.approveOrder(
@@ -381,7 +381,12 @@ class TS_RuntimeOrchestratorExecutableCoverageTest {
                 new OrchestratorIdempotencyService.CommandLease("trace-fulfillment", fulfillmentCommand, true);
         when(idempotencyService.start(eq("ORCH.ORDER.FULFILLMENT.UPDATE"), eq("idem-fulfillment"), any(), any()))
                 .thenReturn(lease);
-        when(integrationCoordinator.updateFulfillment("SO-900", "processing", "C1"))
+        when(integrationCoordinator.updateFulfillment(
+                "SO-900",
+                "processing",
+                "C1",
+                "trace-fulfillment",
+                "persisted-fulfillment-key"))
                 .thenReturn(new IntegrationCoordinator.AutoApprovalResult("processing", true));
 
         String trace = dispatcher.updateOrderFulfillment(
@@ -435,7 +440,12 @@ class TS_RuntimeOrchestratorExecutableCoverageTest {
                 new OrchestratorIdempotencyService.CommandLease("trace-auto", autoApproveCommand, true);
         when(idempotencyService.start(eq("ORCH.ORDER.AUTO_APPROVE"), eq("idem-auto"), any(), any()))
                 .thenReturn(lease);
-        when(integrationCoordinator.autoApproveOrder("SO-901", new BigDecimal("250.00"), "C1"))
+        when(integrationCoordinator.autoApproveOrder(
+                "SO-901",
+                new BigDecimal("250.00"),
+                "C1",
+                "trace-auto",
+                "persisted-auto-key"))
                 .thenReturn(new IntegrationCoordinator.AutoApprovalResult("READY_TO_SHIP", false));
 
         String trace = dispatcher.autoApproveOrder(

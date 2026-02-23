@@ -6,6 +6,7 @@ import com.bigbrightpaints.erp.modules.hr.dto.PayrollRunDto;
 import com.bigbrightpaints.erp.orchestrator.config.OrchestratorFeatureFlags;
 import com.bigbrightpaints.erp.orchestrator.dto.ApproveOrderRequest;
 import com.bigbrightpaints.erp.orchestrator.dto.DispatchRequest;
+import com.bigbrightpaints.erp.orchestrator.dto.OrderFulfillmentRequest;
 import com.bigbrightpaints.erp.orchestrator.dto.PayrollRunRequest;
 import com.bigbrightpaints.erp.orchestrator.event.DomainEvent;
 import com.bigbrightpaints.erp.orchestrator.exception.OrchestratorFeatureDisabledException;
@@ -69,7 +70,7 @@ class CommandDispatcherTest {
         ApproveOrderRequest request = new ApproveOrderRequest("101", "approver@bbp.com", new BigDecimal("5000"));
         InventoryShortage shortage = new InventoryShortage("SKU-1", BigDecimal.ONE, "Red Paint");
         InventoryReservationResult reservation = new InventoryReservationResult(null, List.of(shortage));
-        when(integrationCoordinator.reserveInventory("101", "COMP")).thenReturn(reservation);
+        when(integrationCoordinator.reserveInventory("101", "COMP", "trace-123", "idem-1")).thenReturn(reservation);
         when(idempotencyService.start(
                 ArgumentMatchers.eq("ORCH.ORDER.APPROVE"),
                 ArgumentMatchers.eq("idem-1"),
@@ -81,7 +82,7 @@ class CommandDispatcherTest {
 
         assertThat(traceId).isEqualTo("trace-123");
         verify(policyEnforcer).checkOrderApprovalPermissions("user-1", "COMP");
-        verify(integrationCoordinator).reserveInventory("101", "COMP");
+        verify(integrationCoordinator).reserveInventory("101", "COMP", "trace-123", "idem-1");
 
         ArgumentCaptor<DomainEvent> eventCaptor = ArgumentCaptor.forClass(DomainEvent.class);
         verify(eventPublisherService).enqueue(eventCaptor.capture());
@@ -114,6 +115,43 @@ class CommandDispatcherTest {
     }
 
     @Test
+    void updateOrderFulfillmentPropagatesTraceAndIdempotencyToCoordinator() {
+        OrchestratorCommand command =
+                new OrchestratorCommand(1L, "ORCH.ORDER.FULFILLMENT.UPDATE", "idem-fulfillment", "hash", "trace-fulfillment");
+        OrderFulfillmentRequest request = new OrderFulfillmentRequest("PROCESSING", "start");
+        when(idempotencyService.start(
+                ArgumentMatchers.eq("ORCH.ORDER.FULFILLMENT.UPDATE"),
+                ArgumentMatchers.eq("idem-fulfillment"),
+                ArgumentMatchers.any(),
+                ArgumentMatchers.any()))
+                .thenReturn(new OrchestratorIdempotencyService.CommandLease("trace-fulfillment", command, true));
+        when(integrationCoordinator.updateFulfillment(
+                "101",
+                "PROCESSING",
+                "COMP",
+                "trace-fulfillment",
+                "idem-fulfillment"))
+                .thenReturn(new IntegrationCoordinator.AutoApprovalResult("PROCESSING", false));
+
+        String traceId = commandDispatcher.updateOrderFulfillment(
+                "101",
+                request,
+                "idem-fulfillment",
+                "req-fulfillment",
+                "COMP",
+                "user-1");
+
+        assertThat(traceId).isEqualTo("trace-fulfillment");
+        verify(integrationCoordinator).updateFulfillment(
+                "101",
+                "PROCESSING",
+                "COMP",
+                "trace-fulfillment",
+                "idem-fulfillment");
+        verify(idempotencyService).markSuccess(command);
+    }
+
+    @Test
     void dispatchBatchFailsClosedWhenFactoryDispatchDisabled() {
         CommandDispatcher disabledDispatcher = new CommandDispatcher(
                 workflowService,
@@ -137,7 +175,17 @@ class CommandDispatcherTest {
                 .isInstanceOf(OrchestratorFeatureDisabledException.class);
 
         verify(integrationCoordinator, never()).updateProductionStatus(ArgumentMatchers.anyString(), ArgumentMatchers.anyString());
+        verify(integrationCoordinator, never()).updateProductionStatus(
+                ArgumentMatchers.anyString(),
+                ArgumentMatchers.anyString(),
+                ArgumentMatchers.anyString(),
+                ArgumentMatchers.anyString());
         verify(integrationCoordinator, never()).releaseInventory(ArgumentMatchers.anyString(), ArgumentMatchers.anyString());
+        verify(integrationCoordinator, never()).releaseInventory(
+                ArgumentMatchers.anyString(),
+                ArgumentMatchers.anyString(),
+                ArgumentMatchers.anyString(),
+                ArgumentMatchers.anyString());
         verify(integrationCoordinator, never()).postDispatchJournal(ArgumentMatchers.anyString(), ArgumentMatchers.anyString(), ArgumentMatchers.any());
         verify(integrationCoordinator, never()).postDispatchJournal(
                 ArgumentMatchers.anyString(),
@@ -230,7 +278,17 @@ class CommandDispatcherTest {
                 .isInstanceOf(OrchestratorFeatureDisabledException.class);
 
         verify(integrationCoordinator, never()).syncEmployees(ArgumentMatchers.anyString());
+        verify(integrationCoordinator, never()).syncEmployees(
+                ArgumentMatchers.anyString(),
+                ArgumentMatchers.anyString(),
+                ArgumentMatchers.anyString());
         verify(integrationCoordinator, never()).generatePayroll(ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.anyString());
+        verify(integrationCoordinator, never()).generatePayroll(
+                ArgumentMatchers.any(),
+                ArgumentMatchers.any(),
+                ArgumentMatchers.anyString(),
+                ArgumentMatchers.anyString(),
+                ArgumentMatchers.anyString());
         verify(integrationCoordinator, never()).recordPayrollPayment(ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.anyString());
         verify(integrationCoordinator, never()).recordPayrollPayment(
                 ArgumentMatchers.any(),
@@ -269,7 +327,17 @@ class CommandDispatcherTest {
                 .hasMessageContaining("greater than zero for dispatch");
 
         verify(integrationCoordinator, never()).updateProductionStatus(ArgumentMatchers.anyString(), ArgumentMatchers.anyString());
+        verify(integrationCoordinator, never()).updateProductionStatus(
+                ArgumentMatchers.anyString(),
+                ArgumentMatchers.anyString(),
+                ArgumentMatchers.anyString(),
+                ArgumentMatchers.anyString());
         verify(integrationCoordinator, never()).releaseInventory(ArgumentMatchers.anyString(), ArgumentMatchers.anyString());
+        verify(integrationCoordinator, never()).releaseInventory(
+                ArgumentMatchers.anyString(),
+                ArgumentMatchers.anyString(),
+                ArgumentMatchers.anyString(),
+                ArgumentMatchers.anyString());
         verify(integrationCoordinator, never()).postDispatchJournal(ArgumentMatchers.anyString(), ArgumentMatchers.anyString(), ArgumentMatchers.any());
         verify(idempotencyService).markFailed(
                 ArgumentMatchers.eq(command),
@@ -319,7 +387,17 @@ class CommandDispatcherTest {
                 .hasMessageContaining("greater than zero for payroll");
 
         verify(integrationCoordinator, never()).syncEmployees(ArgumentMatchers.anyString());
+        verify(integrationCoordinator, never()).syncEmployees(
+                ArgumentMatchers.anyString(),
+                ArgumentMatchers.anyString(),
+                ArgumentMatchers.anyString());
         verify(integrationCoordinator, never()).generatePayroll(ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.anyString());
+        verify(integrationCoordinator, never()).generatePayroll(
+                ArgumentMatchers.any(),
+                ArgumentMatchers.any(),
+                ArgumentMatchers.anyString(),
+                ArgumentMatchers.anyString(),
+                ArgumentMatchers.anyString());
         verify(integrationCoordinator, never()).recordPayrollPayment(ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.anyString());
         verify(integrationCoordinator, never()).recordPayrollPayment(
                 ArgumentMatchers.any(),
@@ -408,8 +486,8 @@ class CommandDispatcherTest {
 
         assertThat(traceId).isEqualTo("trace-dispatch");
         verify(policyEnforcer).checkDispatchPermissions("user-1", "COMP");
-        verify(integrationCoordinator).updateProductionStatus("77", "COMP");
-        verify(integrationCoordinator).releaseInventory("77", "COMP");
+        verify(integrationCoordinator).updateProductionStatus("77", "COMP", "trace-dispatch", "idem-dispatch");
+        verify(integrationCoordinator).releaseInventory("77", "COMP", "trace-dispatch", "idem-dispatch");
         verify(integrationCoordinator).postDispatchJournal(
                 "77",
                 "COMP",
@@ -431,14 +509,19 @@ class CommandDispatcherTest {
                 ArgumentMatchers.eq(request),
                 ArgumentMatchers.any()))
                 .thenReturn(new OrchestratorIdempotencyService.CommandLease("trace-payroll", command, true));
-        when(integrationCoordinator.generatePayroll(payrollDate, postingAmount, "COMP"))
+        when(integrationCoordinator.generatePayroll(
+                payrollDate,
+                postingAmount,
+                "COMP",
+                "trace-payroll",
+                "idem-payroll"))
                 .thenReturn(new PayrollRunDto(55L, null, payrollDate, "COMPLETED", "orch", null, postingAmount, null, "idem-payroll"));
 
         String traceId = commandDispatcher.runPayroll(request, "idem-payroll", "req-payroll", "COMP", "user-1");
 
         assertThat(traceId).isEqualTo("trace-payroll");
         verify(policyEnforcer).checkPayrollPermissions("user-1", "COMP");
-        verify(integrationCoordinator).syncEmployees("COMP");
+        verify(integrationCoordinator).syncEmployees("COMP", "trace-payroll", "idem-payroll");
         verify(integrationCoordinator).recordPayrollPayment(
                 55L,
                 postingAmount,
@@ -460,7 +543,8 @@ class CommandDispatcherTest {
                 ArgumentMatchers.any()))
                 .thenReturn(new OrchestratorIdempotencyService.CommandLease("trace-999", command, true));
         IntegrationCoordinator.AutoApprovalResult result = new IntegrationCoordinator.AutoApprovalResult("READY_TO_SHIP", false);
-        when(integrationCoordinator.autoApproveOrder("101", new BigDecimal("5000"), "COMP")).thenReturn(result);
+        when(integrationCoordinator.autoApproveOrder("101", new BigDecimal("5000"), "COMP", "trace-999", "auto-1"))
+                .thenReturn(result);
 
         String traceId = commandDispatcher.autoApproveOrder("101", new BigDecimal("5000"), "COMP", "auto-1", "req-9");
 
@@ -488,7 +572,7 @@ class CommandDispatcherTest {
         OrchestratorCommand command =
                 new OrchestratorCommand(1L, "ORCH.ORDER.APPROVE", "idem-canonical", "hash", "trace-canonical");
         ApproveOrderRequest request = new ApproveOrderRequest("201", "approver@bbp.com", new BigDecimal("1200"));
-        when(integrationCoordinator.reserveInventory("201", "COMP"))
+        when(integrationCoordinator.reserveInventory("201", "COMP", "trace-canonical", "idem-canonical"))
                 .thenReturn(new InventoryReservationResult(null, List.of()));
         when(idempotencyService.start(
                 ArgumentMatchers.eq("ORCH.ORDER.APPROVE"),

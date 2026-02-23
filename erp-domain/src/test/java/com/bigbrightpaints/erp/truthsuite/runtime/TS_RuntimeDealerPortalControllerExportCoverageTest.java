@@ -7,7 +7,12 @@ import static org.mockito.Mockito.when;
 
 import com.bigbrightpaints.erp.core.audit.AuditEvent;
 import com.bigbrightpaints.erp.core.audit.AuditService;
+import com.bigbrightpaints.erp.core.config.SystemSettingsRepository;
+import com.bigbrightpaints.erp.modules.admin.service.TenantRuntimePolicyService;
+import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
+import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.invoice.service.InvoicePdfService;
+import com.bigbrightpaints.erp.modules.portal.service.TenantRuntimeEnforcementInterceptor;
 import com.bigbrightpaints.erp.modules.sales.controller.DealerPortalController;
 import com.bigbrightpaints.erp.modules.sales.service.DealerPortalService;
 import com.bigbrightpaints.erp.modules.sales.service.SalesService;
@@ -15,6 +20,7 @@ import java.util.Map;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.test.util.ReflectionTestUtils;
 
 @Tag("critical")
 class TS_RuntimeDealerPortalControllerExportCoverageTest {
@@ -61,5 +67,41 @@ class TS_RuntimeDealerPortalControllerExportCoverageTest {
                 .containsEntry("operation", "EXPORT")
                 .containsEntry("format", "pdf")
                 .containsEntry("fileName", "");
+    }
+
+    @Test
+    void tenantRuntimePolicyService_normalizeHoldState_failClosed_forMalformedValues() {
+        TenantRuntimePolicyService service = new TenantRuntimePolicyService(
+                org.mockito.Mockito.mock(CompanyContextService.class),
+                org.mockito.Mockito.mock(SystemSettingsRepository.class),
+                org.mockito.Mockito.mock(UserAccountRepository.class),
+                org.mockito.Mockito.mock(AuditService.class));
+
+        String normalizedNull = (String) ReflectionTestUtils.invokeMethod(service, "normalizeHoldState", (String) null);
+        String normalizedActive = (String) ReflectionTestUtils.invokeMethod(service, "normalizeHoldState", "ACTIVE");
+        String normalizedPaused = (String) ReflectionTestUtils.invokeMethod(service, "normalizeHoldState", "PAUSED");
+
+        assertThat(normalizedNull).isEqualTo("ACTIVE");
+        assertThat(normalizedActive).isEqualTo("ACTIVE");
+        assertThat(normalizedPaused).isEqualTo("BLOCKED");
+    }
+
+    @Test
+    void tenantRuntimeInterceptor_normalizeHoldState_failClosed_forMalformedValues() {
+        TenantRuntimeEnforcementInterceptor interceptor = new TenantRuntimeEnforcementInterceptor(
+                org.mockito.Mockito.mock(CompanyContextService.class),
+                org.mockito.Mockito.mock(SystemSettingsRepository.class),
+                org.mockito.Mockito.mock(AuditService.class));
+
+        String normalizedNull =
+                (String) ReflectionTestUtils.invokeMethod(interceptor, "normalizeHoldState", (String) null);
+        String normalizedActive =
+                (String) ReflectionTestUtils.invokeMethod(interceptor, "normalizeHoldState", "ACTIVE");
+        String normalizedPaused =
+                (String) ReflectionTestUtils.invokeMethod(interceptor, "normalizeHoldState", "PAUSED");
+
+        assertThat(normalizedNull).isEqualTo("ACTIVE");
+        assertThat(normalizedActive).isEqualTo("ACTIVE");
+        assertThat(normalizedPaused).isEqualTo("BLOCKED");
     }
 }

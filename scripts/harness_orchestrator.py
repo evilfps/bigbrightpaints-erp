@@ -522,11 +522,45 @@ def write_packet_files(repo_root: Path, ticket: dict[str, Any], slice_data: dict
 
     preferred_role = str(slice_data.get("multi_agent_role", "")).strip()
     preferred_config_file = str(slice_data.get("multi_agent_config_file", "")).strip()
+    ticket_title = str(ticket.get("title", "")).strip()
+    ticket_goal = str(ticket.get("goal", "")).strip()
+    objective = str(slice_data.get("objective", ticket_goal or "Unspecified objective")).strip()
+    problem_statement = str(
+        slice_data.get("problem_statement", ticket.get("problem_statement", objective))
+    ).strip() or objective
+    task_summary = str(slice_data.get("task_summary", objective)).strip() or objective
+    expected_outcome = str(
+        slice_data.get(
+            "expected_outcome",
+            ticket.get("expected_outcome", "Required checks pass and acceptance criteria are satisfied."),
+        )
+    ).strip()
+
+    acceptance_criteria = [
+        str(x).strip()
+        for x in slice_data.get("acceptance_criteria", ticket.get("acceptance_criteria", []))
+        if str(x).strip()
+    ]
+    non_goals = [
+        str(x).strip()
+        for x in slice_data.get("non_goals", ticket.get("non_goals", []))
+        if str(x).strip()
+    ]
 
     prompt_lines = [
         f"You are `{slice_data['primary_agent']}`.",
         f"Start your first line with: `I am {slice_data['primary_agent']} and I own {sid}.`",
+        f"Ticket title: {ticket_title or 'unspecified'}",
+        f"Problem statement: {problem_statement}",
+        f"Task to solve: {task_summary}",
+        f"Expected outcome: {expected_outcome}",
         "Implement this slice with minimal safe patching and proof-backed output.",
+        "",
+        "Execution minimum:",
+        "- diagnose current behavior in the requested focus paths",
+        "- implement the root-cause fix in allowed scope",
+        "- add/adjust tests that prove acceptance criteria",
+        "- run required checks and report evidence",
         "",
         "Required output:",
         "- identity",
@@ -555,8 +589,19 @@ Lane: `{slice_data['lane']}`
 Branch: `{slice_data['branch']}`
 Worktree: `{slice_data['worktree_path']}`
 
+## Ticket Context
+- title: {ticket_title or 'unspecified'}
+- goal: {ticket_goal or 'unspecified'}
+
+## Problem Statement
+{problem_statement}
+
+## Task To Solve
+- {task_summary}
+- Expected outcome: {expected_outcome}
+
 ## Objective
-{slice_data.get('objective', ticket.get('goal', 'Unspecified objective'))}
+{objective}
 
 """
     if preferred_role:
@@ -576,14 +621,17 @@ Worktree: `{slice_data['worktree_path']}`
     for p in slice_data.get("scope_paths", []):
         packet += f"- `{p}`\n"
 
-    acceptance_criteria = [
-        str(x).strip()
-        for x in slice_data.get("acceptance_criteria", ticket.get("acceptance_criteria", []))
-        if str(x).strip()
-    ]
     if acceptance_criteria:
         packet += "\n## Acceptance Criteria\n"
         for item in acceptance_criteria:
+            packet += f"- {item}\n"
+    else:
+        packet += "\n## Acceptance Criteria\n"
+        packet += "- No explicit criteria in ticket YAML. Treat required checks and objective as DoD.\n"
+
+    if non_goals:
+        packet += "\n## Non-Goals\n"
+        for item in non_goals:
             packet += f"- {item}\n"
 
     upstream_slices = [str(x).strip() for x in slice_data.get("workflow_upstream_slices", []) if str(x).strip()]

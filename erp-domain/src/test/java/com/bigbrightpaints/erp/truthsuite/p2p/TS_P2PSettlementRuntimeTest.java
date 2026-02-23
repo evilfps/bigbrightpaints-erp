@@ -14,6 +14,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @Tag("critical")
 @Tag("reconciliation")
@@ -181,6 +182,32 @@ class TS_P2PSettlementRuntimeTest {
     @Test
     void settlementOverrideFailsClosedWhenSupplierExceptionApprovalMissing() {
         assertThrows(IllegalStateException.class, () -> policy.requireSupplierExceptionApproval(null));
+    }
+
+    @Test
+    void settlementIsIdempotentByReference() {
+        policy.applySettlement(invoice, BigDecimal.valueOf(40), "SETTLE-REF-110");
+        policy.applySettlement(invoice, BigDecimal.valueOf(10), "SETTLE-REF-110");
+
+        assertEquals(BigDecimal.valueOf(60), invoice.getOutstandingAmount());
+        assertEquals(InvoiceSettlementPolicy.InvoiceStatus.PARTIAL.name(), invoice.getStatus());
+        assertEquals(1, invoice.getPaymentReferences().size());
+        assertTrue(invoice.getPaymentReferences().contains("SETTLE-REF-110"));
+    }
+
+    @Test
+    void settlementFailsClosedOnVoidAndReversedInvoices() {
+        invoice.setStatus(InvoiceSettlementPolicy.InvoiceStatus.VOID.name());
+        assertThrows(IllegalStateException.class,
+                () -> policy.applySettlement(invoice, BigDecimal.valueOf(10), "SETTLE-VOID-111"));
+        assertEquals(BigDecimal.valueOf(100), invoice.getOutstandingAmount());
+        assertEquals(0, invoice.getPaymentReferences().size());
+
+        invoice.setStatus(InvoiceSettlementPolicy.InvoiceStatus.REVERSED.name());
+        assertThrows(IllegalStateException.class,
+                () -> policy.applySettlement(invoice, BigDecimal.valueOf(10), "SETTLE-REV-111"));
+        assertEquals(BigDecimal.valueOf(100), invoice.getOutstandingAmount());
+        assertEquals(0, invoice.getPaymentReferences().size());
     }
 
     private SettlementApprovalDecision approvedOverride(String approvalId) {

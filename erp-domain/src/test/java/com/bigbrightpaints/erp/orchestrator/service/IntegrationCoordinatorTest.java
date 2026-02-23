@@ -8,11 +8,13 @@ import com.bigbrightpaints.erp.modules.accounting.dto.PayrollPaymentRequest;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingService;
 import com.bigbrightpaints.erp.modules.accounting.service.CompanyDefaultAccountsService;
+import com.bigbrightpaints.erp.modules.factory.dto.ProductionBatchRequest;
 import com.bigbrightpaints.erp.modules.factory.service.FactoryService;
 import com.bigbrightpaints.erp.modules.hr.service.HrService;
 import com.bigbrightpaints.erp.modules.invoice.service.InvoiceService;
 import com.bigbrightpaints.erp.modules.inventory.service.FinishedGoodsService;
 import com.bigbrightpaints.erp.modules.inventory.service.FinishedGoodsService.InventoryReservationResult;
+import com.bigbrightpaints.erp.modules.inventory.service.FinishedGoodsService.InventoryShortage;
 import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrder;
 import com.bigbrightpaints.erp.modules.sales.service.SalesJournalService;
@@ -25,6 +27,7 @@ import com.bigbrightpaints.erp.orchestrator.repository.OrderAutoApprovalState;
 import com.bigbrightpaints.erp.orchestrator.repository.OrderAutoApprovalStateRepository;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.AfterEach;
@@ -43,6 +46,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -151,6 +155,32 @@ class IntegrationCoordinatorTest {
         verify(salesService).updateOrchestratorWorkflowStatus(ORDER_ID, "READY_TO_SHIP");
         verify(salesService, never()).updateOrchestratorWorkflowStatus(ORDER_ID, "SHIPPED");
         verify(salesService, never()).confirmDispatch(any());
+    }
+
+    @Test
+    void autoApproveOrderAttachesTraceWithinProvidedCompanyContext() {
+        InventoryReservationResult reservation = new InventoryReservationResult(null, List.of());
+        when(salesService.getOrderWithItems(ORDER_ID)).thenReturn(order);
+        when(finishedGoodsService.reserveForOrder(order)).thenReturn(reservation);
+
+        List<String> contextsDuringAttach = new ArrayList<>();
+        doAnswer(invocation -> {
+            contextsDuringAttach.add(CompanyContextHolder.getCompanyCode());
+            return null;
+        }).when(salesService).attachTraceId(ORDER_ID, "trace-auto-42");
+
+        CompanyContextHolder.setCompanyCode("AMBIENT-COMPANY");
+
+        integrationCoordinator.autoApproveOrder(
+                String.valueOf(ORDER_ID),
+                new BigDecimal("1500"),
+                "  " + COMPANY_ID + "  ",
+                "trace-auto-42",
+                null);
+
+        assertThat(contextsDuringAttach).isNotEmpty();
+        assertThat(contextsDuringAttach).allMatch(COMPANY_ID::equals);
+        assertThat(CompanyContextHolder.getCompanyCode()).isEqualTo("AMBIENT-COMPANY");
     }
 
     @Test
@@ -376,6 +406,49 @@ class IntegrationCoordinatorTest {
                 eq(20L),
                 eq(new BigDecimal("120.00")),
                 eq(false));
+    }
+
+    @Test
+    void reserveInventoryCorrelationAnnotatesProductionArtifactsAndAttachesTrace() {
+        order.setOrderNumber("SO-42");
+        InventoryShortage shortage = new InventoryShortage("SKU-1", new BigDecimal("3"), "Red Paint");
+        InventoryReservationResult reservation = new InventoryReservationResult(null, List.of(shortage));
+        when(salesService.getOrderWithItems(ORDER_ID)).thenReturn(order);
+        when(finishedGoodsService.reserveForOrder(order)).thenReturn(reservation);
+
+        integrationCoordinator.reserveInventory(
+                String.valueOf(ORDER_ID),
+                COMPANY_ID,
+                "trace-order-42",
+                "idem-order-42");
+
+        verify(salesService).attachTraceId(ORDER_ID, "trace-order-42");
+        verify(factoryService).createPlan(argThat(plan ->
+                plan != null
+                        && plan.notes() != null
+                        && plan.notes().contains("[trace=trace-order-42]")
+                        && plan.notes().contains("[idem=idem-order-42]")));
+        verify(factoryService).createTask(argThat(task ->
+                task != null
+                        && task.description() != null
+                        && task.description().contains("[trace=trace-order-42]")
+                        && task.description().contains("[idem=idem-order-42]")));
+    }
+
+    @Test
+    void releaseInventoryPropagatesTraceAndIdempotencyInBatchNotes() {
+        integrationCoordinator.releaseInventory(
+                "B-901",
+                COMPANY_ID,
+                "trace-release-901",
+                "idem-release-901");
+
+        verify(factoryService).logBatch(eq(null), argThat((ProductionBatchRequest request) ->
+                request != null
+                        && request.notes() != null
+                        && request.notes().contains("Auto release for dispatch B-901")
+                        && request.notes().contains("[trace=trace-release-901]")
+                        && request.notes().contains("[idem=idem-release-901]")));
     }
 
     @Test

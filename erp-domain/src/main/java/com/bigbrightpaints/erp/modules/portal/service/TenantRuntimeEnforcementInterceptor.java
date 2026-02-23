@@ -206,13 +206,13 @@ public class TenantRuntimeEnforcementInterceptor implements HandlerInterceptor {
     }
 
     private String normalizeHoldState(String raw) {
-        if (!StringUtils.hasText(raw)) {
+        if (raw == null) {
             return HOLD_STATE_ACTIVE;
         }
         String normalized = raw.trim().toUpperCase(Locale.ROOT);
         return switch (normalized) {
             case HOLD_STATE_ACTIVE, HOLD_STATE_HOLD, HOLD_STATE_BLOCKED -> normalized;
-            default -> HOLD_STATE_ACTIVE;
+            default -> HOLD_STATE_BLOCKED;
         };
     }
 

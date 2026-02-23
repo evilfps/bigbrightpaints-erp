@@ -122,4 +122,31 @@ public class CompanyControllerIT extends AbstractIntegrationTest {
                 Map.class);
         assertThat(superAdminResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
     }
+
+    @Test
+    void tenant_configuration_update_allows_super_admin_outside_target_tenant_membership() {
+        Long companyId = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow().getId();
+        String rootOnlySuperAdminEmail = "root-only-super-admin@bbp.com";
+        dataSeeder.ensureUser(rootOnlySuperAdminEmail, ADMIN_PASSWORD, "Root Only Super Admin", ROOT_COMPANY_CODE,
+                java.util.List.of("ROLE_SUPER_ADMIN", "ROLE_ADMIN"));
+        Map<String, Object> updateRequest = Map.of(
+                "name", "Config Updated By Root",
+                "code", COMPANY_CODE,
+                "timezone", "UTC",
+                "defaultGstRate", 18.0
+        );
+
+        String superAdminRootToken = loginToken(rootOnlySuperAdminEmail, ROOT_COMPANY_CODE);
+        HttpHeaders rootHeaders = new HttpHeaders();
+        rootHeaders.setBearerAuth(superAdminRootToken);
+        rootHeaders.setContentType(MediaType.APPLICATION_JSON);
+        rootHeaders.set("X-Company-Code", ROOT_COMPANY_CODE);
+        ResponseEntity<Map> response = rest.exchange(
+                "/api/v1/companies/" + companyId,
+                HttpMethod.PUT,
+                new HttpEntity<>(updateRequest, rootHeaders),
+                Map.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+    }
 }

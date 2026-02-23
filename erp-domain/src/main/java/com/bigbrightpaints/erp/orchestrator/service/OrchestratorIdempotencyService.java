@@ -180,12 +180,7 @@ public class OrchestratorIdempotencyService {
     }
 
     private String hashRequest(Long companyId, String commandName, Object requestPayload) {
-        String json;
-        try {
-            json = hashMapper.writeValueAsString(requestPayload);
-        } catch (JsonProcessingException ex) {
-            json = String.valueOf(requestPayload);
-        }
+        String json = serializeRequestPayload(commandName, requestPayload);
         String material = companyId + "|" + commandName + "|" + json;
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
@@ -193,6 +188,16 @@ public class OrchestratorIdempotencyService {
             return HexFormat.of().formatHex(hash);
         } catch (Exception ex) {
             return Integer.toHexString(material.hashCode());
+        }
+    }
+
+    private String serializeRequestPayload(String commandName, Object requestPayload) {
+        try {
+            return hashMapper.writeValueAsString(requestPayload);
+        } catch (JsonProcessingException ex) {
+            throw new IllegalStateException(
+                    "Unable to deterministically hash orchestrator payload for command " + commandName,
+                    ex);
         }
     }
 }

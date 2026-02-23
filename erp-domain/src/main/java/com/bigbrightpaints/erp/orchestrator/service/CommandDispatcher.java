@@ -70,7 +70,11 @@ public class CommandDispatcher {
         String canonicalIdempotencyKey = leaseEnvelope.canonicalIdempotencyKey();
         return executeWithLease(lease, () -> {
             String traceId = lease.traceId();
-            InventoryReservationResult reservation = integrationCoordinator.reserveInventory(request.orderId(), companyId);
+            InventoryReservationResult reservation = integrationCoordinator.reserveInventory(
+                    request.orderId(),
+                    companyId,
+                    traceId,
+                    canonicalIdempotencyKey);
             boolean awaitingProduction = reservation != null && !reservation.shortages().isEmpty();
             String orderStatus = awaitingProduction ? "PENDING_PRODUCTION" : "READY_TO_SHIP";
             DomainEvent event = DomainEvent.of("OrderApprovedEvent", companyId, userId, "Order", request.orderId(),
@@ -109,7 +113,12 @@ public class CommandDispatcher {
         return executeWithLease(lease, () -> {
             String traceId = lease.traceId();
             IntegrationCoordinator.AutoApprovalResult result =
-                    integrationCoordinator.autoApproveOrder(orderId, totalAmount, companyId);
+                    integrationCoordinator.autoApproveOrder(
+                            orderId,
+                            totalAmount,
+                            companyId,
+                            traceId,
+                            canonicalIdempotencyKey);
             DomainEvent event = DomainEvent.of("OrderAutoApprovedEvent", companyId, "system", "Order", orderId,
                     Map.of("orderStatus", result.orderStatus(),
                             "awaitingProduction", result.awaitingProduction(),
@@ -147,7 +156,12 @@ public class CommandDispatcher {
         return executeWithLease(lease, () -> {
             String traceId = lease.traceId();
             IntegrationCoordinator.AutoApprovalResult result =
-                    integrationCoordinator.updateFulfillment(orderId, request.status(), companyId);
+                    integrationCoordinator.updateFulfillment(
+                            orderId,
+                            request.status(),
+                            companyId,
+                            traceId,
+                            canonicalIdempotencyKey);
             Map<String, Object> payload = new HashMap<>();
             payload.put("status", request.status());
             payload.put("awaitingProduction", result.awaitingProduction());
@@ -199,8 +213,16 @@ public class CommandDispatcher {
                 featureFlags::isFactoryDispatchEnabled,
                 () -> {
             String traceId = lease.traceId();
-            integrationCoordinator.updateProductionStatus(request.batchId(), companyId);
-            integrationCoordinator.releaseInventory(request.batchId(), companyId);
+            integrationCoordinator.updateProductionStatus(
+                    request.batchId(),
+                    companyId,
+                    traceId,
+                    canonicalIdempotencyKey);
+            integrationCoordinator.releaseInventory(
+                    request.batchId(),
+                    companyId,
+                    traceId,
+                    canonicalIdempotencyKey);
             integrationCoordinator.postDispatchJournal(
                     request.batchId(),
                     companyId,
@@ -251,8 +273,13 @@ public class CommandDispatcher {
                 featureFlags::isPayrollEnabled,
                 () -> {
             String traceId = lease.traceId();
-            integrationCoordinator.syncEmployees(companyId);
-            var payrollRun = integrationCoordinator.generatePayroll(request.payrollDate(), request.postingAmount(), companyId);
+            integrationCoordinator.syncEmployees(companyId, traceId, canonicalIdempotencyKey);
+            var payrollRun = integrationCoordinator.generatePayroll(
+                    request.payrollDate(),
+                    request.postingAmount(),
+                    companyId,
+                    traceId,
+                    canonicalIdempotencyKey);
             integrationCoordinator.recordPayrollPayment(
                     payrollRun.id(),
                     request.postingAmount(),
