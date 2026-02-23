@@ -1,12 +1,12 @@
 {
   "gate": "gate-reconciliation",
-  "reports_dir": "/home/realnigga/Desktop/orchestrator_erp/erp-domain/target/surefire-reports",
-  "report_files": 25,
-  "tests": 97,
+  "reports_dir": "/Users/anas/Documents/orchestrator_erp/bigbrightpaints-erp_worktrees/TKT-ERP-STAGE-104/release-ops-v2/erp-domain/target/surefire-reports",
+  "report_files": 41,
+  "tests": 208,
   "failures": 0,
   "errors": 0,
   "skipped": 0,
-  "time_seconds": 2.647,
+  "time_seconds": 1.736,
   "failing_cases": [],
   "passes": true
 }

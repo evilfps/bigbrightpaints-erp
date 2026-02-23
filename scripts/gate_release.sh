@@ -34,24 +34,73 @@ CANONICAL_BASE_REF="${GATE_CANONICAL_BASE_REF:-harness-engineering-orchestrator}
 CANONICAL_BASE_REQUIRED="${GATE_REQUIRE_CANONICAL_BASE:-true}"
 CANONICAL_BASE_SHA=""
 CANONICAL_BASE_VERIFIED="false"
-if [[ "$GIT_CONTEXT_AVAILABLE" == "true" ]]; then
-  if resolved_base_sha="$(git -C "$ROOT_DIR" rev-parse --verify --quiet "$CANONICAL_BASE_REF" 2>/dev/null)"; then
-    CANONICAL_BASE_SHA="$resolved_base_sha"
+
+resolve_canonical_base() {
+  local requested_ref="$CANONICAL_BASE_REF"
+  local -a candidate_refs
+  local -a resolved_refs
+  local -a resolved_shas
+  local candidate_ref
+  local candidate_sha
+
+  if [[ "$GIT_CONTEXT_AVAILABLE" != "true" ]]; then
     if [[ "$CANONICAL_BASE_REQUIRED" == "true" ]]; then
-      if ! git -C "$ROOT_DIR" merge-base --is-ancestor "$CANONICAL_BASE_SHA" "$RESOLVED_RELEASE_HEAD_SHA"; then
-        echo "[gate-release] FAIL: HEAD=$RESOLVED_RELEASE_HEAD_SHA is not based on canonical base '$CANONICAL_BASE_REF' ($CANONICAL_BASE_SHA)"
-        exit 2
-      fi
-      CANONICAL_BASE_VERIFIED="true"
+      echo "[gate-release] FAIL: canonical base verification requires git context"
+      exit 2
     fi
-  elif [[ "$CANONICAL_BASE_REQUIRED" == "true" ]]; then
-    echo "[gate-release] FAIL: canonical base ref '$CANONICAL_BASE_REF' was not found"
+    return 0
+  fi
+
+  candidate_refs=("$requested_ref")
+  if [[ "$requested_ref" != origin/* ]]; then
+    candidate_refs+=("origin/$requested_ref")
+  fi
+
+  for candidate_ref in "${candidate_refs[@]}"; do
+    if candidate_sha="$(git -C "$ROOT_DIR" rev-parse --verify --quiet "$candidate_ref" 2>/dev/null)"; then
+      resolved_refs+=("$candidate_ref")
+      resolved_shas+=("$candidate_sha")
+    fi
+  done
+
+  if [[ "${#resolved_refs[@]}" -eq 0 ]]; then
+    if [[ "$CANONICAL_BASE_REQUIRED" == "true" ]]; then
+      echo "[gate-release] FAIL: canonical base ref '$requested_ref' was not found"
+      exit 2
+    fi
+    return 0
+  fi
+
+  if [[ "$CANONICAL_BASE_REQUIRED" == "true" ]]; then
+    local idx
+    for idx in "${!resolved_refs[@]}"; do
+      if git -C "$ROOT_DIR" merge-base --is-ancestor "${resolved_shas[$idx]}" "$RESOLVED_RELEASE_HEAD_SHA"; then
+        CANONICAL_BASE_REF="${resolved_refs[$idx]}"
+        CANONICAL_BASE_SHA="${resolved_shas[$idx]}"
+        CANONICAL_BASE_VERIFIED="true"
+        if [[ "$CANONICAL_BASE_REF" != "$requested_ref" ]]; then
+          echo "[gate-release] WARN: canonical base '$requested_ref' is stale/non-ancestor; using '$CANONICAL_BASE_REF' ($CANONICAL_BASE_SHA)"
+        fi
+        return 0
+      fi
+    done
+
+    local resolved_desc=""
+    for idx in "${!resolved_refs[@]}"; do
+      if [[ -n "$resolved_desc" ]]; then
+        resolved_desc+=", "
+      fi
+      resolved_desc+="${resolved_refs[$idx]} (${resolved_shas[$idx]})"
+    done
+    echo "[gate-release] FAIL: HEAD=$RESOLVED_RELEASE_HEAD_SHA is not based on canonical base candidates: $resolved_desc"
     exit 2
   fi
-elif [[ "$CANONICAL_BASE_REQUIRED" == "true" ]]; then
-  echo "[gate-release] FAIL: canonical base verification requires git context"
-  exit 2
-fi
+
+  CANONICAL_BASE_REF="${resolved_refs[0]}"
+  CANONICAL_BASE_SHA="${resolved_shas[0]}"
+}
+
+resolve_canonical_base
 TRACEABILITY_STRICT_MODE="$GIT_CONTEXT_AVAILABLE"
 TRACEABILITY_FILE="$ARTIFACT_DIR/release-gate-traceability.json"
 

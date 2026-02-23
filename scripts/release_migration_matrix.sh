@@ -80,7 +80,7 @@ PGDATABASE="${PGDATABASE:-postgres}"
 
 if [[ -z "${PGPORT:-}" ]]; then
   if command -v docker >/dev/null 2>&1 && docker inspect gate_release_pg >/dev/null 2>&1; then
-    mapped_port="$(docker port gate_release_pg 5432/tcp 2>/dev/null | head -n 1 | awk -F: '{print $NF}')"
+    mapped_port="$(docker port gate_release_pg 5432/tcp 2>/dev/null | head -n 1 | awk -F: '{print $NF}' || true)"
     if [[ -n "$mapped_port" ]]; then
       PGPORT="$mapped_port"
     fi

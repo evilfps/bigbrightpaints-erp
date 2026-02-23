@@ -68,6 +68,13 @@ resolve_diff_base() {
 }
 
 resolve_canonical_base() {
+  local requested_ref="$CANONICAL_BASE_REF"
+  local -a candidate_refs
+  local -a resolved_refs
+  local -a resolved_shas
+  local candidate_ref
+  local candidate_sha
+
   if [[ "$GIT_CONTEXT_AVAILABLE" != "true" ]]; then
     if [[ "$CANONICAL_BASE_REQUIRED" == "true" ]]; then
       echo "[gate-fast] FAIL: canonical base verification requires git context"
@@ -76,22 +83,53 @@ resolve_canonical_base() {
     return 0
   fi
 
-  if ! resolved_base_sha="$(git -C "$ROOT_DIR" rev-parse --verify --quiet "$CANONICAL_BASE_REF" 2>/dev/null)"; then
+  candidate_refs=("$requested_ref")
+  if [[ "$requested_ref" != origin/* ]]; then
+    candidate_refs+=("origin/$requested_ref")
+  fi
+
+  for candidate_ref in "${candidate_refs[@]}"; do
+    if candidate_sha="$(git -C "$ROOT_DIR" rev-parse --verify --quiet "$candidate_ref" 2>/dev/null)"; then
+      resolved_refs+=("$candidate_ref")
+      resolved_shas+=("$candidate_sha")
+    fi
+  done
+
+  if [[ "${#resolved_refs[@]}" -eq 0 ]]; then
     if [[ "$CANONICAL_BASE_REQUIRED" == "true" ]]; then
-      echo "[gate-fast] FAIL: canonical base ref '$CANONICAL_BASE_REF' was not found"
+      echo "[gate-fast] FAIL: canonical base ref '$requested_ref' was not found"
       exit 2
     fi
     return 0
   fi
-  CANONICAL_BASE_SHA="$resolved_base_sha"
 
   if [[ "$CANONICAL_BASE_REQUIRED" == "true" ]]; then
-    if ! git -C "$ROOT_DIR" merge-base --is-ancestor "$CANONICAL_BASE_SHA" "$RESOLVED_RELEASE_HEAD_SHA"; then
-      echo "[gate-fast] FAIL: HEAD=$RESOLVED_RELEASE_HEAD_SHA is not based on canonical base '$CANONICAL_BASE_REF' ($CANONICAL_BASE_SHA)"
-      exit 2
-    fi
-    CANONICAL_BASE_VERIFIED="true"
+    local idx
+    for idx in "${!resolved_refs[@]}"; do
+      if git -C "$ROOT_DIR" merge-base --is-ancestor "${resolved_shas[$idx]}" "$RESOLVED_RELEASE_HEAD_SHA"; then
+        CANONICAL_BASE_REF="${resolved_refs[$idx]}"
+        CANONICAL_BASE_SHA="${resolved_shas[$idx]}"
+        CANONICAL_BASE_VERIFIED="true"
+        if [[ "$CANONICAL_BASE_REF" != "$requested_ref" ]]; then
+          echo "[gate-fast] WARN: canonical base '$requested_ref' is stale/non-ancestor; using '$CANONICAL_BASE_REF' ($CANONICAL_BASE_SHA)"
+        fi
+        return 0
+      fi
+    done
+
+    local resolved_desc=""
+    for idx in "${!resolved_refs[@]}"; do
+      if [[ -n "$resolved_desc" ]]; then
+        resolved_desc+=", "
+      fi
+      resolved_desc+="${resolved_refs[$idx]} (${resolved_shas[$idx]})"
+    done
+    echo "[gate-fast] FAIL: HEAD=$RESOLVED_RELEASE_HEAD_SHA is not based on canonical base candidates: $resolved_desc"
+    exit 2
   fi
+
+  CANONICAL_BASE_REF="${resolved_refs[0]}"
+  CANONICAL_BASE_SHA="${resolved_shas[0]}"
 }
 
 emit_traceability_manifest() {
