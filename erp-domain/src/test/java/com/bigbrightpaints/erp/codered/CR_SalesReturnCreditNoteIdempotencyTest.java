@@ -33,9 +33,12 @@ import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrder;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrderRepository;
+import com.bigbrightpaints.erp.modules.sales.dto.CreditLimitOverrideDecisionRequest;
+import com.bigbrightpaints.erp.modules.sales.dto.CreditLimitOverrideRequestCreateRequest;
 import com.bigbrightpaints.erp.modules.sales.dto.DispatchConfirmRequest;
 import com.bigbrightpaints.erp.modules.sales.dto.SalesOrderItemRequest;
 import com.bigbrightpaints.erp.modules.sales.dto.SalesOrderRequest;
+import com.bigbrightpaints.erp.modules.sales.service.CreditLimitOverrideService;
 import com.bigbrightpaints.erp.modules.sales.service.SalesReturnService;
 import com.bigbrightpaints.erp.modules.sales.service.SalesService;
 import com.bigbrightpaints.erp.test.AbstractIntegrationTest;
@@ -70,6 +73,7 @@ class CR_SalesReturnCreditNoteIdempotencyTest extends AbstractIntegrationTest {
     @Autowired private FinishedGoodRepository finishedGoodRepository;
     @Autowired private SalesService salesService;
     @Autowired private SalesReturnService salesReturnService;
+    @Autowired private CreditLimitOverrideService creditLimitOverrideService;
     @Autowired private SalesOrderRepository salesOrderRepository;
     @Autowired private PackagingSlipRepository packagingSlipRepository;
     @Autowired private InvoiceRepository invoiceRepository;
@@ -97,6 +101,18 @@ class CR_SalesReturnCreditNoteIdempotencyTest extends AbstractIntegrationTest {
 
         SalesOrder order = createOrder(company, dealer, fg.getProductCode(), new BigDecimal("5"), new BigDecimal("15.50"));
         PackagingSlip slip = packagingSlipRepository.findByCompanyAndSalesOrderId(company, order.getId()).orElseThrow();
+        Long overrideRequestId;
+        CompanyContextHolder.setCompanyId(companyCode);
+        try {
+            overrideRequestId = createApprovedDispatchOverride(
+                    dealer.getId(),
+                    slip.getId(),
+                    order.getId(),
+                    order.getTotalAmount()
+            );
+        } finally {
+            CompanyContextHolder.clear();
+        }
 
         DispatchConfirmRequest request = new DispatchConfirmRequest(
                 slip.getId(),
@@ -107,16 +123,16 @@ class CR_SalesReturnCreditNoteIdempotencyTest extends AbstractIntegrationTest {
                                 null,
                                 line.getOrderedQuantity() != null ? line.getOrderedQuantity() : line.getQuantity(),
                                 null,
-                                null,
+                                new BigDecimal("5.00"),
                                 null,
                                 null,
                                 null))
                         .toList(),
                 "CODE-RED dispatch",
                 "codered",
-                true,
+                Boolean.FALSE,
                 "discount override for credit-note idempotency regression",
-                null
+                overrideRequestId
         );
 
         CompanyContextHolder.setCompanyId(companyCode);
@@ -201,8 +217,8 @@ class CR_SalesReturnCreditNoteIdempotencyTest extends AbstractIntegrationTest {
                         .toList(),
                 "CODE-RED dispatch",
                 "codered",
-                true,
-                "discount override for credit-note idempotency regression",
+                Boolean.FALSE,
+                null,
                 null
         );
 
@@ -295,6 +311,18 @@ class CR_SalesReturnCreditNoteIdempotencyTest extends AbstractIntegrationTest {
 
         SalesOrder order = createOrder(company, dealer, fg.getProductCode(), new BigDecimal("5"), new BigDecimal("15.50"));
         PackagingSlip slip = packagingSlipRepository.findByCompanyAndSalesOrderId(company, order.getId()).orElseThrow();
+        Long overrideRequestId;
+        CompanyContextHolder.setCompanyId(companyCode);
+        try {
+            overrideRequestId = createApprovedDispatchOverride(
+                    dealer.getId(),
+                    slip.getId(),
+                    order.getId(),
+                    order.getTotalAmount()
+            );
+        } finally {
+            CompanyContextHolder.clear();
+        }
 
         DispatchConfirmRequest request = new DispatchConfirmRequest(
                 slip.getId(),
@@ -312,9 +340,9 @@ class CR_SalesReturnCreditNoteIdempotencyTest extends AbstractIntegrationTest {
                         .toList(),
                 "CODE-RED dispatch",
                 "codered",
-                true,
+                Boolean.FALSE,
                 "discount override for credit-note idempotency regression",
-                null
+                overrideRequestId
         );
 
         CompanyContextHolder.setCompanyId(companyCode);
@@ -326,7 +354,7 @@ class CR_SalesReturnCreditNoteIdempotencyTest extends AbstractIntegrationTest {
         BigDecimal grossWithoutDiscount = new BigDecimal("15.50")
                 .multiply(new BigDecimal("5"))
                 .setScale(2, RoundingMode.HALF_UP);
-        assertThat(startingOutstanding).isLessThan(grossWithoutDiscount);
+        assertThat(startingOutstanding).isEqualByComparingTo(grossWithoutDiscount.subtract(new BigDecimal("5.00")));
         BigDecimal creditAmount = startingOutstanding.divide(new BigDecimal("2"), 2, RoundingMode.HALF_UP);
         String idempotencyKey = "CN-DISC-IDEMP-" + UUID.randomUUID();
         CreditNoteRequest creditRequest = new CreditNoteRequest(
@@ -351,6 +379,30 @@ class CR_SalesReturnCreditNoteIdempotencyTest extends AbstractIntegrationTest {
         Invoice refreshed = invoiceRepository.findByCompanyAndId(company, invoice.getId()).orElseThrow();
         assertThat(refreshed.getOutstandingAmount())
                 .isEqualByComparingTo(startingOutstanding.subtract(creditAmount));
+    }
+
+    private Long createApprovedDispatchOverride(Long dealerId,
+                                                Long slipId,
+                                                Long orderId,
+                                                BigDecimal dispatchAmount) {
+        var created = creditLimitOverrideService.createRequest(
+                new CreditLimitOverrideRequestCreateRequest(
+                        dealerId,
+                        slipId,
+                        orderId,
+                        dispatchAmount,
+                        "CODE-RED dispatch exception approval",
+                        Instant.now().plus(Duration.ofHours(2))
+                ),
+                "codered-maker");
+        var approved = creditLimitOverrideService.approveRequest(
+                created.id(),
+                new CreditLimitOverrideDecisionRequest(
+                        "CODE-RED dispatch exception approved",
+                        Instant.now().plus(Duration.ofHours(4))
+                ),
+                "codered-checker");
+        return approved.id();
     }
 
     private Company bootstrapCompany(String companyCode, String timezone) {
