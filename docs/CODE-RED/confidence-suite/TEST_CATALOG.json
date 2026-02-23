@@ -865,6 +865,26 @@
       "quality_flake_monitor": true
     },
     {
+      "id": "ts-runtime-tenant-policy-control-executable-coverage",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeTenantPolicyControlExecutableCoverageTest.java",
+      "owner": "erp-domain-team",
+      "class": "critical",
+      "module": "Runtime",
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-reconciliation",
+        "gate-quality"
+      ],
+      "tags": [
+        "critical"
+      ],
+      "accounting_math_critical": false,
+      "cross_module_critical": true,
+      "quality_flake_monitor": true
+    },
+    {
       "id": "ts-p2p-gst-decisioning-fail-closed",
       "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/p2p/TS_P2PGstDecisioningFailClosedTest.java",
       "owner": "erp-domain-team",
