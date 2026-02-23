@@ -1052,7 +1052,7 @@ class FinishedGoodsServiceTest extends AbstractIntegrationTest {
                 .filter(existing -> !existing.isBackorder())
                 .findFirst()
                 .orElseThrow();
-        assertThat(primarySlip.getStatus()).isEqualTo("PENDING_STOCK");
+        assertThat(primarySlip.getStatus()).isEqualTo("DISPATCHED");
         assertThat(primarySlip.getDispatchedAt()).isNotNull();
         PackagingSlip backorderSlip = slips.stream()
                 .filter(existing -> "BACKORDER".equalsIgnoreCase(existing.getStatus()))

@@ -53,6 +53,11 @@ ensure_release_matrix_postgres() {
   esac
 
   if probe_pg "$host" "$probe_port" "$user" "$password" "$database"; then
+    export PGHOST="$host"
+    export PGPORT="$probe_port"
+    export PGUSER="$user"
+    export PGPASSWORD="$password"
+    export PGDATABASE="$database"
     return 0
   fi
 

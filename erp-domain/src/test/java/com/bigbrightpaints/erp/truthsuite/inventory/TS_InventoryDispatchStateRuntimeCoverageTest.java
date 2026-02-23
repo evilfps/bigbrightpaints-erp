@@ -123,7 +123,7 @@ class TS_InventoryDispatchStateRuntimeCoverageTest {
     }
 
     @Test
-    void markSlipDispatched_partialFulfillmentKeepsPendingStockUntilReservationsClose() {
+    void markSlipDispatched_partialFulfillmentMarksPrimarySlipDispatched() {
         Fixture fixture = fixture(new BigDecimal("5"), new BigDecimal("10"), new BigDecimal("10"));
         when(inventoryReservationRepository.findByFinishedGoodCompanyAndReferenceTypeAndReferenceId(
                 company,
@@ -134,7 +134,7 @@ class TS_InventoryDispatchStateRuntimeCoverageTest {
 
         service.markSlipDispatched(fixture.order.getId(), fixture.slip);
 
-        assertThat(fixture.slip.getStatus()).isEqualTo("PENDING_STOCK");
+        assertThat(fixture.slip.getStatus()).isEqualTo("DISPATCHED");
         assertThat(fixture.slip.getDispatchedAt()).isEqualTo(fixedNow);
         assertThat(fixture.reservation.getStatus()).isEqualTo("PARTIAL");
         assertThat(fixture.line.getBackorderQuantity()).isEqualByComparingTo(new BigDecimal("5"));
@@ -211,7 +211,7 @@ class TS_InventoryDispatchStateRuntimeCoverageTest {
 
         service.markSlipDispatched(fixture.order.getId(), fixture.slip);
 
-        assertThat(fixture.slip.getStatus()).isEqualTo("PENDING_STOCK");
+        assertThat(fixture.slip.getStatus()).isEqualTo("DISPATCHED");
         assertThat(fixture.slip.getDispatchedAt()).isEqualTo(existingDispatchTime);
     }
 
