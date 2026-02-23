@@ -41,12 +41,16 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.retry.annotation.Backoff;
+import org.springframework.retry.annotation.Retryable;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.NoTransactionException;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.interceptor.TransactionAspectSupport;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StringUtils;
@@ -263,6 +267,10 @@ public class AccountingService {
         return entries.stream().map(this::toDto).toList();
     }
 
+    @Retryable(
+            value = DataIntegrityViolationException.class,
+            maxAttempts = 3,
+            backoff = @Backoff(delay = 50, maxDelay = 250, multiplier = 2.0))
     @Transactional
     public JournalEntryDto createJournalEntry(JournalEntryRequest request) {
         Map<String, String> auditMetadata = new HashMap<>();
@@ -528,6 +536,11 @@ public class AccountingService {
         } catch (DataIntegrityViolationException ex) {
             Optional<JournalEntry> existing = journalEntryRepository.findByCompanyAndReferenceNumber(company, entry.getReferenceNumber());
             if (existing.isPresent()) {
+                if (isCurrentTransactionRollbackOnly()) {
+                    log.info("Concurrent journal save conflict for reference '{}' detected with rollback-only transaction; retrying on fresh transaction",
+                            entry.getReferenceNumber());
+                    throw ex;
+                }
                 JournalEntry existingEntry = existing.get();
                 if (existingEntry.getId() != null) {
                     auditMetadata.put("journalEntryId", existingEntry.getId().toString());
@@ -798,6 +811,10 @@ public class AccountingService {
         return reversalDto;
     }
 
+    @Retryable(
+            value = DataIntegrityViolationException.class,
+            maxAttempts = 3,
+            backoff = @Backoff(delay = 50, maxDelay = 250, multiplier = 2.0))
     @Transactional
     public JournalEntryDto recordDealerReceipt(DealerReceiptRequest request) {
         Company company = companyContextService.requireCurrentCompany();
@@ -932,6 +949,11 @@ public class AccountingService {
         } catch (DataIntegrityViolationException ex) {
             List<PartnerSettlementAllocation> concurrent = findAllocationsByIdempotencyKey(company, idempotencyKey);
             if (!concurrent.isEmpty()) {
+                if (isCurrentTransactionRollbackOnly()) {
+                    log.info("Concurrent dealer receipt allocation conflict for idempotency key '{}' detected with rollback-only transaction; retrying on fresh transaction",
+                            idempotencyKey);
+                    throw ex;
+                }
                 JournalEntry existingEntry = resolveReplayJournalEntryFromExistingAllocations(
                         company,
                         reference,
@@ -960,6 +982,10 @@ public class AccountingService {
         return entryDto;
     }
 
+    @Retryable(
+            value = DataIntegrityViolationException.class,
+            maxAttempts = 3,
+            backoff = @Backoff(delay = 50, maxDelay = 250, multiplier = 2.0))
     @Transactional
     public JournalEntryDto recordDealerReceiptSplit(DealerReceiptSplitRequest request) {
         Company company = companyContextService.requireCurrentCompany();
@@ -1107,6 +1133,11 @@ public class AccountingService {
         } catch (DataIntegrityViolationException ex) {
             List<PartnerSettlementAllocation> concurrent = findAllocationsByIdempotencyKey(company, idempotencyKey);
             if (!concurrent.isEmpty()) {
+                if (isCurrentTransactionRollbackOnly()) {
+                    log.info("Concurrent dealer split receipt allocation conflict for idempotency key '{}' detected with rollback-only transaction; retrying on fresh transaction",
+                            idempotencyKey);
+                    throw ex;
+                }
                 JournalEntry existingEntry = resolveReplayJournalEntryFromExistingAllocations(
                         company,
                         reference,
@@ -1578,6 +1609,10 @@ public class AccountingService {
         );
     }
 
+    @Retryable(
+            value = DataIntegrityViolationException.class,
+            maxAttempts = 3,
+            backoff = @Backoff(delay = 50, maxDelay = 250, multiplier = 2.0))
     @Transactional
     public JournalEntryDto recordSupplierPayment(SupplierPaymentRequest request) {
         Company company = companyContextService.requireCurrentCompany();
@@ -1701,6 +1736,11 @@ public class AccountingService {
         } catch (DataIntegrityViolationException ex) {
             List<PartnerSettlementAllocation> concurrent = findAllocationsByIdempotencyKey(company, idempotencyKey);
             if (!concurrent.isEmpty()) {
+                if (isCurrentTransactionRollbackOnly()) {
+                    log.info("Concurrent supplier payment allocation conflict for idempotency key '{}' detected with rollback-only transaction; retrying on fresh transaction",
+                            idempotencyKey);
+                    throw ex;
+                }
                 JournalEntry existingEntry = resolveReplayJournalEntryFromExistingAllocations(
                         company,
                         reference,
@@ -1728,6 +1768,10 @@ public class AccountingService {
         return entryDto;
     }
 
+    @Retryable(
+            value = DataIntegrityViolationException.class,
+            maxAttempts = 3,
+            backoff = @Backoff(delay = 50, maxDelay = 250, multiplier = 2.0))
     @Transactional
     public PartnerSettlementResponse settleDealerInvoices(DealerSettlementRequest request) {
         Company company = companyContextService.requireCurrentCompany();
@@ -1900,6 +1944,11 @@ public class AccountingService {
         } catch (DataIntegrityViolationException ex) {
             List<PartnerSettlementAllocation> concurrent = findAllocationsByIdempotencyKey(company, trimmedIdempotencyKey);
             if (!concurrent.isEmpty()) {
+                if (isCurrentTransactionRollbackOnly()) {
+                    log.info("Concurrent dealer settlement allocation conflict for idempotency key '{}' detected with rollback-only transaction; retrying on fresh transaction",
+                            trimmedIdempotencyKey);
+                    throw ex;
+                }
                 JournalEntry existingEntry = resolveReplayJournalEntryFromExistingAllocations(
                         company,
                         reference,
@@ -1959,6 +2008,10 @@ public class AccountingService {
         );
     }
 
+    @Retryable(
+            value = DataIntegrityViolationException.class,
+            maxAttempts = 3,
+            backoff = @Backoff(delay = 50, maxDelay = 250, multiplier = 2.0))
     @Transactional
     public PartnerSettlementResponse settleSupplierInvoices(SupplierSettlementRequest request) {
         Company company = companyContextService.requireCurrentCompany();
@@ -2121,6 +2174,11 @@ public class AccountingService {
         } catch (DataIntegrityViolationException ex) {
             List<PartnerSettlementAllocation> concurrent = findAllocationsByIdempotencyKey(company, trimmedIdempotencyKey);
             if (!concurrent.isEmpty()) {
+                if (isCurrentTransactionRollbackOnly()) {
+                    log.info("Concurrent supplier settlement allocation conflict for idempotency key '{}' detected with rollback-only transaction; retrying on fresh transaction",
+                            trimmedIdempotencyKey);
+                    throw ex;
+                }
                 JournalEntry existingEntry = resolveReplayJournalEntryFromExistingAllocations(
                         company,
                         reference,
@@ -5626,6 +5684,14 @@ public class AccountingService {
 
     private String normalizeMemo(String memo) {
         return StringUtils.hasText(memo) ? memo.trim() : "";
+    }
+
+    private boolean isCurrentTransactionRollbackOnly() {
+        try {
+            return TransactionAspectSupport.currentTransactionStatus().isRollbackOnly();
+        } catch (NoTransactionException ignored) {
+            return false;
+        }
     }
 
     private void adjustLandedCostValuation(RawMaterialPurchase purchase, BigDecimal landedAmount) {
