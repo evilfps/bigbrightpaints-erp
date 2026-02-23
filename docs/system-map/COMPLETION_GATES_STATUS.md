@@ -2,8 +2,8 @@
 
 Last updated: 2026-02-23
 Anchor (`gate_fast` diff base): `e829707475567476bbea113f01200fc59f48d0d6`
-Canonical base branch head: `e829707475567476bbea113f01200fc59f48d0d6`
-Latest gate run head: `e829707475567476bbea113f01200fc59f48d0d6` (`tickets/tkt-erp-stage-096/release-ops-unblock`)
+Canonical base branch head: `e2848f8a02fae4796c605e2a45dbdaa19a640fb4`
+Latest gate run head: `e829707475567476bbea113f01200fc59f48d0d6` (`tickets/tkt-erp-stage-096/release-ops-unblock`, runtime-equivalent to current head; delta is docs/ticket metadata only)
 Evidence ledger:
 - gate refresh artifacts: `bigbrightpaints-erp_worktrees/TKT-ERP-STAGE-096/release-ops/artifacts/`
 - reconciliation report: `artifacts/gate-reconciliation/reconciliation-summary.json`
@@ -15,10 +15,10 @@ Evidence ledger:
 - `gate_reconciliation`: `PASS` (`247` tests, `0` failures, `0` errors)
 - `gate_release`: `PASS` (`release_migration_matrix OK`, predeploy scans `0` findings)
 - `check-architecture`: `PASS` (latest local run on `tickets/tkt-erp-stage-096/release-ops-unblock`)
-- full suite (`mvn test`): `INTERRUPTED` in long-running accounting/e2e segment; no assertion failures observed before manual stop. Last complete full-suite pass remains recorded on 2026-02-23 (`1661` tests, `0` failures, `0` errors, `4` skipped).
+- full suite (`mvn test`): `PASS` on uninterrupted long-run execution (`1876` tests, `0` failures, `0` errors, `4` skipped, completed `2026-02-23T20:47:07+05:30`) on runtime-equivalent head.
 
 ## Summary
-- Safe-to-deploy: `CANDIDATE` (all required gate lanes green on canonical head; run one uninterrupted full regression cycle in a long-run runner before final release cut)
+- Safe-to-deploy: `CANDIDATE` (all required gate lanes green and uninterrupted full regression completed; pending final evidence-freeze/release-cut approval)
 - Closed: `5/5`
 - Pending: `0/5`
 
@@ -51,5 +51,5 @@ Evidence ledger:
   - 2026-02-23 `gate_fast` PASS with anchored changed-file coverage above threshold.
 
 ## Immediate next closure queue
-1. Execute one uninterrupted full regression (`mvn test`) in long-run mode on canonical head `e829707475567476bbea113f01200fc59f48d0d6`.
-2. Freeze release-candidate evidence hashes (gate artifacts + migration matrix + rollback rehearsal) for final release cut.
+1. Freeze release-candidate evidence hashes (gate artifacts + migration matrix + rollback rehearsal) for canonical head `e2848f8a02fae4796c605e2a45dbdaa19a640fb4`.
+2. Prepare final release-cut sign-off pack (gate ledger + full regression summary + rollback notes).

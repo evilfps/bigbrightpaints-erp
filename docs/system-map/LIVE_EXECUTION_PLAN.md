@@ -1,7 +1,7 @@
 # Live Execution Plan (Async-Loop)
 
 Last updated: 2026-02-23
-Mode: Active (`canonical gate ladder green on merged runtime head; preparing final uninterrupted full regression evidence`)
+Mode: Active (`canonical gate ladder green and uninterrupted full regression passed; preparing final release-cut evidence freeze`)
 
 ## Goal
 - Keep canonical head release-safe while closing remaining review and evidence freshness work.
@@ -9,14 +9,14 @@ Mode: Active (`canonical gate ladder green on merged runtime head; preparing fin
 
 ## Current state (2026-02-23)
 - Async-loop status: `ACTIVE`.
-- Canonical base branch head: `e829707475567476bbea113f01200fc59f48d0d6`.
-- Latest gate run head: `e829707475567476bbea113f01200fc59f48d0d6` (`tickets/tkt-erp-stage-096/release-ops-unblock`).
+- Canonical base branch head: `e2848f8a02fae4796c605e2a45dbdaa19a640fb4`.
+- Latest gate run head: `e829707475567476bbea113f01200fc59f48d0d6` (`tickets/tkt-erp-stage-096/release-ops-unblock`, runtime-equivalent to current head because `e829 -> e284` is docs/ticket-only).
 - `gate_fast`: `PASS` (`files_considered=0`, diff_base `e829707475567476bbea113f01200fc59f48d0d6`, reason `no_runtime_source_changes`).
 - `gate_core`: `PASS`.
 - `gate_reconciliation`: `PASS` (`247` tests, `0` failures, `0` errors).
 - `gate_release`: `PASS` (release migration matrix and predeploy scans).
 - `check-architecture`: `PASS`.
-- Full regression run: `INCOMPLETE` in this cycle (manual stop during long-running accounting/e2e pass with no observed assertion failures before stop).
+- Full regression run: `PASS` (`1876` tests, `0` failures, `0` errors, `4` skipped, finished `2026-02-23T20:47:07+05:30`) on runtime-equivalent canonical code.
 - Evidence ledger:
   - gate refresh artifacts: `bigbrightpaints-erp_worktrees/TKT-ERP-STAGE-096/release-ops/artifacts/`
   - reconciliation summary: `artifacts/gate-reconciliation/reconciliation-summary.json`
@@ -24,7 +24,7 @@ Mode: Active (`canonical gate ladder green on merged runtime head; preparing fin
 
 ## Active constraints
 - Canonical base local branch alias (`harness-engineering-orchestrator`) can drift from `origin/*`; gate scripts must continue using canonical-origin fallback.
-- Full regression needs a dedicated uninterrupted long-run execution window for final release cut evidence.
+- Final release-cut package still needs evidence hash freeze + sign-off bundle assembly.
 
 ## Live plan lanes
 
@@ -45,23 +45,23 @@ Mode: Active (`canonical gate ladder green on merged runtime head; preparing fin
 
 ### Lane D: Completion-gate consolidation (closure lane)
 1. Preserve `docs/system-map/COMPLETION_GATES_STATUS.md` as source of release truth.
-2. Require one uninterrupted full-suite run near release cut even when gate ladder is green.
-3. Track release-candidate SHA with immutable gate evidence snapshot.
+2. Freeze immutable evidence for release-candidate SHA (`gate` artifacts, migration matrix, rollback rehearsal).
+3. Track release-candidate SHA with immutable gate evidence snapshot and final sign-off notes.
 
 ## Exit criteria
 - Open runtime review queue is empty and no unresolved high/critical findings remain.
 - Gate ladder is green on release-candidate SHA.
-- One uninterrupted full regression run completes successfully on release-candidate SHA.
+- One uninterrupted full regression run completes successfully on release-candidate SHA. (met)
 - Release evidence snapshot and rollback rehearsal artifacts are frozen.
 
 ## Latest gate evidence (2026-02-23)
-1. Canonical base branch head: `e829707475567476bbea113f01200fc59f48d0d6`.
-2. Latest gate run head: `e829707475567476bbea113f01200fc59f48d0d6`.
+1. Canonical base branch head: `e2848f8a02fae4796c605e2a45dbdaa19a640fb4`.
+2. Latest gate run head: `e829707475567476bbea113f01200fc59f48d0d6` (runtime-equivalent to canonical head).
 3. `gate_fast`: `PASS` (`files_considered=0`, diff_base `e829707475567476bbea113f01200fc59f48d0d6`, reason `no_runtime_source_changes`).
 4. `gate_core`: `PASS`.
 5. `gate_reconciliation`: `PASS` (`247` tests, no failures/errors).
 6. `gate_release`: `PASS`.
 7. `check-architecture`: `PASS`.
-8. Full suite in this cycle: `INTERRUPTED` (manual stop in long-run accounting/e2e segment).
+8. Full suite in this cycle: `PASS` (`1876` tests, `0` failures, `0` errors, `4` skipped, uninterrupted run).
 9. Evidence ledger:
    - `bigbrightpaints-erp_worktrees/TKT-ERP-STAGE-096/release-ops/artifacts/`
