@@ -33,7 +33,7 @@ Standardize safe migration planning, validation, and rollback drills.
   - container credentials are derived from `PGUSER`/`PGPASSWORD`/`PGDATABASE` (or datasource fallback).
 - Control flags:
   - disable auto-bootstrap: `AUTO_START_GATE_RELEASE_PG=false bash scripts/gate_release.sh`
-  - pin explicit target DB: set `PGHOST/PGPORT/PGUSER/PGPASSWORD/PGDATABASE` before running.
+  - pin explicit target DB: set `PGHOST`, `PGPORT`, `PGUSER`, `PGPASSWORD`, and `PGDATABASE` before running.
 
 ## Staging Drill
 1. Restore staging-like dataset/snapshot.
