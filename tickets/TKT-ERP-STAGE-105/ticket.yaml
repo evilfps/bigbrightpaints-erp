@@ -1,0 +1,128 @@
+ticket_id: TKT-ERP-STAGE-105
+title: Release-Cut Evidence Freeze and Sign-off Bundle
+goal: Freeze immutable gate evidence on canonical release-candidate SHA and produce
+  final deploy sign-off bundle with rollback rehearsal linkage.
+priority: high
+status: done
+base_branch: origin/harness-engineering-orchestrator
+requested_base_branch: harness-engineering-orchestrator
+worktree_root: /Users/anas/Documents/orchestrator_erp/bigbrightpaints-erp_worktrees
+created_at: '2026-02-23T15:26:27+00:00'
+updated_at: '2026-02-23T15:42:00Z'
+r3_required: true
+orchestrator_authority:
+  r1: orchestrator
+  r2: orchestrator
+  r3: human
+slices:
+- id: SLICE-01
+  primary_agent: orchestrator
+  reviewers:
+  - qa-reliability
+  - repo-cartographer
+  - security-governance
+  scope_paths:
+  - scripts
+  allowed_scope_paths:
+  - docs/
+  - agents/
+  - skills/
+  - ci/
+  - tickets/
+  - asyncloop
+  - scripts/harness_orchestrator.py
+  matched_rules:
+  - scripts/harness_orchestrator.py
+  lane: w1
+  branch: tickets/tkt-erp-stage-105/orchestrator
+  worktree_path: /Users/anas/Documents/orchestrator_erp/bigbrightpaints-erp_worktrees/TKT-ERP-STAGE-105/orchestrator
+  required_checks:
+  - bash ci/lint-knowledgebase.sh
+  - bash ci/check-architecture.sh
+  - bash ci/check-enterprise-policy.sh
+  multi_agent_role: orchestrator
+  multi_agent_config_file: .codex/agents/orchestrator.toml
+  multi_agent_model: gpt-5.3-codex
+  multi_agent_reasoning: xhigh
+  multi_agent_fallback:
+  - model: gpt-5.3-codex
+    reasoning: high
+  status: merged
+  objective: Freeze immutable gate evidence on canonical release-candidate SHA and
+    produce final deploy sign-off bundle with rollback rehearsal linkage.
+  workflow_upstream_slices: []
+  workflow_downstream_slices: []
+  workflow_external_upstream_agents: []
+  workflow_external_downstream_agents: []
+  cross_workflow_contracts: []
+- id: SLICE-02
+  primary_agent: refactor-techdebt-gc
+  reviewers:
+  - qa-reliability
+  scope_paths:
+  - asyncloop
+  allowed_scope_paths:
+  - erp-domain/src/main/java/
+  - erp-domain/src/test/java/
+  - docs/
+  matched_rules:
+  - <fallback>
+  lane: w2
+  branch: tickets/tkt-erp-stage-105/refactor-techdebt-gc
+  worktree_path: /Users/anas/Documents/orchestrator_erp/bigbrightpaints-erp_worktrees/TKT-ERP-STAGE-105/refactor-techdebt-gc
+  required_checks:
+  - bash ci/check-architecture.sh
+  - cd erp-domain && mvn -B -ntp test
+  multi_agent_role: cross_module_high
+  multi_agent_config_file: .codex/agents/cross_module_high.toml
+  multi_agent_model: gpt-5.3-codex
+  multi_agent_reasoning: high
+  multi_agent_fallback:
+  - model: gpt-5.3-codex
+    reasoning: medium
+  status: merged
+  objective: Freeze immutable gate evidence on canonical release-candidate SHA and
+    produce final deploy sign-off bundle with rollback rehearsal linkage.
+  workflow_upstream_slices: []
+  workflow_downstream_slices: []
+  workflow_external_upstream_agents: []
+  workflow_external_downstream_agents: []
+  cross_workflow_contracts: []
+- id: SLICE-03
+  primary_agent: repo-cartographer
+  reviewers:
+  - orchestrator
+  scope_paths:
+  - docs/CODE-RED/GO_NO_GO_CHECKLIST.md
+  - docs/system-map/COMPLETION_GATES_STATUS.md
+  - docs/system-map/LIVE_EXECUTION_PLAN.md
+  allowed_scope_paths:
+  - docs/
+  - ARCHITECTURE.md
+  - AGENTS.md
+  matched_rules:
+  - docs/
+  lane: w3
+  branch: tickets/tkt-erp-stage-105/repo-cartographer
+  worktree_path: /Users/anas/Documents/orchestrator_erp/bigbrightpaints-erp_worktrees/TKT-ERP-STAGE-105/repo-cartographer
+  required_checks:
+  - bash ci/lint-knowledgebase.sh
+  multi_agent_role: planning_architecture
+  multi_agent_config_file: .codex/agents/planning_architecture.toml
+  multi_agent_model: gpt-5.2-codex
+  multi_agent_reasoning: xhigh
+  multi_agent_fallback:
+  - model: gpt-5.3-codex
+    reasoning: high
+  status: merged
+  objective: Freeze immutable gate evidence on canonical release-candidate SHA and
+    produce final deploy sign-off bundle with rollback rehearsal linkage.
+  workflow_upstream_slices: []
+  workflow_downstream_slices: []
+  workflow_external_upstream_agents: []
+  workflow_external_downstream_agents: []
+  cross_workflow_contracts: []
+cross_workflow:
+  model: workflow_agent_edges_v1
+  generated_at: '2026-02-23T15:26:27+00:00'
+  in_ticket_edges: []

@@ -1,12 +1,17 @@
 # CODE-RED Go / No-Go Checklist (Deployment Gate)
 
-Last updated: 2026-02-03
+Last updated: 2026-02-23
 
 This is the single deploy gate for CODE-RED. If any **NO‑GO** condition is true, we do not ship.
 
 Reference runbook:
 - `docs/CODE-RED/release-plan.md`
 - `erp-domain/docs/DEPLOY_CHECKLIST.md`
+
+Current frozen release-candidate evidence (2026-02-23):
+- release candidate SHA: `29ffe36a1c97740dff1275fe164c6c26b11e4d24`
+- gate log ledger: `bigbrightpaints-erp_worktrees/TKT-ERP-STAGE-105/release-evidence/artifacts/gate-ledger/29ffe36a1c97740dff1275fe164c6c26b11e4d24/`
+- sign-off report: `tickets/TKT-ERP-STAGE-105/reports/release-evidence-freeze-20260223.md`
 
 ## GO (All Required)
 

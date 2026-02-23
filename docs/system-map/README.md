@@ -7,6 +7,7 @@ Contents:
 - `REVIEW_QUEUE_POLICY.md`: async-loop code-review queue behavior (normal vs saturation mode).
 - `LIVE_EXECUTION_PLAN.md`: always-on live task lanes and closure criteria.
 - `COMPLETION_GATES_STATUS.md`: live status board for safe-to-deploy completion gates with evidence anchors.
+- `tickets/TKT-ERP-STAGE-105/reports/release-evidence-freeze-20260223.md`: frozen release-candidate sign-off evidence pack.
 - `REPO_OVERVIEW.md`: high-level architecture and duplicate/overlap queue.
 - `CANONICAL_VOCABULARY.md`: cross-module naming contract for entities, idempotency, and ledger-gate terms.
 - `MODULE_BOUNDARIES.md`: module package boundaries and allowed inter-module direction.
