@@ -888,7 +888,7 @@ class TenantRuntimeEnforcementServiceTest {
 
         assertThat(invokeShouldUsePersistedPolicy(current, null)).isFalse();
         assertThat(invokeShouldUsePersistedPolicy(current, samePersisted)).isFalse();
-        assertThat(invokeShouldUsePersistedPolicy(current, persistedUpdatedAtMissing)).isTrue();
+        assertThat(invokeShouldUsePersistedPolicy(current, persistedUpdatedAtMissing)).isFalse();
         assertThat(invokeShouldUsePersistedPolicy(currentUpdatedAtMissing, persistedWithUpdatedAt)).isTrue();
         assertThat(invokeShouldUsePersistedPolicy(current, persistedOlder)).isFalse();
 
@@ -901,7 +901,7 @@ class TenantRuntimeEnforcementServiceTest {
         assertThat(invokeParsePositiveInt("0", 5)).isEqualTo(5);
         assertThat(invokeParsePositiveInt("bad", 5)).isEqualTo(5);
 
-        assertThat(invokeParseInstantOrNow("bad-instant")).isEqualTo(Instant.parse("2026-01-01T00:00:10Z"));
+        assertThat(invokeParseInstantOrNull("bad-instant")).isNull();
         Object missingPolicy = ReflectionTestUtils.invokeMethod(service, "loadPersistedPolicy", "   ");
         assertThat(missingPolicy).isNull();
     }
@@ -1196,10 +1196,8 @@ class TenantRuntimeEnforcementServiceTest {
         return value;
     }
 
-    private Instant invokeParseInstantOrNow(String rawValue) {
-        Instant value = ReflectionTestUtils.invokeMethod(service, "parseInstantOrNow", rawValue);
-        assertThat(value).isNotNull();
-        return value;
+    private Instant invokeParseInstantOrNull(String rawValue) {
+        return ReflectionTestUtils.invokeMethod(service, "parseInstantOrNull", rawValue);
     }
 
     private void authenticateAs(String authority) {

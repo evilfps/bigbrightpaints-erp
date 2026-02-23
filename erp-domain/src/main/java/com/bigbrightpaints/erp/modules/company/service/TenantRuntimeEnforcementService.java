@@ -646,11 +646,11 @@ public class TenantRuntimeEnforcementService {
                         : current.reasonCode.equalsIgnoreCase(persisted.reasonCode))) {
             return false;
         }
-        if (persisted.updatedAt == null) {
-            return true;
-        }
         if (current.updatedAt == null) {
             return true;
+        }
+        if (persisted.updatedAt == null) {
+            return false;
         }
         return !persisted.updatedAt.isBefore(current.updatedAt);
     }
@@ -698,7 +698,7 @@ public class TenantRuntimeEnforcementService {
         String auditChainId = StringUtils.hasText(persistedPolicyReference)
                 ? persistedPolicyReference.trim()
                 : DEFAULT_POLICY_REFERENCE;
-        Instant updatedAt = parseInstantOrNow(persistedUpdatedAt);
+        Instant updatedAt = parseInstantOrNull(persistedUpdatedAt);
         return new TenantRuntimePolicy(
                 state,
                 reason,
@@ -743,7 +743,7 @@ public class TenantRuntimeEnforcementService {
         String auditChainId = StringUtils.hasText(persistedPolicyReference)
                 ? persistedPolicyReference.trim()
                 : DEFAULT_POLICY_REFERENCE;
-        Instant updatedAt = parseInstantOrNow(persistedUpdatedAt);
+        Instant updatedAt = parseInstantOrNull(persistedUpdatedAt);
         return new TenantRuntimePolicy(
                 state,
                 reason,
@@ -792,14 +792,14 @@ public class TenantRuntimeEnforcementService {
         }
     }
 
-    private Instant parseInstantOrNow(String rawValue) {
+    private Instant parseInstantOrNull(String rawValue) {
         if (!StringUtils.hasText(rawValue)) {
-            return CompanyTime.now();
+            return null;
         }
         try {
             return Instant.parse(rawValue.trim());
         } catch (RuntimeException ignored) {
-            return CompanyTime.now();
+            return null;
         }
     }
 

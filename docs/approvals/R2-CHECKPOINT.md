@@ -195,3 +195,25 @@ Update this file in every high-risk change set.
 - Artifacts/links:
   - `erp-domain/src/main/java/com/bigbrightpaints/erp/orchestrator/service/OrchestratorIdempotencyService.java`
   - `erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeOrchestratorExecutableCoverageTest.java`
+
+## STAGE-102 Addendum (2026-02-23, auth-rbac-company-repair)
+- Branch / PR: `tickets/tkt-erp-stage-102/auth-rbac-company-repair` / PR #61 (https://github.com/anasibnanwar-XYE/bigbrightpaints-erp/pull/61)
+- High-risk paths:
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/company/service/TenantRuntimeEnforcementService.java`
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/core/security/CompanyContextFilter.java`
+- Why this is R2: tenant runtime policy freshness and lifecycle bypass logic are fail-closed authorization controls that can cause tenant-wide denial or unauthorized control-path access if incorrect.
+- Approval mode: orchestrator
+- Human escalation required: no
+- Rollback owner: release governance + auth/company owner
+- Verification evidence:
+  - Commands run:
+    - `cd erp-domain && mvn -B -ntp -Dtest=TenantRuntimeEnforcementServiceTest,TS_RuntimeTenantRuntimeEnforcementTest,TS_RuntimeCompanyContextFilterExecutableCoverageTest test`
+    - `bash ci/check-architecture.sh`
+    - `bash ci/check-enterprise-policy.sh`
+  - Result summary: targeted runtime enforcement + company context suites passed (`Tests run: 73, Failures: 0, Errors: 0`); architecture and enterprise policy checks pass with this checkpoint update.
+  - Artifacts/links:
+    - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/company/service/TenantRuntimeEnforcementService.java`
+    - `erp-domain/src/main/java/com/bigbrightpaints/erp/core/security/CompanyContextFilter.java`
+    - `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/company/service/TenantRuntimeEnforcementServiceTest.java`
+    - `erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeTenantRuntimeEnforcementTest.java`
+    - `erp-domain/src/test/java/com/bigbrightpaints/erp/core/security/TS_RuntimeCompanyContextFilterExecutableCoverageTest.java`
