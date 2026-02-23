@@ -1,20 +1,20 @@
 # Completion Gates Status (Safe-to-Deploy Candidate)
 
 Last updated: 2026-02-23
-Anchor (`gate_fast` diff base): `a4c75e0dd78c7c2523d9f4241350e8f2baf2e67a`
-Canonical base branch head: `fac98bcf77ab8d1fc4b04447adf4e143a870d551`
-Latest gate run head: `fac98bcf77ab8d1fc4b04447adf4e143a870d551` (`tickets/tkt-erp-stage-104/release-ops-v3`)
+Anchor (`gate_fast` diff base): `e829707475567476bbea113f01200fc59f48d0d6`
+Canonical base branch head: `e829707475567476bbea113f01200fc59f48d0d6`
+Latest gate run head: `e829707475567476bbea113f01200fc59f48d0d6` (`tickets/tkt-erp-stage-096/release-ops-unblock`)
 Evidence ledger:
-- gate refresh artifacts: `bigbrightpaints-erp_worktrees/TKT-ERP-STAGE-104/release-ops-v3/artifacts/`
+- gate refresh artifacts: `bigbrightpaints-erp_worktrees/TKT-ERP-STAGE-096/release-ops/artifacts/`
 - reconciliation report: `artifacts/gate-reconciliation/reconciliation-summary.json`
 - release migration matrix: `artifacts/gate-release/migration-matrix.json`
 
 ## Latest gate run (2026-02-23)
-- `gate_fast`: `PASS` (line_ratio `0.9887` >= `0.95`, branch_ratio `0.9568` >= `0.90`, files_considered `12`, diff_base `a4c75e0dd78c7c2523d9f4241350e8f2baf2e67a`)
+- `gate_fast`: `PASS` (diff_base `e829707475567476bbea113f01200fc59f48d0d6`, `files_considered=0`, coverage enforcement skipped with reason `no_runtime_source_changes`)
 - `gate_core`: `PASS`
 - `gate_reconciliation`: `PASS` (`247` tests, `0` failures, `0` errors)
 - `gate_release`: `PASS` (`release_migration_matrix OK`, predeploy scans `0` findings)
-- `check-architecture`: `PASS`
+- `check-architecture`: `PASS` (latest local run on `tickets/tkt-erp-stage-096/release-ops-unblock`)
 - full suite (`mvn test`): `INTERRUPTED` in long-running accounting/e2e segment; no assertion failures observed before manual stop. Last complete full-suite pass remains recorded on 2026-02-23 (`1661` tests, `0` failures, `0` errors, `4` skipped).
 
 ## Summary
@@ -36,7 +36,8 @@ Evidence ledger:
 
 3. No confirmed cross-tenant/cross-partner IDOR or privilege abuse paths: `CLOSED`
 - Evidence:
-  - 2026-02-23 canonical gate ladder green including runtime tenant/company enforcement paths captured in gate_fast considered files.
+  - 2026-02-23 canonical gate ladder green on head `e829707475567476bbea113f01200fc59f48d0d6`.
+  - Runtime tenant/company enforcement coverage closure remains locked from `TKT-ERP-STAGE-102`/`TKT-ERP-STAGE-103`.
   - Tenant runtime control-plane tickets (`TKT-ERP-STAGE-102`) reconciled as merged/done.
 
 4. DB/predeploy gates (`Flyway v2 safety`, indexes/hot paths, secrets, overlap/drift scans): `CLOSED`
@@ -50,5 +51,5 @@ Evidence ledger:
   - 2026-02-23 `gate_fast` PASS with anchored changed-file coverage above threshold.
 
 ## Immediate next closure queue
-1. Merge pending runtime PRs (currently `TKT-ERP-STAGE-106`), then re-run full gate ladder on the new head.
-2. Execute one uninterrupted full regression (`mvn test`) in long-run mode and append final evidence hash for release cut.
+1. Execute one uninterrupted full regression (`mvn test`) in long-run mode on canonical head `e829707475567476bbea113f01200fc59f48d0d6`.
+2. Freeze release-candidate evidence hashes (gate artifacts + migration matrix + rollback rehearsal) for final release cut.

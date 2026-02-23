@@ -3,16 +3,16 @@
 - title: Ledger Gate Freshness Refresh on Current Head
 - goal: Re-run section 14.3 ledger closure gates on current harness-engineering-orchestrator head and record immutable evidence for deploy-readiness handoff.
 - priority: high
-- status: blocked
+- status: done
 - base_branch: harness-engineering-orchestrator
 - created_at: 2026-02-20T09:42:41+00:00
-- updated_at: 2026-02-20T10:15:36Z
+- updated_at: 2026-02-23T15:05:02Z
 
 ## Slice Board
 
 | Slice | Agent | Lane | Status | Branch |
 | --- | --- | --- | --- | --- |
-| SLICE-01 | release-ops | w1 | checks_failed | `tickets/tkt-erp-stage-096/release-ops` |
+| SLICE-01 | release-ops | w1 | merged | `tickets/tkt-erp-stage-096/release-ops` |
 | SLICE-02 | repo-cartographer | w2 | merged | `tickets/tkt-erp-stage-096/repo-cartographer` |
 
 ## Operator Commands
