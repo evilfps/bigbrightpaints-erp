@@ -670,13 +670,17 @@ public class FinishedGoodsService {
                 .anyMatch(r -> r.getFulfilledQuantity() != null && r.getFulfilledQuantity().compareTo(BigDecimal.ZERO) > 0);
         boolean anyPending = reservations.stream()
                 .anyMatch(r -> !"FULFILLED".equalsIgnoreCase(r.getStatus()) && !"CANCELLED".equalsIgnoreCase(r.getStatus()));
-        if (anyShipped) {
+        if (anyShipped && !anyPending) {
             slip.setStatus("DISPATCHED");
             if (slip.getDispatchedAt() == null) {
                 slip.setDispatchedAt(companyClock.now(slip.getCompany()));
             }
-        } else {
-            slip.setStatus(anyPending ? "PENDING_STOCK" : slip.getStatus());
+        } else if (anyPending) {
+            // Keep partially shipped slips in a non-terminal state until reservations are fully fulfilled.
+            slip.setStatus("PENDING_STOCK");
+            if (anyShipped && slip.getDispatchedAt() == null) {
+                slip.setDispatchedAt(companyClock.now(slip.getCompany()));
+            }
         }
         for (PackagingSlipLine line : slip.getLines()) {
             BigDecimal ordered = line.getOrderedQuantity() != null ? line.getOrderedQuantity() : line.getQuantity();

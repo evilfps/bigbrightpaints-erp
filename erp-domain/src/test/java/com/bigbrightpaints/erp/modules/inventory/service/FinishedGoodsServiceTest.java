@@ -1048,6 +1048,12 @@ class FinishedGoodsServiceTest extends AbstractIntegrationTest {
         finishedGoodsService.markSlipDispatched(order.getId(), slip);
 
         List<PackagingSlip> slips = packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, order.getId());
+        PackagingSlip primarySlip = slips.stream()
+                .filter(existing -> !existing.isBackorder())
+                .findFirst()
+                .orElseThrow();
+        assertThat(primarySlip.getStatus()).isEqualTo("PENDING_STOCK");
+        assertThat(primarySlip.getDispatchedAt()).isNotNull();
         PackagingSlip backorderSlip = slips.stream()
                 .filter(existing -> "BACKORDER".equalsIgnoreCase(existing.getStatus()))
                 .findFirst()
@@ -1055,6 +1061,22 @@ class FinishedGoodsServiceTest extends AbstractIntegrationTest {
         assertThat(backorderSlip.getLines()).hasSize(1);
         PackagingSlipLine boLine = backorderSlip.getLines().getFirst();
         assertThat(boLine.getQuantity()).isEqualByComparingTo(new BigDecimal("5"));
+    }
+
+    @Test
+    void markSlipDispatched_fullShipmentMarksSlipDispatched() {
+        Company company = seedCompany("DISPATCH-FULL");
+        FinishedGood fg = createFinishedGood(company, "FG-FULL", new BigDecimal("10"), new BigDecimal("10"), "FIFO");
+        FinishedGoodBatch batch = createBatch(fg, "BATCH-FULL", new BigDecimal("10"), BigDecimal.ZERO, new BigDecimal("8"));
+        SalesOrder order = createOrder(company, "SO-FULL-" + UUID.randomUUID(), fg.getProductCode(), new BigDecimal("10"));
+        PackagingSlip slip = createSlip(company, order, "RESERVED", batch, new BigDecimal("10"));
+        createReservation(order, fg, batch, new BigDecimal("10"));
+
+        finishedGoodsService.markSlipDispatched(order.getId(), slip);
+
+        PackagingSlip refreshed = packagingSlipRepository.findByIdAndCompany(slip.getId(), company).orElseThrow();
+        assertThat(refreshed.getStatus()).isEqualTo("DISPATCHED");
+        assertThat(refreshed.getDispatchedAt()).isNotNull();
     }
 
     @Test
