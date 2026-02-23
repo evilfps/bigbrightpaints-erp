@@ -120,6 +120,30 @@ class DealerPortalServiceTest {
     }
 
     @Test
+    void getCurrentDealer_failsClosedWhenEmailFallbackHasNoDealerMapping() {
+        UserAccount user = new UserAccount("dealer@tenant.com", "hash", "Dealer");
+        authenticate(user, "ROLE_DEALER");
+        when(dealerRepository.findAllByCompanyAndPortalUserEmailIgnoreCase(company, "dealer@tenant.com"))
+                .thenReturn(List.of());
+
+        assertThatThrownBy(() -> dealerPortalService.getCurrentDealer())
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessageContaining("mapping missing");
+    }
+
+    @Test
+    void getCurrentDealer_failsClosedWhenEmailFallbackMapsToMultipleDealers() {
+        UserAccount user = new UserAccount("dealer@tenant.com", "hash", "Dealer");
+        authenticate(user, "ROLE_DEALER");
+        when(dealerRepository.findAllByCompanyAndPortalUserEmailIgnoreCase(company, "dealer@tenant.com"))
+                .thenReturn(List.of(dealerWithId(33L), dealerWithId(34L)));
+
+        assertThatThrownBy(() -> dealerPortalService.getCurrentDealer())
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessageContaining("Ambiguous dealer mapping");
+    }
+
+    @Test
     void getCurrentDealer_failsClosedWhenUserIdMissingDealerMappingEvenIfEmailMatches() {
         UserAccount user = userWithId(100L, "dealer@tenant.com");
         authenticate(user, "ROLE_DEALER");
@@ -143,6 +167,17 @@ class DealerPortalServiceTest {
         assertThatThrownBy(() -> dealerPortalService.verifyDealerAccess(99L))
                 .isInstanceOf(AccessDeniedException.class)
                 .hasMessageContaining("Access denied");
+    }
+
+    @Test
+    void verifyDealerAccess_skipsDealerBoundaryForNonDealerRoles() {
+        UserAccount user = userWithId(100L, "admin@tenant.com");
+        authenticate(user, "ROLE_ADMIN");
+
+        dealerPortalService.verifyDealerAccess(99L);
+
+        verify(dealerRepository, never()).findAllByCompanyAndPortalUserId(any(), any());
+        verify(dealerRepository, never()).findAllByCompanyAndPortalUserEmailIgnoreCase(any(), anyString());
     }
 
     @Test

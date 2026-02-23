@@ -174,11 +174,39 @@ class SalesTargetGovernanceServiceTest {
     }
 
     @Test
+    void createTargetRejectsUnauthenticatedActor() {
+        SecurityContextHolder.clearContext();
+
+        assertThrows(AccessDeniedException.class, () -> salesService.createTarget(requestFor("rep@comp.com", "Plan kickoff")));
+
+        verify(salesTargetRepository, never()).save(any(SalesTarget.class));
+    }
+
+    @Test
     void createTargetRejectsSelfAssignmentForAdminActor() {
         authenticate("admin@comp.com", "ROLE_ADMIN");
 
         assertThrows(AccessDeniedException.class, () -> salesService.createTarget(requestFor("ADMIN@comp.com", "Self assign attempt")));
 
+        verify(salesTargetRepository, never()).save(any(SalesTarget.class));
+    }
+
+    @Test
+    void createTargetRequiresAssigneeIdentity() {
+        authenticate("admin@comp.com", "ROLE_ADMIN");
+
+        ApplicationException ex = assertThrows(ApplicationException.class, () -> salesService.createTarget(
+                new SalesTargetRequest(
+                        "North Region Monthly",
+                        LocalDate.of(2026, 1, 1),
+                        LocalDate.of(2026, 1, 31),
+                        new BigDecimal("150000"),
+                        BigDecimal.ZERO,
+                        "   ",
+                        "Quarter 2 target assignment")
+        ));
+
+        assertEquals(ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD, ex.getErrorCode());
         verify(salesTargetRepository, never()).save(any(SalesTarget.class));
     }
 
@@ -211,6 +239,18 @@ class SalesTargetGovernanceServiceTest {
                 501L,
                 requestFor("rep@comp.com", "Attempted self approval")
         ));
+    }
+
+    @Test
+    void updateTargetRejectsSelfAssignmentInIncomingRequestBeforeEntityLookup() {
+        authenticate("owner@comp.com", "ROLE_ADMIN");
+
+        assertThrows(AccessDeniedException.class, () -> salesService.updateTarget(
+                502L,
+                requestFor("owner@comp.com", "Attempted self assignment in request")
+        ));
+
+        verify(companyEntityLookup, never()).requireSalesTarget(company, 502L);
     }
 
     @Test
