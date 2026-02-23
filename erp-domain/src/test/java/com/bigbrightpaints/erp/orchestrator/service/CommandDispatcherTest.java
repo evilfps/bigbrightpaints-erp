@@ -568,6 +568,71 @@ class CommandDispatcherTest {
     }
 
     @Test
+    void approveOrderReplayLeaseSkipsSideEffectsAndReturnsTrace() {
+        OrchestratorCommand command =
+                new OrchestratorCommand(1L, "ORCH.ORDER.APPROVE", "idem-replay", "hash", "trace-replay");
+        ApproveOrderRequest request = new ApproveOrderRequest("301", "approver@bbp.com", new BigDecimal("1500"));
+        when(idempotencyService.start(
+                ArgumentMatchers.eq("ORCH.ORDER.APPROVE"),
+                ArgumentMatchers.eq("idem-replay"),
+                ArgumentMatchers.eq(request),
+                ArgumentMatchers.any()))
+                .thenReturn(new OrchestratorIdempotencyService.CommandLease("trace-replay", command, false));
+
+        String traceId = commandDispatcher.approveOrder(request, "idem-replay", "req-replay", "COMP", "user-1");
+
+        assertThat(traceId).isEqualTo("trace-replay");
+        verify(policyEnforcer).checkOrderApprovalPermissions("user-1", "COMP");
+        verify(integrationCoordinator, never()).reserveInventory(
+                ArgumentMatchers.anyString(),
+                ArgumentMatchers.anyString(),
+                ArgumentMatchers.anyString(),
+                ArgumentMatchers.anyString());
+        verify(eventPublisherService, never()).enqueue(ArgumentMatchers.any());
+        verify(traceService, never()).record(
+                ArgumentMatchers.anyString(),
+                ArgumentMatchers.anyString(),
+                ArgumentMatchers.anyString(),
+                ArgumentMatchers.anyMap(),
+                ArgumentMatchers.anyString(),
+                ArgumentMatchers.anyString());
+        verify(idempotencyService, never()).markSuccess(ArgumentMatchers.any());
+        verify(idempotencyService, never()).markFailed(ArgumentMatchers.any(), ArgumentMatchers.any());
+    }
+
+    @Test
+    void approveOrderLongRequestIdUsesDeterministicCorrelationHash() {
+        OrchestratorCommand command =
+                new OrchestratorCommand(1L, "ORCH.ORDER.APPROVE", "idem-long", "hash", "trace-long");
+        ApproveOrderRequest request = new ApproveOrderRequest("401", "approver@bbp.com", new BigDecimal("1800"));
+        when(integrationCoordinator.reserveInventory("401", "COMP", "trace-long", "idem-long"))
+                .thenReturn(new InventoryReservationResult(null, List.of()));
+        when(idempotencyService.start(
+                ArgumentMatchers.eq("ORCH.ORDER.APPROVE"),
+                ArgumentMatchers.eq("idem-long"),
+                ArgumentMatchers.eq(request),
+                ArgumentMatchers.any()))
+                .thenReturn(new OrchestratorIdempotencyService.CommandLease("trace-long", command, true));
+        String longRequestId = "request-".repeat(40);
+
+        String traceId = commandDispatcher.approveOrder(request, "idem-long", longRequestId, "COMP", "user-1");
+
+        assertThat(traceId).isEqualTo("trace-long");
+        ArgumentCaptor<DomainEvent> eventCaptor = ArgumentCaptor.forClass(DomainEvent.class);
+        verify(eventPublisherService).enqueue(eventCaptor.capture());
+        DomainEvent published = eventCaptor.getValue();
+        assertThat(published.requestId()).startsWith("RIDH|");
+        assertThat(published.requestId()).hasSize(69);
+        verify(traceService).record(
+                ArgumentMatchers.eq("trace-long"),
+                ArgumentMatchers.eq("ORDER_APPROVED"),
+                ArgumentMatchers.eq("COMP"),
+                ArgumentMatchers.anyMap(),
+                ArgumentMatchers.eq(published.requestId()),
+                ArgumentMatchers.eq("idem-long"));
+    }
+
+    @Test
     void approveOrderUsesCanonicalLeaseIdempotencyKeyForEventAndTrace() {
         OrchestratorCommand command =
                 new OrchestratorCommand(1L, "ORCH.ORDER.APPROVE", "idem-canonical", "hash", "trace-canonical");
