@@ -415,9 +415,6 @@ class TenantRuntimePolicyServiceTest {
                 auditService,
                 tenantRuntimeEnforcementService
         );
-        long minuteEpoch = FIXED_NOW.getEpochSecond() / 60;
-        settings.put(keyMetricMinuteEpoch(42L), Long.toString(minuteEpoch));
-        settings.put(keyMetricBlockedMinute(42L), "5");
         when(userAccountRepository.findDistinctByCompanies_Id(42L))
                 .thenReturn(List.of(user(true), user(false), user(true)));
         when(tenantRuntimeEnforcementService.snapshot("ACME")).thenReturn(
@@ -430,7 +427,7 @@ class TenantRuntimePolicyServiceTest {
                         30,
                         900,
                         120,
-                        new TenantRuntimeEnforcementService.TenantRuntimeMetrics(71, 8, 2, 3, 11, 2)
+                        new TenantRuntimeEnforcementService.TenantRuntimeMetrics(71, 8, 2, 3, 11, 8, 2)
                 )
         );
 
@@ -445,7 +442,7 @@ class TenantRuntimePolicyServiceTest {
         assertThat(metrics.enabledUsers()).isEqualTo(2);
         assertThat(metrics.totalUsers()).isEqualTo(3);
         assertThat(metrics.requestsThisMinute()).isEqualTo(11);
-        assertThat(metrics.blockedThisMinute()).isEqualTo(5);
+        assertThat(metrics.blockedThisMinute()).isEqualTo(8);
         assertThat(metrics.inFlightRequests()).isEqualTo(3);
         assertThat(metrics.policyReference()).isEqualTo("audit-chain-1");
         assertThat(metrics.policyUpdatedAt()).isEqualTo(FIXED_NOW);
@@ -473,7 +470,7 @@ class TenantRuntimePolicyServiceTest {
                         40,
                         1200,
                         250,
-                        new TenantRuntimeEnforcementService.TenantRuntimeMetrics(3, 0, 0, 0, 1, 1)
+                        new TenantRuntimeEnforcementService.TenantRuntimeMetrics(3, 0, 0, 0, 1, 0, 1)
                 )
         );
         TenantRuntimePolicyUpdateRequest request = new TenantRuntimePolicyUpdateRequest(
@@ -502,7 +499,7 @@ class TenantRuntimePolicyServiceTest {
                         21,
                         800,
                         55,
-                        new TenantRuntimeEnforcementService.TenantRuntimeMetrics(10, 1, 0, 0, 4, 1)
+                        new TenantRuntimeEnforcementService.TenantRuntimeMetrics(10, 1, 0, 0, 4, 1, 1)
                 )
         );
 

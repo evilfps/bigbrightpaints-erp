@@ -160,7 +160,7 @@ public class TenantRuntimePolicyService {
         long totalUsers = countTotalUsers(company.getId());
         long enabledUsers = Math.max(snapshot.metrics().activeUsers(), 0L);
         int requestsThisMinute = Math.max(snapshot.metrics().minuteRequestCount(), 0);
-        int blockedThisMinute = loadMetricSnapshot(company.getId()).blockedThisMinute();
+        int blockedThisMinute = Math.max(snapshot.metrics().minuteRejectedCount(), 0);
         int inFlightRequests = Math.max(snapshot.metrics().inFlightRequests(), 0);
         String holdState = snapshot.state().name();
         String holdReason = TenantRuntimeEnforcementService.TenantRuntimeState.ACTIVE == snapshot.state()
