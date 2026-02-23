@@ -23,7 +23,7 @@ Mode: Active (`canonical gate ladder green, uninterrupted full regression passed
 
 ## Active constraints
 - Canonical base local branch alias (`harness-engineering-orchestrator`) can drift from `origin/*`; gate scripts must continue using canonical-origin fallback.
-- Final decision remains blocked until human `R3` sign-off is explicitly recorded.
+- Final decision remains blocked until human `R3` sign-off is explicitly recorded in `docs/approvals/R3-CHECKPOINT.md`.
 
 ## Live plan lanes
 

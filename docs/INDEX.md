@@ -77,6 +77,8 @@ This is the canonical knowledge base entrypoint for agentic work in this reposit
 - Orchestrator control plane: `docs/agents/ORCHESTRATION_LAYER.md`
 - Active R2 checkpoint: `docs/approvals/R2-CHECKPOINT.md`
 - R2 approval template: `docs/approvals/R2-CHECKPOINT-TEMPLATE.md`
+- Active R3 checkpoint: `docs/approvals/R3-CHECKPOINT.md`
+- R3 approval template: `docs/approvals/R3-CHECKPOINT-TEMPLATE.md`
 
 ## Risk and Reliability
 - Security + governance + initial risk register: `docs/SECURITY.md`

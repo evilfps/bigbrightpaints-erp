@@ -10404,3 +10404,25 @@ Loop Update
 - async_loop_status: `ACTIVE`
 - completion_gates_status: `5/5 CLOSED`
 - closure_note: `Immutable release evidence freeze is complete; awaiting explicit human R3 go/no-go sign-off.`
+
+[2026-02-23] M18-S10B R3 human go/no-go checkpoint package closure (TKT-ERP-STAGE-106)
+- Completed Slice (Committed): release-ops-r3 docs/control-plane closure
+  - Added `docs/approvals/R3-CHECKPOINT-TEMPLATE.md`.
+  - Added `docs/approvals/R3-CHECKPOINT.md` bound to candidate SHA `29ffe36a1c97740dff1275fe164c6c26b11e4d24` and frozen evidence links.
+  - Updated roadmap references in:
+    - `docs/INDEX.md`
+    - `docs/system-map/README.md`
+    - `docs/system-map/COMPLETION_GATES_STATUS.md`
+    - `docs/system-map/LIVE_EXECUTION_PLAN.md`
+  - Ticket closure report: `tickets/TKT-ERP-STAGE-106/reports/r3-checkpoint-package-20260223.md`.
+- Verification:
+  - `bash ci/lint-knowledgebase.sh` -> PASS
+  - `bash ci/check-architecture.sh` -> PASS
+  - `bash ci/check-enterprise-policy.sh` -> PASS
+
+Loop Update
+- tracked_now_ts: `2026-02-23T15:47:00Z`
+- active_in_progress: `none`
+- async_loop_status: `ACTIVE`
+- completion_gates_status: `5/5 CLOSED`
+- closure_note: `Machine-executable roadmap closure complete; only human R3 go/no-go decision remains.`

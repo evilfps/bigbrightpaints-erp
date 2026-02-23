@@ -55,4 +55,4 @@ Evidence ledger:
   - 2026-02-23 `gate_fast` PASS with anchored diff-base and no runtime delta.
 
 ## Immediate next closure queue
-1. Execute human `R3` go/no-go sign-off against frozen evidence set for `29ffe36a1c97740dff1275fe164c6c26b11e4d24`.
+1. Execute human `R3` go/no-go sign-off against frozen evidence set for `29ffe36a1c97740dff1275fe164c6c26b11e4d24` and record decision in `docs/approvals/R3-CHECKPOINT.md`.
