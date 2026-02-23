@@ -341,6 +341,35 @@ class TenantRuntimeEnforcementServiceTest {
     }
 
     @Test
+    void beginRequest_fallsBackToCachedPolicyWhenSettingsReadFailsDuringRefresh() {
+        TenantRuntimeEnforcementService.TenantRequestAdmission warmed =
+                service.beginRequest("ACME", "/api/v1/private", "GET", "actor@bbp.com");
+        assertThat(warmed.isAdmitted()).isTrue();
+        service.completeRequest(warmed, 200);
+        expireCachedPolicyRefreshDeadline("ACME");
+
+        when(systemSettingsRepository.findById(any())).thenThrow(new RuntimeException("settings-unavailable"));
+
+        TenantRuntimeEnforcementService.TenantRequestAdmission fallbackAdmission =
+                service.beginRequest("ACME", "/api/v1/private", "GET", "actor@bbp.com");
+
+        assertThat(fallbackAdmission.isAdmitted()).isTrue();
+        assertThat(fallbackAdmission.auditChainId()).isEqualTo(warmed.auditChainId());
+    }
+
+    @Test
+    void beginRequest_fallsBackToDefaultPolicyWhenCompanyLookupFails() {
+        when(companyRepository.findByCodeIgnoreCase(eq("ACME")))
+                .thenThrow(new RuntimeException("company-lookup-unavailable"));
+
+        TenantRuntimeEnforcementService.TenantRequestAdmission admission =
+                service.beginRequest("ACME", "/api/v1/private", "GET", "actor@bbp.com");
+
+        assertThat(admission.isAdmitted()).isTrue();
+        assertThat(admission.auditChainId()).isNotBlank();
+    }
+
+    @Test
     void beginRequest_usesCachedPolicy_withoutReloadingPersistedSettingsPerRequest() {
         persistedSettingsByKey.put(keyHoldState(1L), "BLOCKED");
         persistedSettingsByKey.put(keyHoldReason(1L), "policy_block");
@@ -928,6 +957,16 @@ class TenantRuntimeEnforcementServiceTest {
 
     private String keyPolicyUpdatedAt(Long companyId) {
         return "tenant.runtime.policy-updated-at." + companyId;
+    }
+
+    private void expireCachedPolicyRefreshDeadline(String companyCode) {
+        @SuppressWarnings("unchecked")
+        ConcurrentMap<String, Object> policies =
+                (ConcurrentMap<String, Object>) ReflectionTestUtils.getField(service, "policies");
+        assertThat(policies).isNotNull();
+        Object cachedPolicy = policies.get(companyCode);
+        assertThat(cachedPolicy).isNotNull();
+        ReflectionTestUtils.setField(cachedPolicy, "policyRefreshAfterEpochMillis", 0L);
     }
 
     private Object tenantRuntimePolicy(TenantRuntimeEnforcementService.TenantRuntimeState state,

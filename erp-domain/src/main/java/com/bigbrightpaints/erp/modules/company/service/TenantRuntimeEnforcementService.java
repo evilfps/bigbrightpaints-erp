@@ -459,7 +459,13 @@ public class TenantRuntimeEnforcementService {
             if (cached != null && cached.policyRefreshAfterEpochMillis > refreshCheckAt) {
                 return cached;
             }
-            TenantRuntimePolicy persisted = loadPersistedPolicy(key);
+            TenantRuntimePolicy persisted;
+            try {
+                persisted = loadPersistedPolicy(key);
+            } catch (RuntimeException ignored) {
+                // Keep request admission available during transient policy persistence outages.
+                persisted = null;
+            }
             TenantRuntimePolicy resolved;
             if (persisted != null && shouldUsePersistedPolicy(cached, persisted)) {
                 resolved = persisted;
@@ -505,7 +511,12 @@ public class TenantRuntimeEnforcementService {
         if (!StringUtils.hasText(companyCode)) {
             return null;
         }
-        Company company = companyRepository.findByCodeIgnoreCase(companyCode.trim()).orElse(null);
+        Company company;
+        try {
+            company = companyRepository.findByCodeIgnoreCase(companyCode.trim()).orElse(null);
+        } catch (RuntimeException ignored) {
+            return null;
+        }
         if (company == null || company.getId() == null) {
             return null;
         }
@@ -600,9 +611,13 @@ public class TenantRuntimeEnforcementService {
     }
 
     private String readSetting(String key, String fallback) {
-        return systemSettingsRepository.findById(key)
-                .map(SystemSetting::getValue)
-                .orElse(fallback);
+        try {
+            return systemSettingsRepository.findById(key)
+                    .map(SystemSetting::getValue)
+                    .orElse(fallback);
+        } catch (RuntimeException ignored) {
+            return fallback;
+        }
     }
 
     private String keyHoldState(Long companyId) {
