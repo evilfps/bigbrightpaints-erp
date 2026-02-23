@@ -31,6 +31,8 @@ public class TenantRuntimeEnforcementService {
     private static final String DEFAULT_POLICY_REFERENCE = "bootstrap";
     private static final String UNKNOWN_ACTOR = "UNKNOWN_AUTH_ACTOR";
     private static final String TENANT_RUNTIME_POLICY_PATH = "/api/v1/admin/tenant-runtime/policy";
+    private static final String CANONICAL_COMPANY_RUNTIME_POLICY_PREFIX = "/api/v1/companies/";
+    private static final String CANONICAL_COMPANY_RUNTIME_POLICY_SUFFIX = "/tenant-runtime/policy";
 
     private final CompanyRepository companyRepository;
     private final SystemSettingsRepository systemSettingsRepository;
@@ -249,6 +251,56 @@ public class TenantRuntimeEnforcementService {
         return snapshot(normalizedCompany);
     }
 
+    public TenantRuntimeSnapshot updatePolicy(String companyCode,
+                                              TenantRuntimeState targetState,
+                                              String reasonCode,
+                                              Integer maxConcurrentRequests,
+                                              Integer maxRequestsPerMinute,
+                                              Integer maxActiveUsers,
+                                              String actor) {
+        String normalizedCompany = requireCompanyCode(companyCode);
+        companyRepository.findByCodeIgnoreCase(normalizedCompany)
+                .orElseThrow(() -> new IllegalArgumentException("Company not found: " + normalizedCompany));
+        if (targetState == null
+                && maxConcurrentRequests == null
+                && maxRequestsPerMinute == null
+                && maxActiveUsers == null) {
+            throw new IllegalArgumentException("Runtime policy mutation payload is required");
+        }
+        TenantRuntimePolicy policy = policyFor(normalizedCompany);
+        String normalizedReason = normalizeReason(reasonCode);
+        String previousChainId;
+        String newChainId = UUID.randomUUID().toString();
+        Instant now = CompanyTime.now();
+        synchronized (policy) {
+            previousChainId = policy.auditChainId;
+            if (targetState != null) {
+                policy.state = targetState;
+            }
+            if (maxConcurrentRequests != null) {
+                policy.maxConcurrentRequests = sanitizeLimit(maxConcurrentRequests);
+            }
+            if (maxRequestsPerMinute != null) {
+                policy.maxRequestsPerMinute = sanitizeLimit(maxRequestsPerMinute);
+            }
+            if (maxActiveUsers != null) {
+                policy.maxActiveUsers = sanitizeLimit(maxActiveUsers);
+            }
+            policy.reasonCode = normalizedReason;
+            policy.updatedAt = now;
+            policy.auditChainId = newChainId;
+        }
+        auditPolicyChange(
+                "UPDATE_TENANT_RUNTIME_POLICY",
+                normalizedCompany,
+                normalizeActor(actor),
+                normalizedReason,
+                previousChainId,
+                policy.auditChainId,
+                policy);
+        return snapshot(normalizedCompany);
+    }
+
     public TenantRuntimeSnapshot snapshot(String companyCode) {
         String normalizedCompany = requireCompanyCode(companyCode);
         TenantRuntimePolicy policy = policyFor(normalizedCompany);
@@ -400,7 +452,22 @@ public class TenantRuntimeEnforcementService {
         while (normalizedPath.endsWith("/") && normalizedPath.length() > 1) {
             normalizedPath = normalizedPath.substring(0, normalizedPath.length() - 1);
         }
-        return TENANT_RUNTIME_POLICY_PATH.equals(normalizedPath);
+        if (TENANT_RUNTIME_POLICY_PATH.equals(normalizedPath)) {
+            return true;
+        }
+        return isCanonicalCompanyRuntimePolicyPath(normalizedPath);
+    }
+
+    private boolean isCanonicalCompanyRuntimePolicyPath(String normalizedPath) {
+        if (!StringUtils.hasText(normalizedPath)
+                || !normalizedPath.startsWith(CANONICAL_COMPANY_RUNTIME_POLICY_PREFIX)
+                || !normalizedPath.endsWith(CANONICAL_COMPANY_RUNTIME_POLICY_SUFFIX)) {
+            return false;
+        }
+        int prefixLength = CANONICAL_COMPANY_RUNTIME_POLICY_PREFIX.length();
+        int suffixLength = CANONICAL_COMPANY_RUNTIME_POLICY_SUFFIX.length();
+        String companyIdSegment = normalizedPath.substring(prefixLength, normalizedPath.length() - suffixLength);
+        return StringUtils.hasText(companyIdSegment) && !companyIdSegment.contains("/");
     }
 
     private void auditRejection(TenantRuntimeRejection rejection, String actor, String requestPath, String requestMethod) {

@@ -1,6 +1,6 @@
 # R2 Checkpoint (Active Approval Record)
 
-Last reviewed: 2026-02-21
+Last reviewed: 2026-02-23
 Owner: Security & Governance Agent
 Status: template-initialized
 
@@ -235,3 +235,53 @@ Update this file in every high-risk change set.
     - `erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeTenantRuntimeEnforcementTest.java`
     - `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/company/service/TenantRuntimeEnforcementServiceTest.java`
     - `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingFacadeTest.java`
+
+## STAGE-102 Addendum (2026-02-23, auth-rbac-company-repair-v2)
+- Ticket path / PR: `tickets/TKT-ERP-STAGE-102` / PR #65 (https://github.com/anasibnanwar-XYE/bigbrightpaints-erp/pull/65)
+- Source branch: `tickets-tkt-erp-stage-102-auth-rbac-company-repair-v2`
+- High-risk paths:
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/core/security/CompanyContextFilter.java`
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/company/controller/CompanyController.java`
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/company/service/CompanyService.java`
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/company/service/TenantRuntimeEnforcementService.java`
+- Why this is R2: super-admin runtime policy control, tenant lifecycle bypass semantics, and fail-closed runtime admission are high-risk auth/runtime boundaries.
+- Approval mode: orchestrator
+- Human escalation required: no
+- Rollback owner: release governance + company/auth owners
+- Verification evidence:
+  - Commands run:
+    - `mvn -B -ntp -f erp-domain/pom.xml -s /Users/anas/Documents/orchestrator_erp/bigbrightpaints-erp_worktrees/chore/codex-cloud-testing/.mvn/settings.xml -Dtest=TS_RuntimeTenantRuntimeEnforcementTest,TS_RuntimeTenantPolicyControlExecutableCoverageTest test`
+    - `DIFF_BASE=584989c317a3b50361d49b212ff19b6eeddb7d50 bash scripts/gate_fast.sh`
+    - `bash ci/check-enterprise-policy.sh`
+  - Result summary: targeted truthsuite lane passed (`Tests run: 18, Failures: 0, Errors: 0`); gate-fast passed with changed-files coverage above thresholds (`line_ratio=0.995`, `branch_ratio=0.9301`).
+- Artifacts/links:
+  - `docs/CODE-RED/confidence-suite/TEST_CATALOG.json`
+  - `erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeTenantRuntimeEnforcementTest.java`
+  - `erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeTenantPolicyControlExecutableCoverageTest.java`
+
+## STAGE-102 Addendum (2026-02-23, release-ops-land-v1)
+- Branch / PR: branch `release-ops-land-v1` (ticket-102 release lane) / PR #72 (https://github.com/anasibnanwar-XYE/bigbrightpaints-erp/pull/72)
+- High-risk paths:
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/core/security/CompanyContextFilter.java`
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/company/service/TenantRuntimeEnforcementService.java`
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/company/service/CompanyService.java`
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/admin/controller/AdminSettingsController.java`
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/admin/service/TenantRuntimePolicyService.java`
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/portal/service/TenantRuntimeEnforcementConfig.java`
+- Why this is R2: tenant-runtime policy-control authority, control-plane state mutations, and fail-closed runtime admission boundaries are high-risk auth/runtime controls.
+- Approval mode: orchestrator
+- Human escalation required: no
+- Rollback owner: release governance + company/admin/security owners
+- Verification evidence:
+  - Commands run:
+    - `bash ci/check-architecture.sh`
+    - `cd erp-domain && mvn -B -ntp -Dtest='TenantRuntimeEnforcementServiceTest,CompanyServiceTest,TenantRuntimePolicyServiceTest,TenantRuntimeEnforcementConfigTest' test`
+    - `cd erp-domain && mvn -B -ntp -Dtest='CompanyControllerIT,AdminUserSecurityIT,PortalInsightsControllerIT,TS_RuntimeTenantRuntimeEnforcementTest,TS_RuntimeTenantPolicyControlExecutableCoverageTest,TS_RuntimeTenantControlPlaneEnforcementTest' test`
+    - `bash ci/check-enterprise-policy.sh`
+  - Result summary: all listed validation lanes passed on branch head; runtime policy control and cross-module runtime truthsuite coverage remained green after landing fixes.
+- Artifacts/links:
+  - `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/company/CompanyControllerIT.java`
+  - `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/company/service/TenantRuntimeEnforcementServiceTest.java`
+  - `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/portal/PortalInsightsControllerIT.java`
+  - `erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeTenantPolicyControlExecutableCoverageTest.java`
+  - `erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeTenantControlPlaneEnforcementTest.java`

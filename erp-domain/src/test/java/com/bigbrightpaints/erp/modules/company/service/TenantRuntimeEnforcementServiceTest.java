@@ -490,6 +490,40 @@ class TenantRuntimeEnforcementServiceTest {
     }
 
     @Test
+    void beginRequest_policyControlBypassesHoldStateAndRateLimits_forPrivilegedActor() {
+        service.holdTenant("ACME", "manual-hold", "ops@bbp.com");
+        service.updateQuotas("ACME", 1, 1, 10, "tight-limits", "ops@bbp.com");
+
+        TenantRuntimeEnforcementService.TenantRequestAdmission policyAdmission =
+                service.beginRequest(
+                        "ACME",
+                        "/api/v1/companies/1/tenant-runtime/policy",
+                        "PUT",
+                        "super-admin@bbp.com",
+                        true);
+        service.completeRequest(policyAdmission, 200);
+
+        assertThat(policyAdmission.isAdmitted()).isTrue();
+        assertThat(policyAdmission.statusCode()).isEqualTo(HttpStatus.OK.value());
+    }
+
+    @Test
+    void beginRequest_policyControlRequiresPrivilegedFlag() {
+        service.holdTenant("ACME", "manual-hold", "ops@bbp.com");
+
+        TenantRuntimeEnforcementService.TenantRequestAdmission policyAdmission =
+                service.beginRequest(
+                        "ACME",
+                        "/api/v1/companies/1/tenant-runtime/policy",
+                        "PUT",
+                        "actor@bbp.com",
+                        false);
+
+        assertThat(policyAdmission.isAdmitted()).isFalse();
+        assertThat(policyAdmission.statusCode()).isEqualTo(HttpStatus.LOCKED.value());
+    }
+
+    @Test
     void beginRequest_rejectsWhenConcurrencyQuotaExceeded_andCompleteTracksErrors() {
         service.updateQuotas("ACME", 1, 10, 10, "concurrency_test", "ops@bbp.com");
 
@@ -553,6 +587,31 @@ class TenantRuntimeEnforcementServiceTest {
         assertThat(resumed.state()).isEqualTo(TenantRuntimeEnforcementService.TenantRuntimeState.ACTIVE);
         assertThat(resumed.reasonCode()).isEqualTo("POLICY_ACTIVE");
         assertThat(resumed.auditChainId()).isNotEqualTo(held.auditChainId());
+    }
+
+    @Test
+    void updatePolicy_mutatesStateAndQuotasWithSingleAuditChain() {
+        TenantRuntimeEnforcementService.TenantRuntimeSnapshot snapshot = service.updatePolicy(
+                "ACME",
+                TenantRuntimeEnforcementService.TenantRuntimeState.BLOCKED,
+                "incident",
+                4,
+                6,
+                8,
+                "ops@bbp.com");
+
+        assertThat(snapshot.state()).isEqualTo(TenantRuntimeEnforcementService.TenantRuntimeState.BLOCKED);
+        assertThat(snapshot.reasonCode()).isEqualTo("INCIDENT");
+        assertThat(snapshot.maxConcurrentRequests()).isEqualTo(4);
+        assertThat(snapshot.maxRequestsPerMinute()).isEqualTo(6);
+        assertThat(snapshot.maxActiveUsers()).isEqualTo(8);
+    }
+
+    @Test
+    void updatePolicy_rejectsNoMutationPayload() {
+        assertThatThrownBy(() -> service.updatePolicy("ACME", null, "reason", null, null, null, "ops@bbp.com"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Runtime policy mutation payload is required");
     }
 
     @Test

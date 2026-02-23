@@ -89,10 +89,18 @@ public class CompanyContextFilter extends OncePerRequestFilter {
             }
             String companyCode = StringUtils.hasText(requestedCompany) ? requestedCompany.trim() : null;
             if (companyCode != null) {
+                String runtimePath = resolveApplicationPath(request);
                 CompanyLifecycleState lifecycleState = companyService.resolveLifecycleStateByCode(companyCode);
-                boolean lifecycleControlBypass = lifecycleState != CompanyLifecycleState.ACTIVE
-                        && isLifecycleControlRequest(request)
-                        && hasSuperAdminAuthority();
+                boolean lifecycleControlBypass = false;
+                if (lifecycleState != CompanyLifecycleState.ACTIVE
+                        && isLifecycleControlRequest(runtimePath, request.getMethod())
+                        && hasSuperAdminAuthority()) {
+                    if (!companyExists(companyCode)) {
+                        response.sendError(HttpServletResponse.SC_FORBIDDEN, "Access denied to company: " + companyCode);
+                        return;
+                    }
+                    lifecycleControlBypass = true;
+                }
                 // Recovery endpoints for non-active tenants are intended for super-admin operators
                 // even when they are not explicitly attached to the tenant membership list.
                 if (!lifecycleControlBypass && !validateCompanyAccess(companyCode)) {
@@ -105,13 +113,12 @@ public class CompanyContextFilter extends OncePerRequestFilter {
                             "Tenant lifecycle state does not allow access");
                     return;
                 }
-                String runtimePath = resolveApplicationPath(request);
                 admission = tenantRuntimeEnforcementService.beginRequest(
                         companyCode,
                         runtimePath,
                         request.getMethod(),
                         resolveCurrentActor(),
-                        hasTenantRuntimePolicyControlAuthority());
+                        hasTenantRuntimePolicyControlAuthority(runtimePath, request.getMethod()));
                 if (!admission.isAdmitted()) {
                     response.setStatus(admission.statusCode());
                     response.setContentType("application/json");
@@ -172,29 +179,71 @@ public class CompanyContextFilter extends OncePerRequestFilter {
                 .anyMatch(granted -> "ROLE_SUPER_ADMIN".equalsIgnoreCase(granted.getAuthority()));
     }
 
-    private boolean hasTenantRuntimePolicyControlAuthority() {
+    private boolean companyExists(String companyCode) {
+        if (!StringUtils.hasText(companyCode)) {
+            return false;
+        }
+        try {
+            companyService.findByCode(companyCode.trim());
+            return true;
+        } catch (IllegalArgumentException ignored) {
+            return false;
+        }
+    }
+
+    private boolean hasTenantRuntimePolicyControlAuthority(String requestPath, String requestMethod) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null || !auth.isAuthenticated()) {
             return false;
         }
-        return auth.getAuthorities().stream()
-                .map(granted -> granted.getAuthority())
-                .anyMatch(authority -> "ROLE_ADMIN".equalsIgnoreCase(authority));
+        if (!"PUT".equalsIgnoreCase(requestMethod) || !StringUtils.hasText(requestPath)) {
+            return false;
+        }
+        String normalizedPath = requestPath.trim();
+        while (normalizedPath.endsWith("/") && normalizedPath.length() > 1) {
+            normalizedPath = normalizedPath.substring(0, normalizedPath.length() - 1);
+        }
+        if ("/api/v1/admin/tenant-runtime/policy".equals(normalizedPath)) {
+            return hasAuthority(auth, "ROLE_SUPER_ADMIN");
+        }
+        if (isCanonicalCompanyRuntimePolicyPath(normalizedPath)) {
+            return hasAuthority(auth, "ROLE_SUPER_ADMIN");
+        }
+        return false;
     }
 
-    private boolean isLifecycleControlRequest(HttpServletRequest request) {
-        String path = resolveApplicationPath(request);
+    private boolean hasAuthority(Authentication authentication, String authority) {
+        if (authentication == null || !authentication.isAuthenticated() || !StringUtils.hasText(authority)) {
+            return false;
+        }
+        return authentication.getAuthorities().stream()
+                .map(granted -> granted.getAuthority())
+                .anyMatch(grantedAuthority -> authority.equalsIgnoreCase(grantedAuthority));
+    }
+
+    private boolean isCanonicalCompanyRuntimePolicyPath(String path) {
+        if (!StringUtils.hasText(path)) {
+            return false;
+        }
+        if (!path.startsWith("/api/v1/companies/") || !path.endsWith("/tenant-runtime/policy")) {
+            return false;
+        }
+        String companyIdSegment =
+                path.substring("/api/v1/companies/".length(), path.length() - "/tenant-runtime/policy".length());
+        return StringUtils.hasText(companyIdSegment) && !companyIdSegment.contains("/");
+    }
+
+    private boolean isLifecycleControlRequest(String path, String method) {
         if (!StringUtils.hasText(path)) {
             return false;
         }
         if (!path.startsWith("/api/v1/companies/")) {
             return false;
         }
-        boolean lifecycleMutation = "POST".equalsIgnoreCase(request.getMethod())
-                && path.endsWith("/lifecycle-state");
-        boolean tenantMetricsRead = "GET".equalsIgnoreCase(request.getMethod())
-                && path.endsWith("/tenant-metrics");
-        return lifecycleMutation || tenantMetricsRead;
+        boolean lifecycleMutation = "POST".equalsIgnoreCase(method) && path.endsWith("/lifecycle-state");
+        boolean tenantMetricsRead = "GET".equalsIgnoreCase(method) && path.endsWith("/tenant-metrics");
+        boolean runtimePolicyMutation = "PUT".equalsIgnoreCase(method) && path.endsWith("/tenant-runtime/policy");
+        return lifecycleMutation || tenantMetricsRead || runtimePolicyMutation;
     }
 
     private String resolveApplicationPath(HttpServletRequest request) {
@@ -202,8 +251,22 @@ public class CompanyContextFilter extends OncePerRequestFilter {
             return null;
         }
         String servletPath = request.getServletPath();
-        if (StringUtils.hasText(servletPath)) {
-            return servletPath.trim();
+        String pathInfo = request.getPathInfo();
+        if (StringUtils.hasText(servletPath) || StringUtils.hasText(pathInfo)) {
+            StringBuilder combined = new StringBuilder();
+            if (StringUtils.hasText(servletPath)) {
+                combined.append(servletPath.trim());
+            }
+            if (StringUtils.hasText(pathInfo)) {
+                String normalizedPathInfo = pathInfo.trim();
+                if (!normalizedPathInfo.startsWith("/") && combined.length() > 0) {
+                    combined.append('/');
+                }
+                combined.append(normalizedPathInfo);
+            }
+            if (combined.length() > 0) {
+                return combined.toString();
+            }
         }
         String requestUri = request.getRequestURI();
         if (!StringUtils.hasText(requestUri)) {
@@ -225,7 +288,10 @@ public class CompanyContextFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        String path = request.getServletPath();
+        String path = resolveApplicationPath(request);
+        if (!StringUtils.hasText(path)) {
+            return false;
+        }
         return path.startsWith("/actuator") || path.startsWith("/swagger") || path.startsWith("/v3");
     }
 }

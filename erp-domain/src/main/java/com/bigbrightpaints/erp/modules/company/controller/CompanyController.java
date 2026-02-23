@@ -8,8 +8,11 @@ import com.bigbrightpaints.erp.modules.company.dto.CompanyLifecycleStateRequest;
 import com.bigbrightpaints.erp.modules.company.dto.CompanyRequest;
 import com.bigbrightpaints.erp.modules.company.dto.CompanyTenantMetricsDto;
 import com.bigbrightpaints.erp.modules.company.service.CompanyService;
+import com.bigbrightpaints.erp.modules.company.service.TenantRuntimeEnforcementService;
 import com.bigbrightpaints.erp.shared.dto.ApiResponse;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Size;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -61,6 +64,16 @@ public class CompanyController {
                 companyService.getTenantMetrics(id)));
     }
 
+    @PutMapping("/{id}/tenant-runtime/policy")
+    @PreAuthorize("hasAuthority('ROLE_SUPER_ADMIN')")
+    public ResponseEntity<ApiResponse<TenantRuntimeEnforcementService.TenantRuntimeSnapshot>> updateTenantRuntimePolicy(
+            @PathVariable Long id,
+            @Valid @RequestBody CompanyTenantRuntimePolicyRequest request) {
+        return ResponseEntity.ok(ApiResponse.success(
+                "Company tenant runtime policy updated",
+                companyService.updateTenantRuntimePolicy(id, request.toServiceRequest())));
+    }
+
     @PutMapping("/{id}")
     @PreAuthorize("hasAuthority('ROLE_SUPER_ADMIN')")
     public ResponseEntity<ApiResponse<CompanyDto>> update(@PathVariable Long id,
@@ -88,5 +101,24 @@ public class CompanyController {
             throw new AccessDeniedException("Missing authenticated company context");
         }
         return principal.getUser().getCompanies();
+    }
+
+    public record CompanyTenantRuntimePolicyRequest(String holdState,
+                                                    @Size(max = 300, message = "reasonCode must be at most 300 characters")
+                                                    String reasonCode,
+                                                    @Min(value = 1, message = "maxConcurrentRequests must be at least 1")
+                                                    Integer maxConcurrentRequests,
+                                                    @Min(value = 1, message = "maxRequestsPerMinute must be at least 1")
+                                                    Integer maxRequestsPerMinute,
+                                                    @Min(value = 1, message = "maxActiveUsers must be at least 1")
+                                                    Integer maxActiveUsers) {
+        private CompanyService.TenantRuntimePolicyMutationRequest toServiceRequest() {
+            return new CompanyService.TenantRuntimePolicyMutationRequest(
+                    holdState,
+                    reasonCode,
+                    maxConcurrentRequests,
+                    maxRequestsPerMinute,
+                    maxActiveUsers);
+        }
     }
 }

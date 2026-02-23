@@ -135,7 +135,7 @@ class TS_RuntimeCompanyContextFilterExecutableCoverageTest {
                 eq("/api/v1/private"),
                 eq("GET"),
                 eq("admin@bbp.com"),
-                eq(true)))
+                eq(false)))
                 .thenReturn(admission(false, 429, "bad \"quote\" \\\\ slash"));
 
         MockHttpServletRequest request = request("GET", "/api/v1/private");
@@ -186,21 +186,26 @@ class TS_RuntimeCompanyContextFilterExecutableCoverageTest {
     @Test
     void helperMethods_coverAuthorityAndPathResolutionBranches() {
         assertThat(invokeHasSuperAdminAuthority()).isFalse();
-        assertThat(invokeHasTenantRuntimePolicyControlAuthority()).isFalse();
+        assertThat(invokeHasTenantRuntimePolicyControlAuthority("/api/v1/admin/tenant-runtime/policy", "PUT"))
+                .isFalse();
 
         authenticate("root@bbp.com", Set.of("ROLE_SUPER_ADMIN"), Set.of());
         assertThat(invokeHasSuperAdminAuthority()).isTrue();
-        assertThat(invokeHasTenantRuntimePolicyControlAuthority()).isFalse();
+        assertThat(invokeHasTenantRuntimePolicyControlAuthority("/api/v1/admin/tenant-runtime/policy", "PUT"))
+                .isTrue();
+        assertThat(invokeHasTenantRuntimePolicyControlAuthority("/api/v1/companies/77/tenant-runtime/policy", "PUT"))
+                .isTrue();
+        assertThat(invokeHasTenantRuntimePolicyControlAuthority("/api/v1/admin/tenant-runtime/policy", "GET"))
+                .isFalse();
 
         authenticate("admin@bbp.com", Set.of("ROLE_ADMIN"), Set.of("ACME"));
-        assertThat(invokeHasTenantRuntimePolicyControlAuthority()).isTrue();
+        assertThat(invokeHasTenantRuntimePolicyControlAuthority("/api/v1/admin/tenant-runtime/policy", "PUT"))
+                .isFalse();
 
-        MockHttpServletRequest lifecycleMutation = request("POST", "/api/v1/companies/77/lifecycle-state");
-        MockHttpServletRequest tenantMetrics = request("GET", "/api/v1/companies/77/tenant-metrics");
-        MockHttpServletRequest nonLifecycle = request("POST", "/api/v1/private");
-        assertThat(invokeIsLifecycleControlRequest(lifecycleMutation)).isTrue();
-        assertThat(invokeIsLifecycleControlRequest(tenantMetrics)).isTrue();
-        assertThat(invokeIsLifecycleControlRequest(nonLifecycle)).isFalse();
+        assertThat(invokeIsLifecycleControlRequest("/api/v1/companies/77/lifecycle-state", "POST")).isTrue();
+        assertThat(invokeIsLifecycleControlRequest("/api/v1/companies/77/tenant-metrics", "GET")).isTrue();
+        assertThat(invokeIsLifecycleControlRequest("/api/v1/companies/77/tenant-runtime/policy", "PUT")).isTrue();
+        assertThat(invokeIsLifecycleControlRequest("/api/v1/private", "POST")).isFalse();
 
         assertThat(invokeResolveApplicationPath(null)).isNull();
         MockHttpServletRequest contextAware = request("POST", "");
@@ -220,18 +225,17 @@ class TS_RuntimeCompanyContextFilterExecutableCoverageTest {
         when(unauthenticated.isAuthenticated()).thenReturn(false);
         SecurityContextHolder.getContext().setAuthentication(unauthenticated);
         assertThat(invokeHasSuperAdminAuthority()).isFalse();
-        assertThat(invokeHasTenantRuntimePolicyControlAuthority()).isFalse();
+        assertThat(invokeHasTenantRuntimePolicyControlAuthority("/api/v1/admin/tenant-runtime/policy", "PUT"))
+                .isFalse();
 
-        MockHttpServletRequest lifecycleMutationWrongSuffix = request("POST", "/api/v1/companies/77/not-lifecycle");
-        assertThat(invokeIsLifecycleControlRequest(lifecycleMutationWrongSuffix)).isFalse();
+        assertThat(invokeIsLifecycleControlRequest("/api/v1/companies/77/not-lifecycle", "POST")).isFalse();
 
-        MockHttpServletRequest tenantMetricsWrongSuffix = request("GET", "/api/v1/companies/77/not-metrics");
-        assertThat(invokeIsLifecycleControlRequest(tenantMetricsWrongSuffix)).isFalse();
+        assertThat(invokeIsLifecycleControlRequest("/api/v1/companies/77/not-metrics", "GET")).isFalse();
 
         MockHttpServletRequest noPath = request("GET", "");
         noPath.setServletPath("   ");
         noPath.setRequestURI("   ");
-        assertThat(invokeIsLifecycleControlRequest(noPath)).isFalse();
+        assertThat(invokeIsLifecycleControlRequest(null, "GET")).isFalse();
         assertThat(invokeResolveApplicationPath(noPath)).isNull();
 
         MockHttpServletRequest contextStrippedPath = request("GET", "");
@@ -313,14 +317,24 @@ class TS_RuntimeCompanyContextFilterExecutableCoverageTest {
         return result;
     }
 
-    private boolean invokeHasTenantRuntimePolicyControlAuthority() {
-        Boolean result = ReflectionTestUtils.invokeMethod(filter, "hasTenantRuntimePolicyControlAuthority");
+    private boolean invokeHasTenantRuntimePolicyControlAuthority(String requestPath, String requestMethod) {
+        Boolean result = ReflectionTestUtils.invokeMethod(
+                filter,
+                "hasTenantRuntimePolicyControlAuthority",
+                requestPath,
+                requestMethod
+        );
         assertThat(result).isNotNull();
         return result;
     }
 
-    private boolean invokeIsLifecycleControlRequest(MockHttpServletRequest request) {
-        Boolean result = ReflectionTestUtils.invokeMethod(filter, "isLifecycleControlRequest", request);
+    private boolean invokeIsLifecycleControlRequest(String requestPath, String requestMethod) {
+        Boolean result = ReflectionTestUtils.invokeMethod(
+                filter,
+                "isLifecycleControlRequest",
+                requestPath,
+                requestMethod
+        );
         assertThat(result).isNotNull();
         return result;
     }
