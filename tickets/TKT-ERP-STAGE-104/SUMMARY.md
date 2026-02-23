@@ -3,18 +3,18 @@
 - title: Completion Gate Evidence Refresh and Release Closure
 - goal: Re-run all completion gates on canonical head after coverage closure and update immutable evidence for staging sign-off.
 - priority: high
-- status: planned
+- status: done
 - base_branch: harness-engineering-orchestrator
 - created_at: 2026-02-20T12:01:46+00:00
-- updated_at: 2026-02-20T12:01:46+00:00
+- updated_at: 2026-02-23T14:42:08Z
 
 ## Slice Board
 
 | Slice | Agent | Lane | Status | Branch |
 | --- | --- | --- | --- | --- |
-| SLICE-01 | release-ops | w1 | ready | `tickets/tkt-erp-stage-104/release-ops` |
-| SLICE-02 | refactor-techdebt-gc | w2 | ready | `tickets/tkt-erp-stage-104/refactor-techdebt-gc` |
-| SLICE-03 | repo-cartographer | w3 | ready | `tickets/tkt-erp-stage-104/repo-cartographer` |
+| SLICE-01 | release-ops | w1 | merged | `tickets/tkt-erp-stage-104/release-ops` |
+| SLICE-02 | refactor-techdebt-gc | w2 | merged | `tickets/tkt-erp-stage-104/refactor-techdebt-gc` |
+| SLICE-03 | repo-cartographer | w3 | merged | `tickets/tkt-erp-stage-104/repo-cartographer` |
 
 ## Operator Commands
 

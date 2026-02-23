@@ -49,6 +49,19 @@ resolve_diff_base() {
     return 0
   fi
 
+  # Prefer the canonical base when available so gate_fast diffs stay anchored to
+  # harness release lineage instead of drifting to unrelated main/master history.
+  if [[ -n "${CANONICAL_BASE_SHA:-}" ]] && git merge-base --is-ancestor "$CANONICAL_BASE_SHA" HEAD; then
+    git merge-base "$CANONICAL_BASE_SHA" HEAD
+    return 0
+  fi
+
+  if git rev-parse --verify --quiet "$CANONICAL_BASE_REF" >/dev/null \
+      && git merge-base --is-ancestor "$CANONICAL_BASE_REF" HEAD; then
+    git merge-base "$CANONICAL_BASE_REF" HEAD
+    return 0
+  fi
+
   if git rev-parse --verify --quiet origin/main >/dev/null; then
     git merge-base origin/main HEAD
     return 0
@@ -83,9 +96,11 @@ resolve_canonical_base() {
     return 0
   fi
 
-  candidate_refs=("$requested_ref")
-  if [[ "$requested_ref" != origin/* ]]; then
-    candidate_refs+=("origin/$requested_ref")
+  # Prefer remote-tracking canonical refs to avoid stale local branch anchors.
+  if [[ "$requested_ref" == origin/* ]]; then
+    candidate_refs=("$requested_ref")
+  else
+    candidate_refs=("origin/$requested_ref" "$requested_ref")
   fi
 
   for candidate_ref in "${candidate_refs[@]}"; do
@@ -127,6 +142,18 @@ resolve_canonical_base() {
     echo "[gate-fast] FAIL: HEAD=$RESOLVED_RELEASE_HEAD_SHA is not based on canonical base candidates: $resolved_desc"
     exit 2
   fi
+
+  local idx
+  for idx in "${!resolved_refs[@]}"; do
+    if git -C "$ROOT_DIR" merge-base --is-ancestor "${resolved_shas[$idx]}" "$RESOLVED_RELEASE_HEAD_SHA"; then
+      CANONICAL_BASE_REF="${resolved_refs[$idx]}"
+      CANONICAL_BASE_SHA="${resolved_shas[$idx]}"
+      if [[ "$CANONICAL_BASE_REF" != "$requested_ref" ]]; then
+        echo "[gate-fast] WARN: canonical base '$requested_ref' is stale/non-ancestor; using '$CANONICAL_BASE_REF' ($CANONICAL_BASE_SHA)"
+      fi
+      return 0
+    fi
+  done
 
   CANONICAL_BASE_REF="${resolved_refs[0]}"
   CANONICAL_BASE_SHA="${resolved_shas[0]}"

@@ -3,19 +3,19 @@
 - title: Tenant Runtime Control Plane Consolidation Superadmin Enforcement
 - goal: Consolidate tenant runtime enforcement and enforce superadmin-only hold block quota updates with fail-closed semantics.
 - priority: high
-- status: planned
+- status: done
 - base_branch: harness-engineering-orchestrator
 - created_at: 2026-02-20T12:01:46+00:00
-- updated_at: 2026-02-20T12:01:46+00:00
+- updated_at: 2026-02-23T14:42:08Z
 
 ## Slice Board
 
 | Slice | Agent | Lane | Status | Branch |
 | --- | --- | --- | --- | --- |
-| SLICE-01 | auth-rbac-company | w1 | ready | `tickets/tkt-erp-stage-102/auth-rbac-company` |
-| SLICE-02 | reports-admin-portal | w2 | ready | `tickets/tkt-erp-stage-102/reports-admin-portal` |
-| SLICE-03 | refactor-techdebt-gc | w3 | ready | `tickets/tkt-erp-stage-102/refactor-techdebt-gc` |
-| SLICE-04 | repo-cartographer | w4 | ready | `tickets/tkt-erp-stage-102/repo-cartographer` |
+| SLICE-01 | auth-rbac-company | w1 | merged | `tickets/tkt-erp-stage-102/auth-rbac-company` |
+| SLICE-02 | reports-admin-portal | w2 | merged | `tickets/tkt-erp-stage-102/reports-admin-portal` |
+| SLICE-03 | refactor-techdebt-gc | w3 | merged | `tickets/tkt-erp-stage-102/refactor-techdebt-gc` |
+| SLICE-04 | repo-cartographer | w4 | merged | `tickets/tkt-erp-stage-102/repo-cartographer` |
 
 ## Operator Commands
 
