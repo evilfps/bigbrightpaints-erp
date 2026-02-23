@@ -44,6 +44,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -52,8 +53,9 @@ public class PortalInsightsControllerIT extends AbstractIntegrationTest {
     private static final String COMPANY_CODE = "ACME";
     private static final String ADMIN_EMAIL = "admin@bbp.com";
     private static final String ADMIN_PASSWORD = "admin123";
-    private static final String SUPER_ADMIN_EMAIL = "super-admin@bbp.com";
+    private static final String SUPER_ADMIN_EMAIL = "superadmin@bbp.com";
     private static final String SUPER_ADMIN_PASSWORD = "superadmin123";
+    private static final AtomicInteger PAYROLL_PERIOD_SEQUENCE = new AtomicInteger(0);
 
     @Autowired
     private TestRestTemplate rest;
@@ -95,12 +97,7 @@ public class PortalInsightsControllerIT extends AbstractIntegrationTest {
 
         company = dataSeeder.ensureCompany(COMPANY_CODE, "Acme Corp");
         dataSeeder.ensureUser(ADMIN_EMAIL, ADMIN_PASSWORD, "Admin", COMPANY_CODE, List.of("ROLE_ADMIN"));
-        dataSeeder.ensureUser(
-                SUPER_ADMIN_EMAIL,
-                SUPER_ADMIN_PASSWORD,
-                "Super Admin",
-                COMPANY_CODE,
-                List.of("ROLE_SUPER_ADMIN", "ROLE_ADMIN"));
+        dataSeeder.ensureUser(SUPER_ADMIN_EMAIL, SUPER_ADMIN_PASSWORD, "Super Admin", COMPANY_CODE, List.of("ROLE_SUPER_ADMIN"));
 
         SalesOrder order = new SalesOrder();
         order.setCompany(company);
@@ -180,8 +177,8 @@ public class PortalInsightsControllerIT extends AbstractIntegrationTest {
 
         PayrollRun payrollRun = new PayrollRun();
         payrollRun.setCompany(company);
-        long payrollOffset = Math.floorMod(seed, 1000L);
-        LocalDate payrollEnd = LocalDate.now().minusDays(1 + payrollOffset);
+        int payrollOffset = PAYROLL_PERIOD_SEQUENCE.getAndIncrement();
+        LocalDate payrollEnd = LocalDate.of(2035, 12, 31).minusDays(payrollOffset);
         LocalDate payrollStart = payrollEnd.minusDays(29);
         payrollRun.setRunType(PayrollRun.RunType.MONTHLY);
         payrollRun.setPeriodStart(payrollStart);
@@ -272,6 +269,7 @@ public class PortalInsightsControllerIT extends AbstractIntegrationTest {
     @Test
     void portalEndpoints_areRuntimeBlockedWhenTenantHoldStateIsBlocked() {
         HttpHeaders headers = authenticatedHeaders();
+        HttpHeaders superAdminHeaders = superAdminHeaders();
 
         ResponseEntity<Map> policyResponse = rest.exchange(
                 "/api/v1/admin/tenant-runtime/policy",
@@ -280,7 +278,7 @@ public class PortalInsightsControllerIT extends AbstractIntegrationTest {
                         "holdState", "BLOCKED",
                         "holdReason", "Incident containment",
                         "changeReason", "Security drill"
-                ), superAdminHeaders()),
+                ), superAdminHeaders),
                 Map.class
         );
         assertThat(policyResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
@@ -299,15 +297,16 @@ public class PortalInsightsControllerIT extends AbstractIntegrationTest {
                 Map.class
         );
         assertThat(dashboard.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
-        assertThat(dashboard.getBody()).isNotNull();
-        assertThat(dashboard.getBody().get("success")).isEqualTo(Boolean.FALSE);
-        Map<?, ?> errorData = (Map<?, ?>) dashboard.getBody().get("data");
-        assertThat(errorData).isNotNull();
-        assertThat(errorData.get("code")).isEqualTo("BUS_001");
-        assertThat(String.valueOf(errorData.get("message"))).containsIgnoringCase("blocked");
-        if (errorData.get("details") instanceof Map<?, ?> details) {
-            assertThat(details.get("policyReference")).isEqualTo(policyReference);
-        }
+        Map<?, ?> blockedBody = dashboard.getBody();
+        assertThat(blockedBody).isNotNull();
+        assertThat(blockedBody.get("success")).isEqualTo(Boolean.FALSE);
+        assertThat(String.valueOf(blockedBody.get("message"))).containsIgnoringCase("blocked");
+        Map<?, ?> blockedData = (Map<?, ?>) blockedBody.get("data");
+        assertThat(blockedData).isNotNull();
+        assertThat(blockedData.get("code")).isEqualTo("BUS_001");
+        Map<?, ?> blockedDetails = (Map<?, ?>) blockedData.get("details");
+        assertThat(blockedDetails).isNotNull();
+        assertThat(blockedDetails.get("policyReference")).isEqualTo(policyReference);
     }
 
     private SalesOrder saveSalesOrder(String orderNumber, String status, BigDecimal totalAmount) {
