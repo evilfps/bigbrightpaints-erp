@@ -3,12 +3,12 @@ title: Gate-Fast Coverage Tranche for Sales Purchasing Approvals
 goal: Add truth-suite coverage for changed sales and purchasing approval paths so
   gate_fast reflects deterministic coverage.
 priority: high
-status: in_progress
+status: merged
 base_branch: harness-engineering-orchestrator
 requested_base_branch: harness-engineering-orchestrator
 worktree_root: /Users/anas/Documents/orchestrator_erp/bigbrightpaints-erp_worktrees
 created_at: '2026-02-20T12:01:45+00:00'
-updated_at: '2026-02-23T01:39:19Z'
+updated_at: '2026-02-23T01:44:44Z'
 r3_required: true
 orchestrator_authority:
   r1: orchestrator
@@ -45,7 +45,7 @@ slices:
   multi_agent_fallback: &id001
   - model: gpt-5.3-codex
     reasoning: medium
-  status: in_review
+  status: merged
   objective: Add truth-suite coverage for changed sales and purchasing approval paths
     so gate_fast reflects deterministic coverage.
   workflow_upstream_slices: []
@@ -100,7 +100,7 @@ slices:
   multi_agent_model: gpt-5.3-codex
   multi_agent_reasoning: high
   multi_agent_fallback: *id001
-  status: in_review
+  status: merged
   objective: Add truth-suite coverage for changed sales and purchasing approval paths
     so gate_fast reflects deterministic coverage.
   workflow_upstream_slices: []
@@ -156,7 +156,7 @@ slices:
   multi_agent_model: gpt-5.3-codex
   multi_agent_reasoning: high
   multi_agent_fallback: *id001
-  status: in_review
+  status: merged
   objective: Add truth-suite coverage for changed sales and purchasing approval paths
     so gate_fast reflects deterministic coverage.
   workflow_upstream_slices: []
@@ -188,7 +188,7 @@ slices:
   multi_agent_fallback:
   - model: gpt-5.3-codex
     reasoning: high
-  status: in_review
+  status: merged
   objective: Add truth-suite coverage for changed sales and purchasing approval paths
     so gate_fast reflects deterministic coverage.
   workflow_upstream_slices: []
