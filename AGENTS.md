@@ -1,6 +1,6 @@
 # Agent Map (Table of Contents) - orchestrator_erp
 
-Last reviewed: 2026-02-15
+Last reviewed: 2026-02-24
 
 This file is intentionally short.
 It is a map, not an encyclopedia.
@@ -57,6 +57,14 @@ Human-friendly alias: `AGENTMAP.md`.
 - Never discard unknown local changes.
 - If unexpected diffs or missing files appear, stop and report.
 - Never bypass accounting/migration/reconciliation guards just to get green CI.
+
+## Ticket-First Execution Gate (Mandatory)
+- Implementation edits are prohibited on base branches: `harness-engineering-orchestrator`, `main`, and `master`.
+- Every implementation change must run in the assigned ticket branch `tickets/<tkt-id>/<agent-id>` and assigned worktree.
+- Every implementation slice must be claimed before edits and traced in `tickets/<TKT-ID>/ticket.yaml` + `tickets/<TKT-ID>/TIMELINE.md`.
+- Agents must return `ticket_claim_evidence`, `worktree_validation`, and `codebase_impact_analysis` in each implementation output.
+- `codebase_impact_analysis` must cover upstream dependencies, downstream consumers, and contract/API/event implications.
+- If branch/worktree/claim/impact gates cannot be satisfied, block the slice and escalate with evidence.
 
 ## Review Guidelines (Required)
 - PII: enforce redaction and avoid sensitive payload logging (`docs/SECURITY.md`).
@@ -118,6 +126,9 @@ Return:
 - harness results
 - residual risks
 - exact blocker + missing evidence if unresolved
+- ticket_claim_evidence
+- worktree_validation
+- codebase_impact_analysis
 
 ## Dependency Change Proof Rule
 - Any allowlist dependency edge update must include ADR evidence with:

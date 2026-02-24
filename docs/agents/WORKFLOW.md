@@ -1,6 +1,6 @@
 # Agent Workflow and Lifecycle
 
-Last reviewed: 2026-02-19
+Last reviewed: 2026-02-24
 Owner: Orchestrator Agent
 
 ## Lifecycle
@@ -63,6 +63,19 @@ Claim collisions are merge-blocking. Unclaimed implementation submissions are re
   - `git pull --ff-only origin harness-engineering-orchestrator`
 - Create one worktree per agent per slice under `../orchestrator_erp_worktrees/<TKT-ID>/`.
 - Never branch new slice worktrees from older slice branches.
+
+## Base Branch Protection (Mandatory)
+- Do not implement directly on `harness-engineering-orchestrator`, `main`, or `master`.
+- Implementation is allowed only in claimed ticket branches (`tickets/<tkt-id>/<agent-id>`) and assigned worktrees.
+- If current branch/worktree does not match the task packet assignment, stop and mark the slice blocked.
+- Base branches are integration-only: merge/push after required checks and review evidence.
+
+## Codebase Impact Analysis (Mandatory)
+Every implementation submission must include `codebase_impact_analysis` with:
+- upstream dependencies and contracts consumed
+- downstream modules/services/portals potentially affected
+- API/event/schema/test surface touched or intentionally unchanged
+- why non-goal modules are unaffected (or what follow-up is required)
 
 ## Subagent Role Policy
 Use Codex multi-agent role configuration for role/risk selection:
@@ -129,6 +142,7 @@ High-risk deltas (auth/payroll/ledger/migrations/permissions/destructive ops) re
     - `bash ci/check-enterprise-policy.sh`
 - runtime/config/schema/test changes never qualify for docs-only review skip.
 - evaluate lane and required checks with `scripts/harness_orchestrator.py`.
+- implementation submissions are incomplete without `ticket_claim_evidence`, `worktree_validation`, and `codebase_impact_analysis`.
 
 Frontend doc changes must preserve portal ownership taxonomy:
 - Accounting Portal: accounting + inventory + hr + reports + invoice

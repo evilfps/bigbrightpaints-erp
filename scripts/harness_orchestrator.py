@@ -546,6 +546,14 @@ def write_packet_files(repo_root: Path, ticket: dict[str, Any], slice_data: dict
         for x in slice_data.get("non_goals", ticket.get("non_goals", []))
         if str(x).strip()
     ]
+    base_branch_ref = str(ticket.get("base_branch", "")).strip()
+    read_only_base_branches = {"harness-engineering-orchestrator", "main", "master"}
+    if base_branch_ref:
+        read_only_base_branches.add(base_branch_ref)
+        if base_branch_ref.startswith("origin/"):
+            read_only_base_branches.add(base_branch_ref.split("/", 1)[1])
+    read_only_base_branches = sorted(read_only_base_branches)
+    read_only_display = ", ".join(f"`{b}`" for b in read_only_base_branches)
 
     prompt_lines = [
         f"You are `{slice_data['primary_agent']}`.",
@@ -557,7 +565,11 @@ def write_packet_files(repo_root: Path, ticket: dict[str, Any], slice_data: dict
         "Implement this slice with minimal safe patching and proof-backed output.",
         "",
         "Execution minimum:",
+        f"- validate current branch is `{slice_data['branch']}` and working directory is `{slice_data['worktree_path']}`",
+        f"- treat base branches as read-only for implementation: {read_only_display}",
+        "- confirm claim evidence exists in ticket.yaml + TIMELINE.md before edits",
         "- diagnose current behavior in the requested focus paths",
+        "- perform codebase impact analysis (upstream dependencies, downstream consumers, contracts/events/APIs)",
         "- implement the root-cause fix in allowed scope",
         "- add/adjust tests that prove acceptance criteria",
         "- run required checks and report evidence",
@@ -569,6 +581,9 @@ def write_packet_files(repo_root: Path, ticket: dict[str, Any], slice_data: dict
         "- harness_results",
         "- residual_risks",
         "- blockers_or_next_step",
+        "- ticket_claim_evidence",
+        "- worktree_validation",
+        "- codebase_impact_analysis",
     ]
     if preferred_role:
         prompt_lines.insert(
@@ -621,6 +636,13 @@ Worktree: `{slice_data['worktree_path']}`
     for p in slice_data.get("scope_paths", []):
         packet += f"- `{p}`\n"
 
+    packet += "\n## Ticket-First Gate (Blocking)\n"
+    packet += f"- Assigned branch: `{slice_data['branch']}`\n"
+    packet += f"- Assigned worktree: `{slice_data['worktree_path']}`\n"
+    packet += f"- Base branches are read-only for implementation: {read_only_display}\n"
+    packet += "- Claim evidence must be recorded in `ticket.yaml` and `TIMELINE.md` before edits.\n"
+    packet += "- If any gate fails, stop and report blocker instead of patching.\n"
+
     if acceptance_criteria:
         packet += "\n## Acceptance Criteria\n"
         for item in acceptance_criteria:
@@ -670,6 +692,18 @@ Worktree: `{slice_data['worktree_path']}`
     packet += "- Mark review status as `approved` only with concrete evidence.\n"
     packet += "\n## Agent Identity Contract\n"
     packet += f"- First output line must be: `I am {slice_data['primary_agent']} and I own {sid}.`\n"
+    packet += "\n## Required Output Contract\n"
+    packet += "- files_changed\n"
+    packet += "- commands_run\n"
+    packet += "- harness_results\n"
+    packet += "- residual_risks\n"
+    packet += "- blockers_or_next_step\n"
+    packet += "- ticket_claim_evidence\n"
+    packet += "- worktree_validation\n"
+    packet += "- codebase_impact_analysis:\n"
+    packet += "  - upstream dependencies/contracts touched\n"
+    packet += "  - downstream modules/portals at risk\n"
+    packet += "  - API/event/schema/test surface changed or intentionally unchanged\n"
     packet += "\n## Shipability Bar\n"
     packet += "- The patch must be minimal, deterministic, and test-backed.\n"
     packet += "- Do not change behavior outside explicit scope without evidence and rationale.\n"

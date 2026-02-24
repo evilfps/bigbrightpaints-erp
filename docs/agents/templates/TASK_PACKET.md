@@ -24,6 +24,12 @@ Worktree: `<path>`
 - `<requested path 1>`
 - `<requested path 2>`
 
+## Ticket-First Gate (Blocking)
+- Work only on assigned branch `<branch>` and assigned worktree `<path>`.
+- Base branches are read-only for implementation: `harness-engineering-orchestrator`, `main`, `master`.
+- Claim evidence must be present in `tickets/<TKT-ID>/ticket.yaml` and `tickets/<TKT-ID>/TIMELINE.md` before edits.
+- If branch/worktree/claim validation fails, stop and report blocker instead of patching.
+
 ## Required Checks Before Done
 - `<command 1>`
 - `<command 2>`
@@ -45,3 +51,9 @@ Worktree: `<path>`
 - harness_results
 - residual_risks
 - blockers_or_next_step
+- ticket_claim_evidence
+- worktree_validation
+- codebase_impact_analysis:
+  - upstream dependencies/contracts touched
+  - downstream modules/portals at risk
+  - API/event/schema/test surface changed or intentionally unchanged

@@ -218,6 +218,9 @@ execution_workflow:
       - each subagent must identify itself in first line of every result
       - orchestrator must monitor drift and interrupt on cross-scope edits
       - orchestrator must choose subagent custom role from `agent_role_mapping` before dispatch
+      - each implementation worker must validate assigned branch/worktree before edits
+      - implementation workers must not edit base branches (`harness-engineering-orchestrator`, `main`, `master`)
+      - each implementation submission must include codebase impact analysis
   codex_exec:
     require_explicit_model_and_reasoning: true
     default_model: gpt-5.3-codex
@@ -251,6 +254,12 @@ interaction_contract:
     - if ready backlog drops below 2, create next ticket/slices immediately
   require_agent_identity_on_every_submission: true
   require_ticket_claim_before_edits: true
+  require_worktree_branch_validation_before_edits: true
+  require_codebase_impact_analysis_in_submission: true
+  base_branches_read_only_for_implementation:
+    - harness-engineering-orchestrator
+    - main
+    - master
   claim_record_locations:
     - tickets/<TKT-ID>/ticket.yaml
     - tickets/<TKT-ID>/TIMELINE.md
@@ -271,9 +280,11 @@ governance_rules:
   - orchestrator role is coordination-first and should not absorb worker implementation scope unless no matching worker role exists
   - every worker must claim ticket slice before edits and release claim on done/blocked
   - each worktree gets isolated task packet
+  - direct implementation edits on base branches are prohibited
   - reviewers are review-only and never implement code
   - docs-only commits must skip review subagents and must never trigger `@codex review` PR comments
   - non-doc commits require dedicated code_reviewer output with severity-tagged findings or explicit no-findings + residual-risk statement
+  - non-doc implementation submissions must include ticket_claim_evidence, worktree_validation, and codebase_impact_analysis
   - enforce scope_paths before dispatch and before merge
   - block overlap and scope violations before merge
   - static review is mandatory before merge

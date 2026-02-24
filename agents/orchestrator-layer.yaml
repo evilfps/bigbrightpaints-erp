@@ -1,5 +1,5 @@
 version: 1
-last_reviewed: 2026-02-19
+last_reviewed: 2026-02-24
 orchestrator_id: orchestrator
 decision_model:
   mode: proof_first
@@ -205,6 +205,9 @@ runtime:
     - harness_results
     - residual_risks
     - blockers_or_next_step
+    - ticket_claim_evidence
+    - worktree_validation
+    - codebase_impact_analysis
 automation:
   harness_cli: scripts/harness_orchestrator.py
   ticket_root: tickets/
@@ -234,6 +237,13 @@ dispatch_protocol:
   ask_human_next_focus_when_idle: false
   autonomous_continuous_execution: true
   stop_condition_exact_prompt: STOP
+  enforce_ticket_first_gate: true
+  require_worktree_branch_validation_before_edits: true
+  require_codebase_impact_analysis_in_results: true
+  base_branches_read_only_for_implementation:
+    - harness-engineering-orchestrator
+    - main
+    - master
   when_idle:
     - continue highest-priority planned ticket automatically
     - if all active tickets are blocked, create and prepare next goal-aligned ticket
@@ -461,6 +471,7 @@ branch_execution_policy:
     - rerun required checks on merged base SHA after each merge
     - push base immediately after merged-sha checks pass
     - only then proceed to next ticket merge
+    - base branches are integration-only; do not implement directly on them
   worktree_base:
     - bootstrap new ticket worktrees from latest pushed base HEAD
     - base branch must be refreshed (fetch + fast-forward) before each new worktree

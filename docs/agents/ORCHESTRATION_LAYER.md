@@ -1,6 +1,6 @@
 # Orchestrator Layer Contract
 
-Last reviewed: 2026-02-19
+Last reviewed: 2026-02-24
 Owner: Orchestrator Agent
 
 This defines how the orchestrator controls all agents in long-running async loops.
@@ -20,9 +20,11 @@ This defines how the orchestrator controls all agents in long-running async loop
 1. Orchestrator reads next `in_progress` or top `ready` slice from `asyncloop`.
 2. It maps changed paths and risk to a primary agent via `agents/orchestrator-layer.yaml`.
 3. It enforces ticket claim: `ready -> taken -> in_progress` with agent identity + worktree + branch recorded.
-4. It assigns at least one reviewer agent.
-5. For high-risk slices, it adds `security-governance` and `qa-reliability` reviewers.
-6. It runs required guard checks before marking done.
+4. It validates ticket-first gate before coding: assigned branch, assigned worktree, and base-branch read-only policy.
+5. It requires codebase impact analysis in each implementation handoff before review.
+6. It assigns at least one reviewer agent.
+7. For high-risk slices, it adds `security-governance` and `qa-reliability` reviewers.
+8. It runs required guard checks before marking done.
 
 ## Agent Claim and Isolation Contract
 - Agents must not start edits before claim is recorded in ticket artifacts.
@@ -30,6 +32,17 @@ This defines how the orchestrator controls all agents in long-running async loop
 - Worker reads only its own `docs/agents/templates/TASK_PACKET.md`-derived packet; cross-slice packet reads are blocked.
 - Reviewer agents are review-only and cannot claim implementation ownership.
 - Unclaimed submissions are rejected in orchestrator pre-merge review.
+- Base branches (`harness-engineering-orchestrator`, `main`, `master`) are read-only for implementation edits.
+
+## Required Slice Output Contract
+- `files_changed`
+- `commands_run`
+- `harness_results`
+- `residual_risks`
+- `blockers_or_next_step`
+- `ticket_claim_evidence`
+- `worktree_validation`
+- `codebase_impact_analysis`
 
 ## Subagent Role Routing
 Orchestrator selects runtime role by scope and risk:
