@@ -33,7 +33,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -78,7 +81,7 @@ class ProductionCatalogServiceBulkVariantRaceTest {
         brand.setCompany(company);
 
         when(companyContextService.requireCurrentCompany()).thenReturn(company);
-        when(companyEntityLookup.requireProductionBrand(company, 11L)).thenReturn(brand);
+        lenient().when(companyEntityLookup.requireProductionBrand(company, 11L)).thenReturn(brand);
     }
 
     @Test
@@ -100,6 +103,10 @@ class ProductionCatalogServiceBulkVariantRaceTest {
                     assertThat(conflicts).hasSize(1);
                     assertThat(conflicts.get(0).sku()).isEqualTo(sku);
                     assertThat(conflicts.get(0).reason()).isEqualTo("CONCURRENT_SKU_CONFLICT");
+                    @SuppressWarnings("unchecked")
+                    List<BulkVariantResponse.VariantItem> wouldCreate =
+                            (List<BulkVariantResponse.VariantItem>) ex.getDetails().get("wouldCreate");
+                    assertThat(wouldCreate).isEmpty();
                 });
     }
 
@@ -152,6 +159,64 @@ class ProductionCatalogServiceBulkVariantRaceTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("skuPrefix/brandCode")
                 .hasMessageContaining("SKU character");
+    }
+
+    @Test
+    void createVariants_dryRun_doesNotPersistBrandWhenBrandIsNew() {
+        when(brandRepository.findByCompanyAndCodeIgnoreCase(company, "NBR")).thenReturn(Optional.empty());
+        when(brandRepository.findByCompanyAndNameIgnoreCase(company, "New Brand")).thenReturn(Optional.empty());
+
+        BulkVariantRequest request = new BulkVariantRequest(
+                null,
+                "New Brand",
+                "NBR",
+                "Primer",
+                "FINISHED_GOOD",
+                List.of("Red"),
+                List.of("20L"),
+                null,
+                "L",
+                null,
+                new BigDecimal("1200.00"),
+                new BigDecimal("18"),
+                BigDecimal.ZERO,
+                new BigDecimal("1100.00"),
+                Map.of()
+        );
+
+        BulkVariantResponse response = service.createVariants(request, true);
+        assertThat(response.generated()).hasSize(1);
+        assertThat(response.conflicts()).isEmpty();
+        assertThat(response.wouldCreate()).hasSize(1);
+        assertThat(response.created()).isEmpty();
+        verify(brandRepository, never()).save(any());
+        verify(service, never()).createProduct(any());
+    }
+
+    @Test
+    void createVariants_dryRun_doesNotMutateExistingBrandName() {
+        assertThat(brand.getName()).isEqualTo("BigBright");
+
+        BulkVariantRequest request = new BulkVariantRequest(
+                11L,
+                "Renamed During DryRun",
+                null,
+                "Primer",
+                "FINISHED_GOOD",
+                List.of("Red"),
+                List.of("20L"),
+                null,
+                "L",
+                null,
+                new BigDecimal("1200.00"),
+                new BigDecimal("18"),
+                BigDecimal.ZERO,
+                new BigDecimal("1100.00"),
+                Map.of()
+        );
+
+        service.createVariants(request, true);
+        assertThat(brand.getName()).isEqualTo("BigBright");
     }
 
     private BulkVariantRequest variantRequest() {

@@ -308,3 +308,32 @@ Update this file in every high-risk change set.
   - `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/portal/PortalInsightsControllerIT.java`
   - `erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeTenantPolicyControlExecutableCoverageTest.java`
   - `erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeTenantControlPlaneEnforcementTest.java`
+
+## STAGE-108 Addendum (2026-02-24, refactor-techdebt-gc)
+- Ticket path / commit: `tickets/TKT-ERP-STAGE-108` / `06c931e0`
+- Source branch: tickets/tkt-erp-stage-108/refactor-techdebt-gc
+- High-risk paths:
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/controller/AccountingCatalogController.java`
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/production/service/ProductionCatalogService.java`
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/production/dto/BulkVariantResponse.java`
+- Why this is R2: accounting catalog bulk-variant mutation flow now enforces fail-closed duplicate handling and dry-run preview behavior; this is a runtime write-path contract change that impacts deterministic SKU creation and conflict semantics.
+- Approval mode: orchestrator
+- Human escalation required: no
+- Rollback owner: release governance + accounting/catalog owners
+- Verification evidence:
+  - Commands run:
+    - `cd erp-domain && mvn -B -ntp -Dtest=ProductionCatalogServiceBulkVariantRaceTest,ProductionCatalogServiceRetryPolicyTest test`
+    - `bash ci/lint-knowledgebase.sh`
+    - `bash ci/check-architecture.sh`
+    - `bash ci/check-enterprise-policy.sh`
+  - Result summary:
+    - production catalog service unit/race suites passed (`Tests run: 17, Failures: 0, Errors: 0`).
+    - knowledgebase + architecture guards passed.
+    - enterprise-policy guard passed after this checkpoint update.
+    - integration lane `RawMaterialAndProductUpdateIT` is environment-blocked locally when Docker/Testcontainers is unavailable; runtime code/tests are prepared for CI/docker validation.
+- Artifacts/links:
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/production/service/ProductionCatalogService.java`
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/controller/AccountingCatalogController.java`
+  - `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/production/service/ProductionCatalogServiceBulkVariantRaceTest.java`
+  - `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/inventory/RawMaterialAndProductUpdateIT.java`
+  - `openapi.json`

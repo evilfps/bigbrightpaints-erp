@@ -5,6 +5,7 @@ import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterial;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialRepository;
+import com.bigbrightpaints.erp.modules.production.domain.ProductionBrandRepository;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionProduct;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionProductRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
@@ -53,6 +54,9 @@ class RawMaterialAndProductUpdateIT extends AbstractIntegrationTest {
 
     @Autowired
     private ProductionProductRepository productionProductRepository;
+
+    @Autowired
+    private ProductionBrandRepository productionBrandRepository;
 
     @Autowired
     private CompanyRepository companyRepository;
@@ -947,8 +951,11 @@ class RawMaterialAndProductUpdateIT extends AbstractIntegrationTest {
         HttpHeaders headers = authenticatedHeaders();
 
         String baseProductName = "Primer DryRun " + UUID.randomUUID().toString().substring(0, 8);
+        String brandName = "DryRun Brand " + UUID.randomUUID().toString().substring(0, 8);
+        String brandCode = "DRY" + UUID.randomUUID().toString().substring(0, 5).toUpperCase(Locale.ROOT);
         Map<String, Object> payload = new HashMap<>();
-        payload.put("brandName", "HouseBrand");
+        payload.put("brandName", brandName);
+        payload.put("brandCode", brandCode);
         payload.put("baseProductName", baseProductName);
         payload.put("category", "FINISHED_GOOD");
         payload.put("colors", List.of("Red, Blue"));
@@ -975,6 +982,7 @@ class RawMaterialAndProductUpdateIT extends AbstractIntegrationTest {
                 .filter(product -> product.getProductName() != null && product.getProductName().startsWith(baseProductName + " "))
                 .count();
         assertThat(createdProducts).isZero();
+        assertThat(productionBrandRepository.findByCompanyAndNameIgnoreCase(company, brandName)).isEmpty();
     }
 
     @Test

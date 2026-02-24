@@ -431,11 +431,7 @@ public class ProductionCatalogService {
     public BulkVariantResponse createVariants(BulkVariantRequest request, boolean dryRun) {
         Company company = companyContextService.requireCurrentCompany();
         VariantExecutionPlan plan = prepareVariantExecutionPlan(company, request);
-        BulkVariantResponse dryRunResponse = new BulkVariantResponse(
-                plan.generated(),
-                plan.conflicts(),
-                plan.wouldCreate(),
-                List.of());
+        BulkVariantResponse dryRunResponse = toVariantResponse(plan, plan.conflicts(), List.of());
 
         if (dryRun) {
             auditBulkVariantOutcome(company, plan, dryRunResponse, true, true, null);
@@ -493,11 +489,14 @@ public class ProductionCatalogService {
         }
 
         String normalizedCategory = normalizeCategory(request.category());
-        BrandResolution resolution = resolveBrand(company, request.brandId(), request.brandName(), request.brandCode());
-        ProductionBrand brand = resolution.brand();
+        VariantBrandPlan brandPlan = resolveBrandPlanForVariantPlanning(
+                company,
+                request.brandId(),
+                request.brandName(),
+                request.brandCode());
         String baseName = request.baseProductName().trim();
         String unit = StringUtils.hasText(request.unitOfMeasure()) ? request.unitOfMeasure().trim() : "UNIT";
-        String prefix = resolveVariantPrefix(request.skuPrefix(), brand.getCode());
+        String prefix = resolveVariantPrefix(request.skuPrefix(), brandPlan.brandCode());
         String baseSkuFragment = requireVariantSkuFragment("baseProductName", baseName, Integer.MAX_VALUE);
 
         List<VariantCandidate> generatedCandidates = new ArrayList<>();
@@ -517,7 +516,9 @@ public class ProductionCatalogService {
                         List.of(prefix, baseSkuFragment, colorCode, sizeCode))
                         .replaceAll("-+", "-");
                 ProductCreateRequest createRequest = new ProductCreateRequest(
-                        brand.getId(), null, null,
+                        brandPlan.brandId(),
+                        brandPlan.brandId() == null ? brandPlan.brandName() : null,
+                        brandPlan.brandId() == null ? brandPlan.brandCode() : null,
                         baseName + " " + color + " " + size,
                         normalizedCategory, color, size, unit, sku,
                         request.basePrice(), request.gstRate(),
@@ -570,7 +571,7 @@ public class ProductionCatalogService {
         }
 
         return new VariantExecutionPlan(
-                brand,
+                brandPlan,
                 baseName,
                 normalizedCategory,
                 List.copyOf(candidatesToCreate),
@@ -579,13 +580,51 @@ public class ProductionCatalogService {
                 List.copyOf(wouldCreate));
     }
 
+    private VariantBrandPlan resolveBrandPlanForVariantPlanning(Company company,
+                                                                Long brandId,
+                                                                String brandName,
+                                                                String providedCode) {
+        if (brandId != null) {
+            ProductionBrand brand = companyEntityLookup.requireProductionBrand(company, brandId);
+            return new VariantBrandPlan(brand.getId(), brand.getName(), brand.getCode());
+        }
+        if (!StringUtils.hasText(brandName)) {
+            throw new IllegalArgumentException("Brand is required");
+        }
+        String effectiveName = brandName.trim();
+        if (StringUtils.hasText(providedCode)) {
+            Optional<ProductionBrand> byCode = brandRepository.findByCompanyAndCodeIgnoreCase(company, sanitizeCode(providedCode));
+            if (byCode.isPresent()) {
+                ProductionBrand brand = byCode.get();
+                return new VariantBrandPlan(brand.getId(), brand.getName(), brand.getCode());
+            }
+        }
+        Optional<ProductionBrand> byName = brandRepository.findByCompanyAndNameIgnoreCase(company, effectiveName);
+        if (byName.isPresent()) {
+            ProductionBrand brand = byName.get();
+            return new VariantBrandPlan(brand.getId(), brand.getName(), brand.getCode());
+        }
+        String plannedCode = nextBrandCode(company, providedCode != null ? providedCode : effectiveName);
+        return new VariantBrandPlan(null, effectiveName, plannedCode);
+    }
+
     private BulkVariantResponse toVariantResponse(VariantExecutionPlan plan,
                                                   List<BulkVariantResponse.VariantItem> conflicts,
                                                   List<BulkVariantResponse.VariantItem> created) {
+        Set<String> conflictSkuKeys = conflicts == null
+                ? Set.of()
+                : conflicts.stream()
+                .map(BulkVariantResponse.VariantItem::sku)
+                .map(ProductionCatalogService::normalizeSkuKey)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        List<BulkVariantResponse.VariantItem> filteredWouldCreate = plan.wouldCreate().stream()
+                .filter(item -> !conflictSkuKeys.contains(normalizeSkuKey(item.sku())))
+                .toList();
         return new BulkVariantResponse(
                 plan.generated(),
                 conflicts == null ? List.of() : List.copyOf(conflicts),
-                plan.wouldCreate(),
+                filteredWouldCreate,
                 created == null ? List.of() : List.copyOf(created));
     }
 
@@ -609,7 +648,13 @@ public class ProductionCatalogService {
         metadata.put("mode", dryRun ? "dry-run" : "commit");
         metadata.put("companyId", company != null && company.getId() != null ? company.getId().toString() : "");
         metadata.put("brandId",
-                plan.brand() != null && plan.brand().getId() != null ? plan.brand().getId().toString() : "");
+                plan.brandPlan() != null && plan.brandPlan().brandId() != null
+                        ? plan.brandPlan().brandId().toString()
+                        : "");
+        metadata.put("brandCode",
+                safeAuditValue(plan.brandPlan() != null ? plan.brandPlan().brandCode() : null));
+        metadata.put("brandName",
+                safeAuditValue(plan.brandPlan() != null ? plan.brandPlan().brandName() : null));
         metadata.put("baseProductName", safeAuditValue(plan.baseProductName()));
         metadata.put("category", safeAuditValue(plan.category()));
         metadata.put("generatedCount", Integer.toString(response.generated().size()));
@@ -1822,13 +1867,18 @@ public class ProductionCatalogService {
         return true;
     }
 
-    private record VariantExecutionPlan(ProductionBrand brand,
+    private record VariantExecutionPlan(VariantBrandPlan brandPlan,
                                         String baseProductName,
                                         String category,
                                         List<VariantCandidate> candidatesToCreate,
                                         List<BulkVariantResponse.VariantItem> generated,
                                         List<BulkVariantResponse.VariantItem> conflicts,
                                         List<BulkVariantResponse.VariantItem> wouldCreate) {
+    }
+
+    private record VariantBrandPlan(Long brandId,
+                                    String brandName,
+                                    String brandCode) {
     }
 
     private record VariantCandidate(String sku,

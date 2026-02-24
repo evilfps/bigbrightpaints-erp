@@ -15,7 +15,7 @@ Portal scope guardrail:
 ## M17-S1 canonical API contract gate (parity evidence)
 
 - Canonical machine contract source: repo-root `openapi.json`.
-- OpenAPI snapshot: `openapi.json` (sha256 `33ddd163c102607970ff0f4c45e95f0c2a9d2965749187f68beb5c012216efa1`)
+- OpenAPI snapshot: `openapi.json` (sha256 `0de49a1a41a3b503158af29bb492f7b4e8d9bb825913d16735e1b83f93c19e69`)
 - OpenAPI total paths: `228` (includes non-v1 route `GET /api/integration/health`)
 - OpenAPI total operations: `276`
 - Accounting portal endpoint-map parity: `docs/accounting-portal-endpoint-map.md` carries `143` method+path entries over `119` unique paths; all are represented in this inventory and in `openapi.json`.
