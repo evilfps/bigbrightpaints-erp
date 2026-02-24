@@ -3,6 +3,7 @@ package com.bigbrightpaints.erp.modules.company.controller;
 import com.bigbrightpaints.erp.modules.auth.domain.UserPrincipal;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.dto.CompanyDto;
+import com.bigbrightpaints.erp.modules.company.dto.CompanyAdminCredentialResetDto;
 import com.bigbrightpaints.erp.modules.company.dto.CompanyLifecycleStateDto;
 import com.bigbrightpaints.erp.modules.company.dto.CompanyLifecycleStateRequest;
 import com.bigbrightpaints.erp.modules.company.dto.CompanyRequest;
@@ -11,7 +12,9 @@ import com.bigbrightpaints.erp.modules.company.service.CompanyService;
 import com.bigbrightpaints.erp.modules.company.service.TenantRuntimeEnforcementService;
 import com.bigbrightpaints.erp.shared.dto.ApiResponse;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
@@ -82,6 +85,16 @@ public class CompanyController {
                 companyService.update(id, request, Set.of())));
     }
 
+    @PostMapping("/{id}/support/admin-password-reset")
+    @PreAuthorize("hasAuthority('ROLE_SUPER_ADMIN')")
+    public ResponseEntity<ApiResponse<CompanyAdminCredentialResetDto>> resetTenantAdminPassword(
+            @PathVariable Long id,
+            @Valid @RequestBody CompanyAdminPasswordResetRequest request) {
+        return ResponseEntity.ok(ApiResponse.success(
+                "Admin credentials reset and emailed",
+                companyService.resetTenantAdminPassword(id, request.adminEmail())));
+    }
+
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAuthority('ROLE_ADMIN')")
     public ResponseEntity<Void> delete(@AuthenticationPrincipal UserPrincipal principal,
@@ -120,5 +133,9 @@ public class CompanyController {
                     maxRequestsPerMinute,
                     maxActiveUsers);
         }
+    }
+
+    public record CompanyAdminPasswordResetRequest(
+            @Email @NotBlank String adminEmail) {
     }
 }

@@ -1,0 +1,11 @@
+# Timeline
+
+- `2026-02-24T10:23:24+00:00` ticket created and slices planned
+- `2026-02-24T10:24:14Z` claim recorded: agent=`refactor-techdebt-gc` slice=`SLICE-01` branch=`tickets/tkt-erp-stage-109/refactor-techdebt-gc` worktree=`/Users/anas/Documents/orchestrator_erp/bigbrightpaints-erp_worktrees/TKT-ERP-STAGE-109/refactor-techdebt-gc` status=`taken`
+- `2026-02-24T10:24:31Z` slice `SLICE-01` moved to `in_progress` after claim; implementing superadmin onboarding + credential delivery/reset controls.
+- `2026-02-24T10:39:15Z` slice `SLICE-01` moved to `in_review`; implemented tenant bootstrap first-admin provisioning, company-code uniqueness normalization, support password reset control, credential email company-code context, and `DataInitializer` superadmin seed credentials (`anasibnanwar1@gmail.com` / `SKE` / `Admin@12345`).
+- `2026-02-24T10:39:15Z` verification: `mvn -B -ntp -DskipTests compile` ✅, `mvn -B -ntp -Dtest=CompanyServiceTest test` ✅, `bash ci/check-architecture.sh` ✅, `bash ci/check-enterprise-policy.sh` ✅, `bash ci/check-orchestrator-layer.sh` ✅.
+- `2026-02-24T10:39:15Z` required full suite `mvn -B -ntp test` executed but integration lanes are blocked in this environment because Docker/Testcontainers is unavailable (`/var/run/docker.sock` missing), resulting in `AbstractIntegrationTest` initialization errors.
+- `2026-02-24T10:40:30Z` added dedicated unit coverage for tenant admin provisioning/reset orchestration: `mvn -B -ntp -Dtest=CompanyServiceTest,TenantAdminProvisioningServiceTest test` ✅.
+- `2026-02-24T17:55:23Z` addressed review finding `[P1]` by blocking tenant admin credential provisioning/reset when credential email delivery is disabled (`erp.mail.enabled=false` or `erp.mail.send-credentials=false`) and added regression coverage in `CompanyServiceTest`.
+- `2026-02-24T17:55:23Z` verification: `mvn -B -ntp -DskipTests compile` ✅, `mvn -B -ntp -Dtest=CompanyServiceTest test` ✅, `mvn -B -ntp -Dtest=TenantAdminProvisioningServiceTest test` ✅, `bash ci/check-architecture.sh` ✅, `bash ci/check-enterprise-policy.sh` ✅, `bash ci/check-orchestrator-layer.sh` ✅.

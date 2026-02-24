@@ -2,6 +2,8 @@ package com.bigbrightpaints.erp.modules.auth;
 
 import com.bigbrightpaints.erp.core.audit.AuditEvent;
 import com.bigbrightpaints.erp.core.audit.AuditLog;
+import com.bigbrightpaints.erp.modules.auth.domain.UserAccount;
+import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
 import com.bigbrightpaints.erp.test.AbstractIntegrationTest;
@@ -43,6 +45,9 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
 
     @Autowired
     private EntityManager entityManager;
+
+    @Autowired
+    private UserAccountRepository userAccountRepository;
 
     @BeforeEach
     void setUp() {
@@ -101,6 +106,50 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
                         && newCode.equalsIgnoreCase(log.getMetadata().get("targetCompanyCode")));
         assertThat(granted.getMetadata()).containsEntry("actor", SUPER_ADMIN_EMAIL);
         assertThat(granted.getMetadata().get("tenantScope")).contains(ROOT_TENANT);
+    }
+
+    @Test
+    void super_admin_can_bootstrap_new_tenant_with_first_admin_credentials_provisioning() {
+        String token = login(SUPER_ADMIN_EMAIL, ROOT_TENANT);
+        String newCode = "TEN-ADM-" + System.nanoTime();
+        String firstAdminEmail = "first-admin-" + System.nanoTime() + "@bbp.com";
+
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("name", "Provisioned Tenant");
+        payload.put("code", newCode);
+        payload.put("timezone", "UTC");
+        payload.put("firstAdminEmail", firstAdminEmail);
+        payload.put("firstAdminDisplayName", "Provisioned Admin");
+
+        ResponseEntity<Map> response = rest.exchange(
+                "/api/v1/companies",
+                HttpMethod.POST,
+                new HttpEntity<>(payload, jsonHeaders(token, ROOT_TENANT)),
+                Map.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        Company savedCompany = companyRepository.findByCodeIgnoreCase(newCode).orElseThrow();
+        assertThat(savedCompany.getDefaultGstRate()).isEqualByComparingTo("0");
+        UserAccount firstAdmin = userAccountRepository.findByEmailIgnoreCase(firstAdminEmail).orElseThrow();
+        assertThat(firstAdmin.isMustChangePassword()).isTrue();
+        assertThat(firstAdmin.getCompanies()).anyMatch(company -> company.getCode().equalsIgnoreCase(newCode));
+        assertThat(firstAdmin.getRoles()).anyMatch(role -> "ROLE_ADMIN".equalsIgnoreCase(role.getName()));
+    }
+
+    @Test
+    void super_admin_can_reset_tenant_admin_password_for_support() {
+        String superToken = login(SUPER_ADMIN_EMAIL, ROOT_TENANT);
+        Long tenantAId = companyRepository.findByCodeIgnoreCase(TENANT_A).map(Company::getId).orElseThrow();
+
+        ResponseEntity<Map> response = rest.exchange(
+                "/api/v1/companies/" + tenantAId + "/support/admin-password-reset",
+                HttpMethod.POST,
+                new HttpEntity<>(Map.of("adminEmail", ADMIN_EMAIL), jsonHeaders(superToken, ROOT_TENANT)),
+                Map.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        UserAccount admin = userAccountRepository.findByEmailIgnoreCase(ADMIN_EMAIL).orElseThrow();
+        assertThat(admin.isMustChangePassword()).isTrue();
     }
 
     @Test

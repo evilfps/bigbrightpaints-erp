@@ -5,6 +5,8 @@ import com.bigbrightpaints.erp.core.audit.AuditLogRepository;
 import com.bigbrightpaints.erp.core.audit.AuditService;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
 import com.bigbrightpaints.erp.modules.auth.domain.UserPrincipal;
+import com.bigbrightpaints.erp.modules.auth.service.TenantAdminProvisioningService;
+import com.bigbrightpaints.erp.modules.company.dto.CompanyAdminCredentialResetDto;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyLifecycleState;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
@@ -14,6 +16,7 @@ import com.bigbrightpaints.erp.modules.company.dto.CompanyLifecycleStateRequest;
 import com.bigbrightpaints.erp.modules.company.dto.CompanyRequest;
 import com.bigbrightpaints.erp.modules.company.dto.CompanyTenantMetricsDto;
 import jakarta.transaction.Transactional;
+import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -51,16 +54,31 @@ public class CompanyService {
     private final UserAccountRepository userAccountRepository;
     private final AuditLogRepository auditLogRepository;
     private final TenantRuntimeEnforcementService tenantRuntimeEnforcementService;
+    private final TenantAdminProvisioningService tenantAdminProvisioningService;
 
     public CompanyService(CompanyRepository repository) {
-        this(repository, null, null, null, null);
+        this(repository, null, null, null, null, null);
     }
 
     public CompanyService(CompanyRepository repository,
                           AuditService auditService,
                           UserAccountRepository userAccountRepository,
                           AuditLogRepository auditLogRepository) {
-        this(repository, auditService, userAccountRepository, auditLogRepository, null);
+        this(repository, auditService, userAccountRepository, auditLogRepository, null, null);
+    }
+
+    public CompanyService(CompanyRepository repository,
+                          AuditService auditService,
+                          UserAccountRepository userAccountRepository,
+                          AuditLogRepository auditLogRepository,
+                          TenantRuntimeEnforcementService tenantRuntimeEnforcementService) {
+        this(
+                repository,
+                auditService,
+                userAccountRepository,
+                auditLogRepository,
+                tenantRuntimeEnforcementService,
+                null);
     }
 
     @Autowired
@@ -68,12 +86,14 @@ public class CompanyService {
                           AuditService auditService,
                           UserAccountRepository userAccountRepository,
                           AuditLogRepository auditLogRepository,
-                          TenantRuntimeEnforcementService tenantRuntimeEnforcementService) {
+                          TenantRuntimeEnforcementService tenantRuntimeEnforcementService,
+                          TenantAdminProvisioningService tenantAdminProvisioningService) {
         this.repository = repository;
         this.auditService = auditService;
         this.userAccountRepository = userAccountRepository;
         this.auditLogRepository = auditLogRepository;
         this.tenantRuntimeEnforcementService = tenantRuntimeEnforcementService;
+        this.tenantAdminProvisioningService = tenantAdminProvisioningService;
     }
 
     public List<CompanyDto> findAll() {
@@ -87,13 +107,16 @@ public class CompanyService {
         return companies.stream().map(this::toDto).toList();
     }
 
+    @Transactional
     public CompanyDto create(CompanyRequest request) {
-        Authentication authentication = requireSuperAdminForTenantBootstrap(request.code());
+        String normalizedCompanyCode = normalizeCompanyCode(request.code());
+        Authentication authentication = requireSuperAdminForTenantBootstrap(normalizedCompanyCode);
+        ensureCompanyCodeAvailableForCreate(normalizedCompanyCode);
         Company company = new Company();
         company.setName(request.name());
-        company.setCode(request.code());
+        company.setCode(normalizedCompanyCode);
         company.setTimezone(request.timezone());
-        company.setDefaultGstRate(request.defaultGstRate());
+        company.setDefaultGstRate(resolveDefaultGstRateForCreate(request.defaultGstRate()));
         company.setQuotaMaxActiveUsers(resolveQuotaForCreate(request.quotaMaxActiveUsers()));
         company.setQuotaMaxApiRequests(resolveQuotaForCreate(request.quotaMaxApiRequests()));
         company.setQuotaMaxStorageBytes(resolveQuotaForCreate(request.quotaMaxStorageBytes()));
@@ -101,7 +124,8 @@ public class CompanyService {
         company.setQuotaSoftLimitEnabled(resolveQuotaFlagForCreate(request.quotaSoftLimitEnabled(), false));
         company.setQuotaHardLimitEnabled(resolveQuotaFlagForCreate(request.quotaHardLimitEnabled(), true));
         Company saved = repository.save(company);
-        auditAuthorityDecision(true, "tenant-bootstrap-created", request.code(), authentication);
+        provisionInitialAdminIfRequested(saved, request.firstAdminEmail(), request.firstAdminDisplayName());
+        auditAuthorityDecision(true, "tenant-bootstrap-created", normalizedCompanyCode, authentication);
         return toDto(saved);
     }
 
@@ -110,10 +134,14 @@ public class CompanyService {
         requireSuperAdminForTenantConfigurationUpdate();
         Company company = repository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Company not found"));
+        String normalizedCompanyCode = normalizeCompanyCode(request.code());
+        ensureCompanyCodeAvailableForUpdate(id, normalizedCompanyCode);
         company.setName(request.name());
-        company.setCode(request.code());
+        company.setCode(normalizedCompanyCode);
         company.setTimezone(request.timezone());
-        company.setDefaultGstRate(request.defaultGstRate());
+        if (request.defaultGstRate() != null) {
+            company.setDefaultGstRate(request.defaultGstRate());
+        }
         company.setQuotaMaxActiveUsers(resolveQuotaForUpdate(request.quotaMaxActiveUsers(), company.getQuotaMaxActiveUsers()));
         company.setQuotaMaxApiRequests(resolveQuotaForUpdate(request.quotaMaxApiRequests(), company.getQuotaMaxApiRequests()));
         company.setQuotaMaxStorageBytes(resolveQuotaForUpdate(request.quotaMaxStorageBytes(), company.getQuotaMaxStorageBytes()));
@@ -279,6 +307,21 @@ public class CompanyService {
         return snapshot;
     }
 
+    @Transactional
+    public CompanyAdminCredentialResetDto resetTenantAdminPassword(Long companyId, String adminEmail) {
+        Authentication authentication = requireSuperAdminForTenantConfigurationUpdate();
+        Company company = repository.findById(companyId)
+                .orElseThrow(() -> new IllegalArgumentException("Company not found"));
+        requireCredentialProvisioningReady();
+        String resetEmail = tenantAdminProvisioningService.resetTenantAdminPassword(company, adminEmail);
+        auditAuthorityDecision(true, "tenant-admin-password-reset", company.getCode(), authentication);
+        return new CompanyAdminCredentialResetDto(
+                company.getId(),
+                company.getCode(),
+                resetEmail,
+                "credentials-emailed");
+    }
+
     private void requireMembershipById(Long companyId, Set<Company> allowedCompanies) {
         if (companyId == null || allowedCompanies == null || allowedCompanies.isEmpty()) {
             throw new AccessDeniedException("Not allowed to access company");
@@ -361,10 +404,60 @@ public class CompanyService {
         return authentication;
     }
 
-    private void requireSuperAdminForTenantConfigurationUpdate() {
+    private Authentication requireSuperAdminForTenantConfigurationUpdate() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (!hasAuthority(authentication, "ROLE_SUPER_ADMIN")) {
             throw new AccessDeniedException("SUPER_ADMIN authority required for tenant configuration updates");
+        }
+        return authentication;
+    }
+
+    private String normalizeCompanyCode(String code) {
+        if (!StringUtils.hasText(code)) {
+            throw new IllegalArgumentException("Company code is required");
+        }
+        return code.trim().toUpperCase(Locale.ROOT);
+    }
+
+    private void ensureCompanyCodeAvailableForCreate(String companyCode) {
+        repository.findByCodeIgnoreCase(companyCode).ifPresent(existing -> {
+            throw new IllegalArgumentException("Company code already exists: " + companyCode);
+        });
+    }
+
+    private void ensureCompanyCodeAvailableForUpdate(Long companyId, String companyCode) {
+        repository.findByCodeIgnoreCase(companyCode).ifPresent(existing -> {
+            if (existing.getId() != null && !existing.getId().equals(companyId)) {
+                throw new IllegalArgumentException("Company code already exists: " + companyCode);
+            }
+        });
+    }
+
+    private BigDecimal resolveDefaultGstRateForCreate(BigDecimal requestedDefaultGstRate) {
+        return requestedDefaultGstRate == null ? BigDecimal.ZERO : requestedDefaultGstRate;
+    }
+
+    private void provisionInitialAdminIfRequested(Company company,
+                                                  String firstAdminEmail,
+                                                  String firstAdminDisplayName) {
+        if (!StringUtils.hasText(firstAdminEmail)) {
+            return;
+        }
+        requireCredentialProvisioningReady();
+        tenantAdminProvisioningService.provisionInitialAdmin(company, firstAdminEmail, firstAdminDisplayName);
+    }
+
+    private void requireCredentialProvisioningDependencies() {
+        if (tenantAdminProvisioningService == null) {
+            throw new IllegalStateException("Credential provisioning dependencies are not available");
+        }
+    }
+
+    private void requireCredentialProvisioningReady() {
+        requireCredentialProvisioningDependencies();
+        if (!tenantAdminProvisioningService.isCredentialEmailDeliveryEnabled()) {
+            throw new IllegalStateException(
+                    "Credential email delivery is disabled; enable erp.mail.enabled=true and erp.mail.send-credentials=true");
         }
     }
 

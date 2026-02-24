@@ -57,6 +57,14 @@ public class EmailService {
     }
 
     public void sendUserCredentialsEmail(String to, String displayName, String password) {
+        sendUserCredentialsEmail(to, displayName, password, null);
+    }
+
+    public boolean isCredentialEmailDeliveryEnabled() {
+        return properties.isEnabled() && properties.isSendCredentials();
+    }
+
+    public void sendUserCredentialsEmail(String to, String displayName, String password, String companyCode) {
         if (!properties.isSendCredentials()) {
             log.debug("Credential email sending disabled. Skipping for {}", to);
             return;
@@ -66,6 +74,7 @@ public class EmailService {
         context.setVariable("displayName", displayName);
         context.setVariable("email", to);
         context.setVariable("temporaryPassword", password);
+        context.setVariable("companyCode", StringUtils.hasText(companyCode) ? companyCode.trim() : null);
         context.setVariable("loginUrl", properties.getBaseUrl());
         context.setVariable("preheader", "Your Orchestrator ERP account is ready.");
         sendHtmlEmail(to, subject, "mail/credentials", context);

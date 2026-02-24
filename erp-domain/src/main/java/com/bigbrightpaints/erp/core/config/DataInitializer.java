@@ -20,6 +20,10 @@ import java.util.List;
 @Configuration
 public class DataInitializer {
 
+    private static final String SUPER_ADMIN_EMAIL = "anasibnanwar1@gmail.com";
+    private static final String SUPER_ADMIN_PASSWORD = "Admin@12345";
+    private static final String SUPER_ADMIN_COMPANY_CODE = "SKE";
+
     @Bean
     @Profile({"dev", "seed"})
     CommandLineRunner seedDefaultUser(UserAccountRepository userRepository,
@@ -28,6 +32,48 @@ public class DataInitializer {
                                       AccountRepository accountRepository,
                                       PasswordEncoder passwordEncoder) {
         return args -> {
+            Company superAdminCompany = companyRepository.findByCodeIgnoreCase(SUPER_ADMIN_COMPANY_CODE)
+                    .orElseGet(() -> {
+                        Company c = new Company();
+                        c.setName("SKE");
+                        c.setCode(SUPER_ADMIN_COMPANY_CODE);
+                        c.setTimezone("UTC");
+                        c.setBaseCurrency("INR");
+                        c.setDefaultGstRate(java.math.BigDecimal.ZERO);
+                        return companyRepository.save(c);
+                    });
+            Role adminRole = roleRepository.findByName("ROLE_ADMIN").orElseGet(() -> {
+                Role role = new Role();
+                role.setName("ROLE_ADMIN");
+                role.setDescription("Platform administrator");
+                return roleRepository.save(role);
+            });
+            Role superAdminRole = roleRepository.findByName("ROLE_SUPER_ADMIN").orElseGet(() -> {
+                Role role = new Role();
+                role.setName("ROLE_SUPER_ADMIN");
+                role.setDescription("Platform super administrator");
+                return roleRepository.save(role);
+            });
+
+            UserAccount superAdmin = userRepository.findByEmailIgnoreCase(SUPER_ADMIN_EMAIL).orElseGet(() -> {
+                UserAccount user = new UserAccount(
+                        SUPER_ADMIN_EMAIL,
+                        passwordEncoder.encode(SUPER_ADMIN_PASSWORD),
+                        "Platform Super Admin");
+                user.addCompany(superAdminCompany);
+                user.addRole(superAdminRole);
+                user.addRole(adminRole);
+                user.setMustChangePassword(false);
+                return userRepository.save(user);
+            });
+            superAdmin.setDisplayName("Platform Super Admin");
+            superAdmin.setPasswordHash(passwordEncoder.encode(SUPER_ADMIN_PASSWORD));
+            superAdmin.setMustChangePassword(false);
+            superAdmin.addCompany(superAdminCompany);
+            superAdmin.addRole(superAdminRole);
+            superAdmin.addRole(adminRole);
+            userRepository.save(superAdmin);
+
             Company company = companyRepository.findByCodeIgnoreCase("BBP")
                     .orElseGet(() -> {
                         Company c = new Company();
@@ -37,12 +83,6 @@ public class DataInitializer {
                         c.setBaseCurrency("INR");
                         return companyRepository.save(c);
                     });
-            Role adminRole = roleRepository.findByName("ROLE_ADMIN").orElseGet(() -> {
-                Role role = new Role();
-                role.setName("ROLE_ADMIN");
-                role.setDescription("Platform administrator");
-                return roleRepository.save(role);
-            });
 
             userRepository.findByEmailIgnoreCase("admin@bbp.dev").orElseGet(() -> {
                 UserAccount user = new UserAccount(
@@ -54,6 +94,8 @@ public class DataInitializer {
                 return userRepository.save(user);
             });
 
+            seedDefaultAccounts(superAdminCompany, accountRepository);
+            setCompanyDefaultAccounts(superAdminCompany, companyRepository, accountRepository);
             seedDefaultAccounts(company, accountRepository);
             setCompanyDefaultAccounts(company, companyRepository, accountRepository);
         };
