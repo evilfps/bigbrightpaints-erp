@@ -97,6 +97,13 @@ public class ProductionCatalogService {
             "fgDiscountAccountId", "fg_discount_account_id",
             "fgTaxAccountId", "fg_tax_account_id"
     );
+    private static final String VARIANT_REASON_GENERATED = "GENERATED";
+    private static final String VARIANT_REASON_WOULD_CREATE = "WOULD_CREATE";
+    private static final String VARIANT_REASON_CREATED = "CREATED";
+    private static final String VARIANT_REASON_SKU_ALREADY_EXISTS = "SKU_ALREADY_EXISTS";
+    private static final String VARIANT_REASON_DUPLICATE_IN_REQUEST = "DUPLICATE_IN_REQUEST";
+    private static final String VARIANT_REASON_CONCURRENT_CONFLICT = "CONCURRENT_SKU_CONFLICT";
+    private static final int BULK_VARIANT_AUDIT_SAMPLE_LIMIT = 12;
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper()
             .configure(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS, true);
     private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {};
@@ -417,7 +424,57 @@ public class ProductionCatalogService {
      */
     @Transactional
     public BulkVariantResponse createVariants(BulkVariantRequest request) {
+        return createVariants(request, false);
+    }
+
+    @Transactional
+    public BulkVariantResponse createVariants(BulkVariantRequest request, boolean dryRun) {
         Company company = companyContextService.requireCurrentCompany();
+        VariantExecutionPlan plan = prepareVariantExecutionPlan(company, request);
+        BulkVariantResponse dryRunResponse = new BulkVariantResponse(
+                plan.generated(),
+                plan.conflicts(),
+                plan.wouldCreate(),
+                List.of());
+
+        if (dryRun) {
+            auditBulkVariantOutcome(company, plan, dryRunResponse, true, true, null);
+            return dryRunResponse;
+        }
+
+        if (!plan.conflicts().isEmpty()) {
+            auditBulkVariantOutcome(company, plan, dryRunResponse, false, false, "pre-validation-conflicts");
+            throw bulkVariantConflictException(dryRunResponse,
+                    "Bulk variant request has SKU conflicts. Resolve conflicts and retry.");
+        }
+
+        List<BulkVariantResponse.VariantItem> created = new ArrayList<>();
+        for (VariantCandidate candidate : plan.candidatesToCreate()) {
+            try {
+                createProduct(candidate.createRequest());
+                created.add(candidate.toItem(VARIANT_REASON_CREATED));
+            } catch (RuntimeException ex) {
+                if (isVariantDuplicateConflict(ex, company, candidate.sku())) {
+                    BulkVariantResponse raceConflictResponse = toVariantResponse(
+                            plan,
+                            List.of(candidate.toItem(VARIANT_REASON_CONCURRENT_CONFLICT)),
+                            List.of());
+                    auditBulkVariantOutcome(company, plan, raceConflictResponse, false, false, "write-time-conflict");
+                    throw bulkVariantConflictException(
+                            raceConflictResponse,
+                            "Bulk variant write conflict for SKU " + candidate.sku()
+                                    + ". Re-run with dryRun=true and resubmit.");
+                }
+                throw ex;
+            }
+        }
+
+        BulkVariantResponse committedResponse = toVariantResponse(plan, List.of(), created);
+        auditBulkVariantOutcome(company, plan, committedResponse, false, true, null);
+        return committedResponse;
+    }
+
+    private VariantExecutionPlan prepareVariantExecutionPlan(Company company, BulkVariantRequest request) {
         Map<String, String> colorsByKey = new LinkedHashMap<>();
         for (String color : expandTokens(request.colors())) {
             colorsByKey.putIfAbsent(normalizeTokenKey(color), color);
@@ -434,6 +491,7 @@ public class ProductionCatalogService {
         if (globalSizes.isEmpty() && colorSizeMatrix.values().stream().allMatch(entry -> entry.sizes().isEmpty())) {
             throw new IllegalArgumentException("At least one size is required");
         }
+
         String normalizedCategory = normalizeCategory(request.category());
         BrandResolution resolution = resolveBrand(company, request.brandId(), request.brandName(), request.brandCode());
         ProductionBrand brand = resolution.brand();
@@ -441,9 +499,8 @@ public class ProductionCatalogService {
         String unit = StringUtils.hasText(request.unitOfMeasure()) ? request.unitOfMeasure().trim() : "UNIT";
         String prefix = resolveVariantPrefix(request.skuPrefix(), brand.getCode());
         String baseSkuFragment = requireVariantSkuFragment("baseProductName", baseName, Integer.MAX_VALUE);
-        List<ProductionProductDto> variants = new ArrayList<>();
-        int created = 0;
-        int skipped = 0;
+
+        List<VariantCandidate> generatedCandidates = new ArrayList<>();
         for (Map.Entry<String, String> colorEntry : colorsByKey.entrySet()) {
             String color = colorEntry.getValue();
             ColorSizeSpec matrixEntry = colorSizeMatrix.get(colorEntry.getKey());
@@ -459,11 +516,7 @@ public class ProductionCatalogService {
                 String sku = String.join("-",
                         List.of(prefix, baseSkuFragment, colorCode, sizeCode))
                         .replaceAll("-+", "-");
-                if (productRepository.findByCompanyAndSkuCode(company, sku).isPresent()) {
-                    skipped++;
-                    continue;
-                }
-                ProductCreateRequest create = new ProductCreateRequest(
+                ProductCreateRequest createRequest = new ProductCreateRequest(
                         brand.getId(), null, null,
                         baseName + " " + color + " " + size,
                         normalizedCategory, color, size, unit, sku,
@@ -471,20 +524,127 @@ public class ProductionCatalogService {
                         request.minDiscountPercent(), request.minSellingPrice(),
                         request.metadata()
                 );
-                try {
-                    ProductionProductDto dto = createProduct(create);
-                    variants.add(dto);
-                    created++;
-                } catch (RuntimeException ex) {
-                    if (isSkippableVariantDuplicate(ex, company, sku)) {
-                        skipped++;
-                        continue;
-                    }
-                    throw ex;
-                }
+                generatedCandidates.add(new VariantCandidate(sku, color, size, createRequest.productName(), createRequest));
             }
         }
-        return new BulkVariantResponse(created, skipped, variants);
+
+        Set<String> duplicateSkuKeys = generatedCandidates.stream()
+                .collect(Collectors.groupingBy(candidate -> normalizeSkuKey(candidate.sku()),
+                        LinkedHashMap::new, Collectors.counting()))
+                .entrySet().stream()
+                .filter(entry -> entry.getValue() > 1)
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toSet());
+
+        Set<String> generatedSkuKeys = generatedCandidates.stream()
+                .map(candidate -> normalizeSkuKey(candidate.sku()))
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+
+        Set<String> existingSkuKeys = generatedSkuKeys.isEmpty()
+                ? Set.of()
+                : productRepository.findByCompanyAndSkuCodeIn(company, generatedSkuKeys).stream()
+                .map(ProductionProduct::getSkuCode)
+                .map(ProductionCatalogService::normalizeSkuKey)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+
+        List<BulkVariantResponse.VariantItem> generated = new ArrayList<>();
+        List<BulkVariantResponse.VariantItem> conflicts = new ArrayList<>();
+        List<BulkVariantResponse.VariantItem> wouldCreate = new ArrayList<>();
+        List<VariantCandidate> candidatesToCreate = new ArrayList<>();
+
+        for (VariantCandidate candidate : generatedCandidates) {
+            generated.add(candidate.toItem(VARIANT_REASON_GENERATED));
+            String skuKey = normalizeSkuKey(candidate.sku());
+            if (duplicateSkuKeys.contains(skuKey)) {
+                conflicts.add(candidate.toItem(VARIANT_REASON_DUPLICATE_IN_REQUEST));
+                continue;
+            }
+            if (existingSkuKeys.contains(skuKey)) {
+                conflicts.add(candidate.toItem(VARIANT_REASON_SKU_ALREADY_EXISTS));
+                continue;
+            }
+            wouldCreate.add(candidate.toItem(VARIANT_REASON_WOULD_CREATE));
+            candidatesToCreate.add(candidate);
+        }
+
+        return new VariantExecutionPlan(
+                brand,
+                baseName,
+                normalizedCategory,
+                List.copyOf(candidatesToCreate),
+                List.copyOf(generated),
+                List.copyOf(conflicts),
+                List.copyOf(wouldCreate));
+    }
+
+    private BulkVariantResponse toVariantResponse(VariantExecutionPlan plan,
+                                                  List<BulkVariantResponse.VariantItem> conflicts,
+                                                  List<BulkVariantResponse.VariantItem> created) {
+        return new BulkVariantResponse(
+                plan.generated(),
+                conflicts == null ? List.of() : List.copyOf(conflicts),
+                plan.wouldCreate(),
+                created == null ? List.of() : List.copyOf(created));
+    }
+
+    private ApplicationException bulkVariantConflictException(BulkVariantResponse response, String message) {
+        return new ApplicationException(ErrorCode.CONCURRENCY_CONFLICT, message)
+                .withDetail("operation", "catalog-bulk-variants")
+                .withDetail("generated", response.generated())
+                .withDetail("conflicts", response.conflicts())
+                .withDetail("wouldCreate", response.wouldCreate())
+                .withDetail("created", response.created());
+    }
+
+    private void auditBulkVariantOutcome(Company company,
+                                         VariantExecutionPlan plan,
+                                         BulkVariantResponse response,
+                                         boolean dryRun,
+                                         boolean success,
+                                         String failureReason) {
+        Map<String, String> metadata = new HashMap<>();
+        metadata.put("operation", "catalog-bulk-variants");
+        metadata.put("mode", dryRun ? "dry-run" : "commit");
+        metadata.put("companyId", company != null && company.getId() != null ? company.getId().toString() : "");
+        metadata.put("brandId",
+                plan.brand() != null && plan.brand().getId() != null ? plan.brand().getId().toString() : "");
+        metadata.put("baseProductName", safeAuditValue(plan.baseProductName()));
+        metadata.put("category", safeAuditValue(plan.category()));
+        metadata.put("generatedCount", Integer.toString(response.generated().size()));
+        metadata.put("conflictCount", Integer.toString(response.conflicts().size()));
+        metadata.put("wouldCreateCount", Integer.toString(response.wouldCreate().size()));
+        metadata.put("createdCount", Integer.toString(response.created().size()));
+        metadata.put("conflictSkus", summarizeAuditSkus(response.conflicts()));
+        metadata.put("wouldCreateSkus", summarizeAuditSkus(response.wouldCreate()));
+        if (!success && StringUtils.hasText(failureReason)) {
+            metadata.put("reason", failureReason);
+        }
+        if (success) {
+            auditService.logSuccess(dryRun ? AuditEvent.DATA_READ : AuditEvent.DATA_CREATE, metadata);
+            return;
+        }
+        auditService.logFailure(AuditEvent.DATA_CREATE, metadata);
+    }
+
+    private String summarizeAuditSkus(List<BulkVariantResponse.VariantItem> items) {
+        if (items == null || items.isEmpty()) {
+            return "";
+        }
+        return items.stream()
+                .map(BulkVariantResponse.VariantItem::sku)
+                .filter(StringUtils::hasText)
+                .limit(BULK_VARIANT_AUDIT_SAMPLE_LIMIT)
+                .collect(Collectors.joining(","));
+    }
+
+    private String safeAuditValue(String value) {
+        if (!StringUtils.hasText(value)) {
+            return "";
+        }
+        String trimmed = value.trim();
+        return trimmed.length() > 120 ? trimmed.substring(0, 120) : trimmed;
     }
 
     private String resolveVariantPrefix(String requestedPrefix, String brandCode) {
@@ -1575,7 +1735,7 @@ public class ProductionCatalogService {
         return false;
     }
 
-    private boolean isSkippableVariantDuplicate(Throwable error, Company company, String sku) {
+    private boolean isVariantDuplicateConflict(Throwable error, Company company, String sku) {
         if (!StringUtils.hasText(sku)) {
             return false;
         }
@@ -1660,6 +1820,25 @@ public class ProductionCatalogService {
             }
         }
         return true;
+    }
+
+    private record VariantExecutionPlan(ProductionBrand brand,
+                                        String baseProductName,
+                                        String category,
+                                        List<VariantCandidate> candidatesToCreate,
+                                        List<BulkVariantResponse.VariantItem> generated,
+                                        List<BulkVariantResponse.VariantItem> conflicts,
+                                        List<BulkVariantResponse.VariantItem> wouldCreate) {
+    }
+
+    private record VariantCandidate(String sku,
+                                    String color,
+                                    String size,
+                                    String productName,
+                                    ProductCreateRequest createRequest) {
+        private BulkVariantResponse.VariantItem toItem(String reason) {
+            return new BulkVariantResponse.VariantItem(sku, reason, productName, color, size);
+        }
     }
 
     private record ColorSizeSpec(String color, List<String> sizes) {

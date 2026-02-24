@@ -1,6 +1,8 @@
 package com.bigbrightpaints.erp.modules.production.service;
 
 import com.bigbrightpaints.erp.core.audit.AuditService;
+import com.bigbrightpaints.erp.core.exception.ApplicationException;
+import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.modules.accounting.service.CompanyDefaultAccountsService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
@@ -13,6 +15,7 @@ import com.bigbrightpaints.erp.modules.production.domain.ProductionBrandReposito
 import com.bigbrightpaints.erp.modules.production.domain.ProductionProduct;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionProductRepository;
 import com.bigbrightpaints.erp.modules.production.dto.BulkVariantRequest;
+import com.bigbrightpaints.erp.modules.production.dto.BulkVariantResponse;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
@@ -79,43 +82,45 @@ class ProductionCatalogServiceBulkVariantRaceTest {
     }
 
     @Test
-    void createVariants_skipsWhenConcurrentInsertRaisesDataIntegrityDuplicate() {
+    void createVariants_failsClosedWhenConcurrentInsertRaisesDataIntegrityDuplicate() {
         String sku = "BBP-PRIMER-RED-20L";
         when(productRepository.findByCompanyAndSkuCode(company, sku))
-                .thenReturn(Optional.empty())
                 .thenReturn(Optional.of(existingProduct(sku)));
         doThrow(new DataIntegrityViolationException("duplicate key value violates unique constraint"))
                 .when(service)
                 .createProduct(any());
 
-        var response = service.createVariants(variantRequest());
-
-        assertThat(response.created()).isZero();
-        assertThat(response.skippedExisting()).isEqualTo(1);
-        assertThat(response.variants()).isEmpty();
+        assertThatThrownBy(() -> service.createVariants(variantRequest()))
+                .isInstanceOfSatisfying(ApplicationException.class, ex -> {
+                    assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.CONCURRENCY_CONFLICT);
+                    assertThat(ex.getDetails()).containsKey("conflicts");
+                    @SuppressWarnings("unchecked")
+                    List<BulkVariantResponse.VariantItem> conflicts =
+                            (List<BulkVariantResponse.VariantItem>) ex.getDetails().get("conflicts");
+                    assertThat(conflicts).hasSize(1);
+                    assertThat(conflicts.get(0).sku()).isEqualTo(sku);
+                    assertThat(conflicts.get(0).reason()).isEqualTo("CONCURRENT_SKU_CONFLICT");
+                });
     }
 
     @Test
-    void createVariants_skipsWhenConcurrentInsertRaisesSkuAlreadyExistsValidation() {
+    void createVariants_failsClosedWhenConcurrentInsertRaisesSkuAlreadyExistsValidation() {
         String sku = "BBP-PRIMER-RED-20L";
         when(productRepository.findByCompanyAndSkuCode(company, sku))
-                .thenReturn(Optional.empty())
                 .thenReturn(Optional.of(existingProduct(sku)));
         doThrow(new IllegalArgumentException("SKU " + sku + " already exists"))
                 .when(service)
                 .createProduct(any());
 
-        var response = service.createVariants(variantRequest());
-
-        assertThat(response.created()).isZero();
-        assertThat(response.skippedExisting()).isEqualTo(1);
-        assertThat(response.variants()).isEmpty();
+        assertThatThrownBy(() -> service.createVariants(variantRequest()))
+                .isInstanceOfSatisfying(ApplicationException.class, ex -> {
+                    assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.CONCURRENCY_CONFLICT);
+                    assertThat(ex.getDetails()).containsKey("conflicts");
+                });
     }
 
     @Test
     void createVariants_rethrowsValidationErrorsThatAreNotDuplicateConflicts() {
-        String sku = "BBP-PRIMER-RED-20L";
-        when(productRepository.findByCompanyAndSkuCode(company, sku)).thenReturn(Optional.empty());
         doThrow(new IllegalArgumentException("Invalid GST rate"))
                 .when(service)
                 .createProduct(any());

@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
@@ -58,8 +59,11 @@ public class AccountingCatalogController {
     }
 
     @PostMapping("/products/bulk-variants")
-    public ResponseEntity<ApiResponse<BulkVariantResponse>> createVariants(@Valid @RequestBody BulkVariantRequest request) {
-        return ResponseEntity.ok(ApiResponse.success("Variants processed", productionCatalogService.createVariants(request)));
+    public ResponseEntity<ApiResponse<BulkVariantResponse>> createVariants(
+            @Valid @RequestBody BulkVariantRequest request,
+            @RequestParam(value = "dryRun", defaultValue = "false") boolean dryRun) {
+        String message = dryRun ? "Variant preview generated" : "Variants created";
+        return ResponseEntity.ok(ApiResponse.success(message, productionCatalogService.createVariants(request, dryRun)));
     }
 
     @PutMapping("/products/{id}")
