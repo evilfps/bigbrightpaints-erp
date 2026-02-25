@@ -398,3 +398,26 @@ Update this file in every high-risk change set.
     - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/auth/web/ForgotPasswordRequest.java`
     - `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/auth/web/ForgotPasswordRequestCompatibilityTest.java`
     - `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/auth/CompanyContextFilterPasswordResetBypassTest.java`
+
+## STAGE-111 Addendum (2026-02-25, auth-rbac-company follow-up)
+- Ticket / PR: `TKT-ERP-STAGE-111` / PR #84 (https://github.com/anasibnanwar-XYE/bigbrightpaints-erp/pull/84)
+- Source branch: `tickets/tkt-erp-stage-111/auth-rbac-company`
+- High-risk paths:
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/auth/service/PasswordResetService.java`
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/auth/domain/PasswordResetTokenRepository.java`
+- Why this is R2: superadmin password-reset recovery cleanup semantics were changed to delete only the just-persisted token on failed delivery; this is a high-risk identity-recovery control path.
+- Approval mode: orchestrator
+- Human escalation required: no
+- Rollback owner: release governance + auth/security owners
+- Verification evidence:
+  - Commands run:
+    - `cd erp-domain && mvn -B -ntp -Dtest=PasswordResetServiceTest test`
+    - `bash ci/check-enterprise-policy.sh`
+  - Result summary:
+    - targeted password-reset unit suite passed with the token-specific cleanup behavior (`Tests run: 8, Failures: 0, Errors: 0`).
+    - enterprise-policy gate passed after recording this follow-up checkpoint evidence.
+  - Artifacts/links:
+    - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/auth/domain/PasswordResetTokenRepository.java`
+    - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/auth/service/PasswordResetService.java`
+    - `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/auth/service/PasswordResetServiceTest.java`
+    - `erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeCompanyContextFilterExecutableCoverageTest.java`
