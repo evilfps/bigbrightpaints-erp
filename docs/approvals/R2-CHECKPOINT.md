@@ -1,6 +1,6 @@
 # R2 Checkpoint (Active Approval Record)
 
-Last reviewed: 2026-02-23
+Last reviewed: 2026-02-25
 Owner: Security & Governance Agent
 Status: template-initialized
 
@@ -337,3 +337,35 @@ Update this file in every high-risk change set.
   - `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/production/service/ProductionCatalogServiceBulkVariantRaceTest.java`
   - `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/inventory/RawMaterialAndProductUpdateIT.java`
   - `openapi.json`
+
+## STAGE-109 Addendum (2026-02-25, refactor-techdebt-gc)
+- Ticket / PR: `TKT-ERP-STAGE-109` / PR #81 (https://github.com/anasibnanwar-XYE/bigbrightpaints-erp/pull/81)
+- Source branch: `tickets/tkt-erp-stage-109/refactor-techdebt-gc`
+- High-risk paths:
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/company/service/CompanyService.java`
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/company/controller/CompanyController.java`
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/auth/service/TenantAdminProvisioningService.java`
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/core/config/DataInitializer.java`
+- Why this is R2: super-admin tenant bootstrap, tenant-admin credential reset, and auth/company control-plane flows are high-risk authority and recovery boundaries that must remain fail-closed with deterministic support recovery evidence.
+- Approval mode: orchestrator
+- Human escalation required: no
+- Rollback owner: release governance + auth/company owners
+- Verification evidence:
+  - Commands run:
+    - `cd erp-domain && mvn -B -ntp -Dtest=EmailServiceTest,TenantAdminProvisioningServiceTest,CompanyServiceTest,AdminUserServiceTest,DealerServiceTest,DataInitializerTest test`
+    - `bash ci/check-architecture.sh`
+    - `bash ci/check-enterprise-policy.sh`
+    - `bash ci/check-orchestrator-layer.sh`
+  - Result summary:
+    - targeted auth/company/notification/data-seed suites passed (`Tests run: 48, Failures: 0, Errors: 0, Skipped: 0`).
+    - enterprise policy gate updated with this checkpoint addendum for the same high-risk change set.
+    - local Docker/Testcontainers runtime is unavailable for integration lanes; GitHub Actions is the authoritative environment for full integration execution and merge gating.
+  - Artifacts/links:
+    - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/company/service/CompanyService.java`
+    - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/auth/service/TenantAdminProvisioningService.java`
+    - `erp-domain/src/main/java/com/bigbrightpaints/erp/core/config/DataInitializer.java`
+    - `erp-domain/src/main/java/com/bigbrightpaints/erp/core/notification/EmailService.java`
+    - `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/company/service/CompanyServiceTest.java`
+    - `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/auth/service/TenantAdminProvisioningServiceTest.java`
+    - `erp-domain/src/test/java/com/bigbrightpaints/erp/core/notification/EmailServiceTest.java`
+    - `erp-domain/src/test/java/com/bigbrightpaints/erp/core/config/DataInitializerTest.java`
