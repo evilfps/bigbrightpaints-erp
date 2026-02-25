@@ -6,16 +6,29 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.bigbrightpaints.erp.core.audit.AuditService;
+import com.bigbrightpaints.erp.core.config.EmailProperties;
 import com.bigbrightpaints.erp.core.config.SystemSettingsRepository;
+import com.bigbrightpaints.erp.core.exception.ApplicationException;
+import com.bigbrightpaints.erp.core.exception.ErrorCode;
+import com.bigbrightpaints.erp.core.notification.EmailService;
+import com.bigbrightpaints.erp.core.security.TokenBlacklistService;
+import com.bigbrightpaints.erp.modules.auth.domain.UserAccount;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
+import com.bigbrightpaints.erp.modules.auth.service.RefreshTokenService;
+import com.bigbrightpaints.erp.modules.auth.service.TenantAdminProvisioningService;
 import com.bigbrightpaints.erp.modules.company.controller.CompanyController;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyService;
 import com.bigbrightpaints.erp.modules.company.service.TenantRuntimeEnforcementService;
+import com.bigbrightpaints.erp.modules.rbac.domain.Role;
+import com.bigbrightpaints.erp.modules.rbac.service.RoleService;
 import com.bigbrightpaints.erp.shared.dto.ApiResponse;
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -25,10 +38,22 @@ import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.platform.engine.discovery.DiscoverySelectors;
+import org.junit.platform.launcher.Launcher;
+import org.junit.platform.launcher.LauncherDiscoveryRequest;
+import org.junit.platform.launcher.core.LauncherDiscoveryRequestBuilder;
+import org.junit.platform.launcher.core.LauncherFactory;
+import org.junit.platform.launcher.listeners.SummaryGeneratingListener;
+import org.junit.platform.launcher.listeners.TestExecutionSummary;
+import org.springframework.mail.MailSendException;
+import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.mail.javamail.MimeMessagePreparator;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.thymeleaf.spring6.SpringTemplateEngine;
 
 @Tag("critical")
 class TS_RuntimeTenantPolicyControlExecutableCoverageTest {
@@ -303,6 +328,228 @@ class TS_RuntimeTenantPolicyControlExecutableCoverageTest {
 
         assertThatCode(() -> service.enforceAuthOperationAllowed("ACME", "actor", "login"))
                 .doesNotThrowAnyException();
+    }
+
+    @Test
+    void emailService_credentialDelivery_modes_are_executable() {
+        JavaMailSender mailSender = mock(JavaMailSender.class);
+        SpringTemplateEngine templateEngine = mock(SpringTemplateEngine.class);
+
+        EmailProperties enabledProps = new EmailProperties();
+        enabledProps.setEnabled(true);
+        enabledProps.setSendCredentials(true);
+        enabledProps.setFromAddress("noreply@bbp.com");
+        enabledProps.setBaseUrl("https://erp.example.com");
+        EmailService enabledEmailService = new EmailService(mailSender, enabledProps, templateEngine);
+
+        assertThat(enabledEmailService.isCredentialEmailDeliveryEnabled()).isTrue();
+        assertThatCode(() -> enabledEmailService.sendUserCredentialsEmail(
+                "admin@ske.com",
+                "Admin",
+                "Temp@12345",
+                "SKE")).doesNotThrowAnyException();
+        assertThatCode(() -> enabledEmailService.sendUserCredentialsEmail(
+                "admin@ske.com",
+                "Admin",
+                "Temp@12345")).doesNotThrowAnyException();
+
+        doThrow(new MailSendException("smtp-failed"))
+                .when(mailSender).send(any(MimeMessagePreparator.class));
+        assertThatCode(() -> enabledEmailService.sendUserCredentialsEmail(
+                "admin@ske.com",
+                "Admin",
+                "Temp@12345",
+                "SKE")).doesNotThrowAnyException();
+        assertThatThrownBy(() -> enabledEmailService.sendUserCredentialsEmailRequired(
+                "admin@ske.com",
+                "Admin",
+                "Temp@12345",
+                "SKE"))
+                .isInstanceOf(ApplicationException.class)
+                .satisfies(ex -> assertThat(((ApplicationException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.SYSTEM_EXTERNAL_SERVICE_ERROR));
+
+        EmailProperties disabledProps = new EmailProperties();
+        disabledProps.setEnabled(true);
+        disabledProps.setSendCredentials(false);
+        disabledProps.setFromAddress("noreply@bbp.com");
+        disabledProps.setBaseUrl("https://erp.example.com");
+        EmailService disabledEmailService = new EmailService(mailSender, disabledProps, templateEngine);
+
+        assertThat(disabledEmailService.isCredentialEmailDeliveryEnabled()).isFalse();
+        assertThatCode(() -> disabledEmailService.sendUserCredentialsEmail(
+                "admin@ske.com",
+                "Admin",
+                "Temp@12345",
+                "SKE")).doesNotThrowAnyException();
+        assertThatThrownBy(() -> disabledEmailService.sendUserCredentialsEmailRequired(
+                "admin@ske.com",
+                "Admin",
+                "Temp@12345",
+                "SKE"))
+                .isInstanceOf(ApplicationException.class)
+                .satisfies(ex -> assertThat(((ApplicationException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.SYSTEM_CONFIGURATION_ERROR));
+    }
+
+    @Test
+    void tenantAdminProvisioningService_provisionInitialAdmin_covers_guards_and_fallback_display() {
+        UserAccountRepository userAccountRepository = mock(UserAccountRepository.class);
+        RoleService roleService = mock(RoleService.class);
+        PasswordEncoder passwordEncoder = mock(PasswordEncoder.class);
+        EmailService emailService = mock(EmailService.class);
+        TokenBlacklistService tokenBlacklistService = mock(TokenBlacklistService.class);
+        RefreshTokenService refreshTokenService = mock(RefreshTokenService.class);
+        TenantAdminProvisioningService service = new TenantAdminProvisioningService(
+                userAccountRepository,
+                roleService,
+                passwordEncoder,
+                emailService,
+                tokenBlacklistService,
+                refreshTokenService);
+        Company company = company(10L, "SKE");
+        Role adminRole = new Role();
+        adminRole.setName("ROLE_ADMIN");
+        when(userAccountRepository.findByEmailIgnoreCase("new-admin@ske.com")).thenReturn(Optional.empty());
+        when(roleService.ensureRoleExists("ROLE_ADMIN")).thenReturn(adminRole);
+        when(passwordEncoder.encode(any())).thenReturn("encoded");
+        when(userAccountRepository.save(any(UserAccount.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        String normalizedEmail = service.provisionInitialAdmin(company, " NEW-ADMIN@SKE.COM ", null);
+
+        assertThat(normalizedEmail).isEqualTo("new-admin@ske.com");
+        verify(emailService).sendUserCredentialsEmailRequired(
+                eq("new-admin@ske.com"),
+                eq("Company SKE Admin"),
+                any(),
+                eq("SKE"));
+
+        when(userAccountRepository.findByEmailIgnoreCase("duplicate@ske.com"))
+                .thenReturn(Optional.of(new UserAccount("duplicate@ske.com", "hash", "Dup")));
+        assertThatThrownBy(() -> service.provisionInitialAdmin(company, "duplicate@ske.com", "Dup"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("already exists");
+
+        assertThatThrownBy(() -> service.provisionInitialAdmin(null, "new@ske.com", "x"))
+                .isInstanceOf(IllegalArgumentException.class);
+
+        Company transientCompany = new Company();
+        transientCompany.setCode("TMP");
+        transientCompany.setName("Transient");
+        assertThatThrownBy(() -> service.provisionInitialAdmin(transientCompany, "new@tmp.com", "x"))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void tenantAdminProvisioningService_resetTenantAdminPassword_covers_authority_and_recovery_paths() {
+        UserAccountRepository userAccountRepository = mock(UserAccountRepository.class);
+        RoleService roleService = mock(RoleService.class);
+        PasswordEncoder passwordEncoder = mock(PasswordEncoder.class);
+        EmailService emailService = mock(EmailService.class);
+        TokenBlacklistService tokenBlacklistService = mock(TokenBlacklistService.class);
+        RefreshTokenService refreshTokenService = mock(RefreshTokenService.class);
+        TenantAdminProvisioningService service = new TenantAdminProvisioningService(
+                userAccountRepository,
+                roleService,
+                passwordEncoder,
+                emailService,
+                tokenBlacklistService,
+                refreshTokenService);
+        Company target = company(55L, "SKE");
+        Company other = company(56L, "OTH");
+
+        UserAccount outsider = new UserAccount("outsider@ske.com", "hash", "Out");
+        outsider.addCompany(other);
+        Role outsiderRole = new Role();
+        outsiderRole.setName("ROLE_ADMIN");
+        outsider.addRole(outsiderRole);
+        when(userAccountRepository.findByEmailIgnoreCase("outsider@ske.com")).thenReturn(Optional.of(outsider));
+        assertThatThrownBy(() -> service.resetTenantAdminPassword(target, "outsider@ske.com"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("not assigned to company");
+
+        UserAccount nonAdmin = new UserAccount("user@ske.com", "hash", "User");
+        nonAdmin.addCompany(target);
+        Role userRole = new Role();
+        userRole.setName("ROLE_USER");
+        nonAdmin.addRole(userRole);
+        when(userAccountRepository.findByEmailIgnoreCase("user@ske.com")).thenReturn(Optional.of(nonAdmin));
+        assertThatThrownBy(() -> service.resetTenantAdminPassword(target, "user@ske.com"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("not an admin");
+
+        assertThatThrownBy(() -> service.resetTenantAdminPassword(target, "missing@ske.com"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("not found");
+
+        UserAccount admin = new UserAccount("admin@ske.com", "hash", "Admin");
+        admin.addCompany(target);
+        Role adminRole = new Role();
+        adminRole.setName("ROLE_ADMIN");
+        admin.addRole(adminRole);
+        when(userAccountRepository.findByEmailIgnoreCase("admin@ske.com")).thenReturn(Optional.of(admin));
+        when(passwordEncoder.encode(any())).thenReturn("encoded");
+        when(userAccountRepository.save(any(UserAccount.class))).thenReturn(admin);
+
+        String resetEmail = service.resetTenantAdminPassword(target, " ADMIN@SKE.COM ");
+
+        assertThat(resetEmail).isEqualTo("admin@ske.com");
+        verify(tokenBlacklistService).revokeAllUserTokens("admin@ske.com");
+        verify(refreshTokenService).revokeAllForUser("admin@ske.com");
+        verify(emailService).sendUserCredentialsEmailRequired(eq("admin@ske.com"), eq("Admin"), any(), eq("SKE"));
+
+        doThrow(new ApplicationException(ErrorCode.SYSTEM_EXTERNAL_SERVICE_ERROR, "smtp-failed"))
+                .when(emailService)
+                .sendUserCredentialsEmailRequired(eq("admin@ske.com"), eq("Admin"), any(), eq("SKE"));
+        assertThatThrownBy(() -> service.resetTenantAdminPassword(target, "admin@ske.com"))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("smtp-failed");
+
+        assertThatThrownBy(() -> service.resetTenantAdminPassword(null, "admin@ske.com"))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void tenantAdminProvisioningService_reportsCredentialEmailDeliveryReadiness() {
+        UserAccountRepository userAccountRepository = mock(UserAccountRepository.class);
+        RoleService roleService = mock(RoleService.class);
+        PasswordEncoder passwordEncoder = mock(PasswordEncoder.class);
+        EmailService emailService = mock(EmailService.class);
+        TokenBlacklistService tokenBlacklistService = mock(TokenBlacklistService.class);
+        RefreshTokenService refreshTokenService = mock(RefreshTokenService.class);
+        TenantAdminProvisioningService service = new TenantAdminProvisioningService(
+                userAccountRepository,
+                roleService,
+                passwordEncoder,
+                emailService,
+                tokenBlacklistService,
+                refreshTokenService);
+        when(emailService.isCredentialEmailDeliveryEnabled()).thenReturn(false, true);
+
+        assertThat(service.isCredentialEmailDeliveryEnabled()).isFalse();
+        assertThat(service.isCredentialEmailDeliveryEnabled()).isTrue();
+        verify(emailService, never()).sendUserCredentialsEmailRequired(any(), any(), any(), any());
+    }
+
+    @Test
+    void delegatedTenantBootstrapSupportSuites_pass_in_truth_lane() {
+        assertDelegatedSuitePasses("com.bigbrightpaints.erp.core.config.DataInitializerTest");
+        assertDelegatedSuitePasses("com.bigbrightpaints.erp.core.notification.EmailServiceTest");
+        assertDelegatedSuitePasses("com.bigbrightpaints.erp.modules.auth.service.TenantAdminProvisioningServiceTest");
+        assertDelegatedSuitePasses("com.bigbrightpaints.erp.modules.company.service.CompanyServiceTest");
+    }
+
+    private void assertDelegatedSuitePasses(String className) {
+        LauncherDiscoveryRequest request = LauncherDiscoveryRequestBuilder.request()
+                .selectors(DiscoverySelectors.selectClass(className))
+                .build();
+        SummaryGeneratingListener summaryListener = new SummaryGeneratingListener();
+        Launcher launcher = LauncherFactory.create();
+        launcher.registerTestExecutionListeners(summaryListener);
+        launcher.execute(request);
+        TestExecutionSummary summary = summaryListener.getSummary();
+        assertThat(summary.getTestsFoundCount()).isGreaterThan(0L);
+        assertThat(summary.getTestsFailedCount()).isZero();
     }
 
     private void authenticate(String username, String... authorities) {

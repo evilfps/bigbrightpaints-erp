@@ -76,6 +76,49 @@ class TenantAdminProvisioningServiceTest {
     }
 
     @Test
+    void provisionInitialAdmin_usesCompanyAdminFallbackDisplayNameWhenCompanyNameBlank() {
+        TenantAdminProvisioningService service = new TenantAdminProvisioningService(
+                userAccountRepository,
+                roleService,
+                passwordEncoder,
+                emailService,
+                tokenBlacklistService,
+                refreshTokenService);
+        Company company = company(10L, "SKE", "   ");
+        Role adminRole = new Role();
+        adminRole.setName("ROLE_ADMIN");
+        when(userAccountRepository.findByEmailIgnoreCase("new-admin@ske.com")).thenReturn(Optional.empty());
+        when(roleService.ensureRoleExists("ROLE_ADMIN")).thenReturn(adminRole);
+        when(passwordEncoder.encode(any())).thenReturn("encoded");
+        when(userAccountRepository.save(any(UserAccount.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        String email = service.provisionInitialAdmin(company, "new-admin@ske.com", "   ");
+
+        assertThat(email).isEqualTo("new-admin@ske.com");
+        verify(emailService).sendUserCredentialsEmailRequired(
+                eq("new-admin@ske.com"),
+                eq("Company Admin"),
+                any(),
+                eq("SKE"));
+    }
+
+    @Test
+    void provisionInitialAdmin_rejectsBlankEmail() {
+        TenantAdminProvisioningService service = new TenantAdminProvisioningService(
+                userAccountRepository,
+                roleService,
+                passwordEncoder,
+                emailService,
+                tokenBlacklistService,
+                refreshTokenService);
+        Company company = company(10L, "SKE", "SKE");
+
+        assertThatThrownBy(() -> service.provisionInitialAdmin(company, "   ", "New Admin"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("firstAdminEmail is required");
+    }
+
+    @Test
     void resetTenantAdminPassword_rejectsUserOutsideCompany() {
         TenantAdminProvisioningService service = new TenantAdminProvisioningService(
                 userAccountRepository,
@@ -123,6 +166,54 @@ class TenantAdminProvisioningServiceTest {
         assertThatThrownBy(() -> service.resetTenantAdminPassword(target, "admin@ske.com"))
                 .isInstanceOf(ApplicationException.class)
                 .hasMessageContaining("smtp-failed");
+    }
+
+    @Test
+    void resetTenantAdminPassword_rejectsWhenRoleCollectionMissing() {
+        TenantAdminProvisioningService service = new TenantAdminProvisioningService(
+                userAccountRepository,
+                roleService,
+                passwordEncoder,
+                emailService,
+                tokenBlacklistService,
+                refreshTokenService);
+        Company target = company(55L, "SKE", "SKE");
+        UserAccount user = new UserAccount("admin@ske.com", "hash", "Admin");
+        user.addCompany(target);
+        ReflectionTestUtils.setField(user, "roles", null);
+        when(userAccountRepository.findByEmailIgnoreCase("admin@ske.com")).thenReturn(Optional.of(user));
+
+        assertThatThrownBy(() -> service.resetTenantAdminPassword(target, "admin@ske.com"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("not an admin");
+    }
+
+    @Test
+    void resetTenantAdminPassword_ignoresBlankRoleNamesAndAcceptsSuperAdminRole() {
+        TenantAdminProvisioningService service = new TenantAdminProvisioningService(
+                userAccountRepository,
+                roleService,
+                passwordEncoder,
+                emailService,
+                tokenBlacklistService,
+                refreshTokenService);
+        Company target = company(55L, "SKE", "SKE");
+        UserAccount user = new UserAccount("admin@ske.com", "hash", "Admin");
+        user.addCompany(target);
+        Role blankRole = new Role();
+        blankRole.setName("   ");
+        user.addRole(blankRole);
+        Role superAdminRole = new Role();
+        superAdminRole.setName("ROLE_SUPER_ADMIN");
+        user.addRole(superAdminRole);
+        when(userAccountRepository.findByEmailIgnoreCase("admin@ske.com")).thenReturn(Optional.of(user));
+        when(passwordEncoder.encode(any())).thenReturn("encoded");
+        when(userAccountRepository.save(any(UserAccount.class))).thenReturn(user);
+
+        String resetEmail = service.resetTenantAdminPassword(target, "admin@ske.com");
+
+        assertThat(resetEmail).isEqualTo("admin@ske.com");
+        verify(emailService).sendUserCredentialsEmailRequired(eq("admin@ske.com"), eq("Admin"), any(), eq("SKE"));
     }
 
     private Company company(Long id, String code, String name) {
