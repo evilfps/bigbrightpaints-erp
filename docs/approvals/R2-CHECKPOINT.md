@@ -386,12 +386,14 @@ Update this file in every high-risk change set.
   - Commands run:
     - `cd erp-domain && mvn -Dtest=PasswordResetServiceTest,ForgotPasswordRequestCompatibilityTest,CompanyContextFilterPasswordResetBypassTest test`
     - `cd erp-domain && mvn -Dtest=EmailServiceTest,TenantAdminProvisioningServiceTest,CompanyServiceTest,AdminUserServiceTest,DealerServiceTest,DataInitializerTest,PasswordResetServiceTest,TS_RuntimeCompanyContextFilterExecutableCoverageTest test`
+    - `ssh asus-tuf-tail-ip 'cd /home/realnigga/tmp/tkt-erp-stage-111-auth-rbac-company/erp-domain && mvn -Dtest=AuthTenantAuthorityIT test'`
     - `bash ci/check-architecture.sh`
     - `bash ci/check-enterprise-policy.sh`
   - Result summary:
     - superadmin forgot-password flow now supports frontend `userid` payload alias, exposes a dedicated public endpoint, and fails closed when reset email delivery is disabled or SMTP dispatch fails.
     - company-header enforcement now bypasses only the three public password-reset POST routes to prevent false 403/invalid-token outcomes.
     - targeted unit/runtime suites passed (`Tests run: 99, Failures: 0, Errors: 0, Skipped: 0` across both Maven commands).
+    - Docker/Testcontainers integration lane validated on SSH host `asus-tuf-tail-ip` (`AuthTenantAuthorityIT`: `Tests run: 13, Failures: 0, Errors: 0, Skipped: 0`).
   - Artifacts/links:
     - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/auth/web/ForgotPasswordRequest.java`
     - `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/auth/web/ForgotPasswordRequestCompatibilityTest.java`
