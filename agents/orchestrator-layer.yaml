@@ -48,6 +48,12 @@ runtime:
         fallback:
           - model: gpt-5.3-codex
             reasoning: high
+      data_migration:
+        preferred_model: gpt-5.3-codex
+        preferred_reasoning: xhigh
+        fallback:
+          - model: gpt-5.3-codex
+            reasoning: high
       cross_module:
         preferred_model: gpt-5.3-codex
         preferred_reasoning: xhigh
@@ -152,8 +158,8 @@ runtime:
         role: cross_module
         config_file: .codex/agents/cross_module.toml
       data-migration:
-        role: cross_module
-        config_file: .codex/agents/cross_module.toml
+        role: data_migration
+        config_file: .codex/agents/data_migration.toml
       hr-domain:
         role: cross_module
         config_file: .codex/agents/cross_module.toml
