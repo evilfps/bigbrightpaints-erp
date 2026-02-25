@@ -1,4 +1,4 @@
-package com.bigbrightpaints.erp.core.security;
+package com.bigbrightpaints.erp.truthsuite.runtime;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
@@ -18,6 +18,9 @@ import static org.mockito.Mockito.when;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.bigbrightpaints.erp.core.config.EmailProperties;
+import com.bigbrightpaints.erp.core.security.CompanyContextFilter;
+import com.bigbrightpaints.erp.core.security.CompanyContextHolder;
+import com.bigbrightpaints.erp.core.security.TokenBlacklistService;
 import com.bigbrightpaints.erp.core.notification.EmailService;
 import com.bigbrightpaints.erp.modules.auth.controller.AuthController;
 import com.bigbrightpaints.erp.modules.auth.domain.PasswordResetToken;
@@ -470,6 +473,44 @@ class TS_RuntimeCompanyContextFilterExecutableCoverageTest {
         assertThat(invokeObfuscateEmail(service, "admin@example.com")).isEqualTo("a***@example.com");
 
         assertThatCode(() -> invokeCleanupFailedSuperAdminResetToken(service, null, null)).doesNotThrowAnyException();
+    }
+
+    @Test
+    void passwordResetService_cleanupBranch_coversNullUserFallbackOnDeleteFailure() {
+        PasswordResetTokenRepository tokenRepository = mock(PasswordResetTokenRepository.class);
+        doThrow(new DataAccessResourceFailureException("cleanup failed"))
+                .when(tokenRepository)
+                .deleteByToken("token-123");
+
+        PasswordResetService service = new PasswordResetService(
+                mock(UserAccountRepository.class),
+                tokenRepository,
+                mock(PasswordService.class),
+                mock(EmailService.class),
+                emailProperties(true, true),
+                mock(TokenBlacklistService.class),
+                mock(RefreshTokenService.class));
+
+        assertThatCode(() -> invokeCleanupFailedSuperAdminResetToken(service, null, "token-123"))
+                .doesNotThrowAnyException();
+        verify(tokenRepository).deleteByToken("token-123");
+    }
+
+    @Test
+    void passwordResetService_cleanupBranch_coversDeleteByTokenSuccessPath() {
+        PasswordResetTokenRepository tokenRepository = mock(PasswordResetTokenRepository.class);
+        PasswordResetService service = new PasswordResetService(
+                mock(UserAccountRepository.class),
+                tokenRepository,
+                mock(PasswordService.class),
+                mock(EmailService.class),
+                emailProperties(true, true),
+                mock(TokenBlacklistService.class),
+                mock(RefreshTokenService.class));
+
+        assertThatCode(() -> invokeCleanupFailedSuperAdminResetToken(service, superAdminUser("superadmin@example.com"), "token-123"))
+                .doesNotThrowAnyException();
+        verify(tokenRepository).deleteByToken("token-123");
     }
 
     @Test

@@ -1,4 +1,4 @@
-package com.bigbrightpaints.erp.modules.company.controller;
+package com.bigbrightpaints.erp.truthsuite.runtime;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anySet;
@@ -10,6 +10,7 @@ import static org.mockito.Mockito.when;
 import com.bigbrightpaints.erp.modules.company.dto.CompanyAdminCredentialResetDto;
 import com.bigbrightpaints.erp.modules.company.dto.CompanyDto;
 import com.bigbrightpaints.erp.modules.company.dto.CompanyRequest;
+import com.bigbrightpaints.erp.modules.company.controller.CompanyController;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyService;
 import com.bigbrightpaints.erp.shared.dto.ApiResponse;

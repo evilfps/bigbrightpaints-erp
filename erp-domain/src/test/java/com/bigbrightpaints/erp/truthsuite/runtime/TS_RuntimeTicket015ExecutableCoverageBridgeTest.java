@@ -18,9 +18,9 @@ class TS_RuntimeTicket015ExecutableCoverageBridgeTest {
     @Test
     void delegatedTicket015CoverageSuites_pass_in_truth_lane() {
         assertDelegatedSuitePasses("com.bigbrightpaints.erp.core.config.TS_RuntimeSmtpPropertiesValidatorExecutableCoverageTest");
-        assertDelegatedSuitePasses("com.bigbrightpaints.erp.core.security.TS_RuntimeCompanyContextFilterExecutableCoverageTest");
+        assertDelegatedSuitePasses("com.bigbrightpaints.erp.truthsuite.runtime.TS_RuntimeCompanyContextFilterExecutableCoverageTest");
         assertDelegatedSuitePasses("com.bigbrightpaints.erp.truthsuite.runtime.TS_RuntimeAccountingFacadeExecutableCoverageTest");
-        assertDelegatedSuitePasses("com.bigbrightpaints.erp.modules.company.controller.TS_RuntimeCompanyControllerExecutableCoverageTest");
+        assertDelegatedSuitePasses("com.bigbrightpaints.erp.truthsuite.runtime.TS_RuntimeCompanyControllerExecutableCoverageTest");
         assertDelegatedSuitePasses("com.bigbrightpaints.erp.modules.company.service.TS_RuntimeTenantRuntimeEnforcementServiceExecutableCoverageTest");
         assertDelegatedSuitePasses("com.bigbrightpaints.erp.modules.portal.service.TS_RuntimeTenantRuntimeEnforcementInterceptorExecutableCoverageTest");
         assertDelegatedSuitePasses("com.bigbrightpaints.erp.modules.rbac.domain.TS_RuntimeSystemRoleExecutableCoverageTest");
