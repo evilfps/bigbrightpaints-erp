@@ -9,6 +9,8 @@ import com.bigbrightpaints.erp.modules.auth.domain.PasswordResetToken;
 import com.bigbrightpaints.erp.modules.auth.domain.PasswordResetTokenRepository;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccount;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -20,6 +22,7 @@ import java.util.Base64;
 @Service
 public class PasswordResetService {
 
+    private static final Logger log = LoggerFactory.getLogger(PasswordResetService.class);
     private static final long RESET_TOKEN_TTL_SECONDS = 3600; // 1 hour
     private static final String SUPER_ADMIN_ROLE = "ROLE_SUPER_ADMIN";
 
@@ -68,22 +71,7 @@ public class PasswordResetService {
         userAccountRepository.findByEmailIgnoreCase(email)
                 .filter(UserAccount::isEnabled)
                 .filter(this::hasSuperAdminRole)
-                .ifPresent(user -> {
-                    ensureRequiredResetEmailDelivery();
-                    tokenRepository.deleteByUser(user);
-                    String token = generateToken();
-                    Instant now = Instant.now();
-                    Instant expiresAt = now.plusSeconds(RESET_TOKEN_TTL_SECONDS);
-                    PasswordResetToken resetToken = new PasswordResetToken(user, token, expiresAt);
-                    tokenRepository.save(resetToken);
-                    String resetLink = emailProperties.getBaseUrl() + "/reset-password?token=" + token;
-                    String displayName = StringUtils.hasText(user.getDisplayName()) ? user.getDisplayName().trim() : "User";
-                    String body = "Hello " + displayName
-                            + ",\n\nUse this secure link to reset your BigBright ERP password:\n"
-                            + resetLink
-                            + "\n\nThis link expires in 60 minutes.";
-                    emailService.sendSimpleEmail(user.getEmail(), "Reset your BigBright ERP password", body);
-                });
+                .ifPresent(this::dispatchSuperAdminResetEmail);
     }
 
     @Transactional
@@ -129,5 +117,41 @@ public class PasswordResetService {
                     ErrorCode.SYSTEM_CONFIGURATION_ERROR,
                     "Password reset email delivery is disabled; enable erp.mail.enabled=true and erp.mail.send-password-reset=true");
         }
+    }
+
+    private void dispatchSuperAdminResetEmail(UserAccount user) {
+        try {
+            ensureRequiredResetEmailDelivery();
+            String token = generateToken();
+            Instant now = Instant.now();
+            Instant expiresAt = now.plusSeconds(RESET_TOKEN_TTL_SECONDS);
+            String resetLink = emailProperties.getBaseUrl() + "/reset-password?token=" + token;
+            String displayName = StringUtils.hasText(user.getDisplayName()) ? user.getDisplayName().trim() : "User";
+            String body = "Hello " + displayName
+                    + ",\n\nUse this secure link to reset your BigBright ERP password:\n"
+                    + resetLink
+                    + "\n\nThis link expires in 60 minutes.";
+            emailService.sendSimpleEmail(user.getEmail(), "Reset your BigBright ERP password", body);
+            tokenRepository.deleteByUser(user);
+            PasswordResetToken resetToken = new PasswordResetToken(user, token, expiresAt);
+            tokenRepository.save(resetToken);
+        } catch (ApplicationException ex) {
+            // Keep public endpoint semantics uniform to avoid account-enumeration side channels.
+            log.warn("Super-admin forgot-password delivery suppressed for {}: {}",
+                    obfuscateEmail(user != null ? user.getEmail() : null),
+                    ex.getMessage());
+        }
+    }
+
+    private String obfuscateEmail(String email) {
+        if (!StringUtils.hasText(email)) {
+            return "<empty>";
+        }
+        String normalized = email.trim();
+        int atIndex = normalized.indexOf('@');
+        if (atIndex <= 1) {
+            return "***";
+        }
+        return normalized.charAt(0) + "***" + normalized.substring(atIndex);
     }
 }

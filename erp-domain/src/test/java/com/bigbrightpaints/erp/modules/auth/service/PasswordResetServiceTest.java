@@ -1,5 +1,6 @@
 package com.bigbrightpaints.erp.modules.auth.service;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -90,14 +91,13 @@ class PasswordResetServiceTest {
     }
 
     @Test
-    void requestResetForSuperAdminThrowsWhenResetEmailDeliveryDisabled() {
+    void requestResetForSuperAdminMasksWhenResetEmailDeliveryDisabled() {
         UserAccount superAdmin = superAdminUser("superadmin@example.com");
         when(userAccountRepository.findByEmailIgnoreCase("superadmin@example.com"))
                 .thenReturn(Optional.of(superAdmin));
         emailProperties.setSendPasswordReset(false);
 
-        assertThrows(ApplicationException.class,
-                () -> passwordResetService.requestResetForSuperAdmin("superadmin@example.com"));
+        assertDoesNotThrow(() -> passwordResetService.requestResetForSuperAdmin("superadmin@example.com"));
 
         verify(tokenRepository, never()).deleteByUser(any());
         verify(tokenRepository, never()).save(any());
@@ -105,7 +105,7 @@ class PasswordResetServiceTest {
     }
 
     @Test
-    void requestResetForSuperAdminPropagatesSmtpDispatchFailure() {
+    void requestResetForSuperAdminMasksSmtpDispatchFailure() {
         UserAccount superAdmin = superAdminUser("superadmin@example.com");
         when(userAccountRepository.findByEmailIgnoreCase("superadmin@example.com"))
                 .thenReturn(Optional.of(superAdmin));
@@ -113,12 +113,24 @@ class PasswordResetServiceTest {
                 .when(emailService)
                 .sendSimpleEmail(eq("superadmin@example.com"), any(), any());
 
-        assertThrows(ApplicationException.class,
-                () -> passwordResetService.requestResetForSuperAdmin("superadmin@example.com"));
+        assertDoesNotThrow(() -> passwordResetService.requestResetForSuperAdmin("superadmin@example.com"));
 
+        verify(emailService).sendSimpleEmail(eq("superadmin@example.com"), any(), any());
+        verify(tokenRepository, never()).deleteByUser(any());
+        verify(tokenRepository, never()).save(any());
+    }
+
+    @Test
+    void requestResetForSuperAdminStoresTokenAfterSuccessfulEmailDispatch() {
+        UserAccount superAdmin = superAdminUser("superadmin@example.com");
+        when(userAccountRepository.findByEmailIgnoreCase("superadmin@example.com"))
+                .thenReturn(Optional.of(superAdmin));
+
+        passwordResetService.requestResetForSuperAdmin("superadmin@example.com");
+
+        verify(emailService).sendSimpleEmail(eq("superadmin@example.com"), any(), any());
         verify(tokenRepository).deleteByUser(superAdmin);
         verify(tokenRepository).save(any(PasswordResetToken.class));
-        verify(emailService).sendSimpleEmail(eq("superadmin@example.com"), any(), any());
     }
 
     @Test
