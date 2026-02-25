@@ -121,6 +121,7 @@ public class PasswordResetService {
 
     private void dispatchSuperAdminResetEmail(UserAccount user) {
         boolean tokenPersisted = false;
+        String persistedToken = null;
         try {
             ensureRequiredResetEmailDelivery();
             String token = generateToken();
@@ -130,6 +131,7 @@ public class PasswordResetService {
             PasswordResetToken resetToken = new PasswordResetToken(user, token, expiresAt);
             tokenRepository.saveAndFlush(resetToken);
             tokenPersisted = true;
+            persistedToken = token;
             String resetLink = emailProperties.getBaseUrl() + "/reset-password?token=" + token;
             String displayName = StringUtils.hasText(user.getDisplayName()) ? user.getDisplayName().trim() : "User";
             String body = "Hello " + displayName
@@ -139,7 +141,7 @@ public class PasswordResetService {
             emailService.sendSimpleEmail(user.getEmail(), "Reset your BigBright ERP password", body);
         } catch (RuntimeException ex) {
             if (tokenPersisted) {
-                cleanupFailedSuperAdminResetToken(user);
+                cleanupFailedSuperAdminResetToken(user, persistedToken);
             }
             // Keep public endpoint semantics uniform to avoid account-enumeration side channels.
             log.warn("Super-admin forgot-password delivery suppressed for {}: {}",
@@ -148,15 +150,15 @@ public class PasswordResetService {
         }
     }
 
-    private void cleanupFailedSuperAdminResetToken(UserAccount user) {
-        if (user == null) {
+    private void cleanupFailedSuperAdminResetToken(UserAccount user, String tokenValue) {
+        if (!StringUtils.hasText(tokenValue)) {
             return;
         }
         try {
-            tokenRepository.deleteByUser(user);
+            tokenRepository.deleteByToken(tokenValue);
         } catch (DataAccessException cleanupEx) {
             log.warn("Super-admin forgot-password cleanup failed for {}: {}",
-                    obfuscateEmail(user.getEmail()),
+                    obfuscateEmail(user != null ? user.getEmail() : null),
                     cleanupEx.getMessage());
         }
     }

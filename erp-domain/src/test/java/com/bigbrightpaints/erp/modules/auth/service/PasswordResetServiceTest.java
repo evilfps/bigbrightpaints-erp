@@ -103,6 +103,7 @@ class PasswordResetServiceTest {
         assertDoesNotThrow(() -> passwordResetService.requestResetForSuperAdmin("superadmin@example.com"));
 
         verify(tokenRepository, never()).deleteByUser(any());
+        verify(tokenRepository, never()).deleteByToken(anyString());
         verify(tokenRepository, never()).saveAndFlush(any(PasswordResetToken.class));
         verify(emailService, never()).sendSimpleEmail(any(), any(), any());
     }
@@ -118,9 +119,12 @@ class PasswordResetServiceTest {
 
         assertDoesNotThrow(() -> passwordResetService.requestResetForSuperAdmin("superadmin@example.com"));
 
-        verify(tokenRepository, times(2)).deleteByUser(superAdmin);
-        verify(tokenRepository).saveAndFlush(any(PasswordResetToken.class));
-        verify(emailService).sendSimpleEmail(eq("superadmin@example.com"), any(), any());
+        ArgumentCaptor<PasswordResetToken> tokenCaptor = ArgumentCaptor.forClass(PasswordResetToken.class);
+        InOrder inOrder = inOrder(tokenRepository, emailService);
+        inOrder.verify(tokenRepository).deleteByUser(superAdmin);
+        inOrder.verify(tokenRepository).saveAndFlush(tokenCaptor.capture());
+        inOrder.verify(emailService).sendSimpleEmail(eq("superadmin@example.com"), any(), any());
+        inOrder.verify(tokenRepository).deleteByToken(tokenCaptor.getValue().getToken());
     }
 
     @Test
@@ -135,6 +139,7 @@ class PasswordResetServiceTest {
         inOrder.verify(tokenRepository).deleteByUser(superAdmin);
         inOrder.verify(tokenRepository).saveAndFlush(any(PasswordResetToken.class));
         inOrder.verify(emailService).sendSimpleEmail(eq("superadmin@example.com"), any(), any());
+        verify(tokenRepository, never()).deleteByToken(anyString());
     }
 
     @Test
@@ -149,6 +154,7 @@ class PasswordResetServiceTest {
         assertDoesNotThrow(() -> passwordResetService.requestResetForSuperAdmin("superadmin@example.com"));
 
         verify(tokenRepository).deleteByUser(superAdmin);
+        verify(tokenRepository, never()).deleteByToken(anyString());
         verify(tokenRepository).saveAndFlush(any(PasswordResetToken.class));
         verify(emailService, never()).sendSimpleEmail(any(), any(), any());
     }
@@ -165,6 +171,7 @@ class PasswordResetServiceTest {
         assertDoesNotThrow(() -> passwordResetService.requestResetForSuperAdmin("superadmin@example.com"));
 
         verify(tokenRepository).deleteByUser(superAdmin);
+        verify(tokenRepository, never()).deleteByToken(anyString());
         verify(tokenRepository).saveAndFlush(any(PasswordResetToken.class));
         verify(emailService, never()).sendSimpleEmail(any(), any(), any());
     }
@@ -182,6 +189,7 @@ class PasswordResetServiceTest {
         passwordResetService.requestResetForSuperAdmin("admin@example.com");
 
         verify(tokenRepository, never()).deleteByUser(any());
+        verify(tokenRepository, never()).deleteByToken(anyString());
         verify(tokenRepository, never()).saveAndFlush(any(PasswordResetToken.class));
         verify(emailService, never()).sendSimpleEmail(any(), any(), any());
     }
