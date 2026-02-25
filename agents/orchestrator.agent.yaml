@@ -91,7 +91,7 @@ execution_workflow:
         preferred_reasoning: high
         fallback:
           - model: gpt-5.3-codex
-            reasoning: medium
+            reasoning: high
       security_auditor:
         preferred_model: gpt-5.3-codex
         preferred_reasoning: xhigh
@@ -109,19 +109,19 @@ execution_workflow:
         preferred_reasoning: high
         fallback:
           - model: gpt-5.3-codex
-            reasoning: medium
+            reasoning: high
       frontend_arch:
         preferred_model: gpt-5.3-codex
         preferred_reasoning: high
         fallback:
           - model: gpt-5.3-codex
-            reasoning: medium
+            reasoning: high
       frontend_documentation:
         preferred_model: gpt-5.3-codex
         preferred_reasoning: high
         fallback:
           - model: gpt-5.3-codex
-            reasoning: medium
+            reasoning: high
       orchestrator_planning:
         preferred_model: gpt-5.3-codex
         preferred_reasoning: xhigh
@@ -145,13 +145,13 @@ execution_workflow:
         preferred_reasoning: high
         fallback:
           - model: gpt-5.3-codex
-            reasoning: medium
+            reasoning: high
       exploration:
         preferred_model: gpt-5.3-codex-spark
         preferred_reasoning: high
         fallback:
           - model: gpt-5.3-codex
-            reasoning: medium
+            reasoning: high
       release_ops:
         preferred_model: gpt-5.3-codex
         preferred_reasoning: medium

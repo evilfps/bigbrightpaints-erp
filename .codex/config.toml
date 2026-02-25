@@ -110,12 +110,12 @@ config_file = "agents/frontend_arch.toml"
 
 [agents."qa-reliability"]
 description = "QA and reliability work mapped to dedicated code-review and verification profile."
-config_file = "agents/code_reviewer.toml"
+config_file = "agents/cross_module.toml"
 
 [agents."repo-cartographer"]
 description = "Repository architecture mapping work mapped to planning_architecture profile."
 config_file = "agents/planning_architecture.toml"
 
 [agents."full-codebase-explorer"]
-description = "Full codebase exploration work mapped to the planning profile."
+description = "Full codebase exploration work mapped to the exploration profile."
 config_file = "agents/explorer.toml"
