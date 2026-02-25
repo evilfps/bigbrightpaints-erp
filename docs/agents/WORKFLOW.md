@@ -84,6 +84,7 @@ Use Codex multi-agent role configuration for role/risk selection:
 - `planning_architecture`
 - `backend_arch`
 - `product_analyst`
+- `data_migration`
 - `cross_module`
 - `cross_module_high`
 - `security_auditor`

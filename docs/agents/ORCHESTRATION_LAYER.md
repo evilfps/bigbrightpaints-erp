@@ -62,6 +62,7 @@ Orchestrator selects runtime role by scope and risk:
 - `planning_architecture`
 - `backend_arch`
 - `product_analyst`
+- `data_migration`
 - `cross_module`
 - `cross_module_high`
 - `security_auditor`

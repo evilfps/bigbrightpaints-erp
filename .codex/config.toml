@@ -60,6 +60,10 @@ config_file = "agents/backend_arch.toml"
 description = "Turns product goals into clear technical requirements."
 config_file = "agents/product_analyst.toml"
 
+[agents.data_migration]
+description = "Owns database migration planning/execution with upgrade safety and rollback evidence."
+config_file = "agents/data_migration.toml"
+
 [agents."accounting-domain"]
 description = "Accounting domain implementation mapped to critical cross-module execution profile."
 config_file = "agents/cross_module.toml"
@@ -69,8 +73,8 @@ description = "Auth/RBAC/company implementation mapped to critical cross-module 
 config_file = "agents/cross_module.toml"
 
 [agents."data-migration"]
-description = "Data migration implementation mapped to critical cross-module execution profile."
-config_file = "agents/cross_module.toml"
+description = "Data migration implementation mapped to dedicated migration profile."
+config_file = "agents/data_migration.toml"
 
 [agents."hr-domain"]
 description = "HR/payroll implementation mapped to critical cross-module execution profile."
