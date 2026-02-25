@@ -68,7 +68,7 @@ class TenantAdminProvisioningServiceTest {
 
         assertThat(email).isEqualTo("new-admin@ske.com");
         verify(userAccountRepository).save(any(UserAccount.class));
-        verify(emailService).sendUserCredentialsEmail(
+        verify(emailService).sendUserCredentialsEmailRequired(
                 eq("new-admin@ske.com"),
                 eq("New Admin"),
                 any(),
@@ -118,7 +118,7 @@ class TenantAdminProvisioningServiceTest {
         when(userAccountRepository.save(any(UserAccount.class))).thenReturn(user);
         doThrow(new ApplicationException(ErrorCode.SYSTEM_EXTERNAL_SERVICE_ERROR, "smtp-failed"))
                 .when(emailService)
-                .sendUserCredentialsEmail(eq("admin@ske.com"), eq("Admin"), any(), eq("SKE"));
+                .sendUserCredentialsEmailRequired(eq("admin@ske.com"), eq("Admin"), any(), eq("SKE"));
 
         assertThatThrownBy(() -> service.resetTenantAdminPassword(target, "admin@ske.com"))
                 .isInstanceOf(ApplicationException.class)

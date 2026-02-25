@@ -15,6 +15,7 @@ import org.springframework.mail.javamail.MimeMessagePreparator;
 import org.thymeleaf.spring6.SpringTemplateEngine;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
@@ -108,11 +109,35 @@ class EmailServiceTest {
     }
 
     @Test
-    void sendUserCredentialsEmailThrowsWhenSmtpSendFails() {
+    void sendUserCredentialsEmail_bestEffortDoesNotThrowWhenSmtpSendFails() {
         doThrow(new MailSendException("smtp-failed"))
                 .when(mailSender).send(any(MimeMessagePreparator.class));
 
-        assertThatThrownBy(() -> emailService.sendUserCredentialsEmail(
+        assertThatCode(() -> emailService.sendUserCredentialsEmail(
+                "user@example.com",
+                "User",
+                "Temp@12345",
+                "SKE")).doesNotThrowAnyException();
+    }
+
+    @Test
+    void sendUserCredentialsEmail_bestEffortSkipsWhenDeliveryDisabled() {
+        emailProperties.setSendCredentials(false);
+
+        assertThatCode(() -> emailService.sendUserCredentialsEmail(
+                "user@example.com",
+                "User",
+                "Temp@12345",
+                "SKE")).doesNotThrowAnyException();
+        verifyNoInteractions(mailSender);
+    }
+
+    @Test
+    void sendUserCredentialsEmailRequiredThrowsWhenSmtpSendFails() {
+        doThrow(new MailSendException("smtp-failed"))
+                .when(mailSender).send(any(MimeMessagePreparator.class));
+
+        assertThatThrownBy(() -> emailService.sendUserCredentialsEmailRequired(
                 "user@example.com",
                 "User",
                 "Temp@12345",
@@ -125,10 +150,10 @@ class EmailServiceTest {
     }
 
     @Test
-    void sendUserCredentialsEmailThrowsWhenDeliveryDisabled() {
+    void sendUserCredentialsEmailRequiredThrowsWhenDeliveryDisabled() {
         emailProperties.setSendCredentials(false);
 
-        assertThatThrownBy(() -> emailService.sendUserCredentialsEmail(
+        assertThatThrownBy(() -> emailService.sendUserCredentialsEmailRequired(
                 "user@example.com",
                 "User",
                 "Temp@12345",

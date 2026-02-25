@@ -62,7 +62,7 @@ public class TenantAdminProvisioningService {
         firstAdmin.addCompany(company);
         firstAdmin.addRole(adminRole);
         userAccountRepository.save(firstAdmin);
-        emailService.sendUserCredentialsEmail(
+        emailService.sendUserCredentialsEmailRequired(
                 firstAdmin.getEmail(),
                 firstAdmin.getDisplayName(),
                 temporaryPassword,
@@ -94,7 +94,7 @@ public class TenantAdminProvisioningService {
         userAccountRepository.save(user);
         tokenBlacklistService.revokeAllUserTokens(user.getEmail());
         refreshTokenService.revokeAllForUser(user.getEmail());
-        emailService.sendUserCredentialsEmail(
+        emailService.sendUserCredentialsEmailRequired(
                 user.getEmail(),
                 user.getDisplayName(),
                 temporaryPassword,

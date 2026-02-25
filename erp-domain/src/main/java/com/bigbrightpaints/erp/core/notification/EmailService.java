@@ -65,6 +65,22 @@ public class EmailService {
     }
 
     public void sendUserCredentialsEmail(String to, String displayName, String password, String companyCode) {
+        if (!properties.isSendCredentials()) {
+            log.debug("Credential email sending disabled. Skipping for {}", to);
+            return;
+        }
+        String subject = "Your BigBright ERP account credentials";
+        Context context = new Context();
+        context.setVariable("displayName", displayName);
+        context.setVariable("email", to);
+        context.setVariable("temporaryPassword", password);
+        context.setVariable("companyCode", StringUtils.hasText(companyCode) ? companyCode.trim() : null);
+        context.setVariable("loginUrl", properties.getBaseUrl());
+        context.setVariable("preheader", "Your Orchestrator ERP account is ready.");
+        sendHtmlEmail(to, subject, "mail/credentials", context);
+    }
+
+    public void sendUserCredentialsEmailRequired(String to, String displayName, String password, String companyCode) {
         if (!isCredentialEmailDeliveryEnabled()) {
             throw new ApplicationException(
                     ErrorCode.SYSTEM_CONFIGURATION_ERROR,
