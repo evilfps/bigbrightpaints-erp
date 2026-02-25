@@ -176,15 +176,6 @@ execution_workflow:
         fallback:
           - model: gpt-5.3-codex
             reasoning: high
-    runtime_role_aliases:
-      qa-reliability:
-        observed_profile_role: code_reviewer
-      data-migration:
-        observed_profile_role: cross_module
-      release-ops:
-        observed_profile_role: cross_module
-      full-codebase-explorer:
-        observed_profile_role: planning
     agent_role_mapping:
       orchestrator:
         role: orchestrator
@@ -252,7 +243,6 @@ execution_workflow:
       - each subagent must identify itself in first line of every result
       - orchestrator must monitor drift and interrupt on cross-scope edits
       - orchestrator must choose subagent custom role from `agent_role_mapping` before dispatch
-      - orchestrator must verify runtime role profile from rollout JSONL turn_context before accepting output
       - each implementation worker must validate assigned branch/worktree before edits
       - implementation workers must not edit base branches (`harness-engineering-orchestrator`, `main`, `master`)
       - each implementation submission must include codebase impact analysis
@@ -287,11 +277,6 @@ interaction_contract:
     - keep planning/bootstrapping upcoming goal tickets in parallel
     - maintain at least 2-3 preplanned ready tickets at all times
     - if ready backlog drops below 2, create next ticket/slices immediately
-  require_runtime_profile_verification_from_rollout_jsonl: true
-  runtime_profile_verification_fields:
-    - turn_context.model
-    - turn_context.effort
-    - turn_context.developer_instructions
   require_agent_identity_on_every_submission: true
   require_ticket_claim_before_edits: true
   require_worktree_branch_validation_before_edits: true

@@ -77,14 +77,6 @@ Existing YAML agent IDs map into these custom roles through `runtime.subagents.a
 
 Fallback role/profile decision must be logged in ticket timeline.
 
-## Runtime Profile Verification
-- Before accepting a subagent result, orchestrator verifies rollout JSONL `turn_context` fields:
-  - `model`
-  - `effort`
-  - `developer_instructions`
-- Use `scripts/check-subagent-rollout-context.sh <agent-id>...` to emit a role/runtime evidence table from Codex rollout logs.
-- If observed runtime profile does not match ticket packet expectations, mark role drift in ticket evidence and re-route before merge.
-
 ## Review Model (Mandatory)
 - Every slice requires:
   - one reviewer agent minimum

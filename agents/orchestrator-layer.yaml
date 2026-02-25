@@ -144,15 +144,6 @@ runtime:
         fallback:
           - model: gpt-5.3-codex
             reasoning: high
-    runtime_role_aliases:
-      qa-reliability:
-        observed_profile_role: code_reviewer
-      data-migration:
-        observed_profile_role: cross_module
-      release-ops:
-        observed_profile_role: cross_module
-      full-codebase-explorer:
-        observed_profile_role: planning
     agent_role_mapping:
       orchestrator:
         role: orchestrator
@@ -309,11 +300,6 @@ dispatch_protocol:
   flow_command_templates:
     subagents: configure per-role model/reasoning from runtime.subagents.role_model_policy and dispatch one slice per worktree
     codex_exec: codex exec -m gpt-5.3-codex -c model_reasoning_effort="<high|medium|low|minimal>" --dangerously-bypass-approvals-and-sandbox
-  require_runtime_profile_verification_from_rollout_jsonl: true
-  runtime_profile_verification_fields:
-    - turn_context.model
-    - turn_context.effort
-    - turn_context.developer_instructions
   require_agent_identity_on_every_submission: true
   require_ticket_claim_before_work: true
   ticket_claim_enforcement:
