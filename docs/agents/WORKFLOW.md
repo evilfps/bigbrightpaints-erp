@@ -56,6 +56,19 @@ Owner: Orchestrator Agent
   - Performs exploratory, edge-case, regression, and workflow-integrity validation across modules.
   - Is not limited to script-only checks when deeper workflow validation is required.
 
+## Delegation Prompt Contract (Mandatory)
+- Orchestrator dispatch packets must describe:
+  - feature objective
+  - current failure signal and observed behavior
+  - expected behavior/invariant after fix
+  - module boundary ownership
+  - constraints (what must not break)
+  - assumptions that are safe vs assumptions that require validation
+  - completion signals and required evidence
+- Do not delegate with file-edit micromanagement instructions.
+- Delegate by boundary ownership, invariants, and evidence expectations.
+- Subagents are expected to reason within assigned scope and report upstream dependency faults with evidence before contract changes.
+
 ## Runtime Model for Long-Running Flows
 - No timeout limits by default.
 - Full repository exploration allowed.

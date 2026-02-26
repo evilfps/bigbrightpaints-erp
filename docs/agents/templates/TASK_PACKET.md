@@ -11,6 +11,23 @@ Worktree: `<path>`
 ## Objective
 - `<concrete, testable outcome>`
 
+## Delegation Context (Invariant-First)
+- Feature objective: `<business/system objective>`
+- Current failure: `<current breakage, error signal, observed behavior>`
+- Expected behavior: `<what must be true after fix>`
+- Delegation model: own module boundary and restore system integrity; no blind patching.
+- If upstream dependency/contract is root cause, report evidence and request coordination before changing contracts.
+
+## Constraints
+- `<what must not break>`
+- `<compatibility/performance/security constraint>`
+
+## Assumptions
+- Safe assumptions:
+  - `<assumption considered safe>`
+- Assumptions to validate:
+  - `<assumption that requires evidence>`
+
 ## Custom Multi-Agent Role (Codex)
 - role: `<custom-role-id>`
 - config_file: `<.codex/agents/<role>.toml>`
@@ -53,10 +70,13 @@ Worktree: `<path>`
 ## Required Output
 - Begin response with identity line:
   - `I am <agent-id> and I own <SLICE-ID>.`
+- root_cause_analysis
+- change_summary
 - files_changed
 - commands_run
 - harness_results
 - residual_risks
+- cross_module_coordination_required
 - blockers_or_next_step
 - ticket_claim_evidence
 - worktree_validation

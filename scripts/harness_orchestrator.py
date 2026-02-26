@@ -965,6 +965,18 @@ def write_packet_files(repo_root: Path, ticket: dict[str, Any], slice_data: dict
             ticket.get("expected_outcome", "Required checks pass and acceptance criteria are satisfied."),
         )
     ).strip()
+    current_failure = str(
+        slice_data.get("current_failure", ticket.get("current_failure", problem_statement))
+    ).strip() or problem_statement
+    expected_behavior = str(
+        slice_data.get("expected_behavior", ticket.get("expected_behavior", expected_outcome))
+    ).strip() or expected_outcome
+
+    def _normalize_lines(value: Any) -> list[str]:
+        if isinstance(value, list):
+            return [str(x).strip() for x in value if str(x).strip()]
+        text = str(value or "").strip()
+        return [text] if text else []
 
     acceptance_criteria = [
         str(x).strip()
@@ -976,6 +988,31 @@ def write_packet_files(repo_root: Path, ticket: dict[str, Any], slice_data: dict
         for x in slice_data.get("non_goals", ticket.get("non_goals", []))
         if str(x).strip()
     ]
+    constraints = _normalize_lines(slice_data.get("constraints", ticket.get("constraints", [])))
+    if not constraints:
+        constraints = [
+            "Stay inside assigned slice scope and write boundary.",
+            "Do not break existing workflows tied to this module or contract surface.",
+            "Do not alter external API/event/schema contracts unless evidence and reviewer approval justify it.",
+            "Preserve auditability, authorization boundaries, and accounting invariants where applicable.",
+        ]
+    safe_assumptions = _normalize_lines(
+        slice_data.get("safe_assumptions", ticket.get("safe_assumptions", []))
+    )
+    if not safe_assumptions:
+        safe_assumptions = [
+            "Assigned branch/worktree and claim record are the only valid implementation coordinates.",
+            "Other slices may progress in parallel; coordinate via declared contracts, not cross-scope edits.",
+        ]
+    assumptions_to_validate = _normalize_lines(
+        slice_data.get("assumptions_to_validate", ticket.get("assumptions_to_validate", []))
+    )
+    if not assumptions_to_validate:
+        assumptions_to_validate = [
+            "Whether the root cause is local to this module or originates from an upstream dependency.",
+            "Whether upstream/downstream API, event, and schema contracts remain backward compatible.",
+            "Whether the fix preserves failure handling, idempotency, and observability under retries.",
+        ]
     base_branch_ref = str(ticket.get("base_branch", "")).strip()
     read_only_base_branches = {"harness-engineering-orchestrator", "main", "master"}
     if base_branch_ref:
@@ -999,32 +1036,69 @@ def write_packet_files(repo_root: Path, ticket: dict[str, Any], slice_data: dict
         f"You are `{slice_data['primary_agent']}`.",
         f"Start your first line with: `I am {slice_data['primary_agent']} and I own {sid}.`",
         f"Ticket title: {ticket_title or 'unspecified'}",
-        f"Problem statement: {problem_statement}",
-        f"Task to solve: {task_summary}",
-        f"Expected outcome: {expected_outcome}",
-        "Implement this slice with minimal safe patching and proof-backed output.",
+        f"Feature objective: {objective}",
+        f"Current failure: {current_failure}",
+        f"Expected behavior: {expected_behavior}",
+        f"Task scope summary: {task_summary}",
         "",
-        "Execution minimum:",
-        f"- validate current branch is `{slice_data['branch']}` and working directory is `{slice_data['worktree_path']}`",
-        f"- treat base branches as read-only for implementation: {read_only_display}",
-        "- confirm claim evidence exists in ticket.yaml + TIMELINE.md before edits",
-        "- diagnose current behavior in the requested focus paths",
-        "- perform codebase impact analysis (upstream dependencies, downstream consumers, contracts/events/APIs)",
-        "- implement the root-cause fix in allowed scope",
-        "- add/adjust tests that prove acceptance criteria",
-        "- run required checks and report evidence",
+        "Your responsibility:",
+        f"- Own all implementation decisions inside this slice boundary: `{sid}`.",
+        "- Diagnose root cause inside scope before patching.",
+        "- Validate whether failure is local or upstream/downstream.",
+        "- If dependency/contract issue is upstream, report evidence before changing contracts.",
+        "- Restore system integrity inside this boundary, not just local compilation.",
         "",
-        "Required output:",
-        "- identity",
-        "- files_changed",
-        "- commands_run",
-        "- harness_results",
-        "- residual_risks",
-        "- blockers_or_next_step",
-        "- ticket_claim_evidence",
-        "- worktree_validation",
-        "- codebase_impact_analysis",
+        "Constraints:",
     ]
+    for item in constraints:
+        prompt_lines.append(f"- {item}")
+    prompt_lines.extend(
+        [
+            "",
+            "Assumptions that are safe:",
+        ]
+    )
+    for item in safe_assumptions:
+        prompt_lines.append(f"- {item}")
+    prompt_lines.extend(
+        [
+            "",
+            "Assumptions that must be validated:",
+        ]
+    )
+    for item in assumptions_to_validate:
+        prompt_lines.append(f"- {item}")
+    prompt_lines.extend(
+        [
+            "",
+            "Execution minimum:",
+            f"- validate current branch is `{slice_data['branch']}` and working directory is `{slice_data['worktree_path']}`",
+            f"- treat base branches as read-only for implementation: {read_only_display}",
+            "- confirm claim evidence exists in ticket.yaml + TIMELINE.md before edits",
+            "- diagnose current behavior in the requested focus paths",
+            "- perform codebase impact analysis (upstream dependencies, downstream consumers, contracts/events/APIs)",
+            "- implement root-cause fix in allowed scope with clear rationale",
+            "- add/adjust tests that prove acceptance criteria and no-regression behavior",
+            "- run required checks and report evidence",
+            "",
+            "Required output:",
+            "- identity",
+            "- root_cause_analysis",
+            "- change_summary",
+            "- files_changed",
+            "- commands_run",
+            "- harness_results",
+            "- residual_risks",
+            "- cross_module_coordination_required",
+            "- blockers_or_next_step",
+            "- ticket_claim_evidence",
+            "- worktree_validation",
+            "- codebase_impact_analysis",
+            "",
+            "You are not here to patch blindly.",
+            "You are here to restore system integrity within your boundary.",
+        ]
+    )
     if preferred_role:
         prompt_lines.insert(
             2,
@@ -1059,6 +1133,25 @@ Worktree: `{slice_data['worktree_path']}`
 {objective}
 
 """
+    packet += "## Delegation Context (Invariant-First)\n"
+    packet += f"- Feature objective: {objective}\n"
+    packet += f"- Current failure: {current_failure}\n"
+    packet += f"- Expected behavior: {expected_behavior}\n"
+    packet += "- Delegation model: own the module boundary and restore system integrity; avoid file-level micromanagement.\n"
+    packet += "- If upstream contract break is detected, provide evidence and coordination request before contract edits.\n"
+
+    packet += "\n## Constraints\n"
+    for item in constraints:
+        packet += f"- {item}\n"
+
+    packet += "\n## Assumptions\n"
+    packet += "- Safe assumptions:\n"
+    for item in safe_assumptions:
+        packet += f"  - {item}\n"
+    packet += "- Assumptions to validate:\n"
+    for item in assumptions_to_validate:
+        packet += f"  - {item}\n"
+
     if preferred_role:
         packet += "## Custom Multi-Agent Role (Codex)\n"
         packet += f"- role: `{preferred_role}`\n"
@@ -1139,10 +1232,13 @@ Worktree: `{slice_data['worktree_path']}`
     packet += "\n## Agent Identity Contract\n"
     packet += f"- First output line must be: `I am {slice_data['primary_agent']} and I own {sid}.`\n"
     packet += "\n## Required Output Contract\n"
+    packet += "- root_cause_analysis\n"
+    packet += "- change_summary\n"
     packet += "- files_changed\n"
     packet += "- commands_run\n"
     packet += "- harness_results\n"
     packet += "- residual_risks\n"
+    packet += "- cross_module_coordination_required\n"
     packet += "- blockers_or_next_step\n"
     packet += "- ticket_claim_evidence\n"
     packet += "- worktree_validation\n"

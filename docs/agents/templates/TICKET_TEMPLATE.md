@@ -16,6 +16,12 @@ For each slice capture:
 - branch
 - worktree_path
 - allowed_scope_paths
+- objective
+- current_failure
+- expected_behavior
+- constraints
+- safe_assumptions
+- assumptions_to_validate
 - required_checks
 - status
 

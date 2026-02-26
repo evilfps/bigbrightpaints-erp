@@ -15,6 +15,7 @@ For each ticket id (`TKT-*`), the orchestrator writes:
 - `TIMELINE.md`: append-only activity log.
 - `commands/tmux-launch.sh`: tmux send-keys block for lane dispatch.
 - `slices/<slice-id>/TASK_PACKET.md`: copy/paste instructions for the assigned agent.
+  - Packet is invariant-first: feature objective, current failure, expected behavior, constraints, assumptions, and evidence contract.
 - `slices/<slice-id>/reviews/<reviewer>.md`: review evidence files.
 - `slices/<slice-id>/orchestrator-review.md`: orchestrator senior pre-merge review result.
 - `reports/verify-*.md`: verification + merge reports.

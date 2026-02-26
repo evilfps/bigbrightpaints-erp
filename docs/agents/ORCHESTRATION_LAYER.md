@@ -24,6 +24,8 @@ This defines how the orchestrator controls all agents in long-running async loop
 ## Dispatch Model
 1. Planner publishes architecture intent packet (scope boundaries, constraints, contracts, success criteria).
 2. Orchestrator maps paths/risk to scoped implementation agents via `agents/orchestrator-layer.yaml`.
+   - Dispatch prompt is context-first: objective, failure signal, expected behavior, constraints, assumptions, and evidence bar.
+   - Dispatch prompt must never reduce work to blind file-edit instructions.
 3. Each implementation slice runs in isolated worktree/branch with ticket claim recorded.
 4. Code-reviewer performs deep module-level review.
 5. Merge-specialist performs integration-integrity review and merge gate decision.
