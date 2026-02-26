@@ -317,6 +317,9 @@ dispatch_protocol:
       - worktree_path
       - branch
       - claimed_at_utc
+    require_timeline_claim_event: true
+    allow_legacy_timeline_claim_lines: true
+    require_ticket_status_history: true
     claim_artifacts:
       - tickets/<TKT-ID>/ticket.yaml
       - tickets/<TKT-ID>/TIMELINE.md

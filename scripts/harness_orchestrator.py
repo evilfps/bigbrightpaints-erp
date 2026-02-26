@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import fnmatch
+import json
 import os
 import re
 import shlex
@@ -342,6 +343,411 @@ def append_timeline(repo_root: Path, ticket_id: str, line: str) -> None:
         path.write_text("# Timeline\n\n", encoding="utf-8")
     with path.open("a", encoding="utf-8") as fh:
         fh.write(f"- `{utc_now()}` {line}\n")
+
+
+def append_timeline_event(
+    repo_root: Path,
+    ticket_id: str,
+    event: str,
+    summary: str,
+    payload: dict[str, Any],
+    *,
+    at_utc: str = "",
+) -> None:
+    stamp = at_utc.strip() or utc_now()
+    path = ticket_dir(repo_root, ticket_id) / "TIMELINE.md"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if not path.exists():
+        path.write_text("# Timeline\n\n", encoding="utf-8")
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    line = f"- `{stamp}` [event:{event}] {summary} | payload={encoded}\n"
+    with path.open("a", encoding="utf-8") as fh:
+        fh.write(line)
+
+
+def timeline_text(repo_root: Path, ticket_id: str) -> str:
+    path = ticket_dir(repo_root, ticket_id) / "TIMELINE.md"
+    if not path.exists():
+        return ""
+    return path.read_text(encoding="utf-8", errors="replace")
+
+
+def parse_transition_pairs(values: list[Any]) -> set[tuple[str, str]]:
+    pairs: set[tuple[str, str]] = set()
+    for item in values:
+        raw = str(item).strip()
+        if "->" not in raw:
+            continue
+        src, dst = raw.split("->", 1)
+        src_n = src.strip().lower()
+        dst_n = dst.strip().lower()
+        if src_n and dst_n:
+            pairs.add((src_n, dst_n))
+    return pairs
+
+
+def claim_contract(orchestrator_layer: dict[str, Any]) -> dict[str, Any]:
+    dispatch_protocol = orchestrator_layer.get("dispatch_protocol", {})
+    policy = dispatch_protocol.get("ticket_claim_enforcement", {})
+    required_fields = [str(x).strip() for x in policy.get("required_fields", []) if str(x).strip()]
+    if not required_fields:
+        required_fields = ["agent_id", "slice_id", "worktree_path", "branch", "claimed_at_utc"]
+    return {
+        "require_ticket_claim_before_work": bool(dispatch_protocol.get("require_ticket_claim_before_work", False)),
+        "claim_status": str(policy.get("claim_status", "taken")).strip().lower() or "taken",
+        "allowed_transitions": parse_transition_pairs(policy.get("allowed_transitions", [])),
+        "required_fields": required_fields,
+        "require_timeline_claim_event": bool(policy.get("require_timeline_claim_event", True)),
+        "allow_legacy_timeline_claim_lines": bool(policy.get("allow_legacy_timeline_claim_lines", True)),
+        "require_ticket_status_history": bool(policy.get("require_ticket_status_history", True)),
+        "reject_unclaimed_agent_results": bool(policy.get("reject_unclaimed_agent_results", True)),
+        "prevent_dual_claims_for_same_slice": bool(policy.get("prevent_dual_claims_for_same_slice", True)),
+    }
+
+
+def blocker_id_from_branch(branch: str) -> str:
+    match = re.search(r"/(b\d{2})(?:[-/]|$)", branch.lower())
+    if not match:
+        return ""
+    return match.group(1).upper()
+
+
+def strip_inline_code(value: str) -> str:
+    text = str(value).strip()
+    if len(text) >= 2 and text.startswith("`") and text.endswith("`"):
+        return text[1:-1].strip()
+    return text
+
+
+def blocker_matrix_coordinates(repo_root: Path, ticket_id: str, blocker_id: str) -> tuple[str, str] | None:
+    target = blocker_id.strip().upper()
+    if not target:
+        return None
+
+    matrix_path = ticket_dir(repo_root, ticket_id) / "reports" / "BLOCKER_SLICE_MATRIX.md"
+    if not matrix_path.exists():
+        return None
+
+    header_cells: list[str] = []
+    blocker_idx = -1
+    branch_idx = -1
+    worktree_idx = -1
+
+    lines = matrix_path.read_text(encoding="utf-8", errors="replace").splitlines()
+    for raw in lines:
+        line = raw.strip()
+        if not line.startswith("|"):
+            continue
+        cells = [c.strip() for c in line.split("|")[1:-1]]
+        if not cells:
+            continue
+        compact_cells = [c.replace(" ", "") for c in cells]
+        if all(re.fullmatch(r":?-{3,}:?", c) for c in compact_cells if c):
+            continue
+
+        lowered = [strip_inline_code(c).lower() for c in cells]
+        if not header_cells and {"blocker_id", "branch_name", "worktree_path"}.issubset(set(lowered)):
+            header_cells = lowered
+            blocker_idx = header_cells.index("blocker_id")
+            branch_idx = header_cells.index("branch_name")
+            worktree_idx = header_cells.index("worktree_path")
+            continue
+
+        if not header_cells:
+            continue
+        if len(cells) <= max(blocker_idx, branch_idx, worktree_idx):
+            continue
+
+        row_blocker = strip_inline_code(cells[blocker_idx]).upper()
+        if row_blocker != target:
+            continue
+
+        branch = strip_inline_code(cells[branch_idx])
+        worktree_path = strip_inline_code(cells[worktree_idx])
+        if branch and worktree_path:
+            return branch, worktree_path
+        return None
+
+    return None
+
+
+def claim_expected_coordinates(
+    repo_root: Path,
+    ticket_id: str,
+    slice_data: dict[str, Any],
+    claim: dict[str, Any],
+) -> tuple[str, str, str, str]:
+    branch = str(slice_data.get("branch", "")).strip()
+    worktree_path = str(slice_data.get("worktree_path", "")).strip()
+    branch_label = "slice branch"
+    worktree_label = "slice worktree_path"
+
+    blocker_id = str(claim.get("blocker_id", "")).strip().upper()
+    if blocker_id:
+        matrix_coords = blocker_matrix_coordinates(repo_root, ticket_id, blocker_id)
+        if matrix_coords:
+            branch, worktree_path = matrix_coords
+            branch_label = "blocker matrix branch"
+            worktree_label = "blocker matrix worktree_path"
+    return branch, worktree_path, branch_label, worktree_label
+
+
+def resolve_slice_execution_coordinates(
+    repo_root: Path, ticket_id: str, slice_data: dict[str, Any]
+) -> tuple[str, str]:
+    branch = str(slice_data.get("branch", "")).strip()
+    worktree_path = str(slice_data.get("worktree_path", "")).strip()
+
+    claim = slice_data.get("claim")
+    if not isinstance(claim, dict):
+        return branch, worktree_path
+
+    blocker_id = str(claim.get("blocker_id", "")).strip().upper()
+    if blocker_id:
+        matrix_coords = blocker_matrix_coordinates(repo_root, ticket_id, blocker_id)
+        if matrix_coords:
+            return matrix_coords
+
+    claim_branch = str(claim.get("branch", "")).strip()
+    claim_worktree_path = str(claim.get("worktree_path", "")).strip()
+    if claim_branch:
+        branch = claim_branch
+    if claim_worktree_path:
+        worktree_path = claim_worktree_path
+    return branch, worktree_path
+
+
+def ensure_history_list(target: dict[str, Any], key: str) -> list[dict[str, Any]]:
+    history = target.get(key)
+    if isinstance(history, list):
+        return [x for x in history if isinstance(x, dict)]
+    return []
+
+
+def apply_slice_status(
+    slice_data: dict[str, Any],
+    new_status: str,
+    *,
+    reason: str,
+    actor: str,
+    at_utc: str,
+    allowed_transitions: set[tuple[str, str]] | None = None,
+    strict_transition_check: bool = False,
+) -> tuple[str, str]:
+    prev_status = str(slice_data.get("status", "")).strip().lower()
+    next_status = str(new_status).strip().lower()
+    if not next_status:
+        raise RuntimeError("slice status cannot be empty")
+    if prev_status and prev_status != next_status and strict_transition_check and allowed_transitions is not None:
+        if (prev_status, next_status) not in allowed_transitions:
+            raise RuntimeError(f"invalid status transition: {prev_status} -> {next_status}")
+
+    history = ensure_history_list(slice_data, "status_history")
+    if prev_status != next_status:
+        history.append(
+            {
+                "from_status": prev_status,
+                "to_status": next_status,
+                "at_utc": at_utc,
+                "reason": reason,
+                "actor": actor,
+            }
+        )
+    slice_data["status_history"] = history
+    slice_data["status"] = next_status
+    return prev_status, next_status
+
+
+def apply_ticket_status(
+    ticket: dict[str, Any],
+    new_status: str,
+    *,
+    reason: str,
+    actor: str,
+    at_utc: str,
+) -> tuple[str, str]:
+    prev_status = str(ticket.get("status", "")).strip().lower()
+    next_status = str(new_status).strip().lower()
+    if not next_status:
+        raise RuntimeError("ticket status cannot be empty")
+
+    history = ensure_history_list(ticket, "status_history")
+    if prev_status != next_status:
+        history.append(
+            {
+                "from_status": prev_status,
+                "to_status": next_status,
+                "at_utc": at_utc,
+                "reason": reason,
+                "actor": actor,
+            }
+        )
+    ticket["status_history"] = history
+    ticket["status"] = next_status
+    return prev_status, next_status
+
+
+def apply_claim_transition_policy(
+    slice_data: dict[str, Any],
+    *,
+    requested_claim_status: str,
+    auto_in_progress: bool,
+    allowed_transitions: set[tuple[str, str]],
+    strict_transition_check: bool,
+    actor: str,
+    at_utc: str,
+) -> list[str]:
+    current_status = str(slice_data.get("status", "")).strip().lower() or "ready"
+    slice_data["status"] = current_status
+    status_chain = [current_status]
+
+    if (
+        current_status == "blocked"
+        and requested_claim_status == "taken"
+        and strict_transition_check
+        and ("blocked", "taken") not in allowed_transitions
+        and ("blocked", "ready") in allowed_transitions
+    ):
+        prev_status, next_status = apply_slice_status(
+            slice_data,
+            "ready",
+            reason="claim_recorded",
+            actor=actor,
+            at_utc=at_utc,
+            allowed_transitions=allowed_transitions,
+            strict_transition_check=strict_transition_check,
+        )
+        if prev_status != next_status:
+            status_chain.append(next_status)
+
+    prev_status, next_status = apply_slice_status(
+        slice_data,
+        requested_claim_status,
+        reason="claim_recorded",
+        actor=actor,
+        at_utc=at_utc,
+        allowed_transitions=allowed_transitions,
+        strict_transition_check=strict_transition_check,
+    )
+    if prev_status != next_status:
+        status_chain.append(next_status)
+
+    if auto_in_progress and str(slice_data.get("status", "")).strip().lower() != "in_progress":
+        prev_status, next_status = apply_slice_status(
+            slice_data,
+            "in_progress",
+            reason="claim_recorded",
+            actor=actor,
+            at_utc=at_utc,
+            allowed_transitions=allowed_transitions,
+            strict_transition_check=strict_transition_check,
+        )
+        if prev_status != next_status:
+            status_chain.append(next_status)
+
+    return status_chain
+
+
+def parse_event_payload(line: str) -> dict[str, Any] | None:
+    marker = "payload="
+    idx = line.find(marker)
+    if idx < 0:
+        return None
+    raw = line[idx + len(marker) :].strip()
+    if not raw:
+        return None
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError:
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
+def timeline_has_claim_line(
+    repo_root: Path,
+    ticket_id: str,
+    slice_data: dict[str, Any],
+    claim: dict[str, Any],
+    *,
+    allow_legacy: bool = True,
+) -> bool:
+    sid = str(slice_data.get("id", "")).strip()
+    branch = str(claim.get("branch", "")).strip() or str(slice_data.get("branch", "")).strip()
+    worktree_path = str(claim.get("worktree_path", "")).strip() or str(slice_data.get("worktree_path", "")).strip()
+    agent_id = str(claim.get("agent_id", "")).strip() or str(slice_data.get("primary_agent", "")).strip()
+    text = timeline_text(repo_root, ticket_id)
+    if not text:
+        return False
+
+    for raw in text.splitlines():
+        line = raw.strip()
+        if "[event:claim_recorded]" in line:
+            payload = parse_event_payload(line)
+            if not payload:
+                continue
+            if str(payload.get("slice_id", "")).strip() != sid:
+                continue
+            if str(payload.get("branch", "")).strip() != branch:
+                continue
+            if str(payload.get("worktree_path", "")).strip() != worktree_path:
+                continue
+            if str(payload.get("agent_id", "")).strip() != str(claim.get("agent_id", "")).strip():
+                continue
+            return True
+
+        if allow_legacy and "claim recorded:" in line and f"`{sid}`" in line:
+            if f"`{branch}`" in line and f"`{worktree_path}`" in line and f"`{agent_id}`" in line:
+                return True
+    return False
+
+
+def validate_claim_fields(
+    slice_data: dict[str, Any],
+    required_fields: list[str],
+    *,
+    expected_branch: str = "",
+    expected_worktree_path: str = "",
+    expected_branch_label: str = "slice branch",
+    expected_worktree_label: str = "slice worktree_path",
+) -> tuple[dict[str, Any], list[str]]:
+    claim = slice_data.get("claim")
+    if not isinstance(claim, dict):
+        return {}, ["claim object missing"]
+
+    errors: list[str] = []
+    for field in required_fields:
+        value = str(claim.get(field, "")).strip()
+        if not value:
+            errors.append(f"missing claim field: {field}")
+
+    sid = str(slice_data.get("id", "")).strip()
+    branch = expected_branch.strip() or str(slice_data.get("branch", "")).strip()
+    worktree_path = expected_worktree_path.strip() or str(slice_data.get("worktree_path", "")).strip()
+    agent_id = str(slice_data.get("primary_agent", "")).strip()
+
+    if str(claim.get("slice_id", "")).strip() and str(claim.get("slice_id", "")).strip() != sid:
+        errors.append("claim slice_id does not match slice id")
+    if str(claim.get("branch", "")).strip() and str(claim.get("branch", "")).strip() != branch:
+        errors.append(f"claim branch does not match {expected_branch_label}")
+    if str(claim.get("worktree_path", "")).strip() and str(claim.get("worktree_path", "")).strip() != worktree_path:
+        errors.append(f"claim worktree_path does not match {expected_worktree_label}")
+    if str(claim.get("agent_id", "")).strip() and str(claim.get("agent_id", "")).strip() != agent_id:
+        errors.append("claim agent_id does not match slice primary_agent")
+
+    return claim, errors
+
+
+def claim_required_for_slice(slice_data: dict[str, Any], ahead: int) -> bool:
+    status = str(slice_data.get("status", "")).strip().lower()
+    if ahead > 0:
+        return True
+    claim_enforced_statuses = {
+        "taken",
+        "in_progress",
+        "in_review",
+        "pending_review",
+    }
+    return status in claim_enforced_statuses
 
 
 def reviewers_high_risk(orchestrator_layer: dict[str, Any]) -> list[str]:
@@ -973,6 +1379,7 @@ def create_ticket(args: argparse.Namespace) -> int:
         ),
     )
 
+    created_stamp = utc_now()
     slices: list[dict[str, Any]] = []
     for idx, agent_id in enumerate(sorted_agents, start=1):
         lane = lanes[(idx - 1) % len(lanes)]
@@ -1032,6 +1439,15 @@ def create_ticket(args: argparse.Namespace) -> int:
                 "multi_agent_reasoning": role_profile.get("reasoning", ""),
                 "multi_agent_fallback": role_profile.get("fallback", []),
                 "status": "ready",
+                "status_history": [
+                    {
+                        "from_status": "",
+                        "to_status": "ready",
+                        "at_utc": created_stamp,
+                        "reason": "slice_planned",
+                        "actor": "orchestrator",
+                    }
+                ],
                 "objective": args.goal,
                 "task_summary": task_summary,
                 "problem_statement": f"Implement ticket objective for scoped ownership paths: {scope_text}",
@@ -1048,11 +1464,20 @@ def create_ticket(args: argparse.Namespace) -> int:
         "base_branch": base_branch,
         "requested_base_branch": requested_base_branch,
         "worktree_root": str(worktree_root),
-        "created_at": utc_now(),
-        "updated_at": utc_now(),
+        "created_at": created_stamp,
+        "updated_at": created_stamp,
         "r3_required": True,
         "orchestrator_authority": {"r1": "orchestrator", "r2": "orchestrator", "r3": "human"},
         "mandatory_spawn_role_sequence": mandatory_role_sequence,
+        "status_history": [
+            {
+                "from_status": "",
+                "to_status": "planned",
+                "at_utc": created_stamp,
+                "reason": "ticket_created",
+                "actor": "orchestrator",
+            }
+        ],
         "review_enforcement": {
             "require_merge_specialist_for_non_doc_slices": require_merge_specialist_non_doc,
             "require_code_reviewer_for_non_doc_slices": require_code_reviewer_non_doc,
@@ -1075,7 +1500,14 @@ def create_ticket(args: argparse.Namespace) -> int:
     for s in slices:
         write_packet_files(repo_root, ticket, s)
 
-    append_timeline(repo_root, ticket_id, "ticket created and slices planned")
+    append_timeline_event(
+        repo_root,
+        ticket_id,
+        "ticket_created",
+        "ticket created and slices planned",
+        {"ticket_id": ticket_id, "ticket_status": "planned", "slice_count": len(slices)},
+        at_utc=created_stamp,
+    )
     write_cross_workflow_plan(repo_root, ticket)
     write_ticket_summary(repo_root, ticket)
     block = write_tmux_commands(repo_root, ticket)
@@ -1110,7 +1542,13 @@ def dispatch_ticket(args: argparse.Namespace) -> int:
         write_packet_files(repo_root, ticket, s)
     block = write_tmux_commands(repo_root, ticket)
     write_cross_workflow_plan(repo_root, ticket)
-    append_timeline(repo_root, str(ticket["ticket_id"]), "dispatch command block regenerated")
+    append_timeline_event(
+        repo_root,
+        str(ticket["ticket_id"]),
+        "dispatch_regenerated",
+        "dispatch command block regenerated",
+        {"ticket_id": str(ticket["ticket_id"])},
+    )
     write_ticket_summary(repo_root, ticket)
 
     print(block)
@@ -1155,8 +1593,146 @@ def set_review_status(args: argparse.Namespace) -> int:
     ]
     review_file.write_text("\n".join(body) + "\n", encoding="utf-8")
 
-    append_timeline(repo_root, args.ticket_id, f"review updated: {args.slice_id} {args.reviewer} -> {args.status}")
+    append_timeline_event(
+        repo_root,
+        args.ticket_id,
+        "review_updated",
+        f"review updated: {args.slice_id} {args.reviewer} -> {args.status}",
+        {
+            "ticket_id": args.ticket_id,
+            "slice_id": args.slice_id,
+            "reviewer": args.reviewer,
+            "status": args.status,
+            "reviewed_at_utc": reviewed_at,
+            "reviewed_head_sha": review_head_sha or "unknown",
+        },
+        at_utc=reviewed_at,
+    )
     print(f"[harness] review saved: {review_file}")
+    return 0
+
+
+def claim_slice(args: argparse.Namespace) -> int:
+    repo_root = project_root()
+    orchestrator_layer, _, _ = load_contracts(repo_root)
+    policy = claim_contract(orchestrator_layer)
+    ticket = read_ticket(repo_root, args.ticket_id)
+
+    target_slice = None
+    for s in ticket.get("slices", []):
+        if str(s.get("id", "")).strip() == args.slice_id:
+            target_slice = s
+            break
+    if not target_slice:
+        raise RuntimeError(f"slice not found: {args.slice_id}")
+
+    sid = str(target_slice.get("id", "")).strip()
+    primary_agent = str(target_slice.get("primary_agent", "")).strip()
+    if not primary_agent:
+        raise RuntimeError(f"slice has no primary_agent: {sid}")
+
+    agent_id = str(args.agent_id or "").strip() or primary_agent
+    if agent_id != primary_agent:
+        raise RuntimeError(
+            f"claim agent_id '{agent_id}' does not match slice primary_agent '{primary_agent}' for {sid}"
+        )
+
+    existing_claim = target_slice.get("claim")
+    if isinstance(existing_claim, dict) and policy["prevent_dual_claims_for_same_slice"]:
+        existing_agent = str(existing_claim.get("agent_id", "")).strip()
+        if existing_agent and existing_agent != agent_id:
+            raise RuntimeError(
+                f"slice {sid} already claimed by '{existing_agent}' and dual claims are blocked by policy"
+            )
+
+    claimed_at = str(args.claimed_at_utc or "").strip() or utc_now()
+    allowed_transitions = policy["allowed_transitions"]
+    strict_transitions = bool(allowed_transitions)
+    current_status = str(target_slice.get("status", "")).strip().lower() or "ready"
+    requested_claim_status = str(args.claim_status or "").strip().lower() or str(policy["claim_status"])
+    if current_status == "in_progress" and requested_claim_status == "taken":
+        requested_claim_status = "in_progress"
+
+    status_chain = apply_claim_transition_policy(
+        target_slice,
+        requested_claim_status=requested_claim_status,
+        auto_in_progress=bool(args.auto_in_progress),
+        allowed_transitions=allowed_transitions,
+        strict_transition_check=strict_transitions,
+        actor=agent_id,
+        at_utc=claimed_at,
+    )
+
+    slice_branch = str(target_slice.get("branch", "")).strip()
+    slice_worktree_path = str(target_slice.get("worktree_path", "")).strip()
+    blocker_id = str(args.blocker_id or "").strip().upper() or blocker_id_from_branch(slice_branch)
+    claim_branch = slice_branch
+    claim_worktree_path = slice_worktree_path
+    expected_branch_label = "slice branch"
+    expected_worktree_label = "slice worktree_path"
+
+    if blocker_id:
+        matrix_coords = blocker_matrix_coordinates(repo_root, args.ticket_id, blocker_id)
+        if matrix_coords:
+            claim_branch, claim_worktree_path = matrix_coords
+            expected_branch_label = "blocker matrix branch"
+            expected_worktree_label = "blocker matrix worktree_path"
+
+    claim: dict[str, Any] = {
+        "agent_id": agent_id,
+        "slice_id": sid,
+        "branch": claim_branch,
+        "worktree_path": claim_worktree_path,
+        "claimed_at_utc": claimed_at,
+    }
+    if blocker_id:
+        claim["blocker_id"] = blocker_id
+    target_slice["claim"] = claim
+
+    _, field_errors = validate_claim_fields(
+        target_slice,
+        policy["required_fields"],
+        expected_branch=claim_branch,
+        expected_worktree_path=claim_worktree_path,
+        expected_branch_label=expected_branch_label,
+        expected_worktree_label=expected_worktree_label,
+    )
+    if field_errors:
+        raise RuntimeError(f"claim artifacts incomplete for {sid}: {', '.join(field_errors)}")
+
+    write_ticket(repo_root, ticket)
+
+    chain_text = " -> ".join(status_chain)
+    summary = (
+        f"claim recorded: `{agent_id}` took `{sid}` on branch `{claim_branch}` at `{claim_worktree_path}` "
+        f"(`{chain_text}`)"
+    )
+    payload: dict[str, Any] = {
+        "ticket_id": args.ticket_id,
+        "slice_id": sid,
+        "agent_id": agent_id,
+        "branch": claim_branch,
+        "worktree_path": claim_worktree_path,
+        "claimed_at_utc": claimed_at,
+        "status_chain": status_chain,
+        "slice_status": str(target_slice.get("status", "")).strip(),
+    }
+    if blocker_id:
+        payload["blocker_id"] = blocker_id
+
+    append_timeline_event(
+        repo_root,
+        args.ticket_id,
+        "claim_recorded",
+        summary,
+        payload,
+        at_utc=claimed_at,
+    )
+
+    print(f"[harness] claim saved for {sid} ({agent_id})")
+    print(f"[harness] slice status: {target_slice.get('status')}")
+    if blocker_id:
+        print(f"[harness] blocker_id: {blocker_id}")
     return 0
 
 
@@ -1329,6 +1905,11 @@ def verify_ticket(args: argparse.Namespace) -> int:
         or dispatch_protocol.get("enforce_changed_file_docs_only_classification", False)
         or review_pipeline.get("enforce_changed_file_docs_only_classification", False)
     )
+    claim_policy = claim_contract(orchestrator_layer)
+    require_claim_gate = bool(
+        claim_policy.get("require_ticket_claim_before_work", False)
+        and claim_policy.get("reject_unclaimed_agent_results", False)
+    )
 
     run(["git", "fetch", "origin", "--prune"], cwd=repo_root, check=False)
 
@@ -1340,6 +1921,8 @@ def verify_ticket(args: argparse.Namespace) -> int:
     slice_ahead: dict[str, int] = {}
     slice_changed: dict[str, set[str]] = {}
     slice_agents: dict[str, str] = {}
+    slice_branches: dict[str, str] = {}
+    slice_worktree_paths: dict[str, str] = {}
     by_id = {
         str(s.get("id", "")).strip(): s
         for s in ticket.get("slices", [])
@@ -1354,8 +1937,12 @@ def verify_ticket(args: argparse.Namespace) -> int:
 
     for s in ordered_slices:
         sid = str(s.get("id"))
-        branch = str(s.get("branch"))
+        branch, worktree_path = resolve_slice_execution_coordinates(repo_root, args.ticket_id, s)
+        branch = branch or str(s.get("branch", "")).strip()
+        worktree_path = worktree_path or str(s.get("worktree_path", "")).strip()
         agent = str(s.get("primary_agent"))
+        slice_branches[sid] = branch
+        slice_worktree_paths[sid] = worktree_path
         ahead = count_ahead(repo_root, base_branch, branch)
         slice_ahead[sid] = ahead
         slice_agents[sid] = agent
@@ -1364,10 +1951,33 @@ def verify_ticket(args: argparse.Namespace) -> int:
 
     overlap_map = cross_slice_overlaps(slice_changed, slice_agents)
 
+    verify_stamp = utc_now()
+    initial_ticket_status = str(ticket.get("status", "")).strip().lower()
+    if claim_policy.get("require_ticket_status_history", False):
+        ticket_history = ensure_history_list(ticket, "status_history")
+        if ticket_history:
+            last_to = str(ticket_history[-1].get("to_status", "")).strip().lower()
+            if last_to and initial_ticket_status and last_to != initial_ticket_status:
+                raise RuntimeError(
+                    "ticket status history mismatch: last to_status "
+                    f"'{last_to}' != current status '{initial_ticket_status}'"
+                )
+        elif initial_ticket_status:
+            ticket_history.append(
+                {
+                    "from_status": "",
+                    "to_status": initial_ticket_status,
+                    "at_utc": verify_stamp,
+                    "reason": "history_bootstrap",
+                    "actor": "orchestrator",
+                }
+            )
+        ticket["status_history"] = ticket_history
+
     report_lines = [
         f"# Verify Report - {args.ticket_id}",
         "",
-        f"- generated_at: {utc_now()}",
+        f"- generated_at: {verify_stamp}",
         f"- merge_mode: {'on' if args.merge else 'off'}",
         "",
     ]
@@ -1378,8 +1988,8 @@ def verify_ticket(args: argparse.Namespace) -> int:
 
     for s in ticket.get("slices", []):
         sid = str(s.get("id"))
-        branch = str(s.get("branch"))
-        wt = Path(str(s.get("worktree_path")))
+        branch = slice_branches.get(sid, str(s.get("branch", "")).strip())
+        wt = Path(slice_worktree_paths.get(sid, str(s.get("worktree_path", "")).strip()))
         checks = [str(c) for c in s.get("required_checks", []) if str(c).strip()]
         reviewers = [str(r) for r in s.get("reviewers", []) if str(r).strip()]
         allowed_scope_paths = [str(p) for p in s.get("allowed_scope_paths", []) if str(p).strip()]
@@ -1391,6 +2001,51 @@ def verify_ticket(args: argparse.Namespace) -> int:
         changed_now = sorted(slice_changed.get(sid, set()))
         overlaps_now = overlap_map.get(sid, [])
         orchestrator_review = slice_dir / "orchestrator-review.md"
+
+        if require_claim_gate and claim_required_for_slice(s, ahead):
+            claim_snapshot = s.get("claim") if isinstance(s.get("claim"), dict) else {}
+            expected_branch, expected_worktree_path, expected_branch_label, expected_worktree_label = (
+                claim_expected_coordinates(repo_root, args.ticket_id, s, claim_snapshot)
+            )
+            claim, claim_errors = validate_claim_fields(
+                s,
+                claim_policy["required_fields"],
+                expected_branch=expected_branch,
+                expected_worktree_path=expected_worktree_path,
+                expected_branch_label=expected_branch_label,
+                expected_worktree_label=expected_worktree_label,
+            )
+            if (
+                not claim_errors
+                and claim_policy.get("require_timeline_claim_event", True)
+                and not timeline_has_claim_line(
+                    repo_root,
+                    args.ticket_id,
+                    s,
+                    claim,
+                    allow_legacy=bool(claim_policy.get("allow_legacy_timeline_claim_lines", True)),
+                )
+            ):
+                claim_errors.append("missing claim lineage in TIMELINE.md")
+            if claim_errors:
+                s["status"] = "claim_blocked"
+                failed_count += 1
+                report_lines.append(f"## {sid} ({s.get('primary_agent')})")
+                report_lines.append("- status: claim_blocked")
+                for err in claim_errors:
+                    report_lines.append(f"- claim_error: {err}")
+                report_lines.append("")
+                orchestrator_review.write_text(
+                    f"# Orchestrator Review\n\n"
+                    f"ticket: {args.ticket_id}\n"
+                    f"slice: {sid}\n"
+                    f"status: claim_blocked\n\n"
+                    f"## Notes\n"
+                    + "".join([f"- {err}\n" for err in claim_errors]),
+                    encoding="utf-8",
+                )
+                continue
+
         if ahead <= 0:
             s["status"] = "waiting_for_push"
             report_lines.append(f"## {sid} ({s.get('primary_agent')})")
@@ -1768,12 +2423,34 @@ def verify_ticket(args: argparse.Namespace) -> int:
         )
 
     all_statuses = {str(s.get("status")) for s in ticket.get("slices", [])}
+    next_ticket_status = initial_ticket_status or "planned"
     if all(x == "merged" for x in all_statuses):
-        ticket["status"] = "done"
-    elif any(x in {"checks_failed", "merge_failed", "push_failed", "blocked_missing_worktree", "scope_violation", "coordination_required", "cleanup_failed"} for x in all_statuses):
-        ticket["status"] = "blocked"
+        next_ticket_status = "done"
+    elif any(
+        x
+        in {
+            "checks_failed",
+            "merge_failed",
+            "push_failed",
+            "blocked_missing_worktree",
+            "scope_violation",
+            "coordination_required",
+            "cleanup_failed",
+            "claim_blocked",
+        }
+        for x in all_statuses
+    ):
+        next_ticket_status = "blocked"
     elif any(x in {"verified", "pending_review", "waiting_for_push"} for x in all_statuses):
-        ticket["status"] = "in_progress"
+        next_ticket_status = "in_progress"
+
+    ticket_from, ticket_to = apply_ticket_status(
+        ticket,
+        next_ticket_status,
+        reason="verify_run",
+        actor="orchestrator",
+        at_utc=verify_stamp,
+    )
 
     write_ticket(repo_root, ticket)
     write_cross_workflow_plan(repo_root, ticket)
@@ -1789,7 +2466,36 @@ def verify_ticket(args: argparse.Namespace) -> int:
     report_lines.insert(7, f"- failed_count: {failed_count}")
 
     report_path.write_text("\n".join(report_lines) + "\n", encoding="utf-8")
-    append_timeline(repo_root, args.ticket_id, f"verify run completed (merge_mode={'on' if args.merge else 'off'})")
+    if ticket_from != ticket_to:
+        append_timeline_event(
+            repo_root,
+            args.ticket_id,
+            "ticket_status_transition",
+            f"ticket status transitioned: `{ticket_from}` -> `{ticket_to}`",
+            {
+                "ticket_id": args.ticket_id,
+                "from_status": ticket_from,
+                "to_status": ticket_to,
+                "reason": "verify_run",
+            },
+            at_utc=verify_stamp,
+        )
+    append_timeline_event(
+        repo_root,
+        args.ticket_id,
+        "verify_completed",
+        f"verify run completed (merge_mode={'on' if args.merge else 'off'})",
+        {
+            "ticket_id": args.ticket_id,
+            "merge_mode": "on" if args.merge else "off",
+            "merged_count": merged_count,
+            "ready_count": ready_count,
+            "failed_count": failed_count,
+            "ticket_status": ticket.get("status"),
+            "report_path": str(report_path),
+        },
+        at_utc=verify_stamp,
+    )
 
     print(f"[harness] verify report: {report_path}")
     print(f"[harness] ticket status: {ticket.get('status')}")
@@ -1844,6 +2550,16 @@ def parser() -> argparse.ArgumentParser:
     review.add_argument("--artifacts", default="")
     review.add_argument("--head-sha", default="", help="Optional explicit commit SHA that this review approves")
     review.set_defaults(func=set_review_status)
+
+    claim = sub.add_parser("claim", help="Record claim artifacts for a slice and enforce claim transition policy")
+    claim.add_argument("--ticket-id", required=True)
+    claim.add_argument("--slice-id", required=True)
+    claim.add_argument("--agent-id", default="", help="Defaults to slice primary_agent")
+    claim.add_argument("--blocker-id", default="", help="Optional blocker id (for example B07)")
+    claim.add_argument("--claim-status", default="", help="Defaults to dispatch_protocol.ticket_claim_enforcement.claim_status")
+    claim.add_argument("--claimed-at-utc", default="", help="Optional explicit timestamp")
+    claim.add_argument("--auto-in-progress", action=argparse.BooleanOptionalAction, default=True)
+    claim.set_defaults(func=claim_slice)
 
     verify = sub.add_parser("verify", help="Run checks, evaluate reviews, optionally merge")
     verify.add_argument("--ticket-id", required=True)
