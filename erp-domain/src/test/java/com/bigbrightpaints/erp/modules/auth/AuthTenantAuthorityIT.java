@@ -31,6 +31,7 @@ import static org.assertj.core.api.Assertions.fail;
 
 class AuthTenantAuthorityIT extends AbstractIntegrationTest {
 
+    private static final String CONTROL_PLANE_AUTH_DENIED_MESSAGE = "Access denied to company control request";
     private static final String TENANT_A = "AUTH-TENANT-A";
     private static final String TENANT_B = "AUTH-TENANT-B";
     private static final String ROOT_TENANT = "AUTH-ROOT";
@@ -160,6 +161,62 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         UserAccount admin = userAccountRepository.findByEmailIgnoreCase(ADMIN_EMAIL).orElseThrow();
         assertThat(admin.isMustChangePassword()).isTrue();
+    }
+
+    @Test
+    void root_only_super_admin_can_reset_tenant_admin_password_for_support() {
+        String rootOnlySuperAdminEmail = "root-only-support-super-admin@" + System.nanoTime() + ".bbp.com";
+        dataSeeder.ensureUser(rootOnlySuperAdminEmail, PASSWORD, "Root Only Support Super Admin", ROOT_TENANT,
+                List.of("ROLE_SUPER_ADMIN"));
+        String superToken = login(rootOnlySuperAdminEmail, ROOT_TENANT);
+        Long tenantAId = companyRepository.findByCodeIgnoreCase(TENANT_A).map(Company::getId).orElseThrow();
+
+        ResponseEntity<Map> response = rest.exchange(
+                "/api/v1/companies/" + tenantAId + "/support/admin-password-reset",
+                HttpMethod.POST,
+                new HttpEntity<>(Map.of("adminEmail", ADMIN_EMAIL), jsonHeaders(superToken, ROOT_TENANT)),
+                Map.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> responseBody = response.getBody();
+        assertThat(responseBody).isNotNull();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> data = (Map<String, Object>) responseBody.get("data");
+        assertThat(data).isNotNull();
+        assertThat(data.get("companyCode")).isEqualTo(TENANT_A);
+        assertThat(data.get("adminEmail")).isEqualTo(ADMIN_EMAIL);
+    }
+
+    @Test
+    void control_plane_support_reset_denials_use_uniform_message_for_unknown_and_foreign_tenants() {
+        String token = login(ADMIN_EMAIL, TENANT_A);
+        Long tenantBId = companyRepository.findByCodeIgnoreCase(TENANT_B).map(Company::getId).orElseThrow();
+        long unknownCompanyId = companyRepository.findAll().stream()
+                .map(Company::getId)
+                .filter(java.util.Objects::nonNull)
+                .mapToLong(Long::longValue)
+                .max()
+                .orElse(0L) + 10_000L;
+
+        ResponseEntity<String> foreignTenantResponse = rest.exchange(
+                "/api/v1/companies/" + tenantBId + "/support/admin-password-reset",
+                HttpMethod.POST,
+                new HttpEntity<>(Map.of("adminEmail", ADMIN_EMAIL), jsonHeaders(token, TENANT_A)),
+                String.class);
+
+        ResponseEntity<String> unknownTenantResponse = rest.exchange(
+                "/api/v1/companies/" + unknownCompanyId + "/support/admin-password-reset",
+                HttpMethod.POST,
+                new HttpEntity<>(Map.of("adminEmail", ADMIN_EMAIL), jsonHeaders(token, TENANT_A)),
+                String.class);
+
+        assertThat(foreignTenantResponse.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(unknownTenantResponse.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(foreignTenantResponse.getBody()).isEqualTo(unknownTenantResponse.getBody());
+        if (foreignTenantResponse.getBody() != null) {
+            assertThat(foreignTenantResponse.getBody()).contains(CONTROL_PLANE_AUTH_DENIED_MESSAGE);
+        }
     }
 
     @Test

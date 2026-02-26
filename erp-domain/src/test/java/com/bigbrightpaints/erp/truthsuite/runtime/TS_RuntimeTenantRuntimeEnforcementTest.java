@@ -149,6 +149,7 @@ class TS_RuntimeTenantRuntimeEnforcementTest {
     @Test
     void allowsSuperAdminLifecycleControlWhenTenantIsNotActive() throws Exception {
         authenticateSuperAdminForCompany("super-admin@bbp.com", "ACME");
+        when(companyService.resolveCompanyCodeById(1L)).thenReturn("ACME");
         when(companyService.resolveLifecycleStateByCode("ACME")).thenReturn(CompanyLifecycleState.HOLD);
         TenantRuntimeEnforcementService.TenantRequestAdmission admittedAdmission =
                 admission(true, "ACME", 200, null);
@@ -181,6 +182,7 @@ class TS_RuntimeTenantRuntimeEnforcementTest {
     @Test
     void allowsSuperAdminLifecycleControlWithoutTenantMembershipWhenTenantIsNotActive() throws Exception {
         authenticateSuperAdminWithoutCompany("super-admin@bbp.com");
+        when(companyService.resolveCompanyCodeById(1L)).thenReturn("ACME");
         when(companyService.resolveLifecycleStateByCode("ACME")).thenReturn(CompanyLifecycleState.HOLD);
         TenantRuntimeEnforcementService.TenantRequestAdmission admittedAdmission =
                 admission(true, "ACME", 200, null);
@@ -213,6 +215,7 @@ class TS_RuntimeTenantRuntimeEnforcementTest {
     @Test
     void allowsSuperAdminLifecycleControlWhenTenantIsNotActive_withContextPath() throws Exception {
         authenticateSuperAdminForCompany("super-admin@bbp.com", "ACME");
+        when(companyService.resolveCompanyCodeById(1L)).thenReturn("ACME");
         when(companyService.resolveLifecycleStateByCode("ACME")).thenReturn(CompanyLifecycleState.HOLD);
         TenantRuntimeEnforcementService.TenantRequestAdmission admittedAdmission =
                 admission(true, "ACME", 200, null);
@@ -247,6 +250,7 @@ class TS_RuntimeTenantRuntimeEnforcementTest {
     @Test
     void allowsSuperAdminLifecycleControlWhenTenantIsNotActive_withContextPathAndEmptyServletPath() throws Exception {
         authenticateSuperAdminForCompany("super-admin@bbp.com", "ACME");
+        when(companyService.resolveCompanyCodeById(1L)).thenReturn("ACME");
         when(companyService.resolveLifecycleStateByCode("ACME")).thenReturn(CompanyLifecycleState.HOLD);
         TenantRuntimeEnforcementService.TenantRequestAdmission admittedAdmission =
                 admission(true, "ACME", 200, null);
@@ -281,6 +285,7 @@ class TS_RuntimeTenantRuntimeEnforcementTest {
     @Test
     void allowsSuperAdminTenantMetricsReadWhenTenantIsNotActive_withContextPathAndEmptyServletPath() throws Exception {
         authenticateSuperAdminForCompany("super-admin@bbp.com", "ACME");
+        when(companyService.resolveCompanyCodeById(1L)).thenReturn("ACME");
         when(companyService.resolveLifecycleStateByCode("ACME")).thenReturn(CompanyLifecycleState.HOLD);
         TenantRuntimeEnforcementService.TenantRequestAdmission admittedAdmission =
                 admission(true, "ACME", 200, null);
@@ -432,10 +437,8 @@ class TS_RuntimeTenantRuntimeEnforcementTest {
     @Test
     void lifecycleControlBypass_allowsSuperAdminOutsideTenantMembership_forInactiveTenant() throws Exception {
         authenticateForCompanyWithAuthorities("super-admin@bbp.com", "ROOT", "ROLE_SUPER_ADMIN");
+        when(companyService.resolveCompanyCodeById(42L)).thenReturn("ACME");
         when(companyService.resolveLifecycleStateByCode("ACME")).thenReturn(CompanyLifecycleState.HOLD);
-        Company acme = new Company();
-        acme.setCode("ACME");
-        when(companyService.findByCode("ACME")).thenReturn(acme);
 
         TenantRuntimeEnforcementService.TenantRequestAdmission admittedAdmission =
                 admission(true, "ACME", 200, null);
@@ -467,7 +470,7 @@ class TS_RuntimeTenantRuntimeEnforcementTest {
     @Test
     void lifecycleControlBypass_deniesWithoutSuperAdminAuthority() throws Exception {
         authenticateForCompanyWithAuthorities("admin@bbp.com", "ROOT", "ROLE_ADMIN");
-        when(companyService.resolveLifecycleStateByCode("ACME")).thenReturn(CompanyLifecycleState.HOLD);
+        when(companyService.resolveCompanyCodeById(42L)).thenReturn("ACME");
 
         MockHttpServletRequest request = new MockHttpServletRequest("PUT", "/api/v1/companies/42/tenant-runtime/policy");
         request.setAttribute("jwtClaims", claims("ACME", null));
@@ -482,8 +485,7 @@ class TS_RuntimeTenantRuntimeEnforcementTest {
     @Test
     void lifecycleControlBypass_deniesWhenCompanyIsMissing() throws Exception {
         authenticateForCompanyWithAuthorities("super-admin@bbp.com", "ROOT", "ROLE_SUPER_ADMIN");
-        when(companyService.resolveLifecycleStateByCode("ACME")).thenReturn(CompanyLifecycleState.HOLD);
-        when(companyService.findByCode("ACME")).thenThrow(new IllegalArgumentException("missing"));
+        when(companyService.resolveCompanyCodeById(42L)).thenReturn(null);
 
         MockHttpServletRequest request = new MockHttpServletRequest("PUT", "/api/v1/companies/42/tenant-runtime/policy");
         request.setAttribute("jwtClaims", claims("ACME", null));
@@ -531,11 +533,6 @@ class TS_RuntimeTenantRuntimeEnforcementTest {
                 "ROLE_SUPER_ADMIN")).isFalse();
 
         authenticateForCompanyWithAuthorities("super-admin@bbp.com", "ROOT", "ROLE_SUPER_ADMIN");
-        Company acme = new Company();
-        acme.setCode("ACME");
-        when(companyService.findByCode("ACME")).thenReturn(acme);
-        assertThat((Boolean) ReflectionTestUtils.invokeMethod(filter, "companyExists", "ACME")).isTrue();
-        assertThat((Boolean) ReflectionTestUtils.invokeMethod(filter, "companyExists", " ")).isFalse();
         assertThat((Boolean) ReflectionTestUtils.invokeMethod(
                 filter,
                 "hasTenantRuntimePolicyControlAuthority",
@@ -596,6 +593,26 @@ class TS_RuntimeTenantRuntimeEnforcementTest {
                 "isLifecycleControlRequest",
                 "/api/v1/companies/7/tenant-runtime/policy",
                 "PUT")).isTrue();
+        assertThat((Boolean) ReflectionTestUtils.invokeMethod(
+                filter,
+                "isLifecycleControlRequest",
+                "/api/v1/companies/7",
+                "PUT")).isTrue();
+        assertThat((Boolean) ReflectionTestUtils.invokeMethod(
+                filter,
+                "isLifecycleControlRequest",
+                "/api/v1/companies/7/support/admin-password-reset",
+                "POST")).isTrue();
+        assertThat((Boolean) ReflectionTestUtils.invokeMethod(
+                filter,
+                "isLifecycleControlRequest",
+                "/api/v1/companies/7/x/lifecycle-state",
+                "POST")).isFalse();
+        assertThat((Boolean) ReflectionTestUtils.invokeMethod(
+                filter,
+                "isLifecycleControlRequest",
+                "/api/v1/companies/7/x/support/admin-password-reset",
+                "POST")).isFalse();
         assertThat((Boolean) ReflectionTestUtils.invokeMethod(
                 filter,
                 "isLifecycleControlRequest",

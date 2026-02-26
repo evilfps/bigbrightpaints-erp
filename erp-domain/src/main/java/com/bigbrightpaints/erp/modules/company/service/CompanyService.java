@@ -136,6 +136,7 @@ public class CompanyService {
         requireSuperAdminForTenantConfigurationUpdate();
         Company company = repository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Company not found"));
+        assertBoundControlPlaneCompanyMatchesTarget(company.getCode());
         String normalizedCompanyCode = normalizeCompanyCode(request.code());
         ensureCompanyCodeAvailableForUpdate(id, normalizedCompanyCode);
         company.setName(request.name());
@@ -328,6 +329,7 @@ public class CompanyService {
         Authentication authentication = requireSuperAdminForTenantConfigurationUpdate();
         Company company = repository.findById(companyId)
                 .orElseThrow(() -> new IllegalArgumentException("Company not found"));
+        assertBoundControlPlaneCompanyMatchesTarget(company.getCode());
         requireCredentialProvisioningReady();
         String resetEmail = tenantAdminProvisioningService.resetTenantAdminPassword(company, adminEmail);
         auditAuthorityDecision(true, "tenant-admin-password-reset", company.getCode(), authentication);

@@ -134,6 +134,19 @@ class CompanyServiceTest {
     }
 
     @Test
+    void update_deniesWhenBoundContextDoesNotMatchTargetTenant() {
+        authenticateAs("ROLE_SUPER_ADMIN");
+        CompanyContextHolder.setCompanyCode("ROOT");
+        Company target = company(2L, "TENANT-A");
+        CompanyRequest request = new CompanyRequest("New Name", "NEW", "UTC", BigDecimal.TEN);
+        when(repository.findById(2L)).thenReturn(Optional.of(target));
+
+        assertThatThrownBy(() -> companyService.update(2L, request, Set.of(target)))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessageContaining("Bound company context does not match targeted tenant");
+    }
+
+    @Test
     void update_preservesExistingGstRateWhenPayloadOmitsDefaultGstRate() {
         authenticateAs("ROLE_SUPER_ADMIN");
         Company target = company(2L, "ACME");
@@ -741,6 +754,20 @@ class CompanyServiceTest {
         assertThatThrownBy(() -> companyService.resetTenantAdminPassword(5L, "tenant-admin@ske.com"))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("Credential email delivery is disabled");
+
+        verify(tenantAdminProvisioningService, never()).resetTenantAdminPassword(company, "tenant-admin@ske.com");
+    }
+
+    @Test
+    void resetTenantAdminPassword_deniesWhenBoundContextDoesNotMatchTargetTenant() {
+        authenticateAs("ROLE_SUPER_ADMIN");
+        CompanyContextHolder.setCompanyCode("ROOT");
+        Company company = company(5L, "SKE");
+        when(repository.findById(5L)).thenReturn(Optional.of(company));
+
+        assertThatThrownBy(() -> companyService.resetTenantAdminPassword(5L, "tenant-admin@ske.com"))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessageContaining("Bound company context does not match targeted tenant");
 
         verify(tenantAdminProvisioningService, never()).resetTenantAdminPassword(company, "tenant-admin@ske.com");
     }
