@@ -35,6 +35,7 @@ import org.springframework.util.StringUtils;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -47,6 +48,14 @@ import java.util.UUID;
 public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     private static final Logger logger = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+    private static final String BULK_VARIANT_PATH = "/api/v1/accounting/catalog/products/bulk-variants";
+    private static final String BULK_VARIANT_OPERATION = "catalog-bulk-variants";
+    private static final List<String> BULK_VARIANT_RESPONSE_DETAIL_ALLOWLIST = List.of(
+            "generated",
+            "conflicts",
+            "wouldCreate",
+            "created",
+            "operation");
     private static final Set<String> SETTLEMENT_FAILURE_DETAIL_ALLOWLIST = Set.of(
             IntegrationFailureMetadataSchema.KEY_IDEMPOTENCY_KEY,
             IntegrationFailureMetadataSchema.KEY_PARTNER_TYPE,
@@ -125,9 +134,9 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         errorResponse.put("timestamp", LocalDateTime.now());
         errorResponse.put("path", request.getRequestURI());
 
-        // Only include details in non-production environments
-        if (!isProductionMode() && !ex.getDetails().isEmpty()) {
-            errorResponse.put("details", ex.getDetails());
+        Map<String, Object> details = resolveResponseDetails(ex, request, ex.getDetails());
+        if (!details.isEmpty()) {
+            errorResponse.put("details", details);
         }
 
         logSettlementFailureAudit(request, traceId, ex);
@@ -490,6 +499,114 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             builder.append("; and ").append(errors.size() - 3).append(" more");
         }
         return builder.toString();
+    }
+
+    private Map<String, Object> resolveResponseDetails(ApplicationException ex,
+                                                       HttpServletRequest request,
+                                                       Map<String, Object> details) {
+        if (details == null || details.isEmpty()) {
+            return Map.of();
+        }
+        if (!isProductionMode()) {
+            return details;
+        }
+        return sanitizeBulkVariantConflictDetails(ex, request, details);
+    }
+
+    private Map<String, Object> sanitizeBulkVariantConflictDetails(ApplicationException ex,
+                                                                   HttpServletRequest request,
+                                                                   Map<String, Object> details) {
+        if (!isBulkVariantConflictDetailsSafeToExpose(ex, request, details)) {
+            return Map.of();
+        }
+        Map<String, Object> sanitizedDetails = new LinkedHashMap<>();
+        for (String key : BULK_VARIANT_RESPONSE_DETAIL_ALLOWLIST) {
+            if (details.containsKey(key)) {
+                sanitizedDetails.put(key, details.get(key));
+            }
+        }
+        return sanitizedDetails;
+    }
+
+    private boolean isBulkVariantConflictDetailsSafeToExpose(ApplicationException ex,
+                                                             HttpServletRequest request,
+                                                             Map<String, Object> details) {
+        if (ex == null || request == null || ex.getErrorCode() != ErrorCode.CONCURRENCY_CONFLICT) {
+            return false;
+        }
+        if (!isBulkVariantEndpoint(request)) {
+            return false;
+        }
+        Object operation = details.get("operation");
+        return BULK_VARIANT_OPERATION.equals(operation);
+    }
+
+    private boolean isBulkVariantEndpoint(HttpServletRequest request) {
+        for (String candidatePath : resolveNormalizedRequestPaths(request)) {
+            if (matchesEndpointPath(candidatePath, BULK_VARIANT_PATH)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private List<String> resolveNormalizedRequestPaths(HttpServletRequest request) {
+        if (request == null) {
+            return List.of();
+        }
+
+        String servletPath = normalizeEndpointPath(request.getServletPath());
+        String pathInfo = normalizeEndpointPath(request.getPathInfo());
+        String combinedServletPath = normalizeEndpointPath(joinServletPathAndPathInfo(servletPath, pathInfo));
+        String requestUri = normalizeEndpointPath(stripContextPath(request.getRequestURI(), request.getContextPath()));
+
+        return List.of(
+                combinedServletPath,
+                servletPath,
+                pathInfo,
+                requestUri);
+    }
+
+    private String joinServletPathAndPathInfo(String servletPath, String pathInfo) {
+        if (!StringUtils.hasText(pathInfo)) {
+            return servletPath;
+        }
+        if (!StringUtils.hasText(servletPath) || "/".equals(servletPath)) {
+            return pathInfo;
+        }
+        return servletPath + pathInfo;
+    }
+
+    private String stripContextPath(String requestUri, String contextPath) {
+        if (!StringUtils.hasText(requestUri)) {
+            return "";
+        }
+        if (StringUtils.hasText(contextPath) && requestUri.startsWith(contextPath)) {
+            String stripped = requestUri.substring(contextPath.length());
+            return StringUtils.hasText(stripped) ? stripped : "/";
+        }
+        return requestUri;
+    }
+
+    private boolean matchesEndpointPath(String normalizedPath, String endpointPath) {
+        if (!StringUtils.hasText(normalizedPath) || !StringUtils.hasText(endpointPath)) {
+            return false;
+        }
+        return normalizedPath.equals(endpointPath) || normalizedPath.endsWith(endpointPath);
+    }
+
+    private String normalizeEndpointPath(String value) {
+        if (!StringUtils.hasText(value)) {
+            return "";
+        }
+        String normalized = value.trim();
+        if (!normalized.startsWith("/")) {
+            normalized = "/" + normalized;
+        }
+        while (normalized.length() > 1 && normalized.endsWith("/")) {
+            normalized = normalized.substring(0, normalized.length() - 1);
+        }
+        return normalized;
     }
 
     private void logSettlementFailureAudit(HttpServletRequest request,

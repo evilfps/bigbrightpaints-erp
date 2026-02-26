@@ -5,6 +5,7 @@ import com.bigbrightpaints.erp.core.audit.AuditService;
 import com.bigbrightpaints.erp.core.audit.IntegrationFailureMetadataSchema;
 import com.bigbrightpaints.erp.shared.dto.ApiResponse;
 import java.lang.reflect.Field;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
@@ -74,6 +75,114 @@ class GlobalExceptionHandlerTest {
 
         ResponseEntity<ApiResponse<Map<String, Object>>> response = handler.handleApplicationException(ex, request);
 
+        ApiResponse<Map<String, Object>> body = response.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.data()).doesNotContainKey("details");
+    }
+
+    @Test
+    void productionBulkVariantConflictIncludesStructuredDetails() throws Exception {
+        GlobalExceptionHandler handler = new GlobalExceptionHandler();
+        setActiveProfile(handler, "prod");
+
+        ApplicationException ex = new ApplicationException(
+                ErrorCode.CONCURRENCY_CONFLICT,
+                "Bulk variant request has SKU conflicts. Resolve conflicts and retry.")
+                .withDetail("operation", "catalog-bulk-variants")
+                .withDetail("generated", List.of(Map.of("sku", "HB-SKU-RED-1L")))
+                .withDetail("conflicts", List.of(Map.of("sku", "HB-SKU-RED-1L", "reason", "SKU_ALREADY_EXISTS")))
+                .withDetail("wouldCreate", List.of())
+                .withDetail("created", List.of());
+
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setRequestURI("/api/v1/accounting/catalog/products/bulk-variants");
+
+        ResponseEntity<ApiResponse<Map<String, Object>>> response = handler.handleApplicationException(ex, request);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        ApiResponse<Map<String, Object>> body = response.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.data()).containsKey("details");
+        assertThat(body.data().get("details")).isInstanceOf(Map.class);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> details = (Map<String, Object>) body.data().get("details");
+        assertThat(details).containsOnlyKeys("generated", "conflicts", "wouldCreate", "created", "operation");
+    }
+
+    @Test
+    void productionBulkVariantConflictStripsUnknownDetailKeys() throws Exception {
+        GlobalExceptionHandler handler = new GlobalExceptionHandler();
+        setActiveProfile(handler, "prod");
+
+        ApplicationException ex = new ApplicationException(
+                ErrorCode.CONCURRENCY_CONFLICT,
+                "Bulk variant request has SKU conflicts. Resolve conflicts and retry.")
+                .withDetail("operation", "catalog-bulk-variants")
+                .withDetail("generated", List.of(Map.of("sku", "HB-SKU-RED-1L")))
+                .withDetail("conflicts", List.of(Map.of("sku", "HB-SKU-RED-1L", "reason", "SKU_ALREADY_EXISTS")))
+                .withDetail("wouldCreate", List.of())
+                .withDetail("created", List.of())
+                .withDetail("internalLeak", Map.of("sql", "select * from products"));
+
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setRequestURI("/api/v1/accounting/catalog/products/bulk-variants");
+
+        ResponseEntity<ApiResponse<Map<String, Object>>> response = handler.handleApplicationException(ex, request);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        ApiResponse<Map<String, Object>> body = response.getBody();
+        assertThat(body).isNotNull();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> details = (Map<String, Object>) body.data().get("details");
+        assertThat(details)
+                .containsOnlyKeys("generated", "conflicts", "wouldCreate", "created", "operation")
+                .doesNotContainKey("internalLeak");
+    }
+
+    @Test
+    void productionBulkVariantConflictWithContextPathStillIncludesDetails() throws Exception {
+        GlobalExceptionHandler handler = new GlobalExceptionHandler();
+        setActiveProfile(handler, "prod");
+
+        ApplicationException ex = new ApplicationException(
+                ErrorCode.CONCURRENCY_CONFLICT,
+                "Bulk variant request has SKU conflicts. Resolve conflicts and retry.")
+                .withDetail("operation", "catalog-bulk-variants")
+                .withDetail("conflicts", List.of(Map.of("sku", "HB-SKU-RED-1L", "reason", "SKU_ALREADY_EXISTS")))
+                .withDetail("wouldCreate", List.of())
+                .withDetail("created", List.of());
+
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setContextPath("/tenant-prefix");
+        request.setRequestURI("/tenant-prefix/api/v1/accounting/catalog/products/bulk-variants");
+
+        ResponseEntity<ApiResponse<Map<String, Object>>> response = handler.handleApplicationException(ex, request);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        ApiResponse<Map<String, Object>> body = response.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.data()).containsKey("details");
+    }
+
+    @Test
+    void productionBulkVariantConflictNonMatchingUriRemainsRedacted() throws Exception {
+        GlobalExceptionHandler handler = new GlobalExceptionHandler();
+        setActiveProfile(handler, "prod");
+
+        ApplicationException ex = new ApplicationException(
+                ErrorCode.CONCURRENCY_CONFLICT,
+                "Bulk variant request has SKU conflicts. Resolve conflicts and retry.")
+                .withDetail("operation", "catalog-bulk-variants")
+                .withDetail("conflicts", List.of(Map.of("sku", "HB-SKU-RED-1L", "reason", "SKU_ALREADY_EXISTS")))
+                .withDetail("wouldCreate", List.of())
+                .withDetail("created", List.of());
+
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setRequestURI("/api/v1/accounting/catalog/products");
+
+        ResponseEntity<ApiResponse<Map<String, Object>>> response = handler.handleApplicationException(ex, request);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
         ApiResponse<Map<String, Object>> body = response.getBody();
         assertThat(body).isNotNull();
         assertThat(body.data()).doesNotContainKey("details");
