@@ -1,0 +1,707 @@
+ticket_id: TKT-ERP-STAGE-113
+title: Production blocker remediation wave from TKT-ERP-STAGE-112
+goal: Implement and verify all critical/high production blockers from TKT-ERP-STAGE-112
+  with isolated blocker scopes, integration-safe merges, and release-grade QA evidence
+priority: high
+status: in_progress
+base_branch: origin/harness-engineering-orchestrator
+requested_base_branch: harness-engineering-orchestrator
+worktree_root: /Users/anas/Documents/orchestrator_erp/bigbrightpaints-erp_worktrees/TKT-ERP-STAGE-113/blocker-remediation-orchestrator_worktrees
+created_at: '2026-02-26T10:34:09+00:00'
+updated_at: '2026-02-26T10:34:09+00:00'
+r3_required: true
+orchestrator_authority:
+  r1: orchestrator
+  r2: orchestrator
+  r3: human
+mandatory_spawn_role_sequence:
+- planning
+- implementation
+- merge_specialist
+- code_reviewer
+- qa_reliability
+- release_ops
+review_enforcement:
+  require_merge_specialist_for_non_doc_slices: true
+  require_code_reviewer_for_non_doc_slices: true
+  require_qa_reliability_for_non_doc_slices: true
+  require_release_ops_docs_sync_before_merge: true
+  require_merge_specialist_before_code_review: true
+  require_reviewer_head_sha_match: true
+  require_qa_after_code_review_timestamp: true
+  enforce_changed_file_docs_only_classification: true
+slices:
+- id: SLICE-01
+  primary_agent: accounting-domain
+  reviewers:
+  - code_reviewer
+  - merge-specialist
+  - qa-reliability
+  - release-ops
+  - security-governance
+  scope_paths:
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/
+  allowed_scope_paths:
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/
+  - erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/
+  - erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/accounting/
+  matched_rules:
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/
+  lane: w1
+  branch: tickets/tkt-erp-stage-113/accounting-domain
+  worktree_path: /Users/anas/Documents/orchestrator_erp/bigbrightpaints-erp_worktrees/TKT-ERP-STAGE-113/blocker-remediation-orchestrator_worktrees/TKT-ERP-STAGE-113/accounting-domain
+  required_checks:
+  - cd erp-domain && mvn -B -ntp -Dtest='*Accounting*' test
+  - bash scripts/verify_local.sh
+  multi_agent_role: cross_module
+  multi_agent_config_file: .codex/agents/cross_module.toml
+  multi_agent_model: gpt-5.3-codex
+  multi_agent_reasoning: xhigh
+  multi_agent_fallback: &id001
+  - model: gpt-5.3-codex
+    reasoning: high
+  status: ready
+  objective: Implement and verify all critical/high production blockers from TKT-ERP-STAGE-112
+    with isolated blocker scopes, integration-safe merges, and release-grade QA evidence
+  task_summary: 'Implement ticket goal within explicit scope paths: erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/'
+  problem_statement: 'Implement ticket objective for scoped ownership paths: erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/'
+  acceptance_criteria:
+  - Changes are limited to declared scope paths for accounting-domain.
+  - 'Deliver objective for: erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/.'
+  - Targeted tests for changed behavior are added/updated and passing.
+  workflow_upstream_slices:
+  - SLICE-02
+  - SLICE-03
+  - SLICE-04
+  - SLICE-07
+  - SLICE-09
+  workflow_downstream_slices: []
+  workflow_external_upstream_agents:
+  - factory-production
+  workflow_external_downstream_agents: []
+  cross_workflow_contracts:
+  - relation: upstream
+    agent: auth-rbac-company
+    slice_id: SLICE-02
+    contract: finance/admin authority boundaries
+    in_ticket: true
+  - relation: upstream
+    agent: hr-domain
+    slice_id: SLICE-03
+    contract: payroll liability/payment posting linkage
+    in_ticket: true
+  - relation: upstream
+    agent: orchestrator-runtime
+    slice_id: SLICE-04
+    contract: outbox/idempotency posting orchestration
+    in_ticket: true
+  - relation: upstream
+    agent: purchasing-invoice-p2p
+    slice_id: SLICE-07
+    contract: ap/posting and settlement linkage
+    in_ticket: true
+  - relation: upstream
+    agent: sales-domain
+    slice_id: SLICE-09
+    contract: o2c posting and receivable linkage
+    in_ticket: true
+  - relation: upstream-external
+    agent: factory-production
+    slice_id: ''
+    contract: wip/variance/cogs posting linkage
+    in_ticket: false
+- id: SLICE-02
+  primary_agent: auth-rbac-company
+  reviewers:
+  - code_reviewer
+  - merge-specialist
+  - qa-reliability
+  - release-ops
+  - security-governance
+  scope_paths:
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/auth/
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/company/
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/rbac/
+  allowed_scope_paths:
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/auth/
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/rbac/
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/company/
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/core/security/
+  - erp-domain/src/test/java/com/bigbrightpaints/erp/modules/auth/
+  matched_rules:
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/auth/
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/company/
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/rbac/
+  lane: w2
+  branch: tickets/tkt-erp-stage-113/auth-rbac-company
+  worktree_path: /Users/anas/Documents/orchestrator_erp/bigbrightpaints-erp_worktrees/TKT-ERP-STAGE-113/blocker-remediation-orchestrator_worktrees/TKT-ERP-STAGE-113/auth-rbac-company
+  required_checks:
+  - bash ci/check-architecture.sh
+  multi_agent_role: cross_module
+  multi_agent_config_file: .codex/agents/cross_module.toml
+  multi_agent_model: gpt-5.3-codex
+  multi_agent_reasoning: xhigh
+  multi_agent_fallback: *id001
+  status: in_progress
+  objective: Implement and verify all critical/high production blockers from TKT-ERP-STAGE-112
+    with isolated blocker scopes, integration-safe merges, and release-grade QA evidence
+  task_summary: 'Implement ticket goal within explicit scope paths: erp-domain/src/main/java/com/bigbrightpaints/erp/modules/auth/,
+    erp-domain/src/main/java/com/bigbrightpaints/erp/modules/company/, erp-domain/src/main/java/com/bigbrightpaints/erp/modules/rbac/'
+  problem_statement: 'Implement ticket objective for scoped ownership paths: erp-domain/src/main/java/com/bigbrightpaints/erp/modules/auth/,
+    erp-domain/src/main/java/com/bigbrightpaints/erp/modules/company/, erp-domain/src/main/java/com/bigbrightpaints/erp/modules/rbac/'
+  acceptance_criteria:
+  - Changes are limited to declared scope paths for auth-rbac-company.
+  - 'Deliver objective for: erp-domain/src/main/java/com/bigbrightpaints/erp/modules/auth/,
+    erp-domain/src/main/java/com/bigbrightpaints/erp/modules/company/, erp-domain/src/main/java/com/bigbrightpaints/erp/modules/rbac/.'
+  - Targeted tests for changed behavior are added/updated and passing.
+  workflow_upstream_slices: []
+  workflow_downstream_slices:
+  - SLICE-01
+  - SLICE-03
+  - SLICE-05
+  - SLICE-07
+  - SLICE-08
+  - SLICE-09
+  workflow_external_upstream_agents: []
+  workflow_external_downstream_agents:
+  - factory-production
+  cross_workflow_contracts:
+  - relation: downstream
+    agent: accounting-domain
+    slice_id: SLICE-01
+    contract: finance/admin authority boundaries
+    in_ticket: true
+  - relation: downstream
+    agent: hr-domain
+    slice_id: SLICE-03
+    contract: payroll/PII access boundaries
+    in_ticket: true
+  - relation: downstream
+    agent: inventory-domain
+    slice_id: SLICE-05
+    contract: tenant context and role checks
+    in_ticket: true
+  - relation: downstream
+    agent: purchasing-invoice-p2p
+    slice_id: SLICE-07
+    contract: tenant-scoped supplier/AP access rules
+    in_ticket: true
+  - relation: downstream
+    agent: reports-admin-portal
+    slice_id: SLICE-08
+    contract: admin/report access boundaries
+    in_ticket: true
+  - relation: downstream
+    agent: sales-domain
+    slice_id: SLICE-09
+    contract: tenant and role boundary contract
+    in_ticket: true
+  - relation: downstream-external
+    agent: factory-production
+    slice_id: ''
+    contract: tenant-scoped manufacturing operations
+    in_ticket: false
+- id: SLICE-03
+  primary_agent: hr-domain
+  reviewers:
+  - code_reviewer
+  - merge-specialist
+  - qa-reliability
+  - release-ops
+  - security-governance
+  scope_paths:
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/hr/
+  allowed_scope_paths:
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/hr/
+  - erp-domain/src/test/java/com/bigbrightpaints/erp/modules/hr/
+  - erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/payroll/
+  matched_rules:
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/hr/
+  lane: w3
+  branch: tickets/tkt-erp-stage-113/hr-domain
+  worktree_path: /Users/anas/Documents/orchestrator_erp/bigbrightpaints-erp_worktrees/TKT-ERP-STAGE-113/blocker-remediation-orchestrator_worktrees/TKT-ERP-STAGE-113/hr-domain
+  required_checks:
+  - cd erp-domain && mvn -B -ntp -Dtest='*Payroll*' test
+  - bash scripts/verify_local.sh
+  multi_agent_role: cross_module
+  multi_agent_config_file: .codex/agents/cross_module.toml
+  multi_agent_model: gpt-5.3-codex
+  multi_agent_reasoning: xhigh
+  multi_agent_fallback: *id001
+  status: ready
+  objective: Implement and verify all critical/high production blockers from TKT-ERP-STAGE-112
+    with isolated blocker scopes, integration-safe merges, and release-grade QA evidence
+  task_summary: 'Implement ticket goal within explicit scope paths: erp-domain/src/main/java/com/bigbrightpaints/erp/modules/hr/'
+  problem_statement: 'Implement ticket objective for scoped ownership paths: erp-domain/src/main/java/com/bigbrightpaints/erp/modules/hr/'
+  acceptance_criteria:
+  - Changes are limited to declared scope paths for hr-domain.
+  - 'Deliver objective for: erp-domain/src/main/java/com/bigbrightpaints/erp/modules/hr/.'
+  - Targeted tests for changed behavior are added/updated and passing.
+  workflow_upstream_slices:
+  - SLICE-02
+  workflow_downstream_slices:
+  - SLICE-01
+  workflow_external_upstream_agents: []
+  workflow_external_downstream_agents: []
+  cross_workflow_contracts:
+  - relation: downstream
+    agent: accounting-domain
+    slice_id: SLICE-01
+    contract: payroll liability/payment posting linkage
+    in_ticket: true
+  - relation: upstream
+    agent: auth-rbac-company
+    slice_id: SLICE-02
+    contract: payroll/PII access boundaries
+    in_ticket: true
+- id: SLICE-04
+  primary_agent: orchestrator-runtime
+  reviewers:
+  - code_reviewer
+  - merge-specialist
+  - qa-reliability
+  - release-ops
+  - security-governance
+  scope_paths:
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/orchestrator/
+  allowed_scope_paths:
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/orchestrator/
+  - erp-domain/src/test/java/com/bigbrightpaints/erp/orchestrator/
+  - erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/orchestrator/
+  - scripts/guard_orchestrator_correlation_contract.sh
+  matched_rules:
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/orchestrator/
+  lane: w4
+  branch: tickets/tkt-erp-stage-113/orchestrator-runtime
+  worktree_path: /Users/anas/Documents/orchestrator_erp/bigbrightpaints-erp_worktrees/TKT-ERP-STAGE-113/blocker-remediation-orchestrator_worktrees/TKT-ERP-STAGE-113/orchestrator-runtime
+  required_checks:
+  - bash ci/check-architecture.sh
+  - bash scripts/guard_orchestrator_correlation_contract.sh
+  multi_agent_role: cross_module
+  multi_agent_config_file: .codex/agents/cross_module.toml
+  multi_agent_model: gpt-5.3-codex
+  multi_agent_reasoning: xhigh
+  multi_agent_fallback: *id001
+  status: in_progress
+  objective: Implement and verify all critical/high production blockers from TKT-ERP-STAGE-112
+    with isolated blocker scopes, integration-safe merges, and release-grade QA evidence
+  task_summary: 'Implement ticket goal within explicit scope paths: erp-domain/src/main/java/com/bigbrightpaints/erp/orchestrator/'
+  problem_statement: 'Implement ticket objective for scoped ownership paths: erp-domain/src/main/java/com/bigbrightpaints/erp/orchestrator/'
+  acceptance_criteria:
+  - Changes are limited to declared scope paths for orchestrator-runtime.
+  - 'Deliver objective for: erp-domain/src/main/java/com/bigbrightpaints/erp/orchestrator/.'
+  - Targeted tests for changed behavior are added/updated and passing.
+  workflow_upstream_slices: []
+  workflow_downstream_slices:
+  - SLICE-01
+  - SLICE-05
+  - SLICE-09
+  workflow_external_upstream_agents: []
+  workflow_external_downstream_agents: []
+  cross_workflow_contracts:
+  - relation: downstream
+    agent: accounting-domain
+    slice_id: SLICE-01
+    contract: outbox/idempotency posting orchestration
+    in_ticket: true
+  - relation: downstream
+    agent: inventory-domain
+    slice_id: SLICE-05
+    contract: exactly-once side-effect orchestration
+    in_ticket: true
+  - relation: downstream
+    agent: sales-domain
+    slice_id: SLICE-09
+    contract: async orchestration command contract
+    in_ticket: true
+- id: SLICE-05
+  primary_agent: inventory-domain
+  reviewers:
+  - code_reviewer
+  - merge-specialist
+  - qa-reliability
+  - release-ops
+  - security-governance
+  scope_paths:
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/
+  allowed_scope_paths:
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/
+  - erp-domain/src/test/java/com/bigbrightpaints/erp/modules/inventory/
+  - erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/inventory/
+  matched_rules:
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/
+  lane: w1
+  branch: tickets/tkt-erp-stage-113/inventory-domain
+  worktree_path: /Users/anas/Documents/orchestrator_erp/bigbrightpaints-erp_worktrees/TKT-ERP-STAGE-113/blocker-remediation-orchestrator_worktrees/TKT-ERP-STAGE-113/inventory-domain
+  required_checks:
+  - cd erp-domain && mvn -B -ntp -Dtest='*Inventory*' test
+  - bash ci/check-architecture.sh
+  multi_agent_role: cross_module_high
+  multi_agent_config_file: .codex/agents/cross_module_high.toml
+  multi_agent_model: gpt-5.3-codex
+  multi_agent_reasoning: high
+  multi_agent_fallback: &id002
+  - model: gpt-5.3-codex
+    reasoning: high
+  status: ready
+  objective: Implement and verify all critical/high production blockers from TKT-ERP-STAGE-112
+    with isolated blocker scopes, integration-safe merges, and release-grade QA evidence
+  task_summary: 'Implement ticket goal within explicit scope paths: erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/'
+  problem_statement: 'Implement ticket objective for scoped ownership paths: erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/'
+  acceptance_criteria:
+  - Changes are limited to declared scope paths for inventory-domain.
+  - 'Deliver objective for: erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/.'
+  - Targeted tests for changed behavior are added/updated and passing.
+  workflow_upstream_slices:
+  - SLICE-02
+  - SLICE-04
+  - SLICE-07
+  - SLICE-09
+  workflow_downstream_slices: []
+  workflow_external_upstream_agents:
+  - factory-production
+  workflow_external_downstream_agents: []
+  cross_workflow_contracts:
+  - relation: upstream
+    agent: auth-rbac-company
+    slice_id: SLICE-02
+    contract: tenant context and role checks
+    in_ticket: true
+  - relation: upstream
+    agent: orchestrator-runtime
+    slice_id: SLICE-04
+    contract: exactly-once side-effect orchestration
+    in_ticket: true
+  - relation: upstream
+    agent: purchasing-invoice-p2p
+    slice_id: SLICE-07
+    contract: grn/stock intake coupling
+    in_ticket: true
+  - relation: upstream
+    agent: sales-domain
+    slice_id: SLICE-09
+    contract: dispatch and stock movement linkage
+    in_ticket: true
+  - relation: upstream-external
+    agent: factory-production
+    slice_id: ''
+    contract: production/packing stock transitions
+    in_ticket: false
+- id: SLICE-06
+  primary_agent: orchestrator
+  reviewers:
+  - code_reviewer
+  - merge-specialist
+  - qa-reliability
+  - release-ops
+  - repo-cartographer
+  - security-governance
+  scope_paths:
+  - scripts/
+  allowed_scope_paths:
+  - docs/
+  - agents/
+  - skills/
+  - ci/
+  - tickets/
+  - asyncloop
+  - scripts/harness_orchestrator.py
+  matched_rules:
+  - scripts/harness_orchestrator.py
+  lane: w2
+  branch: tickets/tkt-erp-stage-113/orchestrator
+  worktree_path: /Users/anas/Documents/orchestrator_erp/bigbrightpaints-erp_worktrees/TKT-ERP-STAGE-113/blocker-remediation-orchestrator_worktrees/TKT-ERP-STAGE-113/orchestrator
+  required_checks:
+  - bash ci/lint-knowledgebase.sh
+  - bash ci/check-architecture.sh
+  - bash ci/check-enterprise-policy.sh
+  multi_agent_role: orchestrator
+  multi_agent_config_file: .codex/agents/orchestrator.toml
+  multi_agent_model: gpt-5.3-codex
+  multi_agent_reasoning: xhigh
+  multi_agent_fallback:
+  - model: gpt-5.3-codex
+    reasoning: high
+  status: in_progress
+  objective: Implement and verify all critical/high production blockers from TKT-ERP-STAGE-112
+    with isolated blocker scopes, integration-safe merges, and release-grade QA evidence
+  task_summary: 'Implement ticket goal within explicit scope paths: scripts/'
+  problem_statement: 'Implement ticket objective for scoped ownership paths: scripts/'
+  acceptance_criteria:
+  - Changes are limited to declared scope paths for orchestrator.
+  - 'Deliver objective for: scripts/.'
+  - Targeted tests for changed behavior are added/updated and passing.
+  workflow_upstream_slices: []
+  workflow_downstream_slices: []
+  workflow_external_upstream_agents: []
+  workflow_external_downstream_agents: []
+  cross_workflow_contracts: []
+- id: SLICE-07
+  primary_agent: purchasing-invoice-p2p
+  reviewers:
+  - code_reviewer
+  - merge-specialist
+  - qa-reliability
+  - release-ops
+  - security-governance
+  scope_paths:
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/purchasing/
+  allowed_scope_paths:
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/purchasing/
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/invoice/
+  - erp-domain/src/test/java/com/bigbrightpaints/erp/modules/purchasing/
+  - erp-domain/src/test/java/com/bigbrightpaints/erp/modules/invoice/
+  - erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/p2p/
+  matched_rules:
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/purchasing/
+  lane: w3
+  branch: tickets/tkt-erp-stage-113/purchasing-invoice-p2p
+  worktree_path: /Users/anas/Documents/orchestrator_erp/bigbrightpaints-erp_worktrees/TKT-ERP-STAGE-113/blocker-remediation-orchestrator_worktrees/TKT-ERP-STAGE-113/purchasing-invoice-p2p
+  required_checks:
+  - bash ci/check-architecture.sh
+  multi_agent_role: cross_module_high
+  multi_agent_config_file: .codex/agents/cross_module_high.toml
+  multi_agent_model: gpt-5.3-codex
+  multi_agent_reasoning: high
+  multi_agent_fallback: *id002
+  status: ready
+  objective: Implement and verify all critical/high production blockers from TKT-ERP-STAGE-112
+    with isolated blocker scopes, integration-safe merges, and release-grade QA evidence
+  task_summary: 'Implement ticket goal within explicit scope paths: erp-domain/src/main/java/com/bigbrightpaints/erp/modules/purchasing/'
+  problem_statement: 'Implement ticket objective for scoped ownership paths: erp-domain/src/main/java/com/bigbrightpaints/erp/modules/purchasing/'
+  acceptance_criteria:
+  - Changes are limited to declared scope paths for purchasing-invoice-p2p.
+  - 'Deliver objective for: erp-domain/src/main/java/com/bigbrightpaints/erp/modules/purchasing/.'
+  - Targeted tests for changed behavior are added/updated and passing.
+  workflow_upstream_slices:
+  - SLICE-02
+  workflow_downstream_slices:
+  - SLICE-01
+  - SLICE-05
+  workflow_external_upstream_agents: []
+  workflow_external_downstream_agents: []
+  cross_workflow_contracts:
+  - relation: downstream
+    agent: accounting-domain
+    slice_id: SLICE-01
+    contract: ap/posting and settlement linkage
+    in_ticket: true
+  - relation: downstream
+    agent: inventory-domain
+    slice_id: SLICE-05
+    contract: grn/stock intake coupling
+    in_ticket: true
+  - relation: upstream
+    agent: auth-rbac-company
+    slice_id: SLICE-02
+    contract: tenant-scoped supplier/AP access rules
+    in_ticket: true
+- id: SLICE-08
+  primary_agent: reports-admin-portal
+  reviewers:
+  - code_reviewer
+  - merge-specialist
+  - qa-reliability
+  - release-ops
+  - security-governance
+  scope_paths:
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/admin/
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/portal/
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/reports/
+  allowed_scope_paths:
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/reports/
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/admin/
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/portal/
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/demo/
+  - erp-domain/src/test/java/com/bigbrightpaints/erp/modules/reports/
+  - erp-domain/src/test/java/com/bigbrightpaints/erp/modules/admin/
+  - erp-domain/src/test/java/com/bigbrightpaints/erp/modules/portal/
+  matched_rules:
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/admin/
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/portal/
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/reports/
+  lane: w4
+  branch: tickets/tkt-erp-stage-113/reports-admin-portal
+  worktree_path: /Users/anas/Documents/orchestrator_erp/bigbrightpaints-erp_worktrees/TKT-ERP-STAGE-113/blocker-remediation-orchestrator_worktrees/TKT-ERP-STAGE-113/reports-admin-portal
+  required_checks:
+  - bash ci/check-architecture.sh
+  multi_agent_role: cross_module_high
+  multi_agent_config_file: .codex/agents/cross_module_high.toml
+  multi_agent_model: gpt-5.3-codex
+  multi_agent_reasoning: high
+  multi_agent_fallback: *id002
+  status: ready
+  objective: Implement and verify all critical/high production blockers from TKT-ERP-STAGE-112
+    with isolated blocker scopes, integration-safe merges, and release-grade QA evidence
+  task_summary: 'Implement ticket goal within explicit scope paths: erp-domain/src/main/java/com/bigbrightpaints/erp/modules/admin/,
+    erp-domain/src/main/java/com/bigbrightpaints/erp/modules/portal/, erp-domain/src/main/java/com/bigbrightpaints/erp/modules/reports/'
+  problem_statement: 'Implement ticket objective for scoped ownership paths: erp-domain/src/main/java/com/bigbrightpaints/erp/modules/admin/,
+    erp-domain/src/main/java/com/bigbrightpaints/erp/modules/portal/, erp-domain/src/main/java/com/bigbrightpaints/erp/modules/reports/'
+  acceptance_criteria:
+  - Changes are limited to declared scope paths for reports-admin-portal.
+  - 'Deliver objective for: erp-domain/src/main/java/com/bigbrightpaints/erp/modules/admin/,
+    erp-domain/src/main/java/com/bigbrightpaints/erp/modules/portal/, erp-domain/src/main/java/com/bigbrightpaints/erp/modules/reports/.'
+  - Targeted tests for changed behavior are added/updated and passing.
+  workflow_upstream_slices:
+  - SLICE-02
+  workflow_downstream_slices: []
+  workflow_external_upstream_agents: []
+  workflow_external_downstream_agents: []
+  cross_workflow_contracts:
+  - relation: upstream
+    agent: auth-rbac-company
+    slice_id: SLICE-02
+    contract: admin/report access boundaries
+    in_ticket: true
+- id: SLICE-09
+  primary_agent: sales-domain
+  reviewers:
+  - code_reviewer
+  - merge-specialist
+  - qa-reliability
+  - release-ops
+  - security-governance
+  scope_paths:
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/sales/
+  allowed_scope_paths:
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/sales/
+  - erp-domain/src/test/java/com/bigbrightpaints/erp/modules/sales/
+  - erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/o2c/
+  matched_rules:
+  - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/sales/
+  lane: w1
+  branch: tickets/tkt-erp-stage-113/sales-domain
+  worktree_path: /Users/anas/Documents/orchestrator_erp/bigbrightpaints-erp_worktrees/TKT-ERP-STAGE-113/blocker-remediation-orchestrator_worktrees/TKT-ERP-STAGE-113/sales-domain
+  required_checks:
+  - cd erp-domain && mvn -B -ntp -Dtest='*Sales*' test
+  - bash ci/check-architecture.sh
+  multi_agent_role: cross_module_high
+  multi_agent_config_file: .codex/agents/cross_module_high.toml
+  multi_agent_model: gpt-5.3-codex
+  multi_agent_reasoning: high
+  multi_agent_fallback: *id002
+  status: ready
+  objective: Implement and verify all critical/high production blockers from TKT-ERP-STAGE-112
+    with isolated blocker scopes, integration-safe merges, and release-grade QA evidence
+  task_summary: 'Implement ticket goal within explicit scope paths: erp-domain/src/main/java/com/bigbrightpaints/erp/modules/sales/'
+  problem_statement: 'Implement ticket objective for scoped ownership paths: erp-domain/src/main/java/com/bigbrightpaints/erp/modules/sales/'
+  acceptance_criteria:
+  - Changes are limited to declared scope paths for sales-domain.
+  - 'Deliver objective for: erp-domain/src/main/java/com/bigbrightpaints/erp/modules/sales/.'
+  - Targeted tests for changed behavior are added/updated and passing.
+  workflow_upstream_slices:
+  - SLICE-02
+  - SLICE-04
+  workflow_downstream_slices:
+  - SLICE-01
+  - SLICE-05
+  workflow_external_upstream_agents: []
+  workflow_external_downstream_agents: []
+  cross_workflow_contracts:
+  - relation: downstream
+    agent: accounting-domain
+    slice_id: SLICE-01
+    contract: o2c posting and receivable linkage
+    in_ticket: true
+  - relation: downstream
+    agent: inventory-domain
+    slice_id: SLICE-05
+    contract: dispatch and stock movement linkage
+    in_ticket: true
+  - relation: upstream
+    agent: auth-rbac-company
+    slice_id: SLICE-02
+    contract: tenant and role boundary contract
+    in_ticket: true
+  - relation: upstream
+    agent: orchestrator-runtime
+    slice_id: SLICE-04
+    contract: async orchestration command contract
+    in_ticket: true
+- id: SLICE-10
+  primary_agent: frontend-documentation
+  reviewers:
+  - repo-cartographer
+  scope_paths:
+  - docs/accounting-portal-endpoint-map.md
+  allowed_scope_paths:
+  - docs/accounting-portal-endpoint-map.md
+  - docs/admin-portal-endpoint-map.md
+  - docs/dealer-portal-endpoint-map.md
+  - docs/manufacturing-portal-endpoint-map.md
+  - docs/sales-portal-endpoint-map.md
+  - docs/*portal*handoff*.md
+  matched_rules:
+  - docs/*portal*
+  lane: w2
+  branch: tickets/tkt-erp-stage-113/frontend-documentation
+  worktree_path: /Users/anas/Documents/orchestrator_erp/bigbrightpaints-erp_worktrees/TKT-ERP-STAGE-113/blocker-remediation-orchestrator_worktrees/TKT-ERP-STAGE-113/frontend-documentation
+  required_checks:
+  - bash ci/lint-knowledgebase.sh
+  multi_agent_role: frontend_documentation
+  multi_agent_config_file: .codex/agents/frontend_documentation.toml
+  multi_agent_model: gpt-5.3-codex-spark
+  multi_agent_reasoning: medium
+  multi_agent_fallback:
+  - model: gpt-5.3-codex
+    reasoning: high
+  status: ready
+  objective: Implement and verify all critical/high production blockers from TKT-ERP-STAGE-112
+    with isolated blocker scopes, integration-safe merges, and release-grade QA evidence
+  task_summary: 'Implement ticket goal within explicit scope paths: docs/accounting-portal-endpoint-map.md'
+  problem_statement: 'Implement ticket objective for scoped ownership paths: docs/accounting-portal-endpoint-map.md'
+  acceptance_criteria:
+  - Changes are limited to declared scope paths for frontend-documentation.
+  - 'Deliver objective for: docs/accounting-portal-endpoint-map.md.'
+  - Targeted tests for changed behavior are added/updated and passing.
+  workflow_upstream_slices: []
+  workflow_downstream_slices: []
+  workflow_external_upstream_agents: []
+  workflow_external_downstream_agents: []
+  cross_workflow_contracts: []
+cross_workflow:
+  model: workflow_agent_edges_v1
+  generated_at: '2026-02-26T10:34:09+00:00'
+  in_ticket_edges:
+  - upstream_slice: SLICE-02
+    downstream_slice: SLICE-01
+    contract: finance/admin authority boundaries
+  - upstream_slice: SLICE-02
+    downstream_slice: SLICE-03
+    contract: payroll/PII access boundaries
+  - upstream_slice: SLICE-02
+    downstream_slice: SLICE-05
+    contract: tenant context and role checks
+  - upstream_slice: SLICE-02
+    downstream_slice: SLICE-07
+    contract: tenant-scoped supplier/AP access rules
+  - upstream_slice: SLICE-02
+    downstream_slice: SLICE-08
+    contract: admin/report access boundaries
+  - upstream_slice: SLICE-02
+    downstream_slice: SLICE-09
+    contract: tenant and role boundary contract
+  - upstream_slice: SLICE-03
+    downstream_slice: SLICE-01
+    contract: payroll liability/payment posting linkage
+  - upstream_slice: SLICE-04
+    downstream_slice: SLICE-01
+    contract: outbox/idempotency posting orchestration
+  - upstream_slice: SLICE-04
+    downstream_slice: SLICE-05
+    contract: exactly-once side-effect orchestration
+  - upstream_slice: SLICE-04
+    downstream_slice: SLICE-09
+    contract: async orchestration command contract
+  - upstream_slice: SLICE-07
+    downstream_slice: SLICE-01
+    contract: ap/posting and settlement linkage
+  - upstream_slice: SLICE-07
+    downstream_slice: SLICE-05
+    contract: grn/stock intake coupling
+  - upstream_slice: SLICE-09
+    downstream_slice: SLICE-01
+    contract: o2c posting and receivable linkage
+  - upstream_slice: SLICE-09
+    downstream_slice: SLICE-05
+    contract: dispatch and stock movement linkage
