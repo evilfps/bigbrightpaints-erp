@@ -4,6 +4,7 @@ import com.bigbrightpaints.erp.core.config.EmailProperties;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.notification.EmailService;
+import com.bigbrightpaints.erp.core.security.CompanyContextHolder;
 import com.bigbrightpaints.erp.core.security.TokenBlacklistService;
 import jakarta.servlet.http.HttpServletRequest;
 import com.bigbrightpaints.erp.modules.auth.domain.PasswordResetToken;
@@ -43,9 +44,16 @@ public class PasswordResetService {
             Pattern.compile("^[A-Za-z0-9._:-]{1,128}$");
     private static final String SUPER_ADMIN_MASKED_OUTCOME = "request_accepted";
     private static final String SUPER_ADMIN_DISPATCH_FAILURE_REASON_CODE = "RESET_DISPATCH_FAILURE";
+    private static final String SUPER_ADMIN_DISPATCH_FAILURE_CLASS_CONFIGURATION = "CONFIGURATION";
+    private static final String SUPER_ADMIN_DISPATCH_FAILURE_CLASS_TOKEN_PERSISTENCE = "TOKEN_PERSISTENCE";
+    private static final String SUPER_ADMIN_DISPATCH_FAILURE_CLASS_EMAIL_DISPATCH = "EMAIL_DISPATCH";
     private static final String SUPER_ADMIN_CLEANUP_FAILURE_REASON_CODE = "RESET_CLEANUP_FAILURE";
+    private static final String SUPER_ADMIN_CLEANUP_FAILURE_CLASS_TOKEN_CLEANUP = "TOKEN_CLEANUP";
     private static final String SUPER_ADMIN_CLEANUP_FAILURE_SECURITY_EVENT_CODE =
             "SEC_AUTH_SUPERADMIN_RESET_CLEANUP_FAILURE";
+    private static final int MAX_TENANT_CONTEXT_LENGTH = 64;
+    private static final Pattern SAFE_TENANT_CONTEXT_PATTERN =
+            Pattern.compile("^[A-Za-z0-9._:-]{1,64}$");
 
     private final UserAccountRepository userAccountRepository;
     private final PasswordResetTokenRepository tokenRepository;
@@ -80,6 +88,7 @@ public class PasswordResetService {
 
     @Transactional
     public void requestReset(String email) {
+        logTenantContextIgnoredIfPresent("forgot_password", resolveCorrelationId());
         // GLOBAL_IDENTITY policy: one user identity spans all company memberships.
         userAccountRepository.findByEmailIgnoreCase(email)
                 .filter(UserAccount::isEnabled)
@@ -96,6 +105,7 @@ public class PasswordResetService {
 
     public void requestResetForSuperAdmin(String email) {
         String correlationId = resolveCorrelationId();
+        logTenantContextIgnoredIfPresent("forgot_password_superadmin", correlationId);
         String requestedEmail = obfuscateEmail(email);
         userAccountRepository.findByEmailIgnoreCase(email)
                 .filter(UserAccount::isEnabled)
@@ -112,6 +122,7 @@ public class PasswordResetService {
 
     @Transactional
     public void resetPassword(String tokenValue, String newPassword, String confirmPassword) {
+        logTenantContextIgnoredIfPresent("reset_password", resolveCorrelationId());
         PasswordResetToken token = tokenRepository.findByToken(tokenValue)
                 .orElseThrow(() -> new IllegalArgumentException("Invalid or expired token"));
         Instant now = Instant.now();
@@ -177,12 +188,14 @@ public class PasswordResetService {
         } catch (RuntimeException ex) {
             cleanupFailedSuperAdminResetToken(user, persistedToken, correlationId);
             // Keep public endpoint semantics uniform to avoid account-enumeration side channels.
+            String failureClass = classifySuperAdminDispatchFailure(ex, persistedToken);
             log.warn(
-                    "event=password_reset.superadmin_forgot.masked policy={} correlationId={} email={} outcome=suppressed_failure reasonCode={} exceptionClass={}",
+                    "event=password_reset.superadmin_forgot.masked policy={} correlationId={} email={} outcome=suppressed_failure reasonCode={} failureClass={} exceptionClass={}",
                     RESET_POLICY_SCOPE,
                     correlationId,
                     maskedEmail,
                     SUPER_ADMIN_DISPATCH_FAILURE_REASON_CODE,
+                    failureClass,
                     ex.getClass().getSimpleName());
         }
     }
@@ -225,11 +238,12 @@ public class PasswordResetService {
                     maskedEmail);
         } catch (RuntimeException cleanupEx) {
             log.warn(
-                    "event=password_reset.superadmin_forgot.cleanup policy={} correlationId={} email={} outcome=cleanup_failed reasonCode={} exceptionClass={}",
+                    "event=password_reset.superadmin_forgot.cleanup policy={} correlationId={} email={} outcome=cleanup_failed reasonCode={} failureClass={} exceptionClass={}",
                     RESET_POLICY_SCOPE,
                     correlationId,
                     maskedEmail,
                     SUPER_ADMIN_CLEANUP_FAILURE_REASON_CODE,
+                    SUPER_ADMIN_CLEANUP_FAILURE_CLASS_TOKEN_CLEANUP,
                     cleanupEx.getClass().getSimpleName());
             log.error(
                     "event=password_reset.superadmin_forgot.security_alert policy={} correlationId={} email={} securityEventCode={} outcome=manual_remediation_required",
@@ -251,6 +265,30 @@ public class PasswordResetService {
                 maskedEmail,
                 stage);
         throw new IllegalStateException("Password reset token lifecycle operation requires an active transaction");
+    }
+
+    private String classifySuperAdminDispatchFailure(RuntimeException exception, String persistedToken) {
+        if (exception instanceof ApplicationException appException
+                && appException.getErrorCode() == ErrorCode.SYSTEM_CONFIGURATION_ERROR) {
+            return SUPER_ADMIN_DISPATCH_FAILURE_CLASS_CONFIGURATION;
+        }
+        if (!StringUtils.hasText(persistedToken)) {
+            return SUPER_ADMIN_DISPATCH_FAILURE_CLASS_TOKEN_PERSISTENCE;
+        }
+        return SUPER_ADMIN_DISPATCH_FAILURE_CLASS_EMAIL_DISPATCH;
+    }
+
+    private void logTenantContextIgnoredIfPresent(String operation, String correlationId) {
+        String tenantContext = CompanyContextHolder.getCompanyCode();
+        if (!StringUtils.hasText(tenantContext)) {
+            return;
+        }
+        log.info(
+                "event=password_reset.scope policy={} operation={} correlationId={} tenantContext={} outcome=tenant_context_ignored",
+                RESET_POLICY_SCOPE,
+                operation,
+                correlationId,
+                sanitizeTenantContextForLog(tenantContext));
     }
 
     private String obfuscateEmail(String email) {
@@ -310,6 +348,26 @@ public class PasswordResetService {
         }
         if (!SAFE_CORRELATION_ID_PATTERN.matcher(candidate).matches()) {
             return null;
+        }
+        return candidate;
+    }
+
+    private String sanitizeTenantContextForLog(String tenantContext) {
+        if (!StringUtils.hasText(tenantContext)) {
+            return "<empty>";
+        }
+        String candidate = tenantContext.trim();
+        if (!StringUtils.hasText(candidate)) {
+            return "<empty>";
+        }
+        if (candidate.length() > MAX_TENANT_CONTEXT_LENGTH) {
+            return "<redacted>";
+        }
+        if (candidate.indexOf('\r') >= 0 || candidate.indexOf('\n') >= 0) {
+            return "<redacted>";
+        }
+        if (!SAFE_TENANT_CONTEXT_PATTERN.matcher(candidate).matches()) {
+            return "<redacted>";
         }
         return candidate;
     }
