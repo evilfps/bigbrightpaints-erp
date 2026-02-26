@@ -31,7 +31,7 @@ jwt:
 erp:
   security:
     swagger-public: true
-    encryption.key: ${ERP_ENCRYPTION_KEY}
+    encryption.key: ${ERP_SECURITY_ENCRYPTION_KEY}
     mfa.enabled: true
   dispatch:
     # Configure with realistic account IDs in your dev DB to enable dispatch journals
