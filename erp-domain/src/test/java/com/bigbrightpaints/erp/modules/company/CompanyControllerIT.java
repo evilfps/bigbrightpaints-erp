@@ -108,6 +108,40 @@ public class CompanyControllerIT extends AbstractIntegrationTest {
     }
 
     @Test
+    void tenant_bootstrap_preserves_explicit_zero_default_gst_rate() {
+        String token = loginToken(SUPER_ADMIN_EMAIL, ROOT_COMPANY_CODE);
+        String newCompanyCode = "GST-ZERO-" + System.nanoTime();
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(token);
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.set("X-Company-Code", ROOT_COMPANY_CODE);
+
+        ResponseEntity<Map> response = rest.exchange(
+                "/api/v1/companies",
+                HttpMethod.POST,
+                new HttpEntity<>(Map.of(
+                        "name", "GST Zero Co",
+                        "code", newCompanyCode,
+                        "timezone", "UTC",
+                        "defaultGstRate", 0
+                ), headers),
+                Map.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(companyRepository.findByCodeIgnoreCase(newCompanyCode).orElseThrow().getDefaultGstRate())
+                .isEqualByComparingTo("0");
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> responseBody = response.getBody();
+        assertThat(responseBody).isNotNull();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> data = (Map<String, Object>) responseBody.get("data");
+        assertThat(data).isNotNull();
+        assertThat(new BigDecimal(data.get("defaultGstRate").toString())).isEqualByComparingTo("0");
+    }
+
+    @Test
     void tenant_metrics_requires_super_admin() {
         Long companyId = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow().getId();
 

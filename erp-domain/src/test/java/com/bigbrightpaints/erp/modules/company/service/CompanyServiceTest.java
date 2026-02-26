@@ -270,6 +270,20 @@ class CompanyServiceTest {
     }
 
     @Test
+    void create_preservesExplicitZeroDefaultGstRate() {
+        authenticateAs("ROLE_SUPER_ADMIN");
+        Company incoming = company(8L, "ZERO");
+        incoming.setDefaultGstRate(BigDecimal.ZERO);
+        when(repository.findByCodeIgnoreCase("ZERO")).thenReturn(Optional.empty());
+        when(repository.save(org.mockito.ArgumentMatchers.any(Company.class))).thenReturn(incoming);
+
+        CompanyRequest request = new CompanyRequest("Zero GST Corp", "zero", "UTC", BigDecimal.ZERO);
+        CompanyDto dto = companyService.create(request);
+
+        assertThat(dto.defaultGstRate()).isEqualByComparingTo("0");
+    }
+
+    @Test
     void create_skipsInitialAdminProvisioningWhenEmailIsBlank() {
         authenticateAs("ROLE_SUPER_ADMIN");
         Company incoming = company(7L, "SKE");
