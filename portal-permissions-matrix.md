@@ -4,11 +4,12 @@ This matrix is built from `@PreAuthorize` rules in backend controllers. It is in
 
 ## Role ↔ Portal Mapping
 
-- Admin Portal → `ROLE_ADMIN`
+- Admin Portal → `ROLE_ADMIN` (with `ROLE_SUPER_ADMIN` inheriting admin access via hierarchy)
 - Accounting Portal → `ROLE_ACCOUNTING`
 - Sales Portal → `ROLE_SALES`
 - Dealer Portal → `ROLE_DEALER`
 - Manufacturing Portal → `ROLE_FACTORY`
+- Hierarchy rule used by method security: `ROLE_SUPER_ADMIN > ROLE_ADMIN`
 
 ## Legend
 
@@ -16,6 +17,7 @@ This matrix is built from `@PreAuthorize` rules in backend controllers. It is in
 - W = Write (create/update/delete/confirm/post)
 - A = Approve/Reject/Override
 - P = Extra permission (named authority)
+- S = Superadmin-only (`ROLE_SUPER_ADMIN`; plain `ROLE_ADMIN` denied)
 - — = Not permitted by backend role guards
 
 ## Global / Shared Pages
@@ -35,7 +37,12 @@ This matrix is built from `@PreAuthorize` rules in backend controllers. It is in
 | System Settings | `/api/v1/admin/settings` | R/W | — | — | — | — |
 | Admin Approvals (credit + payroll) | `/api/v1/admin/approvals` | R | R | — | — | — |
 | Portal Insights (dashboard/ops/workforce) | `/api/v1/portal/*` | R | — | — | — | — |
-| Company Update | `/api/v1/companies/{id}` | W | — | — | — | — |
+| Tenant Bootstrap Onboarding | `POST /api/v1/companies` | S | — | — | — | — |
+| Tenant Lifecycle Control | `POST /api/v1/companies/{id}/lifecycle-state` | S | — | — | — | — |
+| Tenant Runtime Policy | `PUT /api/v1/companies/{id}/tenant-runtime/policy` | S | — | — | — | — |
+| Tenant Metrics | `GET /api/v1/companies/{id}/tenant-metrics` | S | — | — | — | — |
+| Tenant Admin Support Password Reset | `POST /api/v1/companies/{id}/support/admin-password-reset` | S | — | — | — | — |
+| Company Update (Tenant Config) | `PUT /api/v1/companies/{id}` | S | — | — | — | — |
 
 ## Accounting Portal (includes HR + inventory reconciliation)
 
@@ -147,3 +154,4 @@ This matrix is built from `@PreAuthorize` rules in backend controllers. It is in
 
 - Dispatch confirmation requires `ROLE_ADMIN` or `ROLE_FACTORY` **and** authority `dispatch.confirm`:
   - `POST /api/v1/dispatch/confirm`
+- Company bootstrap payload contract for frontend forms: minimal required keys are `name`, `code`, `timezone`; omitted `defaultGstRate` falls back to `18`, explicit `defaultGstRate: 0` is preserved.

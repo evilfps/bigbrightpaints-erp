@@ -53,6 +53,43 @@ These are cross-portal APIs reused in Accounting Portal for auth/session/profile
 | `companiesSwitch` | POST | `/api/v1/multi-company/companies/switch` | Switch accounting company context |
 | `authLogout` | POST | `/api/v1/auth/logout` | Sign out |
 
+## TKT-ERP-STAGE-111 Superadmin/Auth Contract Deltas (Outside 143 + 9 Lock)
+
+- This section documents contract outcomes required for frontend integration but intentionally sits outside the curated accounting parity counts.
+- Superadmin forgot-password endpoint:
+  - Path: `POST /api/v1/auth/password/forgot/superadmin`
+  - Request aliases accepted by backend DTO: `email`, `userid`, `userId`
+  - Anti-enumeration behavior is mandatory: the endpoint always returns a generic accepted response and suppresses eligibility/delivery distinctions.
+  - Tenant header is not required for this public reset-init endpoint.
+- Global identity reset policy:
+  - Password reset token lifecycle uses `GLOBAL_IDENTITY` semantics: one account identity across company memberships in the multi-company model.
+  - Frontend must treat reset as identity-scoped, not membership-scoped.
+- Company bootstrap contract:
+  - Minimal payload is allowed: `name`, `code`, `timezone`.
+  - If `defaultGstRate` is omitted, backend fallback is `18`.
+  - If `defaultGstRate: 0` is explicitly sent, `0` is preserved (not overwritten).
+- RBAC hierarchy and guard interplay:
+  - Method-security hierarchy is `ROLE_SUPER_ADMIN > ROLE_ADMIN`.
+  - Superadmin-only routes still require explicit `ROLE_SUPER_ADMIN`; plain admin users are denied.
+
+### Superadmin Control-Plane Endpoints (Portal UX)
+
+| Function | Method | Path | Required params | Optional params | Cache | Debounce | Idempotent |
+|---|---|---|---|---|---|---|---|
+| `tenantBootstrapCreate` | POST | `/api/v1/companies` | name (body), code (body), timezone (body) | defaultGstRate (body), firstAdminEmail (body), firstAdminDisplayName (body), quota* (body) | No | No | No |
+| `tenantLifecycleUpdate` | POST | `/api/v1/companies/{id}/lifecycle-state` | id (path), state (body), reason (body) | - | No | No | Conditional |
+| `tenantRuntimePolicyUpdate` | PUT | `/api/v1/companies/{id}/tenant-runtime/policy` | id (path) | holdState (body), reasonCode (body), maxConcurrentRequests (body), maxRequestsPerMinute (body), maxActiveUsers (body) | No | No | Conditional |
+| `tenantMetricsRead` | GET | `/api/v1/companies/{id}/tenant-metrics` | id (path) | - | No | No | Yes |
+| `tenantAdminSupportReset` | POST | `/api/v1/companies/{id}/support/admin-password-reset` | id (path), adminEmail (body) | - | No | No | No |
+
+### Reset Payload Compatibility Examples
+
+```json
+{"email":"superadmin@bbp.com"}
+{"userid":"superadmin@bbp.com"}
+{"userId":"superadmin@bbp.com"}
+```
+
 ## Task 1: Endpoint Expectations
 
 - Full endpoint expectation map: `docs/accounting-portal-endpoint-map.md`
