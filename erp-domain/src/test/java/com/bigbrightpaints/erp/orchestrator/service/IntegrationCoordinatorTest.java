@@ -1,7 +1,11 @@
 package com.bigbrightpaints.erp.orchestrator.service;
 
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.bigbrightpaints.erp.core.security.CompanyContextHolder;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
+import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.modules.accounting.dto.PayrollPaymentRequest;
@@ -36,6 +40,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.slf4j.LoggerFactory;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.AbstractPlatformTransactionManager;
 import org.springframework.transaction.support.DefaultTransactionStatus;
@@ -43,6 +48,7 @@ import org.springframework.transaction.support.DefaultTransactionStatus;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
@@ -228,6 +234,60 @@ class IntegrationCoordinatorTest {
     }
 
     @Test
+    void reserveInventoryRejectsMalformedOrderIdBeforeSideEffects() {
+        ApplicationException ex = assertThrows(ApplicationException.class, () ->
+                integrationCoordinator.reserveInventory("abc", COMPANY_ID, "trace-order", "idem-order"));
+
+        assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.VALIDATION_INVALID_INPUT);
+        verify(salesService, never()).attachTraceId(anyLong(), anyString());
+        verify(salesService, never()).getOrderWithItems(anyLong());
+        verify(finishedGoodsService, never()).reserveForOrder(any());
+        verify(factoryService, never()).createPlan(any());
+        verify(factoryService, never()).createTask(any());
+        verify(salesService, never()).updateOrchestratorWorkflowStatus(anyLong(), anyString());
+    }
+
+    @Test
+    void updateFulfillmentRejectsMalformedOrderIdBeforeSideEffects() {
+        ApplicationException ex = assertThrows(ApplicationException.class, () ->
+                integrationCoordinator.updateFulfillment("abc", "PROCESSING", COMPANY_ID, "trace-fulfillment", "idem-fulfillment"));
+
+        assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.VALIDATION_INVALID_INPUT);
+        verify(salesService, never()).attachTraceId(anyLong(), anyString());
+        verify(salesService, never()).updateOrchestratorWorkflowStatus(anyLong(), anyString());
+        verify(salesService, never()).cancelOrder(anyLong(), anyString());
+        verify(salesService, never()).hasDispatchConfirmation(anyLong());
+        verify(salesService, never()).getOrderWithItems(anyLong());
+    }
+
+    @Test
+    void parseNumericIdLogsSanitizedIdentifierOnly() {
+        Logger coordinatorLogger = (Logger) LoggerFactory.getLogger(IntegrationCoordinator.class);
+        ListAppender<ILoggingEvent> listAppender = new ListAppender<>();
+        listAppender.start();
+        coordinatorLogger.addAppender(listAppender);
+
+        try {
+            assertThrows(ApplicationException.class, () ->
+                    integrationCoordinator.updateFulfillment("abc\ninjected", "PROCESSING", COMPANY_ID));
+
+            String parseFailureLog = listAppender.list.stream()
+                    .map(ILoggingEvent::getFormattedMessage)
+                    .filter(message -> message.contains("Rejected non-numeric identifier"))
+                    .findFirst()
+                    .orElse("");
+
+            assertThat(parseFailureLog).contains("Rejected non-numeric identifier");
+            assertThat(parseFailureLog).contains("invalid#");
+            assertThat(parseFailureLog).doesNotContain("abc");
+            assertThat(parseFailureLog).doesNotContain("injected");
+            assertThat(parseFailureLog).doesNotContain("\n");
+        } finally {
+            coordinatorLogger.detachAppender(listAppender);
+        }
+    }
+
+    @Test
     void autoApproveOrderRetriesWithoutReplayingReservation() {
         state.markInventoryReserved();
         state.markOrderStatusUpdated();
@@ -409,6 +469,18 @@ class IntegrationCoordinatorTest {
     }
 
     @Test
+    void postDispatchJournalRejectsControlCharsInCorrelationIdentifiers() {
+        assertThrows(ApplicationException.class, () -> integrationCoordinator.postDispatchJournal(
+                "B-900",
+                COMPANY_ID,
+                new BigDecimal("120.00"),
+                "trace-dispatch-\n900",
+                "idem-dispatch-900"));
+
+        verify(accountingFacade, never()).postSimpleJournal(anyString(), any(), anyString(), any(), any(), any(), eq(false));
+    }
+
+    @Test
     void reserveInventoryCorrelationAnnotatesProductionArtifactsAndAttachesTrace() {
         order.setOrderNumber("SO-42");
         InventoryShortage shortage = new InventoryShortage("SKU-1", new BigDecimal("3"), "Red Paint");
@@ -470,6 +542,20 @@ class IntegrationCoordinatorTest {
                         && request.memo().contains("Orchestrator payroll payment for run 901")
                         && request.memo().contains("[trace=trace-payroll-901]")
                         && request.memo().contains("[idem=idem-payroll-901]")));
+    }
+
+    @Test
+    void recordPayrollPaymentRejectsMalformedIdempotencyKey() {
+        assertThrows(ApplicationException.class, () -> integrationCoordinator.recordPayrollPayment(
+                901L,
+                new BigDecimal("500.00"),
+                11L,
+                22L,
+                COMPANY_ID,
+                "trace-payroll-901",
+                "idem malformed"));
+
+        verify(accountingFacade, never()).recordPayrollPayment(any());
     }
 
     private static class NoOpTransactionManager extends AbstractPlatformTransactionManager {

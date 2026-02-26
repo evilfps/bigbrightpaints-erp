@@ -123,15 +123,18 @@ public class EventPublisherService {
         try {
             String payload = objectMapper.writeValueAsString(event);
             Long companyId = companyContextService.requireCurrentCompany().getId();
+            String sanitizedTraceId = CorrelationIdentifierSanitizer.sanitizeRequiredTraceId(event.traceId());
+            String sanitizedRequestId = CorrelationIdentifierSanitizer.sanitizeOptionalRequestId(event.requestId());
+            String sanitizedIdempotencyKey = CorrelationIdentifierSanitizer.sanitizeOptionalIdempotencyKey(event.idempotencyKey());
             OutboxEvent outboxEvent = new OutboxEvent(
                     event.entity(),
                     event.entityId(),
                     event.eventType(),
                     payload,
                     companyId,
-                    event.traceId(),
-                    event.requestId(),
-                    event.idempotencyKey());
+                    sanitizedTraceId,
+                    sanitizedRequestId,
+                    sanitizedIdempotencyKey);
             outboxEventRepository.save(outboxEvent);
         } catch (JsonProcessingException e) {
             throw new IllegalStateException("Failed to serialize event", e);

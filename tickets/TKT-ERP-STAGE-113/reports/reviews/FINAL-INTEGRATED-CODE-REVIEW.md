@@ -1,9 +1,9 @@
 # FINAL INTEGRATED CODE REVIEW
 
-Ticket: `TKT-ERP-STAGE-113`  
-Branch: `tickets/tkt-erp-stage-113/blocker-remediation-orchestrator`  
-Worktree: `/Users/anas/Documents/orchestrator_erp/bigbrightpaints-erp_worktrees/TKT-ERP-STAGE-113/blocker-remediation-orchestrator`  
-Reviewer role: `code review (final post-remediation)`  
+Ticket: `TKT-ERP-STAGE-113`
+Branch: `tickets/tkt-erp-stage-113/blocker-remediation-orchestrator`
+Worktree: `/Users/anas/Documents/orchestrator_erp/bigbrightpaints-erp_worktrees/TKT-ERP-STAGE-113/blocker-remediation-orchestrator`
+Reviewer role: `code review (final post-remediation)`
 Date: `2026-02-26`
 
 ## Findings (Severity-Ordered)
@@ -26,15 +26,15 @@ No findings.
   - `erp-domain/src/main/resources/application.yml`
 
 ## Validation Commands Re-Run
-1. `cd erp-domain && mvn -B -ntp -Dtest='EventPublisherServiceTest,TS_OrchestratorExactlyOnceOutboxTest,TS_RuntimeEventPublisherExecutableCoverageTest,AuthTenantAuthorityIT,RoleServiceRbacTenantIsolationTest' test`  
+1. `cd erp-domain && mvn -B -ntp -Dtest='EventPublisherServiceTest,TS_OrchestratorExactlyOnceOutboxTest,TS_RuntimeEventPublisherExecutableCoverageTest,AuthTenantAuthorityIT,RoleServiceRbacTenantIsolationTest' test`
    Result: `PASS` (`Tests run: 64, Failures: 0, Errors: 0, Skipped: 0`)
-2. `bash ci/check-architecture.sh`  
+2. `bash ci/check-architecture.sh`
    Result: `PASS` (`[architecture-check] OK`)
-3. `bash ci/check-enterprise-policy.sh`  
+3. `bash ci/check-enterprise-policy.sh`
    Result: `PASS` (`[enterprise-policy] OK`)
-4. `bash ci/check-orchestrator-layer.sh`  
+4. `bash ci/check-orchestrator-layer.sh`
    Result: `PASS` (`[orchestrator-layer] OK`)
-5. `python3 scripts/changed_files_coverage.py --diff-base origin/harness-engineering-orchestrator --jacoco erp-domain/target/site/jacoco/jacoco.xml`  
+5. `python3 scripts/changed_files_coverage.py --diff-base origin/harness-engineering-orchestrator --jacoco erp-domain/target/site/jacoco/jacoco.xml`
    Result: `PASS` (`line_ratio=1.0000`, `branch_ratio=1.0000`, `passes=true`)
 
 ## Merge/Integration Quality Check

@@ -7,6 +7,7 @@ import com.bigbrightpaints.erp.orchestrator.dto.OrderFulfillmentRequest;
 import com.bigbrightpaints.erp.orchestrator.dto.PayrollRunRequest;
 import com.bigbrightpaints.erp.orchestrator.exception.OrchestratorFeatureDisabledException;
 import com.bigbrightpaints.erp.orchestrator.service.CommandDispatcher;
+import com.bigbrightpaints.erp.orchestrator.service.CorrelationIdentifierSanitizer;
 import com.bigbrightpaints.erp.orchestrator.service.TraceService;
 import jakarta.validation.Valid;
 import java.math.BigDecimal;
@@ -31,7 +32,6 @@ import org.springframework.util.StringUtils;
 @RestController
 @RequestMapping("/api/v1/orchestrator")
 public class OrchestratorController {
-    private static final int MAX_IDEMPOTENCY_KEY_LENGTH = 255;
     private static final String SALES_DISPATCH_CANONICAL_PATH = "/api/v1/sales/dispatch/confirm";
     private static final String PAYROLL_RUNS_CANONICAL_PATH = "/api/v1/payroll/runs";
 
@@ -52,6 +52,8 @@ public class OrchestratorController {
                                                              @org.springframework.web.bind.annotation.RequestHeader(value = "X-Request-Id", required = false) String requestId,
                                                              Principal principal) {
         String companyCode = requireCompanyCode();
+        String sanitizedRequestId = CorrelationIdentifierSanitizer.sanitizeOptionalRequestId(requestId);
+        String sanitizedHeaderIdempotencyKey = CorrelationIdentifierSanitizer.sanitizeOptionalIdempotencyKey(idempotencyKey);
         ApproveOrderRequest raw = new ApproveOrderRequest(
                 orderId,
                 request.approvedBy(),
@@ -61,15 +63,15 @@ public class OrchestratorController {
                 canonicalText(request.approvedBy()),
                 normalizeAmount(request.totalAmount()));
         String traceId = commandDispatcher.approveOrder(
-                selectPayloadForIdempotency(idempotencyKey, raw, normalized),
+                selectPayloadForIdempotency(sanitizedHeaderIdempotencyKey, raw, normalized),
                 resolveIdempotencyKey(
-                        idempotencyKey,
-                        requestId,
+                        sanitizedHeaderIdempotencyKey,
+                        sanitizedRequestId,
                         "ORCH.ORDER.APPROVE",
                         companyCode,
                         normalized.orderId() + "|" + canonicalText(normalized.approvedBy()) + "|" + canonicalAmount(normalized.totalAmount())
                 ),
-                requestId,
+                sanitizedRequestId,
                 companyCode,
                 principal.getName());
         return ResponseEntity.accepted().body(Map.of("traceId", traceId));
@@ -83,20 +85,22 @@ public class OrchestratorController {
                                                              @org.springframework.web.bind.annotation.RequestHeader(value = "X-Request-Id", required = false) String requestId,
                                                              Principal principal) {
         String companyCode = requireCompanyCode();
+        String sanitizedRequestId = CorrelationIdentifierSanitizer.sanitizeOptionalRequestId(requestId);
+        String sanitizedHeaderIdempotencyKey = CorrelationIdentifierSanitizer.sanitizeOptionalIdempotencyKey(idempotencyKey);
         OrderFulfillmentRequest normalized = new OrderFulfillmentRequest(
                 normalizeFulfillmentStatus(request.status()),
                 canonicalText(request.notes()));
         String traceId = commandDispatcher.updateOrderFulfillment(
                 orderId,
-                selectPayloadForIdempotency(idempotencyKey, request, normalized),
+                selectPayloadForIdempotency(sanitizedHeaderIdempotencyKey, request, normalized),
                 resolveIdempotencyKey(
-                        idempotencyKey,
-                        requestId,
+                        sanitizedHeaderIdempotencyKey,
+                        sanitizedRequestId,
                         "ORCH.ORDER.FULFILLMENT.UPDATE",
                         companyCode,
                         orderId + "|" + canonicalText(normalized.status()) + "|" + canonicalText(normalized.notes())
                 ),
-                requestId,
+                sanitizedRequestId,
                 companyCode,
                 principal.getName());
         return ResponseEntity.accepted().body(Map.of("traceId", traceId));
@@ -110,6 +114,8 @@ public class OrchestratorController {
                                                          @org.springframework.web.bind.annotation.RequestHeader(value = "X-Request-Id", required = false) String requestId,
                                                          Principal principal) {
         String companyCode = requireCompanyCode();
+        String sanitizedRequestId = CorrelationIdentifierSanitizer.sanitizeOptionalRequestId(requestId);
+        String sanitizedHeaderIdempotencyKey = CorrelationIdentifierSanitizer.sanitizeOptionalIdempotencyKey(idempotencyKey);
         DispatchRequest raw = new DispatchRequest(batchId,
                 request.requestedBy(),
                 request.postingAmount());
@@ -117,15 +123,15 @@ public class OrchestratorController {
                 canonicalText(request.requestedBy()),
                 normalizeAmount(request.postingAmount()));
         String traceId = commandDispatcher.dispatchBatch(
-                selectPayloadForIdempotency(idempotencyKey, raw, normalized),
+                selectPayloadForIdempotency(sanitizedHeaderIdempotencyKey, raw, normalized),
                 resolveIdempotencyKey(
-                        idempotencyKey,
-                        requestId,
+                        sanitizedHeaderIdempotencyKey,
+                        sanitizedRequestId,
                         "ORCH.FACTORY.BATCH.DISPATCH",
                         companyCode,
                         normalized.batchId() + "|" + canonicalText(normalized.requestedBy()) + "|" + canonicalAmount(normalized.postingAmount())
                 ),
-                requestId,
+                sanitizedRequestId,
                 companyCode,
                 principal.getName());
         return ResponseEntity.accepted().body(Map.of("traceId", traceId));
@@ -164,7 +170,8 @@ public class OrchestratorController {
     @GetMapping("/traces/{traceId}")
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING','ROLE_SALES','ROLE_FACTORY')")
     public ResponseEntity<Map<String, Object>> trace(@PathVariable String traceId) {
-        return ResponseEntity.ok(Map.of("traceId", traceId, "events", traceService.getTrace(traceId)));
+        String sanitizedTraceId = CorrelationIdentifierSanitizer.sanitizeRequiredTraceId(traceId);
+        return ResponseEntity.ok(Map.of("traceId", sanitizedTraceId, "events", traceService.getTrace(sanitizedTraceId)));
     }
 
     @GetMapping("/health/integrations")
@@ -201,17 +208,19 @@ public class OrchestratorController {
                                          String companyCode,
                                          String payloadSignature) {
         if (StringUtils.hasText(idempotencyKey)) {
-            return idempotencyKey.trim();
+            return CorrelationIdentifierSanitizer.sanitizeRequiredIdempotencyKey(idempotencyKey);
         }
         if (StringUtils.hasText(requestId)) {
-            String requestScoped = "REQ|" + commandName + "|" + requestId.trim();
-            if (requestScoped.length() <= MAX_IDEMPOTENCY_KEY_LENGTH) {
-                return requestScoped;
+            String requestScoped = "REQ|" + commandName + "|" + requestId;
+            if (requestScoped.length() <= CorrelationIdentifierSanitizer.MAX_IDEMPOTENCY_KEY_LENGTH) {
+                return CorrelationIdentifierSanitizer.sanitizeRequiredIdempotencyKey(requestScoped);
             }
-            return "REQH|" + commandName + "|" + sha256Hex(requestScoped);
+            return CorrelationIdentifierSanitizer.sanitizeRequiredIdempotencyKey(
+                    "REQH|" + commandName + "|" + sha256Hex(requestScoped));
         }
         String source = commandName + "|" + canonicalText(companyCode) + "|" + canonicalText(payloadSignature);
-        return "AUTO|" + commandName + "|" + sha256Hex(source);
+        return CorrelationIdentifierSanitizer.sanitizeRequiredIdempotencyKey(
+                "AUTO|" + commandName + "|" + sha256Hex(source));
     }
 
     private static String normalizeFulfillmentStatus(String status) {

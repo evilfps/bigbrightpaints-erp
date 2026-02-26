@@ -146,10 +146,7 @@ public class IntegrationCoordinator {
                                                       String idempotencyKey) {
         String correlation = correlationSuffix(traceId, idempotencyKey);
         return withCompanyContext(companyId, () -> {
-            Long id = parseNumericId(orderId);
-            if (id == null) {
-                return null;
-            }
+            Long id = requireNumericOrderId(orderId, "reserveInventory");
             attachOrderTrace(id, traceId);
             SalesOrder order = salesService.getOrderWithItems(id);
             InventoryReservationResult reservation = finishedGoodsService.reserveForOrder(order);
@@ -204,10 +201,7 @@ public class IntegrationCoordinator {
             log.warn("Cannot auto-approve order {} without a company context{}", orderId, correlation);
             return new AutoApprovalResult("PENDING_PRODUCTION", true);
         }
-        Long numericId = parseNumericId(orderId);
-        if (numericId == null) {
-            return new AutoApprovalResult("PENDING_PRODUCTION", true);
-        }
+        Long numericId = requireNumericOrderId(orderId, "autoApproveOrder");
         AtomicReference<String> status = new AtomicReference<>("PENDING_PRODUCTION");
         AtomicBoolean awaitingProduction = new AtomicBoolean(false);
         runWithCompanyContext(normalizedCompanyId, () -> {
@@ -306,10 +300,7 @@ public class IntegrationCoordinator {
                                                 String traceId,
                                                 String idempotencyKey) {
         return withCompanyContext(companyId, () -> {
-            Long id = parseNumericId(orderId);
-            if (id == null) {
-                return new AutoApprovalResult("INVALID", false);
-            }
+            Long id = requireNumericOrderId(orderId, "updateFulfillment");
             attachOrderTrace(id, traceId);
             String status = requestedStatus == null ? "" : requestedStatus.trim().toUpperCase();
             switch (status) {
@@ -428,11 +419,13 @@ public class IntegrationCoordinator {
                 ErrorCode.BUSINESS_CONSTRAINT_VIOLATION,
                 "Orchestrator payroll run is deprecated; use /api/v1/payroll/runs")
                 .withDetail("canonicalPath", "/api/v1/payroll/runs");
-        if (StringUtils.hasText(traceId)) {
-            ex.withDetail("traceId", traceId.trim());
+        String sanitizedTraceId = CorrelationIdentifierSanitizer.sanitizeOptionalTraceId(traceId);
+        String sanitizedIdempotencyKey = CorrelationIdentifierSanitizer.sanitizeOptionalIdempotencyKey(idempotencyKey);
+        if (StringUtils.hasText(sanitizedTraceId)) {
+            ex.withDetail("traceId", sanitizedTraceId);
         }
-        if (StringUtils.hasText(idempotencyKey)) {
-            ex.withDetail("idempotencyKey", idempotencyKey.trim());
+        if (StringUtils.hasText(sanitizedIdempotencyKey)) {
+            ex.withDetail("idempotencyKey", sanitizedIdempotencyKey);
         }
         throw ex;
     }
@@ -708,38 +701,61 @@ public class IntegrationCoordinator {
 
     private String correlationMemo(String baseMemo, String traceId, String idempotencyKey) {
         StringBuilder builder = new StringBuilder(baseMemo != null ? baseMemo : "");
-        if (StringUtils.hasText(traceId)) {
-            builder.append(" [trace=").append(traceId.trim()).append("]");
+        String sanitizedTraceId = CorrelationIdentifierSanitizer.sanitizeOptionalTraceId(traceId);
+        String sanitizedIdempotencyKey = CorrelationIdentifierSanitizer.sanitizeOptionalIdempotencyKey(idempotencyKey);
+        if (StringUtils.hasText(sanitizedTraceId)) {
+            builder.append(" [trace=").append(sanitizedTraceId).append("]");
         }
-        if (StringUtils.hasText(idempotencyKey)) {
-            builder.append(" [idem=").append(idempotencyKey.trim()).append("]");
+        if (StringUtils.hasText(sanitizedIdempotencyKey)) {
+            builder.append(" [idem=").append(sanitizedIdempotencyKey).append("]");
         }
         return builder.toString();
     }
 
     private String correlationSuffix(String traceId, String idempotencyKey) {
         StringBuilder builder = new StringBuilder();
-        if (StringUtils.hasText(traceId)) {
-            builder.append(" [trace=").append(traceId.trim()).append("]");
+        String safeTraceId = CorrelationIdentifierSanitizer.safeTraceForLog(traceId);
+        String safeIdempotencyKey = CorrelationIdentifierSanitizer.safeIdempotencyForLog(idempotencyKey);
+        if (StringUtils.hasText(safeTraceId)) {
+            builder.append(" [trace=").append(safeTraceId).append("]");
         }
-        if (StringUtils.hasText(idempotencyKey)) {
-            builder.append(" [idem=").append(idempotencyKey.trim()).append("]");
+        if (StringUtils.hasText(safeIdempotencyKey)) {
+            builder.append(" [idem=").append(safeIdempotencyKey).append("]");
         }
         return builder.toString();
     }
 
     private void attachOrderTrace(Long orderId, String traceId) {
-        if (orderId == null || !StringUtils.hasText(traceId)) {
+        if (orderId == null) {
             return;
         }
-        salesService.attachTraceId(orderId, traceId.trim());
+        String sanitizedTraceId = CorrelationIdentifierSanitizer.sanitizeOptionalTraceId(traceId);
+        if (!StringUtils.hasText(sanitizedTraceId)) {
+            return;
+        }
+        salesService.attachTraceId(orderId, sanitizedTraceId);
+    }
+
+    private Long requireNumericOrderId(String orderId, String operation) {
+        Long id = parseNumericId(orderId);
+        if (id != null) {
+            return id;
+        }
+        throw new ApplicationException(
+                ErrorCode.VALIDATION_INVALID_INPUT,
+                "Invalid orderId format")
+                .withDetail("field", "orderId")
+                .withDetail("operation", operation)
+                .withDetail("expected", "numeric")
+                .withDetail("safeIdentifier", CorrelationIdentifierSanitizer.safeIdentifierForLog(orderId));
     }
 
     private Long parseNumericId(String id) {
         try {
             return Long.parseLong(id);
-        } catch (NumberFormatException ex) {
-            log.warn("Value {} is not a numeric identifier", id);
+        } catch (NumberFormatException | NullPointerException ex) {
+            log.warn("Rejected non-numeric identifier [{}]",
+                    CorrelationIdentifierSanitizer.safeIdentifierForLog(id));
             return null;
         }
     }

@@ -203,6 +203,19 @@ class OrchestratorIdempotencyServiceTest {
         verify(commandRepository, never()).reserveScope(any(), any(), any(), any(), any());
     }
 
+    @Test
+    void startRejectsMalformedIdempotencyKey() {
+        assertThatThrownBy(() -> service.start(
+                "ORCH.ORDER.APPROVE",
+                "idem malformed",
+                Map.of("orderId", "101"),
+                () -> "trace-seed"))
+                .isInstanceOf(ApplicationException.class)
+                .satisfies(ex -> assertThat(((ApplicationException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.VALIDATION_INVALID_INPUT));
+        verify(commandRepository, never()).reserveScope(any(), any(), any(), any(), any());
+    }
+
     private static class NoOpTransactionManager extends AbstractPlatformTransactionManager {
         @Override
         protected Object doGetTransaction() {

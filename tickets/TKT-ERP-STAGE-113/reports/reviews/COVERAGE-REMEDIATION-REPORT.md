@@ -1,7 +1,7 @@
 # COVERAGE REMEDIATION REPORT
 
-Ticket: `TKT-ERP-STAGE-113`  
-Role: `qa-reliability`  
+Ticket: `TKT-ERP-STAGE-113`
+Role: `qa-reliability`
 Date: `2026-02-26`
 
 ## 1) Blocker Statement
@@ -21,19 +21,19 @@ Date: `2026-02-26`
 ## 3) Verification Command Log
 Executed exactly:
 
-1. `cd erp-domain && mvn -B -ntp -Dtest='EventPublisherServiceTest,TS_OrchestratorExactlyOnceOutboxTest,TS_RuntimeEventPublisherExecutableCoverageTest,AuthTenantAuthorityIT,RoleServiceRbacTenantIsolationTest' test`  
+1. `cd erp-domain && mvn -B -ntp -Dtest='EventPublisherServiceTest,TS_OrchestratorExactlyOnceOutboxTest,TS_RuntimeEventPublisherExecutableCoverageTest,AuthTenantAuthorityIT,RoleServiceRbacTenantIsolationTest' test`
    Result: `PASS` (`Tests run: 64, Failures: 0, Errors: 0, Skipped: 0`)
 
-2. `bash ci/check-architecture.sh`  
+2. `bash ci/check-architecture.sh`
    Result: `PASS`
 
-3. `bash ci/check-enterprise-policy.sh`  
+3. `bash ci/check-enterprise-policy.sh`
    Result: `PASS`
 
-4. `bash ci/check-orchestrator-layer.sh`  
+4. `bash ci/check-orchestrator-layer.sh`
    Result: `PASS`
 
-5. `python3 scripts/changed_files_coverage.py --diff-base origin/harness-engineering-orchestrator --jacoco erp-domain/target/site/jacoco/jacoco.xml`  
+5. `python3 scripts/changed_files_coverage.py --diff-base origin/harness-engineering-orchestrator --jacoco erp-domain/target/site/jacoco/jacoco.xml`
    Result: `PASS`
 
 ## 4) Coverage Evidence

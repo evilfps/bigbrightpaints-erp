@@ -1,8 +1,8 @@
 # MERGE SPECIALIST INTEGRATION REPORT
 
-Ticket: `TKT-ERP-STAGE-113`  
-Role: `merge-specialist`  
-Primary branch: `tickets/tkt-erp-stage-113/blocker-remediation-orchestrator`  
+Ticket: `TKT-ERP-STAGE-113`
+Role: `merge-specialist`
+Primary branch: `tickets/tkt-erp-stage-113/blocker-remediation-orchestrator`
 Primary worktree: `/Users/anas/Documents/orchestrator_erp/bigbrightpaints-erp_worktrees/TKT-ERP-STAGE-113/blocker-remediation-orchestrator`
 
 ## 1) Source Branch Integrity Assessment
@@ -47,13 +47,13 @@ Primary worktree: `/Users/anas/Documents/orchestrator_erp/bigbrightpaints-erp_wo
 
 Strategy selected: `--no-ff` for traceability.
 
-1. Merge commit: `34e1141c`  
+1. Merge commit: `34e1141c`
    Command: `git merge --no-ff tickets/tkt-erp-stage-113/b07-governance-traceability`
 
-2. Merge commit: `47cf7400`  
+2. Merge commit: `47cf7400`
    Command: `git merge --no-ff tickets/tkt-erp-stage-113/b01-auth-tenant-isolation`
 
-3. Merge commit: `47392f8a`  
+3. Merge commit: `47392f8a`
    Command: `git merge --no-ff tickets/tkt-erp-stage-113/b02-orchestrator-outbox-atomicity`
 
 Conflict files resolved: **none** (all merges clean via `ort`).
@@ -62,30 +62,30 @@ Conflict files resolved: **none** (all merges clean via `ort`).
 
 Executed commands:
 
-1. `cd erp-domain && mvn -B -ntp -Dtest='AuthTenantAuthorityIT,RoleServiceRbacTenantIsolationTest,EventPublisherServiceTest,TS_OrchestratorExactlyOnceOutboxTest,TS_RuntimeEventPublisherExecutableCoverageTest' test`  
+1. `cd erp-domain && mvn -B -ntp -Dtest='AuthTenantAuthorityIT,RoleServiceRbacTenantIsolationTest,EventPublisherServiceTest,TS_OrchestratorExactlyOnceOutboxTest,TS_RuntimeEventPublisherExecutableCoverageTest' test`
    Result: **PASS** (`Tests run: 41, Failures: 0, Errors: 0, Skipped: 0`)
 
-2. `bash ci/check-architecture.sh`  
+2. `bash ci/check-architecture.sh`
    Result: **PASS** (`[architecture-check] OK`)
 
-3. `bash ci/check-enterprise-policy.sh`  
+3. `bash ci/check-enterprise-policy.sh`
    Result: **PASS** (`[enterprise-policy] OK`)
 
-4. `bash ci/check-orchestrator-layer.sh`  
+4. `bash ci/check-orchestrator-layer.sh`
    Result: **PASS** (`[orchestrator-layer] OK`)
 
-5. `python3 scripts/changed_files_coverage.py --diff-base origin/harness-engineering-orchestrator --jacoco erp-domain/target/site/jacoco/jacoco.xml`  
+5. `python3 scripts/changed_files_coverage.py --diff-base origin/harness-engineering-orchestrator --jacoco erp-domain/target/site/jacoco/jacoco.xml`
    Result: **FAIL** (`line_ratio=0.8673 < 0.95`, `branch_ratio=0.6410 < 0.90`)
 
    Key failing surface from report:
-   - `erp-domain/src/main/java/com/bigbrightpaints/erp/orchestrator/service/EventPublisherService.java`  
+   - `erp-domain/src/main/java/com/bigbrightpaints/erp/orchestrator/service/EventPublisherService.java`
      `line_ratio=0.8519`, `branch_ratio=0.6316`, `unmapped_lines=78`
-   - `erp-domain/src/main/java/com/bigbrightpaints/erp/orchestrator/repository/OutboxEvent.java`  
+   - `erp-domain/src/main/java/com/bigbrightpaints/erp/orchestrator/repository/OutboxEvent.java`
      `unmapped_lines=3`
-   - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/rbac/service/RoleService.java`  
+   - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/rbac/service/RoleService.java`
      `unmapped_lines=1`
 
-6. Conflict marker scan across touched files (`<<<<<<<`, `=======`, `>>>>>>>`)  
+6. Conflict marker scan across touched files (`<<<<<<<`, `=======`, `>>>>>>>`)
    Result: **PASS** (no markers found)
 
 ## 5) Final Branch Status
@@ -122,15 +122,15 @@ Follow-up remediation was completed to close the post-merge changed-files covera
 - Production code remained unchanged.
 
 ### Addendum Validation
-1. `cd erp-domain && mvn -B -ntp -Dtest='EventPublisherServiceTest,TS_OrchestratorExactlyOnceOutboxTest,TS_RuntimeEventPublisherExecutableCoverageTest,AuthTenantAuthorityIT,RoleServiceRbacTenantIsolationTest' test`  
+1. `cd erp-domain && mvn -B -ntp -Dtest='EventPublisherServiceTest,TS_OrchestratorExactlyOnceOutboxTest,TS_RuntimeEventPublisherExecutableCoverageTest,AuthTenantAuthorityIT,RoleServiceRbacTenantIsolationTest' test`
    `PASS` (`Tests run: 64, Failures: 0, Errors: 0, Skipped: 0`)
-2. `bash ci/check-architecture.sh`  
+2. `bash ci/check-architecture.sh`
    `PASS`
-3. `bash ci/check-enterprise-policy.sh`  
+3. `bash ci/check-enterprise-policy.sh`
    `PASS`
-4. `bash ci/check-orchestrator-layer.sh`  
+4. `bash ci/check-orchestrator-layer.sh`
    `PASS`
-5. `python3 scripts/changed_files_coverage.py --diff-base origin/harness-engineering-orchestrator --jacoco erp-domain/target/site/jacoco/jacoco.xml`  
+5. `python3 scripts/changed_files_coverage.py --diff-base origin/harness-engineering-orchestrator --jacoco erp-domain/target/site/jacoco/jacoco.xml`
    `PASS` (`line_ratio=1.0000`, `branch_ratio=1.0000`)
 
 ### Addendum Impact

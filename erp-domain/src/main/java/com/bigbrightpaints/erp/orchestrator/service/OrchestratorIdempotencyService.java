@@ -30,7 +30,6 @@ public class OrchestratorIdempotencyService {
 
     private static final Logger log = LoggerFactory.getLogger(OrchestratorIdempotencyService.class);
     private static final String ROLLBACK_FAILURE_MESSAGE = "Outer transaction rolled back before commit";
-    private static final int MAX_IDEMPOTENCY_KEY_LENGTH = 255;
 
     public record CommandLease(String traceId, OrchestratorCommand command, boolean shouldExecute) {
     }
@@ -59,11 +58,14 @@ public class OrchestratorIdempotencyService {
                               Object requestPayload,
                               Supplier<String> traceIdSupplier) {
         Company company = companyContextService.requireCurrentCompany();
-        String key = normalizeKey(idempotencyKey);
+        String key = CorrelationIdentifierSanitizer.sanitizeRequiredIdempotencyKey(idempotencyKey);
         String requestHash = hashRequest(company.getId(), commandName, requestPayload);
 
         return txTemplate.execute(status -> {
-            String traceId = traceIdSupplier.get();
+            String traceCandidate = traceIdSupplier != null ? traceIdSupplier.get() : null;
+            String traceId = CorrelationIdentifierSanitizer.sanitizeTraceIdOrFallback(
+                    traceCandidate,
+                    () -> UUID.randomUUID().toString());
             boolean reserved = commandRepository.reserveScope(
                     company.getId(),
                     commandName,
@@ -159,24 +161,6 @@ public class OrchestratorIdempotencyService {
         } catch (RuntimeException ex) {
             log.error("Failed to persist orchestrator command {} transition to {}", commandId, targetStatus, ex);
         }
-    }
-
-    private String normalizeKey(String idempotencyKey) {
-        if (!StringUtils.hasText(idempotencyKey)) {
-            throw new ApplicationException(
-                    ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD,
-                    "Idempotency key is required"
-            );
-        }
-        String normalized = idempotencyKey.trim();
-        if (normalized.length() > MAX_IDEMPOTENCY_KEY_LENGTH) {
-            throw new ApplicationException(
-                    ErrorCode.VALIDATION_INVALID_INPUT,
-                    "Idempotency key exceeds maximum length")
-                    .withDetail("maxLength", MAX_IDEMPOTENCY_KEY_LENGTH)
-                    .withDetail("actualLength", normalized.length());
-        }
-        return normalized;
     }
 
     private String hashRequest(Long companyId, String commandName, Object requestPayload) {
