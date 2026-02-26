@@ -2,6 +2,15 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+COMPAT_BASH_ENV_BOOTSTRAP="$ROOT_DIR/scripts/bash_env_bootstrap.sh"
+if [[ "${BASH_ENV:-}" != "$COMPAT_BASH_ENV_BOOTSTRAP" && -n "${BASH_ENV:-}" ]]; then
+  export BBP_CHAINED_BASH_ENV="${BASH_ENV:-}"
+  export BBP_CHAINED_BASH_ENV_PARENT_PID="$$"
+else
+  unset BBP_CHAINED_BASH_ENV
+  unset BBP_CHAINED_BASH_ENV_PARENT_PID
+fi
+export BASH_ENV="$COMPAT_BASH_ENV_BOOTSTRAP"
 MIGRATION_SET="${MIGRATION_SET:-v2}"
 MVN_ARGS=(-B -ntp)
 

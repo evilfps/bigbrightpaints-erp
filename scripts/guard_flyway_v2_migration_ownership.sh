@@ -2,6 +2,11 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+COMPAT_FILE="$ROOT_DIR/scripts/bash_compat.sh"
+if [[ -f "$COMPAT_FILE" ]]; then
+  # shellcheck disable=SC1090
+  source "$COMPAT_FILE"
+fi
 MIGRATIONS_DIR="$ROOT_DIR/erp-domain/src/main/resources/db/migration_v2"
 
 fail() {
