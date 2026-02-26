@@ -676,6 +676,59 @@ class PasswordResetServiceTest {
         }
     }
 
+    @Test
+    void requestResetScopeLogRedactsMalformedTenantContext() {
+        UserAccount user = new UserAccount("user@example.com", "hash", "User");
+        user.setEnabled(true);
+        when(userAccountRepository.findByEmailIgnoreCase("user@example.com")).thenReturn(Optional.of(user));
+
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/v1/auth/password/forgot");
+        request.addHeader("X-Correlation-Id", "corr-request-scope-123");
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+        CompanyContextHolder.setCompanyCode("TENANT\nINJECT");
+        try {
+            List<String> messages = captureServiceLogMessages(
+                    () -> passwordResetService.requestReset("user@example.com"));
+            assertTrue(
+                    messages.stream().anyMatch(message -> message.contains("event=password_reset.scope")
+                            && message.contains("operation=forgot_password")
+                            && message.contains("correlationId=corr-request-scope-123")
+                            && message.contains("tenantContext=<redacted>")),
+                    "Expected malformed tenant context to be redacted in global-identity scope logs");
+        } finally {
+            RequestContextHolder.resetRequestAttributes();
+            CompanyContextHolder.clear();
+        }
+    }
+
+    @Test
+    void sanitizeTenantContextForLogCoversRedactionBranches() {
+        assertEquals(
+                "<empty>",
+                ReflectionTestUtils.invokeMethod(passwordResetService, "sanitizeTenantContextForLog", (String) null));
+        assertEquals(
+                "<empty>",
+                ReflectionTestUtils.invokeMethod(passwordResetService, "sanitizeTenantContextForLog", "   "));
+        assertEquals(
+                "<redacted>",
+                ReflectionTestUtils.invokeMethod(
+                        passwordResetService,
+                        "sanitizeTenantContextForLog",
+                        "X".repeat(65)));
+        assertEquals(
+                "<redacted>",
+                ReflectionTestUtils.invokeMethod(
+                        passwordResetService,
+                        "sanitizeTenantContextForLog",
+                        "TENANT\nINJECT"));
+        assertEquals(
+                "<redacted>",
+                ReflectionTestUtils.invokeMethod(passwordResetService, "sanitizeTenantContextForLog", "bad|tenant"));
+        assertEquals(
+                "TENANT_01",
+                ReflectionTestUtils.invokeMethod(passwordResetService, "sanitizeTenantContextForLog", "TENANT_01"));
+    }
+
     private UserAccount superAdminUser(String email) {
         UserAccount user = new UserAccount(email, "hash", "Super Admin");
         user.setEnabled(true);
