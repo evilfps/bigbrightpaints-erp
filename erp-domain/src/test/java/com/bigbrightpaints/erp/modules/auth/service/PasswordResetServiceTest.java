@@ -2,6 +2,7 @@ package com.bigbrightpaints.erp.modules.auth.service;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -15,6 +16,7 @@ import com.bigbrightpaints.erp.core.config.EmailProperties;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.notification.EmailService;
+import com.bigbrightpaints.erp.core.security.CompanyContextHolder;
 import com.bigbrightpaints.erp.core.security.TokenBlacklistService;
 import com.bigbrightpaints.erp.modules.auth.domain.PasswordResetToken;
 import com.bigbrightpaints.erp.modules.auth.domain.PasswordResetTokenRepository;
@@ -123,6 +125,29 @@ class PasswordResetServiceTest {
         verify(tokenRepository, never()).deleteByToken(anyString());
         verify(tokenRepository, never()).saveAndFlush(any(PasswordResetToken.class));
         verify(emailService, never()).sendSimpleEmail(any(), any(), any());
+    }
+
+    @Test
+    void requestResetForSuperAdminClassifiesConfigurationFailuresInLogs() {
+        UserAccount superAdmin = superAdminUser("superadmin@example.com");
+        when(userAccountRepository.findByEmailIgnoreCase("superadmin@example.com"))
+                .thenReturn(Optional.of(superAdmin));
+        emailProperties.setSendPasswordReset(false);
+
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/v1/auth/password/forgot/superadmin");
+        request.addHeader("X-Correlation-Id", "corr-config-123");
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+        try {
+            List<String> messages = captureServiceLogMessages(
+                    () -> passwordResetService.requestResetForSuperAdmin("superadmin@example.com"));
+            assertTrue(
+                    messages.stream().anyMatch(message -> message.contains("reasonCode=RESET_DISPATCH_FAILURE")
+                            && message.contains("failureClass=CONFIGURATION")
+                            && message.contains("correlationId=corr-config-123")),
+                    "Expected disabled delivery path to emit configuration failure classification");
+        } finally {
+            RequestContextHolder.resetRequestAttributes();
+        }
     }
 
     @Test
@@ -250,6 +275,9 @@ class PasswordResetServiceTest {
                     messages.stream().anyMatch(message -> message.contains("reasonCode=RESET_DISPATCH_FAILURE")),
                     "Expected dispatch failure reason code in masked superadmin forgot logs");
             assertTrue(
+                    messages.stream().anyMatch(message -> message.contains("failureClass=EMAIL_DISPATCH")),
+                    "Expected dispatch failures to include email-delivery failure classification");
+            assertTrue(
                     messages.stream().anyMatch(message -> message.contains("exceptionClass=RuntimeException")),
                     "Expected exception class to remain available in masked superadmin forgot logs");
             assertTrue(
@@ -286,6 +314,9 @@ class PasswordResetServiceTest {
             assertTrue(
                     messages.stream().noneMatch(message -> message.contains("cleanup token leaked")),
                     "Expected cleanup raw exception details to remain redacted");
+            assertTrue(
+                    messages.stream().anyMatch(message -> message.contains("failureClass=TOKEN_CLEANUP")),
+                    "Expected cleanup failures to emit cleanup failure classification for support triage");
         } finally {
             RequestContextHolder.resetRequestAttributes();
         }
@@ -314,8 +345,20 @@ class PasswordResetServiceTest {
         doThrow(new DataAccessResourceFailureException("db unavailable"))
                 .when(tokenRepository)
                 .saveAndFlush(any(PasswordResetToken.class));
-
-        assertDoesNotThrow(() -> passwordResetService.requestResetForSuperAdmin("superadmin@example.com"));
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/v1/auth/password/forgot/superadmin");
+        request.addHeader("X-Correlation-Id", "corr-token-persistence-123");
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+        try {
+            List<String> messages = captureServiceLogMessages(
+                    () -> passwordResetService.requestResetForSuperAdmin("superadmin@example.com"));
+            assertTrue(
+                    messages.stream().anyMatch(message -> message.contains("reasonCode=RESET_DISPATCH_FAILURE")
+                            && message.contains("failureClass=TOKEN_PERSISTENCE")
+                            && message.contains("correlationId=corr-token-persistence-123")),
+                    "Expected token persistence failures to be classified for support triage");
+        } finally {
+            RequestContextHolder.resetRequestAttributes();
+        }
 
         verify(tokenRepository).deleteByUser(superAdmin);
         verify(tokenRepository, never()).deleteByToken(anyString());
@@ -356,6 +399,63 @@ class PasswordResetServiceTest {
         verify(tokenRepository, never()).deleteByToken(anyString());
         verify(tokenRepository, never()).saveAndFlush(any(PasswordResetToken.class));
         verify(emailService, never()).sendSimpleEmail(any(), any(), any());
+    }
+
+    @Test
+    void requestResetForSuperAdminIgnoresTenantContextAndLogsGlobalIdentityScope() {
+        UserAccount superAdmin = superAdminUser("superadmin@example.com");
+        when(userAccountRepository.findByEmailIgnoreCase("superadmin@example.com"))
+                .thenReturn(Optional.of(superAdmin));
+
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/v1/auth/password/forgot/superadmin");
+        request.addHeader("X-Correlation-Id", "corr-global-scope-123");
+        request.addHeader("X-Company-Code", "TENANT_A");
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+        try {
+            List<String> messages = captureServiceLogMessages(
+                    () -> passwordResetService.requestResetForSuperAdmin("superadmin@example.com"));
+            assertTrue(
+                    messages.stream().anyMatch(message -> message.contains("event=password_reset.scope")
+                            && message.contains("operation=forgot_password_superadmin")
+                            && message.contains("correlationId=corr-global-scope-123")
+                            && message.contains("tenantContext=TENANT_A")
+                            && message.contains("outcome=tenant_context_ignored")),
+                    "Expected superadmin forgot flow to explicitly ignore tenant context under global-identity policy");
+        } finally {
+            RequestContextHolder.resetRequestAttributes();
+        }
+        verify(tokenRepository).deleteByUser(superAdmin);
+        verify(tokenRepository).saveAndFlush(any(PasswordResetToken.class));
+        verify(emailService).sendSimpleEmail(eq("superadmin@example.com"), any(), any());
+    }
+
+    @Test
+    void resetPasswordIgnoresTenantContextAndLogsGlobalIdentityScope() {
+        UserAccount superAdmin = superAdminUser("superadmin@example.com");
+        PasswordResetToken token = new PasswordResetToken(superAdmin, "token-value", Instant.now().plusSeconds(600));
+        when(tokenRepository.findByToken("token-value")).thenReturn(Optional.of(token));
+
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/v1/auth/password/reset");
+        request.addHeader("X-Correlation-Id", "corr-reset-scope-123");
+        request.addHeader("X-Company-Code", "TENANT_B");
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+        try {
+            List<String> messages = captureServiceLogMessages(
+                    () -> passwordResetService.resetPassword("token-value", "NewPass123", "NewPass123"));
+            assertTrue(
+                    messages.stream().anyMatch(message -> message.contains("event=password_reset.scope")
+                            && message.contains("operation=reset_password")
+                            && message.contains("correlationId=corr-reset-scope-123")
+                            && message.contains("tenantContext=TENANT_B")
+                            && message.contains("outcome=tenant_context_ignored")),
+                    "Expected password reset to use global identity policy even when tenant context is present");
+        } finally {
+            RequestContextHolder.resetRequestAttributes();
+        }
+
+        verify(passwordService).resetPassword(superAdmin, "NewPass123", "NewPass123");
+        verify(tokenBlacklistService).revokeAllUserTokens("superadmin@example.com");
+        verify(refreshTokenService).revokeAllForUser("superadmin@example.com");
     }
 
     @Test
@@ -573,6 +673,117 @@ class PasswordResetServiceTest {
         } finally {
             RequestContextHolder.resetRequestAttributes();
         }
+    }
+
+    @Test
+    void requestResetScopeLogRedactsMalformedTenantContext() {
+        UserAccount user = new UserAccount("user@example.com", "hash", "User");
+        user.setEnabled(true);
+        when(userAccountRepository.findByEmailIgnoreCase("user@example.com")).thenReturn(Optional.of(user));
+
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/v1/auth/password/forgot");
+        request.addHeader("X-Correlation-Id", "corr-request-scope-123");
+        request.addHeader("X-Company-Code", "TENANT\nINJECT");
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+        try {
+            List<String> messages = captureServiceLogMessages(
+                    () -> passwordResetService.requestReset("user@example.com"));
+            assertTrue(
+                    messages.stream().anyMatch(message -> message.contains("event=password_reset.scope")
+                            && message.contains("operation=forgot_password")
+                            && message.contains("correlationId=corr-request-scope-123")
+                            && message.contains("tenantContext=<redacted>")),
+                    "Expected malformed tenant context to be redacted in global-identity scope logs");
+        } finally {
+            RequestContextHolder.resetRequestAttributes();
+        }
+    }
+
+    @Test
+    void requestResetScopeUsesLegacyCompanyHeaderWhenPrimaryHeaderMissing() {
+        UserAccount user = new UserAccount("user@example.com", "hash", "User");
+        user.setEnabled(true);
+        when(userAccountRepository.findByEmailIgnoreCase("user@example.com")).thenReturn(Optional.of(user));
+
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/v1/auth/password/forgot");
+        request.addHeader("X-Correlation-Id", "corr-legacy-header-123");
+        request.addHeader("X-Company-Id", "LEGACY_TENANT");
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+        try {
+            List<String> messages = captureServiceLogMessages(
+                    () -> passwordResetService.requestReset("user@example.com"));
+            assertTrue(
+                    messages.stream().anyMatch(message -> message.contains("event=password_reset.scope")
+                            && message.contains("operation=forgot_password")
+                            && message.contains("correlationId=corr-legacy-header-123")
+                            && message.contains("tenantContext=LEGACY_TENANT")),
+                    "Expected legacy company header to be observed when company context holder is empty");
+        } finally {
+            RequestContextHolder.resetRequestAttributes();
+        }
+    }
+
+    @Test
+    void resolveTenantContextForObservabilityPrefersCompanyContextHolderValue() {
+        CompanyContextHolder.setCompanyCode("HOLDER_TENANT");
+        try {
+            assertEquals(
+                    "HOLDER_TENANT",
+                    ReflectionTestUtils.invokeMethod(passwordResetService, "resolveTenantContextForObservability"));
+        } finally {
+            CompanyContextHolder.clear();
+            RequestContextHolder.resetRequestAttributes();
+        }
+    }
+
+    @Test
+    void resolveTenantContextForObservabilityReturnsNullWhenRequestAttributesContainNoRequest() {
+        ServletRequestAttributes attributes = new ServletRequestAttributes(new MockHttpServletRequest());
+        ReflectionTestUtils.setField(attributes, "request", null);
+        RequestContextHolder.setRequestAttributes(attributes);
+        CompanyContextHolder.clear();
+        try {
+            assertNull(ReflectionTestUtils.invokeMethod(passwordResetService, "resolveTenantContextForObservability"));
+        } finally {
+            RequestContextHolder.resetRequestAttributes();
+        }
+    }
+
+    @Test
+    void sanitizeTenantContextForLogCoversRedactionBranches() {
+        assertEquals(
+                "<empty>",
+                ReflectionTestUtils.invokeMethod(passwordResetService, "sanitizeTenantContextForLog", (String) null));
+        assertEquals(
+                "<empty>",
+                ReflectionTestUtils.invokeMethod(passwordResetService, "sanitizeTenantContextForLog", "   "));
+        assertEquals(
+                "<empty>",
+                ReflectionTestUtils.invokeMethod(passwordResetService, "sanitizeTenantContextForLog", "\u0007"));
+        assertEquals(
+                "<redacted>",
+                ReflectionTestUtils.invokeMethod(
+                        passwordResetService,
+                        "sanitizeTenantContextForLog",
+                        "X".repeat(65)));
+        assertEquals(
+                "<redacted>",
+                ReflectionTestUtils.invokeMethod(
+                        passwordResetService,
+                        "sanitizeTenantContextForLog",
+                        "TENANT\nINJECT"));
+        assertEquals(
+                "<redacted>",
+                ReflectionTestUtils.invokeMethod(
+                        passwordResetService,
+                        "sanitizeTenantContextForLog",
+                        "TENANT\rINJECT"));
+        assertEquals(
+                "<redacted>",
+                ReflectionTestUtils.invokeMethod(passwordResetService, "sanitizeTenantContextForLog", "bad|tenant"));
+        assertEquals(
+                "TENANT_01",
+                ReflectionTestUtils.invokeMethod(passwordResetService, "sanitizeTenantContextForLog", "TENANT_01"));
     }
 
     private UserAccount superAdminUser(String email) {
