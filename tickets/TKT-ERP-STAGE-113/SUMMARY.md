@@ -3,7 +3,7 @@
 - title: Production blocker remediation wave from TKT-ERP-STAGE-112
 - goal: Implement and verify all critical/high production blockers from TKT-ERP-STAGE-112 with isolated blocker scopes, integration-safe merges, and release-grade QA evidence
 - priority: high
-- status: planned
+- status: in_progress
 - base_branch: origin/harness-engineering-orchestrator
 - created_at: 2026-02-26T10:34:09+00:00
 - updated_at: 2026-02-26T10:34:09+00:00

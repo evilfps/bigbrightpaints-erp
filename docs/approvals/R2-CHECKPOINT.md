@@ -1,6 +1,6 @@
 # R2 Checkpoint (Active Approval Record)
 
-Last reviewed: 2026-02-25
+Last reviewed: 2026-02-26
 Owner: Security & Governance Agent
 Status: template-initialized
 
@@ -421,3 +421,35 @@ Update this file in every high-risk change set.
     - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/auth/service/PasswordResetService.java`
     - `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/auth/service/PasswordResetServiceTest.java`
     - `erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeCompanyContextFilterExecutableCoverageTest.java`
+
+## STAGE-113 Addendum (2026-02-26, blocker-remediation-orchestrator integration)
+- Ticket / PR: `TKT-ERP-STAGE-113` / PR #85 (https://github.com/anasibnanwar-XYE/bigbrightpaints-erp/pull/85)
+- Source branch: tickets/tkt-erp-stage-113/blocker-remediation-orchestrator
+- High-risk paths:
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/auth/`
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/rbac/`
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/orchestrator/`
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/core/security/`
+- Why this is R2: the integrated recovery set touches superadmin credential reset hardening, RBAC authority behavior, and orchestrator correlation/idempotency controls; these are fail-closed security and runtime-governance boundaries.
+- Approval mode: orchestrator
+- Human escalation required: no
+- Rollback owner: release governance + auth/rbac/orchestrator owners
+- Verification evidence:
+  - Commands run:
+    - `bash ci/check-architecture.sh`
+    - `bash ci/check-enterprise-policy.sh`
+    - `bash ci/check-orchestrator-layer.sh`
+    - `python3 scripts/changed_files_coverage.py --diff-base origin/harness-engineering-orchestrator --jacoco erp-domain/target/site/jacoco/jacoco.xml`
+    - `bash scripts/guard_orchestrator_correlation_contract.sh`
+    - `bash scripts/guard_flyway_v2_migration_ownership.sh`
+    - `VERIFY_LOCAL_SKIP_TESTS=true bash scripts/verify_local.sh`
+    - `cd erp-domain && mvn -B -ntp -Dtest='DataInitializerSecurityTest,JwtPropertiesSecurityTest,DataInitializerTest,OrchestratorControllerIT,CommandDispatcherTest,IntegrationCoordinatorTest,CorrelationIdentifierSanitizerTest,OrchestratorIdempotencyServiceTest,TS_RuntimeOrchestratorCorrelationCoverageTest,EventPublisherServiceTest,TS_OrchestratorExactlyOnceOutboxTest,TS_RuntimeEventPublisherExecutableCoverageTest,AuthTenantAuthorityIT,RoleServiceRbacTenantIsolationTest' test`
+  - Result summary:
+    - architecture, enterprise-policy, and orchestrator-layer checks passed on the integrated head.
+    - changed-files coverage passed (`line_ratio=0.9694`, `branch_ratio=0.9466`).
+    - ticket-critical integrated test pack passed (`Tests run: 192, Failures: 0, Errors: 0, Skipped: 0`) with Testcontainers-backed `AuthTenantAuthorityIT` validated via Colima Docker socket.
+  - Artifacts/links:
+    - `tickets/TKT-ERP-STAGE-113/reports/reviews/MERGE-SPECIALIST-RECOVERY-HANDOFF-RERUN-2.md`
+    - `tickets/TKT-ERP-STAGE-113/reports/reviews/QA-RECOVERY-HANDOFF-REPORT.md`
+    - `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/auth/AuthTenantAuthorityIT.java`
+    - `erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeOrchestratorCorrelationCoverageTest.java`
