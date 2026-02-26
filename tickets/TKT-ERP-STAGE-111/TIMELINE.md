@@ -6,3 +6,4 @@
 - `2026-02-25T11:22:07Z` slice `SLICE-01` moved to `in_review`; completed auth/security patch, added compatibility tests for `userid` payload alias and reset-route company-context bypass, and captured R2 checkpoint evidence.
 - `2026-02-25T11:26:59Z` Docker/Testcontainers validation executed over SSH host `asus-tuf-tail-ip`; `AuthTenantAuthorityIT` passed (`Tests run: 13, Failures: 0, Errors: 0`).
 - `2026-02-25T11:33:51Z` addressed P1 review finding for superadmin forgot-password account-enumeration side channel by masking delivery/config failures and persisting reset tokens only after successful email dispatch.
+- `2026-02-26T01:26:27Z` metadata parity sync: slices `SLICE-01..03` marked `merged` and ticket marked `merged` so parent status matches terminal slice statuses.

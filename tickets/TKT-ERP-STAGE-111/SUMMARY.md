@@ -3,18 +3,18 @@
 - title: Superadmin frontend password reset and token/company-code alignment
 - goal: Implement superadmin forgot/reset-password UX/API flow where entering superadmin email sends reset mail and fix invalid-token behavior caused by tenant/company scoped token mismatch
 - priority: high
-- status: in_review
+- status: merged
 - base_branch: harness-engineering-orchestrator
 - created_at: 2026-02-25T11:02:39+00:00
-- updated_at: 2026-02-25T11:33:51Z
+- updated_at: 2026-02-26T01:26:27Z
 
 ## Slice Board
 
 | Slice | Agent | Lane | Status | Branch |
 | --- | --- | --- | --- | --- |
-| SLICE-01 | auth-rbac-company | w1 | in_review | `tickets/tkt-erp-stage-111/auth-rbac-company` |
-| SLICE-02 | frontend-documentation | w2 | ready | `tickets/tkt-erp-stage-111/frontend-documentation` |
-| SLICE-03 | refactor-techdebt-gc | w3 | ready | `tickets/tkt-erp-stage-111/refactor-techdebt-gc` |
+| SLICE-01 | auth-rbac-company | w1 | merged | `tickets/tkt-erp-stage-111/auth-rbac-company` |
+| SLICE-02 | frontend-documentation | w2 | merged | `tickets/tkt-erp-stage-111/frontend-documentation` |
+| SLICE-03 | refactor-techdebt-gc | w3 | merged | `tickets/tkt-erp-stage-111/refactor-techdebt-gc` |
 
 ## Operator Commands
 
