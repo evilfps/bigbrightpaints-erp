@@ -119,6 +119,23 @@ exit 0
 STUB_MVN
 chmod +x "$TMP_ROOT/bin/mvn"
 
+# External runtime stubs: contract cases must stay hermetic and never touch host Docker/Postgres.
+cat > "$TMP_ROOT/bin/docker" <<'STUB_DOCKER'
+#!/usr/bin/env bash
+set -euo pipefail
+printf 'docker %s\n' "$*" >> "${CONTRACT_EXTERNAL_CALL_LOG:-/dev/null}"
+exit 99
+STUB_DOCKER
+chmod +x "$TMP_ROOT/bin/docker"
+
+cat > "$TMP_ROOT/bin/psql" <<'STUB_PSQL'
+#!/usr/bin/env bash
+set -euo pipefail
+printf 'psql %s\n' "$*" >> "${CONTRACT_EXTERNAL_CALL_LOG:-/dev/null}"
+exit 99
+STUB_PSQL
+chmod +x "$TMP_ROOT/bin/psql"
+
 run_case() {
   local name="$1"
   local expected_exit="$2"
@@ -187,6 +204,11 @@ mv "$TMP_ROOT/scripts/verify_local.sh" "$TMP_ROOT/scripts/verify_local.real.sh"
 cat > "$TMP_ROOT/scripts/verify_local.sh" <<'STUB_VERIFY_WRAPPER'
 #!/usr/bin/env bash
 set -euo pipefail
+printf '[contract] wrapper_env allow=%s guard=%s skip=%s executed=%s\n' \
+  "${ALLOW_FLYWAY_GUARD_DB_MISMATCH:-}" \
+  "${FLYWAY_GUARD_DB_NAME:-}" \
+  "${VERIFY_LOCAL_SKIP_FLYWAY_GUARD:-}" \
+  "${VERIFY_LOCAL_GUARD_ALREADY_EXECUTED:-}"
 [[ "${ALLOW_FLYWAY_GUARD_DB_MISMATCH:-}" == "true" ]] || exit 91
 [[ "${FLYWAY_GUARD_DB_NAME:-}" == "guard_db" ]] || exit 92
 [[ "${VERIFY_LOCAL_SKIP_FLYWAY_GUARD:-}" == "true" ]] || exit 93
@@ -196,6 +218,7 @@ STUB_VERIFY_WRAPPER
 chmod +x "$TMP_ROOT/scripts/verify_local.sh"
 
 run_case "release_allow_propagation" 0 \
-  'GATE_REQUIRE_CANONICAL_BASE=false ALLOW_FLYWAY_GUARD_DB_MISMATCH=true FLYWAY_GUARD_DB_NAME=guard_db PGDATABASE=other_db ./scripts/gate_release.sh'
+  'rm -f .external_calls && GATE_REQUIRE_CANONICAL_BASE=false AUTO_START_GATE_RELEASE_PG=false ALLOW_FLYWAY_GUARD_DB_MISMATCH=true FLYWAY_GUARD_DB_NAME=guard_db PGDATABASE=other_db CONTRACT_EXTERNAL_CALL_LOG=.external_calls ./scripts/gate_release.sh && test ! -s .external_calls'
+require_output "release_allow_propagation" "[contract] wrapper_env allow=true guard=guard_db skip=true executed=true"
 
 echo "[guard_flyway_guard_contract] OK"
