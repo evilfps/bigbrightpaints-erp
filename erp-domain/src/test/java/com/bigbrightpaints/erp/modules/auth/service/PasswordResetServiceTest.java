@@ -1,6 +1,8 @@
 package com.bigbrightpaints.erp.modules.auth.service;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -20,6 +22,7 @@ import com.bigbrightpaints.erp.modules.auth.domain.PasswordResetTokenRepository;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccount;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
 import com.bigbrightpaints.erp.modules.rbac.domain.Role;
+import java.lang.reflect.InvocationTargetException;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -34,11 +37,13 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.slf4j.LoggerFactory;
 import org.springframework.batch.support.transaction.ResourcelessTransactionManager;
 import org.springframework.dao.DataAccessResourceFailureException;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.UnexpectedRollbackException;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
-import org.springframework.mock.web.MockHttpServletRequest;
 
 @ExtendWith(MockitoExtension.class)
 class PasswordResetServiceTest {
@@ -90,7 +95,7 @@ class PasswordResetServiceTest {
         verify(tokenRepository).save(tokenCaptor.capture());
         verify(emailService).sendPasswordResetEmail(eq("user@example.com"), eq("User"), any());
         // ensure token is linked to the same user
-        org.junit.jupiter.api.Assertions.assertEquals(user, tokenCaptor.getValue().getUser());
+        assertEquals(user, tokenCaptor.getValue().getUser());
     }
 
     @Test
@@ -354,6 +359,68 @@ class PasswordResetServiceTest {
         verify(emailService, never()).sendSimpleEmail(any(), any(), any());
     }
 
+    @Test
+    void issueSuperAdminResetTokenThrowsWhenLifecycleTemplateReturnsBlankToken() {
+        TransactionTemplate lifecycleTemplate = mock(TransactionTemplate.class);
+        when(lifecycleTemplate.execute(any())).thenReturn("   ");
+        ReflectionTestUtils.setField(passwordResetService, "tokenLifecycleTransactionTemplate", lifecycleTemplate);
+
+        IllegalStateException ex = assertThrows(
+                IllegalStateException.class,
+                () -> invokePrivate(
+                        "issueSuperAdminResetToken",
+                        new Class<?>[] {UserAccount.class, String.class, String.class},
+                        superAdminUser("superadmin@example.com"),
+                        "corr-token-guard-123",
+                        "s***@example.com"));
+
+        assertTrue(
+                ex.getMessage().contains("Failed to persist super-admin password reset token"),
+                "Expected explicit guard failure when token persistence result is blank");
+        verify(lifecycleTemplate).execute(any());
+    }
+
+    @Test
+    void assertTokenLifecycleTransactionActiveThrowsWhenNoTransactionIsActive() {
+        IllegalStateException ex = assertThrows(
+                IllegalStateException.class,
+                () -> invokePrivate(
+                        "assertTokenLifecycleTransactionActive",
+                        new Class<?>[] {String.class, String.class, String.class},
+                        "issue",
+                        "corr-transaction-123",
+                        "s***@example.com"));
+
+        assertTrue(
+                ex.getMessage().contains("requires an active transaction"),
+                "Expected fail-closed behavior when lifecycle operation runs outside a transaction");
+    }
+
+    @Test
+    void firstNonBlankHandlesNullEmptyAndBlankInputs() {
+        assertNull(invokePrivate("firstNonBlank", new Class<?>[] {String[].class}, (Object) null));
+        assertNull(invokePrivate("firstNonBlank", new Class<?>[] {String[].class}, (Object) new String[] {}));
+        assertNull(invokePrivate("firstNonBlank", new Class<?>[] {String[].class}, (Object) new String[] {" ", "\t"}));
+        assertEquals(
+                "x-request-id-123",
+                invokePrivate(
+                        "firstNonBlank",
+                        new Class<?>[] {String[].class},
+                        (Object) new String[] {" ", "x-request-id-123", "x-trace-id-456"}));
+    }
+
+    @Test
+    void sanitizeCorrelationIdRejectsInvalidAndAcceptsSafeCandidates() {
+        assertNull(invokePrivate("sanitizeCorrelationId", new Class<?>[] {String.class}, (Object) null));
+        assertNull(invokePrivate("sanitizeCorrelationId", new Class<?>[] {String.class}, "   "));
+        assertNull(invokePrivate("sanitizeCorrelationId", new Class<?>[] {String.class}, "x".repeat(129)));
+        assertNull(invokePrivate("sanitizeCorrelationId", new Class<?>[] {String.class}, "corr-bad\nheader"));
+        assertNull(invokePrivate("sanitizeCorrelationId", new Class<?>[] {String.class}, "bad|pattern"));
+        assertEquals(
+                "trace-id_123:abc.def",
+                invokePrivate("sanitizeCorrelationId", new Class<?>[] {String.class}, "  trace-id_123:abc.def  "));
+    }
+
     private UserAccount superAdminUser(String email) {
         UserAccount user = new UserAccount(email, "hash", "Super Admin");
         user.setEnabled(true);
@@ -375,6 +442,26 @@ class PasswordResetServiceTest {
                     .toList();
         } finally {
             serviceLogger.detachAppender(listAppender);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private <T> T invokePrivate(String methodName, Class<?>[] parameterTypes, Object... args) {
+        try {
+            var method = PasswordResetService.class.getDeclaredMethod(methodName, parameterTypes);
+            method.setAccessible(true);
+            return (T) method.invoke(passwordResetService, args);
+        } catch (InvocationTargetException ex) {
+            Throwable cause = ex.getCause();
+            if (cause instanceof RuntimeException runtimeException) {
+                throw runtimeException;
+            }
+            if (cause instanceof Error error) {
+                throw error;
+            }
+            throw new RuntimeException(cause);
+        } catch (ReflectiveOperationException ex) {
+            throw new RuntimeException(ex);
         }
     }
 }
