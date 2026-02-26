@@ -7,6 +7,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.http.*;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 
@@ -20,6 +21,7 @@ public class CompanyControllerIT extends AbstractIntegrationTest {
     private static final String ROOT_COMPANY_CODE = "ROOT";
     private static final String ADMIN_EMAIL = "admin@bbp.com";
     private static final String SUPER_ADMIN_EMAIL = "super-admin@bbp.com";
+    private static final String HIERARCHY_SUPER_ADMIN_EMAIL = "super-admin-hierarchy@bbp.com";
     private static final String ADMIN_PASSWORD = "admin123";
 
     @org.junit.jupiter.api.BeforeEach
@@ -29,6 +31,8 @@ public class CompanyControllerIT extends AbstractIntegrationTest {
                 java.util.List.of("ROLE_SUPER_ADMIN", "ROLE_ADMIN"));
         dataSeeder.ensureUser(SUPER_ADMIN_EMAIL, ADMIN_PASSWORD, "Super Admin", COMPANY_CODE,
                 java.util.List.of("ROLE_SUPER_ADMIN", "ROLE_ADMIN"));
+        dataSeeder.ensureUser(HIERARCHY_SUPER_ADMIN_EMAIL, ADMIN_PASSWORD, "Hierarchy Super Admin", COMPANY_CODE,
+                java.util.List.of("ROLE_SUPER_ADMIN"));
     }
 
     private String loginToken() {
@@ -57,6 +61,50 @@ public class CompanyControllerIT extends AbstractIntegrationTest {
         assertThat(dataWrapper).isNotNull();
         List list = (List) dataWrapper.get("data");
         assertThat(list).isNotNull();
+    }
+
+    @Test
+    void list_companies_allows_super_admin_without_admin_role_assignment() {
+        String token = loginToken(HIERARCHY_SUPER_ADMIN_EMAIL, COMPANY_CODE);
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(token);
+        headers.setContentType(MediaType.APPLICATION_JSON);
+
+        ResponseEntity<Map> listResp = rest.exchange("/api/v1/companies", HttpMethod.GET, new HttpEntity<>(headers), Map.class);
+        assertThat(listResp.getStatusCode()).isEqualTo(HttpStatus.OK);
+    }
+
+    @Test
+    void tenant_bootstrap_accepts_missing_default_gst_rate_and_applies_fallback() {
+        String token = loginToken(SUPER_ADMIN_EMAIL, ROOT_COMPANY_CODE);
+        String newCompanyCode = "GST-FALLBACK-" + System.nanoTime();
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(token);
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.set("X-Company-Code", ROOT_COMPANY_CODE);
+
+        ResponseEntity<Map> response = rest.exchange(
+                "/api/v1/companies",
+                HttpMethod.POST,
+                new HttpEntity<>(Map.of(
+                        "name", "GST Fallback Co",
+                        "code", newCompanyCode,
+                        "timezone", "UTC"
+                ), headers),
+                Map.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(companyRepository.findByCodeIgnoreCase(newCompanyCode).orElseThrow().getDefaultGstRate())
+                .isEqualByComparingTo("18");
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> responseBody = response.getBody();
+        assertThat(responseBody).isNotNull();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> data = (Map<String, Object>) responseBody.get("data");
+        assertThat(data).isNotNull();
+        assertThat(new BigDecimal(data.get("defaultGstRate").toString())).isEqualByComparingTo("18");
     }
 
     @Test

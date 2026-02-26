@@ -129,7 +129,7 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         Company savedCompany = companyRepository.findByCodeIgnoreCase(newCode).orElseThrow();
-        assertThat(savedCompany.getDefaultGstRate()).isEqualByComparingTo("0");
+        assertThat(savedCompany.getDefaultGstRate()).isEqualByComparingTo("18");
         UserAccount firstAdmin = userAccountRepository.findByEmailIgnoreCase(firstAdminEmail).orElseThrow();
         assertThat(firstAdmin.isMustChangePassword()).isTrue();
         assertThat(firstAdmin.getCompanies()).anyMatch(company -> company.getCode().equalsIgnoreCase(newCode));

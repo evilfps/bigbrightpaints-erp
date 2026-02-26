@@ -75,6 +75,21 @@ public class AdminUserSecurityIT extends AbstractIntegrationTest {
     }
 
     @Test
+    void super_admin_can_access_admin_users_via_role_hierarchy() {
+        String token = login(SUPER_ADMIN_EMAIL, SUPER_ADMIN_PASSWORD, COMPANY);
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(token);
+
+        ResponseEntity<Map> response = rest.exchange(
+                "/api/v1/admin/users",
+                HttpMethod.GET,
+                new HttpEntity<>(headers),
+                Map.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+    }
+
+    @Test
     void admin_user_update_blocks_cross_company_access() {
         String token = login(ADMIN_EMAIL, ADMIN_PASSWORD, COMPANY);
         HttpHeaders headers = new HttpHeaders();

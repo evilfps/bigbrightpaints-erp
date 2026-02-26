@@ -48,6 +48,7 @@ public class CompanyService {
             "super-admin-required-for-tenant-runtime-policy-control";
     private static final String RUNTIME_POLICY_UPDATED_REASON = "tenant-runtime-policy-updated";
     private static final long ERROR_RATE_BASIS_POINTS_SCALE = 10_000L;
+    private static final BigDecimal DEFAULT_BOOTSTRAP_GST_RATE = BigDecimal.valueOf(18);
 
     private final CompanyRepository repository;
     private final AuditService auditService;
@@ -434,7 +435,7 @@ public class CompanyService {
     }
 
     private BigDecimal resolveDefaultGstRateForCreate(BigDecimal requestedDefaultGstRate) {
-        return requestedDefaultGstRate == null ? BigDecimal.ZERO : requestedDefaultGstRate;
+        return requestedDefaultGstRate == null ? DEFAULT_BOOTSTRAP_GST_RATE : requestedDefaultGstRate;
     }
 
     private void provisionInitialAdminIfRequested(Company company,

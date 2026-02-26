@@ -159,15 +159,9 @@ class CompanyServiceTest {
     @Test
     void create_normalizesCode_defaultsGstAndProvisionsFirstAdmin() {
         authenticateAs("ROLE_SUPER_ADMIN");
-        Company incoming = new Company();
-        ReflectionTestUtils.setField(incoming, "id", 7L);
-        ReflectionTestUtils.setField(incoming, "publicId", UUID.randomUUID());
-        incoming.setName("SKE Corp");
-        incoming.setCode("SKE");
-        incoming.setTimezone("UTC");
-        incoming.setDefaultGstRate(BigDecimal.ZERO);
         when(repository.findByCodeIgnoreCase("SKE")).thenReturn(Optional.empty());
-        when(repository.save(org.mockito.ArgumentMatchers.any(Company.class))).thenReturn(incoming);
+        when(repository.save(org.mockito.ArgumentMatchers.any(Company.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0, Company.class));
         when(tenantAdminProvisioningService.isCredentialEmailDeliveryEnabled()).thenReturn(true);
 
         CompanyRequest request = new CompanyRequest(
@@ -187,7 +181,7 @@ class CompanyServiceTest {
         CompanyDto dto = companyService.create(request);
 
         assertThat(dto.code()).isEqualTo("SKE");
-        assertThat(dto.defaultGstRate()).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(dto.defaultGstRate()).isEqualByComparingTo("18");
         verify(tenantAdminProvisioningService).provisionInitialAdmin(
                 org.mockito.ArgumentMatchers.any(Company.class),
                 eq("tenant-admin@ske.com"),
