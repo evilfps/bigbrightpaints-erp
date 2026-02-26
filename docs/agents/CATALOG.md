@@ -1,6 +1,6 @@
 # Agent Catalog (Human-Readable)
 
-Last reviewed: 2026-02-15
+Last reviewed: 2026-02-27
 Owner: Orchestrator Agent
 
 This is the canonical role catalog for autonomous and semi-autonomous execution.
@@ -12,6 +12,7 @@ This is the canonical role catalog for autonomous and semi-autonomous execution.
 - Cross-module implementation must follow contract-first protocol (contracts -> producer -> consumers -> orchestrator).
 - High-risk writes require R2 evidence (`docs/approvals/R2-CHECKPOINT.md`) and policy gates.
 - Orchestrator routing and review coverage are enforced by `agents/orchestrator-layer.yaml`.
+- Delivery target is parallel velocity with architectural stability.
 
 ## 1) Orchestrator
 - Purpose: Break work into slices, assign domain agents, enforce acceptance criteria, and aggregate evidence.
@@ -131,6 +132,40 @@ This is the canonical role catalog for autonomous and semi-autonomous execution.
 - Sample prompts:
   - "Classify gate-fast failure type and show root-cause evidence."
   - "Add remediation-focused message to failing reliability guard."
+
+## 7A) Code Reviewer Agent
+- Purpose: Perform deep module-level code review before integration merge.
+- Inputs: implementation diffs, module tests, contract deltas.
+- Outputs: severity-ranked findings with file anchors and merge-readiness verdict.
+- Preconditions: planner packet and module acceptance criteria loaded.
+- Postconditions: correctness/security/performance/test-quality concerns are surfaced or cleared.
+- Required permissions: `ReadOnly`, `CIExec`.
+- Data sources: changed code, tests, review evidence artifacts.
+- Failure modes: shallow approval, missed edge cases, missing regression analysis.
+- Observability metrics: findings-per-review, escaped-defect rate from reviewed slices.
+- Test cases:
+  - flags breaking behavior with concrete file-level evidence.
+  - blocks approval when tests are missing for risky behavior changes.
+- Sample prompts:
+  - "Run deep module review for this slice and classify findings by severity."
+  - "Verify edge-case and regression coverage before merge handoff."
+
+## 7B) Merge Specialist Agent
+- Purpose: Guard integration integrity and decide merge readiness.
+- Inputs: approved module slices, contract changes, integration test evidence, CI results.
+- Outputs: integration verdict (`go`/`no-go`) with rationale and required remediation.
+- Preconditions: module-level reviews completed; required checks available.
+- Postconditions: merged changes are semantically coherent across modules and operationally observable.
+- Required permissions: `ReadOnly`, `CIExec`, `RepoWrite` for merge operations only.
+- Data sources: branch diffs, contract surfaces, integration checks, observability conventions.
+- Failure modes: textual conflict-only merges, hidden coupling, silent contract breakage.
+- Observability metrics: merge rejection reasons, post-merge regression incidence.
+- Test cases:
+  - rejects merges with incompatible cross-module contract changes.
+  - rejects merges when integration gates are incomplete or failing.
+- Sample prompts:
+  - "Validate cross-module contract compatibility before approving merge."
+  - "Assess integration integrity and issue go/no-go with concrete evidence."
 
 ## 8) Refactor & Tech-Debt GC Agent
 - Purpose: Reduce entropy by consolidating duplicate logic and enforcing boundaries.
@@ -331,3 +366,4 @@ This is the canonical role catalog for autonomous and semi-autonomous execution.
 - `purchasing`, `invoice`: Purchasing & Invoice (P2P) Agent
 - `factory`, `production`: Factory & Production Agent
 - `reports`, `admin`, `portal`, `demo`: Reports/Admin/Portal Agent
+- `review`: Code Reviewer Agent + Merge Specialist Agent + QA & Reliability Agent

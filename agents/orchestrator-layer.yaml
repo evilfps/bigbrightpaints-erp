@@ -1,5 +1,5 @@
 version: 1
-last_reviewed: 2026-02-24
+last_reviewed: 2026-02-27
 orchestrator_id: orchestrator
 decision_model:
   mode: proof_first
@@ -25,31 +25,25 @@ runtime:
           - model: gpt-5.3-codex
             reasoning: high
       planning:
-        preferred_model: gpt-5.3-codex
+        preferred_model: gpt-5.2-codex
         preferred_reasoning: xhigh
         fallback:
           - model: gpt-5.3-codex
             reasoning: high
       planning_architecture:
-        preferred_model: gpt-5.3-codex
+        preferred_model: gpt-5.2-codex
         preferred_reasoning: xhigh
         fallback:
           - model: gpt-5.3-codex
             reasoning: high
       backend_arch:
-        preferred_model: gpt-5.3-codex
+        preferred_model: gpt-5.2-codex
         preferred_reasoning: xhigh
         fallback:
           - model: gpt-5.3-codex
             reasoning: high
       product_analyst:
-        preferred_model: gpt-5.3-codex
-        preferred_reasoning: xhigh
-        fallback:
-          - model: gpt-5.3-codex
-            reasoning: high
-      data_migration:
-        preferred_model: gpt-5.3-codex
+        preferred_model: gpt-5.2-codex
         preferred_reasoning: xhigh
         fallback:
           - model: gpt-5.3-codex
@@ -65,7 +59,7 @@ runtime:
         preferred_reasoning: high
         fallback:
           - model: gpt-5.3-codex
-            reasoning: high
+            reasoning: medium
       security_auditor:
         preferred_model: gpt-5.3-codex
         preferred_reasoning: xhigh
@@ -84,32 +78,26 @@ runtime:
         fallback:
           - model: gpt-5.3-codex
             reasoning: high
-      qa_reliability:
-        preferred_model: gpt-5.3-codex
-        preferred_reasoning: xhigh
-        fallback:
-          - model: gpt-5.3-codex
-            reasoning: high
       performance:
         preferred_model: gpt-5.3-codex
         preferred_reasoning: high
         fallback:
           - model: gpt-5.3-codex
-            reasoning: high
+            reasoning: medium
       frontend_arch:
         preferred_model: gpt-5.3-codex
         preferred_reasoning: high
         fallback:
           - model: gpt-5.3-codex
-            reasoning: high
+            reasoning: medium
       frontend_documentation:
-        preferred_model: gpt-5.3-codex-spark
-        preferred_reasoning: medium
+        preferred_model: gpt-5.3-codex
+        preferred_reasoning: high
         fallback:
           - model: gpt-5.3-codex
-            reasoning: high
+            reasoning: medium
       orchestrator_planning:
-        preferred_model: gpt-5.3-codex
+        preferred_model: gpt-5.2-codex
         preferred_reasoning: xhigh
         fallback:
           - model: gpt-5.3-codex
@@ -131,19 +119,15 @@ runtime:
         preferred_reasoning: high
         fallback:
           - model: gpt-5.3-codex
-            reasoning: high
+            reasoning: medium
       exploration:
         preferred_model: gpt-5.3-codex-spark
-        preferred_reasoning: high
+        preferred_reasoning: xhigh
         fallback:
-          - model: gpt-5.3-codex
+          - model: codex-mini-latest
             reasoning: high
-      release_ops:
-        preferred_model: gpt-5.3-codex
-        preferred_reasoning: medium
-        fallback:
           - model: gpt-5.3-codex
-            reasoning: high
+            reasoning: medium
     agent_role_mapping:
       orchestrator:
         role: orchestrator
@@ -158,14 +142,14 @@ runtime:
         role: cross_module
         config_file: .codex/agents/cross_module.toml
       data-migration:
-        role: data_migration
-        config_file: .codex/agents/data_migration.toml
+        role: cross_module
+        config_file: .codex/agents/cross_module.toml
       hr-domain:
         role: cross_module
         config_file: .codex/agents/cross_module.toml
       release-ops:
-        role: release_ops
-        config_file: .codex/agents/release_ops.toml
+        role: cross_module
+        config_file: .codex/agents/cross_module.toml
       security-governance:
         role: security_auditor
         config_file: .codex/agents/security_auditor.toml
@@ -189,19 +173,22 @@ runtime:
         config_file: .codex/agents/cross_module_high.toml
       frontend-documentation:
         role: frontend_documentation
-        config_file: .codex/agents/frontend_documentation.toml
+        config_file: .codex/agents/frontend_arch.toml
       qa-reliability:
-        role: qa_reliability
-        config_file: .codex/agents/qa_reliability.toml
+        role: code_reviewer
+        config_file: .codex/agents/code_reviewer.toml
+      code-reviewer:
+        role: code_reviewer
+        config_file: .codex/agents/code_reviewer.toml
       merge-specialist:
         role: merge_specialist
-        config_file: .codex/agents/merge_specialist.toml
+        config_file: .codex/agents/code_reviewer.toml
       repo-cartographer:
         role: planning_architecture
         config_file: .codex/agents/planning_architecture.toml
       full-codebase-explorer:
-        role: exploration
-        config_file: .codex/agents/explorer.toml
+        role: planning
+        config_file: .codex/agents/planning.toml
       default:
         role: cross_module_high
         config_file: .codex/agents/cross_module_high.toml
@@ -230,9 +217,6 @@ runtime:
     - harness_results
     - residual_risks
     - blockers_or_next_step
-    - ticket_claim_evidence
-    - worktree_validation
-    - codebase_impact_analysis
 automation:
   harness_cli: scripts/harness_orchestrator.py
   ticket_root: tickets/
@@ -262,32 +246,13 @@ dispatch_protocol:
   ask_human_next_focus_when_idle: false
   autonomous_continuous_execution: true
   stop_condition_exact_prompt: STOP
-  mandatory_spawn_role_sequence:
-    - planning
-    - implementation
-    - merge_specialist
-    - code_reviewer
-    - qa_reliability
-    - release_ops
-  require_planning_subagent_before_implementation: true
-  require_merge_specialist_before_code_review: true
-  require_merge_specialist_for_non_doc_slices: true
-  require_code_reviewer_for_non_doc_slices: true
-  require_code_reviewer_before_qa: true
-  planner_owns_specialized_role_assignment: true
-  require_qa_reliability_for_non_doc_slices: true
-  require_release_ops_docs_sync_before_merge: true
-  require_reviewer_head_sha_match: true
-  require_qa_after_code_review_timestamp: true
-  enforce_changed_file_docs_only_classification: true
-  require_frontend_contract_docs_sync_on_api_surface_change: true
-  enforce_ticket_first_gate: true
-  require_worktree_branch_validation_before_edits: true
-  require_codebase_impact_analysis_in_results: true
-  base_branches_read_only_for_implementation:
-    - harness-engineering-orchestrator
-    - main
-    - master
+  require_planner_architecture_intent_packet: true
+  planner_must_define_scope_boundaries_constraints_and_success: true
+  planner_must_not_micromanage_implementation: true
+  implementation_agents_reasoning_authority_within_scope: true
+  require_isolated_worktree_per_agent: true
+  merge_specialist_is_integration_integrity_gate: true
+  qa_requires_cross_workflow_exploratory_validation: true
   when_idle:
     - continue highest-priority planned ticket automatically
     - if all active tickets are blocked, create and prepare next goal-aligned ticket
@@ -317,9 +282,6 @@ dispatch_protocol:
       - worktree_path
       - branch
       - claimed_at_utc
-    require_timeline_claim_event: true
-    allow_legacy_timeline_claim_lines: true
-    require_ticket_status_history: true
     claim_artifacts:
       - tickets/<TKT-ID>/ticket.yaml
       - tickets/<TKT-ID>/TIMELINE.md
@@ -350,6 +312,8 @@ routing_rules:
         - erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/
     primary_agent: accounting-domain
     reviewers:
+      - code-reviewer
+      - merge-specialist
       - qa-reliability
       - security-governance
 
@@ -359,6 +323,8 @@ routing_rules:
         - erp-domain/src/test/java/com/bigbrightpaints/erp/modules/inventory/
     primary_agent: inventory-domain
     reviewers:
+      - code-reviewer
+      - merge-specialist
       - qa-reliability
 
   - match:
@@ -367,6 +333,8 @@ routing_rules:
         - erp-domain/src/test/java/com/bigbrightpaints/erp/modules/sales/
     primary_agent: sales-domain
     reviewers:
+      - code-reviewer
+      - merge-specialist
       - qa-reliability
 
   - match:
@@ -375,6 +343,8 @@ routing_rules:
         - erp-domain/src/test/java/com/bigbrightpaints/erp/modules/hr/
     primary_agent: hr-domain
     reviewers:
+      - code-reviewer
+      - merge-specialist
       - qa-reliability
       - security-governance
 
@@ -385,6 +355,8 @@ routing_rules:
         - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/company/
     primary_agent: auth-rbac-company
     reviewers:
+      - code-reviewer
+      - merge-specialist
       - security-governance
       - qa-reliability
 
@@ -393,6 +365,8 @@ routing_rules:
         - erp-domain/src/main/java/com/bigbrightpaints/erp/orchestrator/
     primary_agent: orchestrator-runtime
     reviewers:
+      - code-reviewer
+      - merge-specialist
       - qa-reliability
       - security-governance
 
@@ -402,6 +376,8 @@ routing_rules:
         - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/invoice/
     primary_agent: purchasing-invoice-p2p
     reviewers:
+      - code-reviewer
+      - merge-specialist
       - qa-reliability
 
   - match:
@@ -410,6 +386,8 @@ routing_rules:
         - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/production/
     primary_agent: factory-production
     reviewers:
+      - code-reviewer
+      - merge-specialist
       - qa-reliability
 
   - match:
@@ -419,6 +397,8 @@ routing_rules:
         - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/portal/
     primary_agent: reports-admin-portal
     reviewers:
+      - code-reviewer
+      - merge-specialist
       - qa-reliability
 
   - match:
@@ -426,6 +406,8 @@ routing_rules:
         - erp-domain/src/main/resources/db/migration_v2/
     primary_agent: data-migration
     reviewers:
+      - code-reviewer
+      - merge-specialist
       - security-governance
       - release-ops
 
@@ -436,6 +418,8 @@ routing_rules:
         - ci/
     primary_agent: release-ops
     reviewers:
+      - code-reviewer
+      - merge-specialist
       - qa-reliability
 
   - match:
@@ -446,6 +430,7 @@ routing_rules:
         - scripts/harness_orchestrator.py
     primary_agent: orchestrator
     reviewers:
+      - merge-specialist
       - repo-cartographer
       - qa-reliability
 
@@ -467,7 +452,6 @@ routing_rules:
 
 always_available_agents:
   - full-codebase-explorer
-  - merge-specialist
   - refactor-techdebt-gc
 
 review_pipeline:
@@ -477,15 +461,12 @@ review_pipeline:
   block_on_scope_violations: true
   require_static_review_before_merge: true
   require_codex_review_guidelines_check: true
-  require_merge_specialist_for_non_doc_slices: true
   require_code_reviewer_for_non_doc_slices: true
+  require_merge_specialist_for_non_doc_slices: true
   require_qa_reliability_for_non_doc_slices: true
-  require_merge_specialist_before_code_review: true
-  require_code_reviewer_before_qa: true
-  require_reviewer_head_sha_match: true
-  require_qa_after_code_review_timestamp: true
-  enforce_changed_file_docs_only_classification: true
-  require_release_ops_for_non_doc_docs_sync: true
+  require_premerge_module_review: true
+  require_postmerge_integration_review: true
+  merge_specialist_decides_merge_readiness: true
   docs_only_policy:
     skip_review_subagents: true
     skip_codex_review_comment: true
@@ -496,6 +477,8 @@ review_pipeline:
     - bash ci/check-architecture.sh
     - bash ci/check-enterprise-policy.sh
   high_risk_additional_reviewers:
+    - code-reviewer
+    - merge-specialist
     - security-governance
     - qa-reliability
 
@@ -503,6 +486,7 @@ commit_policy:
   model:
     - primary implementation agent commits code for its slice
     - review-only agents do not commit code
+    - merge-specialist evaluates integration integrity and merge strategy before merge
     - orchestrator commits only orchestration/policy/docs artifacts unless explicitly taking ownership
   required_message_prefixes:
     - "orch:"
@@ -519,6 +503,8 @@ completion_contract:
   mark_done_only_when:
     - required_checks_pass
     - review_pipeline_complete
+    - merge_specialist_verdict_go
+    - qa_validation_complete
     - evidence_recorded_in_asyncloop
     - no_scope_violations
     - ticket_claim_released_or_closed
@@ -528,7 +514,6 @@ branch_execution_policy:
     - rerun required checks on merged base SHA after each merge
     - push base immediately after merged-sha checks pass
     - only then proceed to next ticket merge
-    - base branches are integration-only; do not implement directly on them
   worktree_base:
     - bootstrap new ticket worktrees from latest pushed base HEAD
     - base branch must be refreshed (fetch + fast-forward) before each new worktree

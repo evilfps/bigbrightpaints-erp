@@ -1,5 +1,5 @@
 version: 2
-last_reviewed: 2026-02-15
+last_reviewed: 2026-02-27
 global_policies:
   default_read_exploration_scopes:
     - .
@@ -197,7 +197,7 @@ agents:
 
   - id: qa-reliability
     name: QA and Reliability Agent
-    risk_tier: high
+    risk_tier: medium
     scopes:
       - scripts/
       - ci/
@@ -209,15 +209,32 @@ agents:
       - run_shell
       - run_ci_checks
 
+  - id: code-reviewer
+    name: Code Reviewer Agent
+    risk_tier: high
+    scopes:
+      - erp-domain/src/main/java/
+      - erp-domain/src/test/java/
+      - scripts/
+      - ci/
+      - docs/
+      - tickets/
+    allowed_tools:
+      - read_files
+      - run_shell
+      - run_ci_checks
+
   - id: merge-specialist
     name: Merge Specialist Agent
     risk_tier: high
     scopes:
-      - tickets/
-      - scripts/harness_orchestrator.py
-      - docs/agents/
       - erp-domain/src/main/java/
       - erp-domain/src/test/java/
+      - scripts/
+      - ci/
+      - docs/
+      - tickets/
+      - agents/
     allowed_tools:
       - read_files
       - write_files

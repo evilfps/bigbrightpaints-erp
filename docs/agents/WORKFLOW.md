@@ -1,7 +1,11 @@
 # Agent Workflow and Lifecycle
 
-Last reviewed: 2026-02-24
+Last reviewed: 2026-02-27
 Owner: Orchestrator Agent
+
+## Operating Stance
+- The orchestration layer is a high-legitimacy engineering system, not a blind task executor.
+- Decisions must preserve architectural integrity and system coherence, not just close local tasks quickly.
 
 ## Lifecycle
 1. Creation
@@ -15,11 +19,14 @@ Owner: Orchestrator Agent
 
 3. Recon and Planning
 - Start in `read_only_recon` when scope/risk is unclear.
-- Build slice plan with acceptance criteria and risk tags.
+- Planner defines module boundaries, cross-module impact, constraints, and success criteria.
+- Planner provides architectural intent and guardrails, not line-by-line implementation instructions.
 
 4. Implementation
 - Run in `enterprise_autonomous` (or migration/release profile when needed).
 - Keep slices small; preserve cross-module contract order.
+- Implementation agents have reasoning authority within their scoped module ownership.
+- Each implementation slice runs in its own isolated worktree/branch.
 
 5. Validation
 - Run cheapest checks first, then broader harness.
@@ -32,6 +39,22 @@ Owner: Orchestrator Agent
 7. Monitoring and Feedback
 - Track retries, blocker rate, incident escapes, and drift.
 - Convert repeated failures into skills/checks/docs updates.
+
+## Role Responsibility Contracts
+- Planner:
+  - Defines scope, boundaries, system impact, constraints, and done criteria.
+  - Must not micromanage implementation details.
+- Implementation agents:
+  - Operate inside assigned module boundaries with full reasoning authority in scope.
+  - Must reason about full feature objective and cross-module side effects.
+- Code reviewer:
+  - Performs deep module-level review for correctness, edge cases, security, performance, and test adequacy.
+- Merge specialist:
+  - Performs integration-integrity review (semantic conflict correctness, contract compatibility, hidden coupling, observability).
+  - Is not a mechanical merge executor and is not forced to merge by orchestrator request.
+- QA-reliability:
+  - Performs exploratory, edge-case, regression, and workflow-integrity validation across modules.
+  - Is not limited to script-only checks when deeper workflow validation is required.
 
 ## Runtime Model for Long-Running Flows
 - No timeout limits by default.
@@ -64,19 +87,6 @@ Claim collisions are merge-blocking. Unclaimed implementation submissions are re
 - Create one worktree per agent per slice under `../orchestrator_erp_worktrees/<TKT-ID>/`.
 - Never branch new slice worktrees from older slice branches.
 
-## Base Branch Protection (Mandatory)
-- Do not implement directly on `harness-engineering-orchestrator`, `main`, or `master`.
-- Implementation is allowed only in claimed ticket branches (`tickets/<tkt-id>/<agent-id>`) and assigned worktrees.
-- If current branch/worktree does not match the task packet assignment, stop and mark the slice blocked.
-- Base branches are integration-only: merge/push after required checks and review evidence.
-
-## Codebase Impact Analysis (Mandatory)
-Every implementation submission must include `codebase_impact_analysis` with:
-- upstream dependencies and contracts consumed
-- downstream modules/services/portals potentially affected
-- API/event/schema/test surface touched or intentionally unchanged
-- why non-goal modules are unaffected (or what follow-up is required)
-
 ## Subagent Role Policy
 Use Codex multi-agent role configuration for role/risk selection:
 - `orchestrator`
@@ -84,29 +94,16 @@ Use Codex multi-agent role configuration for role/risk selection:
 - `planning_architecture`
 - `backend_arch`
 - `product_analyst`
-- `data_migration`
 - `cross_module`
 - `cross_module_high`
 - `security_auditor`
-- `merge_specialist`
 - `code_reviewer`
-- `qa_reliability`
+- `merge_specialist`
 - `performance`
 - `frontend_arch` / `frontend_documentation`
 - legacy fallback buckets: `reviewer`, `implementation_high_risk`, `implementation_standard`, `exploration`
 
 If a preferred runtime profile is unavailable, orchestrator must document the fallback role/profile choice in ticket timeline.
-
-## Required Execution Order (Non-Doc Slices)
-For non-doc implementation tickets, orchestrator must run this sequence:
-1. `planning` (deep analysis + stepwise implementation plan)
-2. implementation slice agents in parallel worktrees
-3. `merge-specialist` integration/conflict-resolution evidence on ticket branches
-4. `code_reviewer` review evidence on each implementation slice
-5. `qa-reliability` cross-workflow regression and gate evidence
-6. `release-ops` docs/release-readiness sync before final merge
-
-Order is merge-blocking for release readiness.
 
 ## Agent-ID to Role Mapping
 - Existing YAML agent IDs are mapped to custom multi-agent roles in:
@@ -123,6 +120,15 @@ When touching multiple domains, use this order:
 5. architecture and policy checks
 
 Do not reorder unless an ADR explains why.
+
+## Review and Merge Order (Mandatory)
+1. Planner publishes architecture intent packet (scope, constraints, contracts, done checks).
+2. Implementation agents execute scoped slices in parallel with isolated worktrees.
+3. Deep review #1 (module level): code reviewer + module owner.
+4. Merge specialist integration review: semantic compatibility, contract integrity, and integration gate checks.
+5. Deep review #2 (post-merge integration): cross-workflow/system coherence review.
+6. QA-reliability performs system-level exploratory/regression validation.
+7. Release promotion only after required checks and QA evidence are green.
 
 ## Enterprise Policy Gates (Near Deployment)
 - `bash ci/check-enterprise-policy.sh`
@@ -148,10 +154,6 @@ High-risk deltas (auth/payroll/ledger/migrations/permissions/destructive ops) re
 - suggest minimal remediation
 - attach evidence (test/guard output)
 - enforce at least one reviewer agent per slice (orchestrator layer rule), except lane-qualified docs-only slices.
-- merge-specialist autonomy is mandatory:
-  - orchestrator proposes merge candidates and scope but must not force merge execution.
-  - `merge_specialist` independently decides `merge` vs `block` based on plan scope, review findings, and verification evidence.
-  - if evidence is incomplete or risks are unresolved, `merge_specialist` must refuse merge and return blockers.
 - lane-qualified docs-only review skip policy:
   - `fast_lane` docs-only slices (non-strict docs changes only): skip reviewer-agent + commit-review; require `bash ci/lint-knowledgebase.sh`.
   - `strict_lane` control-plane docs slices (`docs/agents/`, `docs/ASYNC_LOOP_OPERATIONS.md`, `docs/system-map/REVIEW_QUEUE_POLICY.md`, `agents/orchestrator-layer.yaml`, `asyncloop`, `scripts/harness_orchestrator.py`, `ci/`): reviewer-agent + commit-review may be skipped only when no runtime/config/schema/test files changed, and the strict guard trio must pass:
@@ -160,10 +162,6 @@ High-risk deltas (auth/payroll/ledger/migrations/permissions/destructive ops) re
     - `bash ci/check-enterprise-policy.sh`
 - runtime/config/schema/test changes never qualify for docs-only review skip.
 - evaluate lane and required checks with `scripts/harness_orchestrator.py`.
-- implementation submissions are incomplete without `ticket_claim_evidence`, `worktree_validation`, and `codebase_impact_analysis`.
-- `qa-reliability` is mandatory on non-doc slices and must validate cross-workflow behavior after code-review approvals.
-- reviewer approvals are valid only for the current branch head SHA (stale approvals are rejected).
-- QA approval timestamp must be after code-review approval timestamps on non-doc slices.
 
 Frontend doc changes must preserve portal ownership taxonomy:
 - Accounting Portal: accounting + inventory + hr + reports + invoice

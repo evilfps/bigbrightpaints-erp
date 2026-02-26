@@ -1,14 +1,19 @@
 # Orchestrator Layer Contract
 
-Last reviewed: 2026-02-24
+Last reviewed: 2026-02-27
 Owner: Orchestrator Agent
 
 This defines how the orchestrator controls all agents in long-running async loops.
 
 ## Objective
-- Real orchestrator behavior: route work, enforce contracts, require evidence, and gate completion.
-- Keep autonomy high: orchestrator closes R1/R2 when proof exists.
+- Route work, enforce contracts, require evidence, and gate completion.
+- Preserve architectural integrity and cross-module coherence, not just merge throughput.
 - Keep humans focused on irreversible production actions only.
+
+## System Posture
+- The orchestrator is an engineering control system, not a blind task executor.
+- Every role keeps system-level awareness proportional to responsibility.
+- Narrow scope does not permit narrow thinking on integration and failure modes.
 
 ## Control Plane Inputs
 - `asyncloop` (active slice queue and evidence ledger)
@@ -17,15 +22,13 @@ This defines how the orchestrator controls all agents in long-running async loop
 - `docs/agents/PERMISSIONS.md` and `docs/agents/WORKFLOW.md` (policy)
 
 ## Dispatch Model
-1. Orchestrator reads next `in_progress` or top `ready` slice from `asyncloop`.
-2. It maps changed paths and risk to a primary agent via `agents/orchestrator-layer.yaml`.
-3. It enforces ticket claim: `ready -> taken -> in_progress` with agent identity + worktree + branch recorded.
-4. It validates ticket-first gate before coding: assigned branch, assigned worktree, and base-branch read-only policy.
-5. It requires codebase impact analysis in each implementation handoff before review.
-6. It assigns at least one reviewer agent.
-7. For high-risk slices, it adds `security-governance` and `qa-reliability` reviewers.
-8. It runs required guard checks before marking done.
-9. For non-doc slices, it enforces role order: planning -> implementation -> merge-specialist -> code review -> qa-reliability -> release-ops sync.
+1. Planner publishes architecture intent packet (scope boundaries, constraints, contracts, success criteria).
+2. Orchestrator maps paths/risk to scoped implementation agents via `agents/orchestrator-layer.yaml`.
+3. Each implementation slice runs in isolated worktree/branch with ticket claim recorded.
+4. Code-reviewer performs deep module-level review.
+5. Merge-specialist performs integration-integrity review and merge gate decision.
+6. QA-reliability performs cross-workflow exploratory validation and regression checks.
+7. Orchestrator runs required guard checks before marking done.
 
 ## Agent Claim and Isolation Contract
 - Agents must not start edits before claim is recorded in ticket artifacts.
@@ -33,27 +36,21 @@ This defines how the orchestrator controls all agents in long-running async loop
 - Worker reads only its own `docs/agents/templates/TASK_PACKET.md`-derived packet; cross-slice packet reads are blocked.
 - Reviewer agents are review-only and cannot claim implementation ownership.
 - Unclaimed submissions are rejected in orchestrator pre-merge review.
-- Base branches (`harness-engineering-orchestrator`, `main`, `master`) are read-only for implementation edits.
 
-## Required Slice Output Contract
-- `files_changed`
-- `commands_run`
-- `harness_results`
-- `residual_risks`
-- `blockers_or_next_step`
-- `ticket_claim_evidence`
-- `worktree_validation`
-- `codebase_impact_analysis`
-
-## QA Reliability Role
-- `qa-reliability` is the cross-workflow testing owner, not a superficial reviewer.
-- It validates integrated behavior after code-review approvals and before final merge.
-- It publishes regression/gate evidence used by orchestrator merge readiness.
-
-## Merge Specialist Role
-- `merge-specialist` owns integration merge/conflict handling between implementation and review phases.
-- It provides merge-evidence artifacts and flags semantic conflict risk before code-review and QA stages.
-- It does not replace code review or QA.
+## Role Responsibility Contract
+- Planner:
+  - Defines architectural intent, module boundaries, and system constraints.
+  - Does not micromanage implementation details.
+- Implementation agents:
+  - Own design decisions within scope.
+  - Must account for cross-module impact and maintainability.
+- Code-reviewer:
+  - Performs deep correctness/security/performance/test review at module level.
+- Merge-specialist:
+  - Validates semantic merge correctness, interface compatibility, coupling risk, and observability impact.
+  - Is not a blind conflict resolver and cannot be forced to approve.
+- QA-reliability:
+  - Performs exploratory validation, edge-case checks, and end-to-end workflow verification.
 
 ## Subagent Role Routing
 Orchestrator selects runtime role by scope and risk:
@@ -62,13 +59,11 @@ Orchestrator selects runtime role by scope and risk:
 - `planning_architecture`
 - `backend_arch`
 - `product_analyst`
-- `data_migration`
 - `cross_module`
 - `cross_module_high`
 - `security_auditor`
-- `merge_specialist`
 - `code_reviewer`
-- `qa_reliability`
+- `merge_specialist`
 - `performance`
 - `frontend_arch` / `frontend_documentation`
 - legacy fallback buckets: `reviewer`, `implementation_high_risk`, `implementation_standard`, `exploration`
@@ -79,7 +74,9 @@ Fallback role/profile decision must be logged in ticket timeline.
 
 ## Review Model (Mandatory)
 - Every slice requires:
-  - one reviewer agent minimum
+  - code-reviewer module review
+  - merge-specialist integration review
+  - qa-reliability system validation
   - codex review guideline checks
   - architecture/doc/enterprise policy guard checks
 - Lane-qualified docs-only exception:
@@ -88,10 +85,8 @@ Fallback role/profile decision must be logged in ticket timeline.
     - `bash ci/lint-knowledgebase.sh`
     - `bash ci/check-architecture.sh`
     - `bash ci/check-enterprise-policy.sh`
-- runtime/config/schema/test changes never qualify for docs-only review skip.
-- resolve lane/check mapping with `scripts/harness_orchestrator.py`.
-- approvals must target the current branch head SHA; stale approvals are treated as pending.
-- QA timestamp must be after code-review approvals for non-doc slices.
+  - runtime/config/schema/test changes never qualify for docs-only review skip.
+  - resolve lane/check mapping with `scripts/harness_orchestrator.py`.
 - Evidence must be appended to `asyncloop` for traceability.
 
 ## Strict-Lane Runbook Alignment
@@ -106,7 +101,8 @@ Fallback role/profile decision must be logged in ticket timeline.
 - Primary implementation agent commits slice code.
 - Review-only agents provide findings/evidence and do not commit code.
 - Orchestrator commits orchestration/policy/docs artifacts unless it explicitly takes slice ownership.
-- A commit is valid only after review evidence is attached.
+- Merge-specialist decides merge readiness based on integration integrity evidence.
+- A commit/merge is valid only after required review evidence is attached.
 
 ## Cross-Module Contract
 - The orchestrator enforces order: contracts -> producer -> consumers -> orchestrator.

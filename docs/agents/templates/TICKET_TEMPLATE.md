@@ -19,6 +19,11 @@ For each slice capture:
 - required_checks
 - status
 
+Reviewer contract for non-doc slices:
+- `code-reviewer` (deep module review)
+- `merge-specialist` (integration integrity + merge decision)
+- `qa-reliability` (system-level exploratory validation)
+
 ## Definition Of Done
 - required checks pass
 - reviewer evidence present and approved
