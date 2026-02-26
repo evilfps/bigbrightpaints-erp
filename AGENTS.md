@@ -35,6 +35,7 @@ Human-friendly alias: `AGENTMAP.md`.
 - Primary orchestrator agent owns intent, safety, and final merge quality.
 - Worker agents may own bounded implementation slices in parallel when paths are independent.
 - Review agents must run on every commit with severity-tagged findings and file anchors.
+- Merge decisions are owned by `merge_specialist`: orchestrator can nominate scope but cannot force merge execution without independent merge-readiness validation.
 - Docs-only exception: for docs-only commits, skip commit-review/subagent and run `bash ci/lint-knowledgebase.sh` only.
 - Progressive-disclosure rule: agents must load only the docs needed for the current slice instead of bulk-reading all docs.
 - Use lane selection to avoid rule overload:
