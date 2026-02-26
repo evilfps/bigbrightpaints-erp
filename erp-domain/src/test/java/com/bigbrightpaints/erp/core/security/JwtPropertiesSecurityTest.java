@@ -79,6 +79,96 @@ class JwtPropertiesSecurityTest {
         assertThat(properties.getSecret()).isEqualTo("test-secret-should-be-at-least-32-bytes-long-1234");
     }
 
+    @Test
+    void validate_allowsStrongSecretOutsideSafeProfiles() {
+        JwtProperties properties = new JwtProperties();
+        properties.setEnvironment(environmentWithProfiles("prod"));
+        properties.setSecret("  runtime-random-entropy-secret-value-1234567890  ");
+
+        properties.validate();
+
+        assertThat(properties.getSecret()).isEqualTo("runtime-random-entropy-secret-value-1234567890");
+    }
+
+    @Test
+    void validate_rejectsChangeMePatternOutsideTestProfiles() {
+        JwtProperties properties = new JwtProperties();
+        properties.setEnvironment(environmentWithProfiles("prod"));
+        properties.setSecret("runtime-changeme-secret-value-12345678901234567890");
+
+        assertThatThrownBy(properties::validate)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("unsafe static placeholder");
+    }
+
+    @Test
+    void validate_rejectsPleaseOverridePatternOutsideTestProfiles() {
+        JwtProperties properties = new JwtProperties();
+        properties.setEnvironment(environmentWithProfiles("prod"));
+        properties.setSecret("runtime-please-override-secret-value-12345678901234567890");
+
+        assertThatThrownBy(properties::validate)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("unsafe static placeholder");
+    }
+
+    @Test
+    void validate_rejectsReplaceMePatternOutsideTestProfiles() {
+        JwtProperties properties = new JwtProperties();
+        properties.setEnvironment(environmentWithProfiles("prod"));
+        properties.setSecret("runtime-replace-me-secret-value-12345678901234567890");
+
+        assertThatThrownBy(properties::validate)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("unsafe static placeholder");
+    }
+
+    @Test
+    void validate_rejectsExpressionPlaceholderOutsideTestProfiles() {
+        JwtProperties properties = new JwtProperties();
+        properties.setEnvironment(environmentWithProfiles("prod"));
+        properties.setSecret("${JWT_SECRET_PLACEHOLDER_VALUE_12345678901234567890}");
+
+        assertThatThrownBy(properties::validate)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("unsafe static placeholder");
+    }
+
+    @Test
+    void validate_usesDefaultProfilesWhenActiveProfilesMissing() {
+        JwtProperties properties = new JwtProperties();
+        MockEnvironment environment = new MockEnvironment();
+        environment.setDefaultProfiles("default", "dev");
+        properties.setEnvironment(environment);
+        properties.setSecret("   ");
+
+        properties.validate();
+
+        assertThat(properties.getSecret()).isNotBlank();
+    }
+
+    @Test
+    void validate_failsWhenNoEffectiveProfilesRemainAfterDefaultFiltering() {
+        JwtProperties properties = new JwtProperties();
+        MockEnvironment environment = new MockEnvironment();
+        environment.setDefaultProfiles("default");
+        properties.setEnvironment(environment);
+
+        assertThatThrownBy(properties::validate)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("must be provided");
+    }
+
+    @Test
+    void setEnvironment_nullFallsBackToStandardEnvironment() {
+        JwtProperties properties = new JwtProperties();
+        properties.setEnvironment(null);
+
+        assertThatThrownBy(properties::validate)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("must be provided");
+    }
+
     private MockEnvironment environmentWithProfiles(String... profiles) {
         MockEnvironment environment = new MockEnvironment();
         environment.setActiveProfiles(profiles);
