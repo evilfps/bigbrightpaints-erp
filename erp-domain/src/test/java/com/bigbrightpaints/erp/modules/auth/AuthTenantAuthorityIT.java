@@ -22,7 +22,9 @@ import org.springframework.http.ResponseEntity;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.fail;
@@ -34,6 +36,8 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
     private static final String ROOT_TENANT = "AUTH-ROOT";
 
     private static final String ADMIN_EMAIL = "tenant-admin@bbp.com";
+    private static final String ROLE_GUARD_ADMIN_EMAIL = "role-guard-admin@bbp.com";
+    private static final String NON_PRIVILEGED_ADMIN_EMAIL = "tenant-admin-nonpriv@bbp.com";
     private static final String SUPER_ADMIN_EMAIL = "super-admin@bbp.com";
     private static final String PASSWORD = "Passw0rd!";
 
@@ -52,7 +56,10 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
     @BeforeEach
     void setUp() {
         dataSeeder.ensureUser(ADMIN_EMAIL, PASSWORD, "Tenant Admin", TENANT_A, List.of("ROLE_ADMIN"));
+        dataSeeder.ensureUser(ROLE_GUARD_ADMIN_EMAIL, PASSWORD, "Role Guard Admin", TENANT_A, List.of("ROLE_ADMIN"));
+        dataSeeder.ensureUser(NON_PRIVILEGED_ADMIN_EMAIL, PASSWORD, "Non Privileged Admin", TENANT_A, List.of("ROLE_ADMIN"));
         dataSeeder.ensureUser("other-admin@bbp.com", PASSWORD, "Other Admin", TENANT_B, List.of("ROLE_ADMIN"));
+        dataSeeder.ensureUser("factory-seed@bbp.com", PASSWORD, "Factory Seed", TENANT_A, List.of("ROLE_FACTORY"));
         dataSeeder.ensureUser(SUPER_ADMIN_EMAIL, PASSWORD, "Super Admin", ROOT_TENANT,
                 List.of("ROLE_SUPER_ADMIN", "ROLE_ADMIN"));
         // Give super admin access to a regular tenant for delegated tenant-admin creation.
@@ -457,6 +464,112 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
         assertThat(idorUpdate.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
     }
 
+    @Test
+    void tenant_admin_cannot_mutate_shared_role_permissions() throws InterruptedException {
+        String adminToken = login(ROLE_GUARD_ADMIN_EMAIL, TENANT_A);
+        String superAdminToken = login(SUPER_ADMIN_EMAIL, TENANT_A);
+        assertTokenCanAccessMe(adminToken, TENANT_A);
+        Map<String, Object> before = fetchRoleData(superAdminToken, TENANT_A, "ROLE_FACTORY");
+        Set<String> beforePermissions = extractPermissionCodes(before);
+
+        ResponseEntity<Map> denied = rest.exchange(
+                "/api/v1/admin/roles",
+                HttpMethod.POST,
+                new HttpEntity<>(Map.of(
+                        "name", "ROLE_FACTORY",
+                        "description", "Tenant mutation attempt",
+                        "permissions", List.of("portal:factory")
+                ), jsonHeaders(adminToken, TENANT_A)),
+                Map.class);
+
+        assertForbiddenFromRoleMutationGuard(denied);
+        Map<String, Object> after = fetchRoleData(superAdminToken, TENANT_A, "ROLE_FACTORY");
+        assertThat(extractPermissionCodes(after)).isEqualTo(beforePermissions);
+
+        AuditLog deniedAudit = awaitAuditEvent(AuditEvent.ACCESS_DENIED, log ->
+                ROLE_GUARD_ADMIN_EMAIL.equalsIgnoreCase(log.getUsername())
+                        && "shared-role-permission-mutation-requires-super-admin".equals(log.getMetadata().get("reason"))
+                        && "ROLE_FACTORY".equalsIgnoreCase(log.getMetadata().get("targetRole")));
+        assertThat(deniedAudit.getMetadata().get("tenantScope")).contains(TENANT_A);
+    }
+
+    @Test
+    void super_admin_can_mutate_shared_role_permissions_via_existing_endpoint() throws InterruptedException {
+        String superAdminToken = login(SUPER_ADMIN_EMAIL, TENANT_A);
+        Map<String, Object> baseline = fetchRoleData(superAdminToken, TENANT_A, "ROLE_FACTORY");
+        String description = String.valueOf(baseline.get("description"));
+        List<String> permissions = extractPermissionCodes(baseline).stream().toList();
+
+        ResponseEntity<Map> response = rest.exchange(
+                "/api/v1/admin/roles",
+                HttpMethod.POST,
+                new HttpEntity<>(Map.of(
+                        "name", "ROLE_FACTORY",
+                        "description", description,
+                        "permissions", permissions
+                ), jsonHeaders(superAdminToken, TENANT_A)),
+                Map.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        AuditLog grantedAudit = awaitAuditEvent(AuditEvent.ACCESS_GRANTED, log ->
+                SUPER_ADMIN_EMAIL.equalsIgnoreCase(log.getUsername())
+                        && "shared-role-permission-mutation-approved".equals(log.getMetadata().get("reason"))
+                        && "ROLE_FACTORY".equalsIgnoreCase(log.getMetadata().get("targetRole")));
+        assertThat(grantedAudit.getMetadata().get("tenantScope")).contains(TENANT_A);
+    }
+
+    @Test
+    void tenant_admin_can_still_create_non_privileged_user() {
+        String token = login(NON_PRIVILEGED_ADMIN_EMAIL, TENANT_A);
+        Long tenantAId = companyRepository.findByCodeIgnoreCase(TENANT_A).map(Company::getId).orElseThrow();
+        String candidateEmail = "sales-operator-" + System.nanoTime() + "@bbp.com";
+
+        ResponseEntity<Map> response = rest.exchange(
+                "/api/v1/admin/users",
+                HttpMethod.POST,
+                new HttpEntity<>(Map.of(
+                        "email", candidateEmail,
+                        "password", "ChangeMe123!",
+                        "displayName", "Sales Operator",
+                        "companyIds", List.of(tenantAId),
+                        "roles", List.of("ROLE_SALES")
+                ), jsonHeaders(token, TENANT_A)),
+                Map.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        Map<String, Object> body = response.getBody();
+        assertThat(body).isNotNull();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> data = (Map<String, Object>) body.get("data");
+        assertThat(data.get("email")).isEqualTo(candidateEmail);
+        @SuppressWarnings("unchecked")
+        List<String> roles = (List<String>) data.get("roles");
+        assertThat(roles).contains("ROLE_SALES");
+    }
+
+    private void assertTokenCanAccessMe(String token, String companyCode) {
+        ResponseEntity<Map> authCheck = rest.exchange(
+                "/api/v1/auth/me",
+                HttpMethod.GET,
+                new HttpEntity<>(jsonHeaders(token, companyCode)),
+                Map.class);
+        assertThat(authCheck.getStatusCode()).isEqualTo(HttpStatus.OK);
+    }
+
+    private void assertForbiddenFromRoleMutationGuard(ResponseEntity<Map> denied) {
+        assertThat(denied.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        Map<String, Object> body = denied.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.get("success")).isEqualTo(Boolean.FALSE);
+        assertThat(body.get("message")).isEqualTo("Access denied");
+        Object errorValue = body.get("data");
+        assertThat(errorValue).isInstanceOf(Map.class);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> error = (Map<String, Object>) errorValue;
+        assertThat(error.get("code")).isEqualTo("AUTH_004");
+        assertThat(error.get("message")).isEqualTo("Insufficient permissions for this operation");
+    }
+
     private String login(String email, String companyCode) {
         ResponseEntity<Map> response = rest.postForEntity("/api/v1/auth/login", Map.of(
                 "email", email,
@@ -467,6 +580,36 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
         Map<String, Object> body = response.getBody();
         assertThat(body).isNotNull();
         return body.get("accessToken").toString();
+    }
+
+    private Map<String, Object> fetchRoleData(String token, String companyCode, String roleKey) {
+        ResponseEntity<Map> response = rest.exchange(
+                "/api/v1/admin/roles/" + roleKey,
+                HttpMethod.GET,
+                new HttpEntity<>(jsonHeaders(token, companyCode)),
+                Map.class);
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        Map<String, Object> body = response.getBody();
+        assertThat(body).isNotNull();
+        Object data = body.get("data");
+        assertThat(data).isInstanceOf(Map.class);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> roleData = (Map<String, Object>) data;
+        return roleData;
+    }
+
+    private Set<String> extractPermissionCodes(Map<String, Object> roleData) {
+        Object permissionsValue = roleData.get("permissions");
+        if (!(permissionsValue instanceof List<?> permissions)) {
+            return Set.of();
+        }
+        return permissions.stream()
+                .filter(Map.class::isInstance)
+                .map(Map.class::cast)
+                .map(entry -> entry.get("code"))
+                .filter(String.class::isInstance)
+                .map(String.class::cast)
+                .collect(Collectors.toSet());
     }
 
     private HttpHeaders jsonHeaders(String token, String companyCode) {

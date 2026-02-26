@@ -94,9 +94,9 @@ public class RoleService {
 
     private RoleDto persistRole(CreateRoleRequest request) {
         String normalizedName = normalizeRoleName(request.name());
-        enforceSuperAdminForPrivilegedRoles(normalizedName, "platform-role-create");
         SystemRole definition = SystemRole.fromName(normalizedName)
                 .orElseThrow(() -> new IllegalArgumentException("Unknown platform role: " + normalizedName));
+        enforceSuperAdminForSharedRoleMutation(definition.getRoleName(), "shared-role-permission-mutation");
 
         // Use pessimistic lock to prevent race condition
         Role role = roleRepository.lockByName(normalizedName).orElseGet(Role::new);
@@ -148,6 +148,15 @@ public class RoleService {
         if (!hasAuthority(authentication, "ROLE_SUPER_ADMIN")) {
             auditAuthorityDecision(false, action, normalizedRoleName, authentication);
             throw new AccessDeniedException("SUPER_ADMIN authority required for role: " + normalizedRoleName);
+        }
+        auditAuthorityDecision(true, action, normalizedRoleName, authentication);
+    }
+
+    private void enforceSuperAdminForSharedRoleMutation(String normalizedRoleName, String action) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (!hasAuthority(authentication, "ROLE_SUPER_ADMIN")) {
+            auditAuthorityDecision(false, action, normalizedRoleName, authentication);
+            throw new AccessDeniedException("SUPER_ADMIN authority required for role mutation: " + normalizedRoleName);
         }
         auditAuthorityDecision(true, action, normalizedRoleName, authentication);
     }
