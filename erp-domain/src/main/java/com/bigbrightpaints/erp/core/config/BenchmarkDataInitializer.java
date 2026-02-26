@@ -23,14 +23,19 @@ import com.bigbrightpaints.erp.modules.rbac.domain.Role;
 import com.bigbrightpaints.erp.modules.rbac.domain.RoleRepository;
 import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -69,6 +74,8 @@ import java.util.Map;
 @Profile("benchmark")
 public class BenchmarkDataInitializer {
 
+    private static final Logger log = LoggerFactory.getLogger(BenchmarkDataInitializer.class);
+
     @Bean
     CommandLineRunner seedBenchmarkData(CompanyRepository companyRepository,
                                         RoleRepository roleRepository,
@@ -81,7 +88,9 @@ public class BenchmarkDataInitializer {
                                         ProductionProductRepository productRepository,
                                         FinishedGoodRepository finishedGoodRepository,
                                         RawMaterialRepository rawMaterialRepository,
-                                        PackagingSizeMappingRepository packagingSizeMappingRepository) {
+                                        PackagingSizeMappingRepository packagingSizeMappingRepository,
+                                        @Value("${erp.seed.benchmark-admin.email:}") String benchmarkAdminEmail,
+                                        @Value("${erp.seed.benchmark-admin.password:}") String benchmarkAdminPassword) {
         return args -> {
             System.out.println("=== Benchmark Data Initializer Starting ===");
             
@@ -94,8 +103,8 @@ public class BenchmarkDataInitializer {
             System.out.println("Accounts created: " + accounts.size());
             
             // 3. Create roles and admin user
-            seedRolesAndUsers(roleRepository, userRepository, passwordEncoder, company);
-            System.out.println("Admin user created: benchmark.admin@bbp.com");
+            seedRolesAndUsers(roleRepository, userRepository, passwordEncoder, company, benchmarkAdminEmail, benchmarkAdminPassword);
+            System.out.println("Admin user created: " + benchmarkAdminEmail);
             
             // 4. Create suppliers
             seedSuppliers(company, supplierRepository, accounts.get("AP"));
@@ -199,7 +208,9 @@ public class BenchmarkDataInitializer {
     private void seedRolesAndUsers(RoleRepository roleRepository,
                                    UserAccountRepository userRepository,
                                    PasswordEncoder encoder,
-                                   Company company) {
+                                   Company company,
+                                   String adminEmail,
+                                   String adminPassword) {
         Role admin = roleRepository.findByName("ROLE_ADMIN").orElseGet(() -> {
             Role r = new Role();
             r.setName("ROLE_ADMIN");
@@ -225,18 +236,29 @@ public class BenchmarkDataInitializer {
             return roleRepository.save(r);
         });
 
-        userRepository.findByEmailIgnoreCase("benchmark.admin@bbp.com").orElseGet(() -> {
+        if (!StringUtils.hasText(adminEmail)) {
+            log.info("Benchmark admin seed skipped: set erp.seed.benchmark-admin.email to enable bootstrap");
+            return;
+        }
+        String normalizedEmail = adminEmail.trim().toLowerCase(Locale.ROOT);
+        UserAccount existingAdmin = userRepository.findByEmailIgnoreCase(normalizedEmail).orElse(null);
+        if (existingAdmin == null) {
+            if (!StringUtils.hasText(adminPassword)) {
+                throw new IllegalStateException(
+                        "erp.seed.benchmark-admin.password is required when bootstrap benchmark-admin user does not exist");
+            }
             UserAccount user = new UserAccount(
-                    "benchmark.admin@bbp.com",
-                    encoder.encode("Benchmark123!"),
+                    normalizedEmail,
+                    encoder.encode(adminPassword.trim()),
                     "Benchmark Admin");
+            user.setMustChangePassword(true);
             user.addCompany(company);
             user.addRole(admin);
             user.addRole(accounting);
             user.addRole(sales);
             user.addRole(factory);
-            return userRepository.save(user);
-        });
+            userRepository.save(user);
+        }
     }
 
     private void seedSuppliers(Company company, SupplierRepository supplierRepository, Account ap) {

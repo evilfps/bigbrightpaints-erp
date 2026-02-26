@@ -30,23 +30,30 @@ import com.bigbrightpaints.erp.modules.rbac.domain.Role;
 import com.bigbrightpaints.erp.modules.rbac.domain.RoleRepository;
 import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 
 @Configuration
 @Profile("mock")
 public class MockDataInitializer {
+
+    private static final Logger log = LoggerFactory.getLogger(MockDataInitializer.class);
 
     @Bean
     CommandLineRunner seedMockData(CompanyRepository companyRepository,
@@ -63,11 +70,13 @@ public class MockDataInitializer {
                                    RawMaterialRepository rawMaterialRepository,
                                    RawMaterialBatchRepository rawMaterialBatchRepository,
                                    AccountingService accountingService,
-                                   JournalEntryRepository journalEntryRepository) {
+                                   JournalEntryRepository journalEntryRepository,
+                                   @Value("${erp.seed.mock-admin.email:}") String mockAdminEmail,
+                                   @Value("${erp.seed.mock-admin.password:}") String mockAdminPassword) {
         return args -> {
             Company company = createCompany(companyRepository);
             Map<String, Account> accounts = seedAccounts(company, accountRepository, companyRepository);
-            seedRolesAndUsers(roleRepository, userRepository, passwordEncoder, company);
+            seedRolesAndUsers(roleRepository, userRepository, passwordEncoder, company, mockAdminEmail, mockAdminPassword);
             Dealer dealer = seedDealer(company, dealerRepository, accounts.get("AR"));
             Supplier supplier = seedSupplier(company, supplierRepository, accounts.get("AP"));
             ProductionBrand brand = seedBrand(company, brandRepository);
@@ -164,7 +173,9 @@ public class MockDataInitializer {
     private void seedRolesAndUsers(RoleRepository roleRepository,
                                    UserAccountRepository userRepository,
                                    PasswordEncoder encoder,
-                                   Company company) {
+                                   Company company,
+                                   String adminEmail,
+                                   String adminPassword) {
         Role admin = roleRepository.findByName("ROLE_ADMIN").orElseGet(() -> {
             Role r = new Role();
             r.setName("ROLE_ADMIN");
@@ -184,17 +195,28 @@ public class MockDataInitializer {
             return roleRepository.save(r);
         });
 
-        userRepository.findByEmailIgnoreCase("mock.admin@bbp.com").orElseGet(() -> {
+        if (!StringUtils.hasText(adminEmail)) {
+            log.info("Mock admin seed skipped: set erp.seed.mock-admin.email to enable bootstrap");
+            return;
+        }
+        String normalizedEmail = adminEmail.trim().toLowerCase(Locale.ROOT);
+        UserAccount existingAdmin = userRepository.findByEmailIgnoreCase(normalizedEmail).orElse(null);
+        if (existingAdmin == null) {
+            if (!StringUtils.hasText(adminPassword)) {
+                throw new IllegalStateException(
+                        "erp.seed.mock-admin.password is required when bootstrap mock-admin user does not exist");
+            }
             UserAccount user = new UserAccount(
-                    "mock.admin@bbp.com",
-                    encoder.encode("Password123!"),
+                    normalizedEmail,
+                    encoder.encode(adminPassword.trim()),
                     "Mock Admin");
+            user.setMustChangePassword(true);
             user.addCompany(company);
             user.addRole(admin);
             user.addRole(accounting);
             user.addRole(sales);
-            return userRepository.save(user);
-        });
+            userRepository.save(user);
+        }
     }
 
     private Dealer seedDealer(Company company, DealerRepository dealerRepository, Account ar) {

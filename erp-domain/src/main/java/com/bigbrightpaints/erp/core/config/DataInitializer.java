@@ -28,6 +28,8 @@ public class DataInitializer {
     private static final Logger log = LoggerFactory.getLogger(DataInitializer.class);
     private static final String DEFAULT_SUPER_ADMIN_COMPANY_CODE = "SKE";
     private static final String SUPER_ADMIN_DISPLAY_NAME = "Platform Super Admin";
+    private static final String DEFAULT_DEV_ADMIN_EMAIL = "";
+    private static final String DEV_ADMIN_DISPLAY_NAME = "Dev Admin";
 
     @Bean
     @Profile({"dev", "seed"})
@@ -38,7 +40,9 @@ public class DataInitializer {
                                       PasswordEncoder passwordEncoder,
                                       @Value("${erp.seed.super-admin.email:}") String superAdminEmail,
                                       @Value("${erp.seed.super-admin.password:}") String superAdminPassword,
-                                      @Value("${erp.seed.super-admin.company-code:SKE}") String superAdminCompanyCode) {
+                                      @Value("${erp.seed.super-admin.company-code:SKE}") String superAdminCompanyCode,
+                                      @Value("${erp.seed.dev-admin.email:" + DEFAULT_DEV_ADMIN_EMAIL + "}") String devAdminEmail,
+                                      @Value("${erp.seed.dev-admin.password:}") String devAdminPassword) {
         return args -> {
             Role adminRole = roleRepository.findByName("ROLE_ADMIN").orElseGet(() -> {
                 Role role = new Role();
@@ -73,15 +77,13 @@ public class DataInitializer {
                         return companyRepository.save(c);
                     });
 
-            userRepository.findByEmailIgnoreCase("admin@bbp.dev").orElseGet(() -> {
-                UserAccount user = new UserAccount(
-                        "admin@bbp.dev",
-                        passwordEncoder.encode("ChangeMe123!"),
-                        "Dev Admin");
-                user.addCompany(company);
-                user.addRole(adminRole);
-                return userRepository.save(user);
-            });
+            seedConfiguredDevAdmin(
+                    userRepository,
+                    passwordEncoder,
+                    adminRole,
+                    company,
+                    devAdminEmail,
+                    devAdminPassword);
 
             seedDefaultAccounts(superAdminCompany, accountRepository);
             if (superAdminCompany != null) {
@@ -90,6 +92,46 @@ public class DataInitializer {
             seedDefaultAccounts(company, accountRepository);
             setCompanyDefaultAccounts(company, companyRepository, accountRepository);
         };
+    }
+
+    private void seedConfiguredDevAdmin(UserAccountRepository userRepository,
+                                        PasswordEncoder passwordEncoder,
+                                        Role adminRole,
+                                        Company company,
+                                        String configuredEmail,
+                                        String configuredPassword) {
+        if (!StringUtils.hasText(configuredEmail)) {
+            log.info("Dev-admin seed skipped: set erp.seed.dev-admin.email to enable bootstrap");
+            return;
+        }
+        String normalizedEmail = configuredEmail.trim().toLowerCase(Locale.ROOT);
+        String normalizedPassword = StringUtils.hasText(configuredPassword) ? configuredPassword.trim() : "";
+        UserAccount devAdmin = userRepository.findByEmailIgnoreCase(normalizedEmail).orElse(null);
+        if (devAdmin == null) {
+            if (!StringUtils.hasText(normalizedPassword)) {
+                throw new IllegalStateException(
+                        "erp.seed.dev-admin.password is required when bootstrap dev-admin user does not exist");
+            }
+            devAdmin = new UserAccount(
+                    normalizedEmail,
+                    passwordEncoder.encode(normalizedPassword),
+                    DEV_ADMIN_DISPLAY_NAME);
+            devAdmin.setMustChangePassword(true);
+        } else {
+            if (!StringUtils.hasText(normalizedPassword)) {
+                throw new IllegalStateException(
+                        "erp.seed.dev-admin.password must be provided and match existing bootstrap user credentials before role/company elevation");
+            }
+            if (!StringUtils.hasText(devAdmin.getPasswordHash())
+                    || !passwordEncoder.matches(normalizedPassword, devAdmin.getPasswordHash())) {
+                throw new IllegalStateException(
+                        "erp.seed.dev-admin.password must match existing bootstrap user credentials before role/company elevation");
+            }
+        }
+        devAdmin.setDisplayName(DEV_ADMIN_DISPLAY_NAME);
+        ensureCompanyMembership(devAdmin, company);
+        ensureRoleMembership(devAdmin, adminRole);
+        userRepository.save(devAdmin);
     }
 
     private Company seedConfiguredSuperAdmin(UserAccountRepository userRepository,

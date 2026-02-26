@@ -24,14 +24,14 @@ spring:
     enabled: true
     locations: classpath:db/migration
 jwt:
-  # 256-bit (32 bytes) secret for HS256. Override with JWT_SECRET env for production.
-  secret: ${JWT_SECRET:dev-only-jwt-secret-please-override-32}
+  # JWT secret fallback is test-only; non-test profiles must provide JWT_SECRET.
+  secret: ${JWT_SECRET:}
   access-token-ttl-seconds: 3600
   refresh-token-ttl-seconds: 604800
 erp:
   security:
     swagger-public: true
-    encryption.key: ${ERP_ENCRYPTION_KEY:dev-only-encryption-key-override-32}
+    encryption.key: ${ERP_SECURITY_ENCRYPTION_KEY}
     mfa.enabled: true
   dispatch:
     # Configure with realistic account IDs in your dev DB to enable dispatch journals
