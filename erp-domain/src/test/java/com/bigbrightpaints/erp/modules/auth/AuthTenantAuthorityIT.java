@@ -39,6 +39,7 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
     private static final String ROLE_GUARD_ADMIN_EMAIL = "role-guard-admin@bbp.com";
     private static final String NON_PRIVILEGED_ADMIN_EMAIL = "tenant-admin-nonpriv@bbp.com";
     private static final String SUPER_ADMIN_EMAIL = "super-admin@bbp.com";
+    private static final String SUPER_ADMIN_HIERARCHY_EMAIL = "super-admin-hierarchy@bbp.com";
     private static final String PASSWORD = "Passw0rd!";
 
     @Autowired
@@ -65,6 +66,8 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
         // Give super admin access to a regular tenant for delegated tenant-admin creation.
         dataSeeder.ensureUser(SUPER_ADMIN_EMAIL, PASSWORD, "Super Admin", TENANT_A,
                 List.of("ROLE_SUPER_ADMIN", "ROLE_ADMIN"));
+        dataSeeder.ensureUser(SUPER_ADMIN_HIERARCHY_EMAIL, PASSWORD, "Hierarchy Super Admin", TENANT_A,
+                List.of("ROLE_SUPER_ADMIN"));
     }
 
     @Test
@@ -296,6 +299,33 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
     }
 
     @Test
+    void super_admin_without_admin_role_can_execute_admin_only_sales_target_flow() {
+        String token = login(SUPER_ADMIN_HIERARCHY_EMAIL, TENANT_A);
+        String targetName = "Hierarchy Target " + System.nanoTime();
+
+        ResponseEntity<Map> response = rest.exchange(
+                "/api/v1/sales/targets",
+                HttpMethod.POST,
+                new HttpEntity<>(Map.of(
+                        "name", targetName,
+                        "periodStart", "2026-01-01",
+                        "periodEnd", "2026-12-31",
+                        "targetAmount", 125000,
+                        "assignee", ADMIN_EMAIL,
+                        "changeReason", "hierarchy-rbac-validation"
+                ), jsonHeaders(token, TENANT_A)),
+                Map.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        Map<String, Object> body = response.getBody();
+        assertThat(body).isNotNull();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> data = (Map<String, Object>) body.get("data");
+        assertThat(data).isNotNull();
+        assertThat(data.get("name")).isEqualTo(targetName);
+    }
+
+    @Test
     void tenant_metrics_endpoint_is_super_admin_only() {
         Long tenantAId = companyRepository.findByCodeIgnoreCase(TENANT_A).map(Company::getId).orElseThrow();
 
@@ -350,6 +380,45 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
         assertThat(apiErrorRateInBasisPoints.longValue()).isBetween(0L, 10_000L);
         assertThat(distinctSessionCount.longValue()).isGreaterThanOrEqualTo(0L);
         assertThat(auditStorageBytes.longValue()).isGreaterThanOrEqualTo(0L);
+    }
+
+    @Test
+    void root_only_super_admin_can_control_and_read_target_tenant_via_path_binding() {
+        String rootOnlySuperAdminEmail = "root-only-path-super-admin@" + System.nanoTime() + ".bbp.com";
+        dataSeeder.ensureUser(rootOnlySuperAdminEmail, PASSWORD, "Root Only Path Super Admin", ROOT_TENANT,
+                List.of("ROLE_SUPER_ADMIN"));
+        Long tenantAId = companyRepository.findByCodeIgnoreCase(TENANT_A).map(Company::getId).orElseThrow();
+        String token = login(rootOnlySuperAdminEmail, ROOT_TENANT);
+
+        ResponseEntity<Map> holdResponse = updateLifecycleState(
+                tenantAId,
+                token,
+                ROOT_TENANT,
+                "HOLD",
+                "path-binding-hardening");
+        assertThat(holdResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+        ResponseEntity<Map> metricsResponse = rest.exchange(
+                "/api/v1/companies/" + tenantAId + "/tenant-metrics",
+                HttpMethod.GET,
+                new HttpEntity<>(jsonHeaders(token, ROOT_TENANT)),
+                Map.class);
+        assertThat(metricsResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> metricsBody = metricsResponse.getBody();
+        assertThat(metricsBody).isNotNull();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> metricsData = (Map<String, Object>) metricsBody.get("data");
+        assertThat(metricsData).isNotNull();
+        assertThat(metricsData.get("companyCode")).isEqualTo(TENANT_A);
+
+        ResponseEntity<Map> restoreResponse = updateLifecycleState(
+                tenantAId,
+                token,
+                ROOT_TENANT,
+                "ACTIVE",
+                "path-binding-hardening-restore");
+        assertThat(restoreResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
     }
 
     @Test

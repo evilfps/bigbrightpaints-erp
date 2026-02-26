@@ -131,6 +131,7 @@ class TS_RuntimeCompanyContextFilterExecutableCoverageTest {
     @Test
     void doFilter_allowsSuperAdminLifecycleControlBypassForNonActiveTenant() throws ServletException, IOException {
         authenticate("ops@bbp.com", Set.of("ROLE_SUPER_ADMIN"), Set.of());
+        when(companyService.resolveCompanyCodeById(42L)).thenReturn("ACME");
         when(companyService.resolveLifecycleStateByCode("ACME")).thenReturn(CompanyLifecycleState.BLOCKED);
         when(tenantRuntimeEnforcementService.beginRequest(
                 eq("ACME"),
@@ -194,6 +195,7 @@ class TS_RuntimeCompanyContextFilterExecutableCoverageTest {
     @Test
     void doFilter_rejectsLifecycleControlMutationForNonSuperAdminOnBlockedTenant() throws ServletException, IOException {
         authenticate("admin@bbp.com", Set.of("ROLE_ADMIN"), Set.of("ACME"));
+        when(companyService.resolveCompanyCodeById(42L)).thenReturn("ACME");
         when(companyService.resolveLifecycleStateByCode("ACME")).thenReturn(CompanyLifecycleState.BLOCKED);
 
         MockHttpServletRequest request = request("POST", "/api/v1/companies/42/lifecycle-state");

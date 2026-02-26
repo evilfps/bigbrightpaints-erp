@@ -13,8 +13,11 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.HttpHeaders;
+import org.springframework.security.access.hierarchicalroles.RoleHierarchy;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
@@ -22,6 +25,7 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Date;
 
 @Component
@@ -32,13 +36,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final JwtTokenService tokenService;
     private final UserAccountDetailsService userDetailsService;
     private final TokenBlacklistService blacklistService;
+    private final ObjectProvider<RoleHierarchy> roleHierarchyProvider;
 
     public JwtAuthenticationFilter(JwtTokenService tokenService,
                                  UserAccountDetailsService userDetailsService,
-                                 TokenBlacklistService blacklistService) {
+                                 TokenBlacklistService blacklistService,
+                                 ObjectProvider<RoleHierarchy> roleHierarchyProvider) {
         this.tokenService = tokenService;
         this.userDetailsService = userDetailsService;
         this.blacklistService = blacklistService;
+        this.roleHierarchyProvider = roleHierarchyProvider;
     }
 
     @Override
@@ -76,8 +83,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     filterChain.doFilter(request, response);
                     return;
                 }
+                Collection<? extends GrantedAuthority> effectiveAuthorities = resolveAuthorities(principal);
                 UsernamePasswordAuthenticationToken authentication =
-                        new UsernamePasswordAuthenticationToken(principal, token, principal.getAuthorities());
+                        new UsernamePasswordAuthenticationToken(principal, token, effectiveAuthorities);
                 authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                 SecurityContextHolder.getContext().setAuthentication(authentication);
 
@@ -95,6 +103,15 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             }
         }
         filterChain.doFilter(request, response);
+    }
+
+    private Collection<? extends GrantedAuthority> resolveAuthorities(UserPrincipal principal) {
+        Collection<? extends GrantedAuthority> directAuthorities = principal.getAuthorities();
+        RoleHierarchy roleHierarchy = roleHierarchyProvider.getIfAvailable();
+        if (roleHierarchy == null) {
+            return directAuthorities;
+        }
+        return roleHierarchy.getReachableGrantedAuthorities(directAuthorities);
     }
 
     private String resolveToken(HttpServletRequest request) {

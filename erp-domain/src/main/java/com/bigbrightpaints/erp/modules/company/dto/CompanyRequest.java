@@ -55,4 +55,10 @@ public record CompanyRequest(
                           BigDecimal defaultGstRate) {
         this(name, code, timezone, defaultGstRate, null, null, null, null, null, null, null, null);
     }
+
+    public CompanyRequest(String name,
+                          String code,
+                          String timezone) {
+        this(name, code, timezone, null);
+    }
 }

@@ -3,6 +3,7 @@ package com.bigbrightpaints.erp.modules.company.service;
 import com.bigbrightpaints.erp.core.audit.AuditEvent;
 import com.bigbrightpaints.erp.core.audit.AuditLogRepository;
 import com.bigbrightpaints.erp.core.audit.AuditService;
+import com.bigbrightpaints.erp.core.security.CompanyContextHolder;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
 import com.bigbrightpaints.erp.modules.auth.domain.UserPrincipal;
 import com.bigbrightpaints.erp.modules.auth.service.TenantAdminProvisioningService;
@@ -170,6 +171,7 @@ public class CompanyService {
 
         Company company = repository.lockById(companyId)
                 .orElseThrow(() -> new IllegalArgumentException("Company not found"));
+        assertBoundControlPlaneCompanyMatchesTarget(company.getCode());
 
         CompanyLifecycleState previousState = resolveLifecycleStateById(company.getId());
         company.setLifecycleState(requestedState);
@@ -252,10 +254,22 @@ public class CompanyService {
                 .orElse(CompanyLifecycleState.BLOCKED);
     }
 
+    public String resolveCompanyCodeById(Long companyId) {
+        if (companyId == null) {
+            return null;
+        }
+        return repository.findById(companyId)
+                .map(Company::getCode)
+                .filter(StringUtils::hasText)
+                .map(String::trim)
+                .orElse(null);
+    }
+
     public CompanyTenantMetricsDto getTenantMetrics(Long companyId) {
         Authentication authentication = requireSuperAdminForTenantMetrics(companyId);
         Company company = repository.findById(companyId)
                 .orElseThrow(() -> new IllegalArgumentException("Company not found"));
+        assertBoundControlPlaneCompanyMatchesTarget(company.getCode());
         CompanyLifecycleState state = company.getLifecycleState() == null ? CompanyLifecycleState.ACTIVE : company.getLifecycleState();
         long activeUserCount = countActiveUsers(companyId);
         long apiActivityCount = countApiActivity(companyId);
@@ -296,6 +310,7 @@ public class CompanyService {
         Authentication authentication = requireSuperAdminForTenantRuntimePolicyControl(companyId);
         Company company = repository.findById(companyId)
                 .orElseThrow(() -> new IllegalArgumentException("Company not found"));
+        assertBoundControlPlaneCompanyMatchesTarget(company.getCode());
         TenantRuntimeEnforcementService.TenantRuntimeSnapshot snapshot = tenantRuntimeEnforcementService.updatePolicy(
                 company.getCode(),
                 parseRuntimeState(request.holdState()),
@@ -411,6 +426,19 @@ public class CompanyService {
             throw new AccessDeniedException("SUPER_ADMIN authority required for tenant configuration updates");
         }
         return authentication;
+    }
+
+    private void assertBoundControlPlaneCompanyMatchesTarget(String targetCompanyCode) {
+        if (!StringUtils.hasText(targetCompanyCode)) {
+            return;
+        }
+        String boundCompanyCode = CompanyContextHolder.getCompanyCode();
+        if (!StringUtils.hasText(boundCompanyCode)) {
+            return;
+        }
+        if (!boundCompanyCode.trim().equalsIgnoreCase(targetCompanyCode.trim())) {
+            throw new AccessDeniedException("Bound company context does not match targeted tenant");
+        }
     }
 
     private String normalizeCompanyCode(String code) {

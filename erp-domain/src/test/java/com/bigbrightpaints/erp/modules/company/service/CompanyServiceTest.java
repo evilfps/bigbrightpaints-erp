@@ -13,6 +13,7 @@ import static org.mockito.Mockito.when;
 import com.bigbrightpaints.erp.core.audit.AuditEvent;
 import com.bigbrightpaints.erp.core.audit.AuditLogRepository;
 import com.bigbrightpaints.erp.core.audit.AuditService;
+import com.bigbrightpaints.erp.core.security.CompanyContextHolder;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
 import com.bigbrightpaints.erp.modules.auth.service.TenantAdminProvisioningService;
 import com.bigbrightpaints.erp.modules.company.dto.CompanyAdminCredentialResetDto;
@@ -77,6 +78,7 @@ class CompanyServiceTest {
     @AfterEach
     void tearDown() {
         SecurityContextHolder.clearContext();
+        CompanyContextHolder.clear();
     }
 
     @Test
@@ -186,6 +188,18 @@ class CompanyServiceTest {
                 org.mockito.ArgumentMatchers.any(Company.class),
                 eq("tenant-admin@ske.com"),
                 eq("SKE Tenant Admin"));
+    }
+
+    @Test
+    void getTenantMetrics_deniesWhenBoundContextDoesNotMatchTargetTenant() {
+        authenticateAs("ROLE_SUPER_ADMIN");
+        CompanyContextHolder.setCompanyCode("ROOT");
+        Company target = company(1L, "TENANT-A");
+        when(repository.findById(1L)).thenReturn(Optional.of(target));
+
+        assertThatThrownBy(() -> companyService.getTenantMetrics(1L))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessageContaining("Bound company context does not match targeted tenant");
     }
 
     @Test

@@ -49,6 +49,10 @@ public class CompanyContextFilter extends OncePerRequestFilter {
                 filterChain.doFilter(request, response);
                 return;
             }
+            boolean lifecycleControlRequest = isLifecycleControlRequest(runtimePath, request.getMethod());
+            Long lifecycleControlCompanyId = lifecycleControlRequest
+                    ? extractCompanyIdFromLifecycleControlPath(runtimePath)
+                    : null;
             String headerCompanyCode = request.getHeader("X-Company-Code");
             String legacyHeaderCompanyId = request.getHeader("X-Company-Id");
             if (StringUtils.hasText(headerCompanyCode) && StringUtils.hasText(legacyHeaderCompanyId)
@@ -98,18 +102,31 @@ public class CompanyContextFilter extends OncePerRequestFilter {
                 requestedCompany = null;
             }
             String companyCode = StringUtils.hasText(requestedCompany) ? requestedCompany.trim() : null;
+            boolean lifecycleControlBypass = false;
+            if (lifecycleControlRequest) {
+                if (lifecycleControlCompanyId == null) {
+                    response.sendError(HttpServletResponse.SC_FORBIDDEN, "Invalid company control target path");
+                    return;
+                }
+                String pathTargetCompanyCode = companyService.resolveCompanyCodeById(lifecycleControlCompanyId);
+                if (!StringUtils.hasText(pathTargetCompanyCode)) {
+                    response.sendError(HttpServletResponse.SC_FORBIDDEN, "Access denied to company control target");
+                    return;
+                }
+                if (hasSuperAdminAuthority()) {
+                    companyCode = pathTargetCompanyCode.trim();
+                    lifecycleControlBypass = true;
+                } else if (!StringUtils.hasText(companyCode)
+                        || !companyCode.trim().equalsIgnoreCase(pathTargetCompanyCode.trim())) {
+                    response.sendError(HttpServletResponse.SC_FORBIDDEN,
+                            "Company path does not match authenticated company context");
+                    return;
+                } else {
+                    companyCode = pathTargetCompanyCode.trim();
+                }
+            }
             if (companyCode != null) {
                 CompanyLifecycleState lifecycleState = companyService.resolveLifecycleStateByCode(companyCode);
-                boolean lifecycleControlBypass = false;
-                if (lifecycleState != CompanyLifecycleState.ACTIVE
-                        && isLifecycleControlRequest(runtimePath, request.getMethod())
-                        && hasSuperAdminAuthority()) {
-                    if (!companyExists(companyCode)) {
-                        response.sendError(HttpServletResponse.SC_FORBIDDEN, "Access denied to company: " + companyCode);
-                        return;
-                    }
-                    lifecycleControlBypass = true;
-                }
                 // Recovery endpoints for non-active tenants are intended for super-admin operators
                 // even when they are not explicitly attached to the tenant membership list.
                 if (!lifecycleControlBypass && !validateCompanyAccess(companyCode)) {
@@ -188,18 +205,6 @@ public class CompanyContextFilter extends OncePerRequestFilter {
                 .anyMatch(granted -> "ROLE_SUPER_ADMIN".equalsIgnoreCase(granted.getAuthority()));
     }
 
-    private boolean companyExists(String companyCode) {
-        if (!StringUtils.hasText(companyCode)) {
-            return false;
-        }
-        try {
-            companyService.findByCode(companyCode.trim());
-            return true;
-        } catch (IllegalArgumentException ignored) {
-            return false;
-        }
-    }
-
     private boolean hasTenantRuntimePolicyControlAuthority(String requestPath, String requestMethod) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null || !auth.isAuthenticated()) {
@@ -253,6 +258,30 @@ public class CompanyContextFilter extends OncePerRequestFilter {
         boolean tenantMetricsRead = "GET".equalsIgnoreCase(method) && path.endsWith("/tenant-metrics");
         boolean runtimePolicyMutation = "PUT".equalsIgnoreCase(method) && path.endsWith("/tenant-runtime/policy");
         return lifecycleMutation || tenantMetricsRead || runtimePolicyMutation;
+    }
+
+    private Long extractCompanyIdFromLifecycleControlPath(String path) {
+        if (!StringUtils.hasText(path)) {
+            return null;
+        }
+        String normalizedPath = normalizePath(path);
+        if (!StringUtils.hasText(normalizedPath) || !normalizedPath.startsWith("/api/v1/companies/")) {
+            return null;
+        }
+        int companySegmentStart = "/api/v1/companies/".length();
+        int companySegmentEnd = normalizedPath.indexOf('/', companySegmentStart);
+        if (companySegmentEnd <= companySegmentStart) {
+            return null;
+        }
+        String idSegment = normalizedPath.substring(companySegmentStart, companySegmentEnd).trim();
+        if (!StringUtils.hasText(idSegment) || !idSegment.chars().allMatch(Character::isDigit)) {
+            return null;
+        }
+        try {
+            return Long.parseLong(idSegment);
+        } catch (NumberFormatException ex) {
+            return null;
+        }
     }
 
     private String resolveApplicationPath(HttpServletRequest request) {

@@ -127,6 +127,27 @@ class CompanyDtoDeterministicContractTest {
     }
 
     @Test
+    void companyRequest_minimalBootstrapConstructor_keepsOptionalFieldsNull() {
+        CompanyRequest request = new CompanyRequest(
+                "Big Bright Paints",
+                "BBP_MAIN",
+                "Asia/Kolkata");
+
+        assertThat(request.name()).isEqualTo("Big Bright Paints");
+        assertThat(request.code()).isEqualTo("BBP_MAIN");
+        assertThat(request.timezone()).isEqualTo("Asia/Kolkata");
+        assertThat(request.defaultGstRate()).isNull();
+        assertThat(request.quotaMaxActiveUsers()).isNull();
+        assertThat(request.quotaMaxApiRequests()).isNull();
+        assertThat(request.quotaMaxStorageBytes()).isNull();
+        assertThat(request.quotaMaxConcurrentSessions()).isNull();
+        assertThat(request.quotaSoftLimitEnabled()).isNull();
+        assertThat(request.quotaHardLimitEnabled()).isNull();
+        assertThat(request.firstAdminEmail()).isNull();
+        assertThat(request.firstAdminDisplayName()).isNull();
+    }
+
+    @Test
     void companyTenantMetricsDto_accessorsAndValueSemantics_areDeterministic() {
         CompanyTenantMetricsDto metrics = new CompanyTenantMetricsDto(
                 42L,
