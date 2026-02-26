@@ -409,6 +409,18 @@ class IntegrationCoordinatorTest {
     }
 
     @Test
+    void postDispatchJournalRejectsControlCharsInCorrelationIdentifiers() {
+        assertThrows(ApplicationException.class, () -> integrationCoordinator.postDispatchJournal(
+                "B-900",
+                COMPANY_ID,
+                new BigDecimal("120.00"),
+                "trace-dispatch-\n900",
+                "idem-dispatch-900"));
+
+        verify(accountingFacade, never()).postSimpleJournal(anyString(), any(), anyString(), any(), any(), any(), eq(false));
+    }
+
+    @Test
     void reserveInventoryCorrelationAnnotatesProductionArtifactsAndAttachesTrace() {
         order.setOrderNumber("SO-42");
         InventoryShortage shortage = new InventoryShortage("SKU-1", new BigDecimal("3"), "Red Paint");
@@ -470,6 +482,20 @@ class IntegrationCoordinatorTest {
                         && request.memo().contains("Orchestrator payroll payment for run 901")
                         && request.memo().contains("[trace=trace-payroll-901]")
                         && request.memo().contains("[idem=idem-payroll-901]")));
+    }
+
+    @Test
+    void recordPayrollPaymentRejectsMalformedIdempotencyKey() {
+        assertThrows(ApplicationException.class, () -> integrationCoordinator.recordPayrollPayment(
+                901L,
+                new BigDecimal("500.00"),
+                11L,
+                22L,
+                COMPANY_ID,
+                "trace-payroll-901",
+                "idem malformed"));
+
+        verify(accountingFacade, never()).recordPayrollPayment(any());
     }
 
     private static class NoOpTransactionManager extends AbstractPlatformTransactionManager {

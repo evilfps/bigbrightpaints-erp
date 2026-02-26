@@ -43,20 +43,24 @@ public class TraceService {
                        String idempotencyKey) {
         Company company = requireCompany(companyCode);
         String payload = serializeDetails(details);
+        String sanitizedTraceId = CorrelationIdentifierSanitizer.sanitizeRequiredTraceId(traceId);
+        String sanitizedRequestId = CorrelationIdentifierSanitizer.sanitizeOptionalRequestId(requestId);
+        String sanitizedIdempotencyKey = CorrelationIdentifierSanitizer.sanitizeOptionalIdempotencyKey(idempotencyKey);
         AuditRecord record = new AuditRecord(
-                traceId,
+                sanitizedTraceId,
                 eventType,
                 CompanyTime.now(company),
                 payload,
                 company.getId(),
-                requestId,
-                idempotencyKey);
+                sanitizedRequestId,
+                sanitizedIdempotencyKey);
         auditRepository.save(record);
     }
 
     public List<AuditRecord> getTrace(String traceId) {
+        String sanitizedTraceId = CorrelationIdentifierSanitizer.sanitizeRequiredTraceId(traceId);
         Company company = companyContextService.requireCurrentCompany();
-        return auditRepository.findByTraceIdAndCompanyIdOrderByTimestampAsc(traceId, company.getId());
+        return auditRepository.findByTraceIdAndCompanyIdOrderByTimestampAsc(sanitizedTraceId, company.getId());
     }
 
     private Company requireCompany(String companyCode) {

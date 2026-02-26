@@ -404,6 +404,52 @@ public class OrchestratorControllerIT extends AbstractIntegrationTest {
     }
 
     @Test
+    void approve_order_rejects_malformed_idempotency_header() {
+        String token = loginToken();
+        HttpHeaders headers = authHeaders(token);
+        headers.add("Idempotency-Key", "idem malformed");
+        long outboxBefore = outboxEventRepository.count();
+
+        Map<String, Object> body = Map.of(
+                "orderId", String.valueOf(seededOrderId),
+                "approvedBy", "orch@bbp.com",
+                "totalAmount", new BigDecimal("5000")
+        );
+
+        ResponseEntity<Map> response = rest.exchange(
+                "/api/v1/orchestrator/orders/" + seededOrderId + "/approve",
+                HttpMethod.POST,
+                new HttpEntity<>(body, headers),
+                Map.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody()).containsEntry("success", false);
+        assertThat(outboxEventRepository.count()).isEqualTo(outboxBefore);
+    }
+
+    @Test
+    void fulfillment_rejects_malformed_request_id_header() {
+        String token = loginToken();
+        HttpHeaders headers = authHeaders(token);
+        headers.add("X-Request-Id", "req$malformed");
+        long outboxBefore = outboxEventRepository.count();
+
+        Map<String, Object> body = Map.of(
+                "status", "PROCESSING",
+                "notes", "start production malformed request id");
+
+        ResponseEntity<Map> response = rest.exchange(
+                "/api/v1/orchestrator/orders/" + seededOrderId + "/fulfillment",
+                HttpMethod.POST,
+                new HttpEntity<>(body, headers),
+                Map.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody()).containsEntry("success", false);
+        assertThat(outboxEventRepository.count()).isEqualTo(outboxBefore);
+    }
+
+    @Test
     void dispatch_alias_without_body_is_gone_with_canonical_path() {
         String token = loginToken();
         HttpHeaders headers = authHeaders(token);

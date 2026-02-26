@@ -16,7 +16,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import java.util.function.BooleanSupplier;
-import org.apache.commons.codec.digest.DigestUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -27,8 +26,6 @@ import org.springframework.util.StringUtils;
 public class CommandDispatcher {
 
     private static final Logger log = LoggerFactory.getLogger(CommandDispatcher.class);
-    private static final int MAX_REQUEST_ID_LENGTH = 128;
-    private static final String REQUEST_ID_HASH_PREFIX = "RIDH|";
 
     private final WorkflowService workflowService;
     private final IntegrationCoordinator integrationCoordinator;
@@ -311,9 +308,10 @@ public class CommandDispatcher {
     }
 
     public Map<String, Object> traceSummary(String traceId) {
+        String sanitizedTraceId = CorrelationIdentifierSanitizer.sanitizeRequiredTraceId(traceId);
         return Map.of(
-            "traceId", traceId,
-            "events", traceService.getTrace(traceId)
+            "traceId", sanitizedTraceId,
+            "events", traceService.getTrace(sanitizedTraceId)
         );
     }
 
@@ -373,28 +371,15 @@ public class CommandDispatcher {
     }
 
     private String normalizeRequestId(String requestId, String idempotencyKey) {
-        String normalized = StringUtils.hasText(requestId) ? requestId.trim() : null;
-        if (!StringUtils.hasText(normalized)) {
-            normalized = StringUtils.hasText(idempotencyKey) ? idempotencyKey.trim() : null;
-        }
-        if (!StringUtils.hasText(normalized)) {
-            return null;
-        }
-        if (normalized.length() <= MAX_REQUEST_ID_LENGTH) {
-            return normalized;
-        }
-        return REQUEST_ID_HASH_PREFIX + DigestUtils.sha256Hex(normalized);
+        return CorrelationIdentifierSanitizer.normalizeRequestId(requestId, idempotencyKey);
     }
 
     private String canonicalIdempotencyKey(OrchestratorIdempotencyService.CommandLease lease,
                                            String fallbackIdempotencyKey) {
         if (lease != null && lease.command() != null && StringUtils.hasText(lease.command().getIdempotencyKey())) {
-            return lease.command().getIdempotencyKey();
+            return CorrelationIdentifierSanitizer.sanitizeRequiredIdempotencyKey(lease.command().getIdempotencyKey());
         }
-        if (!StringUtils.hasText(fallbackIdempotencyKey)) {
-            return fallbackIdempotencyKey;
-        }
-        return fallbackIdempotencyKey.trim();
+        return CorrelationIdentifierSanitizer.sanitizeOptionalIdempotencyKey(fallbackIdempotencyKey);
     }
 
     private String executeWithLease(OrchestratorIdempotencyService.CommandLease lease,

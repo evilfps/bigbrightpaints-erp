@@ -4,8 +4,15 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DISPATCHER="$ROOT_DIR/erp-domain/src/main/java/com/bigbrightpaints/erp/orchestrator/service/CommandDispatcher.java"
 COORDINATOR="$ROOT_DIR/erp-domain/src/main/java/com/bigbrightpaints/erp/orchestrator/service/IntegrationCoordinator.java"
+SANITIZER="$ROOT_DIR/erp-domain/src/main/java/com/bigbrightpaints/erp/orchestrator/service/CorrelationIdentifierSanitizer.java"
+CONTROLLER="$ROOT_DIR/erp-domain/src/main/java/com/bigbrightpaints/erp/orchestrator/controller/OrchestratorController.java"
+IDEMPOTENCY_SERVICE="$ROOT_DIR/erp-domain/src/main/java/com/bigbrightpaints/erp/orchestrator/service/OrchestratorIdempotencyService.java"
+TRACE_SERVICE="$ROOT_DIR/erp-domain/src/main/java/com/bigbrightpaints/erp/orchestrator/service/TraceService.java"
+EVENT_PUBLISHER="$ROOT_DIR/erp-domain/src/main/java/com/bigbrightpaints/erp/orchestrator/service/EventPublisherService.java"
 COORDINATOR_TEST="$ROOT_DIR/erp-domain/src/test/java/com/bigbrightpaints/erp/orchestrator/service/IntegrationCoordinatorTest.java"
 DISPATCHER_TEST="$ROOT_DIR/erp-domain/src/test/java/com/bigbrightpaints/erp/orchestrator/service/CommandDispatcherTest.java"
+CONTROLLER_IT="$ROOT_DIR/erp-domain/src/test/java/com/bigbrightpaints/erp/orchestrator/OrchestratorControllerIT.java"
+SANITIZER_TEST="$ROOT_DIR/erp-domain/src/test/java/com/bigbrightpaints/erp/orchestrator/service/CorrelationIdentifierSanitizerTest.java"
 REMEDIATION_COMMAND="bash scripts/guard_orchestrator_correlation_contract.sh"
 
 fail() {
@@ -41,9 +48,19 @@ require_literal() {
   grep -Fq -- "$needle" "$file" || fail "$label"
 }
 
-for path in "$DISPATCHER" "$COORDINATOR" "$COORDINATOR_TEST" "$DISPATCHER_TEST"; do
+for path in "$DISPATCHER" "$COORDINATOR" "$SANITIZER" "$CONTROLLER" "$IDEMPOTENCY_SERVICE" "$TRACE_SERVICE" "$EVENT_PUBLISHER" "$COORDINATOR_TEST" "$DISPATCHER_TEST" "$CONTROLLER_IT" "$SANITIZER_TEST"; do
   [[ -f "$path" ]] || fail "missing required file: $path"
 done
+
+# Sanitizer contract must define strict allowlist and deterministic request hashing.
+require_literal "SAFE_IDENTIFIER_PATTERN" "$SANITIZER" \
+  "CorrelationIdentifierSanitizer missing strict identifier allowlist"
+require_literal "sanitizeOptionalRequestId" "$SANITIZER" \
+  "CorrelationIdentifierSanitizer missing request id normalization method"
+require_literal "REQUEST_ID_HASH_PREFIX" "$SANITIZER" \
+  "CorrelationIdentifierSanitizer missing deterministic request hash prefix"
+require_literal "safeIdempotencyForLog" "$SANITIZER" \
+  "CorrelationIdentifierSanitizer missing safe log representation helper"
 
 # Dispatcher must propagate trace/idempotency into all orchestrator side-effects.
 require_multiline_pattern "reserveInventory\\([\\s\\S]*companyId,[\\s\\S]*traceId,[\\s\\S]*idempotencyKey\\)" "$DISPATCHER" \
@@ -62,6 +79,10 @@ require_multiline_pattern "generatePayroll\\([\\s\\S]*companyId,[\\s\\S]*traceId
   "CommandDispatcher.runPayroll does not pass traceId/idempotencyKey to generatePayroll"
 require_multiline_pattern "recordPayrollPayment\\([\\s\\S]*request\\.creditAccountId\\(\\),[\\s\\S]*companyId,[\\s\\S]*traceId,[\\s\\S]*idempotencyKey\\)" "$DISPATCHER" \
   "CommandDispatcher.runPayroll does not pass traceId/idempotencyKey to recordPayrollPayment"
+require_literal "CorrelationIdentifierSanitizer.normalizeRequestId(requestId, idempotencyKey)" "$DISPATCHER" \
+  "CommandDispatcher does not normalize request identifiers via sanitizer contract"
+require_literal "CorrelationIdentifierSanitizer.sanitizeRequiredIdempotencyKey" "$DISPATCHER" \
+  "CommandDispatcher does not enforce idempotency sanitizer contract"
 
 # Coordinator must expose overloads that accept correlation fields across flows.
 require_multiline_pattern "public InventoryReservationResult reserveInventory\\(String orderId,[\\s\\S]*String traceId,[\\s\\S]*String idempotencyKey\\)" "$COORDINATOR" \
@@ -80,6 +101,38 @@ require_multiline_pattern "public PayrollRunDto generatePayroll\\(LocalDate payr
   "IntegrationCoordinator missing correlation-aware generatePayroll overload"
 require_multiline_pattern "public JournalEntryDto recordPayrollPayment\\(Long payrollRunId,[\\s\\S]*String traceId,[\\s\\S]*String idempotencyKey\\)" "$COORDINATOR" \
   "IntegrationCoordinator missing correlation-aware recordPayrollPayment overload"
+require_literal "CorrelationIdentifierSanitizer.safeTraceForLog" "$COORDINATOR" \
+  "IntegrationCoordinator logs are not using safe trace rendering"
+require_literal "CorrelationIdentifierSanitizer.safeIdempotencyForLog" "$COORDINATOR" \
+  "IntegrationCoordinator logs are not using safe idempotency rendering"
+require_literal "CorrelationIdentifierSanitizer.sanitizeOptionalTraceId" "$COORDINATOR" \
+  "IntegrationCoordinator memo/trace surfaces are not sanitized"
+require_literal "CorrelationIdentifierSanitizer.sanitizeOptionalIdempotencyKey" "$COORDINATOR" \
+  "IntegrationCoordinator memo/idempotency surfaces are not sanitized"
+
+# Ingress and persistence surfaces must sanitize correlation identifiers.
+require_literal "CorrelationIdentifierSanitizer.sanitizeOptionalRequestId(requestId)" "$CONTROLLER" \
+  "OrchestratorController does not sanitize X-Request-Id header"
+require_literal "CorrelationIdentifierSanitizer.sanitizeOptionalIdempotencyKey(idempotencyKey)" "$CONTROLLER" \
+  "OrchestratorController does not sanitize Idempotency-Key header"
+require_literal "CorrelationIdentifierSanitizer.sanitizeRequiredTraceId(traceId)" "$CONTROLLER" \
+  "OrchestratorController trace endpoint does not sanitize traceId path parameter"
+require_literal "CorrelationIdentifierSanitizer.sanitizeRequiredIdempotencyKey(idempotencyKey)" "$IDEMPOTENCY_SERVICE" \
+  "OrchestratorIdempotencyService does not enforce idempotency sanitizer contract"
+require_literal "CorrelationIdentifierSanitizer.sanitizeTraceIdOrFallback" "$IDEMPOTENCY_SERVICE" \
+  "OrchestratorIdempotencyService does not sanitize generated trace identifiers"
+require_literal "CorrelationIdentifierSanitizer.sanitizeRequiredTraceId(traceId)" "$TRACE_SERVICE" \
+  "TraceService does not sanitize trace ids before persistence/lookups"
+require_literal "CorrelationIdentifierSanitizer.sanitizeOptionalRequestId(requestId)" "$TRACE_SERVICE" \
+  "TraceService does not sanitize request ids before persistence"
+require_literal "CorrelationIdentifierSanitizer.sanitizeOptionalIdempotencyKey(idempotencyKey)" "$TRACE_SERVICE" \
+  "TraceService does not sanitize idempotency keys before persistence"
+require_literal "CorrelationIdentifierSanitizer.sanitizeRequiredTraceId(event.traceId())" "$EVENT_PUBLISHER" \
+  "EventPublisherService does not sanitize trace ids before outbox persistence"
+require_literal "CorrelationIdentifierSanitizer.sanitizeOptionalRequestId(event.requestId())" "$EVENT_PUBLISHER" \
+  "EventPublisherService does not sanitize request ids before outbox persistence"
+require_literal "CorrelationIdentifierSanitizer.sanitizeOptionalIdempotencyKey(event.idempotencyKey())" "$EVENT_PUBLISHER" \
+  "EventPublisherService does not sanitize idempotency keys before outbox persistence"
 
 # Regression tests must pin correlation propagation.
 require_literal "updateOrderFulfillmentPropagatesTraceAndIdempotencyToCoordinator" "$DISPATCHER_TEST" \
@@ -92,5 +145,15 @@ require_literal "postDispatchJournalPropagatesTraceAndIdempotencyInMemo" "$COORD
   "IntegrationCoordinatorTest missing dispatch correlation memo assertion"
 require_literal "recordPayrollPaymentPropagatesTraceAndIdempotencyInMemo" "$COORDINATOR_TEST" \
   "IntegrationCoordinatorTest missing payroll correlation memo assertion"
+require_literal "postDispatchJournalRejectsControlCharsInCorrelationIdentifiers" "$COORDINATOR_TEST" \
+  "IntegrationCoordinatorTest missing control-char rejection assertion"
+require_literal "recordPayrollPaymentRejectsMalformedIdempotencyKey" "$COORDINATOR_TEST" \
+  "IntegrationCoordinatorTest missing malformed idempotency rejection assertion"
+require_literal "approve_order_rejects_malformed_idempotency_header" "$CONTROLLER_IT" \
+  "OrchestratorControllerIT missing malformed Idempotency-Key rejection assertion"
+require_literal "fulfillment_rejects_malformed_request_id_header" "$CONTROLLER_IT" \
+  "OrchestratorControllerIT missing malformed X-Request-Id rejection assertion"
+require_literal "safeIdempotencyForLogRedactsInvalidRawValue" "$SANITIZER_TEST" \
+  "CorrelationIdentifierSanitizerTest missing safe log redaction assertion"
 
 echo "[guard_orchestrator_correlation_contract] OK"

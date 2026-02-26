@@ -428,11 +428,13 @@ public class IntegrationCoordinator {
                 ErrorCode.BUSINESS_CONSTRAINT_VIOLATION,
                 "Orchestrator payroll run is deprecated; use /api/v1/payroll/runs")
                 .withDetail("canonicalPath", "/api/v1/payroll/runs");
-        if (StringUtils.hasText(traceId)) {
-            ex.withDetail("traceId", traceId.trim());
+        String sanitizedTraceId = CorrelationIdentifierSanitizer.sanitizeOptionalTraceId(traceId);
+        String sanitizedIdempotencyKey = CorrelationIdentifierSanitizer.sanitizeOptionalIdempotencyKey(idempotencyKey);
+        if (StringUtils.hasText(sanitizedTraceId)) {
+            ex.withDetail("traceId", sanitizedTraceId);
         }
-        if (StringUtils.hasText(idempotencyKey)) {
-            ex.withDetail("idempotencyKey", idempotencyKey.trim());
+        if (StringUtils.hasText(sanitizedIdempotencyKey)) {
+            ex.withDetail("idempotencyKey", sanitizedIdempotencyKey);
         }
         throw ex;
     }
@@ -708,31 +710,39 @@ public class IntegrationCoordinator {
 
     private String correlationMemo(String baseMemo, String traceId, String idempotencyKey) {
         StringBuilder builder = new StringBuilder(baseMemo != null ? baseMemo : "");
-        if (StringUtils.hasText(traceId)) {
-            builder.append(" [trace=").append(traceId.trim()).append("]");
+        String sanitizedTraceId = CorrelationIdentifierSanitizer.sanitizeOptionalTraceId(traceId);
+        String sanitizedIdempotencyKey = CorrelationIdentifierSanitizer.sanitizeOptionalIdempotencyKey(idempotencyKey);
+        if (StringUtils.hasText(sanitizedTraceId)) {
+            builder.append(" [trace=").append(sanitizedTraceId).append("]");
         }
-        if (StringUtils.hasText(idempotencyKey)) {
-            builder.append(" [idem=").append(idempotencyKey.trim()).append("]");
+        if (StringUtils.hasText(sanitizedIdempotencyKey)) {
+            builder.append(" [idem=").append(sanitizedIdempotencyKey).append("]");
         }
         return builder.toString();
     }
 
     private String correlationSuffix(String traceId, String idempotencyKey) {
         StringBuilder builder = new StringBuilder();
-        if (StringUtils.hasText(traceId)) {
-            builder.append(" [trace=").append(traceId.trim()).append("]");
+        String safeTraceId = CorrelationIdentifierSanitizer.safeTraceForLog(traceId);
+        String safeIdempotencyKey = CorrelationIdentifierSanitizer.safeIdempotencyForLog(idempotencyKey);
+        if (StringUtils.hasText(safeTraceId)) {
+            builder.append(" [trace=").append(safeTraceId).append("]");
         }
-        if (StringUtils.hasText(idempotencyKey)) {
-            builder.append(" [idem=").append(idempotencyKey.trim()).append("]");
+        if (StringUtils.hasText(safeIdempotencyKey)) {
+            builder.append(" [idem=").append(safeIdempotencyKey).append("]");
         }
         return builder.toString();
     }
 
     private void attachOrderTrace(Long orderId, String traceId) {
-        if (orderId == null || !StringUtils.hasText(traceId)) {
+        if (orderId == null) {
             return;
         }
-        salesService.attachTraceId(orderId, traceId.trim());
+        String sanitizedTraceId = CorrelationIdentifierSanitizer.sanitizeOptionalTraceId(traceId);
+        if (!StringUtils.hasText(sanitizedTraceId)) {
+            return;
+        }
+        salesService.attachTraceId(orderId, sanitizedTraceId);
     }
 
     private Long parseNumericId(String id) {
