@@ -25,6 +25,21 @@ Count lock for parity checks: **143**
   - `GET /api/v1/accounting/date-context`
 - Legacy `GET /api/v1/accounting/audit/digest*` endpoints are still present in this OpenAPI snapshot and should be treated as deprecated in new frontend flows.
 
+## TKT-ERP-STAGE-111 Superadmin/Auth Addendum (Outside 143 Lock)
+
+- This addendum is an explicit contract supplement for superadmin UX and control-plane flows. It is outside the curated 143 accounting-portal parity lock.
+- RBAC hierarchy in backend method security is explicit: `ROLE_SUPER_ADMIN > ROLE_ADMIN` (superadmin inherits admin-guarded endpoints; superadmin-only guards still require `ROLE_SUPER_ADMIN`).
+
+| Endpoint | Frontend should put | Backend expects | Returns |
+|---|---|---|---|
+| `POST /api/v1/auth/password/forgot/superadmin` | forgot-password form; req: one identity field in body; opt: correlation id headers; states: loading, success, generic-success | body accepts aliases `email`, `userid`, `userId`; no tenant header required; anti-enumeration semantics (generic outcome for unknown/non-superadmin users and masked dispatch failures) | ok 200; message=`If the email exists, a reset link has been sent` |
+| `POST /api/v1/auth/password/reset` | reset-form; req: token (body), newPassword (body), confirmPassword (body); states: loading, error, success | token scope follows `GLOBAL_IDENTITY` policy (one account identity across memberships in multi-company model, not tenant-scoped) | ok 200; err 400/401-style validation/auth failures via API error contract |
+| `POST /api/v1/companies` | tenant-bootstrap form; req: name (body), code (body), timezone (body); opt: defaultGstRate (body), firstAdminEmail (body), firstAdminDisplayName (body), quota fields | `ROLE_SUPER_ADMIN` only; minimal payload allowed; omitted `defaultGstRate` falls back to `18`; explicit `defaultGstRate: 0` is preserved | ok 200 (`Company created`); err 403 when caller lacks superadmin authority |
+| `POST /api/v1/companies/{id}/lifecycle-state` | tenant-lifecycle action; req: id (path), state (body), reason (body); states: loading, error, success | `ROLE_SUPER_ADMIN` only; lifecycle state change is audit-evidenced | ok 200; err 400/403 |
+| `PUT /api/v1/companies/{id}/tenant-runtime/policy` | tenant-runtime policy form; req: id (path); opt: holdState/reasonCode/max* controls; states: loading, error, success | `ROLE_SUPER_ADMIN` only; applies runtime hold/limits contract for target tenant | ok 200; err 400/403 |
+| `GET /api/v1/companies/{id}/tenant-metrics` | tenant-metrics dashboard read; req: id (path); states: loading, error, success | `ROLE_SUPER_ADMIN` only; telemetry is tenant-targeted control-plane data | ok 200; err 403 |
+| `POST /api/v1/companies/{id}/support/admin-password-reset` | support action form; req: id (path), adminEmail (body); states: loading, error, success | `ROLE_SUPER_ADMIN` only; resets tenant-admin credentials and enforces must-change-password on next login | ok 200 (`Admin credentials reset and emailed`); err 400/403 |
+
 ## Accounting Core (GL, Periods, Journals, Controls)
 
 ### accounting-controller (52)
