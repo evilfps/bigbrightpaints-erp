@@ -4,12 +4,12 @@ goal: Implement superadmin forgot/reset-password UX/API flow where entering supe
   email sends reset mail and fix invalid-token behavior caused by tenant/company scoped
   token mismatch
 priority: high
-status: in_review
+status: in_progress
 base_branch: harness-engineering-orchestrator
 requested_base_branch: harness-engineering-orchestrator
 worktree_root: /Users/anas/Documents/orchestrator_erp/bigbrightpaints-erp_worktrees
 created_at: '2026-02-25T11:02:39+00:00'
-updated_at: '2026-02-25T11:33:51Z'
+updated_at: '2026-02-26T01:39:56+00:00'
 r3_required: true
 orchestrator_authority:
   r1: orchestrator
@@ -45,7 +45,7 @@ slices:
   multi_agent_fallback:
   - model: gpt-5.3-codex
     reasoning: high
-  status: in_review
+  status: waiting_for_push
   objective: Implement superadmin forgot/reset-password UX/API flow where entering
     superadmin email sends reset mail and fix invalid-token behavior caused by tenant/company
     scoped token mismatch
@@ -123,7 +123,7 @@ slices:
   multi_agent_fallback:
   - model: gpt-5.3-codex
     reasoning: medium
-  status: ready
+  status: waiting_for_push
   objective: Implement superadmin forgot/reset-password UX/API flow where entering
     superadmin email sends reset mail and fix invalid-token behavior caused by tenant/company
     scoped token mismatch
@@ -157,7 +157,7 @@ slices:
   multi_agent_fallback:
   - model: gpt-5.3-codex
     reasoning: medium
-  status: ready
+  status: waiting_for_push
   objective: Implement superadmin forgot/reset-password UX/API flow where entering
     superadmin email sends reset mail and fix invalid-token behavior caused by tenant/company
     scoped token mismatch
@@ -168,5 +168,5 @@ slices:
   cross_workflow_contracts: []
 cross_workflow:
   model: workflow_agent_edges_v1
-  generated_at: '2026-02-25T11:02:39+00:00'
+  generated_at: '2026-02-26T01:39:55+00:00'
   in_ticket_edges: []
