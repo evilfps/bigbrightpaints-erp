@@ -55,6 +55,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.batch.support.transaction.ResourcelessTransactionManager;
 import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockHttpServletRequest;
@@ -297,6 +298,8 @@ class TS_RuntimeCompanyContextFilterExecutableCoverageTest {
         assertThat(invokeIsPublicPasswordResetRequest("/api/v1/auth/password/forgot", "GET")).isFalse();
         assertThat(invokeIsPublicPasswordResetRequest(null, "POST")).isFalse();
         assertThat(invokeIsPublicPasswordResetRequest("/api/v1/private", "POST")).isFalse();
+        assertThat(invokeIsPublicPasswordResetRequest("/api/v1/auth/password/forgot/superadmin/extra", "POST")).isFalse();
+        assertThat(invokeIsPublicPasswordResetRequest("/api/v1/auth/password/reset/extra", "POST")).isFalse();
 
         assertThat(invokeNormalizePath(" /api/v1/auth/password/forgot/// ")).isEqualTo("/api/v1/auth/password/forgot");
         assertThat(invokeNormalizePath("/")).isEqualTo("/");
@@ -337,7 +340,8 @@ class TS_RuntimeCompanyContextFilterExecutableCoverageTest {
                 emailService,
                 emailProperties,
                 tokenBlacklistService,
-                refreshTokenService);
+                refreshTokenService,
+                new ResourcelessTransactionManager());
 
         UserAccount superAdmin = superAdminUser("superadmin@example.com");
         when(userRepo.findByEmailIgnoreCase("superadmin@example.com")).thenReturn(Optional.of(superAdmin));
@@ -365,7 +369,8 @@ class TS_RuntimeCompanyContextFilterExecutableCoverageTest {
                 disabledDeliveryEmailService,
                 emailProperties(true, false),
                 mock(TokenBlacklistService.class),
-                mock(RefreshTokenService.class));
+                mock(RefreshTokenService.class),
+                new ResourcelessTransactionManager());
         assertThatCode(() -> disabledDeliveryService.requestResetForSuperAdmin("superadmin@example.com"))
                 .doesNotThrowAnyException();
         verify(disabledDeliveryTokenRepo, never()).saveAndFlush(any(PasswordResetToken.class));
@@ -382,7 +387,8 @@ class TS_RuntimeCompanyContextFilterExecutableCoverageTest {
                 disabledMailEmailService,
                 emailProperties(false, true),
                 mock(TokenBlacklistService.class),
-                mock(RefreshTokenService.class));
+                mock(RefreshTokenService.class),
+                new ResourcelessTransactionManager());
         assertThatCode(() -> disabledMailService.requestResetForSuperAdmin("superadmin@example.com"))
                 .doesNotThrowAnyException();
         verify(disabledMailTokenRepo, never()).saveAndFlush(any(PasswordResetToken.class));
@@ -402,7 +408,8 @@ class TS_RuntimeCompanyContextFilterExecutableCoverageTest {
                 persistenceFailureEmailService,
                 emailProperties(true, true),
                 mock(TokenBlacklistService.class),
-                mock(RefreshTokenService.class));
+                mock(RefreshTokenService.class),
+                new ResourcelessTransactionManager());
         assertThatCode(() -> persistenceFailureService.requestResetForSuperAdmin("superadmin@example.com"))
                 .doesNotThrowAnyException();
         verify(persistenceFailureTokenRepo).deleteByUser(superAdmin);
@@ -431,7 +438,8 @@ class TS_RuntimeCompanyContextFilterExecutableCoverageTest {
                 emailService,
                 emailProperties(true, true),
                 mock(TokenBlacklistService.class),
-                mock(RefreshTokenService.class));
+                mock(RefreshTokenService.class),
+                new ResourcelessTransactionManager());
 
         assertThatCode(() -> service.requestResetForSuperAdmin("superadmin@example.com")).doesNotThrowAnyException();
 
@@ -450,7 +458,8 @@ class TS_RuntimeCompanyContextFilterExecutableCoverageTest {
                 mock(EmailService.class),
                 emailProperties(true, true),
                 mock(TokenBlacklistService.class),
-                mock(RefreshTokenService.class));
+                mock(RefreshTokenService.class),
+                new ResourcelessTransactionManager());
 
         assertThat(invokeHasSuperAdminRole(service, null)).isFalse();
 
@@ -489,7 +498,8 @@ class TS_RuntimeCompanyContextFilterExecutableCoverageTest {
                 mock(EmailService.class),
                 emailProperties(true, true),
                 mock(TokenBlacklistService.class),
-                mock(RefreshTokenService.class));
+                mock(RefreshTokenService.class),
+                new ResourcelessTransactionManager());
 
         assertThatCode(() -> invokeCleanupFailedSuperAdminResetToken(service, null, "token-123"))
                 .doesNotThrowAnyException();
@@ -506,7 +516,8 @@ class TS_RuntimeCompanyContextFilterExecutableCoverageTest {
                 mock(EmailService.class),
                 emailProperties(true, true),
                 mock(TokenBlacklistService.class),
-                mock(RefreshTokenService.class));
+                mock(RefreshTokenService.class),
+                new ResourcelessTransactionManager());
 
         assertThatCode(() -> invokeCleanupFailedSuperAdminResetToken(service, superAdminUser("superadmin@example.com"), "token-123"))
                 .doesNotThrowAnyException();
@@ -525,7 +536,8 @@ class TS_RuntimeCompanyContextFilterExecutableCoverageTest {
                 emailService,
                 emailProperties(true, true),
                 mock(TokenBlacklistService.class),
-                mock(RefreshTokenService.class));
+                mock(RefreshTokenService.class),
+                new ResourcelessTransactionManager());
 
         UserAccount nonSuperAdmin = new UserAccount("admin@example.com", "hash", "Admin");
         nonSuperAdmin.setEnabled(true);
@@ -680,6 +692,11 @@ class TS_RuntimeCompanyContextFilterExecutableCoverageTest {
     }
 
     private void invokeCleanupFailedSuperAdminResetToken(PasswordResetService service, UserAccount user, String tokenValue) {
-        ReflectionTestUtils.invokeMethod(service, "cleanupFailedSuperAdminResetToken", user, tokenValue);
+        ReflectionTestUtils.invokeMethod(
+                service,
+                "cleanupFailedSuperAdminResetToken",
+                user,
+                tokenValue,
+                "test-correlation-id");
     }
 }

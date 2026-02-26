@@ -19,11 +19,16 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.Set;
 
 @Component
 public class CompanyContextFilter extends OncePerRequestFilter {
 
     private static final Logger log = LoggerFactory.getLogger(CompanyContextFilter.class);
+    private static final Set<String> PUBLIC_PASSWORD_RESET_ENDPOINTS = Set.of(
+            "/api/v1/auth/password/forgot",
+            "/api/v1/auth/password/forgot/superadmin",
+            "/api/v1/auth/password/reset");
     private final TenantRuntimeEnforcementService tenantRuntimeEnforcementService;
     private final CompanyService companyService;
 
@@ -304,9 +309,7 @@ public class CompanyContextFilter extends OncePerRequestFilter {
             return false;
         }
         String normalizedPath = normalizePath(path);
-        return "/api/v1/auth/password/forgot".equals(normalizedPath)
-                || "/api/v1/auth/password/forgot/superadmin".equals(normalizedPath)
-                || "/api/v1/auth/password/reset".equals(normalizedPath);
+        return PUBLIC_PASSWORD_RESET_ENDPOINTS.contains(normalizedPath);
     }
 
     private String normalizePath(String path) {

@@ -58,6 +58,16 @@ class CompanyContextFilterPasswordResetBypassTest {
         assertPublicPasswordResetBypass("/api/v1/auth/password/forgot/superadmin");
     }
 
+    @Test
+    void forgotPasswordEndpoint_getMethod_isBlockedByCompanyHeader() throws ServletException, IOException {
+        assertRequestRejectedByCompanyHeader("GET", "/api/v1/auth/password/forgot");
+    }
+
+    @Test
+    void lookalikePasswordResetEndpoint_isBlockedByCompanyHeader() throws ServletException, IOException {
+        assertRequestRejectedByCompanyHeader("POST", "/api/v1/auth/password/forgot/superadmin/extra");
+    }
+
     private void assertPublicPasswordResetBypass(String path) throws ServletException, IOException {
         MockHttpServletRequest request = new MockHttpServletRequest("POST", path);
         request.setServletPath(path);
@@ -73,6 +83,25 @@ class CompanyContextFilterPasswordResetBypassTest {
         verify(tenantRuntimeEnforcementService).completeRequest(
                 any(TenantRuntimeEnforcementService.TenantRequestAdmission.class),
                 eq(200));
+        verify(tenantRuntimeEnforcementService, never())
+                .beginRequest(anyString(), anyString(), anyString(), anyString(), anyBoolean());
+    }
+
+    private void assertRequestRejectedByCompanyHeader(String method, String path) throws ServletException, IOException {
+        MockHttpServletRequest request = new MockHttpServletRequest(method, path);
+        request.setServletPath(path);
+        request.setRequestURI(path);
+        request.addHeader("X-Company-Code", "FRONTEND-TENANT");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, filterChain);
+
+        assertThat(response.getStatus()).isEqualTo(403);
+        verify(filterChain, never()).doFilter(request, response);
+        verifyNoInteractions(companyService);
+        verify(tenantRuntimeEnforcementService).completeRequest(
+                any(TenantRuntimeEnforcementService.TenantRequestAdmission.class),
+                eq(403));
         verify(tenantRuntimeEnforcementService, never())
                 .beginRequest(anyString(), anyString(), anyString(), anyString(), anyBoolean());
     }
