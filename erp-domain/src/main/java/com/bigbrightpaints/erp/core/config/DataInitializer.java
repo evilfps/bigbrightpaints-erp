@@ -105,17 +105,28 @@ public class DataInitializer {
             return;
         }
         String normalizedEmail = configuredEmail.trim().toLowerCase(Locale.ROOT);
+        String normalizedPassword = StringUtils.hasText(configuredPassword) ? configuredPassword.trim() : "";
         UserAccount devAdmin = userRepository.findByEmailIgnoreCase(normalizedEmail).orElse(null);
         if (devAdmin == null) {
-            if (!StringUtils.hasText(configuredPassword)) {
+            if (!StringUtils.hasText(normalizedPassword)) {
                 throw new IllegalStateException(
                         "erp.seed.dev-admin.password is required when bootstrap dev-admin user does not exist");
             }
             devAdmin = new UserAccount(
                     normalizedEmail,
-                    passwordEncoder.encode(configuredPassword.trim()),
+                    passwordEncoder.encode(normalizedPassword),
                     DEV_ADMIN_DISPLAY_NAME);
             devAdmin.setMustChangePassword(true);
+        } else {
+            if (!StringUtils.hasText(normalizedPassword)) {
+                throw new IllegalStateException(
+                        "erp.seed.dev-admin.password must be provided and match existing bootstrap user credentials before role/company elevation");
+            }
+            if (!StringUtils.hasText(devAdmin.getPasswordHash())
+                    || !passwordEncoder.matches(normalizedPassword, devAdmin.getPasswordHash())) {
+                throw new IllegalStateException(
+                        "erp.seed.dev-admin.password must match existing bootstrap user credentials before role/company elevation");
+            }
         }
         devAdmin.setDisplayName(DEV_ADMIN_DISPLAY_NAME);
         ensureCompanyMembership(devAdmin, company);

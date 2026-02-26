@@ -63,6 +63,7 @@ class DataInitializerTest {
         when(companyRepository.findByCodeIgnoreCase("BBP")).thenReturn(Optional.of(bbp));
         when(userRepository.findByEmailIgnoreCase("super@erp.com")).thenReturn(Optional.of(existingSuperAdmin));
         when(userRepository.findByEmailIgnoreCase("admin@bbp.dev")).thenReturn(Optional.of(existingDevAdmin));
+        when(passwordEncoder.matches("DevAdmin@123!", "dev-hash")).thenReturn(true);
         when(accountRepository.findByCompanyAndCodeIgnoreCase(any(Company.class), anyString()))
                 .thenReturn(Optional.of(new Account()));
 
@@ -102,6 +103,7 @@ class DataInitializerTest {
         when(companyRepository.findByCodeIgnoreCase("BBP")).thenReturn(Optional.of(bbp));
         when(userRepository.findByEmailIgnoreCase("super@erp.com")).thenReturn(Optional.of(existingSuperAdmin));
         when(userRepository.findByEmailIgnoreCase("admin@bbp.dev")).thenReturn(Optional.of(existingDevAdmin));
+        when(passwordEncoder.matches("DevAdmin@123!", "dev-hash")).thenReturn(true);
         when(accountRepository.findByCompanyAndCodeIgnoreCase(any(Company.class), anyString()))
                 .thenReturn(Optional.of(new Account()));
 
@@ -139,6 +141,7 @@ class DataInitializerTest {
         when(companyRepository.save(any(Company.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(userRepository.findByEmailIgnoreCase("super@erp.com")).thenReturn(Optional.empty());
         when(userRepository.findByEmailIgnoreCase("admin@bbp.dev")).thenReturn(Optional.of(existingDevAdmin));
+        when(passwordEncoder.matches("DevAdmin@123!", "dev-hash")).thenReturn(true);
         when(userRepository.save(any(UserAccount.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(passwordEncoder.encode(anyString())).thenAnswer(invocation -> "enc-" + invocation.getArgument(0));
         when(accountRepository.findByCompanyAndCodeIgnoreCase(any(Company.class), anyString()))
@@ -184,6 +187,7 @@ class DataInitializerTest {
         when(roleRepository.findByName("ROLE_SUPER_ADMIN")).thenReturn(Optional.of(superAdminRole));
         when(companyRepository.findByCodeIgnoreCase("BBP")).thenReturn(Optional.of(bbp));
         when(userRepository.findByEmailIgnoreCase("admin@bbp.dev")).thenReturn(Optional.of(existingDevAdmin));
+        when(passwordEncoder.matches("DevAdmin@123!", "dev-hash")).thenReturn(true);
         when(accountRepository.findByCompanyAndCodeIgnoreCase(any(Company.class), anyString()))
                 .thenReturn(Optional.of(new Account()));
 
@@ -243,6 +247,7 @@ class DataInitializerTest {
         when(roleRepository.save(any(Role.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(companyRepository.findByCodeIgnoreCase("BBP")).thenReturn(Optional.of(bbp));
         when(userRepository.findByEmailIgnoreCase("admin@bbp.dev")).thenReturn(Optional.of(existingDevAdmin));
+        when(passwordEncoder.matches("DevAdmin@123!", "dev-hash")).thenReturn(true);
         when(accountRepository.findByCompanyAndCodeIgnoreCase(any(Company.class), anyString()))
                 .thenReturn(Optional.of(new Account()));
 
@@ -319,8 +324,6 @@ class DataInitializerTest {
         when(roleRepository.findByName("ROLE_SUPER_ADMIN")).thenReturn(Optional.of(superAdminRole));
         when(companyRepository.findByCodeIgnoreCase("BBP")).thenReturn(Optional.of(bbp));
         when(userRepository.findByEmailIgnoreCase("dev.missing-password@bbp.dev")).thenReturn(Optional.empty());
-        when(accountRepository.findByCompanyAndCodeIgnoreCase(any(Company.class), anyString()))
-                .thenReturn(Optional.of(new Account()));
 
         CommandLineRunner runner = initializer.seedDefaultUser(
                 userRepository,
@@ -337,6 +340,36 @@ class DataInitializerTest {
         assertThatThrownBy(runner::run)
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("erp.seed.dev-admin.password is required");
+    }
+
+    @Test
+    void seedDefaultUser_requiresPasswordChallengeWhenExistingDevAdminPasswordIsBlank() {
+        DataInitializer initializer = new DataInitializer();
+        Role adminRole = role("ROLE_ADMIN");
+        Role superAdminRole = role("ROLE_SUPER_ADMIN");
+        Company bbp = company("BBP");
+        UserAccount existingDevAdmin = new UserAccount("admin@bbp.dev", "dev-hash", "Dev Admin");
+
+        when(roleRepository.findByName("ROLE_ADMIN")).thenReturn(Optional.of(adminRole));
+        when(roleRepository.findByName("ROLE_SUPER_ADMIN")).thenReturn(Optional.of(superAdminRole));
+        when(companyRepository.findByCodeIgnoreCase("BBP")).thenReturn(Optional.of(bbp));
+        when(userRepository.findByEmailIgnoreCase("admin@bbp.dev")).thenReturn(Optional.of(existingDevAdmin));
+
+        CommandLineRunner runner = initializer.seedDefaultUser(
+                userRepository,
+                companyRepository,
+                roleRepository,
+                accountRepository,
+                passwordEncoder,
+                "   ",
+                "   ",
+                "SKE",
+                "admin@bbp.dev",
+                "   ");
+
+        assertThatThrownBy(runner::run)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("must be provided and match existing bootstrap user credentials");
     }
 
     @Test

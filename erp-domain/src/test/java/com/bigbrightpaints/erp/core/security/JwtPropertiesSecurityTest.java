@@ -12,10 +12,11 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class JwtPropertiesSecurityTest {
 
-    @Test
-    void validate_failsWhenSecretMissingInNonSafeRuntimeProfiles() {
+    @ParameterizedTest
+    @ValueSource(strings = {"prod", "dev", "mock", "openapi", "benchmark"})
+    void validate_failsWhenSecretMissingOutsideTestProfile(String profile) {
         JwtProperties properties = new JwtProperties();
-        properties.setEnvironment(environmentWithProfiles("prod"));
+        properties.setEnvironment(environmentWithProfiles(profile));
 
         assertThatThrownBy(properties::validate)
                 .isInstanceOf(IllegalStateException.class)
@@ -45,9 +46,9 @@ class JwtPropertiesSecurityTest {
     }
 
     @Test
-    void validate_generatesEphemeralSecretForSafeProfilesWhenMissing() {
+    void validate_generatesEphemeralSecretForTestProfileWhenMissing() {
         JwtProperties properties = new JwtProperties();
-        properties.setEnvironment(environmentWithProfiles("dev"));
+        properties.setEnvironment(environmentWithProfiles("test"));
         properties.setSecret("   ");
 
         properties.validate();
@@ -138,7 +139,7 @@ class JwtPropertiesSecurityTest {
     void validate_usesDefaultProfilesWhenActiveProfilesMissing() {
         JwtProperties properties = new JwtProperties();
         MockEnvironment environment = new MockEnvironment();
-        environment.setDefaultProfiles("default", "dev");
+        environment.setDefaultProfiles("default", "test");
         properties.setEnvironment(environment);
         properties.setSecret("   ");
 

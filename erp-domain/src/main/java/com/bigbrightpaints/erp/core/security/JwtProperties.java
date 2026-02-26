@@ -22,7 +22,6 @@ public class JwtProperties implements EnvironmentAware {
 
     private static final Logger log = LoggerFactory.getLogger(JwtProperties.class);
     private static final String TEST_PROFILE = "test";
-    private static final Set<String> SAFE_FALLBACK_PROFILES = Set.of("dev", "test", "mock", "openapi", "benchmark");
     private static final Set<String> UNSAFE_STATIC_SECRETS = Set.of(
             "changeme",
             "dev-only-jwt-secret-please-override-32",
@@ -41,9 +40,9 @@ public class JwtProperties implements EnvironmentAware {
         secret = StringUtils.hasText(secret) ? secret.trim() : secret;
 
         if (!StringUtils.hasText(secret)) {
-            if (isSafeFallbackContext()) {
+            if (isTestOnlyRuntime()) {
                 secret = generateEphemeralSecret();
-                log.warn("JWT secret missing in safe profile context {}; generated ephemeral in-memory secret",
+                log.warn("JWT secret missing in test-only profile context {}; generated ephemeral in-memory secret",
                         activeProfilesForLogging());
                 return;
             }
@@ -74,16 +73,6 @@ public class JwtProperties implements EnvironmentAware {
             return true;
         }
         return normalized.startsWith("${") && normalized.endsWith("}");
-    }
-
-    private boolean isSafeFallbackContext() {
-        Set<String> profiles = activeProfiles();
-        if (profiles.isEmpty()) {
-            return false;
-        }
-        boolean hasUnsafe = profiles.stream().anyMatch(profile -> !SAFE_FALLBACK_PROFILES.contains(profile));
-        boolean hasSafe = profiles.stream().anyMatch(SAFE_FALLBACK_PROFILES::contains);
-        return hasSafe && !hasUnsafe;
     }
 
     private boolean isTestOnlyRuntime() {

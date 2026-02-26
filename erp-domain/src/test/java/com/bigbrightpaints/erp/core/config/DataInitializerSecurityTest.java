@@ -108,12 +108,62 @@ class DataInitializerSecurityTest {
     }
 
     @Test
-    void dataInitializer_reusesExistingDevAdminWhenPasswordBlank() {
+    void dataInitializer_requiresPasswordChallengeForExistingDevAdminWhenPasswordBlank() {
         DataInitializer initializer = new DataInitializer();
         Company company = company("BBP");
         Role adminRole = role("ROLE_ADMIN");
         UserAccount existingUser = new UserAccount("dev.admin@bbp.com", "existing-hash", "Existing");
         when(userRepository.findByEmailIgnoreCase("dev.admin@bbp.com")).thenReturn(Optional.of(existingUser));
+
+        assertThatThrownBy(() -> ReflectionTestUtils.invokeMethod(
+                initializer,
+                "seedConfiguredDevAdmin",
+                userRepository,
+                passwordEncoder,
+                adminRole,
+                company,
+                "dev.admin@bbp.com",
+                "   "))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("must be provided and match existing bootstrap user credentials");
+
+        verify(passwordEncoder, never()).encode(anyString());
+        verify(passwordEncoder, never()).matches(anyString(), anyString());
+        verify(userRepository, never()).save(any(UserAccount.class));
+    }
+
+    @Test
+    void dataInitializer_rejectsPasswordChallengeForExistingDevAdminWhenPasswordDoesNotMatch() {
+        DataInitializer initializer = new DataInitializer();
+        Company company = company("BBP");
+        Role adminRole = role("ROLE_ADMIN");
+        UserAccount existingUser = new UserAccount("dev.admin@bbp.com", "existing-hash", "Existing");
+        when(userRepository.findByEmailIgnoreCase("dev.admin@bbp.com")).thenReturn(Optional.of(existingUser));
+        when(passwordEncoder.matches("WrongPassword@123", "existing-hash")).thenReturn(false);
+
+        assertThatThrownBy(() -> ReflectionTestUtils.invokeMethod(
+                initializer,
+                "seedConfiguredDevAdmin",
+                userRepository,
+                passwordEncoder,
+                adminRole,
+                company,
+                "dev.admin@bbp.com",
+                "WrongPassword@123"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("must match existing bootstrap user credentials");
+
+        verify(userRepository, never()).save(any(UserAccount.class));
+    }
+
+    @Test
+    void dataInitializer_reusesExistingDevAdminWhenPasswordChallengeMatches() {
+        DataInitializer initializer = new DataInitializer();
+        Company company = company("BBP");
+        Role adminRole = role("ROLE_ADMIN");
+        UserAccount existingUser = new UserAccount("dev.admin@bbp.com", "existing-hash", "Existing");
+        when(userRepository.findByEmailIgnoreCase("dev.admin@bbp.com")).thenReturn(Optional.of(existingUser));
+        when(passwordEncoder.matches("DevAdmin@123!", "existing-hash")).thenReturn(true);
         when(userRepository.save(any(UserAccount.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         ReflectionTestUtils.invokeMethod(
@@ -124,9 +174,9 @@ class DataInitializerSecurityTest {
                 adminRole,
                 company,
                 "dev.admin@bbp.com",
-                "   ");
+                "DevAdmin@123!");
 
-        verify(passwordEncoder, never()).encode(anyString());
+        verify(passwordEncoder).matches("DevAdmin@123!", "existing-hash");
         verify(userRepository).save(existingUser);
         assertThat(existingUser.getDisplayName()).isEqualTo("Dev Admin");
         assertThat(existingUser.getCompanies()).contains(company);

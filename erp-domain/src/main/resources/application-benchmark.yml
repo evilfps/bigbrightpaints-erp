@@ -35,7 +35,7 @@ erp:
     # Fail fast if packaging BOM is missing or consumes zero cost
     require-packaging: ${ERP_BENCHMARK_REQUIRE_PACKAGING:true}
   security:
-    encryption.key: ${ERP_SECURITY_ENCRYPTION_KEY:BenchmarkEncryptKey32BytesLongXX}
+    encryption.key: ${ERP_SECURITY_ENCRYPTION_KEY}
     mfa.enabled: false
   dispatch:
     debit-account-id: ${ERP_DISPATCH_DEBIT_ACCOUNT_ID:0}
