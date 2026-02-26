@@ -125,7 +125,7 @@ class TS_RuntimeEventPublisherExecutableCoverageTest {
     }
 
     @Test
-    void healthSnapshot_reads_pending_retrying_and_deadletter_counts() {
+    void healthSnapshot_reads_pending_retrying_and_publishing_counts() {
         OutboxEventRepository outboxEventRepository = mock(OutboxEventRepository.class);
         RabbitTemplate rabbitTemplate = mock(RabbitTemplate.class);
         CompanyContextService companyContextService = mock(CompanyContextService.class);
@@ -140,12 +140,24 @@ class TS_RuntimeEventPublisherExecutableCoverageTest {
         when(outboxEventRepository.countByStatusAndDeadLetterFalse(OutboxEvent.Status.PENDING)).thenReturn(7L);
         when(outboxEventRepository.countByStatusAndDeadLetterFalseAndRetryCountGreaterThan(
                 OutboxEvent.Status.PENDING, 0)).thenReturn(2L);
+        when(outboxEventRepository.countByStatusAndDeadLetterFalse(OutboxEvent.Status.PUBLISHING)).thenReturn(4L);
+        when(outboxEventRepository.countByStatusAndDeadLetterFalseAndNextAttemptAtLessThanEqual(
+                eq(OutboxEvent.Status.PUBLISHING), any())).thenReturn(3L);
+        when(outboxEventRepository.countByStatusAndDeadLetterFalseAndLastErrorStartingWith(
+                OutboxEvent.Status.PUBLISHING, "AMBIGUOUS_PUBLISH:")).thenReturn(2L);
+        when(outboxEventRepository.countByStatusAndDeadLetterFalseAndLastErrorStartingWith(
+                OutboxEvent.Status.PUBLISHING, "FINALIZE_FAILURE:")).thenReturn(1L);
+        when(outboxEventRepository.countByStatusAndDeadLetterFalseAndLastErrorStartingWith(
+                OutboxEvent.Status.PUBLISHING, "STALE_LEASE_UNCERTAIN:")).thenReturn(1L);
         when(outboxEventRepository.countByStatusAndDeadLetterTrue(OutboxEvent.Status.FAILED)).thenReturn(1L);
 
         Map<String, Object> snapshot = service.healthSnapshot();
         assertThat(snapshot)
                 .containsEntry("pendingEvents", 7L)
                 .containsEntry("retryingEvents", 2L)
+                .containsEntry("publishingEvents", 4L)
+                .containsEntry("stalePublishingEvents", 3L)
+                .containsEntry("ambiguousPublishingEvents", 4L)
                 .containsEntry("deadLetters", 1L);
     }
 

@@ -11,6 +11,8 @@ class TS_OrchestratorExactlyOnceOutboxTest {
 
     private static final String COMMAND_DISPATCHER =
             "src/main/java/com/bigbrightpaints/erp/orchestrator/service/CommandDispatcher.java";
+    private static final String EVENT_PUBLISHER_SERVICE =
+            "src/main/java/com/bigbrightpaints/erp/orchestrator/service/EventPublisherService.java";
     private static final String ORCH_IDEMPOTENCY_MIGRATION =
             "src/main/resources/db/migration_v2/V6__orchestrator.sql";
     private static final String ORCH_AUDIT_MIGRATION =
@@ -26,6 +28,25 @@ class TS_OrchestratorExactlyOnceOutboxTest {
                 "traceService.record(traceId,",
                 "idempotencyService.markSuccess(lease.command());",
                 "idempotencyService.markFailed(lease.command(), ex);");
+    }
+
+    @Test
+    void outboxPublisherClaimsRowsBeforeBrokerPublishAndFinalizesSeparately() {
+        TruthSuiteFileAssert.assertContains(
+                EVENT_PUBLISHER_SERVICE,
+                "reclaimStalePublishingEvents(now);",
+                "event.markPublishingUntil(CompanyTime.now().plusSeconds(publishingLeaseSeconds));",
+                "rabbitTemplate.convertAndSend(\"bbp.orchestrator.events\", claimed.eventType(), claimed.payload());",
+                "markPublished(claimed.id(), claimed.fenceToken());");
+        TruthSuiteFileAssert.assertContains(
+                EVENT_PUBLISHER_SERVICE,
+                "markAmbiguousPublishingState(claimed.id(), claimed.fenceToken(), ex);",
+                "markFinalizeFailure(claimed.id(), claimed.fenceToken(), ex);",
+                "if (!fenceMatches(event, normalizeFenceToken(observedFenceToken))) {",
+                "event.deferPublishing(marker, ambiguousRecheckDelaySeconds);",
+                "if (event.getStatus() != OutboxEvent.Status.PUBLISHING || event.isDeadLetter()) {",
+                "if (!fenceMatches(event, expectedFenceToken)) {",
+                "event.scheduleRetry(errorMessage, MAX_RETRY_ATTEMPTS, delaySeconds);");
     }
 
     @Test

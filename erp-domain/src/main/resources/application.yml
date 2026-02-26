@@ -78,6 +78,9 @@ springdoc:
 orchestrator:
   outbox:
     cron: "0/30 * * * * *"
+    publish-lease-seconds: 120
+    ambiguous-recheck-seconds: 300
+    lock-at-most-for: "PT5M"
   order-dispatch:
     enabled: false
 

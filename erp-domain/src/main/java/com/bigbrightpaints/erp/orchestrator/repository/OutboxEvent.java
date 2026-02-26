@@ -21,6 +21,7 @@ public class OutboxEvent extends VersionedEntity {
 
     public enum Status {
         PENDING,
+        PUBLISHING,
         PUBLISHED,
         FAILED
     }
@@ -161,9 +162,28 @@ public class OutboxEvent extends VersionedEntity {
         return deadLetter;
     }
 
+    public void markPublishing() {
+        markPublishingUntil(CompanyTime.now());
+    }
+
+    public void markPublishingUntil(Instant leaseUntil) {
+        this.status = Status.PUBLISHING;
+        this.deadLetter = false;
+        this.lastError = null;
+        this.nextAttemptAt = leaseUntil;
+    }
+
+    public void deferPublishing(String errorMessage, long delaySeconds) {
+        this.status = Status.PUBLISHING;
+        this.deadLetter = false;
+        this.lastError = errorMessage;
+        this.nextAttemptAt = CompanyTime.now().plusSeconds(Math.max(1L, delaySeconds));
+    }
+
     public void markPublished() {
         this.status = Status.PUBLISHED;
         this.deadLetter = false;
+        this.lastError = null;
     }
 
     public void scheduleRetry(String errorMessage, int maxAttempts, long delaySeconds) {
@@ -173,6 +193,7 @@ public class OutboxEvent extends VersionedEntity {
             this.deadLetter = true;
             this.status = Status.FAILED;
         } else {
+            this.status = Status.PENDING;
             this.nextAttemptAt = CompanyTime.now().plusSeconds(delaySeconds);
         }
     }

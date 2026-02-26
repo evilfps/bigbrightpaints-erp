@@ -9,7 +9,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 @Configuration
-@EnableSchedulerLock(defaultLockAtMostFor = "PT1M")
+@EnableSchedulerLock(defaultLockAtMostFor = "${orchestrator.outbox.lock-at-most-for:PT5M}")
 public class ShedLockConfig {
 
     @Bean
