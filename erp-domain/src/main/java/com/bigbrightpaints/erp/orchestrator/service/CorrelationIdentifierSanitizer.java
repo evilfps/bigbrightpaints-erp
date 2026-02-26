@@ -85,6 +85,10 @@ public final class CorrelationIdentifierSanitizer {
         return safeForLog(idempotencyKey, MAX_IDEMPOTENCY_KEY_LENGTH);
     }
 
+    public static String safeIdentifierForLog(String identifier) {
+        return safeForLog(identifier, MAX_IDEMPOTENCY_KEY_LENGTH);
+    }
+
     private static String safeForLog(String value, int maxLength) {
         if (!StringUtils.hasText(value)) {
             return null;

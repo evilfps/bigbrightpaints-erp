@@ -146,10 +146,7 @@ public class IntegrationCoordinator {
                                                       String idempotencyKey) {
         String correlation = correlationSuffix(traceId, idempotencyKey);
         return withCompanyContext(companyId, () -> {
-            Long id = parseNumericId(orderId);
-            if (id == null) {
-                return null;
-            }
+            Long id = requireNumericOrderId(orderId, "reserveInventory");
             attachOrderTrace(id, traceId);
             SalesOrder order = salesService.getOrderWithItems(id);
             InventoryReservationResult reservation = finishedGoodsService.reserveForOrder(order);
@@ -204,10 +201,7 @@ public class IntegrationCoordinator {
             log.warn("Cannot auto-approve order {} without a company context{}", orderId, correlation);
             return new AutoApprovalResult("PENDING_PRODUCTION", true);
         }
-        Long numericId = parseNumericId(orderId);
-        if (numericId == null) {
-            return new AutoApprovalResult("PENDING_PRODUCTION", true);
-        }
+        Long numericId = requireNumericOrderId(orderId, "autoApproveOrder");
         AtomicReference<String> status = new AtomicReference<>("PENDING_PRODUCTION");
         AtomicBoolean awaitingProduction = new AtomicBoolean(false);
         runWithCompanyContext(normalizedCompanyId, () -> {
@@ -306,10 +300,7 @@ public class IntegrationCoordinator {
                                                 String traceId,
                                                 String idempotencyKey) {
         return withCompanyContext(companyId, () -> {
-            Long id = parseNumericId(orderId);
-            if (id == null) {
-                return new AutoApprovalResult("INVALID", false);
-            }
+            Long id = requireNumericOrderId(orderId, "updateFulfillment");
             attachOrderTrace(id, traceId);
             String status = requestedStatus == null ? "" : requestedStatus.trim().toUpperCase();
             switch (status) {
@@ -745,11 +736,26 @@ public class IntegrationCoordinator {
         salesService.attachTraceId(orderId, sanitizedTraceId);
     }
 
+    private Long requireNumericOrderId(String orderId, String operation) {
+        Long id = parseNumericId(orderId);
+        if (id != null) {
+            return id;
+        }
+        throw new ApplicationException(
+                ErrorCode.VALIDATION_INVALID_INPUT,
+                "Invalid orderId format")
+                .withDetail("field", "orderId")
+                .withDetail("operation", operation)
+                .withDetail("expected", "numeric")
+                .withDetail("safeIdentifier", CorrelationIdentifierSanitizer.safeIdentifierForLog(orderId));
+    }
+
     private Long parseNumericId(String id) {
         try {
             return Long.parseLong(id);
-        } catch (NumberFormatException ex) {
-            log.warn("Value {} is not a numeric identifier", id);
+        } catch (NumberFormatException | NullPointerException ex) {
+            log.warn("Rejected non-numeric identifier [{}]",
+                    CorrelationIdentifierSanitizer.safeIdentifierForLog(id));
             return null;
         }
     }

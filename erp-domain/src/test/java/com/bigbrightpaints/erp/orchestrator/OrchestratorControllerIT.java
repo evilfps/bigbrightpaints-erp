@@ -450,6 +450,56 @@ public class OrchestratorControllerIT extends AbstractIntegrationTest {
     }
 
     @Test
+    void approve_order_rejects_malformed_order_id_without_side_effects() {
+        String token = loginToken();
+        HttpHeaders headers = authHeaders(token);
+        headers.add("Idempotency-Key", UUID.randomUUID().toString());
+        long outboxBefore = outboxEventRepository.count();
+        long auditBefore = auditRepository.count();
+
+        Map<String, Object> body = Map.of(
+                "orderId", "abc",
+                "approvedBy", "orch@bbp.com",
+                "totalAmount", new BigDecimal("5000")
+        );
+
+        ResponseEntity<Map> response = rest.exchange(
+                "/api/v1/orchestrator/orders/abc/approve",
+                HttpMethod.POST,
+                new HttpEntity<>(body, headers),
+                Map.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody()).containsEntry("success", false);
+        assertThat(outboxEventRepository.count()).isEqualTo(outboxBefore);
+        assertThat(auditRepository.count()).isEqualTo(auditBefore);
+    }
+
+    @Test
+    void fulfillment_rejects_malformed_order_id_without_side_effects() {
+        String token = loginToken();
+        HttpHeaders headers = authHeaders(token);
+        headers.add("Idempotency-Key", UUID.randomUUID().toString());
+        long outboxBefore = outboxEventRepository.count();
+        long auditBefore = auditRepository.count();
+
+        Map<String, Object> body = Map.of(
+                "status", "PROCESSING",
+                "notes", "start production malformed order id");
+
+        ResponseEntity<Map> response = rest.exchange(
+                "/api/v1/orchestrator/orders/abc/fulfillment",
+                HttpMethod.POST,
+                new HttpEntity<>(body, headers),
+                Map.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody()).containsEntry("success", false);
+        assertThat(outboxEventRepository.count()).isEqualTo(outboxBefore);
+        assertThat(auditRepository.count()).isEqualTo(auditBefore);
+    }
+
+    @Test
     void dispatch_alias_without_body_is_gone_with_canonical_path() {
         String token = loginToken();
         HttpHeaders headers = authHeaders(token);

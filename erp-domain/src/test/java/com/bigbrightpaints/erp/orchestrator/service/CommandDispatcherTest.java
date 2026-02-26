@@ -1,5 +1,7 @@
 package com.bigbrightpaints.erp.orchestrator.service;
 
+import com.bigbrightpaints.erp.core.exception.ApplicationException;
+import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.modules.inventory.service.FinishedGoodsService.InventoryReservationResult;
 import com.bigbrightpaints.erp.modules.inventory.service.FinishedGoodsService.InventoryShortage;
 import com.bigbrightpaints.erp.modules.hr.dto.PayrollRunDto;
@@ -115,6 +117,43 @@ class CommandDispatcherTest {
     }
 
     @Test
+    void approveOrderMalformedOrderIdFailsBeforeOutboxAndTrace() {
+        OrchestratorCommand command = new OrchestratorCommand(1L, "ORCH.ORDER.APPROVE", "idem-invalid-order", "hash", "trace-invalid-order");
+        ApproveOrderRequest request = new ApproveOrderRequest("abc", "approver@bbp.com", new BigDecimal("5000"));
+        when(idempotencyService.start(
+                ArgumentMatchers.eq("ORCH.ORDER.APPROVE"),
+                ArgumentMatchers.eq("idem-invalid-order"),
+                ArgumentMatchers.eq(request),
+                ArgumentMatchers.any()))
+                .thenReturn(new OrchestratorIdempotencyService.CommandLease("trace-invalid-order", command, true));
+        when(integrationCoordinator.reserveInventory("abc", "COMP", "trace-invalid-order", "idem-invalid-order"))
+                .thenThrow(new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT, "Invalid orderId format"));
+
+        assertThatThrownBy(() -> commandDispatcher.approveOrder(
+                request,
+                "idem-invalid-order",
+                "req-invalid-order",
+                "COMP",
+                "user-1"))
+                .isInstanceOf(ApplicationException.class);
+
+        verify(eventPublisherService, never()).enqueue(ArgumentMatchers.any());
+        verify(traceService, never()).record(
+                ArgumentMatchers.anyString(),
+                ArgumentMatchers.anyString(),
+                ArgumentMatchers.anyString(),
+                ArgumentMatchers.anyMap(),
+                ArgumentMatchers.any(),
+                ArgumentMatchers.any());
+        verify(idempotencyService).markFailed(
+                ArgumentMatchers.eq(command),
+                ArgumentMatchers.argThat(ex ->
+                        ex instanceof ApplicationException
+                                && ((ApplicationException) ex).getErrorCode() == ErrorCode.VALIDATION_INVALID_INPUT));
+        verify(idempotencyService, never()).markSuccess(ArgumentMatchers.any());
+    }
+
+    @Test
     void updateOrderFulfillmentPropagatesTraceAndIdempotencyToCoordinator() {
         OrchestratorCommand command =
                 new OrchestratorCommand(1L, "ORCH.ORDER.FULFILLMENT.UPDATE", "idem-fulfillment", "hash", "trace-fulfillment");
@@ -149,6 +188,50 @@ class CommandDispatcherTest {
                 "trace-fulfillment",
                 "idem-fulfillment");
         verify(idempotencyService).markSuccess(command);
+    }
+
+    @Test
+    void updateOrderFulfillmentMalformedOrderIdFailsBeforeOutboxAndTrace() {
+        OrchestratorCommand command =
+                new OrchestratorCommand(1L, "ORCH.ORDER.FULFILLMENT.UPDATE", "idem-invalid-fulfillment", "hash", "trace-invalid-fulfillment");
+        OrderFulfillmentRequest request = new OrderFulfillmentRequest("PROCESSING", "start");
+        when(idempotencyService.start(
+                ArgumentMatchers.eq("ORCH.ORDER.FULFILLMENT.UPDATE"),
+                ArgumentMatchers.eq("idem-invalid-fulfillment"),
+                ArgumentMatchers.any(),
+                ArgumentMatchers.any()))
+                .thenReturn(new OrchestratorIdempotencyService.CommandLease("trace-invalid-fulfillment", command, true));
+        when(integrationCoordinator.updateFulfillment(
+                "abc",
+                "PROCESSING",
+                "COMP",
+                "trace-invalid-fulfillment",
+                "idem-invalid-fulfillment"))
+                .thenThrow(new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT, "Invalid orderId format"));
+
+        assertThatThrownBy(() -> commandDispatcher.updateOrderFulfillment(
+                "abc",
+                request,
+                "idem-invalid-fulfillment",
+                "req-invalid-fulfillment",
+                "COMP",
+                "user-1"))
+                .isInstanceOf(ApplicationException.class);
+
+        verify(eventPublisherService, never()).enqueue(ArgumentMatchers.any());
+        verify(traceService, never()).record(
+                ArgumentMatchers.anyString(),
+                ArgumentMatchers.anyString(),
+                ArgumentMatchers.anyString(),
+                ArgumentMatchers.anyMap(),
+                ArgumentMatchers.any(),
+                ArgumentMatchers.any());
+        verify(idempotencyService).markFailed(
+                ArgumentMatchers.eq(command),
+                ArgumentMatchers.argThat(ex ->
+                        ex instanceof ApplicationException
+                                && ((ApplicationException) ex).getErrorCode() == ErrorCode.VALIDATION_INVALID_INPUT));
+        verify(idempotencyService, never()).markSuccess(ArgumentMatchers.any());
     }
 
     @Test
