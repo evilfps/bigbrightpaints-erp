@@ -11,7 +11,6 @@ import com.bigbrightpaints.erp.modules.rbac.domain.SystemRole;
 import com.bigbrightpaints.erp.modules.rbac.dto.CreateRoleRequest;
 import com.bigbrightpaints.erp.modules.rbac.dto.PermissionDto;
 import com.bigbrightpaints.erp.modules.rbac.dto.RoleDto;
-import jakarta.transaction.Transactional;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -25,6 +24,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 @Service

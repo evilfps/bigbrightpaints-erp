@@ -128,6 +128,21 @@ class PasswordResetServiceTest {
     }
 
     @Test
+    void requestResetForSuperAdminMasksWhenEligibilityChangesBeforeTokenIssue() {
+        UserAccount initiallyEligible = superAdminUser("superadmin@example.com");
+        UserAccount noLongerEligible = new UserAccount("superadmin@example.com", "hash", "Super Admin");
+        noLongerEligible.setEnabled(true);
+        when(userAccountRepository.findByEmailIgnoreCase("superadmin@example.com"))
+                .thenReturn(Optional.of(initiallyEligible), Optional.of(noLongerEligible));
+
+        assertDoesNotThrow(() -> passwordResetService.requestResetForSuperAdmin("superadmin@example.com"));
+
+        verify(tokenRepository, never()).deleteByUser(any());
+        verify(tokenRepository, never()).saveAndFlush(any(PasswordResetToken.class));
+        verify(emailService, never()).sendSimpleEmail(any(), any(), any());
+    }
+
+    @Test
     void requestResetForSuperAdminClassifiesConfigurationFailuresInLogs() {
         UserAccount superAdmin = superAdminUser("superadmin@example.com");
         when(userAccountRepository.findByEmailIgnoreCase("superadmin@example.com"))

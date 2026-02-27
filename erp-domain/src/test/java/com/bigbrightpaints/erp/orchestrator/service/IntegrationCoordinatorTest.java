@@ -33,6 +33,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -324,6 +325,27 @@ class IntegrationCoordinatorTest {
     }
 
     @Test
+    void autoApproveOrderInitializesMissingStateAndPersistsProgress() {
+        OrderAutoApprovalState createdState = new OrderAutoApprovalState(COMPANY_ID, ORDER_ID);
+        when(orderAutoApprovalStateRepository.findByCompanyCodeAndOrderId(COMPANY_ID, ORDER_ID))
+                .thenReturn(Optional.empty(), Optional.of(createdState));
+        InventoryReservationResult reservation = new InventoryReservationResult(null, List.of());
+        when(salesService.getOrderWithItems(ORDER_ID)).thenReturn(order);
+        when(finishedGoodsService.reserveForOrder(order)).thenReturn(reservation);
+
+        IntegrationCoordinator.AutoApprovalResult result =
+                integrationCoordinator.autoApproveOrder(String.valueOf(ORDER_ID), new BigDecimal("1500"), COMPANY_ID);
+
+        assertThat(result.orderStatus()).isEqualTo("READY_TO_SHIP");
+        assertThat(result.awaitingProduction()).isFalse();
+        assertThat(createdState.isInventoryReserved()).isTrue();
+        assertThat(createdState.isOrderStatusUpdated()).isTrue();
+        assertThat(createdState.isCompleted()).isTrue();
+        verify(orderAutoApprovalStateRepository).saveAndFlush(
+                argThat(saved -> COMPANY_ID.equals(saved.getCompanyCode()) && ORDER_ID.equals(saved.getOrderId())));
+    }
+
+    @Test
     void autoApproveOrderRetrySkipsReservationAfterPartialProgress() {
         state.markInventoryReserved();
         IntegrationCoordinator.AutoApprovalResult result =
@@ -357,6 +379,34 @@ class IntegrationCoordinatorTest {
         integrationCoordinator.autoApproveOrder(String.valueOf(ORDER_ID), new BigDecimal("1500"), COMPANY_ID);
 
         verify(salesService, never()).confirmDispatch(any());
+    }
+
+    @Test
+    void healthBindsReadOperationsToCurrentCompanyContext() {
+        when(salesService.listOrders(null)).thenAnswer(invocation -> {
+            assertThat(CompanyContextHolder.getCompanyCode()).isEqualTo(COMPANY_ID);
+            return List.of();
+        });
+        when(factoryService.listPlans()).thenAnswer(invocation -> {
+            assertThat(CompanyContextHolder.getCompanyCode()).isEqualTo(COMPANY_ID);
+            return List.of();
+        });
+        when(accountingService.listAccounts()).thenAnswer(invocation -> {
+            assertThat(CompanyContextHolder.getCompanyCode()).isEqualTo(COMPANY_ID);
+            return List.of();
+        });
+        when(hrService.listEmployees()).thenAnswer(invocation -> {
+            assertThat(CompanyContextHolder.getCompanyCode()).isEqualTo(COMPANY_ID);
+            return List.of();
+        });
+
+        Map<String, Object> health = integrationCoordinator.health();
+
+        assertThat(health)
+                .containsEntry("orders", 0)
+                .containsEntry("plans", 0)
+                .containsEntry("accounts", 0)
+                .containsEntry("employees", 0);
     }
 
     @Test

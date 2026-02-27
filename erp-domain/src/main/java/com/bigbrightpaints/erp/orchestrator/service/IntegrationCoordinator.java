@@ -455,12 +455,15 @@ public class IntegrationCoordinator {
 
     @Transactional(readOnly = true)
     public Map<String, Object> health() {
-        Map<String, Object> health = new HashMap<>();
-        health.put("orders", salesService.listOrders(null).size());
-        health.put("plans", factoryService.listPlans().size());
-        health.put("accounts", accountingService.listAccounts().size());
-        health.put("employees", hrService.listEmployees().size());
-        return health;
+        String companyId = companyContextService.requireCurrentCompany().getCode();
+        return withCompanyContext(companyId, () -> {
+            Map<String, Object> health = new HashMap<>();
+            health.put("orders", salesService.listOrders(null).size());
+            health.put("plans", factoryService.listPlans().size());
+            health.put("accounts", accountingService.listAccounts().size());
+            health.put("employees", hrService.listEmployees().size());
+            return health;
+        });
     }
 
     @Transactional(readOnly = true)
@@ -591,16 +594,20 @@ public class IntegrationCoordinator {
     }
 
     private OrderAutoApprovalState lockAutoApprovalState(String companyId, Long orderId) {
-        return txTemplate.execute(status -> orderAutoApprovalStateRepository.findByCompanyCodeAndOrderId(companyId, orderId)
-                .orElseGet(() -> {
-                    try {
-                        orderAutoApprovalStateRepository.save(new OrderAutoApprovalState(companyId, orderId));
-                    } catch (DataIntegrityViolationException ex) {
-                        log.warn("Auto-approval state already exists for order {} in company {}; retrying fetch", orderId, companyId);
-                    }
-                    return orderAutoApprovalStateRepository.findByCompanyCodeAndOrderId(companyId, orderId)
-                            .orElseThrow(() -> new IllegalStateException("Unable to initialize auto-approval state"));
-                }));
+        Optional<OrderAutoApprovalState> existing =
+                orderAutoApprovalStateRepository.findByCompanyCodeAndOrderId(companyId, orderId);
+        if (existing.isPresent()) {
+            return existing.get();
+        }
+        txTemplate.executeWithoutResult(status -> {
+            try {
+                orderAutoApprovalStateRepository.saveAndFlush(new OrderAutoApprovalState(companyId, orderId));
+            } catch (DataIntegrityViolationException ex) {
+                log.warn("Auto-approval state already exists for order {} in company {}; retrying fetch", orderId, companyId);
+            }
+        });
+        return orderAutoApprovalStateRepository.findByCompanyCodeAndOrderId(companyId, orderId)
+                .orElseThrow(() -> new IllegalStateException("Unable to initialize auto-approval state"));
     }
 
     private void runWithCompanyContext(String companyId, Runnable action) {

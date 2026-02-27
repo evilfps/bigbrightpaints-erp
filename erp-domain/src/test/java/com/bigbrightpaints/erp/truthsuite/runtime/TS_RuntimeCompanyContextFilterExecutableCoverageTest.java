@@ -269,6 +269,7 @@ class TS_RuntimeCompanyContextFilterExecutableCoverageTest {
         noPath.setRequestURI("   ");
         assertThat(invokeIsLifecycleControlRequest(null, "GET")).isFalse();
         assertThat(invokeResolveApplicationPath(noPath)).isNull();
+        assertThat(invokeShouldNotFilter(noPath)).isTrue();
 
         MockHttpServletRequest contextStrippedPath = request("GET", "");
         contextStrippedPath.setServletPath(" ");
@@ -284,16 +285,19 @@ class TS_RuntimeCompanyContextFilterExecutableCoverageTest {
     }
 
     @Test
-    void doFilter_allowsPublicPasswordResetBypassWithTrailingSlash() throws ServletException, IOException {
+    void doFilter_rejectsPublicPasswordResetRequestWithTenantHeaderEvenWithTrailingSlash()
+            throws ServletException, IOException {
         MockHttpServletRequest request = request("POST", "/api/v1/auth/password/forgot/superadmin/");
         request.addHeader("X-Company-Code", "ACME");
         MockHttpServletResponse response = new MockHttpServletResponse();
 
         filter.doFilter(request, response, filterChain);
 
-        assertThat(response.getStatus()).isEqualTo(200);
-        verify(filterChain).doFilter(request, response);
+        assertThat(response.getStatus()).isEqualTo(403);
+        verify(filterChain, never()).doFilter(request, response);
         verifyNoInteractions(companyService);
+        verify(tenantRuntimeEnforcementService).completeRequest(
+                any(TenantRuntimeEnforcementService.TenantRequestAdmission.class), eq(403));
         verify(tenantRuntimeEnforcementService, never())
                 .beginRequest(anyString(), anyString(), anyString(), anyString(), anyBoolean());
     }
@@ -664,6 +668,12 @@ class TS_RuntimeCompanyContextFilterExecutableCoverageTest {
 
     private boolean invokeIsPublicPasswordResetRequest(String path, String method) {
         Boolean result = ReflectionTestUtils.invokeMethod(filter, "isPublicPasswordResetRequest", path, method);
+        assertThat(result).isNotNull();
+        return result;
+    }
+
+    private boolean invokeShouldNotFilter(MockHttpServletRequest request) {
+        Boolean result = ReflectionTestUtils.invokeMethod(filter, "shouldNotFilter", request);
         assertThat(result).isNotNull();
         return result;
     }

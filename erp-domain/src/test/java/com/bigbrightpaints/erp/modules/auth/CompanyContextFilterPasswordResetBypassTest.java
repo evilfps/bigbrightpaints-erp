@@ -3,6 +3,8 @@ package com.bigbrightpaints.erp.modules.auth;
 import com.bigbrightpaints.erp.core.security.CompanyContextFilter;
 import com.bigbrightpaints.erp.modules.company.service.CompanyService;
 import com.bigbrightpaints.erp.modules.company.service.TenantRuntimeEnforcementService;
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.impl.DefaultClaims;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import org.junit.jupiter.api.BeforeEach;
@@ -44,18 +46,18 @@ class CompanyContextFilterPasswordResetBypassTest {
     }
 
     @Test
-    void forgotPasswordEndpoint_isNotBlockedByCompanyHeader() throws ServletException, IOException {
-        assertPublicPasswordResetBypass("/api/v1/auth/password/forgot");
+    void forgotPasswordEndpoint_allowsAnonymousWithoutCompanyHeader() throws ServletException, IOException {
+        assertPublicPasswordResetWithoutTenantHeader("/api/v1/auth/password/forgot");
     }
 
     @Test
-    void resetPasswordEndpoint_isNotBlockedByCompanyHeader() throws ServletException, IOException {
-        assertPublicPasswordResetBypass("/api/v1/auth/password/reset");
+    void resetPasswordEndpoint_allowsAnonymousWithoutCompanyHeader() throws ServletException, IOException {
+        assertPublicPasswordResetWithoutTenantHeader("/api/v1/auth/password/reset");
     }
 
     @Test
-    void superAdminForgotPasswordEndpoint_isNotBlockedByCompanyHeader() throws ServletException, IOException {
-        assertPublicPasswordResetBypass("/api/v1/auth/password/forgot/superadmin");
+    void superAdminForgotPasswordEndpoint_allowsAnonymousWithoutCompanyHeader() throws ServletException, IOException {
+        assertPublicPasswordResetWithoutTenantHeader("/api/v1/auth/password/forgot/superadmin");
     }
 
     @Test
@@ -68,11 +70,35 @@ class CompanyContextFilterPasswordResetBypassTest {
         assertRequestRejectedByCompanyHeader("POST", "/api/v1/auth/password/forgot/superadmin/extra");
     }
 
-    private void assertPublicPasswordResetBypass(String path) throws ServletException, IOException {
+    @Test
+    void passwordResetEndpoint_rejectsMismatchedHeaderAgainstAuthenticatedTokenCompany()
+            throws ServletException, IOException {
+        String path = "/api/v1/auth/password/reset";
         MockHttpServletRequest request = new MockHttpServletRequest("POST", path);
         request.setServletPath(path);
         request.setRequestURI(path);
-        request.addHeader("X-Company-Code", "FRONTEND-TENANT");
+        request.addHeader("X-Company-Code", "TENANT-A");
+        Claims claims = new DefaultClaims();
+        claims.put("companyCode", "TENANT-B");
+        request.setAttribute("jwtClaims", claims);
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, filterChain);
+
+        assertThat(response.getStatus()).isEqualTo(403);
+        verify(filterChain, never()).doFilter(request, response);
+        verifyNoInteractions(companyService);
+        verify(tenantRuntimeEnforcementService).completeRequest(
+                any(TenantRuntimeEnforcementService.TenantRequestAdmission.class),
+                eq(403));
+        verify(tenantRuntimeEnforcementService, never())
+                .beginRequest(anyString(), anyString(), anyString(), anyString(), anyBoolean());
+    }
+
+    private void assertPublicPasswordResetWithoutTenantHeader(String path) throws ServletException, IOException {
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", path);
+        request.setServletPath(path);
+        request.setRequestURI(path);
         MockHttpServletResponse response = new MockHttpServletResponse();
 
         filter.doFilter(request, response, filterChain);

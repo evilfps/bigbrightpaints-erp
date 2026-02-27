@@ -53,10 +53,7 @@ public class CompanyContextFilter extends OncePerRequestFilter {
                 TenantRuntimeEnforcementService.TenantRequestAdmission.notTracked();
         try {
             String runtimePath = resolveApplicationPath(request);
-            if (isPublicPasswordResetRequest(runtimePath, request.getMethod())) {
-                filterChain.doFilter(request, response);
-                return;
-            }
+            boolean publicPasswordResetRequest = isPublicPasswordResetRequest(runtimePath, request.getMethod());
             boolean lifecycleControlRequest = isLifecycleControlRequest(runtimePath, request.getMethod());
             if (lifecycleControlRequest && !hasAuthenticatedPrincipal()) {
                 denyControlPlaneRequest(response);
@@ -109,6 +106,10 @@ public class CompanyContextFilter extends OncePerRequestFilter {
                     return;
                 }
                 requestedCompany = null;
+            }
+            if (publicPasswordResetRequest) {
+                filterChain.doFilter(request, response);
+                return;
             }
             String companyCode = StringUtils.hasText(requestedCompany) ? requestedCompany.trim() : null;
             boolean lifecycleControlBypass = false;
@@ -383,7 +384,7 @@ public class CompanyContextFilter extends OncePerRequestFilter {
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = resolveApplicationPath(request);
         if (!StringUtils.hasText(path)) {
-            return false;
+            return true;
         }
         return path.startsWith("/actuator") || path.startsWith("/swagger") || path.startsWith("/v3");
     }

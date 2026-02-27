@@ -1,6 +1,8 @@
 package com.bigbrightpaints.erp.orchestrator.service;
 
 import com.bigbrightpaints.erp.core.util.CompanyTime;
+import com.bigbrightpaints.erp.modules.company.domain.Company;
+import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.orchestrator.event.DomainEvent;
 import com.bigbrightpaints.erp.orchestrator.repository.OutboxEvent;
@@ -33,6 +35,7 @@ import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.SimpleTransactionStatus;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.util.StringUtils;
 
 /**
  * Service for publishing domain events via outbox pattern.
@@ -77,6 +80,7 @@ public class EventPublisherService {
     private final ObjectMapper objectMapper;
     private final MeterRegistry meterRegistry;
     private final CompanyContextService companyContextService;
+    private final @Nullable CompanyRepository companyRepository;
     private final TransactionTemplate newTxTemplate;
     private final long publishingLeaseSeconds;
     private final long ambiguousRecheckDelaySeconds;
@@ -86,7 +90,15 @@ public class EventPublisherService {
                                  CompanyContextService companyContextService,
                                  ObjectMapper objectMapper,
                                  @Nullable MeterRegistry meterRegistry) {
-        this(outboxEventRepository, rabbitTemplate, companyContextService, objectMapper,
+        this(outboxEventRepository, rabbitTemplate, companyContextService, null, objectMapper, meterRegistry);
+    }
+
+    public EventPublisherService(OutboxEventRepository outboxEventRepository, RabbitTemplate rabbitTemplate,
+                                 CompanyContextService companyContextService,
+                                 CompanyRepository companyRepository,
+                                 ObjectMapper objectMapper,
+                                 @Nullable MeterRegistry meterRegistry) {
+        this(outboxEventRepository, rabbitTemplate, companyContextService, companyRepository, objectMapper,
                 NOOP_TRANSACTION_MANAGER,
                 DEFAULT_PUBLISHING_LEASE_SECONDS,
                 DEFAULT_AMBIGUOUS_RECHECK_DELAY_SECONDS,
@@ -94,9 +106,22 @@ public class EventPublisherService {
                 meterRegistry);
     }
 
+    public EventPublisherService(OutboxEventRepository outboxEventRepository, RabbitTemplate rabbitTemplate,
+                                 CompanyContextService companyContextService,
+                                 ObjectMapper objectMapper,
+                                 PlatformTransactionManager txManager,
+                                 @Value("${orchestrator.outbox.publish-lease-seconds:120}") long publishingLeaseSeconds,
+                                 @Value("${orchestrator.outbox.ambiguous-recheck-seconds:300}") long ambiguousRecheckDelaySeconds,
+                                 @Value("${orchestrator.outbox.lock-at-most-for:PT5M}") String lockAtMostFor,
+                                 @Nullable MeterRegistry meterRegistry) {
+        this(outboxEventRepository, rabbitTemplate, companyContextService, null, objectMapper, txManager,
+                publishingLeaseSeconds, ambiguousRecheckDelaySeconds, lockAtMostFor, meterRegistry);
+    }
+
     @Autowired
     public EventPublisherService(OutboxEventRepository outboxEventRepository, RabbitTemplate rabbitTemplate,
                                  CompanyContextService companyContextService,
+                                 CompanyRepository companyRepository,
                                  ObjectMapper objectMapper,
                                  PlatformTransactionManager txManager,
                                  @Value("${orchestrator.outbox.publish-lease-seconds:120}") long publishingLeaseSeconds,
@@ -106,6 +131,7 @@ public class EventPublisherService {
         this.outboxEventRepository = outboxEventRepository;
         this.rabbitTemplate = rabbitTemplate;
         this.companyContextService = companyContextService;
+        this.companyRepository = companyRepository;
         this.objectMapper = objectMapper;
         this.meterRegistry = meterRegistry;
         this.publishingLeaseSeconds = Math.max(1L, publishingLeaseSeconds);
@@ -122,7 +148,10 @@ public class EventPublisherService {
     public void enqueue(DomainEvent event) {
         try {
             String payload = objectMapper.writeValueAsString(event);
-            Long companyId = companyContextService.requireCurrentCompany().getId();
+            Long companyId = resolveOutboxCompanyId(event.companyId());
+            if (companyId == null) {
+                companyId = companyContextService.requireCurrentCompany().getId();
+            }
             String sanitizedTraceId = CorrelationIdentifierSanitizer.sanitizeRequiredTraceId(event.traceId());
             String sanitizedRequestId = CorrelationIdentifierSanitizer.sanitizeOptionalRequestId(event.requestId());
             String sanitizedIdempotencyKey = CorrelationIdentifierSanitizer.sanitizeOptionalIdempotencyKey(event.idempotencyKey());
@@ -139,6 +168,16 @@ public class EventPublisherService {
         } catch (JsonProcessingException e) {
             throw new IllegalStateException("Failed to serialize event", e);
         }
+    }
+
+    private Long resolveOutboxCompanyId(String eventCompanyCode) {
+        if (!StringUtils.hasText(eventCompanyCode) || companyRepository == null) {
+            return null;
+        }
+        return companyRepository.findByCodeIgnoreCase(eventCompanyCode.trim())
+                .map(Company::getId)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Company not found for event company code: " + eventCompanyCode));
     }
 
     @SchedulerLock(

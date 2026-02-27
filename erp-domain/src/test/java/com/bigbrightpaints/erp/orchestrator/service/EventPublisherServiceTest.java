@@ -4,6 +4,7 @@ import com.bigbrightpaints.erp.orchestrator.event.DomainEvent;
 import com.bigbrightpaints.erp.orchestrator.repository.OutboxEvent;
 import com.bigbrightpaints.erp.orchestrator.repository.OutboxEventRepository;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
+import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -55,11 +56,15 @@ class EventPublisherServiceTest {
     @Mock
     private CompanyContextService companyContextService;
 
+    @Mock
+    private CompanyRepository companyRepository;
+
     private EventPublisherService service() {
         return new EventPublisherService(
                 outboxEventRepository,
                 rabbitTemplate,
                 companyContextService,
+                companyRepository,
                 objectMapper,
                 null);
     }
@@ -70,7 +75,8 @@ class EventPublisherServiceTest {
 
         Company company = new Company();
         ReflectionTestUtils.setField(company, "id", 1L);
-        when(companyContextService.requireCurrentCompany()).thenReturn(company);
+        company.setCode("COMP");
+        when(companyRepository.findByCodeIgnoreCase("COMP")).thenReturn(Optional.of(company));
 
         DomainEvent event = DomainEvent.of(
                 "OrderApprovedEvent",
