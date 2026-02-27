@@ -1,5 +1,7 @@
 package com.bigbrightpaints.erp.modules.sales.service;
 
+import com.bigbrightpaints.erp.core.exception.ApplicationException;
+import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.util.CompanyTime;
 import com.bigbrightpaints.erp.core.util.MoneyUtils;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
@@ -47,6 +49,7 @@ public class SalesReturnService {
     private static final String SALES_RETURN_LINE_SEPARATOR = ":";
     private static final String SALES_RETURN_KEY_SEPARATOR = ":RET-";
     private static final BigDecimal DISCOUNT_TOLERANCE = new BigDecimal("0.02");
+    private static final String RETURN_COST_RECONCILIATION_REASON = "RETURN_REQUIRES_DISPATCH_COST_RECONCILIATION";
 
     private final CompanyContextService companyContextService;
     private final FinishedGoodRepository finishedGoodRepository;
@@ -686,7 +689,11 @@ public class SalesReturnService {
                                              InvoiceLine invoiceLine) {
         java.util.List<InventoryMovement> movements = dispatchMovements.getOrDefault(finishedGood.getId(), java.util.List.of());
         if (movements.isEmpty()) {
-            throw new IllegalArgumentException("Return requires dispatch cost layers for " + finishedGood.getProductCode());
+            throw dispatchCostReconciliationRequired(
+                    finishedGood,
+                    invoiceLine,
+                    "Dispatch cost layers are missing"
+            );
         }
         BigDecimal remaining = quantity;
         BigDecimal costTotal = BigDecimal.ZERO;
@@ -707,9 +714,29 @@ public class SalesReturnService {
             }
         }
         if (remaining.compareTo(BigDecimal.ZERO) > 0) {
-            throw new IllegalArgumentException("Return quantity exceeds dispatched quantity for " + finishedGood.getProductCode());
+            throw dispatchCostReconciliationRequired(
+                    finishedGood,
+                    invoiceLine,
+                    "Dispatched quantity is lower than requested return quantity"
+            ).withDetail("requestedQuantity", quantity.stripTrailingZeros().toPlainString())
+                    .withDetail("uncoveredQuantity", remaining.stripTrailingZeros().toPlainString());
         }
         return MoneyUtils.safeDivide(costTotal, quantity, 4, RoundingMode.HALF_UP);
+    }
+
+    private ApplicationException dispatchCostReconciliationRequired(FinishedGood finishedGood,
+                                                                    InvoiceLine invoiceLine,
+                                                                    String reason) {
+        String productCode = finishedGood != null ? finishedGood.getProductCode() : "UNKNOWN";
+        Long invoiceLineId = invoiceLine != null ? invoiceLine.getId() : null;
+        return new ApplicationException(
+                ErrorCode.BUSINESS_INVALID_STATE,
+                "Sales return is blocked pending dispatch-cost reconciliation for " + productCode
+        ).withDetail("reasonCode", RETURN_COST_RECONCILIATION_REASON)
+                .withDetail("reason", reason)
+                .withDetail("productCode", productCode)
+                .withDetail("invoiceLineId", invoiceLineId)
+                .withDetail("remediation", "Reconcile dispatch cost layers for this invoice line and retry the return");
     }
 
     private BigDecimal requirePositive(BigDecimal value, String field) {

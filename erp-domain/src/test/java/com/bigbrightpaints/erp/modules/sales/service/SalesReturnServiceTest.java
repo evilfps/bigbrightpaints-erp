@@ -1,5 +1,7 @@
 package com.bigbrightpaints.erp.modules.sales.service;
 
+import com.bigbrightpaints.erp.core.exception.ApplicationException;
+import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.SalesReturnRequest;
@@ -470,8 +472,12 @@ class SalesReturnServiceTest {
         );
 
         assertThatThrownBy(() -> salesReturnService.processReturn(request))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("dispatch cost layers");
+                .isInstanceOfSatisfying(ApplicationException.class, ex -> {
+                    assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_INVALID_STATE);
+                    assertThat(ex.getDetails())
+                            .containsEntry("reasonCode", "RETURN_REQUIRES_DISPATCH_COST_RECONCILIATION")
+                            .containsEntry("productCode", "FG-1");
+                });
     }
 
     @Test

@@ -3669,6 +3669,39 @@ class SalesServiceTest {
     }
 
     @Test
+    void confirmOrderAllowsConfirmableWorkflowStatuses() {
+        SalesOrder order = new SalesOrder();
+        order.setCompany(company);
+        order.setStatus("BOOKED");
+        setField(order, "id", 420L);
+        when(companyEntityLookup.requireSalesOrder(company, 420L)).thenReturn(order);
+
+        SalesOrderDto dto = salesService.confirmOrder(420L);
+
+        assertEquals("CONFIRMED", dto.status());
+    }
+
+    @Test
+    void confirmOrderRejectsTerminalAndManualStatuses() {
+        long id = 500L;
+        for (String status : List.of("CANCELLED", "REJECTED", "CLOSED")) {
+            long orderId = id;
+            SalesOrder order = new SalesOrder();
+            order.setCompany(company);
+            order.setStatus(status);
+            setField(order, "id", orderId);
+            when(companyEntityLookup.requireSalesOrder(company, orderId)).thenReturn(order);
+
+            ApplicationException ex = assertThrows(ApplicationException.class, () -> salesService.confirmOrder(orderId));
+
+            assertEquals(ErrorCode.BUSINESS_INVALID_STATE, ex.getErrorCode());
+            assertEquals(status, ex.getDetails().get("status"));
+            assertEquals(status, order.getStatus());
+            id++;
+        }
+    }
+
+    @Test
     void cancelOrderSkipsReleaseWhenAlreadyDispatched() {
         SalesOrder order = new SalesOrder();
         order.setCompany(company);
