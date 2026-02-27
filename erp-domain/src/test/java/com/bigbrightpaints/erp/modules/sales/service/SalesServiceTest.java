@@ -1015,6 +1015,29 @@ class SalesServiceTest {
     }
 
     @Test
+    void confirmDispatchRejectsCancelledPackingSlip() {
+        SalesOrder order = new SalesOrder();
+        setField(order, "id", 10L);
+
+        PackagingSlip cancelledSlip = new PackagingSlip();
+        cancelledSlip.setCompany(company);
+        cancelledSlip.setSalesOrder(order);
+        cancelledSlip.setStatus("CANCELLED");
+        setField(cancelledSlip, "id", 55L);
+
+        when(packagingSlipRepository.findAndLockByIdAndCompany(55L, company)).thenReturn(Optional.of(cancelledSlip));
+        when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 10L))
+                .thenReturn(List.of(cancelledSlip));
+        when(companyEntityLookup.requireSalesOrder(company, 10L)).thenReturn(order);
+
+        DispatchConfirmRequest request = new DispatchConfirmRequest(55L, null, List.of(), null, null, false, null, null);
+
+        ApplicationException ex = assertThrows(ApplicationException.class, () -> salesService.confirmDispatch(request));
+        assertEquals(ErrorCode.VALIDATION_INVALID_INPUT, ex.getErrorCode());
+        assertTrue(ex.getMessage().contains("Cannot dispatch packing slip with status: CANCELLED"));
+        verifyNoInteractions(dealerRepository, finishedGoodsService);
+    }
+
     void confirmDispatchRequiresPackingSlipIdWhenMultipleSlipsExist() {
         SalesOrder order = new SalesOrder();
         setField(order, "id", 10L);

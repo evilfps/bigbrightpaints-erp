@@ -8,7 +8,7 @@ base_branch: origin/harness-engineering-orchestrator
 requested_base_branch: harness-engineering-orchestrator
 worktree_root: /Users/anas/Documents/orchestrator_erp/bigbrightpaints-erp_worktrees/TKT-ERP-STAGE-113/blocker-remediation-orchestrator_worktrees
 created_at: '2026-02-26T10:34:09+00:00'
-updated_at: '2026-02-27T12:18:45+00:00'
+updated_at: '2026-02-27T12:41:00+00:00'
 r3_required: true
 orchestrator_authority:
   r1: orchestrator
@@ -282,7 +282,7 @@ slices:
   multi_agent_model: gpt-5.3-codex
   multi_agent_reasoning: xhigh
   multi_agent_fallback: *id001
-  status: in_progress
+  status: in_review
   objective: Implement and verify all critical/high production blockers from TKT-ERP-STAGE-112
     with isolated blocker scopes, integration-safe merges, and release-grade QA evidence
   task_summary: 'Implement ticket goal within explicit scope paths: erp-domain/src/main/java/com/bigbrightpaints/erp/orchestrator/'
@@ -331,8 +331,8 @@ slices:
   matched_rules:
   - erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/
   lane: w1
-  branch: tickets/tkt-erp-stage-113/inventory-domain
-  worktree_path: /Users/anas/Documents/orchestrator_erp/bigbrightpaints-erp_worktrees/TKT-ERP-STAGE-113/blocker-remediation-orchestrator_worktrees/TKT-ERP-STAGE-113/inventory-domain
+  branch: tickets/tkt-erp-stage-113/b04-inventory-dispatch-eligibility
+  worktree_path: /Users/anas/Documents/orchestrator_erp/bigbrightpaints-erp_worktrees/TKT-ERP-STAGE-113/blocker-remediation-orchestrator_worktrees/TKT-ERP-STAGE-113/B04-inventory-dispatch-eligibility
   required_checks:
   - cd erp-domain && mvn -B -ntp -Dtest='*Inventory*' test
   - bash ci/check-architecture.sh
@@ -343,7 +343,7 @@ slices:
   multi_agent_fallback: &id002
   - model: gpt-5.3-codex
     reasoning: high
-  status: ready
+  status: in_progress
   objective: Implement and verify all critical/high production blockers from TKT-ERP-STAGE-112
     with isolated blocker scopes, integration-safe merges, and release-grade QA evidence
   task_summary: 'Implement ticket goal within explicit scope paths: erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/'

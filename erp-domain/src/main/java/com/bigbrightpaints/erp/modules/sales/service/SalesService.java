@@ -895,7 +895,7 @@ public class SalesService {
             return 0;
         }
         return slips.stream()
-                .filter(slip -> !("CANCELLED".equalsIgnoreCase(slip.getStatus())))
+                .filter(this::isDispatchSelectableSlip)
                 .count();
     }
 
@@ -908,9 +908,31 @@ public class SalesService {
             return null;
         }
         return slips.stream()
-                .filter(slip -> !("CANCELLED".equalsIgnoreCase(slip.getStatus())))
+                .filter(this::isDispatchSelectableSlip)
                 .findFirst()
                 .orElse(null);
+    }
+
+    private boolean isDispatchSelectableSlip(PackagingSlip slip) {
+        if (slip == null) {
+            return false;
+        }
+        String status = slip.getStatus();
+        return !"CANCELLED".equalsIgnoreCase(status);
+    }
+
+    private void assertSlipDispatchable(PackagingSlip slip) {
+        if (slip == null) {
+            return;
+        }
+        String status = slip.getStatus();
+        if ("CANCELLED".equalsIgnoreCase(status)) {
+            throw new ApplicationException(
+                    ErrorCode.VALIDATION_INVALID_INPUT,
+                    "Cannot dispatch packing slip with status: " + status)
+                    .withDetail("packingSlipId", slip.getId())
+                    .withDetail("status", status);
+        }
     }
 
     private void assertOrderMutable(SalesOrder order, String action) {
@@ -2012,6 +2034,7 @@ public class SalesService {
                         "No active packing slip found for order " + salesOrderId);
             }
         }
+        assertSlipDispatchable(slip);
         Long lockedOrderId = order.getId();
         Long slipOrderId = slip.getSalesOrder() != null ? slip.getSalesOrder().getId() : null;
         if (lockedOrderId != null && slipOrderId != null && !lockedOrderId.equals(slipOrderId)) {

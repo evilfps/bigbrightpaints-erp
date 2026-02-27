@@ -2,6 +2,7 @@ package com.bigbrightpaints.erp.modules.inventory.controller;
 
 import com.bigbrightpaints.erp.modules.inventory.dto.DispatchConfirmationRequest;
 import com.bigbrightpaints.erp.modules.inventory.dto.DispatchConfirmationResponse;
+import com.bigbrightpaints.erp.modules.inventory.dto.PackagingSlipDto;
 import com.bigbrightpaints.erp.modules.inventory.service.FinishedGoodsService;
 import com.bigbrightpaints.erp.modules.sales.dto.DispatchConfirmRequest;
 import com.bigbrightpaints.erp.modules.sales.service.SalesService;
@@ -87,5 +88,26 @@ class DispatchControllerTest {
         verify(finishedGoodsService).getDispatchConfirmation(10L);
         verifyNoMoreInteractions(salesService, finishedGoodsService);
     }
-}
 
+    @Test
+    void getPendingSlips_filtersTerminalStatusesButKeepsBackorder() {
+        DispatchController controller = new DispatchController(finishedGoodsService, salesService);
+        when(finishedGoodsService.listPackagingSlips()).thenReturn(List.of(
+                new PackagingSlipDto(1L, null, null, null, null, "PS-1", "PENDING", null, null, null, null, null, null, null, List.of()),
+                new PackagingSlipDto(2L, null, null, null, null, "PS-2", "RESERVED", null, null, null, null, null, null, null, List.of()),
+                new PackagingSlipDto(3L, null, null, null, null, "PS-3", "BACKORDER", null, null, null, null, null, null, null, List.of()),
+                new PackagingSlipDto(4L, null, null, null, null, "PS-4", "CANCELLED", null, null, null, null, null, null, null, List.of()),
+                new PackagingSlipDto(5L, null, null, null, null, "PS-5", "DISPATCHED", null, null, null, null, null, null, null, List.of())
+        ));
+
+        ResponseEntity<ApiResponse<List<PackagingSlipDto>>> response = controller.getPendingSlips();
+
+        assertThat(response.getStatusCode().value()).isEqualTo(200);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().data())
+                .extracting(PackagingSlipDto::slipNumber)
+                .containsExactly("PS-1", "PS-2", "PS-3");
+        verify(finishedGoodsService).listPackagingSlips();
+        verifyNoMoreInteractions(finishedGoodsService, salesService);
+    }
+}

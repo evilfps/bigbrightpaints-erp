@@ -37,9 +37,18 @@ public class DispatchController {
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_FACTORY','ROLE_SALES')")
     public ResponseEntity<ApiResponse<List<PackagingSlipDto>>> getPendingSlips() {
         List<PackagingSlipDto> slips = finishedGoodsService.listPackagingSlips().stream()
-                .filter(s -> !"DISPATCHED".equalsIgnoreCase(s.status()))
+                .filter(this::isDispatchPendingSlip)
                 .toList();
         return ResponseEntity.ok(ApiResponse.success(slips));
+    }
+
+    private boolean isDispatchPendingSlip(PackagingSlipDto slip) {
+        if (slip == null) {
+            return false;
+        }
+        String status = slip.status();
+        return !"DISPATCHED".equalsIgnoreCase(status)
+                && !"CANCELLED".equalsIgnoreCase(status);
     }
 
     /**
