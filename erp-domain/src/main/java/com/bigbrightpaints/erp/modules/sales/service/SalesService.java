@@ -1747,7 +1747,7 @@ public class SalesService {
     /* Credit Requests */
     public List<CreditRequestDto> listCreditRequests() {
         Company company = companyContextService.requireCurrentCompany();
-        return creditRequestRepository.findByCompanyOrderByCreatedAtDesc(company).stream().map(this::toDto).toList();
+        return creditRequestRepository.findByCompanyWithDealerOrderByCreatedAtDesc(company).stream().map(this::toDto).toList();
     }
 
     @Transactional

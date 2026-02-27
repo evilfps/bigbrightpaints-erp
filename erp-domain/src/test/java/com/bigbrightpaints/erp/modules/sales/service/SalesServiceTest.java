@@ -233,6 +233,30 @@ class SalesServiceTest {
     }
 
     @Test
+    void listCreditRequestsUsesDealerFetchPathForStableDtoMapping() {
+        Dealer dealer = new Dealer();
+        dealer.setName("Prime Dealer");
+        CreditRequest request = new CreditRequest();
+        request.setCompany(company);
+        request.setDealer(dealer);
+        request.setAmountRequested(new BigDecimal("900"));
+        request.setStatus("PENDING");
+        request.setReason("Temporary extension");
+        setField(request, "id", 9011L);
+        setField(request, "publicId", UUID.randomUUID());
+
+        when(creditRequestRepository.findByCompanyWithDealerOrderByCreatedAtDesc(company))
+                .thenReturn(List.of(request));
+
+        List<CreditRequestDto> response = salesService.listCreditRequests();
+
+        assertEquals(1, response.size());
+        assertEquals("Prime Dealer", response.getFirst().dealerName());
+        verify(creditRequestRepository).findByCompanyWithDealerOrderByCreatedAtDesc(company);
+        verify(creditRequestRepository, never()).findByCompanyOrderByCreatedAtDesc(any());
+    }
+
+    @Test
     void updateCreditRequestRejectsStatusTransitionToApproved() {
         CreditRequest existing = new CreditRequest();
         existing.setCompany(company);

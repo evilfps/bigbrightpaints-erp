@@ -15,6 +15,15 @@ public interface CreditRequestRepository extends JpaRepository<CreditRequest, Lo
     @Query("""
             select request
             from CreditRequest request
+            left join fetch request.dealer dealer
+            where request.company = :company
+            order by request.createdAt desc
+            """)
+    List<CreditRequest> findByCompanyWithDealerOrderByCreatedAtDesc(@Param("company") Company company);
+
+    @Query("""
+            select request
+            from CreditRequest request
             where request.company = :company
               and upper(trim(request.status)) = 'PENDING'
             order by request.createdAt desc

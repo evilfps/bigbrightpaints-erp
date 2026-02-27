@@ -112,10 +112,34 @@ public class SalesControllerIT extends AbstractIntegrationTest {
         return headers;
     }
 
+    private Long createDealer(HttpHeaders headers, String dealerName) {
+        String seed = String.valueOf(System.nanoTime());
+        Map<String, Object> dealerReq = new HashMap<>();
+        dealerReq.put("name", dealerName);
+        dealerReq.put("companyName", dealerName + " Paints");
+        dealerReq.put("contactEmail", "dealer-" + seed + "@example.com");
+        dealerReq.put("contactPhone", "9999999999");
+        dealerReq.put("address", "Main Street");
+        dealerReq.put("creditLimit", new BigDecimal("100000"));
+
+        ResponseEntity<Map> dResp = rest.exchange("/api/v1/dealers", HttpMethod.POST,
+                new HttpEntity<>(dealerReq, headers), Map.class);
+        assertThat(dResp.getStatusCode()).isEqualTo(HttpStatus.OK);
+        Map<?, ?> dealerData = (Map<?, ?>) dResp.getBody().get("data");
+        return ((Number) dealerData.get("id")).longValue();
+    }
+
     private Long createCreditRequest(HttpHeaders headers, String reason) {
+        return createCreditRequest(headers, reason, null);
+    }
+
+    private Long createCreditRequest(HttpHeaders headers, String reason, Long dealerId) {
         Map<String, Object> request = new HashMap<>();
         request.put("amountRequested", new BigDecimal("1500.00"));
         request.put("reason", reason);
+        if (dealerId != null) {
+            request.put("dealerId", dealerId);
+        }
 
         ResponseEntity<Map> createResponse = rest.exchange(
                 "/api/v1/sales/credit-requests",
@@ -250,5 +274,30 @@ public class SalesControllerIT extends AbstractIntegrationTest {
         assertThat(rejectResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
         Map<?, ?> rejectedData = (Map<?, ?>) rejectResponse.getBody().get("data");
         assertThat(rejectedData.get("status")).isEqualTo("REJECTED");
+    }
+
+    @Test
+    void credit_request_list_returns_dealer_name_with_eager_mapping() {
+        String token = loginToken();
+        HttpHeaders headers = authenticatedHeaders(token);
+        Long dealerId = createDealer(headers, "Credit Dealer");
+        Long creditRequestId = createCreditRequest(headers, "Need temporary extension with dealer link", dealerId);
+
+        ResponseEntity<Map> listResponse = rest.exchange(
+                "/api/v1/sales/credit-requests",
+                HttpMethod.GET,
+                new HttpEntity<>(headers),
+                Map.class);
+
+        assertThat(listResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> data = (List<Map<String, Object>>) listResponse.getBody().get("data");
+        assertThat(data).isNotNull();
+        Map<String, Object> target = data.stream()
+                .filter(row -> row.get("id") != null
+                        && ((Number) row.get("id")).longValue() == creditRequestId)
+                .findFirst()
+                .orElseThrow();
+        assertThat(target.get("dealerName")).isEqualTo("Credit Dealer");
     }
 }
