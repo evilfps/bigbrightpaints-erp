@@ -25,9 +25,12 @@ import com.bigbrightpaints.erp.modules.company.dto.CompanyDto;
 import com.bigbrightpaints.erp.modules.company.dto.CompanyLifecycleStateDto;
 import com.bigbrightpaints.erp.modules.company.dto.CompanyLifecycleStateRequest;
 import com.bigbrightpaints.erp.modules.company.dto.CompanyRequest;
+import com.bigbrightpaints.erp.modules.company.dto.CompanySuperAdminDashboardDto;
+import com.bigbrightpaints.erp.modules.company.dto.CompanySupportWarningDto;
 import com.bigbrightpaints.erp.modules.company.dto.CompanyTenantMetricsDto;
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -131,6 +134,19 @@ class CompanyServiceTest {
         assertThat(dto.id()).isEqualTo(1L);
         assertThat(dto.name()).isEqualTo("New Name");
         assertThat(dto.code()).isEqualTo("NEW");
+    }
+
+    @Test
+    void update_deniesWhenBoundContextDoesNotMatchTargetTenant() {
+        authenticateAs("ROLE_SUPER_ADMIN");
+        CompanyContextHolder.setCompanyCode("ROOT");
+        Company target = company(2L, "TENANT-A");
+        CompanyRequest request = new CompanyRequest("New Name", "NEW", "UTC", BigDecimal.TEN);
+        when(repository.findById(2L)).thenReturn(Optional.of(target));
+
+        assertThatThrownBy(() -> companyService.update(2L, request, Set.of(target)))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessageContaining("Bound company context does not match targeted tenant");
     }
 
     @Test
@@ -743,6 +759,79 @@ class CompanyServiceTest {
                 .hasMessageContaining("Credential email delivery is disabled");
 
         verify(tenantAdminProvisioningService, never()).resetTenantAdminPassword(company, "tenant-admin@ske.com");
+    }
+
+    @Test
+    void resetTenantAdminPassword_deniesWhenBoundContextDoesNotMatchTargetTenant() {
+        authenticateAs("ROLE_SUPER_ADMIN");
+        CompanyContextHolder.setCompanyCode("ROOT");
+        Company company = company(5L, "SKE");
+        when(repository.findById(5L)).thenReturn(Optional.of(company));
+
+        assertThatThrownBy(() -> companyService.resetTenantAdminPassword(5L, "tenant-admin@ske.com"))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessageContaining("Bound company context does not match targeted tenant");
+
+        verify(tenantAdminProvisioningService, never()).resetTenantAdminPassword(company, "tenant-admin@ske.com");
+    }
+
+    @Test
+    void getSuperAdminDashboard_aggregatesTenantUsageAndQuotas() {
+        authenticateAs("ROLE_SUPER_ADMIN");
+        Company alpha = company(10L, "ALPHA");
+        alpha.setQuotaMaxActiveUsers(20L);
+        alpha.setQuotaMaxStorageBytes(500L);
+        alpha.setQuotaMaxConcurrentSessions(5L);
+        alpha.setQuotaMaxApiRequests(100L);
+        alpha.setLifecycleState(CompanyLifecycleState.ACTIVE);
+        Company beta = company(11L, "BETA");
+        beta.setQuotaMaxActiveUsers(30L);
+        beta.setQuotaMaxStorageBytes(900L);
+        beta.setQuotaMaxConcurrentSessions(7L);
+        beta.setQuotaMaxApiRequests(200L);
+        beta.setLifecycleState(CompanyLifecycleState.HOLD);
+        when(repository.findAll()).thenReturn(List.of(alpha, beta));
+        when(userAccountRepository.countDistinctByCompanies_IdAndEnabledTrue(10L)).thenReturn(8L);
+        when(userAccountRepository.countDistinctByCompanies_IdAndEnabledTrue(11L)).thenReturn(12L);
+        when(auditLogRepository.countApiActivityByCompanyId(10L)).thenReturn(90L);
+        when(auditLogRepository.countApiActivityByCompanyId(11L)).thenReturn(110L);
+        when(auditLogRepository.countApiFailureActivityByCompanyId(10L)).thenReturn(3L);
+        when(auditLogRepository.countApiFailureActivityByCompanyId(11L)).thenReturn(6L);
+        when(auditLogRepository.countDistinctSessionActivityByCompanyId(10L)).thenReturn(2L);
+        when(auditLogRepository.countDistinctSessionActivityByCompanyId(11L)).thenReturn(4L);
+        when(auditLogRepository.estimateAuditStorageBytesByCompanyId(10L)).thenReturn(120L);
+        when(auditLogRepository.estimateAuditStorageBytesByCompanyId(11L)).thenReturn(300L);
+
+        CompanySuperAdminDashboardDto dashboard = companyService.getSuperAdminDashboard();
+
+        assertThat(dashboard.totalTenants()).isEqualTo(2L);
+        assertThat(dashboard.activeTenants()).isEqualTo(1L);
+        assertThat(dashboard.holdTenants()).isEqualTo(1L);
+        assertThat(dashboard.totalActiveUsers()).isEqualTo(20L);
+        assertThat(dashboard.totalStorageBytes()).isEqualTo(420L);
+        assertThat(dashboard.totalConcurrentUsers()).isEqualTo(6L);
+        assertThat(dashboard.tenants()).hasSize(2);
+    }
+
+    @Test
+    void issueTenantSupportWarning_requiresSuperAdminAndReturnsWarningPayload() {
+        authenticateAs("ROLE_SUPER_ADMIN");
+        Company company = company(5L, "SKE");
+        when(repository.findById(5L)).thenReturn(Optional.of(company));
+
+        CompanySupportWarningDto warning = companyService.issueTenantSupportWarning(
+                5L,
+                new CompanyService.TenantSupportWarningRequest(
+                        "quota",
+                        "Approaching storage limit",
+                        "HOLD",
+                        48));
+
+        assertThat(warning.companyCode()).isEqualTo("SKE");
+        assertThat(warning.warningCategory()).isEqualTo("QUOTA");
+        assertThat(warning.requestedLifecycleState()).isEqualTo("HOLD");
+        assertThat(warning.gracePeriodHours()).isEqualTo(48);
+        assertThat(warning.warningId()).isNotBlank();
     }
 
     private void configureHardLimitEnvelope(Company company) {

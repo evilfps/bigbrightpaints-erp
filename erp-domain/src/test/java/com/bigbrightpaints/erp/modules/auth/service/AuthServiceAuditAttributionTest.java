@@ -16,6 +16,7 @@ import com.bigbrightpaints.erp.modules.auth.web.ResetPasswordRequest;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
 import com.bigbrightpaints.erp.modules.company.service.TenantRuntimeEnforcementService;
+import com.bigbrightpaints.erp.modules.rbac.domain.Role;
 import io.jsonwebtoken.Claims;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -162,6 +163,55 @@ class AuthServiceAuditAttributionTest {
                 eq("ACME"),
                 argThat((Map<String, String> map) ->
                         map != null && "Tenant runtime hold".equals(map.get("reason"))));
+    }
+
+    @Test
+    void loginAllowsSuperAdminOutsideTenantMembership() {
+        LoginRequest request = new LoginRequest("super-admin@example.com", "Passw0rd!", "TARGET", null, null);
+        UserAccount user = userWithCompany("super-admin@example.com", "ROOT");
+        Role superAdminRole = new Role();
+        superAdminRole.setName("ROLE_SUPER_ADMIN");
+        user.addRole(superAdminRole);
+        Authentication authentication =
+                new UsernamePasswordAuthenticationToken(new UserPrincipal(user), null);
+
+        when(userAccountRepository.findByEmailIgnoreCase("super-admin@example.com")).thenReturn(Optional.of(user));
+        when(authenticationManager.authenticate(any())).thenReturn(authentication);
+        when(companyRepository.findByCodeIgnoreCase("TARGET")).thenReturn(Optional.of(company("TARGET")));
+        when(tokenService.generateAccessToken(eq("super-admin@example.com"), eq("TARGET"), any(Map.class)))
+                .thenReturn("access-new");
+        when(refreshTokenService.issue(eq("super-admin@example.com"), any(Instant.class))).thenReturn("refresh-new");
+        when(properties.getRefreshTokenTtlSeconds()).thenReturn(3600L);
+        when(properties.getAccessTokenTtlSeconds()).thenReturn(900L);
+
+        var response = authService.login(request);
+
+        assertThat(response.companyCode()).isEqualTo("TARGET");
+        assertThat(response.accessToken()).isEqualTo("access-new");
+        assertThat(response.refreshToken()).isEqualTo("refresh-new");
+        verify(tenantRuntimeEnforcementService).enforceAuthOperationAllowed(
+                "TARGET",
+                "super-admin@example.com",
+                "LOGIN");
+    }
+
+    @Test
+    void loginRejectsNonSuperAdminOutsideTenantMembership() {
+        LoginRequest request = new LoginRequest("tenant-user@example.com", "Passw0rd!", "TARGET", null, null);
+        UserAccount user = userWithCompany("tenant-user@example.com", "ROOT");
+        Role adminRole = new Role();
+        adminRole.setName("ROLE_ADMIN");
+        user.addRole(adminRole);
+        Authentication authentication =
+                new UsernamePasswordAuthenticationToken(new UserPrincipal(user), null);
+
+        when(userAccountRepository.findByEmailIgnoreCase("tenant-user@example.com")).thenReturn(Optional.of(user));
+        when(authenticationManager.authenticate(any())).thenReturn(authentication);
+        when(companyRepository.findByCodeIgnoreCase("TARGET")).thenReturn(Optional.of(company("TARGET")));
+
+        assertThatThrownBy(() -> authService.login(request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("User not assigned to company: TARGET");
     }
 
     @Test

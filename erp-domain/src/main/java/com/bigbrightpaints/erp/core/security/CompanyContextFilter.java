@@ -26,6 +26,11 @@ import java.util.Set;
 public class CompanyContextFilter extends OncePerRequestFilter {
 
     private static final Logger log = LoggerFactory.getLogger(CompanyContextFilter.class);
+    private static final String COMPANY_API_PREFIX = "/api/v1/companies/";
+    private static final String LIFECYCLE_STATE_SUFFIX = "/lifecycle-state";
+    private static final String TENANT_METRICS_SUFFIX = "/tenant-metrics";
+    private static final String TENANT_RUNTIME_POLICY_SUFFIX = "/tenant-runtime/policy";
+    private static final String SUPPORT_ADMIN_PASSWORD_RESET_SUFFIX = "/support/admin-password-reset";
     private static final String CONTROL_PLANE_AUTH_DENIED_MESSAGE =
             "Access denied to company control request";
     private static final Set<String> PUBLIC_PASSWORD_RESET_ENDPOINTS = Set.of(
@@ -54,7 +59,7 @@ public class CompanyContextFilter extends OncePerRequestFilter {
             }
             boolean lifecycleControlRequest = isLifecycleControlRequest(runtimePath, request.getMethod());
             if (lifecycleControlRequest && !hasAuthenticatedPrincipal()) {
-                response.sendError(HttpServletResponse.SC_FORBIDDEN, CONTROL_PLANE_AUTH_DENIED_MESSAGE);
+                denyControlPlaneRequest(response);
                 return;
             }
             String headerCompanyCode = request.getHeader("X-Company-Code");
@@ -110,12 +115,12 @@ public class CompanyContextFilter extends OncePerRequestFilter {
             if (lifecycleControlRequest) {
                 Long lifecycleControlCompanyId = extractCompanyIdFromLifecycleControlPath(runtimePath);
                 if (lifecycleControlCompanyId == null) {
-                    response.sendError(HttpServletResponse.SC_FORBIDDEN, "Invalid company control target path");
+                    denyControlPlaneRequest(response);
                     return;
                 }
                 String pathTargetCompanyCode = companyService.resolveCompanyCodeById(lifecycleControlCompanyId);
                 if (!StringUtils.hasText(pathTargetCompanyCode)) {
-                    response.sendError(HttpServletResponse.SC_FORBIDDEN, "Access denied to company control target");
+                    denyControlPlaneRequest(response);
                     return;
                 }
                 if (hasSuperAdminAuthority()) {
@@ -123,8 +128,7 @@ public class CompanyContextFilter extends OncePerRequestFilter {
                     lifecycleControlBypass = true;
                 } else if (!StringUtils.hasText(companyCode)
                         || !companyCode.trim().equalsIgnoreCase(pathTargetCompanyCode.trim())) {
-                    response.sendError(HttpServletResponse.SC_FORBIDDEN,
-                            "Company path does not match authenticated company context");
+                    denyControlPlaneRequest(response);
                     return;
                 } else {
                     companyCode = pathTargetCompanyCode.trim();
@@ -248,28 +252,60 @@ public class CompanyContextFilter extends OncePerRequestFilter {
     }
 
     private boolean isCanonicalCompanyRuntimePolicyPath(String path) {
-        if (!StringUtils.hasText(path)) {
+        return isCanonicalCompanyControlSuffixPath(path, TENANT_RUNTIME_POLICY_SUFFIX);
+    }
+
+    private boolean isCanonicalCompanyUpdatePath(String path) {
+        if (!StringUtils.hasText(path) || !path.startsWith(COMPANY_API_PREFIX)) {
             return false;
         }
-        if (!path.startsWith("/api/v1/companies/") || !path.endsWith("/tenant-runtime/policy")) {
+        String companyIdSegment = path.substring(COMPANY_API_PREFIX.length());
+        return hasSingleCompanyIdSegment(companyIdSegment);
+    }
+
+    private boolean isCanonicalCompanyControlSuffixPath(String path, String suffix) {
+        if (!StringUtils.hasText(path) || !StringUtils.hasText(suffix)) {
             return false;
         }
-        String companyIdSegment =
-                path.substring("/api/v1/companies/".length(), path.length() - "/tenant-runtime/policy".length());
+        if (!path.startsWith(COMPANY_API_PREFIX) || !path.endsWith(suffix)) {
+            return false;
+        }
+        int companyIdSegmentStart = COMPANY_API_PREFIX.length();
+        int companyIdSegmentEnd = path.length() - suffix.length();
+        if (companyIdSegmentEnd <= companyIdSegmentStart) {
+            return false;
+        }
+        String companyIdSegment = path.substring(companyIdSegmentStart, companyIdSegmentEnd);
+        return hasSingleCompanyIdSegment(companyIdSegment);
+    }
+
+    private boolean hasSingleCompanyIdSegment(String companyIdSegment) {
         return StringUtils.hasText(companyIdSegment) && !companyIdSegment.contains("/");
     }
 
     private boolean isLifecycleControlRequest(String path, String method) {
-        if (!StringUtils.hasText(path)) {
+        String normalizedPath = normalizePath(path);
+        if (!StringUtils.hasText(normalizedPath)) {
             return false;
         }
-        if (!path.startsWith("/api/v1/companies/")) {
+        if (!normalizedPath.startsWith(COMPANY_API_PREFIX)) {
             return false;
         }
-        boolean lifecycleMutation = "POST".equalsIgnoreCase(method) && path.endsWith("/lifecycle-state");
-        boolean tenantMetricsRead = "GET".equalsIgnoreCase(method) && path.endsWith("/tenant-metrics");
-        boolean runtimePolicyMutation = "PUT".equalsIgnoreCase(method) && path.endsWith("/tenant-runtime/policy");
-        return lifecycleMutation || tenantMetricsRead || runtimePolicyMutation;
+        boolean lifecycleMutation = "POST".equalsIgnoreCase(method)
+                && isCanonicalCompanyControlSuffixPath(normalizedPath, LIFECYCLE_STATE_SUFFIX);
+        boolean tenantMetricsRead = "GET".equalsIgnoreCase(method)
+                && isCanonicalCompanyControlSuffixPath(normalizedPath, TENANT_METRICS_SUFFIX);
+        boolean runtimePolicyMutation = "PUT".equalsIgnoreCase(method)
+                && isCanonicalCompanyRuntimePolicyPath(normalizedPath);
+        boolean tenantConfigurationUpdate = "PUT".equalsIgnoreCase(method)
+                && isCanonicalCompanyUpdatePath(normalizedPath);
+        boolean supportAdminPasswordReset = "POST".equalsIgnoreCase(method)
+                && isCanonicalCompanyControlSuffixPath(normalizedPath, SUPPORT_ADMIN_PASSWORD_RESET_SUFFIX);
+        return lifecycleMutation
+                || tenantMetricsRead
+                || runtimePolicyMutation
+                || tenantConfigurationUpdate
+                || supportAdminPasswordReset;
     }
 
     private Long extractCompanyIdFromLifecycleControlPath(String path) {
@@ -277,11 +313,14 @@ public class CompanyContextFilter extends OncePerRequestFilter {
             return null;
         }
         String normalizedPath = normalizePath(path);
-        if (!StringUtils.hasText(normalizedPath) || !normalizedPath.startsWith("/api/v1/companies/")) {
+        if (!StringUtils.hasText(normalizedPath) || !normalizedPath.startsWith(COMPANY_API_PREFIX)) {
             return null;
         }
-        int companySegmentStart = "/api/v1/companies/".length();
+        int companySegmentStart = COMPANY_API_PREFIX.length();
         int companySegmentEnd = normalizedPath.indexOf('/', companySegmentStart);
+        if (companySegmentEnd < 0) {
+            companySegmentEnd = normalizedPath.length();
+        }
         if (companySegmentEnd <= companySegmentStart) {
             return null;
         }
@@ -294,6 +333,10 @@ public class CompanyContextFilter extends OncePerRequestFilter {
         } catch (NumberFormatException ex) {
             return null;
         }
+    }
+
+    private void denyControlPlaneRequest(HttpServletResponse response) throws IOException {
+        response.sendError(HttpServletResponse.SC_FORBIDDEN, CONTROL_PLANE_AUTH_DENIED_MESSAGE);
     }
 
     private String resolveApplicationPath(HttpServletRequest request) {

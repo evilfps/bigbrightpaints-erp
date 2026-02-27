@@ -7,10 +7,13 @@ import com.bigbrightpaints.erp.modules.company.dto.CompanyAdminCredentialResetDt
 import com.bigbrightpaints.erp.modules.company.dto.CompanyLifecycleStateDto;
 import com.bigbrightpaints.erp.modules.company.dto.CompanyLifecycleStateRequest;
 import com.bigbrightpaints.erp.modules.company.dto.CompanyRequest;
+import com.bigbrightpaints.erp.modules.company.dto.CompanySuperAdminDashboardDto;
+import com.bigbrightpaints.erp.modules.company.dto.CompanySupportWarningDto;
 import com.bigbrightpaints.erp.modules.company.dto.CompanyTenantMetricsDto;
 import com.bigbrightpaints.erp.modules.company.service.CompanyService;
 import com.bigbrightpaints.erp.modules.company.service.TenantRuntimeEnforcementService;
 import com.bigbrightpaints.erp.shared.dto.ApiResponse;
+import java.math.BigDecimal;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.Min;
@@ -36,18 +39,37 @@ public class CompanyController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING','ROLE_SALES')")
+    @PreAuthorize("hasAnyAuthority('ROLE_SUPER_ADMIN','ROLE_ADMIN','ROLE_ACCOUNTING','ROLE_SALES')")
     public ResponseEntity<ApiResponse<List<CompanyDto>>> list(@AuthenticationPrincipal UserPrincipal principal) {
         if (principal == null) {
             return ResponseEntity.status(401).body(ApiResponse.failure("Unauthenticated"));
         }
+        if (isSuperAdmin(principal)) {
+            return ResponseEntity.ok(ApiResponse.success(companyService.findAll()));
+        }
         return ResponseEntity.ok(ApiResponse.success(companyService.findAll(requireCompanyContext(principal))));
+    }
+
+    @GetMapping("/superadmin/dashboard")
+    @PreAuthorize("hasAuthority('ROLE_SUPER_ADMIN')")
+    public ResponseEntity<ApiResponse<CompanySuperAdminDashboardDto>> superAdminDashboard() {
+        return ResponseEntity.ok(ApiResponse.success(
+                "Superadmin tenant dashboard fetched",
+                companyService.getSuperAdminDashboard()));
     }
 
     @PostMapping
     @PreAuthorize("hasAuthority('ROLE_SUPER_ADMIN')")
     public ResponseEntity<ApiResponse<CompanyDto>> create(@Valid @RequestBody CompanyRequest request) {
         return ResponseEntity.ok(ApiResponse.success("Company created", companyService.create(request)));
+    }
+
+    @PostMapping("/superadmin/tenants")
+    @PreAuthorize("hasAuthority('ROLE_SUPER_ADMIN')")
+    public ResponseEntity<ApiResponse<CompanyDto>> createTenantForSuperAdmin(@Valid @RequestBody SuperAdminTenantCreateRequest request) {
+        return ResponseEntity.ok(ApiResponse.success(
+                "Tenant created",
+                companyService.create(request.toCompanyRequest())));
     }
 
     @PostMapping("/{id}/lifecycle-state")
@@ -85,6 +107,15 @@ public class CompanyController {
                 companyService.update(id, request, Set.of())));
     }
 
+    @PutMapping("/superadmin/tenants/{id}")
+    @PreAuthorize("hasAuthority('ROLE_SUPER_ADMIN')")
+    public ResponseEntity<ApiResponse<CompanyDto>> updateTenantForSuperAdmin(@PathVariable Long id,
+                                                                              @Valid @RequestBody SuperAdminTenantUpdateRequest request) {
+        return ResponseEntity.ok(ApiResponse.success(
+                "Tenant updated",
+                companyService.update(id, request.toCompanyRequest(), Set.of())));
+    }
+
     @PostMapping("/{id}/support/admin-password-reset")
     @PreAuthorize("hasAuthority('ROLE_SUPER_ADMIN')")
     public ResponseEntity<ApiResponse<CompanyAdminCredentialResetDto>> resetTenantAdminPassword(
@@ -92,7 +123,17 @@ public class CompanyController {
             @Valid @RequestBody CompanyAdminPasswordResetRequest request) {
         return ResponseEntity.ok(ApiResponse.success(
                 "Admin credentials reset and emailed",
-                companyService.resetTenantAdminPassword(id, request.adminEmail())));
+                companyService.resetTenantAdminPassword(id, request.adminEmail(), request.reason())));
+    }
+
+    @PostMapping("/{id}/support/warnings")
+    @PreAuthorize("hasAuthority('ROLE_SUPER_ADMIN')")
+    public ResponseEntity<ApiResponse<CompanySupportWarningDto>> issueSupportWarning(
+            @PathVariable Long id,
+            @Valid @RequestBody CompanySupportWarningRequest request) {
+        return ResponseEntity.ok(ApiResponse.success(
+                "Tenant warning issued",
+                companyService.issueTenantSupportWarning(id, request.toServiceRequest())));
     }
 
     @DeleteMapping("/{id}")
@@ -116,6 +157,11 @@ public class CompanyController {
         return principal.getUser().getCompanies();
     }
 
+    private boolean isSuperAdmin(UserPrincipal principal) {
+        return principal.getUser().getRoles().stream()
+                .anyMatch(role -> "ROLE_SUPER_ADMIN".equalsIgnoreCase(role.getName()));
+    }
+
     public record CompanyTenantRuntimePolicyRequest(String holdState,
                                                     @Size(max = 300, message = "reasonCode must be at most 300 characters")
                                                     String reasonCode,
@@ -136,6 +182,83 @@ public class CompanyController {
     }
 
     public record CompanyAdminPasswordResetRequest(
-            @Email @NotBlank String adminEmail) {
+            @Email @NotBlank String adminEmail,
+            @Size(max = 300, message = "reason must be at most 300 characters")
+            String reason) {
+        public CompanyAdminPasswordResetRequest(String adminEmail) {
+            this(adminEmail, null);
+        }
+    }
+
+    public record SuperAdminTenantCreateRequest(
+            @NotBlank @Size(max = 255) String name,
+            @NotBlank @Size(max = 64) String code,
+            @NotBlank @Size(max = 64) String region,
+            @Min(value = 0, message = "maxActiveUsers must be greater than or equal to 0") Long maxActiveUsers,
+            @Min(value = 0, message = "maxApiRequests must be greater than or equal to 0") Long maxApiRequests,
+            @Min(value = 0, message = "maxStorageBytes must be greater than or equal to 0") Long maxStorageBytes,
+            @Min(value = 0, message = "maxConcurrentUsers must be greater than or equal to 0") Long maxConcurrentUsers,
+            Boolean softLimitEnabled,
+            Boolean hardLimitEnabled,
+            @Email @NotBlank String firstAdminEmail,
+            @Size(max = 255) String firstAdminDisplayName) {
+        private CompanyRequest toCompanyRequest() {
+            return new CompanyRequest(
+                    name,
+                    code,
+                    region,
+                    (BigDecimal) null,
+                    maxActiveUsers,
+                    maxApiRequests,
+                    maxStorageBytes,
+                    maxConcurrentUsers,
+                    softLimitEnabled,
+                    hardLimitEnabled,
+                    firstAdminEmail,
+                    firstAdminDisplayName);
+        }
+    }
+
+    public record SuperAdminTenantUpdateRequest(
+            @NotBlank @Size(max = 255) String name,
+            @NotBlank @Size(max = 64) String code,
+            @NotBlank @Size(max = 64) String region,
+            @Min(value = 0, message = "maxActiveUsers must be greater than or equal to 0") Long maxActiveUsers,
+            @Min(value = 0, message = "maxApiRequests must be greater than or equal to 0") Long maxApiRequests,
+            @Min(value = 0, message = "maxStorageBytes must be greater than or equal to 0") Long maxStorageBytes,
+            @Min(value = 0, message = "maxConcurrentUsers must be greater than or equal to 0") Long maxConcurrentUsers,
+            Boolean softLimitEnabled,
+            Boolean hardLimitEnabled) {
+        private CompanyRequest toCompanyRequest() {
+            return new CompanyRequest(
+                    name,
+                    code,
+                    region,
+                    (BigDecimal) null,
+                    maxActiveUsers,
+                    maxApiRequests,
+                    maxStorageBytes,
+                    maxConcurrentUsers,
+                    softLimitEnabled,
+                    hardLimitEnabled);
+        }
+    }
+
+    public record CompanySupportWarningRequest(
+            @Size(max = 100, message = "warningCategory must be at most 100 characters")
+            String warningCategory,
+            @NotBlank @Size(max = 500, message = "message must be at most 500 characters")
+            String message,
+            @Size(max = 20, message = "requestedLifecycleState must be at most 20 characters")
+            String requestedLifecycleState,
+            @Min(value = 1, message = "gracePeriodHours must be at least 1")
+            Integer gracePeriodHours) {
+        private CompanyService.TenantSupportWarningRequest toServiceRequest() {
+            return new CompanyService.TenantSupportWarningRequest(
+                    warningCategory,
+                    message,
+                    requestedLifecycleState,
+                    gracePeriodHours);
+        }
     }
 }

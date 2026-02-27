@@ -38,6 +38,7 @@ public class AuthService {
 
     private static final int MAX_FAILED_ATTEMPTS = 5;
     private static final Duration LOCKOUT_DURATION = Duration.ofMinutes(15);
+    private static final String SUPER_ADMIN_ROLE = "ROLE_SUPER_ADMIN";
 
     private final AuthenticationManager authenticationManager;
     private final JwtTokenService tokenService;
@@ -188,12 +189,20 @@ public class AuthService {
     private Company resolveCompanyForUser(UserAccount user, String companyCode) {
         Company company = companyRepository.findByCodeIgnoreCase(companyCode)
                 .orElseThrow(() -> new IllegalArgumentException("Company not found: " + companyCode));
+        if (hasSuperAdminRole(user)) {
+            return company;
+        }
         boolean member = user.getCompanies().stream()
                 .anyMatch(c -> c.getCode().equalsIgnoreCase(companyCode));
         if (!member) {
             throw new IllegalArgumentException("User not assigned to company: " + companyCode);
         }
         return company;
+    }
+
+    private boolean hasSuperAdminRole(UserAccount user) {
+        return user.getRoles().stream()
+                .anyMatch(role -> SUPER_ADMIN_ROLE.equalsIgnoreCase(role.getName()));
     }
 
     private boolean isMfaFailure(RuntimeException ex) {

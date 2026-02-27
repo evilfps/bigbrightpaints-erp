@@ -231,6 +231,9 @@ class TS_RuntimeCompanyContextFilterExecutableCoverageTest {
         assertThat(invokeIsLifecycleControlRequest("/api/v1/companies/77/lifecycle-state", "POST")).isTrue();
         assertThat(invokeIsLifecycleControlRequest("/api/v1/companies/77/tenant-metrics", "GET")).isTrue();
         assertThat(invokeIsLifecycleControlRequest("/api/v1/companies/77/tenant-runtime/policy", "PUT")).isTrue();
+        assertThat(invokeIsLifecycleControlRequest("/api/v1/companies/77", "PUT")).isTrue();
+        assertThat(invokeIsLifecycleControlRequest(
+                "/api/v1/companies/77/support/admin-password-reset", "POST")).isTrue();
         assertThat(invokeIsLifecycleControlRequest("/api/v1/private", "POST")).isFalse();
 
         assertThat(invokeResolveApplicationPath(null)).isNull();
@@ -257,6 +260,9 @@ class TS_RuntimeCompanyContextFilterExecutableCoverageTest {
         assertThat(invokeIsLifecycleControlRequest("/api/v1/companies/77/not-lifecycle", "POST")).isFalse();
 
         assertThat(invokeIsLifecycleControlRequest("/api/v1/companies/77/not-metrics", "GET")).isFalse();
+        assertThat(invokeIsLifecycleControlRequest("/api/v1/companies/77/x/lifecycle-state", "POST")).isFalse();
+        assertThat(invokeIsLifecycleControlRequest("/api/v1/companies/77/x/support/admin-password-reset", "POST"))
+                .isFalse();
 
         MockHttpServletRequest noPath = request("GET", "");
         noPath.setServletPath("   ");

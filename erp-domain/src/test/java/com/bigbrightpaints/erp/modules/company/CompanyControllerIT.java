@@ -9,6 +9,7 @@ import org.springframework.http.*;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -72,6 +73,84 @@ public class CompanyControllerIT extends AbstractIntegrationTest {
 
         ResponseEntity<Map> listResp = rest.exchange("/api/v1/companies", HttpMethod.GET, new HttpEntity<>(headers), Map.class);
         assertThat(listResp.getStatusCode()).isEqualTo(HttpStatus.OK);
+    }
+
+    @Test
+    void list_companies_returns_all_tenants_for_root_only_super_admin() {
+        String rootOnlySuperAdminEmail = "root-list-super-admin@bbp.com";
+        dataSeeder.ensureUser(rootOnlySuperAdminEmail, ADMIN_PASSWORD, "Root List Super Admin", ROOT_COMPANY_CODE,
+                java.util.List.of("ROLE_SUPER_ADMIN"));
+        String token = loginToken(rootOnlySuperAdminEmail, ROOT_COMPANY_CODE);
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(token);
+        headers.setContentType(MediaType.APPLICATION_JSON);
+
+        ResponseEntity<Map> listResp = rest.exchange("/api/v1/companies", HttpMethod.GET, new HttpEntity<>(headers), Map.class);
+        assertThat(listResp.getStatusCode()).isEqualTo(HttpStatus.OK);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> companies = (List<Map<String, Object>>) listResp.getBody().get("data");
+        assertThat(companies).isNotNull();
+        assertThat(companies)
+                .extracting(company -> company.get("code").toString().toUpperCase(Locale.ROOT))
+                .contains(ROOT_COMPANY_CODE, COMPANY_CODE);
+    }
+
+    @Test
+    void superadmin_dashboard_requires_super_admin_authority() {
+        String adminToken = loginToken(ADMIN_EMAIL, COMPANY_CODE);
+        HttpHeaders adminHeaders = new HttpHeaders();
+        adminHeaders.setBearerAuth(adminToken);
+        adminHeaders.setContentType(MediaType.APPLICATION_JSON);
+        adminHeaders.set("X-Company-Code", COMPANY_CODE);
+        ResponseEntity<Map> adminResponse = rest.exchange(
+                "/api/v1/companies/superadmin/dashboard",
+                HttpMethod.GET,
+                new HttpEntity<>(adminHeaders),
+                Map.class);
+        assertThat(adminResponse.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+
+        String superAdminToken = loginToken(SUPER_ADMIN_EMAIL, ROOT_COMPANY_CODE);
+        HttpHeaders superAdminHeaders = new HttpHeaders();
+        superAdminHeaders.setBearerAuth(superAdminToken);
+        superAdminHeaders.setContentType(MediaType.APPLICATION_JSON);
+        superAdminHeaders.set("X-Company-Code", ROOT_COMPANY_CODE);
+        ResponseEntity<Map> superAdminResponse = rest.exchange(
+                "/api/v1/companies/superadmin/dashboard",
+                HttpMethod.GET,
+                new HttpEntity<>(superAdminHeaders),
+                Map.class);
+        assertThat(superAdminResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(superAdminResponse.getBody()).isNotNull();
+        assertThat(superAdminResponse.getBody()).containsKey("data");
+    }
+
+    @Test
+    void support_warning_endpoint_issues_warning_for_super_admin() {
+        Long companyId = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow().getId();
+        String superAdminToken = loginToken(SUPER_ADMIN_EMAIL, ROOT_COMPANY_CODE);
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(superAdminToken);
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.set("X-Company-Code", ROOT_COMPANY_CODE);
+
+        ResponseEntity<Map> response = rest.exchange(
+                "/api/v1/companies/" + companyId + "/support/warnings",
+                HttpMethod.POST,
+                new HttpEntity<>(Map.of(
+                        "warningCategory", "quota",
+                        "message", "Storage usage crossed 85% of plan",
+                        "requestedLifecycleState", "HOLD",
+                        "gracePeriodHours", 24
+                ), headers),
+                Map.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isNotNull();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> data = (Map<String, Object>) response.getBody().get("data");
+        assertThat(data.get("companyCode").toString().toUpperCase(Locale.ROOT)).isEqualTo(COMPANY_CODE);
+        assertThat(data.get("warningId")).isNotNull();
+        assertThat(data.get("requestedLifecycleState")).isEqualTo("HOLD");
     }
 
     @Test

@@ -99,6 +99,68 @@ class CompanyContextFilterControlPlaneBindingTest {
     }
 
     @Test
+    void tenantConfigurationUpdateRequest_bindsSuperAdminFlowToPathTargetCompany() throws ServletException, IOException {
+        authenticate("root-superadmin@bbp.com", Set.of("ROLE_SUPER_ADMIN"), Set.of("ROOT"));
+        when(companyService.resolveCompanyCodeById(42L)).thenReturn("TENANT-A");
+        when(companyService.resolveLifecycleStateByCode("TENANT-A")).thenReturn(CompanyLifecycleState.ACTIVE);
+        when(tenantRuntimeEnforcementService.beginRequest(
+                eq("TENANT-A"),
+                eq("/api/v1/companies/42"),
+                eq("PUT"),
+                eq("root-superadmin@bbp.com"),
+                eq(false)))
+                .thenReturn(admission(true, 200, null));
+
+        MockHttpServletRequest request = request("PUT", "/api/v1/companies/42");
+        request.setAttribute("jwtClaims", claimsFor("ROOT"));
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, filterChain);
+
+        assertThat(response.getStatus()).isEqualTo(200);
+        verify(companyService).resolveCompanyCodeById(42L);
+        verify(companyService).resolveLifecycleStateByCode("TENANT-A");
+        verify(tenantRuntimeEnforcementService).beginRequest(
+                eq("TENANT-A"),
+                eq("/api/v1/companies/42"),
+                eq("PUT"),
+                eq("root-superadmin@bbp.com"),
+                eq(false));
+        verify(filterChain).doFilter(request, response);
+    }
+
+    @Test
+    void supportAdminPasswordResetRequest_bindsSuperAdminFlowToPathTargetCompany() throws ServletException, IOException {
+        authenticate("root-superadmin@bbp.com", Set.of("ROLE_SUPER_ADMIN"), Set.of("ROOT"));
+        when(companyService.resolveCompanyCodeById(42L)).thenReturn("TENANT-A");
+        when(companyService.resolveLifecycleStateByCode("TENANT-A")).thenReturn(CompanyLifecycleState.ACTIVE);
+        when(tenantRuntimeEnforcementService.beginRequest(
+                eq("TENANT-A"),
+                eq("/api/v1/companies/42/support/admin-password-reset"),
+                eq("POST"),
+                eq("root-superadmin@bbp.com"),
+                eq(false)))
+                .thenReturn(admission(true, 200, null));
+
+        MockHttpServletRequest request = request("POST", "/api/v1/companies/42/support/admin-password-reset");
+        request.setAttribute("jwtClaims", claimsFor("ROOT"));
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, filterChain);
+
+        assertThat(response.getStatus()).isEqualTo(200);
+        verify(companyService).resolveCompanyCodeById(42L);
+        verify(companyService).resolveLifecycleStateByCode("TENANT-A");
+        verify(tenantRuntimeEnforcementService).beginRequest(
+                eq("TENANT-A"),
+                eq("/api/v1/companies/42/support/admin-password-reset"),
+                eq("POST"),
+                eq("root-superadmin@bbp.com"),
+                eq(false));
+        verify(filterChain).doFilter(request, response);
+    }
+
+    @Test
     void lifecycleControlRequest_rejectsNonSuperAdminWhenPathTargetDiffersFromContextCompany()
             throws ServletException, IOException {
         authenticate("tenant-admin@bbp.com", Set.of("ROLE_ADMIN"), Set.of("ROOT"));
@@ -111,12 +173,41 @@ class CompanyContextFilterControlPlaneBindingTest {
         filter.doFilter(request, response, filterChain);
 
         assertThat(response.getStatus()).isEqualTo(403);
-        assertThat(response.getErrorMessage()).isEqualTo("Company path does not match authenticated company context");
+        assertThat(response.getErrorMessage()).isEqualTo(CONTROL_PLANE_AUTH_DENIED_MESSAGE);
         verify(companyService).resolveCompanyCodeById(42L);
         verify(companyService, never()).resolveLifecycleStateByCode(anyString());
         verify(tenantRuntimeEnforcementService, never())
                 .beginRequest(anyString(), anyString(), anyString(), anyString(), anyBoolean());
         verify(filterChain, never()).doFilter(request, response);
+    }
+
+    @Test
+    void controlPlaneRequest_returnsUniformForbiddenMessageForForeignAndUnknownTargets()
+            throws ServletException, IOException {
+        authenticate("tenant-admin@bbp.com", Set.of("ROLE_ADMIN"), Set.of("ROOT"));
+        when(companyService.resolveCompanyCodeById(42L)).thenReturn("TENANT-A");
+        when(companyService.resolveCompanyCodeById(404L)).thenReturn(null);
+
+        MockHttpServletRequest foreignTenantRequest = request("PUT", "/api/v1/companies/42");
+        foreignTenantRequest.setAttribute("jwtClaims", claimsFor("ROOT"));
+        MockHttpServletResponse foreignTenantResponse = new MockHttpServletResponse();
+        filter.doFilter(foreignTenantRequest, foreignTenantResponse, filterChain);
+
+        MockHttpServletRequest unknownTenantRequest = request("PUT", "/api/v1/companies/404");
+        unknownTenantRequest.setAttribute("jwtClaims", claimsFor("ROOT"));
+        MockHttpServletResponse unknownTenantResponse = new MockHttpServletResponse();
+        filter.doFilter(unknownTenantRequest, unknownTenantResponse, filterChain);
+
+        assertThat(foreignTenantResponse.getStatus()).isEqualTo(403);
+        assertThat(foreignTenantResponse.getErrorMessage()).isEqualTo(CONTROL_PLANE_AUTH_DENIED_MESSAGE);
+        assertThat(unknownTenantResponse.getStatus()).isEqualTo(403);
+        assertThat(unknownTenantResponse.getErrorMessage()).isEqualTo(CONTROL_PLANE_AUTH_DENIED_MESSAGE);
+        verify(companyService).resolveCompanyCodeById(42L);
+        verify(companyService).resolveCompanyCodeById(404L);
+        verify(companyService, never()).resolveLifecycleStateByCode(anyString());
+        verify(tenantRuntimeEnforcementService, never())
+                .beginRequest(anyString(), anyString(), anyString(), anyString(), anyBoolean());
+        verify(filterChain, never()).doFilter(any(), any());
     }
 
     @Test
@@ -172,7 +263,7 @@ class CompanyContextFilterControlPlaneBindingTest {
         filter.doFilter(request, response, filterChain);
 
         assertThat(response.getStatus()).isEqualTo(403);
-        assertThat(response.getErrorMessage()).isEqualTo("Invalid company control target path");
+        assertThat(response.getErrorMessage()).isEqualTo(CONTROL_PLANE_AUTH_DENIED_MESSAGE);
         verifyNoInteractions(companyService);
         verify(tenantRuntimeEnforcementService, never())
                 .beginRequest(anyString(), anyString(), anyString(), anyString(), anyBoolean());
@@ -192,7 +283,7 @@ class CompanyContextFilterControlPlaneBindingTest {
         filter.doFilter(request, response, filterChain);
 
         assertThat(response.getStatus()).isEqualTo(403);
-        assertThat(response.getErrorMessage()).isEqualTo("Access denied to company control target");
+        assertThat(response.getErrorMessage()).isEqualTo(CONTROL_PLANE_AUTH_DENIED_MESSAGE);
         verify(companyService).resolveCompanyCodeById(404L);
         verify(companyService, never()).resolveLifecycleStateByCode(anyString());
         verify(tenantRuntimeEnforcementService, never())
@@ -208,7 +299,9 @@ class CompanyContextFilterControlPlaneBindingTest {
         assertThat(extractCompanyId("/api/v1/companies/not-a-number/lifecycle-state")).isNull();
         assertThat(extractCompanyId("/api/v1/companies//lifecycle-state")).isNull();
         assertThat(extractCompanyId("/api/v1/companies/999999999999999999999999/lifecycle-state")).isNull();
+        assertThat(extractCompanyId("/api/v1/companies/42")).isEqualTo(42L);
         assertThat(extractCompanyId("/api/v1/companies/42/lifecycle-state")).isEqualTo(42L);
+        assertThat(extractCompanyId("/api/v1/companies/42/support/admin-password-reset")).isEqualTo(42L);
     }
 
     private Long extractCompanyId(String path) {

@@ -1,0 +1,174 @@
+ticket_id: TKT-ERP-STAGE-114
+title: RAG MCP Context Engine rollout
+goal: Deploy RAG MCP context engine for agent-safe ERP development with local dev
+  tooling and CI sidecar; include usage docs and early regression guards for cross-module
+  flows/idempotency mismatches.
+priority: high
+status: in_progress
+base_branch: harness-engineering-orchestrator
+requested_base_branch: harness-engineering-orchestrator
+worktree_root: /home/realnigga/Desktop/orchestrator_erp_worktrees
+created_at: '2026-02-26T22:52:00+00:00'
+updated_at: '2026-02-26T22:56:07Z'
+r3_required: true
+orchestrator_authority:
+  r1: orchestrator
+  r2: orchestrator
+  r3: human
+mandatory_spawn_role_sequence: []
+status_history:
+- from_status: ''
+  to_status: planned
+  at_utc: '2026-02-26T22:52:00+00:00'
+  reason: ticket_created
+  actor: orchestrator
+- from_status: planned
+  to_status: in_progress
+  at_utc: '2026-02-26T22:53:54Z'
+  reason: slice_claimed
+  actor: release-ops
+review_enforcement:
+  require_merge_specialist_for_non_doc_slices: true
+  require_code_reviewer_for_non_doc_slices: true
+  require_qa_reliability_for_non_doc_slices: true
+  require_release_ops_docs_sync_before_merge: false
+  require_merge_specialist_before_code_review: false
+  require_reviewer_head_sha_match: false
+  require_qa_after_code_review_timestamp: false
+  enforce_changed_file_docs_only_classification: false
+slices:
+- id: SLICE-01
+  primary_agent: release-ops
+  reviewers:
+  - code-reviewer
+  - code_reviewer
+  - merge-specialist
+  - qa-reliability
+  - security-governance
+  scope_paths:
+  - .github/workflows
+  - scripts/rag
+  - scripts/rag_impact.sh
+  - scripts/rag_index.sh
+  - scripts/rag_mcp_server.sh
+  - scripts/rag_query.sh
+  - scripts/rag_silent_failures.sh
+  allowed_scope_paths:
+  - ci/
+  - .github/workflows/
+  - scripts/
+  - docs/runbooks/
+  - docker-compose.yml
+  - erp-domain/Dockerfile
+  matched_rules:
+  - .github/workflows/
+  - scripts/
+  lane: w1
+  branch: tickets/tkt-erp-stage-114/release-ops
+  worktree_path: /home/realnigga/Desktop/orchestrator_erp_worktrees/TKT-ERP-STAGE-114/release-ops
+  required_checks:
+  - bash scripts/gate_release.sh
+  - bash scripts/gate_reconciliation.sh
+  multi_agent_role: cross_module
+  multi_agent_config_file: .codex/agents/cross_module.toml
+  multi_agent_model: gpt-5.3-codex
+  multi_agent_reasoning: xhigh
+  multi_agent_fallback:
+  - model: gpt-5.3-codex
+    reasoning: high
+  status: in_review
+  status_history:
+  - from_status: ''
+    to_status: ready
+    at_utc: '2026-02-26T22:52:00+00:00'
+    reason: slice_planned
+    actor: orchestrator
+  - from_status: ready
+    to_status: taken
+    at_utc: '2026-02-26T22:53:54Z'
+    reason: claim_recorded
+    actor: release-ops
+  - from_status: taken
+    to_status: in_progress
+    at_utc: '2026-02-26T22:53:54Z'
+    reason: implementation_started
+    actor: release-ops
+  - from_status: in_progress
+    to_status: in_review
+    at_utc: '2026-02-26T22:56:07Z'
+    reason: implementation_ready_for_review
+    actor: release-ops
+  objective: Deploy RAG MCP context engine for agent-safe ERP development with local
+    dev tooling and CI sidecar; include usage docs and early regression guards for
+    cross-module flows/idempotency mismatches.
+  task_summary: 'Implement ticket goal within explicit scope paths: .github/workflows,
+    scripts/rag, scripts/rag_impact.sh, scripts/rag_index.sh, scripts/rag_mcp_server.sh,
+    scripts/rag_query.sh, scripts/rag_silent_failures.sh'
+  problem_statement: 'Implement ticket objective for scoped ownership paths: .github/workflows,
+    scripts/rag, scripts/rag_impact.sh, scripts/rag_index.sh, scripts/rag_mcp_server.sh,
+    scripts/rag_query.sh, scripts/rag_silent_failures.sh'
+  acceptance_criteria:
+  - Changes are limited to declared scope paths for release-ops.
+  - 'Deliver objective for: .github/workflows, scripts/rag, scripts/rag_impact.sh,
+    scripts/rag_index.sh, scripts/rag_mcp_server.sh, scripts/rag_query.sh, scripts/rag_silent_failures.sh.'
+  - Targeted tests for changed behavior are added/updated and passing.
+  workflow_upstream_slices: []
+  workflow_downstream_slices: []
+  workflow_external_upstream_agents:
+  - data-migration
+  workflow_external_downstream_agents: []
+  cross_workflow_contracts:
+  - relation: upstream-external
+    agent: data-migration
+    slice_id: ''
+    contract: migration rehearsal and release gating
+    in_ticket: false
+- id: SLICE-02
+  primary_agent: repo-cartographer
+  reviewers:
+  - orchestrator
+  scope_paths:
+  - docs/agent-context-rag.md
+  allowed_scope_paths:
+  - docs/
+  - ARCHITECTURE.md
+  - AGENTS.md
+  matched_rules:
+  - docs/
+  lane: w2
+  branch: tickets/tkt-erp-stage-114/repo-cartographer
+  worktree_path: /home/realnigga/Desktop/orchestrator_erp_worktrees/TKT-ERP-STAGE-114/repo-cartographer
+  required_checks:
+  - bash ci/lint-knowledgebase.sh
+  multi_agent_role: planning_architecture
+  multi_agent_config_file: .codex/agents/planning_architecture.toml
+  multi_agent_model: gpt-5.2-codex
+  multi_agent_reasoning: xhigh
+  multi_agent_fallback:
+  - model: gpt-5.3-codex
+    reasoning: high
+  status: ready
+  status_history:
+  - from_status: ''
+    to_status: ready
+    at_utc: '2026-02-26T22:52:00+00:00'
+    reason: slice_planned
+    actor: orchestrator
+  objective: Deploy RAG MCP context engine for agent-safe ERP development with local
+    dev tooling and CI sidecar; include usage docs and early regression guards for
+    cross-module flows/idempotency mismatches.
+  task_summary: 'Implement ticket goal within explicit scope paths: docs/agent-context-rag.md'
+  problem_statement: 'Implement ticket objective for scoped ownership paths: docs/agent-context-rag.md'
+  acceptance_criteria:
+  - Changes are limited to declared scope paths for repo-cartographer.
+  - 'Deliver objective for: docs/agent-context-rag.md.'
+  - Targeted tests for changed behavior are added/updated and passing.
+  workflow_upstream_slices: []
+  workflow_downstream_slices: []
+  workflow_external_upstream_agents: []
+  workflow_external_downstream_agents: []
+  cross_workflow_contracts: []
+cross_workflow:
+  model: workflow_agent_edges_v1
+  generated_at: '2026-02-26T22:52:00+00:00'
+  in_ticket_edges: []

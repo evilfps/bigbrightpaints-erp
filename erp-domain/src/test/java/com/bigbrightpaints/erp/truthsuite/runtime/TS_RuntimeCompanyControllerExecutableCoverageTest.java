@@ -48,7 +48,7 @@ class TS_RuntimeCompanyControllerExecutableCoverageTest {
                 new CompanyController.CompanyAdminPasswordResetRequest("admin@ske.com");
         CompanyAdminCredentialResetDto payload =
                 new CompanyAdminCredentialResetDto(42L, "SKE", "admin@ske.com", "credentials-emailed");
-        when(companyService.resetTenantAdminPassword(42L, "admin@ske.com")).thenReturn(payload);
+        when(companyService.resetTenantAdminPassword(42L, "admin@ske.com", null)).thenReturn(payload);
 
         ResponseEntity<ApiResponse<CompanyAdminCredentialResetDto>> response =
                 controller.resetTenantAdminPassword(42L, request);
@@ -57,6 +57,6 @@ class TS_RuntimeCompanyControllerExecutableCoverageTest {
         assertThat(response.getBody()).isNotNull();
         assertThat(response.getBody().success()).isTrue();
         assertThat(response.getBody().data()).isEqualTo(payload);
-        verify(companyService).resetTenantAdminPassword(42L, "admin@ske.com");
+        verify(companyService).resetTenantAdminPassword(42L, "admin@ske.com", null);
     }
 }

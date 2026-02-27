@@ -11,7 +11,6 @@ import com.bigbrightpaints.erp.modules.rbac.domain.SystemRole;
 import com.bigbrightpaints.erp.modules.rbac.dto.CreateRoleRequest;
 import com.bigbrightpaints.erp.modules.rbac.dto.PermissionDto;
 import com.bigbrightpaints.erp.modules.rbac.dto.RoleDto;
-import jakarta.transaction.Transactional;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -25,6 +24,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 @Service
@@ -43,6 +43,20 @@ public class RoleService {
     }
 
     public List<RoleDto> listRoles() {
+        return allSystemRoles();
+    }
+
+    public List<RoleDto> listRolesForCurrentActor() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (hasAuthority(authentication, "ROLE_SUPER_ADMIN")) {
+            return allSystemRoles();
+        }
+        return allSystemRoles().stream()
+                .filter(role -> role.name() == null || !"ROLE_SUPER_ADMIN".equalsIgnoreCase(role.name()))
+                .toList();
+    }
+
+    private List<RoleDto> allSystemRoles() {
         Map<String, Role> rolesByName = roleRepository.findByNameIn(SystemRole.roleNames())
                 .stream()
                 .collect(Collectors.toMap(Role::getName, Function.identity()));

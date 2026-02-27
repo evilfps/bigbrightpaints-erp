@@ -15,12 +15,16 @@ import com.bigbrightpaints.erp.modules.company.dto.CompanyDto;
 import com.bigbrightpaints.erp.modules.company.dto.CompanyLifecycleStateDto;
 import com.bigbrightpaints.erp.modules.company.dto.CompanyLifecycleStateRequest;
 import com.bigbrightpaints.erp.modules.company.dto.CompanyRequest;
+import com.bigbrightpaints.erp.modules.company.dto.CompanySuperAdminDashboardDto;
+import com.bigbrightpaints.erp.modules.company.dto.CompanySupportWarningDto;
 import com.bigbrightpaints.erp.modules.company.dto.CompanyTenantMetricsDto;
-import jakarta.transaction.Transactional;
 import java.math.BigDecimal;
+import java.time.Instant;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.UUID;
 import java.util.function.LongSupplier;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.AccessDeniedException;
@@ -28,6 +32,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.util.Set;
@@ -48,6 +53,8 @@ public class CompanyService {
     private static final String RUNTIME_POLICY_SUPER_ADMIN_REQUIRED_REASON =
             "super-admin-required-for-tenant-runtime-policy-control";
     private static final String RUNTIME_POLICY_UPDATED_REASON = "tenant-runtime-policy-updated";
+    private static final String SUPERADMIN_DASHBOARD_READ_REASON = "superadmin-dashboard-read";
+    private static final String TENANT_SUPPORT_WARNING_ISSUED_REASON = "tenant-support-warning-issued";
     private static final long ERROR_RATE_BASIS_POINTS_SCALE = 10_000L;
     private static final BigDecimal DEFAULT_BOOTSTRAP_GST_RATE = BigDecimal.valueOf(18);
 
@@ -136,6 +143,7 @@ public class CompanyService {
         requireSuperAdminForTenantConfigurationUpdate();
         Company company = repository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Company not found"));
+        assertBoundControlPlaneCompanyMatchesTarget(company.getCode());
         String normalizedCompanyCode = normalizeCompanyCode(request.code());
         ensureCompanyCodeAvailableForUpdate(id, normalizedCompanyCode);
         company.setName(request.name());
@@ -270,31 +278,85 @@ public class CompanyService {
         Company company = repository.findById(companyId)
                 .orElseThrow(() -> new IllegalArgumentException("Company not found"));
         assertBoundControlPlaneCompanyMatchesTarget(company.getCode());
-        CompanyLifecycleState state = company.getLifecycleState() == null ? CompanyLifecycleState.ACTIVE : company.getLifecycleState();
-        long activeUserCount = countActiveUsers(companyId);
-        long apiActivityCount = countApiActivity(companyId);
-        long apiErrorCount = countApiFailureActivity(companyId);
-        long apiErrorRateInBasisPoints = calculateErrorRateInBasisPoints(apiActivityCount, apiErrorCount);
-        long distinctSessionCount = countDistinctSessionActivity(companyId);
-        long auditStorageBytes = estimateAuditStorageBytes(companyId);
         auditAuthorityDecision(true, METRICS_READ_REASON, company.getCode(), authentication);
-        return new CompanyTenantMetricsDto(
+        return buildTenantMetrics(company);
+    }
+
+    public CompanySuperAdminDashboardDto getSuperAdminDashboard() {
+        Authentication authentication = requireSuperAdminForTenantMetrics(null);
+        List<CompanySuperAdminDashboardDto.TenantOverview> tenantOverview = repository.findAll().stream()
+                .sorted(Comparator.comparing(Company::getCode, String.CASE_INSENSITIVE_ORDER))
+                .map(this::buildTenantOverview)
+                .toList();
+
+        long totalTenants = tenantOverview.size();
+        long activeTenants = tenantOverview.stream().filter(tenant -> "ACTIVE".equalsIgnoreCase(tenant.lifecycleState())).count();
+        long holdTenants = tenantOverview.stream().filter(tenant -> "HOLD".equalsIgnoreCase(tenant.lifecycleState())).count();
+        long blockedTenants = tenantOverview.stream().filter(tenant -> "BLOCKED".equalsIgnoreCase(tenant.lifecycleState())).count();
+        long totalActiveUsers = tenantOverview.stream().mapToLong(CompanySuperAdminDashboardDto.TenantOverview::activeUsers).sum();
+        long totalActiveUserQuota = tenantOverview.stream().mapToLong(CompanySuperAdminDashboardDto.TenantOverview::activeUserQuota).sum();
+        long totalStorageBytes = tenantOverview.stream().mapToLong(CompanySuperAdminDashboardDto.TenantOverview::storageBytesUsed).sum();
+        long totalStorageQuotaBytes = tenantOverview.stream().mapToLong(CompanySuperAdminDashboardDto.TenantOverview::storageQuotaBytes).sum();
+        long totalConcurrentSessions = tenantOverview.stream().mapToLong(CompanySuperAdminDashboardDto.TenantOverview::concurrentUsers).sum();
+        long totalConcurrentUserQuota = tenantOverview.stream().mapToLong(CompanySuperAdminDashboardDto.TenantOverview::concurrentUserQuota).sum();
+        auditAuthorityDecision(true, SUPERADMIN_DASHBOARD_READ_REASON, null, authentication);
+
+        return new CompanySuperAdminDashboardDto(
+                totalTenants,
+                activeTenants,
+                holdTenants,
+                blockedTenants,
+                totalActiveUsers,
+                totalActiveUserQuota,
+                totalStorageBytes,
+                totalStorageQuotaBytes,
+                totalConcurrentSessions,
+                totalConcurrentUserQuota,
+                tenantOverview);
+    }
+
+    @Transactional
+    public CompanySupportWarningDto issueTenantSupportWarning(Long companyId, TenantSupportWarningRequest request) {
+        Authentication authentication = requireSuperAdminForTenantConfigurationUpdate();
+        Company company = repository.findById(companyId)
+                .orElseThrow(() -> new IllegalArgumentException("Company not found"));
+        if (request == null || !StringUtils.hasText(request.message())) {
+            throw new IllegalArgumentException("Support warning message is required");
+        }
+        String warningId = UUID.randomUUID().toString();
+        String warningCategory = normalizeWarningCategory(request.warningCategory());
+        String requestedLifecycleState = normalizeWarningLifecycleState(request.requestedLifecycleState());
+        int gracePeriodHours = resolveGracePeriodHours(request.gracePeriodHours());
+        String warningMessage = request.message().trim();
+        String actor = resolveActor(authentication);
+        Instant issuedAt = Instant.now();
+
+        if (auditService != null) {
+            HashMap<String, String> metadata = new HashMap<>();
+            metadata.put("actor", actor);
+            metadata.put("reason", TENANT_SUPPORT_WARNING_ISSUED_REASON);
+            metadata.put("tenantScope", resolveTenantScope(authentication));
+            metadata.put("targetCompanyId", String.valueOf(company.getId()));
+            metadata.put("targetCompanyCode", company.getCode());
+            metadata.put("warningId", warningId);
+            metadata.put("warningCategory", warningCategory);
+            metadata.put("requestedLifecycleState", requestedLifecycleState);
+            metadata.put("gracePeriodHours", String.valueOf(gracePeriodHours));
+            metadata.put("message", warningMessage);
+            metadata.put("issuedAt", issuedAt.toString());
+            auditService.logSuccess(AuditEvent.CONFIGURATION_CHANGED, metadata);
+        }
+
+        return new CompanySupportWarningDto(
                 company.getId(),
                 company.getCode(),
-                state.name(),
-                company.getLifecycleReason(),
-                company.getQuotaMaxActiveUsers(),
-                company.getQuotaMaxApiRequests(),
-                company.getQuotaMaxStorageBytes(),
-                company.getQuotaMaxConcurrentSessions(),
-                company.isQuotaSoftLimitEnabled(),
-                company.isQuotaHardLimitEnabled(),
-                activeUserCount,
-                apiActivityCount,
-                apiErrorCount,
-                apiErrorRateInBasisPoints,
-                distinctSessionCount,
-                auditStorageBytes);
+                warningId,
+                warningCategory,
+                warningMessage,
+                requestedLifecycleState,
+                gracePeriodHours,
+                actor,
+                issuedAt);
     }
 
     @Transactional
@@ -325,17 +387,89 @@ public class CompanyService {
 
     @Transactional
     public CompanyAdminCredentialResetDto resetTenantAdminPassword(Long companyId, String adminEmail) {
+        return resetTenantAdminPassword(companyId, adminEmail, null);
+    }
+
+    @Transactional
+    public CompanyAdminCredentialResetDto resetTenantAdminPassword(Long companyId, String adminEmail, String supportReason) {
         Authentication authentication = requireSuperAdminForTenantConfigurationUpdate();
         Company company = repository.findById(companyId)
                 .orElseThrow(() -> new IllegalArgumentException("Company not found"));
+        assertBoundControlPlaneCompanyMatchesTarget(company.getCode());
         requireCredentialProvisioningReady();
         String resetEmail = tenantAdminProvisioningService.resetTenantAdminPassword(company, adminEmail);
-        auditAuthorityDecision(true, "tenant-admin-password-reset", company.getCode(), authentication);
+        if (auditService != null) {
+            HashMap<String, String> metadata = new HashMap<>();
+            metadata.put("actor", resolveActor(authentication));
+            metadata.put("reason", "tenant-admin-password-reset");
+            metadata.put("tenantScope", resolveTenantScope(authentication));
+            metadata.put("targetCompanyCode", company.getCode());
+            metadata.put("targetCompanyId", String.valueOf(company.getId()));
+            metadata.put("resetEmail", resetEmail);
+            metadata.put("supportReason", StringUtils.hasText(supportReason) ? supportReason.trim() : "support-reset-requested");
+            auditService.logSuccess(AuditEvent.ACCESS_GRANTED, metadata);
+        } else {
+            auditAuthorityDecision(true, "tenant-admin-password-reset", company.getCode(), authentication);
+        }
         return new CompanyAdminCredentialResetDto(
                 company.getId(),
                 company.getCode(),
                 resetEmail,
                 "credentials-emailed");
+    }
+
+    private CompanyTenantMetricsDto buildTenantMetrics(Company company) {
+        CompanyLifecycleState state = company.getLifecycleState() == null ? CompanyLifecycleState.ACTIVE : company.getLifecycleState();
+        Long companyId = company.getId();
+        long activeUserCount = countActiveUsers(companyId);
+        long apiActivityCount = countApiActivity(companyId);
+        long apiErrorCount = countApiFailureActivity(companyId);
+        long apiErrorRateInBasisPoints = calculateErrorRateInBasisPoints(apiActivityCount, apiErrorCount);
+        long distinctSessionCount = countDistinctSessionActivity(companyId);
+        long auditStorageBytes = estimateAuditStorageBytes(companyId);
+        return new CompanyTenantMetricsDto(
+                company.getId(),
+                company.getCode(),
+                state.name(),
+                company.getLifecycleReason(),
+                company.getQuotaMaxActiveUsers(),
+                company.getQuotaMaxApiRequests(),
+                company.getQuotaMaxStorageBytes(),
+                company.getQuotaMaxConcurrentSessions(),
+                company.isQuotaSoftLimitEnabled(),
+                company.isQuotaHardLimitEnabled(),
+                activeUserCount,
+                apiActivityCount,
+                apiErrorCount,
+                apiErrorRateInBasisPoints,
+                distinctSessionCount,
+                auditStorageBytes);
+    }
+
+    private CompanySuperAdminDashboardDto.TenantOverview buildTenantOverview(Company company) {
+        CompanyTenantMetricsDto metrics = buildTenantMetrics(company);
+        return new CompanySuperAdminDashboardDto.TenantOverview(
+                metrics.companyId(),
+                metrics.companyCode(),
+                company.getName(),
+                company.getTimezone(),
+                metrics.lifecycleState(),
+                metrics.lifecycleReason(),
+                metrics.activeUserCount(),
+                metrics.quotaMaxActiveUsers(),
+                metrics.auditStorageBytes(),
+                metrics.quotaMaxStorageBytes(),
+                metrics.distinctSessionCount(),
+                metrics.quotaMaxConcurrentSessions(),
+                metrics.apiActivityCount(),
+                metrics.quotaMaxApiRequests(),
+                metrics.apiErrorCount(),
+                metrics.apiErrorRateInBasisPoints(),
+                metrics.quotaSoftLimitEnabled(),
+                metrics.quotaHardLimitEnabled(),
+                calculateUtilizationInBasisPoints(metrics.activeUserCount(), metrics.quotaMaxActiveUsers()),
+                calculateUtilizationInBasisPoints(metrics.auditStorageBytes(), metrics.quotaMaxStorageBytes()),
+                calculateUtilizationInBasisPoints(metrics.distinctSessionCount(), metrics.quotaMaxConcurrentSessions()));
     }
 
     private void requireMembershipById(Long companyId, Set<Company> allowedCompanies) {
@@ -667,6 +801,42 @@ public class CompanyService {
         return (boundedErrorCount * ERROR_RATE_BASIS_POINTS_SCALE) / apiActivityCount;
     }
 
+    private long calculateUtilizationInBasisPoints(long used, long quota) {
+        if (quota <= 0L || used <= 0L) {
+            return 0L;
+        }
+        long boundedUsed = Math.min(used, quota);
+        return (boundedUsed * ERROR_RATE_BASIS_POINTS_SCALE) / quota;
+    }
+
+    private String normalizeWarningCategory(String warningCategory) {
+        if (!StringUtils.hasText(warningCategory)) {
+            return "GENERAL";
+        }
+        return warningCategory.trim().toUpperCase(Locale.ROOT);
+    }
+
+    private String normalizeWarningLifecycleState(String requestedLifecycleState) {
+        if (!StringUtils.hasText(requestedLifecycleState)) {
+            return "HOLD";
+        }
+        String normalized = requestedLifecycleState.trim().toUpperCase(Locale.ROOT);
+        if (!"HOLD".equals(normalized) && !"BLOCKED".equals(normalized)) {
+            throw new IllegalArgumentException("requestedLifecycleState must be HOLD or BLOCKED");
+        }
+        return normalized;
+    }
+
+    private int resolveGracePeriodHours(Integer gracePeriodHours) {
+        if (gracePeriodHours == null) {
+            return 24;
+        }
+        if (gracePeriodHours < 1 || gracePeriodHours > 720) {
+            throw new IllegalArgumentException("gracePeriodHours must be between 1 and 720");
+        }
+        return gracePeriodHours;
+    }
+
     private long resolveQuotaForCreate(Long requestedQuota) {
         return requestedQuota == null ? 0L : requestedQuota;
     }
@@ -715,5 +885,11 @@ public class CompanyService {
                                                      Integer maxConcurrentRequests,
                                                      Integer maxRequestsPerMinute,
                                                      Integer maxActiveUsers) {
+    }
+
+    public record TenantSupportWarningRequest(String warningCategory,
+                                              String message,
+                                              String requestedLifecycleState,
+                                              Integer gracePeriodHours) {
     }
 }

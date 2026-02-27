@@ -13,7 +13,7 @@ import java.util.stream.Collectors;
  * Central definition for the platform roles we expose to admins.
  */
 public enum SystemRole {
-    SUPER_ADMIN("ROLE_SUPER_ADMIN", "Platform super administrator", List.of(
+    SUPER_ADMIN("ROLE_SUPER_ADMIN", "Platform owner with global cross-tenant management and support authority", List.of(
             "portal:accounting", "portal:factory", "portal:sales", "portal:dealer",
             "dispatch.confirm", "factory.dispatch", "payroll.run"
     )),

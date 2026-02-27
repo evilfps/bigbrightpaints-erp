@@ -10,6 +10,7 @@ import com.bigbrightpaints.erp.modules.auth.service.RefreshTokenService;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccount;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
+import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.rbac.domain.Role;
 import com.bigbrightpaints.erp.modules.rbac.domain.RoleRepository;
@@ -18,19 +19,27 @@ import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.sales.util.DealerProvisioningSupport;
-import jakarta.transaction.Transactional;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 public class AdminUserService {
+    private static final String SUPER_ADMIN_ROLE = "ROLE_SUPER_ADMIN";
 
     private final UserAccountRepository userRepository;
     private final CompanyContextService companyContextService;
+    private final CompanyRepository companyRepository;
     private final RoleRepository roleRepository;
     private final RoleService roleService;
     private final PasswordEncoder passwordEncoder;
@@ -43,6 +52,7 @@ public class AdminUserService {
 
     public AdminUserService(UserAccountRepository userRepository,
                             CompanyContextService companyContextService,
+                            CompanyRepository companyRepository,
                             RoleRepository roleRepository,
                             RoleService roleService,
                             PasswordEncoder passwordEncoder,
@@ -54,6 +64,7 @@ public class AdminUserService {
                             TenantRuntimePolicyService tenantRuntimePolicyService) {
         this.userRepository = userRepository;
         this.companyContextService = companyContextService;
+        this.companyRepository = companyRepository;
         this.roleRepository = roleRepository;
         this.roleService = roleService;
         this.passwordEncoder = passwordEncoder;
@@ -75,7 +86,9 @@ public class AdminUserService {
     @Transactional
     public UserDto createUser(CreateUserRequest request) {
         Company company = companyContextService.requireCurrentCompany();
-        tenantRuntimePolicyService.assertCanAddEnabledUser(company, "ADMIN_USER_CREATE");
+        List<Company> targetCompanies = resolveTargetCompaniesForCreate(company, request.companyIds());
+        targetCompanies.forEach(targetCompany ->
+                tenantRuntimePolicyService.assertCanAddEnabledUser(targetCompany, "ADMIN_USER_CREATE"));
         boolean isTemporaryPassword = !StringUtils.hasText(request.password());
         String tempPassword = isTemporaryPassword ? PasswordUtils.generateTemporaryPassword(12) : request.password();
         UserAccount user = new UserAccount(request.email(), passwordEncoder.encode(tempPassword), request.displayName());
@@ -85,15 +98,15 @@ public class AdminUserService {
             user.setMustChangePassword(true);
         }
         
-        attachCompanies(user, company, request.companyIds());
+        attachCompanies(user, targetCompanies);
         attachRoles(user, request.roles());
         UserAccount saved = userRepository.save(user);
         
         // Auto-create Dealer entity if user has ROLE_DEALER
         boolean isDealerUser = request.roles().stream()
                 .anyMatch(r -> r.equalsIgnoreCase("ROLE_DEALER") || r.equalsIgnoreCase("DEALER"));
-        if (isDealerUser && !saved.getCompanies().isEmpty()) {
-            createDealerForUser(saved, company);
+        if (isDealerUser && !targetCompanies.isEmpty()) {
+            createDealerForUser(saved, targetCompanies.getFirst());
         }
         
         emailService.sendUserCredentialsEmail(saved.getEmail(), saved.getDisplayName(), tempPassword);
@@ -240,6 +253,43 @@ public class AdminUserService {
         user.addCompany(company);
     }
 
+    private void attachCompanies(UserAccount user, List<Company> companies) {
+        companies.forEach(user::addCompany);
+    }
+
+    private List<Company> resolveTargetCompaniesForCreate(Company activeCompany, List<Long> companyIds) {
+        if (!hasSuperAdminAuthority()) {
+            validateCompanyScope(activeCompany, companyIds);
+            return List.of(activeCompany);
+        }
+        if (companyIds == null || companyIds.isEmpty()) {
+            throw new IllegalArgumentException("User must belong to an active company");
+        }
+        Set<Long> requestedCompanyIds = new LinkedHashSet<>(companyIds);
+        Map<Long, Company> companiesById = companyRepository.findAllById(requestedCompanyIds).stream()
+                .collect(Collectors.toMap(Company::getId, company -> company));
+        if (companiesById.size() != requestedCompanyIds.size()) {
+            Long missingCompanyId = requestedCompanyIds.stream()
+                    .filter(id -> !companiesById.containsKey(id))
+                    .findFirst()
+                    .orElse(null);
+            throw new IllegalArgumentException("Company not found: " + missingCompanyId);
+        }
+        return companyIds.stream()
+                .distinct()
+                .map(companiesById::get)
+                .toList();
+    }
+
+    private boolean hasSuperAdminAuthority() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || authentication.getAuthorities() == null) {
+            return false;
+        }
+        return authentication.getAuthorities().stream()
+                .anyMatch(authority -> SUPER_ADMIN_ROLE.equalsIgnoreCase(authority.getAuthority()));
+    }
+
     private void attachRoles(UserAccount user, List<String> roles) {
         roles.forEach(roleName -> {
             if (!StringUtils.hasText(roleName)) {
@@ -253,6 +303,10 @@ public class AdminUserService {
                 if (roleService.isSystemRole(withPrefix)) {
                     normalized = withPrefix;
                 }
+            }
+            if (SUPER_ADMIN_ROLE.equalsIgnoreCase(normalized) && !hasSuperAdminAuthority()) {
+                throw new org.springframework.security.access.AccessDeniedException(
+                        "SUPER_ADMIN authority required to assign role: " + normalized);
             }
             // Allow both system roles and custom roles
             Role role = roleService.ensureRoleExists(normalized);

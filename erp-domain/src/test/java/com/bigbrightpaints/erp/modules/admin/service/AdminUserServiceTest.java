@@ -9,6 +9,7 @@ import com.bigbrightpaints.erp.modules.auth.domain.UserAccount;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
 import com.bigbrightpaints.erp.modules.auth.service.RefreshTokenService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
+import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.rbac.domain.Role;
 import com.bigbrightpaints.erp.modules.rbac.domain.RoleRepository;
@@ -21,15 +22,22 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -40,6 +48,8 @@ class AdminUserServiceTest {
     private UserAccountRepository userRepository;
     @Mock
     private CompanyContextService companyContextService;
+    @Mock
+    private CompanyRepository companyRepository;
     @Mock
     private RoleRepository roleRepository;
     @Mock
@@ -67,6 +77,7 @@ class AdminUserServiceTest {
         service = new AdminUserService(
                 userRepository,
                 companyContextService,
+                companyRepository,
                 roleRepository,
                 roleService,
                 passwordEncoder,
@@ -81,21 +92,21 @@ class AdminUserServiceTest {
         ReflectionTestUtils.setField(company, "id", 1L);
         company.setCode("TEST");
         when(companyContextService.requireCurrentCompany()).thenReturn(company);
-        when(passwordEncoder.encode(any())).thenReturn("encoded");
-        when(userRepository.save(any(UserAccount.class))).thenAnswer(invocation -> {
+        lenient().when(passwordEncoder.encode(any())).thenReturn("encoded");
+        lenient().when(userRepository.save(any(UserAccount.class))).thenAnswer(invocation -> {
             UserAccount user = invocation.getArgument(0);
             if (user.getId() == null) {
                 ReflectionTestUtils.setField(user, "id", 200L);
             }
             return user;
         });
-        when(roleService.ensureRoleExists("ROLE_DEALER")).thenAnswer(invocation -> {
+        lenient().when(roleService.ensureRoleExists(anyString())).thenAnswer(invocation -> {
             Role role = new Role();
-            role.setName("ROLE_DEALER");
+            role.setName(invocation.getArgument(0));
             return role;
         });
-        when(dealerRepository.save(any(Dealer.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(accountRepository.save(any(Account.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        lenient().when(dealerRepository.save(any(Dealer.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        lenient().when(accountRepository.save(any(Account.class))).thenAnswer(invocation -> invocation.getArgument(0));
     }
 
     @Test
@@ -136,5 +147,124 @@ class AdminUserServiceTest {
         assertThat(savedDealer.getPortalUser().getEmail()).isEqualTo("dealer@example.com");
         assertThat(receivable.isActive()).isTrue();
         verify(accountRepository).save(receivable);
+    }
+
+    @Test
+    void createUser_superAdminCanAssignUserToRequestedTenantCompany() {
+        Company foreignCompany = new Company();
+        ReflectionTestUtils.setField(foreignCompany, "id", 2L);
+        foreignCompany.setCode("FOREIGN");
+
+        when(companyRepository.findAllById(any())).thenReturn(List.of(foreignCompany));
+        SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(
+                "super-admin@bbp.com",
+                "n/a",
+                List.of(new SimpleGrantedAuthority("ROLE_SUPER_ADMIN"))));
+
+        try {
+            service.createUser(new CreateUserRequest(
+                    "ops-user@example.com",
+                    "Password@123",
+                    "Ops User",
+                    List.of(2L),
+                    List.of("ROLE_SALES")
+            ));
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
+
+        ArgumentCaptor<UserAccount> userCaptor = ArgumentCaptor.forClass(UserAccount.class);
+        verify(userRepository).save(userCaptor.capture());
+        UserAccount savedUser = userCaptor.getValue();
+        assertThat(savedUser.getCompanies())
+                .extracting(Company::getCode)
+                .containsExactly("FOREIGN");
+        verify(tenantRuntimePolicyService).assertCanAddEnabledUser(foreignCompany, "ADMIN_USER_CREATE");
+    }
+
+    @Test
+    void createUser_nonSuperAdminRejectsForeignCompanyScope() {
+        assertThatThrownBy(() -> service.createUser(new CreateUserRequest(
+                "scope-user@example.com",
+                "Password@123",
+                "Scope User",
+                List.of(2L),
+                List.of("ROLE_SALES")
+        ))).isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("User must be assigned to the active company");
+    }
+
+    @Test
+    void createUser_superAdminRejectsMissingCompanyAssignments() {
+        SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(
+                "super-admin@bbp.com",
+                "n/a",
+                List.of(new SimpleGrantedAuthority("ROLE_SUPER_ADMIN"))));
+        try {
+            assertThatThrownBy(() -> service.createUser(new CreateUserRequest(
+                    "missing-company@example.com",
+                    "Password@123",
+                    "Missing Company",
+                    List.of(),
+                    List.of("ROLE_SALES")
+            ))).isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("User must belong to an active company");
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
+    }
+
+    @Test
+    void createUser_superAdminRejectsUnknownCompanyId() {
+        SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(
+                "super-admin@bbp.com",
+                "n/a",
+                List.of(new SimpleGrantedAuthority("ROLE_SUPER_ADMIN"))));
+        when(companyRepository.findAllById(any())).thenReturn(List.of());
+        try {
+            assertThatThrownBy(() -> service.createUser(new CreateUserRequest(
+                    "unknown-company@example.com",
+                    "Password@123",
+                    "Unknown Company",
+                    List.of(99L),
+                    List.of("ROLE_SALES")
+            ))).isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("Company not found: 99");
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
+    }
+
+    @Test
+    void createUser_nonSuperAdminCannotAssignSuperAdminRole() {
+        assertThatThrownBy(() -> service.createUser(new CreateUserRequest(
+                "tenant-user@example.com",
+                "Password@123",
+                "Tenant User",
+                List.of(1L),
+                List.of("ROLE_SUPER_ADMIN")
+        ))).isInstanceOf(AccessDeniedException.class)
+                .hasMessageContaining("SUPER_ADMIN authority required");
+    }
+
+    @Test
+    void createUser_superAdminCanAssignSuperAdminRole() {
+        SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(
+                "super-admin@bbp.com",
+                "n/a",
+                List.of(new SimpleGrantedAuthority("ROLE_SUPER_ADMIN"))));
+        when(companyRepository.findAllById(any())).thenReturn(List.of(company));
+        try {
+            service.createUser(new CreateUserRequest(
+                    "platform-owner@example.com",
+                    "Password@123",
+                    "Platform Owner",
+                    List.of(1L),
+                    List.of("ROLE_SUPER_ADMIN")
+            ));
+            verify(userRepository).save(any(UserAccount.class));
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
     }
 }
