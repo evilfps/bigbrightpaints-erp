@@ -918,19 +918,37 @@ public class SalesService {
         if (slips == null || slips.isEmpty()) {
             return 0;
         }
-        return slips.stream()
+        long pendingCount = slips.stream()
                 .filter(this::isDispatchPendingSlip)
+                .count();
+        if (pendingCount > 0) {
+            return pendingCount;
+        }
+        return slips.stream()
+                .filter(this::isDispatchRetryEligibleSlip)
                 .count();
     }
 
     private PackagingSlip findSingleDispatchSelectableSlip(List<PackagingSlip> slips) {
-        if (dispatchSelectableSlipCount(slips) != 1) {
+        if (slips == null || slips.isEmpty()) {
             return null;
         }
-        return slips.stream()
+        List<PackagingSlip> pending = slips.stream()
                 .filter(this::isDispatchPendingSlip)
-                .findFirst()
-                .orElse(null);
+                .toList();
+        if (pending.size() == 1) {
+            return pending.getFirst();
+        }
+        if (!pending.isEmpty()) {
+            return null;
+        }
+        List<PackagingSlip> retryEligible = slips.stream()
+                .filter(this::isDispatchRetryEligibleSlip)
+                .toList();
+        if (retryEligible.size() == 1) {
+            return retryEligible.getFirst();
+        }
+        return null;
     }
 
     private boolean isDispatchPendingSlip(PackagingSlip slip) {
@@ -940,6 +958,14 @@ public class SalesService {
         String status = slip.getStatus();
         return !"CANCELLED".equalsIgnoreCase(status)
                 && !"DISPATCHED".equalsIgnoreCase(status);
+    }
+
+    private boolean isDispatchRetryEligibleSlip(PackagingSlip slip) {
+        if (slip == null) {
+            return false;
+        }
+        String status = slip.getStatus();
+        return "DISPATCHED".equalsIgnoreCase(status);
     }
 
     private void assertSlipDispatchable(PackagingSlip slip) {

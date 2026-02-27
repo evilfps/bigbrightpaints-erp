@@ -1098,26 +1098,38 @@ class SalesServiceTest {
     }
 
     @Test
-    void confirmDispatchFailsWhenOnlyDispatchedSlipExistsWithoutPackingSlipId() {
+    void confirmDispatchOrderOnlyUsesSingleDispatchedSlipForReplay() {
         SalesOrder order = new SalesOrder();
         setField(order, "id", 10L);
-        order.setStatus("READY_TO_SHIP");
+        order.setStatus("SHIPPED");
 
         PackagingSlip dispatchedSlip = new PackagingSlip();
         dispatchedSlip.setCompany(company);
         dispatchedSlip.setSalesOrder(order);
         dispatchedSlip.setStatus("DISPATCHED");
+        dispatchedSlip.setInvoiceId(700L);
+        dispatchedSlip.setJournalEntryId(701L);
+        dispatchedSlip.setCogsJournalEntryId(702L);
         setField(dispatchedSlip, "id", 55L);
 
         when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 10L))
                 .thenReturn(List.of(dispatchedSlip));
         when(companyEntityLookup.requireSalesOrder(company, 10L)).thenReturn(order);
+        when(invoiceRepository.findByCompanyAndId(company, 700L)).thenReturn(Optional.empty());
+        when(salesOrderRepository.save(ArgumentMatchers.any(SalesOrder.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
 
         DispatchConfirmRequest request = new DispatchConfirmRequest(null, 10L, List.of(), null, null, false, null, null);
 
-        ApplicationException ex = assertThrows(ApplicationException.class, () -> salesService.confirmDispatch(request));
-        assertEquals(ErrorCode.VALIDATION_INVALID_REFERENCE, ex.getErrorCode());
-        assertTrue(ex.getMessage().contains("No active packing slip found for order 10"));
+        DispatchConfirmResponse response = salesService.confirmDispatch(request);
+
+        assertEquals(55L, response.packingSlipId());
+        assertEquals(10L, response.salesOrderId());
+        assertEquals(700L, response.finalInvoiceId());
+        assertEquals(701L, response.arJournalEntryId());
+        assertTrue(response.dispatched());
+        assertTrue(response.cogsPostings().isEmpty());
+        verify(finishedGoodsService, never()).confirmDispatch(ArgumentMatchers.any(), ArgumentMatchers.anyString());
     }
 
     @Test
