@@ -658,6 +658,28 @@
       "quality_flake_monitor": true
     },
     {
+      "id": "ts-runtime-orchestrator-correlation-coverage",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeOrchestratorCorrelationCoverageTest.java",
+      "owner": "erp-domain-team",
+      "class": "critical",
+      "module": "RuntimeCoverage",
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-reconciliation",
+        "gate-quality"
+      ],
+      "tags": [
+        "critical",
+        "concurrency",
+        "reconciliation"
+      ],
+      "accounting_math_critical": false,
+      "cross_module_critical": true,
+      "quality_flake_monitor": true
+    },
+    {
       "id": "ts-runtime-accounting-facade-period-close-boundary",
       "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeAccountingFacadePeriodCloseBoundaryTest.java",
       "owner": "erp-domain-team",

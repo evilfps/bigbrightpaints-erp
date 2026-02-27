@@ -9,7 +9,15 @@ import java.util.List;
 import java.util.Optional;
 
 public interface CreditRequestRepository extends JpaRepository<CreditRequest, Long> {
-    List<CreditRequest> findByCompanyOrderByCreatedAtDesc(Company company);
+    @Query("""
+            select request
+            from CreditRequest request
+            left join fetch request.dealer
+            where request.company = :company
+            order by request.createdAt desc
+            """)
+    List<CreditRequest> findByCompanyWithDealerOrderByCreatedAtDesc(@Param("company") Company company);
+
     List<CreditRequest> findByCompanyAndStatusOrderByCreatedAtDesc(Company company, String status);
 
     @Query("""

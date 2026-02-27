@@ -101,6 +101,12 @@ public class SalesService {
             "PENDING_PRODUCTION",
             "RESERVED"
     );
+    private static final Set<String> CONFIRMABLE_ORDER_STATUSES = Set.of(
+            "BOOKED",
+            "RESERVED",
+            "PENDING_PRODUCTION",
+            "PENDING_INVENTORY"
+    );
     private static final Set<String> VALID_ORDER_STATUSES = Set.of(
             "BOOKED",
             "RESERVED",
@@ -736,6 +742,17 @@ public class SalesService {
     @Transactional
     public SalesOrderDto confirmOrder(Long id) {
         SalesOrder order = requireOrder(id);
+        String currentStatus = normalizeStatusToken(order.getStatus());
+        if ("CONFIRMED".equals(currentStatus)) {
+            return toDto(order);
+        }
+        if (!CONFIRMABLE_ORDER_STATUSES.contains(currentStatus)) {
+            throw new ApplicationException(ErrorCode.BUSINESS_INVALID_STATE,
+                    "Cannot confirm order with status " + currentStatus)
+                    .withDetail("status", currentStatus)
+                    .withDetail("allowedStatuses", CONFIRMABLE_ORDER_STATUSES);
+        }
+        assertOrderMutable(order, "confirm");
         order.setStatus("CONFIRMED");
         return toDto(order);
     }
@@ -1747,7 +1764,7 @@ public class SalesService {
     /* Credit Requests */
     public List<CreditRequestDto> listCreditRequests() {
         Company company = companyContextService.requireCurrentCompany();
-        return creditRequestRepository.findByCompanyOrderByCreatedAtDesc(company).stream().map(this::toDto).toList();
+        return creditRequestRepository.findByCompanyWithDealerOrderByCreatedAtDesc(company).stream().map(this::toDto).toList();
     }
 
     @Transactional

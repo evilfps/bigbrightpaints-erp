@@ -113,9 +113,16 @@ public class SalesControllerIT extends AbstractIntegrationTest {
     }
 
     private Long createCreditRequest(HttpHeaders headers, String reason) {
+        return createCreditRequest(headers, reason, null);
+    }
+
+    private Long createCreditRequest(HttpHeaders headers, String reason, Long dealerId) {
         Map<String, Object> request = new HashMap<>();
         request.put("amountRequested", new BigDecimal("1500.00"));
         request.put("reason", reason);
+        if (dealerId != null) {
+            request.put("dealerId", dealerId);
+        }
 
         ResponseEntity<Map> createResponse = rest.exchange(
                 "/api/v1/sales/credit-requests",
@@ -127,6 +134,22 @@ public class SalesControllerIT extends AbstractIntegrationTest {
         return ((Number) data.get("id")).longValue();
     }
 
+    private Long createDealer(HttpHeaders headers, String dealerName) {
+        Map<String, Object> dealerReq = new HashMap<>();
+        dealerReq.put("name", dealerName);
+        dealerReq.put("companyName", dealerName + " Paints");
+        dealerReq.put("contactEmail", dealerName.toLowerCase().replace(" ", ".") + "@example.com");
+        dealerReq.put("contactPhone", "9999999999");
+        dealerReq.put("address", "Main Street");
+        dealerReq.put("creditLimit", new BigDecimal("100000"));
+
+        ResponseEntity<Map> dealerResponse = rest.exchange("/api/v1/dealers", HttpMethod.POST,
+                new HttpEntity<>(dealerReq, headers), Map.class);
+        assertThat(dealerResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        Map<?, ?> dealerData = (Map<?, ?>) dealerResponse.getBody().get("data");
+        return ((Number) dealerData.get("id")).longValue();
+    }
+
     @Test
     void create_dealer_and_sales_order() {
         String token = loginToken();
@@ -136,19 +159,7 @@ public class SalesControllerIT extends AbstractIntegrationTest {
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.set("X-Company-Id", COMPANY_CODE);
 
-        Map<String, Object> dealerReq = new HashMap<>();
-        dealerReq.put("name", "Prime Dealer");
-        dealerReq.put("companyName", "Prime Dealer Paints");
-        dealerReq.put("contactEmail", "dealer@example.com");
-        dealerReq.put("contactPhone", "9999999999");
-        dealerReq.put("address", "Main Street");
-        dealerReq.put("creditLimit", new BigDecimal("100000"));
-
-        ResponseEntity<Map> dResp = rest.exchange("/api/v1/dealers", HttpMethod.POST,
-                new HttpEntity<>(dealerReq, headers), Map.class);
-        assertThat(dResp.getStatusCode()).isEqualTo(HttpStatus.OK);
-        Map<?, ?> dealerData = (Map<?, ?>) dResp.getBody().get("data");
-        Long dealerId = ((Number) dealerData.get("id")).longValue();
+        Long dealerId = createDealer(headers, "Prime Dealer");
 
         BigDecimal unitPrice = new BigDecimal("100.00");
         BigDecimal quantity = new BigDecimal("2");
@@ -204,6 +215,26 @@ public class SalesControllerIT extends AbstractIntegrationTest {
                 new HttpEntity<>(payload, headers),
                 Map.class);
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+    }
+
+    @Test
+    void credit_requests_list_includes_dealer_name() {
+        String token = loginToken();
+        HttpHeaders headers = authenticatedHeaders(token);
+        Long dealerId = createDealer(headers, "Credit Dealer");
+        createCreditRequest(headers, "Bridge financing request", dealerId);
+
+        ResponseEntity<Map> listResponse = rest.exchange(
+                "/api/v1/sales/credit-requests",
+                HttpMethod.GET,
+                new HttpEntity<>(headers),
+                Map.class);
+        assertThat(listResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+        List<?> data = (List<?>) listResponse.getBody().get("data");
+        assertThat(data)
+                .isNotEmpty()
+                .anySatisfy(item -> assertThat(((Map<?, ?>) item).get("dealerName")).isEqualTo("Credit Dealer"));
     }
 
     @Test
