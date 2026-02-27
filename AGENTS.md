@@ -142,6 +142,64 @@ Reject edits to non-canonical duplicates unless evidence proves why.
 - Duplicate flows can appear valid while being non-canonical.
 - `rag_patch_guard` and `rag_verify_claims` reduce silent regressions and overconfident output.
 
+### MCP Bug-Proving Drill
+Goal: take a suspected bug and prove where it lives, which path is canonical, what it impacts, and which test demonstrates failure then fix.
+
+Non-negotiables:
+- Revision-locked to current branch `HEAD`.
+- Cite-or-refuse for every factual claim.
+- Run `rag_dedupe_resolve` before selecting edit location.
+- Run `rag_patch_guard` before and after code changes.
+- If evidence is weak or ambiguous, return `needs_review` with missing evidence list.
+
+Execution steps:
+1. Bug hypothesis only:
+   - Expected behavior vs actual behavior.
+   - Suspected modules.
+   - Failure class: auth scope, ledger correctness, inventory, tax, or config.
+2. MCP triage:
+   - `rag_guarded_query` for primary implementation path.
+   - `rag_trace_route` for HTTP flow when applicable.
+   - `rag_get_symbol` + callers/callees for call chain.
+   - `rag_dedupe_resolve` for canonical vs duplicate decision.
+   - `rag_related_tests` for existing coverage.
+   - Output: verified call chain + canonical decision + citations.
+3. Reproduction test before fix:
+   - Prefer existing truthsuite/integration if close.
+   - Otherwise add a minimal failing test that proves bug symptom.
+   - Output: test file, test name, assertion, and why it fails pre-fix with citations.
+4. Pre-fix patch guard:
+   - `rag_patch_guard` (or `rag_impact` then `rag_patch_guard`).
+   - Output: verdict + risks + required tests.
+5. Implement smallest canonical fix:
+   - Output: changed files + concise change summary.
+6. Verify fix:
+   - Re-run failing test now passing.
+   - Run required test slice from patch guard.
+   - Run `rag_patch_guard` again and `rag_verify_claims` for PR summary.
+   - Output: pass/fail + evidence.
+
+Required final deliverable:
+1. Bug hypothesis.
+2. Evidence chain (route/job -> handler -> service -> repo -> table/event) with citations.
+3. Canonical decision with citations.
+4. Failing pre-fix test proof.
+5. Fix summary.
+6. Post-fix passing tests.
+7. Patch-guard before/after.
+8. `rag_verify_claims` result.
+
+Fast MCP usefulness scoring (0-2 each, total 12):
+1. Correct canonical location found quickly.
+2. Evidence quality of call chain.
+3. Test relevance and precision.
+4. Blast-radius accuracy.
+5. Noise control.
+6. Refusal discipline (`needs_review` when appropriate).
+
+Production benchmark:
+- A score from 9 to 12 out of 12 means MCP is production-useful.
+
 ## Agent-First Workflow Contract
 - Planner defines architecture intent and boundaries first.
 - Implementation proceeds in isolated parallel slices when dependencies allow.
