@@ -187,7 +187,7 @@ class IntegrationCoordinatorTest {
 
         assertThat(contextsDuringAttach).isNotEmpty();
         assertThat(contextsDuringAttach).allMatch(COMPANY_ID::equals);
-        assertThat(CompanyContextHolder.getCompanyCode()).isEqualTo("AMBIENT-COMPANY");
+        assertThat(CompanyContextHolder.getCompanyCode()).isNull();
     }
 
     @Test
