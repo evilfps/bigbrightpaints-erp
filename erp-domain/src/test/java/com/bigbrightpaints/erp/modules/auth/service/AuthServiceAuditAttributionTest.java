@@ -196,6 +196,25 @@ class AuthServiceAuditAttributionTest {
     }
 
     @Test
+    void loginRejectsNonSuperAdminOutsideTenantMembership() {
+        LoginRequest request = new LoginRequest("tenant-user@example.com", "Passw0rd!", "TARGET", null, null);
+        UserAccount user = userWithCompany("tenant-user@example.com", "ROOT");
+        Role adminRole = new Role();
+        adminRole.setName("ROLE_ADMIN");
+        user.addRole(adminRole);
+        Authentication authentication =
+                new UsernamePasswordAuthenticationToken(new UserPrincipal(user), null);
+
+        when(userAccountRepository.findByEmailIgnoreCase("tenant-user@example.com")).thenReturn(Optional.of(user));
+        when(authenticationManager.authenticate(any())).thenReturn(authentication);
+        when(companyRepository.findByCodeIgnoreCase("TARGET")).thenReturn(Optional.of(company("TARGET")));
+
+        assertThatThrownBy(() -> authService.login(request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("User not assigned to company: TARGET");
+    }
+
+    @Test
     void refreshSuccess_enforcesRuntimePolicy_andReturnsTokens() {
         RefreshTokenRequest request = new RefreshTokenRequest("refresh-old", "acme");
         Instant issuedAt = Instant.parse("2026-01-01T00:00:00Z");

@@ -201,11 +201,7 @@ public class AuthService {
     }
 
     private boolean hasSuperAdminRole(UserAccount user) {
-        if (user == null || user.getRoles() == null) {
-            return false;
-        }
         return user.getRoles().stream()
-                .filter(role -> role != null && role.getName() != null)
                 .anyMatch(role -> SUPER_ADMIN_ROLE.equalsIgnoreCase(role.getName()));
     }
 

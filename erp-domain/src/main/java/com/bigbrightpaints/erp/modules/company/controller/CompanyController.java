@@ -120,11 +120,7 @@ public class CompanyController {
     }
 
     private boolean isSuperAdmin(UserPrincipal principal) {
-        if (principal == null || principal.getUser() == null || principal.getUser().getRoles() == null) {
-            return false;
-        }
         return principal.getUser().getRoles().stream()
-                .filter(role -> role != null && role.getName() != null)
                 .anyMatch(role -> "ROLE_SUPER_ADMIN".equalsIgnoreCase(role.getName()));
     }
 
