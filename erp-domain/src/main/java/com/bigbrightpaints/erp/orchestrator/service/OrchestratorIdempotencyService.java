@@ -171,7 +171,7 @@ public class OrchestratorIdempotencyService {
             byte[] hash = digest.digest(material.getBytes(StandardCharsets.UTF_8));
             return HexFormat.of().formatHex(hash);
         } catch (Exception ex) {
-            return Integer.toHexString(material.hashCode());
+            throw new IllegalStateException("Unable to compute idempotency hash using SHA-256", ex);
         }
     }
 
