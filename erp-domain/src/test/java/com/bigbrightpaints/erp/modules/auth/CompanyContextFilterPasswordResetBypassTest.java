@@ -95,6 +95,23 @@ class CompanyContextFilterPasswordResetBypassTest {
                 .beginRequest(anyString(), anyString(), anyString(), anyString(), anyBoolean());
     }
 
+    @Test
+    void passwordResetEndpoint_rejectsHeaderWithInvisibleUnicodeCharacters()
+            throws ServletException, IOException {
+        String path = "/api/v1/auth/password/reset";
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", path);
+        request.setServletPath(path);
+        request.setRequestURI(path);
+        request.addHeader("X-Company-Code", "TENANT\u200B-A");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, filterChain);
+
+        assertThat(response.getStatus()).isEqualTo(403);
+        verify(filterChain, never()).doFilter(request, response);
+        verifyNoInteractions(companyService);
+    }
+
     private void assertPublicPasswordResetWithoutTenantHeader(String path) throws ServletException, IOException {
         MockHttpServletRequest request = new MockHttpServletRequest("POST", path);
         request.setServletPath(path);
