@@ -3,6 +3,7 @@ package com.bigbrightpaints.erp.modules.company.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
@@ -371,9 +372,7 @@ class CompanyServiceTest {
                 auditService,
                 userAccountRepository,
                 auditLogRepository);
-        Company incoming = company(7L, "SKE");
         when(repository.findByCodeIgnoreCase("SKE")).thenReturn(Optional.empty());
-        when(repository.save(org.mockito.ArgumentMatchers.any(Company.class))).thenReturn(incoming);
 
         CompanyRequest request = new CompanyRequest(
                 "SKE Corp",
@@ -392,6 +391,7 @@ class CompanyServiceTest {
         assertThatThrownBy(() -> serviceWithoutProvisioning.create(request))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("Credential provisioning dependencies are not available");
+        verify(repository, never()).save(any(Company.class));
     }
 
     @Test

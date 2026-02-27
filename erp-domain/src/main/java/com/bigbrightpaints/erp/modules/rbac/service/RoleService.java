@@ -19,6 +19,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
@@ -80,12 +81,20 @@ public class RoleService {
     }
 
     public Permission ensurePermissionExists(String code) {
-        return permissionRepository.findByCode(code).orElseGet(() -> {
-            Permission permission = new Permission();
-            permission.setCode(code);
-            permission.setDescription(code);
+        return permissionRepository.findByCode(code).orElseGet(() -> createPermissionWithRaceRetry(code));
+    }
+
+    private Permission createPermissionWithRaceRetry(String code) {
+        Permission permission = new Permission();
+        permission.setCode(code);
+        permission.setDescription(code);
+        try {
             return permissionRepository.save(permission);
-        });
+        } catch (DataIntegrityViolationException ex) {
+            return permissionRepository.findByCode(code)
+                    .orElseThrow(() -> new IllegalStateException(
+                            "Permission creation race could not be resolved for code: " + code, ex));
+        }
     }
 
     public boolean isSystemRole(String roleName) {

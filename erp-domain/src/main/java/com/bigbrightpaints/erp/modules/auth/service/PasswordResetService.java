@@ -88,20 +88,25 @@ public class PasswordResetService {
         this.tokenCleanupTransactionTemplate.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     }
 
-    @Transactional
     public void requestReset(String email) {
         logTenantContextIgnoredIfPresent("forgot_password", resolveCorrelationId());
         // GLOBAL_IDENTITY policy: one user identity spans all company memberships.
         userAccountRepository.findByEmailIgnoreCase(email)
                 .filter(UserAccount::isEnabled)
                 .ifPresent(user -> {
-                    tokenRepository.deleteByUser(user);
-                    String token = generateToken();
-                    Instant now = Instant.now();
-                    Instant expiresAt = now.plusSeconds(RESET_TOKEN_TTL_SECONDS);
-                    PasswordResetToken resetToken = new PasswordResetToken(user, token, expiresAt);
-                    tokenRepository.save(resetToken);
-                    emailService.sendPasswordResetEmail(user.getEmail(), user.getDisplayName(), token);
+                    String persistedToken = tokenLifecycleTransactionTemplate.execute(status -> {
+                        tokenRepository.deleteByUser(user);
+                        String token = generateToken();
+                        Instant now = Instant.now();
+                        Instant expiresAt = now.plusSeconds(RESET_TOKEN_TTL_SECONDS);
+                        PasswordResetToken resetToken = new PasswordResetToken(user, token, expiresAt);
+                        tokenRepository.save(resetToken);
+                        return token;
+                    });
+                    if (!StringUtils.hasText(persistedToken)) {
+                        throw new IllegalStateException("Failed to persist password reset token");
+                    }
+                    emailService.sendPasswordResetEmail(user.getEmail(), user.getDisplayName(), persistedToken);
                 });
     }
 

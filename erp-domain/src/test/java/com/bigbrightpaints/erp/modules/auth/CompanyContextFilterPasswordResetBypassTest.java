@@ -71,7 +71,7 @@ class CompanyContextFilterPasswordResetBypassTest {
     }
 
     @Test
-    void passwordResetEndpoint_rejectsMismatchedHeaderAgainstAuthenticatedTokenCompany()
+    void passwordResetEndpoint_allowsMismatchedHeaderAgainstAuthenticatedTokenCompany()
             throws ServletException, IOException {
         String path = "/api/v1/auth/password/reset";
         MockHttpServletRequest request = new MockHttpServletRequest("POST", path);
@@ -85,18 +85,18 @@ class CompanyContextFilterPasswordResetBypassTest {
 
         filter.doFilter(request, response, filterChain);
 
-        assertThat(response.getStatus()).isEqualTo(403);
-        verify(filterChain, never()).doFilter(request, response);
+        assertThat(response.getStatus()).isEqualTo(200);
+        verify(filterChain).doFilter(request, response);
         verifyNoInteractions(companyService);
         verify(tenantRuntimeEnforcementService).completeRequest(
                 any(TenantRuntimeEnforcementService.TenantRequestAdmission.class),
-                eq(403));
+                eq(200));
         verify(tenantRuntimeEnforcementService, never())
                 .beginRequest(anyString(), anyString(), anyString(), anyString(), anyBoolean());
     }
 
     @Test
-    void passwordResetEndpoint_rejectsHeaderWithInvisibleUnicodeCharacters()
+    void passwordResetEndpoint_allowsHeaderWithInvisibleUnicodeCharacters()
             throws ServletException, IOException {
         String path = "/api/v1/auth/password/reset";
         MockHttpServletRequest request = new MockHttpServletRequest("POST", path);
@@ -107,9 +107,14 @@ class CompanyContextFilterPasswordResetBypassTest {
 
         filter.doFilter(request, response, filterChain);
 
-        assertThat(response.getStatus()).isEqualTo(403);
-        verify(filterChain, never()).doFilter(request, response);
+        assertThat(response.getStatus()).isEqualTo(200);
+        verify(filterChain).doFilter(request, response);
         verifyNoInteractions(companyService);
+        verify(tenantRuntimeEnforcementService).completeRequest(
+                any(TenantRuntimeEnforcementService.TenantRequestAdmission.class),
+                eq(200));
+        verify(tenantRuntimeEnforcementService, never())
+                .beginRequest(anyString(), anyString(), anyString(), anyString(), anyBoolean());
     }
 
     private void assertPublicPasswordResetWithoutTenantHeader(String path) throws ServletException, IOException {

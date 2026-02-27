@@ -114,6 +114,9 @@ public class CompanyService {
         String normalizedCompanyCode = normalizeCompanyCode(request.code());
         Authentication authentication = requireSuperAdminForTenantBootstrap(normalizedCompanyCode);
         ensureCompanyCodeAvailableForCreate(normalizedCompanyCode);
+        if (StringUtils.hasText(request.firstAdminEmail())) {
+            requireCredentialProvisioningReady();
+        }
         Company company = new Company();
         company.setName(request.name());
         company.setCode(normalizedCompanyCode);
@@ -474,7 +477,6 @@ public class CompanyService {
         if (!StringUtils.hasText(firstAdminEmail)) {
             return;
         }
-        requireCredentialProvisioningReady();
         tenantAdminProvisioningService.provisionInitialAdmin(company, firstAdminEmail, firstAdminDisplayName);
     }
 

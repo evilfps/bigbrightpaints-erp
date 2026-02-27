@@ -285,7 +285,7 @@ class TS_RuntimeCompanyContextFilterExecutableCoverageTest {
     }
 
     @Test
-    void doFilter_rejectsPublicPasswordResetRequestWithTenantHeaderEvenWithTrailingSlash()
+    void doFilter_allowsPublicPasswordResetRequestWithTenantHeaderEvenWithTrailingSlash()
             throws ServletException, IOException {
         MockHttpServletRequest request = request("POST", "/api/v1/auth/password/forgot/superadmin/");
         request.addHeader("X-Company-Code", "ACME");
@@ -293,11 +293,11 @@ class TS_RuntimeCompanyContextFilterExecutableCoverageTest {
 
         filter.doFilter(request, response, filterChain);
 
-        assertThat(response.getStatus()).isEqualTo(403);
-        verify(filterChain, never()).doFilter(request, response);
+        assertThat(response.getStatus()).isEqualTo(200);
+        verify(filterChain).doFilter(request, response);
         verifyNoInteractions(companyService);
         verify(tenantRuntimeEnforcementService).completeRequest(
-                any(TenantRuntimeEnforcementService.TenantRequestAdmission.class), eq(403));
+                any(TenantRuntimeEnforcementService.TenantRequestAdmission.class), eq(200));
         verify(tenantRuntimeEnforcementService, never())
                 .beginRequest(anyString(), anyString(), anyString(), anyString(), anyBoolean());
     }

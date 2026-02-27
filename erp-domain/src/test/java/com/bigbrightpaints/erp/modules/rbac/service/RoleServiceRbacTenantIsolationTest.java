@@ -17,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -126,6 +127,29 @@ class RoleServiceRbacTenantIsolationTest {
         assertThat(ensured.getName()).isEqualTo("ROLE_DEALER");
         assertThat(ensured.getPermissions()).extracting(Permission::getCode).contains("portal:dealer");
         verify(auditService, never()).logFailure(eq(AuditEvent.ACCESS_DENIED), any(Map.class));
+    }
+
+    @Test
+    void ensureRoleExists_recoversFromConcurrentPermissionInsertRace() {
+        RoleService service = new RoleService(roleRepository, permissionRepository, auditService);
+        setAuthentication("tenant-admin@bbp.com", "ROLE_ADMIN");
+        CompanyContextHolder.setCompanyCode("AUTH-TENANT-A");
+
+        Permission recoveredPermission = new Permission();
+        recoveredPermission.setCode("portal:dealer");
+        recoveredPermission.setDescription("portal:dealer");
+
+        when(permissionRepository.findByCode("portal:dealer"))
+                .thenReturn(Optional.empty(), Optional.of(recoveredPermission));
+        when(permissionRepository.save(any(Permission.class)))
+                .thenThrow(new DataIntegrityViolationException("duplicate permission code"));
+        when(roleRepository.lockByName("ROLE_DEALER")).thenReturn(Optional.empty());
+        when(roleRepository.save(any(Role.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Role ensured = service.ensureRoleExists("ROLE_DEALER");
+
+        assertThat(ensured.getPermissions()).extracting(Permission::getCode).contains("portal:dealer");
+        verify(permissionRepository).save(any(Permission.class));
     }
 
     private void setAuthentication(String username, String... authorities) {

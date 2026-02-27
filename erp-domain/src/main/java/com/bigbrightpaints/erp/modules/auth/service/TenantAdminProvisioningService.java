@@ -11,6 +11,8 @@ import com.bigbrightpaints.erp.modules.rbac.service.RoleService;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StringUtils;
 
 import java.util.Locale;
@@ -62,7 +64,7 @@ public class TenantAdminProvisioningService {
         firstAdmin.addCompany(company);
         firstAdmin.addRole(adminRole);
         userAccountRepository.save(firstAdmin);
-        emailService.sendUserCredentialsEmailRequired(
+        sendCredentialsEmailAfterCommit(
                 firstAdmin.getEmail(),
                 firstAdmin.getDisplayName(),
                 temporaryPassword,
@@ -87,19 +89,41 @@ public class TenantAdminProvisioningService {
             throw new IllegalArgumentException("Target user is not an admin for company: " + company.getCode());
         }
         String temporaryPassword = PasswordUtils.generateTemporaryPassword(14);
+        tokenBlacklistService.revokeAllUserTokens(user.getEmail());
+        refreshTokenService.revokeAllForUser(user.getEmail());
         user.setPasswordHash(passwordEncoder.encode(temporaryPassword));
         user.setMustChangePassword(true);
         user.setFailedLoginAttempts(0);
         user.setLockedUntil(null);
         userAccountRepository.save(user);
-        tokenBlacklistService.revokeAllUserTokens(user.getEmail());
-        refreshTokenService.revokeAllForUser(user.getEmail());
-        emailService.sendUserCredentialsEmailRequired(
+        sendCredentialsEmailAfterCommit(
                 user.getEmail(),
                 user.getDisplayName(),
                 temporaryPassword,
                 company.getCode());
         return user.getEmail();
+    }
+
+    private void sendCredentialsEmailAfterCommit(String email,
+                                                 String displayName,
+                                                 String temporaryPassword,
+                                                 String companyCode) {
+        Runnable sendEmail = () -> emailService.sendUserCredentialsEmailRequired(
+                email,
+                displayName,
+                temporaryPassword,
+                companyCode);
+        if (TransactionSynchronizationManager.isSynchronizationActive()
+                && TransactionSynchronizationManager.isActualTransactionActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    sendEmail.run();
+                }
+            });
+            return;
+        }
+        sendEmail.run();
     }
 
     private String resolveFirstAdminDisplayName(String requestedDisplayName, Company company) {

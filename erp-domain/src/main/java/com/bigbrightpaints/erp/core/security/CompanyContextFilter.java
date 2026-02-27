@@ -20,6 +20,7 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.text.Normalizer;
 import java.util.Locale;
 import java.util.Set;
 
@@ -56,6 +57,10 @@ public class CompanyContextFilter extends OncePerRequestFilter {
             String runtimePath = resolveApplicationPath(request);
             boolean publicPasswordResetRequest = isPublicPasswordResetRequest(runtimePath, request.getMethod());
             boolean lifecycleControlRequest = isLifecycleControlRequest(runtimePath, request.getMethod());
+            if (publicPasswordResetRequest) {
+                filterChain.doFilter(request, response);
+                return;
+            }
             if (lifecycleControlRequest && !hasAuthenticatedPrincipal()) {
                 denyControlPlaneRequest(response);
                 return;
@@ -127,10 +132,6 @@ public class CompanyContextFilter extends OncePerRequestFilter {
                     return;
                 }
                 requestedCompany = null;
-            }
-            if (publicPasswordResetRequest) {
-                filterChain.doFilter(request, response);
-                return;
             }
             String companyCode = StringUtils.hasText(requestedCompany) ? requestedCompany : null;
             boolean lifecycleControlBypass = false;
@@ -434,16 +435,20 @@ public class CompanyContextFilter extends OncePerRequestFilter {
         if (!StringUtils.hasText(rawCompanyCode)) {
             return null;
         }
-        String normalized = rawCompanyCode.strip();
+        String normalized = Normalizer.normalize(rawCompanyCode, Normalizer.Form.NFKC).strip();
         if (!StringUtils.hasText(normalized)) {
             return null;
         }
         for (int i = 0; i < normalized.length(); i++) {
             char ch = normalized.charAt(i);
-            if (Character.isLetterOrDigit(ch) || ch == '-' || ch == '_' || ch == '.' || ch == ':') {
-                continue;
+            int type = Character.getType(ch);
+            if (Character.isISOControl(ch)
+                    || type == Character.FORMAT
+                    || type == Character.PRIVATE_USE
+                    || type == Character.SURROGATE
+                    || type == Character.UNASSIGNED) {
+                return null;
             }
-            return null;
         }
         return normalized.toUpperCase(Locale.ROOT);
     }

@@ -90,6 +90,58 @@ Human-friendly alias: `AGENTMAP.md`.
 6. `bash scripts/verify_local.sh`
 7. CI parity gates as needed.
 
+## RAG MCP Playbook
+Use the RAG sidecar as a verification helper, never as the source of truth.
+
+### Non-Negotiable Rules
+- Always work revision-locked on the current branch with the latest pulled code.
+- Cite-or-refuse: if there is no file/line evidence, explicitly state `can't confirm`.
+- Never edit before running `rag_guarded_query` and `rag_dedupe_resolve`.
+- Run `rag_patch_guard` before every PR/update.
+- If canonical/duplicate resolution is ambiguous, mark `needs_review` and block risky edits until evidence is strengthened.
+
+### Daily Workflow (All Agents)
+1. Sync branch and refresh index:
+   - `BASE="$(git merge-base HEAD origin/harness-engineering-orchestrator)"`
+   - `bash scripts/rag_index.sh --changed-only --diff-base "$BASE"`
+   - `bash scripts/rag_silent_failures.sh --json`
+2. Understand task context:
+   - `rag_ticket_context`
+   - `rag_agent_slices`
+3. Find exact implementation path:
+   - `rag_guarded_query` (where to edit, call-chain)
+   - `rag_dedupe_resolve` (canonical vs duplicate)
+4. Before coding:
+   - `rag_impact` / `rag_patch_guard` (blast radius + risk)
+5. After coding:
+   - `rag_patch_guard` again
+   - `rag_verify_claims` for PR summary truthfulness
+
+### Prompt Format For Agents
+- `Use MCP only with cite-or-refuse.`
+- Return exactly: files to edit, why canonical, affected modules, risks, required tests.
+- If evidence is weak, return `needs_review` and do not guess.
+
+### Token-Efficient Defaults
+- `rag_guarded_query`: `top_k=6..8`, `depth=2`, `candidate_limit<=180`.
+- Keep payload compact by default; expand only for deep incident debugging.
+
+### Management Checklist
+Require each update to include:
+1. Proposed edit files.
+2. Call-chain evidence.
+3. Cross-module impact list.
+4. Silent-failure findings in touched flow.
+5. Patch-guard result (`PASS`/`WARN`/`FAIL`).
+
+Reject updates with no citations.
+Reject edits to non-canonical duplicates unless evidence proves why.
+
+### Why Verification Is Mandatory
+- Static retrieval can produce false positives in complex ERP code.
+- Duplicate flows can appear valid while being non-canonical.
+- `rag_patch_guard` and `rag_verify_claims` reduce silent regressions and overconfident output.
+
 ## Agent-First Workflow Contract
 - Planner defines architecture intent and boundaries first.
 - Implementation proceeds in isolated parallel slices when dependencies allow.
