@@ -19,11 +19,11 @@ import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.sales.util.DealerProvisioningSupport;
-import jakarta.transaction.Transactional;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.util.LinkedHashSet;
@@ -303,6 +303,10 @@ public class AdminUserService {
                 if (roleService.isSystemRole(withPrefix)) {
                     normalized = withPrefix;
                 }
+            }
+            if (SUPER_ADMIN_ROLE.equalsIgnoreCase(normalized) && !hasSuperAdminAuthority()) {
+                throw new org.springframework.security.access.AccessDeniedException(
+                        "SUPER_ADMIN authority required to assign role: " + normalized);
             }
             // Allow both system roles and custom roles
             Role role = roleService.ensureRoleExists(normalized);

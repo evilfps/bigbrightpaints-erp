@@ -28,7 +28,7 @@ public class RoleController {
     @GetMapping
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SUPER_ADMIN')")
     public ResponseEntity<ApiResponse<List<RoleDto>>> listRoles() {
-        return ResponseEntity.ok(ApiResponse.success("Platform roles", roleService.listRoles()));
+        return ResponseEntity.ok(ApiResponse.success("Platform roles", roleService.listRolesForCurrentActor()));
     }
 
     @GetMapping("/{roleKey}")
@@ -39,7 +39,7 @@ public class RoleController {
             normalized = "ROLE_" + normalized;
         }
         String target = normalized;
-        RoleDto match = roleService.listRoles().stream()
+        RoleDto match = roleService.listRolesForCurrentActor().stream()
                 .filter(r -> r.name() != null && r.name().equalsIgnoreCase(target))
                 .findFirst()
                 .orElseGet(() -> new RoleDto(null, target, target, List.of()));
@@ -47,7 +47,7 @@ public class RoleController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SUPER_ADMIN')")
+    @PreAuthorize("hasAuthority('ROLE_SUPER_ADMIN')")
     public ResponseEntity<ApiResponse<RoleDto>> createRole(@Valid @RequestBody CreateRoleRequest request) {
         return ResponseEntity.ok(ApiResponse.success("Role saved", roleService.createRole(request)));
     }

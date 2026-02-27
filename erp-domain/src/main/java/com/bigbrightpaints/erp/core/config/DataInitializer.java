@@ -61,7 +61,6 @@ public class DataInitializer {
                     userRepository,
                     companyRepository,
                     passwordEncoder,
-                    adminRole,
                     superAdminRole,
                     superAdminEmail,
                     superAdminPassword,
@@ -137,7 +136,6 @@ public class DataInitializer {
     private Company seedConfiguredSuperAdmin(UserAccountRepository userRepository,
                                              CompanyRepository companyRepository,
                                              PasswordEncoder passwordEncoder,
-                                             Role adminRole,
                                              Role superAdminRole,
                                              String configuredEmail,
                                              String configuredPassword,
@@ -176,7 +174,6 @@ public class DataInitializer {
         superAdmin.setDisplayName(SUPER_ADMIN_DISPLAY_NAME);
         ensureCompanyMembership(superAdmin, superAdminCompany);
         ensureRoleMembership(superAdmin, superAdminRole);
-        ensureRoleMembership(superAdmin, adminRole);
         userRepository.save(superAdmin);
         return superAdminCompany;
     }

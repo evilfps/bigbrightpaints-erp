@@ -26,6 +26,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.List;
@@ -229,6 +230,39 @@ class AdminUserServiceTest {
                     List.of("ROLE_SALES")
             ))).isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("Company not found: 99");
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
+    }
+
+    @Test
+    void createUser_nonSuperAdminCannotAssignSuperAdminRole() {
+        assertThatThrownBy(() -> service.createUser(new CreateUserRequest(
+                "tenant-user@example.com",
+                "Password@123",
+                "Tenant User",
+                List.of(1L),
+                List.of("ROLE_SUPER_ADMIN")
+        ))).isInstanceOf(AccessDeniedException.class)
+                .hasMessageContaining("SUPER_ADMIN authority required");
+    }
+
+    @Test
+    void createUser_superAdminCanAssignSuperAdminRole() {
+        SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(
+                "super-admin@bbp.com",
+                "n/a",
+                List.of(new SimpleGrantedAuthority("ROLE_SUPER_ADMIN"))));
+        when(companyRepository.findAllById(any())).thenReturn(List.of(company));
+        try {
+            service.createUser(new CreateUserRequest(
+                    "platform-owner@example.com",
+                    "Password@123",
+                    "Platform Owner",
+                    List.of(1L),
+                    List.of("ROLE_SUPER_ADMIN")
+            ));
+            verify(userRepository).save(any(UserAccount.class));
         } finally {
             SecurityContextHolder.clearContext();
         }

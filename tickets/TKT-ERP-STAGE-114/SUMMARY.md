@@ -3,7 +3,7 @@
 - title: RAG MCP Context Engine rollout
 - goal: Deploy RAG MCP context engine for agent-safe ERP development with local dev tooling and CI sidecar; include usage docs and early regression guards for cross-module flows/idempotency mismatches.
 - priority: high
-- status: planned
+- status: in_progress
 - base_branch: harness-engineering-orchestrator
 - created_at: 2026-02-26T22:52:00+00:00
 - updated_at: 2026-02-26T22:52:00+00:00

@@ -26,6 +26,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -126,6 +127,29 @@ class RoleServiceRbacTenantIsolationTest {
         assertThat(ensured.getName()).isEqualTo("ROLE_DEALER");
         assertThat(ensured.getPermissions()).extracting(Permission::getCode).contains("portal:dealer");
         verify(auditService, never()).logFailure(eq(AuditEvent.ACCESS_DENIED), any(Map.class));
+    }
+
+    @Test
+    void listRolesForCurrentActor_hidesSuperAdminRole_forTenantAdmin() {
+        RoleService service = new RoleService(roleRepository, permissionRepository, auditService);
+        setAuthentication("tenant-admin@bbp.com", "ROLE_ADMIN");
+        when(roleRepository.findByNameIn(anyCollection())).thenReturn(List.of());
+
+        List<RoleDto> roles = service.listRolesForCurrentActor();
+
+        assertThat(roles).isNotEmpty();
+        assertThat(roles).extracting(RoleDto::name).doesNotContain("ROLE_SUPER_ADMIN");
+    }
+
+    @Test
+    void listRolesForCurrentActor_keepsSuperAdminRole_forSuperAdmin() {
+        RoleService service = new RoleService(roleRepository, permissionRepository, auditService);
+        setAuthentication("super-admin@bbp.com", "ROLE_SUPER_ADMIN");
+        when(roleRepository.findByNameIn(anyCollection())).thenReturn(List.of());
+
+        List<RoleDto> roles = service.listRolesForCurrentActor();
+
+        assertThat(roles).extracting(RoleDto::name).contains("ROLE_SUPER_ADMIN");
     }
 
     private void setAuthentication(String username, String... authorities) {
