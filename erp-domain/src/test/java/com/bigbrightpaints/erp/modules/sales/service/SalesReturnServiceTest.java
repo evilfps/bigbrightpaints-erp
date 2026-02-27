@@ -31,6 +31,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
@@ -91,7 +92,7 @@ class SalesReturnServiceTest {
         );
         company = new Company();
         company.setTimezone("UTC");
-        when(companyContextService.requireCurrentCompany()).thenReturn(company);
+        lenient().when(companyContextService.requireCurrentCompany()).thenReturn(company);
         lenient().when(companyAccountingSettingsService.requireTaxAccounts())
                 .thenReturn(new CompanyAccountingSettingsService.TaxAccountConfiguration(900L, 800L, null));
     }
@@ -476,8 +477,113 @@ class SalesReturnServiceTest {
                     assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_INVALID_STATE);
                     assertThat(ex.getDetails())
                             .containsEntry("reasonCode", "RETURN_REQUIRES_DISPATCH_COST_RECONCILIATION")
-                            .containsEntry("productCode", "FG-1");
+                            .containsEntry("productCode", "FG-1")
+                            .containsEntry("invoiceLineId", 55L)
+                            .containsEntry("remediation", "Reconcile dispatch cost layers for this invoice line and retry the return");
                 });
+    }
+
+    @Test
+    void processReturn_rejectsWhenReturnQuantityExceedsDispatchedLayers() {
+        Dealer dealer = new Dealer();
+        dealer.setCompany(company);
+        dealer.setName("Retail Partner");
+        Account receivable = new Account();
+        setField(receivable, "id", 72L);
+        dealer.setReceivableAccount(receivable);
+        setField(dealer, "id", 9L);
+
+        SalesOrder salesOrder = new SalesOrder();
+        setField(salesOrder, "id", 303L);
+
+        Invoice invoice = new Invoice();
+        invoice.setCompany(company);
+        invoice.setDealer(dealer);
+        invoice.setSalesOrder(salesOrder);
+        invoice.setInvoiceNumber("INV-3");
+        setField(invoice, "id", 30L);
+
+        InvoiceLine line = new InvoiceLine();
+        line.setInvoice(invoice);
+        line.setProductCode("FG-3");
+        line.setQuantity(new BigDecimal("2"));
+        line.setUnitPrice(new BigDecimal("100"));
+        line.setLineTotal(new BigDecimal("200"));
+        setField(line, "id", 77L);
+        invoice.getLines().add(line);
+
+        FinishedGood fg = new FinishedGood();
+        fg.setCompany(company);
+        fg.setProductCode("FG-3");
+        setField(fg, "id", 23L);
+
+        InventoryMovement dispatchMovement = new InventoryMovement();
+        dispatchMovement.setFinishedGood(fg);
+        dispatchMovement.setReferenceType(InventoryReference.SALES_ORDER);
+        dispatchMovement.setReferenceId("303");
+        dispatchMovement.setMovementType("DISPATCH");
+        dispatchMovement.setQuantity(new BigDecimal("1"));
+        dispatchMovement.setUnitCost(new BigDecimal("50"));
+
+        when(invoiceRepository.lockByCompanyAndId(company, 30L)).thenReturn(Optional.of(invoice));
+        when(finishedGoodRepository.lockByCompanyAndProductCode(company, "FG-3")).thenReturn(Optional.of(fg));
+        when(inventoryMovementRepository.findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdOrderByCreatedAtAsc(
+                eq(company),
+                eq(InventoryReference.SALES_ORDER),
+                eq("303"))
+        ).thenReturn(List.of(dispatchMovement));
+        when(inventoryMovementRepository.findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdOrderByCreatedAtAsc(
+                eq(company),
+                eq("SALES_RETURN"),
+                eq("INV-3")
+        )).thenReturn(List.of());
+        when(inventoryMovementRepository.findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdStartingWithOrderByCreatedAtAsc(
+                eq(company),
+                eq("SALES_RETURN"),
+                eq("INV-3:")
+        )).thenReturn(List.of());
+
+        SalesReturnRequest request = new SalesReturnRequest(
+                30L,
+                "Return above dispatched quantity",
+                List.of(new SalesReturnRequest.ReturnLine(77L, new BigDecimal("2")))
+        );
+
+        assertThatThrownBy(() -> salesReturnService.processReturn(request))
+                .isInstanceOfSatisfying(ApplicationException.class, ex -> {
+                    assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_INVALID_STATE);
+                    assertThat(ex.getDetails())
+                            .containsEntry("reasonCode", "RETURN_REQUIRES_DISPATCH_COST_RECONCILIATION")
+                            .containsEntry("productCode", "FG-3")
+                            .containsEntry("invoiceLineId", 77L)
+                            .containsEntry("requestedQuantity", "2")
+                            .containsEntry("uncoveredQuantity", "1");
+                });
+    }
+
+    @Test
+    void dispatchCostReconciliationRequired_usesFallbackContextWhenEntitiesMissing() throws Exception {
+        Method helper = SalesReturnService.class.getDeclaredMethod(
+                "dispatchCostReconciliationRequired",
+                FinishedGood.class,
+                InvoiceLine.class,
+                String.class
+        );
+        helper.setAccessible(true);
+
+        ApplicationException ex = (ApplicationException) helper.invoke(
+                salesReturnService,
+                null,
+                null,
+                "Dispatch cost layers are missing"
+        );
+
+        assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_INVALID_STATE);
+        assertThat(ex.getMessage()).contains("UNKNOWN");
+        assertThat(ex.getDetails())
+                .containsEntry("reasonCode", "RETURN_REQUIRES_DISPATCH_COST_RECONCILIATION")
+                .containsEntry("productCode", "UNKNOWN")
+                .containsEntry("invoiceLineId", null);
     }
 
     @Test
