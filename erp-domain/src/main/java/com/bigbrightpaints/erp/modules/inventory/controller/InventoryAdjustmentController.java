@@ -5,6 +5,7 @@ import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.util.IdempotencyHeaderUtils;
 import com.bigbrightpaints.erp.modules.inventory.dto.InventoryAdjustmentDto;
 import com.bigbrightpaints.erp.modules.inventory.dto.InventoryAdjustmentRequest;
+import com.bigbrightpaints.erp.modules.inventory.dto.InventoryAdjustmentReversalRequest;
 import com.bigbrightpaints.erp.modules.inventory.service.InventoryAdjustmentService;
 import com.bigbrightpaints.erp.shared.dto.ApiResponse;
 import jakarta.validation.ConstraintViolation;
@@ -49,6 +50,19 @@ public class InventoryAdjustmentController {
                 inventoryAdjustmentService.createAdjustment(resolved)));
     }
 
+    @PostMapping("/{adjustmentId}/reverse")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
+    public ResponseEntity<ApiResponse<InventoryAdjustmentDto>> reverseAdjustment(
+            @PathVariable Long adjustmentId,
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
+            @RequestHeader(value = "X-Idempotency-Key", required = false) String legacyIdempotencyKey,
+            @RequestBody(required = false) InventoryAdjustmentReversalRequest request) {
+        InventoryAdjustmentReversalRequest resolved =
+                applyReversalIdempotencyKey(request, idempotencyKey, legacyIdempotencyKey);
+        return ResponseEntity.ok(ApiResponse.success("Inventory adjustment reversed",
+                inventoryAdjustmentService.reverseAdjustment(adjustmentId, resolved)));
+    }
+
     private InventoryAdjustmentRequest applyIdempotencyKey(InventoryAdjustmentRequest request,
                                                            String idempotencyKeyHeader,
                                                            String legacyIdempotencyKeyHeader) {
@@ -84,5 +98,32 @@ public class InventoryAdjustmentController {
         if (!violations.isEmpty()) {
             throw new ConstraintViolationException(violations);
         }
+    }
+
+    private InventoryAdjustmentReversalRequest applyReversalIdempotencyKey(InventoryAdjustmentReversalRequest request,
+                                                                           String idempotencyKeyHeader,
+                                                                           String legacyIdempotencyKeyHeader) {
+        if (request == null) {
+            throw new ApplicationException(ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD,
+                    "Inventory adjustment reversal request is required");
+        }
+        String resolvedKey = IdempotencyHeaderUtils.resolveBodyOrHeaderKey(
+                request.idempotencyKey(),
+                idempotencyKeyHeader,
+                legacyIdempotencyKeyHeader
+        );
+        if (!StringUtils.hasText(request.idempotencyKey())) {
+            if (!StringUtils.hasText(resolvedKey)) {
+                throw new ApplicationException(ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD,
+                        "Idempotency-Key header is required");
+            }
+            return new InventoryAdjustmentReversalRequest(
+                    request.reversalDate(),
+                    request.reason(),
+                    request.adminOverride(),
+                    resolvedKey
+            );
+        }
+        return request;
     }
 }

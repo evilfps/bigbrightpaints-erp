@@ -124,3 +124,20 @@ mvn -B -ntp -f erp-domain/pom.xml org.flywaydb:flyway-maven-plugin:repair \
   - do not edit applied migration files;
   - if bad permission links are detected post-apply, ship a compensating v2 migration to remove/replace incorrect `role_permissions` rows;
   - if rollout must pause pre-apply, hold deployment and re-run v2 validate before resume.
+
+## V22 Execution Notes (2026-02-28)
+- Migration: `erp-domain/src/main/resources/db/migration_v2/V22__inventory_adjustment_reversal_chain.sql`
+- Change type: additive schema extension for inventory adjustment reversal chain (`reversal_of_adjustment_id` FK + index + one-reversal-per-original unique index).
+- Forward plan:
+  - apply V22 through the standard Flyway v2 chain after V21;
+  - deploy runtime that writes/reads `inventory_adjustments.reversal_of_adjustment_id` in the same release wave;
+  - verify one reverse action produces exactly one linked reversal row and blocks second reversal attempts.
+- Dry-run / validation commands:
+  1. `bash scripts/flyway_overlap_scan.sh --migration-set v2`
+  2. `bash scripts/schema_drift_scan.sh --migration-set v2`
+  3. `mvn -B -ntp -f erp-domain/pom.xml -DskipTests flyway:validate -Pflyway-v2`
+  4. `mvn -B -ntp -f erp-domain/pom.xml -Dtest='InventoryAdjustmentControllerTest,CR_INV_AdjustmentIdempotencyTest' test`
+- Rollback/forward-fix strategy:
+  - avoid destructive rollback in-place once the runtime starts writing reversal links;
+  - if migration applies but runtime rollout is blocked, keep feature usage paused and ship a forward-fix patch release;
+  - if index/FK behavior must change, ship a new v2 compensating migration (do not edit V22).

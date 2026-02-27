@@ -93,3 +93,16 @@ Record one immutable evidence entry per rollback event or drill with these requi
   1. halt deployment before V21 is applied.
   2. run Flyway v2 `validate` and confirm pending set is intact.
   3. resume rollout only after approval with corrected migration plan.
+
+## V22 Rollback/Forward-Fix Notes (2026-02-28)
+- Migration: `erp-domain/src/main/resources/db/migration_v2/V22__inventory_adjustment_reversal_chain.sql`
+- Primary strategy: forward-fix (preferred). This migration introduces reversal-chain linkage (`reversal_of_adjustment_id`) and uniqueness constraints used by runtime reversal logic, so in-place rollback after writes begin is high risk.
+- Forward-fix path:
+  1. pause reversal operations and enter controlled maintenance window.
+  2. ship a compensating `migration_v2` script to adjust index/FK behavior if needed.
+  3. rerun inventory adjustment reversal smoke checks and linked journal reversal checks.
+  4. attach compensating migration SQL + verification logs to incident/change evidence.
+- Emergency rollback path (pre-apply only):
+  1. stop rollout before V22 migration execution.
+  2. run Flyway v2 `validate` to confirm pending chain consistency.
+  3. resume only with approved migration plan or amended forward-fix sequence.

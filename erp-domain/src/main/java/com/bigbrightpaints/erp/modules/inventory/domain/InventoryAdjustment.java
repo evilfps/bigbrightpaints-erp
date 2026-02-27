@@ -60,6 +60,13 @@ public class InventoryAdjustment extends VersionedEntity {
     @Column(name = "created_by")
     private String createdBy;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "reversal_of_adjustment_id")
+    private InventoryAdjustment reversalOf;
+
+    @OneToOne(mappedBy = "reversalOf", fetch = FetchType.LAZY)
+    private InventoryAdjustment reversalEntry;
+
     @OneToMany(mappedBy = "adjustment", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<InventoryAdjustmentLine> lines = new ArrayList<>();
 
@@ -178,6 +185,22 @@ public class InventoryAdjustment extends VersionedEntity {
 
     public void setCreatedBy(String createdBy) {
         this.createdBy = createdBy;
+    }
+
+    public InventoryAdjustment getReversalOf() {
+        return reversalOf;
+    }
+
+    public void setReversalOf(InventoryAdjustment reversalOf) {
+        this.reversalOf = reversalOf;
+    }
+
+    public InventoryAdjustment getReversalEntry() {
+        return reversalEntry;
+    }
+
+    public void setReversalEntry(InventoryAdjustment reversalEntry) {
+        this.reversalEntry = reversalEntry;
     }
 
     public List<InventoryAdjustmentLine> getLines() {

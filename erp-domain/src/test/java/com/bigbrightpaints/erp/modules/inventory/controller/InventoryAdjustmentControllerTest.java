@@ -4,6 +4,7 @@ import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryAdjustmentType;
 import com.bigbrightpaints.erp.modules.inventory.dto.InventoryAdjustmentRequest;
+import com.bigbrightpaints.erp.modules.inventory.dto.InventoryAdjustmentReversalRequest;
 import com.bigbrightpaints.erp.modules.inventory.service.InventoryAdjustmentService;
 import jakarta.validation.ConstraintViolationException;
 import jakarta.validation.Validation;
@@ -112,6 +113,48 @@ class InventoryAdjustmentControllerTest {
                 .isInstanceOf(ConstraintViolationException.class);
     }
 
+    @Test
+    void reverseAdjustment_rejectsWhenRequestMissing() {
+        InventoryAdjustmentController controller = controller();
+
+        assertThatThrownBy(() -> controller.reverseAdjustment(77L, "header-key", null, null))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("reversal request is required");
+        verifyNoInteractions(inventoryAdjustmentService);
+    }
+
+    @Test
+    void reverseAdjustment_appliesHeaderIdempotencyKeyWhenBodyMissing() {
+        InventoryAdjustmentController controller = controller();
+        when(inventoryAdjustmentService.reverseAdjustment(any(), any())).thenReturn(null);
+
+        InventoryAdjustmentReversalRequest request = new InventoryAdjustmentReversalRequest(
+                LocalDate.of(2026, 2, 10),
+                "operator correction",
+                Boolean.FALSE,
+                null
+        );
+        controller.reverseAdjustment(55L, "header-key", null, request);
+
+        ArgumentCaptor<Long> adjustmentIdCaptor = ArgumentCaptor.forClass(Long.class);
+        ArgumentCaptor<InventoryAdjustmentReversalRequest> requestCaptor =
+                ArgumentCaptor.forClass(InventoryAdjustmentReversalRequest.class);
+        verify(inventoryAdjustmentService).reverseAdjustment(adjustmentIdCaptor.capture(), requestCaptor.capture());
+        assertThat(adjustmentIdCaptor.getValue()).isEqualTo(55L);
+        assertThat(requestCaptor.getValue().idempotencyKey()).isEqualTo("header-key");
+    }
+
+    @Test
+    void reverseAdjustment_rejectsHeaderBodyMismatch() {
+        InventoryAdjustmentController controller = controller();
+        InventoryAdjustmentReversalRequest request = validReversalRequest("body-key");
+
+        assertThatThrownBy(() -> controller.reverseAdjustment(12L, "header-key", null, request))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Idempotency key mismatch");
+        verifyNoInteractions(inventoryAdjustmentService);
+    }
+
     private InventoryAdjustmentController controller() {
         Validator validator = Validation.buildDefaultValidatorFactory().getValidator();
         return new InventoryAdjustmentController(inventoryAdjustmentService, validator);
@@ -131,6 +174,15 @@ class InventoryAdjustmentControllerTest {
                         new BigDecimal("10.00"),
                         "Damaged"
                 ))
+        );
+    }
+
+    private InventoryAdjustmentReversalRequest validReversalRequest(String idempotencyKey) {
+        return new InventoryAdjustmentReversalRequest(
+                LocalDate.of(2026, 2, 10),
+                "operator correction",
+                Boolean.FALSE,
+                idempotencyKey
         );
     }
 }

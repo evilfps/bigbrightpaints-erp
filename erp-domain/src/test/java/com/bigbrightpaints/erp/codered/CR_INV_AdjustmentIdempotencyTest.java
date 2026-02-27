@@ -18,10 +18,12 @@ import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryAdjustment;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryAdjustmentRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryAdjustmentType;
+import com.bigbrightpaints.erp.modules.inventory.domain.InventoryMovementRepository;
 import com.bigbrightpaints.erp.modules.inventory.dto.FinishedGoodBatchRequest;
 import com.bigbrightpaints.erp.modules.inventory.dto.FinishedGoodRequest;
 import com.bigbrightpaints.erp.modules.inventory.dto.InventoryAdjustmentDto;
 import com.bigbrightpaints.erp.modules.inventory.dto.InventoryAdjustmentRequest;
+import com.bigbrightpaints.erp.modules.inventory.dto.InventoryAdjustmentReversalRequest;
 import com.bigbrightpaints.erp.modules.inventory.service.FinishedGoodsService;
 import com.bigbrightpaints.erp.modules.inventory.service.InventoryAdjustmentService;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrder;
@@ -58,6 +60,7 @@ class CR_INV_AdjustmentIdempotencyTest extends AbstractIntegrationTest {
     @Autowired private FinishedGoodRepository finishedGoodRepository;
     @Autowired private InventoryAdjustmentService inventoryAdjustmentService;
     @Autowired private InventoryAdjustmentRepository inventoryAdjustmentRepository;
+    @Autowired private InventoryMovementRepository inventoryMovementRepository;
     @Autowired private JournalEntryRepository journalEntryRepository;
     @Autowired private SalesOrderRepository salesOrderRepository;
     @Autowired private PackagingSlipRepository packagingSlipRepository;
@@ -157,6 +160,113 @@ class CR_INV_AdjustmentIdempotencyTest extends AbstractIntegrationTest {
                 .isInstanceOf(ApplicationException.class)
                 .hasMessageContaining("Idempotency key already used");
         CompanyContextHolder.clear();
+    }
+
+    @Test
+    void adjustment_reversal_createsLinkedCompensation_andRestoresStock() {
+        String companyCode = "CR-INV-ADJ-REV-" + shortId();
+        Company company = bootstrapCompany(companyCode);
+        Map<String, Account> accounts = ensureAccounts(company);
+
+        FinishedGood fg = ensureFinishedGood(company, "FG-ADJ-REV-" + shortId(), accounts);
+        seedBatch(company, fg, new BigDecimal("10"), new BigDecimal("15.00"));
+
+        InventoryAdjustmentRequest request = new InventoryAdjustmentRequest(
+                TestDateUtils.safeDate(company),
+                InventoryAdjustmentType.DAMAGED,
+                accounts.get("VAR").getId(),
+                "reverse-me",
+                false,
+                "INV-ADJ-REV-" + UUID.randomUUID(),
+                List.of(new InventoryAdjustmentRequest.LineRequest(
+                        fg.getId(),
+                        new BigDecimal("3"),
+                        new BigDecimal("15.00"),
+                        "Damaged goods"
+                ))
+        );
+
+        CompanyContextHolder.setCompanyId(companyCode);
+        InventoryAdjustmentDto posted = inventoryAdjustmentService.createAdjustment(request);
+        InventoryAdjustmentReversalRequest reversalRequest = new InventoryAdjustmentReversalRequest(
+                TestDateUtils.safeDate(company),
+                "Operator correction",
+                Boolean.FALSE,
+                "INV-ADJ-REVERSAL-" + UUID.randomUUID()
+        );
+        InventoryAdjustmentDto reversal = inventoryAdjustmentService.reverseAdjustment(posted.id(), reversalRequest);
+        CompanyContextHolder.clear();
+
+        InventoryAdjustment originalEntity = inventoryAdjustmentRepository.findByCompanyAndId(company, posted.id()).orElseThrow();
+        InventoryAdjustment reversalEntity = inventoryAdjustmentRepository.findByCompanyAndId(company, reversal.id()).orElseThrow();
+        assertThat(originalEntity.getStatus()).isEqualTo("REVERSED");
+        assertThat(reversalEntity.getReversalOf()).isNotNull();
+        assertThat(reversalEntity.getReversalOf().getId()).isEqualTo(posted.id());
+        assertThat(reversalEntity.getJournalEntryId()).isNotNull();
+
+        FinishedGood refreshed = finishedGoodRepository.findById(fg.getId()).orElseThrow();
+        assertThat(refreshed.getCurrentStock()).isEqualByComparingTo(new BigDecimal("10"));
+
+        List<?> reversalMovements = inventoryMovementRepository
+                .findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdOrderByCreatedAtAsc(
+                        company,
+                        "ADJUSTMENT_REVERSAL",
+                        reversal.referenceNumber());
+        assertThat(reversalMovements).hasSize(1);
+        assertThat(
+                finishedGoodBatchRepository.findByFinishedGoodAndBatchCode(
+                        refreshed,
+                        "REV-" + reversal.referenceNumber()))
+                .isPresent();
+    }
+
+    @Test
+    void adjustment_reversal_idempotentReplay_doesNotDoubleRestore() {
+        String companyCode = "CR-INV-ADJ-REV-IDEMP-" + shortId();
+        Company company = bootstrapCompany(companyCode);
+        Map<String, Account> accounts = ensureAccounts(company);
+
+        FinishedGood fg = ensureFinishedGood(company, "FG-ADJ-REV-IDEMP-" + shortId(), accounts);
+        seedBatch(company, fg, new BigDecimal("9"), new BigDecimal("9.00"));
+
+        InventoryAdjustmentRequest request = new InventoryAdjustmentRequest(
+                TestDateUtils.safeDate(company),
+                InventoryAdjustmentType.DAMAGED,
+                accounts.get("VAR").getId(),
+                "reverse-idempotent",
+                false,
+                "INV-ADJ-REV-IDEMP-" + UUID.randomUUID(),
+                List.of(new InventoryAdjustmentRequest.LineRequest(
+                        fg.getId(),
+                        new BigDecimal("2"),
+                        new BigDecimal("9.00"),
+                        "Damaged goods"
+                ))
+        );
+
+        CompanyContextHolder.setCompanyId(companyCode);
+        InventoryAdjustmentDto posted = inventoryAdjustmentService.createAdjustment(request);
+        String reversalKey = "INV-ADJ-REV-REPLAY-" + UUID.randomUUID();
+        InventoryAdjustmentReversalRequest reversalRequest = new InventoryAdjustmentReversalRequest(
+                TestDateUtils.safeDate(company),
+                "Operator correction replay",
+                Boolean.FALSE,
+                reversalKey
+        );
+        InventoryAdjustmentDto first = inventoryAdjustmentService.reverseAdjustment(posted.id(), reversalRequest);
+        InventoryAdjustmentDto second = inventoryAdjustmentService.reverseAdjustment(posted.id(), reversalRequest);
+        CompanyContextHolder.clear();
+
+        assertThat(second.id()).isEqualTo(first.id());
+        FinishedGood refreshed = finishedGoodRepository.findById(fg.getId()).orElseThrow();
+        assertThat(refreshed.getCurrentStock()).isEqualByComparingTo(new BigDecimal("9"));
+
+        List<?> reversalMovements = inventoryMovementRepository
+                .findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdOrderByCreatedAtAsc(
+                        company,
+                        "ADJUSTMENT_REVERSAL",
+                        first.referenceNumber());
+        assertThat(reversalMovements).hasSize(1);
     }
 
     @Test

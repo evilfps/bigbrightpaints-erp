@@ -5,7 +5,9 @@ import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.core.util.CostingMethodUtils;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
+import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryReversalRequest;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
+import com.bigbrightpaints.erp.modules.accounting.service.AccountingService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatch;
@@ -21,6 +23,7 @@ import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatchReposit
 import com.bigbrightpaints.erp.modules.inventory.dto.InventoryAdjustmentDto;
 import com.bigbrightpaints.erp.modules.inventory.dto.InventoryAdjustmentLineDto;
 import com.bigbrightpaints.erp.modules.inventory.dto.InventoryAdjustmentRequest;
+import com.bigbrightpaints.erp.modules.inventory.dto.InventoryAdjustmentReversalRequest;
 import com.bigbrightpaints.erp.modules.accounting.service.ReferenceNumberService;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -50,6 +53,7 @@ public class InventoryAdjustmentService {
     private final InventoryMovementRepository inventoryMovementRepository;
     private final FinishedGoodBatchRepository finishedGoodBatchRepository;
     private final AccountingFacade accountingFacade;
+    private final AccountingService accountingService;
     private final ReferenceNumberService referenceNumberService;
     private final CompanyClock companyClock;
     private final FinishedGoodsService finishedGoodsService;
@@ -61,6 +65,7 @@ public class InventoryAdjustmentService {
                                       InventoryMovementRepository inventoryMovementRepository,
                                       FinishedGoodBatchRepository finishedGoodBatchRepository,
                                       AccountingFacade accountingFacade,
+                                      AccountingService accountingService,
                                       ReferenceNumberService referenceNumberService,
                                       CompanyClock companyClock,
                                       FinishedGoodsService finishedGoodsService,
@@ -71,6 +76,7 @@ public class InventoryAdjustmentService {
         this.inventoryMovementRepository = inventoryMovementRepository;
         this.finishedGoodBatchRepository = finishedGoodBatchRepository;
         this.accountingFacade = accountingFacade;
+        this.accountingService = accountingService;
         this.referenceNumberService = referenceNumberService;
         this.companyClock = companyClock;
         this.finishedGoodsService = finishedGoodsService;
@@ -121,6 +127,136 @@ public class InventoryAdjustmentService {
             assertIdempotencyMatch(concurrent, requestSignature, idempotencyKey);
             return toDto(concurrent);
         }
+    }
+
+    @Retryable(value = {OptimisticLockingFailureException.class, DataIntegrityViolationException.class},
+            maxAttempts = 3, backoff = @Backoff(delay = 100))
+    public InventoryAdjustmentDto reverseAdjustment(Long adjustmentId, InventoryAdjustmentReversalRequest request) {
+        if (adjustmentId == null) {
+            throw new ApplicationException(ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD,
+                    "Adjustment id is required");
+        }
+        if (request == null) {
+            throw new ApplicationException(ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD,
+                    "Inventory adjustment reversal request is required");
+        }
+        Company company = companyContextService.requireCurrentCompany();
+        String idempotencyKey = normalizeIdempotencyKey(request.idempotencyKey());
+        if (!StringUtils.hasText(idempotencyKey)) {
+            throw new ApplicationException(ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD,
+                    "Idempotency key is required for inventory adjustment reversals");
+        }
+        LocalDate resolvedReversalDate = request.reversalDate() != null
+                ? request.reversalDate()
+                : resolveCurrentDate(company);
+        String requestSignature = buildReversalSignature(adjustmentId, request, resolvedReversalDate);
+
+        InventoryAdjustment existingByKey = adjustmentRepository
+                .findWithLinesByCompanyAndIdempotencyKey(company, idempotencyKey)
+                .orElse(null);
+        if (existingByKey != null) {
+            assertReversalIdempotencyMatch(existingByKey, adjustmentId, requestSignature, idempotencyKey);
+            return toDto(existingByKey);
+        }
+
+        try {
+            return transactionTemplate.execute(status -> reverseAdjustmentInternal(
+                    company, adjustmentId, request, resolvedReversalDate, idempotencyKey, requestSignature));
+        } catch (RuntimeException ex) {
+            if (!isDataIntegrityViolation(ex)) {
+                throw ex;
+            }
+            InventoryAdjustment concurrent = adjustmentRepository
+                    .findWithLinesByCompanyAndIdempotencyKey(company, idempotencyKey)
+                    .orElseThrow(() -> ex);
+            assertReversalIdempotencyMatch(concurrent, adjustmentId, requestSignature, idempotencyKey);
+            return toDto(concurrent);
+        }
+    }
+
+    private InventoryAdjustmentDto reverseAdjustmentInternal(Company company,
+                                                             Long adjustmentId,
+                                                             InventoryAdjustmentReversalRequest request,
+                                                             LocalDate resolvedReversalDate,
+                                                             String idempotencyKey,
+                                                             String requestSignature) {
+        InventoryAdjustment original = adjustmentRepository.lockByCompanyAndId(company, adjustmentId)
+                .flatMap(locked -> adjustmentRepository.findWithLinesByCompanyAndId(company, locked.getId()))
+                .orElseThrow(() -> new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE,
+                        "Inventory adjustment not found"));
+        if (!"POSTED".equalsIgnoreCase(original.getStatus())) {
+            throw new ApplicationException(ErrorCode.BUSINESS_INVALID_STATE,
+                    "Only posted inventory adjustments can be reversed");
+        }
+        if (original.getReversalOf() != null) {
+            throw new ApplicationException(ErrorCode.BUSINESS_INVALID_STATE,
+                    "Reversal adjustments cannot be reversed again");
+        }
+        InventoryAdjustment existingReversal = adjustmentRepository.findByCompanyAndReversalOf(company, original)
+                .orElse(null);
+        if (existingReversal != null) {
+            if (!idempotencyKey.equals(existingReversal.getIdempotencyKey())) {
+                throw new ApplicationException(ErrorCode.CONCURRENCY_CONFLICT,
+                        "Inventory adjustment has already been reversed")
+                        .withDetail("adjustmentId", adjustmentId)
+                        .withDetail("existingReversalId", existingReversal.getId())
+                        .withDetail("existingIdempotencyKey", existingReversal.getIdempotencyKey());
+            }
+            assertReversalIdempotencyMatch(existingReversal, adjustmentId, requestSignature, idempotencyKey);
+            return toDto(existingReversal);
+        }
+
+        List<Long> finishedGoodIds = original.getLines().stream()
+                .map(line -> line.getFinishedGood().getId())
+                .distinct()
+                .toList();
+        List<FinishedGood> lockedFinishedGoods = finishedGoodRepository.lockByCompanyAndIdInOrderById(company, finishedGoodIds);
+        Map<Long, FinishedGood> finishedGoodsById = new HashMap<>();
+        for (FinishedGood finishedGood : lockedFinishedGoods) {
+            finishedGoodsById.put(finishedGood.getId(), finishedGood);
+        }
+        if (finishedGoodsById.size() != finishedGoodIds.size()) {
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE,
+                    "Finished good not found for reversal");
+        }
+
+        InventoryAdjustment reversal = new InventoryAdjustment();
+        reversal.setCompany(company);
+        reversal.setReferenceNumber(resolveReference(company, original.getType()));
+        reversal.setAdjustmentDate(resolvedReversalDate);
+        reversal.setType(original.getType());
+        reversal.setReason(resolveReversalReason(original, request));
+        reversal.setCreatedBy(resolveCurrentUser());
+        reversal.setIdempotencyKey(idempotencyKey);
+        reversal.setIdempotencyHash(requestSignature);
+        reversal.setReversalOf(original);
+        reversal.setStatus("POSTED");
+        reversal.setTotalAmount(original.getTotalAmount());
+
+        for (InventoryAdjustmentLine line : original.getLines()) {
+            FinishedGood finishedGood = finishedGoodsById.get(line.getFinishedGood().getId());
+            InventoryAdjustmentLine reversalLine = new InventoryAdjustmentLine();
+            reversalLine.setAdjustment(reversal);
+            reversalLine.setFinishedGood(finishedGood);
+            reversalLine.setQuantity(line.getQuantity());
+            reversalLine.setUnitCost(line.getUnitCost());
+            reversalLine.setAmount(line.getAmount());
+            reversalLine.setNote(resolveReversalLineNote(line));
+            reversal.getLines().add(reversalLine);
+        }
+
+        InventoryAdjustment savedReversal = adjustmentRepository.save(reversal);
+        Long journalEntryId = reverseLinkedJournal(original, request, resolvedReversalDate);
+        savedReversal.setJournalEntryId(journalEntryId);
+
+        List<InventoryMovement> reversalMovements = applyReverseMovements(savedReversal, journalEntryId);
+        inventoryMovementRepository.saveAll(reversalMovements);
+
+        original.setStatus("REVERSED");
+        original.setReversalEntry(savedReversal);
+        adjustmentRepository.save(original);
+        InventoryAdjustment storedReversal = adjustmentRepository.save(savedReversal);
+        return toDto(storedReversal);
     }
 
     private InventoryAdjustmentDto createAdjustmentInternal(InventoryAdjustmentRequest request,
@@ -241,6 +377,83 @@ public class InventoryAdjustmentService {
         return movements;
     }
 
+    private List<InventoryMovement> applyReverseMovements(InventoryAdjustment reversal, Long journalEntryId) {
+        List<InventoryMovement> movements = reversal.getLines().stream().map(line -> {
+            FinishedGood finishedGood = line.getFinishedGood();
+            BigDecimal currentStock = safeQuantity(finishedGood.getCurrentStock());
+            finishedGood.setCurrentStock(currentStock.add(line.getQuantity()));
+            FinishedGoodBatch batch = restoreBatchQuantities(reversal, line);
+            finishedGoodsService.invalidateWeightedAverageCost(finishedGood.getId());
+
+            InventoryMovement movement = new InventoryMovement();
+            movement.setFinishedGood(finishedGood);
+            movement.setFinishedGoodBatch(batch);
+            movement.setReferenceType("ADJUSTMENT_REVERSAL");
+            movement.setReferenceId(reversal.getReferenceNumber());
+            movement.setMovementType("ADJUSTMENT_IN");
+            movement.setQuantity(line.getQuantity());
+            movement.setUnitCost(line.getUnitCost());
+            movement.setJournalEntryId(journalEntryId);
+            return movement;
+        }).toList();
+        return movements;
+    }
+
+    private FinishedGoodBatch restoreBatchQuantities(InventoryAdjustment reversal, InventoryAdjustmentLine line) {
+        FinishedGood finishedGood = line.getFinishedGood();
+        String batchCode = "REV-" + reversal.getReferenceNumber();
+        FinishedGoodBatch batch = finishedGoodBatchRepository
+                .lockByFinishedGoodAndBatchCode(finishedGood, batchCode)
+                .orElseGet(() -> {
+                    FinishedGoodBatch created = new FinishedGoodBatch();
+                    created.setFinishedGood(finishedGood);
+                    created.setBatchCode(batchCode);
+                    created.setQuantityTotal(BigDecimal.ZERO);
+                    created.setQuantityAvailable(BigDecimal.ZERO);
+                    created.setUnitCost(line.getUnitCost());
+                    return finishedGoodBatchRepository.save(created);
+                });
+        batch.setUnitCost(line.getUnitCost());
+        batch.setQuantityTotal(safeQuantity(batch.getQuantityTotal()).add(line.getQuantity()));
+        batch.setQuantityAvailable(safeQuantity(batch.getQuantityAvailable()).add(line.getQuantity()));
+        return finishedGoodBatchRepository.save(batch);
+    }
+
+    private Long reverseLinkedJournal(InventoryAdjustment original,
+                                      InventoryAdjustmentReversalRequest request,
+                                      LocalDate resolvedReversalDate) {
+        Long originalJournalEntryId = original.getJournalEntryId();
+        if (originalJournalEntryId == null) {
+            return null;
+        }
+        JournalEntryReversalRequest reversalRequest = new JournalEntryReversalRequest(
+                resolvedReversalDate,
+                false,
+                resolveReversalReason(original, request),
+                "Inventory adjustment reversal for " + original.getReferenceNumber(),
+                request.adminOverride()
+        );
+        JournalEntryDto journal = accountingService.reverseJournalEntry(originalJournalEntryId, reversalRequest);
+        if (journal == null) {
+            throw new IllegalStateException("Inventory adjustment reversal journal was not created");
+        }
+        return journal.id();
+    }
+
+    private String resolveReversalReason(InventoryAdjustment original, InventoryAdjustmentReversalRequest request) {
+        if (request != null && StringUtils.hasText(request.reason())) {
+            return request.reason().trim();
+        }
+        return "Reversal of " + original.getReferenceNumber();
+    }
+
+    private String resolveReversalLineNote(InventoryAdjustmentLine originalLine) {
+        if (StringUtils.hasText(originalLine.getNote())) {
+            return "Reversal: " + originalLine.getNote().trim();
+        }
+        return "Reversal";
+    }
+
     private void adjustBatchQuantities(FinishedGood finishedGood, BigDecimal quantity) {
         if (quantity == null || quantity.compareTo(BigDecimal.ZERO) <= 0) {
             return;
@@ -326,6 +539,33 @@ public class InventoryAdjustmentService {
         }
         adjustment.setIdempotencyHash(expectedSignature);
         adjustmentRepository.save(adjustment);
+    }
+
+    private void assertReversalIdempotencyMatch(InventoryAdjustment adjustment,
+                                                Long expectedAdjustmentId,
+                                                String expectedSignature,
+                                                String idempotencyKey) {
+        InventoryAdjustment reversalOf = adjustment.getReversalOf();
+        Long linkedAdjustmentId = reversalOf != null ? reversalOf.getId() : null;
+        if (!expectedAdjustmentId.equals(linkedAdjustmentId)) {
+            throw new ApplicationException(ErrorCode.CONCURRENCY_CONFLICT,
+                    "Idempotency key already used for a different inventory reversal")
+                    .withDetail("idempotencyKey", idempotencyKey)
+                    .withDetail("adjustmentId", expectedAdjustmentId)
+                    .withDetail("existingReversalOfAdjustmentId", linkedAdjustmentId);
+        }
+        assertIdempotencyMatch(adjustment, expectedSignature, idempotencyKey);
+    }
+
+    private String buildReversalSignature(Long adjustmentId,
+                                          InventoryAdjustmentReversalRequest request,
+                                          LocalDate resolvedDate) {
+        StringBuilder signature = new StringBuilder();
+        signature.append(adjustmentId != null ? adjustmentId : "")
+                .append('|').append(resolvedDate != null ? resolvedDate : "")
+                .append('|').append(normalizeToken(request.reason()))
+                .append('|').append(Boolean.TRUE.equals(request.adminOverride()));
+        return DigestUtils.sha256Hex(signature.toString());
     }
 
     private String buildAdjustmentSignature(InventoryAdjustmentRequest request,
