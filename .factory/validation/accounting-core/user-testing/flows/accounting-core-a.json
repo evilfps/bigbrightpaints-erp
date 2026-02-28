@@ -1,0 +1,199 @@
+{
+  "groupId": "accounting-core-a",
+  "testedAt": "2026-02-28T21:04:20+05:30",
+  "credentials": {
+    "account": "ut-accounting-core-flow-a@example.com",
+    "namespace": "ut_acct_core_flow_a"
+  },
+  "toolsUsed": [
+    "mvn test",
+    "grep/read inspection"
+  ],
+  "assertions": [
+    {
+      "id": "VAL-ACCT-003",
+      "title": "Configurable costing method per period",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Run targeted costing tests: `mvn --settings /home/realnigga/Desktop/Mission-control/erp-domain/.mvn/settings.xml -f /home/realnigga/Desktop/Mission-control/erp-domain/pom.xml test -Djacoco.skip=true -Dspring.jpa.hibernate.ddl-auto=update -Dtest=CostingMethodServiceTest,InventoryAdjustmentCostingMethodTest`",
+          "expected": "Period-specific FIFO/LIFO/Weighted Average methods are resolved and enforced for inventory movements.",
+          "observed": "BUILD SUCCESS; Tests run: 5, Failures: 0, Errors: 0. Includes FIFO oldest-batch consumption, LIFO newest-batch consumption, and weighted-average behavior after period change."
+        },
+        {
+          "action": "Inspect period update coverage in accounting period tests.",
+          "expected": "Period API/service can persist requested costing method per period.",
+          "observed": "`AccountingPeriodServiceTest` covers create/update period with explicit costing method and default behavior when omitted."
+        }
+      ],
+      "evidence": {
+        "commands": [
+          "mvn --settings /home/realnigga/Desktop/Mission-control/erp-domain/.mvn/settings.xml -f /home/realnigga/Desktop/Mission-control/erp-domain/pom.xml test -Djacoco.skip=true -Dspring.jpa.hibernate.ddl-auto=update -Dtest=CostingMethodServiceTest,InventoryAdjustmentCostingMethodTest"
+        ],
+        "result": "PASS",
+        "output": "Tests run: 5, Failures: 0, Errors: 0, Skipped: 0",
+        "codeRefs": [
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/service/CostingMethodServiceTest.java:27-49",
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/inventory/service/InventoryAdjustmentCostingMethodTest.java:68-167",
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingPeriodServiceTest.java:462-506"
+        ]
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-ACCT-004",
+      "title": "GST/tax handling",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Run GST and tax reconciliation tests: `mvn --settings /home/realnigga/Desktop/Mission-control/erp-domain/.mvn/settings.xml -f /home/realnigga/Desktop/Mission-control/erp-domain/pom.xml test -Djacoco.skip=true -Dtest=GstServiceTest,TaxServiceTest`",
+          "expected": "Intra-state applies CGST+SGST; inter-state applies IGST; GST return/reconciliation values are computed correctly.",
+          "observed": "BUILD SUCCESS; Tests run: 16, Failures: 0, Errors: 0. `GstServiceTest` validates intra/inter-state split, and `TaxServiceTest` validates GST return plus component reconciliation summaries."
+        }
+      ],
+      "evidence": {
+        "commands": [
+          "mvn --settings /home/realnigga/Desktop/Mission-control/erp-domain/.mvn/settings.xml -f /home/realnigga/Desktop/Mission-control/erp-domain/pom.xml test -Djacoco.skip=true -Dtest=GstServiceTest,TaxServiceTest"
+        ],
+        "result": "PASS",
+        "output": "Tests run: 16, Failures: 0, Errors: 0, Skipped: 0",
+        "codeRefs": [
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/service/GstServiceTest.java:16-50",
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/service/TaxServiceTest.java:73-370"
+        ]
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-ACCT-005",
+      "title": "Hands-off settlement flow",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Run accounting settlement coverage set: `mvn --settings /home/realnigga/Desktop/Mission-control/erp-domain/.mvn/settings.xml -f /home/realnigga/Desktop/Mission-control/erp-domain/pom.xml test -Djacoco.skip=true -Dtest=AccountingServiceTest,AccountingPeriodServiceTest,ReconciliationServiceTest,AccountingComplianceAuditServiceTest,AuditTrailQueryServiceTest`",
+          "expected": "Single auto-settlement request allocates against oldest open invoices/purchases (FIFO) and returns settlement/journal-linked response.",
+          "observed": "BUILD SUCCESS; Tests run: 151, Failures: 0, Errors: 0. `autoSettleDealer_allocatesOldestOutstandingInvoicesInFifoOrder` and `autoSettleSupplier_allocatesOldestOutstandingPurchasesInFifoOrder` pass with expected FIFO allocation order and applied totals."
+        }
+      ],
+      "evidence": {
+        "commands": [
+          "mvn --settings /home/realnigga/Desktop/Mission-control/erp-domain/.mvn/settings.xml -f /home/realnigga/Desktop/Mission-control/erp-domain/pom.xml test -Djacoco.skip=true -Dtest=AccountingServiceTest,AccountingPeriodServiceTest,ReconciliationServiceTest,AccountingComplianceAuditServiceTest,AuditTrailQueryServiceTest"
+        ],
+        "result": "PASS",
+        "output": "AccountingServiceTest run in suite with zero failures; FIFO auto-settlement tests passed",
+        "codeRefs": [
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingServiceTest.java:7923-8053"
+        ]
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-ACCT-006",
+      "title": "Period close workflow",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Use targeted service/runtime and gate-fast truthsuite evidence.",
+          "expected": "Close enforces checklist gates (trial balance/unposted/reconciliation), snapshot handling is correct, reopen works with audit-safe reverse flow, and close/reopen endpoints require accounting/admin authority.",
+          "observed": "`AccountingPeriodServiceTest` passes for close/reopen cycle, unresolved checks, and trial-balance rejection; `TS_RuntimeAccountingPeriodServiceRegressionExecutableCoverageTest` passes for close->reopen regression; gate-fast includes period-close truthsuite checks; controller close/reopen endpoints are protected with `@PreAuthorize(hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING'))`."
+        }
+      ],
+      "evidence": {
+        "commands": [
+          "mvn --settings /home/realnigga/Desktop/Mission-control/erp-domain/.mvn/settings.xml -f /home/realnigga/Desktop/Mission-control/erp-domain/pom.xml test -Djacoco.skip=true -Dtest=AccountingServiceTest,AccountingPeriodServiceTest,ReconciliationServiceTest,AccountingComplianceAuditServiceTest,AuditTrailQueryServiceTest",
+          "mvn --settings /home/realnigga/Desktop/Mission-control/erp-domain/.mvn/settings.xml -f /home/realnigga/Desktop/Mission-control/erp-domain/pom.xml test -Djacoco.skip=true -Dtest=TS_RuntimeAccountingPeriodServiceRegressionExecutableCoverageTest",
+          "mvn --settings /home/realnigga/Desktop/Mission-control/erp-domain/.mvn/settings.xml -f /home/realnigga/Desktop/Mission-control/erp-domain/pom.xml test -Pgate-fast -Djacoco.skip=true"
+        ],
+        "result": "PASS",
+        "output": "AccountingPeriodServiceTest included in passing 151-test suite; TS_RuntimeAccountingPeriodServiceRegressionExecutableCoverageTest: 2/2 pass; gate-fast: Tests run 378, Failures 0, Errors 0",
+        "codeRefs": [
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingPeriodServiceTest.java:222-410",
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeAccountingPeriodServiceRegressionExecutableCoverageTest.java:101-107",
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/periodclose/TS_PeriodCloseBoundaryCoverageTest.java:15-54",
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/periodclose/TS_PeriodCloseAtomicSnapshotTest.java:17-57",
+          "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/controller/AccountingController.java:856-874"
+        ]
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-ACCT-007",
+      "title": "Accounting audit trail",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Run accounting audit coverage set (included in focused 151-test run).",
+          "expected": "Audit entries are emitted for journal creation/reversal/settlement-classified flows with metadata, and audit trail can be queried with filters.",
+          "observed": "BUILD SUCCESS in focused suite. `AccountingComplianceAuditServiceTest` validates manual journal, settlement journal classification, reversal, costing/period/account actions. `AuditTrailQueryServiceTest` validates filtered and paginated audit retrieval."
+        }
+      ],
+      "evidence": {
+        "commands": [
+          "mvn --settings /home/realnigga/Desktop/Mission-control/erp-domain/.mvn/settings.xml -f /home/realnigga/Desktop/Mission-control/erp-domain/pom.xml test -Djacoco.skip=true -Dtest=AccountingServiceTest,AccountingPeriodServiceTest,ReconciliationServiceTest,AccountingComplianceAuditServiceTest,AuditTrailQueryServiceTest"
+        ],
+        "result": "PASS",
+        "output": "AccountingComplianceAuditServiceTest: 7/7 pass; AuditTrailQueryServiceTest: 2/2 pass",
+        "codeRefs": [
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingComplianceAuditServiceTest.java:40-137",
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/service/AuditTrailQueryServiceTest.java:39-128"
+        ]
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-ACCT-008",
+      "title": "Reconciliation service",
+      "status": "fail",
+      "steps": [
+        {
+          "action": "Run reconciliation tests (included in focused accounting suite).",
+          "expected": "Bank, subledger-to-GL, and inter-company reconciliation flows all validated with matched/unmatched discrepancy reporting.",
+          "observed": "`ReconciliationServiceTest` passes for AR subledger reconciliation, bank reconciliation, and combined subledger report; no inter-company reconciliation test case exists in targeted accounting test surface."
+        },
+        {
+          "action": "Inspect reconciliation service implementation and test corpus for inter-company flow.",
+          "expected": "Inter-company reconciliation method/coverage exists alongside bank and subledger flows.",
+          "observed": "`ReconciliationService` exposes AR/AP/bank/subledger methods only; grep for intercompany/inter-company in accounting reconciliation service/tests returns no matches."
+        }
+      ],
+      "evidence": {
+        "commands": [
+          "mvn --settings /home/realnigga/Desktop/Mission-control/erp-domain/.mvn/settings.xml -f /home/realnigga/Desktop/Mission-control/erp-domain/pom.xml test -Djacoco.skip=true -Dtest=AccountingServiceTest,AccountingPeriodServiceTest,ReconciliationServiceTest,AccountingComplianceAuditServiceTest,AuditTrailQueryServiceTest",
+          "grep/read inspection via tooling: ReconciliationService.java and reconciliation test classes for inter-company coverage"
+        ],
+        "result": "FAIL",
+        "output": "ReconciliationServiceTest: 3/3 pass for AR/AP+bank/subledger only; inter-company reconciliation coverage absent",
+        "codeRefs": [
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/service/ReconciliationServiceTest.java:79-229",
+          "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/ReconciliationService.java:98-323"
+        ]
+      },
+      "issues": "Assigned contract text requires inter-company reconciliation flow; current executable evidence covers bank and subledger reconciliation but not inter-company reconciliation behavior."
+    }
+  ],
+  "frictions": [
+    {
+      "description": "Targeted Maven runs recompiled the full test set (372 test sources) each time, causing substantial execution overhead for focused assertion validation.",
+      "resolved": true,
+      "resolution": "Grouped related assertions into combined focused runs and reused gate-fast output to minimize extra executions while preserving assertion-specific evidence.",
+      "affectedAssertions": [
+        "VAL-ACCT-003",
+        "VAL-ACCT-004",
+        "VAL-ACCT-005",
+        "VAL-ACCT-006",
+        "VAL-ACCT-007",
+        "VAL-ACCT-008"
+      ]
+    },
+    {
+      "description": "Integration bootstrap for InventoryAdjustmentCostingMethodTest emitted a Hibernate DDL warning (`column \"payload\" cannot be cast automatically to type oid`) during schema update logging.",
+      "resolved": true,
+      "resolution": "Confirmed via surefire summary that targeted tests still completed successfully (5/5 pass) and used explicit test-result counters as the authoritative signal.",
+      "affectedAssertions": [
+        "VAL-ACCT-003"
+      ]
+    }
+  ],
+  "blockers": [],
+  "summary": "Validated 6 assigned accounting-core assertions for flow A using API-surface executable evidence (focused Maven tests + code/read verification): 5 passed (VAL-ACCT-003/004/005/006/007) and 1 failed (VAL-ACCT-008, missing inter-company reconciliation evidence/implementation in current accounting reconciliation surface)."
+}
