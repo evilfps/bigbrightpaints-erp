@@ -34,3 +34,10 @@ Each module follows: `domain/` (entities + repos), `service/`, `controller/`, `d
 - `ApplicationException` with `ErrorCode` enum for domain errors
 - `GlobalExceptionHandler` maps exceptions to HTTP responses
 - **CONVENTION**: Always use ApplicationException for business errors, never raw IllegalArgumentException/IllegalStateException
+
+## Tenant & Admin Runtime Conventions
+- Tenant lifecycle states are `ACTIVE`, `SUSPENDED`, `DEACTIVATED`.
+- `DEACTIVATED` tenants are denied all API access.
+- `SUSPENDED` tenants are read-only (write operations are denied).
+- Module access gates treat `AUTH`, `ACCOUNTING`, `SALES`, and `INVENTORY` as always-on core modules.
+- Optional modules are controlled via company `enabled_modules` and enforced by `ModuleGatingInterceptor` + `ModuleGatingService`.

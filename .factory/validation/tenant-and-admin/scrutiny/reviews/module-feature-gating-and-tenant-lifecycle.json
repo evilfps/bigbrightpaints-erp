@@ -1,0 +1,40 @@
+{
+  "featureId": "module-feature-gating-and-tenant-lifecycle",
+  "reviewedAt": "2026-02-28T07:53:50Z",
+  "commitId": "4a4012f6860a6fa558062493b978770159865a90",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "fail",
+  "codeReview": {
+    "summary": "The commit adds lifecycle states, enforcement guards, migration, superadmin lifecycle endpoints, and module-gating interceptor wiring, but module gating is not actually tenant-configurable through production API paths, leaving the core feature incomplete despite the new runtime checks.",
+    "issues": [
+      {
+        "file": "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/company/dto/CompanyRequest.java",
+        "line": 12,
+        "severity": "blocking",
+        "description": "No request field exists for tenant enabled modules, so superadmin/company update flows cannot configure `enabled_modules` at all. Combined with CompanyService update logic, module flags are never writable via API, which means per-tenant module feature gating cannot be administered in runtime as required."
+      },
+      {
+        "file": "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/company/service/CompanyService.java",
+        "line": 146,
+        "severity": "blocking",
+        "description": "`update(...)` updates name/code/timezone/quotas only and never calls `company.setEnabledModules(...)`; therefore `enabled_modules` remains effectively fixed at defaults unless changed out-of-band in DB. This prevents operational use of module gating for tenant lifecycle/admin endpoints."
+      },
+      {
+        "file": "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/company/service/ModuleGatingService.java",
+        "line": 33,
+        "severity": "non_blocking",
+        "description": "`normalizeRequestedEnabledModules(...)` is present but unused by production code (only referenced in its unit test), indicating dead-path design drift and reinforcing that module-setting flow is incomplete."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "knowledge",
+      "observation": "Shared architecture knowledge is missing the new tenant runtime conventions introduced here (gatable vs core module set and ACTIVE/SUSPENDED/DEACTIVATED enforcement semantics).",
+      "evidence": "`.factory/library/architecture.md` currently documents generic multi-tenancy/error patterns but does not record module-gating model or lifecycle runtime access rules that are now enforced in `CompanyContextFilter` and `ModuleGatingInterceptor`."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "Reviewed feature `module-feature-gating-and-tenant-lifecycle` using handoff, commit diff, worker transcript skeleton, and skill guidance. Lifecycle enforcement and superadmin lifecycle endpoints are implemented, but module gating is not tenant-configurable through API update contracts/service logic, so the feature does not fully satisfy module feature-gating behavior in practice."
+}

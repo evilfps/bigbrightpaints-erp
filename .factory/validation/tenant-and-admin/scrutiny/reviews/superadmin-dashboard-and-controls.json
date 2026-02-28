@@ -1,0 +1,39 @@
+{
+  "featureId": "superadmin-dashboard-and-controls",
+  "reviewedAt": "2026-02-28T07:45:23Z",
+  "commitId": "3bf4beb76304fab2711650a1552c2f0c9bf373d3",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "fail",
+  "codeReview": {
+    "summary": "The feature adds the requested superadmin endpoints, role guard, usage-metrics interceptor wiring, and tests, but it has a blocking correctness bug in usage tracking (lost increments under concurrency) and a non-blocking scalability issue in tenant listing/dashboard aggregation due to N+1 query patterns.",
+    "issues": [
+      {
+        "file": "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/company/service/TenantUsageMetricsService.java",
+        "line": 41,
+        "severity": "blocking",
+        "description": "`recordApiCall` performs a read-then-write increment (`getApiCallCount` then `save`) without any lock/version check, so concurrent requests for the same tenant can overwrite each other and undercount API usage. This breaks the expected behavior of reliable per-tenant API-call tracking for superadmin dashboards/usage endpoints."
+      },
+      {
+        "file": "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/company/service/SuperAdminService.java",
+        "line": 68,
+        "severity": "non_blocking",
+        "description": "`listTenants` loads all companies and then `toTenantDto` executes per-tenant repository calls for users, audit-storage, API-call count, and last activity. Dashboard reuses this list, so aggregate reads trigger N+1 query/lookup patterns that can degrade significantly as tenant count grows."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "conventions",
+      "observation": "The feature commit modifies `.factory/library/frontend-handoff.md` even though mission AGENTS says not to modify `.factory/` mission infrastructure; this should be clarified because another AGENTS section simultaneously mandates frontend-handoff updates for API changes.",
+      "evidence": "AGENTS.md:13 says 'Do NOT modify .factory/ directory contents (mission infrastructure)' while AGENTS.md:101 requires updating `.factory/library/frontend-handoff.md`; commit 3bf4beb7 includes `.factory/library/frontend-handoff.md` changes."
+    },
+    {
+      "area": "skills",
+      "observation": "Skill procedure mismatch: backend-worker mandates TDD first, but worker reported implementing before tests and marked followedProcedure=false; this appears recurring for cross-cutting endpoint/interceptor work and suggests the skill needs an explicit allowed scaffold-first exception.",
+      "evidence": "Handoff skillFeedback has `followedProcedure: false` with deviation on 'Step 2: Write Tests First (TDD)' in handoff file 2026-02-28T06-47-27-131Z__superadmin-dashboard-and-controls__b4e432c8-d861-4627-8509-87666e090403.json."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "Reviewed feature superadmin-dashboard-and-controls (commit 3bf4beb7) against feature requirements, transcript skeleton, and handoff. Implementation scope is largely complete (endpoints, role guard, telemetry, tests), but a blocking race condition in API-call counting can lose usage events under concurrent traffic, so review status is fail until fixed."
+}

@@ -1,0 +1,34 @@
+{
+  "featureId": "tenant-onboarding-with-coa-templates",
+  "reviewedAt": "2026-02-28T07:53:05Z",
+  "commitId": "6c068cc2646ef848e6d73e19b50b33dc56bfb8ae",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "fail",
+  "codeReview": {
+    "summary": "Core onboarding flow and template generation are implemented and covered by tests, but the feature introduces a blocking global-configuration bug and one input-validation gap.",
+    "issues": [
+      {
+        "file": "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/company/service/TenantOnboardingService.java",
+        "line": 228,
+        "severity": "blocking",
+        "description": "Onboarding persists a hardcoded global CORS setting (`cors.allowed-origins = http://localhost:3002`) when the key is missing. Because `SystemSettingsService` prioritizes persisted values (`SystemSettingsService.java:68-70`), this can override environment-configured production origins after the first onboarding and break/incorrectly constrain real frontend access."
+      },
+      {
+        "file": "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/company/dto/TenantOnboardingRequest.java",
+        "line": 14,
+        "severity": "non_blocking",
+        "description": "`timezone` only enforces non-blank/length, but onboarding uses it directly (`TenantOnboardingService.java:116`) and then calls `CompanyTime.today` (`TenantOnboardingService.java:97`), which resolves via `ZoneId.of` (`CompanyClock.java:66`). Invalid timezone strings therefore surface as runtime failures instead of a clean validation error response."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "conventions",
+      "observation": "The feature writes global `system_settings` directly inside a tenant onboarding service instead of following the centralized settings flow. This creates drift risk versus environment-driven defaults.",
+      "evidence": "TenantOnboardingService.java:224-236 writes `auto-approval.enabled`, `period-lock.enforced`, and `cors.allowed-origins` directly; SystemSettingsService.java:35-70 is the existing centralized runtime/settings-loading path."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "Reviewed commit 6c068cc2646ef848e6d73e19b50b33dc56bfb8ae for tenant onboarding templates. Feature scope is largely met (template API, single-call onboarding, account hierarchy generation, default period, tests, frontend handoff), but review fails due to a blocking hardcoded global CORS persistence bug; also noted non-blocking timezone validation weakness."
+}
