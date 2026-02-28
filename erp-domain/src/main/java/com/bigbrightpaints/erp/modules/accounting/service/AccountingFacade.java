@@ -889,18 +889,23 @@ public class AccountingFacade {
 
         LocalDate postingDate = entryDate != null ? entryDate : companyClock.today(company);
         String resolvedMemo = StringUtils.hasText(memo) ? memo : "Packing journal " + resolvedReference;
-        JournalEntryRequest request = new JournalEntryRequest(
-                resolvedReference,
-                postingDate,
+        JournalCreationRequest request = new JournalCreationRequest(
+                totalLineAmount(lines),
+                resolvePrimaryDebitAccount(lines, null),
+                resolvePrimaryCreditAccount(lines, null),
                 resolvedMemo,
+                "FACTORY_PACKING",
+                resolvedReference,
+                null,
+                toStandardLines(lines),
+                postingDate,
                 null,
                 null,
-                Boolean.FALSE,
-                lines
+                Boolean.FALSE
         );
 
         log.info("Posting packing journal: reference={}, lines={}", resolvedReference, lines.size());
-        return accountingService.createJournalEntry(request);
+        return createStandardJournal(request);
     }
 
     /**

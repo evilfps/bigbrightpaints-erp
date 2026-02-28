@@ -70,6 +70,19 @@ class AccountingComplianceAuditServiceTest {
     }
 
     @Test
+    void recordJournalCreation_supplierSettlementReference_classifiesAsSettlementAction() {
+        Company company = company(83L, "BBP");
+        JournalEntry entry = journalEntry(105L, "SUP-SET-2026-0004", JournalEntryType.AUTOMATED);
+
+        service.recordJournalCreation(company, entry);
+
+        AuditActionEventCommand command = captureCommand();
+        assertThat(command.action()).isEqualTo("SETTLEMENT_JOURNAL_CREATED");
+        assertThat(command.referenceNumber()).isEqualTo("SUP-SET-2026-0004");
+        assertThat(command.metadata()).containsEntry("journalSource", "SYSTEM_GENERATED");
+    }
+
+    @Test
     void recordJournalReversal_includesBeforeAndAfterState() {
         Company company = company(79L, "BBP");
         JournalEntry original = journalEntry(103L, "INV-2026-0091", JournalEntryType.AUTOMATED);

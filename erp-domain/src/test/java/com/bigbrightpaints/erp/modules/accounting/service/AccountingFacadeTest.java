@@ -203,6 +203,66 @@ class AccountingFacadeTest {
     }
 
     @Test
+    void postPackingJournal_delegatesToCanonicalCreateStandardJournal() {
+        String reference = " PACK-2026-001 ";
+        LocalDate entryDate = LocalDate.of(2026, 2, 10);
+        String memo = "Packing journal";
+        List<JournalEntryRequest.JournalLineRequest> lines = List.of(
+                new JournalEntryRequest.JournalLineRequest(1001L, "FG inventory", new BigDecimal("250.00"), BigDecimal.ZERO),
+                new JournalEntryRequest.JournalLineRequest(2002L, "WIP release", BigDecimal.ZERO, new BigDecimal("250.00"))
+        );
+
+        when(journalEntryRepository.findByCompanyAndReferenceNumber(eq(company), eq("PACK-2026-001")))
+                .thenReturn(Optional.empty());
+
+        JournalEntryDto expected = new JournalEntryDto(
+                91L,
+                null,
+                "PACK-2026-001",
+                entryDate,
+                null,
+                "POSTED",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                List.<JournalLineDto>of(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+        );
+
+        ArgumentCaptor<JournalCreationRequest> requestCaptor = ArgumentCaptor.forClass(JournalCreationRequest.class);
+        when(accountingService.createStandardJournal(requestCaptor.capture())).thenReturn(expected);
+
+        JournalEntryDto actual = accountingFacade.postPackingJournal(reference, entryDate, memo, lines);
+
+        assertThat(actual).isSameAs(expected);
+        JournalCreationRequest forwarded = requestCaptor.getValue();
+        assertThat(forwarded.amount()).isEqualByComparingTo("250.00");
+        assertThat(forwarded.debitAccount()).isEqualTo(1001L);
+        assertThat(forwarded.creditAccount()).isEqualTo(2002L);
+        assertThat(forwarded.narration()).isEqualTo(memo);
+        assertThat(forwarded.sourceModule()).isEqualTo("FACTORY_PACKING");
+        assertThat(forwarded.sourceReference()).isEqualTo("PACK-2026-001");
+        assertThat(forwarded.lines()).hasSize(2);
+        assertThat(forwarded.entryDate()).isEqualTo(entryDate);
+        verify(accountingService).createStandardJournal(any());
+        verify(accountingService, never()).createJournalEntry(any());
+    }
+
+    @Test
     void postPurchaseJournal_legacyPrefixFallback_ignoresReversalSuffix() {
         Long supplierId = 88L;
         Supplier supplier = new Supplier();

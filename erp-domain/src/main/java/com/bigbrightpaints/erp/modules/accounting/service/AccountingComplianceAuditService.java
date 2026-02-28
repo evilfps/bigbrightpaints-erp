@@ -305,6 +305,7 @@ public class AccountingComplianceAuditService {
         String normalized = referenceNumber.trim().toUpperCase(Locale.ROOT);
         return normalized.startsWith("SET")
                 || normalized.startsWith("RCPT")
+                || normalized.startsWith("SUP")
                 || normalized.contains("SETTLEMENT");
     }
 
