@@ -1,0 +1,44 @@
+{
+  "milestone": "accounting-core",
+  "round": 1,
+  "status": "fail",
+  "assertionsSummary": {
+    "total": 11,
+    "passed": 8,
+    "failed": 3,
+    "blocked": 0
+  },
+  "passedAssertions": [
+    "VAL-ACCT-002",
+    "VAL-ACCT-003",
+    "VAL-ACCT-004",
+    "VAL-ACCT-005",
+    "VAL-ACCT-006",
+    "VAL-ACCT-007",
+    "VAL-ACCT-009",
+    "VAL-DOC-003"
+  ],
+  "failedAssertions": [
+    {
+      "id": "VAL-ACCT-001",
+      "reason": "Assertion requires focused accounting services under 500 lines; current branch still has oversized services (AccountingCoreEngine 6212 LOC, AccountingFacade 2160 LOC, AccountingPeriodService 1006 LOC, ReconciliationService 683 LOC, AccountingAuditTrailService 526 LOC)."
+    },
+    {
+      "id": "VAL-ACCT-008",
+      "reason": "Bank and subledger reconciliation evidence passes, but inter-company reconciliation coverage/implementation evidence is absent in current ReconciliationService and test surface."
+    },
+    {
+      "id": "VAL-FOUND-003",
+      "reason": "Shared ValidationUtils exists, but broad adoption is incomplete: module code has no observed ValidationUtils.parseEnum/validateDateRange usage and still relies on inline enum/date-range validation paths."
+    }
+  ],
+  "blockedAssertions": [],
+  "appliedUpdates": [
+    {
+      "target": "user-testing.md",
+      "description": "Added accounting-core flow guidance note documenting instability of PurchasingServiceTest#createPurchase_journalPostedFirst (NPE in setup) and stable alternate evidence tests for facade validation.",
+      "source": "flow-report"
+    }
+  ],
+  "previousRound": null
+}

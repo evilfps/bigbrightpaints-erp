@@ -1,0 +1,137 @@
+{
+  "groupId": "accounting-core-rerun-a",
+  "testedAt": "2026-02-28T21:29:06+05:30",
+  "credentials": {
+    "account": "ut-accounting-core-rerun-a@example.com",
+    "namespace": "ut_acct_core_rerun_a"
+  },
+  "toolsUsed": [
+    "mvn test (targeted)",
+    "python3",
+    "grep/read inspection"
+  ],
+  "assertions": [
+    {
+      "id": "VAL-ACCT-001",
+      "title": "AccountingService decomposed",
+      "status": "fail",
+      "steps": [
+        {
+          "action": "Count lines for accounting service classes under `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service` using a Python scan.",
+          "expected": "Focused accounting services are all under 500 lines.",
+          "observed": "Multiple classes exceed 500 lines: AccountingCoreEngine.java (6212), AccountingFacade.java (2160), AccountingPeriodService.java (1006), ReconciliationService.java (811), AccountingAuditTrailService.java (526)."
+        },
+        {
+          "action": "Compare measured file sizes against the assertion threshold.",
+          "expected": "No accounting service class breaches the 500-line limit.",
+          "observed": "Threshold is not met on current branch, so decomposition criterion is not satisfied."
+        }
+      ],
+      "evidence": {
+        "commands": [
+          "python3 - <<'PY' ... count lines in /home/realnigga/Desktop/Mission-control/erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/*.java ... PY"
+        ],
+        "result": "FAIL",
+        "output": "AccountingCoreEngine.java:6212; AccountingFacade.java:2160; AccountingPeriodService.java:1006; ReconciliationService.java:811; AccountingAuditTrailService.java:526",
+        "codeRefs": [
+          "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingCoreEngine.java",
+          "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingFacade.java",
+          "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingPeriodService.java",
+          "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/ReconciliationService.java",
+          "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingAuditTrailService.java"
+        ]
+      },
+      "issues": "Assertion requires focused accounting services under 500 lines; several accounting service classes remain above limit."
+    },
+    {
+      "id": "VAL-ACCT-008",
+      "title": "Reconciliation service",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Run targeted reconciliation test command: `mvn --settings /home/realnigga/Desktop/Mission-control/erp-domain/.mvn/settings.xml -f /home/realnigga/Desktop/Mission-control/erp-domain/pom.xml test -Djacoco.skip=true -Dtest=ReconciliationServiceTest`.",
+          "expected": "Bank reconciliation, subledger-to-GL reconciliation, and inter-company reconciliation flows pass with discrepancy reporting.",
+          "observed": "BUILD SUCCESS; ReconciliationServiceTest ran 5 tests with 0 failures/0 errors, including bank, subledger, and two inter-company scenarios (matched + unmatched)."
+        },
+        {
+          "action": "Inspect reconciliation service and tests for inter-company flow coverage.",
+          "expected": "Inter-company reconcile API and matched/unmatched test coverage are present.",
+          "observed": "`ReconciliationService.interCompanyReconcile(...)` exists, and test cases `interCompanyReconcile_bidirectionalBalancesMatch_reportsMatchedItems` and `interCompanyReconcile_mismatchAndMissingCounterparty_reportsUnmatchedItems` are present and passed."
+        }
+      ],
+      "evidence": {
+        "commands": [
+          "mvn --settings /home/realnigga/Desktop/Mission-control/erp-domain/.mvn/settings.xml -f /home/realnigga/Desktop/Mission-control/erp-domain/pom.xml test -Djacoco.skip=true -Dtest=ReconciliationServiceTest",
+          "grep/read inspection for \"interCompanyReconcile\" in ReconciliationService.java and ReconciliationServiceTest.java"
+        ],
+        "result": "PASS",
+        "output": "Tests run: 5, Failures: 0, Errors: 0, Skipped: 0",
+        "codeRefs": [
+          "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/ReconciliationService.java:339-377",
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/service/ReconciliationServiceTest.java:242-304"
+        ]
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-FOUND-003",
+      "title": "Shared validation utilities",
+      "status": "fail",
+      "steps": [
+        {
+          "action": "Inspect shared validation utility implementation in `ValidationUtils`.",
+          "expected": "Shared utility provides positive checks, enum parsing with error messages, date-range validation, and null guards.",
+          "observed": "ValidationUtils includes `requirePositive`, `requireNotNull`, `parseEnum`, and `validateDateRange`."
+        },
+        {
+          "action": "Search module code usage for `ValidationUtils.parseEnum(...)` and `ValidationUtils.validateDateRange(...)`.",
+          "expected": "Shared enum/date-range utilities are reused across modules.",
+          "observed": "No matches found for either `parseEnum` or `validateDateRange` in module source paths."
+        },
+        {
+          "action": "Scan module directories for any ValidationUtils usage footprint.",
+          "expected": "All modules show shared validation utility adoption.",
+          "observed": "Several modules use ValidationUtils (e.g., accounting, inventory, sales), but demo, portal, and reports modules show no ValidationUtils usage in current source tree."
+        }
+      ],
+      "evidence": {
+        "commands": [
+          "read /home/realnigga/Desktop/Mission-control/erp-domain/src/main/java/com/bigbrightpaints/erp/core/validation/ValidationUtils.java",
+          "grep ValidationUtils.parseEnum( in /home/realnigga/Desktop/Mission-control/erp-domain/src/main/java/com/bigbrightpaints/erp/modules/**/*.java",
+          "grep ValidationUtils.validateDateRange( in /home/realnigga/Desktop/Mission-control/erp-domain/src/main/java/com/bigbrightpaints/erp/modules/**/*.java",
+          "python3 module scan for ValidationUtils usage by module directory"
+        ],
+        "result": "FAIL",
+        "output": "parseEnum usage: none; validateDateRange usage: none; module scan: demo=no-usage, portal=no-usage, reports=no-usage",
+        "codeRefs": [
+          "erp-domain/src/main/java/com/bigbrightpaints/erp/core/validation/ValidationUtils.java:14-79",
+          "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/SettlementService.java:136-196",
+          "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/service/InventoryAdjustmentService.java:243-244"
+        ]
+      },
+      "issues": "Shared utility exists but broad adoption criteria remains incomplete: enum/date-range helper methods are unused in module paths, and not all module directories reference ValidationUtils."
+    }
+  ],
+  "frictions": [
+    {
+      "description": "Targeted Maven execution still triggers full test-source compilation before running a narrow class, adding runtime overhead.",
+      "resolved": true,
+      "resolution": "Kept validation scope to a single assertion-specific test class (`ReconciliationServiceTest`) plus grep/read inspections to minimize runtime while preserving concrete evidence.",
+      "affectedAssertions": [
+        "VAL-ACCT-008"
+      ]
+    },
+    {
+      "description": "No running app service was required for these rerun assertions because evidence is structural (line counts/usage scans) and executable via isolated unit tests, not HTTP flow behavior.",
+      "resolved": true,
+      "resolution": "Used targeted `mvn test` and source inspections only; did not start or restart shared infrastructure.",
+      "affectedAssertions": [
+        "VAL-ACCT-001",
+        "VAL-ACCT-008",
+        "VAL-FOUND-003"
+      ]
+    }
+  ],
+  "blockers": [],
+  "summary": "Tested 3 rerun assertions: 1 passed (VAL-ACCT-008) and 2 failed (VAL-ACCT-001, VAL-FOUND-003). Evidence came from targeted reconciliation unit tests plus source-based structural/usage inspections."
+}
