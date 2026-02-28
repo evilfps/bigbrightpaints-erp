@@ -40,6 +40,7 @@ import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
 import jakarta.persistence.EntityManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -131,6 +132,9 @@ public class AccountingCoreService {
     private final AuditService auditService;
     private final AccountingEventStore accountingEventStore;
     private final IdempotencyReservationService idempotencyReservationService = new IdempotencyReservationService();
+
+    @Autowired(required = false)
+    private AccountingComplianceAuditService accountingComplianceAuditService;
 
     /**
      * When true, disables date validation for benchmark mode.
@@ -231,6 +235,9 @@ public class AccountingCoreService {
         
         Account saved = accountRepository.save(account);
         publishAccountCacheInvalidated(company.getId());
+        if (accountingComplianceAuditService != null) {
+            accountingComplianceAuditService.recordAccountCreated(company, saved);
+        }
         return toDto(saved);
     }
 
@@ -797,6 +804,9 @@ public class AccountingCoreService {
         if (postedEventTrailRecorded) {
             logAuditSuccessAfterCommit(AuditEvent.JOURNAL_ENTRY_POSTED, auditMetadata);
         }
+        if (accountingComplianceAuditService != null) {
+            accountingComplianceAuditService.recordJournalCreation(company, saved);
+        }
         return toDto(saved);
         } catch (Exception e) {
             if (e.getMessage() != null) {
@@ -942,6 +952,9 @@ public class AccountingCoreService {
             }
             recordJournalEntryReversedEventSafe(entry, reversalEntry, sanitizedReason);
             logAuditSuccessAfterCommit(AuditEvent.JOURNAL_ENTRY_REVERSED, auditMetadata);
+            if (accountingComplianceAuditService != null) {
+                accountingComplianceAuditService.recordJournalReversal(company, entry, reversalEntry, sanitizedReason);
+            }
             return toDto(reversalEntry);
         }
         JournalEntryDto reversalDto = createJournalEntryForReversal(payload, allowClosedPeriodOverride);
@@ -977,6 +990,9 @@ public class AccountingCoreService {
         }
         recordJournalEntryReversedEventSafe(entry, reversalEntry, sanitizedReason);
         logAuditSuccessAfterCommit(AuditEvent.JOURNAL_ENTRY_REVERSED, auditMetadata);
+        if (accountingComplianceAuditService != null) {
+            accountingComplianceAuditService.recordJournalReversal(company, entry, reversalEntry, sanitizedReason);
+        }
         return toDto(reversalEntry);
     }
 

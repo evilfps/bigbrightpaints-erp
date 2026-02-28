@@ -399,6 +399,50 @@ Current runtime path mapping used by backend:
 - Period-close screens should render checklist as strict pass/fail rows and disable close CTA until all rows pass (unless using explicit force flow).
 - Reconciliation pages should highlight discrepancy rows and show variance badges (`within tolerance` vs `exceeds tolerance`).
 
+#### Accounting Compliance Audit Trail
+
+##### Endpoint Map
+
+| Method | Path | Auth | Query Params | Response `data` |
+|---|---|---|---|---|
+| GET | `/api/v1/accounting/audit-trail` | `ROLE_ADMIN`,`ROLE_ACCOUNTING` | `from?`, `to?` (ISO date), `user?`, `actionType?`, `entityType?`, `page=0..`, `size<=200` | `PageResponse<AccountingAuditTrailEntryDto>` |
+
+##### Filter Behavior
+
+- `from` / `to`: inclusive date range window on event timestamp.
+- `user`: matches `actorIdentifier` (typically email/username) or numeric actor user id.
+- `actionType`: exact action key (for example `MANUAL_JOURNAL_CREATED`, `JOURNAL_REVERSED`, `PERIOD_CLOSED`, `PERIOD_REOPENED`, `COSTING_METHOD_CHANGED`, `ACCOUNT_DEACTIVATED`).
+- `entityType`: exact business entity key (`JOURNAL_ENTRY`, `ACCOUNTING_PERIOD`, `ACCOUNT`).
+- Results are tenant/company scoped and sorted newest-first.
+
+##### Data Contract
+
+- `AccountingAuditTrailEntryDto`
+  - `id: number`
+  - `timestamp: string` (ISO-8601 UTC)
+  - `companyId: number`
+  - `companyCode: string`
+  - `actorUserId: number | null`
+  - `actorIdentifier: string` (email/username/system actor)
+  - `actionType: string`
+  - `entityType: string`
+  - `entityId: string | null`
+  - `referenceNumber: string | null`
+  - `traceId: string | null`
+  - `ipAddress: string | null`
+  - `beforeState: string` (JSON snapshot)
+  - `afterState: string` (JSON snapshot)
+  - `sensitiveOperation: boolean`
+  - `metadata: Record<string,string>`
+
+##### UI Guidance
+
+- Render audit rows in a compliance table with fixed columns: `timestamp`, `user`, `action`, `entity`, `traceId`, `sensitive`.
+- Show `beforeState`/`afterState` in expandable JSON viewers.
+- Highlight `sensitiveOperation=true` entries with warning styling/badge.
+- Expose quick filters for common sensitive actions: manual journal, costing method change, account deactivation.
+- Treat audit entries as immutable: UI should provide read-only views only (no edit/delete controls).
+
 ### Product Catalog & Inventory
 _To be documented_
 

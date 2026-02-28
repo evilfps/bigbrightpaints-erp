@@ -21,6 +21,7 @@ import com.bigbrightpaints.erp.modules.accounting.dto.JournalCreationRequest;
 import com.bigbrightpaints.erp.modules.accounting.service.DealerLedgerService;
 import com.bigbrightpaints.erp.modules.accounting.service.CompanyAccountingSettingsService;
 import com.bigbrightpaints.erp.modules.accounting.service.GstService;
+import com.bigbrightpaints.erp.modules.accounting.service.AccountingComplianceAuditService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.inventory.domain.*;
@@ -41,6 +42,7 @@ import com.bigbrightpaints.erp.modules.sales.util.DealerProvisioningSupport;
 import com.bigbrightpaints.erp.modules.sales.util.SalesOrderReference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
@@ -176,6 +178,9 @@ public class SalesService {
     private final AuditService auditService;
     private final IdempotencyReservationService idempotencyReservationService = new IdempotencyReservationService();
     private final TransactionTemplate transactionTemplate;
+
+    @Autowired(required = false)
+    private AccountingComplianceAuditService accountingComplianceAuditService;
 
     public SalesService(CompanyContextService companyContextService,
                         DealerRepository dealerRepository,
@@ -328,8 +333,15 @@ public class SalesService {
         dealer.setStatus(DealerProvisioningSupport.INACTIVE_STATUS);
         Account receivableAccount = dealer.getReceivableAccount();
         if (receivableAccount != null) {
+            boolean previouslyActive = receivableAccount.isActive();
             receivableAccount.setActive(false);
-            accountRepository.save(receivableAccount);
+            Account savedAccount = accountRepository.save(receivableAccount);
+            if (previouslyActive && accountingComplianceAuditService != null) {
+                accountingComplianceAuditService.recordAccountDeactivated(
+                        dealer.getCompany(),
+                        savedAccount,
+                        "Dealer deactivated");
+            }
         }
         dealerRepository.save(dealer);
     }

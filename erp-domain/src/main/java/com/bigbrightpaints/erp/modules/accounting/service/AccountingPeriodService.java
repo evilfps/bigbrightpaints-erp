@@ -27,6 +27,7 @@ import com.bigbrightpaints.erp.modules.reports.dto.ReconciliationSummaryDto;
 import com.bigbrightpaints.erp.modules.reports.dto.TrialBalanceDto;
 import com.bigbrightpaints.erp.modules.reports.service.ReportService;
 import jakarta.transaction.Transactional;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -40,6 +41,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 
 @Service
@@ -75,6 +77,9 @@ public class AccountingPeriodService {
     private final ObjectProvider<AccountingFacade> accountingFacadeProvider;
     private final PeriodCloseHook periodCloseHook;
     private final AccountingPeriodSnapshotService snapshotService;
+
+    @Autowired(required = false)
+    private AccountingComplianceAuditService accountingComplianceAuditService;
 
     public AccountingPeriodService(AccountingPeriodRepository accountingPeriodRepository,
                                    CompanyContextService companyContextService,
@@ -146,8 +151,18 @@ public class AccountingPeriodService {
                     created.setStatus(AccountingPeriodStatus.OPEN);
                     return created;
                 });
+        CostingMethod beforeCostingMethod = period.getCostingMethod();
         period.setCostingMethod(resolveCostingMethodOrDefault(request.costingMethod()));
-        return toDto(accountingPeriodRepository.save(period));
+        AccountingPeriod saved = accountingPeriodRepository.save(period);
+        if (accountingComplianceAuditService != null
+                && !Objects.equals(beforeCostingMethod, saved.getCostingMethod())) {
+            accountingComplianceAuditService.recordCostingMethodChange(
+                    company,
+                    saved,
+                    beforeCostingMethod,
+                    saved.getCostingMethod());
+        }
+        return toDto(saved);
     }
 
     @Transactional
@@ -159,8 +174,18 @@ public class AccountingPeriodService {
         AccountingPeriod period = accountingPeriodRepository.lockByCompanyAndId(company, periodId)
                 .orElseThrow(() -> new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE,
                         "Accounting period not found"));
+        CostingMethod beforeCostingMethod = period.getCostingMethod();
         period.setCostingMethod(resolveCostingMethodOrDefault(request.costingMethod()));
-        return toDto(accountingPeriodRepository.save(period));
+        AccountingPeriod saved = accountingPeriodRepository.save(period);
+        if (accountingComplianceAuditService != null
+                && !Objects.equals(beforeCostingMethod, saved.getCostingMethod())) {
+            accountingComplianceAuditService.recordCostingMethodChange(
+                    company,
+                    saved,
+                    beforeCostingMethod,
+                    saved.getCostingMethod());
+        }
+        return toDto(saved);
     }
 
     @Transactional
@@ -169,6 +194,7 @@ public class AccountingPeriodService {
         AccountingPeriod period = accountingPeriodRepository.lockByCompanyAndId(company, periodId)
                 .orElseThrow(() -> new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE,
                         "Accounting period not found"));
+        String beforeStatus = period.getStatus() != null ? period.getStatus().name() : null;
         if (period.getStatus() == AccountingPeriodStatus.CLOSED) {
             return toDto(period);
         }
@@ -202,6 +228,15 @@ public class AccountingPeriodService {
         period.setLockReason(note);
         period.setClosingJournalEntryId(closingJournalId);
         AccountingPeriod saved = accountingPeriodRepository.save(period);
+        if (accountingComplianceAuditService != null) {
+            accountingComplianceAuditService.recordPeriodTransition(
+                    company,
+                    saved,
+                    "PERIOD_CLOSED",
+                    beforeStatus,
+                    saved.getStatus() != null ? saved.getStatus().name() : null,
+                    note);
+        }
         ensurePeriod(company, period.getEndDate().plusDays(1));
         return toDto(saved);
     }
@@ -259,6 +294,7 @@ public class AccountingPeriodService {
         AccountingPeriod period = accountingPeriodRepository.lockByCompanyAndId(company, periodId)
                 .orElseThrow(() -> new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE,
                         "Accounting period not found"));
+        String beforeStatus = period.getStatus() != null ? period.getStatus().name() : null;
         if (period.getStatus() == AccountingPeriodStatus.OPEN) {
             return toDto(period);
         }
@@ -278,7 +314,17 @@ public class AccountingPeriodService {
             period.setClosingJournalEntryId(null);
         }
         snapshotService.deleteSnapshotForPeriod(company, period);
-        return toDto(accountingPeriodRepository.save(period));
+        AccountingPeriod saved = accountingPeriodRepository.save(period);
+        if (accountingComplianceAuditService != null) {
+            accountingComplianceAuditService.recordPeriodTransition(
+                    company,
+                    saved,
+                    "PERIOD_REOPENED",
+                    beforeStatus,
+                    saved.getStatus() != null ? saved.getStatus().name() : null,
+                    reason);
+        }
+        return toDto(saved);
     }
 
     public MonthEndChecklistDto getMonthEndChecklist(Long periodId) {
