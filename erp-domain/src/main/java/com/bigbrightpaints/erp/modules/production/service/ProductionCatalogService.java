@@ -475,11 +475,11 @@ public class ProductionCatalogService {
     private VariantExecutionPlan prepareVariantExecutionPlan(Company company, BulkVariantRequest request) {
         Map<String, String> colorsByKey = new LinkedHashMap<>();
         for (String color : expandTokens(request.colors())) {
-            colorsByKey.putIfAbsent(normalizeTokenKey(color), color);
+            colorsByKey.putIfAbsent(IdempotencyUtils.normalizeUpperToken(color), color);
         }
         Map<String, ColorSizeSpec> colorSizeMatrix = expandColorSizeMatrix(request.colorSizeMatrix());
         for (ColorSizeSpec matrixEntry : colorSizeMatrix.values()) {
-            colorsByKey.putIfAbsent(normalizeTokenKey(matrixEntry.color()), matrixEntry.color());
+            colorsByKey.putIfAbsent(IdempotencyUtils.normalizeUpperToken(matrixEntry.color()), matrixEntry.color());
         }
         List<String> globalSizes = expandTokens(request.sizes());
 
@@ -727,7 +727,7 @@ public class ProductionCatalogService {
                     continue;
                 }
                 String token = chunk.trim();
-                tokens.putIfAbsent(normalizeTokenKey(token), token);
+                tokens.putIfAbsent(IdempotencyUtils.normalizeUpperToken(token), token);
             }
         }
         return List.copyOf(tokens.values());
@@ -748,7 +748,7 @@ public class ProductionCatalogService {
             }
             List<String> sizes = expandTokens(entry.sizes());
             for (String color : colors) {
-                String colorKey = normalizeTokenKey(color);
+                String colorKey = IdempotencyUtils.normalizeUpperToken(color);
                 ColorSizeSpec existing = matrix.get(colorKey);
                 if (existing == null) {
                     matrix.put(colorKey, new ColorSizeSpec(color, sizes));
@@ -765,22 +765,18 @@ public class ProductionCatalogService {
         if (first != null) {
             for (String token : first) {
                 if (StringUtils.hasText(token)) {
-                    merged.putIfAbsent(normalizeTokenKey(token), token.trim());
+                    merged.putIfAbsent(IdempotencyUtils.normalizeUpperToken(token), token.trim());
                 }
             }
         }
         if (second != null) {
             for (String token : second) {
                 if (StringUtils.hasText(token)) {
-                    merged.putIfAbsent(normalizeTokenKey(token), token.trim());
+                    merged.putIfAbsent(IdempotencyUtils.normalizeUpperToken(token), token.trim());
                 }
             }
         }
         return List.copyOf(merged.values());
-    }
-
-    private String normalizeTokenKey(String value) {
-        return value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
     }
 
     private String resolveEffectiveSizeLabel(String sizeLabel, String unitOfMeasure) {

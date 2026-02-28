@@ -25,8 +25,6 @@ import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -37,6 +35,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+
+import static com.bigbrightpaints.erp.core.idempotency.IdempotencyUtils.sha256Hex;
 
 /**
  * Service for converting bulk FG batches into sized child batches.
@@ -313,17 +313,6 @@ public class BulkPackingService {
         }
         String trimmedBatch = safeBatch.length() > maxBatchLen ? safeBatch.substring(0, maxBatchLen) : safeBatch;
         return safePrefix + trimmedBatch + "-" + safeHash;
-    }
-
-    private String sha256Hex(String input, int length) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(input.getBytes(StandardCharsets.UTF_8));
-            String fullHex = java.util.HexFormat.of().formatHex(hash);
-            return fullHex.substring(0, Math.min(length, fullHex.length()));
-        } catch (Exception ex) {
-            return Integer.toHexString(input.hashCode());
-        }
     }
 
     /**

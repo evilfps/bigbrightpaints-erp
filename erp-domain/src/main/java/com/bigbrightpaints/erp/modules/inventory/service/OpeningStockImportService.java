@@ -4,6 +4,7 @@ import com.bigbrightpaints.erp.core.audit.AuditEvent;
 import com.bigbrightpaints.erp.core.audit.AuditService;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
+import com.bigbrightpaints.erp.core.idempotency.IdempotencyUtils;
 import com.bigbrightpaints.erp.core.util.CompanyTime;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.core.util.MoneyUtils;
@@ -44,7 +45,6 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -145,7 +145,7 @@ public class OpeningStockImportService {
             throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput("CSV file is required");
         }
         assertImportAllowed();
-        String fileHash = sha256Hex(file);
+        String fileHash = resolveFileHash(file);
         String normalizedKey = normalizeIdempotencyKey(idempotencyKey, fileHash);
         String importReference = resolveImportReference(company, fileHash);
 
@@ -409,12 +409,9 @@ public class OpeningStockImportService {
         return normalized.isBlank() ? "COMPANY" : normalized;
     }
 
-    private String sha256Hex(MultipartFile file) {
+    private String resolveFileHash(MultipartFile file) {
         try {
-            byte[] bytes = file.getBytes();
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(bytes);
-            return java.util.HexFormat.of().formatHex(hash);
+            return IdempotencyUtils.sha256Hex(file.getBytes());
         } catch (Exception ex) {
             // Fallback: stable-ish hash for common IO failures (still protects against accidental retries)
             return Integer.toHexString(file.getOriginalFilename() != null ? file.getOriginalFilename().hashCode() : 0);

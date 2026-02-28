@@ -1376,7 +1376,7 @@ public class AccountingFacade {
 
         if (increaseInventory) {
             inventoryLines.forEach((accountId, amount) -> {
-                BigDecimal absAmount = normalizeAmount(amount);
+                BigDecimal absAmount = absoluteAmount(amount);
                 if (absAmount.compareTo(BigDecimal.ZERO) > 0) {
                     lines.add(new JournalEntryRequest.JournalLineRequest(
                             accountId,
@@ -1397,7 +1397,7 @@ public class AccountingFacade {
                     totalAmount,
                     BigDecimal.ZERO));
             inventoryLines.forEach((accountId, amount) -> {
-                BigDecimal absAmount = normalizeAmount(amount);
+                BigDecimal absAmount = absoluteAmount(amount);
                 if (absAmount.compareTo(BigDecimal.ZERO) > 0) {
                     lines.add(new JournalEntryRequest.JournalLineRequest(
                             accountId,
@@ -1677,7 +1677,7 @@ public class AccountingFacade {
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
-    private BigDecimal normalizeAmount(BigDecimal value) {
+    private BigDecimal absoluteAmount(BigDecimal value) {
         return value == null ? BigDecimal.ZERO : value.abs();
     }
 

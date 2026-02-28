@@ -1,8 +1,7 @@
 package com.bigbrightpaints.erp.modules.sales.util;
 
+import com.bigbrightpaints.erp.core.idempotency.IdempotencyUtils;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrder;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
 import org.springframework.util.StringUtils;
 
 public final class SalesOrderReference {
@@ -68,7 +67,7 @@ public final class SalesOrderReference {
         if (candidate.length() <= MAX_REFERENCE_LENGTH) {
             return candidate;
         }
-        String hash = sha256Hex(candidate);
+        String hash = IdempotencyUtils.sha256Hex(candidate);
         if (hash.length() < HASH_LENGTH) {
             hash = (hash + "0".repeat(HASH_LENGTH)).substring(0, HASH_LENGTH);
         } else {
@@ -80,13 +79,4 @@ public final class SalesOrderReference {
         return prefix + token + "-H" + hash;
     }
 
-    private static String sha256Hex(String value) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(value.getBytes(StandardCharsets.UTF_8));
-            return java.util.HexFormat.of().formatHex(hash);
-        } catch (Exception ignored) {
-            return Integer.toHexString(value.hashCode());
-        }
-    }
 }

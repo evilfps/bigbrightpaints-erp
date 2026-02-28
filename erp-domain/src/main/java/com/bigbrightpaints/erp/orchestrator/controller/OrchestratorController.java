@@ -59,7 +59,7 @@ public class OrchestratorController {
         ApproveOrderRequest normalized = new ApproveOrderRequest(
                 orderId,
                 canonicalText(request.approvedBy()),
-                normalizeAmount(request.totalAmount()));
+                stripTrailingZeros(request.totalAmount()));
         String traceId = commandDispatcher.approveOrder(
                 selectPayloadForIdempotency(sanitizedHeaderIdempotencyKey, raw, normalized),
                 resolveIdempotencyKey(
@@ -119,7 +119,7 @@ public class OrchestratorController {
                 request.postingAmount());
         DispatchRequest normalized = new DispatchRequest(batchId,
                 canonicalText(request.requestedBy()),
-                normalizeAmount(request.postingAmount()));
+                stripTrailingZeros(request.postingAmount()));
         String traceId = commandDispatcher.dispatchBatch(
                 selectPayloadForIdempotency(sanitizedHeaderIdempotencyKey, raw, normalized),
                 resolveIdempotencyKey(
@@ -235,7 +235,7 @@ public class OrchestratorController {
         return StringUtils.hasText(idempotencyKey) ? rawPayload : normalizedPayload;
     }
 
-    private static BigDecimal normalizeAmount(BigDecimal amount) {
+    private static BigDecimal stripTrailingZeros(BigDecimal amount) {
         return amount == null ? null : amount.stripTrailingZeros();
     }
 

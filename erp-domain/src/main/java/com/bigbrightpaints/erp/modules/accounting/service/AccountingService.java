@@ -3575,8 +3575,8 @@ public class AccountingService {
             }
             JournalLineSignature signature = new JournalLineSignature(
                     line.accountId(),
-                    normalizeAmount(line.debit()),
-                    normalizeAmount(line.credit()));
+                    roundedAmount(line.debit()),
+                    roundedAmount(line.credit()));
             counts.merge(signature, 1, Integer::sum);
         }
         return counts;
@@ -4078,14 +4078,14 @@ public class AccountingService {
             }
             JournalLineSignature signature = new JournalLineSignature(
                     line.getAccount().getId(),
-                    normalizeAmount(line.getDebit()),
-                    normalizeAmount(line.getCredit()));
+                    roundedAmount(line.getDebit()),
+                    roundedAmount(line.getCredit()));
             counts.merge(signature, 1, Integer::sum);
         }
         return counts;
     }
 
-    private BigDecimal normalizeAmount(BigDecimal amount) {
+    private BigDecimal roundedAmount(BigDecimal amount) {
         if (amount == null) {
             return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
         }
@@ -5077,7 +5077,7 @@ public class AccountingService {
                     purchaseId);
         }
 
-        BigDecimal expectedPayableCredit = normalizeAmount(MoneyUtils.zeroIfNull(purchase.getTotalAmount()));
+        BigDecimal expectedPayableCredit = roundedAmount(MoneyUtils.zeroIfNull(purchase.getTotalAmount()));
         BigDecimal actualPayableCredit = payableCreditForAccount(purchaseJournal, payableAccount.getId());
         if (actualPayableCredit.subtract(expectedPayableCredit).abs().compareTo(ALLOCATION_TOLERANCE) > 0) {
             throw supplierSettlementPostingDrift(
@@ -5091,7 +5091,7 @@ public class AccountingService {
                     .withDetail("purchaseJournalEntryId", purchaseJournal.getId());
         }
 
-        BigDecimal expectedInputTax = normalizeAmount(MoneyUtils.zeroIfNull(purchase.getTaxAmount()));
+        BigDecimal expectedInputTax = roundedAmount(MoneyUtils.zeroIfNull(purchase.getTaxAmount()));
         BigDecimal actualInputTaxDebit = inputTaxDebitForPurchaseJournal(company, purchaseJournal);
         if (expectedInputTax.compareTo(ALLOCATION_TOLERANCE) > 0) {
             if (actualInputTaxDebit.compareTo(ALLOCATION_TOLERANCE) <= 0
@@ -5131,12 +5131,12 @@ public class AccountingService {
             if (!Objects.equals(line.getAccount().getId(), payableAccountId)) {
                 continue;
             }
-            BigDecimal credit = normalizeAmount(line.getCredit());
+            BigDecimal credit = roundedAmount(line.getCredit());
             if (credit.compareTo(BigDecimal.ZERO) > 0) {
                 total = total.add(credit);
             }
         }
-        return normalizeAmount(total);
+        return roundedAmount(total);
     }
 
     private BigDecimal inputTaxDebitForPurchaseJournal(Company company, JournalEntry entry) {
@@ -5148,12 +5148,12 @@ public class AccountingService {
             if (!isInputTaxPurchaseLine(company, line)) {
                 continue;
             }
-            BigDecimal debit = normalizeAmount(line.getDebit());
+            BigDecimal debit = roundedAmount(line.getDebit());
             if (debit.compareTo(BigDecimal.ZERO) > 0) {
                 total = total.add(debit);
             }
         }
-        return normalizeAmount(total);
+        return roundedAmount(total);
     }
 
     private boolean isInputTaxPurchaseLine(Company company, JournalLine line) {
@@ -5247,7 +5247,7 @@ public class AccountingService {
                 if (payment == null || payment.accountId() == null) {
                     continue;
                 }
-                BigDecimal amount = normalizeAmount(payment.amount());
+                BigDecimal amount = roundedAmount(payment.amount());
                 if (amount.compareTo(BigDecimal.ZERO) <= 0) {
                     continue;
                 }
@@ -5266,7 +5266,7 @@ public class AccountingService {
             return counts;
         }
         counts.merge(
-                new DealerPaymentSignature(request.cashAccountId(), normalizeAmount(cashAmount)),
+                new DealerPaymentSignature(request.cashAccountId(), roundedAmount(cashAmount)),
                 1,
                 Integer::sum
         );
@@ -5299,7 +5299,7 @@ public class AccountingService {
             if (!paymentAccountIds.contains(accountId)) {
                 continue;
             }
-            BigDecimal debit = normalizeAmount(line.getDebit());
+            BigDecimal debit = roundedAmount(line.getDebit());
             if (debit.compareTo(BigDecimal.ZERO) <= 0) {
                 continue;
             }
@@ -5333,7 +5333,7 @@ public class AccountingService {
                     adjustmentSignature.normalizedDescription(),
                     expectedAdjustmentAccountId);
             BigDecimal remaining = adjustmentSignature.amount().subtract(nonPaymentAmount);
-            adjustmentRemovalTargets.add(normalizeAmount(remaining.compareTo(BigDecimal.ZERO) > 0 ? remaining : BigDecimal.ZERO));
+            adjustmentRemovalTargets.add(roundedAmount(remaining.compareTo(BigDecimal.ZERO) > 0 ? remaining : BigDecimal.ZERO));
             List<Integer> candidateIndexes = new ArrayList<>();
             for (int i = 0; i < candidateLines.size(); i++) {
                 ExistingDealerPaymentLine line = candidateLines.get(i);
@@ -5397,13 +5397,13 @@ public class AccountingService {
             if (!normalizeLineDescription(line.getDescription()).equals(normalizedDescription)) {
                 continue;
             }
-            BigDecimal debit = normalizeAmount(line.getDebit());
+            BigDecimal debit = roundedAmount(line.getDebit());
             if (debit.compareTo(BigDecimal.ZERO) <= 0) {
                 continue;
             }
             total = total.add(debit);
         }
-        return normalizeAmount(total);
+        return roundedAmount(total);
     }
 
     private List<SettlementAdjustmentSignature> buildSettlementAdjustmentSignaturesFromRows(
@@ -5418,9 +5418,9 @@ public class AccountingService {
             if (allocation == null) {
                 continue;
             }
-            totalDiscount = totalDiscount.add(normalizeAmount(allocation.getDiscountAmount()));
-            totalWriteOff = totalWriteOff.add(normalizeAmount(allocation.getWriteOffAmount()));
-            BigDecimal fxDifference = normalizeAmount(allocation.getFxDifferenceAmount());
+            totalDiscount = totalDiscount.add(roundedAmount(allocation.getDiscountAmount()));
+            totalWriteOff = totalWriteOff.add(roundedAmount(allocation.getWriteOffAmount()));
+            BigDecimal fxDifference = roundedAmount(allocation.getFxDifferenceAmount());
             if (fxDifference.compareTo(BigDecimal.ZERO) < 0) {
                 totalFxLoss = totalFxLoss.add(fxDifference.abs());
             }
@@ -5429,17 +5429,17 @@ public class AccountingService {
         if (totalDiscount.compareTo(BigDecimal.ZERO) > 0) {
             signatures.add(new SettlementAdjustmentSignature(
                     SETTLEMENT_DISCOUNT_LINE_DESCRIPTION,
-                    normalizeAmount(totalDiscount)));
+                    roundedAmount(totalDiscount)));
         }
         if (totalWriteOff.compareTo(BigDecimal.ZERO) > 0) {
             signatures.add(new SettlementAdjustmentSignature(
                     SETTLEMENT_WRITE_OFF_LINE_DESCRIPTION,
-                    normalizeAmount(totalWriteOff)));
+                    roundedAmount(totalWriteOff)));
         }
         if (totalFxLoss.compareTo(BigDecimal.ZERO) > 0) {
             signatures.add(new SettlementAdjustmentSignature(
                     SETTLEMENT_FX_LOSS_LINE_DESCRIPTION,
-                    normalizeAmount(totalFxLoss)));
+                    roundedAmount(totalFxLoss)));
         }
         return signatures;
     }

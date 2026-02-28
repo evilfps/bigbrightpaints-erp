@@ -1,5 +1,6 @@
 package com.bigbrightpaints.erp.modules.accounting.event;
 
+import com.bigbrightpaints.erp.core.idempotency.IdempotencyUtils;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
@@ -20,11 +21,7 @@ import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
 import java.math.BigDecimal;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.LocalDate;
-import java.util.HexFormat;
 import java.util.List;
 
 /**
@@ -273,7 +270,7 @@ public class InventoryAccountingEventListener {
             event.oldUnitCost(),
             event.newUnitCost(),
             event.timestamp() != null ? event.timestamp().toEpochMilli() : "");
-        String hash = sha256Hex(eventFingerprint, 16); // 16 hex chars = 64 bits
+        String hash = IdempotencyUtils.sha256Hex(eventFingerprint, 16); // 16 hex chars = 64 bits
         return String.format("REVAL-%s-%s-%s", event.itemCode(), event.reason(), hash);
     }
 
@@ -305,22 +302,7 @@ public class InventoryAccountingEventListener {
             event.relatedEntityType() != null ? event.relatedEntityType() : "",
             event.relatedEntityId() != null ? event.relatedEntityId() : 0,
             event.itemName() != null ? event.itemName() : "");
-        String hash = sha256Hex(eventFingerprint, 16); // 16 hex chars = 64 bits
+        String hash = IdempotencyUtils.sha256Hex(eventFingerprint, 16); // 16 hex chars = 64 bits
         return String.format("%s-%s", referencePrefix, hash);
-    }
-
-    /**
-     * Compute SHA-256 hash of input and return first N hex characters.
-     */
-    private String sha256Hex(String input, int length) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(input.getBytes(StandardCharsets.UTF_8));
-            String fullHex = HexFormat.of().formatHex(hash);
-            return fullHex.substring(0, Math.min(length, fullHex.length()));
-        } catch (NoSuchAlgorithmException e) {
-            // SHA-256 is guaranteed to be available in Java
-            throw new RuntimeException("SHA-256 not available", e);
-        }
     }
 }

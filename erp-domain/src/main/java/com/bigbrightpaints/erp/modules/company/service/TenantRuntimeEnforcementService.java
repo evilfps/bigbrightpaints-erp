@@ -4,6 +4,7 @@ import com.bigbrightpaints.erp.core.audit.AuditEvent;
 import com.bigbrightpaints.erp.core.audit.AuditService;
 import com.bigbrightpaints.erp.core.config.SystemSetting;
 import com.bigbrightpaints.erp.core.config.SystemSettingsRepository;
+import com.bigbrightpaints.erp.core.idempotency.IdempotencyUtils;
 import com.bigbrightpaints.erp.core.util.CompanyTime;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
@@ -163,7 +164,7 @@ public class TenantRuntimeEnforcementService {
 
     public void enforceAuthOperationAllowed(String companyCode, String actor, String operation) {
         String normalizedCompany = requireCompanyCode(companyCode);
-        String scope = "auth_" + normalizeToken(operation, "UNKNOWN");
+        String scope = "auth_" + normalizeUpperToken(operation, "UNKNOWN");
         TenantRuntimePolicy policy = policyFor(normalizedCompany);
         TenantRuntimeCounters usageCounters = countersFor(normalizedCompany);
 
@@ -720,7 +721,7 @@ public class TenantRuntimeEnforcementService {
     }
 
     private String normalizeActor(String actor) {
-        String normalized = normalizeToken(actor, null);
+        String normalized = normalizeUpperToken(actor, null);
         if (!StringUtils.hasText(normalized)) {
             return UNKNOWN_ACTOR;
         }
@@ -736,19 +737,19 @@ public class TenantRuntimeEnforcementService {
     }
 
     private String normalizeCompanyCode(String companyCode) {
-        String normalized = normalizeToken(companyCode, null);
+        String normalized = normalizeUpperToken(companyCode, null);
         return StringUtils.hasText(normalized) ? normalized : null;
     }
 
     private String normalizeReason(String reasonCode) {
-        return normalizeToken(reasonCode, DEFAULT_REASON);
+        return normalizeUpperToken(reasonCode, DEFAULT_REASON);
     }
 
-    private String normalizeToken(String value, String fallback) {
+    private String normalizeUpperToken(String value, String fallback) {
         if (!StringUtils.hasText(value)) {
             return fallback;
         }
-        return value.trim().toUpperCase();
+        return IdempotencyUtils.normalizeUpperToken(value);
     }
 
     private int sanitizeLimit(int limit) {
