@@ -1,0 +1,97 @@
+{
+  "milestone": "product-catalog",
+  "round": 1,
+  "status": "fail",
+  "validatorsRun": {
+    "test": {
+      "passed": true,
+      "command": "cd /home/realnigga/Desktop/Mission-control/erp-domain && mvn test -Pgate-fast -Djacoco.skip=true",
+      "exitCode": 0
+    },
+    "typecheck": {
+      "passed": true,
+      "command": "cd /home/realnigga/Desktop/Mission-control/erp-domain && mvn compile -q",
+      "exitCode": 0
+    },
+    "lint": {
+      "passed": true,
+      "command": "cd /home/realnigga/Desktop/Mission-control && echo \"Checkstyle in advisory mode (49962 pre-existing violations). Skipped as hard gate.\"",
+      "exitCode": 0
+    }
+  },
+  "reviewsSummary": {
+    "total": 4,
+    "passed": 0,
+    "failed": 4,
+    "failedFeatures": [
+      "brand-and-product-catalog",
+      "decompose-finished-goods-service",
+      "inventory-batch-tracking-and-manufacturing",
+      "catalog-inventory-frontend-handoff-doc"
+    ]
+  },
+  "blockingIssues": [
+    {
+      "featureId": "brand-and-product-catalog",
+      "severity": "blocking",
+      "description": "CatalogService.bulkUpsertProducts swallows bean-validation failures per item and degrades them into generic FAILED row results, leaving per-item validation behavior incorrect."
+    },
+    {
+      "featureId": "decompose-finished-goods-service",
+      "severity": "blocking",
+      "description": "FinishedGoods decomposition is not real: business logic remains concentrated in FinishedGoodsWorkflowService (~2119 lines) while focused services are pass-through delegators."
+    },
+    {
+      "featureId": "inventory-batch-tracking-and-manufacturing",
+      "severity": "blocking",
+      "description": "Raw-material batch flows do not reliably capture manufacturing/expiry metadata across purchase/intake/opening-stock paths, so full batch traceability requirements are not met."
+    },
+    {
+      "featureId": "catalog-inventory-frontend-handoff-doc",
+      "severity": "blocking",
+      "description": "Frontend handoff documentation contains incorrect dispatch reservation semantics and an unreachable production lifecycle transition, creating blocking API behavior drift for frontend consumers."
+    }
+  ],
+  "appliedUpdates": [
+    {
+      "target": "services.yaml",
+      "description": "Added commands.init entry pointing to /home/realnigga/Desktop/Mission-control/.factory/init.sh to standardize reproducible worker setup.",
+      "sourceFeature": "brand-and-product-catalog"
+    }
+  ],
+  "suggestedGuidanceUpdates": [
+    {
+      "target": "AGENTS.md",
+      "suggestion": "Clarify .factory edit boundaries by explicitly distinguishing mission infrastructure (protected) from allowed worker outputs/knowledge locations (.factory/validation, .factory/library, .factory/services.yaml).",
+      "evidence": "Multiple reviews flagged conflicting guidance: mission AGENTS disallows .factory edits while worker skill/procedure requires frontend handoff and scrutiny artifacts under .factory.",
+      "isSystemic": true
+    },
+    {
+      "target": "skill",
+      "suggestion": "Update backend-worker skill with an explicit documentation-validation checklist for doc-only features (controller path verification, state-machine transition proof, auth constraints, feature-flag/profile gating).",
+      "evidence": "catalog-inventory-frontend-handoff-doc review found two blocking factual drifts that compile/tests did not catch.",
+      "isSystemic": true
+    },
+    {
+      "target": "skill",
+      "suggestion": "Allow and document a decomposition-specific workflow variant: refactor-first with mandatory targeted+regression tests when work is behavior-preserving structural decomposition.",
+      "evidence": "decompose-finished-goods-service handoff reported process deviation from strict TDD ordering despite running regression verification.",
+      "isSystemic": false
+    }
+  ],
+  "rejectedObservations": [
+    {
+      "observation": "Mission guidance and skill conflict on .factory edits",
+      "reason": "duplicate: reported by multiple feature reviews and consolidated into one AGENTS.md guidance recommendation"
+    },
+    {
+      "observation": "services.yaml missing init command",
+      "reason": "already-applied: implemented directly in this scrutiny run under appliedUpdates"
+    },
+    {
+      "observation": "low-stock threshold not included in FinishedGoodDto payload",
+      "reason": "feature-specific API design note; not a shared-state/process artifact for AGENTS/skills/services/library"
+    }
+  ],
+  "previousRound": null
+}
