@@ -1,7 +1,7 @@
 {
   "milestone": "tenant-and-admin",
-  "round": 1,
-  "status": "fail",
+  "round": 2,
+  "status": "pass",
   "validatorsRun": {
     "test": {
       "passed": true,
@@ -20,63 +20,19 @@
     }
   },
   "reviewsSummary": {
-    "total": 3,
-    "passed": 0,
-    "failed": 3,
-    "failedFeatures": [
-      "superadmin-dashboard-and-controls",
-      "tenant-onboarding-with-coa-templates",
-      "module-feature-gating-and-tenant-lifecycle"
-    ]
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "failedFeatures": []
   },
-  "blockingIssues": [
-    {
-      "featureId": "superadmin-dashboard-and-controls",
-      "severity": "blocking",
-      "description": "Tenant usage metric increment uses read-then-write without concurrency control in TenantUsageMetricsService.recordApiCall, causing lost API call counts under concurrent traffic."
-    },
-    {
-      "featureId": "tenant-onboarding-with-coa-templates",
-      "severity": "blocking",
-      "description": "TenantOnboardingService persists hardcoded global setting cors.allowed-origins=http://localhost:3002, which can override environment-driven production origins through persisted settings precedence."
-    },
-    {
-      "featureId": "module-feature-gating-and-tenant-lifecycle",
-      "severity": "blocking",
-      "description": "CompanyRequest lacks an enabled modules field, so API contracts cannot configure tenant enabled_modules as required for runtime module gating administration."
-    },
-    {
-      "featureId": "module-feature-gating-and-tenant-lifecycle",
-      "severity": "blocking",
-      "description": "CompanyService.update does not persist enabled_modules, leaving module gating effectively non-configurable via supported API paths."
-    }
-  ],
-  "appliedUpdates": [
-    {
-      "target": "library",
-      "description": "Added tenant/admin runtime conventions (lifecycle enforcement and module-gating semantics) to .factory/library/architecture.md.",
-      "sourceFeature": "module-feature-gating-and-tenant-lifecycle"
-    }
-  ],
-  "suggestedGuidanceUpdates": [
-    {
-      "target": "AGENTS.md",
-      "suggestion": "Clarify `.factory/` boundary wording to explicitly permit updates to `.factory/library/frontend-handoff.md` when API contracts change.",
-      "evidence": "Current guidance says do not modify `.factory/` while another section mandates frontend-handoff updates; superadmin feature had to modify frontend-handoff to satisfy requirements.",
-      "isSystemic": true
-    },
-    {
-      "target": "skills/backend-worker",
-      "suggestion": "Clarify when scaffold-first implementation is acceptable before tests for cross-cutting endpoint/interceptor wiring, while still requiring tests in the same feature run.",
-      "evidence": "Superadmin feature handoff reported procedure deviation on strict TDD-first step for interceptor/controller scaffolding.",
-      "isSystemic": false
-    }
-  ],
+  "blockingIssues": [],
+  "appliedUpdates": [],
+  "suggestedGuidanceUpdates": [],
   "rejectedObservations": [
     {
-      "observation": "Onboarding service directly writing global system settings",
-      "reason": "feature-specific implementation defect already captured as a blocking code review issue; not treated as shared-state guidance change in this round"
+      "observation": "Worker-level documentation expectations are contradictory about updating .factory/library/frontend-handoff.md during backend features.",
+      "reason": "duplicate of guidance inconsistency already captured in round-1 suggestedGuidanceUpdates"
     }
   ],
-  "previousRound": null
+  "previousRound": ".factory/validation/tenant-and-admin/scrutiny/synthesis.round1.json"
 }

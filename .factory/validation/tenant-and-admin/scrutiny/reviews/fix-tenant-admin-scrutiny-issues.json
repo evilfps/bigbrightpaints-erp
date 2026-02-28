@@ -1,0 +1,21 @@
+{
+  "featureId": "fix-tenant-admin-scrutiny-issues",
+  "reviewedAt": "2026-02-28T08:26:40Z",
+  "commitId": "4de5b2255f79bc9e5e082a29043f68e6f8d54d43",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "Rerun review confirms all prior blocking findings from tenant-and-admin round 1 are resolved in commit 4de5b225: API usage counting now uses a single DB-side atomic increment path (no read-then-write race), onboarding no longer persists hardcoded CORS origins, and tenant enabled_modules is now configurable via request DTO + service update logic and a dedicated superadmin modules endpoint.",
+    "issues": []
+  },
+  "sharedStateObservations": [
+    {
+      "area": "skills",
+      "observation": "Worker-level documentation expectations are still contradictory across mission/skill/session rules, causing procedural drift in fix runs that modify API contracts.",
+      "evidence": "AGENTS.md:13 forbids modifying `.factory/` mission infrastructure while AGENTS.md:101 and backend-worker SKILL.md Step 5 require updating `.factory/library/frontend-handoff.md`; this fix handoff reports `skillFeedback.followedProcedure=false` specifically for skipping Step 5 due session rule forbidding doc updates unless explicitly requested."
+    }
+  ],
+  "addressesFailureFrom": ".factory/validation/tenant-and-admin/scrutiny/synthesis.json",
+  "summary": "Pass: compared against prior failed reviews and synthesis blocking findings, this fix adequately closes all four blocking gaps (usage-metrics race, hardcoded onboarding CORS persistence, missing enabled_modules API contract, and missing enabled_modules persistence path). No remaining blocking issues were found in the reviewed fix implementation."
+}
