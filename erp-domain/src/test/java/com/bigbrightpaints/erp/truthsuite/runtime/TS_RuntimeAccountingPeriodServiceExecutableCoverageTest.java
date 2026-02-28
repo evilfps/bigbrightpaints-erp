@@ -1,6 +1,8 @@
 package com.bigbrightpaints.erp.truthsuite.runtime;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -17,6 +19,7 @@ import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalLineRepository;
 import com.bigbrightpaints.erp.modules.accounting.dto.AccountingPeriodReopenRequest;
+import com.bigbrightpaints.erp.modules.accounting.dto.JournalCreationRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingPeriodService;
@@ -94,15 +97,7 @@ class TS_RuntimeAccountingPeriodServiceExecutableCoverageTest {
         when(accountRepository.findByCompanyAndCodeIgnoreCase(company, "PERIOD_RESULT"))
                 .thenReturn(Optional.of(periodResult));
         when(companyClock.today(company)).thenReturn(LocalDate.of(2026, 2, 28));
-        when(accountingFacade.postSimpleJournal(
-                "PERIOD-CLOSE-202602",
-                LocalDate.of(2026, 2, 28),
-                "Month close",
-                222L,
-                111L,
-                new BigDecimal("150.00"),
-                true
-        )).thenReturn(new JournalEntryDto(
+        when(accountingFacade.createStandardJournal(any(JournalCreationRequest.class))).thenReturn(new JournalEntryDto(
                 9001L,
                 null,
                 "PERIOD-CLOSE-202602",
@@ -148,15 +143,15 @@ class TS_RuntimeAccountingPeriodServiceExecutableCoverageTest {
 
         assertThat(result).isSameAs(persisted);
         verify(accountingFacadeProvider).getObject();
-        verify(accountingFacade).postSimpleJournal(
-                "PERIOD-CLOSE-202602",
-                LocalDate.of(2026, 2, 28),
-                "Month close",
-                222L,
-                111L,
-                new BigDecimal("150.00"),
-                true
-        );
+        verify(accountingFacade).createStandardJournal(argThat(request ->
+                request != null
+                        && "PERIOD-CLOSE-202602".equals(request.sourceReference())
+                        && LocalDate.of(2026, 2, 28).equals(request.entryDate())
+                        && "Month close".equals(request.narration())
+                        && request.debitAccount().equals(222L)
+                        && request.creditAccount().equals(111L)
+                        && request.amount().compareTo(new BigDecimal("150.00")) == 0
+                        && Boolean.TRUE.equals(request.adminOverride())));
     }
 
     @Test

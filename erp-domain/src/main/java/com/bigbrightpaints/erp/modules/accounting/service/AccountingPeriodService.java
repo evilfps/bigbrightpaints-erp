@@ -12,6 +12,7 @@ import com.bigbrightpaints.erp.modules.accounting.dto.AccountingPeriodDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.AccountingPeriodReopenRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.AccountingPeriodUpdateRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.AccountingPeriodUpsertRequest;
+import com.bigbrightpaints.erp.modules.accounting.dto.JournalCreationRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.MonthEndChecklistDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.MonthEndChecklistItemDto;
@@ -482,14 +483,20 @@ public class AccountingPeriodService {
             entryDate = today;
         }
         AccountingFacade accountingFacade = accountingFacadeProvider.getObject();
-        JournalEntryDto posted = accountingFacade.postSimpleJournal(
-                reference,
-                entryDate,
-                memo,
+        JournalEntryDto posted = accountingFacade.createStandardJournal(new JournalCreationRequest(
+                amount,
                 debitAccountId,
                 creditAccountId,
-                amount,
-                true);
+                memo,
+                "ACCOUNTING_PERIOD",
+                reference,
+                null,
+                null,
+                entryDate,
+                null,
+                null,
+                Boolean.TRUE
+        ));
         return journalEntryRepository.findByCompanyAndId(company, posted.id())
                 .orElseThrow(() -> new ApplicationException(ErrorCode.SYSTEM_INTERNAL_ERROR,
                         "Closing journal entry not found after posting"));

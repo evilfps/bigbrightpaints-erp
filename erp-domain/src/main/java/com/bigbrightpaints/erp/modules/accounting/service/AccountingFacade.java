@@ -683,6 +683,7 @@ public class AccountingFacade {
      */
     @Transactional(isolation = Isolation.REPEATABLE_READ)
     @Retryable(value = OptimisticLockingFailureException.class, maxAttempts = 3, backoff = @Backoff(delay = 100))
+    @Deprecated(since = "2026-02", forRemoval = false)
     public JournalEntryDto postMaterialConsumption(String productionCode,
                                                    LocalDate entryDate,
                                                    Long wipAccountId,
@@ -767,6 +768,7 @@ public class AccountingFacade {
      */
     @Transactional(isolation = Isolation.REPEATABLE_READ)
     @Retryable(value = OptimisticLockingFailureException.class, maxAttempts = 3, backoff = @Backoff(delay = 100))
+    @Deprecated(since = "2026-02", forRemoval = false)
     public JournalEntryDto postLaborOverheadApplied(String productionCode,
                                                     LocalDate entryDate,
                                                     Long wipAccountId,
@@ -1510,6 +1512,7 @@ public class AccountingFacade {
      */
     @Transactional(isolation = Isolation.REPEATABLE_READ)
     @Retryable(value = OptimisticLockingFailureException.class, maxAttempts = 3, backoff = @Backoff(delay = 100))
+    @Deprecated(since = "2026-02", forRemoval = false)
     public JournalEntryDto postSimpleJournal(String reference,
                                              LocalDate entryDate,
                                              String memo,

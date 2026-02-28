@@ -11,6 +11,7 @@ import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
 import com.bigbrightpaints.erp.modules.accounting.dto.AccountingPeriodCloseRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.AccountingPeriodDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.AccountingPeriodReopenRequest;
+import com.bigbrightpaints.erp.modules.accounting.dto.JournalCreationRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryRequest;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingPeriodService;
@@ -43,6 +44,7 @@ import java.util.concurrent.TimeUnit;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 
@@ -157,14 +159,11 @@ class CR_PeriodCloseAtomicityTest extends AbstractIntegrationTest {
             assertThat(second.status()).isEqualTo("CLOSED");
             assertThat(second.closingJournalEntryId()).isEqualTo(first.closingJournalEntryId());
             assertThat(countClosingJournals(company, period)).isEqualTo(1);
-            verify(accountingFacade).postSimpleJournal(
-                    eq(closingReference(period)),
-                    any(LocalDate.class),
-                    any(String.class),
-                    any(Long.class),
-                    any(Long.class),
-                    any(BigDecimal.class),
-                    eq(true));
+            verify(accountingFacade).createStandardJournal(argThat(request ->
+                    request != null
+                            && closingReference(period).equals(request.sourceReference())
+                            && Boolean.TRUE.equals(request.adminOverride())
+                            && "ACCOUNTING_PERIOD".equals(request.sourceModule())));
 
             AccountingPeriodDto reopened = accountingPeriodService.reopenPeriod(
                     period.getId(),

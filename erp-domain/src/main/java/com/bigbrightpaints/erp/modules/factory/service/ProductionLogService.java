@@ -7,6 +7,7 @@ import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.core.util.CostingMethodUtils;
 import com.bigbrightpaints.erp.core.util.MoneyUtils;
+import com.bigbrightpaints.erp.modules.accounting.dto.JournalCreationRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
@@ -200,15 +201,20 @@ public class ProductionLogService {
         BigDecimal amount = totalCost.setScale(2, COST_ROUNDING);
         if (amount.compareTo(BigDecimal.ZERO) > 0) {
             Long wipAccountId = requireWipAccountId(product);
-            JournalEntryDto entry = accountingFacade.postSimpleJournal(
-                    log.getProductionCode() + "-SEMIFG",
-                    resolveJournalDate(company, log),
-                    "Semi-finished receipt for " + log.getProductionCode(),
+            JournalEntryDto entry = accountingFacade.createStandardJournal(new JournalCreationRequest(
+                    amount,
                     semiFinishedAccountId,
                     wipAccountId,
-                    amount,
-                    false
-            );
+                    "Semi-finished receipt for " + log.getProductionCode(),
+                    "FACTORY_PRODUCTION",
+                    log.getProductionCode() + "-SEMIFG",
+                    null,
+                    null,
+                    resolveJournalDate(company, log),
+                    null,
+                    null,
+                    Boolean.FALSE
+            ));
             if (entry != null) {
                 savedMovement.setJournalEntryId(entry.id());
                 inventoryMovementRepository.save(savedMovement);
@@ -396,14 +402,37 @@ public class ProductionLogService {
         }
         Long wipAccountId = requireWipAccountId(product);
 
-        // Delegate to AccountingFacade for material consumption journal
-        JournalEntryDto entry = accountingFacade.postMaterialConsumption(
-                log.getProductionCode(),
-                resolveJournalDate(company, log),
+        List<JournalCreationRequest.LineRequest> lines = new ArrayList<>();
+        lines.add(new JournalCreationRequest.LineRequest(
                 wipAccountId,
-                summary.accountTotals(),
-                summary.totalCost()
-        );
+                summary.totalCost(),
+                BigDecimal.ZERO,
+                "WIP charge " + log.getProductionCode()));
+        summary.accountTotals().forEach((accountId, amount) -> {
+            if (amount != null && amount.compareTo(BigDecimal.ZERO) > 0) {
+                lines.add(new JournalCreationRequest.LineRequest(
+                        accountId,
+                        BigDecimal.ZERO,
+                        amount.abs(),
+                        "Raw material issue " + log.getProductionCode()));
+            }
+        });
+
+        Long primaryCreditAccount = summary.accountTotals().keySet().stream().findFirst().orElse(wipAccountId);
+        JournalEntryDto entry = accountingFacade.createStandardJournal(new JournalCreationRequest(
+                summary.totalCost(),
+                wipAccountId,
+                primaryCreditAccount,
+                "Raw material consumption for " + log.getProductionCode(),
+                "FACTORY_PRODUCTION",
+                log.getProductionCode() + "-RM",
+                null,
+                lines,
+                resolveJournalDate(company, log),
+                null,
+                null,
+                Boolean.FALSE
+        ));
 
         if (entry != null) {
             linkRawMaterialMovementsToJournal(company, log.getProductionCode(), entry.id());
@@ -429,15 +458,45 @@ public class ProductionLogService {
             overheadAppliedAccountId = requireOverheadAppliedAccountId(product);
         }
 
-        accountingFacade.postLaborOverheadApplied(
-                log.getProductionCode(),
-                resolveJournalDate(company, log),
+        BigDecimal totalAmount = laborCost.add(overheadCost);
+        List<JournalCreationRequest.LineRequest> lines = new ArrayList<>();
+        lines.add(new JournalCreationRequest.LineRequest(
                 wipAccountId,
-                laborAppliedAccountId,
-                overheadAppliedAccountId,
-                laborCost,
-                overheadCost
-        );
+                totalAmount,
+                BigDecimal.ZERO,
+                "WIP labor/overhead " + log.getProductionCode()));
+        if (laborCost.compareTo(BigDecimal.ZERO) > 0) {
+            lines.add(new JournalCreationRequest.LineRequest(
+                    laborAppliedAccountId,
+                    BigDecimal.ZERO,
+                    laborCost.abs(),
+                    "Labor applied " + log.getProductionCode()));
+        }
+        if (overheadCost.compareTo(BigDecimal.ZERO) > 0) {
+            lines.add(new JournalCreationRequest.LineRequest(
+                    overheadAppliedAccountId,
+                    BigDecimal.ZERO,
+                    overheadCost.abs(),
+                    "Overhead applied " + log.getProductionCode()));
+        }
+
+        Long primaryCreditAccount = laborCost.compareTo(BigDecimal.ZERO) > 0
+                ? laborAppliedAccountId
+                : overheadAppliedAccountId;
+        accountingFacade.createStandardJournal(new JournalCreationRequest(
+                totalAmount,
+                wipAccountId,
+                primaryCreditAccount,
+                "Labor/overhead applied for " + log.getProductionCode(),
+                "FACTORY_PRODUCTION",
+                log.getProductionCode() + "-LABOH",
+                null,
+                lines,
+                resolveJournalDate(company, log),
+                null,
+                null,
+                Boolean.FALSE
+        ));
     }
 
     private void linkRawMaterialMovementsToJournal(Company company, String referenceId, Long journalEntryId) {

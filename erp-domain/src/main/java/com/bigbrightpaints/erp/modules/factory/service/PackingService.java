@@ -7,6 +7,7 @@ import com.bigbrightpaints.erp.core.idempotency.IdempotencyUtils;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.core.util.MoneyUtils;
+import com.bigbrightpaints.erp.modules.accounting.dto.JournalCreationRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryRequest;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
@@ -706,15 +707,20 @@ public class PackingService {
                 throw new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE,
                         "Product " + log.getProduct().getProductName() + " missing wastageAccountId metadata");
             }
-            accountingFacade.postSimpleJournal(
-                    log.getProductionCode() + "-WASTE",
-                    entryDate,
-                    "Manufacturing wastage for " + log.getProductionCode(),
+            accountingFacade.createStandardJournal(new JournalCreationRequest(
+                    wastageValue,
                     wastageAccountId,
                     wipAccountId,
-                    wastageValue,
-                    false
-            );
+                    "Manufacturing wastage for " + log.getProductionCode(),
+                    "FACTORY_PACKING",
+                    log.getProductionCode() + "-WASTE",
+                    null,
+                    null,
+                    entryDate,
+                    null,
+                    null,
+                    Boolean.FALSE
+            ));
         }
     }
 

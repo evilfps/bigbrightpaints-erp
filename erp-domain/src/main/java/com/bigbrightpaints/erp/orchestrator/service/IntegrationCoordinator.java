@@ -6,6 +6,7 @@ import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.modules.accounting.dto.AccountDto;
+import com.bigbrightpaints.erp.modules.accounting.dto.JournalCreationRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.PayrollPaymentRequest;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
@@ -689,15 +690,21 @@ public class IntegrationCoordinator {
             return;
         }
         BigDecimal postingAmount = amount.abs();
-        accountingFacade.postSimpleJournal(
-                reference,
-                companyClock.today(companyContextService.requireCurrentCompany()),
-                memo,
+        JournalCreationRequest request = new JournalCreationRequest(
+                postingAmount,
                 debitAccountId,
                 creditAccountId,
-                postingAmount,
-                false
+                StringUtils.hasText(memo) ? memo : "Orchestrator journal " + reference,
+                "ORCHESTRATOR",
+                reference,
+                null,
+                null,
+                companyClock.today(companyContextService.requireCurrentCompany()),
+                null,
+                null,
+                Boolean.FALSE
         );
+        accountingFacade.createStandardJournal(request);
     }
 
     private String correlationMemo(String baseMemo, String traceId, String idempotencyKey) {

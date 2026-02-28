@@ -4,6 +4,7 @@ import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
+import com.bigbrightpaints.erp.modules.accounting.dto.JournalCreationRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
@@ -177,15 +178,7 @@ class PackingServiceTest {
         when(productionLogRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
         JournalEntryDto wasteEntry = stubEntry(11L);
-        when(accountingFacade.postSimpleJournal(
-                anyString(),
-                any(LocalDate.class),
-                anyString(),
-                anyLong(),
-                anyLong(),
-                any(BigDecimal.class),
-                anyBoolean())
-        ).thenReturn(wasteEntry);
+        when(accountingFacade.createStandardJournal(any(JournalCreationRequest.class))).thenReturn(wasteEntry);
 
         ProductionLogDetailDto detailDto = new ProductionLogDetailDto(
                 log.getId(),
@@ -217,17 +210,16 @@ class PackingServiceTest {
         packingService.completePacking(1L);
 
         // Only wastage journal should be posted in completePacking
-        ArgumentCaptor<BigDecimal> wasteAmount = ArgumentCaptor.forClass(BigDecimal.class);
-        verify(accountingFacade, times(1)).postSimpleJournal(
-                eq("PROD-001-WASTE"),
-                eq(LocalDate.of(2024, 1, 1)),
-                eq("Manufacturing wastage for PROD-001"),
-                eq(901L),
-                eq(900L),
-                wasteAmount.capture(),
-                eq(false)
-        );
-        assertThat(wasteAmount.getValue()).isEqualByComparingTo("200.00");
+        ArgumentCaptor<JournalCreationRequest> requestCaptor = ArgumentCaptor.forClass(JournalCreationRequest.class);
+        verify(accountingFacade, times(1)).createStandardJournal(requestCaptor.capture());
+        JournalCreationRequest request = requestCaptor.getValue();
+        assertThat(request.sourceReference()).isEqualTo("PROD-001-WASTE");
+        assertThat(request.entryDate()).isEqualTo(LocalDate.of(2024, 1, 1));
+        assertThat(request.narration()).isEqualTo("Manufacturing wastage for PROD-001");
+        assertThat(request.debitAccount()).isEqualTo(901L);
+        assertThat(request.creditAccount()).isEqualTo(900L);
+        assertThat(request.amount()).isEqualByComparingTo("200.00");
+        assertThat(request.adminOverride()).isFalse();
     }
 
     @Test

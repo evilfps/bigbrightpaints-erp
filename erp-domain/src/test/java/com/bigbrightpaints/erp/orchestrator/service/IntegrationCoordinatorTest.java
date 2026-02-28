@@ -8,6 +8,7 @@ import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
+import com.bigbrightpaints.erp.modules.accounting.dto.JournalCreationRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.PayrollPaymentRequest;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingService;
@@ -455,17 +456,18 @@ class IntegrationCoordinatorTest {
                 "trace-dispatch-900",
                 "idem-dispatch-900");
 
-        verify(accountingFacade).postSimpleJournal(
-                eq("DISPATCH-B-900"),
-                eq(LocalDate.of(2024, 1, 1)),
-                argThat(memo -> memo != null
-                        && memo.contains("Dispatch journal for batch B-900")
-                        && memo.contains("[trace=trace-dispatch-900]")
-                        && memo.contains("[idem=idem-dispatch-900]")),
-                eq(10L),
-                eq(20L),
-                eq(new BigDecimal("120.00")),
-                eq(false));
+        verify(accountingFacade).createStandardJournal(argThat(request ->
+                request != null
+                        && "DISPATCH-B-900".equals(request.sourceReference())
+                        && LocalDate.of(2024, 1, 1).equals(request.entryDate())
+                        && request.narration() != null
+                        && request.narration().contains("Dispatch journal for batch B-900")
+                        && request.narration().contains("[trace=trace-dispatch-900]")
+                        && request.narration().contains("[idem=idem-dispatch-900]")
+                        && request.debitAccount().equals(10L)
+                        && request.creditAccount().equals(20L)
+                        && request.amount().compareTo(new BigDecimal("120.00")) == 0
+                        && Boolean.FALSE.equals(request.adminOverride())));
     }
 
     @Test
@@ -477,7 +479,7 @@ class IntegrationCoordinatorTest {
                 "trace-dispatch-\n900",
                 "idem-dispatch-900"));
 
-        verify(accountingFacade, never()).postSimpleJournal(anyString(), any(), anyString(), any(), any(), any(), eq(false));
+        verify(accountingFacade, never()).createStandardJournal(any(JournalCreationRequest.class));
     }
 
     @Test

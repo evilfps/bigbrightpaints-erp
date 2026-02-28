@@ -212,6 +212,54 @@ class AccountingAuditTrailServiceTest {
         assertThat(detail.eventTrail()).hasSize(1);
     }
 
+    @Test
+    void transactionDetail_classifiesSupplierPrefixedReferenceAsSettlement() {
+        Company company = new Company();
+        company.setCode("BBP");
+        when(companyContextService.requireCurrentCompany()).thenReturn(company);
+
+        JournalEntry entry = new JournalEntry();
+        setField(entry, "id", 84L);
+        entry.setReferenceNumber("SUP-PAY-202602-0001");
+        entry.setEntryDate(LocalDate.of(2026, 2, 12));
+        entry.setStatus("POSTED");
+
+        Account ap = new Account();
+        ap.setCode("AP-SUP");
+        ap.setType(AccountType.LIABILITY);
+        JournalLine debit = new JournalLine();
+        debit.setAccount(ap);
+        debit.setDebit(new BigDecimal("4000.00"));
+        debit.setCredit(BigDecimal.ZERO);
+
+        Account cash = new Account();
+        cash.setCode("CASH");
+        cash.setType(AccountType.ASSET);
+        JournalLine credit = new JournalLine();
+        credit.setAccount(cash);
+        credit.setDebit(BigDecimal.ZERO);
+        credit.setCredit(new BigDecimal("4000.00"));
+
+        entry.getLines().add(debit);
+        entry.getLines().add(credit);
+
+        when(journalEntryRepository.findByCompanyAndId(company, 84L)).thenReturn(Optional.of(entry));
+        when(settlementAllocationRepository.findByCompanyAndJournalEntryOrderByCreatedAtAsc(company, entry)).thenReturn(List.of());
+        when(invoiceRepository.findByCompanyAndJournalEntry(company, entry)).thenReturn(Optional.empty());
+        when(entityManager.createQuery(any(String.class), eq(RawMaterialPurchase.class))).thenReturn(rawMaterialPurchaseQuery);
+        when(rawMaterialPurchaseQuery.setParameter("company", company)).thenReturn(rawMaterialPurchaseQuery);
+        when(rawMaterialPurchaseQuery.setParameter("journalEntry", entry)).thenReturn(rawMaterialPurchaseQuery);
+        when(rawMaterialPurchaseQuery.setMaxResults(1)).thenReturn(rawMaterialPurchaseQuery);
+        when(rawMaterialPurchaseQuery.getResultList()).thenReturn(List.of());
+        when(accountingEventRepository.findByJournalEntryIdOrderByEventTimestampAsc(84L)).thenReturn(List.of());
+
+        AccountingTransactionAuditDetailDto detail = service.transactionDetail(84L);
+
+        assertThat(detail.module()).isEqualTo("SETTLEMENT");
+        assertThat(detail.consistencyStatus()).isEqualTo("WARNING");
+        assertThat(detail.consistencyNotes()).anyMatch(note -> note.contains("Settlement-like reference"));
+    }
+
     private static void setField(Object target, String fieldName, Object value) {
         try {
             Field field = target.getClass().getDeclaredField(fieldName);

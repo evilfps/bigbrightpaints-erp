@@ -392,7 +392,7 @@ public class AccountingAuditTrailService {
         return switch (module) {
             case "SALES" -> List.of("INV", "CRN", "SR");
             case "PURCHASING" -> List.of("RMP", "DBN", "PUR", "GRN");
-            case "SETTLEMENT" -> List.of("SET", "RCPT", "SUP-SET", "SUPPLIER-SETTLEMENT", "DEALER-SETTLEMENT");
+            case "SETTLEMENT" -> List.of("SET", "RCPT", "SUP-", "SUP-SET", "SUPPLIER-SETTLEMENT", "DEALER-SETTLEMENT");
             case "PAYROLL" -> List.of("PAY", "PRL", "SAL");
             case "INVENTORY" -> List.of("ADJ", "REVAL", "WIP", "PACK", "BULK");
             case "REVERSAL", "ADJUSTMENT" -> List.of("REV", "VOID");
@@ -468,6 +468,9 @@ public class AccountingAuditTrailService {
         if (reference.startsWith("RMP") || reference.startsWith("DBN")) {
             return "PURCHASING";
         }
+        if (reference.startsWith("SUP-")) {
+            return "SETTLEMENT";
+        }
         if (reference.startsWith("SET") || reference.startsWith("RCPT") || reference.contains("SETTLEMENT")) {
             return "SETTLEMENT";
         }
@@ -499,7 +502,7 @@ public class AccountingAuditTrailService {
             status = "ERROR";
         }
         String ref = entry.getReferenceNumber() != null ? entry.getReferenceNumber().toUpperCase(Locale.ROOT) : "";
-        boolean likelySettlement = ref.contains("SETTLEMENT") || ref.startsWith("SET") || ref.startsWith("RCPT");
+        boolean likelySettlement = ref.contains("SETTLEMENT") || ref.startsWith("SET") || ref.startsWith("RCPT") || ref.startsWith("SUP-");
         if (likelySettlement && (allocations == null || allocations.isEmpty())) {
             notes.add("Settlement-like reference has no settlement allocation rows.");
             if (!"ERROR".equals(status)) {
