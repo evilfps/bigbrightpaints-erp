@@ -26,4 +26,5 @@ public record AccountingPeriodDto(Long id,
                                   String reopenedBy,
                                   String reopenReason,
                                   Long closingJournalEntryId,
-                                  String checklistNotes) {}
+                                  String checklistNotes,
+                                  String costingMethod) {}

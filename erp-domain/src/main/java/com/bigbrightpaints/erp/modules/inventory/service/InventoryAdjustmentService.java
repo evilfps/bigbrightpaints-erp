@@ -8,9 +8,11 @@ import com.bigbrightpaints.erp.core.idempotency.IdempotencyUtils;
 import com.bigbrightpaints.erp.core.validation.ValidationUtils;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.core.util.CostingMethodUtils;
+import com.bigbrightpaints.erp.modules.accounting.domain.CostingMethod;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalCreationRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
+import com.bigbrightpaints.erp.modules.accounting.service.CostingMethodService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatch;
@@ -39,6 +41,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -57,6 +60,7 @@ public class InventoryAdjustmentService {
     private final ReferenceNumberService referenceNumberService;
     private final CompanyClock companyClock;
     private final FinishedGoodsService finishedGoodsService;
+    private final CostingMethodService costingMethodService;
     private final IdempotencyReservationService idempotencyReservationService = new IdempotencyReservationService();
     private final TransactionTemplate transactionTemplate;
 
@@ -69,6 +73,7 @@ public class InventoryAdjustmentService {
                                       ReferenceNumberService referenceNumberService,
                                       CompanyClock companyClock,
                                       FinishedGoodsService finishedGoodsService,
+                                      CostingMethodService costingMethodService,
                                       PlatformTransactionManager transactionManager) {
         this.companyContextService = companyContextService;
         this.finishedGoodRepository = finishedGoodRepository;
@@ -79,6 +84,7 @@ public class InventoryAdjustmentService {
         this.referenceNumberService = referenceNumberService;
         this.companyClock = companyClock;
         this.finishedGoodsService = finishedGoodsService;
+        this.costingMethodService = costingMethodService;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
     }
 
@@ -159,14 +165,20 @@ public class InventoryAdjustmentService {
         adjustment.setCreatedBy(resolveCurrentUser());
         adjustment.setIdempotencyKey(idempotencyKey);
         adjustment.setIdempotencyHash(requestSignature);
-        Map<Long, BigDecimal> inventoryCredits = new HashMap<>();
-        BigDecimal totalAmount = BigDecimal.ZERO;
         for (InventoryAdjustmentRequest.LineRequest lineRequest : sortedLines) {
             FinishedGood finishedGood = finishedGoodsById.get(lineRequest.finishedGoodId());
             if (finishedGood == null) {
                 throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput("Finished good not found");
             }
-            InventoryAdjustmentLine line = buildLine(adjustment, finishedGood, lineRequest);
+            buildLine(adjustment, finishedGood, lineRequest);
+        }
+
+        InventoryAdjustment savedDraft = adjustmentRepository.save(adjustment);
+
+        List<InventoryMovement> movements = applyMovements(savedDraft, null);
+        Map<Long, BigDecimal> inventoryCredits = new HashMap<>();
+        BigDecimal totalAmount = BigDecimal.ZERO;
+        for (InventoryAdjustmentLine line : savedDraft.getLines()) {
             Long valuationAccountId = line.getFinishedGood().getValuationAccountId();
             if (valuationAccountId == null) {
                 throw new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE,
@@ -178,9 +190,8 @@ public class InventoryAdjustmentService {
         if (totalAmount.compareTo(BigDecimal.ZERO) <= 0) {
             throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput("Adjustment amount must be greater than zero");
         }
-        adjustment.setTotalAmount(totalAmount);
-        InventoryAdjustment savedDraft = adjustmentRepository.save(adjustment);
-        List<InventoryMovement> movements = applyMovements(savedDraft, null);
+        savedDraft.setTotalAmount(totalAmount);
+
         boolean adminOverride = Boolean.TRUE.equals(request.adminOverride());
         String memo = memoFor(savedDraft, request.reason());
         List<JournalCreationRequest.LineRequest> standardizedLines = new java.util.ArrayList<>();
@@ -230,7 +241,7 @@ public class InventoryAdjustmentService {
                                               FinishedGood finishedGood,
                                               InventoryAdjustmentRequest.LineRequest lineRequest) {
         BigDecimal quantity = ValidationUtils.requirePositive(lineRequest.quantity(), "quantity");
-        BigDecimal unitCost = ValidationUtils.requirePositive(lineRequest.unitCost(), "unitCost");
+        ValidationUtils.requirePositive(lineRequest.unitCost(), "unitCost");
         BigDecimal currentStock = finishedGood.getCurrentStock() == null ? BigDecimal.ZERO : finishedGood.getCurrentStock();
         BigDecimal reservedStock = safeQuantity(finishedGood.getReservedStock());
         BigDecimal available = currentStock.subtract(reservedStock);
@@ -241,8 +252,8 @@ public class InventoryAdjustmentService {
         line.setAdjustment(adjustment);
         line.setFinishedGood(finishedGood);
         line.setQuantity(quantity);
-        line.setUnitCost(unitCost);
-        line.setAmount(quantity.multiply(unitCost));
+        line.setUnitCost(BigDecimal.ZERO);
+        line.setAmount(BigDecimal.ZERO);
         line.setNote(lineRequest.note());
         adjustment.getLines().add(line);
         return line;
@@ -253,8 +264,14 @@ public class InventoryAdjustmentService {
             FinishedGood finishedGood = line.getFinishedGood();
             BigDecimal currentStock = finishedGood.getCurrentStock() == null ? BigDecimal.ZERO : finishedGood.getCurrentStock();
             finishedGood.setCurrentStock(currentStock.subtract(line.getQuantity()));
-            adjustBatchQuantities(finishedGood, line.getQuantity());
+            ConsumedBatchCost consumedCost = adjustBatchQuantities(
+                    finishedGood,
+                    line.getQuantity(),
+                    adjustment.getAdjustmentDate());
             finishedGoodsService.invalidateWeightedAverageCost(finishedGood.getId());
+
+            line.setAmount(consumedCost.totalCost());
+            line.setUnitCost(consumedCost.unitCost());
 
             InventoryMovement movement = new InventoryMovement();
             movement.setFinishedGood(finishedGood);
@@ -262,19 +279,30 @@ public class InventoryAdjustmentService {
             movement.setReferenceId(adjustment.getReferenceNumber());
             movement.setMovementType("ADJUSTMENT_OUT");
             movement.setQuantity(line.getQuantity());
-            movement.setUnitCost(line.getUnitCost());
+            movement.setUnitCost(consumedCost.unitCost());
             movement.setJournalEntryId(journalEntryId);
             return movement;
         }).toList();
         return movements;
     }
 
-    private void adjustBatchQuantities(FinishedGood finishedGood, BigDecimal quantity) {
+    private ConsumedBatchCost adjustBatchQuantities(FinishedGood finishedGood,
+                                                    BigDecimal quantity,
+                                                    LocalDate adjustmentDate) {
         if (quantity == null || quantity.compareTo(BigDecimal.ZERO) <= 0) {
-            return;
+            return new ConsumedBatchCost(BigDecimal.ZERO, BigDecimal.ZERO);
         }
+
+        CostingMethodUtils.FinishedGoodBatchSelectionMethod selectionMethod = resolveSelectionMethod(
+                finishedGood,
+                adjustmentDate);
+        BigDecimal weightedAverageCost = selectionMethod == CostingMethodUtils.FinishedGoodBatchSelectionMethod.WAC
+                ? safeQuantity(finishedGoodsService.currentWeightedAverageCost(finishedGood))
+                : null;
+
         BigDecimal remaining = quantity;
-        for (FinishedGoodBatch batch : selectBatchesByCostingMethod(finishedGood)) {
+        BigDecimal totalCost = BigDecimal.ZERO;
+        for (FinishedGoodBatch batch : selectBatchesByCostingMethod(finishedGood, selectionMethod)) {
             if (remaining.compareTo(BigDecimal.ZERO) <= 0) {
                 break;
             }
@@ -286,20 +314,41 @@ public class InventoryAdjustmentService {
             BigDecimal total = safeQuantity(batch.getQuantityTotal());
             batch.setQuantityAvailable(available.subtract(delta));
             batch.setQuantityTotal(total.subtract(delta));
+            BigDecimal costPerUnit = selectionMethod == CostingMethodUtils.FinishedGoodBatchSelectionMethod.WAC
+                    ? safeQuantity(weightedAverageCost)
+                    : safeQuantity(batch.getUnitCost());
+            totalCost = totalCost.add(delta.multiply(costPerUnit));
             remaining = remaining.subtract(delta);
         }
         if (remaining.compareTo(BigDecimal.ZERO) > 0) {
             throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidState("Insufficient batch availability for " + finishedGood.getProductCode());
         }
+
+        BigDecimal normalizedTotalCost = totalCost.setScale(4, RoundingMode.HALF_UP);
+        BigDecimal unitCost = quantity.compareTo(BigDecimal.ZERO) > 0
+                ? normalizedTotalCost.divide(quantity, 4, RoundingMode.HALF_UP)
+                : BigDecimal.ZERO;
+        return new ConsumedBatchCost(normalizedTotalCost, unitCost);
     }
 
-    private List<FinishedGoodBatch> selectBatchesByCostingMethod(FinishedGood finishedGood) {
-        return switch (CostingMethodUtils.resolveFinishedGoodBatchSelectionMethod(finishedGood.getCostingMethod())) {
+    private CostingMethodUtils.FinishedGoodBatchSelectionMethod resolveSelectionMethod(FinishedGood finishedGood,
+                                                                                        LocalDate adjustmentDate) {
+        CostingMethod activeMethod = costingMethodService.resolveActiveMethod(
+                finishedGood.getCompany(),
+                adjustmentDate);
+        return CostingMethodUtils.resolveFinishedGoodBatchSelectionMethod(activeMethod.name());
+    }
+
+    private List<FinishedGoodBatch> selectBatchesByCostingMethod(FinishedGood finishedGood,
+                                                                 CostingMethodUtils.FinishedGoodBatchSelectionMethod selectionMethod) {
+        return switch (selectionMethod) {
             case WAC -> finishedGoodBatchRepository.findAllocatableBatches(finishedGood);
             case LIFO -> finishedGoodBatchRepository.findAllocatableBatchesLIFO(finishedGood);
             case FIFO -> finishedGoodBatchRepository.findAllocatableBatchesFIFO(finishedGood);
         };
     }
+
+    private record ConsumedBatchCost(BigDecimal totalCost, BigDecimal unitCost) {}
 
     private InventoryAdjustmentDto toDto(InventoryAdjustment adjustment) {
         List<InventoryAdjustmentLineDto> lines = adjustment.getLines().stream()

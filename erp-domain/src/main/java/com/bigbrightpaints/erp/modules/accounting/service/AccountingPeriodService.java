@@ -10,6 +10,8 @@ import com.bigbrightpaints.erp.modules.accounting.dto.AccountingPeriodCloseReque
 import com.bigbrightpaints.erp.modules.accounting.dto.AccountingPeriodLockRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.AccountingPeriodDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.AccountingPeriodReopenRequest;
+import com.bigbrightpaints.erp.modules.accounting.dto.AccountingPeriodUpdateRequest;
+import com.bigbrightpaints.erp.modules.accounting.dto.AccountingPeriodUpsertRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.MonthEndChecklistDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.MonthEndChecklistItemDto;
@@ -119,6 +121,45 @@ public class AccountingPeriodService {
         Company company = companyContextService.requireCurrentCompany();
         AccountingPeriod period = companyEntityLookup.requireAccountingPeriod(company, periodId);
         return toDto(period);
+    }
+
+    @Transactional
+    public AccountingPeriodDto createOrUpdatePeriod(AccountingPeriodUpsertRequest request) {
+        if (request == null) {
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT, "Accounting period request is required");
+        }
+        if (request.month() < 1 || request.month() > 12) {
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT, "Accounting period month must be between 1 and 12");
+        }
+        Company company = companyContextService.requireCurrentCompany();
+        AccountingPeriod period = accountingPeriodRepository
+                .lockByCompanyAndYearAndMonth(company, request.year(), request.month())
+                .orElseGet(() -> {
+                    AccountingPeriod created = new AccountingPeriod();
+                    created.setCompany(company);
+                    created.setYear(request.year());
+                    created.setMonth(request.month());
+                    LocalDate start = LocalDate.of(request.year(), request.month(), 1);
+                    created.setStartDate(start);
+                    created.setEndDate(start.plusMonths(1).minusDays(1));
+                    created.setStatus(AccountingPeriodStatus.OPEN);
+                    return created;
+                });
+        period.setCostingMethod(resolveCostingMethodOrDefault(request.costingMethod()));
+        return toDto(accountingPeriodRepository.save(period));
+    }
+
+    @Transactional
+    public AccountingPeriodDto updatePeriod(Long periodId, AccountingPeriodUpdateRequest request) {
+        if (request == null || request.costingMethod() == null) {
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT, "Costing method is required");
+        }
+        Company company = companyContextService.requireCurrentCompany();
+        AccountingPeriod period = accountingPeriodRepository.lockByCompanyAndId(company, periodId)
+                .orElseThrow(() -> new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE,
+                        "Accounting period not found"));
+        period.setCostingMethod(resolveCostingMethodOrDefault(request.costingMethod()));
+        return toDto(accountingPeriodRepository.save(period));
     }
 
     @Transactional
@@ -448,6 +489,7 @@ public class AccountingPeriodService {
                     period.setStartDate(safeDate);
                     period.setEndDate(safeDate.plusMonths(1).minusDays(1));
                     period.setStatus(AccountingPeriodStatus.OPEN);
+                    period.setCostingMethod(CostingMethod.WEIGHTED_AVERAGE);
                     return accountingPeriodRepository.save(period);
                 });
     }
@@ -546,8 +588,13 @@ public class AccountingPeriodService {
                 period.getReopenedBy(),
                 period.getReopenReason(),
                 period.getClosingJournalEntryId(),
-                period.getChecklistNotes()
+                period.getChecklistNotes(),
+                resolveCostingMethodOrDefault(period.getCostingMethod()).name()
         );
+    }
+
+    private CostingMethod resolveCostingMethodOrDefault(CostingMethod costingMethod) {
+        return costingMethod != null ? costingMethod : CostingMethod.WEIGHTED_AVERAGE;
     }
 
     private LocalDate resolveCurrentDate(Company company) {

@@ -8,12 +8,15 @@ import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriod;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriodRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriodStatus;
+import com.bigbrightpaints.erp.modules.accounting.domain.CostingMethod;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalLineRepository;
 import com.bigbrightpaints.erp.modules.accounting.dto.AccountingPeriodCloseRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.AccountingPeriodLockRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.AccountingPeriodReopenRequest;
+import com.bigbrightpaints.erp.modules.accounting.dto.AccountingPeriodUpdateRequest;
+import com.bigbrightpaints.erp.modules.accounting.dto.AccountingPeriodUpsertRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.MonthEndChecklistUpdateRequest;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
@@ -270,7 +273,7 @@ class AccountingPeriodServiceTest {
                 company, period.getStartDate(), period.getEndDate(), "INVOICED")).thenReturn(3L);
 
         assertThatThrownBy(() -> service.closePeriod(33L, new AccountingPeriodCloseRequest(true, "close")))
-                .isInstanceOf(IllegalStateException.class)
+                .isInstanceOf(ApplicationException.class)
                 .hasMessageContaining("Un-invoiced goods receipts exist in this period (3)");
         verify(periodCloseHook).onPeriodCloseLocked(company, period);
         verify(snapshotService, never()).captureSnapshot(any(), any(), anyString());
@@ -325,6 +328,51 @@ class AccountingPeriodServiceTest {
         assertThat(period.isInventoryCounted()).isFalse();
     }
 
+    @Test
+    void ensurePeriod_defaultsToWeightedAverageWhenCreatingMissingPeriod() {
+        Company company = company(1L, "ACME");
+        when(accountingPeriodRepository.findByCompanyAndYearAndMonth(company, 2026, 2))
+                .thenReturn(Optional.empty());
+        when(accountingPeriodRepository.save(any(AccountingPeriod.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        AccountingPeriod created = service.ensurePeriod(company, LocalDate.of(2026, 2, 9));
+
+        assertThat(created.getCostingMethod()).isEqualTo(CostingMethod.WEIGHTED_AVERAGE);
+    }
+
+    @Test
+    void createOrUpdatePeriod_createsPeriodWithRequestedCostingMethod() {
+        Company company = company(1L, "ACME");
+        when(companyContextService.requireCurrentCompany()).thenReturn(company);
+        when(accountingPeriodRepository.lockByCompanyAndYearAndMonth(company, 2026, 4))
+                .thenReturn(Optional.empty());
+        when(accountingPeriodRepository.save(any(AccountingPeriod.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        var dto = service.createOrUpdatePeriod(new AccountingPeriodUpsertRequest(2026, 4, CostingMethod.LIFO));
+
+        assertThat(dto.year()).isEqualTo(2026);
+        assertThat(dto.month()).isEqualTo(4);
+        assertThat(dto.costingMethod()).isEqualTo("LIFO");
+    }
+
+    @Test
+    void updatePeriod_updatesCostingMethodWithoutChangingExistingDates() {
+        Company company = company(1L, "ACME");
+        AccountingPeriod period = openPeriod(company, 2026, 5);
+        period.setCostingMethod(CostingMethod.FIFO);
+        when(companyContextService.requireCurrentCompany()).thenReturn(company);
+        when(accountingPeriodRepository.lockByCompanyAndId(company, 77L)).thenReturn(Optional.of(period));
+        when(accountingPeriodRepository.save(period)).thenReturn(period);
+
+        var dto = service.updatePeriod(77L, new AccountingPeriodUpdateRequest(CostingMethod.WEIGHTED_AVERAGE));
+
+        assertThat(dto.costingMethod()).isEqualTo("WEIGHTED_AVERAGE");
+        assertThat(period.getStartDate()).isEqualTo(LocalDate.of(2026, 5, 1));
+        assertThat(period.getEndDate()).isEqualTo(LocalDate.of(2026, 5, 31));
+    }
+
     private Company company(Long id, String code) {
         Company company = new Company();
         company.setCode(code);
@@ -343,6 +391,7 @@ class AccountingPeriodServiceTest {
         period.setStartDate(startDate);
         period.setEndDate(startDate.plusMonths(1).minusDays(1));
         period.setStatus(AccountingPeriodStatus.OPEN);
+        period.setCostingMethod(CostingMethod.WEIGHTED_AVERAGE);
         return period;
     }
 

@@ -39,6 +39,10 @@ public class AccountingPeriod extends VersionedEntity {
     private LocalDate endDate;
 
     @Enumerated(EnumType.STRING)
+    @Column(name = "costing_method", nullable = false)
+    private CostingMethod costingMethod = CostingMethod.WEIGHTED_AVERAGE;
+
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private AccountingPeriodStatus status = AccountingPeriodStatus.OPEN;
 
@@ -104,6 +108,9 @@ public class AccountingPeriod extends VersionedEntity {
             this.startDate = yearMonth.atDay(1);
             this.endDate = yearMonth.atEndOfMonth();
         }
+        if (costingMethod == null) {
+            costingMethod = CostingMethod.WEIGHTED_AVERAGE;
+        }
     }
 
     public Long getId() {
@@ -152,6 +159,14 @@ public class AccountingPeriod extends VersionedEntity {
 
     public void setEndDate(LocalDate endDate) {
         this.endDate = endDate;
+    }
+
+    public CostingMethod getCostingMethod() {
+        return costingMethod;
+    }
+
+    public void setCostingMethod(CostingMethod costingMethod) {
+        this.costingMethod = costingMethod;
     }
 
     public AccountingPeriodStatus getStatus() {

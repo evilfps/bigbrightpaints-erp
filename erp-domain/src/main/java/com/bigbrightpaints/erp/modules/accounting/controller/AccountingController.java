@@ -776,6 +776,23 @@ public class AccountingController {
         return ResponseEntity.ok(ApiResponse.success(accountingPeriodService.listPeriods()));
     }
 
+    @PostMapping("/periods")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
+    public ResponseEntity<ApiResponse<AccountingPeriodDto>> createOrUpdatePeriod(@Valid @RequestBody AccountingPeriodUpsertRequest request) {
+        return ResponseEntity.ok(ApiResponse.success(
+                "Accounting period saved",
+                accountingPeriodService.createOrUpdatePeriod(request)));
+    }
+
+    @PutMapping("/periods/{periodId}")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
+    public ResponseEntity<ApiResponse<AccountingPeriodDto>> updatePeriod(@PathVariable Long periodId,
+                                                                         @Valid @RequestBody AccountingPeriodUpdateRequest request) {
+        return ResponseEntity.ok(ApiResponse.success(
+                "Accounting period updated",
+                accountingPeriodService.updatePeriod(periodId, request)));
+    }
+
     @PostMapping("/periods/{periodId}/close")
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
     public ResponseEntity<ApiResponse<AccountingPeriodDto>> closePeriod(@PathVariable Long periodId,

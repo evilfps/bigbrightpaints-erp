@@ -9,7 +9,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.bigbrightpaints.erp.core.util.CompanyClock;
+import com.bigbrightpaints.erp.modules.accounting.domain.CostingMethod;
 import com.bigbrightpaints.erp.modules.accounting.service.CompanyDefaultAccountsService;
+import com.bigbrightpaints.erp.modules.accounting.service.CostingMethodService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGood;
@@ -69,6 +71,8 @@ class TS_InventoryDispatchStateRuntimeCoverageTest {
     @Mock
     private CompanyDefaultAccountsService companyDefaultAccountsService;
     @Mock
+    private CostingMethodService costingMethodService;
+    @Mock
     private ApplicationEventPublisher eventPublisher;
     @Mock
     private CompanyClock companyClock;
@@ -91,6 +95,7 @@ class TS_InventoryDispatchStateRuntimeCoverageTest {
                 batchNumberService,
                 salesOrderRepository,
                 companyDefaultAccountsService,
+                costingMethodService,
                 eventPublisher,
                 companyClock,
                 environment,
@@ -104,6 +109,7 @@ class TS_InventoryDispatchStateRuntimeCoverageTest {
         fixedNow = Instant.parse("2026-02-23T10:00:00Z");
         when(companyClock.now(company)).thenReturn(fixedNow);
         when(companyContextService.requireCurrentCompany()).thenReturn(company);
+        when(costingMethodService.resolveActiveMethod(any(Company.class), any())).thenReturn(CostingMethod.FIFO);
         when(batchNumberService.nextPackagingSlipNumber(any(Company.class))).thenReturn("PS-900");
 
         when(finishedGoodRepository.saveAll(any())).thenAnswer(invocation -> toList(invocation.getArgument(0)));

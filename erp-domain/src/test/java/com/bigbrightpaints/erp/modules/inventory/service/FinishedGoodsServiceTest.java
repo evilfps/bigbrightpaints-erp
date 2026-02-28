@@ -1,6 +1,11 @@
 package com.bigbrightpaints.erp.modules.inventory.service;
 
 import com.bigbrightpaints.erp.core.security.CompanyContextHolder;
+import com.bigbrightpaints.erp.core.exception.ApplicationException;
+import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriod;
+import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriodRepository;
+import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriodStatus;
+import com.bigbrightpaints.erp.modules.accounting.domain.CostingMethod;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGood;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatch;
@@ -64,6 +69,9 @@ class FinishedGoodsServiceTest extends AbstractIntegrationTest {
 
     @Autowired
     private InventoryValuationService inventoryValuationService;
+
+    @Autowired
+    private AccountingPeriodRepository accountingPeriodRepository;
 
     @AfterEach
     void clearContext() {
@@ -574,7 +582,7 @@ class FinishedGoodsServiceTest extends AbstractIntegrationTest {
         createReservation(order, fg, batch, new BigDecimal("5"));
 
         assertThatThrownBy(() -> finishedGoodsService.markSlipDispatched(order.getId(), slip))
-                .isInstanceOf(IllegalStateException.class)
+                .isInstanceOf(ApplicationException.class)
                 .hasMessageContaining("Dispatch cost is zero");
     }
 
@@ -596,7 +604,7 @@ class FinishedGoodsServiceTest extends AbstractIntegrationTest {
                 null);
 
         assertThatThrownBy(() -> finishedGoodsService.confirmDispatch(request, "tester"))
-                .isInstanceOf(IllegalStateException.class)
+                .isInstanceOf(ApplicationException.class)
                 .hasMessageContaining("Reserved stock insufficient");
     }
 
@@ -618,7 +626,7 @@ class FinishedGoodsServiceTest extends AbstractIntegrationTest {
                 null);
 
         assertThatThrownBy(() -> finishedGoodsService.confirmDispatch(request, "tester"))
-                .isInstanceOf(IllegalStateException.class)
+                .isInstanceOf(ApplicationException.class)
                 .hasMessageContaining("Batch stock insufficient");
     }
 
@@ -987,7 +995,7 @@ class FinishedGoodsServiceTest extends AbstractIntegrationTest {
         PackagingSlip slip = createSlip(company, order, "PENDING_PRODUCTION", batch, new BigDecimal("5"));
 
         assertThatThrownBy(() -> finishedGoodsService.updateSlipStatus(slip.getId(), "PENDING_STOCK"))
-                .isInstanceOf(IllegalStateException.class)
+                .isInstanceOf(ApplicationException.class)
                 .hasMessageContaining("Invalid slip status transition");
     }
 
@@ -1000,7 +1008,7 @@ class FinishedGoodsServiceTest extends AbstractIntegrationTest {
         PackagingSlip slip = createSlip(company, order, "BACKORDER", batch, new BigDecimal("5"));
 
         assertThatThrownBy(() -> finishedGoodsService.updateSlipStatus(slip.getId(), "RESERVED"))
-                .isInstanceOf(IllegalStateException.class)
+                .isInstanceOf(ApplicationException.class)
                 .hasMessageContaining("Backorder slips can only be changed via backorder workflows");
     }
 
@@ -1016,7 +1024,7 @@ class FinishedGoodsServiceTest extends AbstractIntegrationTest {
                 new BigDecimal("10.00"),
                 Instant.now(),
                 null
-        ))).isInstanceOf(IllegalArgumentException.class)
+        ))).isInstanceOf(ApplicationException.class)
                 .hasMessageContaining("Batch quantity");
     }
 
@@ -1032,7 +1040,7 @@ class FinishedGoodsServiceTest extends AbstractIntegrationTest {
                 new BigDecimal("-5.00"),
                 Instant.now(),
                 null
-        ))).isInstanceOf(IllegalArgumentException.class)
+        ))).isInstanceOf(ApplicationException.class)
                 .hasMessageContaining("unit cost");
     }
 
@@ -1145,6 +1153,39 @@ class FinishedGoodsServiceTest extends AbstractIntegrationTest {
         assertThat(line.hasShortage()).isFalse();
     }
 
+    @Test
+    void reserveAndDispatch_useActivePeriodCostingMethod_overFinishedGoodSetting() {
+        Company company = seedCompany("PERIOD-LIFO-OVERRIDE");
+        upsertCurrentPeriodCostingMethod(company, CostingMethod.LIFO);
+        FinishedGood fg = createFinishedGood(company, "FG-PERIOD-LIFO", new BigDecimal("2"), BigDecimal.ZERO, "FIFO");
+        FinishedGoodBatch oldest = createBatch(fg, "BATCH-PERIOD-OLD", new BigDecimal("1"), new BigDecimal("1"), new BigDecimal("10"));
+        oldest.setManufacturedAt(Instant.now().minusSeconds(7200));
+        finishedGoodBatchRepository.saveAndFlush(oldest);
+        FinishedGoodBatch newest = createBatch(fg, "BATCH-PERIOD-NEW", new BigDecimal("1"), new BigDecimal("1"), new BigDecimal("20"));
+        newest.setManufacturedAt(Instant.now().minusSeconds(3600));
+        finishedGoodBatchRepository.saveAndFlush(newest);
+
+        SalesOrder order = createOrder(company, "SO-PERIOD-LIFO-" + UUID.randomUUID(), fg.getProductCode(), BigDecimal.ONE);
+        finishedGoodsService.reserveForOrder(order);
+
+        PackagingSlip slip = packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, order.getId()).stream()
+                .filter(existing -> !existing.isBackorder())
+                .findFirst()
+                .orElseThrow();
+        assertThat(slip.getLines()).hasSize(1);
+        assertThat(slip.getLines().getFirst().getFinishedGoodBatch().getId()).isEqualTo(newest.getId());
+
+        finishedGoodsService.markSlipDispatched(order.getId(), slip);
+
+        InventoryMovement dispatchMovement = inventoryMovementRepository
+                .findByReferenceTypeAndReferenceIdOrderByCreatedAtAsc(InventoryReference.SALES_ORDER, order.getId().toString())
+                .stream()
+                .filter(mv -> "DISPATCH".equalsIgnoreCase(mv.getMovementType()))
+                .findFirst()
+                .orElseThrow();
+        assertThat(dispatchMovement.getUnitCost()).isEqualByComparingTo(new BigDecimal("20"));
+    }
+
     private Company seedCompany(String code) {
         Company company = dataSeeder.ensureCompany(code, code + " Ltd");
         CompanyContextHolder.setCompanyId(company.getCode());
@@ -1240,5 +1281,23 @@ class FinishedGoodsServiceTest extends AbstractIntegrationTest {
         reservation.setReservedQuantity(quantity);
         reservation.setStatus("RESERVED");
         inventoryReservationRepository.save(reservation);
+    }
+
+    private void upsertCurrentPeriodCostingMethod(Company company, CostingMethod costingMethod) {
+        LocalDate today = LocalDate.now();
+        AccountingPeriod period = accountingPeriodRepository
+                .findByCompanyAndYearAndMonth(company, today.getYear(), today.getMonthValue())
+                .orElseGet(() -> {
+                    AccountingPeriod created = new AccountingPeriod();
+                    created.setCompany(company);
+                    created.setYear(today.getYear());
+                    created.setMonth(today.getMonthValue());
+                    created.setStartDate(today.withDayOfMonth(1));
+                    created.setEndDate(today.withDayOfMonth(1).plusMonths(1).minusDays(1));
+                    created.setStatus(AccountingPeriodStatus.OPEN);
+                    return created;
+                });
+        period.setCostingMethod(costingMethod);
+        accountingPeriodRepository.saveAndFlush(period);
     }
 }

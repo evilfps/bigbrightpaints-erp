@@ -15,6 +15,7 @@ import com.bigbrightpaints.erp.modules.sales.domain.SalesOrder;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrderItem;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrderRepository;
 import com.bigbrightpaints.erp.modules.accounting.service.CompanyDefaultAccountsService;
+import com.bigbrightpaints.erp.modules.accounting.service.CostingMethodService;
 import com.bigbrightpaints.erp.modules.factory.event.PackagingSlipEvent;
 import jakarta.transaction.Transactional;
 import org.slf4j.Logger;
@@ -59,6 +60,7 @@ public class FinishedGoodsService {
     private final BatchNumberService batchNumberService;
     private final SalesOrderRepository salesOrderRepository;
     private final CompanyDefaultAccountsService companyDefaultAccountsService;
+    private final CostingMethodService costingMethodService;
     private final org.springframework.context.ApplicationEventPublisher eventPublisher;
     private final CompanyClock companyClock;
     private final Environment environment;
@@ -75,6 +77,7 @@ public class FinishedGoodsService {
                                 BatchNumberService batchNumberService,
                                 SalesOrderRepository salesOrderRepository,
                                 CompanyDefaultAccountsService companyDefaultAccountsService,
+                                CostingMethodService costingMethodService,
                                 org.springframework.context.ApplicationEventPublisher eventPublisher,
                                 CompanyClock companyClock,
                                 Environment environment,
@@ -88,6 +91,7 @@ public class FinishedGoodsService {
         this.batchNumberService = batchNumberService;
         this.salesOrderRepository = salesOrderRepository;
         this.companyDefaultAccountsService = companyDefaultAccountsService;
+        this.costingMethodService = costingMethodService;
         this.eventPublisher = eventPublisher;
         this.companyClock = companyClock;
         this.environment = environment;
@@ -612,7 +616,7 @@ public class FinishedGoodsService {
                 throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidState("Finished good " + fg.getProductCode() + " missing accounting configuration");
             }
             // Resolve cost before mutating quantities so WAC reflects pre-dispatch average.
-            BigDecimal unitCost = resolveDispatchUnitCost(fg, batch);
+            BigDecimal unitCost = resolveDispatchUnitCost(fg, batch, companyClock.today(slip.getCompany()));
             requireNonZeroDispatchCost(fg, unitCost, shipQty);
             BigDecimal reserved = safeQuantity(fg.getReservedStock());
             requireSufficientQuantity(reserved, shipQty,
@@ -884,7 +888,7 @@ public class FinishedGoodsService {
             line.setNotes(conf.notes());
             // Re-resolve cost from current persistence state instead of stale cache snapshots.
             wacCache.remove(fg.getId());
-            BigDecimal unitCost = resolveDispatchUnitCost(fg, batch);
+            BigDecimal unitCost = resolveDispatchUnitCost(fg, batch, companyClock.today(company));
             requireNonZeroDispatchCost(fg, unitCost, shipped);
             line.setUnitCost(unitCost);
 
@@ -1502,7 +1506,8 @@ public class FinishedGoodsService {
                               SalesOrderItem item,
                               List<InventoryShortage> shortages) {
         BigDecimal remaining = item.getQuantity();
-        List<FinishedGoodBatch> batches = selectBatchesByCostingMethod(finishedGood);
+        LocalDate movementDate = companyClock.today(order.getCompany());
+        List<FinishedGoodBatch> batches = selectBatchesByCostingMethod(finishedGood, movementDate);
         for (FinishedGoodBatch batch : batches) {
             if (remaining.compareTo(BigDecimal.ZERO) <= 0) break;
             BigDecimal available = batch.getQuantityAvailable();
@@ -1630,12 +1635,21 @@ public class FinishedGoodsService {
         return saved;
     }
 
-    private List<FinishedGoodBatch> selectBatchesByCostingMethod(FinishedGood finishedGood) {
-        return switch (CostingMethodUtils.resolveFinishedGoodBatchSelectionMethod(finishedGood.getCostingMethod())) {
+    private List<FinishedGoodBatch> selectBatchesByCostingMethod(FinishedGood finishedGood, LocalDate referenceDate) {
+        CostingMethodUtils.FinishedGoodBatchSelectionMethod selectionMethod = resolveBatchSelectionMethod(
+                finishedGood.getCompany(),
+                referenceDate);
+        return switch (selectionMethod) {
             case WAC -> finishedGoodBatchRepository.findAllocatableBatches(finishedGood);
             case LIFO -> finishedGoodBatchRepository.findAllocatableBatchesLIFO(finishedGood);
             case FIFO -> finishedGoodBatchRepository.findAllocatableBatchesFIFO(finishedGood);
         };
+    }
+
+    private CostingMethodUtils.FinishedGoodBatchSelectionMethod resolveBatchSelectionMethod(Company company,
+                                                                                             LocalDate referenceDate) {
+        return CostingMethodUtils.resolveFinishedGoodBatchSelectionMethod(
+                costingMethodService.resolveActiveMethod(company, referenceDate).name());
     }
 
     private FinishedGood lockFinishedGood(Long id) {
@@ -1730,11 +1744,16 @@ public class FinishedGoodsService {
         }
     }
 
-    private BigDecimal resolveDispatchUnitCost(FinishedGood finishedGood, FinishedGoodBatch batch) {
+    private BigDecimal resolveDispatchUnitCost(FinishedGood finishedGood,
+                                               FinishedGoodBatch batch,
+                                               LocalDate referenceDate) {
         if (finishedGood == null) {
             return BigDecimal.ZERO;
         }
-        if (CostingMethodUtils.isWeightedAverage(finishedGood.getCostingMethod())) {
+        String activeMethod = costingMethodService.resolveActiveMethod(
+                finishedGood.getCompany(),
+                referenceDate).name();
+        if (CostingMethodUtils.isWeightedAverage(activeMethod)) {
             return weightedAverageCost(finishedGood);
         }
         return batch != null && batch.getUnitCost() != null ? batch.getUnitCost() : BigDecimal.ZERO;
