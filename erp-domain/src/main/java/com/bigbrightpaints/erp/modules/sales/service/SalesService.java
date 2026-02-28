@@ -5,6 +5,8 @@ import com.bigbrightpaints.erp.core.audit.AuditService;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.CreditLimitExceededException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
+import com.bigbrightpaints.erp.core.idempotency.IdempotencyReservationService;
+import com.bigbrightpaints.erp.core.idempotency.IdempotencySignatureBuilder;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.core.util.MoneyUtils;
@@ -35,7 +37,6 @@ import com.bigbrightpaints.erp.modules.sales.dto.*;
 import com.bigbrightpaints.erp.modules.sales.event.SalesOrderCreatedEvent;
 import com.bigbrightpaints.erp.modules.sales.util.DealerProvisioningSupport;
 import com.bigbrightpaints.erp.modules.sales.util.SalesOrderReference;
-import org.apache.commons.codec.digest.DigestUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
@@ -170,6 +171,7 @@ public class SalesService {
     private final CompanyAccountingSettingsService companyAccountingSettingsService;
     private final CreditLimitOverrideService creditLimitOverrideService;
     private final AuditService auditService;
+    private final IdempotencyReservationService idempotencyReservationService = new IdempotencyReservationService();
     private final TransactionTemplate transactionTemplate;
 
     public SalesService(CompanyContextService companyContextService,
@@ -645,18 +647,14 @@ public class SalesService {
             String legacyDefaultPaymentDerivedSignature = buildSalesOrderSignatureIncludingDefaultPaymentMode(order, requestPaymentMode);
             if (!matchesSignature(derivedSignature, requestSignature, legacyDefaultPaymentRequestSignature)
                     && !matchesSignature(legacyDefaultPaymentDerivedSignature, requestSignature, legacyDefaultPaymentRequestSignature)) {
-                throw new ApplicationException(ErrorCode.CONCURRENCY_CONFLICT,
-                        "Idempotency key already used with different payload")
-                        .withDetail("idempotencyKey", idempotencyKey);
+                throw idempotencyReservationService.payloadMismatch(idempotencyKey);
             }
             order.setIdempotencyHash(requestSignature);
             salesOrderRepository.save(order);
             return toDto(order);
         }
         if (!matchesSignature(storedSignature, requestSignature, legacyDefaultPaymentRequestSignature)) {
-            throw new ApplicationException(ErrorCode.CONCURRENCY_CONFLICT,
-                    "Idempotency key already used with different payload")
-                    .withDetail("idempotencyKey", idempotencyKey);
+            throw idempotencyReservationService.payloadMismatch(idempotencyKey);
         }
         if (!storedSignature.equals(requestSignature)) {
             order.setIdempotencyHash(requestSignature);
@@ -680,14 +678,14 @@ public class SalesService {
     }
 
     private String buildSalesOrderSignature(SalesOrderRequest request, boolean includeDefaultPaymentModeToken) {
-        StringBuilder signature = new StringBuilder();
-        signature.append(request.dealerId() == null ? "null" : request.dealerId())
-                .append('|').append(amountToken(request.totalAmount()))
-                .append('|').append(normalizeText(request.currency()))
-                .append('|').append(normalizeText(request.gstTreatment()))
-                .append('|').append(Boolean.TRUE.equals(request.gstInclusive()))
-                .append('|').append(amountToken(request.gstRate()))
-                .append('|').append(normalizeText(request.notes()));
+        IdempotencySignatureBuilder signature = IdempotencySignatureBuilder.create()
+                .add(request.dealerId() == null ? "null" : request.dealerId())
+                .add(amountToken(request.totalAmount()))
+                .add(normalizeText(request.currency()))
+                .add(normalizeText(request.gstTreatment()))
+                .add(Boolean.TRUE.equals(request.gstInclusive()))
+                .add(amountToken(request.gstRate()))
+                .add(normalizeText(request.notes()));
         appendPaymentModeSignatureToken(
                 signature,
                 normalizeOrderPaymentMode(request.paymentMode()),
@@ -695,12 +693,12 @@ public class SalesService {
         );
         request.items().stream()
                 .sorted(orderRequestComparator())
-                .forEach(item -> signature.append('|')
-                        .append(normalizeText(item.productCode()))
-                        .append(':').append(amountToken(item.quantity()))
-                        .append(':').append(amountToken(item.unitPrice()))
-                        .append(':').append(amountToken(item.gstRate())));
-        return DigestUtils.sha256Hex(signature.toString());
+                .forEach(item -> signature.add(
+                        normalizeText(item.productCode())
+                                + ':' + amountToken(item.quantity())
+                                + ':' + amountToken(item.unitPrice())
+                                + ':' + amountToken(item.gstRate())));
+        return signature.buildHash();
     }
 
     private String buildSalesOrderSignature(SalesOrder order) {
@@ -726,14 +724,14 @@ public class SalesService {
     private String buildSalesOrderSignature(SalesOrder order,
                                             String requestPaymentMode,
                                             boolean includeDefaultPaymentModeToken) {
-        StringBuilder signature = new StringBuilder();
-        signature.append(order.getDealer() != null ? order.getDealer().getId() : "null")
-                .append('|').append(amountToken(order.getTotalAmount()))
-                .append('|').append(normalizeText(order.getCurrency()))
-                .append('|').append(normalizeText(order.getGstTreatment()))
-                .append('|').append(order.isGstInclusive())
-                .append('|').append(amountToken(order.getGstRate()))
-                .append('|').append(normalizeText(order.getNotes()));
+        IdempotencySignatureBuilder signature = IdempotencySignatureBuilder.create()
+                .add(order.getDealer() != null ? order.getDealer().getId() : "null")
+                .add(amountToken(order.getTotalAmount()))
+                .add(normalizeText(order.getCurrency()))
+                .add(normalizeText(order.getGstTreatment()))
+                .add(order.isGstInclusive())
+                .add(amountToken(order.getGstRate()))
+                .add(normalizeText(order.getNotes()));
         appendPaymentModeSignatureToken(
                 signature,
                 normalizeOrderPaymentMode(requestPaymentMode),
@@ -741,12 +739,12 @@ public class SalesService {
         );
         order.getItems().stream()
                 .sorted(orderItemComparator())
-                .forEach(item -> signature.append('|')
-                        .append(normalizeText(item.getProductCode()))
-                        .append(':').append(amountToken(item.getQuantity()))
-                        .append(':').append(amountToken(item.getUnitPrice()))
-                        .append(':').append(amountToken(item.getGstRate())));
-        return DigestUtils.sha256Hex(signature.toString());
+                .forEach(item -> signature.add(
+                        normalizeText(item.getProductCode())
+                                + ':' + amountToken(item.getQuantity())
+                                + ':' + amountToken(item.getUnitPrice())
+                                + ':' + amountToken(item.getGstRate())));
+        return signature.buildHash();
     }
 
     private Comparator<SalesOrderItemRequest> orderRequestComparator() {
@@ -1541,11 +1539,11 @@ public class SalesService {
         return CREDIT_EXPOSURE_PAYMENT_MODES.contains(paymentMode);
     }
 
-    private void appendPaymentModeSignatureToken(StringBuilder signature,
+    private void appendPaymentModeSignatureToken(IdempotencySignatureBuilder signature,
                                                  String normalizedPaymentMode,
                                                  boolean includeDefaultPaymentModeToken) {
         if (includeDefaultPaymentModeToken || !DEFAULT_ORDER_PAYMENT_MODE.equals(normalizedPaymentMode)) {
-            signature.append('|').append(normalizedPaymentMode);
+            signature.add(normalizedPaymentMode);
         }
     }
 

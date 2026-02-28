@@ -7,6 +7,8 @@ import com.bigbrightpaints.erp.core.audit.IntegrationFailureMetadataSchema;
 import com.bigbrightpaints.erp.core.config.SystemSettingsService;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
+import com.bigbrightpaints.erp.core.idempotency.IdempotencyReservationService;
+import com.bigbrightpaints.erp.core.idempotency.IdempotencyUtils;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.core.util.MoneyUtils;
@@ -55,8 +57,6 @@ import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -129,6 +129,7 @@ public class AccountingService {
     private final SystemSettingsService systemSettingsService;
     private final AuditService auditService;
     private final AccountingEventStore accountingEventStore;
+    private final IdempotencyReservationService idempotencyReservationService = new IdempotencyReservationService();
 
     /**
      * When true, disables date validation for benchmark mode.
@@ -2574,10 +2575,11 @@ public class AccountingService {
     }
 
     private String normalizeIdempotencyMappingKey(String idempotencyKey) {
-        if (!StringUtils.hasText(idempotencyKey)) {
+        String key = idempotencyReservationService.normalizeKey(idempotencyKey);
+        if (!StringUtils.hasText(key)) {
             return "";
         }
-        return idempotencyKey.trim().toLowerCase(Locale.ROOT);
+        return key.toLowerCase(Locale.ROOT);
     }
 
     private Optional<JournalReferenceMapping> findLatestLegacyReferenceMapping(Company company, String idempotencyKey) {
@@ -4138,8 +4140,8 @@ public class AccountingService {
         if (account == null || account.getType() != AccountType.ASSET) {
             return false;
         }
-        String code = normalizeToken(account.getCode());
-        String name = normalizeToken(account.getName());
+        String code = IdempotencyUtils.normalizeUpperToken(account.getCode());
+        String name = IdempotencyUtils.normalizeUpperToken(account.getName());
         return isTokenMatch(code, "AR") || name.contains("ACCOUNTS RECEIVABLE");
     }
 
@@ -4147,8 +4149,8 @@ public class AccountingService {
         if (account == null || account.getType() != AccountType.LIABILITY) {
             return false;
         }
-        String code = normalizeToken(account.getCode());
-        String name = normalizeToken(account.getName());
+        String code = IdempotencyUtils.normalizeUpperToken(account.getCode());
+        String name = IdempotencyUtils.normalizeUpperToken(account.getName());
         return isTokenMatch(code, "AP") || name.contains("ACCOUNTS PAYABLE");
     }
 
@@ -4158,7 +4160,7 @@ public class AccountingService {
                     "Posting to " + label + " requires dealer/supplier context or admin override");
         }
         String memo = request.memo();
-        String normalized = normalizeToken(memo);
+        String normalized = IdempotencyUtils.normalizeUpperToken(memo);
         String token = "GENERIC " + label + ":";
         if (!normalized.contains(token)) {
             throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
@@ -4250,13 +4252,6 @@ public class AccountingService {
         return value.equals(token) || value.startsWith(token + "-") || value.endsWith("-" + token) || value.contains("-" + token + "-");
     }
 
-    private String normalizeToken(String value) {
-        if (!StringUtils.hasText(value)) {
-            return "";
-        }
-        return value.trim().toUpperCase(Locale.ROOT);
-    }
-
     private String buildDealerReceiptReference(Company company, Dealer dealer, DealerReceiptRequest request) {
         String dealerToken = sanitizeToken(dealer != null ? dealer.getCode() : null);
         if (request == null) {
@@ -4275,7 +4270,7 @@ public class AccountingService {
             fingerprint.append("|inv=").append(allocation.invoiceId() != null ? allocation.invoiceId() : "null")
                     .append(":").append(normalizeDecimal(allocation.appliedAmount()));
         }
-        String hash = sha256Hex(fingerprint.toString(), 12);
+        String hash = IdempotencyUtils.sha256Hex(fingerprint.toString(), 12);
         return "RCPT-%s-%s".formatted(dealerToken, hash);
     }
 
@@ -4295,7 +4290,7 @@ public class AccountingService {
             fingerprint.append("|acc=").append(line.accountId() != null ? line.accountId() : "null")
                     .append(":").append(normalizeDecimal(line.amount()));
         }
-        String hash = sha256Hex(fingerprint.toString(), 12);
+        String hash = IdempotencyUtils.sha256Hex(fingerprint.toString(), 12);
         return "RCPT-%s-%s".formatted(dealerToken, hash);
     }
 
@@ -4371,7 +4366,7 @@ public class AccountingService {
             fingerprint.append("|pay=").append(payment.accountId() != null ? payment.accountId() : "null")
                     .append(":").append(normalizeDecimal(payment.amount()));
         }
-        String hash = sha256Hex(fingerprint.toString(), 12);
+        String hash = IdempotencyUtils.sha256Hex(fingerprint.toString(), 12);
         return "DEALER-SETTLEMENT-" + hash;
     }
 
@@ -4394,15 +4389,12 @@ public class AccountingService {
                     .append(":woff=").append(normalizeDecimal(allocation.writeOffAmount()))
                     .append(":fx=").append(normalizeDecimal(allocation.fxAdjustment()));
         }
-        String hash = sha256Hex(fingerprint.toString(), 12);
+        String hash = IdempotencyUtils.sha256Hex(fingerprint.toString(), 12);
         return "SUPPLIER-SETTLEMENT-" + hash;
     }
 
     private String normalizeDecimal(BigDecimal value) {
-        if (value == null) {
-            return "0";
-        }
-        return value.stripTrailingZeros().toPlainString();
+        return IdempotencyUtils.normalizeDecimal(value);
     }
 
     private void appendPartnerFingerprint(StringBuilder fingerprint, PartnerType partnerType, Long partnerId) {
@@ -4422,22 +4414,11 @@ public class AccountingService {
     }
 
     private String sanitizeToken(String value) {
-        String normalized = normalizeToken(value).replaceAll("[^A-Z0-9]", "");
+        String normalized = IdempotencyUtils.normalizeUpperToken(value).replaceAll("[^A-Z0-9]", "");
         if (normalized.isBlank()) {
             return "TOKEN";
         }
         return normalized.length() > 16 ? normalized.substring(0, 16) : normalized;
-    }
-
-    private String sha256Hex(String input, int length) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(input.getBytes(StandardCharsets.UTF_8));
-            String fullHex = java.util.HexFormat.of().formatHex(hash);
-            return fullHex.substring(0, Math.min(length, fullHex.length()));
-        } catch (Exception ex) {
-            return Integer.toHexString(input.hashCode());
-        }
     }
 
     private String resolveJournalReference(Company company, String provided) {

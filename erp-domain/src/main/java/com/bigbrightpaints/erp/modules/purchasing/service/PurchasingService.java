@@ -2,6 +2,9 @@ package com.bigbrightpaints.erp.modules.purchasing.service;
 
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
+import com.bigbrightpaints.erp.core.idempotency.IdempotencyReservationService;
+import com.bigbrightpaints.erp.core.idempotency.IdempotencySignatureBuilder;
+import com.bigbrightpaints.erp.core.idempotency.IdempotencyUtils;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.core.util.MoneyUtils;
 import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
@@ -46,8 +49,6 @@ import com.bigbrightpaints.erp.modules.purchasing.dto.RawMaterialPurchaseRequest
 import com.bigbrightpaints.erp.modules.purchasing.dto.RawMaterialPurchaseResponse;
 import com.bigbrightpaints.erp.modules.purchasing.dto.PurchaseReturnRequest;
 import jakarta.transaction.Transactional;
-import org.apache.commons.codec.digest.DigestUtils;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -86,6 +87,7 @@ public class PurchasingService {
     private final ReferenceNumberService referenceNumberService;
     private final CompanyClock companyClock;
     private final AccountingPeriodService accountingPeriodService;
+    private final IdempotencyReservationService idempotencyReservationService = new IdempotencyReservationService();
     private final TransactionTemplate transactionTemplate;
 
     public PurchasingService(CompanyContextService companyContextService,
@@ -1555,64 +1557,48 @@ public class PurchasingService {
     }
 
     private String normalizeIdempotencyKey(String raw) {
-        return StringUtils.hasText(raw) ? raw.trim() : null;
+        return idempotencyReservationService.normalizeKey(raw);
     }
 
     private void assertIdempotencyMatch(GoodsReceipt receipt,
                                         String expectedSignature,
                                         String idempotencyKey) {
-        String storedSignature = receipt.getIdempotencyHash();
-        if (StringUtils.hasText(storedSignature)) {
-            if (!storedSignature.equals(expectedSignature)) {
-                throw new ApplicationException(ErrorCode.CONCURRENCY_CONFLICT,
+        idempotencyReservationService.assertAndRepairSignature(
+                receipt,
+                idempotencyKey,
+                expectedSignature,
+                GoodsReceipt::getIdempotencyHash,
+                GoodsReceipt::setIdempotencyHash,
+                goodsReceiptRepository::save,
+                () -> new ApplicationException(ErrorCode.CONCURRENCY_CONFLICT,
                         "Idempotency key already used with different payload")
                         .withDetail("idempotencyKey", idempotencyKey)
-                        .withDetail("receiptNumber", receipt.getReceiptNumber());
-            }
-            return;
-        }
-        receipt.setIdempotencyHash(expectedSignature);
-        goodsReceiptRepository.save(receipt);
+                        .withDetail("receiptNumber", receipt.getReceiptNumber())
+        );
     }
 
     private String buildGoodsReceiptSignature(GoodsReceiptRequest request,
                                               List<GoodsReceiptLineRequest> sortedLines) {
-        StringBuilder signature = new StringBuilder();
-        signature.append(request.purchaseOrderId() != null ? request.purchaseOrderId() : "")
-                .append('|').append(normalizeToken(request.receiptNumber()))
-                .append('|').append(request.receiptDate() != null ? request.receiptDate() : "")
-                .append('|').append(normalizeToken(request.memo()));
+        IdempotencySignatureBuilder signature = IdempotencySignatureBuilder.create()
+                .add(request.purchaseOrderId() != null ? request.purchaseOrderId() : "")
+                .addToken(request.receiptNumber())
+                .add(request.receiptDate() != null ? request.receiptDate() : "")
+                .addToken(request.memo());
         for (GoodsReceiptLineRequest line : sortedLines) {
-            signature.append('|').append(line.rawMaterialId() != null ? line.rawMaterialId() : "")
-                    .append(':').append(normalizeToken(line.batchCode()))
-                    .append(':').append(normalizeAmount(line.quantity()))
-                    .append(':').append(normalizeToken(line.unit()))
-                    .append(':').append(normalizeAmount(line.costPerUnit()))
-                    .append(':').append(normalizeToken(line.notes()));
+            signature.add(
+                    (line.rawMaterialId() != null ? line.rawMaterialId() : "")
+                            + ":" + IdempotencyUtils.normalizeToken(line.batchCode())
+                            + ":" + IdempotencyUtils.normalizeAmount(line.quantity())
+                            + ":" + IdempotencyUtils.normalizeToken(line.unit())
+                            + ":" + IdempotencyUtils.normalizeAmount(line.costPerUnit())
+                            + ":" + IdempotencyUtils.normalizeToken(line.notes())
+            );
         }
-        return DigestUtils.sha256Hex(signature.toString());
-    }
-
-    private String normalizeToken(String value) {
-        return value != null ? value.trim() : "";
-    }
-
-    private String normalizeAmount(BigDecimal value) {
-        if (value == null) {
-            return "";
-        }
-        return value.stripTrailingZeros().toPlainString();
+        return signature.buildHash();
     }
 
     private boolean isDataIntegrityViolation(Throwable error) {
-        Throwable cursor = error;
-        while (cursor != null) {
-            if (cursor instanceof DataIntegrityViolationException) {
-                return true;
-            }
-            cursor = cursor.getCause();
-        }
-        return false;
+        return idempotencyReservationService.isDataIntegrityViolation(error);
     }
 
     private String invoiceReference(String invoiceNumber, int lineIndex) {

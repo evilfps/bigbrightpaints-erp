@@ -2,6 +2,8 @@ package com.bigbrightpaints.erp.modules.factory.service;
 
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
+import com.bigbrightpaints.erp.core.idempotency.IdempotencyReservationService;
+import com.bigbrightpaints.erp.core.idempotency.IdempotencyUtils;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.core.util.MoneyUtils;
@@ -31,9 +33,6 @@ import com.bigbrightpaints.erp.modules.inventory.service.BatchNumberService;
 import com.bigbrightpaints.erp.modules.inventory.service.FinishedGoodsService;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionProduct;
 import jakarta.transaction.Transactional;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import org.springframework.stereotype.Service;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.util.StringUtils;
@@ -71,6 +70,7 @@ public class PackingService {
     private final CompanyEntityLookup companyEntityLookup;
     private final PackagingMaterialService packagingMaterialService;
     private final FinishedGoodsService finishedGoodsService;
+    private final IdempotencyReservationService idempotencyReservationService = new IdempotencyReservationService();
 
     public PackingService(CompanyContextService companyContextService,
                           ProductionLogRepository productionLogRepository,
@@ -117,7 +117,7 @@ public class PackingService {
             throw new IllegalArgumentException("Packing lines are required");
         }
         LocalDate packedDate = request.packedDate() != null ? request.packedDate() : resolveCurrentDate(company);
-        String idempotencyKey = clean(request.idempotencyKey());
+        String idempotencyKey = idempotencyReservationService.normalizeKey(request.idempotencyKey());
         String idempotencyHash = idempotencyKey != null ? packingRequestHash(request, packedDate) : null;
         PackingRequestRecord reservedRecord = null;
         if (idempotencyKey != null) {
@@ -281,7 +281,7 @@ public class PackingService {
                         .append(':').append(line.piecesPerBox());
             }
         }
-        return sha256Hex(payload.toString());
+        return IdempotencyUtils.sha256Hex(payload.toString());
     }
 
     private String decimalToken(BigDecimal value) {
@@ -289,20 +289,6 @@ public class PackingService {
             return "";
         }
         return value.stripTrailingZeros().toPlainString();
-    }
-
-    private String sha256Hex(String value) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] bytes = digest.digest(value.getBytes(StandardCharsets.UTF_8));
-            StringBuilder hex = new StringBuilder(bytes.length * 2);
-            for (byte b : bytes) {
-                hex.append(String.format("%02x", b));
-            }
-            return hex.toString();
-        } catch (NoSuchAlgorithmException ex) {
-            throw new ApplicationException(ErrorCode.SYSTEM_INTERNAL_ERROR, "Failed to hash packing request");
-        }
     }
 
     private record IdempotencyReservation(PackingRequestRecord record,

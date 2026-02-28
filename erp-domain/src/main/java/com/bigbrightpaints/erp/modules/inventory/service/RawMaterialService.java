@@ -4,6 +4,8 @@ import com.bigbrightpaints.erp.core.audit.AuditEvent;
 import com.bigbrightpaints.erp.core.audit.AuditService;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
+import com.bigbrightpaints.erp.core.idempotency.IdempotencyReservationService;
+import com.bigbrightpaints.erp.core.idempotency.IdempotencySignatureBuilder;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.core.util.CostingMethodUtils;
@@ -29,11 +31,9 @@ import com.bigbrightpaints.erp.modules.production.domain.ProductionProduct;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionProductRepository;
 import com.bigbrightpaints.erp.modules.purchasing.domain.Supplier;
 import jakarta.transaction.Transactional;
-import org.apache.commons.codec.digest.DigestUtils;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.env.Environment;
 import org.springframework.core.env.Profiles;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -62,6 +62,7 @@ public class RawMaterialService {
     private final CompanyClock companyClock;
     private final CompanyEntityLookup companyEntityLookup;
     private final AuditService auditService;
+    private final IdempotencyReservationService idempotencyReservationService = new IdempotencyReservationService();
     private final Environment environment;
     private final TransactionTemplate transactionTemplate;
     private final boolean rawMaterialIntakeEnabled;
@@ -237,7 +238,7 @@ public class RawMaterialService {
             }
             return response;
         } catch (RuntimeException ex) {
-            if (!isDataIntegrityViolation(ex)) {
+            if (!idempotencyReservationService.isDataIntegrityViolation(ex)) {
                 throw ex;
             }
             RawMaterialIntakeRecord concurrent = rawMaterialIntakeRepository.findByCompanyAndIdempotencyKey(company, normalizedKey)
@@ -573,67 +574,34 @@ public class RawMaterialService {
     }
 
     private void assertIdempotencyMatch(RawMaterialIntakeRecord record, String expectedSignature, String idempotencyKey) {
-        String storedSignature = record.getIdempotencyHash();
-        if (StringUtils.hasText(storedSignature)) {
-            if (!storedSignature.equals(expectedSignature)) {
-                throw new ApplicationException(ErrorCode.CONCURRENCY_CONFLICT,
-                        "Idempotency key already used with different payload")
-                        .withDetail("idempotencyKey", idempotencyKey);
-            }
-            return;
-        }
-        record.setIdempotencyHash(expectedSignature);
-        rawMaterialIntakeRepository.save(record);
+        idempotencyReservationService.assertAndRepairSignature(
+                record,
+                idempotencyKey,
+                expectedSignature,
+                RawMaterialIntakeRecord::getIdempotencyHash,
+                RawMaterialIntakeRecord::setIdempotencyHash,
+                rawMaterialIntakeRepository::save
+        );
     }
 
     private String requireIdempotencyKey(String idempotencyKey, String label) {
-        if (!StringUtils.hasText(idempotencyKey)) {
-            throw new ApplicationException(ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD,
-                    "Idempotency key is required for " + label);
-        }
-        String trimmed = idempotencyKey.trim();
-        if (trimmed.length() > 128) {
-            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
-                    "Idempotency key exceeds 128 characters");
-        }
-        return trimmed;
+        return idempotencyReservationService.requireKey(idempotencyKey, label);
     }
 
     private String buildManualIntakeSignature(Long rawMaterialId, RawMaterialBatchRequest request) {
+        IdempotencySignatureBuilder signature = IdempotencySignatureBuilder.create()
+                .add(rawMaterialId != null ? rawMaterialId : "");
         if (request == null) {
-            return DigestUtils.sha256Hex("");
+            return signature.buildHash();
         }
-        StringBuilder signature = new StringBuilder();
-        signature.append(rawMaterialId != null ? rawMaterialId : "")
-                .append('|').append(normalizeToken(request.batchCode()))
-                .append('|').append(normalizeAmount(request.quantity()))
-                .append('|').append(normalizeToken(request.unit()))
-                .append('|').append(normalizeAmount(request.costPerUnit()))
-                .append('|').append(request.supplierId() != null ? request.supplierId() : "")
-                .append('|').append(normalizeToken(request.notes()));
-        return DigestUtils.sha256Hex(signature.toString());
-    }
-
-    private String normalizeToken(String value) {
-        return value != null ? value.trim() : "";
-    }
-
-    private String normalizeAmount(BigDecimal value) {
-        if (value == null) {
-            return "";
-        }
-        return value.stripTrailingZeros().toPlainString();
-    }
-
-    private boolean isDataIntegrityViolation(Throwable error) {
-        Throwable cursor = error;
-        while (cursor != null) {
-            if (cursor instanceof DataIntegrityViolationException) {
-                return true;
-            }
-            cursor = cursor.getCause();
-        }
-        return false;
+        return signature
+                .addToken(request.batchCode())
+                .addAmount(request.quantity())
+                .addToken(request.unit())
+                .addAmount(request.costPerUnit())
+                .add(request.supplierId() != null ? request.supplierId() : "")
+                .addToken(request.notes())
+                .buildHash();
     }
 
     private boolean isProdProfile() {

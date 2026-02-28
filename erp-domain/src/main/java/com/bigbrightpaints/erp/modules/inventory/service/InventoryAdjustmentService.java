@@ -2,6 +2,9 @@ package com.bigbrightpaints.erp.modules.inventory.service;
 
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
+import com.bigbrightpaints.erp.core.idempotency.IdempotencyReservationService;
+import com.bigbrightpaints.erp.core.idempotency.IdempotencySignatureBuilder;
+import com.bigbrightpaints.erp.core.idempotency.IdempotencyUtils;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.core.util.CostingMethodUtils;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
@@ -22,7 +25,6 @@ import com.bigbrightpaints.erp.modules.inventory.dto.InventoryAdjustmentDto;
 import com.bigbrightpaints.erp.modules.inventory.dto.InventoryAdjustmentLineDto;
 import com.bigbrightpaints.erp.modules.inventory.dto.InventoryAdjustmentRequest;
 import com.bigbrightpaints.erp.modules.accounting.service.ReferenceNumberService;
-import org.apache.commons.codec.digest.DigestUtils;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.retry.annotation.Backoff;
@@ -53,6 +55,7 @@ public class InventoryAdjustmentService {
     private final ReferenceNumberService referenceNumberService;
     private final CompanyClock companyClock;
     private final FinishedGoodsService finishedGoodsService;
+    private final IdempotencyReservationService idempotencyReservationService = new IdempotencyReservationService();
     private final TransactionTemplate transactionTemplate;
 
     public InventoryAdjustmentService(CompanyContextService companyContextService,
@@ -113,7 +116,7 @@ public class InventoryAdjustmentService {
             return transactionTemplate.execute(status ->
                     createAdjustmentInternal(request, sortedLines, company, resolvedAdjustmentDate, idempotencyKey, requestSignature));
         } catch (RuntimeException ex) {
-            if (!isDataIntegrityViolation(ex)) {
+            if (!idempotencyReservationService.isDataIntegrityViolation(ex)) {
                 throw ex;
             }
             InventoryAdjustment concurrent = adjustmentRepository.findWithLinesByCompanyAndIdempotencyKey(company, idempotencyKey)
@@ -309,63 +312,40 @@ public class InventoryAdjustmentService {
     }
 
     private String normalizeIdempotencyKey(String raw) {
-        return StringUtils.hasText(raw) ? raw.trim() : null;
+        return idempotencyReservationService.normalizeKey(raw);
     }
 
     private void assertIdempotencyMatch(InventoryAdjustment adjustment,
                                         String expectedSignature,
                                         String idempotencyKey) {
-        String storedSignature = adjustment.getIdempotencyHash();
-        if (StringUtils.hasText(storedSignature)) {
-            if (!storedSignature.equals(expectedSignature)) {
-                throw new ApplicationException(ErrorCode.CONCURRENCY_CONFLICT,
-                        "Idempotency key already used with different payload")
-                        .withDetail("idempotencyKey", idempotencyKey);
-            }
-            return;
-        }
-        adjustment.setIdempotencyHash(expectedSignature);
-        adjustmentRepository.save(adjustment);
+        idempotencyReservationService.assertAndRepairSignature(
+                adjustment,
+                idempotencyKey,
+                expectedSignature,
+                InventoryAdjustment::getIdempotencyHash,
+                InventoryAdjustment::setIdempotencyHash,
+                adjustmentRepository::save
+        );
     }
 
     private String buildAdjustmentSignature(InventoryAdjustmentRequest request,
                                             List<InventoryAdjustmentRequest.LineRequest> sortedLines,
                                             LocalDate resolvedDate) {
-        StringBuilder signature = new StringBuilder();
-        signature.append(resolvedDate != null ? resolvedDate : "")
-                .append('|').append(request.type() != null ? request.type().name() : "")
-                .append('|').append(request.adjustmentAccountId() != null ? request.adjustmentAccountId() : "")
-                .append('|').append(normalizeToken(request.reason()))
-                .append('|').append(Boolean.TRUE.equals(request.adminOverride()));
+        IdempotencySignatureBuilder signature = IdempotencySignatureBuilder.create()
+                .add(resolvedDate != null ? resolvedDate : "")
+                .add(request.type() != null ? request.type().name() : "")
+                .add(request.adjustmentAccountId() != null ? request.adjustmentAccountId() : "")
+                .addToken(request.reason())
+                .add(Boolean.TRUE.equals(request.adminOverride()));
         for (InventoryAdjustmentRequest.LineRequest line : sortedLines) {
-            signature.append('|').append(line.finishedGoodId() != null ? line.finishedGoodId() : "")
-                    .append(':').append(normalizeAmount(line.quantity()))
-                    .append(':').append(normalizeAmount(line.unitCost()))
-                    .append(':').append(normalizeToken(line.note()));
+            signature.add(
+                    (line.finishedGoodId() != null ? line.finishedGoodId() : "")
+                            + ":" + IdempotencyUtils.normalizeAmount(line.quantity())
+                            + ":" + IdempotencyUtils.normalizeAmount(line.unitCost())
+                            + ":" + IdempotencyUtils.normalizeToken(line.note())
+            );
         }
-        return DigestUtils.sha256Hex(signature.toString());
-    }
-
-    private String normalizeToken(String value) {
-        return value != null ? value.trim() : "";
-    }
-
-    private String normalizeAmount(BigDecimal value) {
-        if (value == null) {
-            return "";
-        }
-        return value.stripTrailingZeros().toPlainString();
-    }
-
-    private boolean isDataIntegrityViolation(Throwable error) {
-        Throwable cursor = error;
-        while (cursor != null) {
-            if (cursor instanceof DataIntegrityViolationException) {
-                return true;
-            }
-            cursor = cursor.getCause();
-        }
-        return false;
+        return signature.buildHash();
     }
 
     private String memoFor(InventoryAdjustment adjustment, String reason) {
