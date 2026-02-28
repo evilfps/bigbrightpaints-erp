@@ -1,6 +1,6 @@
 {
   "milestone": "accounting-core",
-  "round": 1,
+  "round": 2,
   "status": "fail",
   "validatorsRun": {
     "test": {
@@ -20,111 +20,78 @@
     }
   },
   "reviewsSummary": {
-    "total": 7,
-    "passed": 1,
-    "failed": 6,
+    "total": 4,
+    "passed": 2,
+    "failed": 2,
     "failedFeatures": [
-      "decompose-accounting-service",
-      "standardize-journal-creation-flows",
-      "gst-tax-improvements",
-      "settlement-and-period-improvements",
-      "accounting-audit-trail-improvements",
-      "accounting-frontend-handoff-doc"
+      "deep-accounting-logic-migration",
+      "fix-accounting-decomposition-and-standardization"
     ]
   },
   "blockingIssues": [
     {
-      "featureId": "decompose-accounting-service",
+      "featureId": "deep-accounting-logic-migration",
       "severity": "blocking",
-      "description": "Accounting decomposition objective was not achieved: legacy logic remains concentrated in a 5703-line AccountingCoreService and new services mostly proxy calls."
+      "description": "Accounting decomposition is still not achieved: core business implementation remains concentrated in AccountingCoreEngine (6179+ lines), so focused services do not own domain logic."
     },
     {
-      "featureId": "standardize-journal-creation-flows",
+      "featureId": "deep-accounting-logic-migration",
       "severity": "blocking",
-      "description": "Factory/production journal flows still bypass createStandardJournal(JournalCreationRequest) via legacy AccountingFacade methods (postMaterialConsumption, postLaborOverheadApplied, postSimpleJournal)."
+      "description": "Journal/settlement focused services still rely on inheritance/super delegation to monolithic engine methods rather than independent implementations."
     },
     {
-      "featureId": "gst-tax-improvements",
+      "featureId": "fix-accounting-decomposition-and-standardization",
       "severity": "blocking",
-      "description": "Company stateCode was added to the entity but not exposed in company create/update APIs, preventing reliable intra/inter-state GST decisioning in runtime flows."
+      "description": "Cross-module journal standardization is still incomplete: packing/factory posting path (AccountingFacade.postPackingJournal) continues to call createJournalEntry directly instead of createStandardJournal(JournalCreationRequest)."
     },
     {
-      "featureId": "gst-tax-improvements",
+      "featureId": "fix-accounting-decomposition-and-standardization",
       "severity": "blocking",
-      "description": "GST reconciliation input tax credit overstates eligible credit because purchase-return reductions are not accounted for in reconciliation calculation."
-    },
-    {
-      "featureId": "settlement-and-period-improvements",
-      "severity": "blocking",
-      "description": "Supplier auto-settle can fail for amount-only requests because optional reference/idempotency fields are passed through to a downstream path that requires one of them."
-    },
-    {
-      "featureId": "settlement-and-period-improvements",
-      "severity": "blocking",
-      "description": "Bank reconciliation discrepancy is computed against current ledger balance rather than period-bounded ledger balance, producing incorrect historical statement variance."
-    },
-    {
-      "featureId": "accounting-audit-trail-improvements",
-      "severity": "blocking",
-      "description": "Supplier settlement journals use SUP-* references and are not classified as settlement-specific audit actions, leaving settlement audit typing incomplete."
-    },
-    {
-      "featureId": "accounting-frontend-handoff-doc",
-      "severity": "blocking",
-      "description": "Frontend handoff leaves a placeholder for ConfigurationHealthReport instead of a concrete response contract, violating complete DTO documentation requirements."
-    },
-    {
-      "featureId": "accounting-frontend-handoff-doc",
-      "severity": "blocking",
-      "description": "Paginated DTO shapes are incorrectly documented by flattening item fields at top level instead of PageResponse wrapper fields (content/totalElements/totalPages/page/size)."
+      "description": "Supplier settlement compliance audit typing is still incomplete because AccountingComplianceAuditService settlement detection does not include SUP-* references."
     }
   ],
   "appliedUpdates": [],
   "suggestedGuidanceUpdates": [
     {
+      "target": "backend-worker skill",
+      "suggestion": "Strengthen decomposition acceptance criteria: explicitly fail implementations that relocate monolith logic into renamed base/engine classes, and require focused services to own business logic (not super/delegate wrappers).",
+      "evidence": "Both deep-accounting-logic-migration and fix-accounting-decomposition-and-standardization still centralize logic in AccountingCoreEngine while focused services mostly delegate/inherit.",
+      "isSystemic": true
+    },
+    {
       "target": "AGENTS.md",
-      "suggestion": "Resolve contradictory guidance on .factory edits by explicitly allowing `.factory/library/frontend-handoff.md` updates when features change APIs while still prohibiting mission-infrastructure file edits.",
-      "evidence": "Multiple reviews observed conflict between AGENTS off-limits guidance and backend-worker requirements that mandate frontend handoff updates in .factory/library.",
-      "isSystemic": true
-    },
-    {
-      "target": "scrutiny-feature-reviewer skill",
-      "suggestion": "For decomposition features, add explicit acceptance checks beyond file creation: enforce no replacement monolith class >500 lines and require moved domain logic ownership in target services (not pass-through delegates).",
-      "evidence": "decompose-accounting-service created the requested service files but kept almost all logic in AccountingCoreService (5703 lines), and wrapper services delegated into that class.",
+      "suggestion": "Resolve .factory guidance conflict by explicitly allowing `.factory/library/frontend-handoff.md` updates for endpoint/contract changes while keeping mission infrastructure paths off-limits.",
+      "evidence": "Two independent fix-feature reviews observed contradictory instruction between off-limits `.factory` guidance and mandatory frontend handoff updates.",
       "isSystemic": true
     },
     {
       "target": "backend-worker skill",
-      "suggestion": "When a feature mandates standardization via a specific facade/DTO path, require repository-wide call-site verification grep assertions proving no bypass paths remain.",
-      "evidence": "standardize-journal-creation-flows introduced standard APIs, but production/factory paths still used legacy posting methods bypassing createStandardJournal.",
-      "isSystemic": true
-    },
-    {
-      "target": "mission transcript/handoff pipeline",
-      "suggestion": "Include actionable skill adherence telemetry (step-level event trace and skillFeedback) in transcript skeletons/handoffs so scrutiny can reliably validate TDD/procedure compliance.",
-      "evidence": "Several reviews noted compact transcript skeletons and missing skillFeedback details, limiting confidence in procedural conformance checks.",
+      "suggestion": "Add a required frontend-handoff DTO parity check step that compares documented contracts against source DTO/record wrapper shapes (e.g., PageResponse wrappers and nested records).",
+      "evidence": "accounting-frontend-handoff contracts required a dedicated fix feature because wrapper/placeholder mismatches were not caught by current verification steps.",
       "isSystemic": true
     },
     {
       "target": "backend-worker skill",
-      "suggestion": "Add frontend-handoff contract validation checklist that explicitly verifies paginated wrapper schema shapes and forbids unresolved placeholder schemas before feature completion.",
-      "evidence": "accounting-frontend-handoff-doc documented endpoint coverage well but still shipped blocking schema-shape and placeholder DTO contract errors.",
-      "isSystemic": true
+      "suggestion": "For audit-classification fixes, require verification of all active audit pipelines (domain trail and compliance trail) to prevent partial-path fixes.",
+      "evidence": "fix-accounting-decomposition-and-standardization updated one audit classification path, but supplier settlement typing remained incorrect in AccountingComplianceAuditService.",
+      "isSystemic": false
+    },
+    {
+      "target": "AGENTS.md",
+      "suggestion": "Document a canonical deterministic fallback strategy for auto-settlement references/idempotency keys to avoid drift across service layers.",
+      "evidence": "fix-gst-settlement-reconciliation showed two fallback-generation layers using different fingerprints without a declared shared convention.",
+      "isSystemic": false
     }
   ],
   "rejectedObservations": [
     {
-      "observation": "Repeated reports that AGENTS and skills conflict on event-driven vs direct-call accounting journal flows.",
-      "reason": "Feature-specific exception already encoded in milestone requirements; captured once via guidance update for clearer exception policy."
+      "observation": "Duplicate decomposition-bypass observation reported separately by two reviewers (skills and conventions variants).",
+      "reason": "duplicate"
     },
     {
-      "observation": "Suggestion to update services.yaml solely to add `.factory/init.sh` as a command alias.",
-      "reason": "Non-blocking operational convenience; insufficient evidence of recurring validator failure or mission impact to apply immediately."
-    },
-    {
-      "observation": "Proposed rule requiring every new Company entity field to always be surfaced in external API contracts.",
-      "reason": "Too broad as a universal rule; requires product-level intent per field and should be handled as feature-specific acceptance criteria instead."
+      "observation": "Duplicate .factory guidance-conflict observation repeated across two fix reviews.",
+      "reason": "duplicate"
     }
   ],
-  "previousRound": null
+  "previousRound": ".factory/validation/accounting-core/scrutiny/synthesis.round1.json"
 }

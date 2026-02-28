@@ -1,0 +1,45 @@
+{
+  "featureId": "deep-accounting-logic-migration",
+  "reviewedAt": "2026-02-28T14:44:35Z",
+  "commitId": "e13028e52476a004d3fcb555df61599a165a6e5c",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "fail",
+  "codeReview": {
+    "summary": "The fix reduces AccountingCoreService/AccountingCoreLogic line counts, but it does not perform real decomposition: business logic is still centralized in a single 6179-line AccountingCoreEngine and focused services mostly forward to inherited methods.",
+    "issues": [
+      {
+        "file": "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingCoreEngine.java",
+        "line": 78,
+        "severity": "blocking",
+        "description": "The original monolith concentration from the failed feature was moved, not decomposed. AccountingCoreEngine now holds the core business implementation at 6179 lines (including methods like createJournalEntry at line 450 and settleSupplierInvoices at line 2212), so focused services still do not own their logic."
+      },
+      {
+        "file": "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/JournalEntryService.java",
+        "line": 39,
+        "severity": "blocking",
+        "description": "JournalEntryService remains inheritance-based delegation instead of owning journal logic. It extends AccountingCoreEngine and routes key operations to super (e.g., createJournalEntry line 122, createStandardJournal line 126, reverseJournalEntry line 145)."
+      },
+      {
+        "file": "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/SettlementService.java",
+        "line": 34,
+        "severity": "blocking",
+        "description": "Settlement behavior is still multi-hop delegation rather than focused-service implementation: SettlementService delegates to AccountingIdempotencyService (lines 116/120), and AccountingIdempotencyService then delegates to super methods in AccountingCoreEngine (AccountingIdempotencyService lines 120/124)."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "skills",
+      "observation": "The backend-worker decomposition procedure can still be satisfied by moving a god-class body into a new base/engine class and wiring wrappers, which misses true ownership migration.",
+      "evidence": "SKILL.md Step 3 requires creating focused services and updating the god service to delegate, but does not explicitly reject relocating logic into another monolith. In this fix, logic moved to AccountingCoreEngine (6179 lines) while focused services mostly delegate (e.g., JournalEntryService lines 122/126/145, SettlementService lines 116/120)."
+    },
+    {
+      "area": "conventions",
+      "observation": "The mission convention against oversized service logic can be bypassed by renaming the monolith class (e.g., *Engine), suggesting a documentation gap for decomposition validation criteria.",
+      "evidence": "AGENTS.md states decomposition must move real logic and service classes should stay ~500 lines, but this fix introduces AccountingCoreEngine with 6179 lines in the accounting service layer and still reported success in handoff."
+    }
+  ],
+  "addressesFailureFrom": "/home/realnigga/Desktop/Mission-control/.factory/validation/accounting-core/scrutiny/reviews/decompose-accounting-service.json",
+  "summary": "Fail: this fix changes class structure but not decomposition outcome. The original failure pattern (one large monolithic implementation with focused-service delegation) persists after moving the body from AccountingCoreService into AccountingCoreEngine."
+}

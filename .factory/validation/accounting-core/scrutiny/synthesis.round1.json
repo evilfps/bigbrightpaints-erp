@@ -1,0 +1,130 @@
+{
+  "milestone": "accounting-core",
+  "round": 1,
+  "status": "fail",
+  "validatorsRun": {
+    "test": {
+      "passed": true,
+      "command": "cd erp-domain && mvn test -Pgate-fast -Djacoco.skip=true",
+      "exitCode": 0
+    },
+    "typecheck": {
+      "passed": true,
+      "command": "cd erp-domain && mvn compile -q",
+      "exitCode": 0
+    },
+    "lint": {
+      "passed": true,
+      "command": "echo \"Checkstyle in advisory mode (49962 pre-existing violations). Skipped as hard gate.\"",
+      "exitCode": 0
+    }
+  },
+  "reviewsSummary": {
+    "total": 7,
+    "passed": 1,
+    "failed": 6,
+    "failedFeatures": [
+      "decompose-accounting-service",
+      "standardize-journal-creation-flows",
+      "gst-tax-improvements",
+      "settlement-and-period-improvements",
+      "accounting-audit-trail-improvements",
+      "accounting-frontend-handoff-doc"
+    ]
+  },
+  "blockingIssues": [
+    {
+      "featureId": "decompose-accounting-service",
+      "severity": "blocking",
+      "description": "Accounting decomposition objective was not achieved: legacy logic remains concentrated in a 5703-line AccountingCoreService and new services mostly proxy calls."
+    },
+    {
+      "featureId": "standardize-journal-creation-flows",
+      "severity": "blocking",
+      "description": "Factory/production journal flows still bypass createStandardJournal(JournalCreationRequest) via legacy AccountingFacade methods (postMaterialConsumption, postLaborOverheadApplied, postSimpleJournal)."
+    },
+    {
+      "featureId": "gst-tax-improvements",
+      "severity": "blocking",
+      "description": "Company stateCode was added to the entity but not exposed in company create/update APIs, preventing reliable intra/inter-state GST decisioning in runtime flows."
+    },
+    {
+      "featureId": "gst-tax-improvements",
+      "severity": "blocking",
+      "description": "GST reconciliation input tax credit overstates eligible credit because purchase-return reductions are not accounted for in reconciliation calculation."
+    },
+    {
+      "featureId": "settlement-and-period-improvements",
+      "severity": "blocking",
+      "description": "Supplier auto-settle can fail for amount-only requests because optional reference/idempotency fields are passed through to a downstream path that requires one of them."
+    },
+    {
+      "featureId": "settlement-and-period-improvements",
+      "severity": "blocking",
+      "description": "Bank reconciliation discrepancy is computed against current ledger balance rather than period-bounded ledger balance, producing incorrect historical statement variance."
+    },
+    {
+      "featureId": "accounting-audit-trail-improvements",
+      "severity": "blocking",
+      "description": "Supplier settlement journals use SUP-* references and are not classified as settlement-specific audit actions, leaving settlement audit typing incomplete."
+    },
+    {
+      "featureId": "accounting-frontend-handoff-doc",
+      "severity": "blocking",
+      "description": "Frontend handoff leaves a placeholder for ConfigurationHealthReport instead of a concrete response contract, violating complete DTO documentation requirements."
+    },
+    {
+      "featureId": "accounting-frontend-handoff-doc",
+      "severity": "blocking",
+      "description": "Paginated DTO shapes are incorrectly documented by flattening item fields at top level instead of PageResponse wrapper fields (content/totalElements/totalPages/page/size)."
+    }
+  ],
+  "appliedUpdates": [],
+  "suggestedGuidanceUpdates": [
+    {
+      "target": "AGENTS.md",
+      "suggestion": "Resolve contradictory guidance on .factory edits by explicitly allowing `.factory/library/frontend-handoff.md` updates when features change APIs while still prohibiting mission-infrastructure file edits.",
+      "evidence": "Multiple reviews observed conflict between AGENTS off-limits guidance and backend-worker requirements that mandate frontend handoff updates in .factory/library.",
+      "isSystemic": true
+    },
+    {
+      "target": "scrutiny-feature-reviewer skill",
+      "suggestion": "For decomposition features, add explicit acceptance checks beyond file creation: enforce no replacement monolith class >500 lines and require moved domain logic ownership in target services (not pass-through delegates).",
+      "evidence": "decompose-accounting-service created the requested service files but kept almost all logic in AccountingCoreService (5703 lines), and wrapper services delegated into that class.",
+      "isSystemic": true
+    },
+    {
+      "target": "backend-worker skill",
+      "suggestion": "When a feature mandates standardization via a specific facade/DTO path, require repository-wide call-site verification grep assertions proving no bypass paths remain.",
+      "evidence": "standardize-journal-creation-flows introduced standard APIs, but production/factory paths still used legacy posting methods bypassing createStandardJournal.",
+      "isSystemic": true
+    },
+    {
+      "target": "mission transcript/handoff pipeline",
+      "suggestion": "Include actionable skill adherence telemetry (step-level event trace and skillFeedback) in transcript skeletons/handoffs so scrutiny can reliably validate TDD/procedure compliance.",
+      "evidence": "Several reviews noted compact transcript skeletons and missing skillFeedback details, limiting confidence in procedural conformance checks.",
+      "isSystemic": true
+    },
+    {
+      "target": "backend-worker skill",
+      "suggestion": "Add frontend-handoff contract validation checklist that explicitly verifies paginated wrapper schema shapes and forbids unresolved placeholder schemas before feature completion.",
+      "evidence": "accounting-frontend-handoff-doc documented endpoint coverage well but still shipped blocking schema-shape and placeholder DTO contract errors.",
+      "isSystemic": true
+    }
+  ],
+  "rejectedObservations": [
+    {
+      "observation": "Repeated reports that AGENTS and skills conflict on event-driven vs direct-call accounting journal flows.",
+      "reason": "Feature-specific exception already encoded in milestone requirements; captured once via guidance update for clearer exception policy."
+    },
+    {
+      "observation": "Suggestion to update services.yaml solely to add `.factory/init.sh` as a command alias.",
+      "reason": "Non-blocking operational convenience; insufficient evidence of recurring validator failure or mission impact to apply immediately."
+    },
+    {
+      "observation": "Proposed rule requiring every new Company entity field to always be surfaced in external API contracts.",
+      "reason": "Too broad as a universal rule; requires product-level intent per field and should be handled as feature-specific acceptance criteria instead."
+    }
+  ],
+  "previousRound": null
+}

@@ -1,0 +1,56 @@
+{
+  "featureId": "fix-accounting-decomposition-and-standardization",
+  "reviewedAt": "2026-02-28T14:53:39Z",
+  "commitId": "bc2ce1804c1d6ce5f649826ffc3b98057d93a8af",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "fail",
+  "codeReview": {
+    "summary": "The fix correctly migrates the previously flagged legacy facade methods (postMaterialConsumption/postLaborOverheadApplied/postSimpleJournal) to createStandardJournal and improves supplier-settlement classification in AccountingAuditTrailService, but it does not fully resolve the original scrutiny failures: decomposition is still monolithic via AccountingCoreEngine, production/packing still has a createJournalEntry bypass path, and supplier-settlement action typing in compliance audit remains incomplete.",
+    "issues": [
+      {
+        "file": "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingCoreEngine.java",
+        "line": 78,
+        "severity": "blocking",
+        "description": "The decomposition failure remains unresolved. Core accounting business logic is still centralized in a single 6212-line engine class (e.g., createJournalEntry at line 450 and settleSupplierInvoices at line 2218), which preserves the prior monolith pattern instead of moving ownership into focused services."
+      },
+      {
+        "file": "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/JournalEntryService.java",
+        "line": 133,
+        "severity": "blocking",
+        "description": "Focused services still primarily delegate to inherited monolith logic (e.g., JournalEntryService returns super.createJournalEntry at line 133; SettlementService delegates to AccountingIdempotencyService at lines 112/117/122/127/132, and AccountingIdempotencyService delegates to super at lines 100/108/112/120/124). This does not satisfy the required real logic migration."
+      },
+      {
+        "file": "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingFacade.java",
+        "line": 903,
+        "severity": "blocking",
+        "description": "A cross-module packing/production bypass remains: postPackingJournal still builds JournalEntryRequest and calls accountingService.createJournalEntry directly (line 903) instead of createStandardJournal. This path is still used from non-accounting modules (PackingService lines 499/655 and BulkPackingService line 747), so standardization is not complete."
+      },
+      {
+        "file": "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingComplianceAuditService.java",
+        "line": 306,
+        "severity": "blocking",
+        "description": "Supplier settlement audit classification remains incomplete in the compliance trail: isSettlementReference only matches SET*/RCPT*/contains(SETTLEMENT) and does not recognize SUP-* references, so supplier settlement journals continue to be recorded as SYSTEM_JOURNAL_CREATED instead of settlement-specific actions."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "skills",
+      "observation": "The backend-worker decomposition procedure still allows monolith relocation (into an Engine/base class) while reporting decomposition success, because it does not explicitly enforce domain-logic ownership in focused services beyond creating wrapper classes.",
+      "evidence": ".factory/skills/backend-worker/SKILL.md Step 3 + this fix lineage: AccountingCoreEngine remains 6212 lines while focused services primarily delegate (JournalEntryService line 133, AccountingIdempotencyService lines 100/108/112/120/124)."
+    },
+    {
+      "area": "conventions",
+      "observation": "Mission decomposition conventions are still bypassable by class renaming in the same layer (e.g., Service -> Engine), leaving enforcement ambiguous for scrutiny and workers.",
+      "evidence": "AGENTS.md requires real decomposition and ~500-line service sizing, but accounting logic remains concentrated in erp-domain/.../AccountingCoreEngine.java (6212 lines) while AccountingCoreService itself is only 85 lines."
+    },
+    {
+      "area": "skills",
+      "observation": "Audit-classification verification guidance appears too narrow; the fix addressed AccountingAuditTrailService but not AccountingComplianceAuditService where settlement action typing is actually emitted for enterprise audit events.",
+      "evidence": "Commit bc2ce180 changes AccountingAuditTrailService and its tests, but does not modify AccountingComplianceAuditService; AccountingCoreEngine line 807 still calls accountingComplianceAuditService.recordJournalCreation, whose settlement detection at AccountingComplianceAuditService line 306 excludes SUP-* references."
+    }
+  ],
+  "addressesFailureFrom": "/home/realnigga/Desktop/Mission-control/.factory/validation/accounting-core/scrutiny/reviews/decompose-accounting-service.json; /home/realnigga/Desktop/Mission-control/.factory/validation/accounting-core/scrutiny/reviews/standardize-journal-creation-flows.json; /home/realnigga/Desktop/Mission-control/.factory/validation/accounting-core/scrutiny/reviews/accounting-audit-trail-improvements.json",
+  "summary": "Fail. The fix partially improves journal standardization and audit-trail display classification, but blocking failures remain in real decomposition, complete cross-module standard-journal routing, and supplier-settlement compliance audit action typing."
+}

@@ -1,0 +1,26 @@
+{
+  "featureId": "fix-gst-settlement-reconciliation",
+  "reviewedAt": "2026-02-28T14:47:07Z",
+  "commitId": "d01dfa2e",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "Reviewed the fix commit plus both original failing feature diffs/reviews. The implementation addresses all four prior blocking findings: company stateCode is now exposed/mapped in company create/update contracts, GST reconciliation now nets purchase-return impact from ITC and enforces required state codes in taxable decisioning, supplier auto-settle amount-only requests now synthesize deterministic reference/idempotency fallback, and bank reconciliation variance now uses period-bounded ledger balance via TemporalBalanceService.",
+    "issues": []
+  },
+  "sharedStateObservations": [
+    {
+      "area": "skills",
+      "observation": "There is an ongoing procedure conflict between mission guidance and backend-worker skill documentation for .factory edits, which caused a deliberate skill deviation in this fix run.",
+      "evidence": "Mission AGENTS.md says 'Do NOT modify .factory/ directory contents', while backend-worker SKILL.md Step 5 marks `.factory/library/frontend-handoff.md` updates as mandatory for API changes; this run's handoff.skillFeedback reports followedProcedure=false for that exact reason."
+    },
+    {
+      "area": "conventions",
+      "observation": "Auto-settlement fallback identity generation is implemented in two layers with different fingerprints, but shared-state docs do not define the canonical convention for where/how deterministic reference/idempotency should be derived.",
+      "evidence": "SettlementService.normalizeAutoSettlementRequest builds fallback from partnerType|partnerId|cashAccountId|amount (SettlementService.java), while AccountingCoreEngine.buildSupplierAutoSettlementReference includes allocation-level purchase fingerprinting (AccountingCoreEngine.java)."
+    }
+  ],
+  "addressesFailureFrom": "/home/realnigga/Desktop/Mission-control/.factory/validation/accounting-core/scrutiny/reviews/gst-tax-improvements.json; /home/realnigga/Desktop/Mission-control/.factory/validation/accounting-core/scrutiny/reviews/settlement-and-period-improvements.json",
+  "summary": "PASS: The fix adequately resolves the original blocking scrutiny failures from both gst-tax-improvements and settlement-and-period-improvements. No new blocking defects were found in this fix scope; noted shared-state gaps are procedural/convention documentation mismatches."
+}
