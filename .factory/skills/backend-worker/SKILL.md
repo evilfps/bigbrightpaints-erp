@@ -48,8 +48,9 @@ Use for any backend Java/Spring feature in the BigBright ERP, including:
 4. For new Flyway migrations: continue from the highest existing version number.
 
 ### Step 4: Verify
-1. Run the full test suite: `cd erp-domain && mvn test -Djacoco.skip=true -T4`
-2. Run compilation check: `cd erp-domain && mvn compile -q`
+1. Run compilation check: `cd erp-domain && mvn compile -q`
+2. Run the baseline test suite: `cd erp-domain && mvn test -Pgate-fast -Djacoco.skip=true`
+3. For broader validation (optional, takes ~2.5min): `cd erp-domain && mvn test -Djacoco.skip=true '-Dtest=!*IT,!*ITCase,!*codered*' -pl .`
 3. Manually verify key behaviors using the approach appropriate for the feature:
    - For new endpoints: document curl commands that demonstrate the endpoint works
    - For refactoring: confirm all callers are updated and tests pass
