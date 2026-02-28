@@ -1,0 +1,36 @@
+commands:
+  compile: cd erp-domain && mvn compile -q
+  test: cd erp-domain && mvn test -Djacoco.skip=true -T4
+  test-fast: cd erp-domain && mvn test -Pgate-fast -Djacoco.skip=true
+  test-coverage: cd erp-domain && mvn verify
+  build: cd erp-domain && mvn package -DskipTests -q
+  checkstyle: cd erp-domain && mvn checkstyle:check -q
+
+services:
+  postgres:
+    start: docker compose -f /home/realnigga/Desktop/Mission-control/docker-compose.yml up -d db
+    stop: docker compose -f /home/realnigga/Desktop/Mission-control/docker-compose.yml stop db
+    healthcheck: docker exec erp_db pg_isready -U erp -d erp_domain
+    port: 5432
+    depends_on: []
+
+  rabbitmq:
+    start: docker compose -f /home/realnigga/Desktop/Mission-control/docker-compose.yml up -d rabbitmq
+    stop: docker compose -f /home/realnigga/Desktop/Mission-control/docker-compose.yml stop rabbitmq
+    healthcheck: docker exec erp_rabbit rabbitmq-diagnostics -q ping
+    port: 5672
+    depends_on: []
+
+  mailhog:
+    start: docker compose -f /home/realnigga/Desktop/Mission-control/docker-compose.yml up -d mailhog
+    stop: docker compose -f /home/realnigga/Desktop/Mission-control/docker-compose.yml stop mailhog
+    healthcheck: curl -sf http://localhost:8025
+    port: 1025
+    depends_on: []
+
+  app:
+    start: docker compose -f /home/realnigga/Desktop/Mission-control/docker-compose.yml up -d app
+    stop: docker compose -f /home/realnigga/Desktop/Mission-control/docker-compose.yml stop app
+    healthcheck: curl -sf http://localhost:8081/actuator/health
+    port: 8081
+    depends_on: [postgres, rabbitmq, mailhog]
