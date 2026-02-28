@@ -1,40 +1,140 @@
 package com.bigbrightpaints.erp.modules.accounting.service;
 
+import com.bigbrightpaints.erp.core.audit.AuditService;
+import com.bigbrightpaints.erp.core.config.SystemSettingsService;
+import com.bigbrightpaints.erp.core.util.CompanyClock;
+import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
+import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriod;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
+import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
+import com.bigbrightpaints.erp.modules.accounting.domain.JournalReferenceMappingRepository;
+import com.bigbrightpaints.erp.modules.accounting.domain.PartnerSettlementAllocationRepository;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
+import com.bigbrightpaints.erp.modules.accounting.dto.JournalCreationRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryReversalRequest;
+import com.bigbrightpaints.erp.modules.accounting.dto.JournalListItemDto;
+import com.bigbrightpaints.erp.modules.accounting.dto.ManualJournalRequest;
+import com.bigbrightpaints.erp.modules.accounting.event.AccountingEventStore;
+import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
+import com.bigbrightpaints.erp.modules.hr.domain.PayrollRunLineRepository;
+import com.bigbrightpaints.erp.modules.hr.domain.PayrollRunRepository;
+import com.bigbrightpaints.erp.modules.invoice.domain.InvoiceRepository;
+import com.bigbrightpaints.erp.modules.invoice.service.InvoiceSettlementPolicy;
+import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatchRepository;
+import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatchRepository;
+import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovementRepository;
+import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchaseRepository;
+import com.bigbrightpaints.erp.modules.purchasing.domain.SupplierRepository;
+import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
+import jakarta.persistence.EntityManager;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.time.LocalDate;
 
 @Service
-public class JournalEntryService {
+public class JournalEntryService extends AccountingCoreEngine {
 
-    private final AccountingCoreService accountingCoreService;
     private final AccountingIdempotencyService accountingIdempotencyService;
 
-    public JournalEntryService(AccountingCoreService accountingCoreService,
+    public JournalEntryService(CompanyContextService companyContextService,
+                               AccountRepository accountRepository,
+                               JournalEntryRepository journalEntryRepository,
+                               DealerLedgerService dealerLedgerService,
+                               SupplierLedgerService supplierLedgerService,
+                               PayrollRunRepository payrollRunRepository,
+                               PayrollRunLineRepository payrollRunLineRepository,
+                               AccountingPeriodService accountingPeriodService,
+                               ReferenceNumberService referenceNumberService,
+                               ApplicationEventPublisher eventPublisher,
+                               CompanyClock companyClock,
+                               CompanyEntityLookup companyEntityLookup,
+                               PartnerSettlementAllocationRepository settlementAllocationRepository,
+                               RawMaterialPurchaseRepository rawMaterialPurchaseRepository,
+                               InvoiceRepository invoiceRepository,
+                               RawMaterialMovementRepository rawMaterialMovementRepository,
+                               RawMaterialBatchRepository rawMaterialBatchRepository,
+                               FinishedGoodBatchRepository finishedGoodBatchRepository,
+                               DealerRepository dealerRepository,
+                               SupplierRepository supplierRepository,
+                               InvoiceSettlementPolicy invoiceSettlementPolicy,
+                               JournalReferenceResolver journalReferenceResolver,
+                               JournalReferenceMappingRepository journalReferenceMappingRepository,
+                               EntityManager entityManager,
+                               SystemSettingsService systemSettingsService,
+                               AuditService auditService,
+                               AccountingEventStore accountingEventStore,
                                AccountingIdempotencyService accountingIdempotencyService) {
-        this.accountingCoreService = accountingCoreService;
+        super(companyContextService,
+                accountRepository,
+                journalEntryRepository,
+                dealerLedgerService,
+                supplierLedgerService,
+                payrollRunRepository,
+                payrollRunLineRepository,
+                accountingPeriodService,
+                referenceNumberService,
+                eventPublisher,
+                companyClock,
+                companyEntityLookup,
+                settlementAllocationRepository,
+                rawMaterialPurchaseRepository,
+                invoiceRepository,
+                rawMaterialMovementRepository,
+                rawMaterialBatchRepository,
+                finishedGoodBatchRepository,
+                dealerRepository,
+                supplierRepository,
+                invoiceSettlementPolicy,
+                journalReferenceResolver,
+                journalReferenceMappingRepository,
+                entityManager,
+                systemSettingsService,
+                auditService,
+                accountingEventStore);
+        this.accountingIdempotencyService = accountingIdempotencyService;
+    }
+
+    // Compatibility constructor used by controller bridge delegates.
+    public JournalEntryService(AccountingCoreEngine ignored,
+                               AccountingIdempotencyService accountingIdempotencyService) {
+        super(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null, null, null);
         this.accountingIdempotencyService = accountingIdempotencyService;
     }
 
     public List<JournalEntryDto> listJournalEntries(Long dealerId, Long supplierId, int page, int size) {
-        return accountingCoreService.listJournalEntries(dealerId, supplierId, page, size);
+        return super.listJournalEntries(dealerId, supplierId, page, size);
     }
 
     public List<JournalEntryDto> listJournalEntries(Long dealerId) {
-        return accountingCoreService.listJournalEntries(dealerId);
+        return super.listJournalEntries(dealerId);
     }
 
     public List<JournalEntryDto> listJournalEntriesByReferencePrefix(String prefix) {
-        return accountingCoreService.listJournalEntriesByReferencePrefix(prefix);
+        return super.listJournalEntriesByReferencePrefix(prefix);
     }
 
     public JournalEntryDto createJournalEntry(JournalEntryRequest request) {
-        return accountingCoreService.createJournalEntry(request);
+        return super.createJournalEntry(request);
+    }
+
+    public JournalEntryDto createStandardJournal(JournalCreationRequest request) {
+        return super.createStandardJournal(request);
+    }
+
+    public JournalEntryDto createManualJournal(ManualJournalRequest request) {
+        return super.createManualJournal(request);
+    }
+
+    public List<JournalListItemDto> listJournals(LocalDate fromDate,
+                                                 LocalDate toDate,
+                                                 String journalType,
+                                                 String sourceModule) {
+        return super.listJournals(fromDate, toDate, journalType, sourceModule);
     }
 
     public JournalEntryDto createManualJournalEntry(JournalEntryRequest request, String idempotencyKey) {
@@ -42,14 +142,14 @@ public class JournalEntryService {
     }
 
     public JournalEntryDto reverseJournalEntry(Long entryId, JournalEntryReversalRequest request) {
-        return accountingCoreService.reverseJournalEntry(entryId, request);
+        return super.reverseJournalEntry(entryId, request);
     }
 
     JournalEntryDto reverseClosingEntryForPeriodReopen(JournalEntry entry, AccountingPeriod period, String reason) {
-        return accountingCoreService.reverseClosingEntryForPeriodReopen(entry, period, reason);
+        return super.reverseClosingEntryForPeriodReopen(entry, period, reason);
     }
 
     public List<JournalEntryDto> cascadeReverseRelatedEntries(Long primaryEntryId, JournalEntryReversalRequest request) {
-        return accountingCoreService.cascadeReverseRelatedEntries(primaryEntryId, request);
+        return super.cascadeReverseRelatedEntries(primaryEntryId, request);
     }
 }

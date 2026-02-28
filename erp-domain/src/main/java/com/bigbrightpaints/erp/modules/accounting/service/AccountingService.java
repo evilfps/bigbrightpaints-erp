@@ -245,12 +245,18 @@ public class AccountingService extends AccountingCoreService {
 
     @Override
     public JournalEntryDto createStandardJournal(JournalCreationRequest request) {
-        return super.createStandardJournal(request);
+        if (journalEntryService == null) {
+            return super.createStandardJournal(request);
+        }
+        return journalEntryService.createStandardJournal(request);
     }
 
     @Override
     public JournalEntryDto createManualJournal(ManualJournalRequest request) {
-        return super.createManualJournal(request);
+        if (journalEntryService == null) {
+            return super.createManualJournal(request);
+        }
+        return journalEntryService.createManualJournal(request);
     }
 
     @Override
@@ -258,7 +264,10 @@ public class AccountingService extends AccountingCoreService {
                                                  LocalDate toDate,
                                                  String journalType,
                                                  String sourceModule) {
-        return super.listJournals(fromDate, toDate, journalType, sourceModule);
+        if (journalEntryService == null) {
+            return super.listJournals(fromDate, toDate, journalType, sourceModule);
+        }
+        return journalEntryService.listJournals(fromDate, toDate, journalType, sourceModule);
     }
 
     @Override
