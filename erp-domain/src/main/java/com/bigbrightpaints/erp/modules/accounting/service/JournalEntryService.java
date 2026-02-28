@@ -1,9 +1,13 @@
 package com.bigbrightpaints.erp.modules.accounting.service;
 
+import com.bigbrightpaints.erp.core.exception.ApplicationException;
+import com.bigbrightpaints.erp.core.exception.ErrorCode;
+import com.bigbrightpaints.erp.core.validation.ValidationUtils;
 import com.bigbrightpaints.erp.core.audit.AuditService;
 import com.bigbrightpaints.erp.core.config.SystemSettingsService;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
+import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryType;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriod;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
@@ -29,17 +33,24 @@ import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchaseRepo
 import com.bigbrightpaints.erp.modules.purchasing.domain.SupplierRepository;
 import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
 import jakarta.persistence.EntityManager;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
+import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
 import java.time.LocalDate;
 
 @Service
 public class JournalEntryService extends AccountingCoreEngine {
 
+    private static final BigDecimal JOURNAL_BALANCE_TOLERANCE = BigDecimal.ZERO;
+
     private final AccountingIdempotencyService accountingIdempotencyService;
 
+    @Autowired
     public JournalEntryService(CompanyContextService companyContextService,
                                AccountRepository accountRepository,
                                JournalEntryRepository journalEntryRepository,
@@ -123,17 +134,156 @@ public class JournalEntryService extends AccountingCoreEngine {
     }
 
     public JournalEntryDto createStandardJournal(JournalCreationRequest request) {
-        return super.createStandardJournal(request);
+        if (request == null) {
+            throw new ApplicationException(ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD,
+                    "Journal creation request is required");
+        }
+        ValidationUtils.requirePositive(request.amount(), "amount");
+        if (!StringUtils.hasText(request.narration())) {
+            throw new ApplicationException(ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD,
+                    "Narration is required for journal creation");
+        }
+        if (!StringUtils.hasText(request.sourceModule())) {
+            throw new ApplicationException(ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD,
+                    "Source module is required for journal creation");
+        }
+        if (!StringUtils.hasText(request.sourceReference())) {
+            throw new ApplicationException(ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD,
+                    "Source reference is required for journal creation");
+        }
+
+        List<JournalEntryRequest.JournalLineRequest> resolvedLines = request.resolvedLines();
+        if (resolvedLines == null || resolvedLines.isEmpty()) {
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                    "At least one journal line is required");
+        }
+
+        BigDecimal totalDebit = BigDecimal.ZERO;
+        BigDecimal totalCredit = BigDecimal.ZERO;
+        for (JournalEntryRequest.JournalLineRequest line : resolvedLines) {
+            if (line.accountId() == null) {
+                throw new ApplicationException(ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD,
+                        "Account is required for every journal line");
+            }
+            BigDecimal debit = line.debit() == null ? BigDecimal.ZERO : line.debit();
+            BigDecimal credit = line.credit() == null ? BigDecimal.ZERO : line.credit();
+            if (debit.compareTo(BigDecimal.ZERO) < 0 || credit.compareTo(BigDecimal.ZERO) < 0) {
+                throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                        "Journal line amounts cannot be negative");
+            }
+            if (debit.compareTo(BigDecimal.ZERO) > 0 && credit.compareTo(BigDecimal.ZERO) > 0) {
+                throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                        "Debit and credit cannot both be non-zero on the same line");
+            }
+            totalDebit = totalDebit.add(debit);
+            totalCredit = totalCredit.add(credit);
+        }
+        if (totalDebit.compareTo(BigDecimal.ZERO) <= 0 || totalCredit.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                    "Journal lines must include at least one debit and one credit");
+        }
+        if (totalDebit.subtract(totalCredit).abs().compareTo(JOURNAL_BALANCE_TOLERANCE) > 0) {
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                    "Journal entry must balance")
+                    .withDetail("totalDebit", totalDebit)
+                    .withDetail("totalCredit", totalCredit);
+        }
+
+        LocalDate entryDate = request.entryDate() != null ? request.entryDate() : LocalDate.now();
+        String narration = request.narration().trim();
+        String sourceModule = request.sourceModule().trim();
+        String sourceReference = request.sourceReference().trim();
+        JournalEntryRequest journalRequest = new JournalEntryRequest(
+                sourceReference,
+                entryDate,
+                narration,
+                request.dealerId(),
+                request.supplierId(),
+                Boolean.TRUE.equals(request.adminOverride()),
+                resolvedLines,
+                null,
+                null,
+                sourceModule,
+                sourceReference,
+                JournalEntryType.AUTOMATED.name()
+        );
+        return createJournalEntry(journalRequest);
     }
 
     public JournalEntryDto createManualJournal(ManualJournalRequest request) {
-        return super.createManualJournal(request);
+        if (request == null) {
+            throw new ApplicationException(ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD,
+                    "Manual journal request is required");
+        }
+        if (request.lines() == null || request.lines().isEmpty()) {
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                    "Manual journal requires at least one line");
+        }
+        BigDecimal totalDebit = BigDecimal.ZERO;
+        BigDecimal totalCredit = BigDecimal.ZERO;
+        List<JournalEntryRequest.JournalLineRequest> lines = new ArrayList<>();
+        for (ManualJournalRequest.LineRequest line : request.lines()) {
+            if (line == null || line.accountId() == null) {
+                throw new ApplicationException(ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD,
+                        "Account is required for manual journal lines");
+            }
+            BigDecimal amount = ValidationUtils.requirePositive(line.amount(), "amount");
+            ManualJournalRequest.EntryType entryType = line.entryType();
+            if (entryType == null) {
+                throw new ApplicationException(ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD,
+                        "Entry type is required for manual journal lines");
+            }
+            String lineNarration = StringUtils.hasText(line.narration())
+                    ? line.narration().trim()
+                    : (StringUtils.hasText(request.narration()) ? request.narration().trim() : "Manual journal line");
+            BigDecimal debit = entryType == ManualJournalRequest.EntryType.DEBIT ? amount : BigDecimal.ZERO;
+            BigDecimal credit = entryType == ManualJournalRequest.EntryType.CREDIT ? amount : BigDecimal.ZERO;
+            totalDebit = totalDebit.add(debit);
+            totalCredit = totalCredit.add(credit);
+            lines.add(new JournalEntryRequest.JournalLineRequest(
+                    line.accountId(),
+                    lineNarration,
+                    debit,
+                    credit
+            ));
+        }
+        if (totalDebit.subtract(totalCredit).abs().compareTo(JOURNAL_BALANCE_TOLERANCE) > 0) {
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                    "Manual journal entry must balance")
+                    .withDetail("totalDebit", totalDebit)
+                    .withDetail("totalCredit", totalCredit);
+        }
+
+        LocalDate entryDate = request.entryDate() != null ? request.entryDate() : LocalDate.now();
+        String narration = StringUtils.hasText(request.narration()) ? request.narration().trim() : "Manual journal entry";
+        String sourceReference = StringUtils.hasText(request.idempotencyKey()) ? request.idempotencyKey().trim() : null;
+        JournalEntryRequest journalRequest = new JournalEntryRequest(
+                null,
+                entryDate,
+                narration,
+                null,
+                null,
+                Boolean.TRUE.equals(request.adminOverride()),
+                lines,
+                null,
+                null,
+                "MANUAL",
+                sourceReference,
+                JournalEntryType.MANUAL.name()
+        );
+        return createManualJournalEntry(journalRequest, request.idempotencyKey());
     }
 
     public List<JournalListItemDto> listJournals(LocalDate fromDate,
                                                  LocalDate toDate,
                                                  String journalType,
                                                  String sourceModule) {
+        if (fromDate != null && toDate != null && fromDate.isAfter(toDate)) {
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_DATE,
+                    "fromDate cannot be after toDate")
+                    .withDetail("fromDate", fromDate)
+                    .withDetail("toDate", toDate);
+        }
         return super.listJournals(fromDate, toDate, journalType, sourceModule);
     }
 

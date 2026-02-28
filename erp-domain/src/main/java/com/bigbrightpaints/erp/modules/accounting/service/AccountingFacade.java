@@ -740,18 +740,24 @@ public class AccountingFacade {
 
         LocalDate postingDate = entryDate != null ? entryDate : companyClock.today(company);
 
-        JournalEntryRequest request = new JournalEntryRequest(
-                reference,
-                postingDate,
+        JournalCreationRequest request = new JournalCreationRequest(
+                totalCost,
+                resolvePrimaryDebitAccount(lines, wipAccountId),
+                resolvePrimaryCreditAccount(lines, wipAccountId),
                 memo,
+                "FACTORY_PRODUCTION",
+                reference,
+                null,
+                toStandardLines(lines),
+                postingDate,
                 null,
                 null,
-                Boolean.FALSE,
-                lines);
+                Boolean.FALSE
+        );
 
         log.info("Posting material consumption journal: reference={}, cost={}", reference, totalCost);
 
-        return accountingService.createJournalEntry(request);
+        return createStandardJournal(request);
     }
 
     /**
@@ -839,19 +845,25 @@ public class AccountingFacade {
 
         LocalDate postingDate = entryDate != null ? entryDate : companyClock.today(company);
 
-        JournalEntryRequest request = new JournalEntryRequest(
-                reference,
-                postingDate,
+        JournalCreationRequest request = new JournalCreationRequest(
+                totalAmount,
+                resolvePrimaryDebitAccount(lines, wipAccountId),
+                resolvePrimaryCreditAccount(lines, wipAccountId),
                 memo,
+                "FACTORY_PRODUCTION",
+                reference,
+                null,
+                toStandardLines(lines),
+                postingDate,
                 null,
                 null,
-                Boolean.FALSE,
-                lines);
+                Boolean.FALSE
+        );
 
         log.info("Posting labor/overhead applied journal: reference={}, amount={}",
                 reference, totalAmount);
 
-        return accountingService.createJournalEntry(request);
+        return createStandardJournal(request);
     }
 
     /**
@@ -1554,17 +1566,23 @@ public class AccountingFacade {
                 new JournalEntryRequest.JournalLineRequest(creditAccountId, resolvedMemo, BigDecimal.ZERO, postingAmount)
         );
 
-        JournalEntryRequest request = new JournalEntryRequest(
-                resolvedReference,
-                postingDate,
+        JournalCreationRequest request = new JournalCreationRequest(
+                postingAmount,
+                debitAccountId,
+                creditAccountId,
                 resolvedMemo,
+                "ACCOUNTING_MANUAL",
+                resolvedReference,
+                null,
+                toStandardLines(lines),
+                postingDate,
                 null,
                 null,
-                adminOverride,
-                lines);
+                adminOverride
+        );
 
         log.info("Posting manual journal: reference={}, amount={}", resolvedReference, postingAmount);
-        return accountingService.createJournalEntry(request);
+        return createStandardJournal(request);
     }
 
     public JournalEntryDto createStandardJournal(JournalCreationRequest request) {

@@ -1,9 +1,11 @@
 package com.bigbrightpaints.erp.modules.accounting.service;
 
 import com.bigbrightpaints.erp.core.audit.AuditService;
+import com.bigbrightpaints.erp.core.idempotency.IdempotencyUtils;
 import com.bigbrightpaints.erp.core.config.SystemSettingsService;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
+import com.bigbrightpaints.erp.core.validation.ValidationUtils;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalReferenceMappingRepository;
@@ -24,16 +26,20 @@ import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchaseRepo
 import com.bigbrightpaints.erp.modules.purchasing.domain.SupplierRepository;
 import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
 import jakarta.persistence.EntityManager;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.util.List;
+import java.util.Locale;
 
 @Service
 public class DealerReceiptService extends AccountingCoreEngine {
 
     private final AccountingIdempotencyService accountingIdempotencyService;
 
+    @Autowired
     public DealerReceiptService(CompanyContextService companyContextService,
                                 AccountRepository accountRepository,
                                 JournalEntryRepository journalEntryRepository,
@@ -100,14 +106,81 @@ public class DealerReceiptService extends AccountingCoreEngine {
     }
 
     public JournalEntryDto recordDealerReceipt(DealerReceiptRequest request) {
-        return accountingIdempotencyService.recordDealerReceipt(request);
+        DealerReceiptRequest normalized = normalizeDealerReceiptRequest(request);
+        return accountingIdempotencyService.recordDealerReceipt(normalized);
     }
 
     public JournalEntryDto recordDealerReceiptSplit(DealerReceiptSplitRequest request) {
-        return accountingIdempotencyService.recordDealerReceiptSplit(request);
+        DealerReceiptSplitRequest normalized = normalizeDealerReceiptSplitRequest(request);
+        return accountingIdempotencyService.recordDealerReceiptSplit(normalized);
     }
 
     public List<JournalEntryDto> listDealerReceipts(Long dealerId, int page, int size) {
-        return super.listJournalEntries(dealerId, null, page, size);
+        ValidationUtils.requireNotNull(dealerId, "dealerId");
+        int safePage = Math.max(page, 0);
+        int safeSize = Math.max(1, Math.min(size, 200));
+        return super.listJournalEntries(dealerId, null, safePage, safeSize);
+    }
+
+    private DealerReceiptRequest normalizeDealerReceiptRequest(DealerReceiptRequest request) {
+        ValidationUtils.requireNotNull(request, "request");
+        ValidationUtils.requireNotNull(request.dealerId(), "dealerId");
+        ValidationUtils.requireNotNull(request.cashAccountId(), "cashAccountId");
+        ValidationUtils.requirePositive(request.amount(), "amount");
+        String reference = normalizeText(request.referenceNumber());
+        String idempotencyKey = normalizeText(request.idempotencyKey());
+        if (idempotencyKey == null) {
+            String seed = "DEALER_RECEIPT|" + request.dealerId() + "|" + request.amount().stripTrailingZeros().toPlainString()
+                    + "|" + (reference == null ? "" : reference);
+            idempotencyKey = "dealer-receipt-" + IdempotencyUtils.sha256Hex(seed, 24).toUpperCase(Locale.ROOT);
+        }
+        return new DealerReceiptRequest(
+                request.dealerId(),
+                request.cashAccountId(),
+                request.amount().abs(),
+                reference,
+                normalizeText(request.memo()),
+                idempotencyKey,
+                request.allocations()
+        );
+    }
+
+    private DealerReceiptSplitRequest normalizeDealerReceiptSplitRequest(DealerReceiptSplitRequest request) {
+        ValidationUtils.requireNotNull(request, "request");
+        ValidationUtils.requireNotNull(request.dealerId(), "dealerId");
+        ValidationUtils.requireNotNull(request.incomingLines(), "incomingLines");
+        List<DealerReceiptSplitRequest.IncomingLine> normalizedIncoming = request.incomingLines().stream()
+                .map(this::normalizeIncomingLine)
+                .toList();
+        BigDecimal totalIncoming = normalizedIncoming.stream()
+                .map(DealerReceiptSplitRequest.IncomingLine::amount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        ValidationUtils.requirePositive(totalIncoming, "incoming total");
+        String reference = normalizeText(request.referenceNumber());
+        String idempotencyKey = normalizeText(request.idempotencyKey());
+        if (idempotencyKey == null) {
+            String seed = "DEALER_RECEIPT_SPLIT|" + request.dealerId() + "|" + totalIncoming.stripTrailingZeros().toPlainString()
+                    + "|" + normalizedIncoming.size() + "|" + (reference == null ? "" : reference);
+            idempotencyKey = "dealer-receipt-split-" + IdempotencyUtils.sha256Hex(seed, 24).toUpperCase(Locale.ROOT);
+        }
+        return new DealerReceiptSplitRequest(
+                request.dealerId(),
+                normalizedIncoming,
+                reference,
+                normalizeText(request.memo()),
+                idempotencyKey
+        );
+    }
+
+    private DealerReceiptSplitRequest.IncomingLine normalizeIncomingLine(DealerReceiptSplitRequest.IncomingLine line) {
+        ValidationUtils.requireNotNull(line, "incomingLine");
+        ValidationUtils.requireNotNull(line.accountId(), "incomingLine.accountId");
+        BigDecimal amount = ValidationUtils.requirePositive(line.amount(), "incomingLine.amount");
+        return new DealerReceiptSplitRequest.IncomingLine(line.accountId(), amount.abs());
+    }
+
+    private String normalizeText(String value) {
+        String normalized = IdempotencyUtils.normalizeToken(value);
+        return normalized.isBlank() ? null : normalized;
     }
 }

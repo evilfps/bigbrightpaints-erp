@@ -22,6 +22,7 @@ import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.invoice.domain.InvoiceRepository;
 import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchase;
+import com.bigbrightpaints.erp.modules.purchasing.domain.Supplier;
 import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 import com.bigbrightpaints.erp.shared.dto.PageResponse;
 import jakarta.persistence.EntityManager;
@@ -223,6 +224,9 @@ class AccountingAuditTrailServiceTest {
         entry.setReferenceNumber("SUP-PAY-202602-0001");
         entry.setEntryDate(LocalDate.of(2026, 2, 12));
         entry.setStatus("POSTED");
+        Supplier supplier = new Supplier();
+        supplier.setName("SKEINA SUPPLY");
+        entry.setSupplier(supplier);
 
         Account ap = new Account();
         ap.setCode("AP-SUP");
@@ -256,8 +260,63 @@ class AccountingAuditTrailServiceTest {
         AccountingTransactionAuditDetailDto detail = service.transactionDetail(84L);
 
         assertThat(detail.module()).isEqualTo("SETTLEMENT");
+        assertThat(detail.transactionType()).isEqualTo("SETTLEMENT_SUPPLIER");
         assertThat(detail.consistencyStatus()).isEqualTo("WARNING");
         assertThat(detail.consistencyNotes()).anyMatch(note -> note.contains("Settlement-like reference"));
+    }
+
+    @Test
+    void listTransactions_classifiesSupplierPrefixedReferenceAsSettlement() {
+        Company company = new Company();
+        company.setCode("BBP");
+        when(companyContextService.requireCurrentCompany()).thenReturn(company);
+
+        JournalEntry entry = new JournalEntry();
+        setField(entry, "id", 85L);
+        entry.setReferenceNumber("SUP-SET-202602-0007");
+        entry.setEntryDate(LocalDate.of(2026, 2, 12));
+        entry.setStatus("POSTED");
+        Supplier supplier = new Supplier();
+        supplier.setName("SKEINA SUPPLY");
+        entry.setSupplier(supplier);
+
+        Account ap = new Account();
+        ap.setCode("AP-SUP");
+        ap.setType(AccountType.LIABILITY);
+        JournalLine debit = new JournalLine();
+        debit.setAccount(ap);
+        debit.setDebit(new BigDecimal("4000.00"));
+        debit.setCredit(BigDecimal.ZERO);
+
+        Account cash = new Account();
+        cash.setCode("CASH");
+        cash.setType(AccountType.ASSET);
+        JournalLine credit = new JournalLine();
+        credit.setAccount(cash);
+        credit.setDebit(BigDecimal.ZERO);
+        credit.setCredit(new BigDecimal("4000.00"));
+
+        entry.getLines().add(debit);
+        entry.getLines().add(credit);
+
+        when(journalEntryRepository.findAll(any(org.springframework.data.jpa.domain.Specification.class), any(PageRequest.class)))
+                .thenReturn(new PageImpl<>(List.of(entry)));
+        when(journalLineRepository.summarizeTotalsByCompanyAndJournalEntryIds(eq(company), eq(List.of(85L))))
+                .thenReturn(List.of(totals(85L, "4000.00", "4000.00")));
+        when(invoiceRepository.findByCompanyAndJournalEntry_IdIn(eq(company), eq(List.of(85L)))).thenReturn(List.of());
+        when(entityManager.createQuery(any(String.class), eq(RawMaterialPurchase.class))).thenReturn(rawMaterialPurchaseQuery);
+        when(rawMaterialPurchaseQuery.setParameter("company", company)).thenReturn(rawMaterialPurchaseQuery);
+        when(rawMaterialPurchaseQuery.setParameter("journalEntryIds", List.of(85L))).thenReturn(rawMaterialPurchaseQuery);
+        when(rawMaterialPurchaseQuery.getResultList()).thenReturn(List.of());
+        when(settlementAllocationRepository.findByCompanyAndJournalEntry_IdIn(eq(company), eq(List.of(85L)))).thenReturn(List.of());
+
+        PageResponse<AccountingTransactionAuditListItemDto> result = service.listTransactions(
+                null, null, null, null, null, 0, 50);
+
+        assertThat(result.content()).hasSize(1);
+        AccountingTransactionAuditListItemDto row = result.content().getFirst();
+        assertThat(row.module()).isEqualTo("SETTLEMENT");
+        assertThat(row.transactionType()).isEqualTo("SETTLEMENT_SUPPLIER");
     }
 
     private static void setField(Object target, String fieldName, Object value) {

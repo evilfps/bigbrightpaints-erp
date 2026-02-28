@@ -2,8 +2,10 @@ package com.bigbrightpaints.erp.modules.accounting.service;
 
 import com.bigbrightpaints.erp.core.audit.AuditService;
 import com.bigbrightpaints.erp.core.config.SystemSettingsService;
+import com.bigbrightpaints.erp.core.idempotency.IdempotencyUtils;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
+import com.bigbrightpaints.erp.core.validation.ValidationUtils;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalReferenceMappingRepository;
@@ -26,12 +28,14 @@ import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchaseRepo
 import com.bigbrightpaints.erp.modules.purchasing.domain.SupplierRepository;
 import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
 import jakarta.persistence.EntityManager;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 @Service
 public class CreditDebitNoteService extends AccountingCoreEngine {
 
+    @Autowired
     public CreditDebitNoteService(CompanyContextService companyContextService,
                                   AccountRepository accountRepository,
                                   JournalEntryRepository journalEntryRepository,
@@ -95,18 +99,88 @@ public class CreditDebitNoteService extends AccountingCoreEngine {
     }
 
     public JournalEntryDto postCreditNote(CreditNoteRequest request) {
-        return super.postCreditNote(request);
+        CreditNoteRequest normalized = normalizeCreditNoteRequest(request);
+        return super.postCreditNote(normalized);
     }
 
     public JournalEntryDto postDebitNote(DebitNoteRequest request) {
-        return super.postDebitNote(request);
+        DebitNoteRequest normalized = normalizeDebitNoteRequest(request);
+        return super.postDebitNote(normalized);
     }
 
     public JournalEntryDto postAccrual(AccrualRequest request) {
-        return super.postAccrual(request);
+        AccrualRequest normalized = normalizeAccrualRequest(request);
+        return super.postAccrual(normalized);
     }
 
     public JournalEntryDto writeOffBadDebt(BadDebtWriteOffRequest request) {
-        return super.writeOffBadDebt(request);
+        BadDebtWriteOffRequest normalized = normalizeBadDebtRequest(request);
+        return super.writeOffBadDebt(normalized);
+    }
+
+    private CreditNoteRequest normalizeCreditNoteRequest(CreditNoteRequest request) {
+        ValidationUtils.requireNotNull(request, "request");
+        ValidationUtils.requireNotNull(request.invoiceId(), "invoiceId");
+        return new CreditNoteRequest(
+                request.invoiceId(),
+                request.amount() == null ? null : ValidationUtils.requirePositive(request.amount(), "amount").abs(),
+                request.entryDate(),
+                normalizeText(request.referenceNumber()),
+                normalizeText(request.memo()),
+                normalizeText(request.idempotencyKey()),
+                Boolean.TRUE.equals(request.adminOverride())
+        );
+    }
+
+    private DebitNoteRequest normalizeDebitNoteRequest(DebitNoteRequest request) {
+        ValidationUtils.requireNotNull(request, "request");
+        ValidationUtils.requireNotNull(request.purchaseId(), "purchaseId");
+        return new DebitNoteRequest(
+                request.purchaseId(),
+                request.amount() == null ? null : ValidationUtils.requirePositive(request.amount(), "amount").abs(),
+                request.entryDate(),
+                normalizeText(request.referenceNumber()),
+                normalizeText(request.memo()),
+                normalizeText(request.idempotencyKey()),
+                Boolean.TRUE.equals(request.adminOverride())
+        );
+    }
+
+    private AccrualRequest normalizeAccrualRequest(AccrualRequest request) {
+        ValidationUtils.requireNotNull(request, "request");
+        ValidationUtils.requireNotNull(request.debitAccountId(), "debitAccountId");
+        ValidationUtils.requireNotNull(request.creditAccountId(), "creditAccountId");
+        return new AccrualRequest(
+                request.debitAccountId(),
+                request.creditAccountId(),
+                ValidationUtils.requirePositive(request.amount(), "amount").abs(),
+                request.entryDate(),
+                normalizeText(request.referenceNumber()),
+                normalizeText(request.memo()),
+                normalizeText(request.idempotencyKey()),
+                request.autoReverseDate(),
+                Boolean.TRUE.equals(request.adminOverride())
+        );
+    }
+
+    private BadDebtWriteOffRequest normalizeBadDebtRequest(BadDebtWriteOffRequest request) {
+        ValidationUtils.requireNotNull(request, "request");
+        ValidationUtils.requireNotNull(request.invoiceId(), "invoiceId");
+        ValidationUtils.requireNotNull(request.expenseAccountId(), "expenseAccountId");
+        return new BadDebtWriteOffRequest(
+                request.invoiceId(),
+                request.expenseAccountId(),
+                ValidationUtils.requirePositive(request.amount(), "amount").abs(),
+                request.entryDate(),
+                normalizeText(request.referenceNumber()),
+                normalizeText(request.memo()),
+                normalizeText(request.idempotencyKey()),
+                Boolean.TRUE.equals(request.adminOverride())
+        );
+    }
+
+    private String normalizeText(String value) {
+        String normalized = IdempotencyUtils.normalizeToken(value);
+        return normalized.isBlank() ? null : normalized;
     }
 }

@@ -404,6 +404,7 @@ public class AccountingAuditTrailService {
                                          Invoice invoice,
                                          RawMaterialPurchase purchase,
                                          List<PartnerSettlementAllocation> allocations) {
+        String reference = entry.getReferenceNumber() != null ? entry.getReferenceNumber().toUpperCase(Locale.ROOT) : "";
         if (entry.getReversalOf() != null) {
             return "REVERSAL_ENTRY";
         }
@@ -425,7 +426,12 @@ public class AccountingAuditTrailService {
             }
             return "SETTLEMENT_MIXED";
         }
-        String reference = entry.getReferenceNumber() != null ? entry.getReferenceNumber().toUpperCase(Locale.ROOT) : "";
+        if (reference.startsWith("SUP-") || reference.startsWith("SUPPLIER-SETTLEMENT") || reference.startsWith("SUP-SET")) {
+            return "SETTLEMENT_SUPPLIER";
+        }
+        if (reference.startsWith("SET") || reference.startsWith("RCPT") || reference.startsWith("DEALER-SETTLEMENT")) {
+            return "SETTLEMENT_DEALER";
+        }
         if (reference.startsWith("PAY") || reference.contains("PAYROLL")) {
             return "PAYROLL_ENTRY";
         }
@@ -443,14 +449,14 @@ public class AccountingAuditTrailService {
 
     private String deriveModule(String transactionType, String referenceNumber) {
         String normalizedType = transactionType != null ? transactionType.toUpperCase(Locale.ROOT) : "";
+        if (normalizedType.contains("SETTLEMENT")) {
+            return "SETTLEMENT";
+        }
         if (normalizedType.contains("SALES") || normalizedType.contains("DEALER")) {
             return "SALES";
         }
         if (normalizedType.contains("PURCHASE") || normalizedType.contains("SUPPLIER")) {
             return "PURCHASING";
-        }
-        if (normalizedType.contains("SETTLEMENT")) {
-            return "SETTLEMENT";
         }
         if (normalizedType.contains("PAYROLL")) {
             return "PAYROLL";

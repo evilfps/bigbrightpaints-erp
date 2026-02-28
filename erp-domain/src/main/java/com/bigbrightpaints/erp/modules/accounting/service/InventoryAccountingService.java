@@ -2,8 +2,10 @@ package com.bigbrightpaints.erp.modules.accounting.service;
 
 import com.bigbrightpaints.erp.core.audit.AuditService;
 import com.bigbrightpaints.erp.core.config.SystemSettingsService;
+import com.bigbrightpaints.erp.core.idempotency.IdempotencyUtils;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
+import com.bigbrightpaints.erp.core.validation.ValidationUtils;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalReferenceMappingRepository;
@@ -25,12 +27,14 @@ import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchaseRepo
 import com.bigbrightpaints.erp.modules.purchasing.domain.SupplierRepository;
 import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
 import jakarta.persistence.EntityManager;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 @Service
 public class InventoryAccountingService extends AccountingCoreEngine {
 
+    @Autowired
     public InventoryAccountingService(CompanyContextService companyContextService,
                                       AccountRepository accountRepository,
                                       JournalEntryRepository journalEntryRepository,
@@ -94,14 +98,77 @@ public class InventoryAccountingService extends AccountingCoreEngine {
     }
 
     public JournalEntryDto recordLandedCost(LandedCostRequest request) {
-        return super.recordLandedCost(request);
+        LandedCostRequest normalized = normalizeLandedCostRequest(request);
+        return super.recordLandedCost(normalized);
     }
 
     public JournalEntryDto revalueInventory(InventoryRevaluationRequest request) {
-        return super.revalueInventory(request);
+        InventoryRevaluationRequest normalized = normalizeInventoryRevaluationRequest(request);
+        return super.revalueInventory(normalized);
     }
 
     public JournalEntryDto adjustWip(WipAdjustmentRequest request) {
-        return super.adjustWip(request);
+        WipAdjustmentRequest normalized = normalizeWipAdjustmentRequest(request);
+        return super.adjustWip(normalized);
+    }
+
+    private LandedCostRequest normalizeLandedCostRequest(LandedCostRequest request) {
+        ValidationUtils.requireNotNull(request, "request");
+        ValidationUtils.requireNotNull(request.rawMaterialPurchaseId(), "rawMaterialPurchaseId");
+        ValidationUtils.requireNotNull(request.inventoryAccountId(), "inventoryAccountId");
+        ValidationUtils.requireNotNull(request.offsetAccountId(), "offsetAccountId");
+        return new LandedCostRequest(
+                request.rawMaterialPurchaseId(),
+                ValidationUtils.requirePositive(request.amount(), "amount").abs(),
+                request.inventoryAccountId(),
+                request.offsetAccountId(),
+                request.entryDate(),
+                normalizeText(request.memo()),
+                normalizeText(request.referenceNumber()),
+                normalizeText(request.idempotencyKey()),
+                Boolean.TRUE.equals(request.adminOverride())
+        );
+    }
+
+    private InventoryRevaluationRequest normalizeInventoryRevaluationRequest(InventoryRevaluationRequest request) {
+        ValidationUtils.requireNotNull(request, "request");
+        ValidationUtils.requireNotNull(request.inventoryAccountId(), "inventoryAccountId");
+        ValidationUtils.requireNotNull(request.revaluationAccountId(), "revaluationAccountId");
+        ValidationUtils.requireNotNull(request.deltaAmount(), "deltaAmount");
+        return new InventoryRevaluationRequest(
+                request.inventoryAccountId(),
+                request.revaluationAccountId(),
+                ValidationUtils.requirePositive(request.deltaAmount().abs(), "deltaAmount"),
+                normalizeText(request.memo()),
+                request.entryDate(),
+                normalizeText(request.referenceNumber()),
+                normalizeText(request.idempotencyKey()),
+                Boolean.TRUE.equals(request.adminOverride())
+        );
+    }
+
+    private WipAdjustmentRequest normalizeWipAdjustmentRequest(WipAdjustmentRequest request) {
+        ValidationUtils.requireNotNull(request, "request");
+        ValidationUtils.requireNotNull(request.productionLogId(), "productionLogId");
+        ValidationUtils.requireNotNull(request.wipAccountId(), "wipAccountId");
+        ValidationUtils.requireNotNull(request.inventoryAccountId(), "inventoryAccountId");
+        ValidationUtils.requireNotNull(request.direction(), "direction");
+        return new WipAdjustmentRequest(
+                request.productionLogId(),
+                ValidationUtils.requirePositive(request.amount(), "amount").abs(),
+                request.wipAccountId(),
+                request.inventoryAccountId(),
+                request.direction(),
+                normalizeText(request.memo()),
+                request.entryDate(),
+                normalizeText(request.referenceNumber()),
+                normalizeText(request.idempotencyKey()),
+                Boolean.TRUE.equals(request.adminOverride())
+        );
+    }
+
+    private String normalizeText(String value) {
+        String normalized = IdempotencyUtils.normalizeToken(value);
+        return normalized.isBlank() ? null : normalized;
     }
 }

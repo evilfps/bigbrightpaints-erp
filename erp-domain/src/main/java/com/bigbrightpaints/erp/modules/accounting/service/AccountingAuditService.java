@@ -22,14 +22,19 @@ import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchaseRepo
 import com.bigbrightpaints.erp.modules.purchasing.domain.SupplierRepository;
 import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
 import jakarta.persistence.EntityManager;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
+
+import com.bigbrightpaints.erp.core.exception.ApplicationException;
+import com.bigbrightpaints.erp.core.exception.ErrorCode;
 
 import java.time.LocalDate;
 
 @Service
 public class AccountingAuditService extends AccountingCoreEngine {
 
+    @Autowired
     public AccountingAuditService(CompanyContextService companyContextService,
                                   AccountRepository accountRepository,
                                   JournalEntryRepository journalEntryRepository,
@@ -93,10 +98,18 @@ public class AccountingAuditService extends AccountingCoreEngine {
     }
 
     public AuditDigestResponse auditDigest(LocalDate from, LocalDate to) {
+        if (from != null && to != null && from.isAfter(to)) {
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_DATE,
+                    "from date must be on or before to date");
+        }
         return super.auditDigest(from, to);
     }
 
     public String auditDigestCsv(LocalDate from, LocalDate to) {
+        if (from != null && to != null && from.isAfter(to)) {
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_DATE,
+                    "from date must be on or before to date");
+        }
         return super.auditDigestCsv(from, to);
     }
 }
