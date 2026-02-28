@@ -1,0 +1,119 @@
+{
+  "featureId": "fix-product-catalog-scrutiny-issues",
+  "reviewedAt": "2026-02-28T18:32:18Z",
+  "commitId": "ccf09ce79661b996e6899b8971f6cb738c493093",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "fail",
+  "overallStatus": "fail",
+  "addressesFailureFrom": [
+    "/home/realnigga/Desktop/Mission-control/.factory/validation/product-catalog/scrutiny/reviews/brand-and-product-catalog.json",
+    "/home/realnigga/Desktop/Mission-control/.factory/validation/product-catalog/scrutiny/reviews/decompose-finished-goods-service.json",
+    "/home/realnigga/Desktop/Mission-control/.factory/validation/product-catalog/scrutiny/reviews/inventory-batch-tracking-and-manufacturing.json",
+    "/home/realnigga/Desktop/Mission-control/.factory/validation/product-catalog/scrutiny/reviews/catalog-inventory-frontend-handoff-doc.json"
+  ],
+  "perIssueResolution": [
+    {
+      "priorReview": "brand-and-product-catalog",
+      "blockingIssue": "Bulk upsert swallowed bean-validation failures into generic FAILED rows instead of preserving field-level validation messages.",
+      "resolved": true,
+      "evidence": [
+        "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/production/service/CatalogService.java:198 now calls validateBulkItem(item) before upsert.",
+        "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/production/service/CatalogService.java:237-266 validates with BULK_VALIDATOR and formats field-level violations.",
+        "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/production/service/CatalogServiceBulkUpsertTest.java:124 asserts blank/null required fields return messages containing brandId/name/unitOfMeasure/hsnCode/gstRate."
+      ]
+    },
+    {
+      "priorReview": "decompose-finished-goods-service",
+      "blockingIssue": "Decomposition was superficial: focused services were pass-throughs and logic remained centralized in a 2119-line workflow class.",
+      "resolved": false,
+      "evidence": [
+        "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/service/FinishedGoodsWorkflowService.java is reduced to facade (147 lines) but delegates to focused services.",
+        "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/service/FinishedGoodsCatalogService.java:20,24,28,32,36 and peer focused services still forward directly to workflowService.",
+        "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/service/FinishedGoodsWorkflowEngineService.java retains centralized business logic (e.g., listFinishedGoods line 101, createFinishedGood line 221, reserveForOrder line 298, confirmDispatch line 814) and is 2119 lines (wc -l evidence)."
+      ]
+    },
+    {
+      "priorReview": "inventory-batch-tracking-and-manufacturing",
+      "blockingIssue": "Raw-material intake/opening-stock flows did not capture and persist manufacturing+expiry metadata.",
+      "resolved": true,
+      "evidence": [
+        "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/dto/RawMaterialBatchRequest.java:15-16 adds manufacturingDate and expiryDate.",
+        "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/purchasing/service/PurchasingService.java:458-459 propagates manufacturingDate/expiryDate from GRN line into RawMaterialBatchRequest.",
+        "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/service/RawMaterialService.java:273-274 persists manufacturedAt/expiryDate from request.",
+        "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/service/OpeningStockImportService.java:771 parses expiry_date and lines 445/489 persist expiryDate on raw-material and finished-good batches.",
+        "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/purchasing/service/PurchasingServiceGoodsReceiptTest.java:324-396 verifies GRN propagation; OpeningStockPostingRegressionIT verifies imported manufacturedAt/expiryDate persistence."
+      ]
+    },
+    {
+      "priorReview": "catalog-inventory-frontend-handoff-doc",
+      "blockingIssue": "Frontend handoff documented incorrect dispatch reservation semantics and impossible PARTIAL_PACKED -> READY_TO_PACK transition.",
+      "resolved": true,
+      "evidence": [
+        ".factory/library/frontend-handoff.md:1249 now states reservation occurs during sales order create/update and there is no standalone reserve endpoint.",
+        ".factory/library/frontend-handoff.md:1263 now states no public API transition moves PARTIAL_PACKED -> READY_TO_PACK."
+      ]
+    }
+  ],
+  "blockingIssues": [
+    {
+      "file": "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/service/FinishedGoodsWorkflowEngineService.java",
+      "line": 49,
+      "severity": "blocking",
+      "description": "The fix does not resolve the decomposition blocker: business logic remains concentrated in a new 2119-line workflow engine instead of being migrated into catalog/stock/reservation/dispatch services; focused services are still delegators."
+    }
+  ],
+  "nonBlockingIssues": [
+    {
+      "file": ".factory/library/frontend-handoff.md",
+      "line": 1323,
+      "severity": "non_blocking",
+      "description": "Data-contract bullets for RawMaterialBatchRequest and RawMaterialIntakeRequest were not updated to include newly added manufacturingDate/expiryDate fields, so frontend contract docs are partially stale for the expanded DTOs."
+    }
+  ],
+  "sharedStateObservations": [
+    {
+      "area": "skills",
+      "observation": "backend-worker decomposition guidance currently allows a pattern where a god service is replaced by a single engine/core class and focused services remain pass-through wrappers, which conflicts with mission decomposition intent.",
+      "evidence": "Skill step text in .factory/skills/backend-worker/SKILL.md allows 'keep it as a facade initially if needed'; in this fix, FinishedGoodsWorkflowService became a 147-line facade while FinishedGoodsWorkflowEngineService is 2119 lines and focused services delegate to it."
+    }
+  ],
+  "evidence": {
+    "filesInspected": [
+      "/home/realnigga/.factory/missions/9cf481ca-5e0f-423d-8241-8364a13a7137/features.json",
+      "/home/realnigga/.factory/missions/9cf481ca-5e0f-423d-8241-8364a13a7137/handoffs/2026-02-28T18-11-52-061Z__fix-product-catalog-scrutiny-issues__ee153482-6ca5-4f83-b02d-f4e0179bb3df.json",
+      "/home/realnigga/.factory/missions/9cf481ca-5e0f-423d-8241-8364a13a7137/worker-transcripts.jsonl",
+      "/home/realnigga/Desktop/Mission-control/erp-domain/src/main/java/com/bigbrightpaints/erp/modules/production/service/CatalogService.java",
+      "/home/realnigga/Desktop/Mission-control/erp-domain/src/test/java/com/bigbrightpaints/erp/modules/production/service/CatalogServiceBulkUpsertTest.java",
+      "/home/realnigga/Desktop/Mission-control/erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/service/FinishedGoodsWorkflowService.java",
+      "/home/realnigga/Desktop/Mission-control/erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/service/FinishedGoodsWorkflowEngineService.java",
+      "/home/realnigga/Desktop/Mission-control/erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/service/FinishedGoodsCatalogService.java",
+      "/home/realnigga/Desktop/Mission-control/erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/service/FinishedGoodsStockService.java",
+      "/home/realnigga/Desktop/Mission-control/erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/service/FinishedGoodsReservationService.java",
+      "/home/realnigga/Desktop/Mission-control/erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/service/FinishedGoodsDispatchService.java",
+      "/home/realnigga/Desktop/Mission-control/erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/dto/RawMaterialBatchRequest.java",
+      "/home/realnigga/Desktop/Mission-control/erp-domain/src/main/java/com/bigbrightpaints/erp/modules/purchasing/dto/GoodsReceiptLineRequest.java",
+      "/home/realnigga/Desktop/Mission-control/erp-domain/src/main/java/com/bigbrightpaints/erp/modules/purchasing/service/PurchasingService.java",
+      "/home/realnigga/Desktop/Mission-control/erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/service/RawMaterialService.java",
+      "/home/realnigga/Desktop/Mission-control/erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/service/OpeningStockImportService.java",
+      "/home/realnigga/Desktop/Mission-control/erp-domain/src/test/java/com/bigbrightpaints/erp/modules/purchasing/service/PurchasingServiceGoodsReceiptTest.java",
+      "/home/realnigga/Desktop/Mission-control/erp-domain/src/test/java/com/bigbrightpaints/erp/regression/OpeningStockPostingRegressionIT.java",
+      "/home/realnigga/Desktop/Mission-control/.factory/library/frontend-handoff.md",
+      "/home/realnigga/Desktop/Mission-control/.factory/skills/backend-worker/SKILL.md",
+      "/home/realnigga/.factory/missions/9cf481ca-5e0f-423d-8241-8364a13a7137/AGENTS.md",
+      "/home/realnigga/Desktop/Mission-control/.factory/services.yaml"
+    ],
+    "testsInspected": [
+      "Handoff verification record shows targeted tests: CatalogServiceBulkUpsertTest, PurchasingServiceGoodsReceiptTest, TS_InventoryDispatchStateRuntimeCoverageTest (exit 0).",
+      "Handoff verification record shows gate-fast suite: mvn test -Pgate-fast -Djacoco.skip=true (378 tests, 0 failures)."
+    ],
+    "commandsInspected": [
+      "jq feature lookup in mission features.json",
+      "git show --stat ccf09ce79661b996e6899b8971f6cb738c493093",
+      "git show --name-only --pretty=format: ccf09ce79661b996e6899b8971f6cb738c493093",
+      "wc -l FinishedGoodsWorkflowService.java FinishedGoodsWorkflowEngineService.java",
+      "jq -s transcript extraction for workerSessionId ee153482-6ca5-4f83-b02d-f4e0179bb3df"
+    ]
+  },
+  "summary": "Fix review result: fail. Three of four prior blocking findings are resolved (bulk per-item validation messaging, raw-material manufacturing/expiry metadata capture, and frontend dispatch/production flow corrections), but the finished-goods decomposition blocker remains unresolved because logic is still centralized in a 2119-line workflow engine with focused services acting as wrappers."
+}
