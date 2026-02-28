@@ -1,0 +1,50 @@
+{
+  "milestone": "foundation",
+  "round": 1,
+  "status": "fail",
+  "assertionsSummary": {
+    "total": 12,
+    "passed": 9,
+    "failed": 3,
+    "blocked": 0
+  },
+  "passedAssertions": [
+    "VAL-BUG-001",
+    "VAL-BUG-002",
+    "VAL-BUG-003",
+    "VAL-BUG-004",
+    "VAL-BUG-005",
+    "VAL-BUG-006",
+    "VAL-BUG-007",
+    "VAL-BUG-008",
+    "VAL-FOUND-004"
+  ],
+  "failedAssertions": [
+    {
+      "id": "VAL-FOUND-001",
+      "reason": "Contract requires business validation errors to use structured ApplicationException/ErrorCode only. Current shared validation path throws raw IllegalArgumentException/IllegalStateException, so assertion does not satisfy contract semantics."
+    },
+    {
+      "id": "VAL-FOUND-002",
+      "reason": "Shared framework exists and is used, but idempotency-related hashing/signature logic is still duplicated in module code paths; assertion requirement of no module-local copy-paste logic is not fully met."
+    },
+    {
+      "id": "VAL-FOUND-003",
+      "reason": "Shared utility exists but key common validation operations are not adopted broadly; duplicated per-service validation helpers indicate assertion criteria is not satisfied."
+    }
+  ],
+  "blockedAssertions": [],
+  "appliedUpdates": [
+    {
+      "target": "user-testing.md",
+      "description": "Added Flow Validator Guidance: api section with isolation and evidence expectations for parallel flow validators.",
+      "source": "setup"
+    },
+    {
+      "target": "user-testing.md",
+      "description": "Documented Maven settings-path friction and explicit --settings workaround for invocations outside erp-domain.",
+      "source": "flow-report"
+    }
+  ],
+  "previousRound": null
+}

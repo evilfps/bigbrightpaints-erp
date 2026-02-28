@@ -1,0 +1,113 @@
+{
+  "groupId": "foundation-rerun-core",
+  "testedAt": "2026-02-28T11:55:49+05:30",
+  "credentials": {
+    "account": "ut-foundation-rerun-validator-1@example.com",
+    "namespace": "ut_found_rerun_v2"
+  },
+  "toolsUsed": [
+    "mvn test -Pgate-fast",
+    "grep/read inspection"
+  ],
+  "assertions": [
+    {
+      "id": "VAL-FOUND-001",
+      "title": "Unified error handling",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Run baseline test lane: mvn --settings /home/realnigga/Desktop/Mission-control/erp-domain/.mvn/settings.xml -f /home/realnigga/Desktop/Mission-control/erp-domain/pom.xml test -Pgate-fast -Djacoco.skip=true",
+          "expected": "Baseline suite passes",
+          "observed": "BUILD SUCCESS; Tests run: 377, Failures: 0, Errors: 0, Skipped: 0"
+        },
+        {
+          "action": "Search module service classes for direct raw throws: pattern `throw new IllegalArgumentException(` and `throw new IllegalStateException(`",
+          "expected": "Zero raw IllegalArgumentException/IllegalStateException throws in module service classes for business validation paths",
+          "observed": "No matches found in `src/main/java/com/bigbrightpaints/erp/modules/**/service/*.java`"
+        },
+        {
+          "action": "Inspect shared validation utility",
+          "expected": "Shared utility raises structured ApplicationException/ErrorCode",
+          "observed": "ValidationUtils.invalidInput/invalidState return ApplicationException with ErrorCode VALIDATION_INVALID_INPUT / VALIDATION_INVALID_STATE"
+        }
+      ],
+      "evidence": {
+        "terminalSnapshots": [
+          "mvn ... test -Pgate-fast -Djacoco.skip=true -> Tests run: 377, Failures: 0, Errors: 0",
+          "grep modules/**/service/*.java for throw new IllegalArgumentException|IllegalStateException -> no matches",
+          "read core/validation/ValidationUtils.java -> invalidInput/invalidState construct ApplicationException with ErrorCode"
+        ],
+        "network": "N/A (CLI assertion)",
+        "consoleErrors": "N/A (CLI assertion)"
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-FOUND-002",
+      "title": "Shared idempotency framework",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Search for idempotency package declarations",
+          "expected": "Single shared idempotency framework package exists",
+          "observed": "Found only core package declarations: com.bigbrightpaints.erp.core.idempotency (IdempotencySignatureBuilder, IdempotencyUtils, IdempotencyReservationService)"
+        },
+        {
+          "action": "Search module code for imports of shared idempotency components",
+          "expected": "Module services/controllers use shared idempotency classes",
+          "observed": "Imports found across accounting, sales, purchasing, inventory, hr, factory, production, company and orchestrator module code paths"
+        },
+        {
+          "action": "Search module code for non-shared SHA-256/message-digest implementations",
+          "expected": "No module-local SHA-256 implementation copies for idempotency hashing",
+          "observed": "No MessageDigest SHA-256 usage in modules; hashing references are through IdempotencyUtils/IdempotencySignatureBuilder"
+        }
+      ],
+      "evidence": {
+        "terminalSnapshots": [
+          "grep package .*idempotency -> only core/idempotency package files",
+          "grep import com.bigbrightpaints.erp.core.idempotency.* in modules -> broad module adoption",
+          "grep modules for MessageDigest.getInstance(\"SHA-256\") or DigestUtils sha256 implementations -> no module-local SHA-256 copies"
+        ],
+        "network": "N/A (CLI assertion)",
+        "consoleErrors": "N/A (CLI assertion)"
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-FOUND-003",
+      "title": "Shared validation utilities",
+      "status": "fail",
+      "steps": [
+        {
+          "action": "Inspect ValidationUtils shared utility",
+          "expected": "Shared utility provides common helpers (positive checks, enum parsing, date-range checks, null guards)",
+          "observed": "ValidationUtils contains requirePositive, parseEnum, validateDateRange, requireNotBlank, requireNotNull, requireEntity"
+        },
+        {
+          "action": "Search module code for usage of ValidationUtils.parseEnum/validateDateRange/requireNotBlank/requireNotNull/requireEntity",
+          "expected": "Shared utility helpers are used across module code paths",
+          "observed": "No matches found under `src/main/java/com/bigbrightpaints/erp/modules` for these helper methods"
+        },
+        {
+          "action": "Search module service code for date-range logic implemented inline",
+          "expected": "Date-range validation should be centralized through shared utility",
+          "observed": "Inline date comparisons (e.g., start/end isAfter/isBefore checks) still appear in module services such as HR, accounting, and sales paths"
+        }
+      ],
+      "evidence": {
+        "terminalSnapshots": [
+          "read core/validation/ValidationUtils.java -> helper methods exist",
+          "grep modules for ValidationUtils.parseEnum|validateDateRange|requireNotBlank|requireNotNull|requireEntity -> no matches",
+          "grep modules/**/service/*.java for isAfter|isBefore -> multiple inline date-range checks remain"
+        ],
+        "network": "N/A (CLI assertion)",
+        "consoleErrors": "N/A (CLI assertion)"
+      },
+      "issues": "Shared validation utility exists, but key shared helpers for enum parsing/date-range/null-guard paths are not adopted in module code; inline validation logic remains, so full assertion criteria is not met."
+    }
+  ],
+  "frictions": [],
+  "blockers": [],
+  "summary": "Tested 3 rerun assertions: 2 passed (VAL-FOUND-001, VAL-FOUND-002) and 1 failed (VAL-FOUND-003). Baseline gate-fast suite passed (377/377), unified error handling and shared idempotency framework criteria are satisfied by current CLI evidence, while broad shared validation utility adoption remains incomplete."
+}
