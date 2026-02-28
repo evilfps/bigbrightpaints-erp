@@ -123,21 +123,18 @@ class InventoryAdjustmentCostingMethodTest extends AbstractIntegrationTest {
 
         LocalDate firstPeriodDate = LocalDate.now().minusDays(28);
         upsertPeriod(company, firstPeriodDate, CostingMethod.FIFO);
-        FinishedGood januaryGood = createFinishedGood(company, "FG-ADJ-JAN", accounts);
-        createBatch(januaryGood, "JAN-OLD", "2", "2", "10", Instant.parse("2026-01-01T00:00:00Z"));
-        createBatch(januaryGood, "JAN-NEW", "2", "2", "20", Instant.parse("2026-01-02T00:00:00Z"));
-        InventoryAdjustment januaryAdjustment = createAdjustment(company, januaryGood.getId(), accounts.get("VAR").getId(), firstPeriodDate, BigDecimal.ONE);
+        FinishedGood finishedGood = createFinishedGood(company, "FG-ADJ-MULTI", accounts);
+        createBatch(finishedGood, "JAN-OLD", "2", "2", "10", Instant.parse("2026-01-01T00:00:00Z"));
+        createBatch(finishedGood, "JAN-NEW", "2", "2", "20", Instant.parse("2026-01-02T00:00:00Z"));
+        InventoryAdjustment januaryAdjustment = createAdjustment(company, finishedGood.getId(), accounts.get("VAR").getId(), firstPeriodDate, BigDecimal.ONE);
         InventoryMovement januaryMovement = findAdjustmentMovement(januaryAdjustment);
         assertThat(januaryMovement.getUnitCost()).isEqualByComparingTo(new BigDecimal("10.0000"));
 
         LocalDate secondPeriodDate = LocalDate.now();
         upsertPeriod(company, secondPeriodDate, CostingMethod.WEIGHTED_AVERAGE);
-        FinishedGood februaryGood = createFinishedGood(company, "FG-ADJ-FEB", accounts);
-        createBatch(februaryGood, "FEB-OLD", "2", "2", "10", Instant.parse("2026-02-01T00:00:00Z"));
-        createBatch(februaryGood, "FEB-NEW", "2", "2", "20", Instant.parse("2026-02-02T00:00:00Z"));
-        InventoryAdjustment februaryAdjustment = createAdjustment(company, februaryGood.getId(), accounts.get("VAR").getId(), secondPeriodDate, BigDecimal.ONE);
+        InventoryAdjustment februaryAdjustment = createAdjustment(company, finishedGood.getId(), accounts.get("VAR").getId(), secondPeriodDate, BigDecimal.ONE);
         InventoryMovement februaryMovement = findAdjustmentMovement(februaryAdjustment);
-        assertThat(februaryMovement.getUnitCost()).isEqualByComparingTo(new BigDecimal("15.0000"));
+        assertThat(februaryMovement.getUnitCost()).isEqualByComparingTo(new BigDecimal("16.6667"));
 
         InventoryMovement januaryMovementReloaded = inventoryMovementRepository.findById(januaryMovement.getId()).orElseThrow();
         assertThat(januaryMovementReloaded.getUnitCost()).isEqualByComparingTo(new BigDecimal("10.0000"));

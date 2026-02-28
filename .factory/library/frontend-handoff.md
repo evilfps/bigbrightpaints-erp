@@ -234,6 +234,56 @@ Current runtime path mapping used by backend:
 - Account-list and account-create endpoints continue through `AccountingService` facade for backward compatibility.
 - **Frontend impact:** none expected. Existing paths, payloads, response envelopes, and error shapes remain unchanged.
 
+#### Accounting Period Costing Method (period-scoped)
+
+##### Endpoint Map
+
+| Method | Path | Auth | Request | Response `data` |
+|---|---|---|---|---|
+| GET | `/api/v1/accounting/periods` | Authenticated accounting user | None | `List<AccountingPeriodDto>` |
+| POST | `/api/v1/accounting/periods` | Authenticated accounting user | `AccountingPeriodUpsertRequest` | `AccountingPeriodDto` |
+| PUT | `/api/v1/accounting/periods/{periodId}` | Authenticated accounting user | `AccountingPeriodUpdateRequest` | `AccountingPeriodDto` |
+
+`POST /periods` accepts `costingMethod` as optional. If omitted/null, backend defaults to `WEIGHTED_AVERAGE` for backward compatibility.
+
+##### Costing Policy (critical behavior)
+
+- Allowed values: `FIFO`, `LIFO`, `WEIGHTED_AVERAGE`.
+- Costing method is resolved from the **active accounting period** at movement time.
+- Method applies to inventory movements posted in that period (dispatch and inventory adjustments).
+- **No retroactive revaluation:** changing method in a new period does not recalculate or mutate historical movement costs from prior periods.
+
+##### User Flow: Change costing for next period
+
+1. Load periods via `GET /api/v1/accounting/periods`.
+2. Upsert/create the target period via `POST /api/v1/accounting/periods` with `{ year, month, costingMethod }`.
+3. If period already exists, update only method via `PUT /api/v1/accounting/periods/{periodId}`.
+4. New dispatch/adjustment transactions in that period use the new method automatically.
+
+##### Data Contracts
+
+- `AccountingPeriodUpsertRequest`
+  - `year: number` (required, `1900..9999`)
+  - `month: number` (required, `1..12`)
+  - `costingMethod?: "FIFO" | "LIFO" | "WEIGHTED_AVERAGE"` (optional, defaults to `WEIGHTED_AVERAGE`)
+
+- `AccountingPeriodUpdateRequest`
+  - `costingMethod: "FIFO" | "LIFO" | "WEIGHTED_AVERAGE"` (required)
+
+- `AccountingPeriodDto`
+  - Includes `costingMethod: "FIFO" | "LIFO" | "WEIGHTED_AVERAGE"` for frontend display and filtering.
+
+##### Error Handling
+
+- `400 VALIDATION_INVALID_INPUT` for invalid month/year or missing `costingMethod` on `PUT`.
+- `400 VALIDATION_INVALID_REFERENCE` when period id is unknown for the tenant/company.
+
+##### UI Hints
+
+- Use a radio/select control for costing method (three fixed enum options).
+- On period list screens, show costing method badge per row to make method transitions visible.
+- Show an inline note: “Changes affect only new movements in this period; prior periods are not revalued.”
+
 ### Product Catalog & Inventory
 _To be documented_
 

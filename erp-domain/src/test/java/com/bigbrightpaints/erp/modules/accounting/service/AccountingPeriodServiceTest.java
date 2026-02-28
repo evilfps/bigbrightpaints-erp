@@ -358,6 +358,20 @@ class AccountingPeriodServiceTest {
     }
 
     @Test
+    void createOrUpdatePeriod_defaultsToWeightedAverageWhenRequestMethodMissing() {
+        Company company = company(1L, "ACME");
+        when(companyContextService.requireCurrentCompany()).thenReturn(company);
+        when(accountingPeriodRepository.lockByCompanyAndYearAndMonth(company, 2026, 6))
+                .thenReturn(Optional.empty());
+        when(accountingPeriodRepository.save(any(AccountingPeriod.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        var dto = service.createOrUpdatePeriod(new AccountingPeriodUpsertRequest(2026, 6, null));
+
+        assertThat(dto.costingMethod()).isEqualTo("WEIGHTED_AVERAGE");
+    }
+
+    @Test
     void updatePeriod_updatesCostingMethodWithoutChangingExistingDates() {
         Company company = company(1L, "ACME");
         AccountingPeriod period = openPeriod(company, 2026, 5);
