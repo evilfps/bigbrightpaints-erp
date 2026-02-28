@@ -16,6 +16,7 @@ import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatch;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatchRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryReference;
+import com.bigbrightpaints.erp.modules.inventory.domain.InventoryBatchSource;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryMovement;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryMovementRepository;
 import com.bigbrightpaints.erp.modules.inventory.service.BatchNumberService;
@@ -393,6 +394,7 @@ public class SalesReturnService {
         returnBatch.setQuantityAvailable(quantity);
         returnBatch.setUnitCost(unitCost);
         returnBatch.setManufacturedAt(CompanyTime.now(fg.getCompany()));
+        returnBatch.setSource(InventoryBatchSource.ADJUSTMENT);
         FinishedGoodBatch savedBatch = finishedGoodBatchRepository.save(returnBatch);
 
         InventoryMovement movement = new InventoryMovement();

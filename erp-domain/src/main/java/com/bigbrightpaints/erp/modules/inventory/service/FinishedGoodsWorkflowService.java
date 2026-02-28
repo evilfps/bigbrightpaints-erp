@@ -186,15 +186,35 @@ public class FinishedGoodsWorkflowService {
                 .toList();
     }
 
-    public List<FinishedGoodDto> getLowStockItems(int threshold) {
+    public List<FinishedGoodDto> getLowStockItems(Integer threshold) {
         Company company = companyContextService.requireCurrentCompany();
-        BigDecimal thresholdQty = BigDecimal.valueOf(threshold);
         return finishedGoodRepository.findByCompanyOrderByProductCodeAsc(company)
                 .stream()
                 .filter(fg -> safeQuantity(fg.getCurrentStock()).subtract(safeQuantity(fg.getReservedStock()))
-                        .compareTo(thresholdQty) < 0)
+                        .compareTo(resolveLowStockThreshold(fg, threshold)) < 0)
                 .map(this::toDto)
                 .toList();
+    }
+
+    public FinishedGoodLowStockThresholdDto getLowStockThreshold(Long finishedGoodId) {
+        Company company = companyContextService.requireCurrentCompany();
+        FinishedGood fg = finishedGoodRepository.findByCompanyAndId(company, finishedGoodId)
+                .orElseThrow(() -> com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput("Finished good not found"));
+        return new FinishedGoodLowStockThresholdDto(fg.getId(), fg.getProductCode(), safeQuantity(fg.getLowStockThreshold()));
+    }
+
+    @Transactional
+    public FinishedGoodLowStockThresholdDto updateLowStockThreshold(Long finishedGoodId, BigDecimal threshold) {
+        Company company = companyContextService.requireCurrentCompany();
+        FinishedGood fg = finishedGoodRepository.lockByCompanyAndId(company, finishedGoodId)
+                .orElseThrow(() -> com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput("Finished good not found"));
+        BigDecimal resolvedThreshold = safeQuantity(threshold);
+        if (resolvedThreshold.compareTo(BigDecimal.ZERO) < 0) {
+            throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput("Low stock threshold cannot be negative");
+        }
+        fg.setLowStockThreshold(resolvedThreshold);
+        finishedGoodRepository.save(fg);
+        return new FinishedGoodLowStockThresholdDto(fg.getId(), fg.getProductCode(), safeQuantity(fg.getLowStockThreshold()));
     }
 
     @Transactional
@@ -239,6 +259,7 @@ public class FinishedGoodsWorkflowService {
                 ? CompanyTime.now(finishedGood.getCompany())
                 : request.manufacturedAt());
         batch.setExpiryDate(request.expiryDate());
+        batch.setSource(InventoryBatchSource.PRODUCTION);
         FinishedGoodBatch savedBatch = finishedGoodBatchRepository.save(batch);
 
         finishedGood.setCurrentStock(finishedGood.getCurrentStock().add(quantity));
@@ -1545,6 +1566,13 @@ public class FinishedGoodsWorkflowService {
 
     private BigDecimal safeQuantity(BigDecimal value) {
         return value != null ? value : BigDecimal.ZERO;
+    }
+
+    private BigDecimal resolveLowStockThreshold(FinishedGood finishedGood, Integer overrideThreshold) {
+        if (overrideThreshold != null) {
+            return BigDecimal.valueOf(Math.max(0, overrideThreshold));
+        }
+        return safeQuantity(finishedGood.getLowStockThreshold());
     }
 
     private void requireSufficientQuantity(BigDecimal available, BigDecimal required, String context) {

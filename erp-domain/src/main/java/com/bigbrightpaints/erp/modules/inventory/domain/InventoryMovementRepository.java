@@ -10,6 +10,7 @@ import java.util.List;
 
 public interface InventoryMovementRepository extends JpaRepository<InventoryMovement, Long> {
     List<InventoryMovement> findByReferenceTypeAndReferenceIdOrderByCreatedAtAsc(String referenceType, String referenceId);
+    List<InventoryMovement> findByFinishedGoodBatchOrderByCreatedAtAsc(FinishedGoodBatch finishedGoodBatch);
 
     List<InventoryMovement> findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdOrderByCreatedAtAsc(
             Company company,

@@ -8,6 +8,7 @@ import com.bigbrightpaints.erp.modules.inventory.dto.DispatchPreviewDto;
 import com.bigbrightpaints.erp.modules.inventory.dto.FinishedGoodBatchDto;
 import com.bigbrightpaints.erp.modules.inventory.dto.FinishedGoodBatchRequest;
 import com.bigbrightpaints.erp.modules.inventory.dto.FinishedGoodDto;
+import com.bigbrightpaints.erp.modules.inventory.dto.FinishedGoodLowStockThresholdDto;
 import com.bigbrightpaints.erp.modules.inventory.dto.FinishedGoodRequest;
 import com.bigbrightpaints.erp.modules.inventory.dto.PackagingSlipDto;
 import com.bigbrightpaints.erp.modules.inventory.dto.StockSummaryDto;
@@ -77,8 +78,16 @@ public class FinishedGoodsService {
         return stockService.getStockSummary();
     }
 
-    public List<FinishedGoodDto> getLowStockItems(int threshold) {
+    public List<FinishedGoodDto> getLowStockItems(Integer threshold) {
         return stockService.getLowStockItems(threshold);
+    }
+
+    public FinishedGoodLowStockThresholdDto getLowStockThreshold(Long finishedGoodId) {
+        return stockService.getLowStockThreshold(finishedGoodId);
+    }
+
+    public FinishedGoodLowStockThresholdDto updateLowStockThreshold(Long finishedGoodId, BigDecimal threshold) {
+        return stockService.updateLowStockThreshold(finishedGoodId, threshold);
     }
 
     public FinishedGoodDto createFinishedGood(FinishedGoodRequest request) {

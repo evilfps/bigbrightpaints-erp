@@ -16,8 +16,11 @@ public record ProductionLogDetailDto(
         BigDecimal batchSize,
         String unitOfMeasure,
         BigDecimal mixedQuantity,
+        String outputBatchCode,
+        BigDecimal outputQuantity,
         BigDecimal totalPackedQuantity,
         BigDecimal wastageQuantity,
+        String wastageReasonCode,
         String status,
         BigDecimal materialCostTotal,
         BigDecimal laborCostTotal,
@@ -27,5 +30,6 @@ public record ProductionLogDetailDto(
         String salesOrderNumber,
         String notes,
         String createdBy,
-        List<ProductionLogMaterialDto> materials
+        List<ProductionLogMaterialDto> materials,
+        List<ProductionLogPackingRecordDto> packingRecords
 ) {}

@@ -1,5 +1,7 @@
 package com.bigbrightpaints.erp.modules.inventory.domain;
 
+import com.bigbrightpaints.erp.modules.company.domain.Company;
+
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
@@ -12,6 +14,7 @@ import java.util.List;
 
 public interface RawMaterialBatchRepository extends JpaRepository<RawMaterialBatch, Long> {
     List<RawMaterialBatch> findByRawMaterial(RawMaterial rawMaterial);
+    java.util.Optional<RawMaterialBatch> findByRawMaterial_CompanyAndId(Company company, Long id);
     List<RawMaterialBatch> findByRawMaterial_InventoryAccountId(Long inventoryAccountId);
     boolean existsByRawMaterialAndBatchCode(RawMaterial rawMaterial, String batchCode);
 

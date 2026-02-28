@@ -24,6 +24,7 @@ import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryMovement;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryMovementRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryReference;
+import com.bigbrightpaints.erp.modules.inventory.domain.InventoryBatchSource;
 import com.bigbrightpaints.erp.modules.inventory.domain.MaterialType;
 import com.bigbrightpaints.erp.modules.inventory.domain.OpeningStockImport;
 import com.bigbrightpaints.erp.modules.inventory.domain.OpeningStockImportRepository;
@@ -437,6 +438,8 @@ public class OpeningStockImportService {
         batch.setUnit(unit);
         batch.setCostPerUnit(unitCost);
         batch.setSupplierName(DEFAULT_BATCH_REF);
+        batch.setManufacturedAt(CompanyTime.now(company));
+        batch.setSource(InventoryBatchSource.ADJUSTMENT);
         RawMaterialBatch savedBatch = rawMaterialBatchRepository.save(batch);
 
         BigDecimal currentStock = Optional.ofNullable(material.getCurrentStock()).orElse(BigDecimal.ZERO);
@@ -479,6 +482,7 @@ public class OpeningStockImportService {
         batch.setQuantityAvailable(quantity);
         batch.setUnitCost(unitCost);
         batch.setManufacturedAt(manufacturedAt != null ? manufacturedAt : CompanyTime.now(company));
+        batch.setSource(InventoryBatchSource.ADJUSTMENT);
         FinishedGoodBatch savedBatch = finishedGoodBatchRepository.save(batch);
 
         BigDecimal currentStock = Optional.ofNullable(finishedGood.getCurrentStock()).orElse(BigDecimal.ZERO);

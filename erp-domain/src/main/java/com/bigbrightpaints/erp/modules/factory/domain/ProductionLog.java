@@ -62,6 +62,9 @@ public class ProductionLog extends VersionedEntity {
     @Column(name = "wastage_quantity", nullable = false)
     private BigDecimal wastageQuantity = BigDecimal.ZERO;
 
+    @Column(name = "wastage_reason_code", nullable = false)
+    private String wastageReasonCode = "PROCESS_LOSS";
+
     @Column(name = "material_cost_total", nullable = false)
     private BigDecimal materialCostTotal = BigDecimal.ZERO;
 
@@ -112,6 +115,9 @@ public class ProductionLog extends VersionedEntity {
         }
         if (producedAt == null) {
             producedAt = now;
+        }
+        if (wastageReasonCode == null || wastageReasonCode.isBlank()) {
+            wastageReasonCode = "PROCESS_LOSS";
         }
         updatedAt = now;
     }
@@ -283,6 +289,14 @@ public class ProductionLog extends VersionedEntity {
 
     public void setWastageQuantity(BigDecimal wastageQuantity) {
         this.wastageQuantity = wastageQuantity;
+    }
+
+    public String getWastageReasonCode() {
+        return wastageReasonCode;
+    }
+
+    public void setWastageReasonCode(String wastageReasonCode) {
+        this.wastageReasonCode = wastageReasonCode;
     }
 
     public List<PackingRecord> getPackingRecords() {

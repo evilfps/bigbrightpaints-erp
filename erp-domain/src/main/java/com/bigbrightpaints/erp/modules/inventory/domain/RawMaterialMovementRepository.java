@@ -14,6 +14,7 @@ public interface RawMaterialMovementRepository extends JpaRepository<RawMaterial
                                                                                      String referenceType,
                                                                                      String referenceId);
     List<RawMaterialMovement> findByRawMaterialBatch(RawMaterialBatch batch);
+    List<RawMaterialMovement> findByRawMaterialBatchOrderByCreatedAtAsc(RawMaterialBatch batch);
 
     @Query("""
             select m from RawMaterialMovement m

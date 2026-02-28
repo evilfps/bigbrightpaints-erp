@@ -20,9 +20,11 @@ import com.bigbrightpaints.erp.modules.factory.domain.ProductionLogStatus;
 import com.bigbrightpaints.erp.modules.factory.dto.ProductionLogDetailDto;
 import com.bigbrightpaints.erp.modules.factory.dto.ProductionLogDto;
 import com.bigbrightpaints.erp.modules.factory.dto.ProductionLogMaterialDto;
+import com.bigbrightpaints.erp.modules.factory.dto.ProductionLogPackingRecordDto;
 import com.bigbrightpaints.erp.modules.factory.dto.ProductionLogRequest;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryReference;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryMovement;
+import com.bigbrightpaints.erp.modules.inventory.domain.InventoryBatchSource;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterial;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatch;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatchRepository;
@@ -132,6 +134,7 @@ public class ProductionLogService {
         log.setStatus(ProductionLogStatus.READY_TO_PACK);
         log.setTotalPackedQuantity(BigDecimal.ZERO);
         log.setWastageQuantity(mixedQty);
+        log.setWastageReasonCode("PROCESS_LOSS");
         log.setProducedAt(resolveProducedAt(company, request.producedAt()));
         log.setNotes(clean(request.notes()));
         log.setCreatedBy(clean(request.createdBy()));
@@ -271,6 +274,7 @@ public class ProductionLogService {
         batch.setManufacturedAt(log.getProducedAt());
         batch.setBulk(true);
         batch.setSizeLabel(log.getUnitOfMeasure());
+        batch.setSource(InventoryBatchSource.PRODUCTION);
         return finishedGoodBatchRepository.save(batch);
     }
 
@@ -296,7 +300,7 @@ public class ProductionLogService {
         Map<Long, BigDecimal> accountTotals = new HashMap<>();
         for (ProductionLogRequest.MaterialUsageRequest usage : usages) {
             MaterialConsumption consumption = consumeMaterial(company, log, usage);
-            log.getMaterials().add(consumption.material());
+            log.getMaterials().addAll(consumption.materials());
             totalCost = totalCost.add(consumption.totalCost());
             accountTotals.merge(consumption.inventoryAccountId(), consumption.totalCost(), BigDecimal::add);
         }
@@ -318,24 +322,34 @@ public class ProductionLogService {
                     "Raw material " + rawMaterial.getName() + " missing inventory account");
         }
 
-        BigDecimal totalCost = issueFromBatches(rawMaterial, qty, log.getProductionCode());
+        List<BatchIssue> issues = issueFromBatches(rawMaterial, qty, log.getProductionCode());
         rawMaterial.setCurrentStock(rawMaterial.getCurrentStock().subtract(qty));
         rawMaterialRepository.save(rawMaterial);
 
-        ProductionLogMaterial material = new ProductionLogMaterial();
-        material.setLog(log);
-        material.setRawMaterial(rawMaterial);
-        material.setMaterialName(rawMaterial.getName());
-        material.setQuantity(qty);
-        material.setUnitOfMeasure(StringUtils.hasText(usage.unitOfMeasure())
+        String unitOfMeasure = StringUtils.hasText(usage.unitOfMeasure())
                 ? usage.unitOfMeasure().trim()
-                : rawMaterial.getUnitType());
-        material.setCostPerUnit(calculateUnitCost(totalCost, qty));
-        material.setTotalCost(totalCost);
-        return new MaterialConsumption(material, totalCost, rawMaterial.getInventoryAccountId());
+                : rawMaterial.getUnitType();
+        List<ProductionLogMaterial> materials = new ArrayList<>();
+        BigDecimal totalCost = BigDecimal.ZERO;
+        for (BatchIssue issue : issues) {
+            ProductionLogMaterial material = new ProductionLogMaterial();
+            material.setLog(log);
+            material.setRawMaterial(rawMaterial);
+            material.setRawMaterialBatch(issue.batch());
+            material.setRawMaterialMovementId(issue.movement() != null ? issue.movement().getId() : null);
+            material.setMaterialName(rawMaterial.getName());
+            material.setQuantity(issue.quantity());
+            material.setUnitOfMeasure(unitOfMeasure);
+            material.setCostPerUnit(issue.unitCost());
+            material.setTotalCost(issue.totalCost());
+            materials.add(material);
+            totalCost = totalCost.add(issue.totalCost());
+        }
+
+        return new MaterialConsumption(materials, totalCost, rawMaterial.getInventoryAccountId());
     }
 
-    private BigDecimal issueFromBatches(RawMaterial rawMaterial, BigDecimal requiredQty, String referenceId) {
+    private List<BatchIssue> issueFromBatches(RawMaterial rawMaterial, BigDecimal requiredQty, String referenceId) {
         // Lock batches in FIFO order (pessimistic lock) to prevent double consumption
         List<RawMaterialBatch> batches = rawMaterialBatchRepository.findAvailableBatchesFIFO(rawMaterial);
         BigDecimal weightedAverageCost = CostingMethodUtils.selectWeightedAverageValue(
@@ -343,8 +357,7 @@ public class ProductionLogService {
                 () -> rawMaterialBatchRepository.calculateWeightedAverageCost(rawMaterial),
                 () -> null);
         BigDecimal remaining = requiredQty;
-        BigDecimal totalCost = BigDecimal.ZERO;
-        List<RawMaterialMovement> movements = new ArrayList<>();
+        List<BatchIssue> issues = new ArrayList<>();
 
         for (RawMaterialBatch batch : batches) {
             if (remaining.compareTo(BigDecimal.ZERO) <= 0) {
@@ -380,17 +393,16 @@ public class ProductionLogService {
             movement.setMovementType(MOVEMENT_TYPE_ISSUE);
             movement.setQuantity(take);
             movement.setUnitCost(unitCost);
-            movements.add(movement);
+            RawMaterialMovement savedMovement = rawMaterialMovementRepository.save(movement);
 
-            totalCost = totalCost.add(movementCost);
+            issues.add(new BatchIssue(batch, take, unitCost, movementCost, savedMovement));
             remaining = remaining.subtract(take);
         }
         if (remaining.compareTo(BigDecimal.ZERO) > 0) {
             throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
                     "Insufficient batch availability for " + rawMaterial.getName());
         }
-        rawMaterialMovementRepository.saveAll(movements);
-        return totalCost;
+        return issues;
     }
 
     private void postMaterialJournal(Company company,
@@ -571,7 +583,15 @@ public class ProductionLogService {
 
     private record MaterialIssueSummary(BigDecimal totalCost, Map<Long, BigDecimal> accountTotals) {}
 
-    private record MaterialConsumption(ProductionLogMaterial material, BigDecimal totalCost, Long inventoryAccountId) {}
+    private record MaterialConsumption(List<ProductionLogMaterial> materials,
+                                       BigDecimal totalCost,
+                                       Long inventoryAccountId) {}
+
+    private record BatchIssue(RawMaterialBatch batch,
+                              BigDecimal quantity,
+                              BigDecimal unitCost,
+                              BigDecimal totalCost,
+                              RawMaterialMovement movement) {}
 
     private String nextProductionCode(Company company) {
         LocalDate today = companyClock.today(company);
@@ -645,8 +665,11 @@ public class ProductionLogService {
                 log.getBatchSize(),
                 log.getUnitOfMeasure(),
                 log.getMixedQuantity(),
+                log.getProductionCode(),
+                log.getMixedQuantity(),
                 log.getTotalPackedQuantity(),
                 log.getWastageQuantity(),
+                log.getWastageReasonCode(),
                 status,
                 log.getCreatedBy(),
                 log.getUnitCost(),
@@ -667,11 +690,29 @@ public class ProductionLogService {
         List<ProductionLogMaterialDto> materials = log.getMaterials().stream()
                 .map(material -> new ProductionLogMaterialDto(
                         material.getRawMaterial() != null ? material.getRawMaterial().getId() : null,
+                        material.getRawMaterialBatch() != null ? material.getRawMaterialBatch().getId() : null,
+                        material.getRawMaterialBatch() != null ? material.getRawMaterialBatch().getBatchCode() : null,
+                        material.getRawMaterialMovementId(),
                         material.getMaterialName(),
                         material.getQuantity(),
                         material.getUnitOfMeasure(),
                         material.getCostPerUnit(),
                         material.getTotalCost()
+                ))
+                .toList();
+        List<ProductionLogPackingRecordDto> packingRecords = log.getPackingRecords().stream()
+                .map(record -> new ProductionLogPackingRecordDto(
+                        record.getId(),
+                        record.getFinishedGood() != null ? record.getFinishedGood().getId() : null,
+                        record.getFinishedGood() != null ? record.getFinishedGood().getProductCode() : null,
+                        record.getFinishedGood() != null ? record.getFinishedGood().getName() : null,
+                        record.getFinishedGoodBatch() != null ? record.getFinishedGoodBatch().getId() : null,
+                        record.getFinishedGoodBatch() != null ? record.getFinishedGoodBatch().getPublicId() : null,
+                        record.getFinishedGoodBatch() != null ? record.getFinishedGoodBatch().getBatchCode() : null,
+                        record.getPackagingSize(),
+                        record.getQuantityPacked(),
+                        record.getPackedDate(),
+                        record.getPackedBy()
                 ))
                 .toList();
         return new ProductionLogDetailDto(
@@ -686,8 +727,11 @@ public class ProductionLogService {
                 log.getBatchSize(),
                 log.getUnitOfMeasure(),
                 log.getMixedQuantity(),
+                log.getProductionCode(),
+                log.getMixedQuantity(),
                 log.getTotalPackedQuantity(),
                 log.getWastageQuantity(),
+                log.getWastageReasonCode(),
                 status,
                 log.getMaterialCostTotal(),
                 log.getLaborCostTotal(),
@@ -697,7 +741,8 @@ public class ProductionLogService {
                 log.getSalesOrderNumber(),
                 log.getNotes(),
                 log.getCreatedBy(),
-                materials
+                materials,
+                packingRecords
         );
     }
 

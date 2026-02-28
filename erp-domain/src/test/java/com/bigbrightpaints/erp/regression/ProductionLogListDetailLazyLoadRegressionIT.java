@@ -118,6 +118,12 @@ class ProductionLogListDetailLazyLoadRegressionIT extends AbstractIntegrationTes
         ProductionLogDetailDto detail = productionLogService.getLog(created.id());
         assertThat(detail.materials()).isNotEmpty();
         assertThat(detail.materials().get(0).rawMaterialId()).isEqualTo(material.getId());
+        assertThat(detail.materials().get(0).rawMaterialBatchCode()).isNotBlank();
+        assertThat(detail.materials().get(0).rawMaterialMovementId()).isNotNull();
+        assertThat(detail.outputBatchCode()).isEqualTo(detail.productionCode());
+        assertThat(detail.outputQuantity()).isEqualByComparingTo(detail.mixedQuantity());
+        assertThat(detail.wastageReasonCode()).isEqualTo("PROCESS_LOSS");
+        assertThat(detail.packingRecords()).isEmpty();
     }
 
     private Account ensureAccount(String code, String name, AccountType type) {

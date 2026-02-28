@@ -57,6 +57,9 @@ public class FinishedGood extends VersionedEntity {
     @Column(name = "tax_account_id")
     private Long taxAccountId;
 
+    @Column(name = "low_stock_threshold", nullable = false)
+    private BigDecimal lowStockThreshold = new BigDecimal("100");
+
     @Enumerated(EnumType.STRING)
     @Column(name = "inventory_type", nullable = false)
     private InventoryType inventoryType = InventoryType.STANDARD;
@@ -126,6 +129,16 @@ public class FinishedGood extends VersionedEntity {
     public void setDiscountAccountId(Long discountAccountId) { this.discountAccountId = discountAccountId; }
     public Long getTaxAccountId() { return taxAccountId; }
     public void setTaxAccountId(Long taxAccountId) { this.taxAccountId = taxAccountId; }
+    public BigDecimal getLowStockThreshold() { return lowStockThreshold; }
+    public void setLowStockThreshold(BigDecimal lowStockThreshold) {
+        if (lowStockThreshold == null) {
+            this.lowStockThreshold = new BigDecimal("100");
+        } else if (lowStockThreshold.compareTo(BigDecimal.ZERO) < 0) {
+            throw new IllegalArgumentException("Low stock threshold cannot be negative for product " + productCode);
+        } else {
+            this.lowStockThreshold = lowStockThreshold;
+        }
+    }
     public InventoryType getInventoryType() { return inventoryType; }
     public void setInventoryType(InventoryType inventoryType) { this.inventoryType = inventoryType; }
 

@@ -192,8 +192,11 @@ class PackingServiceTest {
                 null,
                 null,
                 null,
+                null,
+                null,
                 log.getTotalPackedQuantity(),
                 log.getWastageQuantity(),
+                null,
                 log.getStatus().name(),
                 log.getMaterialCostTotal(),
                 null,
@@ -203,6 +206,7 @@ class PackingServiceTest {
                 null,
                 null,
                 null,
+                List.of(),
                 List.of()
         );
         when(productionLogService.getLog(1L)).thenReturn(detailDto);
@@ -307,8 +311,11 @@ class PackingServiceTest {
                 null,
                 null,
                 log.getMixedQuantity(),
+                log.getProductionCode(),
+                log.getMixedQuantity(),
                 log.getTotalPackedQuantity(),
                 log.getWastageQuantity(),
+                null,
                 log.getStatus().name(),
                 log.getMaterialCostTotal(),
                 null,
@@ -318,6 +325,7 @@ class PackingServiceTest {
                 null,
                 null,
                 null,
+                List.of(),
                 List.of()
         );
         when(productionLogService.getLog(1L)).thenReturn(detailDto);
@@ -429,8 +437,8 @@ class PackingServiceTest {
                 .thenReturn(Optional.of(existing));
         ProductionLogDetailDto detailDto = new ProductionLogDetailDto(
                 1L, null, "PROD-001", Instant.parse("2024-01-01T00:00:00Z"), null, null, null, null,
-                null, null, null, BigDecimal.ONE, null, "READY_TO_PACK", null, null, null,
-                null, null, null, null, null, List.of()
+                null, null, BigDecimal.ONE, "PROD-001", BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ZERO, null, "READY_TO_PACK", null, null, null,
+                null, null, null, null, null, List.of(), List.of()
         );
         when(productionLogService.getLog(1L)).thenReturn(detailDto);
         when(companyEntityLookup.lockProductionLog(company, 1L)).thenReturn(new ProductionLog());

@@ -2,18 +2,19 @@ package com.bigbrightpaints.erp.modules.factory.dto;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.UUID;
 
-public record PackingRecordDto(
-        Long id,
-        Long productionLogId,
-        String productionCode,
+public record ProductionLogPackingRecordDto(
+        Long packingRecordId,
+        Long finishedGoodId,
+        String finishedGoodCode,
+        String finishedGoodName,
         Long finishedGoodBatchId,
+        UUID finishedGoodBatchPublicId,
         String finishedGoodBatchCode,
         String packagingSize,
         BigDecimal quantityPacked,
-        Integer piecesCount,
-        Integer boxesCount,
-        Integer piecesPerBox,
         LocalDate packedDate,
         String packedBy
-) {}
+) {
+}

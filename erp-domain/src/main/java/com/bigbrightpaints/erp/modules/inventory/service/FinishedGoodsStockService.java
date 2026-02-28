@@ -4,6 +4,7 @@ import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGood;
 import com.bigbrightpaints.erp.modules.inventory.dto.FinishedGoodBatchDto;
 import com.bigbrightpaints.erp.modules.inventory.dto.FinishedGoodBatchRequest;
 import com.bigbrightpaints.erp.modules.inventory.dto.FinishedGoodDto;
+import com.bigbrightpaints.erp.modules.inventory.dto.FinishedGoodLowStockThresholdDto;
 import com.bigbrightpaints.erp.modules.inventory.dto.StockSummaryDto;
 import org.springframework.stereotype.Service;
 
@@ -35,8 +36,16 @@ public class FinishedGoodsStockService {
         return workflowService.getStockSummary();
     }
 
-    public List<FinishedGoodDto> getLowStockItems(int threshold) {
+    public List<FinishedGoodDto> getLowStockItems(Integer threshold) {
         return workflowService.getLowStockItems(threshold);
+    }
+
+    public FinishedGoodLowStockThresholdDto getLowStockThreshold(Long finishedGoodId) {
+        return workflowService.getLowStockThreshold(finishedGoodId);
+    }
+
+    public FinishedGoodLowStockThresholdDto updateLowStockThreshold(Long finishedGoodId, BigDecimal threshold) {
+        return workflowService.updateLowStockThreshold(finishedGoodId, threshold);
     }
 
     public FinishedGoodBatchDto registerBatch(FinishedGoodBatchRequest request) {

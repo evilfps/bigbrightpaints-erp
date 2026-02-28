@@ -1186,6 +1186,61 @@ class FinishedGoodsServiceTest extends AbstractIntegrationTest {
         assertThat(dispatchMovement.getUnitCost()).isEqualByComparingTo(new BigDecimal("20"));
     }
 
+    @Test
+    void stockAccuracyAcrossMovements_andPerProductLowStockThreshold() {
+        Company company = seedCompany("STOCK-TRACE");
+        FinishedGood fg = createFinishedGood(company, "FG-STOCK-TRACE", BigDecimal.ZERO, BigDecimal.ZERO, "FIFO");
+
+        var registeredBatch = finishedGoodsService.registerBatch(new FinishedGoodBatchRequest(
+                fg.getId(),
+                "BATCH-STOCK-TRACE",
+                new BigDecimal("20"),
+                new BigDecimal("8"),
+                Instant.now(),
+                LocalDate.now().plusMonths(6)
+        ));
+
+        SalesOrder reserveReleaseOrder = createOrder(
+                company,
+                "SO-STOCK-TRACE-A-" + UUID.randomUUID(),
+                fg.getProductCode(),
+                new BigDecimal("5"));
+        finishedGoodsService.reserveForOrder(reserveReleaseOrder);
+        finishedGoodsService.releaseReservationsForOrder(reserveReleaseOrder.getId());
+
+        SalesOrder dispatchOrder = createOrder(
+                company,
+                "SO-STOCK-TRACE-B-" + UUID.randomUUID(),
+                fg.getProductCode(),
+                new BigDecimal("4"));
+        finishedGoodsService.reserveForOrder(dispatchOrder);
+        PackagingSlip dispatchSlip = packagingSlipRepository
+                .findAllByCompanyAndSalesOrderId(company, dispatchOrder.getId())
+                .stream()
+                .filter(existing -> !existing.isBackorder())
+                .findFirst()
+                .orElseThrow();
+        finishedGoodsService.markSlipDispatched(dispatchOrder.getId(), dispatchSlip);
+
+        FinishedGood refreshed = finishedGoodRepository.findById(fg.getId()).orElseThrow();
+        assertThat(refreshed.getCurrentStock()).isEqualByComparingTo(new BigDecimal("16"));
+        assertThat(refreshed.getReservedStock()).isEqualByComparingTo(BigDecimal.ZERO);
+
+        FinishedGoodBatch trackedBatch = finishedGoodBatchRepository.findById(registeredBatch.id()).orElseThrow();
+        List<InventoryMovement> movements = inventoryMovementRepository.findByFinishedGoodBatchOrderByCreatedAtAsc(trackedBatch);
+        assertThat(movements).extracting(InventoryMovement::getMovementType)
+                .contains("RECEIPT", "RESERVE", "RELEASE", "DISPATCH");
+
+        var threshold = finishedGoodsService.updateLowStockThreshold(fg.getId(), new BigDecimal("17"));
+        assertThat(threshold.threshold()).isEqualByComparingTo(new BigDecimal("17"));
+        assertThat(finishedGoodsService.getLowStockItems(null))
+                .extracting(item -> item.productCode())
+                .contains(fg.getProductCode());
+        assertThat(finishedGoodsService.getLowStockItems(10))
+                .extracting(item -> item.productCode())
+                .doesNotContain(fg.getProductCode());
+    }
+
     private Company seedCompany(String code) {
         Company company = dataSeeder.ensureCompany(code, code + " Ltd");
         CompanyContextHolder.setCompanyId(company.getCode());

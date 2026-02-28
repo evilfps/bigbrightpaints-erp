@@ -28,6 +28,7 @@ import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryMovement;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryMovementRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryReference;
+import com.bigbrightpaints.erp.modules.inventory.domain.InventoryBatchSource;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovement;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovementRepository;
 import com.bigbrightpaints.erp.modules.inventory.service.BatchNumberService;
@@ -324,6 +325,10 @@ public class PackingService {
                 .sorted(Comparator.comparing(PackingRecord::getPackedDate).thenComparing(PackingRecord::getId))
                 .map(record -> new PackingRecordDto(
                         record.getId(),
+                        record.getProductionLog() != null ? record.getProductionLog().getId() : null,
+                        record.getProductionLog() != null ? record.getProductionLog().getProductionCode() : null,
+                        record.getFinishedGoodBatch() != null ? record.getFinishedGoodBatch().getId() : null,
+                        record.getFinishedGoodBatch() != null ? record.getFinishedGoodBatch().getBatchCode() : null,
                         record.getPackagingSize(),
                         record.getQuantityPacked(),
                         record.getPiecesCount(),
@@ -357,6 +362,7 @@ public class PackingService {
         postCompletionEntries(company, log, finishedGood, packedQty, wastageQty);
         log.setStatus(ProductionLogStatus.FULLY_PACKED);
         log.setWastageQuantity(wastageQty);
+        log.setWastageReasonCode(wastageQty.compareTo(BigDecimal.ZERO) > 0 ? "PROCESS_LOSS" : "NONE");
         productionLogRepository.save(log);
         return productionLogService.getLog(log.getId());
     }
@@ -412,6 +418,7 @@ public class PackingService {
         batch.setUnitCost(totalUnitCost);
         batch.setManufacturedAt(log.getProducedAt());
         batch.setBulk(true);  // Mark as bulk so it can be converted to sized FG via BulkPackingService
+        batch.setSource(InventoryBatchSource.PRODUCTION);
         if (semiFinished != null) {
             batch.setParentBatch(semiFinished.batch());
         }

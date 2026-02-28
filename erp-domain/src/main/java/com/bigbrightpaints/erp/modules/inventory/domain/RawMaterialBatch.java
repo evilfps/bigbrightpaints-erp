@@ -6,6 +6,7 @@ import jakarta.persistence.*;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.UUID;
 import com.bigbrightpaints.erp.core.domain.VersionedEntity;
 
@@ -46,11 +47,21 @@ public class RawMaterialBatch extends VersionedEntity {
     @Column(name = "received_at", nullable = false)
     private Instant receivedAt;
 
+    @Column(name = "manufactured_at", nullable = false)
+    private Instant manufacturedAt;
+
+    @Column(name = "expiry_date")
+    private LocalDate expiryDate;
+
     private String notes;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "inventory_type", nullable = false)
     private InventoryType inventoryType = InventoryType.STANDARD;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "source", nullable = false)
+    private InventoryBatchSource source = InventoryBatchSource.PURCHASE;
 
     @PrePersist
     public void prePersist() {
@@ -59,6 +70,9 @@ public class RawMaterialBatch extends VersionedEntity {
         }
         if (receivedAt == null) {
             receivedAt = CompanyTime.now(rawMaterial != null ? rawMaterial.getCompany() : null);
+        }
+        if (manufacturedAt == null) {
+            manufacturedAt = receivedAt;
         }
     }
 
@@ -133,6 +147,22 @@ public class RawMaterialBatch extends VersionedEntity {
         this.receivedAt = receivedAt;
     }
 
+    public Instant getManufacturedAt() {
+        return manufacturedAt;
+    }
+
+    public void setManufacturedAt(Instant manufacturedAt) {
+        this.manufacturedAt = manufacturedAt;
+    }
+
+    public LocalDate getExpiryDate() {
+        return expiryDate;
+    }
+
+    public void setExpiryDate(LocalDate expiryDate) {
+        this.expiryDate = expiryDate;
+    }
+
     public String getNotes() {
         return notes;
     }
@@ -147,5 +177,13 @@ public class RawMaterialBatch extends VersionedEntity {
 
     public void setInventoryType(InventoryType inventoryType) {
         this.inventoryType = inventoryType;
+    }
+
+    public InventoryBatchSource getSource() {
+        return source;
+    }
+
+    public void setSource(InventoryBatchSource source) {
+        this.source = source == null ? InventoryBatchSource.PURCHASE : source;
     }
 }

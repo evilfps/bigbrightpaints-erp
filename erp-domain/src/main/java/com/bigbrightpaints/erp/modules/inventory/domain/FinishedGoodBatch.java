@@ -50,6 +50,10 @@ public class FinishedGoodBatch extends VersionedEntity {
     @Column(name = "inventory_type", nullable = false)
     private InventoryType inventoryType = InventoryType.STANDARD;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "source", nullable = false)
+    private InventoryBatchSource source = InventoryBatchSource.PRODUCTION;
+
     // Bulk-to-size packaging: links child batches to parent bulk batch
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "parent_batch_id")
@@ -109,6 +113,10 @@ public class FinishedGoodBatch extends VersionedEntity {
     public void setExpiryDate(LocalDate expiryDate) { this.expiryDate = expiryDate; }
     public InventoryType getInventoryType() { return inventoryType; }
     public void setInventoryType(InventoryType inventoryType) { this.inventoryType = inventoryType; }
+    public InventoryBatchSource getSource() { return source; }
+    public void setSource(InventoryBatchSource source) {
+        this.source = source == null ? InventoryBatchSource.PRODUCTION : source;
+    }
     public FinishedGoodBatch getParentBatch() { return parentBatch; }
     public void setParentBatch(FinishedGoodBatch parentBatch) { this.parentBatch = parentBatch; }
     public boolean isBulk() { return bulk; }

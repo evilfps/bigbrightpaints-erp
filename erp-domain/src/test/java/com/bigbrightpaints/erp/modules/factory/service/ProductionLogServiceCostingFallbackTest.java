@@ -17,6 +17,7 @@ import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovement;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovementRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialRepository;
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -29,6 +30,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -104,17 +106,22 @@ class ProductionLogServiceCostingFallbackTest {
         when(rawMaterialBatchRepository.deductQuantityIfSufficient(eq(802L),
                 argThat(qty -> qty.compareTo(BigDecimal.ONE) == 0))).thenReturn(1);
 
-        BigDecimal totalCost = ReflectionTestUtils.invokeMethod(
+        List<?> issues = ReflectionTestUtils.invokeMethod(
                 productionLogService,
                 "issueFromBatches",
                 rawMaterial,
                 new BigDecimal("3"),
                 "PROD-REF");
 
+        assertThat(issues).hasSize(2);
+        BigDecimal totalCost = issues.stream()
+                .map(issue -> (BigDecimal) ReflectionTestUtils.getField(issue, "totalCost"))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
         assertThat(totalCost).isEqualByComparingTo("7.00");
-        ArgumentCaptor<List<RawMaterialMovement>> movementCaptor = ArgumentCaptor.forClass(List.class);
-        verify(rawMaterialMovementRepository).saveAll(movementCaptor.capture());
-        List<RawMaterialMovement> movements = movementCaptor.getValue();
+
+        ArgumentCaptor<RawMaterialMovement> movementCaptor = ArgumentCaptor.forClass(RawMaterialMovement.class);
+        verify(rawMaterialMovementRepository, times(2)).save(movementCaptor.capture());
+        List<RawMaterialMovement> movements = new ArrayList<>(movementCaptor.getAllValues());
         assertThat(movements).hasSize(2);
         assertThat(movements).allSatisfy(movement ->
                 assertThat(movement.getReferenceType()).isEqualTo(InventoryReference.PRODUCTION_LOG));

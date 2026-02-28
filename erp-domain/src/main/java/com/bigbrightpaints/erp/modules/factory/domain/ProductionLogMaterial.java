@@ -2,6 +2,7 @@ package com.bigbrightpaints.erp.modules.factory.domain;
 
 import com.bigbrightpaints.erp.core.util.CompanyTime;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
+import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatch;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterial;
 import jakarta.persistence.*;
 
@@ -24,6 +25,13 @@ public class ProductionLogMaterial extends VersionedEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "raw_material_id")
     private RawMaterial rawMaterial;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "raw_material_batch_id")
+    private RawMaterialBatch rawMaterialBatch;
+
+    @Column(name = "raw_material_movement_id")
+    private Long rawMaterialMovementId;
 
     @Column(name = "material_name", nullable = false)
     private String materialName;
@@ -69,6 +77,22 @@ public class ProductionLogMaterial extends VersionedEntity {
 
     public void setRawMaterial(RawMaterial rawMaterial) {
         this.rawMaterial = rawMaterial;
+    }
+
+    public RawMaterialBatch getRawMaterialBatch() {
+        return rawMaterialBatch;
+    }
+
+    public void setRawMaterialBatch(RawMaterialBatch rawMaterialBatch) {
+        this.rawMaterialBatch = rawMaterialBatch;
+    }
+
+    public Long getRawMaterialMovementId() {
+        return rawMaterialMovementId;
+    }
+
+    public void setRawMaterialMovementId(Long rawMaterialMovementId) {
+        this.rawMaterialMovementId = rawMaterialMovementId;
     }
 
     public String getMaterialName() {

@@ -641,6 +641,7 @@ public class BulkPackingService {
         childBatch.setManufacturedAt(parentBatch.getManufacturedAt());
         childBatch.setBulk(false);
         childBatch.setSizeLabel(line.sizeLabel());
+        childBatch.setSource(InventoryBatchSource.PRODUCTION);
         
         FinishedGoodBatch savedBatch = finishedGoodBatchRepository.save(childBatch);
 

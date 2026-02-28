@@ -17,6 +17,7 @@ import com.bigbrightpaints.erp.modules.accounting.service.ReferenceNumberService
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryReference;
+import com.bigbrightpaints.erp.modules.inventory.domain.InventoryBatchSource;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterial;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatch;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatchRepository;
@@ -268,11 +269,13 @@ public class RawMaterialService {
         batch.setSupplierName(supplier.getName());
         batch.setSupplier(supplier);
         batch.setNotes(request.notes());
+        batch.setManufacturedAt(companyClock.now(material.getCompany()));
         BigDecimal currentStock = material.getCurrentStock() == null ? BigDecimal.ZERO : material.getCurrentStock();
         material.setCurrentStock(currentStock.add(quantity));
         rawMaterialRepository.save(material);
-        RawMaterialBatch savedBatch = batchRepository.save(batch);
         ReceiptContext effectiveContext = context != null ? context : ReceiptContext.forBatch(batch.getBatchCode());
+        batch.setSource(resolveBatchSource(effectiveContext.referenceType()));
+        RawMaterialBatch savedBatch = batchRepository.save(batch);
         RawMaterialMovement receiptMovement = recordReceiptMovement(material, savedBatch, quantity, costPerUnit, effectiveContext);
         Long journalEntryId = effectiveContext.postJournal()
                 ? postInventoryReceipt(material, supplier, savedBatch, quantity, costPerUnit, effectiveContext)
@@ -596,6 +599,21 @@ public class RawMaterialService {
                 .add(request.supplierId() != null ? request.supplierId() : "")
                 .addToken(request.notes())
                 .buildHash();
+    }
+
+    private InventoryBatchSource resolveBatchSource(String referenceType) {
+        if (!StringUtils.hasText(referenceType)) {
+            return InventoryBatchSource.PURCHASE;
+        }
+        String normalized = referenceType.trim().toUpperCase(java.util.Locale.ROOT);
+        return switch (normalized) {
+            case InventoryReference.OPENING_STOCK, "ADJUSTMENT", InventoryReference.PURCHASE_RETURN ->
+                    InventoryBatchSource.ADJUSTMENT;
+            case InventoryReference.PRODUCTION_LOG,
+                    InventoryReference.PACKING_RECORD,
+                    InventoryReference.MANUFACTURING_ORDER -> InventoryBatchSource.PRODUCTION;
+            default -> InventoryBatchSource.PURCHASE;
+        };
     }
 
     private boolean isProdProfile() {

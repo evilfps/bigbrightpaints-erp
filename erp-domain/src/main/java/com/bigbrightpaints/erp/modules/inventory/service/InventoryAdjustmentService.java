@@ -260,7 +260,8 @@ public class InventoryAdjustmentService {
     }
 
     private List<InventoryMovement> applyMovements(InventoryAdjustment adjustment, Long journalEntryId) {
-        List<InventoryMovement> movements = adjustment.getLines().stream().map(line -> {
+        List<InventoryMovement> movements = new java.util.ArrayList<>();
+        adjustment.getLines().forEach(line -> {
             FinishedGood finishedGood = line.getFinishedGood();
             BigDecimal currentStock = finishedGood.getCurrentStock() == null ? BigDecimal.ZERO : finishedGood.getCurrentStock();
             finishedGood.setCurrentStock(currentStock.subtract(line.getQuantity()));
@@ -273,16 +274,32 @@ public class InventoryAdjustmentService {
             line.setAmount(consumedCost.totalCost());
             line.setUnitCost(consumedCost.unitCost());
 
-            InventoryMovement movement = new InventoryMovement();
-            movement.setFinishedGood(finishedGood);
-            movement.setReferenceType("ADJUSTMENT");
-            movement.setReferenceId(adjustment.getReferenceNumber());
-            movement.setMovementType("ADJUSTMENT_OUT");
-            movement.setQuantity(line.getQuantity());
-            movement.setUnitCost(consumedCost.unitCost());
-            movement.setJournalEntryId(journalEntryId);
-            return movement;
-        }).toList();
+            if (consumedCost.batchConsumptions().isEmpty()) {
+                InventoryMovement movement = new InventoryMovement();
+                movement.setFinishedGood(finishedGood);
+                movement.setReferenceType("ADJUSTMENT");
+                movement.setReferenceId(adjustment.getReferenceNumber());
+                movement.setMovementType("ADJUSTMENT_OUT");
+                movement.setQuantity(line.getQuantity());
+                movement.setUnitCost(consumedCost.unitCost());
+                movement.setJournalEntryId(journalEntryId);
+                movements.add(movement);
+                return;
+            }
+
+            for (BatchConsumption batchConsumption : consumedCost.batchConsumptions()) {
+                InventoryMovement movement = new InventoryMovement();
+                movement.setFinishedGood(finishedGood);
+                movement.setFinishedGoodBatch(batchConsumption.batch());
+                movement.setReferenceType("ADJUSTMENT");
+                movement.setReferenceId(adjustment.getReferenceNumber());
+                movement.setMovementType("ADJUSTMENT_OUT");
+                movement.setQuantity(batchConsumption.quantity());
+                movement.setUnitCost(batchConsumption.unitCost());
+                movement.setJournalEntryId(journalEntryId);
+                movements.add(movement);
+            }
+        });
         return movements;
     }
 
@@ -290,7 +307,7 @@ public class InventoryAdjustmentService {
                                                     BigDecimal quantity,
                                                     LocalDate adjustmentDate) {
         if (quantity == null || quantity.compareTo(BigDecimal.ZERO) <= 0) {
-            return new ConsumedBatchCost(BigDecimal.ZERO, BigDecimal.ZERO);
+            return new ConsumedBatchCost(BigDecimal.ZERO, BigDecimal.ZERO, List.of());
         }
 
         CostingMethodUtils.FinishedGoodBatchSelectionMethod selectionMethod = resolveSelectionMethod(
@@ -302,6 +319,7 @@ public class InventoryAdjustmentService {
 
         BigDecimal remaining = quantity;
         BigDecimal totalCost = BigDecimal.ZERO;
+        List<BatchConsumption> batchConsumptions = new java.util.ArrayList<>();
         for (FinishedGoodBatch batch : selectBatchesByCostingMethod(finishedGood, selectionMethod)) {
             if (remaining.compareTo(BigDecimal.ZERO) <= 0) {
                 break;
@@ -318,6 +336,7 @@ public class InventoryAdjustmentService {
                     ? safeQuantity(weightedAverageCost)
                     : safeQuantity(batch.getUnitCost());
             totalCost = totalCost.add(delta.multiply(costPerUnit));
+            batchConsumptions.add(new BatchConsumption(batch, delta, costPerUnit));
             remaining = remaining.subtract(delta);
         }
         if (remaining.compareTo(BigDecimal.ZERO) > 0) {
@@ -328,7 +347,7 @@ public class InventoryAdjustmentService {
         BigDecimal unitCost = quantity.compareTo(BigDecimal.ZERO) > 0
                 ? normalizedTotalCost.divide(quantity, 4, RoundingMode.HALF_UP)
                 : BigDecimal.ZERO;
-        return new ConsumedBatchCost(normalizedTotalCost, unitCost);
+        return new ConsumedBatchCost(normalizedTotalCost, unitCost, List.copyOf(batchConsumptions));
     }
 
     private CostingMethodUtils.FinishedGoodBatchSelectionMethod resolveSelectionMethod(FinishedGood finishedGood,
@@ -348,7 +367,13 @@ public class InventoryAdjustmentService {
         };
     }
 
-    private record ConsumedBatchCost(BigDecimal totalCost, BigDecimal unitCost) {}
+    private record ConsumedBatchCost(BigDecimal totalCost,
+                                     BigDecimal unitCost,
+                                     List<BatchConsumption> batchConsumptions) {}
+
+    private record BatchConsumption(FinishedGoodBatch batch,
+                                    BigDecimal quantity,
+                                    BigDecimal unitCost) {}
 
     private InventoryAdjustmentDto toDto(InventoryAdjustment adjustment) {
         List<InventoryAdjustmentLineDto> lines = adjustment.getLines().stream()

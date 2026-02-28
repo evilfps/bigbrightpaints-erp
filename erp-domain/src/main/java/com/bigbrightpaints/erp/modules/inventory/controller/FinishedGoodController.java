@@ -86,8 +86,25 @@ public class FinishedGoodController {
     @GetMapping("/low-stock")
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_FACTORY','ROLE_SALES')")
     public ResponseEntity<ApiResponse<List<FinishedGoodDto>>> getLowStockItems(
-            @RequestParam(defaultValue = "100") int threshold) {
+            @RequestParam(required = false) Integer threshold) {
         List<FinishedGoodDto> lowStock = finishedGoodsStockService.getLowStockItems(threshold);
         return ResponseEntity.ok(ApiResponse.success("Low stock items", lowStock));
+    }
+
+    @GetMapping("/{id}/low-stock-threshold")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_FACTORY','ROLE_SALES','ROLE_ACCOUNTING')")
+    public ResponseEntity<ApiResponse<FinishedGoodLowStockThresholdDto>> getLowStockThreshold(@PathVariable Long id) {
+        FinishedGoodLowStockThresholdDto threshold = finishedGoodsStockService.getLowStockThreshold(id);
+        return ResponseEntity.ok(ApiResponse.success("Finished good low stock threshold", threshold));
+    }
+
+    @PutMapping("/{id}/low-stock-threshold")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_FACTORY','ROLE_ACCOUNTING')")
+    public ResponseEntity<ApiResponse<FinishedGoodLowStockThresholdDto>> updateLowStockThreshold(
+            @PathVariable Long id,
+            @Valid @RequestBody FinishedGoodLowStockThresholdRequest request) {
+        FinishedGoodLowStockThresholdDto threshold =
+                finishedGoodsStockService.updateLowStockThreshold(id, request.threshold());
+        return ResponseEntity.ok(ApiResponse.success("Finished good low stock threshold updated", threshold));
     }
 }
