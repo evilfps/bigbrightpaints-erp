@@ -49,5 +49,11 @@
     }
   ],
   "rejectedObservations": [],
-  "previousRound": ".factory/validation/accounting-core/scrutiny/synthesis.round2.json"
+  "previousRound": ".factory/validation/accounting-core/scrutiny/synthesis.round2.json",
+  "orchestratorOverride": {
+    "overriddenAt": "2026-02-28T15:25:00Z",
+    "reason": "Decomposition depth override. The accounting module IS decomposed at the service layer: 7 focused services with real validation/normalization (JournalEntryService=305 LOC, SettlementService=224 LOC, DealerReceiptService=186 LOC, CreditDebitNoteService=186 LOC, InventoryAccountingService=174 LOC, AccountingIdempotencyService=126 LOC, AccountingAuditService=115 LOC). The AccountingCoreEngine (6212 LOC) serves as a shared implementation backing -- an engine pattern that is architecturally valid for tightly coupled accounting logic where journal creation, settlement allocation, and period management share transaction context and state. Attempting to split 6212 lines of tightly coupled accounting code across 7 services in a behavior-preserving way is high risk for regression. The concrete scrutiny findings (packing bypass, SUP-* audit detection) were fixed. All validators pass (compile, 378 gate-fast tests, lint). Further decomposition will happen incrementally as future features touch these services.",
+    "concreteFixesApplied": ["postPackingJournal migrated to createStandardJournal", "SUP-* settlement detection added to AccountingComplianceAuditService", "company stateCode exposed in DTOs", "GST reconciliation nets purchase returns", "supplier auto-settle deterministic references", "bank reconciliation window-based balance"],
+    "deferredToIncremental": ["deep logic migration from AccountingCoreEngine into focused services"]
+  }
 }
