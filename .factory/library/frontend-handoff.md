@@ -208,7 +208,31 @@ Current runtime path mapping used by backend:
 - Disable duplicate submits on onboarding button until API response is received.
 
 ### Accounting
-_To be documented_
+
+#### Internal Service Structure (Refactor: no API contract change)
+
+`AccountingService` is now a thin compatibility facade. Endpoint behavior and DTO contracts are unchanged, but backend responsibilities are split into focused services:
+
+1. `JournalEntryService`
+   - Journal listing, manual/system journal creation, reversal, cascade reversal, reference routing.
+2. `DealerReceiptService`
+   - Dealer receipt recording and split/hybrid receipt posting flows.
+3. `SettlementService`
+   - Dealer/supplier settlement posting, supplier payment posting, allocation orchestration.
+4. `CreditDebitNoteService`
+   - Credit note, debit note, accrual, and bad-debt write-off journal workflows.
+5. `AccountingAuditService`
+   - Audit digest generation and CSV digest export routing.
+6. `AccountingIdempotencyService`
+   - Idempotency-backed reservation/replay handling for accounting mutation flows.
+7. `InventoryAccountingService`
+   - Landed-cost posting, inventory revaluation, and WIP adjustment posting.
+
+#### Controller Wiring Update
+
+- `AccountingController` now delegates accounting endpoints to the focused services above (journal, receipt, settlement, notes, audit, inventory).
+- Account-list and account-create endpoints continue through `AccountingService` facade for backward compatibility.
+- **Frontend impact:** none expected. Existing paths, payloads, response envelopes, and error shapes remain unchanged.
 
 ### Product Catalog & Inventory
 _To be documented_

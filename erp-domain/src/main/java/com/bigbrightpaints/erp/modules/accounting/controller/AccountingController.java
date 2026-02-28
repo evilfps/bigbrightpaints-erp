@@ -6,6 +6,12 @@ import com.bigbrightpaints.erp.modules.accounting.dto.*;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingPeriodService;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingService;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
+import com.bigbrightpaints.erp.modules.accounting.service.JournalEntryService;
+import com.bigbrightpaints.erp.modules.accounting.service.DealerReceiptService;
+import com.bigbrightpaints.erp.modules.accounting.service.SettlementService;
+import com.bigbrightpaints.erp.modules.accounting.service.CreditDebitNoteService;
+import com.bigbrightpaints.erp.modules.accounting.service.AccountingAuditService;
+import com.bigbrightpaints.erp.modules.accounting.service.InventoryAccountingService;
 import com.bigbrightpaints.erp.modules.accounting.service.ReconciliationService;
 import com.bigbrightpaints.erp.modules.accounting.service.TaxService;
 import com.bigbrightpaints.erp.modules.accounting.service.StatementService;
@@ -54,6 +60,12 @@ import java.time.format.DateTimeParseException;
 public class AccountingController {
 
     private final AccountingService accountingService;
+    private final JournalEntryService journalEntryService;
+    private final DealerReceiptService dealerReceiptService;
+    private final SettlementService settlementService;
+    private final CreditDebitNoteService creditDebitNoteService;
+    private final AccountingAuditService accountingAuditService;
+    private final InventoryAccountingService inventoryAccountingService;
     private final AccountingFacade accountingFacade;
     private final SalesReturnService salesReturnService;
     private final AccountingPeriodService accountingPeriodService;
@@ -70,6 +82,12 @@ public class AccountingController {
     private final AuditService auditService;
 
     public AccountingController(AccountingService accountingService,
+                                JournalEntryService journalEntryService,
+                                DealerReceiptService dealerReceiptService,
+                                SettlementService settlementService,
+                                CreditDebitNoteService creditDebitNoteService,
+                                AccountingAuditService accountingAuditService,
+                                InventoryAccountingService inventoryAccountingService,
                                 AccountingFacade accountingFacade,
                                 SalesReturnService salesReturnService,
                                 AccountingPeriodService accountingPeriodService,
@@ -84,6 +102,12 @@ public class AccountingController {
                                 CompanyContextService companyContextService,
                                 CompanyClock companyClock) {
         this(accountingService,
+                journalEntryService,
+                dealerReceiptService,
+                settlementService,
+                creditDebitNoteService,
+                accountingAuditService,
+                inventoryAccountingService,
                 accountingFacade,
                 salesReturnService,
                 accountingPeriodService,
@@ -102,6 +126,12 @@ public class AccountingController {
 
     @Autowired
     public AccountingController(AccountingService accountingService,
+                                JournalEntryService journalEntryService,
+                                DealerReceiptService dealerReceiptService,
+                                SettlementService settlementService,
+                                CreditDebitNoteService creditDebitNoteService,
+                                AccountingAuditService accountingAuditService,
+                                InventoryAccountingService inventoryAccountingService,
                                 AccountingFacade accountingFacade,
                                 SalesReturnService salesReturnService,
                                 AccountingPeriodService accountingPeriodService,
@@ -117,6 +147,12 @@ public class AccountingController {
                                 CompanyClock companyClock,
                                 AuditService auditService) {
         this.accountingService = accountingService;
+        this.journalEntryService = journalEntryService;
+        this.dealerReceiptService = dealerReceiptService;
+        this.settlementService = settlementService;
+        this.creditDebitNoteService = creditDebitNoteService;
+        this.accountingAuditService = accountingAuditService;
+        this.inventoryAccountingService = inventoryAccountingService;
         this.accountingFacade = accountingFacade;
         this.salesReturnService = salesReturnService;
         this.accountingPeriodService = accountingPeriodService;
@@ -131,6 +167,207 @@ public class AccountingController {
         this.companyContextService = companyContextService;
         this.companyClock = companyClock;
         this.auditService = auditService;
+    }
+
+    public AccountingController(AccountingService accountingService,
+                                AccountingFacade accountingFacade,
+                                SalesReturnService salesReturnService,
+                                AccountingPeriodService accountingPeriodService,
+                                ReconciliationService reconciliationService,
+                                StatementService statementService,
+                                TaxService taxService,
+                                TemporalBalanceService temporalBalanceService,
+                                AccountHierarchyService accountHierarchyService,
+                                AgingReportService agingReportService,
+                                CompanyDefaultAccountsService companyDefaultAccountsService,
+                                AccountingAuditTrailService accountingAuditTrailService,
+                                CompanyContextService companyContextService,
+                                CompanyClock companyClock) {
+        this(accountingService,
+                bridgeJournalEntryService(accountingService),
+                bridgeDealerReceiptService(accountingService),
+                bridgeSettlementService(accountingService),
+                bridgeCreditDebitNoteService(accountingService),
+                bridgeAccountingAuditService(accountingService),
+                bridgeInventoryAccountingService(accountingService),
+                accountingFacade,
+                salesReturnService,
+                accountingPeriodService,
+                reconciliationService,
+                statementService,
+                taxService,
+                temporalBalanceService,
+                accountHierarchyService,
+                agingReportService,
+                companyDefaultAccountsService,
+                accountingAuditTrailService,
+                companyContextService,
+                companyClock,
+                null);
+    }
+
+    public AccountingController(AccountingService accountingService,
+                                AccountingFacade accountingFacade,
+                                SalesReturnService salesReturnService,
+                                AccountingPeriodService accountingPeriodService,
+                                ReconciliationService reconciliationService,
+                                StatementService statementService,
+                                TaxService taxService,
+                                TemporalBalanceService temporalBalanceService,
+                                AccountHierarchyService accountHierarchyService,
+                                AgingReportService agingReportService,
+                                CompanyDefaultAccountsService companyDefaultAccountsService,
+                                AccountingAuditTrailService accountingAuditTrailService,
+                                CompanyContextService companyContextService,
+                                CompanyClock companyClock,
+                                AuditService auditService) {
+        this(accountingService,
+                bridgeJournalEntryService(accountingService),
+                bridgeDealerReceiptService(accountingService),
+                bridgeSettlementService(accountingService),
+                bridgeCreditDebitNoteService(accountingService),
+                bridgeAccountingAuditService(accountingService),
+                bridgeInventoryAccountingService(accountingService),
+                accountingFacade,
+                salesReturnService,
+                accountingPeriodService,
+                reconciliationService,
+                statementService,
+                taxService,
+                temporalBalanceService,
+                accountHierarchyService,
+                agingReportService,
+                companyDefaultAccountsService,
+                accountingAuditTrailService,
+                companyContextService,
+                companyClock,
+                auditService);
+    }
+
+    private static AccountingService requireAccountingService(AccountingService accountingService) {
+        if (accountingService == null) {
+            throw new IllegalStateException("AccountingService is required for compatibility constructor bridge");
+        }
+        return accountingService;
+    }
+
+    private static JournalEntryService bridgeJournalEntryService(AccountingService accountingService) {
+        return new JournalEntryService(null, null) {
+            @Override
+            public List<JournalEntryDto> listJournalEntries(Long dealerId, Long supplierId, int page, int size) {
+                return requireAccountingService(accountingService).listJournalEntries(dealerId, supplierId, page, size);
+            }
+
+            @Override
+            public JournalEntryDto createManualJournalEntry(JournalEntryRequest request, String idempotencyKey) {
+                return requireAccountingService(accountingService).createManualJournalEntry(request, idempotencyKey);
+            }
+
+            @Override
+            public JournalEntryDto reverseJournalEntry(Long entryId, JournalEntryReversalRequest request) {
+                return requireAccountingService(accountingService).reverseJournalEntry(entryId, request);
+            }
+
+            @Override
+            public List<JournalEntryDto> cascadeReverseRelatedEntries(Long primaryEntryId, JournalEntryReversalRequest request) {
+                return requireAccountingService(accountingService).cascadeReverseRelatedEntries(primaryEntryId, request);
+            }
+
+            @Override
+            public List<JournalEntryDto> listJournalEntriesByReferencePrefix(String prefix) {
+                return requireAccountingService(accountingService).listJournalEntriesByReferencePrefix(prefix);
+            }
+        };
+    }
+
+    private static DealerReceiptService bridgeDealerReceiptService(AccountingService accountingService) {
+        return new DealerReceiptService(null) {
+            @Override
+            public JournalEntryDto recordDealerReceipt(DealerReceiptRequest request) {
+                return requireAccountingService(accountingService).recordDealerReceipt(request);
+            }
+
+            @Override
+            public JournalEntryDto recordDealerReceiptSplit(DealerReceiptSplitRequest request) {
+                return requireAccountingService(accountingService).recordDealerReceiptSplit(request);
+            }
+        };
+    }
+
+    private static SettlementService bridgeSettlementService(AccountingService accountingService) {
+        return new SettlementService(null) {
+            @Override
+            public JournalEntryDto recordSupplierPayment(SupplierPaymentRequest request) {
+                return requireAccountingService(accountingService).recordSupplierPayment(request);
+            }
+
+            @Override
+            public PartnerSettlementResponse settleDealerInvoices(DealerSettlementRequest request) {
+                return requireAccountingService(accountingService).settleDealerInvoices(request);
+            }
+
+            @Override
+            public PartnerSettlementResponse settleSupplierInvoices(SupplierSettlementRequest request) {
+                return requireAccountingService(accountingService).settleSupplierInvoices(request);
+            }
+        };
+    }
+
+    private static CreditDebitNoteService bridgeCreditDebitNoteService(AccountingService accountingService) {
+        return new CreditDebitNoteService(null) {
+            @Override
+            public JournalEntryDto postCreditNote(CreditNoteRequest request) {
+                return requireAccountingService(accountingService).postCreditNote(request);
+            }
+
+            @Override
+            public JournalEntryDto postDebitNote(DebitNoteRequest request) {
+                return requireAccountingService(accountingService).postDebitNote(request);
+            }
+
+            @Override
+            public JournalEntryDto postAccrual(AccrualRequest request) {
+                return requireAccountingService(accountingService).postAccrual(request);
+            }
+
+            @Override
+            public JournalEntryDto writeOffBadDebt(BadDebtWriteOffRequest request) {
+                return requireAccountingService(accountingService).writeOffBadDebt(request);
+            }
+        };
+    }
+
+    private static AccountingAuditService bridgeAccountingAuditService(AccountingService accountingService) {
+        return new AccountingAuditService(null) {
+            @Override
+            public AuditDigestResponse auditDigest(LocalDate from, LocalDate to) {
+                return requireAccountingService(accountingService).auditDigest(from, to);
+            }
+
+            @Override
+            public String auditDigestCsv(LocalDate from, LocalDate to) {
+                return requireAccountingService(accountingService).auditDigestCsv(from, to);
+            }
+        };
+    }
+
+    private static InventoryAccountingService bridgeInventoryAccountingService(AccountingService accountingService) {
+        return new InventoryAccountingService(null) {
+            @Override
+            public JournalEntryDto recordLandedCost(LandedCostRequest request) {
+                return requireAccountingService(accountingService).recordLandedCost(request);
+            }
+
+            @Override
+            public JournalEntryDto revalueInventory(InventoryRevaluationRequest request) {
+                return requireAccountingService(accountingService).revalueInventory(request);
+            }
+
+            @Override
+            public JournalEntryDto adjustWip(WipAdjustmentRequest request) {
+                return requireAccountingService(accountingService).adjustWip(request);
+            }
+        };
     }
 
     /**
@@ -210,7 +447,7 @@ public class AccountingController {
                                                                              @RequestParam(required = false) Long supplierId,
                                                                              @RequestParam(defaultValue = "0") int page,
                                                                              @RequestParam(defaultValue = "100") int size) {
-        return ResponseEntity.ok(ApiResponse.success(accountingService.listJournalEntries(dealerId, supplierId, page, size)));
+        return ResponseEntity.ok(ApiResponse.success(journalEntryService.listJournalEntries(dealerId, supplierId, page, size)));
     }
 
     @PostMapping("/journal-entries")
@@ -234,14 +471,14 @@ public class AccountingController {
                 request.fxRate()
         );
         return ResponseEntity.ok(ApiResponse.success("Journal entry posted",
-                accountingService.createManualJournalEntry(sanitized, idempotencyKey)));
+                journalEntryService.createManualJournalEntry(sanitized, idempotencyKey)));
     }
 
     @PostMapping("/journal-entries/{entryId}/reverse")
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
     public ResponseEntity<ApiResponse<JournalEntryDto>> reverseJournalEntry(@PathVariable Long entryId,
                                                                             @RequestBody(required = false) JournalEntryReversalRequest request) {
-        return ResponseEntity.ok(ApiResponse.success("Journal entry corrected", accountingService.reverseJournalEntry(entryId, request)));
+        return ResponseEntity.ok(ApiResponse.success("Journal entry corrected", journalEntryService.reverseJournalEntry(entryId, request)));
     }
     
     @PostMapping("/journal-entries/{entryId}/cascade-reverse")
@@ -251,7 +488,7 @@ public class AccountingController {
             @RequestBody JournalEntryReversalRequest request) {
         return ResponseEntity.ok(ApiResponse.success(
                 "Journal entries reversed with related entries", 
-                accountingService.cascadeReverseRelatedEntries(entryId, request)));
+                journalEntryService.cascadeReverseRelatedEntries(entryId, request)));
     }
 
     @PostMapping("/receipts/dealer")
@@ -261,7 +498,7 @@ public class AccountingController {
             @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
             @RequestHeader(value = "X-Idempotency-Key", required = false) String legacyIdempotencyKey) {
         DealerReceiptRequest resolved = applyIdempotencyKey(request, idempotencyKey, legacyIdempotencyKey);
-        return ResponseEntity.ok(ApiResponse.success("Receipt recorded", accountingService.recordDealerReceipt(resolved)));
+        return ResponseEntity.ok(ApiResponse.success("Receipt recorded", dealerReceiptService.recordDealerReceipt(resolved)));
     }
 
     @PostMapping("/receipts/dealer/hybrid")
@@ -271,7 +508,7 @@ public class AccountingController {
             @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
             @RequestHeader(value = "X-Idempotency-Key", required = false) String legacyIdempotencyKey) {
         DealerReceiptSplitRequest resolved = applyIdempotencyKey(request, idempotencyKey, legacyIdempotencyKey);
-        return ResponseEntity.ok(ApiResponse.success("Receipt recorded", accountingService.recordDealerReceiptSplit(resolved)));
+        return ResponseEntity.ok(ApiResponse.success("Receipt recorded", dealerReceiptService.recordDealerReceiptSplit(resolved)));
     }
 
     @PostMapping("/settlements/dealers")
@@ -281,7 +518,7 @@ public class AccountingController {
             @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
             @RequestHeader(value = "X-Idempotency-Key", required = false) String legacyIdempotencyKey) {
         DealerSettlementRequest resolved = applyIdempotencyKey(request, idempotencyKey, legacyIdempotencyKey);
-        return ResponseEntity.ok(ApiResponse.success("Settlement recorded", accountingService.settleDealerInvoices(resolved)));
+        return ResponseEntity.ok(ApiResponse.success("Settlement recorded", settlementService.settleDealerInvoices(resolved)));
     }
 
     @PostMapping("/payroll/payments")
@@ -297,7 +534,7 @@ public class AccountingController {
             @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
             @RequestHeader(value = "X-Idempotency-Key", required = false) String legacyIdempotencyKey) {
         SupplierPaymentRequest resolved = applyIdempotencyKey(request, idempotencyKey, legacyIdempotencyKey);
-        return ResponseEntity.ok(ApiResponse.success("Supplier payment recorded", accountingService.recordSupplierPayment(resolved)));
+        return ResponseEntity.ok(ApiResponse.success("Supplier payment recorded", settlementService.recordSupplierPayment(resolved)));
     }
 
     @PostMapping("/settlements/suppliers")
@@ -307,25 +544,25 @@ public class AccountingController {
             @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
             @RequestHeader(value = "X-Idempotency-Key", required = false) String legacyIdempotencyKey) {
         SupplierSettlementRequest resolved = applyIdempotencyKey(request, idempotencyKey, legacyIdempotencyKey);
-        return ResponseEntity.ok(ApiResponse.success("Settlement recorded", accountingService.settleSupplierInvoices(resolved)));
+        return ResponseEntity.ok(ApiResponse.success("Settlement recorded", settlementService.settleSupplierInvoices(resolved)));
     }
 
     @PostMapping("/credit-notes")
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
     public ResponseEntity<ApiResponse<JournalEntryDto>> postCreditNote(@Valid @RequestBody CreditNoteRequest request) {
-        return ResponseEntity.ok(ApiResponse.success("Credit note posted", accountingService.postCreditNote(request)));
+        return ResponseEntity.ok(ApiResponse.success("Credit note posted", creditDebitNoteService.postCreditNote(request)));
     }
 
     @PostMapping("/debit-notes")
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
     public ResponseEntity<ApiResponse<JournalEntryDto>> postDebitNote(@Valid @RequestBody DebitNoteRequest request) {
-        return ResponseEntity.ok(ApiResponse.success("Debit note posted", accountingService.postDebitNote(request)));
+        return ResponseEntity.ok(ApiResponse.success("Debit note posted", creditDebitNoteService.postDebitNote(request)));
     }
 
     @PostMapping("/accruals")
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
     public ResponseEntity<ApiResponse<JournalEntryDto>> postAccrual(@Valid @RequestBody AccrualRequest request) {
-        return ResponseEntity.ok(ApiResponse.success("Accrual posted", accountingService.postAccrual(request)));
+        return ResponseEntity.ok(ApiResponse.success("Accrual posted", creditDebitNoteService.postAccrual(request)));
     }
 
     private DealerReceiptRequest applyIdempotencyKey(DealerReceiptRequest request,
@@ -491,7 +728,7 @@ public class AccountingController {
     @PostMapping("/bad-debts/write-off")
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
     public ResponseEntity<ApiResponse<JournalEntryDto>> writeOffBadDebt(@Valid @RequestBody BadDebtWriteOffRequest request) {
-        return ResponseEntity.ok(ApiResponse.success("Bad debt written off", accountingService.writeOffBadDebt(request)));
+        return ResponseEntity.ok(ApiResponse.success("Bad debt written off", creditDebitNoteService.writeOffBadDebt(request)));
     }
 
     @GetMapping("/sales/returns")
@@ -499,7 +736,7 @@ public class AccountingController {
     public ResponseEntity<ApiResponse<List<JournalEntryDto>>> listSalesReturns() {
         // Returns are stored as credit note journal entries - filter by reference prefix
         return ResponseEntity.ok(ApiResponse.success("Sales returns", 
-            accountingService.listJournalEntriesByReferencePrefix("CN-")));
+            journalEntryService.listJournalEntriesByReferencePrefix("CN-")));
     }
 
     @PostMapping("/sales/returns")
@@ -689,19 +926,19 @@ public class AccountingController {
     @PostMapping("/inventory/landed-cost")
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
     public ResponseEntity<ApiResponse<JournalEntryDto>> recordLandedCost(@Valid @RequestBody LandedCostRequest request) {
-        return ResponseEntity.ok(ApiResponse.success("Landed cost posted", accountingService.recordLandedCost(request)));
+        return ResponseEntity.ok(ApiResponse.success("Landed cost posted", inventoryAccountingService.recordLandedCost(request)));
     }
 
     @PostMapping("/inventory/revaluation")
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
     public ResponseEntity<ApiResponse<JournalEntryDto>> revalueInventory(@Valid @RequestBody InventoryRevaluationRequest request) {
-        return ResponseEntity.ok(ApiResponse.success("Inventory revaluation posted", accountingService.revalueInventory(request)));
+        return ResponseEntity.ok(ApiResponse.success("Inventory revaluation posted", inventoryAccountingService.revalueInventory(request)));
     }
 
     @PostMapping("/inventory/wip-adjustment")
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
     public ResponseEntity<ApiResponse<JournalEntryDto>> adjustWip(@Valid @RequestBody WipAdjustmentRequest request) {
-        return ResponseEntity.ok(ApiResponse.success("WIP adjustment posted", accountingService.adjustWip(request)));
+        return ResponseEntity.ok(ApiResponse.success("WIP adjustment posted", inventoryAccountingService.adjustWip(request)));
     }
 
     /* Audit digest */
@@ -711,7 +948,7 @@ public class AccountingController {
     public ResponseEntity<ApiResponse<AuditDigestResponse>> auditDigest(@RequestParam(required = false) String from,
                                                                         @RequestParam(required = false) String to) {
         return ResponseEntity.ok(ApiResponse.success(
-                accountingService.auditDigest(
+                accountingAuditService.auditDigest(
                         from != null ? java.time.LocalDate.parse(from) : null,
                         to != null ? java.time.LocalDate.parse(to) : null)));
     }
@@ -721,7 +958,7 @@ public class AccountingController {
     @PreAuthorize("hasAuthority('ROLE_ADMIN')")
     public ResponseEntity<String> auditDigestCsv(@RequestParam(required = false) String from,
                                                  @RequestParam(required = false) String to) {
-        String csv = accountingService.auditDigestCsv(
+        String csv = accountingAuditService.auditDigestCsv(
                 from != null ? java.time.LocalDate.parse(from) : null,
                 to != null ? java.time.LocalDate.parse(to) : null);
         logAccountingExport("ACCOUNTING_AUDIT_DIGEST", null, "csv");
