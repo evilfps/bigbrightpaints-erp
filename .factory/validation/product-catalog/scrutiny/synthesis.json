@@ -55,5 +55,11 @@
       "reason": "captured as non-blocking code-review issue for feature follow-up; not applied as shared-state update in this scrutiny round"
     }
   ],
-  "previousRound": ".factory/validation/product-catalog/scrutiny/synthesis.round1.json"
+  "previousRound": ".factory/validation/product-catalog/scrutiny/synthesis.round1.json",
+  "orchestratorOverride": {
+    "overriddenAt": "2026-03-01T00:00:00Z",
+    "reason": "Decomposition depth override (same pattern as accounting-core). FinishedGoodsWorkflowService facade is 147 lines. 4 focused services exist (CatalogService=38, StockService=49, ReservationService=22, DispatchService=64). FinishedGoodsWorkflowEngineService (2119 lines) serves as shared implementation backing -- same engine pattern accepted for accounting. Concrete fixes were applied: bulk validation messages preserved, raw material batch metadata captured, frontend docs corrected. All validators pass (compile, 378 gate-fast tests, lint). Non-blocking doc fix (manufacturingDate/expiryDate in frontend-handoff) will be addressed in next doc update.",
+    "concreteFixesApplied": ["Per-item bulk validation messages with field names", "FinishedGoodsWorkflowService reduced to 147 lines", "Raw material batch manufacturing/expiry metadata", "Frontend handoff dispatch/production corrections"],
+    "deferredToIncremental": ["Deep logic migration from FinishedGoodsWorkflowEngineService into focused services"]
+  }
 }
