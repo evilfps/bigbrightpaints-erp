@@ -1,7 +1,7 @@
 {
   "milestone": "purchasing-and-suppliers",
-  "round": 1,
-  "status": "fail",
+  "round": 2,
+  "status": "pass",
   "validatorsRun": {
     "test": {
       "passed": true,
@@ -20,45 +20,26 @@
     }
   },
   "reviewsSummary": {
-    "total": 3,
-    "passed": 2,
-    "failed": 1,
-    "failedFeatures": [
-      "supplier-management-improvements"
-    ]
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "failedFeatures": []
   },
-  "blockingIssues": [
-    {
-      "featureId": "supplier-management-improvements",
-      "severity": "blocking",
-      "description": "PO lifecycle implementation does not satisfy declared full lifecycle contract: create flow writes APPROVED directly and there are no API/service transitions to realize DRAFT or VOID runtime states."
-    },
-    {
-      "featureId": "supplier-management-improvements",
-      "severity": "blocking",
-      "description": "Purchasing workflow controller exposes only PO create/list/get endpoints, so required explicit lifecycle transition operations are missing for full contract coverage."
-    }
-  ],
+  "blockingIssues": [],
   "appliedUpdates": [],
   "suggestedGuidanceUpdates": [
     {
       "target": "scrutiny-validator skill",
       "suggestion": "Add a documented fallback review path when Task subagent spawning fails (for example due to invalid/obsolete mission worker model configuration), so scrutiny runs can still complete deterministically.",
-      "evidence": "All Task launches for this milestone failed with 'Invalid model: custom:CLIProxyAPI-5.3-codex-xhigh-pro', requiring manual in-session review artifact creation.",
-      "isSystemic": true
-    },
-    {
-      "target": "AGENTS.md",
-      "suggestion": "Refresh baseline gate-fast test count guidance to match current suite totals and avoid stale expected-count references in handoffs.",
-      "evidence": "Mission AGENTS baseline section references 369 tests while current gate-fast run in this scrutiny session reported 378 passing tests.",
+      "evidence": "Task launch for fix-purchasing-po-lifecycle review in this rerun failed with 'Invalid model: custom:CLIProxyAPI-5.3-codex-xhigh-pro', so review execution had to fall back to manual in-session synthesis.",
       "isSystemic": true
     }
   ],
   "rejectedObservations": [
     {
-      "observation": "Task-subagent spawning failed because of invalid mission model alias (duplicate report)",
+      "observation": "Task-subagent spawning failed because of invalid mission model alias (duplicate across reviewer reports)",
       "reason": "duplicate"
     }
   ],
-  "previousRound": null
+  "previousRound": ".factory/validation/purchasing-and-suppliers/scrutiny/synthesis.round1.json"
 }

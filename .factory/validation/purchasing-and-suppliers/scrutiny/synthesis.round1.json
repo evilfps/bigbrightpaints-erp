@@ -1,0 +1,64 @@
+{
+  "milestone": "purchasing-and-suppliers",
+  "round": 1,
+  "status": "fail",
+  "validatorsRun": {
+    "test": {
+      "passed": true,
+      "command": "cd /home/realnigga/Desktop/Mission-control/erp-domain && mvn test -Pgate-fast -Djacoco.skip=true",
+      "exitCode": 0
+    },
+    "typecheck": {
+      "passed": true,
+      "command": "cd /home/realnigga/Desktop/Mission-control/erp-domain && mvn compile -q",
+      "exitCode": 0
+    },
+    "lint": {
+      "passed": true,
+      "command": "cd /home/realnigga/Desktop/Mission-control && echo \"Checkstyle in advisory mode (49962 pre-existing violations). Skipped as hard gate.\"",
+      "exitCode": 0
+    }
+  },
+  "reviewsSummary": {
+    "total": 3,
+    "passed": 2,
+    "failed": 1,
+    "failedFeatures": [
+      "supplier-management-improvements"
+    ]
+  },
+  "blockingIssues": [
+    {
+      "featureId": "supplier-management-improvements",
+      "severity": "blocking",
+      "description": "PO lifecycle implementation does not satisfy declared full lifecycle contract: create flow writes APPROVED directly and there are no API/service transitions to realize DRAFT or VOID runtime states."
+    },
+    {
+      "featureId": "supplier-management-improvements",
+      "severity": "blocking",
+      "description": "Purchasing workflow controller exposes only PO create/list/get endpoints, so required explicit lifecycle transition operations are missing for full contract coverage."
+    }
+  ],
+  "appliedUpdates": [],
+  "suggestedGuidanceUpdates": [
+    {
+      "target": "scrutiny-validator skill",
+      "suggestion": "Add a documented fallback review path when Task subagent spawning fails (for example due to invalid/obsolete mission worker model configuration), so scrutiny runs can still complete deterministically.",
+      "evidence": "All Task launches for this milestone failed with 'Invalid model: custom:CLIProxyAPI-5.3-codex-xhigh-pro', requiring manual in-session review artifact creation.",
+      "isSystemic": true
+    },
+    {
+      "target": "AGENTS.md",
+      "suggestion": "Refresh baseline gate-fast test count guidance to match current suite totals and avoid stale expected-count references in handoffs.",
+      "evidence": "Mission AGENTS baseline section references 369 tests while current gate-fast run in this scrutiny session reported 378 passing tests.",
+      "isSystemic": true
+    }
+  ],
+  "rejectedObservations": [
+    {
+      "observation": "Task-subagent spawning failed because of invalid mission model alias (duplicate report)",
+      "reason": "duplicate"
+    }
+  ],
+  "previousRound": null
+}
