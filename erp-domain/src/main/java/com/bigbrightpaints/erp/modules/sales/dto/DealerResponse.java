@@ -1,6 +1,7 @@
 package com.bigbrightpaints.erp.modules.sales.dto;
 
 import com.bigbrightpaints.erp.modules.accounting.domain.GstRegistrationType;
+import com.bigbrightpaints.erp.modules.sales.domain.DealerPaymentTerms;
 import java.math.BigDecimal;
 import java.util.UUID;
 
@@ -20,7 +21,9 @@ public record DealerResponse(
         String portalEmail,
         String gstNumber,
         String stateCode,
-        GstRegistrationType gstRegistrationType
+        GstRegistrationType gstRegistrationType,
+        DealerPaymentTerms paymentTerms,
+        String region
 ) {
 
     public DealerResponse(Long id,
@@ -37,6 +40,7 @@ public record DealerResponse(
                           String receivableAccountCode,
                           String portalEmail) {
         this(id, publicId, code, name, companyName, email, phone, address, creditLimit, outstandingBalance,
-                receivableAccountId, receivableAccountCode, portalEmail, null, null, GstRegistrationType.UNREGISTERED);
+                receivableAccountId, receivableAccountCode, portalEmail, null, null, GstRegistrationType.UNREGISTERED,
+                DealerPaymentTerms.NET_30, null);
     }
 }

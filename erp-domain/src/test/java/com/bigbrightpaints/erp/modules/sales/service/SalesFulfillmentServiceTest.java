@@ -80,7 +80,7 @@ class SalesFulfillmentServiceTest {
                 "INR", LocalDate.now(), LocalDate.now().plusDays(15),
                 null, null, order.getId(), null, null, List.of());
         when(salesService.confirmDispatch(any())).thenReturn(
-                new DispatchConfirmResponse(20L, order.getId(), invoice.id(), 555L, List.of(), true, List.of()));
+                new DispatchConfirmResponse(20L, order.getId(), invoice.id(), 555L, List.of(), true, List.of(), null));
         when(invoiceService.getInvoice(invoice.id())).thenReturn(invoice);
 
         var options = SalesFulfillmentService.FulfillmentOptions.builder()
@@ -114,7 +114,7 @@ class SalesFulfillmentServiceTest {
                 "INR", LocalDate.now(), LocalDate.now().plusDays(15),
                 null, null, order.getId(), null, null, List.of());
         when(salesService.confirmDispatch(any())).thenReturn(
-                new DispatchConfirmResponse(21L, order.getId(), invoice.id(), 999L, List.of(), true, List.of()));
+                new DispatchConfirmResponse(21L, order.getId(), invoice.id(), 999L, List.of(), true, List.of(), null));
         when(invoiceService.getInvoice(invoice.id())).thenReturn(invoice);
 
         var options = SalesFulfillmentService.FulfillmentOptions.builder()
@@ -146,7 +146,7 @@ class SalesFulfillmentServiceTest {
                 "INR", LocalDate.now(), LocalDate.now().plusDays(15),
                 null, null, order.getId(), null, null, List.of());
         when(salesService.confirmDispatch(any())).thenReturn(
-                new DispatchConfirmResponse(22L, order.getId(), invoice.id(), 123L, List.of(), true, List.of()));
+                new DispatchConfirmResponse(22L, order.getId(), invoice.id(), 123L, List.of(), true, List.of(), null));
         when(invoiceService.getInvoice(invoice.id())).thenReturn(invoice);
 
         var options = SalesFulfillmentService.FulfillmentOptions.builder()

@@ -10,8 +10,10 @@ public record DispatchConfirmResponse(
         Long arJournalEntryId,
         List<CogsPostingDto> cogsPostings,
         boolean dispatched,
-        List<AccountPostingDto> arPostings
+        List<AccountPostingDto> arPostings,
+        GstBreakdownDto gstBreakdown
 ) {
     public record CogsPostingDto(Long inventoryAccountId, Long cogsAccountId, BigDecimal cost) {}
     public record AccountPostingDto(Long accountId, String accountName, BigDecimal debit, BigDecimal credit) {}
+    public record GstBreakdownDto(BigDecimal taxableAmount, BigDecimal cgst, BigDecimal sgst, BigDecimal igst, BigDecimal totalTax) {}
 }

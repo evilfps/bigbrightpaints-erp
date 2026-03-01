@@ -1,17 +1,24 @@
 package com.bigbrightpaints.erp.modules.sales.service;
 
+import com.bigbrightpaints.erp.core.exception.ApplicationException;
+import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.notification.EmailService;
+import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
-import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
+import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
+import com.bigbrightpaints.erp.modules.accounting.domain.GstRegistrationType;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccount;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
+import com.bigbrightpaints.erp.modules.invoice.domain.InvoiceRepository;
 import com.bigbrightpaints.erp.modules.rbac.domain.Role;
 import com.bigbrightpaints.erp.modules.rbac.service.RoleService;
 import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
+import com.bigbrightpaints.erp.modules.sales.domain.DealerPaymentTerms;
 import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
+import com.bigbrightpaints.erp.modules.sales.domain.SalesOrderRepository;
 import com.bigbrightpaints.erp.modules.sales.dto.CreateDealerRequest;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -26,6 +33,7 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -60,6 +68,12 @@ class DealerServiceTest {
     private AccountRepository accountRepository;
     @Mock
     private com.bigbrightpaints.erp.modules.accounting.service.DealerLedgerService dealerLedgerService;
+    @Mock
+    private InvoiceRepository invoiceRepository;
+    @Mock
+    private SalesOrderRepository salesOrderRepository;
+    @Mock
+    private CompanyClock companyClock;
 
     private DealerService dealerService;
     private Company company;
@@ -74,7 +88,10 @@ class DealerServiceTest {
                 passwordEncoder,
                 emailService,
                 accountRepository,
-                dealerLedgerService
+                dealerLedgerService,
+                invoiceRepository,
+                salesOrderRepository,
+                companyClock
         );
 
         company = new Company();
@@ -109,6 +126,12 @@ class DealerServiceTest {
             }
             return account;
         });
+        lenient().when(invoiceRepository.findByCompanyAndDealerOrderByIssueDateDesc(eq(company), any(Dealer.class)))
+                .thenReturn(List.of());
+        lenient().when(salesOrderRepository.sumPendingCreditExposureByCompanyAndDealer(
+                        eq(company), any(Dealer.class), any(), eq(null)))
+                .thenReturn(BigDecimal.ZERO);
+        lenient().when(companyClock.now(company)).thenReturn(Instant.parse("2026-02-23T10:00:00Z"));
     }
 
     @AfterEach
@@ -165,8 +188,73 @@ class DealerServiceTest {
                 .thenReturn(List.of(new Dealer()));
 
         assertThatThrownBy(() -> dealerService.createDealer(request()))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("Dealer already exists for this portal user");
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Dealer already exists for this portal user")
+                .extracting(ex -> ((ApplicationException) ex).getErrorCode())
+                .isEqualTo(ErrorCode.VALIDATION_INVALID_INPUT);
+    }
+
+    @Test
+    void createDealer_mapsGstStateTermsAndRegion() {
+        dealerService.createDealer(new CreateDealerRequest(
+                "Test Dealer",
+                "Test Dealer Co",
+                "dealer@example.com",
+                "9999999999",
+                "Address",
+                new BigDecimal("1000.00"),
+                "29ABCDE1234F1Z5",
+                "ka",
+                GstRegistrationType.REGULAR,
+                DealerPaymentTerms.NET_60,
+                "south"
+        ));
+
+        ArgumentCaptor<Dealer> dealerCaptor = ArgumentCaptor.forClass(Dealer.class);
+        verify(dealerRepository, atLeastOnce()).save(dealerCaptor.capture());
+        Dealer saved = dealerCaptor.getAllValues().get(dealerCaptor.getAllValues().size() - 1);
+        assertThat(saved.getGstNumber()).isEqualTo("29ABCDE1234F1Z5");
+        assertThat(saved.getStateCode()).isEqualTo("KA");
+        assertThat(saved.getGstRegistrationType()).isEqualTo(GstRegistrationType.REGULAR);
+        assertThat(saved.getPaymentTerms()).isEqualTo(DealerPaymentTerms.NET_60);
+        assertThat(saved.getRegion()).isEqualTo("SOUTH");
+    }
+
+    @Test
+    void search_filtersByComputedCreditStatus() {
+        Dealer within = dealer("D-WITHIN", new BigDecimal("1000"), "NORTH");
+        Dealer near = dealer("D-NEAR", new BigDecimal("1000"), "NORTH");
+        when(dealerRepository.searchFiltered(eq(company), eq(""), eq(null), eq("NORTH"), any()))
+                .thenReturn(List.of(within, near));
+        when(dealerLedgerService.currentBalances(List.of(1L, 2L))).thenReturn(java.util.Map.of(
+                1L, new BigDecimal("200"),
+                2L, new BigDecimal("850")
+        ));
+        when(salesOrderRepository.sumPendingCreditExposureByCompanyAndDealer(eq(company), eq(within), any(), eq(null)))
+                .thenReturn(new BigDecimal("100"));
+        when(salesOrderRepository.sumPendingCreditExposureByCompanyAndDealer(eq(company), eq(near), any(), eq(null)))
+                .thenReturn(new BigDecimal("0"));
+
+        var results = dealerService.search("", null, "north", "NEAR_LIMIT");
+
+        assertThat(results).hasSize(1);
+        assertThat(results.getFirst().code()).isEqualTo("D-NEAR");
+        assertThat(results.getFirst().creditStatus()).isEqualTo("NEAR_LIMIT");
+    }
+
+    @Test
+    void creditUtilization_includesPendingExposureAndCreditStatus() {
+        Dealer dealer = dealer("D-CREDIT", new BigDecimal("1000"), "WEST");
+        when(dealerRepository.findByCompanyAndId(company, 1L)).thenReturn(Optional.of(dealer));
+        when(dealerLedgerService.currentBalance(1L)).thenReturn(new BigDecimal("650"));
+        when(salesOrderRepository.sumPendingCreditExposureByCompanyAndDealer(eq(company), eq(dealer), any(), eq(null)))
+                .thenReturn(new BigDecimal("250"));
+
+        var payload = dealerService.creditUtilization(1L);
+
+        assertThat(payload.get("creditUsed")).isEqualTo(new BigDecimal("900"));
+        assertThat(payload.get("availableCredit")).isEqualTo(new BigDecimal("100"));
+        assertThat(payload.get("creditStatus")).isEqualTo("NEAR_LIMIT");
     }
 
     @Test
@@ -200,5 +288,22 @@ class DealerServiceTest {
                 "Address",
                 new BigDecimal("1000.00")
         );
+    }
+
+    private Dealer dealer(String code, BigDecimal creditLimit, String region) {
+        Dealer dealer = new Dealer();
+        Long id = switch (code) {
+            case "D-WITHIN", "D-CREDIT" -> 1L;
+            case "D-NEAR" -> 2L;
+            default -> 99L;
+        };
+        ReflectionTestUtils.setField(dealer, "id", id);
+        dealer.setCompany(company);
+        dealer.setCode(code);
+        dealer.setName(code + " Name");
+        dealer.setCreditLimit(creditLimit);
+        dealer.setRegion(region);
+        dealer.setStateCode("KA");
+        return dealer;
     }
 }

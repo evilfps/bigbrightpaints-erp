@@ -12,6 +12,7 @@ import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.modules.accounting.domain.CostingMethod;
 import com.bigbrightpaints.erp.modules.accounting.service.CompanyDefaultAccountsService;
 import com.bigbrightpaints.erp.modules.accounting.service.CostingMethodService;
+import com.bigbrightpaints.erp.modules.accounting.service.GstService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGood;
@@ -73,6 +74,8 @@ class TS_InventoryDispatchStateRuntimeCoverageTest {
     @Mock
     private CostingMethodService costingMethodService;
     @Mock
+    private GstService gstService;
+    @Mock
     private ApplicationEventPublisher eventPublisher;
     @Mock
     private CompanyClock companyClock;
@@ -96,6 +99,7 @@ class TS_InventoryDispatchStateRuntimeCoverageTest {
                 salesOrderRepository,
                 companyDefaultAccountsService,
                 costingMethodService,
+                gstService,
                 eventPublisher,
                 companyClock,
                 environment,

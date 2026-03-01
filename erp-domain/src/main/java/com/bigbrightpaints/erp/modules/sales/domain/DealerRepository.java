@@ -3,14 +3,13 @@ package com.bigbrightpaints.erp.modules.sales.domain;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import jakarta.persistence.LockModeType;
+import java.util.List;
+import java.util.Optional;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
-
-import java.util.List;
-import java.util.Optional;
 
 public interface DealerRepository extends JpaRepository<Dealer, Long> {
     List<Dealer> findByCompanyOrderByNameAsc(Company company);
@@ -32,12 +31,17 @@ public interface DealerRepository extends JpaRepository<Dealer, Long> {
             select d
             from Dealer d
             where d.company = :company
-              and upper(d.status) = 'ACTIVE'
+              and (:status is null or upper(d.status) = :status)
+              and (:region is null or upper(coalesce(d.region, '')) = :region)
               and (lower(d.name) like lower(concat('%', :term, '%'))
                 or lower(d.code) like lower(concat('%', :term, '%')))
             order by d.name asc
             """)
-    List<Dealer> searchActive(@Param("company") Company company, @Param("term") String term, Pageable pageable);
+    List<Dealer> searchFiltered(@Param("company") Company company,
+                                @Param("term") String term,
+                                @Param("status") String status,
+                                @Param("region") String region,
+                                Pageable pageable);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select d from Dealer d where d.company = :company and d.id = :id")

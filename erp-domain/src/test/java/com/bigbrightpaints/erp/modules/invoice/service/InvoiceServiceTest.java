@@ -274,7 +274,8 @@ class InvoiceServiceTest {
                 null,
                 List.of(),
                 true,
-                List.of()
+                List.of(),
+                null
         );
         when(salesDispatchReconciliationService.confirmDispatch(any())).thenReturn(response);
 
@@ -318,7 +319,8 @@ class InvoiceServiceTest {
                 null,
                 List.of(),
                 true,
-                List.of()
+                List.of(),
+                null
         );
         when(salesDispatchReconciliationService.confirmDispatch(any())).thenReturn(response);
 

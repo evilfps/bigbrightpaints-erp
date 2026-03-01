@@ -2512,7 +2512,23 @@ public class SalesCoreEngine {
                         overrideReason,
                         dispatchReasonCode,
                         request.overrideRequestId());
-                return new DispatchConfirmResponse(slip.getId(), salesOrderId, existingInvoiceId, existingJeId, List.of(), true, List.of());
+                DispatchConfirmResponse.GstBreakdownDto existingBreakdown = existingInvoice != null
+                        ? new DispatchConfirmResponse.GstBreakdownDto(
+                                existingInvoice.getSubtotal(),
+                                sumInvoiceTaxComponent(existingInvoice, InvoiceLine::getCgstAmount),
+                                sumInvoiceTaxComponent(existingInvoice, InvoiceLine::getSgstAmount),
+                                sumInvoiceTaxComponent(existingInvoice, InvoiceLine::getIgstAmount),
+                                existingInvoice.getTaxTotal())
+                        : null;
+                return new DispatchConfirmResponse(
+                        slip.getId(),
+                        salesOrderId,
+                        existingInvoiceId,
+                        existingJeId,
+                        List.of(),
+                        true,
+                        List.of(),
+                        existingBreakdown);
             }
         }
         
@@ -3231,8 +3247,25 @@ public class SalesCoreEngine {
                 arJournalEntryId,
                 cogsDtos,
                 true,
-                arPostings
+                arPostings,
+                new DispatchConfirmResponse.GstBreakdownDto(
+                        subtotal,
+                        totalCgst,
+                        totalSgst,
+                        totalIgst,
+                        taxTotal)
         );
+    }
+
+    private BigDecimal sumInvoiceTaxComponent(Invoice invoice,
+                                               java.util.function.Function<InvoiceLine, BigDecimal> extractor) {
+        if (invoice == null || invoice.getLines() == null || extractor == null) {
+            return BigDecimal.ZERO;
+        }
+        return invoice.getLines().stream()
+                .map(extractor)
+                .filter(java.util.Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
     private void validateExistingReceivableJournal(Company company,

@@ -49,9 +49,16 @@ public class Dealer extends VersionedEntity {
     @Column(name = "state_code")
     private String stateCode;
 
+    @Column(name = "region")
+    private String region;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "gst_registration_type", nullable = false)
     private GstRegistrationType gstRegistrationType = GstRegistrationType.UNREGISTERED;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "payment_terms", nullable = false)
+    private DealerPaymentTerms paymentTerms = DealerPaymentTerms.NET_30;
 
     @Column(nullable = false)
     private String status = "ACTIVE";
@@ -104,9 +111,15 @@ public class Dealer extends VersionedEntity {
     public void setGstNumber(String gstNumber) { this.gstNumber = gstNumber; }
     public String getStateCode() { return stateCode; }
     public void setStateCode(String stateCode) { this.stateCode = stateCode; }
+    public String getRegion() { return region; }
+    public void setRegion(String region) { this.region = region; }
     public GstRegistrationType getGstRegistrationType() { return gstRegistrationType; }
     public void setGstRegistrationType(GstRegistrationType gstRegistrationType) {
         this.gstRegistrationType = gstRegistrationType == null ? GstRegistrationType.UNREGISTERED : gstRegistrationType;
+    }
+    public DealerPaymentTerms getPaymentTerms() { return paymentTerms; }
+    public void setPaymentTerms(DealerPaymentTerms paymentTerms) {
+        this.paymentTerms = paymentTerms == null ? DealerPaymentTerms.NET_30 : paymentTerms;
     }
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }

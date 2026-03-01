@@ -1,6 +1,7 @@
 package com.bigbrightpaints.erp.modules.sales.dto;
 
 import com.bigbrightpaints.erp.modules.accounting.domain.GstRegistrationType;
+import com.bigbrightpaints.erp.modules.sales.domain.DealerPaymentTerms;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
@@ -20,7 +21,9 @@ public record CreateDealerRequest(
         String gstNumber,
         @Pattern(regexp = "^$|[A-Za-z0-9]{2}$", message = "State code must be exactly 2 characters")
         String stateCode,
-        GstRegistrationType gstRegistrationType
+        GstRegistrationType gstRegistrationType,
+        DealerPaymentTerms paymentTerms,
+        String region
 ) {
 
     public CreateDealerRequest(String name,
@@ -29,6 +32,6 @@ public record CreateDealerRequest(
                                String contactPhone,
                                String address,
                                BigDecimal creditLimit) {
-        this(name, companyName, contactEmail, contactPhone, address, creditLimit, null, null, null);
+        this(name, companyName, contactEmail, contactPhone, address, creditLimit, null, null, null, null, null);
     }
 }

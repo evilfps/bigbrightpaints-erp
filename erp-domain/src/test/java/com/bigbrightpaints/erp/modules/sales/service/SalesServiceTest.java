@@ -1451,6 +1451,11 @@ class SalesServiceTest {
         assertEquals(55L, response.packingSlipId());
         assertEquals(10L, response.salesOrderId());
         assertEquals(777L, response.finalInvoiceId());
+        assertTrue(response.gstBreakdown().taxableAmount().compareTo(new BigDecimal("200.00")) == 0);
+        assertTrue(response.gstBreakdown().cgst().compareTo(BigDecimal.ZERO) == 0);
+        assertTrue(response.gstBreakdown().sgst().compareTo(BigDecimal.ZERO) == 0);
+        assertTrue(response.gstBreakdown().igst().compareTo(BigDecimal.ZERO) == 0);
+        assertTrue(response.gstBreakdown().totalTax().compareTo(BigDecimal.ZERO) == 0);
         verify(companyAccountingSettingsService, never()).requireTaxAccounts();
         verify(creditLimitOverrideService).isOverrideApproved(eq(801L), eq(company), eq(dealer), eq(slip), eq(order), any());
     }

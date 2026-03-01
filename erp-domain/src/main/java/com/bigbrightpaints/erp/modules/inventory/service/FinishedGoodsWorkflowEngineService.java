@@ -11,6 +11,8 @@ import com.bigbrightpaints.erp.modules.inventory.domain.*;
 import com.bigbrightpaints.erp.modules.inventory.dto.*;
 import com.bigbrightpaints.erp.modules.inventory.event.InventoryMovementEvent;
 import com.bigbrightpaints.erp.modules.inventory.event.InventoryValuationChangedEvent;
+import com.bigbrightpaints.erp.modules.accounting.service.GstService;
+import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrder;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrderItem;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrderRepository;
@@ -33,9 +35,11 @@ import java.math.RoundingMode;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -61,6 +65,7 @@ public class FinishedGoodsWorkflowEngineService {
     private final SalesOrderRepository salesOrderRepository;
     private final CompanyDefaultAccountsService companyDefaultAccountsService;
     private final CostingMethodService costingMethodService;
+    private final GstService gstService;
     private final org.springframework.context.ApplicationEventPublisher eventPublisher;
     private final CompanyClock companyClock;
     private final Environment environment;
@@ -78,6 +83,7 @@ public class FinishedGoodsWorkflowEngineService {
                                 SalesOrderRepository salesOrderRepository,
                                 CompanyDefaultAccountsService companyDefaultAccountsService,
                                 CostingMethodService costingMethodService,
+                                GstService gstService,
                                 org.springframework.context.ApplicationEventPublisher eventPublisher,
                                 CompanyClock companyClock,
                                 Environment environment,
@@ -92,6 +98,7 @@ public class FinishedGoodsWorkflowEngineService {
         this.salesOrderRepository = salesOrderRepository;
         this.companyDefaultAccountsService = companyDefaultAccountsService;
         this.costingMethodService = costingMethodService;
+        this.gstService = gstService;
         this.eventPublisher = eventPublisher;
         this.companyClock = companyClock;
         this.environment = environment;
@@ -738,8 +745,13 @@ public class FinishedGoodsWorkflowEngineService {
         }
 
         SalesOrder order = slip.getSalesOrder();
+        if (order == null || order.getId() == null) {
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE, "Packaging slip is not linked to a valid sales order");
+        }
+
         String dealerName = order.getDealer() != null ? order.getDealer().getName() : null;
         String dealerCode = order.getDealer() != null ? order.getDealer().getCode() : null;
+
         Map<Long, BigDecimal> reservedByBatch = inventoryReservationRepository
                 .findByFinishedGoodCompanyAndReferenceTypeAndReferenceId(
                         company,
@@ -756,21 +768,52 @@ public class FinishedGoodsWorkflowEngineService {
                                 Collectors.reducing(BigDecimal.ZERO, BigDecimal::add)
                         )));
 
+        Map<String, Deque<SalesOrderItem>> orderItemsByProductCode = new HashMap<>();
+        if (order.getItems() != null) {
+            List<SalesOrderItem> sortedItems = new ArrayList<>(order.getItems());
+            sortedItems.sort(Comparator.comparing(SalesOrderItem::getId, Comparator.nullsLast(Long::compareTo)));
+            for (SalesOrderItem item : sortedItems) {
+                if (item.getProductCode() == null) {
+                    continue;
+                }
+                orderItemsByProductCode.computeIfAbsent(item.getProductCode(), ignored -> new ArrayDeque<>()).add(item);
+            }
+        }
+
+        Dealer dealer = order.getDealer();
+        String companyStateCode = normalizeStateCode(company != null ? company.getStateCode() : null);
+        String dealerStateCode = normalizeStateCode(dealer != null ? dealer.getStateCode() : null);
+
         List<DispatchPreviewDto.LinePreview> linePreviews = new ArrayList<>();
         BigDecimal totalOrdered = BigDecimal.ZERO;
         BigDecimal totalAvailable = BigDecimal.ZERO;
+        BigDecimal gstTaxable = BigDecimal.ZERO;
+        BigDecimal totalCgst = BigDecimal.ZERO;
+        BigDecimal totalSgst = BigDecimal.ZERO;
+        BigDecimal totalIgst = BigDecimal.ZERO;
 
         for (PackagingSlipLine line : slip.getLines()) {
             FinishedGoodBatch batch = line.getFinishedGoodBatch();
             FinishedGood fg = batch.getFinishedGood();
-            
-            BigDecimal ordered = line.getOrderedQuantity() != null ? line.getOrderedQuantity() : line.getQuantity();
-            BigDecimal available = batch.getQuantityAvailable() != null ? batch.getQuantityAvailable() : BigDecimal.ZERO;
+
+            BigDecimal ordered = safeQuantity(line.getOrderedQuantity() != null ? line.getOrderedQuantity() : line.getQuantity());
+            BigDecimal available = safeQuantity(batch.getQuantityAvailable());
             BigDecimal reservedForOrder = reservedByBatch.getOrDefault(batch.getId(), BigDecimal.ZERO);
             available = available.add(reservedForOrder);
             BigDecimal suggestedShip = ordered.min(available);
             boolean hasShortage = available.compareTo(ordered) < 0;
-            BigDecimal unitCost = line.getUnitCost() != null ? line.getUnitCost() : BigDecimal.ZERO;
+
+            SalesOrderItem matchedItem = pollMatchingOrderItem(orderItemsByProductCode, fg.getProductCode());
+            BigDecimal unitPrice = matchedItem != null && matchedItem.getUnitPrice() != null
+                    ? matchedItem.getUnitPrice()
+                    : BigDecimal.ZERO;
+            BigDecimal lineSubtotal = currency(unitPrice.multiply(suggestedShip));
+            BigDecimal lineRate = matchedItem != null ? safePercent(matchedItem.getGstRate()) : BigDecimal.ZERO;
+            GstService.GstBreakdown lineBreakdown = lineRate.compareTo(BigDecimal.ZERO) > 0
+                    ? gstService.splitTaxAmount(lineSubtotal, currency(lineSubtotal.multiply(lineRate).divide(new BigDecimal("100"), 4, RoundingMode.HALF_UP)), companyStateCode, dealerStateCode)
+                    : gstService.splitTaxAmount(lineSubtotal, BigDecimal.ZERO, companyStateCode, dealerStateCode);
+            BigDecimal lineTax = safeQuantity(lineBreakdown.cgst()).add(safeQuantity(lineBreakdown.sgst())).add(safeQuantity(lineBreakdown.igst()));
+            BigDecimal lineTotal = lineSubtotal.add(lineTax);
 
             linePreviews.add(new DispatchPreviewDto.LinePreview(
                     line.getId(),
@@ -781,14 +824,29 @@ public class FinishedGoodsWorkflowEngineService {
                     ordered,
                     available,
                     suggestedShip,
-                    null,
-                    null,
+                    unitPrice,
+                    lineSubtotal,
+                    lineTax,
+                    lineTotal,
                     hasShortage
             ));
 
-            totalOrdered = totalOrdered.add(ordered.multiply(unitCost));
-            totalAvailable = totalAvailable.add(suggestedShip.multiply(unitCost));
+            totalOrdered = totalOrdered.add(currency(unitPrice.multiply(ordered)));
+            totalAvailable = totalAvailable.add(lineTotal);
+            gstTaxable = gstTaxable.add(lineSubtotal);
+            totalCgst = totalCgst.add(safeQuantity(lineBreakdown.cgst()));
+            totalSgst = totalSgst.add(safeQuantity(lineBreakdown.sgst()));
+            totalIgst = totalIgst.add(safeQuantity(lineBreakdown.igst()));
         }
+
+        DispatchPreviewDto.GstBreakdown breakdown = new DispatchPreviewDto.GstBreakdown(
+                gstTaxable,
+                totalCgst,
+                totalSgst,
+                totalIgst,
+                totalCgst.add(totalSgst).add(totalIgst),
+                totalAvailable
+        );
 
         return new DispatchPreviewDto(
                 slip.getId(),
@@ -799,8 +857,9 @@ public class FinishedGoodsWorkflowEngineService {
                 dealerName,
                 dealerCode,
                 slip.getCreatedAt(),
-                null,
-                null,
+                totalOrdered,
+                totalAvailable,
+                breakdown,
                 linePreviews
         );
     }
@@ -1566,6 +1625,36 @@ public class FinishedGoodsWorkflowEngineService {
 
     private BigDecimal safeQuantity(BigDecimal value) {
         return value != null ? value : BigDecimal.ZERO;
+    }
+
+    private BigDecimal safePercent(BigDecimal value) {
+        if (value == null || value.compareTo(BigDecimal.ZERO) < 0) {
+            return BigDecimal.ZERO;
+        }
+        return value;
+    }
+
+    private BigDecimal currency(BigDecimal value) {
+        return safeQuantity(value).setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private String normalizeStateCode(String value) {
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        return value.trim().toUpperCase();
+    }
+
+    private SalesOrderItem pollMatchingOrderItem(Map<String, Deque<SalesOrderItem>> orderItemsByProductCode,
+                                                 String productCode) {
+        if (orderItemsByProductCode == null || !StringUtils.hasText(productCode)) {
+            return null;
+        }
+        Deque<SalesOrderItem> items = orderItemsByProductCode.get(productCode);
+        if (items == null || items.isEmpty()) {
+            return null;
+        }
+        return items.pollFirst();
     }
 
     private BigDecimal resolveLowStockThreshold(FinishedGood finishedGood, Integer overrideThreshold) {

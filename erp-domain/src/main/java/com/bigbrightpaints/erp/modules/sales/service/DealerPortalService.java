@@ -261,6 +261,9 @@ public class DealerPortalService {
         
         BigDecimal currentBalance = dealerLedgerService.currentBalance(dealer.getId());
         Map<String, Object> aging = buildAgingView(dealer);
+        aging.put("creditStatus", resolveCreditStatus(
+                dealer.getCreditLimit() != null ? dealer.getCreditLimit() : BigDecimal.ZERO,
+                (BigDecimal) aging.get("creditUsed")));
 
         List<Invoice> invoices = invoiceRepository.findByCompanyAndDealerOrderByIssueDateDesc(
                 dealer.getCompany(), dealer);
@@ -282,6 +285,7 @@ public class DealerPortalService {
         result.put("pendingOrderCount", pendingOrderCount);
         result.put("pendingOrderExposure", pendingOrderExposure);
         result.put("creditUsed", aging.get("creditUsed"));
+        result.put("creditStatus", aging.get("creditStatus"));
         result.put("agingBuckets", aging.get("agingBuckets"));
         return result;
     }
@@ -406,5 +410,21 @@ public class DealerPortalService {
         return order != null
                 && (activeInvoicedOrderIds == null || !activeInvoicedOrderIds.contains(order.getId()))
                 && SalesOrderCreditExposurePolicy.isPendingCreditExposureStatus(order.getStatus());
+    }
+
+    private String resolveCreditStatus(BigDecimal creditLimit, BigDecimal creditUsed) {
+        BigDecimal safeLimit = creditLimit != null ? creditLimit : BigDecimal.ZERO;
+        BigDecimal safeUsed = creditUsed != null ? creditUsed : BigDecimal.ZERO;
+        if (safeLimit.compareTo(BigDecimal.ZERO) <= 0) {
+            return safeUsed.compareTo(BigDecimal.ZERO) > 0 ? "OVER_LIMIT" : "WITHIN_LIMIT";
+        }
+        BigDecimal ratio = safeUsed.divide(safeLimit, 4, java.math.RoundingMode.HALF_UP);
+        if (ratio.compareTo(BigDecimal.ONE) >= 0) {
+            return "OVER_LIMIT";
+        }
+        if (ratio.compareTo(new BigDecimal("0.80")) >= 0) {
+            return "NEAR_LIMIT";
+        }
+        return "WITHIN_LIMIT";
     }
 }

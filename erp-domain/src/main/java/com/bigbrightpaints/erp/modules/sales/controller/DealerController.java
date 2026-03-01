@@ -53,8 +53,12 @@ public class DealerController {
 
     @GetMapping("/search")
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SALES','ROLE_ACCOUNTING')")
-    public ResponseEntity<ApiResponse<List<DealerLookupResponse>>> searchDealers(@RequestParam(defaultValue = "") String query) {
-        return ResponseEntity.ok(ApiResponse.success(dealerService.search(query)));
+    public ResponseEntity<ApiResponse<List<DealerLookupResponse>>> searchDealers(
+            @RequestParam(defaultValue = "") String query,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String region,
+            @RequestParam(required = false) String creditStatus) {
+        return ResponseEntity.ok(ApiResponse.success(dealerService.search(query, status, region, creditStatus)));
     }
 
     @PutMapping("/{dealerId}")
@@ -79,10 +83,17 @@ public class DealerController {
         return ResponseEntity.ok(ApiResponse.success("Dealer invoices", payload));
     }
 
+    @GetMapping("/{dealerId}/credit-utilization")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SALES','ROLE_ACCOUNTING')")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> dealerCreditUtilization(@PathVariable Long dealerId) {
+        Map<String, Object> payload = dealerService.creditUtilization(dealerId);
+        return ResponseEntity.ok(ApiResponse.success("Dealer credit utilization", payload));
+    }
+
     @GetMapping("/{dealerId}/aging")
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SALES','ROLE_ACCOUNTING')")
     public ResponseEntity<ApiResponse<Map<String, Object>>> dealerAging(@PathVariable Long dealerId) {
-        Map<String, Object> payload = dealerPortalService.getAgingForDealer(dealerId);
+        Map<String, Object> payload = dealerService.agingSummary(dealerId);
         return ResponseEntity.ok(ApiResponse.success("Dealer aging", payload));
     }
 

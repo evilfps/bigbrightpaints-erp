@@ -11,6 +11,7 @@ import com.bigbrightpaints.erp.modules.invoice.service.InvoicePdfService;
 import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrderRepository;
+import com.bigbrightpaints.erp.modules.sales.domain.SalesOrder;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -23,12 +24,18 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -73,6 +80,7 @@ class DealerPortalServiceTest {
         ReflectionTestUtils.setField(company, "id", 9L);
         company.setCode("TENANT");
         lenient().when(companyContextService.requireCurrentCompany()).thenReturn(company);
+        lenient().when(companyClock.today(company)).thenReturn(LocalDate.of(2026, 2, 23));
     }
 
     @AfterEach
@@ -200,6 +208,37 @@ class DealerPortalServiceTest {
         assertThatThrownBy(() -> dealerPortalService.getCurrentDealer())
                 .isInstanceOf(AccessDeniedException.class)
                 .hasMessageContaining("No authenticated user identity");
+    }
+
+    @Test
+    void getMyDashboard_includesCreditStatusAndPendingExposure() {
+        UserAccount user = userWithId(100L, "dealer@tenant.com");
+        Dealer dealer = dealerWithId(21L);
+        dealer.setName("Dealer Name");
+        dealer.setCode("DLR-21");
+        dealer.setCreditLimit(new BigDecimal("1000"));
+        dealer.setCompany(company);
+
+        authenticate(user, "ROLE_DEALER");
+        when(dealerRepository.findAllByCompanyAndPortalUserId(company, 100L)).thenReturn(List.of(dealer));
+        when(dealerLedgerService.currentBalance(21L)).thenReturn(new BigDecimal("550"));
+
+        var invoice = new com.bigbrightpaints.erp.modules.invoice.domain.Invoice();
+        invoice.setOutstandingAmount(new BigDecimal("550"));
+        invoice.setDueDate(LocalDate.now().minusDays(10));
+        when(invoiceRepository.findByCompanyAndDealerOrderByIssueDateDesc(company, dealer)).thenReturn(List.of(invoice));
+
+        when(salesOrderRepository.sumPendingCreditExposureByCompanyAndDealer(
+                eq(company), eq(dealer), any(), isNull())).thenReturn(new BigDecimal("300"));
+        when(salesOrderRepository.countPendingCreditExposureByCompanyAndDealer(
+                eq(company), eq(dealer), any(), isNull())).thenReturn(2L);
+
+        Map<String, Object> dashboard = dealerPortalService.getMyDashboard();
+
+        assertThat(dashboard.get("pendingOrderCount")).isEqualTo(2L);
+        assertThat(dashboard.get("pendingOrderExposure")).isEqualTo(new BigDecimal("300"));
+        assertThat(dashboard.get("creditUsed")).isEqualTo(new BigDecimal("850"));
+        assertThat(dashboard.get("creditStatus")).isEqualTo("NEAR_LIMIT");
     }
 
     private void authenticate(UserAccount user, String... authorities) {

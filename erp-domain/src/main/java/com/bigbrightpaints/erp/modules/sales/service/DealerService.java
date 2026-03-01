@@ -1,5 +1,9 @@
 package com.bigbrightpaints.erp.modules.sales.service;
 
+import com.bigbrightpaints.erp.core.exception.ApplicationException;
+import com.bigbrightpaints.erp.core.exception.ErrorCode;
+import com.bigbrightpaints.erp.core.notification.EmailService;
+import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.GstRegistrationType;
@@ -8,15 +12,29 @@ import com.bigbrightpaints.erp.modules.auth.domain.UserAccount;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
-import com.bigbrightpaints.erp.core.notification.EmailService;
+import com.bigbrightpaints.erp.modules.invoice.domain.Invoice;
+import com.bigbrightpaints.erp.modules.invoice.domain.InvoiceRepository;
 import com.bigbrightpaints.erp.modules.rbac.service.RoleService;
 import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
+import com.bigbrightpaints.erp.modules.sales.domain.DealerPaymentTerms;
 import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
+import com.bigbrightpaints.erp.modules.sales.domain.SalesOrderRepository;
 import com.bigbrightpaints.erp.modules.sales.dto.CreateDealerRequest;
 import com.bigbrightpaints.erp.modules.sales.dto.DealerLookupResponse;
 import com.bigbrightpaints.erp.modules.sales.dto.DealerResponse;
 import com.bigbrightpaints.erp.modules.sales.util.DealerProvisioningSupport;
 import jakarta.transaction.Transactional;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.security.SecureRandom;
+import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.PageRequest;
@@ -25,15 +43,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StringUtils;
-
-import java.math.BigDecimal;
-import java.security.SecureRandom;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.regex.Pattern;
 
 @Service
 public class DealerService {
@@ -56,6 +65,9 @@ public class DealerService {
     private final EmailService emailService;
     private final AccountRepository accountRepository;
     private final DealerLedgerService dealerLedgerService;
+    private final InvoiceRepository invoiceRepository;
+    private final SalesOrderRepository salesOrderRepository;
+    private final CompanyClock companyClock;
 
     public DealerService(DealerRepository dealerRepository,
                          CompanyContextService companyContextService,
@@ -64,7 +76,10 @@ public class DealerService {
                          PasswordEncoder passwordEncoder,
                          EmailService emailService,
                          AccountRepository accountRepository,
-                         DealerLedgerService dealerLedgerService) {
+                         DealerLedgerService dealerLedgerService,
+                         InvoiceRepository invoiceRepository,
+                         SalesOrderRepository salesOrderRepository,
+                         CompanyClock companyClock) {
         this.dealerRepository = dealerRepository;
         this.companyContextService = companyContextService;
         this.userAccountRepository = userAccountRepository;
@@ -73,6 +88,9 @@ public class DealerService {
         this.emailService = emailService;
         this.accountRepository = accountRepository;
         this.dealerLedgerService = dealerLedgerService;
+        this.invoiceRepository = invoiceRepository;
+        this.salesOrderRepository = salesOrderRepository;
+        this.companyClock = companyClock;
     }
 
     @Transactional
@@ -98,6 +116,8 @@ public class DealerService {
         dealer.setGstNumber(normalizeGstNumber(request.gstNumber()));
         dealer.setStateCode(normalizeStateCode(request.stateCode()));
         dealer.setGstRegistrationType(resolveRegistrationType(request.gstRegistrationType()));
+        dealer.setPaymentTerms(resolvePaymentTerms(request.paymentTerms()));
+        dealer.setRegion(normalizeRegion(request.region()));
         dealer.setStatus(DealerProvisioningSupport.ACTIVE_STATUS);
         if (request.creditLimit() != null) {
             dealer.setCreditLimit(request.creditLimit());
@@ -151,29 +171,50 @@ public class DealerService {
     }
 
     @Transactional
-    public List<DealerLookupResponse> search(String query) {
+    public List<DealerLookupResponse> search(String query, String status, String region, String creditStatus) {
         Company company = companyContextService.requireCurrentCompany();
         String term = StringUtils.hasText(query) ? query.trim() : "";
-        List<Dealer> matches = dealerRepository.searchActive(company, term, PageRequest.of(0, DEALER_SEARCH_LIMIT));
+        String normalizedStatus = normalizeOptionalToken(status);
+        String normalizedRegion = normalizeOptionalToken(region);
+        String normalizedCreditStatus = normalizeCreditStatus(creditStatus);
+
+        List<Dealer> matches = dealerRepository.searchFiltered(
+                company,
+                term,
+                normalizedStatus,
+                normalizedRegion,
+                PageRequest.of(0, DEALER_SEARCH_LIMIT));
+
         List<Long> dealerIds = matches.stream().map(Dealer::getId).toList();
         var balances = dealerLedgerService.currentBalances(dealerIds);
-        return matches.stream()
-                .map(dealer -> {
-                    Account receivableAccount = dealer.getReceivableAccount();
-                    return new DealerLookupResponse(
-                            dealer.getId(),
-                            dealer.getPublicId(),
-                            dealer.getName(),
-                            dealer.getCode(),
-                            balances.getOrDefault(dealer.getId(), BigDecimal.ZERO),
-                            dealer.getCreditLimit(),
-                            receivableAccount != null ? receivableAccount.getId() : null,
-                            receivableAccount != null ? receivableAccount.getCode() : null,
-                            dealer.getStateCode(),
-                            dealer.getGstRegistrationType()
-                    );
-                })
-                .toList();
+
+        List<DealerLookupResponse> resolved = new ArrayList<>();
+        for (Dealer dealer : matches) {
+            BigDecimal outstandingBalance = balances.getOrDefault(dealer.getId(), BigDecimal.ZERO);
+            BigDecimal pendingOrderExposure = resolvePendingOrderExposure(dealer);
+            String dealerCreditStatus = resolveCreditStatus(dealer, outstandingBalance, pendingOrderExposure);
+            if (normalizedCreditStatus != null && !normalizedCreditStatus.equals(dealerCreditStatus)) {
+                continue;
+            }
+
+            Account receivableAccount = dealer.getReceivableAccount();
+            resolved.add(new DealerLookupResponse(
+                    dealer.getId(),
+                    dealer.getPublicId(),
+                    dealer.getName(),
+                    dealer.getCode(),
+                    outstandingBalance,
+                    dealer.getCreditLimit(),
+                    receivableAccount != null ? receivableAccount.getId() : null,
+                    receivableAccount != null ? receivableAccount.getCode() : null,
+                    dealer.getStateCode(),
+                    dealer.getGstRegistrationType(),
+                    dealer.getPaymentTerms(),
+                    dealer.getRegion(),
+                    dealerCreditStatus
+            ));
+        }
+        return resolved;
     }
 
     @Transactional
@@ -181,7 +222,7 @@ public class DealerService {
         Company company = companyContextService.requireCurrentCompany();
         Dealer dealer = dealerRepository.findByCompanyAndId(company, dealerId)
                 .orElseThrow(() -> com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput("Dealer not found"));
-        
+
         if (request.name() != null && !request.name().isBlank()) {
             dealer.setName(request.name().trim());
         }
@@ -200,20 +241,112 @@ public class DealerService {
         dealer.setGstNumber(normalizeGstNumber(request.gstNumber()));
         dealer.setStateCode(normalizeStateCode(request.stateCode()));
         dealer.setGstRegistrationType(resolveRegistrationType(request.gstRegistrationType()));
+        dealer.setPaymentTerms(resolvePaymentTerms(request.paymentTerms()));
+        dealer.setRegion(normalizeRegion(request.region()));
         if (request.creditLimit() != null) {
             dealer.setCreditLimit(request.creditLimit());
         }
-        
+
         dealer = dealerRepository.save(dealer);
         BigDecimal balance = dealerLedgerService.currentBalance(dealer.getId());
-        return toResponse(dealer, 
+        return toResponse(dealer,
                 dealer.getPortalUser() != null ? dealer.getPortalUser().getEmail() : null,
                 balance);
     }
 
-    /**
-     * Returns a human-readable ledger view for a dealer including running balance.
-     */
+    @Transactional
+    public Map<String, Object> creditUtilization(Long dealerId) {
+        Company company = companyContextService.requireCurrentCompany();
+        Dealer dealer = dealerRepository.findByCompanyAndId(company, dealerId)
+                .orElseThrow(() -> com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput("Dealer not found"));
+
+        BigDecimal outstanding = dealerLedgerService.currentBalance(dealerId);
+        BigDecimal pendingOrderExposure = resolvePendingOrderExposure(dealer);
+        BigDecimal creditLimit = dealer.getCreditLimit() != null ? dealer.getCreditLimit() : BigDecimal.ZERO;
+        BigDecimal creditUsed = outstanding.add(pendingOrderExposure);
+        BigDecimal availableCredit = creditLimit.subtract(creditUsed);
+        if (availableCredit.compareTo(BigDecimal.ZERO) < 0) {
+            availableCredit = BigDecimal.ZERO;
+        }
+
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("dealerId", dealer.getId());
+        payload.put("dealerName", dealer.getName());
+        payload.put("creditLimit", creditLimit);
+        payload.put("outstandingAmount", outstanding);
+        payload.put("pendingOrderExposure", pendingOrderExposure);
+        payload.put("creditUsed", creditUsed);
+        payload.put("availableCredit", availableCredit);
+        payload.put("creditStatus", resolveCreditStatus(dealer, outstanding, pendingOrderExposure));
+        return payload;
+    }
+
+    @Transactional
+    public Map<String, Object> agingSummary(Long dealerId) {
+        Company company = companyContextService.requireCurrentCompany();
+        Dealer dealer = dealerRepository.findByCompanyAndId(company, dealerId)
+                .orElseThrow(() -> com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput("Dealer not found"));
+
+        LocalDate today = companyClock.today(company);
+        List<Invoice> invoices = invoiceRepository.findByCompanyAndDealerOrderByIssueDateDesc(company, dealer);
+
+        BigDecimal current = BigDecimal.ZERO;
+        BigDecimal days1to30 = BigDecimal.ZERO;
+        BigDecimal days31to60 = BigDecimal.ZERO;
+        BigDecimal days61to90 = BigDecimal.ZERO;
+        BigDecimal over90 = BigDecimal.ZERO;
+        BigDecimal totalOutstanding = BigDecimal.ZERO;
+        List<Map<String, Object>> overdueInvoices = new ArrayList<>();
+
+        for (Invoice invoice : invoices) {
+            BigDecimal outstanding = invoice.getOutstandingAmount();
+            if (outstanding == null || outstanding.compareTo(BigDecimal.ZERO) <= 0) {
+                continue;
+            }
+
+            totalOutstanding = totalOutstanding.add(outstanding);
+            LocalDate dueDate = invoice.getDueDate();
+            if (dueDate == null || !today.isAfter(dueDate)) {
+                current = current.add(outstanding);
+                continue;
+            }
+
+            long daysOverdue = ChronoUnit.DAYS.between(dueDate, today);
+            if (daysOverdue <= 30) {
+                days1to30 = days1to30.add(outstanding);
+            } else if (daysOverdue <= 60) {
+                days31to60 = days31to60.add(outstanding);
+            } else if (daysOverdue <= 90) {
+                days61to90 = days61to90.add(outstanding);
+            } else {
+                over90 = over90.add(outstanding);
+            }
+
+            Map<String, Object> overdueLine = new LinkedHashMap<>();
+            overdueLine.put("invoiceNumber", invoice.getInvoiceNumber());
+            overdueLine.put("issueDate", invoice.getIssueDate());
+            overdueLine.put("dueDate", dueDate);
+            overdueLine.put("daysOverdue", daysOverdue);
+            overdueLine.put("outstandingAmount", outstanding);
+            overdueInvoices.add(overdueLine);
+        }
+
+        Map<String, Object> buckets = new LinkedHashMap<>();
+        buckets.put("current", current);
+        buckets.put("1-30 days", days1to30);
+        buckets.put("31-60 days", days31to60);
+        buckets.put("61-90 days", days61to90);
+        buckets.put("90+ days", over90);
+
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("dealerId", dealer.getId());
+        payload.put("dealerName", dealer.getName());
+        payload.put("totalOutstanding", totalOutstanding);
+        payload.put("agingBuckets", buckets);
+        payload.put("overdueInvoices", overdueInvoices);
+        return payload;
+    }
+
     @Transactional
     public Map<String, Object> ledgerView(Long dealerId) {
         Company company = companyContextService.requireCurrentCompany();
@@ -302,7 +435,9 @@ public class DealerService {
                 portalEmail,
                 dealer.getGstNumber(),
                 dealer.getStateCode(),
-                dealer.getGstRegistrationType()
+                dealer.getGstRegistrationType(),
+                dealer.getPaymentTerms(),
+                dealer.getRegion()
         );
     }
 
@@ -328,7 +463,72 @@ public class DealerService {
         return normalized;
     }
 
+    private String normalizeRegion(String region) {
+        if (!StringUtils.hasText(region)) {
+            return null;
+        }
+        return region.trim().toUpperCase(Locale.ROOT);
+    }
+
     private GstRegistrationType resolveRegistrationType(GstRegistrationType registrationType) {
         return registrationType == null ? GstRegistrationType.UNREGISTERED : registrationType;
+    }
+
+    private DealerPaymentTerms resolvePaymentTerms(DealerPaymentTerms paymentTerms) {
+        return paymentTerms == null ? DealerPaymentTerms.NET_30 : paymentTerms;
+    }
+
+    private String normalizeOptionalToken(String value) {
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        return value.trim().toUpperCase(Locale.ROOT);
+    }
+
+    private String normalizeCreditStatus(String creditStatus) {
+        if (!StringUtils.hasText(creditStatus)) {
+            return null;
+        }
+        String normalized = creditStatus.trim().toUpperCase(Locale.ROOT);
+        if (!normalized.equals("WITHIN_LIMIT")
+                && !normalized.equals("NEAR_LIMIT")
+                && !normalized.equals("OVER_LIMIT")) {
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                    "creditStatus must be one of WITHIN_LIMIT, NEAR_LIMIT, OVER_LIMIT");
+        }
+        return normalized;
+    }
+
+    private String resolveCreditStatus(Dealer dealer, BigDecimal outstandingBalance, BigDecimal pendingOrderExposure) {
+        BigDecimal creditLimit = dealer.getCreditLimit() != null ? dealer.getCreditLimit() : BigDecimal.ZERO;
+        BigDecimal creditUsed = safe(outstandingBalance).add(safe(pendingOrderExposure));
+        if (creditLimit.compareTo(BigDecimal.ZERO) <= 0) {
+            return creditUsed.compareTo(BigDecimal.ZERO) > 0 ? "OVER_LIMIT" : "WITHIN_LIMIT";
+        }
+        BigDecimal ratio = creditUsed.divide(creditLimit, 4, RoundingMode.HALF_UP);
+        if (ratio.compareTo(BigDecimal.ONE) >= 0) {
+            return "OVER_LIMIT";
+        }
+        if (ratio.compareTo(new BigDecimal("0.80")) >= 0) {
+            return "NEAR_LIMIT";
+        }
+        return "WITHIN_LIMIT";
+    }
+
+    private BigDecimal resolvePendingOrderExposure(Dealer dealer) {
+        if (dealer == null || dealer.getId() == null || dealer.getCompany() == null) {
+            return BigDecimal.ZERO;
+        }
+        BigDecimal exposure = salesOrderRepository.sumPendingCreditExposureByCompanyAndDealer(
+                dealer.getCompany(),
+                dealer,
+                SalesOrderCreditExposurePolicy.pendingCreditExposureStatuses(),
+                null
+        );
+        return exposure != null ? exposure : BigDecimal.ZERO;
+    }
+
+    private BigDecimal safe(BigDecimal value) {
+        return value == null ? BigDecimal.ZERO : value;
     }
 }

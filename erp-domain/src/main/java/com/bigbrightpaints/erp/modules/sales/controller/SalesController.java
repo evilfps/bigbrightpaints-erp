@@ -59,8 +59,12 @@ public class SalesController {
 
     @GetMapping("/sales/dealers/search")
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SALES','ROLE_ACCOUNTING')")
-    public ResponseEntity<ApiResponse<List<DealerLookupResponse>>> searchDealers(@RequestParam(defaultValue = "") String query) {
-        return ResponseEntity.ok(ApiResponse.success(dealerService.search(query)));
+    public ResponseEntity<ApiResponse<List<DealerLookupResponse>>> searchDealers(
+            @RequestParam(defaultValue = "") String query,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String region,
+            @RequestParam(required = false) String creditStatus) {
+        return ResponseEntity.ok(ApiResponse.success(dealerService.search(query, status, region, creditStatus)));
     }
 
     /* Sales Orders */

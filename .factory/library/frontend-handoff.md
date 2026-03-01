@@ -1387,7 +1387,7 @@ Operational statuses: `PENDING`, `PENDING_STOCK`, `PENDING_PRODUCTION`, `RESERVE
 
 ### Sales & Dealers
 
-#### Endpoint Map (sales-order lifecycle + search + timeline)
+#### Endpoint Map (sales + dealer management + dispatch)
 
 | Method | Path | Auth | Request | Response `data` |
 |---|---|---|---|---|
@@ -1400,6 +1400,23 @@ Operational statuses: `PENDING`, `PENDING_STOCK`, `PENDING_PRODUCTION`, `RESERVE
 | `POST` | `/api/v1/sales/orders/{id}/cancel` | `ROLE_SALES`/`ROLE_ADMIN` | `CancelRequest { reasonCode, reason }` (`reasonCode` required by business rule) | `SalesOrderDto` |
 | `PATCH` | `/api/v1/sales/orders/{id}/status` | `ROLE_SALES`/`ROLE_ADMIN` | `StatusRequest { status }` (manual statuses only) | `SalesOrderDto` |
 | `GET` | `/api/v1/sales/orders/{id}/timeline` | `ROLE_ADMIN`/`ROLE_SALES`/`ROLE_FACTORY`/`ROLE_ACCOUNTING` | — | `List<SalesOrderStatusHistoryDto>` |
+| `GET` | `/api/v1/dealers` | `ROLE_ADMIN`/`ROLE_SALES`/`ROLE_ACCOUNTING` | — | `List<DealerResponse>` |
+| `POST` | `/api/v1/dealers` | `ROLE_ADMIN`/`ROLE_SALES`/`ROLE_ACCOUNTING` | `CreateDealerRequest` | `DealerResponse` |
+| `PUT` | `/api/v1/dealers/{dealerId}` | `ROLE_ADMIN`/`ROLE_SALES`/`ROLE_ACCOUNTING` | `CreateDealerRequest` | `DealerResponse` |
+| `GET` | `/api/v1/dealers/search` | `ROLE_ADMIN`/`ROLE_SALES`/`ROLE_ACCOUNTING` | Query: `query?`, `status?`, `region?`, `creditStatus?` | `List<DealerLookupResponse>` |
+| `GET` | `/api/v1/sales/dealers/search` | `ROLE_ADMIN`/`ROLE_SALES`/`ROLE_ACCOUNTING` | Query: `query?`, `status?`, `region?`, `creditStatus?` | `List<DealerLookupResponse>` |
+| `GET` | `/api/v1/dealers/{dealerId}/credit-utilization` | `ROLE_ADMIN`/`ROLE_SALES`/`ROLE_ACCOUNTING` | — | `Map<String,Object>` |
+| `GET` | `/api/v1/dealers/{dealerId}/aging` | `ROLE_ADMIN`/`ROLE_SALES`/`ROLE_ACCOUNTING` | — | `Map<String,Object>` |
+| `POST` | `/api/v1/dealers/{dealerId}/dunning/hold` | `ROLE_ADMIN`/`ROLE_SALES`/`ROLE_ACCOUNTING` | Query: `overdueDays` (default `45`), `minAmount` (default `0`) | `Map<String,Object>` |
+| `GET` | `/api/v1/dealer-portal/dashboard` | `ROLE_DEALER` | — | `Map<String,Object>` |
+| `GET` | `/api/v1/dealer-portal/ledger` | `ROLE_DEALER` | — | `Map<String,Object>` |
+| `GET` | `/api/v1/dealer-portal/invoices` | `ROLE_DEALER` | — | `Map<String,Object>` |
+| `GET` | `/api/v1/dealer-portal/aging` | `ROLE_DEALER` | — | `Map<String,Object>` |
+| `GET` | `/api/v1/dealer-portal/orders` | `ROLE_DEALER` | — | `Map<String,Object>` |
+| `POST` | `/api/v1/dealer-portal/credit-requests` | `ROLE_DEALER` | `DealerPortalCreditRequestCreateRequest` | `CreditRequestDto` |
+| `GET` | `/api/v1/dealer-portal/invoices/{invoiceId}/pdf` | `ROLE_DEALER` | — | `application/pdf` |
+| `GET` | `/api/v1/dispatch/preview/{slipId}` | `ROLE_ADMIN`/`ROLE_FACTORY` | — | `DispatchPreviewDto` |
+| `POST` | `/api/v1/sales/dispatch/confirm` | `ROLE_FACTORY`/`ROLE_ADMIN` + `dispatch.confirm` | `DispatchConfirmRequest` | `DispatchConfirmResponse` |
 
 #### User Flows
 
@@ -1415,16 +1432,34 @@ Operational statuses: `PENDING`, `PENDING_STOCK`, `PENDING_PRODUCTION`, `RESERVE
    2. Backend enforces credit limit and requires at least partial reserved stock.
    3. Success transitions to `CONFIRMED`; timeline records reason code `ORDER_CONFIRMED`.
 
-3. **Cancel order with reason code**
+3. **Dealer onboarding + credit visibility**
+   1. Create/update dealer using `POST /api/v1/dealers` or `PUT /api/v1/dealers/{dealerId}` with GST + payment terms + region fields.
+   2. Search from sales screen with `GET /api/v1/sales/dealers/search?query=&status=&region=&creditStatus=`.
+   3. For dealer risk cards load `GET /api/v1/dealers/{dealerId}/credit-utilization` and `GET /api/v1/dealers/{dealerId}/aging`.
+   4. Trigger manual hold guardrail using `POST /api/v1/dealers/{dealerId}/dunning/hold?overdueDays=45&minAmount=0`.
+
+4. **Dealer portal self-service (dealer-authenticated)**
+   1. Load summary from `GET /api/v1/dealer-portal/dashboard` (includes `creditStatus`, `pendingOrderExposure`, aging buckets).
+   2. Load detailed ledgers/invoices/orders from `/ledger`, `/invoices`, `/orders`.
+   3. Load overdue details from `GET /api/v1/dealer-portal/aging`.
+   4. Dealers submit limit requests via `POST /api/v1/dealer-portal/credit-requests` and can download invoice PDFs via `/invoices/{invoiceId}/pdf`.
+
+5. **Dispatch reserve -> preview -> confirm with GST breakdown**
+   1. Reserve inventory during order creation/confirmation.
+   2. Open modal with `GET /api/v1/dispatch/preview/{slipId}` and render per-line pricing/tax totals plus aggregate GST breakdown.
+   3. Confirm financial dispatch via `POST /api/v1/sales/dispatch/confirm`.
+   4. Use `DispatchConfirmResponse.gstBreakdown` to render final invoice-tax summary on success toast/detail page.
+
+6. **Cancel order with reason code**
    1. UI collects structured reason code + optional free-text reason.
    2. `POST /api/v1/sales/orders/{id}/cancel` with `{ reasonCode, reason }`.
    3. Backend allows cancellation only from `DRAFT`/`CONFIRMED` and records timeline entry with supplied reason code.
 
-4. **Track lifecycle timeline**
+7. **Track lifecycle timeline**
    1. `GET /api/v1/sales/orders/{id}/timeline`.
    2. Render chronological transition history (`fromStatus`, `toStatus`, `reasonCode`, `reason`, `changedBy`, `changedAt`).
 
-5. **Search/filter orders**
+8. **Search/filter orders**
    1. `GET /api/v1/sales/orders/search` with any combination of `status`, `dealerId`, `orderNumber`, date range, page/size.
    2. Use `PageResponse.totalElements/totalPages/page/size` for pagination controls.
 
@@ -1447,20 +1482,74 @@ Legacy compatibility mapping still accepted in responses/queries:
 - `PENDING` => `DRAFT`
 - `APPROVED` => `CONFIRMED`
 
-#### Error Codes (sales lifecycle/search relevant)
+#### Error Codes (sales + dealer + dispatch relevant)
 
 - `VAL_001` (`VALIDATION_INVALID_INPUT`)
   - Invalid search date format, unknown/unsupported status inputs, invalid manual transition requests.
+  - Invalid dealer credit filter (`creditStatus` must be one of `WITHIN_LIMIT | NEAR_LIMIT | OVER_LIMIT`).
+  - Invalid GST/state validation (`gstNumber` not GSTIN-compliant, `stateCode` not 2-char code).
 - `VAL_002` (`VALIDATION_MISSING_REQUIRED_FIELD`)
   - Missing cancellation reason code for cancel request.
 - `BUS_001` (`BUSINESS_INVALID_STATE`)
   - Invalid transition (e.g., cancel from dispatched/invoiced states, illegal lifecycle jumps).
 - `VAL_007` (`VALIDATION_INVALID_STATE`)
   - Operation blocked due to immutable/posting-locked order state.
+  - Dispatch preview requested for an already dispatched slip.
+- `VAL_003` (`VALIDATION_INVALID_REFERENCE`)
+  - Dealer/sales-order/slip linkage missing for credit or dispatch operations.
 
 Frontend behavior: treat these as non-retryable user/action-state errors; surface message inline and refresh entity state.
 
 #### Data Contracts
+
+- `CreateDealerRequest`
+  - `name: string` (required)
+  - `companyName: string` (required)
+  - `contactEmail: string` (required, valid email)
+  - `contactPhone: string` (required)
+  - `address?: string`
+  - `creditLimit?: decimal` (>=0)
+  - `gstNumber?: string` (15-char GSTIN format)
+  - `stateCode?: string` (2-char state code)
+  - `gstRegistrationType?: REGULAR | COMPOSITION | UNREGISTERED` (default `UNREGISTERED`)
+  - `paymentTerms?: NET_30 | NET_60 | NET_90` (default `NET_30`)
+  - `region?: string` (normalized uppercase)
+
+- `DealerResponse`
+  - Existing dealer identity/contact/balance fields plus:
+  - `gstNumber?: string`
+  - `stateCode?: string`
+  - `gstRegistrationType: REGULAR | COMPOSITION | UNREGISTERED`
+  - `paymentTerms: NET_30 | NET_60 | NET_90`
+  - `region?: string`
+
+- `DealerLookupResponse`
+  - Existing lightweight dealer lookup fields plus:
+  - `stateCode?: string`
+  - `gstRegistrationType: REGULAR | COMPOSITION | UNREGISTERED`
+  - `paymentTerms: NET_30 | NET_60 | NET_90`
+  - `region?: string`
+  - `creditStatus: WITHIN_LIMIT | NEAR_LIMIT | OVER_LIMIT`
+
+- `Dealer credit utilization payload` (`GET /api/v1/dealers/{dealerId}/credit-utilization`)
+  - `dealerId`, `dealerName`
+  - `creditLimit`, `outstandingAmount`, `pendingOrderExposure`, `creditUsed`, `availableCredit`
+  - `creditStatus`
+
+- `Dealer aging payload` (`GET /api/v1/dealers/{dealerId}/aging` and `/api/v1/dealer-portal/aging`)
+  - `dealerId`, `dealerName`
+  - `totalOutstanding`
+  - `agingBuckets` (`current`, `1-30 days`, `31-60 days`, `61-90 days`, `90+ days`)
+  - `overdueInvoices[]`
+
+- `DispatchPreviewDto`
+  - Existing slip/order summary + `lines[]`
+  - `lines[]` now include `unitPrice`, `lineSubtotal`, `lineTax`, `lineTotal`
+  - New aggregate `gstBreakdown { taxableAmount, cgst, sgst, igst, totalTax, grandTotal }`
+
+- `DispatchConfirmResponse`
+  - Existing `packingSlipId/salesOrderId/finalInvoiceId/arJournalEntryId/cogsPostings/dispatched/arPostings`
+  - New `gstBreakdown { taxableAmount, cgst, sgst, igst, totalTax }`
 
 - `SalesOrderSearchFilters` (query-model used by backend)
   - `status?: string` (canonicalized on backend)
@@ -1509,6 +1598,10 @@ Frontend behavior: treat these as non-retryable user/action-state errors; surfac
 - Always call `/sales/orders/{id}/timeline` when opening an order detail drawer/page; do not rely on `SalesOrderDto.timeline` from list API.
 - For search date filters, submit UTC ISO instants (`2026-01-01T00:00:00Z` format) to avoid timezone ambiguity.
 - Treat `RESERVED`, `PENDING_PRODUCTION`, `PENDING_INVENTORY`, `READY_TO_SHIP`, and `PROCESSING` as in-progress operational states in UI badges.
+- Dealer forms must include payment terms + region dropdown/input and normalize state code/GST client-side before submit for better UX.
+- Dealer search table should expose independent filters: `status`, `region`, and `creditStatus`; do not derive `creditStatus` client-side.
+- Dealer portal dashboard should highlight `creditStatus` using thresholds from backend response and show `pendingOrderExposure` alongside outstanding dues.
+- Dispatch confirmation modal should render both per-line tax and aggregate GST cards from preview; confirmation success should read final `DispatchConfirmResponse.gstBreakdown` instead of reusing stale preview totals.
 
 #### GST Fields
 

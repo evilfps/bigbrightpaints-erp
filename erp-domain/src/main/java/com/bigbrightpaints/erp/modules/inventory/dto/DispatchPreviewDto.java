@@ -18,6 +18,7 @@ public record DispatchPreviewDto(
         Instant createdAt,
         BigDecimal totalOrderedAmount,
         BigDecimal totalAvailableAmount,
+        GstBreakdown gstBreakdown,
         List<LinePreview> lines
 ) {
     public record LinePreview(
@@ -29,8 +30,19 @@ public record DispatchPreviewDto(
             BigDecimal orderedQuantity,
             BigDecimal availableQuantity,
             BigDecimal suggestedShipQuantity,
-            BigDecimal unitCost,
+            BigDecimal unitPrice,
+            BigDecimal lineSubtotal,
+            BigDecimal lineTax,
             BigDecimal lineTotal,
             boolean hasShortage
+    ) {}
+
+    public record GstBreakdown(
+            BigDecimal taxableAmount,
+            BigDecimal cgst,
+            BigDecimal sgst,
+            BigDecimal igst,
+            BigDecimal totalTax,
+            BigDecimal grandTotal
     ) {}
 }
