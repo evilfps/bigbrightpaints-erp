@@ -7,6 +7,8 @@ import com.bigbrightpaints.erp.modules.purchasing.dto.GoodsReceiptRequest;
 import com.bigbrightpaints.erp.modules.purchasing.dto.GoodsReceiptResponse;
 import com.bigbrightpaints.erp.modules.purchasing.dto.PurchaseOrderRequest;
 import com.bigbrightpaints.erp.modules.purchasing.dto.PurchaseOrderResponse;
+import com.bigbrightpaints.erp.modules.purchasing.dto.PurchaseOrderStatusHistoryResponse;
+import com.bigbrightpaints.erp.modules.purchasing.dto.PurchaseOrderVoidRequest;
 import com.bigbrightpaints.erp.modules.purchasing.service.PurchasingService;
 import com.bigbrightpaints.erp.shared.dto.ApiResponse;
 import jakarta.validation.Valid;
@@ -45,6 +47,31 @@ public class PurchasingWorkflowController {
     public ResponseEntity<ApiResponse<PurchaseOrderResponse>> createPurchaseOrder(
             @Valid @RequestBody PurchaseOrderRequest request) {
         return ResponseEntity.ok(ApiResponse.success("Purchase order recorded", purchasingService.createPurchaseOrder(request)));
+    }
+
+    @PostMapping("/purchase-orders/{id}/approve")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
+    public ResponseEntity<ApiResponse<PurchaseOrderResponse>> approvePurchaseOrder(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success("Purchase order approved", purchasingService.approvePurchaseOrder(id)));
+    }
+
+    @PostMapping("/purchase-orders/{id}/void")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
+    public ResponseEntity<ApiResponse<PurchaseOrderResponse>> voidPurchaseOrder(@PathVariable Long id,
+                                                                                 @Valid @RequestBody PurchaseOrderVoidRequest request) {
+        return ResponseEntity.ok(ApiResponse.success("Purchase order voided", purchasingService.voidPurchaseOrder(id, request)));
+    }
+
+    @PostMapping("/purchase-orders/{id}/close")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
+    public ResponseEntity<ApiResponse<PurchaseOrderResponse>> closePurchaseOrder(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success("Purchase order closed", purchasingService.closePurchaseOrder(id)));
+    }
+
+    @GetMapping("/purchase-orders/{id}/timeline")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
+    public ResponseEntity<ApiResponse<List<PurchaseOrderStatusHistoryResponse>>> purchaseOrderTimeline(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success(purchasingService.getPurchaseOrderTimeline(id)));
     }
 
     @GetMapping("/goods-receipts")

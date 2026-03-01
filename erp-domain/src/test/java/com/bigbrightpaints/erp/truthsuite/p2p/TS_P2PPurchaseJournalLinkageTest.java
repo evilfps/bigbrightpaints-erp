@@ -35,7 +35,7 @@ class TS_P2PPurchaseJournalLinkageTest {
                 "movement.setJournalEntryId(entryId);",
                 "goodsReceipt.setStatus(\"INVOICED\");",
                 "goodsReceiptRepository.save(goodsReceipt);",
-                "purchaseOrder.setStatus(\"CLOSED\");");
+                "PurchaseOrderStatus.CLOSED");
     }
 
     @Test

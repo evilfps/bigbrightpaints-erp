@@ -15,11 +15,15 @@ import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.modules.purchasing.domain.GoodsReceiptRepository;
 import com.bigbrightpaints.erp.modules.purchasing.domain.PurchaseOrderRepository;
+import com.bigbrightpaints.erp.modules.purchasing.domain.PurchaseOrderStatus;
+import com.bigbrightpaints.erp.modules.purchasing.domain.PurchaseOrderStatusHistoryRepository;
 import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchaseRepository;
 import com.bigbrightpaints.erp.modules.purchasing.dto.GoodsReceiptRequest;
 import com.bigbrightpaints.erp.modules.purchasing.dto.GoodsReceiptResponse;
 import com.bigbrightpaints.erp.modules.purchasing.dto.PurchaseOrderRequest;
 import com.bigbrightpaints.erp.modules.purchasing.dto.PurchaseOrderResponse;
+import com.bigbrightpaints.erp.modules.purchasing.dto.PurchaseOrderStatusHistoryResponse;
+import com.bigbrightpaints.erp.modules.purchasing.dto.PurchaseOrderVoidRequest;
 import com.bigbrightpaints.erp.modules.purchasing.dto.PurchaseReturnRequest;
 import com.bigbrightpaints.erp.modules.purchasing.dto.RawMaterialPurchaseRequest;
 import com.bigbrightpaints.erp.modules.purchasing.dto.RawMaterialPurchaseResponse;
@@ -63,7 +67,10 @@ public class PurchasingService {
      * movement.setJournalEntryId(entryId);
      * goodsReceipt.setStatus("INVOICED");
      * goodsReceiptRepository.save(goodsReceipt);
-     * purchaseOrder.setStatus("CLOSED");
+     * purchaseOrderService.transitionStatus(purchaseOrder,
+     *         PurchaseOrderStatus.CLOSED,
+     *         "PURCHASE_ORDER_CLOSED",
+     *         "Purchase order closed after invoice posting");
      * PurchaseTaxMode purchaseTaxMode = resolvePurchaseTaxMode(sortedLines, lockedMaterials);
      * BigDecimal effectiveTaxRate = resolveLineTaxRateForMode(lineRequest, rawMaterial, company, purchaseTaxMode);
      * enforcePurchaseTaxContract(purchaseTaxMode, providedTaxAmount, hasTaxableLines);
@@ -110,6 +117,7 @@ public class PurchasingService {
                              CompanyClock companyClock,
                              AccountingPeriodService accountingPeriodService,
                              GstService gstService,
+                             PurchaseOrderStatusHistoryRepository purchaseOrderStatusHistoryRepository,
                              PlatformTransactionManager transactionManager) {
         PurchaseResponseMapper responseMapper = new PurchaseResponseMapper();
         PurchaseTaxPolicy purchaseTaxPolicy = new PurchaseTaxPolicy();
@@ -118,7 +126,8 @@ public class PurchasingService {
                 purchaseOrderRepository,
                 rawMaterialRepository,
                 companyEntityLookup,
-                responseMapper
+                responseMapper,
+                purchaseOrderStatusHistoryRepository
         );
         this.goodsReceiptService = new GoodsReceiptService(
                 companyContextService,
@@ -129,25 +138,29 @@ public class PurchasingService {
                 companyEntityLookup,
                 accountingPeriodService,
                 responseMapper,
+                this.purchaseOrderService,
                 event -> {},
                 transactionManager
         );
         this.purchaseInvoiceService = new PurchaseInvoiceService(
-                companyContextService,
-                purchaseRepository,
-                purchaseOrderRepository,
-                goodsReceiptRepository,
-                rawMaterialRepository,
-                rawMaterialBatchRepository,
-                rawMaterialService,
-                movementRepository,
-                accountingFacade,
-                companyEntityLookup,
-                referenceNumberService,
-                companyClock,
-                gstService,
-                responseMapper,
-                purchaseTaxPolicy
+                new PurchaseInvoiceEngine(
+                        companyContextService,
+                        purchaseRepository,
+                        purchaseOrderRepository,
+                        goodsReceiptRepository,
+                        rawMaterialRepository,
+                        rawMaterialBatchRepository,
+                        rawMaterialService,
+                        movementRepository,
+                        accountingFacade,
+                        companyEntityLookup,
+                        referenceNumberService,
+                        companyClock,
+                        gstService,
+                        responseMapper,
+                        purchaseTaxPolicy
+                ),
+                this.purchaseOrderService
         );
         this.purchaseReturnService = new PurchaseReturnService(
                 companyContextService,
@@ -186,6 +199,22 @@ public class PurchasingService {
 
     public PurchaseOrderResponse createPurchaseOrder(PurchaseOrderRequest request) {
         return purchaseOrderService.createPurchaseOrder(request);
+    }
+
+    public PurchaseOrderResponse approvePurchaseOrder(Long id) {
+        return purchaseOrderService.approvePurchaseOrder(id);
+    }
+
+    public PurchaseOrderResponse voidPurchaseOrder(Long id, PurchaseOrderVoidRequest request) {
+        return purchaseOrderService.voidPurchaseOrder(id, request);
+    }
+
+    public PurchaseOrderResponse closePurchaseOrder(Long id) {
+        return purchaseOrderService.closePurchaseOrder(id);
+    }
+
+    public List<PurchaseOrderStatusHistoryResponse> getPurchaseOrderTimeline(Long id) {
+        return purchaseOrderService.getPurchaseOrderTimeline(id);
     }
 
     public List<GoodsReceiptResponse> listGoodsReceipts() {

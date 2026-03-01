@@ -12,12 +12,18 @@ import com.bigbrightpaints.erp.modules.purchasing.domain.PurchaseOrder;
 import com.bigbrightpaints.erp.modules.purchasing.domain.PurchaseOrderLine;
 import com.bigbrightpaints.erp.modules.purchasing.domain.PurchaseOrderRepository;
 import com.bigbrightpaints.erp.modules.purchasing.domain.PurchaseOrderStatus;
+import com.bigbrightpaints.erp.modules.purchasing.domain.PurchaseOrderStatusHistory;
+import com.bigbrightpaints.erp.modules.purchasing.domain.PurchaseOrderStatusHistoryRepository;
 import com.bigbrightpaints.erp.modules.purchasing.domain.Supplier;
 import com.bigbrightpaints.erp.modules.purchasing.domain.SupplierStatus;
 import com.bigbrightpaints.erp.modules.purchasing.dto.PurchaseOrderLineRequest;
 import com.bigbrightpaints.erp.modules.purchasing.dto.PurchaseOrderRequest;
 import com.bigbrightpaints.erp.modules.purchasing.dto.PurchaseOrderResponse;
+import com.bigbrightpaints.erp.modules.purchasing.dto.PurchaseOrderStatusHistoryResponse;
+import com.bigbrightpaints.erp.modules.purchasing.dto.PurchaseOrderVoidRequest;
 import jakarta.transaction.Transactional;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -25,6 +31,7 @@ import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -36,17 +43,20 @@ public class PurchaseOrderService {
     private final RawMaterialRepository rawMaterialRepository;
     private final CompanyEntityLookup companyEntityLookup;
     private final PurchaseResponseMapper responseMapper;
+    private final PurchaseOrderStatusHistoryRepository purchaseOrderStatusHistoryRepository;
 
     public PurchaseOrderService(CompanyContextService companyContextService,
                                 PurchaseOrderRepository purchaseOrderRepository,
                                 RawMaterialRepository rawMaterialRepository,
                                 CompanyEntityLookup companyEntityLookup,
-                                PurchaseResponseMapper responseMapper) {
+                                PurchaseResponseMapper responseMapper,
+                                PurchaseOrderStatusHistoryRepository purchaseOrderStatusHistoryRepository) {
         this.companyContextService = companyContextService;
         this.purchaseOrderRepository = purchaseOrderRepository;
         this.rawMaterialRepository = rawMaterialRepository;
         this.companyEntityLookup = companyEntityLookup;
         this.responseMapper = responseMapper;
+        this.purchaseOrderStatusHistoryRepository = purchaseOrderStatusHistoryRepository;
     }
 
     public List<PurchaseOrderResponse> listPurchaseOrders() {
@@ -110,7 +120,7 @@ public class PurchaseOrderService {
         purchaseOrder.setOrderNumber(orderNumber);
         purchaseOrder.setOrderDate(request.orderDate());
         purchaseOrder.setMemo(clean(request.memo()));
-        purchaseOrder.setStatus(PurchaseOrderStatus.APPROVED);
+        purchaseOrder.setStatus(PurchaseOrderStatus.DRAFT);
 
         for (PurchaseOrderLineRequest lineRequest : request.lines()) {
             RawMaterial rawMaterial = lockedMaterials.get(lineRequest.rawMaterialId());
@@ -136,7 +146,184 @@ public class PurchaseOrderService {
         }
 
         PurchaseOrder saved = purchaseOrderRepository.save(purchaseOrder);
+        recordInitialStatusHistory(saved);
         return responseMapper.toPurchaseOrderResponse(saved);
+    }
+
+    @Transactional
+    public List<PurchaseOrderStatusHistoryResponse> getPurchaseOrderTimeline(Long id) {
+        Company company = companyContextService.requireCurrentCompany();
+        PurchaseOrder purchaseOrder = purchaseOrderRepository.findByCompanyAndId(company, id)
+                .orElseThrow(() -> com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput("Purchase order not found"));
+        return purchaseOrderStatusHistoryRepository.findTimeline(company, purchaseOrder).stream()
+                .map(this::toStatusHistoryResponse)
+                .toList();
+    }
+
+    @Transactional
+    public PurchaseOrderResponse approvePurchaseOrder(Long id) {
+        Company company = companyContextService.requireCurrentCompany();
+        PurchaseOrder purchaseOrder = requirePurchaseOrderForUpdate(company, id);
+        transitionStatus(purchaseOrder,
+                PurchaseOrderStatus.APPROVED,
+                "PURCHASE_ORDER_APPROVED",
+                "Purchase order approved",
+                currentActorIdentity(),
+                false);
+        PurchaseOrder saved = purchaseOrderRepository.save(purchaseOrder);
+        return responseMapper.toPurchaseOrderResponse(saved);
+    }
+
+    @Transactional
+    public PurchaseOrderResponse voidPurchaseOrder(Long id, PurchaseOrderVoidRequest request) {
+        if (request == null || !StringUtils.hasText(request.reasonCode())) {
+            throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput("Void reason code is required");
+        }
+        Company company = companyContextService.requireCurrentCompany();
+        PurchaseOrder purchaseOrder = requirePurchaseOrderForUpdate(company, id);
+        transitionStatus(purchaseOrder,
+                PurchaseOrderStatus.VOID,
+                request.reasonCode(),
+                clean(request.reason()),
+                currentActorIdentity(),
+                false);
+        PurchaseOrder saved = purchaseOrderRepository.save(purchaseOrder);
+        return responseMapper.toPurchaseOrderResponse(saved);
+    }
+
+    @Transactional
+    public PurchaseOrderResponse closePurchaseOrder(Long id) {
+        Company company = companyContextService.requireCurrentCompany();
+        PurchaseOrder purchaseOrder = requirePurchaseOrderForUpdate(company, id);
+        transitionStatus(purchaseOrder,
+                PurchaseOrderStatus.CLOSED,
+                "PURCHASE_ORDER_CLOSED",
+                "Purchase order closed",
+                currentActorIdentity(),
+                false);
+        PurchaseOrder saved = purchaseOrderRepository.save(purchaseOrder);
+        return responseMapper.toPurchaseOrderResponse(saved);
+    }
+
+    public boolean transitionStatus(PurchaseOrder purchaseOrder,
+                                    PurchaseOrderStatus targetStatus,
+                                    String reasonCode,
+                                    String reason) {
+        return transitionStatus(purchaseOrder, targetStatus, reasonCode, reason, currentActorIdentity(), true);
+    }
+
+    private boolean transitionStatus(PurchaseOrder purchaseOrder,
+                                     PurchaseOrderStatus targetStatus,
+                                     String reasonCode,
+                                     String reason,
+                                     String actor,
+                                     boolean allowNoop) {
+        if (purchaseOrder == null || purchaseOrder.getCompany() == null) {
+            throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput("Purchase order not found");
+        }
+        if (targetStatus == null) {
+            throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput("Target purchase order status is required");
+        }
+        PurchaseOrderStatus currentStatus = purchaseOrder.getStatusEnum() == null
+                ? PurchaseOrderStatus.DRAFT
+                : purchaseOrder.getStatusEnum();
+        if (currentStatus == targetStatus) {
+            if (!allowNoop) {
+                throw new ApplicationException(ErrorCode.BUSINESS_INVALID_STATE,
+                        "Purchase order already in status " + targetStatus)
+                        .withDetail("purchaseOrderId", purchaseOrder.getId())
+                        .withDetail("status", targetStatus.name());
+            }
+            return false;
+        }
+        if (!isValidTransition(currentStatus, targetStatus)) {
+            throw new ApplicationException(ErrorCode.BUSINESS_INVALID_STATE,
+                    "Invalid purchase order state transition from " + currentStatus + " to " + targetStatus)
+                    .withDetail("purchaseOrderId", purchaseOrder.getId())
+                    .withDetail("fromStatus", currentStatus.name())
+                    .withDetail("toStatus", targetStatus.name());
+        }
+        purchaseOrder.setStatus(targetStatus);
+        recordStatusHistory(
+                purchaseOrder,
+                currentStatus,
+                targetStatus,
+                reasonCode,
+                reason,
+                actor
+        );
+        return true;
+    }
+
+    private boolean isValidTransition(PurchaseOrderStatus fromStatus, PurchaseOrderStatus toStatus) {
+        if (fromStatus == null || toStatus == null) {
+            return false;
+        }
+        return switch (fromStatus) {
+            case DRAFT -> toStatus == PurchaseOrderStatus.APPROVED || toStatus == PurchaseOrderStatus.VOID;
+            case APPROVED -> toStatus == PurchaseOrderStatus.PARTIALLY_RECEIVED
+                    || toStatus == PurchaseOrderStatus.FULLY_RECEIVED
+                    || toStatus == PurchaseOrderStatus.VOID;
+            case PARTIALLY_RECEIVED -> toStatus == PurchaseOrderStatus.FULLY_RECEIVED;
+            case FULLY_RECEIVED -> toStatus == PurchaseOrderStatus.INVOICED;
+            case INVOICED -> toStatus == PurchaseOrderStatus.CLOSED;
+            case CLOSED, VOID -> false;
+        };
+    }
+
+    private void recordInitialStatusHistory(PurchaseOrder purchaseOrder) {
+        recordStatusHistory(
+                purchaseOrder,
+                null,
+                PurchaseOrderStatus.DRAFT,
+                "PURCHASE_ORDER_CREATED",
+                "Purchase order created",
+                currentActorIdentity()
+        );
+    }
+
+    private void recordStatusHistory(PurchaseOrder purchaseOrder,
+                                     PurchaseOrderStatus fromStatus,
+                                     PurchaseOrderStatus toStatus,
+                                     String reasonCode,
+                                     String reason,
+                                     String actor) {
+        if (purchaseOrder == null
+                || purchaseOrder.getId() == null
+                || purchaseOrder.getCompany() == null) {
+            return;
+        }
+        PurchaseOrderStatusHistory history = new PurchaseOrderStatusHistory();
+        history.setCompany(purchaseOrder.getCompany());
+        history.setPurchaseOrder(purchaseOrder);
+        history.setFromStatus(fromStatus != null ? fromStatus.name() : null);
+        history.setToStatus(toStatus != null ? toStatus.name() : purchaseOrder.getStatus());
+        history.setReasonCode(StringUtils.hasText(reasonCode)
+                ? reasonCode.trim().toUpperCase(Locale.ROOT)
+                : null);
+        history.setReason(clean(reason));
+        history.setChangedBy(StringUtils.hasText(actor) ? actor.trim() : "system");
+        purchaseOrderStatusHistoryRepository.save(history);
+    }
+
+    private PurchaseOrderStatusHistoryResponse toStatusHistoryResponse(PurchaseOrderStatusHistory history) {
+        if (history == null) {
+            return null;
+        }
+        return new PurchaseOrderStatusHistoryResponse(
+                history.getId(),
+                history.getFromStatus(),
+                history.getToStatus(),
+                history.getReasonCode(),
+                history.getReason(),
+                history.getChangedBy(),
+                history.getChangedAt()
+        );
+    }
+
+    private PurchaseOrder requirePurchaseOrderForUpdate(Company company, Long id) {
+        return purchaseOrderRepository.lockByCompanyAndId(company, id)
+                .orElseThrow(() -> com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput("Purchase order not found"));
     }
 
     private RawMaterial requireMaterial(Company company, Long rawMaterialId) {
@@ -157,5 +344,13 @@ public class PurchaseOrderService {
 
     private String clean(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
+    }
+
+    private String currentActorIdentity() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !StringUtils.hasText(authentication.getName())) {
+            return "system";
+        }
+        return authentication.getName().trim();
     }
 }

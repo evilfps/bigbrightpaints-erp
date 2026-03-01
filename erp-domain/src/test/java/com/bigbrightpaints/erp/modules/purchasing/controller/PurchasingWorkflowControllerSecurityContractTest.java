@@ -2,6 +2,7 @@ package com.bigbrightpaints.erp.modules.purchasing.controller;
 
 import com.bigbrightpaints.erp.modules.purchasing.dto.GoodsReceiptRequest;
 import com.bigbrightpaints.erp.modules.purchasing.dto.PurchaseOrderRequest;
+import com.bigbrightpaints.erp.modules.purchasing.dto.PurchaseOrderVoidRequest;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.access.prepost.PreAuthorize;
 
@@ -22,6 +23,15 @@ class PurchasingWorkflowControllerSecurityContractTest {
                         String.class,
                         String.class,
                         GoodsReceiptRequest.class),
+                "hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')");
+        assertPreAuthorize(
+                PurchasingWorkflowController.class.getMethod("approvePurchaseOrder", Long.class),
+                "hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')");
+        assertPreAuthorize(
+                PurchasingWorkflowController.class.getMethod("voidPurchaseOrder", Long.class, PurchaseOrderVoidRequest.class),
+                "hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')");
+        assertPreAuthorize(
+                PurchasingWorkflowController.class.getMethod("closePurchaseOrder", Long.class),
                 "hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')");
     }
 

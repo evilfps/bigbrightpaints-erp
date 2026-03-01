@@ -24,6 +24,8 @@ import com.bigbrightpaints.erp.modules.purchasing.domain.GoodsReceiptRepository;
 import com.bigbrightpaints.erp.modules.purchasing.domain.PurchaseOrder;
 import com.bigbrightpaints.erp.modules.purchasing.domain.PurchaseOrderLine;
 import com.bigbrightpaints.erp.modules.purchasing.domain.PurchaseOrderRepository;
+import com.bigbrightpaints.erp.modules.purchasing.domain.PurchaseOrderStatus;
+import com.bigbrightpaints.erp.modules.purchasing.domain.PurchaseOrderStatusHistoryRepository;
 import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchaseRepository;
 import com.bigbrightpaints.erp.modules.purchasing.domain.Supplier;
 import com.bigbrightpaints.erp.modules.purchasing.dto.GoodsReceiptLineRequest;
@@ -91,6 +93,8 @@ class PurchasingServiceGoodsReceiptTest {
     private AccountingPeriodService accountingPeriodService;
     @Mock
     private GstService gstService;
+    @Mock
+    private PurchaseOrderStatusHistoryRepository purchaseOrderStatusHistoryRepository;
 
     private PurchasingService purchasingService;
     private Company company;
@@ -116,6 +120,7 @@ class PurchasingServiceGoodsReceiptTest {
                 companyClock,
                 accountingPeriodService,
                 gstService,
+                purchaseOrderStatusHistoryRepository,
                 new ResourcelessTransactionManager()
         );
 
@@ -141,7 +146,7 @@ class PurchasingServiceGoodsReceiptTest {
         purchaseOrder.setSupplier(supplier);
         purchaseOrder.setOrderNumber("PO-30");
         purchaseOrder.setOrderDate(LocalDate.of(2026, 2, 10));
-        purchaseOrder.setStatus("OPEN");
+        purchaseOrder.setStatus(PurchaseOrderStatus.APPROVED);
 
         PurchaseOrderLine orderLine = new PurchaseOrderLine();
         orderLine.setPurchaseOrder(purchaseOrder);

@@ -70,6 +70,7 @@ public class PurchaseInvoiceEngine {
     private final GstService gstService;
     private final PurchaseResponseMapper responseMapper;
     private final PurchaseTaxPolicy purchaseTaxPolicy;
+    private PurchaseOrderService purchaseOrderService;
 
     public PurchaseInvoiceEngine(CompanyContextService companyContextService,
                                   RawMaterialPurchaseRepository purchaseRepository,
@@ -101,6 +102,10 @@ public class PurchaseInvoiceEngine {
         this.gstService = gstService;
         this.responseMapper = responseMapper;
         this.purchaseTaxPolicy = purchaseTaxPolicy;
+    }
+
+    void setPurchaseOrderService(PurchaseOrderService purchaseOrderService) {
+        this.purchaseOrderService = purchaseOrderService;
     }
 
     public List<RawMaterialPurchaseResponse> listPurchases() {
@@ -514,10 +519,26 @@ public class PurchaseInvoiceEngine {
             boolean allInvoiced = goodsReceiptRepository.findByPurchaseOrder(purchaseOrder).stream()
                     .allMatch(gr -> gr.getStatusEnum() == GoodsReceiptStatus.INVOICED);
             if (allInvoiced) {
-                purchaseOrder.setStatus(PurchaseOrderStatus.CLOSED);
+                transitionPurchaseOrderStatus(
+                        purchaseOrder,
+                        PurchaseOrderStatus.INVOICED,
+                        "PURCHASE_ORDER_INVOICED",
+                        "All goods receipts have been invoiced"
+                );
+                transitionPurchaseOrderStatus(
+                        purchaseOrder,
+                        PurchaseOrderStatus.CLOSED,
+                        "PURCHASE_ORDER_CLOSED",
+                        "Purchase order closed after invoice posting"
+                );
                 purchaseOrderRepository.save(purchaseOrder);
             } else {
-                purchaseOrder.setStatus(PurchaseOrderStatus.INVOICED);
+                transitionPurchaseOrderStatus(
+                        purchaseOrder,
+                        PurchaseOrderStatus.INVOICED,
+                        "PURCHASE_ORDER_INVOICED",
+                        "Goods receipt " + goodsReceipt.getReceiptNumber() + " invoiced"
+                );
                 purchaseOrderRepository.save(purchaseOrder);
             }
         }
@@ -677,6 +698,22 @@ public class PurchaseInvoiceEngine {
 
     private String clean(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
+    }
+
+    private void transitionPurchaseOrderStatus(PurchaseOrder purchaseOrder,
+                                               PurchaseOrderStatus targetStatus,
+                                               String reasonCode,
+                                               String reason) {
+        if (purchaseOrderService == null) {
+            purchaseOrder.setStatus(targetStatus);
+            return;
+        }
+        purchaseOrderService.transitionStatus(
+                purchaseOrder,
+                targetStatus,
+                reasonCode,
+                reason
+        );
     }
 
     private record PurchaseLineCalc(

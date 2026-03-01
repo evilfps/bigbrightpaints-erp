@@ -26,7 +26,14 @@ public interface PurchaseOrderRepository extends JpaRepository<PurchaseOrder, Lo
     Optional<PurchaseOrder> findByCompanyAndOrderNumberIgnoreCase(Company company, String orderNumber);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("select po from PurchaseOrder po where po.company = :company and po.id = :id")
+    @Query("""
+            select distinct po
+            from PurchaseOrder po
+            left join fetch po.lines lines
+            left join fetch lines.rawMaterial
+            where po.company = :company
+              and po.id = :id
+            """)
     Optional<PurchaseOrder> lockByCompanyAndId(@Param("company") Company company, @Param("id") Long id);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)

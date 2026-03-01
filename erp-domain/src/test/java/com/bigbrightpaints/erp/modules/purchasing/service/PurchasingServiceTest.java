@@ -26,6 +26,7 @@ import com.bigbrightpaints.erp.modules.purchasing.domain.GoodsReceiptRepository;
 import com.bigbrightpaints.erp.modules.purchasing.domain.PurchaseOrder;
 import com.bigbrightpaints.erp.modules.purchasing.domain.PurchaseOrderLine;
 import com.bigbrightpaints.erp.modules.purchasing.domain.PurchaseOrderRepository;
+import com.bigbrightpaints.erp.modules.purchasing.domain.PurchaseOrderStatusHistoryRepository;
 import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchase;
 import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchaseLine;
 import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchaseRepository;
@@ -92,6 +93,8 @@ class PurchasingServiceTest {
     @Mock
     private GstService gstService;
     @Mock
+    private PurchaseOrderStatusHistoryRepository purchaseOrderStatusHistoryRepository;
+    @Mock
     private PlatformTransactionManager transactionManager;
 
     private PurchasingService purchasingService;
@@ -118,6 +121,7 @@ class PurchasingServiceTest {
                 companyClock,
                 accountingPeriodService,
                 gstService,
+                purchaseOrderStatusHistoryRepository,
                 transactionManager
         );
 

@@ -1,0 +1,336 @@
+package com.bigbrightpaints.erp.modules.purchasing.service;
+
+import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
+import com.bigbrightpaints.erp.modules.accounting.domain.Account;
+import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
+import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
+import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
+import com.bigbrightpaints.erp.modules.accounting.service.GstService;
+import com.bigbrightpaints.erp.modules.accounting.service.ReferenceNumberService;
+import com.bigbrightpaints.erp.modules.company.domain.Company;
+import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
+import com.bigbrightpaints.erp.modules.inventory.domain.InventoryType;
+import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterial;
+import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatch;
+import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatchRepository;
+import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovement;
+import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovementRepository;
+import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialRepository;
+import com.bigbrightpaints.erp.modules.inventory.service.RawMaterialService;
+import com.bigbrightpaints.erp.modules.purchasing.domain.GoodsReceipt;
+import com.bigbrightpaints.erp.modules.purchasing.domain.GoodsReceiptLine;
+import com.bigbrightpaints.erp.modules.purchasing.domain.GoodsReceiptRepository;
+import com.bigbrightpaints.erp.modules.purchasing.domain.GoodsReceiptStatus;
+import com.bigbrightpaints.erp.modules.purchasing.domain.PurchaseOrder;
+import com.bigbrightpaints.erp.modules.purchasing.domain.PurchaseOrderLine;
+import com.bigbrightpaints.erp.modules.purchasing.domain.PurchaseOrderRepository;
+import com.bigbrightpaints.erp.modules.purchasing.domain.PurchaseOrderStatus;
+import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchase;
+import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchaseRepository;
+import com.bigbrightpaints.erp.modules.purchasing.domain.Supplier;
+import com.bigbrightpaints.erp.modules.purchasing.dto.RawMaterialPurchaseLineRequest;
+import com.bigbrightpaints.erp.modules.purchasing.dto.RawMaterialPurchaseRequest;
+import com.bigbrightpaints.erp.modules.purchasing.dto.RawMaterialPurchaseResponse;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
+
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.util.List;
+import java.util.Optional;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+@ExtendWith(MockitoExtension.class)
+class PurchaseInvoiceEngineLifecycleTest {
+
+    @Mock
+    private CompanyContextService companyContextService;
+    @Mock
+    private RawMaterialPurchaseRepository purchaseRepository;
+    @Mock
+    private PurchaseOrderRepository purchaseOrderRepository;
+    @Mock
+    private GoodsReceiptRepository goodsReceiptRepository;
+    @Mock
+    private RawMaterialRepository rawMaterialRepository;
+    @Mock
+    private RawMaterialBatchRepository rawMaterialBatchRepository;
+    @Mock
+    private RawMaterialService rawMaterialService;
+    @Mock
+    private RawMaterialMovementRepository movementRepository;
+    @Mock
+    private AccountingFacade accountingFacade;
+    @Mock
+    private CompanyEntityLookup companyEntityLookup;
+    @Mock
+    private ReferenceNumberService referenceNumberService;
+    @Mock
+    private com.bigbrightpaints.erp.core.util.CompanyClock companyClock;
+    @Mock
+    private GstService gstService;
+    @Mock
+    private PurchaseOrderService purchaseOrderService;
+
+    private PurchaseInvoiceEngine purchaseInvoiceEngine;
+    private Company company;
+    private Supplier supplier;
+    private RawMaterial rawMaterial;
+    private PurchaseOrder purchaseOrder;
+    private GoodsReceipt goodsReceipt;
+
+    @BeforeEach
+    void setUp() {
+        purchaseInvoiceEngine = new PurchaseInvoiceEngine(
+                companyContextService,
+                purchaseRepository,
+                purchaseOrderRepository,
+                goodsReceiptRepository,
+                rawMaterialRepository,
+                rawMaterialBatchRepository,
+                rawMaterialService,
+                movementRepository,
+                accountingFacade,
+                companyEntityLookup,
+                referenceNumberService,
+                companyClock,
+                gstService,
+                new PurchaseResponseMapper(),
+                new PurchaseTaxPolicy()
+        );
+        purchaseInvoiceEngine.setPurchaseOrderService(purchaseOrderService);
+
+        company = new Company();
+        ReflectionTestUtils.setField(company, "id", 1L);
+        company.setStateCode("KA");
+
+        Account payableAccount = new Account();
+        ReflectionTestUtils.setField(payableAccount, "id", 800L);
+
+        supplier = new Supplier();
+        ReflectionTestUtils.setField(supplier, "id", 10L);
+        supplier.setCompany(company);
+        supplier.setCode("SUP-10");
+        supplier.setName("Supplier 10");
+        supplier.setStateCode("KA");
+        supplier.setPayableAccount(payableAccount);
+
+        rawMaterial = new RawMaterial();
+        ReflectionTestUtils.setField(rawMaterial, "id", 20L);
+        rawMaterial.setCompany(company);
+        rawMaterial.setName("Resin");
+        rawMaterial.setSku("RM-20");
+        rawMaterial.setUnitType("KG");
+        rawMaterial.setInventoryAccountId(200L);
+        rawMaterial.setInventoryType(InventoryType.STANDARD);
+        rawMaterial.setCurrentStock(BigDecimal.valueOf(100));
+
+        purchaseOrder = new PurchaseOrder();
+        ReflectionTestUtils.setField(purchaseOrder, "id", 30L);
+        purchaseOrder.setCompany(company);
+        purchaseOrder.setSupplier(supplier);
+        purchaseOrder.setOrderNumber("PO-30");
+        purchaseOrder.setOrderDate(LocalDate.of(2026, 3, 1));
+        purchaseOrder.setStatus(PurchaseOrderStatus.FULLY_RECEIVED);
+
+        PurchaseOrderLine orderLine = new PurchaseOrderLine();
+        orderLine.setPurchaseOrder(purchaseOrder);
+        orderLine.setRawMaterial(rawMaterial);
+        orderLine.setQuantity(new BigDecimal("10.0000"));
+        orderLine.setUnit("KG");
+        orderLine.setCostPerUnit(new BigDecimal("12.50"));
+        orderLine.setLineTotal(new BigDecimal("125.00"));
+        purchaseOrder.getLines().add(orderLine);
+
+        goodsReceipt = new GoodsReceipt();
+        ReflectionTestUtils.setField(goodsReceipt, "id", 40L);
+        goodsReceipt.setCompany(company);
+        goodsReceipt.setSupplier(supplier);
+        goodsReceipt.setPurchaseOrder(purchaseOrder);
+        goodsReceipt.setReceiptNumber("GRN-40");
+        goodsReceipt.setReceiptDate(LocalDate.of(2026, 3, 2));
+        goodsReceipt.setStatus(GoodsReceiptStatus.RECEIVED);
+
+        GoodsReceiptLine receiptLine = new GoodsReceiptLine();
+        receiptLine.setGoodsReceipt(goodsReceipt);
+        receiptLine.setRawMaterial(rawMaterial);
+        receiptLine.setQuantity(new BigDecimal("10.0000"));
+        receiptLine.setUnit("KG");
+        receiptLine.setCostPerUnit(new BigDecimal("12.50"));
+        receiptLine.setLineTotal(new BigDecimal("125.00"));
+        RawMaterialBatch batch = new RawMaterialBatch();
+        ReflectionTestUtils.setField(batch, "id", 900L);
+        batch.setRawMaterial(rawMaterial);
+        batch.setBatchCode("RM-20-LOT-1");
+        batch.setQuantity(new BigDecimal("10.0000"));
+        batch.setUnit("KG");
+        batch.setCostPerUnit(new BigDecimal("12.50"));
+        receiptLine.setRawMaterialBatch(batch);
+        goodsReceipt.getLines().add(receiptLine);
+
+        RawMaterialMovement movement = new RawMaterialMovement();
+        ReflectionTestUtils.setField(movement, "id", 500L);
+        movement.setRawMaterial(rawMaterial);
+        movement.setReferenceType("GOODS_RECEIPT");
+        movement.setReferenceId("GRN-40");
+        movement.setMovementType("RECEIPT");
+        movement.setQuantity(new BigDecimal("10.0000"));
+        movement.setUnitCost(new BigDecimal("12.50"));
+
+        when(companyContextService.requireCurrentCompany()).thenReturn(company);
+        when(companyEntityLookup.requireSupplier(company, 10L)).thenReturn(supplier);
+        when(purchaseRepository.lockByCompanyAndInvoiceNumberIgnoreCase(company, "INV-40")).thenReturn(Optional.empty());
+        when(goodsReceiptRepository.lockByCompanyAndId(company, 40L)).thenReturn(Optional.of(goodsReceipt));
+        when(purchaseRepository.findByCompanyAndGoodsReceipt(company, goodsReceipt)).thenReturn(Optional.empty());
+        when(rawMaterialRepository.lockByCompanyAndId(company, 20L)).thenReturn(Optional.of(rawMaterial));
+        when(referenceNumberService.purchaseReference(company, supplier, "INV-40")).thenReturn("RMP-SUP10-INV40");
+        when(gstService.splitTaxAmount(any(), any(), any(), any()))
+                .thenAnswer(invocation -> new GstService.GstBreakdown(
+                        invocation.getArgument(0),
+                        BigDecimal.ZERO,
+                        invocation.getArgument(1),
+                        BigDecimal.ZERO,
+                        GstService.TaxType.INTRA_STATE
+                ));
+
+        when(movementRepository.findByRawMaterialCompanyAndReferenceTypeAndReferenceId(
+                company,
+                "GOODS_RECEIPT",
+                "GRN-40"
+        )).thenReturn(List.of(movement));
+
+        JournalEntryDto journalEntryDto = new JournalEntryDto(
+                700L,
+                null,
+                "RMP-SUP10-INV40",
+                LocalDate.of(2026, 3, 2),
+                "memo",
+                "POSTED",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                List.of(),
+                Instant.now(),
+                Instant.now(),
+                Instant.now(),
+                "tester",
+                "tester",
+                "tester"
+        );
+        when(accountingFacade.postPurchaseJournal(any(), any(), any(), any(), any(), any(), any(), any(), any()))
+                .thenReturn(journalEntryDto);
+
+        JournalEntry linkedEntry = new JournalEntry();
+        ReflectionTestUtils.setField(linkedEntry, "id", 700L);
+        when(companyEntityLookup.requireJournalEntry(company, 700L)).thenReturn(linkedEntry);
+
+        when(purchaseRepository.save(any(RawMaterialPurchase.class))).thenAnswer(invocation -> {
+            RawMaterialPurchase purchase = invocation.getArgument(0);
+            ReflectionTestUtils.setField(purchase, "id", 600L);
+            ReflectionTestUtils.setField(purchase, "createdAt", Instant.parse("2026-03-02T00:00:00Z"));
+            return purchase;
+        });
+        when(goodsReceiptRepository.save(goodsReceipt)).thenReturn(goodsReceipt);
+        when(purchaseOrderRepository.save(purchaseOrder)).thenReturn(purchaseOrder);
+    }
+
+    @Test
+    @DisplayName("createPurchase transitions purchase order FULLY_RECEIVED -> INVOICED -> CLOSED when all GRNs invoiced")
+    void createPurchase_transitionsToInvoicedThenClosed() {
+        when(goodsReceiptRepository.findByPurchaseOrder(purchaseOrder)).thenReturn(List.of(goodsReceipt));
+
+        RawMaterialPurchaseRequest request = new RawMaterialPurchaseRequest(
+                10L,
+                "INV-40",
+                LocalDate.of(2026, 3, 2),
+                "invoice",
+                30L,
+                40L,
+                BigDecimal.ZERO,
+                List.of(new RawMaterialPurchaseLineRequest(
+                        20L,
+                        null,
+                        new BigDecimal("10.0000"),
+                        "KG",
+                        new BigDecimal("12.50"),
+                        null,
+                        null,
+                        "line"
+                ))
+        );
+
+        RawMaterialPurchaseResponse response = purchaseInvoiceEngine.createPurchase(request);
+
+        assertThat(response.id()).isEqualTo(600L);
+        assertThat(goodsReceipt.getStatusEnum()).isEqualTo(GoodsReceiptStatus.INVOICED);
+
+        ArgumentCaptor<PurchaseOrderStatus> statusCaptor = ArgumentCaptor.forClass(PurchaseOrderStatus.class);
+        verify(purchaseOrderService, times(2)).transitionStatus(
+                eq(purchaseOrder),
+                statusCaptor.capture(),
+                any(),
+                any()
+        );
+        assertThat(statusCaptor.getAllValues()).containsExactly(PurchaseOrderStatus.INVOICED, PurchaseOrderStatus.CLOSED);
+    }
+
+    @Test
+    @DisplayName("createPurchase transitions purchase order to INVOICED when more GRNs remain")
+    void createPurchase_transitionsToInvoicedWhenNotAllGrnsInvoiced() {
+        GoodsReceipt pending = new GoodsReceipt();
+        pending.setStatus(GoodsReceiptStatus.RECEIVED);
+        when(goodsReceiptRepository.findByPurchaseOrder(purchaseOrder)).thenReturn(List.of(goodsReceipt, pending));
+
+        RawMaterialPurchaseRequest request = new RawMaterialPurchaseRequest(
+                10L,
+                "INV-40",
+                LocalDate.of(2026, 3, 2),
+                "invoice",
+                30L,
+                40L,
+                BigDecimal.ZERO,
+                List.of(new RawMaterialPurchaseLineRequest(
+                        20L,
+                        null,
+                        new BigDecimal("10.0000"),
+                        "KG",
+                        new BigDecimal("12.50"),
+                        null,
+                        null,
+                        "line"
+                ))
+        );
+
+        purchaseInvoiceEngine.createPurchase(request);
+
+        verify(purchaseOrderService).transitionStatus(
+                eq(purchaseOrder),
+                eq(PurchaseOrderStatus.INVOICED),
+                any(),
+                any()
+        );
+        verify(purchaseOrderService, times(1)).transitionStatus(any(), any(), any(), any());
+    }
+}

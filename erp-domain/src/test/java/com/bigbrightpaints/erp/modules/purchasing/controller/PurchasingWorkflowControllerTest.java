@@ -3,6 +3,7 @@ package com.bigbrightpaints.erp.modules.purchasing.controller;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.modules.purchasing.dto.GoodsReceiptLineRequest;
 import com.bigbrightpaints.erp.modules.purchasing.dto.GoodsReceiptRequest;
+import com.bigbrightpaints.erp.modules.purchasing.dto.PurchaseOrderVoidRequest;
 import com.bigbrightpaints.erp.modules.purchasing.service.PurchasingService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -17,6 +18,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -81,6 +83,16 @@ class PurchasingWorkflowControllerTest {
         assertThatThrownBy(() -> controller.createGoodsReceipt("hdr-001", null, requestWithIdempotencyKey("body-001")))
                 .isInstanceOf(ApplicationException.class)
                 .hasMessageContaining("Idempotency key mismatch");
+    }
+
+    @Test
+    void voidPurchaseOrder_delegatesToService() {
+        PurchasingWorkflowController controller = new PurchasingWorkflowController(purchasingService);
+        PurchaseOrderVoidRequest request = new PurchaseOrderVoidRequest("SUPPLIER_CANCELLED", "duplicate");
+
+        controller.voidPurchaseOrder(42L, request);
+
+        verify(purchasingService).voidPurchaseOrder(eq(42L), eq(request));
     }
 
     private GoodsReceiptRequest requestWithoutIdempotencyKey() {

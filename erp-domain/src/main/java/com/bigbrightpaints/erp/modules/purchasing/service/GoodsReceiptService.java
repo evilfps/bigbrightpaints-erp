@@ -53,6 +53,7 @@ public class GoodsReceiptService {
     private final CompanyEntityLookup companyEntityLookup;
     private final AccountingPeriodService accountingPeriodService;
     private final PurchaseResponseMapper responseMapper;
+    private final PurchaseOrderService purchaseOrderService;
     private final ApplicationEventPublisher applicationEventPublisher;
     private final IdempotencyReservationService idempotencyReservationService = new IdempotencyReservationService();
     private final TransactionTemplate transactionTemplate;
@@ -65,6 +66,7 @@ public class GoodsReceiptService {
                                CompanyEntityLookup companyEntityLookup,
                                AccountingPeriodService accountingPeriodService,
                                PurchaseResponseMapper responseMapper,
+                               PurchaseOrderService purchaseOrderService,
                                ApplicationEventPublisher applicationEventPublisher,
                                PlatformTransactionManager transactionManager) {
         this.companyContextService = companyContextService;
@@ -75,6 +77,7 @@ public class GoodsReceiptService {
         this.companyEntityLookup = companyEntityLookup;
         this.accountingPeriodService = accountingPeriodService;
         this.responseMapper = responseMapper;
+        this.purchaseOrderService = purchaseOrderService;
         this.applicationEventPublisher = applicationEventPublisher;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
     }
@@ -156,8 +159,9 @@ public class GoodsReceiptService {
                 .ifPresent(existing -> {
                     throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput("Receipt number already used for this company");
                 });
-        if (purchaseOrder.getStatusEnum() == PurchaseOrderStatus.CLOSED
-                || purchaseOrder.getStatusEnum() == PurchaseOrderStatus.VOID) {
+        PurchaseOrderStatus purchaseOrderStatus = purchaseOrder.getStatusEnum();
+        if (purchaseOrderStatus != PurchaseOrderStatus.APPROVED
+                && purchaseOrderStatus != PurchaseOrderStatus.PARTIALLY_RECEIVED) {
             throw new ApplicationException(ErrorCode.BUSINESS_CONSTRAINT_VIOLATION,
                     "Purchase order is not receivable")
                     .withDetail("purchaseOrderId", purchaseOrder.getId())
@@ -289,10 +293,20 @@ public class GoodsReceiptService {
 
         if (!fullyReceived) {
             receipt.setStatus(GoodsReceiptStatus.PARTIAL);
-            purchaseOrder.setStatus(PurchaseOrderStatus.PARTIALLY_RECEIVED);
+            purchaseOrderService.transitionStatus(
+                    purchaseOrder,
+                    PurchaseOrderStatus.PARTIALLY_RECEIVED,
+                    "GOODS_RECEIPT_PARTIAL",
+                    "Goods receipt " + receiptNumber + " partially received"
+            );
         } else {
             receipt.setStatus(GoodsReceiptStatus.RECEIVED);
-            purchaseOrder.setStatus(PurchaseOrderStatus.FULLY_RECEIVED);
+            purchaseOrderService.transitionStatus(
+                    purchaseOrder,
+                    PurchaseOrderStatus.FULLY_RECEIVED,
+                    "GOODS_RECEIPT_COMPLETED",
+                    "Goods receipt " + receiptNumber + " fully received"
+            );
         }
 
         Map<Long, GoodsReceiptLineRequest> requestLinesByMaterial = new HashMap<>();

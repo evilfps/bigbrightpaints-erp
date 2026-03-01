@@ -1650,11 +1650,15 @@ Search behavior today:
 | `GET` | `/api/v1/purchasing/purchase-orders?supplierId={id?}` | `ROLE_ADMIN` or `ROLE_ACCOUNTING` | optional query `supplierId` | `List<PurchaseOrderResponse>` |
 | `GET` | `/api/v1/purchasing/purchase-orders/{id}` | `ROLE_ADMIN` or `ROLE_ACCOUNTING` | path `id` | `PurchaseOrderResponse` |
 | `POST` | `/api/v1/purchasing/purchase-orders` | `ROLE_ADMIN` or `ROLE_ACCOUNTING` | `PurchaseOrderRequest` | `PurchaseOrderResponse` |
+| `POST` | `/api/v1/purchasing/purchase-orders/{id}/approve` | `ROLE_ADMIN` or `ROLE_ACCOUNTING` | path `id` | `PurchaseOrderResponse` |
+| `POST` | `/api/v1/purchasing/purchase-orders/{id}/void` | `ROLE_ADMIN` or `ROLE_ACCOUNTING` | path `id` + `PurchaseOrderVoidRequest` | `PurchaseOrderResponse` |
+| `POST` | `/api/v1/purchasing/purchase-orders/{id}/close` | `ROLE_ADMIN` or `ROLE_ACCOUNTING` | path `id` | `PurchaseOrderResponse` |
+| `GET` | `/api/v1/purchasing/purchase-orders/{id}/timeline` | `ROLE_ADMIN` or `ROLE_ACCOUNTING` | path `id` | `List<PurchaseOrderStatusHistoryResponse>` |
 
 Notes:
-- Current write API for PO is create-only (`POST`).
-- PO update/delete/cancel/explicit approve endpoints are not currently exposed.
-- New PO is persisted in `APPROVED` status by backend (implicit approval in current implementation).
+- PO lifecycle is now explicit: creation writes `DRAFT` only.
+- Approval, void, and close are explicit transition endpoints.
+- `POST /void` requires a reason code payload.
 
 ##### Goods receipt (GRN) endpoints
 
@@ -1690,16 +1694,20 @@ Idempotency contract for GRN creation:
    1. Load suppliers: `GET /api/v1/suppliers`
    2. Enforce active-only supplier selection in UI
    3. Build PO lines (raw material, qty, unit, cost)
-   4. Submit: `POST /api/v1/purchasing/purchase-orders`
-   5. Approval step in current backend is implicit: created PO status is `APPROVED`
-   6. Read back: `GET /api/v1/purchasing/purchase-orders/{id}`
+   4. Submit draft PO: `POST /api/v1/purchasing/purchase-orders`
+   5. Backend persists PO in `DRAFT`
+   6. Approve explicitly: `POST /api/v1/purchasing/purchase-orders/{id}/approve` (`DRAFT -> APPROVED`)
+   7. Read back: `GET /api/v1/purchasing/purchase-orders/{id}`
+   8. Optional timeline render: `GET /api/v1/purchasing/purchase-orders/{id}/timeline`
 
 3. **Receive goods flow (GRN)**
    1. Load PO: `GET /api/v1/purchasing/purchase-orders/{id}`
-   2. Determine remaining per line (ordered - already received from prior GRNs)
-   3. Submit GRN: `POST /api/v1/purchasing/goods-receipts` with `Idempotency-Key`
-   4. Refresh GRN list/detail: `GET /api/v1/purchasing/goods-receipts` / `{id}`
-   5. Observe PO status auto-transition to `PARTIALLY_RECEIVED` or `FULLY_RECEIVED`
+   2. Ensure PO is `APPROVED` before showing GRN submit action
+   3. Determine remaining per line (ordered - already received from prior GRNs)
+   4. Submit GRN: `POST /api/v1/purchasing/goods-receipts` with `Idempotency-Key`
+   5. Refresh GRN list/detail: `GET /api/v1/purchasing/goods-receipts` / `{id}`
+   6. Observe PO status auto-transition to `PARTIALLY_RECEIVED` or `FULLY_RECEIVED`
+   7. Optionally render PO timeline to explain transition reason codes (`GOODS_RECEIPT_PARTIAL`, `GOODS_RECEIPT_COMPLETED`)
 
 4. **Post purchase invoice flow (required before final close)**
    1. Select supplier + GRN to invoice
@@ -1707,7 +1715,8 @@ Idempotency contract for GRN creation:
    3. Backend links GRN + PO + journal entry and sets GRN status to `INVOICED`
    4. PO becomes:
       - `INVOICED` when some GRNs remain uninvoiced
-      - `CLOSED` when all GRNs under the PO are invoiced
+      - `CLOSED` automatically when all GRNs under the PO are invoiced (via internal `INVOICED -> CLOSED` transition)
+   5. Manual close endpoint `POST /api/v1/purchasing/purchase-orders/{id}/close` is available for the canonical `INVOICED -> CLOSED` transition and rejects non-`INVOICED` states
 
 5. **Process return flow**
    1. Load purchases to pick return candidate: `GET /api/v1/purchasing/raw-material-purchases?supplierId={id}`
@@ -1733,15 +1742,27 @@ Guards:
 
 Persisted status enum: `DRAFT`, `APPROVED`, `PARTIALLY_RECEIVED`, `FULLY_RECEIVED`, `INVOICED`, `CLOSED`, `VOID`
 
-Observed runtime transitions:
-- `APPROVED -> PARTIALLY_RECEIVED` when GRN receives only part of outstanding PO qty
-- `APPROVED/PARTIALLY_RECEIVED -> FULLY_RECEIVED` when all PO quantities are fully received
-- `FULLY_RECEIVED/PARTIALLY_RECEIVED -> INVOICED` when at least one GRN is invoiced but not all
-- `FULLY_RECEIVED/PARTIALLY_RECEIVED -> CLOSED` when all GRNs under PO are invoiced
+Canonical transition graph (enforced server-side):
+- `DRAFT -> APPROVED` via `POST /api/v1/purchasing/purchase-orders/{id}/approve`
+- `DRAFT -> VOID` via `POST /api/v1/purchasing/purchase-orders/{id}/void`
+- `APPROVED -> PARTIALLY_RECEIVED` automatically on partial GRN
+- `APPROVED -> FULLY_RECEIVED` automatically when first GRN fully satisfies PO quantity
+- `APPROVED -> VOID` via `POST /api/v1/purchasing/purchase-orders/{id}/void`
+- `PARTIALLY_RECEIVED -> FULLY_RECEIVED` automatically when cumulative GRNs satisfy PO quantity
+- `FULLY_RECEIVED -> INVOICED` automatically when invoice posting begins
+- `INVOICED -> CLOSED` automatically when all GRNs are invoiced, or explicitly via `POST /api/v1/purchasing/purchase-orders/{id}/close`
 
-Notes:
-- Current create endpoint writes directly to `APPROVED`.
-- `VOID` and `DRAFT` are present in domain model but are not currently transitioned by public PO endpoints.
+Rejected transitions (non-exhaustive):
+- `DRAFT -> PARTIALLY_RECEIVED/FULLY_RECEIVED/INVOICED/CLOSED`
+- `APPROVED -> INVOICED/CLOSED`
+- `PARTIALLY_RECEIVED -> VOID`
+- Any transition from `VOID` or `CLOSED`
+- No-op transitions (same state to same state)
+
+History/timeline:
+- Every status change is persisted in `purchase_order_status_history`.
+- Query via `GET /api/v1/purchasing/purchase-orders/{id}/timeline`.
+- Timeline fields: `fromStatus`, `toStatus`, `reasonCode`, `reason`, `changedBy`, `changedAt`.
 
 ##### Goods receipt lifecycle
 
@@ -1760,7 +1781,7 @@ Transitions:
 | `VALIDATION_MISSING_REQUIRED_FIELD` | `VAL_002` | Missing GRN idempotency key, missing receipt date/request fields | Block submit, show inline field validation, keep form editable |
 | `VALIDATION_INVALID_INPUT` | `VAL_001` | Duplicate lines, quantity/unit mismatch, over-receipt, invalid GST/tax contract, unsupported legacy JSON aliases | Highlight offending rows/fields using error details (`rawMaterialId`, quantities, units, alias names) |
 | `VALIDATION_INVALID_REFERENCE` | `VAL_006` | Supplier/PO/GRN linkage mismatch or missing referenced entity | Refresh dependent selectors and force reselection |
-| `BUSINESS_INVALID_STATE` | `BUS_001` | Creating PO for non-`ACTIVE` supplier, invalid supplier transition | Disable invalid action buttons based on current status |
+| `BUSINESS_INVALID_STATE` | `BUS_001` | Creating PO for non-`ACTIVE` supplier, invalid supplier transition, invalid PO lifecycle transition (including no-op) | Disable invalid action buttons based on current status and refresh timeline |
 | `BUSINESS_CONSTRAINT_VIOLATION` | `BUS_004` | PO non-receivable (`CLOSED`/`VOID`), already-invoiced GRN, duplicate lock/linkage rules | Show non-retryable toast/banner and reload latest entity state |
 | `CONCURRENCY_CONFLICT` | `CONC_001` | Idempotency key reused with different payload; duplicate invoice/GRN linking race | Show stale/conflict dialog and ask user to refresh before retry |
 | `RETURN_EXCEEDS_OUTSTANDING` | `BUS_009` | Return amount would drop purchase outstanding below zero | Keep return form open and display max returnable/outstanding guidance |
@@ -1823,6 +1844,10 @@ Transitions:
   - `costPerUnit: decimal` *(required, > 0)*
   - `notes?: string`
 
+- **`PurchaseOrderVoidRequest`**
+  - `reasonCode: string` *(required, non-blank)*
+  - `reason?: string`
+
 - **`PurchaseOrderResponse`**
   - `id, publicId, orderNumber, orderDate`
   - `totalAmount: decimal`
@@ -1834,6 +1859,15 @@ Transitions:
 
 - **`PurchaseOrderLineResponse`**
   - `rawMaterialId, rawMaterialName, quantity, unit, costPerUnit, lineTotal, notes`
+
+- **`PurchaseOrderStatusHistoryResponse`**
+  - `id: number`
+  - `fromStatus?: string`
+  - `toStatus: string`
+  - `reasonCode?: string`
+  - `reason?: string`
+  - `changedBy: string`
+  - `changedAt: instant`
 
 ##### Goods receipt DTOs
 
@@ -1941,7 +1975,10 @@ Return response:
 - **PO creation UI**
   - Allow PO creation only for `ACTIVE` suppliers.
   - Use line-level validations before submit (positive qty/cost, no duplicate raw material lines).
-  - Explain in UX copy that PO is auto-approved by backend at creation time.
+  - New POs are `DRAFT`; show explicit **Approve** action wired to `POST /purchase-orders/{id}/approve`.
+  - Show **Void** action only for `DRAFT` and `APPROVED`; require reason-code selection before submit.
+  - Show **Close** action only when PO is `INVOICED`.
+  - Render timeline drawer/tab from `GET /purchase-orders/{id}/timeline` so users can audit every transition.
 
 - **GRN UI**
   - Always attach `Idempotency-Key` header on create.
