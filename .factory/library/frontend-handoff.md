@@ -1621,7 +1621,13 @@ These values are populated during dispatch confirmation and returned in invoice 
 
 ### Purchasing & Suppliers
 
+Comprehensive frontend handoff for `VAL-DOC-006` (supplier management, purchase orders, GRN lifecycle, purchase invoices, and purchase returns).
+
+> Envelope convention: endpoints return `ApiResponse<T>` with payload under `data`.
+
 #### Endpoint Map
+
+##### Supplier endpoints (CRUD + approval + list/search)
 
 | Method | Path | Auth | Request | Response `data` |
 |---|---|---|---|---|
@@ -1632,124 +1638,331 @@ These values are populated during dispatch confirmation and returned in invoice 
 | `POST` | `/api/v1/suppliers/{id}/approve` | `ROLE_ADMIN` or `ROLE_ACCOUNTING` | path `id` | `SupplierResponse` |
 | `POST` | `/api/v1/suppliers/{id}/activate` | `ROLE_ADMIN` or `ROLE_ACCOUNTING` | path `id` | `SupplierResponse` |
 | `POST` | `/api/v1/suppliers/{id}/suspend` | `ROLE_ADMIN` or `ROLE_ACCOUNTING` | path `id` | `SupplierResponse` |
+
+Search behavior today:
+- Server-side search query params are not exposed on supplier endpoints.
+- Frontend search should call `GET /api/v1/suppliers` and filter client-side by `code`, `name`, `status`, GST fields, etc.
+
+##### Purchase order endpoints (current API coverage)
+
+| Method | Path | Auth | Request | Response `data` |
+|---|---|---|---|---|
 | `GET` | `/api/v1/purchasing/purchase-orders?supplierId={id?}` | `ROLE_ADMIN` or `ROLE_ACCOUNTING` | optional query `supplierId` | `List<PurchaseOrderResponse>` |
 | `GET` | `/api/v1/purchasing/purchase-orders/{id}` | `ROLE_ADMIN` or `ROLE_ACCOUNTING` | path `id` | `PurchaseOrderResponse` |
 | `POST` | `/api/v1/purchasing/purchase-orders` | `ROLE_ADMIN` or `ROLE_ACCOUNTING` | `PurchaseOrderRequest` | `PurchaseOrderResponse` |
+
+Notes:
+- Current write API for PO is create-only (`POST`).
+- PO update/delete/cancel/explicit approve endpoints are not currently exposed.
+- New PO is persisted in `APPROVED` status by backend (implicit approval in current implementation).
+
+##### Goods receipt (GRN) endpoints
+
+| Method | Path | Auth | Request | Response `data` |
+|---|---|---|---|---|
 | `GET` | `/api/v1/purchasing/goods-receipts?supplierId={id?}` | `ROLE_ADMIN` or `ROLE_ACCOUNTING` | optional query `supplierId` | `List<GoodsReceiptResponse>` |
 | `GET` | `/api/v1/purchasing/goods-receipts/{id}` | `ROLE_ADMIN` or `ROLE_ACCOUNTING` | path `id` | `GoodsReceiptResponse` |
-| `POST` | `/api/v1/purchasing/goods-receipts` | `ROLE_ADMIN` or `ROLE_ACCOUNTING` | `GoodsReceiptRequest` + `Idempotency-Key` header | `GoodsReceiptResponse` |
+| `POST` | `/api/v1/purchasing/goods-receipts` | `ROLE_ADMIN` or `ROLE_ACCOUNTING` | `GoodsReceiptRequest` + `Idempotency-Key` header (or body key) | `GoodsReceiptResponse` |
 
-All responses use `ApiResponse<T>` envelopes.
+Idempotency contract for GRN creation:
+- Canonical header: `Idempotency-Key`
+- Legacy header `X-Idempotency-Key` is explicitly rejected
+- If both header/body keys exist, they must match
 
-#### User Flows
+##### Purchase invoice + return endpoints (needed for full P2P and return flow)
 
-1. **Supplier onboarding + approval lifecycle**
-   1. `POST /api/v1/suppliers` (creates `PENDING` supplier with payable account and optional GST/payment/bank data)
-   2. `POST /api/v1/suppliers/{id}/approve` (transitions `PENDING -> APPROVED`)
-   3. `POST /api/v1/suppliers/{id}/activate` (transitions `APPROVED -> ACTIVE`)
-   4. Use `GET /api/v1/suppliers` to refresh list and show decrypted bank fields returned by backend.
+| Method | Path | Auth | Request | Response `data` |
+|---|---|---|---|---|
+| `GET` | `/api/v1/purchasing/raw-material-purchases?supplierId={id?}` | `ROLE_ADMIN` or `ROLE_ACCOUNTING` | optional query `supplierId` | `List<RawMaterialPurchaseResponse>` |
+| `GET` | `/api/v1/purchasing/raw-material-purchases/{id}` | `ROLE_ADMIN` or `ROLE_ACCOUNTING` | path `id` | `RawMaterialPurchaseResponse` |
+| `POST` | `/api/v1/purchasing/raw-material-purchases` | `ROLE_ADMIN` or `ROLE_ACCOUNTING` | `RawMaterialPurchaseRequest` | `RawMaterialPurchaseResponse` |
+| `POST` | `/api/v1/purchasing/raw-material-purchases/returns` | `ROLE_ADMIN` or `ROLE_ACCOUNTING` | `PurchaseReturnRequest` | `JournalEntryDto` |
 
-2. **Supplier suspension / reactivation**
-   1. `POST /api/v1/suppliers/{id}/suspend` (only when current status is `ACTIVE`)
-   2. `POST /api/v1/suppliers/{id}/activate` (allowed from `SUSPENDED`)
+#### User Flows (Frontend API sequences)
 
-3. **Create purchase order (only active suppliers)**
-   1. Select supplier from `GET /api/v1/suppliers`
-   2. Create PO via `POST /api/v1/purchasing/purchase-orders`
-   3. If supplier is not `ACTIVE`, backend returns business invalid state error.
+1. **Supplier onboarding flow**
+   1. `POST /api/v1/suppliers` with supplier master + optional GST/bank/payment data
+   2. `POST /api/v1/suppliers/{id}/approve` (`PENDING -> APPROVED`)
+   3. `POST /api/v1/suppliers/{id}/activate` (`APPROVED -> ACTIVE`)
+   4. Refresh list/detail: `GET /api/v1/suppliers` or `GET /api/v1/suppliers/{id}`
 
-4. **Goods receipt with strict quantity tracking**
-   1. Create GRN via `POST /api/v1/purchasing/goods-receipts` with `Idempotency-Key` header/body key
-   2. Backend validates line quantities <= remaining PO quantity; rejects over-receipt.
-   3. Backend records raw material inventory movement events per GRN line.
+2. **Create PO flow (select supplier -> add items -> approve)**
+   1. Load suppliers: `GET /api/v1/suppliers`
+   2. Enforce active-only supplier selection in UI
+   3. Build PO lines (raw material, qty, unit, cost)
+   4. Submit: `POST /api/v1/purchasing/purchase-orders`
+   5. Approval step in current backend is implicit: created PO status is `APPROVED`
+   6. Read back: `GET /api/v1/purchasing/purchase-orders/{id}`
 
-5. **PO closure after invoice posting**
-   1. Purchase invoice creation (existing purchasing purchase-invoice API) marks GRN `INVOICED`
-   2. If all GRNs under PO are invoiced, PO becomes `CLOSED`; otherwise PO becomes `INVOICED`.
+3. **Receive goods flow (GRN)**
+   1. Load PO: `GET /api/v1/purchasing/purchase-orders/{id}`
+   2. Determine remaining per line (ordered - already received from prior GRNs)
+   3. Submit GRN: `POST /api/v1/purchasing/goods-receipts` with `Idempotency-Key`
+   4. Refresh GRN list/detail: `GET /api/v1/purchasing/goods-receipts` / `{id}`
+   5. Observe PO status auto-transition to `PARTIALLY_RECEIVED` or `FULLY_RECEIVED`
+
+4. **Post purchase invoice flow (required before final close)**
+   1. Select supplier + GRN to invoice
+   2. Submit: `POST /api/v1/purchasing/raw-material-purchases`
+   3. Backend links GRN + PO + journal entry and sets GRN status to `INVOICED`
+   4. PO becomes:
+      - `INVOICED` when some GRNs remain uninvoiced
+      - `CLOSED` when all GRNs under the PO are invoiced
+
+5. **Process return flow**
+   1. Load purchases to pick return candidate: `GET /api/v1/purchasing/raw-material-purchases?supplierId={id}`
+   2. Submit return: `POST /api/v1/purchasing/raw-material-purchases/returns`
+   3. Backend validates returnable qty + outstanding payable, creates corrective journal, and reverses inventory movement
+   4. Refresh purchase to show updated `outstandingAmount` / status: `GET /api/v1/purchasing/raw-material-purchases/{id}`
 
 #### State Machines
 
-- **Supplier**
-  - `PENDING -> APPROVED` via `POST /api/v1/suppliers/{id}/approve`
-  - `APPROVED -> ACTIVE` via `POST /api/v1/suppliers/{id}/activate`
-  - `ACTIVE -> SUSPENDED` via `POST /api/v1/suppliers/{id}/suspend`
-  - `SUSPENDED -> ACTIVE` via `POST /api/v1/suppliers/{id}/activate`
+##### Supplier lifecycle
 
-- **Purchase Order**
-  - `APPROVED -> PARTIALLY_RECEIVED` when GRN receives subset of remaining quantity
-  - `APPROVED/PARTIALLY_RECEIVED -> FULLY_RECEIVED` when all ordered quantities are received
-  - `FULLY_RECEIVED/PARTIALLY_RECEIVED -> INVOICED` when one or more GRNs invoiced but at least one remains uninvoiced
-  - `FULLY_RECEIVED/PARTIALLY_RECEIVED -> CLOSED` when all GRNs under PO are invoiced
-  - `VOID` is non-receivable terminal state for GRN creation
+- `PENDING -> APPROVED` via `POST /api/v1/suppliers/{id}/approve`
+- `APPROVED -> ACTIVE` via `POST /api/v1/suppliers/{id}/activate`
+- `ACTIVE -> SUSPENDED` via `POST /api/v1/suppliers/{id}/suspend`
+- `SUSPENDED -> ACTIVE` via `POST /api/v1/suppliers/{id}/activate`
 
-- **Goods Receipt**
-  - `RECEIVED` for full receipt against remaining PO quantities
-  - `PARTIAL` for partial receipt against remaining PO quantities
-  - `INVOICED` after linked purchase invoice is successfully posted
+Guards:
+- Approve allowed only from `PENDING`
+- Suspend allowed only from `ACTIVE`
+- Activate allowed only from `APPROVED` or `SUSPENDED`
 
-#### Error Codes / Frontend Handling
+##### Purchase order lifecycle
 
-- `VALIDATION_MISSING_REQUIRED_FIELD`
-  - Missing GRN idempotency key or missing receipt date.
-  - UX: block submit, show inline required-field message.
-- `VALIDATION_INVALID_INPUT`
-  - Duplicate raw material lines, unit mismatch, over-receipt, tax mode conflict.
-  - UX: highlight offending rows from error details (`rawMaterialId`, quantities, units).
-- `BUSINESS_INVALID_STATE`
-  - Creating PO for non-`ACTIVE` supplier.
-  - UX: disable PO action unless supplier status is `ACTIVE`.
-- `BUSINESS_CONSTRAINT_VIOLATION`
-  - GRN already invoiced, PO already fully received, PO non-receivable state, journal-link conflicts.
-  - UX: show non-retryable toast and force refresh of PO/GRN timeline.
-- `CONCURRENCY_CONFLICT`
-  - Idempotency key replay with mismatched payload or duplicate GRN/purchase linking race.
-  - UX: reload latest resource and prevent automatic blind retry.
+Persisted status enum: `DRAFT`, `APPROVED`, `PARTIALLY_RECEIVED`, `FULLY_RECEIVED`, `INVOICED`, `CLOSED`, `VOID`
 
-#### Data Contracts
+Observed runtime transitions:
+- `APPROVED -> PARTIALLY_RECEIVED` when GRN receives only part of outstanding PO qty
+- `APPROVED/PARTIALLY_RECEIVED -> FULLY_RECEIVED` when all PO quantities are fully received
+- `FULLY_RECEIVED/PARTIALLY_RECEIVED -> INVOICED` when at least one GRN is invoiced but not all
+- `FULLY_RECEIVED/PARTIALLY_RECEIVED -> CLOSED` when all GRNs under PO are invoiced
 
-- `SupplierRequest`
-  - `name` *(required)*
-  - `code`, `contactEmail`, `contactPhone`, `address`, `creditLimit`
-  - `gstNumber`, `stateCode`, `gstRegistrationType`
-  - `paymentTerms`: `NET_30 | NET_60 | NET_90`
-  - `bankAccountName`, `bankAccountNumber`, `bankIfsc`, `bankBranch` (sent plaintext; stored encrypted at rest)
+Notes:
+- Current create endpoint writes directly to `APPROVED`.
+- `VOID` and `DRAFT` are present in domain model but are not currently transitioned by public PO endpoints.
 
-- `SupplierResponse`
-  - Core identity/account fields + `status` enum (`PENDING|APPROVED|ACTIVE|SUSPENDED`)
-  - GST fields + `paymentTerms`
-  - `bankAccountName`, `bankAccountNumber`, `bankIfsc`, `bankBranch` are returned decrypted for UI display/edit.
+##### Goods receipt lifecycle
 
-- `PurchaseOrderResponse.status`
-  - String status values: `DRAFT`, `APPROVED`, `PARTIALLY_RECEIVED`, `FULLY_RECEIVED`, `INVOICED`, `CLOSED`, `VOID`
+Persisted status enum: `PARTIAL`, `RECEIVED`, `INVOICED`
 
-- `GoodsReceiptResponse.status`
-  - String status values: `PARTIAL`, `RECEIVED`, `INVOICED`
+Transitions:
+- On GRN create:
+  - `PARTIAL` when any PO line remains pending
+  - `RECEIVED` when GRN completes all remaining PO quantities
+- `PARTIAL/RECEIVED -> INVOICED` when GRN is linked to posted purchase invoice
+
+#### Error Codes (Purchasing/Supplier) + Frontend Handling
+
+| ErrorCode enum | Wire code | Typical purchasing trigger | Suggested frontend behavior |
+|---|---|---|---|
+| `VALIDATION_MISSING_REQUIRED_FIELD` | `VAL_002` | Missing GRN idempotency key, missing receipt date/request fields | Block submit, show inline field validation, keep form editable |
+| `VALIDATION_INVALID_INPUT` | `VAL_001` | Duplicate lines, quantity/unit mismatch, over-receipt, invalid GST/tax contract, unsupported legacy JSON aliases | Highlight offending rows/fields using error details (`rawMaterialId`, quantities, units, alias names) |
+| `VALIDATION_INVALID_REFERENCE` | `VAL_006` | Supplier/PO/GRN linkage mismatch or missing referenced entity | Refresh dependent selectors and force reselection |
+| `BUSINESS_INVALID_STATE` | `BUS_001` | Creating PO for non-`ACTIVE` supplier, invalid supplier transition | Disable invalid action buttons based on current status |
+| `BUSINESS_CONSTRAINT_VIOLATION` | `BUS_004` | PO non-receivable (`CLOSED`/`VOID`), already-invoiced GRN, duplicate lock/linkage rules | Show non-retryable toast/banner and reload latest entity state |
+| `CONCURRENCY_CONFLICT` | `CONC_001` | Idempotency key reused with different payload; duplicate invoice/GRN linking race | Show stale/conflict dialog and ask user to refresh before retry |
+| `RETURN_EXCEEDS_OUTSTANDING` | `BUS_009` | Return amount would drop purchase outstanding below zero | Keep return form open and display max returnable/outstanding guidance |
+
+#### Data Contracts (DTOs)
+
+##### Supplier DTOs
+
+- **`SupplierRequest`**
+  - `name: string` *(required, max 64)*
+  - `code?: string` *(max 64; auto-generated from name if missing)*
+  - `contactEmail?: email`
+  - `contactPhone?: string` *(max 32)*
+  - `address?: string` *(max 512)*
+  - `creditLimit?: decimal` *(>= 0)*
+  - `gstNumber?: string` *(GSTIN pattern: 15 chars, `^[0-9]{2}[A-Za-z0-9]{13}$`)*
+  - `stateCode?: string` *(2 chars)*
+  - `gstRegistrationType?: REGULAR | COMPOSITION | UNREGISTERED` *(defaults to `UNREGISTERED`)*
+  - `paymentTerms?: NET_30 | NET_60 | NET_90` *(defaults to `NET_30`)*
+  - `bankAccountName?: string` *(max 128)*
+  - `bankAccountNumber?: string` *(max 64)*
+  - `bankIfsc?: string` *(max 32)*
+  - `bankBranch?: string` *(max 128)*
+
+- **`SupplierResponse`**
+  - `id: number`
+  - `publicId: uuid`
+  - `code: string`
+  - `name: string`
+  - `status: PENDING | APPROVED | ACTIVE | SUSPENDED`
+  - `email?: string`
+  - `phone?: string`
+  - `address?: string`
+  - `creditLimit: decimal`
+  - `outstandingBalance: decimal`
+  - `payableAccountId?: number`
+  - `payableAccountCode?: string`
+  - `gstNumber?: string`
+  - `stateCode?: string`
+  - `gstRegistrationType: REGULAR | COMPOSITION | UNREGISTERED`
+  - `paymentTerms: NET_30 | NET_60 | NET_90`
+  - `bankAccountName?: string` *(decrypted for response)*
+  - `bankAccountNumber?: string` *(decrypted for response)*
+  - `bankIfsc?: string` *(decrypted for response)*
+  - `bankBranch?: string` *(decrypted for response)*
+
+##### Purchase order DTOs
+
+- **`PurchaseOrderRequest`**
+  - `supplierId: number` *(required)*
+  - `orderNumber: string` *(required, non-blank)*
+  - `orderDate: date` *(required)*
+  - `memo?: string`
+  - `lines: PurchaseOrderLineRequest[]` *(required, non-empty)*
+
+- **`PurchaseOrderLineRequest`**
+  - `rawMaterialId: number` *(required)*
+  - `quantity: decimal` *(required, > 0)*
+  - `unit?: string`
+  - `costPerUnit: decimal` *(required, > 0)*
+  - `notes?: string`
+
+- **`PurchaseOrderResponse`**
+  - `id, publicId, orderNumber, orderDate`
+  - `totalAmount: decimal`
+  - `status: DRAFT | APPROVED | PARTIALLY_RECEIVED | FULLY_RECEIVED | INVOICED | CLOSED | VOID`
+  - `memo?: string`
+  - `supplierId, supplierCode, supplierName`
+  - `createdAt: instant`
+  - `lines: PurchaseOrderLineResponse[]`
+
+- **`PurchaseOrderLineResponse`**
+  - `rawMaterialId, rawMaterialName, quantity, unit, costPerUnit, lineTotal, notes`
+
+##### Goods receipt DTOs
+
+- **`GoodsReceiptRequest`**
+  - `purchaseOrderId: number` *(required)*
+  - `receiptNumber: string` *(required, non-blank)*
+  - `receiptDate: date` *(required)*
+  - `memo?: string`
+  - `idempotencyKey?: string` *(can be supplied in body; header is canonical)*
+  - `lines: GoodsReceiptLineRequest[]` *(required, non-empty)*
+
+- **`GoodsReceiptLineRequest`**
+  - `rawMaterialId: number` *(required)*
+  - `batchCode?: string`
+  - `quantity: decimal` *(required, > 0)*
+  - `unit?: string`
+  - `costPerUnit: decimal` *(required, > 0)*
+  - `manufacturingDate?: date`
+  - `expiryDate?: date`
+  - `notes?: string`
+
+- **`GoodsReceiptResponse`**
+  - `id, publicId, receiptNumber, receiptDate`
+  - `totalAmount: decimal`
+  - `status: PARTIAL | RECEIVED | INVOICED`
+  - `memo?: string`
+  - `supplierId, supplierCode, supplierName`
+  - `purchaseOrderId, purchaseOrderNumber`
+  - `createdAt: instant`
+  - `lines: GoodsReceiptLineResponse[]`
+
+- **`GoodsReceiptLineResponse`**
+  - `rawMaterialId, rawMaterialName, batchCode, quantity, unit, costPerUnit, lineTotal, notes`
+
+##### Purchase invoice + return DTOs
+
+- **`RawMaterialPurchaseRequest`**
+  - `supplierId: number` *(required)*
+  - `invoiceNumber: string` *(required)*
+  - `invoiceDate: date` *(required)*
+  - `memo?: string`
+  - `purchaseOrderId?: number`
+  - `goodsReceiptId: number` *(required)*
+  - `taxAmount?: decimal` *(>= 0; mutually exclusive with line-level tax declarations)*
+  - `lines: RawMaterialPurchaseLineRequest[]` *(required, non-empty)*
+
+  Canonical JSON keys only:
+  - Supported: `invoiceNumber`, `goodsReceiptId`
+  - Explicitly rejected legacy aliases: `invoiceNo`, `invoice_no`, `goodsReceiptID`, `goods_receipt_id`, `goodsReceipt`, `grnId`
+
+- **`RawMaterialPurchaseLineRequest`**
+  - `rawMaterialId: number` *(required)*
+  - `batchCode?: string`
+  - `quantity: decimal` *(required, > 0 and must match GRN qty for same material)*
+  - `unit?: string` *(must match GRN unit if GRN line exists)*
+  - `costPerUnit: decimal` *(required, > 0 and must match GRN cost within tolerance)*
+  - `taxRate?: decimal`
+  - `taxInclusive?: boolean`
+  - `notes?: string`
+
+- **`RawMaterialPurchaseResponse`**
+  - `id, publicId, invoiceNumber, invoiceDate`
+  - `totalAmount, taxAmount, outstandingAmount`
+  - `status` *(runtime values include `POSTED`, `PARTIAL`, `PAID`, `VOID`, `REVERSED` depending on settlement/returns)*
+  - `memo?: string`
+  - `supplierId, supplierCode, supplierName`
+  - `purchaseOrderId, purchaseOrderNumber`
+  - `goodsReceiptId, goodsReceiptNumber`
+  - `journalEntryId?: number`
+  - `createdAt: instant`
+  - `lines: RawMaterialPurchaseLineResponse[]`
+
+- **`RawMaterialPurchaseLineResponse`**
+  - `rawMaterialId, rawMaterialName`
+  - `rawMaterialBatchId?, batchCode?`
+  - `quantity, unit, costPerUnit, lineTotal`
+  - `taxRate?, taxAmount?`
+  - `cgstAmount?, sgstAmount?, igstAmount?`
+  - `notes?`
+
+- **`PurchaseReturnRequest`**
+  - `supplierId: number` *(required)*
+  - `purchaseId: number` *(required)*
+  - `rawMaterialId: number` *(required)*
+  - `quantity: decimal` *(required, > 0)*
+  - `unitCost: decimal` *(required, > 0)*
+  - `referenceNumber?: string` *(optional idempotent reference for replay-safe requests)*
+  - `returnDate?: date` *(defaults to company date if omitted)*
+  - `reason?: string`
+
+Return response:
+- `POST /raw-material-purchases/returns` returns `JournalEntryDto` (see Accounting section for full schema).
 
 #### UI Hints
 
-- Supplier list should surface status and payment terms columns; only show **Create PO** action for `ACTIVE` suppliers.
-- Add explicit approval action buttons (`Approve`, `Activate`, `Suspend`) with state-aware enable/disable rules from transitions above.
-- Mask bank account number in list views; reveal full value only in supplier details/edit forms.
-- For GRN forms, keep per-line remaining quantity visible (ordered - received) and hard-block entry above remaining.
-- Always send `Idempotency-Key` header for GRN creation; do not use `X-Idempotency-Key` legacy header.
+- **Supplier onboarding UI**
+  - Use staged actions: `Create -> Approve -> Activate`.
+  - Disable invalid transition buttons based on current `status`.
+  - Show payable account code from response so finance team can verify ledger linkage.
 
-#### GST Fields
+- **Supplier search/list UI**
+  - Since backend has no dedicated query endpoint, implement client-side filtering on top of `GET /suppliers`.
+  - Recommended quick filters: `status`, `paymentTerms`, `gstRegistrationType`, and text match over `code/name`.
 
-- Supplier create/update payloads support:
-  - `gstNumber` (15-char GSTIN, optional)
-  - `stateCode` (2-char Indian state code, optional)
-  - `gstRegistrationType` (`REGULAR | COMPOSITION | UNREGISTERED`, optional; defaults to `UNREGISTERED`)
+- **PO creation UI**
+  - Allow PO creation only for `ACTIVE` suppliers.
+  - Use line-level validations before submit (positive qty/cost, no duplicate raw material lines).
+  - Explain in UX copy that PO is auto-approved by backend at creation time.
 
-#### Purchase GST Component Exposure
+- **GRN UI**
+  - Always attach `Idempotency-Key` header on create.
+  - Never send `X-Idempotency-Key`; show developer-facing warning if legacy integration attempts it.
+  - Show per-line remaining quantity and hard-block over-receipt client-side.
 
-- Raw material purchase line response now includes:
-  - `cgstAmount`
-  - `sgstAmount`
-  - `igstAmount`
+- **Purchase invoice UI**
+  - Invoice lines should mirror GRN lines 1:1 in material/qty/unit/cost.
+  - Enforce tax-mode consistency (GST vs non-GST) in line editor before submit.
+  - If using top-level `taxAmount`, disable line `taxRate`/`taxInclusive` inputs.
 
-GST components are computed per line using company state vs supplier state:
-- Same state => CGST + SGST split
-- Different state => IGST
+- **Return UI**
+  - Show both *remaining returnable quantity* and *current outstanding amount* before submit.
+  - Recompute max returnable amount client-side to reduce BUS_009 errors.
+  - On success, refresh purchase detail to show reduced `outstandingAmount` and updated status.
+
+- **GST display hints**
+  - Render CGST/SGST/IGST columns in purchase line tables where available.
+  - Split display by interstate rule:
+    - same-state supplier/company -> CGST + SGST
+    - cross-state -> IGST
 
 ### HR & Payroll
 _To be documented_
