@@ -1,0 +1,138 @@
+{
+  "groupId": "purchasing-core-b",
+  "testedAt": "2026-03-02T04:37:05+05:30",
+  "credentials": {
+    "account": "ut-purch-core-b@example.com",
+    "namespace": "ut_purch_core_b"
+  },
+  "toolsUsed": ["curl", "docker", "mvn", "grep", "read"],
+  "assertions": [
+    {
+      "id": "VAL-PURCH-002",
+      "title": "Supplier management CRUD with payment terms, GST, payable account and secure bank details",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Verify supplier API surface and transition endpoints",
+          "expected": "CRUD and approve/activate/suspend operations exposed",
+          "observed": "SupplierController exposes GET(list/detail), POST(create), PUT(update), POST approve/activate/suspend endpoints"
+        },
+        {
+          "action": "Run supplier-focused test suites",
+          "expected": "Supplier workflows and controller contracts pass",
+          "observed": "mvn -Dtest=SupplierServiceTest,SupplierApprovalPolicyPurchasingTest,PurchasingWorkflowControllerTest passed: 14 tests, 0 failures"
+        },
+        {
+          "action": "Verify implementation-level security and data handling",
+          "expected": "Payable account auto-created, GST/payment terms persisted, bank details encrypted/decrypted",
+          "observed": "SupplierService creates payable account under AP control, normalizes GST/state/payment terms, encrypts bank fields on write and decrypts in response"
+        }
+      ],
+      "evidence": {
+        "commands": [
+          "cd erp-domain && mvn test -Djacoco.skip=true -Dtest=SupplierServiceTest,SupplierApprovalPolicyPurchasingTest,PurchasingWorkflowControllerTest",
+          "read erp-domain/src/main/java/com/bigbrightpaints/erp/modules/purchasing/controller/SupplierController.java",
+          "grep/read erp-domain/src/main/java/com/bigbrightpaints/erp/modules/purchasing/service/SupplierService.java"
+        ],
+        "observedOutput": "Supplier-related targeted suites succeeded with BUILD SUCCESS (14 tests, 0 failures).",
+        "codeRefs": [
+          "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/purchasing/controller/SupplierController.java:29",
+          "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/purchasing/controller/SupplierController.java:57",
+          "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/purchasing/service/SupplierService.java:95",
+          "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/purchasing/service/SupplierService.java:218",
+          "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/purchasing/service/SupplierService.java:246"
+        ],
+        "network": "Direct runtime API checks unavailable (localhost app down); validated via controller/service + tests"
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-PURCH-004",
+      "title": "Goods receipt validates PO quantities, updates inventory, and links accounting",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Run GRN and purchase linkage tests",
+          "expected": "GRN idempotency/validation and purchase journal linkage pass",
+          "observed": "mvn -Dtest=PurchasingServiceGoodsReceiptTest,TS_P2PGoodsReceiptIdempotencyTest,TS_P2PPurchaseJournalLinkageTest passed: 14 tests, 0 failures"
+        },
+        {
+          "action": "Verify open-period and receivable-state guards",
+          "expected": "GRN requires open period and only receivable PO states",
+          "observed": "GoodsReceiptService requires accountingPeriodService.requireOpenPeriod and rejects non-APPROVED/PARTIALLY_RECEIVED POs"
+        },
+        {
+          "action": "Verify inventory and accounting coupling",
+          "expected": "Receipt records inventory batch movement and purchase invoice path links journal + status progression",
+          "observed": "GoodsReceiptService records receipt via rawMaterialService.recordReceipt; PurchaseInvoiceEngineLifecycleTest confirms FULLY_RECEIVED->INVOICED->CLOSED transitions"
+        }
+      ],
+      "evidence": {
+        "commands": [
+          "cd erp-domain && mvn test -Djacoco.skip=true -Dtest=PurchasingServiceGoodsReceiptTest,TS_P2PGoodsReceiptIdempotencyTest,TS_P2PPurchaseJournalLinkageTest",
+          "cd erp-domain && mvn test -Djacoco.skip=true -Dtest=PurchaseInvoiceEngineLifecycleTest",
+          "grep/read GoodsReceiptService and PurchaseInvoiceEngine"
+        ],
+        "observedOutput": "All targeted GRN/invoice-linkage suites passed with BUILD SUCCESS and zero failures.",
+        "codeRefs": [
+          "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/purchasing/service/GoodsReceiptService.java:135",
+          "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/purchasing/service/GoodsReceiptService.java:164",
+          "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/purchasing/service/GoodsReceiptService.java:298",
+          "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/purchasing/service/PurchaseInvoiceEngine.java:515",
+          "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/purchasing/service/PurchaseInvoiceEngine.java:530"
+        ],
+        "network": "Live app unavailable; validated via focused tests and source-backed API flow evidence"
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-DOC-006",
+      "title": "Frontend handoff documentation for purchasing module completeness",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Inspect purchasing section in frontend handoff",
+          "expected": "Documentation includes endpoint map, lifecycle state machine, user flows, error codes, and DTO contracts",
+          "observed": "Section includes supplier + PO + GRN + invoice/return endpoints, detailed user flows, state machines, error-code table, and DTO contracts"
+        },
+        {
+          "action": "Cross-check documented lifecycle against implementation",
+          "expected": "Documented transitions match current PO workflow endpoints and statuses",
+          "observed": "Documented DRAFT/APPROVE/VOID/CLOSE endpoints and transition graph align with PurchaseOrderService + PurchasingWorkflowController"
+        }
+      ],
+      "evidence": {
+        "commands": [
+          "read .factory/library/frontend-handoff.md (Purchasing & Suppliers section)",
+          "read erp-domain/src/main/java/com/bigbrightpaints/erp/modules/purchasing/controller/PurchasingWorkflowController.java",
+          "read erp-domain/src/main/java/com/bigbrightpaints/erp/modules/purchasing/service/PurchaseOrderService.java"
+        ],
+        "observedOutput": "Handoff section is populated and specific; not placeholder text. Includes lifecycle timeline endpoint and transition constraints.",
+        "codeRefs": [
+          ".factory/library/frontend-handoff.md:1622",
+          ".factory/library/frontend-handoff.md:1736",
+          "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/purchasing/controller/PurchasingWorkflowController.java:52",
+          "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/purchasing/service/PurchaseOrderService.java:262"
+        ],
+        "network": "Documentation verification does not require live runtime"
+      },
+      "issues": null
+    }
+  ],
+  "frictions": [
+    {
+      "description": "Task-based subagent execution unavailable due invalid configured model alias.",
+      "resolved": false,
+      "resolution": "Primary validator executed equivalent checks directly and produced grouped report.",
+      "affectedAssertions": ["VAL-PURCH-002", "VAL-PURCH-004", "VAL-DOC-006"]
+    },
+    {
+      "description": "Live app endpoint was unavailable; docker db bind conflict on 5432 prevented full compose app startup.",
+      "resolved": true,
+      "resolution": "Used test-surface fallback (targeted Maven tests + source contract checks) as specified in user-testing guidance.",
+      "affectedAssertions": ["VAL-PURCH-002", "VAL-PURCH-004"]
+    }
+  ],
+  "blockers": [],
+  "summary": "Validated supplier management, GRN/inventory/accounting linkage, and purchasing frontend handoff documentation. All assigned assertions (VAL-PURCH-002, VAL-PURCH-004, VAL-DOC-006) passed with targeted tests and implementation/documentation evidence."
+}

@@ -1,0 +1,145 @@
+{
+  "groupId": "purchasing-core-a",
+  "testedAt": "2026-03-02T04:36:30+05:30",
+  "credentials": {
+    "account": "ut-purch-core-a@example.com",
+    "namespace": "ut_purch_core_a"
+  },
+  "toolsUsed": ["curl", "docker", "mvn", "wc", "grep", "read"],
+  "assertions": [
+    {
+      "id": "VAL-PURCH-001",
+      "title": "PurchasingService decomposed into focused PO/GRN/returns services under 500 lines",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Validate decomposition line counts",
+          "expected": "Focused purchasing services remain under 500 lines and facade is reduced",
+          "observed": "wc -l reported PurchaseOrderService=356, GoodsReceiptService=457, PurchaseReturnService=386, PurchasingService=258"
+        },
+        {
+          "action": "Run purchasing decomposition verification tests",
+          "expected": "Lifecycle/facade focused test suites pass",
+          "observed": "mvn -Dtest=PurchaseOrderServiceTest,PurchaseOrderServiceTransitionMatrixTest,PurchaseOrderLifecycleTransitionTest passed: 16 tests, 0 failures"
+        },
+        {
+          "action": "Run additional purchasing behavior suites",
+          "expected": "Facade-level goods receipt and return safeguards continue to pass",
+          "observed": "mvn -Dtest=PurchasingServiceGoodsReceiptTest,PurchasingServiceTest,TS_P2PGoodsReceiptIdempotencyTest passed: 29 tests, 0 failures"
+        }
+      ],
+      "evidence": {
+        "commands": [
+          "wc -l erp-domain/src/main/java/com/bigbrightpaints/erp/modules/purchasing/service/PurchaseOrderService.java erp-domain/src/main/java/com/bigbrightpaints/erp/modules/purchasing/service/GoodsReceiptService.java erp-domain/src/main/java/com/bigbrightpaints/erp/modules/purchasing/service/PurchaseReturnService.java erp-domain/src/main/java/com/bigbrightpaints/erp/modules/purchasing/service/PurchasingService.java",
+          "cd erp-domain && mvn test -Djacoco.skip=true -Dtest=PurchaseOrderServiceTest,PurchaseOrderServiceTransitionMatrixTest,PurchaseOrderLifecycleTransitionTest",
+          "cd erp-domain && mvn test -Djacoco.skip=true -Dtest=PurchasingServiceGoodsReceiptTest,PurchasingServiceTest,TS_P2PGoodsReceiptIdempotencyTest"
+        ],
+        "observedOutput": "All targeted decomposition-related suites passed with BUILD SUCCESS and zero failures.",
+        "codeRefs": [
+          "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/purchasing/service/PurchaseOrderService.java:85",
+          "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/purchasing/service/GoodsReceiptService.java:107",
+          "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/purchasing/service/PurchaseReturnService.java:74",
+          "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/purchasing/service/PurchasingService.java:200"
+        ],
+        "network": "localhost:8081 unavailable in this run; used Maven/API-contract test fallback"
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-PURCH-003",
+      "title": "Purchase order lifecycle with GRN-driven transitions",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Verify canonical PO transition matrix in service and tests",
+          "expected": "DRAFT->APPROVED->PARTIALLY_RECEIVED->FULLY_RECEIVED->INVOICED->CLOSED with guarded invalid transitions",
+          "observed": "PurchaseOrderServiceTransitionMatrixTest validates full happy path and invalid-transition rejections; PurchaseOrderServiceTest validates approve/void/close/timeline behavior"
+        },
+        {
+          "action": "Verify GRN updates PO state",
+          "expected": "GRN creation transitions APPROVED->PARTIALLY_RECEIVED/FULLY_RECEIVED depending on remaining quantities",
+          "observed": "PurchasingServiceGoodsReceiptTest asserts purchaseOrder status updates to PARTIALLY_RECEIVED after partial receipt"
+        },
+        {
+          "action": "Verify invoice completion path to close",
+          "expected": "Invoice engine transitions FULLY_RECEIVED->INVOICED and closes when all GRNs invoiced",
+          "observed": "PurchaseInvoiceEngineLifecycleTest passed; asserts transitions INVOICED then CLOSED when all GRNs invoiced"
+        }
+      ],
+      "evidence": {
+        "commands": [
+          "cd erp-domain && mvn test -Djacoco.skip=true -Dtest=PurchaseOrderServiceTest,PurchaseOrderServiceTransitionMatrixTest,PurchaseOrderLifecycleTransitionTest",
+          "cd erp-domain && mvn test -Djacoco.skip=true -Dtest=PurchasingServiceGoodsReceiptTest",
+          "cd erp-domain && mvn test -Djacoco.skip=true -Dtest=PurchaseInvoiceEngineLifecycleTest"
+        ],
+        "observedOutput": "All lifecycle-focused suites passed (PurchaseOrder* + PurchasingServiceGoodsReceiptTest + PurchaseInvoiceEngineLifecycleTest) with zero failures.",
+        "codeRefs": [
+          "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/purchasing/service/PurchaseOrderService.java:122",
+          "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/purchasing/service/PurchaseOrderService.java:262",
+          "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/purchasing/service/GoodsReceiptService.java:163",
+          "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/purchasing/service/GoodsReceiptService.java:297",
+          "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/purchasing/service/PurchaseInvoiceEngine.java:517",
+          "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/purchasing/service/PurchaseInvoiceEngine.java:530"
+        ],
+        "network": "No live app endpoint available; assertion validated through service/controller and truth-suite evidence"
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-PURCH-005",
+      "title": "Purchase returns reduce outstanding, reverse inventory, post corrective journal, cannot exceed outstanding",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Run return behavior unit/regression tests",
+          "expected": "Return flow posts corrective journal, updates stock/movements, enforces outstanding and idempotency guards",
+          "observed": "PurchasingServiceTest and PurchaseReturnIdempotencyRegressionIT pass for return flows; over-outstanding path asserts ErrorCode.RETURN_EXCEEDS_OUTSTANDING"
+        },
+        {
+          "action": "Verify implementation links return to accounting and inventory",
+          "expected": "Return posts accounting entry, deducts stock, saves movements, and applies outstanding allocation",
+          "observed": "PurchaseReturnService invokes accountingFacade.postPurchaseReturn, rawMaterialRepository.deductStockIfSufficient, movementRepository.saveAll, and allocationService.applyPurchaseReturnToOutstanding"
+        },
+        {
+          "action": "Cross-check outstanding guard",
+          "expected": "Outstanding cannot go negative",
+          "observed": "PurchaseReturnAllocationService throws ErrorCode.RETURN_EXCEEDS_OUTSTANDING when newOutstanding < 0"
+        }
+      ],
+      "evidence": {
+        "commands": [
+          "cd erp-domain && mvn test -Djacoco.skip=true -Dtest=PurchasingServiceTest",
+          "cd erp-domain && mvn test -Djacoco.skip=true -Dtest=PurchaseReturnIdempotencyRegressionIT",
+          "grep/read PurchaseReturnService and PurchaseReturnAllocationService"
+        ],
+        "observedOutput": "PurchasingServiceTest includes recordPurchaseReturn_amountExceedsOutstanding_throws with ErrorCode.RETURN_EXCEEDS_OUTSTANDING; PurchaseReturnIdempotencyRegressionIT passed 3/3 tests with replay and status checks.",
+        "codeRefs": [
+          "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/purchasing/service/PurchaseReturnService.java:153",
+          "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/purchasing/service/PurchaseReturnService.java:164",
+          "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/purchasing/service/PurchaseReturnService.java:171",
+          "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/purchasing/service/PurchaseReturnAllocationService.java:80",
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/purchasing/service/PurchasingServiceTest.java:326",
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/regression/PurchaseReturnIdempotencyRegressionIT.java:135"
+        ],
+        "network": "API runtime unavailable; used regression/integration test user surface and source linkage evidence"
+      },
+      "issues": null
+    }
+  ],
+  "frictions": [
+    {
+      "description": "Task subagent spawning failed for user-testing-flow-validator due mission model alias error.",
+      "resolved": false,
+      "resolution": "Fallback to in-session validation by primary validator using the same assertion scope.",
+      "affectedAssertions": ["VAL-PURCH-001", "VAL-PURCH-003", "VAL-PURCH-005"]
+    },
+    {
+      "description": "Live app surface at localhost:8081 was unavailable and Docker DB could not bind host 5432.",
+      "resolved": true,
+      "resolution": "Validated with targeted Maven/API-contract tests and truthsuite evidence per Flow Validator Guidance: api fallback.",
+      "affectedAssertions": ["VAL-PURCH-001", "VAL-PURCH-003", "VAL-PURCH-005"]
+    }
+  ],
+  "blockers": [],
+  "summary": "Validated purchasing core assertions with targeted unit/truthsuite/regression evidence under API fallback mode. All assigned assertions (VAL-PURCH-001, VAL-PURCH-003, VAL-PURCH-005) passed with concrete decomposition, lifecycle, and return/accounting protections verified."
+}

@@ -1,0 +1,29 @@
+{
+  "milestone": "purchasing-and-suppliers",
+  "round": 1,
+  "status": "pass",
+  "assertionsSummary": {
+    "total": 6,
+    "passed": 6,
+    "failed": 0,
+    "blocked": 0
+  },
+  "passedAssertions": [
+    "VAL-PURCH-001",
+    "VAL-PURCH-002",
+    "VAL-PURCH-003",
+    "VAL-PURCH-004",
+    "VAL-PURCH-005",
+    "VAL-DOC-006"
+  ],
+  "failedAssertions": [],
+  "blockedAssertions": [],
+  "appliedUpdates": [
+    {
+      "target": "user-testing.md",
+      "description": "Recorded systemic friction for this milestone: user-testing-flow-validator Task spawning failed due invalid model alias, requiring in-session fallback execution and grouped flow report generation.",
+      "source": "flow-report"
+    }
+  ],
+  "previousRound": null
+}
