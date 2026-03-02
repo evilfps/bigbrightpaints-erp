@@ -2365,6 +2365,28 @@ All report APIs are under `/api/v1` and require `ROLE_ADMIN` or `ROLE_ACCOUNTING
     - Groups values by `taxRate` and includes transaction-level details for each contributing line.
     - Computes net liability component-wise: `outputTax - inputTaxCredit` (CGST/SGST/IGST + total).
 
+#### Complete endpoint inventory (parameters, response schema, pagination)
+
+All endpoints below are implemented in `ReportController` and return `ApiResponse<T>` where `T` is the schema listed.
+
+| Endpoint | Query params | Response `data` schema | Pagination |
+|---|---|---|---|
+| `GET /api/v1/reports/trial-balance` | `date?`, `periodId?`, `startDate?`, `endDate?`, `comparativeStartDate?`, `comparativeEndDate?`, `comparativePeriodId?`, `exportFormat?` | `TrialBalanceDto` | None |
+| `GET /api/v1/reports/profit-loss` | `date?`, `periodId?`, `startDate?`, `endDate?`, `comparativeStartDate?`, `comparativeEndDate?`, `comparativePeriodId?`, `exportFormat?` | `ProfitLossDto` | None |
+| `GET /api/v1/reports/balance-sheet` | `date?`, `periodId?`, `startDate?`, `endDate?`, `comparativeStartDate?`, `comparativeEndDate?`, `comparativePeriodId?`, `exportFormat?` | `BalanceSheetDto` | None |
+| `GET /api/v1/reports/aged-debtors` | `periodId?`, `startDate?`, `endDate?`, `exportFormat?` | `List<AgedDebtorDto>` | None |
+| `GET /api/v1/accounting/reports/aged-debtors` (legacy) | none | `List<AgedDebtorDto>` | None |
+| `GET /api/v1/reports/inventory-valuation` | `date?` | `InventoryValuationDto` | None |
+| `GET /api/v1/reports/gst-return` | `periodId?` | `GstReturnReportDto` | None |
+| `GET /api/v1/reports/cash-flow` | none | `CashFlowDto` | None |
+| `GET /api/v1/reports/account-statement` | none | `List<AccountStatementEntryDto>` | None |
+| `GET /api/v1/reports/inventory-reconciliation` | none | `ReconciliationSummaryDto` | None |
+| `GET /api/v1/reports/balance-warnings` | none | `List<BalanceWarningDto>` | None |
+| `GET /api/v1/reports/reconciliation-dashboard` | `bankAccountId` (required), `statementBalance?` | `ReconciliationDashboardDto` | None |
+| `GET /api/v1/reports/wastage` | none | `List<WastageReportDto>` | None |
+| `GET /api/v1/reports/production-logs/{id}/cost-breakdown` | path `id` | `CostBreakdownDto` | None |
+| `GET /api/v1/reports/monthly-production-costs` | `year` (required), `month` (required) | `MonthlyProductionCostDto` | None |
+
 #### User flows (frontend orchestration)
 
 1. **Trial Balance (period/range with optional comparative)**
@@ -2439,6 +2461,11 @@ Resolution rules used by backend query support:
 | `AUTH_004` | `AUTH_INSUFFICIENT_PERMISSIONS` | `companyId` mismatch against authenticated company context | Force context refresh/logout or tenant re-selection flow. |
 
 #### Data contracts
+
+- **Envelope + pagination contract**
+  - All report endpoints in this section return `ApiResponse<T>` with payload under `data`.
+  - None of the report endpoints currently return `PageResponse`; all are aggregate payloads or unpaged lists.
+  - `T` per endpoint is defined in the endpoint inventory table above.
 
 - **`FinancialReportQueryRequest`** (backend query object; represented by endpoint query params)
   - `periodId: Long?`
@@ -2520,6 +2547,19 @@ Resolution rules used by backend query support:
     - `cgst`, `sgst`, `igst`, `totalTax`
     - `direction` (`OUTPUT` / `INPUT`)
 
+#### Export support matrix (PDF/CSV)
+
+Export readiness is surfaced via metadata/hints, not separate export-only endpoints in the reports module.
+
+| Report endpoint | Export indicator fields | PDF support | CSV support | Frontend behavior |
+|---|---|---|---|---|
+| `GET /api/v1/reports/trial-balance` | `metadata.pdfReady`, `metadata.csvReady`, `metadata.requestedExportFormat` | Yes | Yes | Show export buttons when `pdfReady/csvReady=true`; pass `exportFormat=PDF|CSV` in same endpoint call. |
+| `GET /api/v1/reports/profit-loss` | `metadata.pdfReady`, `metadata.csvReady`, `metadata.requestedExportFormat` | Yes | Yes | Same pattern as trial balance. |
+| `GET /api/v1/reports/balance-sheet` | `metadata.pdfReady`, `metadata.csvReady`, `metadata.requestedExportFormat` | Yes | Yes | Same pattern as trial balance. |
+| `GET /api/v1/reports/aged-debtors` | `exportHints.pdfReady`, `exportHints.csvReady`, `exportHints.requestedFormat` + `metadata` | Yes | Yes | Drive export buttons from `exportHints` at report level and `metadata` at window level. |
+| `GET /api/v1/reports/inventory-valuation` | `metadata.pdfReady`, `metadata.csvReady`, `metadata.requestedExportFormat` | Ready via metadata | Ready via metadata | Enable generic export action; backend marks readiness through metadata. |
+| `GET /api/v1/reports/gst-return` | `metadata.pdfReady`, `metadata.csvReady`, `metadata.requestedExportFormat` | Ready via metadata | Ready via metadata | Use metadata flags and map output to filing worksheet/export UI. |
+
 #### UI hints
 
 - Use period/date controls that enforce paired range fields (disable submit until both dates are present).
@@ -2530,6 +2570,92 @@ Resolution rules used by backend query support:
   - Export format/status from metadata/export hints
 - In comparative mode, show clearly labeled "Primary" vs "Comparative" windows using each payload’s metadata dates.
 - For Balance Sheet and Trial Balance, show explicit accounting integrity badges (`balanced` + totals) to aid finance review.
+
+### Cross-module flow playbooks for report-driven frontend guidance
+
+These flows map complete API sequences across modules. Use them to drive wizard-style UX and to decide when to refresh report screens.
+
+#### 1) O2C (Order-to-Cash) -> report touchpoints
+
+1. Dealer onboarding: `POST /api/v1/dealers`.
+2. Create sales order: `POST /api/v1/sales/orders`.
+3. Confirm order: `POST /api/v1/sales/orders/{id}/confirm`.
+4. Dispatch + invoice creation: `POST /api/v1/sales/dispatch/confirm` (returns `finalInvoiceId`, AR journal links).
+5. Receive/allocate payment: `POST /api/v1/accounting/settlements/dealers` (or auto-settle endpoint if used).
+6. Operational reconciliation checks:
+   - `GET /api/v1/dealers/{dealerId}/aging`
+   - `GET /api/v1/accounting/reconciliation/subledger`
+7. Reporting refresh sequence after settlement:
+   - `GET /api/v1/reports/aged-debtors`
+   - `GET /api/v1/reports/trial-balance`
+   - `GET /api/v1/reports/profit-loss`
+
+Frontend orchestration notes:
+- Keep order/dispatch/invoice/settlement in one guided timeline view.
+- Refresh aged debtors immediately after settlement to reflect bucket movement and outstanding reduction.
+
+#### 2) P2P (Procure-to-Pay) -> report touchpoints
+
+1. Supplier onboarding + activation:
+   - `POST /api/v1/suppliers`
+   - `POST /api/v1/suppliers/{id}/approve`
+   - `POST /api/v1/suppliers/{id}/activate`
+2. Create PO: `POST /api/v1/purchasing/purchase-orders`.
+3. Approve PO: `POST /api/v1/purchasing/purchase-orders/{id}/approve`.
+4. Receive goods (GRN): `POST /api/v1/purchasing/goods-receipts`.
+5. Create purchase invoice: `POST /api/v1/purchasing/raw-material-purchases`.
+6. Pay supplier / settle AP:
+   - `POST /api/v1/accounting/suppliers/payments`
+   - or `POST /api/v1/accounting/settlements/suppliers`
+7. Reporting refresh sequence after posting/payment:
+   - `GET /api/v1/reports/inventory-valuation`
+   - `GET /api/v1/reports/gst-return`
+   - `GET /api/v1/reports/trial-balance`
+
+Frontend orchestration notes:
+- Gate GRN and invoice actions by PO state (`APPROVED`, then received state).
+- Surface GST impact from purchase invoice posting using GST report drill-down.
+
+#### 3) Manufacturing-to-stock -> report touchpoints
+
+1. Create production plan: `POST /api/v1/factory/production-plans`.
+2. Log production (consumption + costs): `POST /api/v1/factory/production/logs`.
+3. Pack output:
+   - `POST /api/v1/factory/packing-records`
+   - Optional completion: `POST /api/v1/factory/packing-records/{productionLogId}/complete`
+4. Validate stock availability:
+   - `GET /api/v1/finished-goods/stock-summary`
+   - `GET /api/v1/finished-goods/{id}/batches`
+5. Reporting refresh sequence:
+   - `GET /api/v1/reports/inventory-valuation`
+   - `GET /api/v1/reports/wastage`
+   - `GET /api/v1/reports/production-logs/{id}/cost-breakdown`
+   - `GET /api/v1/reports/monthly-production-costs?year=YYYY&month=MM`
+
+Frontend orchestration notes:
+- Keep production/packing and inventory valuation in a unified manufacturing console.
+- Use monthly production costs for period-close variance cards.
+
+#### 4) Payroll-to-accounting -> report touchpoints
+
+1. Create payroll run:
+   - Monthly: `POST /api/v1/payroll/runs/monthly?year=YYYY&month=MM`
+   - or generic: `POST /api/v1/payroll/runs`
+2. Calculate: `POST /api/v1/payroll/runs/{id}/calculate`.
+3. Approve: `POST /api/v1/payroll/runs/{id}/approve`.
+4. Post accounting journal: `POST /api/v1/payroll/runs/{id}/post`.
+5. Execute payment journal:
+   - `POST /api/v1/accounting/payroll/payments`
+   - or `POST /api/v1/accounting/payroll/payments/batch`
+6. Mark run paid: `POST /api/v1/payroll/runs/{id}/mark-paid`.
+7. Reporting refresh sequence:
+   - `GET /api/v1/reports/trial-balance`
+   - `GET /api/v1/reports/profit-loss`
+   - `GET /api/v1/reports/balance-sheet`
+
+Frontend orchestration notes:
+- Enforce action buttons by payroll state (`DRAFT -> CALCULATED -> APPROVED -> POSTED -> PAID`).
+- After post/pay, refresh financial reports to reflect payroll expense, liabilities, and cash movement.
 
 #### Visualization hints
 
@@ -2546,4 +2672,10 @@ Resolution rules used by backend query support:
   - Right: `currentLiabilities` + `longTermLiabilities` + `equityLines`
   Surface equation chip for `Assets = Liabilities + Equity` from `balanced`.
 - **Aged Debtors:** use a stacked bar chart per dealer (segments: `current`, `oneToThirtyDays`, `thirtyOneToSixtyDays`, `sixtyOneToNinetyDays`, `ninetyPlusDays`) with a table fallback for export/print workflows.
+- **Inventory Valuation:** use a sortable table as primary visualization (`inventoryType`, `code`, `name`, `category`, `brand`, `quantityOnHand`, `reservedQuantity`, `availableQuantity`, `unitCost`, `totalValue`, `lowStock`) with summary chips (`costingMethod`, `totalValue`, `lowStockItems`) and optional grouped side-panels (`groupByCategory`, `groupByBrand`).
+- **GST Return:** render section-wise cards aligned to government filing structure:
+  - `Outward supplies / output tax` -> `outputTax.cgst`, `outputTax.sgst`, `outputTax.igst`, `outputTax.total`
+  - `Input tax credit` -> `inputTaxCredit.cgst`, `inputTaxCredit.sgst`, `inputTaxCredit.igst`, `inputTaxCredit.total`
+  - `Net tax liability` -> `netLiability.cgst`, `netLiability.sgst`, `netLiability.igst`, `netLiability.total`
+  Then render rate-wise table from `rateSummaries[]` and invoice-level annexure from `transactionDetails[]` for reconciliation.
 
