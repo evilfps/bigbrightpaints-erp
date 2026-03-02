@@ -38,6 +38,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -800,6 +801,54 @@ class EventPublisherServiceTest {
         service.publishPendingEvents();
 
         verifyNoInteractions(outboxEventRepository, rabbitTemplate);
+    }
+
+    @Test
+    void healthSnapshot_reportsRepositoryCountersIncludingAmbiguousBuckets() {
+        EventPublisherService service = service();
+
+        when(outboxEventRepository.countByStatusAndDeadLetterFalse(OutboxEvent.Status.PENDING)).thenReturn(9L);
+        when(outboxEventRepository
+                .countByStatusAndDeadLetterFalseAndRetryCountGreaterThan(OutboxEvent.Status.PENDING, 0))
+                .thenReturn(4L);
+        when(outboxEventRepository.countByStatusAndDeadLetterFalse(OutboxEvent.Status.PUBLISHING)).thenReturn(3L);
+        when(outboxEventRepository
+                .countByStatusAndDeadLetterFalseAndNextAttemptAtLessThanEqual(eq(OutboxEvent.Status.PUBLISHING), any(Instant.class)))
+                .thenReturn(2L);
+        when(outboxEventRepository
+                .countByStatusAndDeadLetterFalseAndLastErrorStartingWith(OutboxEvent.Status.PUBLISHING, "AMBIGUOUS_PUBLISH:"))
+                .thenReturn(1L);
+        when(outboxEventRepository
+                .countByStatusAndDeadLetterFalseAndLastErrorStartingWith(OutboxEvent.Status.PUBLISHING, "FINALIZE_FAILURE:"))
+                .thenReturn(2L);
+        when(outboxEventRepository
+                .countByStatusAndDeadLetterFalseAndLastErrorStartingWith(OutboxEvent.Status.PUBLISHING, "STALE_LEASE_UNCERTAIN:"))
+                .thenReturn(3L);
+        when(outboxEventRepository.countByStatusAndDeadLetterTrue(OutboxEvent.Status.FAILED)).thenReturn(7L);
+
+        Map<String, Object> snapshot = service.healthSnapshot();
+
+        assertThat(snapshot)
+                .containsEntry("pendingEvents", 9L)
+                .containsEntry("retryingEvents", 4L)
+                .containsEntry("publishingEvents", 3L)
+                .containsEntry("stalePublishingEvents", 2L)
+                .containsEntry("ambiguousPublishingEvents", 6L)
+                .containsEntry("deadLetters", 7L);
+
+        verify(outboxEventRepository).countByStatusAndDeadLetterFalse(OutboxEvent.Status.PENDING);
+        verify(outboxEventRepository).countByStatusAndDeadLetterFalseAndRetryCountGreaterThan(OutboxEvent.Status.PENDING, 0);
+        verify(outboxEventRepository).countByStatusAndDeadLetterFalse(OutboxEvent.Status.PUBLISHING);
+        verify(outboxEventRepository)
+                .countByStatusAndDeadLetterFalseAndNextAttemptAtLessThanEqual(eq(OutboxEvent.Status.PUBLISHING), any(Instant.class));
+        verify(outboxEventRepository)
+                .countByStatusAndDeadLetterFalseAndLastErrorStartingWith(OutboxEvent.Status.PUBLISHING, "AMBIGUOUS_PUBLISH:");
+        verify(outboxEventRepository)
+                .countByStatusAndDeadLetterFalseAndLastErrorStartingWith(OutboxEvent.Status.PUBLISHING, "FINALIZE_FAILURE:");
+        verify(outboxEventRepository)
+                .countByStatusAndDeadLetterFalseAndLastErrorStartingWith(OutboxEvent.Status.PUBLISHING, "STALE_LEASE_UNCERTAIN:");
+        verify(outboxEventRepository).countByStatusAndDeadLetterTrue(OutboxEvent.Status.FAILED);
+        verifyNoMoreInteractions(outboxEventRepository);
     }
 
     private OutboxEvent pendingEvent(UUID eventId) {

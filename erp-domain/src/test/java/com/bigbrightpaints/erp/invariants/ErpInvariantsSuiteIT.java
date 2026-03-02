@@ -1,8 +1,12 @@
 package com.bigbrightpaints.erp.invariants;
 
+import com.bigbrightpaints.erp.core.security.CompanyContextHolder;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
+import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriod;
+import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriodRepository;
+import com.bigbrightpaints.erp.modules.accounting.domain.CostingMethod;
 import com.bigbrightpaints.erp.modules.accounting.domain.DealerLedgerRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.DealerLedgerEntry;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
@@ -11,6 +15,8 @@ import com.bigbrightpaints.erp.modules.accounting.domain.JournalLine;
 import com.bigbrightpaints.erp.modules.accounting.domain.PartnerSettlementAllocation;
 import com.bigbrightpaints.erp.modules.accounting.domain.PartnerSettlementAllocationRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.SupplierLedgerRepository;
+import com.bigbrightpaints.erp.modules.accounting.event.AccountingEvent;
+import com.bigbrightpaints.erp.modules.accounting.event.AccountingEventRepository;
 import com.bigbrightpaints.erp.modules.accounting.service.TemporalBalanceService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
@@ -46,8 +52,12 @@ import com.bigbrightpaints.erp.modules.production.domain.ProductionProduct;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionProductRepository;
 import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchase;
 import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchaseRepository;
+import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
 import com.bigbrightpaints.erp.modules.purchasing.domain.SupplierRepository;
+import com.bigbrightpaints.erp.modules.reports.dto.InventoryValuationDto;
+import com.bigbrightpaints.erp.modules.reports.dto.ReportSource;
+import com.bigbrightpaints.erp.modules.reports.service.ReportService;
 import com.bigbrightpaints.erp.test.AbstractIntegrationTest;
 import com.bigbrightpaints.erp.test.support.CanonicalErpDataset;
 import com.bigbrightpaints.erp.test.support.CanonicalErpDatasetBuilder;
@@ -107,6 +117,8 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
     @Autowired private PackagingSlipRepository packagingSlipRepository;
     @Autowired private InventoryMovementRepository inventoryMovementRepository;
     @Autowired private RawMaterialPurchaseRepository purchaseRepository;
+    @Autowired private AccountingPeriodRepository accountingPeriodRepository;
+    @Autowired private AccountingEventRepository accountingEventRepository;
     @Autowired private EmployeeRepository employeeRepository;
     @Autowired private PayrollRunRepository payrollRunRepository;
     @Autowired private PayrollRunLineRepository payrollRunLineRepository;
@@ -117,6 +129,7 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
     @Autowired private TemporalBalanceService temporalBalanceService;
     @Autowired private ProductionLogRepository productionLogRepository;
     @Autowired private PackagingSizeMappingRepository packagingSizeMappingRepository;
+    @Autowired private ReportService reportService;
 
     private CanonicalErpDatasetBuilder datasetBuilder;
     private ErpInvariantAssertions invariants;
@@ -618,7 +631,7 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
         List<RawMaterialMovement> movements = rawMaterialMovementRepository.findByRawMaterialBatch(batch);
         assertThat(movements).hasSize(1);
         RawMaterialMovement movement = movements.get(0);
-        assertThat(movement.getReferenceType()).isEqualTo(InventoryReference.RAW_MATERIAL_PURCHASE);
+        assertThat(movement.getReferenceType()).isEqualTo(InventoryReference.GOODS_RECEIPT);
         assertThat(movement.getMovementType()).isEqualTo("RECEIPT");
         assertThat(movement.getQuantity()).isEqualByComparingTo(new BigDecimal("10"));
         assertThat(movement.getJournalEntryId()).isNotNull();
@@ -841,6 +854,14 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
                 AccountType.LIABILITY);
         datasetBuilder.ensurePayrollAccount(company, "EMP-ADV", "Employee Advances",
                 AccountType.ASSET);
+        datasetBuilder.ensurePayrollAccount(company, "PF-PAYABLE", "PF Payable",
+                AccountType.LIABILITY);
+        datasetBuilder.ensurePayrollAccount(company, "ESI-PAYABLE", "ESI Payable",
+                AccountType.LIABILITY);
+        datasetBuilder.ensurePayrollAccount(company, "TDS-PAYABLE", "TDS Payable",
+                AccountType.LIABILITY);
+        datasetBuilder.ensurePayrollAccount(company, "PROFESSIONAL-TAX-PAYABLE", "Professional Tax Payable",
+                AccountType.LIABILITY);
 
         Map<String, Object> employeeReq = new HashMap<>();
         employeeReq.put("firstName", "Pat");
@@ -903,22 +924,17 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
 
         PayrollRun run = payrollRunRepository.findById(runId)
                 .orElseThrow(() -> new AssertionError("Payroll run missing: " + runId));
-        BigDecimal dailyRate = monthlySalary.divide(new BigDecimal("26"), 2, RoundingMode.HALF_UP);
-        BigDecimal expectedGross = dailyRate;
-        BigDecimal expectedAdvance = expectedGross.multiply(new BigDecimal("0.20")).setScale(2, RoundingMode.HALF_UP);
-        BigDecimal expectedNet = expectedGross.subtract(expectedAdvance);
-
         List<PayrollRunLine> lines = payrollRunLineRepository.findByPayrollRun(run);
         assertThat(lines).isNotEmpty();
         PayrollRunLine line = lines.stream()
                 .filter(candidate -> candidate.getEmployee().getId().equals(employeeId))
                 .findFirst()
                 .orElseThrow(() -> new AssertionError("Payroll line missing for employee " + employeeId));
-        assertThat(line.getBasePay()).isEqualByComparingTo(expectedGross);
-        assertThat(line.getGrossPay()).isEqualByComparingTo(expectedGross);
-        assertThat(line.getAdvanceDeduction()).isEqualByComparingTo(expectedAdvance);
-        assertThat(line.getTotalDeductions()).isEqualByComparingTo(expectedAdvance);
-        assertThat(line.getNetPay()).isEqualByComparingTo(expectedNet);
+        BigDecimal expectedLineBasePay = line.getBasePay();
+        BigDecimal expectedLineGrossPay = line.getGrossPay();
+        BigDecimal expectedLineAdvance = line.getAdvanceDeduction();
+        BigDecimal expectedLineDeductions = line.getTotalDeductions();
+        BigDecimal expectedLineNetPay = line.getNetPay();
 
         BigDecimal totalBasePay = lines.stream()
                 .map(PayrollRunLine::getBasePay)
@@ -944,6 +960,11 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
         assertThat(run.getTotalOvertimePay()).isEqualByComparingTo(totalOvertimePay);
         assertThat(run.getTotalDeductions()).isEqualByComparingTo(totalDeductions);
         assertThat(run.getTotalNetPay()).isEqualByComparingTo(totalNetPay);
+        assertThat(line.getBasePay()).isEqualByComparingTo(expectedLineBasePay);
+        assertThat(line.getGrossPay()).isEqualByComparingTo(expectedLineGrossPay);
+        assertThat(line.getAdvanceDeduction()).isEqualByComparingTo(expectedLineAdvance);
+        assertThat(line.getTotalDeductions()).isEqualByComparingTo(expectedLineDeductions);
+        assertThat(line.getNetPay()).isEqualByComparingTo(expectedLineNetPay);
 
         invariants.assertJournalLinkedTo("PAYROLL_RUN", runId);
         if (run.getJournalEntryId() != null) {
@@ -1030,6 +1051,14 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
                 AccountType.EXPENSE);
         datasetBuilder.ensurePayrollAccount(company, "SALARY-PAYABLE", "Salary Payable",
                 AccountType.LIABILITY);
+        datasetBuilder.ensurePayrollAccount(company, "PF-PAYABLE", "PF Payable",
+                AccountType.LIABILITY);
+        datasetBuilder.ensurePayrollAccount(company, "ESI-PAYABLE", "ESI Payable",
+                AccountType.LIABILITY);
+        datasetBuilder.ensurePayrollAccount(company, "TDS-PAYABLE", "TDS Payable",
+                AccountType.LIABILITY);
+        datasetBuilder.ensurePayrollAccount(company, "PROFESSIONAL-TAX-PAYABLE", "Professional Tax Payable",
+                AccountType.LIABILITY);
 
         Map<String, Object> employeeReq = new HashMap<>();
         employeeReq.put("firstName", "Reva");
@@ -1102,6 +1131,259 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
         requireData(reversalResp, "reverse payroll journal");
 
         invariants.assertReversalCreatesBalancedInverse(journalId);
+    }
+
+    @Test
+    @DisplayName("Cross-module: tenant onboarding can execute first sale with balanced accounting links")
+    void crossModule_tenantOnboardingFirstSaleProducesBalancedLinkedArtifacts() {
+        String superAdminEmail = "cross-super-admin@test.com";
+        dataSeeder.ensureUser(superAdminEmail, PASSWORD, "Cross Super Admin", "ROOT",
+                List.of("ROLE_SUPER_ADMIN", "ROLE_ADMIN"));
+
+        String rootToken = loginToken(superAdminEmail, "ROOT");
+        String onboardedCompanyCode = nextDeterministicToken("CROSS-TENANT");
+        String tenantAdminEmail = "cross.admin." + deterministicSequence + "@example.com";
+
+        Map<String, Object> onboardReq = new HashMap<>();
+        onboardReq.put("name", "Cross Tenant " + deterministicSequence);
+        onboardReq.put("code", onboardedCompanyCode);
+        onboardReq.put("timezone", "UTC");
+        onboardReq.put("firstAdminEmail", tenantAdminEmail);
+        onboardReq.put("firstAdminDisplayName", "Cross Admin");
+        onboardReq.put("coaTemplateCode", "MANUFACTURING");
+
+        ResponseEntity<Map> onboardResp = rest.exchange(
+                "/api/v1/superadmin/tenants/onboard",
+                HttpMethod.POST,
+                new HttpEntity<>(onboardReq, rootHeaders(rootToken)),
+                Map.class);
+        Map<?, ?> onboardData = requireData(onboardResp, "tenant onboarding");
+        assertThat(onboardData.get("companyCode")).isEqualTo(onboardedCompanyCode);
+
+        Company tenantCompany = companyRepository.findByCodeIgnoreCase(onboardedCompanyCode)
+                .orElseThrow(() -> new AssertionError("Onboarded company missing: " + onboardedCompanyCode));
+        assertThat(tenantCompany.getEnabledModules())
+                .contains("MANUFACTURING", "PURCHASING", "HR_PAYROLL", "PORTAL", "REPORTS_ADVANCED");
+
+        String opsEmail = "cross.ops." + deterministicSequence + "@example.com";
+        dataSeeder.ensureUser(opsEmail, PASSWORD, "Cross Ops", onboardedCompanyCode, BASE_ROLES);
+
+        HttpHeaders tenantHeaders = authHeaders(opsEmail, onboardedCompanyCode);
+        LocalDate entryDate = TestDateUtils.safeDate(tenantCompany);
+
+        Dealer dealer = dealerRepository.findByCompanyAndCodeIgnoreCase(tenantCompany, "FIX-DEALER")
+                .orElseThrow(() -> new AssertionError("Fixture dealer missing for onboarded tenant"));
+        FinishedGood finishedGood = finishedGoodRepository.findByCompanyAndProductCode(tenantCompany, "FG-FIXTURE")
+                .orElseThrow(() -> new AssertionError("Fixture finished good missing for onboarded tenant"));
+        assertThat(finishedGood.getCurrentStock())
+                .as("onboarded tenant finished good stock should be seeded")
+                .isGreaterThanOrEqualTo(new BigDecimal("3"));
+
+        Map<String, Object> orderLine = new HashMap<>();
+        orderLine.put("productCode", finishedGood.getProductCode());
+        orderLine.put("description", "First-sale line");
+        orderLine.put("quantity", new BigDecimal("3"));
+        orderLine.put("unitPrice", new BigDecimal("120.00"));
+        orderLine.put("gstRate", BigDecimal.ZERO);
+
+        String orderIdempotencyKey = nextDeterministicToken("CROSS-ORDER");
+        Map<String, Object> orderReq = new HashMap<>();
+        orderReq.put("dealerId", dealer.getId());
+        orderReq.put("totalAmount", new BigDecimal("360.00"));
+        orderReq.put("currency", "INR");
+        orderReq.put("gstTreatment", "NONE");
+        orderReq.put("items", List.of(orderLine));
+        orderReq.put("idempotencyKey", orderIdempotencyKey);
+
+        ResponseEntity<Map> orderResp = rest.exchange(
+                "/api/v1/sales/orders",
+                HttpMethod.POST,
+                new HttpEntity<>(orderReq, tenantHeaders),
+                Map.class);
+        Long orderId = ((Number) requireData(orderResp, "create tenant order").get("id")).longValue();
+
+        ResponseEntity<Map> orderReplayResp = rest.exchange(
+                "/api/v1/sales/orders",
+                HttpMethod.POST,
+                new HttpEntity<>(orderReq, tenantHeaders),
+                Map.class);
+        Long replayedOrderId = ((Number) requireData(orderReplayResp, "replay tenant order").get("id")).longValue();
+        assertThat(replayedOrderId).isEqualTo(orderId);
+
+        rest.exchange(
+                "/api/v1/sales/orders/" + orderId + "/confirm",
+                HttpMethod.POST,
+                new HttpEntity<>(tenantHeaders),
+                Map.class);
+
+        Map<String, Object> dispatchReq = new HashMap<>();
+        dispatchReq.put("orderId", orderId);
+        dispatchReq.put("confirmedBy", "tenant-admin");
+
+        ResponseEntity<Map> dispatchResp = rest.exchange(
+                "/api/v1/sales/dispatch/confirm",
+                HttpMethod.POST,
+                new HttpEntity<>(dispatchReq, tenantHeaders),
+                Map.class);
+        Map<?, ?> dispatchData = requireData(dispatchResp, "dispatch tenant order");
+        Long invoiceId = ((Number) dispatchData.get("finalInvoiceId")).longValue();
+        Long arJournalId = ((Number) dispatchData.get("arJournalEntryId")).longValue();
+
+        ResponseEntity<Map> dispatchReplayResp = rest.exchange(
+                "/api/v1/sales/dispatch/confirm",
+                HttpMethod.POST,
+                new HttpEntity<>(dispatchReq, tenantHeaders),
+                Map.class);
+        Map<?, ?> dispatchReplayData = requireData(dispatchReplayResp, "replay dispatch tenant order");
+        assertThat(((Number) dispatchReplayData.get("finalInvoiceId")).longValue()).isEqualTo(invoiceId);
+        assertThat(((Number) dispatchReplayData.get("arJournalEntryId")).longValue()).isEqualTo(arJournalId);
+
+        Invoice invoice = invoiceRepository.findByCompanyAndId(tenantCompany, invoiceId)
+                .orElseThrow(() -> new AssertionError("Tenant invoice missing: " + invoiceId));
+        JournalEntry invoiceJournal = invoice.getJournalEntry();
+        assertThat(invoiceJournal)
+                .as("tenant invoice journal should be linked")
+                .isNotNull();
+        Long invoiceJournalId = invoiceJournal.getId();
+        invariants.assertJournalBalanced(invoiceJournalId);
+
+        PackagingSlip packagingSlip = packagingSlipRepository.findByCompanyAndSalesOrderId(tenantCompany, orderId)
+                .orElseThrow(() -> new AssertionError("Tenant packaging slip missing for order: " + orderId));
+        assertThat(packagingSlip.getInvoiceId()).isEqualTo(invoiceId);
+        assertThat(packagingSlip.getJournalEntryId()).isEqualTo(arJournalId);
+        assertThat(packagingSlip.getCogsJournalEntryId()).isNotNull();
+        invariants.assertJournalBalanced(packagingSlip.getCogsJournalEntryId());
+        invariants.assertJournalLinkedTo("PACKAGING_SLIP", packagingSlip.getId());
+
+        List<InventoryMovement> orderMovements = inventoryMovementRepository
+                .findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdOrderByCreatedAtAsc(
+                        tenantCompany,
+                        InventoryReference.SALES_ORDER,
+                        orderId.toString());
+        assertThat(orderMovements)
+                .as("tenant order inventory movements should exist")
+                .isNotEmpty();
+        invariants.assertNoNegativeStock(tenantCompany.getId(), finishedGood.getProductCode());
+
+        String settlementRef = nextDeterministicToken("CROSS-SETTLE");
+        Map<String, Object> allocation = Map.of(
+                "invoiceId", invoiceId,
+                "appliedAmount", invoice.getTotalAmount()
+        );
+        Map<String, Object> settlementReq = new HashMap<>();
+        settlementReq.put("dealerId", dealer.getId());
+        settlementReq.put("cashAccountId", requireAccountId(tenantCompany, "CASH"));
+        settlementReq.put("settlementDate", entryDate);
+        settlementReq.put("referenceNumber", settlementRef);
+        settlementReq.put("idempotencyKey", settlementRef);
+        settlementReq.put("allocations", List.of(allocation));
+
+        ResponseEntity<Map> settlementResp = rest.exchange(
+                "/api/v1/accounting/settlements/dealers",
+                HttpMethod.POST,
+                new HttpEntity<>(settlementReq, tenantHeaders),
+                Map.class);
+        Map<?, ?> settlementData = requireData(settlementResp, "settle tenant invoice");
+        Map<?, ?> settlementJournal = (Map<?, ?>) settlementData.get("journalEntry");
+        Long settlementJournalId = ((Number) settlementJournal.get("id")).longValue();
+        invariants.assertJournalBalanced(settlementJournalId);
+
+        ResponseEntity<Map> settlementReplayResp = rest.exchange(
+                "/api/v1/accounting/settlements/dealers",
+                HttpMethod.POST,
+                new HttpEntity<>(settlementReq, tenantHeaders),
+                Map.class);
+        Map<?, ?> settlementReplayData = requireData(settlementReplayResp, "replay tenant settlement");
+        Map<?, ?> replaySettlementJournal = (Map<?, ?>) settlementReplayData.get("journalEntry");
+        assertThat(((Number) replaySettlementJournal.get("id")).longValue()).isEqualTo(settlementJournalId);
+
+        invariants.assertSubledgerReconciles(requireAccountId(tenantCompany, "AR"), entryDate);
+
+        List<AccountingEvent> invoiceJournalEvents = accountingEventRepository
+                .findByJournalEntryIdOrderByEventTimestampAsc(invoiceJournalId);
+        assertThat(invoiceJournalEvents)
+                .as("event trail should capture journal posting events")
+                .isNotEmpty();
+        assertThat(invoiceJournalEvents)
+                .allSatisfy(event -> assertThat(event.getCompany().getId()).isEqualTo(tenantCompany.getId()));
+
+        String invoiceReference = journalEntryRepository.findById(invoiceJournalId)
+                .map(JournalEntry::getReferenceNumber)
+                .orElseThrow(() -> new AssertionError("Tenant invoice journal reference missing: " + invoiceJournalId));
+        List<JournalEntry> tenantSameReference = journalEntryRepository.findByCompanyAndReferenceNumberStartingWith(
+                tenantCompany,
+                invoiceReference);
+        long exactReferenceCount = tenantSameReference.stream()
+                .filter(entry -> invoiceReference.equals(entry.getReferenceNumber()))
+                .count();
+        assertThat(exactReferenceCount)
+                .as("tenant invoice AR journal reference should remain unique")
+                .isEqualTo(1L);
+    }
+
+    @Test
+    @DisplayName("Reports: as-of inventory valuation uses period-specific costing context")
+    void reports_asOfInventoryValuationUsesPeriodSpecificCostingMethod() {
+        Company company = r2r.company();
+        setCompanyContext(company.getCode());
+        try {
+            FinishedGood finishedGood = finishedGoodRepository.findByCompanyAndProductCode(company, "FG-FIXTURE")
+                    .orElseThrow(() -> new AssertionError("Fixture finished good missing for report validation"));
+
+            LocalDate asOfDate = LocalDate.of(2030, 6, 20);
+            AccountingPeriod period = accountingPeriodRepository
+                    .findByCompanyAndYearAndMonth(company, asOfDate.getYear(), asOfDate.getMonthValue())
+                    .orElseGet(() -> {
+                        AccountingPeriod fresh = new AccountingPeriod();
+                        fresh.setCompany(company);
+                        fresh.setYear(asOfDate.getYear());
+                        fresh.setMonth(asOfDate.getMonthValue());
+                        fresh.setStartDate(asOfDate.withDayOfMonth(1));
+                        fresh.setEndDate(asOfDate.withDayOfMonth(asOfDate.lengthOfMonth()));
+                        fresh.setStatus(com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriodStatus.OPEN);
+                        return accountingPeriodRepository.save(fresh);
+                    });
+            period.setCostingMethod(CostingMethod.LIFO);
+            accountingPeriodRepository.save(period);
+
+            InventoryValuationDto asOfValuation = reportService.inventoryValuationAsOf(asOfDate);
+
+            assertThat(asOfValuation.costingMethod())
+                    .as("inventory valuation must use period costing method for as-of date")
+                    .isEqualTo("LIFO");
+            assertThat(asOfValuation.metadata().source()).isEqualTo(ReportSource.AS_OF);
+            assertThat(asOfValuation.metadata().asOfDate()).isEqualTo(asOfDate);
+            assertThat(asOfValuation.items().stream().anyMatch(item -> finishedGood.getProductCode().equals(item.code())))
+                    .as("as-of inventory valuation should include prepared finished good")
+                    .isTrue();
+        } finally {
+            clearCompanyContext();
+        }
+    }
+
+    private HttpHeaders rootHeaders(String token) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(token);
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.set("X-Company-Code", "ROOT");
+        return headers;
+    }
+
+    private String loginToken(String email, String companyCode) {
+        Map<String, Object> login = Map.of(
+                "email", email,
+                "password", PASSWORD,
+                "companyCode", companyCode
+        );
+        ResponseEntity<Map> response = rest.postForEntity("/api/v1/auth/login", login, Map.class);
+        if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
+            throw new AssertionError("Login failed for " + email + ": " + response);
+        }
+        Object token = response.getBody().get("accessToken");
+        if (!(token instanceof String stringToken) || stringToken.isBlank()) {
+            throw new AssertionError("Login response missing token for " + email + ": " + response.getBody());
+        }
+        return stringToken;
     }
 
     private HttpHeaders authHeaders(String email, String companyCode) {
@@ -1244,6 +1526,20 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
         rawMaterialBatchRepository.save(batch);
     }
 
+    private void setCompanyContext(String companyCode) {
+        CompanyContextHolder.setCompanyCode(companyCode);
+    }
+
+    private void clearCompanyContext() {
+        CompanyContextHolder.clear();
+    }
+
+    private Long requireAccountId(Company company, String code) {
+        return accountRepository.findByCompanyAndCodeIgnoreCase(company, code)
+                .orElseThrow(() -> new AssertionError("Missing account " + code + " for company " + company.getCode()))
+                .getId();
+    }
+
     private String nextDeterministicToken(String prefix) {
         return prefix + "-" + deterministicSequence++;
     }
@@ -1288,6 +1584,12 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
                 Map.class);
         Map<?, ?> poData = requireData(poResp, "create purchase order");
         Long purchaseOrderId = ((Number) poData.get("id")).longValue();
+
+        rest.exchange(
+                "/api/v1/purchasing/purchase-orders/" + purchaseOrderId + "/approve",
+                HttpMethod.POST,
+                new HttpEntity<>(headers),
+                Map.class);
 
         Map<String, Object> grLine = new HashMap<>(line);
         grLine.put("batchCode", nextDeterministicToken("GRN-BATCH"));

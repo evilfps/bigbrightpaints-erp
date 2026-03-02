@@ -13,6 +13,7 @@ import com.bigbrightpaints.erp.modules.production.domain.ProductionProduct;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionProductRepository;
 import com.bigbrightpaints.erp.modules.purchasing.domain.Supplier;
 import com.bigbrightpaints.erp.modules.purchasing.domain.SupplierRepository;
+import com.bigbrightpaints.erp.modules.purchasing.domain.SupplierStatus;
 import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
 import com.bigbrightpaints.erp.test.TestDataSeeder;
@@ -62,6 +63,8 @@ public class CanonicalErpDatasetBuilder {
                 .orElseThrow(() -> new IllegalStateException("Fixture dealer missing for " + companyCode));
         Supplier supplier = supplierRepository.findByCompanyAndCodeIgnoreCase(company, "FIX-SUP")
                 .orElseThrow(() -> new IllegalStateException("Fixture supplier missing for " + companyCode));
+        supplier = ensureSupplierActive(supplier);
+
         ProductionBrand brand = brandRepository.findByCompanyAndCodeIgnoreCase(company, "FIX-BRAND")
                 .orElseThrow(() -> new IllegalStateException("Fixture brand missing for " + companyCode));
         ProductionProduct product = productRepository.findByCompanyAndSkuCode(company, "FG-FIXTURE")
@@ -137,6 +140,14 @@ public class CanonicalErpDatasetBuilder {
         if (updated) {
             companyRepository.save(company);
         }
+    }
+
+    private Supplier ensureSupplierActive(Supplier supplier) {
+        if (supplier.getStatusEnum() == SupplierStatus.ACTIVE) {
+            return supplier;
+        }
+        supplier.setStatus(SupplierStatus.ACTIVE);
+        return supplierRepository.save(supplier);
     }
 
     private void ensureProductMetadata(ProductionProduct product, Map<String, Account> accounts) {
