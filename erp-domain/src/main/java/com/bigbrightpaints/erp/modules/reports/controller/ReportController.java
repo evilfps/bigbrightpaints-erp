@@ -4,6 +4,7 @@ import com.bigbrightpaints.erp.modules.factory.dto.CostBreakdownDto;
 import com.bigbrightpaints.erp.modules.factory.dto.MonthlyProductionCostDto;
 import com.bigbrightpaints.erp.modules.factory.dto.WastageReportDto;
 import com.bigbrightpaints.erp.modules.reports.dto.*;
+import com.bigbrightpaints.erp.modules.reports.service.ReportQueryRequestBuilder;
 import com.bigbrightpaints.erp.modules.reports.service.ReportService;
 import com.bigbrightpaints.erp.shared.dto.ApiResponse;
 import org.springframework.http.ResponseEntity;
@@ -29,19 +30,51 @@ public class ReportController {
     }
 
     @GetMapping("/reports/balance-sheet")
-    public ResponseEntity<ApiResponse<BalanceSheetDto>> balanceSheet(@RequestParam(required = false) String date) {
+    public ResponseEntity<ApiResponse<BalanceSheetDto>> balanceSheet(
+            @RequestParam(required = false) String date,
+            @RequestParam(required = false) Long periodId,
+            @RequestParam(required = false) java.time.LocalDate startDate,
+            @RequestParam(required = false) java.time.LocalDate endDate,
+            @RequestParam(required = false) java.time.LocalDate comparativeStartDate,
+            @RequestParam(required = false) java.time.LocalDate comparativeEndDate,
+            @RequestParam(required = false) Long comparativePeriodId,
+            @RequestParam(required = false) String exportFormat) {
         if (date != null && !date.isBlank()) {
             return ResponseEntity.ok(ApiResponse.success(reportService.balanceSheet(java.time.LocalDate.parse(date))));
         }
-        return ResponseEntity.ok(ApiResponse.success(reportService.balanceSheet()));
+        return ResponseEntity.ok(ApiResponse.success(reportService.balanceSheet(
+                ReportQueryRequestBuilder.fromPeriodAndRange(
+                        periodId,
+                        startDate,
+                        endDate,
+                        comparativeStartDate,
+                        comparativeEndDate,
+                        comparativePeriodId,
+                        exportFormat))));
     }
 
     @GetMapping("/reports/profit-loss")
-    public ResponseEntity<ApiResponse<ProfitLossDto>> profitLoss(@RequestParam(required = false) String date) {
+    public ResponseEntity<ApiResponse<ProfitLossDto>> profitLoss(
+            @RequestParam(required = false) String date,
+            @RequestParam(required = false) Long periodId,
+            @RequestParam(required = false) java.time.LocalDate startDate,
+            @RequestParam(required = false) java.time.LocalDate endDate,
+            @RequestParam(required = false) java.time.LocalDate comparativeStartDate,
+            @RequestParam(required = false) java.time.LocalDate comparativeEndDate,
+            @RequestParam(required = false) Long comparativePeriodId,
+            @RequestParam(required = false) String exportFormat) {
         if (date != null && !date.isBlank()) {
             return ResponseEntity.ok(ApiResponse.success(reportService.profitLoss(java.time.LocalDate.parse(date))));
         }
-        return ResponseEntity.ok(ApiResponse.success(reportService.profitLoss()));
+        return ResponseEntity.ok(ApiResponse.success(reportService.profitLoss(
+                ReportQueryRequestBuilder.fromPeriodAndRange(
+                        periodId,
+                        startDate,
+                        endDate,
+                        comparativeStartDate,
+                        comparativeEndDate,
+                        comparativePeriodId,
+                        exportFormat))));
     }
 
     @GetMapping("/reports/cash-flow")
@@ -75,16 +108,49 @@ public class ReportController {
     }
 
     @GetMapping("/reports/trial-balance")
-    public ResponseEntity<ApiResponse<TrialBalanceDto>> trialBalance(@RequestParam(required = false) String date) {
+    public ResponseEntity<ApiResponse<TrialBalanceDto>> trialBalance(
+            @RequestParam(required = false) String date,
+            @RequestParam(required = false) Long periodId,
+            @RequestParam(required = false) java.time.LocalDate startDate,
+            @RequestParam(required = false) java.time.LocalDate endDate,
+            @RequestParam(required = false) java.time.LocalDate comparativeStartDate,
+            @RequestParam(required = false) java.time.LocalDate comparativeEndDate,
+            @RequestParam(required = false) Long comparativePeriodId,
+            @RequestParam(required = false) String exportFormat) {
         if (date != null && !date.isBlank()) {
             return ResponseEntity.ok(ApiResponse.success(reportService.trialBalance(java.time.LocalDate.parse(date))));
         }
-        return ResponseEntity.ok(ApiResponse.success(reportService.trialBalance()));
+        return ResponseEntity.ok(ApiResponse.success(reportService.trialBalance(
+                ReportQueryRequestBuilder.fromPeriodAndRange(
+                        periodId,
+                        startDate,
+                        endDate,
+                        comparativeStartDate,
+                        comparativeEndDate,
+                        comparativePeriodId,
+                        exportFormat))));
     }
 
     @GetMapping("/reports/account-statement")
     public ResponseEntity<ApiResponse<List<AccountStatementEntryDto>>> accountStatement() {
         return ResponseEntity.ok(ApiResponse.success(reportService.accountStatement()));
+    }
+
+    @GetMapping("/reports/aged-debtors")
+    public ResponseEntity<ApiResponse<List<AgedDebtorDto>>> agedDebtorsV2(
+            @RequestParam(required = false) Long periodId,
+            @RequestParam(required = false) java.time.LocalDate startDate,
+            @RequestParam(required = false) java.time.LocalDate endDate,
+            @RequestParam(required = false) String exportFormat) {
+        return ResponseEntity.ok(ApiResponse.success(reportService.agedDebtors(
+                ReportQueryRequestBuilder.fromPeriodAndRange(
+                        periodId,
+                        startDate,
+                        endDate,
+                        null,
+                        null,
+                        null,
+                        exportFormat))));
     }
 
     @GetMapping("/accounting/reports/aged-debtors")

@@ -1,6 +1,7 @@
 package com.bigbrightpaints.erp.modules.reports.controller;
 
 import com.bigbrightpaints.erp.modules.reports.dto.AccountStatementEntryDto;
+import com.bigbrightpaints.erp.modules.reports.dto.TrialBalanceDto;
 import com.bigbrightpaints.erp.modules.reports.service.ReportService;
 import com.bigbrightpaints.erp.shared.dto.ApiResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -14,10 +15,54 @@ import java.time.LocalDate;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class ReportControllerContractTest {
+
+    @Test
+    void trialBalance_withDateRangeAndComparativeParametersDelegatesToQueryRequestBuilder() {
+        ReportService reportService = mock(ReportService.class);
+        ReportController controller = new ReportController(reportService);
+        TrialBalanceDto expected = new TrialBalanceDto(List.of(), BigDecimal.ZERO, BigDecimal.ZERO, true, null, null);
+        when(reportService.trialBalance(any(com.bigbrightpaints.erp.modules.reports.service.FinancialReportQueryRequest.class))).thenReturn(expected);
+
+        ResponseEntity<ApiResponse<TrialBalanceDto>> response = controller.trialBalance(
+                null,
+                100L,
+                LocalDate.of(2026, 3, 1),
+                LocalDate.of(2026, 3, 31),
+                LocalDate.of(2026, 2, 1),
+                LocalDate.of(2026, 2, 28),
+                99L,
+                "CSV"
+        );
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().data()).isEqualTo(expected);
+        verify(reportService).trialBalance(any(com.bigbrightpaints.erp.modules.reports.service.FinancialReportQueryRequest.class));
+    }
+
+    @Test
+    void agedDebtorsV2_usesNewReportsPathAndDelegatesToReportServiceWithQueryRequest() {
+        ReportService reportService = mock(ReportService.class);
+        ReportController controller = new ReportController(reportService);
+        when(reportService.agedDebtors(any())).thenReturn(List.of());
+
+        ResponseEntity<ApiResponse<List<com.bigbrightpaints.erp.modules.reports.dto.AgedDebtorDto>>> response = controller.agedDebtorsV2(
+                77L,
+                LocalDate.of(2026, 1, 1),
+                LocalDate.of(2026, 1, 31),
+                "PDF"
+        );
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isNotNull();
+        verify(reportService).agedDebtors(any());
+    }
 
     @Test
     void accountStatement_serializesJournalEntryIdInApiResponse() throws Exception {

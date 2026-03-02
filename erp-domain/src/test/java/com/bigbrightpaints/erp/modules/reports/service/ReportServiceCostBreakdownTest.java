@@ -15,7 +15,6 @@ import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.factory.domain.ProductionLog;
 import com.bigbrightpaints.erp.modules.factory.domain.ProductionLogRepository;
 import com.bigbrightpaints.erp.modules.factory.dto.CostBreakdownDto;
-import com.bigbrightpaints.erp.modules.invoice.domain.InvoiceRepository;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionProduct;
 import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -55,8 +54,6 @@ class ReportServiceCostBreakdownTest {
     @Mock
     private JournalLineRepository journalLineRepository;
     @Mock
-    private InvoiceRepository invoiceRepository;
-    @Mock
     private ProductionLogRepository productionLogRepository;
     @Mock
     private CompanyEntityLookup companyEntityLookup;
@@ -64,6 +61,14 @@ class ReportServiceCostBreakdownTest {
     private CompanyClock companyClock;
     @Mock
     private InventoryValuationService inventoryValuationService;
+    @Mock
+    private TrialBalanceReportQueryService trialBalanceReportQueryService;
+    @Mock
+    private ProfitLossReportQueryService profitLossReportQueryService;
+    @Mock
+    private BalanceSheetReportQueryService balanceSheetReportQueryService;
+    @Mock
+    private AgedDebtorsReportQueryService agedDebtorsReportQueryService;
 
     private ReportService reportService;
     private Company company;
@@ -81,11 +86,14 @@ class ReportServiceCostBreakdownTest {
                 dealerLedgerRepository,
                 journalEntryRepository,
                 journalLineRepository,
-                invoiceRepository,
                 productionLogRepository,
                 companyEntityLookup,
                 companyClock,
-                inventoryValuationService
+                inventoryValuationService,
+                trialBalanceReportQueryService,
+                profitLossReportQueryService,
+                balanceSheetReportQueryService,
+                agedDebtorsReportQueryService
         );
         company = new Company();
         ReflectionTestUtils.setField(company, "id", 700L);

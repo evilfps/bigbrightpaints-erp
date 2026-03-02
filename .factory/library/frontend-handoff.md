@@ -2316,4 +2316,164 @@ These formulas are what the backend computes today. UI previews should mirror th
 - **Legacy endpoint handling:** Hide `/api/v1/hr/payroll-runs` from navigation; route all payroll run actions to `/api/v1/payroll/runs`.
 
 ### Reports
-_To be documented_
+
+#### Endpoint map
+
+All report APIs are under `/api/v1` and require `ROLE_ADMIN` or `ROLE_ACCOUNTING`.
+
+- **GET `/api/v1/reports/trial-balance`**
+  - Query params:
+    - `date` (optional, ISO date; legacy single-date mode)
+    - `periodId` (optional)
+    - `startDate`, `endDate` (optional, must be supplied together)
+    - `comparativeStartDate`, `comparativeEndDate` (optional, must be supplied together)
+    - `comparativePeriodId` (optional)
+    - `exportFormat` (optional: `PDF` or `CSV`)
+  - Behavior:
+    - If `date` is provided, backend uses as-of behavior.
+    - Otherwise backend resolves range/period request and can return comparative payload.
+
+- **GET `/api/v1/reports/profit-loss`**
+  - Query params and behavior are identical in structure to trial balance (`date`, period/range, comparative, export hints).
+
+- **GET `/api/v1/reports/balance-sheet`**
+  - Query params and behavior are identical in structure to trial balance (`date`, period/range, comparative, export hints).
+
+- **GET `/api/v1/reports/aged-debtors`** (new canonical path)
+  - Query params:
+    - `periodId` (optional)
+    - `startDate`, `endDate` (optional, pair)
+    - `exportFormat` (optional: `PDF` or `CSV`)
+  - Uses report query window resolution and returns enriched bucketed debtor rows + metadata/export hints.
+
+- **GET `/api/v1/accounting/reports/aged-debtors`** (legacy compatibility path)
+  - No query params; retained for backward compatibility while frontend migrates to `/reports/aged-debtors`.
+
+#### User flows (frontend orchestration)
+
+1. **Trial Balance (period/range with optional comparative)**
+   1. User selects either accounting period or explicit date range.
+   2. Optional comparative period/range is selected.
+   3. UI calls `GET /reports/trial-balance` with chosen params.
+   4. Render primary rows/totals from root payload.
+   5. If `comparative != null`, render side-by-side comparative table.
+   6. Use `metadata.balanced` equivalent from totals (`totalDebit` vs `totalCredit`) to show pass/fail state.
+
+2. **Profit & Loss (comparative view)**
+   1. User picks window and optional comparative.
+   2. UI calls `GET /reports/profit-loss`.
+   3. Render KPI cards: revenue, COGS, gross profit, operating expenses, net income.
+   4. Render categorized expense breakdown using `operatingExpenseCategories`.
+   5. If present, render `comparative` KPI deltas.
+
+3. **Balance Sheet (sectioned rendering + equation check)**
+   1. User selects period/range and optional comparative.
+   2. UI calls `GET /reports/balance-sheet`.
+   3. Render sections independently:
+      - `currentAssets`, `fixedAssets`
+      - `currentLiabilities`, `longTermLiabilities`
+      - `equityLines`
+   4. Display accounting equation status from `balanced` and totals (`totalAssets` vs `totalLiabilities + totalEquity`).
+   5. If comparative present, render same section groups from `comparative`.
+
+4. **Aged Debtors (bucket analysis)**
+   1. User opens aging report and optionally narrows by date window.
+   2. UI calls canonical path `GET /reports/aged-debtors`.
+   3. Render columns per dealer: `current`, `oneToThirtyDays`, `thirtyOneToSixtyDays`, `sixtyOneToNinetyDays`, `ninetyPlusDays`, `totalOutstanding`.
+   4. Surface export affordances using `exportHints`/metadata.
+
+#### State/range resolution model used by backend
+
+Report query APIs resolve one of these data sources and expose it via `ReportMetadata.source`:
+
+- `LIVE`: open/current data without snapshot lock.
+- `AS_OF`: explicit as-of mode (typically when `date` is provided).
+- `SNAPSHOT`: closed accounting period with required snapshot backing.
+
+Resolution rules used by backend query support:
+
+1. `startDate/endDate` must be supplied together; same for comparative range.
+2. If `periodId` is supplied and range is omitted, period start/end are used.
+3. If period is closed, backend requires accounting-period snapshot; missing snapshot yields business constraint error.
+4. If neither period nor range supplied, backend defaults to current-month-to-date window.
+5. `exportFormat` is normalized to `PDF` or `CSV`; anything else is rejected.
+
+#### Error codes and frontend handling (reports)
+
+| Code | Enum | Typical trigger | Frontend behavior |
+|---|---|---|---|
+| `VAL_001` | `VALIDATION_INVALID_INPUT` | Unsupported `exportFormat`, malformed query combinations flagged as invalid input | Show non-retryable validation message; keep filters editable. |
+| `VAL_005` | `VALIDATION_INVALID_DATE` | `startDate > endDate`, only one side of a date pair provided, invalid comparative date pair | Highlight date controls and block submit. |
+| `BUS_003` | `BUSINESS_ENTITY_NOT_FOUND` | `periodId` or `comparativePeriodId` does not exist in current company scope | Prompt user to refresh/select a valid period option. |
+| `BUS_004` | `BUSINESS_CONSTRAINT_VIOLATION` | Closed period requested but snapshot missing | Show blocking banner/modal and suggest accounting snapshot remediation. |
+| `AUTH_004` | `AUTH_INSUFFICIENT_PERMISSIONS` | `companyId` mismatch against authenticated company context | Force context refresh/logout or tenant re-selection flow. |
+
+#### Data contracts
+
+- **`FinancialReportQueryRequest`** (backend query object; represented by endpoint query params)
+  - `periodId: Long?`
+  - `startDate: LocalDate?`
+  - `endDate: LocalDate?`
+  - `asOfDate: LocalDate?` (used by legacy `date` mode)
+  - `companyId: Long?` (normally omitted by UI; backend enforces active company)
+  - `comparativeStartDate: LocalDate?`
+  - `comparativeEndDate: LocalDate?`
+  - `comparativePeriodId: Long?`
+  - `exportFormat: String?` (`PDF`/`CSV`)
+
+- **`ReportMetadata`**
+  - `asOfDate`, `startDate`, `endDate`
+  - `source` (`LIVE`/`AS_OF`/`SNAPSHOT`)
+  - `accountingPeriodId`, `accountingPeriodStatus`, `snapshotId`
+  - `pdfReady`, `csvReady`, `requestedExportFormat`
+
+- **`TrialBalanceDto`**
+  - Root: `rows[]`, `totalDebit`, `totalCredit`, `balanced`, `metadata`, `comparative?`
+  - `rows[]`: `accountId`, `code`, `name`, `type`, `debit`, `credit`, `net`
+  - `comparative`: same shape for side-by-side window
+
+- **`ProfitLossDto`**
+  - Root: `revenue`, `costOfGoodsSold`, `grossProfit`, `operatingExpenses`, `operatingExpenseCategories[]`, `netIncome`, `metadata`, `comparative?`
+  - `operatingExpenseCategories[]`: `{ category, amount }`
+  - `comparative`: parallel metrics + categorized expenses + metadata
+
+- **`BalanceSheetDto`**
+  - Root: `totalAssets`, `totalLiabilities`, `totalEquity`, `balanced`, `metadata`
+  - Section arrays: `currentAssets[]`, `fixedAssets[]`, `currentLiabilities[]`, `longTermLiabilities[]`, `equityLines[]`
+  - Section element: `{ accountId, accountCode, accountName, amount }`
+  - `comparative`: same totals/sections + own metadata
+
+- **`AgedDebtorDto`**
+  - `dealerId`, `dealerCode`, `dealerName`
+  - Buckets: `current`, `oneToThirtyDays`, `thirtyOneToSixtyDays`, `sixtyOneToNinetyDays`, `ninetyPlusDays`
+  - `totalOutstanding`
+  - `metadata`
+  - `exportHints`: `{ pdfReady, csvReady, requestedFormat }`
+
+#### UI hints
+
+- Use period/date controls that enforce paired range fields (disable submit until both dates are present).
+- Treat `/api/v1/reports/aged-debtors` as canonical; keep legacy path only for backward compatibility/testing.
+- Prefer metadata-driven badges in UI:
+  - Data source chip from `metadata.source`
+  - Snapshot lock indicator when `metadata.snapshotId != null`
+  - Export format/status from metadata/export hints
+- In comparative mode, show clearly labeled "Primary" vs "Comparative" windows using each payload’s metadata dates.
+- For Balance Sheet and Trial Balance, show explicit accounting integrity badges (`balanced` + totals) to aid finance review.
+
+#### Visualization hints
+
+- **Trial Balance:** primary representation is a sortable tabular grid (`accountCode`, `accountName`, `debit`, `credit`, `net`) with a totals footer and a balance badge (`totalDebit == totalCredit`).
+- **Profit & Loss:** render as a hierarchical statement tree:
+  - Revenue
+  - COGS
+  - Gross Profit
+  - Operating Expenses (expand from `operatingExpenseCategories`)
+  - Net Income
+  In comparative mode, render side-by-side trees with delta badges per node.
+- **Balance Sheet:** render as a T-account style layout:
+  - Left: `currentAssets` + `fixedAssets`
+  - Right: `currentLiabilities` + `longTermLiabilities` + `equityLines`
+  Surface equation chip for `Assets = Liabilities + Equity` from `balanced`.
+- **Aged Debtors:** use a stacked bar chart per dealer (segments: `current`, `oneToThirtyDays`, `thirtyOneToSixtyDays`, `sixtyOneToNinetyDays`, `ninetyPlusDays`) with a table fallback for export/print workflows.
+

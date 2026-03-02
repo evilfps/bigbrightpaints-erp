@@ -53,6 +53,19 @@ public interface JournalLineRepository extends JpaRepository<JournalLine, Long> 
             join line.journalEntry entry
             where entry.company = :company
               and entry.status = 'POSTED'
+              and entry.entryDate between :start and :end
+            group by line.account.id
+            """)
+    List<Object[]> summarizeByAccountWithin(@Param("company") Company company,
+                                            @Param("start") LocalDate start,
+                                            @Param("end") LocalDate end);
+
+    @Query("""
+            select line.account.id, sum(line.debit), sum(line.credit)
+            from JournalLine line
+            join line.journalEntry entry
+            where entry.company = :company
+              and entry.status = 'POSTED'
               and entry.entryDate <= :end
             group by line.account.id
             """)
