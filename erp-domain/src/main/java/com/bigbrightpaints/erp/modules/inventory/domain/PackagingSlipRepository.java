@@ -36,6 +36,28 @@ public interface PackagingSlipRepository extends JpaRepository<PackagingSlip, Lo
 
     List<PackagingSlip> findAllByCompanyAndSalesOrderIdAndIsBackorderFalse(Company company, Long orderId);
     List<PackagingSlip> findAllByCompanyAndSalesOrderIdAndIsBackorderTrue(Company company, Long orderId);
+
+    @Query("""
+            select p.id
+            from PackagingSlip p
+            where p.company = :company
+              and p.salesOrder.id = :orderId
+              and p.isBackorder = true
+              and upper(p.status) <> 'CANCELLED'
+            """)
+    List<Long> findActiveBackorderSlipIds(@Param("company") Company company,
+                                          @Param("orderId") Long orderId);
+
+    @Query("""
+            select p
+            from PackagingSlip p
+            where p.company = :company
+              and p.salesOrder.id = :orderId
+              and p.isBackorder = false
+            """)
+    List<PackagingSlip> findPrimarySlipsByOrderId(@Param("company") Company company,
+                                                  @Param("orderId") Long orderId);
+
     List<PackagingSlip> findByCompanyAndDispatchedAtBetween(Company company, Instant start, Instant end);
     long countByCompanyAndStatusInAndCreatedAtBefore(Company company, Set<String> statuses, Instant cutoff);
 

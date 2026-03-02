@@ -540,32 +540,64 @@ public abstract class AccountingCoreEngineCore {
         Supplier supplierContext = supplier;
         boolean hasReceivableAccount = false;
         boolean hasPayableAccount = false;
-        for (Account account : lockedAccounts.values()) {
-            if (isReceivableAccount(account)) {
-                hasReceivableAccount = true;
+        List<Account> distinctAccounts = lockedAccounts.values().stream().distinct().toList();
+        Map<Long, Set<Long>> dealerOwnerByReceivableAccountId = new HashMap<>();
+        Map<Long, Set<Long>> supplierOwnerByPayableAccountId = new HashMap<>();
+        List<Account> receivableAccounts = distinctAccounts.stream()
+                .filter(this::isReceivableAccount)
+                .toList();
+        if (!receivableAccounts.isEmpty()) {
+            hasReceivableAccount = true;
+            List<Dealer> dealerOwners = dealerRepository.findByCompanyAndReceivableAccountIn(company, receivableAccounts);
+            for (Dealer owner : dealerOwners) {
+                if (owner.getReceivableAccount() == null || owner.getReceivableAccount().getId() == null || owner.getId() == null) {
+                    continue;
+                }
+                dealerOwnerByReceivableAccountId
+                        .computeIfAbsent(owner.getReceivableAccount().getId(), ignored -> new HashSet<>())
+                        .add(owner.getId());
             }
-            if (isPayableAccount(account)) {
-                hasPayableAccount = true;
+        }
+        List<Account> payableAccounts = distinctAccounts.stream()
+                .filter(this::isPayableAccount)
+                .toList();
+        if (!payableAccounts.isEmpty()) {
+            hasPayableAccount = true;
+            List<Supplier> supplierOwners = supplierRepository.findByCompanyAndPayableAccountIn(company, payableAccounts);
+            for (Supplier owner : supplierOwners) {
+                if (owner.getPayableAccount() == null || owner.getPayableAccount().getId() == null || owner.getId() == null) {
+                    continue;
+                }
+                supplierOwnerByPayableAccountId
+                        .computeIfAbsent(owner.getPayableAccount().getId(), ignored -> new HashSet<>())
+                        .add(owner.getId());
             }
-            List<Dealer> dealerOwners = dealerRepository.findAllByCompanyAndReceivableAccount(company, account);
-            if (!dealerOwners.isEmpty()) {
+        }
+        for (Account account : distinctAccounts) {
+            Long accountId = account.getId();
+            if (accountId == null) {
+                continue;
+            }
+            Set<Long> dealerOwnerIds = dealerOwnerByReceivableAccountId.get(accountId);
+            if (dealerOwnerIds != null && !dealerOwnerIds.isEmpty()) {
                 if (dealerContext == null) {
                     throw new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE,
                             "Dealer receivable account " + account.getCode() + " requires a dealer context");
                 }
-                if (dealerOwners.stream().noneMatch(owner -> owner.getId().equals(dealerContext.getId()))) {
+                Long dealerContextId = dealerContext.getId();
+                if (dealerContextId == null || !dealerOwnerIds.contains(dealerContextId)) {
                     throw new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE,
                             "Dealer receivable account " + account.getCode() + " requires matching dealer context");
                 }
             }
-            List<Supplier> supplierOwners = supplierRepository.findAllByCompanyAndPayableAccount(company, account);
-            if (!supplierOwners.isEmpty()) {
+            Set<Long> supplierOwnerIds = supplierOwnerByPayableAccountId.get(accountId);
+            if (supplierOwnerIds != null && !supplierOwnerIds.isEmpty()) {
                 if (supplierContext == null) {
                     throw new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE,
                             "Supplier payable account " + account.getCode() + " requires a supplier context");
                 }
                 Long supplierContextId = supplierContext.getId();
-                if (supplierOwners.stream().noneMatch(owner -> owner.getId().equals(supplierContextId))) {
+                if (supplierContextId == null || !supplierOwnerIds.contains(supplierContextId)) {
                     throw new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE,
                             "Supplier payable account " + account.getCode() + " requires matching supplier context");
                 }

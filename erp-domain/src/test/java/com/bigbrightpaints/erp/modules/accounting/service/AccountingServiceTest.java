@@ -193,8 +193,8 @@ class AccountingServiceTest {
         lenient().when(companyContextService.requireCurrentCompany()).thenReturn(company);
         lenient().when(systemSettingsService.isPeriodLockEnforced()).thenReturn(true);
         lenient().when(accountingPeriodService.requireOpenPeriod(any(), any())).thenReturn(new AccountingPeriod());
-        lenient().when(dealerRepository.findAllByCompanyAndReceivableAccount(any(), any())).thenReturn(List.of());
-        lenient().when(supplierRepository.findAllByCompanyAndPayableAccount(any(), any())).thenReturn(List.of());
+        lenient().when(dealerRepository.findByCompanyAndReceivableAccountIn(any(), any())).thenReturn(List.of());
+        lenient().when(supplierRepository.findByCompanyAndPayableAccountIn(any(), any())).thenReturn(List.of());
         lenient().when(referenceNumberService.dealerReceiptReference(any(), any())).thenReturn("REF-SETTLE");
         lenient().when(journalReferenceMappingRepository.reserveReferenceMapping(any(), any(), any(), any(), any()))
                 .thenReturn(1);
@@ -809,7 +809,7 @@ class AccountingServiceTest {
 
         when(accountRepository.lockByCompanyAndId(eq(company), eq(33L))).thenReturn(Optional.of(payable));
         when(accountRepository.lockByCompanyAndId(eq(company), eq(34L))).thenReturn(Optional.of(cash));
-        when(supplierRepository.findAllByCompanyAndPayableAccount(eq(company), eq(payable)))
+        when(supplierRepository.findByCompanyAndPayableAccountIn(eq(company), any()))
                 .thenReturn(List.of(supplierA, supplierB));
 
         JournalEntryRequest request = new JournalEntryRequest(

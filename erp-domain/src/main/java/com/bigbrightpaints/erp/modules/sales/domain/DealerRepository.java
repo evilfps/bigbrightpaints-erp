@@ -3,6 +3,7 @@ package com.bigbrightpaints.erp.modules.sales.domain;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import jakarta.persistence.LockModeType;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.domain.Pageable;
@@ -20,6 +21,7 @@ public interface DealerRepository extends JpaRepository<Dealer, Long> {
     Optional<Dealer> findByCompanyAndEmailIgnoreCase(Company company, String email);
     Optional<Dealer> findByCompanyAndReceivableAccount(Company company, Account receivableAccount);
     List<Dealer> findAllByCompanyAndReceivableAccount(Company company, Account receivableAccount);
+    List<Dealer> findByCompanyAndReceivableAccountIn(Company company, Collection<Account> receivableAccounts);
     Optional<Dealer> findByCompanyAndPortalUserEmail(Company company, String email);
     List<Dealer> findAllByCompanyAndPortalUserId(Company company, Long userId);
     List<Dealer> findAllByCompanyAndPortalUserEmailIgnoreCase(Company company, String email);

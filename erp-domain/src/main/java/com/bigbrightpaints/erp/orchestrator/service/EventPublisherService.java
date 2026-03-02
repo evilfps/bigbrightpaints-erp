@@ -438,15 +438,11 @@ public class EventPublisherService {
     }
 
     private long countAmbiguousPublishingEvents() {
-        return outboxEventRepository.countByStatusAndDeadLetterFalseAndLastErrorStartingWith(
+        return outboxEventRepository.countAmbiguousPublishingEvents(
                 OutboxEvent.Status.PUBLISHING,
-                AMBIGUOUS_PUBLISH_ERROR_PREFIX)
-                + outboxEventRepository.countByStatusAndDeadLetterFalseAndLastErrorStartingWith(
-                        OutboxEvent.Status.PUBLISHING,
-                        FINALIZE_FAILURE_ERROR_PREFIX)
-                + outboxEventRepository.countByStatusAndDeadLetterFalseAndLastErrorStartingWith(
-                        OutboxEvent.Status.PUBLISHING,
-                        STALE_LEASE_UNCERTAIN_ERROR_PREFIX);
+                AMBIGUOUS_PUBLISH_ERROR_PREFIX,
+                FINALIZE_FAILURE_ERROR_PREFIX,
+                STALE_LEASE_UNCERTAIN_ERROR_PREFIX);
     }
 
     private boolean fenceMatches(OutboxEvent event, long expectedFenceToken) {

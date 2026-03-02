@@ -75,7 +75,7 @@ public class PayrollRun {
     private Long journalEntryId;
 
     // Reference to accounting journal entry (for backward compatibility)
-    @ManyToOne(fetch = FetchType.EAGER)
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "journal_entry_ref_id")
     private com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry journalEntry;
 

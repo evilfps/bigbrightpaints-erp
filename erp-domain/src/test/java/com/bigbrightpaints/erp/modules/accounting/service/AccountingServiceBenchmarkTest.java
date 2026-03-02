@@ -155,8 +155,8 @@ class AccountingServiceBenchmarkTest {
 
         lenient().when(systemSettingsService.isPeriodLockEnforced()).thenReturn(true);
         lenient().when(journalEntryRepository.findByCompanyAndReferenceNumber(any(), any())).thenReturn(Optional.empty());
-        lenient().when(dealerRepository.findAllByCompanyAndReceivableAccount(any(), any())).thenReturn(List.of());
-        lenient().when(supplierRepository.findAllByCompanyAndPayableAccount(any(), any())).thenReturn(List.of());
+        lenient().when(dealerRepository.findByCompanyAndReceivableAccountIn(any(), any())).thenReturn(List.of());
+        lenient().when(supplierRepository.findByCompanyAndPayableAccountIn(any(), any())).thenReturn(List.of());
         lenient().when(accountRepository.updateBalanceAtomic(any(), any(), any())).thenReturn(1);
 
         AccountingPeriod period = new AccountingPeriod();

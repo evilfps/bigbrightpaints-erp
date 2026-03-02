@@ -121,7 +121,7 @@ class TS_InventoryDispatchStateRuntimeCoverageTest {
         when(inventoryReservationRepository.saveAll(any())).thenAnswer(invocation -> toList(invocation.getArgument(0)));
         when(inventoryMovementRepository.save(any(InventoryMovement.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(packagingSlipRepository.save(any(PackagingSlip.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(packagingSlipRepository.findAllByCompanyAndSalesOrderIdAndIsBackorderTrue(any(Company.class), anyLong()))
+        when(packagingSlipRepository.findActiveBackorderSlipIds(any(Company.class), anyLong()))
                 .thenReturn(List.of());
         when(packagingSlipRepository.saveAndFlush(any(PackagingSlip.class))).thenAnswer(invocation -> {
             PackagingSlip slip = invocation.getArgument(0);

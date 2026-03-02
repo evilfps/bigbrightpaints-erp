@@ -3,6 +3,7 @@ package com.bigbrightpaints.erp.modules.purchasing.domain;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import jakarta.persistence.LockModeType;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.EntityGraph;
@@ -26,6 +27,8 @@ public interface SupplierRepository extends JpaRepository<Supplier, Long> {
     Optional<Supplier> findByCompanyAndPayableAccount(Company company, Account payableAccount);
 
     List<Supplier> findAllByCompanyAndPayableAccount(Company company, Account payableAccount);
+
+    List<Supplier> findByCompanyAndPayableAccountIn(Company company, Collection<Account> payableAccounts);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select s from Supplier s where s.company = :company and s.id = :id")

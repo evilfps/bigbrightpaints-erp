@@ -168,9 +168,23 @@ public class RawMaterialService {
         long total = materials.size();
         long lowStock = materials.stream().filter(this::isLowStock).count();
         long criticalStock = materials.stream().filter(this::isCriticalStock).count();
+        List<Long> materialIds = materials.stream()
+                .map(RawMaterial::getId)
+                .filter(java.util.Objects::nonNull)
+                .toList();
+        Map<Long, Long> batchCountByMaterialId = materialIds.isEmpty()
+                ? Map.of()
+                : batchRepository.countBatchesGroupedByRawMaterialIds(materialIds).stream()
+                .filter(row -> row != null && row.length >= 2 && row[0] instanceof Number && row[1] instanceof Number)
+                .collect(java.util.stream.Collectors.toMap(
+                        row -> ((Number) row[0]).longValue(),
+                        row -> ((Number) row[1]).longValue(),
+                        Long::sum,
+                        HashMap::new
+                ));
         long batches = materials.stream()
-                .map(rawMaterial -> batchRepository.findByRawMaterial(rawMaterial).size())
-                .mapToLong(Integer::longValue)
+                .map(RawMaterial::getId)
+                .mapToLong(id -> id == null ? 0L : batchCountByMaterialId.getOrDefault(id, 0L))
                 .sum();
         return new StockSummaryDto(
                 null,

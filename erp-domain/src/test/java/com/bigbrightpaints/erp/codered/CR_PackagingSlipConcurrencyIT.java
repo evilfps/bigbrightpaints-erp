@@ -70,7 +70,7 @@ class CR_PackagingSlipConcurrencyIT extends AbstractIntegrationTest {
                 .allMatch(outcome -> outcome instanceof CoderedConcurrencyHarness.Outcome.Success<?>);
 
         List<PackagingSlip> primarySlips = packagingSlipRepository
-                .findAllByCompanyAndSalesOrderIdAndIsBackorderFalse(company, order.getId());
+                .findPrimarySlipsByOrderId(company, order.getId());
         assertThat(primarySlips).hasSize(1);
     }
 

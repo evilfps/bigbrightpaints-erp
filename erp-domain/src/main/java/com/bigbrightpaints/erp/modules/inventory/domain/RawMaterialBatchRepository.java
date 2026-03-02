@@ -10,6 +10,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.math.BigDecimal;
+import java.util.Collection;
 import java.util.List;
 
 public interface RawMaterialBatchRepository extends JpaRepository<RawMaterialBatch, Long> {
@@ -39,4 +40,12 @@ public interface RawMaterialBatchRepository extends JpaRepository<RawMaterialBat
               and b.quantity > 0
             """)
     BigDecimal calculateWeightedAverageCost(@Param("rawMaterial") RawMaterial rawMaterial);
+
+    @Query("""
+            select b.rawMaterial.id, count(b)
+            from RawMaterialBatch b
+            where b.rawMaterial.id in :rawMaterialIds
+            group by b.rawMaterial.id
+            """)
+    List<Object[]> countBatchesGroupedByRawMaterialIds(@Param("rawMaterialIds") Collection<Long> rawMaterialIds);
 }

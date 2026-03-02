@@ -1,6 +1,7 @@
 package com.bigbrightpaints.erp.modules.production.domain;
 
 import com.bigbrightpaints.erp.modules.company.domain.Company;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
@@ -15,7 +16,10 @@ public interface ProductionProductRepository extends JpaRepository<ProductionPro
     Optional<ProductionProduct> findByCompanyAndId(Company company, Long id);
     Optional<ProductionProduct> findByBrandAndProductNameIgnoreCase(ProductionBrand brand, String productName);
     Optional<ProductionProduct> findTopByCompanyAndSkuCodeStartingWithOrderBySkuCodeDesc(Company company, String prefix);
+    @EntityGraph(attributePaths = "brand")
     List<ProductionProduct> findByCompanyOrderByProductNameAsc(Company company);
+
+    @EntityGraph(attributePaths = "brand")
     List<ProductionProduct> findByBrandOrderByProductNameAsc(ProductionBrand brand);
 
     List<ProductionProduct> findByCompanyAndSkuCodeIn(Company company, Collection<String> skuCodes);

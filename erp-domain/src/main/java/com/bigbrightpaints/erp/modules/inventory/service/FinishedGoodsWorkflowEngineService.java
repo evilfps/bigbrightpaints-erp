@@ -308,17 +308,15 @@ public class FinishedGoodsWorkflowEngineService {
                 .orElseThrow(() -> com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput("Sales order not found: " + order.getId()));
         Optional<PackagingSlip> primarySlip = packagingSlipRepository.findAndLockPrimaryBySalesOrderId(order.getId(), company);
         if (primarySlip.isEmpty()) {
-            List<PackagingSlip> backorderSlips = packagingSlipRepository
-                    .findAllByCompanyAndSalesOrderIdAndIsBackorderTrue(company, order.getId()).stream()
-                    .filter(existing -> !"CANCELLED".equalsIgnoreCase(existing.getStatus()))
-                    .toList();
-            if (backorderSlips.size() > 1) {
+            List<Long> activeBackorderSlipIds = packagingSlipRepository
+                    .findActiveBackorderSlipIds(company, order.getId());
+            if (activeBackorderSlipIds.size() > 1) {
                 throw new ApplicationException(ErrorCode.CONCURRENCY_CONFLICT,
                         "Multiple backorder slips found for order " + order.getId() + "; provide packingSlipId");
             }
-            if (!backorderSlips.isEmpty()) {
+            if (!activeBackorderSlipIds.isEmpty()) {
                 PackagingSlip backorderSlip = packagingSlipRepository
-                        .findAndLockByIdAndCompany(backorderSlips.getFirst().getId(), company)
+                        .findAndLockByIdAndCompany(activeBackorderSlipIds.getFirst(), company)
                         .orElseThrow(() -> com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput("Backorder slip not found"));
                 return reserveForBackorder(managedOrder, backorderSlip);
             }
@@ -525,7 +523,7 @@ public class FinishedGoodsWorkflowEngineService {
     @Transactional
     public List<FinishedGoodsService.DispatchPosting> markSlipDispatched(Long salesOrderId) {
         Company company = companyContextService.requireCurrentCompany();
-        List<PackagingSlip> slips = packagingSlipRepository.findAllByCompanyAndSalesOrderIdAndIsBackorderFalse(company, salesOrderId);
+        List<PackagingSlip> slips = packagingSlipRepository.findPrimarySlipsByOrderId(company, salesOrderId);
         if (slips.isEmpty()) {
             throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput("Packaging slip not found for order " + salesOrderId);
         }
@@ -1284,11 +1282,9 @@ public class FinishedGoodsWorkflowEngineService {
             return null;
         }
         return packagingSlipRepository
-                .findAllByCompanyAndSalesOrderIdAndIsBackorderTrue(company, salesOrderId).stream()
-                .filter(existing -> existing.getId() != null)
-                .filter(existing -> !Objects.equals(existing.getId(), excludeSlipId))
-                .filter(existing -> "BACKORDER".equalsIgnoreCase(existing.getStatus()))
-                .map(PackagingSlip::getId)
+                .findActiveBackorderSlipIds(company, salesOrderId).stream()
+                .filter(id -> id != null)
+                .filter(id -> !Objects.equals(id, excludeSlipId))
                 .findFirst()
                 .orElse(null);
     }
@@ -1309,7 +1305,7 @@ public class FinishedGoodsWorkflowEngineService {
     public PackagingSlipDto getPackagingSlipByOrder(Long salesOrderId) {
         Company company = companyContextService.requireCurrentCompany();
         List<PackagingSlip> slips = packagingSlipRepository
-                .findAllByCompanyAndSalesOrderIdAndIsBackorderFalse(company, salesOrderId);
+                .findPrimarySlipsByOrderId(company, salesOrderId);
         if (slips.isEmpty()) {
             throw new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE,
                     "Packaging slip not found for order " + salesOrderId);

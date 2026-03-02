@@ -143,12 +143,11 @@ class TS_RuntimeEventPublisherExecutableCoverageTest {
         when(outboxEventRepository.countByStatusAndDeadLetterFalse(OutboxEvent.Status.PUBLISHING)).thenReturn(4L);
         when(outboxEventRepository.countByStatusAndDeadLetterFalseAndNextAttemptAtLessThanEqual(
                 eq(OutboxEvent.Status.PUBLISHING), any())).thenReturn(3L);
-        when(outboxEventRepository.countByStatusAndDeadLetterFalseAndLastErrorStartingWith(
-                OutboxEvent.Status.PUBLISHING, "AMBIGUOUS_PUBLISH:")).thenReturn(2L);
-        when(outboxEventRepository.countByStatusAndDeadLetterFalseAndLastErrorStartingWith(
-                OutboxEvent.Status.PUBLISHING, "FINALIZE_FAILURE:")).thenReturn(1L);
-        when(outboxEventRepository.countByStatusAndDeadLetterFalseAndLastErrorStartingWith(
-                OutboxEvent.Status.PUBLISHING, "STALE_LEASE_UNCERTAIN:")).thenReturn(1L);
+        when(outboxEventRepository.countAmbiguousPublishingEvents(
+                OutboxEvent.Status.PUBLISHING,
+                "AMBIGUOUS_PUBLISH:",
+                "FINALIZE_FAILURE:",
+                "STALE_LEASE_UNCERTAIN:")).thenReturn(4L);
         when(outboxEventRepository.countByStatusAndDeadLetterTrue(OutboxEvent.Status.FAILED)).thenReturn(1L);
 
         Map<String, Object> snapshot = service.healthSnapshot();
