@@ -22,11 +22,192 @@ Each module section should include:
 ## Modules (populated by workers as features complete)
 
 ### Auth
-_To be documented_
+
+#### Endpoint Map
+
+| Method | Path | Auth | Request | Response |
+|---|---|---|---|---|
+| POST | `/api/v1/auth/login` | Public | `LoginRequest` | `AuthResponse` |
+| POST | `/api/v1/auth/refresh-token` | Public | `RefreshTokenRequest` | `AuthResponse` |
+| POST | `/api/v1/auth/logout` | `isAuthenticated()` | Query param: `refreshToken?` (optional) | `204 No Content` |
+| GET | `/api/v1/auth/me` | `isAuthenticated()` | None | `ApiResponse<MeResponse>` |
+| POST | `/api/v1/auth/password/change` | `isAuthenticated()` | `ChangePasswordRequest` | `ApiResponse<String>` |
+| POST | `/api/v1/auth/password/forgot` | Public | `ForgotPasswordRequest` | `ApiResponse<String>` |
+| POST | `/api/v1/auth/password/forgot/superadmin` | Public | `ForgotPasswordRequest` | `ApiResponse<String>` |
+| POST | `/api/v1/auth/password/reset` | Public | `ResetPasswordRequest` | `ApiResponse<String>` |
+| GET | `/api/v1/auth/profile` | `isAuthenticated()` | None | `ApiResponse<ProfileResponse>` |
+| PUT | `/api/v1/auth/profile` | `isAuthenticated()` | `UpdateProfileRequest` | `ApiResponse<ProfileResponse>` |
+| POST | `/api/v1/auth/mfa/setup` | `isAuthenticated()` | None | `ApiResponse<MfaSetupResponse>` |
+| POST | `/api/v1/auth/mfa/activate` | `isAuthenticated()` | `MfaActivateRequest` | `ApiResponse<{ enabled: true }>` |
+| POST | `/api/v1/auth/mfa/disable` | `isAuthenticated()` | `MfaDisableRequest` | `ApiResponse<{ enabled: false }>` |
+
+Notes:
+- Login/refresh return raw `AuthResponse` (not wrapped in `ApiResponse`).
+- Most other auth endpoints return `ApiResponse<T>`.
+- MFA verification during login is done by `POST /api/v1/auth/login` using `mfaCode` or `recoveryCode` in `LoginRequest`.
+
+#### Auth Flows
+
+1. **Login flow (without MFA)**
+   1. Submit `POST /api/v1/auth/login` with `{ email, password, companyCode }`.
+   2. Receive `AuthResponse` with `accessToken`, `refreshToken`, `expiresIn`, `mustChangePassword`.
+   3. Call `GET /api/v1/auth/me` and/or `GET /api/v1/auth/profile` to hydrate UI shell.
+
+2. **Login flow (with MFA challenge)**
+   1. Submit `POST /api/v1/auth/login` without MFA verifier.
+   2. If MFA is required, backend returns `428 Precondition Required` with `AUTH_007` (`AUTH_MFA_REQUIRED`) and challenge payload.
+   3. Prompt user for 6-digit TOTP or recovery code.
+   4. Re-submit `POST /api/v1/auth/login` with same credentials + `mfaCode` or `recoveryCode`.
+   5. On success, proceed exactly like non-MFA login.
+
+3. **MFA enrollment flow**
+   1. Authenticated user calls `POST /api/v1/auth/mfa/setup`.
+   2. Backend returns `secret`, `qrUri`, and one-time `recoveryCodes`.
+   3. UI displays QR code + manual secret fallback.
+   4. User enters authenticator app code; UI calls `POST /api/v1/auth/mfa/activate` with `{ code }`.
+   5. Backend marks MFA as enabled.
+
+4. **Password reset flow**
+   1. User submits `POST /api/v1/auth/password/forgot` (or `/forgot/superadmin`).
+   2. Backend always responds with generic success message (no account enumeration).
+   3. User opens emailed reset link and submits `POST /api/v1/auth/password/reset` with `{ token, newPassword, confirmPassword }`.
+   4. Backend revokes existing sessions/tokens; user must log in again.
+
+5. **Token refresh flow**
+   1. Before access token expiry (or after 401), call `POST /api/v1/auth/refresh-token` with `{ refreshToken, companyCode }`.
+   2. Backend consumes old refresh token and returns a new access + refresh token pair (rotation).
+   3. Client must atomically replace both tokens.
+
+#### JWT Token Handling
+
+- Access token contains tenant and identity claims (`sub`, `companyCode`, `cid`, `name`, `jti`, `iat`, `exp`).
+- Refresh tokens are one-time-use and rotated on every refresh.
+- `logout` behavior:
+  - If `refreshToken` query param is supplied, backend revokes that token.
+  - Otherwise backend revokes all refresh tokens for token subject.
+  - Access token `jti` is blacklisted when parseable.
+- Token/company consistency:
+  - If request carries `X-Company-Code`, it must match token `companyCode` claim.
+  - Mismatch is rejected with `403` by company-context enforcement.
+- Recommended frontend storage strategy:
+  - Keep access token in memory (preferred) and refresh token in secure storage with shortest feasible lifetime.
+  - Never persist `adminTemporaryPassword` from onboarding.
+- Expiry handling:
+  - Use `expiresIn` from `AuthResponse` for refresh scheduling.
+  - On refresh failure, clear tokens and route to login.
+
+#### Error Codes / Error Handling
+
+| Error code | Typical surface | Meaning | Suggested frontend behavior |
+|---|---|---|---|
+| `AUTH_001` (`AUTH_INVALID_CREDENTIALS`) | Login | Invalid email/password | Inline credential error, keep form editable. |
+| `AUTH_003` (`AUTH_TOKEN_INVALID`) | Authenticated APIs | Invalid/expired/malformed token context | Clear session and force login. |
+| `AUTH_004` (`AUTH_INSUFFICIENT_PERMISSIONS`) | Protected APIs | Missing required authority | Show access denied page/CTA. |
+| `AUTH_005` (`AUTH_ACCOUNT_LOCKED`) | Login | Account temporarily locked after repeated failures | Disable submit temporarily and show lockout timer/message. |
+| `AUTH_007` (`AUTH_MFA_REQUIRED`) | Login | MFA challenge required | Open MFA challenge UI immediately. |
+| `AUTH_008` (`AUTH_MFA_INVALID`) | Login/MFA endpoints | Wrong TOTP/recovery verifier | Show retryable MFA error, keep user in challenge state. |
+| `VAL_001` (`VALIDATION_INVALID_INPUT`) | Password change/reset, token validation | Invalid payload or business validation message | Show field-level or inline validation text from `message`. |
+| `VAL_002` (`VALIDATION_MISSING_REQUIRED_FIELD`) | Request validation | Missing required field | Highlight missing fields and block submit. |
+| `VAL_007` (`VALIDATION_INVALID_STATE`) | Auth runtime constraints | Operation not allowed in current state | Show non-retryable state banner. |
+
+Password-policy failures currently surface as `VAL_001` with message prefix `Password does not meet policy: ...`.
+
+#### Data Contracts
+
+- `LoginRequest`
+  - `email: string` (required, email)
+  - `password: string` (required)
+  - `companyCode: string` (required)
+  - `mfaCode?: string` (optional, 6-digit code when challenged)
+  - `recoveryCode?: string` (optional alternative to `mfaCode`)
+
+- `AuthResponse`
+  - `tokenType: "Bearer"`
+  - `accessToken: string`
+  - `refreshToken: string`
+  - `expiresIn: number` (seconds)
+  - `companyCode: string`
+  - `displayName: string`
+  - `mustChangePassword: boolean`
+
+- `RefreshTokenRequest`
+  - `refreshToken: string` (required)
+  - `companyCode: string` (required; used to mint tenant-scoped access token)
+
+- `ChangePasswordRequest`
+  - `currentPassword: string` (required)
+  - `newPassword: string` (required)
+  - `confirmPassword: string` (required)
+
+- `ForgotPasswordRequest`
+  - `email: string` (required; accepts `userid` / `userId` aliases)
+
+- `ResetPasswordRequest`
+  - `token: string` (required)
+  - `newPassword: string` (required)
+  - `confirmPassword: string` (required)
+
+- `MeResponse`
+  - `email: string`
+  - `displayName: string`
+  - `companyCode: string`
+  - `mfaEnabled: boolean`
+  - `mustChangePassword: boolean`
+  - `roles: string[]`
+  - `permissions: string[]`
+
+- `ProfileResponse`
+  - `email: string`
+  - `displayName: string`
+  - `preferredName?: string`
+  - `jobTitle?: string`
+  - `profilePictureUrl?: string`
+  - `phoneSecondary?: string`
+  - `secondaryEmail?: string`
+  - `mfaEnabled: boolean`
+  - `companies: string[]` (company codes assigned to user)
+  - `createdAt: string` (ISO-8601)
+  - `publicId: string` (UUID)
+
+- `UpdateProfileRequest`
+  - `displayName?: string` (1..255)
+  - `preferredName?: string` (max 255)
+  - `jobTitle?: string` (max 255)
+  - `profilePictureUrl?: string` (max 512)
+  - `phoneSecondary?: string` (max 64)
+  - `secondaryEmail?: string` (email, max 255)
+
+- `MfaSetupResponse`
+  - `secret: string`
+  - `qrUri: string` (otpauth URI)
+  - `recoveryCodes: string[]` (show once)
+
+- `MfaActivateRequest`
+  - `code: string` (required, exactly 6 digits)
+
+- `MfaDisableRequest`
+  - `code?: string`
+  - `recoveryCode?: string`
+  - At least one of `code` or `recoveryCode` must be present.
+
+#### UI Hints
+
+- Implement password strength indicator using backend policy:
+  - min length 10, uppercase, lowercase, digit, special char, no whitespace.
+- For change/reset forms, show live “new password == confirm password” validation.
+- On login success where `mustChangePassword = true`, force redirect to password-change screen before showing main app.
+- MFA setup UI:
+  - Render `qrUri` as QR code.
+  - Show copyable manual secret fallback.
+  - Force user to download/store recovery codes before closing setup modal.
+- Keep forgot-password UX generic (“If the email exists...”) regardless of account existence.
+- Always include a tenant selector input bound to `companyCode` in login form.
 
 ### Tenant & Admin
 
-#### Endpoint Map (SUPER_ADMIN only)
+#### Endpoint Map
+
+**A) Superadmin tenant control endpoints**
 
 | Method | Path | Auth | Request | Response `data` |
 |---|---|---|---|---|
@@ -36,22 +217,45 @@ _To be documented_
 | POST | `/api/v1/superadmin/tenants/{id}/activate` | `ROLE_SUPER_ADMIN` | None | `SuperAdminTenantDto` |
 | POST | `/api/v1/superadmin/tenants/{id}/deactivate` | `ROLE_SUPER_ADMIN` | None | `SuperAdminTenantDto` |
 | POST | `/api/v1/superadmin/tenants/{id}/lifecycle-state` | `ROLE_SUPER_ADMIN` | `CompanyLifecycleStateRequest` | `CompanyLifecycleStateDto` |
+| PUT | `/api/v1/superadmin/tenants/{id}/modules` | `ROLE_SUPER_ADMIN` | `TenantModulesUpdateRequest` | `CompanyEnabledModulesDto` |
 | GET | `/api/v1/superadmin/tenants/{id}/usage` | `ROLE_SUPER_ADMIN` | None | `SuperAdminTenantUsageDto` |
 | GET | `/api/v1/superadmin/tenants/coa-templates` | `ROLE_SUPER_ADMIN` | None | `List<CoATemplateDto>` |
 | POST | `/api/v1/superadmin/tenants/onboard` | `ROLE_SUPER_ADMIN` | `TenantOnboardingRequest` | `TenantOnboardingResponse` |
 
-All responses are wrapped in `ApiResponse<T>`.
+**B) Tenant admin user-management endpoints**
+
+| Method | Path | Auth | Request | Response `data` |
+|---|---|---|---|---|
+| GET | `/api/v1/admin/users` | `ROLE_ADMIN` | None | `List<UserDto>` |
+| POST | `/api/v1/admin/users` | `ROLE_ADMIN` | `CreateUserRequest` | `UserDto` |
+| PUT | `/api/v1/admin/users/{id}` | `ROLE_ADMIN` | `UpdateUserRequest` | `UserDto` |
+| PATCH | `/api/v1/admin/users/{id}/suspend` | `ROLE_ADMIN` | None | `204 No Content` |
+| PATCH | `/api/v1/admin/users/{id}/unsuspend` | `ROLE_ADMIN` | None | `204 No Content` |
+| PATCH | `/api/v1/admin/users/{id}/mfa/disable` | `ROLE_ADMIN` | None | `204 No Content` |
+| DELETE | `/api/v1/admin/users/{id}` | `ROLE_ADMIN` | None | `204 No Content` |
+| GET | `/api/v1/admin/roles` | `ROLE_ADMIN` or `ROLE_SUPER_ADMIN` | None | `List<RoleDto>` |
+| GET | `/api/v1/admin/roles/{roleKey}` | `ROLE_ADMIN` or `ROLE_SUPER_ADMIN` | None | `RoleDto` |
+| POST | `/api/v1/admin/roles` | `ROLE_SUPER_ADMIN` | `CreateRoleRequest` | `RoleDto` |
+
+**C) Tenant-selection context endpoints**
+
+| Method | Path | Auth | Request | Response `data` |
+|---|---|---|---|---|
+| GET | `/api/v1/companies` | `ROLE_SUPER_ADMIN` \/ `ROLE_ADMIN` \/ `ROLE_ACCOUNTING` \/ `ROLE_SALES` | None | `List<CompanyDto>` |
+| POST | `/api/v1/multi-company/companies/switch` | `isAuthenticated()` | `SwitchCompanyRequest` | `CompanyDto` |
+
+All non-204 responses use `ApiResponse<T>` wrappers.
+
+> **Runtime note:** `POST /api/v1/multi-company/companies/switch` updates selected company context for the current session payload, but JWT claim validation still enforces tenant in token claims. After tenant switch selection, refresh tokens via `POST /api/v1/auth/refresh-token` with selected `companyCode` before issuing tenant-scoped API calls.
 
 #### Module Feature Gating (tenant runtime behavior)
 
-Module access is enforced per-tenant using `companies.enabled_modules` (JSON array of module keys).
+Module access is enforced per tenant using `companies.enabled_modules`.
 
 - **Gatable modules**: `MANUFACTURING`, `HR_PAYROLL`, `PURCHASING`, `PORTAL`, `REPORTS_ADVANCED`
 - **Core modules (always enabled, cannot be disabled)**: `AUTH`, `ACCOUNTING`, `SALES`, `INVENTORY`
 
-If a request hits a disabled gatable module, backend returns **403** with `ErrorCode.MODULE_DISABLED` (`BUS_010`).
-
-Current runtime path mapping used by backend:
+Disabled module requests return `403` with `BUS_010` (`MODULE_DISABLED`). Runtime path mapping:
 - `MANUFACTURING`: `/api/v1/factory/**`, `/api/v1/production/**`
 - `HR_PAYROLL`: `/api/v1/hr/**`, `/api/v1/payroll/**`
 - `PURCHASING`: `/api/v1/purchasing/**`, `/api/v1/suppliers/**`
@@ -60,152 +264,160 @@ Current runtime path mapping used by backend:
 
 #### User Flows
 
-1. **Load platform dashboard**
-   1. `GET /api/v1/superadmin/dashboard`
-   2. Render cards: total tenants, active/suspended, total users, API calls, storage, recent activity.
+1. **Platform login -> tenant selection -> module access**
+   1. User signs in via `POST /api/v1/auth/login` with initial `companyCode`.
+   2. Frontend loads identity via `GET /api/v1/auth/me` and company options via `GET /api/v1/companies`.
+   3. If user selects another tenant, call `POST /api/v1/auth/refresh-token` with selected `companyCode` (mint tenant-scoped token pair), then optionally call `POST /api/v1/multi-company/companies/switch` for confirmation payload.
+   4. Set `X-Company-Code` to active tenant on requests.
+   5. Navigate to module surfaces; if a module is disabled (`BUS_010`), show module-disabled state.
 
-2. **Browse tenants**
-   1. `GET /api/v1/superadmin/tenants`
-   2. Optional filter: `GET /api/v1/superadmin/tenants?status=SUSPENDED`
-   3. Render each row with status + usage summary.
+2. **Superadmin tenant creation with CoA template**
+   1. Load templates with `GET /api/v1/superadmin/tenants/coa-templates`.
+   2. Submit `POST /api/v1/superadmin/tenants/onboard` with selected `coaTemplateCode`.
+   3. Backend creates company, admin user, default accounting period, and 50-100 CoA accounts.
+   4. Show one-time `adminTemporaryPassword` modal.
+   5. Optionally configure enabled modules via `PUT /api/v1/superadmin/tenants/{id}/modules`.
 
-3. **Suspend tenant**
-   1. User clicks Suspend in tenant row
-   2. `POST /api/v1/superadmin/tenants/{id}/suspend`
-   3. Update row status to `SUSPENDED`.
+3. **User creation with role assignment**
+   1. Load assignable roles with `GET /api/v1/admin/roles`.
+   2. (Optional) load target companies with `GET /api/v1/companies`.
+   3. Submit `POST /api/v1/admin/users` with `{ email, displayName, companyIds, roles, password? }`.
+   4. Backend creates user, assigns roles/companies, and emails credentials.
+   5. Use `PUT /api/v1/admin/users/{id}` for role/company updates; use suspend/unsuspend/MFA-disable PATCH endpoints for account operations.
 
-4. **Activate tenant**
-   1. User clicks Activate in tenant row
-   2. `POST /api/v1/superadmin/tenants/{id}/activate`
-   3. Update row status to `ACTIVE`.
+4. **Tenant lifecycle operations (superadmin)**
+   1. Review status in `GET /api/v1/superadmin/tenants`.
+   2. Transition using suspend/activate/deactivate or explicit lifecycle endpoint.
+   3. Runtime enforcement: `SUSPENDED` blocks writes, `DEACTIVATED` blocks all access.
 
-5. **Deactivate tenant**
-   1. User clicks Deactivate in tenant row
-   2. `POST /api/v1/superadmin/tenants/{id}/deactivate`
-   3. Update row status to `DEACTIVATED`.
+#### State Machines
 
-6. **Set lifecycle state explicitly (with reason)**
-   1. `POST /api/v1/superadmin/tenants/{id}/lifecycle-state` with `{ state, reason }`
-   2. Use for auditable transition requests from superadmin console.
+1. **Tenant lifecycle**
+   - `ACTIVE` -> `SUSPENDED` via `POST /api/v1/superadmin/tenants/{id}/suspend`
+   - `SUSPENDED` -> `ACTIVE` via `POST /api/v1/superadmin/tenants/{id}/activate`
+   - `ACTIVE` -> `DEACTIVATED` via `POST /api/v1/superadmin/tenants/{id}/deactivate`
+   - `SUSPENDED` -> `DEACTIVATED` via `POST /api/v1/superadmin/tenants/{id}/deactivate`
+   - `DEACTIVATED` is terminal.
 
-7. **Inspect tenant usage**
-   1. `GET /api/v1/superadmin/tenants/{id}/usage`
-   2. Show API calls, active users, storage, last activity timestamp.
-
-8. **Tenant onboarding (single-call bootstrap)**
-   1. `GET /api/v1/superadmin/tenants/coa-templates` to populate template dropdown (Generic / Indian Standard / Manufacturing).
-   2. Submit onboarding form once via `POST /api/v1/superadmin/tenants/onboard`.
-   3. Backend creates tenant company, admin user, full chart of accounts from selected template, default accounting period, and baseline system settings.
-   4. Frontend stores/display one-time `adminTemporaryPassword` immediately after success.
-
-9. **Tenant runtime lifecycle enforcement expectations**
-   - `ACTIVE`: read/write allowed.
-   - `SUSPENDED`: **read-only** (write methods return 403).
-   - `DEACTIVATED`: all requests blocked with 403.
-
-#### State Machine (superadmin view)
-
-- `ACTIVE` -> `SUSPENDED` via `POST /api/v1/superadmin/tenants/{id}/suspend`
-- `SUSPENDED` -> `ACTIVE` via `POST /api/v1/superadmin/tenants/{id}/activate`
-- `ACTIVE` -> `DEACTIVATED` via `POST /api/v1/superadmin/tenants/{id}/deactivate`
-- `SUSPENDED` -> `DEACTIVATED` via `POST /api/v1/superadmin/tenants/{id}/deactivate`
-- `DEACTIVATED` is terminal (no activation path from this state)
+2. **Admin user lifecycle**
+   - `ENABLED` -> `SUSPENDED` via `PATCH /api/v1/admin/users/{id}/suspend`
+   - `SUSPENDED` -> `ENABLED` via `PATCH /api/v1/admin/users/{id}/unsuspend`
+   - `ENABLED|SUSPENDED` -> `DELETED` via `DELETE /api/v1/admin/users/{id}`
+   - `MFA_ENABLED` -> `MFA_DISABLED` via `PATCH /api/v1/admin/users/{id}/mfa/disable`
 
 #### Error Codes / Error Handling
 
-- **403 Forbidden**: caller is not `ROLE_SUPER_ADMIN`.
-  - Frontend behavior: block page access and show “Superadmin access required”.
-- **403 + `BUS_010` (`MODULE_DISABLED`)**: tenant module is disabled.
-  - Frontend behavior: show contextual “Module disabled for this tenant” empty/error state and hide write actions for that module.
-- **403** (tenant lifecycle runtime guard): suspended write or deactivated access.
-  - Frontend behavior: show non-retryable state banner (“Tenant suspended: read-only” or “Tenant deactivated”).
-- **400 Business validation error** (invalid filter/status or unknown tenant id).
-  - Frontend behavior: show inline toast with server message, keep current page state.
+| Error code / status | Meaning | Suggested frontend behavior |
+|---|---|---|
+| `AUTH_004` (`AUTH_INSUFFICIENT_PERMISSIONS`) / 403 | Caller lacks role (e.g., non-superadmin on control plane) | Route to access-denied state and hide privileged actions. |
+| `BUS_010` (`MODULE_DISABLED`) / 403 | Tenant module disabled by gating policy | Show module-disabled empty state; hide create/write CTA. |
+| `VAL_001` (`VALIDATION_INVALID_INPUT`) / 400 | Invalid status filter, unknown tenant/user/company, missing lifecycle reason, invalid enabled modules payload | Inline validation + toast with backend message. |
+| `VAL_007` (`VALIDATION_INVALID_STATE`) / 400 or 409 | Invalid tenant lifecycle transition | Show state-transition-specific error and refresh tenant row status. |
+| 403 (`Suspended tenants are read-only`) | Tenant is suspended and write operation attempted | Keep read-only mode banner and disable writes. |
+| 403 (`Tenant is deactivated`) | Tenant fully deactivated | Block workflow and show deactivated notice. |
+| 401 | Unauthenticated session | Redirect to login and clear local session state. |
 
 #### Data Contracts
 
 - `SuperAdminDashboardDto`
-  - `totalTenants: number`
-  - `activeTenants: number`
-  - `suspendedTenants: number`
-  - `deactivatedTenants: number`
-  - `totalUsers: number`
-  - `totalApiCalls: number`
-  - `totalStorageBytes: number`
-  - `recentActivityAt: string | null` (ISO-8601)
+  - `totalTenants`, `activeTenants`, `suspendedTenants`, `deactivatedTenants`
+  - `totalUsers`, `totalApiCalls`, `totalStorageBytes`
+  - `recentActivityAt: string | null`
 
 - `SuperAdminTenantDto`
-  - `companyId: number`
-  - `companyCode: string`
-  - `companyName: string`
+  - `companyId`, `companyCode`, `companyName`
   - `status: "ACTIVE" | "SUSPENDED" | "DEACTIVATED"`
-  - `activeUsers: number`
-  - `apiCallCount: number`
-  - `storageBytes: number`
-  - `lastActivityAt: string | null` (ISO-8601)
+  - `activeUsers`, `apiCallCount`, `storageBytes`
+  - `lastActivityAt: string | null`
 
 - `SuperAdminTenantUsageDto`
-  - `companyId: number`
-  - `companyCode: string`
-  - `status: "ACTIVE" | "SUSPENDED" | "DEACTIVATED"`
-  - `apiCallCount: number`
-  - `activeUsers: number`
-  - `storageBytes: number`
-  - `lastActivityAt: string | null` (ISO-8601)
+  - `companyId`, `companyCode`, `status`
+  - `apiCallCount`, `activeUsers`, `storageBytes`
+  - `lastActivityAt: string | null`
 
 - `CompanyLifecycleStateRequest`
   - `state: "ACTIVE" | "SUSPENDED" | "DEACTIVATED"` (required)
   - `reason: string` (required, max 1024)
 
 - `CompanyLifecycleStateDto`
-  - `companyId: number`
-  - `companyCode: string`
-  - `previousLifecycleState: "ACTIVE" | "SUSPENDED" | "DEACTIVATED"`
-  - `lifecycleState: "ACTIVE" | "SUSPENDED" | "DEACTIVATED"`
-  - `reason: string`
+  - `companyId`, `companyCode`
+  - `previousLifecycleState`, `lifecycleState`
+  - `reason`
+
+- `TenantModulesUpdateRequest`
+  - `enabledModules: string[]` (required; normalized to gatable module keys only)
+
+- `CompanyEnabledModulesDto`
+  - `companyId`, `companyCode`
+  - `enabledModules: string[]`
 
 - `CoATemplateDto`
   - `code: "GENERIC" | "INDIAN_STANDARD" | "MANUFACTURING"`
-  - `name: string`
-  - `description: string`
-  - `accountCount: number` (always 50-100)
+  - `name`, `description`
+  - `accountCount` (50-100)
 
 - `TenantOnboardingRequest`
-  - `name: string` (required, max 255)
-  - `code: string` (required, max 64, normalized uppercase)
-  - `timezone: string` (required, max 64)
-  - `defaultGstRate?: number` (0-100)
-  - `maxActiveUsers?: number >= 0`
-  - `maxApiRequests?: number >= 0`
-  - `maxStorageBytes?: number >= 0`
-  - `maxConcurrentUsers?: number >= 0`
-  - `softLimitEnabled?: boolean`
-  - `hardLimitEnabled?: boolean`
-  - `firstAdminEmail: string` (required email)
-  - `firstAdminDisplayName?: string`
-  - `coaTemplateCode: "GENERIC" | "INDIAN_STANDARD" | "MANUFACTURING"` (required)
+  - `name`, `code`, `timezone` (required)
+  - `defaultGstRate?: number (0..100)`
+  - `maxActiveUsers?`, `maxApiRequests?`, `maxStorageBytes?`, `maxConcurrentUsers?` (>=0)
+  - `softLimitEnabled?`, `hardLimitEnabled?`
+  - `firstAdminEmail` (required email), `firstAdminDisplayName?`
+  - `coaTemplateCode` (required)
 
 - `TenantOnboardingResponse`
-  - `companyId: number`
-  - `companyCode: string`
-  - `templateCode: string`
-  - `accountsCreated: number`
-  - `accountingPeriodId: number`
-  - `adminEmail: string`
-  - `adminTemporaryPassword: string` (show once, do not persist in browser local storage)
-  - `credentialsEmailSent: boolean`
-  - `systemSettingsInitialized: boolean`
+  - `companyId`, `companyCode`, `templateCode`
+  - `accountsCreated`, `accountingPeriodId`
+  - `adminEmail`, `adminTemporaryPassword`
+  - `credentialsEmailSent`, `systemSettingsInitialized`
+
+- `CreateUserRequest`
+  - `email` (required email)
+  - `password?` (optional, auto-generated when omitted)
+  - `displayName` (required)
+  - `companyIds: number[]` (required)
+  - `roles: string[]` (required)
+
+- `UpdateUserRequest`
+  - `displayName` (required)
+  - `companyIds?: number[]`
+  - `roles?: string[]`
+  - `enabled?: boolean`
+
+- `UserDto`
+  - `id`, `publicId`, `email`, `displayName`
+  - `enabled`, `mfaEnabled`
+  - `roles: string[]`, `companies: string[]`
+
+- `CreateRoleRequest`
+  - `name` (required)
+  - `description` (required)
+  - `permissions: string[]` (required, non-empty)
+
+- `RoleDto`
+  - `id`, `name`, `description`
+  - `permissions: PermissionDto[]`
+
+- `PermissionDto`
+  - `id`, `code`, `description`
+
+- `SwitchCompanyRequest`
+  - `companyCode: string` (required)
+
+- `CompanyDto`
+  - `id`, `publicId`, `name`, `code`, `timezone`, `stateCode?`, `defaultGstRate?`
 
 #### UI Hints
 
-- Use a status filter dropdown with `ACTIVE`, `SUSPENDED`, and `DEACTIVATED`.
-- Show human-readable storage units (KB/MB/GB) while keeping raw bytes for sorting.
-- For lifecycle buttons, show confirmation modals before suspend/activate/deactivate.
-- Treat `lastActivityAt = null` as “No activity yet”.
-- Refresh dashboard + tenant list after lifecycle mutation to keep aggregates in sync.
-- For onboarding, fetch templates first and show `name + description + accountCount` in template picker.
-- On onboarding success, immediately display/copy `adminTemporaryPassword` in a modal and force explicit acknowledgement.
-- Disable duplicate submits on onboarding button until API response is received.
+- **Tenant selector dropdown**: source from `GET /api/v1/companies`, display `name (code)` and store `code`.
+- Keep active tenant visible in app shell; on tenant switch, rotate tokens via refresh call before module navigation.
+- For module configuration, render checkboxes only for gatable modules (`MANUFACTURING`, `HR_PAYROLL`, `PURCHASING`, `PORTAL`, `REPORTS_ADVANCED`).
+- User-creation form:
+  - role multi-select from `GET /api/v1/admin/roles`
+  - company multi-select from `GET /api/v1/companies`
+  - if password omitted, show “temporary password will be emailed” helper text.
+- Superadmin onboarding UI should present CoA templates as cards (`name`, `description`, `accountCount`).
+- After onboarding, show/copy `adminTemporaryPassword` once and require explicit confirmation.
+- On lifecycle mutations, use confirmation dialogs and refresh dashboard + tenant list metrics after mutation.
 
 ### Accounting
 
