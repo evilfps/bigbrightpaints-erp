@@ -10,6 +10,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.bigbrightpaints.erp.core.audit.AuditService;
+import com.bigbrightpaints.erp.core.exception.ApplicationException;
+import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.service.NumberSequenceService;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
@@ -114,14 +116,18 @@ class TS_RuntimeModuleExecutableCoverageTest {
 
         company.setDefaultTaxAccountId(null);
         assertThatThrownBy(service::requireDefaults)
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("default accounts are not configured");
+                .isInstanceOfSatisfying(ApplicationException.class, ex -> {
+                    assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.VALIDATION_INVALID_STATE);
+                    assertThat(ex.getMessage()).contains("default accounts are not configured");
+                });
 
         Account invalidTax = account(99L, company, "BAD-TAX", AccountType.ASSET);
         when(companyEntityLookup.requireAccount(company, 99L)).thenReturn(invalidTax);
         assertThatThrownBy(() -> service.updateDefaults(null, null, null, null, 99L))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("expected type LIABILITY");
+                .isInstanceOfSatisfying(ApplicationException.class, ex -> {
+                    assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.VALIDATION_INVALID_INPUT);
+                    assertThat(ex.getMessage()).contains("expected type LIABILITY");
+                });
     }
 
     @Test
@@ -198,19 +204,25 @@ class TS_RuntimeModuleExecutableCoverageTest {
         assertThat(invoice.getStatus()).isEqualTo("VOID");
 
         assertThatThrownBy(() -> policy.applyPayment(invoice, new BigDecimal("1.00"), "X"))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("Cannot pay a void invoice");
+                .isInstanceOfSatisfying(ApplicationException.class, ex -> {
+                    assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.VALIDATION_INVALID_STATE);
+                    assertThat(ex.getMessage()).contains("Cannot pay a void invoice");
+                });
 
         Invoice bad = new Invoice();
         bad.setStatus("ISSUED");
         bad.setTotalAmount(new BigDecimal("10.00"));
         bad.setOutstandingAmount(new BigDecimal("10.00"));
         assertThatThrownBy(() -> policy.applyPayment(bad, BigDecimal.ZERO, "P"))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("Invalid payment amount");
+                .isInstanceOfSatisfying(ApplicationException.class, ex -> {
+                    assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.VALIDATION_INVALID_INPUT);
+                    assertThat(ex.getMessage()).contains("Invalid payment amount");
+                });
         assertThatThrownBy(() -> policy.applyPayment(bad, new BigDecimal("1.00"), " "))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("Payment reference is required");
+                .isInstanceOfSatisfying(ApplicationException.class, ex -> {
+                    assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.VALIDATION_INVALID_INPUT);
+                    assertThat(ex.getMessage()).contains("Payment reference is required");
+                });
     }
 
     @Test

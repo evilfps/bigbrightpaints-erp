@@ -476,7 +476,7 @@ class PasswordResetServiceTest {
 
             assertTrue(
                     messages.stream().anyMatch(message -> message.contains("reasonCode=RESET_DISPATCH_FAILURE")
-                            && message.contains("exceptionClass=IllegalStateException")
+                            && message.contains("exceptionClass=ApplicationException")
                             && message.contains("correlationId=corr-blank-token-123")),
                     "Expected blank token persistence to be fail-closed and masked in public forgot-password flow");
         } finally {
@@ -514,7 +514,7 @@ class PasswordResetServiceTest {
                     "Expected lifecycle stage to emit transaction-missing evidence with correlation id");
             assertTrue(
                     messages.stream().anyMatch(message -> message.contains("reasonCode=RESET_DISPATCH_FAILURE")
-                            && message.contains("exceptionClass=IllegalStateException")),
+                            && message.contains("exceptionClass=ApplicationException")),
                     "Expected missing transaction to be masked by public forgot-password response contract");
         } finally {
             RequestContextHolder.resetRequestAttributes();
