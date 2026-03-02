@@ -4,6 +4,7 @@ import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.security.CryptoService;
 import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
+import com.bigbrightpaints.erp.core.validation.ValidationUtils;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.hr.domain.Employee;
@@ -16,7 +17,6 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Locale;
 import java.util.function.Function;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -261,7 +261,9 @@ public class EmployeeService {
         if (dateOfBirth == null || dateOfJoining == null) {
             return;
         }
-        if (dateOfJoining.isBefore(dateOfBirth)) {
+        try {
+            ValidationUtils.validateDateRange(dateOfBirth, dateOfJoining, "dateOfBirth", "dateOfJoining");
+        } catch (ApplicationException ex) {
             throw new ApplicationException(ErrorCode.VALIDATION_INVALID_DATE,
                     "dateOfJoining cannot be before dateOfBirth")
                     .withDetail("dateOfBirth", dateOfBirth)
@@ -309,8 +311,8 @@ public class EmployeeService {
 
     private <E extends Enum<E>> E parseEnum(String rawValue, Class<E> enumClass, String fieldName) {
         try {
-            return Enum.valueOf(enumClass, rawValue.trim().toUpperCase(Locale.ROOT));
-        } catch (RuntimeException ex) {
+            return ValidationUtils.parseEnum(enumClass, rawValue, fieldName);
+        } catch (ApplicationException ex) {
             throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
                     "Invalid " + fieldName + ". Allowed values: " + Arrays.toString(enumClass.getEnumConstants()))
                     .withDetail(fieldName, rawValue);

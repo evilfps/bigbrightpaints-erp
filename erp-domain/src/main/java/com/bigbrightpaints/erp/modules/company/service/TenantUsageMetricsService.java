@@ -2,6 +2,7 @@ package com.bigbrightpaints.erp.modules.company.service;
 
 import com.bigbrightpaints.erp.core.config.SystemSetting;
 import com.bigbrightpaints.erp.core.config.SystemSettingsRepository;
+import com.bigbrightpaints.erp.core.validation.ValidationUtils;
 import com.bigbrightpaints.erp.core.util.CompanyTime;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
@@ -79,8 +80,8 @@ public class TenantUsageMetricsService {
             return fallback;
         }
         try {
-            return Long.parseLong(raw.trim());
-        } catch (NumberFormatException ex) {
+            return Long.parseLong(ValidationUtils.requireNotBlank(raw, "setting value"));
+        } catch (RuntimeException ex) {
             return fallback;
         }
     }

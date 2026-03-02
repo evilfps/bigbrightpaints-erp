@@ -5,6 +5,7 @@ import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.core.util.CompanyTime;
+import com.bigbrightpaints.erp.core.validation.ValidationUtils;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.hr.domain.Attendance;
@@ -24,7 +25,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -252,11 +252,13 @@ public class AttendanceService {
     }
 
     private void validateDateRange(LocalDate startDate, LocalDate endDate) {
-        if (startDate == null || endDate == null) {
-            throw new ApplicationException(ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD,
-                    "startDate and endDate are required");
-        }
-        if (endDate.isBefore(startDate)) {
+        try {
+            ValidationUtils.validateDateRange(startDate, endDate, "startDate", "endDate");
+        } catch (ApplicationException ex) {
+            if (ex.getErrorCode() == ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD) {
+                throw new ApplicationException(ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD,
+                        "startDate and endDate are required");
+            }
             throw new ApplicationException(ErrorCode.VALIDATION_INVALID_DATE,
                     "endDate cannot be before startDate")
                     .withDetail("startDate", startDate)
@@ -265,16 +267,14 @@ public class AttendanceService {
     }
 
     private Attendance.AttendanceStatus parseAttendanceStatus(String rawAttendanceStatus) {
-        if (rawAttendanceStatus == null) {
-            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
-                    "attendanceStatus is required");
-        }
         try {
-            return Attendance.AttendanceStatus.valueOf(rawAttendanceStatus.trim().toUpperCase(Locale.ROOT));
-        } catch (RuntimeException ex) {
-            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
-                    "Invalid attendance status. Allowed values: "
-                            + Arrays.toString(Attendance.AttendanceStatus.values()))
+            return ValidationUtils.parseEnum(Attendance.AttendanceStatus.class, rawAttendanceStatus, "attendanceStatus");
+        } catch (ApplicationException ex) {
+            String message = ex.getErrorCode() == ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD
+                    ? "attendanceStatus is required"
+                    : "Invalid attendance status. Allowed values: "
+                    + Arrays.toString(Attendance.AttendanceStatus.values());
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT, message)
                     .withDetail("attendanceStatus", rawAttendanceStatus);
         }
     }

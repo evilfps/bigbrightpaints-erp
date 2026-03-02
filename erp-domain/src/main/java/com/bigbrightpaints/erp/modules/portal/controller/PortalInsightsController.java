@@ -1,5 +1,6 @@
 package com.bigbrightpaints.erp.modules.portal.controller;
 
+import com.bigbrightpaints.erp.core.validation.ValidationUtils;
 import com.bigbrightpaints.erp.modules.portal.dto.DashboardInsights;
 import com.bigbrightpaints.erp.modules.portal.dto.OperationsInsights;
 import com.bigbrightpaints.erp.modules.portal.dto.WorkforceInsights;
@@ -24,16 +25,19 @@ public class PortalInsightsController {
 
     @GetMapping("/dashboard")
     public ResponseEntity<ApiResponse<DashboardInsights>> dashboard() {
-        return ResponseEntity.ok(ApiResponse.success("Dashboard insights", portalInsightsService.dashboard()));
+        String message = ValidationUtils.requireNotBlank("Dashboard insights", "dashboardMessage");
+        return ResponseEntity.ok(ApiResponse.success(message, portalInsightsService.dashboard()));
     }
 
     @GetMapping("/operations")
     public ResponseEntity<ApiResponse<OperationsInsights>> operations() {
-        return ResponseEntity.ok(ApiResponse.success("Operations insights", portalInsightsService.operations()));
+        String message = ValidationUtils.requireNotBlank("Operations insights", "operationsMessage");
+        return ResponseEntity.ok(ApiResponse.success(message, portalInsightsService.operations()));
     }
 
     @GetMapping("/workforce")
     public ResponseEntity<ApiResponse<WorkforceInsights>> workforce() {
-        return ResponseEntity.ok(ApiResponse.success("Workforce insights", portalInsightsService.workforce()));
+        String message = ValidationUtils.requireNotBlank("Workforce insights", "workforceMessage");
+        return ResponseEntity.ok(ApiResponse.success(message, portalInsightsService.workforce()));
     }
 }

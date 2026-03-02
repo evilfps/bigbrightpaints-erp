@@ -4,6 +4,7 @@ import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.core.util.CompanyTime;
+import com.bigbrightpaints.erp.core.validation.ValidationUtils;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.hr.domain.Employee;
@@ -189,11 +190,13 @@ public class LeaveService {
     }
 
     private void validateDateRange(LocalDate startDate, LocalDate endDate) {
-        if (startDate == null || endDate == null) {
-            throw new ApplicationException(ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD,
-                    "Leave startDate and endDate are required");
-        }
-        if (endDate.isBefore(startDate)) {
+        try {
+            ValidationUtils.validateDateRange(startDate, endDate, "startDate", "endDate");
+        } catch (ApplicationException ex) {
+            if (ex.getErrorCode() == ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD) {
+                throw new ApplicationException(ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD,
+                        "Leave startDate and endDate are required");
+            }
             throw new ApplicationException(ErrorCode.VALIDATION_INVALID_DATE,
                     "Leave endDate cannot be before startDate")
                     .withDetail("startDate", startDate)
@@ -320,8 +323,8 @@ public class LeaveService {
 
     private LeaveStatus parseLeaveStatus(String rawLeaveStatus) {
         try {
-            return LeaveStatus.valueOf(rawLeaveStatus.trim().toUpperCase(Locale.ROOT));
-        } catch (RuntimeException ex) {
+            return ValidationUtils.parseEnum(LeaveStatus.class, rawLeaveStatus, "leaveStatus");
+        } catch (ApplicationException ex) {
             throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
                     "Invalid leave status. Allowed values: "
                             + Arrays.toString(LeaveStatus.values()))
