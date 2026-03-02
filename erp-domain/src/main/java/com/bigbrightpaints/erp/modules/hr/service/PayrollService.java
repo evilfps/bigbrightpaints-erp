@@ -96,7 +96,9 @@ public class PayrollService {
                 employeeRepository,
                 attendanceRepository,
                 companyContextService,
-                companyClock);
+                companyClock,
+                new StatutoryDeductionEngine(),
+                new PayrollCalculationSupport());
         this.payrollPostingService = new PayrollPostingService(
                 payrollRunRepository,
                 payrollRunLineRepository,

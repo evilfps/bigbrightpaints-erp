@@ -43,7 +43,9 @@ class PayrollCalculationServiceIndianRulesTest {
                 employeeRepository,
                 attendanceRepository,
                 companyContextService,
-                companyClock);
+                companyClock,
+                new StatutoryDeductionEngine(),
+                new PayrollCalculationSupport());
 
         Company company = new Company();
         PayrollRun run = new PayrollRun();
@@ -136,7 +138,9 @@ class PayrollCalculationServiceIndianRulesTest {
                 employeeRepository,
                 attendanceRepository,
                 companyContextService,
-                companyClock);
+                companyClock,
+                new StatutoryDeductionEngine(),
+                new PayrollCalculationSupport());
 
         Company company = new Company();
         Employee employee = new Employee();
