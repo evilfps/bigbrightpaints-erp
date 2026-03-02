@@ -1,6 +1,6 @@
 {
   "milestone": "hr-payroll",
-  "round": 1,
+  "round": 2,
   "status": "fail",
   "validatorsRun": {
     "test": {
@@ -20,60 +20,41 @@
     }
   },
   "reviewsSummary": {
-    "total": 4,
-    "passed": 2,
-    "failed": 2,
-    "failedFeatures": [
-      "decompose-hr-payroll-services",
-      "payroll-calculation-and-posting-redesign"
-    ]
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "failedFeatures": []
   },
   "blockingIssues": [
     {
-      "featureId": "decompose-hr-payroll-services",
+      "featureId": "payroll-calculation-and-posting-redesign",
       "severity": "blocking",
-      "description": "VAL-HR-001 decomposition threshold regression: PayrollCalculationService is 605 lines in HEAD, exceeding the under-500 focused-service target."
+      "description": "No completed hr-payroll fix feature addresses the prior migration_v2 parity gap for V150 payroll schema additions, so the original scrutiny failure remains unresolved."
     },
     {
       "featureId": "payroll-calculation-and-posting-redesign",
       "severity": "blocking",
-      "description": "No migration_v2 script mirrors V150 payroll component schema changes (template thresholds/professional tax, payment_date, expanded payroll_run_lines fields, statutory payable account seeding), causing schema drift under flyway-v2."
-    },
-    {
-      "featureId": "payroll-calculation-and-posting-redesign",
-      "severity": "blocking",
-      "description": "Codered payroll validation fails reproducibly (CR_PayrollIdempotencyConcurrencyTest: 10 errors) due to migration_v2 schema mismatch, so milestone evidence cannot be considered complete."
+      "description": "Re-run evidence still shows codered payroll validation failure under flyway-v2: CR_PayrollIdempotencyConcurrencyTest exits with 10 errors (missing finished_good_batches.source column), so milestone evidence is not yet complete."
     }
   ],
-  "appliedUpdates": [
-    {
-      "target": "library",
-      "description": "Updated .factory/library/architecture.md to document that production runs with flyway-v2 profile/group and migration_v2 location, making migration-path expectations explicit.",
-      "sourceFeature": "hr-employee-and-leave-redesign"
-    },
-    {
-      "target": "services.yaml",
-      "description": "Added test-codered-payroll command to .factory/services.yaml for deterministic reproduction of payroll codered/schema-drift issues during validation triage.",
-      "sourceFeature": "payroll-calculation-and-posting-redesign"
-    }
-  ],
+  "appliedUpdates": [],
   "suggestedGuidanceUpdates": [
     {
-      "target": "scrutiny-validator skill",
-      "suggestion": "Add a documented fallback path when Task-based reviewer spawning fails (for example due to model alias incompatibility), including explicit manual review artifact creation steps.",
-      "evidence": "All Task launches in this run failed with Invalid model: custom:5.3 codex xhigh pro, requiring manual in-session review report authoring.",
+      "target": "validation policy",
+      "suggestion": "For schema-heavy payroll changes, add an explicit migration_v2/codered smoke validator to scrutiny gating so migration-path regressions are surfaced before milestone completion.",
+      "evidence": "Standard validators (compile + gate-fast + advisory lint) passed, but CR_PayrollIdempotencyConcurrencyTest still fails with flyway-v2 schema mismatch outside default hard gates.",
       "isSystemic": true
     },
     {
-      "target": "backend-worker skill",
-      "suggestion": "For features that add DB schema fields used by runtime logic, require migration parity checks for both active migration chains (v1 and migration_v2 when prod defaults to flyway-v2).",
-      "evidence": "V150 added payroll schema in v1 only, while migration_v2 lacked equivalent updates; codered payroll suite then failed under v2 schema bootstrap.",
-      "isSystemic": true
+      "target": "AGENTS.md",
+      "suggestion": "Document the intentional manual-construction pattern in PayrollService (instead of Spring DI) or migrate it to standard DI to avoid future worker confusion when adding dependencies.",
+      "evidence": "fix-payroll-calculation-size review found PayrollService manually constructs PayrollRunService, PayrollCalculationService, PayrollPostingService, StatutoryDeductionEngine, and PayrollCalculationSupport via new even though the latter classes are annotated @Service.",
+      "isSystemic": false
     }
   ],
   "rejectedObservations": [
     {
-      "observation": "Task-based reviewer spawn failure due to model alias mismatch (reported in multiple feature reviews)",
+      "observation": "Task-based reviewer spawn failure due to model alias mismatch reported in round-1 review artifacts",
       "reason": "duplicate"
     },
     {
@@ -81,5 +62,5 @@
       "reason": "already-documented"
     }
   ],
-  "previousRound": null
+  "previousRound": ".factory/validation/hr-payroll/scrutiny/synthesis.round1.json"
 }

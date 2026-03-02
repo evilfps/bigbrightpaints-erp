@@ -1,0 +1,28 @@
+{
+  "featureId": "fix-payroll-calculation-size",
+  "reviewedAt": "2026-03-02T10:15:00+05:30",
+  "commitId": "6e144f47d3440a62e6307480a7f0abe83f89982d",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The fix correctly extracts statutory deduction logic (PF, ESI, TDS, professional tax) into a new StatutoryDeductionEngine (93 lines) and utility helpers (standardHoursPerDay guard, loan deduction) into PayrollCalculationSupport (41 lines). PayrollCalculationService is reduced from 605 to 462 lines, well under the 500-line threshold. All three services are under 500 lines. The extraction preserves existing behavior — delegation calls replace inline logic one-for-one. Gate-fast passed 380/380 with 0 failures. New StatutoryDeductionEngineTest covers all four deduction types with focused assertions.",
+    "issues": [
+      {
+        "file": "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/hr/service/PayrollService.java",
+        "line": 100,
+        "severity": "non_blocking",
+        "description": "StatutoryDeductionEngine and PayrollCalculationSupport are instantiated via `new` in PayrollService constructor rather than via Spring DI. Both classes are annotated @Service but are never injected. This is consistent with the existing manual-construction pattern used for PayrollCalculationService, PayrollRunService, and PayrollPostingService in PayrollService, so it is not a regression — but it means the @Service annotations are technically redundant (the beans are created by Spring AND manually)."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "conventions",
+      "observation": "PayrollService manually constructs all its sub-services (PayrollRunService, PayrollCalculationService, PayrollPostingService, StatutoryDeductionEngine, PayrollCalculationSupport) via `new` instead of using Spring DI. This pattern diverges from the standard Spring DI convention used everywhere else in the codebase. AGENTS.md does not document this intentional deviation. A future worker might incorrectly add a @Autowired dependency to one of these sub-services expecting it to have its own injected dependencies.",
+      "evidence": "PayrollService.java:92-101 — manual construction of PayrollCalculationService with `new StatutoryDeductionEngine()` and `new PayrollCalculationSupport()`. Same pattern for PayrollRunService (line 91) and PayrollPostingService (line 102)."
+    }
+  ],
+  "addressesFailureFrom": ".factory/validation/hr-payroll/scrutiny/reviews/decompose-hr-payroll-services.json",
+  "summary": "Pass. The fix adequately resolves the prior blocking failure (PayrollCalculationService 605→462 lines, now under 500). Statutory deduction logic cleanly extracted to StatutoryDeductionEngine with focused tests. PayrollCalculationSupport handles utility methods. No behavioral regressions — gate-fast 380/380 green. One non-blocking observation about manual constructor wiring pattern consistency."
+}
