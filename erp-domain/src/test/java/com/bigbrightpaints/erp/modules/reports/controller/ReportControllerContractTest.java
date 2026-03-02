@@ -1,6 +1,7 @@
 package com.bigbrightpaints.erp.modules.reports.controller;
 
 import com.bigbrightpaints.erp.modules.reports.dto.AccountStatementEntryDto;
+import com.bigbrightpaints.erp.modules.reports.dto.GstReturnReportDto;
 import com.bigbrightpaints.erp.modules.reports.dto.TrialBalanceDto;
 import com.bigbrightpaints.erp.modules.reports.service.ReportService;
 import com.bigbrightpaints.erp.shared.dto.ApiResponse;
@@ -118,5 +119,31 @@ class ReportControllerContractTest {
         ObjectMapper mapper = new ObjectMapper().registerModule(new JavaTimeModule());
         String json = mapper.writeValueAsString(response.getBody());
         assertThat(json).contains("\"journalEntryId\":null");
+    }
+
+    @Test
+    void gstReturn_delegatesToServiceWithPeriodId() {
+        ReportService reportService = mock(ReportService.class);
+        ReportController controller = new ReportController(reportService);
+        GstReturnReportDto expected = new GstReturnReportDto(
+                10L,
+                "March 2026",
+                LocalDate.of(2026, 3, 1),
+                LocalDate.of(2026, 3, 31),
+                new GstReturnReportDto.GstComponentSummary(BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO),
+                new GstReturnReportDto.GstComponentSummary(BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO),
+                new GstReturnReportDto.GstComponentSummary(BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO),
+                List.of(),
+                List.of(),
+                null
+        );
+        when(reportService.gstReturn(10L)).thenReturn(expected);
+
+        ResponseEntity<ApiResponse<GstReturnReportDto>> response = controller.gstReturn(10L);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().data()).isEqualTo(expected);
+        verify(reportService).gstReturn(10L);
     }
 }

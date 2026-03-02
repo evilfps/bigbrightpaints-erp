@@ -13,6 +13,8 @@ import com.bigbrightpaints.erp.modules.inventory.domain.InventoryMovementReposit
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatchRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovementRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialRepository;
+import com.bigbrightpaints.erp.modules.production.domain.ProductionProductRepository;
+import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriodRepository;
 import com.bigbrightpaints.erp.modules.reports.service.InventoryValuationService;
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -33,6 +35,8 @@ class TS_RuntimeInventoryValuationExecutableCoverageTest {
         FinishedGoodBatchRepository finishedGoodBatchRepository = mock(FinishedGoodBatchRepository.class);
         InventoryMovementRepository inventoryMovementRepository = mock(InventoryMovementRepository.class);
         RawMaterialMovementRepository rawMaterialMovementRepository = mock(RawMaterialMovementRepository.class);
+        ProductionProductRepository productionProductRepository = mock(ProductionProductRepository.class);
+        AccountingPeriodRepository accountingPeriodRepository = mock(AccountingPeriodRepository.class);
 
         InventoryValuationService service = new InventoryValuationService(
                 rawMaterialRepository,
@@ -40,7 +44,9 @@ class TS_RuntimeInventoryValuationExecutableCoverageTest {
                 finishedGoodRepository,
                 finishedGoodBatchRepository,
                 inventoryMovementRepository,
-                rawMaterialMovementRepository
+                rawMaterialMovementRepository,
+                productionProductRepository,
+                accountingPeriodRepository
         );
 
         Company company = new Company();
@@ -70,6 +76,8 @@ class TS_RuntimeInventoryValuationExecutableCoverageTest {
         when(finishedGoodRepository.findByCompanyOrderByProductCodeAsc(company)).thenReturn(List.of(finishedGood));
         when(finishedGoodBatchRepository.findByFinishedGoodOrderByManufacturedAtAsc(finishedGood))
                 .thenReturn(List.of(batch));
+        when(productionProductRepository.findByCompanyOrderByProductNameAsc(company)).thenReturn(List.of());
+        when(accountingPeriodRepository.findByCompanyAndYearAndMonth(company, 2026, 3)).thenReturn(java.util.Optional.empty());
 
         InventoryValuationService.InventorySnapshot snapshot = service.currentSnapshot(company);
 

@@ -2349,6 +2349,22 @@ All report APIs are under `/api/v1` and require `ROLE_ADMIN` or `ROLE_ACCOUNTING
 - **GET `/api/v1/accounting/reports/aged-debtors`** (legacy compatibility path)
   - No query params; retained for backward compatibility while frontend migrates to `/reports/aged-debtors`.
 
+- **GET `/api/v1/reports/inventory-valuation`**
+  - Query params:
+    - `date` (optional, ISO date, enables AS_OF valuation using movement adjustments after this date)
+  - Behavior:
+    - Returns item-level valuation lines for raw materials and finished goods.
+    - Applies accounting-period costing method when available (`FIFO`, `LIFO`, `WEIGHTED_AVERAGE`), otherwise falls back to item costing defaults.
+    - Supports grouped aggregates for category and brand in the same payload.
+
+- **GET `/api/v1/reports/gst-return`**
+  - Query params:
+    - `periodId` (optional; if omitted backend resolves current accounting period, falling back to latest period)
+  - Behavior:
+    - Aggregates output GST from sales invoices and input GST credit from purchase invoices.
+    - Groups values by `taxRate` and includes transaction-level details for each contributing line.
+    - Computes net liability component-wise: `outputTax - inputTaxCredit` (CGST/SGST/IGST + total).
+
 #### User flows (frontend orchestration)
 
 1. **Trial Balance (period/range with optional comparative)**
@@ -2382,6 +2398,20 @@ All report APIs are under `/api/v1` and require `ROLE_ADMIN` or `ROLE_ACCOUNTING
    3. Render columns per dealer: `current`, `oneToThirtyDays`, `thirtyOneToSixtyDays`, `sixtyOneToNinetyDays`, `ninetyPlusDays`, `totalOutstanding`.
    4. Surface export affordances using `exportHints`/metadata.
 
+5. **Inventory Valuation (stock worth + costing method aware)**
+   1. User opens inventory valuation and optionally selects `date` for an as-of snapshot.
+   2. UI calls `GET /reports/inventory-valuation` with optional `date`.
+   3. Render `items[]` table with `inventoryType`, `code`, `name`, `category`, `brand`, `quantityOnHand`, `reservedQuantity`, `availableQuantity`, `unitCost`, `totalValue`, `lowStock`.
+   4. Render summary tiles from root fields: `totalValue`, `lowStockItems`, `costingMethod`.
+   5. Render grouped widgets from `groupByCategory[]` and `groupByBrand[]`.
+
+6. **GST Return (period filing worksheet)**
+   1. User selects accounting period (or uses default current period).
+   2. UI calls `GET /reports/gst-return?periodId={id}` (or omits `periodId` for default behavior).
+   3. Render section totals from `outputTax`, `inputTaxCredit`, `netLiability`.
+   4. Render tax-rate summary grid from `rateSummaries[]`.
+   5. Render transaction detail ledger from `transactionDetails[]` for reconciliation drill-down.
+
 #### State/range resolution model used by backend
 
 Report query APIs resolve one of these data sources and expose it via `ReportMetadata.source`:
@@ -2404,7 +2434,7 @@ Resolution rules used by backend query support:
 |---|---|---|---|
 | `VAL_001` | `VALIDATION_INVALID_INPUT` | Unsupported `exportFormat`, malformed query combinations flagged as invalid input | Show non-retryable validation message; keep filters editable. |
 | `VAL_005` | `VALIDATION_INVALID_DATE` | `startDate > endDate`, only one side of a date pair provided, invalid comparative date pair | Highlight date controls and block submit. |
-| `BUS_003` | `BUSINESS_ENTITY_NOT_FOUND` | `periodId` or `comparativePeriodId` does not exist in current company scope | Prompt user to refresh/select a valid period option. |
+| `BUS_003` | `BUSINESS_ENTITY_NOT_FOUND` | `periodId` / `comparativePeriodId` / GST `periodId` does not exist in current company scope | Prompt user to refresh and reselect a valid accounting period option. |
 | `BUS_004` | `BUSINESS_CONSTRAINT_VIOLATION` | Closed period requested but snapshot missing | Show blocking banner/modal and suggest accounting snapshot remediation. |
 | `AUTH_004` | `AUTH_INSUFFICIENT_PERMISSIONS` | `companyId` mismatch against authenticated company context | Force context refresh/logout or tenant re-selection flow. |
 
@@ -2449,6 +2479,46 @@ Resolution rules used by backend query support:
   - `totalOutstanding`
   - `metadata`
   - `exportHints`: `{ pdfReady, csvReady, requestedFormat }`
+
+- **`InventoryValuationDto`**
+  - Root fields:
+    - `totalValue: BigDecimal`
+    - `lowStockItems: long`
+    - `costingMethod: String` (`FIFO` / `LIFO` / `WEIGHTED_AVERAGE`)
+    - `metadata: ReportMetadata`
+  - `items[]` (`InventoryValuationItemDto`):
+    - `inventoryItemId: Long`
+    - `inventoryType: String` (`RAW_MATERIAL` / `FINISHED_GOOD`)
+    - `code`, `name`, `category`, `brand`
+    - `quantityOnHand`, `reservedQuantity`, `availableQuantity`
+    - `unitCost`, `totalValue`
+    - `lowStock: boolean`
+  - `groupByCategory[]` / `groupByBrand[]` (`InventoryValuationGroupDto`):
+    - `groupType` (`CATEGORY` or `BRAND`)
+    - `groupKey`
+    - `totalValue`
+    - `itemCount`
+    - `lowStockItems`
+
+- **`GstReturnReportDto`**
+  - Root fields:
+    - `periodId`, `periodLabel`, `periodStart`, `periodEnd`
+    - `outputTax`, `inputTaxCredit`, `netLiability` (`GstComponentSummary`)
+    - `rateSummaries[]` (`GstRateSummary`)
+    - `transactionDetails[]` (`GstTransactionDetail`)
+    - `metadata: ReportMetadata`
+  - `GstComponentSummary`:
+    - `cgst`, `sgst`, `igst`, `total`
+  - `GstRateSummary`:
+    - `taxRate`, `taxableAmount`
+    - `outputTax`, `inputTaxCredit`, `netTax`
+    - Component split fields: `outputCgst`, `outputSgst`, `outputIgst`, `inputCgst`, `inputSgst`, `inputIgst`
+  - `GstTransactionDetail`:
+    - `sourceType` (`SALES_INVOICE` / `PURCHASE_INVOICE`)
+    - `sourceId`, `referenceNumber`, `transactionDate`, `partyName`
+    - `taxRate`, `taxableAmount`
+    - `cgst`, `sgst`, `igst`, `totalTax`
+    - `direction` (`OUTPUT` / `INPUT`)
 
 #### UI hints
 

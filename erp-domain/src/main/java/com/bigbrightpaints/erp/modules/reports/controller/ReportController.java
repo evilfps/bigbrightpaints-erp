@@ -91,6 +91,11 @@ public class ReportController {
         return ResponseEntity.ok(ApiResponse.success(reportService.inventoryValuation()));
     }
 
+    @GetMapping("/reports/gst-return")
+    public ResponseEntity<ApiResponse<GstReturnReportDto>> gstReturn(@RequestParam(required = false) Long periodId) {
+        return ResponseEntity.ok(ApiResponse.success(reportService.gstReturn(periodId)));
+    }
+
     @GetMapping("/reports/inventory-reconciliation")
     public ResponseEntity<ApiResponse<ReconciliationSummaryDto>> inventoryReconciliation() {
         return ResponseEntity.ok(ApiResponse.success(reportService.inventoryReconciliation()));

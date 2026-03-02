@@ -17,6 +17,9 @@ import com.bigbrightpaints.erp.modules.factory.domain.ProductionLogRepository;
 import com.bigbrightpaints.erp.modules.factory.dto.CostBreakdownDto;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionProduct;
 import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
+import com.bigbrightpaints.erp.modules.invoice.domain.InvoiceRepository;
+import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchaseRepository;
+import com.bigbrightpaints.erp.modules.accounting.service.GstService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -69,7 +72,12 @@ class ReportServiceCostBreakdownTest {
     private BalanceSheetReportQueryService balanceSheetReportQueryService;
     @Mock
     private AgedDebtorsReportQueryService agedDebtorsReportQueryService;
+    @Mock
+    private InvoiceRepository invoiceRepository;
+    @Mock
+    private RawMaterialPurchaseRepository rawMaterialPurchaseRepository;
 
+    private final GstService gstService = new GstService();
     private ReportService reportService;
     private Company company;
 
@@ -93,7 +101,10 @@ class ReportServiceCostBreakdownTest {
                 trialBalanceReportQueryService,
                 profitLossReportQueryService,
                 balanceSheetReportQueryService,
-                agedDebtorsReportQueryService
+                agedDebtorsReportQueryService,
+                invoiceRepository,
+                rawMaterialPurchaseRepository,
+                gstService
         );
         company = new Company();
         ReflectionTestUtils.setField(company, "id", 700L);
