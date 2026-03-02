@@ -1,0 +1,28 @@
+{
+  "featureId": "decompose-hr-payroll-services",
+  "reviewedAt": "2026-03-02T09:10:00+05:30",
+  "commitId": "a04f357f4ef133d143a0946767290cd39e2e0c1a",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "fail",
+  "codeReview": {
+    "summary": "The decomposition commit materially split HR/payroll into focused services and reduced facade/controller coupling, but it does not fully satisfy the stated decomposition threshold for all target services after subsequent milestone commits. PayrollCalculationService now exceeds the 500-line decomposition target (605 LOC), so the milestone decomposition contract is not fully met.",
+    "issues": [
+      {
+        "file": "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/hr/service/PayrollCalculationService.java",
+        "line": 36,
+        "severity": "blocking",
+        "description": "VAL-HR-001 requires decomposed focused services under 500 lines; PayrollCalculationService is currently 605 lines in HEAD, so the decomposition acceptance criterion is unmet."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "skills",
+      "observation": "Task-based scrutiny reviewer spawning can fail when mission model aliases are not accepted by the Task runtime, and the scrutiny-validator skill lacks a documented fallback to manual in-session review artifact creation.",
+      "evidence": "All Task launches during this run failed with Invalid model: custom:5.3 codex xhigh pro despite available custom aliases, requiring manual review report authoring."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "Fail due to decomposition threshold regression: PayrollCalculationService exceeds the under-500-lines contract even though service split and behavioral coverage are otherwise substantial."
+}

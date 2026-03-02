@@ -1,0 +1,85 @@
+{
+  "milestone": "hr-payroll",
+  "round": 1,
+  "status": "fail",
+  "validatorsRun": {
+    "test": {
+      "passed": true,
+      "command": "cd /home/realnigga/Desktop/Mission-control/erp-domain && mvn test -Pgate-fast -Djacoco.skip=true",
+      "exitCode": 0
+    },
+    "typecheck": {
+      "passed": true,
+      "command": "cd /home/realnigga/Desktop/Mission-control/erp-domain && mvn compile -q",
+      "exitCode": 0
+    },
+    "lint": {
+      "passed": true,
+      "command": "cd /home/realnigga/Desktop/Mission-control && echo \"Checkstyle in advisory mode (49962 pre-existing violations). Skipped as hard gate.\"",
+      "exitCode": 0
+    }
+  },
+  "reviewsSummary": {
+    "total": 4,
+    "passed": 2,
+    "failed": 2,
+    "failedFeatures": [
+      "decompose-hr-payroll-services",
+      "payroll-calculation-and-posting-redesign"
+    ]
+  },
+  "blockingIssues": [
+    {
+      "featureId": "decompose-hr-payroll-services",
+      "severity": "blocking",
+      "description": "VAL-HR-001 decomposition threshold regression: PayrollCalculationService is 605 lines in HEAD, exceeding the under-500 focused-service target."
+    },
+    {
+      "featureId": "payroll-calculation-and-posting-redesign",
+      "severity": "blocking",
+      "description": "No migration_v2 script mirrors V150 payroll component schema changes (template thresholds/professional tax, payment_date, expanded payroll_run_lines fields, statutory payable account seeding), causing schema drift under flyway-v2."
+    },
+    {
+      "featureId": "payroll-calculation-and-posting-redesign",
+      "severity": "blocking",
+      "description": "Codered payroll validation fails reproducibly (CR_PayrollIdempotencyConcurrencyTest: 10 errors) due to migration_v2 schema mismatch, so milestone evidence cannot be considered complete."
+    }
+  ],
+  "appliedUpdates": [
+    {
+      "target": "library",
+      "description": "Updated .factory/library/architecture.md to document that production runs with flyway-v2 profile/group and migration_v2 location, making migration-path expectations explicit.",
+      "sourceFeature": "hr-employee-and-leave-redesign"
+    },
+    {
+      "target": "services.yaml",
+      "description": "Added test-codered-payroll command to .factory/services.yaml for deterministic reproduction of payroll codered/schema-drift issues during validation triage.",
+      "sourceFeature": "payroll-calculation-and-posting-redesign"
+    }
+  ],
+  "suggestedGuidanceUpdates": [
+    {
+      "target": "scrutiny-validator skill",
+      "suggestion": "Add a documented fallback path when Task-based reviewer spawning fails (for example due to model alias incompatibility), including explicit manual review artifact creation steps.",
+      "evidence": "All Task launches in this run failed with Invalid model: custom:5.3 codex xhigh pro, requiring manual in-session review report authoring.",
+      "isSystemic": true
+    },
+    {
+      "target": "backend-worker skill",
+      "suggestion": "For features that add DB schema fields used by runtime logic, require migration parity checks for both active migration chains (v1 and migration_v2 when prod defaults to flyway-v2).",
+      "evidence": "V150 added payroll schema in v1 only, while migration_v2 lacked equivalent updates; codered payroll suite then failed under v2 schema bootstrap.",
+      "isSystemic": true
+    }
+  ],
+  "rejectedObservations": [
+    {
+      "observation": "Task-based reviewer spawn failure due to model alias mismatch (reported in multiple feature reviews)",
+      "reason": "duplicate"
+    },
+    {
+      "observation": "Flyway-v2 default profile behavior",
+      "reason": "already-documented"
+    }
+  ],
+  "previousRound": null
+}

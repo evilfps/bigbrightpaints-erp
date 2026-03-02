@@ -1,0 +1,21 @@
+{
+  "featureId": "hr-employee-and-leave-redesign",
+  "reviewedAt": "2026-03-02T09:10:00+05:30",
+  "commitId": "7294094a05aca11d3df86ae0fef95d5970d6f4c1",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "Employee/leave redesign is implemented with concrete domain, service, controller, migration, and test coverage changes. Employee payroll profile fields, salary template assignment, leave policy/balance tracking, leave approval metadata, and attendance bulk/import/monthly summary flows are present and validated by dedicated HR service tests plus runtime guardrails.",
+    "issues": []
+  },
+  "sharedStateObservations": [
+    {
+      "area": "knowledge",
+      "observation": "The mission currently relies on flyway-v2 by default for prod profile, which means new payroll schema fields must be added to migration_v2 (not only v1 migration chain) to keep codered/integration suites representative.",
+      "evidence": "application.yml groups prod -> flyway-v2 and application-flyway-v2.yml points Flyway to db/migration_v2; codered payroll test failures reported schema drift in v2 path."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "Pass. HR employee and leave redesign behavior aligns with milestone expectations and is backed by focused tests."
+}

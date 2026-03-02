@@ -4,6 +4,7 @@ commands:
   test: cd erp-domain && mvn test -Pgate-fast -Djacoco.skip=true
   test-unit: cd erp-domain && mvn test -Djacoco.skip=true '-Dtest=!*IT,!*ITCase,!*codered*' -pl .
   test-full: cd erp-domain && mvn test -Djacoco.skip=true '-Dtest=!*IT,!*ITCase,!*codered*' -pl .
+  test-codered-payroll: cd erp-domain && mvn test -Djacoco.skip=true -Dtest=CR_PayrollIdempotencyConcurrencyTest -Dspring.profiles.active=test -DskipITs=true
   test-coverage: cd erp-domain && mvn verify -Pgate-fast
   build: cd erp-domain && mvn package -DskipTests -q
   lint: echo "Checkstyle in advisory mode (49962 pre-existing violations). Skipped as hard gate."

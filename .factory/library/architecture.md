@@ -22,7 +22,7 @@ Each module follows: `domain/` (entities + repos), `service/`, `controller/`, `d
 - Idempotency via signature hashing + DB unique constraints
 - Outbox pattern for reliable event publishing (EventPublisherService)
 - ShedLock for distributed scheduler coordination
-- Flyway for DB migrations (136 versioned scripts, V1-V136)
+- Flyway v2 is the active migration path in prod profile (`prod` includes `flyway-v2`, locations `classpath:db/migration_v2`)
 - MapStruct for DTO mapping (CentralMapperConfig)
 - JaCoCo coverage gates (Tier A packages + bundle minimum)
 
