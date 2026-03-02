@@ -1,13 +1,14 @@
 package com.bigbrightpaints.erp.modules.hr.domain;
 
+import com.bigbrightpaints.erp.core.domain.VersionedEntity;
 import com.bigbrightpaints.erp.core.util.CompanyTime;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import jakarta.persistence.*;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.UUID;
-import com.bigbrightpaints.erp.core.domain.VersionedEntity;
 
 @Entity
 @Table(name = "leave_requests")
@@ -42,6 +43,24 @@ public class LeaveRequest extends VersionedEntity {
 
     private String reason;
 
+    @Column(name = "total_days", precision = 10, scale = 2)
+    private BigDecimal totalDays;
+
+    @Column(name = "decision_reason")
+    private String decisionReason;
+
+    @Column(name = "approved_by")
+    private String approvedBy;
+
+    @Column(name = "approved_at")
+    private Instant approvedAt;
+
+    @Column(name = "rejected_by")
+    private String rejectedBy;
+
+    @Column(name = "rejected_at")
+    private Instant rejectedAt;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
@@ -71,5 +90,17 @@ public class LeaveRequest extends VersionedEntity {
     public void setStatus(String status) { this.status = status; }
     public String getReason() { return reason; }
     public void setReason(String reason) { this.reason = reason; }
+    public BigDecimal getTotalDays() { return totalDays; }
+    public void setTotalDays(BigDecimal totalDays) { this.totalDays = totalDays; }
+    public String getDecisionReason() { return decisionReason; }
+    public void setDecisionReason(String decisionReason) { this.decisionReason = decisionReason; }
+    public String getApprovedBy() { return approvedBy; }
+    public void setApprovedBy(String approvedBy) { this.approvedBy = approvedBy; }
+    public Instant getApprovedAt() { return approvedAt; }
+    public void setApprovedAt(Instant approvedAt) { this.approvedAt = approvedAt; }
+    public String getRejectedBy() { return rejectedBy; }
+    public void setRejectedBy(String rejectedBy) { this.rejectedBy = rejectedBy; }
+    public Instant getRejectedAt() { return rejectedAt; }
+    public void setRejectedAt(Instant rejectedAt) { this.rejectedAt = rejectedAt; }
     public Instant getCreatedAt() { return createdAt; }
 }

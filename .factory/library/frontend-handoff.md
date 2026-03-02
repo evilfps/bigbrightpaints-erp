@@ -2002,7 +2002,170 @@ Return response:
     - cross-state -> IGST
 
 ### HR & Payroll
-_To be documented_
+
+Comprehensive frontend handoff for HR employee + leave redesign (employee payroll profile, salary templates, leave policies/balances/workflow, and attendance bulk + summaries).
+
+All responses are wrapped in `ApiResponse<T>` with payload in `data`.
+
+#### Endpoint Map
+
+| Method | Path | Auth | Request | Response `data` |
+|---|---|---|---|---|
+| GET | `/api/v1/hr/employees` | `ROLE_ADMIN` or `ROLE_ACCOUNTING` | None | `List<EmployeeDto>` |
+| POST | `/api/v1/hr/employees` | `ROLE_ADMIN` or `ROLE_ACCOUNTING` | `EmployeeRequest` | `EmployeeDto` |
+| PUT | `/api/v1/hr/employees/{id}` | `ROLE_ADMIN` or `ROLE_ACCOUNTING` | `EmployeeRequest` | `EmployeeDto` |
+| DELETE | `/api/v1/hr/employees/{id}` | `ROLE_ADMIN` or `ROLE_ACCOUNTING` | None | empty body (`204`) |
+| GET | `/api/v1/hr/salary-structures` | `ROLE_ADMIN` or `ROLE_ACCOUNTING` | None | `List<SalaryStructureTemplateDto>` |
+| POST | `/api/v1/hr/salary-structures` | `ROLE_ADMIN` or `ROLE_ACCOUNTING` | `SalaryStructureTemplateRequest` | `SalaryStructureTemplateDto` |
+| PUT | `/api/v1/hr/salary-structures/{id}` | `ROLE_ADMIN` or `ROLE_ACCOUNTING` | `SalaryStructureTemplateRequest` | `SalaryStructureTemplateDto` |
+| GET | `/api/v1/hr/leave-types` | `ROLE_ADMIN` or `ROLE_ACCOUNTING` | None | `List<LeaveTypePolicyDto>` |
+| GET | `/api/v1/hr/employees/{employeeId}/leave-balances` | `ROLE_ADMIN` or `ROLE_ACCOUNTING` | Query: `year?` | `List<LeaveBalanceDto>` |
+| GET | `/api/v1/hr/leave-requests` | `ROLE_ADMIN` or `ROLE_ACCOUNTING` | None | `List<LeaveRequestDto>` |
+| POST | `/api/v1/hr/leave-requests` | `ROLE_ADMIN` or `ROLE_ACCOUNTING` | `LeaveRequestRequest` | `LeaveRequestDto` |
+| PATCH | `/api/v1/hr/leave-requests/{id}/status` | `ROLE_ADMIN` or `ROLE_ACCOUNTING` | `LeaveStatusUpdateRequest` | `LeaveRequestDto` |
+| GET | `/api/v1/hr/attendance/date/{date}` | `ROLE_ADMIN` or `ROLE_ACCOUNTING` | Path `date` (`yyyy-MM-dd`) | `List<AttendanceDto>` |
+| GET | `/api/v1/hr/attendance/today` | `ROLE_ADMIN` or `ROLE_ACCOUNTING` | None | `List<AttendanceDto>` |
+| GET | `/api/v1/hr/attendance/summary` | `ROLE_ADMIN` or `ROLE_ACCOUNTING` | None | `AttendanceSummaryDto` |
+| GET | `/api/v1/hr/attendance/summary/monthly` | `ROLE_ADMIN` or `ROLE_ACCOUNTING` | Query: `year`, `month` | `List<MonthlyAttendanceSummaryDto>` |
+| GET | `/api/v1/hr/attendance/employee/{employeeId}` | `ROLE_ADMIN` or `ROLE_ACCOUNTING` | Query: `startDate`, `endDate` | `List<AttendanceDto>` |
+| POST | `/api/v1/hr/attendance/mark/{employeeId}` | `ROLE_ADMIN` or `ROLE_ACCOUNTING` | `MarkAttendanceRequest` | `AttendanceDto` |
+| POST | `/api/v1/hr/attendance/bulk-mark` | `ROLE_ADMIN` or `ROLE_ACCOUNTING` | `BulkMarkAttendanceRequest` | `List<AttendanceDto>` |
+| POST | `/api/v1/hr/attendance/bulk-import` | `ROLE_ADMIN` or `ROLE_ACCOUNTING` | `AttendanceBulkImportRequest` | `List<AttendanceDto>` |
+| GET | `/api/v1/hr/payroll-runs` | `ROLE_ADMIN` or `ROLE_ACCOUNTING` | None | deprecated response (`410`-style via `GONE`) |
+| POST | `/api/v1/hr/payroll-runs` | `ROLE_ADMIN` or `ROLE_ACCOUNTING` | ignored | deprecated response (`GONE`) |
+
+Legacy note: `/api/v1/hr/payroll-runs` is intentionally deprecated and returns canonical path details pointing to `/api/v1/payroll/runs`.
+
+#### User Flows
+
+1. **Create employee with Indian payroll profile**
+   1. Optionally load salary templates: `GET /api/v1/hr/salary-structures`
+   2. Submit employee form: `POST /api/v1/hr/employees`
+   3. Refresh employee grid: `GET /api/v1/hr/employees`
+
+2. **Edit employee profile/compensation**
+   1. Load list/grid: `GET /api/v1/hr/employees`
+   2. Submit update: `PUT /api/v1/hr/employees/{id}`
+   3. Refresh row from response payload
+
+3. **Salary template lifecycle**
+   1. List: `GET /api/v1/hr/salary-structures`
+   2. Create: `POST /api/v1/hr/salary-structures`
+   3. Update active/components: `PUT /api/v1/hr/salary-structures/{id}`
+
+4. **Leave request and approval workflow**
+   1. Load allowed leave types/policies: `GET /api/v1/hr/leave-types`
+   2. Load current balances for employee/year: `GET /api/v1/hr/employees/{id}/leave-balances?year=YYYY`
+   3. Create request: `POST /api/v1/hr/leave-requests`
+   4. Approve/reject/cancel: `PATCH /api/v1/hr/leave-requests/{id}/status`
+   5. Refresh requests + balances
+
+5. **Attendance operations**
+   1. Single mark: `POST /api/v1/hr/attendance/mark/{employeeId}`
+   2. Team/day bulk mark: `POST /api/v1/hr/attendance/bulk-mark`
+   3. CSV-like import batches: `POST /api/v1/hr/attendance/bulk-import`
+   4. Load daily summary: `GET /api/v1/hr/attendance/summary`
+   5. Load monthly employee-level aggregates: `GET /api/v1/hr/attendance/summary/monthly?year=YYYY&month=M`
+
+#### State Machines
+
+1. **Employee status (read-only in current APIs)**
+   - Current API supports create/update/delete profile data, while `status` is returned from backend and remains lifecycle-managed by backend defaults/policies.
+
+2. **Leave request status**
+   - `PENDING` -> `APPROVED` (`PATCH /leave-requests/{id}/status` with `status=APPROVED`)
+   - `PENDING` -> `REJECTED` (`status=REJECTED`)
+   - `PENDING` -> `CANCELLED` (`status=CANCELLED`)
+   - `APPROVED` -> `REJECTED`/`CANCELLED` (balance reverts)
+   - `APPROVED` -> `PENDING` is not allowed (`BUS_001`)
+
+3. **Attendance record status per date**
+   - `PRESENT | HALF_DAY | ABSENT | LEAVE | HOLIDAY | WEEKEND`
+   - Re-marking same employee/date overwrites status/hours via mark or bulk-mark endpoints.
+
+#### Error Codes / Frontend Handling
+
+- `VAL_001` (`VALIDATION_INVALID_INPUT`)
+  - Examples: invalid enum text (`employeeType`, `paymentSchedule`, leave status, attendance status), missing leave type
+  - UI: show inline validation and keep form editable
+- `VAL_002` (`VALIDATION_MISSING_REQUIRED_FIELD`)
+  - Examples: missing body, missing import records, missing leave date range
+  - UI: block submit and focus missing controls
+- `VAL_003` (`VALIDATION_INVALID_FORMAT`)
+  - Example: PAN not matching `AAAAA9999A`
+  - UI: field-level format error
+- `VAL_004` (`VALIDATION_OUT_OF_RANGE`)
+  - Example: negative salary component/rate
+  - UI: range validation message
+- `VAL_005` (`VALIDATION_INVALID_DATE`)
+  - Example: leave end date before start date; joining before DOB
+  - UI: date-range error near date controls
+- `VAL_006` (`VALIDATION_INVALID_REFERENCE`)
+  - Example: unknown employee/template IDs in scoped company
+  - UI: refresh dropdown/list and prompt re-selection
+- `BUS_002` (`BUSINESS_DUPLICATE_ENTRY`)
+  - Example: duplicate salary template code
+  - UI: show duplicate warning and keep code editable
+- `BUS_001` (`BUSINESS_INVALID_STATE`)
+  - Example: invalid leave transition approved -> pending
+  - UI: show non-retryable transition error
+- `BUS_006` (`BUSINESS_LIMIT_EXCEEDED`)
+  - Example: insufficient leave balance on approval
+  - UI: show available vs requested balance details and prevent approval
+- `BUS_004` (`BUSINESS_CONSTRAINT_VIOLATION`)
+  - Example: legacy payroll run create through `/api/v1/hr/payroll-runs`
+  - UI: redirect user to `/api/v1/payroll/runs` flow
+
+#### Data Contracts
+
+- **`EmployeeRequest`**
+  - Required: `firstName`, `lastName`, `email`
+  - Personal/HR: `phone?`, `role?`, `hiredDate?`, `dateOfBirth?`, `gender?`, `emergencyContactName?`, `emergencyContactPhone?`, `department?`, `designation?`, `dateOfJoining?`, `employmentType?`
+  - Payroll: `employeeType?` (`STAFF|LABOUR`), `paymentSchedule?` (`MONTHLY|WEEKLY`), `salaryStructureTemplateId?`, `monthlySalary?`, `dailyWage?`, `workingDaysPerMonth?`, `weeklyOffDays?`, `standardHoursPerDay?`, `overtimeRateMultiplier?`, `doubleOtRateMultiplier?`
+  - Statutory/bank: `pfNumber?`, `esiNumber?`, `panNumber?`, `taxRegime?` (`OLD|NEW`), `bankAccountNumber?`, `bankName?`, `ifscCode?`, `bankBranch?`
+
+- **`EmployeeDto`**
+  - Includes profile + payroll + template projection + statutory + bank fields + multipliers (`advanceBalance`, hours multipliers, etc.)
+
+- **`SalaryStructureTemplateRequest`**
+  - Required: `code`, `name`
+  - Optional: `description`, `basicPay`, `hra`, `da`, `specialAllowance`, `employeePfRate`, `employeeEsiRate`, `active`
+
+- **`SalaryStructureTemplateDto`**
+  - `id`, `publicId`, `code`, `name`, `description`, component amounts, `totalEarnings`, PF/ESI rates, `active`, `createdAt`
+
+- **`LeaveRequestRequest`**
+  - Required: `leaveType`, `startDate`, `endDate`
+  - Optional: `employeeId`, `reason`, `status`, `decisionReason`
+
+- **`LeaveStatusUpdateRequest`**
+  - Required: `status`
+  - Optional: `decisionReason`
+
+- **`LeaveRequestDto`**
+  - Includes employee projection, leave span, `totalDays`, `status`, `reason`, decision metadata (`decisionReason`, `approvedBy/At`, `rejectedBy/At`)
+
+- **`LeaveTypePolicyDto`**
+  - `id`, `publicId`, `leaveType`, `displayName`, `annualEntitlement`, `carryForwardLimit`, `active`
+
+- **`LeaveBalanceDto`**
+  - `employeeId`, `leaveType`, `year`, `openingBalance`, `accrued`, `used`, `remaining`, `carryForwardApplied`
+
+- **`AttendanceBulkImportRequest`**
+  - `records: BulkMarkAttendanceRequest[]` (required, non-empty)
+
+- **`MonthlyAttendanceSummaryDto`**
+  - `employeeId`, `employeeName`, `department`, `designation`, `presentDays`, `halfDays`, `absentDays`, `leaveDays`, `holidayDays`, `overtimeHours`, `doubleOvertimeHours`
+
+#### UI Hints
+
+- Provide enum dropdowns (do not free-type):
+  - `employeeType`, `paymentSchedule`, `gender`, `employmentType`, `taxRegime`, leave status, attendance status.
+- Leave screen should show balances side-by-side with request form; refresh balances after any status change.
+- For staff employees, allow either direct `monthlySalary` input or template selection; if template selected and salary omitted, backend auto-derives from template total.
+- Attendance import UI can stage multiple bulk records and submit once through `bulk-import`.
+- Monthly summary page should support `year/month` selectors and render overtime columns with decimal precision.
+- Hide legacy `/api/v1/hr/payroll-runs` in UI navigation; route payroll run actions to `/api/v1/payroll/runs`.
 
 ### Reports
 _To be documented_

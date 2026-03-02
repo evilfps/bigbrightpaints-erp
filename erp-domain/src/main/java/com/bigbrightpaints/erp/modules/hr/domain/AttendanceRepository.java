@@ -14,6 +14,11 @@ public interface AttendanceRepository extends JpaRepository<Attendance, Long> {
     Optional<Attendance> findByCompanyAndEmployeeAndAttendanceDate(
             Company company, Employee employee, LocalDate date);
 
+    List<Attendance> findByCompanyAndEmployeeInAndAttendanceDate(
+            Company company,
+            List<Employee> employees,
+            LocalDate attendanceDate);
+
     List<Attendance> findByCompanyAndAttendanceDateOrderByEmployeeFirstNameAsc(
             Company company, LocalDate date);
 
@@ -80,4 +85,28 @@ public interface AttendanceRepository extends JpaRepository<Attendance, Long> {
 
     // Find attendance by employee and date range (for payroll calculation)
     List<Attendance> findByEmployeeAndAttendanceDateBetween(Employee employee, LocalDate startDate, LocalDate endDate);
+
+    @Query("SELECT a.status, COUNT(a) FROM Attendance a WHERE a.company = :company "
+            + "AND a.employee.id = :employeeId "
+            + "AND a.attendanceDate BETWEEN :startDate AND :endDate "
+            + "GROUP BY a.status")
+    List<Object[]> summarizeEmployeeAttendanceByStatus(@Param("company") Company company,
+                                                       @Param("employeeId") Long employeeId,
+                                                       @Param("startDate") LocalDate startDate,
+                                                       @Param("endDate") LocalDate endDate);
+
+    @Query("SELECT a.employee.id, a.employee.firstName, a.employee.lastName, a.employee.department, a.employee.designation, "
+            + "SUM(CASE WHEN a.status = com.bigbrightpaints.erp.modules.hr.domain.Attendance.AttendanceStatus.PRESENT THEN 1 ELSE 0 END), "
+            + "SUM(CASE WHEN a.status = com.bigbrightpaints.erp.modules.hr.domain.Attendance.AttendanceStatus.HALF_DAY THEN 1 ELSE 0 END), "
+            + "SUM(CASE WHEN a.status = com.bigbrightpaints.erp.modules.hr.domain.Attendance.AttendanceStatus.ABSENT THEN 1 ELSE 0 END), "
+            + "SUM(CASE WHEN a.status = com.bigbrightpaints.erp.modules.hr.domain.Attendance.AttendanceStatus.LEAVE THEN 1 ELSE 0 END), "
+            + "SUM(CASE WHEN a.status = com.bigbrightpaints.erp.modules.hr.domain.Attendance.AttendanceStatus.HOLIDAY THEN 1 ELSE 0 END), "
+            + "COALESCE(SUM(a.overtimeHours), 0), COALESCE(SUM(a.doubleOvertimeHours), 0) "
+            + "FROM Attendance a WHERE a.company = :company "
+            + "AND a.attendanceDate BETWEEN :startDate AND :endDate "
+            + "GROUP BY a.employee.id, a.employee.firstName, a.employee.lastName, a.employee.department, a.employee.designation "
+            + "ORDER BY a.employee.firstName")
+    List<Object[]> summarizeMonthlyAttendance(@Param("company") Company company,
+                                              @Param("startDate") LocalDate startDate,
+                                              @Param("endDate") LocalDate endDate);
 }

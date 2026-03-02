@@ -1,5 +1,6 @@
 package com.bigbrightpaints.erp.modules.hr.dto;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.UUID;
 
@@ -8,6 +9,41 @@ public record EmployeeDto(Long id,
                           String firstName,
                           String lastName,
                           String email,
+                          String phone,
                           String role,
                           String status,
-                          LocalDate hiredDate) {}
+                          LocalDate hiredDate,
+                          LocalDate dateOfBirth,
+                          String gender,
+                          String emergencyContactName,
+                          String emergencyContactPhone,
+                          String department,
+                          String designation,
+                          LocalDate dateOfJoining,
+                          String employmentType,
+                          String employeeType,
+                          String paymentSchedule,
+                          Long salaryStructureTemplateId,
+                          String salaryStructureTemplateCode,
+                          String salaryStructureTemplateName,
+                          BigDecimal basicPay,
+                          BigDecimal hra,
+                          BigDecimal da,
+                          BigDecimal specialAllowance,
+                          BigDecimal monthlySalary,
+                          BigDecimal dailyWage,
+                          String pfNumber,
+                          String esiNumber,
+                          String panNumber,
+                          String taxRegime,
+                          String bankAccountNumber,
+                          String bankName,
+                          String ifscCode,
+                          String bankBranch,
+                          Integer workingDaysPerMonth,
+                          Integer weeklyOffDays,
+                          BigDecimal standardHoursPerDay,
+                          BigDecimal overtimeRateMultiplier,
+                          BigDecimal doubleOtRateMultiplier,
+                          BigDecimal advanceBalance) {
+}

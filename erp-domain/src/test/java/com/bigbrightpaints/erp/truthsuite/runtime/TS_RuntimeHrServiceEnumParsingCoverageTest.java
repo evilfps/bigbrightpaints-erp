@@ -16,7 +16,6 @@ import com.bigbrightpaints.erp.modules.hr.domain.Employee;
 import com.bigbrightpaints.erp.modules.hr.domain.EmployeeRepository;
 import com.bigbrightpaints.erp.modules.hr.domain.LeaveRequest;
 import com.bigbrightpaints.erp.modules.hr.domain.LeaveRequestRepository;
-import com.bigbrightpaints.erp.modules.hr.domain.PayrollRunRepository;
 import com.bigbrightpaints.erp.modules.hr.dto.BulkMarkAttendanceRequest;
 import com.bigbrightpaints.erp.modules.hr.dto.EmployeeRequest;
 import com.bigbrightpaints.erp.modules.hr.dto.MarkAttendanceRequest;
@@ -35,7 +34,6 @@ class TS_RuntimeHrServiceEnumParsingCoverageTest {
         CompanyContextService companyContextService = mock(CompanyContextService.class);
         EmployeeRepository employeeRepository = mock(EmployeeRepository.class);
         LeaveRequestRepository leaveRequestRepository = mock(LeaveRequestRepository.class);
-        PayrollRunRepository payrollRunRepository = mock(PayrollRunRepository.class);
         AttendanceRepository attendanceRepository = mock(AttendanceRepository.class);
         CompanyEntityLookup companyEntityLookup = mock(CompanyEntityLookup.class);
         CompanyClock companyClock = mock(CompanyClock.class);
@@ -43,10 +41,13 @@ class TS_RuntimeHrServiceEnumParsingCoverageTest {
                 companyContextService,
                 employeeRepository,
                 leaveRequestRepository,
-                payrollRunRepository,
                 attendanceRepository,
                 companyEntityLookup,
-                companyClock);
+                companyClock,
+                mock(com.bigbrightpaints.erp.modules.hr.domain.SalaryStructureTemplateRepository.class),
+                mock(com.bigbrightpaints.erp.modules.hr.domain.LeaveTypePolicyRepository.class),
+                mock(com.bigbrightpaints.erp.modules.hr.domain.LeaveBalanceRepository.class),
+                mock(com.bigbrightpaints.erp.core.security.CryptoService.class));
 
         Company company = new Company();
         when(companyContextService.requireCurrentCompany()).thenReturn(company);
@@ -58,7 +59,21 @@ class TS_RuntimeHrServiceEnumParsingCoverageTest {
                 null,
                 "Painter",
                 LocalDate.of(2025, 1, 1),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
                 "INVALID_TYPE",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
                 null,
                 null,
                 null,
@@ -82,7 +97,6 @@ class TS_RuntimeHrServiceEnumParsingCoverageTest {
         CompanyContextService companyContextService = mock(CompanyContextService.class);
         EmployeeRepository employeeRepository = mock(EmployeeRepository.class);
         LeaveRequestRepository leaveRequestRepository = mock(LeaveRequestRepository.class);
-        PayrollRunRepository payrollRunRepository = mock(PayrollRunRepository.class);
         AttendanceRepository attendanceRepository = mock(AttendanceRepository.class);
         CompanyEntityLookup companyEntityLookup = mock(CompanyEntityLookup.class);
         CompanyClock companyClock = mock(CompanyClock.class);
@@ -90,10 +104,13 @@ class TS_RuntimeHrServiceEnumParsingCoverageTest {
                 companyContextService,
                 employeeRepository,
                 leaveRequestRepository,
-                payrollRunRepository,
                 attendanceRepository,
                 companyEntityLookup,
-                companyClock);
+                companyClock,
+                mock(com.bigbrightpaints.erp.modules.hr.domain.SalaryStructureTemplateRepository.class),
+                mock(com.bigbrightpaints.erp.modules.hr.domain.LeaveTypePolicyRepository.class),
+                mock(com.bigbrightpaints.erp.modules.hr.domain.LeaveBalanceRepository.class),
+                mock(com.bigbrightpaints.erp.core.security.CryptoService.class));
 
         Company company = new Company();
         when(companyContextService.requireCurrentCompany()).thenReturn(company);
@@ -105,8 +122,22 @@ class TS_RuntimeHrServiceEnumParsingCoverageTest {
                 null,
                 "Painter",
                 LocalDate.of(2025, 1, 1),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
                 "STAFF",
                 "BIWEEKLY",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
                 null,
                 null,
                 null,
@@ -129,7 +160,6 @@ class TS_RuntimeHrServiceEnumParsingCoverageTest {
         CompanyContextService companyContextService = mock(CompanyContextService.class);
         EmployeeRepository employeeRepository = mock(EmployeeRepository.class);
         LeaveRequestRepository leaveRequestRepository = mock(LeaveRequestRepository.class);
-        PayrollRunRepository payrollRunRepository = mock(PayrollRunRepository.class);
         AttendanceRepository attendanceRepository = mock(AttendanceRepository.class);
         CompanyEntityLookup companyEntityLookup = mock(CompanyEntityLookup.class);
         CompanyClock companyClock = mock(CompanyClock.class);
@@ -137,10 +167,13 @@ class TS_RuntimeHrServiceEnumParsingCoverageTest {
                 companyContextService,
                 employeeRepository,
                 leaveRequestRepository,
-                payrollRunRepository,
                 attendanceRepository,
                 companyEntityLookup,
-                companyClock);
+                companyClock,
+                mock(com.bigbrightpaints.erp.modules.hr.domain.SalaryStructureTemplateRepository.class),
+                mock(com.bigbrightpaints.erp.modules.hr.domain.LeaveTypePolicyRepository.class),
+                mock(com.bigbrightpaints.erp.modules.hr.domain.LeaveBalanceRepository.class),
+                mock(com.bigbrightpaints.erp.core.security.CryptoService.class));
 
         Company company = new Company();
         Employee employee = new Employee();
@@ -173,7 +206,6 @@ class TS_RuntimeHrServiceEnumParsingCoverageTest {
         CompanyContextService companyContextService = mock(CompanyContextService.class);
         EmployeeRepository employeeRepository = mock(EmployeeRepository.class);
         LeaveRequestRepository leaveRequestRepository = mock(LeaveRequestRepository.class);
-        PayrollRunRepository payrollRunRepository = mock(PayrollRunRepository.class);
         AttendanceRepository attendanceRepository = mock(AttendanceRepository.class);
         CompanyEntityLookup companyEntityLookup = mock(CompanyEntityLookup.class);
         CompanyClock companyClock = mock(CompanyClock.class);
@@ -181,10 +213,13 @@ class TS_RuntimeHrServiceEnumParsingCoverageTest {
                 companyContextService,
                 employeeRepository,
                 leaveRequestRepository,
-                payrollRunRepository,
                 attendanceRepository,
                 companyEntityLookup,
-                companyClock);
+                companyClock,
+                mock(com.bigbrightpaints.erp.modules.hr.domain.SalaryStructureTemplateRepository.class),
+                mock(com.bigbrightpaints.erp.modules.hr.domain.LeaveTypePolicyRepository.class),
+                mock(com.bigbrightpaints.erp.modules.hr.domain.LeaveBalanceRepository.class),
+                mock(com.bigbrightpaints.erp.core.security.CryptoService.class));
 
         Company company = new Company();
         Employee employee = new Employee();
@@ -215,7 +250,6 @@ class TS_RuntimeHrServiceEnumParsingCoverageTest {
         CompanyContextService companyContextService = mock(CompanyContextService.class);
         EmployeeRepository employeeRepository = mock(EmployeeRepository.class);
         LeaveRequestRepository leaveRequestRepository = mock(LeaveRequestRepository.class);
-        PayrollRunRepository payrollRunRepository = mock(PayrollRunRepository.class);
         AttendanceRepository attendanceRepository = mock(AttendanceRepository.class);
         CompanyEntityLookup companyEntityLookup = mock(CompanyEntityLookup.class);
         CompanyClock companyClock = mock(CompanyClock.class);
@@ -223,10 +257,13 @@ class TS_RuntimeHrServiceEnumParsingCoverageTest {
                 companyContextService,
                 employeeRepository,
                 leaveRequestRepository,
-                payrollRunRepository,
                 attendanceRepository,
                 companyEntityLookup,
-                companyClock);
+                companyClock,
+                mock(com.bigbrightpaints.erp.modules.hr.domain.SalaryStructureTemplateRepository.class),
+                mock(com.bigbrightpaints.erp.modules.hr.domain.LeaveTypePolicyRepository.class),
+                mock(com.bigbrightpaints.erp.modules.hr.domain.LeaveBalanceRepository.class),
+                mock(com.bigbrightpaints.erp.core.security.CryptoService.class));
 
         Company company = new Company();
         LeaveRequest leaveRequest = new LeaveRequest();

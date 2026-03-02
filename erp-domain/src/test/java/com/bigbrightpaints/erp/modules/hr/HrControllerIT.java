@@ -32,12 +32,32 @@ public class HrControllerIT extends AbstractIntegrationTest {
         String token = loginToken();
         HttpHeaders headers = authHeaders(token);
 
-        Map<String, Object> employeeRequest = Map.of(
-                "firstName", "Priya",
-                "lastName", "Menon",
-                "email", "priya.menon@acme.test",
-                "role", "HR_SPECIALIST",
-                "hiredDate", LocalDate.now()
+        Map<String, Object> employeeRequest = Map.ofEntries(
+                Map.entry("firstName", "Priya"),
+                Map.entry("lastName", "Menon"),
+                Map.entry("email", "priya.menon@acme.test"),
+                Map.entry("phone", "9999911111"),
+                Map.entry("role", "HR_SPECIALIST"),
+                Map.entry("hiredDate", LocalDate.now()),
+                Map.entry("dateOfBirth", LocalDate.of(1992, 3, 10)),
+                Map.entry("gender", "FEMALE"),
+                Map.entry("department", "People Operations"),
+                Map.entry("designation", "HR Manager"),
+                Map.entry("dateOfJoining", LocalDate.now()),
+                Map.entry("employmentType", "FULL_TIME"),
+                Map.entry("employeeType", "STAFF"),
+                Map.entry("paymentSchedule", "MONTHLY"),
+                Map.entry("monthlySalary", 65000),
+                Map.entry("workingDaysPerMonth", 26),
+                Map.entry("standardHoursPerDay", 8),
+                Map.entry("pfNumber", "PF-7788"),
+                Map.entry("esiNumber", "ESI-8899"),
+                Map.entry("panNumber", "ABCDE1234F"),
+                Map.entry("taxRegime", "NEW"),
+                Map.entry("bankAccountNumber", "123456789012"),
+                Map.entry("bankName", "HDFC Bank"),
+                Map.entry("ifscCode", "HDFC0001234"),
+                Map.entry("bankBranch", "MG Road")
         );
 
         ResponseEntity<Map> createEmployee = rest.exchange(
@@ -46,6 +66,12 @@ public class HrControllerIT extends AbstractIntegrationTest {
                 new HttpEntity<>(employeeRequest, headers),
                 Map.class);
         assertThat(createEmployee.getStatusCode()).isEqualTo(HttpStatus.OK);
+        Map<?, ?> createdEmployeeData = (Map<?, ?>) createEmployee.getBody().get("data");
+        assertThat(createdEmployeeData.get("department")).isEqualTo("People Operations");
+        assertThat(createdEmployeeData.get("designation")).isEqualTo("HR Manager");
+        assertThat(createdEmployeeData.get("taxRegime")).isEqualTo("NEW");
+        assertThat(createdEmployeeData.get("panNumber")).isEqualTo("ABCDE1234F");
+        assertThat(createdEmployeeData.get("salaryStructureTemplateId")).isNull();
 
         LocalDate periodEnd = LocalDate.now();
         LocalDate periodStart = periodEnd.minusDays(6);
