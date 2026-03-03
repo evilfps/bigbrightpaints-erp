@@ -2,6 +2,7 @@ package com.bigbrightpaints.erp.modules.factory.dto;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.List;
 
 public record CostBreakdownDto(
         Long productionLogId,
@@ -14,6 +15,9 @@ public record CostBreakdownDto(
         BigDecimal overheadCostTotal,
         BigDecimal totalCost,
         BigDecimal unitCost,
-        Instant producedAt
+        Instant producedAt,
+        CostComponentTraceDto costComponents,
+        List<PackedBatchTraceDto> packedBatches,
+        List<RawMaterialTraceDto> rawMaterialTrace
 ) {
 }

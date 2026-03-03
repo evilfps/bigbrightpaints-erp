@@ -1284,6 +1284,9 @@ public class ProductionCatalogService {
         if (product.getGstRate() != null) {
             material.setGstRate(percent(product.getGstRate()));
         }
+        if (isLikelyPackagingMaterial(product)) {
+            material.setMaterialType(com.bigbrightpaints.erp.modules.inventory.domain.MaterialType.PACKAGING);
+        }
         String canonicalCostingMethod = CostingMethodUtils.canonicalizeRawMaterialMethodForSync(material.getCostingMethod());
         if (!Objects.equals(material.getCostingMethod(), canonicalCostingMethod)) {
             material.setCostingMethod(canonicalCostingMethod);
@@ -1485,6 +1488,31 @@ public class ProductionCatalogService {
             return unit.trim();
         }
         return "UNIT";
+    }
+
+    private boolean isLikelyPackagingMaterial(ProductionProduct product) {
+        if (product == null) {
+            return false;
+        }
+        String sku = normalizeKey(product.getSkuCode());
+        String name = normalizeKey(product.getProductName());
+        String category = normalizeKey(product.getCategory());
+        return containsAnyPackagingToken(sku)
+                || containsAnyPackagingToken(name)
+                || containsAnyPackagingToken(category);
+    }
+
+    private boolean containsAnyPackagingToken(String value) {
+        if (!StringUtils.hasText(value)) {
+            return false;
+        }
+        return value.contains("pack")
+                || value.contains("bucket")
+                || value.contains("can")
+                || value.contains("tin")
+                || value.contains("label")
+                || value.contains("bottle")
+                || value.contains("container");
     }
 
     private Long requiredMetadataLong(ProductionProduct product, String key) {

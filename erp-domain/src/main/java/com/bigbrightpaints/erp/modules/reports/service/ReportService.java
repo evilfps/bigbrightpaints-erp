@@ -26,10 +26,20 @@ import com.bigbrightpaints.erp.modules.accounting.service.GstService;
 import com.bigbrightpaints.erp.modules.reports.dto.*;
 import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
+import com.bigbrightpaints.erp.modules.inventory.domain.InventoryMovement;
+import com.bigbrightpaints.erp.modules.inventory.domain.InventoryMovementRepository;
+import com.bigbrightpaints.erp.modules.inventory.domain.InventoryReference;
+import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovement;
+import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovementRepository;
+import com.bigbrightpaints.erp.modules.factory.domain.PackingRecord;
+import com.bigbrightpaints.erp.modules.factory.domain.PackingRecordRepository;
 import com.bigbrightpaints.erp.modules.factory.domain.ProductionLog;
 import com.bigbrightpaints.erp.modules.factory.domain.ProductionLogRepository;
 import com.bigbrightpaints.erp.modules.factory.dto.CostBreakdownDto;
+import com.bigbrightpaints.erp.modules.factory.dto.CostComponentTraceDto;
 import com.bigbrightpaints.erp.modules.factory.dto.MonthlyProductionCostDto;
+import com.bigbrightpaints.erp.modules.factory.dto.PackedBatchTraceDto;
+import com.bigbrightpaints.erp.modules.factory.dto.RawMaterialTraceDto;
 import com.bigbrightpaints.erp.modules.factory.dto.WastageReportDto;
 import com.bigbrightpaints.erp.modules.invoice.domain.Invoice;
 import com.bigbrightpaints.erp.modules.invoice.domain.InvoiceLine;
@@ -53,6 +63,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 @Service
 public class ReportService {
@@ -68,6 +79,9 @@ public class ReportService {
     private final JournalEntryRepository journalEntryRepository;
     private final JournalLineRepository journalLineRepository;
     private final ProductionLogRepository productionLogRepository;
+    private final PackingRecordRepository packingRecordRepository;
+    private final InventoryMovementRepository inventoryMovementRepository;
+    private final RawMaterialMovementRepository rawMaterialMovementRepository;
     private final CompanyEntityLookup companyEntityLookup;
     private final CompanyClock companyClock;
     private final InventoryValuationService inventoryValuationService;
@@ -91,6 +105,9 @@ public class ReportService {
                          JournalEntryRepository journalEntryRepository,
                          JournalLineRepository journalLineRepository,
                          ProductionLogRepository productionLogRepository,
+                         PackingRecordRepository packingRecordRepository,
+                         InventoryMovementRepository inventoryMovementRepository,
+                         RawMaterialMovementRepository rawMaterialMovementRepository,
                          CompanyEntityLookup companyEntityLookup,
                          CompanyClock companyClock,
                          InventoryValuationService inventoryValuationService,
@@ -112,6 +129,9 @@ public class ReportService {
         this.journalEntryRepository = journalEntryRepository;
         this.journalLineRepository = journalLineRepository;
         this.productionLogRepository = productionLogRepository;
+        this.packingRecordRepository = packingRecordRepository;
+        this.inventoryMovementRepository = inventoryMovementRepository;
+        this.rawMaterialMovementRepository = rawMaterialMovementRepository;
         this.companyEntityLookup = companyEntityLookup;
         this.companyClock = companyClock;
         this.inventoryValuationService = inventoryValuationService;
@@ -1166,9 +1186,124 @@ public class ReportService {
         Company company = companyContextService.requireCurrentCompany();
         ProductionLog log = companyEntityLookup.requireProductionLog(company, productionLogId);
 
-        BigDecimal totalCost = safe(log.getMaterialCostTotal())
-                .add(safe(log.getLaborCostTotal()))
-                .add(safe(log.getOverheadCostTotal()));
+        BigDecimal materialCost = safe(log.getMaterialCostTotal());
+        BigDecimal laborCost = safe(log.getLaborCostTotal());
+        BigDecimal overheadCost = safe(log.getOverheadCostTotal());
+
+        List<PackingRecord> packingRecords = packingRecordRepository
+                .findByCompanyAndProductionLogOrderByPackedDateAscIdAsc(company, log);
+
+        List<PackedBatchTraceDto> packedBatches = new ArrayList<>();
+        List<RawMaterialTraceDto> rawMaterialTrace = new ArrayList<>();
+
+        BigDecimal packedQuantity = BigDecimal.ZERO;
+        BigDecimal packagingCost = BigDecimal.ZERO;
+
+        for (PackingRecord record : packingRecords) {
+            String referencePrefix = log.getProductionCode() + "-PACK-" + record.getId();
+
+            BigDecimal quantity = safe(record.getQuantityPacked());
+            BigDecimal unitCost = Optional.ofNullable(record.getFinishedGoodBatch())
+                    .map(batch -> safe(batch.getUnitCost()))
+                    .orElse(BigDecimal.ZERO);
+            BigDecimal totalValue = quantity.multiply(unitCost);
+
+            List<InventoryMovement> movements = inventoryMovementRepository
+                    .findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdOrderByCreatedAtAsc(
+                            company,
+                            InventoryReference.PACKING_RECORD,
+                            referencePrefix);
+            Long journalEntryId = movements.stream()
+                    .map(InventoryMovement::getJournalEntryId)
+                    .filter(Objects::nonNull)
+                    .findFirst()
+                    .orElse(null);
+
+            packedBatches.add(new PackedBatchTraceDto(
+                    record.getId(),
+                    record.getFinishedGoodBatch() != null ? record.getFinishedGoodBatch().getId() : null,
+                    record.getFinishedGoodBatch() != null ? record.getFinishedGoodBatch().getPublicId() : null,
+                    record.getFinishedGoodBatch() != null ? record.getFinishedGoodBatch().getBatchCode() : null,
+                    record.getFinishedGood() != null ? record.getFinishedGood().getProductCode() : null,
+                    record.getFinishedGood() != null ? record.getFinishedGood().getName() : null,
+                    record.getSizeVariant() != null ? record.getSizeVariant().getSizeLabel() : record.getPackagingSize(),
+                    quantity,
+                    unitCost,
+                    totalValue,
+                    referencePrefix,
+                    journalEntryId
+            ));
+
+            packedQuantity = packedQuantity.add(quantity);
+            packagingCost = packagingCost.add(safe(record.getPackagingCost()));
+
+            List<RawMaterialMovement> packagingMovements = rawMaterialMovementRepository
+                    .findByRawMaterialCompanyAndReferenceTypeAndReferenceId(
+                            company,
+                            InventoryReference.PACKING_RECORD,
+                            referencePrefix);
+            for (RawMaterialMovement movement : packagingMovements) {
+                BigDecimal movementQuantity = safe(movement.getQuantity());
+                BigDecimal movementUnitCost = safe(movement.getUnitCost());
+                rawMaterialTrace.add(new RawMaterialTraceDto(
+                        movement.getId(),
+                        movement.getRawMaterial() != null ? movement.getRawMaterial().getId() : null,
+                        movement.getRawMaterial() != null ? movement.getRawMaterial().getSku() : null,
+                        movement.getRawMaterial() != null ? movement.getRawMaterial().getName() : null,
+                        movement.getRawMaterialBatch() != null ? movement.getRawMaterialBatch().getId() : null,
+                        movement.getRawMaterialBatch() != null ? movement.getRawMaterialBatch().getBatchCode() : null,
+                        movementQuantity,
+                        movementUnitCost,
+                        movementQuantity.multiply(movementUnitCost),
+                        movement.getMovementType(),
+                        movement.getReferenceType(),
+                        movement.getReferenceId(),
+                        movement.getCreatedAt(),
+                        movement.getJournalEntryId()
+                ));
+            }
+        }
+
+        log.getMaterials().stream()
+                .sorted(Comparator.comparing(material -> Optional.ofNullable(material.getRawMaterialMovementId()).orElse(Long.MAX_VALUE)))
+                .forEach(material -> {
+                    BigDecimal qty = safe(material.getQuantity());
+                    BigDecimal unit = safe(material.getCostPerUnit());
+                    rawMaterialTrace.add(new RawMaterialTraceDto(
+                            material.getRawMaterialMovementId(),
+                            material.getRawMaterial() != null ? material.getRawMaterial().getId() : null,
+                            material.getRawMaterial() != null ? material.getRawMaterial().getSku() : null,
+                            material.getMaterialName(),
+                            material.getRawMaterialBatch() != null ? material.getRawMaterialBatch().getId() : null,
+                            material.getRawMaterialBatch() != null ? material.getRawMaterialBatch().getBatchCode() : null,
+                            qty,
+                            unit,
+                            safe(material.getTotalCost()),
+                            "ISSUE",
+                            InventoryReference.PRODUCTION_LOG,
+                            log.getProductionCode(),
+                            log.getProducedAt(),
+                            null
+                    ));
+                });
+
+        BigDecimal totalCost = materialCost
+                .add(laborCost)
+                .add(overheadCost)
+                .add(packagingCost);
+
+        CostComponentTraceDto costComponents = new CostComponentTraceDto(
+                materialCost,
+                laborCost,
+                overheadCost,
+                packagingCost,
+                totalCost,
+                safe(log.getMixedQuantity()),
+                packedQuantity,
+                packedQuantity.compareTo(BigDecimal.ZERO) > 0
+                        ? totalCost.divide(packedQuantity, 4, RoundingMode.HALF_UP)
+                        : safe(log.getUnitCost())
+        );
 
         return new CostBreakdownDto(
                 log.getId(),
@@ -1181,7 +1316,10 @@ public class ReportService {
                 log.getOverheadCostTotal(),
                 totalCost,
                 log.getUnitCost(),
-                log.getProducedAt()
+                log.getProducedAt(),
+                costComponents,
+                packedBatches,
+                rawMaterialTrace
         );
     }
 

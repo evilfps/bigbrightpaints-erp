@@ -34,6 +34,7 @@ import com.bigbrightpaints.erp.modules.inventory.domain.PackagingSlip;
 import com.bigbrightpaints.erp.modules.inventory.domain.PackagingSlipLine;
 import com.bigbrightpaints.erp.modules.inventory.domain.PackagingSlipLineRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.PackagingSlipRepository;
+import com.bigbrightpaints.erp.modules.inventory.domain.MaterialType;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterial;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatch;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatchRepository;
@@ -251,17 +252,21 @@ public class FactoryPackagingCostingIT extends AbstractIntegrationTest {
         assertThat(packagingMovements).isNotEmpty();
         assertThat(packagingMovements).allMatch(movement -> packagingJournal.getId().equals(movement.getJournalEntryId()));
 
-        List<InventoryMovement> movements = inventoryMovementRepository
+        List<InventoryMovement> semiFinishedMovements = inventoryMovementRepository
                 .findByReferenceTypeAndReferenceIdOrderByCreatedAtAsc(InventoryReference.PRODUCTION_LOG, productionCode);
-        assertThat(movements).isNotEmpty();
-        assertThat(movements).anyMatch(movement ->
+        assertThat(semiFinishedMovements).isNotEmpty();
+        assertThat(semiFinishedMovements).anyMatch(movement ->
                 "RECEIPT".equals(movement.getMovementType())
                         && semiFinishedJournal.getId().equals(movement.getJournalEntryId())
                         && movement.getUnitCost().compareTo(log.unitCost()) == 0);
-        assertThat(movements).anyMatch(movement ->
+
+        List<InventoryMovement> packingMovements = inventoryMovementRepository
+                .findByReferenceTypeAndReferenceIdOrderByCreatedAtAsc(InventoryReference.PACKING_RECORD, packagingReference);
+        assertThat(packingMovements).isNotEmpty();
+        assertThat(packingMovements).anyMatch(movement ->
                 "ISSUE".equals(movement.getMovementType())
                         && packingSessionJournal.getId().equals(movement.getJournalEntryId()));
-        assertThat(movements).anyMatch(movement ->
+        assertThat(packingMovements).anyMatch(movement ->
                 "RECEIPT".equals(movement.getMovementType())
                         && packingSessionJournal.getId().equals(movement.getJournalEntryId())
                         && movement.getUnitCost().compareTo(expectedUnitCost) == 0);
@@ -316,6 +321,11 @@ public class FactoryPackagingCostingIT extends AbstractIntegrationTest {
         rm.setSku(sku);
         rm.setName(name);
         rm.setUnitType("KG");
+        if (sku.startsWith("RM-BUCKET")) {
+            rm.setMaterialType(MaterialType.PACKAGING);
+        } else {
+            rm.setMaterialType(MaterialType.PRODUCTION);
+        }
         rm.setInventoryAccountId(inventoryAccount.getId());
         rm.setCurrentStock(currentStock);
         return rawMaterialRepository.save(rm);

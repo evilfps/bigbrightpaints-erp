@@ -5,12 +5,15 @@ import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.util.CostingMethodUtils;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
+import com.bigbrightpaints.erp.modules.factory.domain.PackingRecord;
 import com.bigbrightpaints.erp.modules.factory.domain.PackagingSizeMapping;
 import com.bigbrightpaints.erp.modules.factory.domain.PackagingSizeMappingRepository;
+import com.bigbrightpaints.erp.modules.factory.domain.SizeVariant;
 import com.bigbrightpaints.erp.modules.factory.dto.PackagingConsumptionResult;
 import com.bigbrightpaints.erp.modules.factory.dto.PackagingSizeMappingDto;
 import com.bigbrightpaints.erp.modules.factory.dto.PackagingSizeMappingRequest;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryReference;
+import com.bigbrightpaints.erp.modules.inventory.domain.MaterialType;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterial;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatch;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatchRepository;
@@ -23,6 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -74,6 +78,7 @@ public class PackagingMaterialService {
         RawMaterial rawMaterial = rawMaterialRepository.findByCompanyAndId(company, request.rawMaterialId())
                 .orElseThrow(() -> new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE,
                         "Raw material not found"));
+        requirePackagingMaterial(rawMaterial);
 
         if (mappingRepository.existsByCompanyAndPackagingSizeIgnoreCaseAndRawMaterial(company, normalizedSize, rawMaterial)) {
             throw new ApplicationException(ErrorCode.DUPLICATE_ENTITY,
@@ -102,6 +107,7 @@ public class PackagingMaterialService {
             RawMaterial rawMaterial = rawMaterialRepository.findByCompanyAndId(company, request.rawMaterialId())
                     .orElseThrow(() -> new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE,
                             "Raw material not found"));
+            requirePackagingMaterial(rawMaterial);
             if (mappingRepository.existsByCompanyAndPackagingSizeIgnoreCaseAndRawMaterialAndIdNot(
                     company, mapping.getPackagingSize(), rawMaterial, mapping.getId())) {
                 throw new ApplicationException(ErrorCode.DUPLICATE_ENTITY,
@@ -143,18 +149,27 @@ public class PackagingMaterialService {
      */
     @Transactional
     public PackagingConsumptionResult consumePackagingMaterial(
-            String packagingSize, 
-            int piecesCount, 
+            String packagingSize,
+            int piecesCount,
             String referenceId) {
-        
+        return consumePackagingMaterial(packagingSize, piecesCount, referenceId, null, null);
+    }
+
+    @Transactional
+    public PackagingConsumptionResult consumePackagingMaterial(
+            String packagingSize,
+            int piecesCount,
+            String referenceId,
+            SizeVariant sizeVariant,
+            PackingRecord packingRecord) {
+
         Company company = companyContextService.requireCurrentCompany();
         String normalizedSize = normalizePackagingSize(packagingSize);
-        
+
         List<PackagingSizeMapping> mappings = mappingRepository
                 .findActiveByCompanyAndPackagingSizeIgnoreCase(company, normalizedSize);
 
         if (mappings.isEmpty()) {
-            // No mapping configured - return zero cost (packaging not tracked)
             if (requirePackaging) {
                 throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
                         "Packaging BOM is required for size: " + normalizedSize);
@@ -170,11 +185,13 @@ public class PackagingMaterialService {
         BigDecimal totalCost = BigDecimal.ZERO;
         BigDecimal totalQuantity = BigDecimal.ZERO;
         Map<Long, BigDecimal> accountTotals = new HashMap<>();
+        List<RawMaterial> consumedMaterials = new ArrayList<>();
 
         for (PackagingSizeMapping mapping : mappings) {
             RawMaterial material = rawMaterialRepository.lockByCompanyAndId(company, mapping.getRawMaterial().getId())
                     .orElseThrow(() -> new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE,
                             "Packaging material not found: " + mapping.getRawMaterial().getSku()));
+            requirePackagingMaterial(material);
 
             if (material.getInventoryAccountId() == null) {
                 throw new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE,
@@ -191,18 +208,26 @@ public class PackagingMaterialService {
                                 material.getSku(), requiredQty, material.getCurrentStock()));
             }
 
-            BigDecimal consumedCost = issueFromBatches(material, requiredQty, referenceId);
+            BigDecimal consumedCost = issueFromBatches(material, requiredQty, referenceId, packingRecord);
             material.setCurrentStock(material.getCurrentStock().subtract(requiredQty));
             rawMaterialRepository.save(material);
 
             totalCost = totalCost.add(consumedCost);
             totalQuantity = totalQuantity.add(requiredQty);
             accountTotals.merge(material.getInventoryAccountId(), consumedCost, BigDecimal::add);
+            consumedMaterials.add(material);
         }
 
         if (requirePackaging && totalCost.compareTo(BigDecimal.ZERO) <= 0) {
             throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
                     "Packaging consumption produced zero cost for size: " + normalizedSize);
+        }
+
+        if (packingRecord != null && !consumedMaterials.isEmpty()) {
+            packingRecord.setPackagingMaterial(consumedMaterials.getFirst());
+        }
+        if (sizeVariant != null && packingRecord != null) {
+            packingRecord.setSizeVariant(sizeVariant);
         }
 
         return new PackagingConsumptionResult(
@@ -213,7 +238,10 @@ public class PackagingMaterialService {
                 null);
     }
 
-    private BigDecimal issueFromBatches(RawMaterial rawMaterial, BigDecimal requiredQty, String referenceId) {
+    private BigDecimal issueFromBatches(RawMaterial rawMaterial,
+                                        BigDecimal requiredQty,
+                                        String referenceId,
+                                        PackingRecord packingRecord) {
         List<RawMaterialBatch> batches = rawMaterialBatchRepository.findAvailableBatchesFIFO(rawMaterial);
         BigDecimal weightedAverageCost = CostingMethodUtils.selectWeightedAverageValue(
                 rawMaterial.getCostingMethod(),
@@ -252,6 +280,7 @@ public class PackagingMaterialService {
             movement.setMovementType("ISSUE");
             movement.setQuantity(take);
             movement.setUnitCost(unitCost);
+            movement.setPackingRecord(packingRecord);
             rawMaterialMovementRepository.save(movement);
 
             totalCost = totalCost.add(movementCost);
@@ -271,6 +300,13 @@ public class PackagingMaterialService {
             throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT, "Packaging size is required");
         }
         return size.trim().toUpperCase();
+    }
+
+    private void requirePackagingMaterial(RawMaterial material) {
+        if (material == null || material.getMaterialType() != MaterialType.PACKAGING) {
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE,
+                    "Raw material must be of type PACKAGING");
+        }
     }
 
     private PackagingSizeMappingDto toDto(PackagingSizeMapping mapping) {

@@ -15,7 +15,10 @@ import com.bigbrightpaints.erp.modules.accounting.service.DealerLedgerService;
 import com.bigbrightpaints.erp.modules.accounting.service.GstService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
+import com.bigbrightpaints.erp.modules.factory.domain.PackingRecordRepository;
 import com.bigbrightpaints.erp.modules.factory.domain.ProductionLogRepository;
+import com.bigbrightpaints.erp.modules.inventory.domain.InventoryMovementRepository;
+import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovementRepository;
 import com.bigbrightpaints.erp.modules.invoice.domain.Invoice;
 import com.bigbrightpaints.erp.modules.invoice.domain.InvoiceLine;
 import com.bigbrightpaints.erp.modules.invoice.domain.InvoiceRepository;
@@ -73,6 +76,12 @@ class ReportServiceInventoryAndGstTest {
     @Mock
     private ProductionLogRepository productionLogRepository;
     @Mock
+    private PackingRecordRepository packingRecordRepository;
+    @Mock
+    private InventoryMovementRepository inventoryMovementRepository;
+    @Mock
+    private RawMaterialMovementRepository rawMaterialMovementRepository;
+    @Mock
     private CompanyEntityLookup companyEntityLookup;
     @Mock
     private CompanyClock companyClock;
@@ -110,6 +119,9 @@ class ReportServiceInventoryAndGstTest {
                 journalEntryRepository,
                 journalLineRepository,
                 productionLogRepository,
+                packingRecordRepository,
+                inventoryMovementRepository,
+                rawMaterialMovementRepository,
                 companyEntityLookup,
                 companyClock,
                 inventoryValuationService,

@@ -44,6 +44,10 @@ public class RawMaterialMovement extends VersionedEntity {
     @Column(name = "journal_entry_id")
     private Long journalEntryId;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "packing_record_id")
+    private com.bigbrightpaints.erp.modules.factory.domain.PackingRecord packingRecord;
+
     @PrePersist
     public void prePersist() {
         if (createdAt == null) {
@@ -121,5 +125,13 @@ public class RawMaterialMovement extends VersionedEntity {
 
     public void setJournalEntryId(Long journalEntryId) {
         this.journalEntryId = journalEntryId;
+    }
+
+    public com.bigbrightpaints.erp.modules.factory.domain.PackingRecord getPackingRecord() {
+        return packingRecord;
+    }
+
+    public void setPackingRecord(com.bigbrightpaints.erp.modules.factory.domain.PackingRecord packingRecord) {
+        this.packingRecord = packingRecord;
     }
 }

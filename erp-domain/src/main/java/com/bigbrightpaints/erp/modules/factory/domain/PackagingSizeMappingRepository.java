@@ -11,7 +11,13 @@ import java.util.Optional;
 
 public interface PackagingSizeMappingRepository extends JpaRepository<PackagingSizeMapping, Long> {
 
-    @Query("SELECT m FROM PackagingSizeMapping m WHERE m.company = :company AND UPPER(m.packagingSize) = UPPER(:size) AND m.active = true")
+    @Query("""
+            SELECT m FROM PackagingSizeMapping m
+            WHERE m.company = :company
+              AND UPPER(m.packagingSize) = UPPER(:size)
+              AND m.active = true
+            ORDER BY m.id ASC
+            """)
     List<PackagingSizeMapping> findActiveByCompanyAndPackagingSizeIgnoreCase(
             @Param("company") Company company,
             @Param("size") String packagingSize);

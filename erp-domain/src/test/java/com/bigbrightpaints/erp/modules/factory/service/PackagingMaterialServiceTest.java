@@ -15,6 +15,8 @@ import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.factory.domain.PackagingSizeMapping;
 import com.bigbrightpaints.erp.modules.factory.domain.PackagingSizeMappingRepository;
 import com.bigbrightpaints.erp.modules.factory.dto.PackagingConsumptionResult;
+import com.bigbrightpaints.erp.modules.factory.dto.PackagingSizeMappingRequest;
+import com.bigbrightpaints.erp.modules.inventory.domain.MaterialType;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterial;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatch;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatchRepository;
@@ -61,6 +63,27 @@ class PackagingMaterialServiceTest {
         company = new Company();
         ReflectionTestUtils.setField(company, "id", 1L);
         when(companyContextService.requireCurrentCompany()).thenReturn(company);
+    }
+
+    @Test
+    void createMapping_rejectsNonPackagingMaterial() {
+        RawMaterial material = rawMaterial(15L, 900L, new BigDecimal("10"), null);
+        material.setMaterialType(MaterialType.PRODUCTION);
+        when(rawMaterialRepository.findByCompanyAndId(company, 15L)).thenReturn(Optional.of(material));
+
+        assertThatThrownBy(() -> packagingMaterialService.createMapping(new PackagingSizeMappingRequest(
+                "1L",
+                15L,
+                1,
+                12,
+                BigDecimal.ONE
+        )))
+                .isInstanceOf(ApplicationException.class)
+                .satisfies(ex -> {
+                    ApplicationException appEx = (ApplicationException) ex;
+                    assertThat(appEx.getErrorCode()).isEqualTo(ErrorCode.VALIDATION_INVALID_REFERENCE);
+                    assertThat(appEx.getMessage()).contains("Raw material must be of type PACKAGING");
+                });
     }
 
     @Test
@@ -235,6 +258,7 @@ class PackagingMaterialServiceTest {
         material.setInventoryAccountId(accountId);
         material.setCurrentStock(stock);
         material.setCostingMethod(costingMethod);
+        material.setMaterialType(MaterialType.PACKAGING);
         material.setSku("PACK-" + id);
         return material;
     }

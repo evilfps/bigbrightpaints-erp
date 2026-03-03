@@ -460,8 +460,8 @@ class BulkPackingImportedCatalogPackagingIT extends AbstractIntegrationTest {
 
     private MockMultipartFile rawMaterialCsvWithAccountAlias(String skuCode, String gstRate, Long inventoryAccountId) {
         String csv = String.join("\n",
-                "brand,product_name,sku_code,category,unit_of_measure,gst_rate,inventory_account_id",
-                "RMBrand,Packaging Material," + skuCode + ",RAW_MATERIAL,UNIT," + gstRate + "," + inventoryAccountId
+                "brand,product_name,sku_code,category,unit_of_measure,gst_rate,inventory_account_id,material_type",
+                "RMBrand,Packaging Material," + skuCode + ",RAW_MATERIAL,UNIT," + gstRate + "," + inventoryAccountId + ",PACKAGING"
         );
         return new MockMultipartFile(
                 "file",

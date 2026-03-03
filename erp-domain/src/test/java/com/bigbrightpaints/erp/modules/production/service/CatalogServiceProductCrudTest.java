@@ -2,6 +2,7 @@ package com.bigbrightpaints.erp.modules.production.service;
 
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
+import com.bigbrightpaints.erp.modules.factory.domain.SizeVariantRepository;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionBrand;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionBrandRepository;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionProduct;
@@ -38,6 +39,7 @@ class CatalogServiceProductCrudTest {
     @Mock private CompanyContextService companyContextService;
     @Mock private ProductionBrandRepository brandRepository;
     @Mock private ProductionProductRepository productRepository;
+    @Mock private SizeVariantRepository sizeVariantRepository;
 
     private CatalogService service;
     private Company company;
@@ -45,7 +47,7 @@ class CatalogServiceProductCrudTest {
 
     @BeforeEach
     void setUp() {
-        service = new CatalogService(companyContextService, brandRepository, productRepository);
+        service = new CatalogService(companyContextService, brandRepository, productRepository, sizeVariantRepository);
         company = new Company();
         ReflectionTestUtils.setField(company, "id", 200L);
         company.setCode("BBP");

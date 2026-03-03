@@ -6,6 +6,7 @@ import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGood;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatch;
 import jakarta.persistence.*;
+import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -67,8 +68,15 @@ public class PackingRecord extends VersionedEntity {
     @JoinColumn(name = "packaging_material_id")
     private com.bigbrightpaints.erp.modules.inventory.domain.RawMaterial packagingMaterial;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "size_variant_id")
+    private SizeVariant sizeVariant;
+
     @Column(name = "packaging_quantity")
     private BigDecimal packagingQuantity;
+
+    @Column(name = "child_batch_count")
+    private Integer childBatchCount;
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
@@ -141,7 +149,7 @@ public class PackingRecord extends VersionedEntity {
     }
 
     public void setPackagingSize(String packagingSize) {
-        this.packagingSize = packagingSize;
+        this.packagingSize = StringUtils.hasText(packagingSize) ? packagingSize.trim() : null;
     }
 
     public BigDecimal getQuantityPacked() {
@@ -216,11 +224,27 @@ public class PackingRecord extends VersionedEntity {
         this.packagingMaterial = packagingMaterial;
     }
 
+    public SizeVariant getSizeVariant() {
+        return sizeVariant;
+    }
+
+    public void setSizeVariant(SizeVariant sizeVariant) {
+        this.sizeVariant = sizeVariant;
+    }
+
     public BigDecimal getPackagingQuantity() {
         return packagingQuantity;
     }
 
     public void setPackagingQuantity(BigDecimal packagingQuantity) {
         this.packagingQuantity = packagingQuantity;
+    }
+
+    public Integer getChildBatchCount() {
+        return childBatchCount;
+    }
+
+    public void setChildBatchCount(Integer childBatchCount) {
+        this.childBatchCount = childBatchCount;
     }
 }

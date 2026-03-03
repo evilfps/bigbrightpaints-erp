@@ -703,6 +703,9 @@ public class ProductionLogService {
         List<ProductionLogPackingRecordDto> packingRecords = log.getPackingRecords().stream()
                 .map(record -> new ProductionLogPackingRecordDto(
                         record.getId(),
+                        record.getSizeVariant() != null ? record.getSizeVariant().getId() : null,
+                        record.getSizeVariant() != null ? record.getSizeVariant().getSizeLabel() : null,
+                        record.getChildBatchCount() != null ? record.getChildBatchCount().longValue() : null,
                         record.getFinishedGood() != null ? record.getFinishedGood().getId() : null,
                         record.getFinishedGood() != null ? record.getFinishedGood().getProductCode() : null,
                         record.getFinishedGood() != null ? record.getFinishedGood().getName() : null,

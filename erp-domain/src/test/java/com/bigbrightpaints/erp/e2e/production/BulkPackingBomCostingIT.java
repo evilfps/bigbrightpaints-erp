@@ -16,6 +16,7 @@ import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGood;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatch;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatchRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodRepository;
+import com.bigbrightpaints.erp.modules.inventory.domain.MaterialType;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterial;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatch;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatchRepository;
@@ -186,6 +187,7 @@ public class BulkPackingBomCostingIT extends AbstractIntegrationTest {
         rm.setSku(sku);
         rm.setName(sku);
         rm.setUnitType("UNIT");
+        rm.setMaterialType(MaterialType.PACKAGING);
         rm.setInventoryAccountId(inventoryAccount.getId());
         rm.setCurrentStock(stock);
         return rawMaterialRepository.save(rm);

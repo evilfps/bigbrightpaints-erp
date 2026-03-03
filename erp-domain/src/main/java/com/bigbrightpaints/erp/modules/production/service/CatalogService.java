@@ -5,6 +5,8 @@ import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.validation.ValidationUtils;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
+import com.bigbrightpaints.erp.modules.factory.domain.SizeVariant;
+import com.bigbrightpaints.erp.modules.factory.domain.SizeVariantRepository;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionBrand;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionBrandRepository;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionProduct;
@@ -36,8 +38,10 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -56,18 +60,23 @@ public class CatalogService {
     private static final int MAX_PAGE_SIZE = 100;
     private static final Pattern NON_ALPHANUM = Pattern.compile("[^A-Z0-9]");
     private static final Pattern SKU_SEQUENCE_PATTERN = Pattern.compile("-(\\d{3})$");
+    private static final Pattern SIZE_WITH_UNIT_PATTERN = Pattern.compile("^([0-9]+(?:\\.[0-9]+)?)\\s*(ML|L|LTR|LITRE|LITER)?$");
+    private static final BigDecimal ONE_THOUSAND = new BigDecimal("1000");
     private static final Validator BULK_VALIDATOR = Validation.buildDefaultValidatorFactory().getValidator();
 
     private final CompanyContextService companyContextService;
     private final ProductionBrandRepository brandRepository;
     private final ProductionProductRepository productRepository;
+    private final SizeVariantRepository sizeVariantRepository;
 
     public CatalogService(CompanyContextService companyContextService,
                           ProductionBrandRepository brandRepository,
-                          ProductionProductRepository productRepository) {
+                          ProductionProductRepository productRepository,
+                          SizeVariantRepository sizeVariantRepository) {
         this.companyContextService = companyContextService;
         this.brandRepository = brandRepository;
         this.productRepository = productRepository;
+        this.sizeVariantRepository = sizeVariantRepository;
     }
 
     @Transactional
@@ -134,7 +143,9 @@ public class CatalogService {
         product.setBrand(brand);
         product.setSkuCode(generateSku(company, brand, request.name()));
         applyProductPayload(product, brand, request, true);
-        return toProductDto(productRepository.save(product));
+        ProductionProduct saved = productRepository.save(product);
+        syncSizeVariants(company, saved);
+        return toProductDto(saved);
     }
 
     @Transactional(readOnly = true)
@@ -150,7 +161,9 @@ public class CatalogService {
         ProductionBrand brand = requireActiveBrand(company, request.brandId());
         product.setBrand(brand);
         applyProductPayload(product, brand, request, false);
-        return toProductDto(productRepository.save(product));
+        ProductionProduct saved = productRepository.save(product);
+        syncSizeVariants(company, saved);
+        return toProductDto(saved);
     }
 
     @Transactional
@@ -419,6 +432,72 @@ public class CatalogService {
             throw new ApplicationException(ErrorCode.BUSINESS_DUPLICATE_ENTRY,
                     "Product with name '" + name + "' already exists for brand " + brand.getName());
         }
+    }
+
+    private void syncSizeVariants(Company company, ProductionProduct product) {
+        if (company == null || product == null || product.getId() == null) {
+            return;
+        }
+        Map<String, Integer> cartonBySize = product.getCartonSizes() == null
+                ? Map.of()
+                : product.getCartonSizes();
+        Set<String> activeSizeKeys = new HashSet<>();
+
+        for (Map.Entry<String, Integer> entry : cartonBySize.entrySet()) {
+            String sizeLabel = normalizeRequiredText(entry.getKey(), "Carton size label is required");
+            Integer cartonQuantity = entry.getValue();
+            if (cartonQuantity == null || cartonQuantity <= 0) {
+                throw ValidationUtils.invalidInput("Pieces per carton must be greater than zero");
+            }
+            BigDecimal litersPerUnit = parseSizeToLiters(sizeLabel);
+            String key = sizeLabel.toLowerCase(Locale.ROOT);
+            activeSizeKeys.add(key);
+
+            SizeVariant variant = sizeVariantRepository
+                    .findByCompanyAndProductAndSizeLabelIgnoreCase(company, product, sizeLabel)
+                    .orElseGet(() -> {
+                        SizeVariant created = new SizeVariant();
+                        created.setCompany(company);
+                        created.setProduct(product);
+                        created.setSizeLabel(sizeLabel);
+                        return created;
+                    });
+            variant.setSizeLabel(sizeLabel);
+            variant.setCartonQuantity(cartonQuantity);
+            variant.setLitersPerUnit(litersPerUnit);
+            variant.setActive(true);
+            sizeVariantRepository.save(variant);
+        }
+
+        List<SizeVariant> existing = sizeVariantRepository.findByCompanyAndProductOrderBySizeLabelAsc(company, product);
+        for (SizeVariant variant : existing) {
+            if (variant.getSizeLabel() == null) {
+                continue;
+            }
+            String key = variant.getSizeLabel().toLowerCase(Locale.ROOT);
+            if (!activeSizeKeys.contains(key) && variant.isActive()) {
+                variant.setActive(false);
+                sizeVariantRepository.save(variant);
+            }
+        }
+    }
+
+    private BigDecimal parseSizeToLiters(String sizeLabel) {
+        Matcher matcher = SIZE_WITH_UNIT_PATTERN.matcher(sizeLabel.trim().toUpperCase(Locale.ROOT));
+        if (!matcher.matches()) {
+            return BigDecimal.ONE;
+        }
+        BigDecimal value;
+        try {
+            value = new BigDecimal(matcher.group(1));
+        } catch (NumberFormatException ex) {
+            return BigDecimal.ONE;
+        }
+        String unit = matcher.group(2);
+        if ("ML".equals(unit)) {
+            return value.divide(ONE_THOUSAND, 4, RoundingMode.HALF_UP);
+        }
+        return value.setScale(4, RoundingMode.HALF_UP);
     }
 
     private ProductionBrand requireBrand(Company company, Long brandId) {

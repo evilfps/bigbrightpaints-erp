@@ -271,12 +271,13 @@ class CR_BulkPackagingCrossModuleTest extends AbstractIntegrationTest {
                 join finished_goods fg on fg.id = im.finished_good_id
                 where fg.company_id = ?
                   and im.reference_type = ?
+                  and im.reference_id like 'PACK-%'
                 """,
                 Integer.class,
                 company.getId(),
                 InventoryReference.PACKING_RECORD
         );
-        assertThat(inventoryMovements).as("no packing inventory movements").isZero();
+        assertThat(inventoryMovements).as("no bulk-pack inventory movements").isZero();
     }
 
     @Test
@@ -444,6 +445,7 @@ class CR_BulkPackagingCrossModuleTest extends AbstractIntegrationTest {
                 join finished_goods fg on fg.id = im.finished_good_id
                 where fg.company_id = ?
                   and im.reference_type = ?
+                  and im.reference_id like 'PACK-%'
                 """,
                 String.class,
                 company.getId(),

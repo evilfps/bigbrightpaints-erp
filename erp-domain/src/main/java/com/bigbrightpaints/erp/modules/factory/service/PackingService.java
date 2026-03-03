@@ -20,6 +20,8 @@ import com.bigbrightpaints.erp.modules.factory.domain.PackingRequestRecordReposi
 import com.bigbrightpaints.erp.modules.factory.domain.ProductionLog;
 import com.bigbrightpaints.erp.modules.factory.domain.ProductionLogRepository;
 import com.bigbrightpaints.erp.modules.factory.domain.ProductionLogStatus;
+import com.bigbrightpaints.erp.modules.factory.domain.SizeVariant;
+import com.bigbrightpaints.erp.modules.factory.domain.SizeVariantRepository;
 import com.bigbrightpaints.erp.modules.factory.dto.*;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGood;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatch;
@@ -72,6 +74,7 @@ public class PackingService {
     private final CompanyEntityLookup companyEntityLookup;
     private final PackagingMaterialService packagingMaterialService;
     private final FinishedGoodsService finishedGoodsService;
+    private final SizeVariantRepository sizeVariantRepository;
     private final IdempotencyReservationService idempotencyReservationService = new IdempotencyReservationService();
 
     public PackingService(CompanyContextService companyContextService,
@@ -88,7 +91,8 @@ public class PackingService {
                           CompanyClock companyClock,
                           CompanyEntityLookup companyEntityLookup,
                           PackagingMaterialService packagingMaterialService,
-                          FinishedGoodsService finishedGoodsService) {
+                          FinishedGoodsService finishedGoodsService,
+                          SizeVariantRepository sizeVariantRepository) {
         this.companyContextService = companyContextService;
         this.productionLogRepository = productionLogRepository;
         this.packingRecordRepository = packingRecordRepository;
@@ -104,6 +108,7 @@ public class PackingService {
         this.companyEntityLookup = companyEntityLookup;
         this.packagingMaterialService = packagingMaterialService;
         this.finishedGoodsService = finishedGoodsService;
+        this.sizeVariantRepository = sizeVariantRepository;
     }
 
     @Transactional
@@ -134,30 +139,36 @@ public class PackingService {
             }
             reservedRecord = reservation.record();
         }
-        FinishedGood finishedGood = ensureFinishedGood(company, log);
+        FinishedGood defaultFinishedGood = ensureFinishedGood(company, log);
 
         BigDecimal sessionQuantity = BigDecimal.ZERO;
         Long firstPackingRecordId = null;
         int lineIndex = 0;
         for (PackingLineRequest line : request.lines()) {
             lineIndex++;
-            BigDecimal lineQuantity = resolveQuantity(line, lineIndex);
+            String normalizedSize = normalizePackagingSize(line.packagingSize(), lineIndex);
+            SizeVariant sizeVariant = resolveSizeVariant(company, log, normalizedSize);
+            Integer piecesPerBox = resolvePiecesPerBox(line, sizeVariant);
+            int piecesCount = resolvePiecesCountForLine(line, piecesPerBox, lineIndex);
+            BigDecimal lineQuantity = resolveQuantity(line, sizeVariant, normalizedSize, piecesCount, lineIndex);
             if (lineQuantity.compareTo(BigDecimal.ZERO) <= 0) {
                 throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput("Line " + lineIndex + " has zero quantity");
             }
-            
-            // Resolve pieces count for packaging material consumption
-            int piecesCount = resolvePiecesCountForLine(line, lineIndex);
-            
+
+            int childBatchCount = resolveChildBatchCount(line, piecesCount);
+            FinishedGood targetFinishedGood = resolveTargetFinishedGood(company, log, line, defaultFinishedGood);
+
             PackingRecord record = new PackingRecord();
             record.setCompany(company);
             record.setProductionLog(log);
-            record.setFinishedGood(finishedGood);
-            record.setPackagingSize(line.packagingSize().trim());
+            record.setFinishedGood(targetFinishedGood);
+            record.setSizeVariant(sizeVariant);
+            record.setChildBatchCount(childBatchCount);
+            record.setPackagingSize(normalizedSize);
             record.setQuantityPacked(lineQuantity);
             record.setPiecesCount(nullSafe(line.piecesCount()));
             record.setBoxesCount(nullSafe(line.boxesCount()));
-            record.setPiecesPerBox(nullSafe(line.piecesPerBox()));
+            record.setPiecesPerBox(nullSafe(piecesPerBox));
             record.setPackedDate(packedDate);
             record.setPackedBy(clean(request.packedBy()));
 
@@ -167,27 +178,36 @@ public class PackingService {
             }
             String packagingReference = log.getProductionCode() + "-PACK-" + savedRecord.getId();
 
-            // Consume packaging materials (buckets) - auto-deducts from RM stock
             PackagingConsumptionResult packagingResult = packagingMaterialService.consumePackagingMaterial(
-                    line.packagingSize(),
+                    normalizedSize,
                     piecesCount,
-                    packagingReference
+                    packagingReference,
+                    sizeVariant,
+                    savedRecord
             );
 
-            // Track packaging cost and material
             if (packagingResult.isConsumed()) {
-                record.setPackagingCost(packagingResult.totalCost());
-                record.setPackagingQuantity(packagingResult.quantity());
+                savedRecord.setPackagingCost(packagingResult.totalCost());
+                savedRecord.setPackagingQuantity(packagingResult.quantity());
             }
-            
+
             if (packagingResult.isConsumed()
                     && !packagingResult.accountTotalsOrEmpty().isEmpty()
                     && packagingResult.totalCost().compareTo(BigDecimal.ZERO) > 0) {
                 postPackagingMaterialJournal(log, packagingResult, packedDate, packagingReference);
             }
 
-            SemiFinishedConsumption semiFinished = consumeSemiFinishedInventory(log, lineQuantity);
-            FinishedGoodBatch batch = registerFinishedGoodBatch(log, finishedGood, savedRecord, lineQuantity, packedDate, packagingResult, semiFinished);
+            SemiFinishedConsumption semiFinished = consumeSemiFinishedInventory(log, lineQuantity, savedRecord.getId());
+            FinishedGoodBatch batch = registerFinishedGoodBatch(
+                    log,
+                    targetFinishedGood,
+                    savedRecord,
+                    lineQuantity,
+                    packedDate,
+                    packagingResult,
+                    semiFinished,
+                    sizeVariant
+            );
             savedRecord.setFinishedGoodBatch(batch);
             packingRecordRepository.save(savedRecord);
             log.getPackingRecords().add(savedRecord);
@@ -277,6 +297,8 @@ public class PackingService {
                 idx++;
                 payload.append("|line").append(idx).append(':')
                         .append(clean(line.packagingSize()))
+                        .append(':').append(line.childFinishedGoodId())
+                        .append(':').append(line.childBatchCount())
                         .append(':').append(decimalToken(line.quantityLiters()))
                         .append(':').append(line.piecesCount())
                         .append(':').append(line.boxesCount())
@@ -327,8 +349,11 @@ public class PackingService {
                         record.getId(),
                         record.getProductionLog() != null ? record.getProductionLog().getId() : null,
                         record.getProductionLog() != null ? record.getProductionLog().getProductionCode() : null,
+                        record.getSizeVariant() != null ? record.getSizeVariant().getId() : null,
+                        record.getSizeVariant() != null ? record.getSizeVariant().getSizeLabel() : null,
                         record.getFinishedGoodBatch() != null ? record.getFinishedGoodBatch().getId() : null,
                         record.getFinishedGoodBatch() != null ? record.getFinishedGoodBatch().getBatchCode() : null,
+                        record.getChildBatchCount(),
                         record.getPackagingSize(),
                         record.getQuantityPacked(),
                         record.getPiecesCount(),
@@ -377,17 +402,43 @@ public class PackingService {
         }
     }
 
-    private BigDecimal calculateWastage(ProductionLog log) {
-        BigDecimal mixed = Optional.ofNullable(log.getMixedQuantity()).orElse(BigDecimal.ZERO);
-        BigDecimal packed = Optional.ofNullable(log.getTotalPackedQuantity()).orElse(BigDecimal.ZERO);
-        BigDecimal result = mixed.subtract(packed);
-        return result.compareTo(BigDecimal.ZERO) < 0 ? BigDecimal.ZERO : result;
-    }
-
     private FinishedGood ensureFinishedGood(Company company, ProductionLog log) {
         ProductionProduct product = log.getProduct();
         return finishedGoodRepository.lockByCompanyAndProductCode(company, product.getSkuCode())
                 .orElseGet(() -> initializeFinishedGood(company, product));
+    }
+
+    private FinishedGood resolveTargetFinishedGood(Company company,
+                                                   ProductionLog log,
+                                                   PackingLineRequest line,
+                                                   FinishedGood defaultFinishedGood) {
+        if (line.childFinishedGoodId() == null) {
+            return defaultFinishedGood;
+        }
+        FinishedGood target = finishedGoodRepository.lockByCompanyAndId(company, line.childFinishedGoodId())
+                .orElseThrow(() -> new ApplicationException(
+                        ErrorCode.VALIDATION_INVALID_REFERENCE,
+                        "Child finished good not found: " + line.childFinishedGoodId()));
+
+        String productSku = Optional.ofNullable(log.getProduct())
+                .map(ProductionProduct::getSkuCode)
+                .orElse(null);
+        if (!StringUtils.hasText(productSku) || !isMatchingChildSku(target.getProductCode(), productSku)) {
+            throw new ApplicationException(
+                    ErrorCode.VALIDATION_INVALID_REFERENCE,
+                    "Child finished good must belong to product SKU family " + productSku);
+        }
+        return target;
+    }
+
+    private boolean isMatchingChildSku(String candidateSku, String parentSku) {
+        if (!StringUtils.hasText(candidateSku) || !StringUtils.hasText(parentSku)) {
+            return false;
+        }
+        String normalizedCandidate = candidateSku.trim().toUpperCase();
+        String normalizedParent = parentSku.trim().toUpperCase();
+        return normalizedCandidate.equals(normalizedParent)
+                || normalizedCandidate.startsWith(normalizedParent + "-");
     }
 
     private FinishedGoodBatch registerFinishedGoodBatch(ProductionLog log,
@@ -396,7 +447,8 @@ public class PackingService {
                                                         BigDecimal quantity,
                                                         LocalDate packedDate,
                                                         PackagingConsumptionResult packagingResult,
-                                                        SemiFinishedConsumption semiFinished) {
+                                                        SemiFinishedConsumption semiFinished,
+                                                        SizeVariant sizeVariant) {
         // Capture cost snapshot before any mutations
         BigDecimal baseUnitCost = semiFinished != null && semiFinished.unitCost() != null
                 ? semiFinished.unitCost()
@@ -417,8 +469,19 @@ public class PackingService {
         batch.setQuantityAvailable(quantity);
         batch.setUnitCost(totalUnitCost);
         batch.setManufacturedAt(log.getProducedAt());
-        batch.setBulk(true);  // Mark as bulk so it can be converted to sized FG via BulkPackingService
+        boolean bulkBatch = Optional.ofNullable(log.getProduct())
+                .map(ProductionProduct::getSkuCode)
+                .filter(StringUtils::hasText)
+                .map(parentSku -> isMatchingChildSku(finishedGood.getProductCode(), parentSku)
+                        && parentSku.trim().equalsIgnoreCase(finishedGood.getProductCode()))
+                .orElse(false);
+        batch.setBulk(bulkBatch);
         batch.setSource(InventoryBatchSource.PRODUCTION);
+        if (sizeVariant != null) {
+            batch.setSizeLabel(sizeVariant.getSizeLabel());
+        } else {
+            batch.setSizeLabel(record.getPackagingSize());
+        }
         if (semiFinished != null) {
             batch.setParentBatch(semiFinished.batch());
         }
@@ -432,8 +495,8 @@ public class PackingService {
         InventoryMovement movement = new InventoryMovement();
         movement.setFinishedGood(finishedGood);
         movement.setFinishedGoodBatch(savedBatch);
-        movement.setReferenceType(InventoryReference.PRODUCTION_LOG);
-        movement.setReferenceId(log.getProductionCode());
+        movement.setReferenceType(InventoryReference.PACKING_RECORD);
+        movement.setReferenceId(log.getProductionCode() + "-PACK-" + record.getId());
         movement.setMovementType(MOVEMENT_TYPE_RECEIPT);
         movement.setQuantity(quantity);
         movement.setUnitCost(totalUnitCost);
@@ -446,13 +509,15 @@ public class PackingService {
         return savedBatch;
     }
     
-    private int resolvePiecesCountForLine(PackingLineRequest line, int lineNumber) {
+    private int resolvePiecesCountForLine(PackingLineRequest line,
+                                          Integer resolvedPiecesPerBox,
+                                          int lineNumber) {
         if (line.piecesCount() != null && line.piecesCount() > 0) {
             return line.piecesCount();
         }
         if (line.boxesCount() != null && line.boxesCount() > 0
-                && line.piecesPerBox() != null && line.piecesPerBox() > 0) {
-            return line.boxesCount() * line.piecesPerBox();
+                && resolvedPiecesPerBox != null && resolvedPiecesPerBox > 0) {
+            return line.boxesCount() * resolvedPiecesPerBox;
         }
         throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput("Pieces count or boxes × pieces per box required for line " + lineNumber);
     }
@@ -483,7 +548,7 @@ public class PackingService {
         if (totalValue.compareTo(BigDecimal.ZERO) <= 0) {
             return;
         }
-        String reference = log.getProductionCode() + "-PACK-" + movement.getId();
+        String reference = movement.getReferenceId();
         String memo = "FG receipt for " + log.getProductionCode() + " (qty: " + quantity + ")";
 
         List<JournalEntryRequest.JournalLineRequest> lines = new java.util.ArrayList<>();
@@ -514,7 +579,9 @@ public class PackingService {
         }
     }
 
-    private SemiFinishedConsumption consumeSemiFinishedInventory(ProductionLog log, BigDecimal quantity) {
+    private SemiFinishedConsumption consumeSemiFinishedInventory(ProductionLog log,
+                                                                 BigDecimal quantity,
+                                                                 Long packingRecordId) {
         if (quantity.compareTo(BigDecimal.ZERO) <= 0) {
             return null;
         }
@@ -544,8 +611,8 @@ public class PackingService {
         InventoryMovement issue = new InventoryMovement();
         issue.setFinishedGood(semiFinished);
         issue.setFinishedGoodBatch(batch);
-        issue.setReferenceType(InventoryReference.PRODUCTION_LOG);
-        issue.setReferenceId(log.getProductionCode());
+        issue.setReferenceType(InventoryReference.PACKING_RECORD);
+        issue.setReferenceId(log.getProductionCode() + "-PACK-" + packingRecordId);
         issue.setMovementType("ISSUE");
         issue.setQuantity(quantity);
         issue.setUnitCost(batch.getUnitCost());
@@ -671,25 +738,49 @@ public class PackingService {
         }
         List<RawMaterialMovement> movements = rawMaterialMovementRepository
                 .findByRawMaterialCompanyAndReferenceTypeAndReferenceId(company, InventoryReference.PACKING_RECORD, referenceId);
-        if (movements.isEmpty()) {
-            return;
-        }
-        List<RawMaterialMovement> toUpdate = new ArrayList<>();
-        for (RawMaterialMovement movement : movements) {
-            Long existingJournalId = movement.getJournalEntryId();
-            if (existingJournalId == null) {
-                movement.setJournalEntryId(journalEntryId);
-                toUpdate.add(movement);
-                continue;
+        if (!movements.isEmpty()) {
+            List<RawMaterialMovement> toUpdate = new ArrayList<>();
+            for (RawMaterialMovement movement : movements) {
+                Long existingJournalId = movement.getJournalEntryId();
+                if (existingJournalId == null) {
+                    movement.setJournalEntryId(journalEntryId);
+                    toUpdate.add(movement);
+                    continue;
+                }
+                if (!Objects.equals(existingJournalId, journalEntryId)) {
+                    throw new ApplicationException(
+                            ErrorCode.BUSINESS_CONSTRAINT_VIOLATION,
+                            "Packing reference " + referenceId + " already linked to journal " + existingJournalId);
+                }
             }
-            if (!Objects.equals(existingJournalId, journalEntryId)) {
-                throw new ApplicationException(
-                        ErrorCode.BUSINESS_CONSTRAINT_VIOLATION,
-                        "Packing reference " + referenceId + " already linked to journal " + existingJournalId);
+            if (!toUpdate.isEmpty()) {
+                rawMaterialMovementRepository.saveAll(toUpdate);
             }
         }
-        if (!toUpdate.isEmpty()) {
-            rawMaterialMovementRepository.saveAll(toUpdate);
+
+        List<InventoryMovement> inventoryMovements = inventoryMovementRepository
+                .findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdOrderByCreatedAtAsc(
+                        company,
+                        InventoryReference.PACKING_RECORD,
+                        referenceId);
+        if (!inventoryMovements.isEmpty()) {
+            List<InventoryMovement> toUpdate = new ArrayList<>();
+            for (InventoryMovement movement : inventoryMovements) {
+                Long existingJournalId = movement.getJournalEntryId();
+                if (existingJournalId == null) {
+                    movement.setJournalEntryId(journalEntryId);
+                    toUpdate.add(movement);
+                    continue;
+                }
+                if (!Objects.equals(existingJournalId, journalEntryId)) {
+                    throw new ApplicationException(
+                            ErrorCode.BUSINESS_CONSTRAINT_VIOLATION,
+                            "Packing reference " + referenceId + " already linked to journal " + existingJournalId);
+                }
+            }
+            if (!toUpdate.isEmpty()) {
+                inventoryMovementRepository.saveAll(toUpdate);
+            }
         }
     }
 
@@ -758,38 +849,93 @@ public class PackingService {
         return finishedGoodRepository.save(created);
     }
 
-    private BigDecimal resolveQuantity(PackingLineRequest line, int lineNumber) {
+    private BigDecimal resolveQuantity(PackingLineRequest line,
+                                       SizeVariant sizeVariant,
+                                       String normalizedSize,
+                                       int piecesCount,
+                                       int lineNumber) {
         if (line.quantityLiters() != null && line.quantityLiters().compareTo(BigDecimal.ZERO) > 0) {
             return line.quantityLiters();
         }
-        BigDecimal pieces = resolvePieces(line);
-        if (pieces == null) {
-            throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput("Pieces or boxes must be provided for line " + lineNumber);
-        }
-        BigDecimal packSize = resolvePackageSize(line.packagingSize(), lineNumber);
-        return MoneyUtils.safeMultiply(packSize, pieces);
+        BigDecimal litersPerUnit = resolveLitersPerUnit(sizeVariant, normalizedSize, lineNumber);
+        return MoneyUtils.safeMultiply(litersPerUnit, BigDecimal.valueOf(piecesCount));
     }
 
-    private BigDecimal resolvePieces(PackingLineRequest line) {
-        if (line.piecesCount() != null && line.piecesCount() > 0) {
-            return BigDecimal.valueOf(line.piecesCount());
+    private String normalizePackagingSize(String size, int lineNumber) {
+        if (!StringUtils.hasText(size)) {
+            throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
+                    "Packaging size is required for line " + lineNumber);
         }
-        if (line.boxesCount() != null && line.boxesCount() > 0
-                && line.piecesPerBox() != null && line.piecesPerBox() > 0) {
-            return BigDecimal.valueOf(line.boxesCount().longValue() * line.piecesPerBox());
+        return size.trim().toUpperCase();
+    }
+
+    private Integer resolvePiecesPerBox(PackingLineRequest line, SizeVariant sizeVariant) {
+        if (line.piecesPerBox() != null && line.piecesPerBox() > 0) {
+            return line.piecesPerBox();
+        }
+        if (sizeVariant != null && sizeVariant.getCartonQuantity() != null && sizeVariant.getCartonQuantity() > 0) {
+            return sizeVariant.getCartonQuantity();
         }
         return null;
     }
 
-    private BigDecimal resolvePackageSize(String size, int lineNumber) {
-        if (!StringUtils.hasText(size)) {
-            throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput("Packaging size is required for line " + lineNumber);
+    private BigDecimal resolveLitersPerUnit(SizeVariant sizeVariant,
+                                            String normalizedSize,
+                                            int lineNumber) {
+        if (sizeVariant != null
+                && sizeVariant.getLitersPerUnit() != null
+                && sizeVariant.getLitersPerUnit().compareTo(BigDecimal.ZERO) > 0) {
+            return sizeVariant.getLitersPerUnit();
         }
-        BigDecimal parsed = PackagingSizeParser.parseSizeInLitersAllowBareNumber(size);
-        if (parsed == null) {
-            throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput("Invalid packaging size '" + size + "' on line " + lineNumber);
+        BigDecimal parsed = PackagingSizeParser.parseSizeInLitersAllowBareNumber(normalizedSize);
+        if (parsed == null || parsed.compareTo(BigDecimal.ZERO) <= 0) {
+            throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
+                    "Invalid packaging size '" + normalizedSize + "' on line " + lineNumber);
         }
         return parsed;
+    }
+
+    private SizeVariant resolveSizeVariant(Company company, ProductionLog log, String packagingSize) {
+        ProductionProduct product = log.getProduct();
+        SizeVariant existing = sizeVariantRepository
+                .findByCompanyAndProductAndSizeLabelIgnoreCase(company, product, packagingSize)
+                .orElse(null);
+        if (existing != null) {
+            if (!existing.isActive()) {
+                existing.setActive(true);
+                return sizeVariantRepository.save(existing);
+            }
+            return existing;
+        }
+        return createDefaultSizeVariant(company, product, packagingSize);
+    }
+
+    private SizeVariant createDefaultSizeVariant(Company company,
+                                                 ProductionProduct product,
+                                                 String packagingSize) {
+        SizeVariant variant = new SizeVariant();
+        variant.setCompany(company);
+        variant.setProduct(product);
+        variant.setSizeLabel(packagingSize);
+        variant.setCartonQuantity(1);
+        variant.setLitersPerUnit(resolveLitersFromSize(packagingSize));
+        variant.setActive(true);
+        return sizeVariantRepository.save(variant);
+    }
+
+    private BigDecimal resolveLitersFromSize(String packagingSize) {
+        BigDecimal parsed = PackagingSizeParser.parseSizeInLitersAllowBareNumber(packagingSize);
+        if (parsed == null || parsed.compareTo(BigDecimal.ZERO) <= 0) {
+            return BigDecimal.ONE;
+        }
+        return parsed;
+    }
+
+    private int resolveChildBatchCount(PackingLineRequest line, int piecesCount) {
+        if (line.childBatchCount() != null && line.childBatchCount() > 0) {
+            return line.childBatchCount();
+        }
+        return piecesCount;
     }
 
     private LocalDate resolveCurrentDate(Company company) {

@@ -15,6 +15,8 @@ import com.bigbrightpaints.erp.modules.factory.domain.PackingRequestRecordReposi
 import com.bigbrightpaints.erp.modules.factory.domain.ProductionLog;
 import com.bigbrightpaints.erp.modules.factory.domain.ProductionLogRepository;
 import com.bigbrightpaints.erp.modules.factory.domain.ProductionLogStatus;
+import com.bigbrightpaints.erp.modules.factory.domain.SizeVariant;
+import com.bigbrightpaints.erp.modules.factory.domain.SizeVariantRepository;
 import com.bigbrightpaints.erp.modules.factory.dto.PackingLineRequest;
 import com.bigbrightpaints.erp.modules.factory.dto.PackingRequest;
 import com.bigbrightpaints.erp.modules.factory.dto.PackagingConsumptionResult;
@@ -50,11 +52,11 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -93,6 +95,8 @@ class PackingServiceTest {
     private PackagingMaterialService packagingMaterialService;
     @Mock
     private FinishedGoodsService finishedGoodsService;
+    @Mock
+    private SizeVariantRepository sizeVariantRepository;
 
     private PackingService packingService;
     private Company company;
@@ -114,7 +118,8 @@ class PackingServiceTest {
                 companyClock,
                 companyEntityLookup,
                 packagingMaterialService,
-                finishedGoodsService
+                finishedGoodsService,
+                sizeVariantRepository
         );
         company = new Company();
         company.setTimezone("UTC");
@@ -288,7 +293,7 @@ class PackingServiceTest {
             ReflectionTestUtils.setField(movement, "id", 77L);
             return movement;
         });
-        when(packagingMaterialService.consumePackagingMaterial(anyString(), anyInt(), anyString()))
+        when(packagingMaterialService.consumePackagingMaterial(anyString(), anyInt(), anyString(), any(), any()))
                 .thenReturn(new PackagingConsumptionResult(false, BigDecimal.ZERO, BigDecimal.ZERO, Map.of(), null));
         when(productionLogRepository.incrementPackedQuantityAtomic(eq(1L), any())).thenReturn(1);
         when(productionLogRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
@@ -296,6 +301,17 @@ class PackingServiceTest {
                 .thenReturn(Optional.empty());
         when(packingRequestRecordRepository.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
         when(packingRequestRecordRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        SizeVariant sizeVariant = new SizeVariant();
+        ReflectionTestUtils.setField(sizeVariant, "id", 600L);
+        sizeVariant.setCompany(company);
+        sizeVariant.setProduct(product);
+        sizeVariant.setSizeLabel("500ML");
+        sizeVariant.setCartonQuantity(1);
+        sizeVariant.setLitersPerUnit(new BigDecimal("0.5000"));
+        sizeVariant.setActive(true);
+        when(sizeVariantRepository.findByCompanyAndProductAndSizeLabelIgnoreCase(company, product, "500ML"))
+                .thenReturn(Optional.of(sizeVariant));
+
         when(accountingFacade.postPackingJournal(anyString(), any(LocalDate.class), anyString(), any()))
                 .thenReturn(stubEntry(11L));
 
@@ -345,11 +361,12 @@ class PackingServiceTest {
         assertThat(packedQuantity.getValue()).isEqualByComparingTo("1.0");
 
         verify(accountingFacade, times(1)).postPackingJournal(
-                eq("PROD-001-PACK-77"),
+                eq("PROD-001-PACK-88"),
                 eq(LocalDate.of(2024, 1, 1)),
                 anyString(),
                 any()
         );
+        verify(inventoryMovementRepository, atLeast(2)).save(any(InventoryMovement.class));
     }
 
     @Test
@@ -385,7 +402,18 @@ class PackingServiceTest {
             ReflectionTestUtils.setField(record, "id", 88L);
             return record;
         });
-        when(packagingMaterialService.consumePackagingMaterial("500ML", 2, "PROD-001-PACK-88"))
+        SizeVariant sizeVariant = new SizeVariant();
+        ReflectionTestUtils.setField(sizeVariant, "id", 601L);
+        sizeVariant.setCompany(company);
+        sizeVariant.setProduct(product);
+        sizeVariant.setSizeLabel("500ML");
+        sizeVariant.setCartonQuantity(1);
+        sizeVariant.setLitersPerUnit(new BigDecimal("0.5000"));
+        sizeVariant.setActive(true);
+        when(sizeVariantRepository.findByCompanyAndProductAndSizeLabelIgnoreCase(company, product, "500ML"))
+                .thenReturn(Optional.of(sizeVariant));
+
+        when(packagingMaterialService.consumePackagingMaterial(eq("500ML"), eq(2), eq("PROD-001-PACK-88"), eq(sizeVariant), any()))
                 .thenReturn(new PackagingConsumptionResult(
                         true,
                         new BigDecimal("20.00"),
@@ -454,7 +482,7 @@ class PackingServiceTest {
         ProductionLogDetailDto result = packingService.recordPacking(request);
 
         assertThat(result.id()).isEqualTo(1L);
-        verify(packagingMaterialService, never()).consumePackagingMaterial(anyString(), anyInt(), anyString());
+        verify(packagingMaterialService, never()).consumePackagingMaterial(anyString(), anyInt(), anyString(), any(), any());
         verify(accountingFacade, never()).postPackingJournal(anyString(), any(LocalDate.class), anyString(), any());
         verify(packingRecordRepository, never()).save(any());
     }

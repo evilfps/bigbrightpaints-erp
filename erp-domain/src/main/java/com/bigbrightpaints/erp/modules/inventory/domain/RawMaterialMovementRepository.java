@@ -16,6 +16,8 @@ public interface RawMaterialMovementRepository extends JpaRepository<RawMaterial
     List<RawMaterialMovement> findByRawMaterialBatch(RawMaterialBatch batch);
     List<RawMaterialMovement> findByRawMaterialBatchOrderByCreatedAtAsc(RawMaterialBatch batch);
 
+    List<RawMaterialMovement> findByPackingRecordOrderByCreatedAtAsc(com.bigbrightpaints.erp.modules.factory.domain.PackingRecord packingRecord);
+
     @Query("""
             select m from RawMaterialMovement m
             join fetch m.rawMaterial rm

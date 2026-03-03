@@ -6,6 +6,9 @@ import java.util.UUID;
 
 public record ProductionLogPackingRecordDto(
         Long packingRecordId,
+        Long sizeVariantId,
+        String sizeVariantLabel,
+        Long childBatchCount,
         Long finishedGoodId,
         String finishedGoodCode,
         String finishedGoodName,
