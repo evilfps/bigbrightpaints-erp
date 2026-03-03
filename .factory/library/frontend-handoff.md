@@ -473,6 +473,7 @@ Comprehensive frontend handoff for `VAL-DOC-003` (chart of accounts, journals, s
 | `POST` | `/api/v1/accounting/journals/{entryId}/reverse` | `hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')` | `JournalEntryReversalRequest` | `JournalEntryDto` |
 | `GET` | `/api/v1/accounting/month-end/checklist` | `hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')` | `—` | `MonthEndChecklistDto` |
 | `POST` | `/api/v1/accounting/month-end/checklist/{periodId}` | `hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')` | `MonthEndChecklistUpdateRequest` | `MonthEndChecklistDto` |
+| `POST` | `/api/v1/accounting/opening-balances` | `hasAuthority('ROLE_ADMIN')` | `multipart/form-data` (`file`: CSV) | `OpeningBalanceImportResponse` |
 | `POST` | `/api/v1/accounting/payroll/payments` | `hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')` | `PayrollPaymentRequest` | `JournalEntryDto` |
 | `POST` | `/api/v1/accounting/payroll/payments/batch` | `hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')` | `PayrollBatchPaymentRequest` | `PayrollBatchPaymentResponse` |
 | `GET` | `/api/v1/accounting/periods` | `hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')` | `—` | `List<AccountingPeriodDto>` |
@@ -503,7 +504,7 @@ Comprehensive frontend handoff for `VAL-DOC-003` (chart of accounts, journals, s
 | `POST` | `/api/v1/accounting/suppliers/{supplierId}/auto-settle` | `hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')` | `AutoSettlementRequest` | `PartnerSettlementResponse` |
 | `GET` | `/api/v1/accounting/trial-balance/as-of` | `hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')` | `—` | `TemporalBalanceService.TrialBalanceSnapshot` |
 
-_Total documented accounting endpoints: **73**._
+_Total documented accounting endpoints: **74**._
 
 #### Required User Flows (API call sequences)
 
@@ -543,6 +544,12 @@ _Total documented accounting endpoints: **73**._
    1. Run tax return: `GET /api/v1/accounting/gst/return?period=YYYY-MM`
    2. Run component reconciliation: `GET /api/v1/accounting/gst/reconciliation?period=YYYY-MM`
    3. Optional diagnostics for audit period: `GET /api/v1/accounting/audit-trail`
+
+7. **Opening balance CSV bootstrap (migration/import flow)**
+   1. Collect opening-trial data in CSV with exact header order: `account_code,account_name,account_type,debit_amount,credit_amount,narration`
+   2. Upload CSV: `POST /api/v1/accounting/opening-balances` (`multipart/form-data`, field name `file`)
+   3. Handle response summary (`rowsProcessed`, `accountsCreated`, `errors[]`) and surface row-level errors inline for correction/retry
+   4. Treat identical file re-uploads as replay-safe: backend deduplicates by file hash idempotency key and returns same response payload
 
 #### State Machines
 
@@ -841,6 +848,11 @@ _Total documented accounting endpoints: **73**._
   - `memo`: `String` — validation `—`
   - `idempotencyKey`: `String` — validation `—`
   - `allocations`: `List<SettlementAllocationRequest>` — validation `@NotEmpty(message = "Allocations are required for supplier payments; use settlement endpoints or include allocations"); @Valid`
+- **`multipart/form-data` (`POST /api/v1/accounting/opening-balances`)**
+  - `file`: `MultipartFile` — required CSV upload part (`text/csv` recommended, accepted as multipart binary)
+  - CSV required headers: `account_code,account_name,account_type,debit_amount,credit_amount,narration`
+  - `account_type` enum domain: `ASSET | LIABILITY | EQUITY | REVENUE | EXPENSE`
+  - Row validations: either debit or credit must be positive (not both/non-zero, not both zero), `account_code` required, `account_name` required for auto-created accounts
 
 #### Response DTO Contracts (all endpoint `data` types)
 
@@ -1275,6 +1287,12 @@ _Total documented accounting endpoints: **73**._
   - `entries`: `List<TrialBalanceEntry>`
   - `totalDebits`: `BigDecimal`
   - `totalCredits`: `BigDecimal`
+- **`OpeningBalanceImportResponse`**
+  - `rowsProcessed`: `int` (count of rows successfully mapped into journal lines)
+  - `accountsCreated`: `int` (new accounts auto-created from CSV rows)
+  - `errors`: `List<ImportError>`
+    - `rowNumber`: `long` (`0` used for file-level errors like debit/credit imbalance)
+    - `message`: `String` (row-level validation or mapping failure; import continues for other rows)
 
 #### UI Hints (accounting screens)
 
@@ -1293,6 +1311,12 @@ _Total documented accounting endpoints: **73**._
   - Period close requires checklist controls satisfied unless `force=true` is explicitly used
 - **Idempotency**
   - For mutation endpoints supporting replay protection, send `Idempotency-Key` (preferred). Legacy `X-Idempotency-Key` is accepted; mismatches are rejected.
+  - Opening balance import uses file-content hash idempotency internally; frontend does **not** need to send idempotency header, but should preserve identical file bytes when expecting replay behavior.
+- **Opening balance import UX**
+  - Restrict action to admin role surfaces only; accounting-role users receive `403`.
+  - Show downloadable CSV template with exact headers/order to reduce row errors.
+  - Render `errors[]` as row-level table (row number + message) while still showing partial success counters.
+  - After successful import with `rowsProcessed > 0` and empty `errors`, refresh journal list filtered by `sourceModule=OPENING_BALANCE` and recent date.
 
 ### Product Catalog & Inventory
 
