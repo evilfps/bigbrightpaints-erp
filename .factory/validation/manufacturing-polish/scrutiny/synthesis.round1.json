@@ -1,0 +1,59 @@
+{
+  "milestone": "manufacturing-polish",
+  "round": 1,
+  "status": "fail",
+  "validatorsRun": {
+    "test": {
+      "passed": true,
+      "command": "cd erp-domain && mvn test -Pgate-fast -Djacoco.skip=true",
+      "exitCode": 0
+    },
+    "typecheck": {
+      "passed": true,
+      "command": "cd erp-domain && mvn compile -q",
+      "exitCode": 0
+    },
+    "lint": {
+      "passed": true,
+      "command": "echo \"Checkstyle in advisory mode (49962 pre-existing violations). Skipped as hard gate.\"",
+      "exitCode": 0
+    }
+  },
+  "reviewsSummary": {
+    "total": 1,
+    "passed": 0,
+    "failed": 1,
+    "failedFeatures": [
+      "manufacturing-packaging-flow-redesign"
+    ]
+  },
+  "blockingIssues": [
+    {
+      "featureId": "manufacturing-packaging-flow-redesign",
+      "severity": "blocking",
+      "description": "BulkPackingService (788 lines) still exists with overlapping packing logic, so the required consolidation with PackingService into one clear service was not completed; expected behavior 'No duplicate packing services' remains unmet."
+    }
+  ],
+  "appliedUpdates": [],
+  "suggestedGuidanceUpdates": [
+    {
+      "target": "skills/backend-worker",
+      "suggestion": "Clarify mission context discovery in startup steps by listing canonical mission file locations and a fallback workflow when mission.md/AGENTS.md/features.json are not present at expected repo-relative paths.",
+      "evidence": "Reviewer noted a recurring worker deviation around mission file path discovery, with explicit skillFeedback showing lost time locating mission context artifacts before implementation/review work.",
+      "isSystemic": true
+    },
+    {
+      "target": "AGENTS.md",
+      "suggestion": "Resolve the journal-routing rule ambiguity by either allowing documented specialized AccountingFacade methods (such as postPackingJournal) or requiring explicit migration to createStandardJournal for all posting flows.",
+      "evidence": "Manufacturing review found mixed posting paths in PackingService (postPackingJournal and createStandardJournal) while AGENTS.md currently states all journal creation must go through createStandardJournal.",
+      "isSystemic": true
+    }
+  ],
+  "rejectedObservations": [
+    {
+      "observation": "Add a 'known tech debt' exception in AGENTS.md for service classes over 500 lines in this area.",
+      "reason": "already-documented (AGENTS.md already contains the ~500-line rule; this milestone correctly treats current size violations as implementation defects rather than guidance gaps)."
+    }
+  ],
+  "previousRound": null
+}

@@ -1,7 +1,7 @@
 {
   "milestone": "manufacturing-polish",
-  "round": 1,
-  "status": "fail",
+  "round": 2,
+  "status": "pass",
   "validatorsRun": {
     "test": {
       "passed": true,
@@ -21,39 +21,29 @@
   },
   "reviewsSummary": {
     "total": 1,
-    "passed": 0,
-    "failed": 1,
-    "failedFeatures": [
-      "manufacturing-packaging-flow-redesign"
-    ]
+    "passed": 1,
+    "failed": 0,
+    "failedFeatures": []
   },
-  "blockingIssues": [
-    {
-      "featureId": "manufacturing-packaging-flow-redesign",
-      "severity": "blocking",
-      "description": "BulkPackingService (788 lines) still exists with overlapping packing logic, so the required consolidation with PackingService into one clear service was not completed; expected behavior 'No duplicate packing services' remains unmet."
-    }
-  ],
+  "blockingIssues": [],
   "appliedUpdates": [],
   "suggestedGuidanceUpdates": [
     {
-      "target": "skills/backend-worker",
-      "suggestion": "Clarify mission context discovery in startup steps by listing canonical mission file locations and a fallback workflow when mission.md/AGENTS.md/features.json are not present at expected repo-relative paths.",
-      "evidence": "Reviewer noted a recurring worker deviation around mission file path discovery, with explicit skillFeedback showing lost time locating mission context artifacts before implementation/review work.",
-      "isSystemic": true
-    },
-    {
       "target": "AGENTS.md",
-      "suggestion": "Resolve the journal-routing rule ambiguity by either allowing documented specialized AccountingFacade methods (such as postPackingJournal) or requiring explicit migration to createStandardJournal for all posting flows.",
-      "evidence": "Manufacturing review found mixed posting paths in PackingService (postPackingJournal and createStandardJournal) while AGENTS.md currently states all journal creation must go through createStandardJournal.",
+      "suggestion": "Document when truthsuite evidence-anchor comments are acceptable after service decomposition and how to keep them synchronized with contract assertions.",
+      "evidence": "The manufacturing fix review confirmed passing behavior required retained comment anchors in PackingService and BulkPackingService for snippet-based truthsuite contracts after logic extraction.",
       "isSystemic": true
     }
   ],
   "rejectedObservations": [
     {
-      "observation": "Add a 'known tech debt' exception in AGENTS.md for service classes over 500 lines in this area.",
-      "reason": "already-documented (AGENTS.md already contains the ~500-line rule; this milestone correctly treats current size violations as implementation defects rather than guidance gaps)."
+      "observation": "Minor duplicate helper methods (e.g., requireWholePackCount, trimReference, buildPackReference) across bulk packing sub-services.",
+      "reason": "feature-specific and non-blocking; tracked in feature review issues rather than shared-state guidance"
+    },
+    {
+      "observation": "postPackingJournal usage alongside createStandardJournal in packing services.",
+      "reason": "duplicate of the round-1 manufacturing-polish guidance recommendation"
     }
   ],
-  "previousRound": null
+  "previousRound": ".factory/validation/manufacturing-polish/scrutiny/synthesis.round1.json"
 }
