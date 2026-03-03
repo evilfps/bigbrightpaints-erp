@@ -1,0 +1,21 @@
+{
+  "milestone": "data-migration",
+  "round": 1,
+  "status": "pass",
+  "assertionsSummary": {
+    "total": 4,
+    "passed": 4,
+    "failed": 0,
+    "blocked": 0
+  },
+  "passedAssertions": [
+    "VAL-MIG-001",
+    "VAL-MIG-002",
+    "VAL-MIG-003",
+    "VAL-MIG-004"
+  ],
+  "failedAssertions": [],
+  "blockedAssertions": [],
+  "appliedUpdates": [],
+  "previousRound": null
+}

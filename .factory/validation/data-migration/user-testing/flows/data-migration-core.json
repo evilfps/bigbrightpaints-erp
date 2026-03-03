@@ -1,0 +1,219 @@
+{
+  "groupId": "data-migration-core",
+  "testedAt": "2026-03-03T09:20:00Z",
+  "credentials": {
+    "account": "ut-dmig-a@example.com",
+    "namespace": "ut_dmig_a"
+  },
+  "toolsUsed": ["mvn test (surefire)", "curl (file existence check)"],
+  "assertions": [
+    {
+      "id": "VAL-MIG-001",
+      "title": "Opening balance CSV import",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Run OpeningBalanceImportServiceTest (6 tests)",
+          "expected": "All 6 tests pass covering: balanced CSV journal creation, unbalanced rejection, row-level error reporting with auto-create, idempotency replay by file hash, account type mismatch rejection, empty file rejection",
+          "observed": "Tests run: 6, Failures: 0, Errors: 0, Skipped: 0 (0.901s)"
+        },
+        {
+          "action": "Run OpeningBalanceImportControllerTest (1 test)",
+          "expected": "Controller delegates to service correctly",
+          "observed": "Tests run: 1, Failures: 0, Errors: 0, Skipped: 0"
+        },
+        {
+          "action": "Run OpeningBalanceImportControllerSecurityIT (2 tests)",
+          "expected": "Admin-only access enforced; non-admin roles rejected",
+          "observed": "Tests run: 2, Failures: 0, Errors: 0, Skipped: 0 (12.53s). Logs show 'Access denied' for non-admin role opening-bal-accounting@bbp.com on POST /api/v1/accounting/opening-balances"
+        },
+        {
+          "action": "Verify test covers balanced journal creation via AccountingFacade.createStandardJournal",
+          "expected": "JournalCreationRequest captured with sourceModule=OPENING_BALANCE, balanced debit/credit lines, correct account IDs",
+          "observed": "importOpeningBalances_balancedCsvCreatesJournalAndAudit asserts: request.sourceModule()==OPENING_BALANCE, request.amount()==100.00, 2 lines (debit=100 on BANK-001, credit=100 on CAP-001), audit logged"
+        },
+        {
+          "action": "Verify idempotency via file hash",
+          "expected": "Re-import of identical file bytes replays stored result without re-posting journal",
+          "observed": "importOpeningBalances_replaysPersistedImportByFileHash asserts: replay returns stored rowsProcessed=7, accountsCreated=2, errors from DB; verify(accountingFacade, never()).createStandardJournal()"
+        },
+        {
+          "action": "Verify unbalanced rejection",
+          "expected": "Unbalanced totals produce error without journal posting",
+          "observed": "importOpeningBalances_unbalancedTotalsRecordedAsRowErrorWithoutJournalPosting asserts: errors contain 'Import totals are unbalanced', verify(accountingFacade, never()).createStandardJournal()"
+        }
+      ],
+      "evidence": {
+        "testCommand": "cd erp-domain && mvn test -Djacoco.skip=true -Dtest='OpeningBalanceImportServiceTest,OpeningBalanceImportControllerTest,OpeningBalanceImportControllerSecurityIT'",
+        "testResult": "Tests run: 9, Failures: 0, Errors: 0, Skipped: 0",
+        "codeRefs": [
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/service/OpeningBalanceImportServiceTest.java (6 tests)",
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/controller/OpeningBalanceImportControllerTest.java (1 test)",
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/controller/OpeningBalanceImportControllerSecurityIT.java (2 tests)",
+          "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/OpeningBalanceImportService.java",
+          "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/controller/OpeningBalanceImportController.java"
+        ],
+        "consoleErrors": "none"
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-MIG-002",
+      "title": "Opening stock import enhanced",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Run OpeningStockImportServiceTest (5 tests)",
+          "expected": "All 5 tests pass covering: mixed RM+FG rows, duplicate SKU detection, idempotency replay, payload mismatch rejection, import history listing",
+          "observed": "Tests run: 5, Failures: 0, Errors: 0, Skipped: 0 (1.038s)"
+        },
+        {
+          "action": "Run OpeningStockImportControllerTest (3 tests)",
+          "expected": "Controller handles multipart upload, idempotency-key headers, and header mismatch errors",
+          "observed": "Tests run: 3, Failures: 0, Errors: 0, Skipped: 0. Log shows 'Idempotency header mismatch detected' test case passed."
+        },
+        {
+          "action": "Run OpeningStockPostingRegressionIT (1 integration test)",
+          "expected": "End-to-end opening stock import posts inventory adjustment journal via AccountingFacade",
+          "observed": "Tests run: 1, Failures: 0, Errors: 0, Skipped: 0 (10.77s). Log shows 'Posting inventory adjustment journal: reference=OPEN-STOCK-LF021-4faba1ebc4bf, type=OPENING_STOCK, amount=112.50, increase=true'"
+        },
+        {
+          "action": "Verify mixed RM + FG processing with batch creation and journal posting",
+          "expected": "Both raw material and finished good rows processed, batches created, inventory movements recorded, journal posted via accountingFacade.postInventoryAdjustment",
+          "observed": "importOpeningStock_processesMixedRawMaterialAndFinishedGoodRows asserts: rowsProcessed=2, rmBatchesCreated=1, fgBatchesCreated=1, errors empty; captured inventory lines map contains RM account(11L)=50.00 and FG account(33L)=48.00"
+        },
+        {
+          "action": "Verify duplicate SKU row-level error reporting without failing entire import",
+          "expected": "First occurrence processes, duplicate row reported as error, import continues",
+          "observed": "importOpeningStock_duplicateSkuInCsvAddsRowErrorAndSkipsDuplicateMutation asserts: rowsProcessed=1, errors.size()=1, error at row 2 says 'Duplicate SKU in import file: RM-1 (first seen at row 1)'"
+        },
+        {
+          "action": "Verify idempotency replay returns stored result without re-processing",
+          "expected": "Same idempotency key + matching file hash replays stored result",
+          "observed": "importOpeningStock_replaysPersistedImportForSameIdempotencyHash asserts replay returns stored counts, verify(accountingFacade, never()).postInventoryAdjustment()"
+        },
+        {
+          "action": "Verify payload mismatch rejection for same idempotency key",
+          "expected": "CONCURRENCY_CONFLICT ApplicationException thrown",
+          "observed": "importOpeningStock_rejectsIdempotencyReplayWhenPayloadDiffers asserts: ErrorCode.CONCURRENCY_CONFLICT, message='Idempotency key already used with different payload'"
+        }
+      ],
+      "evidence": {
+        "testCommand": "cd erp-domain && mvn test -Djacoco.skip=true -Dtest='OpeningStockImportServiceTest,OpeningStockImportControllerTest,OpeningStockPostingRegressionIT'",
+        "testResult": "Tests run: 9, Failures: 0, Errors: 0, Skipped: 0",
+        "codeRefs": [
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/inventory/service/OpeningStockImportServiceTest.java (5 tests)",
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/inventory/controller/OpeningStockImportControllerTest.java (3 tests)",
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/regression/OpeningStockPostingRegressionIT.java (1 integration test)",
+          "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/service/OpeningStockImportService.java",
+          "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/controller/OpeningStockImportController.java"
+        ],
+        "consoleErrors": "none"
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-MIG-003",
+      "title": "Tally XML import adapter",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Run TallyImportServiceTest (4 tests)",
+          "expected": "All 4 tests pass covering: ledger parsing + opening voucher processing + unmapped group reporting, idempotency replay, payload mismatch rejection, unmapped opening voucher ledger collection",
+          "observed": "Tests run: 4, Failures: 0, Errors: 0, Skipped: 0 (0.825s)"
+        },
+        {
+          "action": "Run TallyImportControllerTest (1 test)",
+          "expected": "Controller delegates to service correctly",
+          "observed": "Tests run: 1, Failures: 0, Errors: 0, Skipped: 0"
+        },
+        {
+          "action": "Run TallyImportControllerSecurityIT (2 tests)",
+          "expected": "Admin-only access enforced; non-admin roles rejected",
+          "observed": "Tests run: 2, Failures: 0, Errors: 0, Skipped: 0. Log shows 'Access denied' for tally-accounting@bbp.com on POST /api/v1/migration/tally-import"
+        },
+        {
+          "action": "Verify Tally XML parsing: ledgers with group mapping and opening voucher entries",
+          "expected": "3 ledgers parsed (2 mapped via Sundry Debtors/Creditors, 1 unmapped via Mystery Group); 2 opening voucher entries delegated to OpeningBalanceImportService.importFromParsedRows; unmappedGroups=['Mystery Group']",
+          "observed": "importTallyXml_parsesLedgersAndOpeningVoucherRows_andReportsUnmappedGroups asserts: ledgersProcessed=3, mappedLedgers=2, openingVoucherEntriesProcessed=2, openingBalanceRowsProcessed=2, unmappedGroups=['Mystery Group'], errors empty; parsed rows contain accountCodes CUSTOMER-A and SUPPLIER-B"
+        },
+        {
+          "action": "Verify idempotency replay by file SHA-256 hash",
+          "expected": "Re-upload of identical XML returns stored result without re-processing",
+          "observed": "importTallyXml_replaysByFileHashWithoutReprocessing asserts: replay returns stored ledgersProcessed=4, mappedLedgers=3, accountsCreated=1; verify(openingBalanceImportService, never()).importFromParsedRows()"
+        },
+        {
+          "action": "Verify unmapped opening voucher ledger is collected as unmappedItem",
+          "expected": "Voucher line referencing un-resolved ledger appears in unmappedItems with error context",
+          "observed": "importTallyXml_collectsUnmappedOpeningVoucherLedgerAsUnmappedItem asserts: unmappedItems contains 'Unmapped Voucher', errors context contains 'opening-row:Unmapped Voucher'"
+        }
+      ],
+      "evidence": {
+        "testCommand": "cd erp-domain && mvn test -Djacoco.skip=true -Dtest='TallyImportServiceTest,TallyImportControllerTest,TallyImportControllerSecurityIT'",
+        "testResult": "Tests run: 7, Failures: 0, Errors: 0, Skipped: 0",
+        "codeRefs": [
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/service/TallyImportServiceTest.java (4 tests)",
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/controller/TallyImportControllerTest.java (1 test)",
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/controller/TallyImportControllerSecurityIT.java (2 tests)",
+          "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/TallyImportService.java",
+          "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/controller/TallyImportController.java"
+        ],
+        "consoleErrors": "none"
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-MIG-004",
+      "title": "Migration guide documentation",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Verify migration guide file exists at docs/migration-guide.md",
+          "expected": "File exists with comprehensive content",
+          "observed": "File exists at /home/realnigga/Desktop/Mission-control/docs/migration-guide.md"
+        },
+        {
+          "action": "Verify CSV template formats section with example rows",
+          "expected": "Opening balance CSV template with headers, field rules, and example rows; Opening stock CSV template with headers, field rules, and example rows",
+          "observed": "Section 1.1 documents Opening Balance CSV (POST /api/v1/accounting/opening-balances) with required header row, field-by-field rules table, row validation rules, file-level validation, and a 4-row balanced example. Section 1.2 documents Opening Stock CSV (POST /api/v1/inventory/opening-stock) with recommended header, accepted column aliases, field rules, and a 3-row example with RAW_MATERIAL and FINISHED_GOOD rows."
+        },
+        {
+          "action": "Verify Tally export steps documented",
+          "expected": "Step-by-step instructions for exporting from Tally Prime and uploading to ERP",
+          "observed": "Section 2 covers: 2.1 Prepare company period in Tally Prime (Alt+F2), 2.2 Export ledger masters as XML (Alt+E, Format=XML), 2.3 Export opening vouchers as XML, 2.4 Upload into BigBright ERP with curl example. Also includes Tally group to ERP AccountType mapping table (25 group mappings)."
+        },
+        {
+          "action": "Verify field mapping rules documented",
+          "expected": "Tally group to ERP account type mapping table",
+          "observed": "Section 3 provides complete mapping reference with 25 Tally groups (SUNDRY DEBTORS -> ASSET, SUNDRY CREDITORS -> LIABILITY, BANK ACCOUNTS -> ASSET, etc.) and unmapped group handling instructions."
+        },
+        {
+          "action": "Verify error handling guide documented",
+          "expected": "Error patterns, meanings, and fix instructions for all three import types",
+          "observed": "Section 4 covers: 4.1 Opening balance CSV errors (10 error patterns), 4.2 Opening stock CSV errors (10 error patterns), 4.3 Tally XML import errors (6 response field/error patterns), 4.4 Partial success behavior (row-level failures, valid row processing, idempotency)."
+        },
+        {
+          "action": "Verify step-by-step onboarding workflow",
+          "expected": "End-to-end migration workflow from company creation to go-live",
+          "observed": "Section 5 provides 6 steps: Step 1 Create tenant/company with CoA template (with JSON example), Step 2 Import opening balances, Step 3 Import opening stock, Step 4 Import from Tally XML (optional), Step 5 Verify trial balance, Step 6 Go-live checklist with 7 verification items."
+        }
+      ],
+      "evidence": {
+        "filePath": "docs/migration-guide.md",
+        "fileExists": true,
+        "sections": [
+          "1) CSV Template Formats (with Example Rows) - 1.1 Opening Balance CSV, 1.2 Opening Stock CSV",
+          "2) Tally Prime Export Instructions (for XML import) - 2.1-2.4 export and upload steps",
+          "3) Tally Group → ERP Account Type Mapping Reference - 25 group mappings",
+          "4) Error Handling Guide - 4.1 Balance errors, 4.2 Stock errors, 4.3 Tally errors, 4.4 Partial success",
+          "5) Step-by-Step Onboarding Workflow - 6 steps from tenant creation to go-live"
+        ],
+        "consoleErrors": "none"
+      },
+      "issues": null
+    }
+  ],
+  "frictions": [],
+  "blockers": [],
+  "summary": "Tested 4 assertions: 4 passed, 0 failed, 0 blocked. VAL-MIG-001 validated via 9 tests (OpeningBalanceImportServiceTest 6/6, controller+security 3/3) confirming balanced CSV journal creation, unbalanced rejection, idempotency, and admin-only access. VAL-MIG-002 validated via 9 tests (OpeningStockImportServiceTest 5/5, controller 3/3, OpeningStockPostingRegressionIT 1/1) confirming mixed RM+FG processing, batch creation, journal posting, duplicate SKU handling, and idempotency. VAL-MIG-003 validated via 7 tests (TallyImportServiceTest 4/4, controller+security 3/3) confirming Tally XML parsing, ledger-to-account mapping, unmapped group/item reporting, and idempotency. VAL-MIG-004 validated via file existence and content review of docs/migration-guide.md covering all required sections: CSV templates with examples, Tally export instructions, field mapping rules, error handling, and onboarding workflow."
+}
