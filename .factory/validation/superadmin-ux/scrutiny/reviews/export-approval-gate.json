@@ -1,0 +1,56 @@
+{
+  "featureId": "export-approval-gate",
+  "reviewedAt": "2026-03-04T03:15:00.000Z",
+  "commitId": "dbb23fadfd823b3371b05961f7395943b21e94de",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "Solid end-to-end implementation of the export approval gate feature. All 7 required deliverables are present: ExportRequest entity with correct fields, POST /api/v1/exports/request, GET /api/v1/admin/exports/pending, PUT approve/reject endpoints, GET download with gate check, backward-compatible bypass when approval disabled, and V39 Flyway migration. Service is well-structured at 234 lines with proper company scoping, actor validation, ApplicationException error handling, and status transition guards. Tests cover happy path, error cases, and gate bypass (7 unit + 3 integration). Frontend handoff documentation is thorough with endpoint map, user flows, state machine, error codes, data contracts, and UI hints. AdminApprovalsResponse integration and runtime settings toggle are correctly wired.",
+    "issues": [
+      {
+        "file": "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/reports/controller/ReportController.java",
+        "line": 192,
+        "severity": "non_blocking",
+        "description": "Missing @Valid annotation on @RequestBody ExportRequestCreateRequest in requestExport(). The DTO declares @NotBlank on reportType, but without @Valid, Jakarta Bean Validation won't trigger at the controller level. The service covers this via ValidationUtils.requireNotBlank(), so it's functionally safe, but inconsistent with the project convention of '@Valid + Jakarta Bean Validation' stated in AGENTS.md."
+      },
+      {
+        "file": "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/admin/controller/AdminSettingsController.java",
+        "line": 87,
+        "severity": "non_blocking",
+        "description": "@Transactional(readOnly = true) on the controller method pendingExportRequests() violates the AGENTS.md convention 'Use @Transactional at service level. Never in controllers.' The service method listPending() already has @Transactional(readOnly = true), making the controller annotation redundant."
+      },
+      {
+        "file": "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/admin/service/ExportApprovalService.java",
+        "line": 96,
+        "severity": "non_blocking",
+        "description": "The reject() method sets approvedBy and approvedAt fields even for rejections. While useful for audit (tracks who decided and when), the field names are semantically misleading for a rejection action. Consider renaming to decidedBy/decidedAt in a future cleanup if the entity evolves, or add a code comment clarifying intent."
+      },
+      {
+        "file": "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/admin/service/ExportApprovalService.java",
+        "line": 104,
+        "severity": "non_blocking",
+        "description": "resolveDownload() does not verify the requesting user is the owner of the export request. Any authenticated user in the same company with ROLE_ADMIN or ROLE_ACCOUNTING can download another user's approved export. This may be acceptable for the current use case (admins should see all exports), but worth noting for future access-control hardening."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "conventions",
+      "observation": "Worker placed @Transactional(readOnly = true) on AdminSettingsController.pendingExportRequests() despite AGENTS.md stating 'Use @Transactional at service level. Never in controllers.' The service already has the annotation. This suggests the convention could be reinforced with an explicit note about redundant annotations when the service layer already declares them.",
+      "evidence": "AdminSettingsController.java:87 has @Transactional(readOnly = true) but ExportApprovalService.listPending() at line 68 already declares @Transactional(readOnly = true)"
+    },
+    {
+      "area": "conventions",
+      "observation": "Worker omitted @Valid on @RequestBody in ReportController.requestExport() but the DTO uses Jakarta Bean Validation annotations. The convention says 'Validate with @Valid + Jakarta Bean Validation' but some existing controller endpoints may also skip @Valid, indicating the convention is not uniformly enforced.",
+      "evidence": "ReportController.java:192 — @RequestBody without @Valid, ExportRequestCreateRequest.java uses @NotBlank on reportType"
+    },
+    {
+      "area": "skills",
+      "observation": "Worker's skillFeedback.suggestedChanges notes that worker-base startup expects AGENTS/mission/features/validation files in standard paths and suggests adding fallback discovery behavior. This aligns with the feature's clean execution despite the note.",
+      "evidence": "Handoff skillFeedback.suggestedChanges: 'worker-base startup expects AGENTS/mission/features/validation files in standard paths; this repo does not currently expose them at expected locations'"
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "PASS. The export approval gate feature is correctly implemented with all 7 required deliverables: entity, request/approve/reject/download endpoints, migration, runtime toggle, and backward compatibility. 24 files changed with +1124/-19 lines. Tests are comprehensive (7 unit + 3 integration, gate-fast 380/380 pass). Frontend handoff is thorough. Four non-blocking issues noted: missing @Valid on controller request body, redundant @Transactional on controller, semantically misleading field names on rejection, and no owner-check on download. None affect correctness or safety."
+}

@@ -1,0 +1,91 @@
+{
+  "milestone": "superadmin-ux",
+  "round": 1,
+  "status": "pass",
+  "validatorsRun": {
+    "test": {
+      "passed": true,
+      "command": "cd erp-domain && mvn test -Pgate-fast -Djacoco.skip=true",
+      "exitCode": 0
+    },
+    "typecheck": {
+      "passed": true,
+      "command": "cd erp-domain && mvn compile -q",
+      "exitCode": 0
+    },
+    "lint": {
+      "passed": true,
+      "command": "echo \"Checkstyle in advisory mode (49962 pre-existing violations). Skipped as hard gate.\"",
+      "exitCode": 0
+    }
+  },
+  "reviewsSummary": {
+    "total": 4,
+    "passed": 4,
+    "failed": 0,
+    "failedFeatures": []
+  },
+  "blockingIssues": [],
+  "appliedUpdates": [],
+  "suggestedGuidanceUpdates": [
+    {
+      "target": "AGENTS.md",
+      "suggestion": "Expand the N+1 guidance beyond repository query methods to explicitly cover service-layer loops that repeatedly load broad datasets (e.g., per-row lookups in list endpoints), and recommend batch prefetch/join strategies for admin listing APIs.",
+      "evidence": "admin-password-reset-and-user-management and support-ticket-github-integration reviews both identified service-layer N+1 patterns in list paths (login audit enrichment and per-ticket user resolution).",
+      "isSystemic": true
+    },
+    {
+      "target": "AGENTS.md",
+      "suggestion": "Clarify canonical password reset storage: PasswordResetToken should be the single mechanism, and legacy inline resetToken/resetExpiry fields on UserAccount should be treated as deprecated and not used by new/updated flows.",
+      "evidence": "admin-password-reset-and-user-management review found unified endpoint uses PasswordResetToken, while AuthService.forgotPassword still writes legacy inline resetToken/resetExpiry fields.",
+      "isSystemic": false
+    },
+    {
+      "target": "AGENTS.md",
+      "suggestion": "Document a clear exception policy for company_id conventions: global/platform-level tables (e.g., public changelog) may omit company_id when intentionally cross-tenant, with a brief justification in migration/entity comments.",
+      "evidence": "changelog-system review flagged convention ambiguity: changelog_entries intentionally global but AGENTS currently states all business tables must include company_id.",
+      "isSystemic": true
+    },
+    {
+      "target": "AGENTS.md",
+      "suggestion": "Reinforce controller conventions with explicit checks: request DTOs should use @Valid where Bean Validation annotations are present, and @Transactional should stay at service layer unless there is a documented exception.",
+      "evidence": "export-approval-gate review found a request DTO with Bean Validation constraints not annotated with @Valid in controller and redundant @Transactional on controller method.",
+      "isSystemic": true
+    },
+    {
+      "target": "skills/backend-worker",
+      "suggestion": "Add explicit fallback guidance for non-ideal worker environments: mission file discovery when standard paths are missing, and branch-recovery procedure when inheriting partially modified working state so TDD and startup steps remain auditable.",
+      "evidence": "Multiple superadmin-ux feature handoffs reported deviations due to missing mission context file paths and inherited in-flight branch state; workers requested procedure clarifications in skill feedback.",
+      "isSystemic": true
+    },
+    {
+      "target": "AGENTS.md",
+      "suggestion": "For GitHub-integrated features, add a checklist item to verify category-to-label mapping and note practical API polling limits/rate-budget expectations when schedulers are introduced.",
+      "evidence": "support-ticket-github-integration review found missing labels in issue creation payload and highlighted recurring-rate polling behavior that should be intentionally documented.",
+      "isSystemic": false
+    }
+  ],
+  "rejectedObservations": [
+    {
+      "observation": "Changelog admin entities not using Lombok",
+      "reason": "already-documented (current AGENTS convention explicitly allows non-Lombok classes and this implementation is consistent with existing admin domain entities)"
+    },
+    {
+      "observation": "Export approval uses approvedBy/approvedAt fields for rejection decisions",
+      "reason": "feature-specific naming nuance; non-blocking and not broad enough for shared-state guidance"
+    },
+    {
+      "observation": "Support ticket list endpoint lacks pagination",
+      "reason": "product-scope decision; no milestone-wide convention currently requiring pagination on every admin listing endpoint"
+    },
+    {
+      "observation": "Support ticket sync scheduler uses cron instead of fixedDelay",
+      "reason": "implementation-level divergence with limited practical impact and not a shared-state documentation gap by itself"
+    },
+    {
+      "observation": "Missing unique constraints on version_label/public_id",
+      "reason": "ambiguous policy preference; no established global rule requiring uniqueness for these specific fields"
+    }
+  ],
+  "previousRound": null
+}

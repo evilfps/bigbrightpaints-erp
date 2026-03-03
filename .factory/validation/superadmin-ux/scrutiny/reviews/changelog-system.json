@@ -1,0 +1,45 @@
+{
+  "featureId": "changelog-system",
+  "reviewedAt": "2026-03-04T05:12:00.000Z",
+  "commitId": "1b3fd77188615f7cdd1aef2d8deb801a2886f5c5",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "Solid, complete implementation of the versioned changelog system. All six required capabilities are present: ChangelogEntry entity with Flyway migration, admin POST/PUT/DELETE endpoints gated by ROLE_ADMIN/ROLE_SUPER_ADMIN, public paginated listing, latest-highlighted endpoint, soft-delete, and audit logging. The controller is thin, service uses @Transactional correctly, DTOs are clean Java records with proper Bean Validation (including semver regex), and SecurityConfig correctly permits public changelog routes. Tests are comprehensive: 4 unit tests (ChangelogServiceTest), 5 integration tests (ChangelogControllerSecurityIT), and 3 runtime-critical coverage tests. Frontend handoff documentation was properly updated with endpoint maps, user flows, state machine, error codes, data contracts, and UI hints. OpenAPI snapshot was refreshed and verified. Gate-fast passes (383 tests).",
+    "issues": [
+      {
+        "file": "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/admin/service/ChangelogService.java",
+        "line": 131,
+        "severity": "non_blocking",
+        "description": "Confusing proxy condition in applyRequest: `StringUtils.hasText(entry.getCreatedBy())` is used to distinguish create vs update flow for resetting publishedAt. This works because create() sets createdBy AFTER applyRequest, but the coupling is fragile—if the create method order changes, publishedAt behavior silently breaks. A more explicit approach (boolean parameter, or checking entry.getId() != null) would improve readability and safety."
+      },
+      {
+        "file": "erp-domain/src/main/resources/db/migration_v2/V40__changelog_entries.sql",
+        "line": 3,
+        "severity": "non_blocking",
+        "description": "No uniqueness constraint on version_label. Multiple changelog entries can share the same semver version string. While this may be intentional (allowing multiple entries per release), it could lead to data quality issues. Consider adding a unique index or documenting the rationale for allowing duplicates."
+      },
+      {
+        "file": "erp-domain/src/main/resources/db/migration_v2/V40__changelog_entries.sql",
+        "line": 1,
+        "severity": "non_blocking",
+        "description": "Missing company_id column. AGENTS.md convention states 'All business tables must have company_id column.' The changelog is a platform-level global feature (public endpoints, no auth), so omitting company scoping is arguably correct—but it deviates from the stated convention without explicit documentation of the exemption."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "conventions",
+      "observation": "AGENTS.md states 'All business tables must have company_id column' but does not carve out an exception for platform-level/global entities (e.g., changelog, system announcements). The changelog_entries table intentionally omits company_id since it serves all tenants. The convention should clarify that global system tables are exempt.",
+      "evidence": "V40__changelog_entries.sql has no company_id; AGENTS.md Database Conventions section mandates it for 'all business tables'; ChangelogService.java has no CompanyContextHolder usage."
+    },
+    {
+      "area": "conventions",
+      "observation": "The ChangelogEntry entity does not use Lombok, which is consistent with the other admin domain entities (ExportRequest, SupportTicket also don't use Lombok). This is fine—AGENTS.md says 'Do NOT add Lombok to classes that don't use it.' No gap here, just confirming consistency.",
+      "evidence": "Grep for @Getter/@Data/@Builder in admin/domain/ returned no matches. All three admin entities use manual getters/setters."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "The changelog-system feature passes review. The implementation fully covers all six requirements from the feature description: entity + migration, admin CRUD with role-based access, public paginated listing, latest-highlighted endpoint for What's New banner, soft-delete, and gate-fast compliance. Code quality is good with clean separation of concerns, proper audit logging, comprehensive tests (unit + integration + runtime-critical), and thorough frontend handoff documentation. Three non-blocking issues noted: a fragile proxy condition in applyRequest for distinguishing create/update flows, absence of a uniqueness constraint on version_label, and missing company_id (justified by the global nature of the feature but diverging from stated convention)."
+}
