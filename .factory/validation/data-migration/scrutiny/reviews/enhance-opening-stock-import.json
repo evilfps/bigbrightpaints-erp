@@ -1,0 +1,34 @@
+{
+  "featureId": "enhance-opening-stock-import",
+  "reviewedAt": "2026-03-03T08:30:00Z",
+  "commitId": "d8b00278a2971e3beb10c891e66415c14d427ae1",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "Implementation fully covers all feature requirements: (1) Verified AccountingFacade.postInventoryAdjustment is the journal posting path in postOpeningStockJournal(). (2) Duplicate SKU validation within CSV implemented via seenSkuRows HashMap with case-insensitive normalization. (3) GET /api/v1/inventory/opening-stock endpoint added with pagination for import history. (4) Five new unit tests cover duplicate SKU error rows, mixed RM+FG import, import history mapping, idempotency replay, and idempotency hash mismatch. (5) Frontend handoff updated with new endpoint, DTO, and UI hints. Controller test expanded with GET delegation test. All 380 gate-fast tests pass. Code is clean and follows existing patterns.",
+    "issues": [
+      {
+        "file": "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/service/OpeningStockImportService.java",
+        "line": 193,
+        "severity": "non_blocking",
+        "description": "Missing upper bound cap on page size. Line uses `Math.max(size, 1)` but every other paginated endpoint in the codebase caps at 200 via `Math.max(1, Math.min(size, 200))`. Without this cap, a client could request `size=Integer.MAX_VALUE` and load the entire table into memory. See AuditTrailQueryService:47, DealerReceiptService:121, InvoiceService:227, SalesCoreEngine:448, AccountingCoreEngineCore:258, EnterpriseAuditTrailService:224 for the established pattern."
+      },
+      {
+        "file": "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/service/OpeningStockImportService.java",
+        "line": 278,
+        "severity": "non_blocking",
+        "description": "Duplicate SKU detection does not distinguish between RAW_MATERIAL and FINISHED_GOOD types. If a CSV contains a RAW_MATERIAL row with SKU 'ITEM-1' and a FINISHED_GOOD row with SKU 'ITEM-1', the second row is flagged as a duplicate even though they resolve to different entity types (RawMaterial vs FinishedGood). This may be intentionally conservative, but is worth documenting if so. The normalization also uppercases for dedup (`normalizeSku` at line 372) but the actual repository lookups at lines 610 and 647 use `row.sku.trim()` without uppercasing, creating a minor inconsistency between the dedup check and the lookup."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "conventions",
+      "observation": "All paginated service methods in the codebase cap page size with `Math.max(1, Math.min(size, 200))`, but this pattern is not documented in AGENTS.md. The worker missed applying the upper bound cap, likely because it's an implicit convention.",
+      "evidence": "OpeningStockImportService.java:193 uses `Math.max(size, 1)` only. Compare to AuditTrailQueryService:47, DealerReceiptService:121, InvoiceService:227, SalesCoreEngine:448, AccountingCoreEngineCore:258, EnterpriseAuditTrailService:224 — all use `Math.max(1, Math.min(size, 200))`."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "Feature passes review. Implementation correctly hardens the opening stock import with duplicate SKU validation, import history GET endpoint, and comprehensive test coverage. Journal posting was verified to go through AccountingFacade.postInventoryAdjustment. Two non-blocking issues found: (1) page size is not capped at 200 like all other paginated endpoints in the codebase — minor DoS vector, (2) duplicate SKU detection is cross-type (RM+FG share the same dedup namespace) and uses different normalization than the repository lookups. One shared state observation: the page-size-cap pattern is an undocumented convention that should be added to AGENTS.md."
+}

@@ -1,0 +1,57 @@
+{
+  "featureId": "tally-xml-import-adapter",
+  "reviewedAt": "2026-03-03T14:35:00.000Z",
+  "commitId": "5038ab39",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "Solid implementation of Tally XML import adapter. The feature correctly parses Tally Prime XML (LEDGER masters and opening VOUCHER entries), maps 25 Tally groups to ERP AccountType, creates/resolves accounts, delegates opening balance posting to the existing OpeningBalanceImportService via the new importFromParsedRows() overload, reports unmapped groups/items, and implements file-hash-based idempotency with persistent TallyImport records. Controller is thin and admin-only. Tests cover happy path, replay, payload mismatch, and unmapped items. Integration test validates RBAC and idempotency. Frontend handoff is thorough. Flyway migrations for both tracks are consistent. The main concern is the service exceeds the 500-line convention at 771 lines.",
+    "issues": [
+      {
+        "file": "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/TallyImportService.java",
+        "line": 1,
+        "severity": "non_blocking",
+        "description": "Service class is 771 lines, exceeding the ~500 line convention in AGENTS.md. The XML parsing logic (parseTallyXml, parseLedgers, parseOpeningRows, childText, attribute, firstNonBlank, parseSignedAmount, isOpeningVoucher — ~150 lines) could be extracted to a dedicated TallyXmlParser utility class, and the account resolution helpers (resolveLedger, resolveLedgerByCodeAndType, resolveAccountForOpeningRow, resolveAccountCode — ~120 lines) could form a separate helper, bringing the main service under 500 lines."
+      },
+      {
+        "file": "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/TallyImportService.java",
+        "line": 337,
+        "severity": "non_blocking",
+        "description": "parseSignedAmount() throws ApplicationException on NumberFormatException, which propagates through parseTallyXml and aborts the entire import for a single malformed amount value. For resilience, it would be better to return null (or collect an error) so that other rows can still be processed. Currently a single bad amount in one LEDGER OPENINGBALANCE or VOUCHER entry kills the whole import."
+      },
+      {
+        "file": "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/TallyImportService.java",
+        "line": 289,
+        "severity": "non_blocking",
+        "description": "XXE protection in parseTallyXml sets parser features inside a catch-all block that silently ignores failures ('best-effort hardening'). While standard JDK 21 DocumentBuilderFactory supports these features, the silent-catch pattern means a misconfigured or non-standard parser could silently leave XXE protection disabled. Since this is an admin-only endpoint accepting user-uploaded XML, consider failing loudly if disallow-doctype-decl cannot be set."
+      },
+      {
+        "file": "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/TallyImportService.java",
+        "line": 97,
+        "severity": "non_blocking",
+        "description": "No file size validation on the uploaded XML. A very large Tally export could cause OOM since the entire file is read into byte[] (file.getBytes()) and then parsed into a DOM Document (in-memory tree). Consider adding a max file size check or documenting the expected size bounds. Spring's multipart max-file-size config may provide some protection, but an explicit application-level check would be more defensive."
+      },
+      {
+        "file": "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/TallyImportService.java",
+        "line": 390,
+        "severity": "non_blocking",
+        "description": "resolveAccountCode() uses a while-loop with DB queries to resolve code collisions. In the worst case (many accounts with same normalized base code but different names), this could issue many DB queries. Practically unlikely with real Tally data, but worth noting as a potential N+1 pattern."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "conventions",
+      "observation": "TallyImportService is 771 lines, exceeding the ~500 line convention in AGENTS.md. The worker did not decompose the service. AGENTS.md states 'No service class should exceed ~500 lines' and 'Single responsibility: No service class should exceed ~500 lines', but does not provide explicit guidance on when a one-time migration/import adapter can exceed this limit as a pragmatic exception. The code IS cohesive (all Tally-specific logic), so decomposition may be a matter of style vs. strict rule enforcement.",
+      "evidence": "wc -l TallyImportService.java = 771 lines. AGENTS.md: 'No service class should exceed ~500 lines'. Compare OpeningBalanceImportService.java which is also a single-file import service but stays closer to ~350 lines."
+    },
+    {
+      "area": "conventions",
+      "observation": "The Tally group-to-AccountType mapping (25 entries) is hardcoded as a static Map in TallyImportService. If this mapping needs to be customizable per-company or extended for future Tally integrations, it should potentially be externalized to configuration or a database table. Currently AGENTS.md does not document whether migration-specific mapping constants should be configurable.",
+      "evidence": "TallyImportService.java:48-73 — TALLY_GROUP_ACCOUNT_TYPE_MAP is a static final Map.ofEntries with 25 hardcoded Tally group-to-AccountType mappings."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "PASS. The Tally XML import adapter is a well-implemented feature that fulfills all expected behaviors: parses Tally Prime XML (LEDGER masters + opening VOUCHER entries), maps 25 Tally groups to ERP AccountType, creates/resolves accounts, posts opening balances via the existing OpeningBalanceImportService (reusing importFromParsedRows), reports unmapped groups and items, and provides file-hash idempotency. The controller is thin and admin-only. Flyway migrations are consistent across both tracks. Frontend handoff documentation is thorough with endpoint map, data contracts, UX hints, and error codes. Tests cover happy path parsing, idempotent replay, payload mismatch rejection, and unmapped voucher item collection, plus an integration test for RBAC and replay behavior. Five non-blocking issues were noted: (1) service exceeds 500-line convention at 771 lines, (2) parseSignedAmount aborts entire import on a single bad value, (3) XXE protection silently ignores feature-setting failures, (4) no explicit file size validation, (5) potential N+1 in account code collision resolution. None are blocking for this migration use case."
+}

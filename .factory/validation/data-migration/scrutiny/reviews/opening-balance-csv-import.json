@@ -1,0 +1,62 @@
+{
+  "featureId": "opening-balance-csv-import",
+  "reviewedAt": "2026-03-03T15:30:00.000Z",
+  "commitId": "e14a56bbc27d80b2247a70f7f28b9296c25f426b",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "Solid implementation that closely follows the established OpeningStockImportService pattern. The service provides CSV parsing with row-level validation, file-hash idempotency via the shared IdempotencyReservationService, account auto-creation with type-mismatch checking, balanced journal posting through AccountingFacade.createStandardJournal, and audit trail logging. Dual-track Flyway migrations (V151 main, V36 v2) are correct and consistent. Tests cover happy path, unbalanced totals, row validation errors with auto-create, idempotent replay, type mismatch, and empty file rejection. Security IT confirms ROLE_ADMIN enforcement and idempotent replay at the integration level. A few non-blocking code quality observations noted below.",
+    "issues": [
+      {
+        "file": "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/OpeningBalanceImportService.java",
+        "line": 238,
+        "severity": "non_blocking",
+        "description": "Dead code: private method resolveAccount(Company, OpeningBalanceCsvRow) is never called. The service only uses the overload resolveAccount(Company, String, String, AccountType) from processParsedRowsInternal. Should be removed to avoid confusion."
+      },
+      {
+        "file": "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/OpeningBalanceImportService.java",
+        "line": 164,
+        "severity": "non_blocking",
+        "description": "The public importFromParsedRows methods (lines 164-176) lack idempotency/transaction wrapping and audit logging, unlike the main importOpeningBalances path. This is acceptable for the Tally import use case (which has its own idempotency), but the asymmetry should be documented or the methods should be package-private to signal they are intended only for internal cross-service reuse."
+      },
+      {
+        "file": "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/OpeningBalanceImportService.java",
+        "line": 214,
+        "severity": "non_blocking",
+        "description": "When totals are balanced but referenceNumber is null/blank (importFromParsedRows path with null ref), the journal is silently not posted (line 220: StringUtils.hasText(referenceNumber) check). This means importFromParsedRows(rows) without a referenceNumber will process rows, create accounts, but skip journal posting entirely with no error/warning. The caller (TallyImportService) always passes a reference, but the zero-arg overload could surprise future callers."
+      },
+      {
+        "file": "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/OpeningBalanceImportService.java",
+        "line": 271,
+        "severity": "non_blocking",
+        "description": "postOpeningBalanceJournal extracts a single debitAccountId and creditAccountId from the lines list for the JournalCreationRequest top-level fields (required by the record constructor). These top-level account IDs are potentially misleading since the actual line-level entries (passed in 'lines') may have many different accounts. However, since JournalCreationRequest.resolvedLines() prioritizes the 'lines' list over generated two-line entries, this is functionally correct — the top-level debitAccount/creditAccount are effectively ignored when lines are populated."
+      },
+      {
+        "file": "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/OpeningBalanceCsvRow.java",
+        "line": 72,
+        "severity": "non_blocking",
+        "description": "The read() method iterates the full CSVRecord map for each header lookup (6 headers × N entries). This is O(n*m) but acceptable for typical CSV sizes (hundreds of rows). For very large imports (10k+ rows), this could be optimized by normalizing headers once."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "conventions",
+      "observation": "The OpeningBalanceImportService does not have a production-mode safety guard (assertImportAllowed) unlike OpeningStockImportService which checks `erp.inventory.opening-stock.enabled` in prod profile. Opening balance imports are unrestricted in production. This might be intentional (admin-only endpoint is sufficient), but the inconsistency between the two migration import services is worth noting for convention alignment.",
+      "evidence": "OpeningStockImportService lines 175-180 check isProdProfile() && !openingStockImportEnabled. OpeningBalanceImportService has no equivalent guard."
+    },
+    {
+      "area": "skills",
+      "observation": "Worker reported skillFeedback.followedProcedure=false with deviation on step 1.1 (reading AGENTS/mission docs) because files were not at expected worktree paths. The skill references context files by relative path that may not resolve correctly in the worker's environment. The worker proceeded successfully using available canonical project/skill files.",
+      "evidence": "Handoff skillFeedback.deviations[0]: 'The referenced context files were unavailable at expected locations; proceeding with available canonical project/skill files was necessary to complete the feature safely.'"
+    },
+    {
+      "area": "conventions",
+      "observation": "Worker correctly followed the TDD approach but test for the controller (OpeningBalanceImportControllerTest) only verifies delegation — it does not verify the ResponseEntity wrapping or ApiResponse.success structure. This is consistent with existing test patterns in the project (thin controller = thin controller test), so not a gap, just an observation.",
+      "evidence": "OpeningBalanceImportControllerTest has 1 test case that calls verify() on service mock delegation."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "Feature passes review. The opening balance CSV import service is a well-structured implementation that faithfully follows the OpeningStockImportService pattern. It correctly implements all required behaviors: CSV validation with header checking, account auto-creation with type-mismatch rejection, balanced journal posting through AccountingFacade, file-hash idempotency with concurrent-insert race handling, row-level error reporting without aborting entire imports, and ROLE_ADMIN enforcement. The dual-track Flyway migrations are consistent. Test coverage is comprehensive with 9 total test cases spanning unit, controller, and security integration layers. Five non-blocking issues were identified (dead code, asymmetric public API for parsed-row imports, silent journal skip when reference is null, misleading top-level account IDs in JournalCreationRequest, and O(n*m) header lookup in CSV parsing). None are blocking for the feature's correctness or the milestone's requirements."
+}

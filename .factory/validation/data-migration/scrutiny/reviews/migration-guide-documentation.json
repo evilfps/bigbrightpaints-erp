@@ -1,0 +1,34 @@
+{
+  "featureId": "migration-guide-documentation",
+  "reviewedAt": "2026-03-03T09:15:00.000Z",
+  "commitId": "02fdea7e629abaf495a7756a8cd5bfb3c50c3f4e",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The migration guide at docs/migration-guide.md is a thorough 358-line document that accurately covers all five required sections: CSV templates with examples, Tally export instructions, field mapping reference, error handling guide, and onboarding workflow. Cross-referencing against the actual service implementations (OpeningBalanceImportService, OpeningStockImportService, TallyImportService) and controllers confirms the documentation is factually correct. The Tally group mapping table matches TALLY_GROUP_ACCOUNT_TYPE_MAP exactly (25 entries). All documented API endpoints, auth roles, CSV header names, field aliases, validation rules, and error messages align with the codebase. The worker ran the gate-fast test suite (380/380 pass) to confirm no regressions. No blocking issues found.",
+    "issues": [
+      {
+        "file": "docs/migration-guide.md",
+        "line": 14,
+        "severity": "non_blocking",
+        "description": "Markdown heading hierarchy inconsistency: subsections like '## 1.1', '## 1.2', '## 2.1'-'## 2.4', '## 4.1'-'## 4.4', and '## Step 1'-'## Step 6' all use level-2 headings (##) instead of level-3 (###). This makes all subsections render at the same level as their parent sections, breaking table-of-contents generation in most markdown renderers."
+      },
+      {
+        "file": "docs/migration-guide.md",
+        "line": 282,
+        "severity": "non_blocking",
+        "description": "The onboarding endpoints (GET /api/v1/superadmin/tenants/coa-templates, POST /api/v1/superadmin/tenants/onboard) require ROLE_SUPER_ADMIN (per SuperAdminTenantOnboardingController.java:21), but the guide doesn't explicitly state this auth requirement. The curl examples use '<ADMIN_TOKEN>' which could mislead users into thinking ROLE_ADMIN suffices."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "skills",
+      "observation": "The backend-worker skill mandates 'Step 2: Write Tests First (TDD)' and 'Step 5: Document Frontend Handoff' for all features. For documentation-only features like this one, neither step applies. The worker correctly skipped both, and skillFeedback.followedProcedure is true. The skill could benefit from a note that doc-only features can skip TDD and frontend-handoff steps.",
+      "evidence": "SKILL.md Step 2 says 'Write Tests First (TDD)' unconditionally. Worker transcript shows no test creation, which is correct for a docs-only feature. Handoff confirms 'No test files were added or modified for this documentation-only feature'."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "PASS. The migration guide comprehensively documents all five required sections with accurate, code-grounded content. All API endpoints, CSV formats, field aliases, Tally group mappings, error messages, and onboarding steps were verified against source code. Two non-blocking issues noted: markdown heading hierarchy inconsistency and missing ROLE_SUPER_ADMIN auth annotation on onboarding endpoints. No blocking issues."
+}
