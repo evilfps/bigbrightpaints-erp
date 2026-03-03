@@ -1475,6 +1475,11 @@ Auth default: `hasAnyAuthority('ROLE_FACTORY','ROLE_ACCOUNTING','ROLE_ADMIN')`.
 | GET | `/api/v1/factory/bulk-batches/{finishedGoodId}` | — | `List<BulkPackResponse.ChildBatchDto>` |
 | GET | `/api/v1/factory/bulk-batches/{parentBatchId}/children` | — | `List<BulkPackResponse.ChildBatchDto>` |
 
+Packing / traceability API notes:
+- `POST /api/v1/factory/packing-records` accepts idempotency keys via `Idempotency-Key`, legacy `X-Idempotency-Key`, or `X-Request-Id` fallback. Send a stable key from UI retries.
+- `POST /api/v1/factory/pack` uses deterministic reference derivation (payload + idempotency key) and replays prior effects on retry instead of re-posting inventory/accounting side effects.
+- Packing history/detail payloads now surface size-variant identifiers (`sizeVariantId`, `sizeVariantLabel`) to support size-level filtering and chips in UI.
+
 ##### Packaging mapping configuration (`/api/v1/factory/packaging-mappings`)
 
 | Method | Path | Auth | Request | Response `data` |
@@ -1619,16 +1624,25 @@ Operational statuses: `PENDING`, `PENDING_STOCK`, `PENDING_PRODUCTION`, `RESERVE
 - `ProductionLogDto`: lifecycle summary with output, packed quantity, wastage, status, cost totals.
 - `ProductionLogDetailDto`: `ProductionLogDto` fields + notes + `materials[]` + `packingRecords[]`.
 - `ProductionLogMaterialDto`: raw material batch and movement linkage + quantity/cost fields.
-- `ProductionLogPackingRecordDto`: packing output linkage (`finishedGoodId/batchId`, packaging size, packed quantity, packed metadata).
+- `ProductionLogPackingRecordDto`: packing output linkage (`finishedGoodId/batchId`, packaging size, packed quantity, packed metadata) plus size-variant fields:
+  - `sizeVariantId`: FK of resolved/auto-created size variant.
+  - `sizeVariantLabel`: normalized size label used for UI chips/filters.
 - `PackingRequest`: `productionLogId*`, `packedDate`, `packedBy`, `idempotencyKey`, `lines*`.
 - `PackingLineRequest`: `packagingSize*`, `quantityLiters`, `piecesCount`, `boxesCount`, `piecesPerBox` (all positive when provided).
-- `PackingRecordDto`: persisted packing record with line-level box/piece metadata.
+- `PackingRecordDto`: persisted packing record with line-level box/piece metadata + `sizeVariantId`/`sizeVariantLabel`.
 - `UnpackedBatchDto`: production log quantities (`mixed`, `packed`, `remaining`) and status.
 - `BulkPackRequest`: `bulkBatchId*`, `packs*`, `packagingMaterials`, `skipPackagingConsumption`, `packDate`, `packedBy`, `notes`, `idempotencyKey`.
 - `BulkPackRequest.PackLine`: `childSkuId*`, `quantity*`, `sizeLabel`, `unit`.
 - `BulkPackRequest.MaterialConsumption`: `materialId*`, `quantity*`, `unit`.
-- `BulkPackResponse`: consumed bulk qty/cost/journal + created `childBatches[]`.
+- `BulkPackResponse`: consumed bulk qty/cost/journal + created `childBatches[]`; includes:
+  - `packagingCost`: total packaging cost posted for this bulk-to-size run.
+  - `journalEntryId`: accounting linkage for audit drilldowns.
+  - `packedAt`: server timestamp of operation completion.
 - `BulkPackResponse.ChildBatchDto`: child batch identity + SKU/size + qty/cost/value.
+- `CostBreakdownDto` (`GET /api/v1/reports/production-logs/{id}/cost-breakdown`): production cost trace payload used by manufacturing analytics pages.
+  - `costComponents: CostComponentTraceDto` => `productionMaterialCost`, `laborCost`, `overheadCost`, `packagingCost`, `totalCost`, `mixedQuantity`, `packedQuantity`, `blendedUnitCost`.
+  - `packedBatches: PackedBatchTraceDto[]` => packing record + FG batch references (`packingRecordId`, `finishedGoodBatchId/publicId/batchCode`, `finishedGoodCode/name`, `sizeLabel`, `packedQuantity`, `unitCost`, `totalValue`, `accountingReference`, `journalEntryId`).
+  - `rawMaterialTrace: RawMaterialTraceDto[]` => raw-material movement-level traceability (`movementId`, material/batch identity, `quantity`, `unitCost`, `totalCost`, `movementType`, `referenceType`, `referenceId`, `movedAt`, `journalEntryId`).
 - `PackagingSizeMappingRequest`: `packagingSize`, `rawMaterialId`, `unitsPerPack`, `cartonSize`, `litersPerUnit`.
 - `PackagingSizeMappingDto`: identity + mapping, raw material descriptors, activity flag.
 - `FactoryTaskRequest` / `FactoryTaskDto`: task metadata (`title`, `assignee`, `status`, due/sales/slip linkage).
@@ -1654,6 +1668,9 @@ Operational statuses: `PENDING`, `PENDING_STOCK`, `PENDING_PRODUCTION`, `RESERVE
 - **Idempotency-sensitive screens**: send stable idempotency keys for inventory adjustments, opening-stock import, raw-material intake/batch creation, and packing records.
 - **Opening stock import history screen**: use `GET /api/v1/inventory/opening-stock?page={n}&size={m}` for a company-scoped audit table (newest first) and show `errorCount` as a badge linking to stored import error details.
 - **Wastage dashboard**: combine `/reports/wastage` with `/reports/monthly-production-costs` for trend + variance cards.
+- **Packing history screens**: prefer `sizeVariantLabel` for display badges and keep `packagingSize` as a fallback for legacy records.
+- **Cost traceability UI**: for per-batch drilldown, call `/reports/production-logs/{id}/cost-breakdown` and group `rawMaterialTrace[]` by `referenceType/referenceId` to separate production consumption vs packaging consumption lines.
+- **Bulk-pack retry UX**: on timeout/retry, resend the same idempotency key so backend can replay existing `BulkPackResponse` (including prior `journalEntryId`) instead of creating duplicate postings.
 
 ### Sales & Dealers
 

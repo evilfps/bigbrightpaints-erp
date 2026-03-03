@@ -1,102 +1,73 @@
 package com.bigbrightpaints.erp.modules.factory.service;
 
-import com.bigbrightpaints.erp.core.util.CompanyClock;
-import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
-import com.bigbrightpaints.erp.modules.accounting.dto.JournalCreationRequest;
+import com.bigbrightpaints.erp.core.util.CompanyClock;
+import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
+import com.bigbrightpaints.erp.modules.factory.domain.PackingRecord;
 import com.bigbrightpaints.erp.modules.factory.domain.PackingRecordRepository;
-import com.bigbrightpaints.erp.modules.factory.domain.PackingRequestRecord;
-import com.bigbrightpaints.erp.modules.factory.domain.PackingRequestRecordRepository;
 import com.bigbrightpaints.erp.modules.factory.domain.ProductionLog;
 import com.bigbrightpaints.erp.modules.factory.domain.ProductionLogRepository;
 import com.bigbrightpaints.erp.modules.factory.domain.ProductionLogStatus;
 import com.bigbrightpaints.erp.modules.factory.domain.SizeVariant;
-import com.bigbrightpaints.erp.modules.factory.domain.SizeVariantRepository;
 import com.bigbrightpaints.erp.modules.factory.dto.PackingLineRequest;
 import com.bigbrightpaints.erp.modules.factory.dto.PackingRequest;
 import com.bigbrightpaints.erp.modules.factory.dto.PackagingConsumptionResult;
 import com.bigbrightpaints.erp.modules.factory.dto.ProductionLogDetailDto;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGood;
-import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatch;
-import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatchRepository;
-import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryMovement;
-import com.bigbrightpaints.erp.modules.inventory.domain.InventoryMovementRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryReference;
-import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovement;
-import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovementRepository;
-import com.bigbrightpaints.erp.modules.inventory.service.BatchNumberService;
-import com.bigbrightpaints.erp.modules.inventory.service.FinishedGoodsService;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionProduct;
-import org.springframework.test.util.ReflectionTestUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.atLeast;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class PackingServiceTest {
 
-    @Mock
-    private CompanyContextService companyContextService;
-    @Mock
-    private ProductionLogRepository productionLogRepository;
-    @Mock
-    private PackingRecordRepository packingRecordRepository;
-    @Mock
-    private PackingRequestRecordRepository packingRequestRecordRepository;
-    @Mock
-    private FinishedGoodRepository finishedGoodRepository;
-    @Mock
-    private FinishedGoodBatchRepository finishedGoodBatchRepository;
-    @Mock
-    private InventoryMovementRepository inventoryMovementRepository;
-    @Mock
-    private RawMaterialMovementRepository rawMaterialMovementRepository;
-    @Mock
-    private AccountingFacade accountingFacade;
-    @Mock
-    private ProductionLogService productionLogService;
-    @Mock
-    private BatchNumberService batchNumberService;
-    @Mock
-    private CompanyClock companyClock;
-    @Mock
-    private CompanyEntityLookup companyEntityLookup;
-    @Mock
-    private PackagingMaterialService packagingMaterialService;
-    @Mock
-    private FinishedGoodsService finishedGoodsService;
-    @Mock
-    private SizeVariantRepository sizeVariantRepository;
+    @Mock private CompanyContextService companyContextService;
+    @Mock private ProductionLogRepository productionLogRepository;
+    @Mock private PackingRecordRepository packingRecordRepository;
+    @Mock private AccountingFacade accountingFacade;
+    @Mock private CompanyClock companyClock;
+    @Mock private CompanyEntityLookup companyEntityLookup;
+    @Mock private PackagingMaterialService packagingMaterialService;
+    @Mock private ProductionLogService productionLogService;
+    @Mock private PackingProductSupport packingProductSupport;
+    @Mock private PackingLineResolver packingLineResolver;
+    @Mock private PackingIdempotencyService packingIdempotencyService;
+    @Mock private PackingInventoryService packingInventoryService;
+    @Mock private PackingBatchService packingBatchService;
+    @Mock private PackingJournalBuilder packingJournalBuilder;
+    @Mock private PackingJournalLinkHelper packingJournalLinkHelper;
+    @Mock private PackingReadService packingReadService;
+    @Mock private PackingCompletionService packingCompletionService;
 
     private PackingService packingService;
     private Company company;
@@ -107,20 +78,22 @@ class PackingServiceTest {
                 companyContextService,
                 productionLogRepository,
                 packingRecordRepository,
-                packingRequestRecordRepository,
-                finishedGoodRepository,
-                finishedGoodBatchRepository,
-                inventoryMovementRepository,
-                rawMaterialMovementRepository,
-                accountingFacade,
                 productionLogService,
-                batchNumberService,
                 companyClock,
+                accountingFacade,
                 companyEntityLookup,
                 packagingMaterialService,
-                finishedGoodsService,
-                sizeVariantRepository
+                packingProductSupport,
+                packingLineResolver,
+                packingIdempotencyService,
+                packingInventoryService,
+                packingBatchService,
+                packingJournalBuilder,
+                packingJournalLinkHelper,
+                packingReadService,
+                packingCompletionService
         );
+
         company = new Company();
         company.setTimezone("UTC");
         when(companyContextService.requireCurrentCompany()).thenReturn(company);
@@ -128,15 +101,9 @@ class PackingServiceTest {
 
     @Test
     void completePacking_postsOnlyWastageJournal() {
-        // FG receipt journals are now posted per packing session in recordPacking
-        // completePacking only posts wastage journal
         ProductionProduct product = new ProductionProduct();
         product.setSkuCode("SKU-1");
         product.setProductName("Primer");
-        Map<String, Object> metadata = new HashMap<>();
-        metadata.put("wipAccountId", 900L);
-        metadata.put("wastageAccountId", 901L);
-        product.setMetadata(metadata);
 
         ProductionLog log = new ProductionLog();
         ReflectionTestUtils.setField(log, "id", 1L);
@@ -150,85 +117,32 @@ class PackingServiceTest {
         log.setStatus(ProductionLogStatus.PARTIAL_PACKED);
 
         FinishedGood finishedGood = new FinishedGood();
-        ReflectionTestUtils.setField(finishedGood, "id", 5L);
-        finishedGood.setCompany(company);
-        finishedGood.setProductCode(product.getSkuCode());
-        finishedGood.setValuationAccountId(500L);
-        finishedGood.setCurrentStock(BigDecimal.ZERO);
+        finishedGood.setProductCode("SKU-1");
 
-        FinishedGood semiFinished = new FinishedGood();
-        ReflectionTestUtils.setField(semiFinished, "id", 6L);
-        semiFinished.setCompany(company);
-        semiFinished.setProductCode(product.getSkuCode() + "-BULK");
-        semiFinished.setValuationAccountId(700L);
-        semiFinished.setCurrentStock(new BigDecimal("100"));
-
-        FinishedGoodBatch semiBatch = new FinishedGoodBatch();
-        semiBatch.setFinishedGood(semiFinished);
-        semiBatch.setBatchCode(log.getProductionCode());
-        semiBatch.setQuantityAvailable(new BigDecimal("100"));
-        semiBatch.setQuantityTotal(new BigDecimal("100"));
-        semiBatch.setUnitCost(new BigDecimal("10"));
-
-        // Use lockProductionLog instead of requireProductionLog for pessimistic locking
         when(companyEntityLookup.lockProductionLog(company, 1L)).thenReturn(log);
-        when(finishedGoodRepository.lockByCompanyAndProductCode(company, "SKU-1")).thenReturn(Optional.of(finishedGood));
-        when(finishedGoodRepository.lockByCompanyAndProductCode(company, "SKU-1-BULK"))
-                .thenReturn(Optional.of(semiFinished));
-        when(finishedGoodBatchRepository.lockByFinishedGoodAndBatchCode(semiFinished, "PROD-001"))
-                .thenReturn(Optional.of(semiBatch));
-        when(finishedGoodBatchRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
-        when(finishedGoodRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
-        when(inventoryMovementRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(packingProductSupport.ensureFinishedGood(company, log)).thenReturn(finishedGood);
         when(productionLogRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
-        JournalEntryDto wasteEntry = stubEntry(11L);
-        when(accountingFacade.createStandardJournal(any(JournalCreationRequest.class))).thenReturn(wasteEntry);
-
         ProductionLogDetailDto detailDto = new ProductionLogDetailDto(
-                log.getId(),
-                null,
-                log.getProductionCode(),
-                log.getProducedAt(),
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                log.getTotalPackedQuantity(),
-                log.getWastageQuantity(),
-                null,
-                log.getStatus().name(),
-                log.getMaterialCostTotal(),
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                List.of(),
-                List.of()
+                1L, null, "PROD-001", log.getProducedAt(), null, null, null, null,
+                null, null, log.getMixedQuantity(), "PROD-001", log.getMixedQuantity(),
+                log.getTotalPackedQuantity(), log.getWastageQuantity(), null, log.getStatus().name(),
+                log.getMaterialCostTotal(), null, null, null, null, null, null, null,
+                List.of(), List.of()
         );
         when(productionLogService.getLog(1L)).thenReturn(detailDto);
 
         packingService.completePacking(1L);
 
-        // Only wastage journal should be posted in completePacking
-        ArgumentCaptor<JournalCreationRequest> requestCaptor = ArgumentCaptor.forClass(JournalCreationRequest.class);
-        verify(accountingFacade, times(1)).createStandardJournal(requestCaptor.capture());
-        JournalCreationRequest request = requestCaptor.getValue();
-        assertThat(request.sourceReference()).isEqualTo("PROD-001-WASTE");
-        assertThat(request.entryDate()).isEqualTo(LocalDate.of(2024, 1, 1));
-        assertThat(request.narration()).isEqualTo("Manufacturing wastage for PROD-001");
-        assertThat(request.debitAccount()).isEqualTo(901L);
-        assertThat(request.creditAccount()).isEqualTo(900L);
-        assertThat(request.amount()).isEqualByComparingTo("200.00");
-        assertThat(request.adminOverride()).isFalse();
+        verify(packingInventoryService).consumeSemiFinishedWastage(log, new BigDecimal("20"));
+        verify(packingCompletionService).postCompletionEntries(
+                eq(company),
+                eq(log),
+                eq(finishedGood),
+                eq(new BigDecimal("80")),
+                eq(new BigDecimal("20")));
+        verify(productionLogRepository).save(log);
+        assertThat(log.getStatus()).isEqualTo(ProductionLogStatus.FULLY_PACKED);
     }
 
     @Test
@@ -236,10 +150,6 @@ class PackingServiceTest {
         ProductionProduct product = new ProductionProduct();
         product.setSkuCode("SKU-1");
         product.setProductName("Primer");
-        Map<String, Object> metadata = new HashMap<>();
-        metadata.put("wipAccountId", 900L);
-        metadata.put("semiFinishedAccountId", 700L);
-        product.setMetadata(metadata);
 
         ProductionLog log = new ProductionLog();
         ReflectionTestUtils.setField(log, "id", 1L);
@@ -247,126 +157,101 @@ class PackingServiceTest {
         log.setProduct(product);
         log.setProductionCode("PROD-001");
         log.setMixedQuantity(new BigDecimal("10"));
-        log.setTotalPackedQuantity(new BigDecimal("0"));
-        log.setUnitCost(new BigDecimal("5.00"));
+        log.setTotalPackedQuantity(BigDecimal.ZERO);
         log.setProducedAt(Instant.parse("2024-01-01T00:00:00Z"));
         log.setStatus(ProductionLogStatus.READY_TO_PACK);
 
-        FinishedGood finishedGood = new FinishedGood();
-        ReflectionTestUtils.setField(finishedGood, "id", 5L);
-        finishedGood.setCompany(company);
-        finishedGood.setProductCode(product.getSkuCode());
-        finishedGood.setValuationAccountId(500L);
-        finishedGood.setCurrentStock(BigDecimal.ZERO);
+        FinishedGood defaultFinishedGood = new FinishedGood();
+        defaultFinishedGood.setProductCode("SKU-1");
 
-        FinishedGood semiFinished = new FinishedGood();
-        ReflectionTestUtils.setField(semiFinished, "id", 6L);
-        semiFinished.setCompany(company);
-        semiFinished.setProductCode(product.getSkuCode() + "-BULK");
-        semiFinished.setValuationAccountId(700L);
-        semiFinished.setCurrentStock(new BigDecimal("10"));
+        PackingRecord savedRecord = new PackingRecord();
+        ReflectionTestUtils.setField(savedRecord, "id", 88L);
+        savedRecord.setCompany(company);
+        savedRecord.setProductionLog(log);
 
-        FinishedGoodBatch semiBatch = new FinishedGoodBatch();
-        semiBatch.setFinishedGood(semiFinished);
-        semiBatch.setBatchCode(log.getProductionCode());
-        semiBatch.setQuantityAvailable(new BigDecimal("10"));
-        semiBatch.setQuantityTotal(new BigDecimal("10"));
-        semiBatch.setUnitCost(new BigDecimal("5.00"));
+        SizeVariant sizeVariant = new SizeVariant();
+        sizeVariant.setSizeLabel("500ML");
 
         when(companyEntityLookup.lockProductionLog(company, 1L)).thenReturn(log);
         when(companyEntityLookup.requireProductionLog(company, 1L)).thenReturn(log);
-        when(finishedGoodRepository.lockByCompanyAndProductCode(company, "SKU-1"))
-                .thenReturn(Optional.of(finishedGood));
-        when(finishedGoodRepository.lockByCompanyAndProductCode(company, "SKU-1-BULK"))
-                .thenReturn(Optional.of(semiFinished));
-        when(finishedGoodBatchRepository.lockByFinishedGoodAndBatchCode(semiFinished, "PROD-001"))
-                .thenReturn(Optional.of(semiBatch));
-        when(packingRecordRepository.save(any())).thenAnswer(invocation -> {
-            var record = invocation.getArgument(0);
-            ReflectionTestUtils.setField(record, "id", 88L);
-            return record;
-        });
-        when(finishedGoodBatchRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
-        when(finishedGoodRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
-        when(inventoryMovementRepository.save(any())).thenAnswer(invocation -> {
-            InventoryMovement movement = invocation.getArgument(0);
-            ReflectionTestUtils.setField(movement, "id", 77L);
-            return movement;
-        });
-        when(packagingMaterialService.consumePackagingMaterial(anyString(), anyInt(), anyString(), any(), any()))
+        when(packingProductSupport.ensureFinishedGood(company, log)).thenReturn(defaultFinishedGood);
+        when(packingLineResolver.normalizePackagingSize("500ML", 1)).thenReturn("500ML");
+        when(packingLineResolver.resolveSizeVariant(company, log, "500ML")).thenReturn(sizeVariant);
+        when(packingLineResolver.resolvePiecesPerBox(any(), eq(sizeVariant))).thenReturn(1);
+        when(packingLineResolver.resolvePiecesCountForLine(any(), eq(1), eq(1))).thenReturn(2);
+        when(packingLineResolver.resolveQuantity(any(), eq(sizeVariant), eq("500ML"), eq(2), eq(1)))
+                .thenReturn(new BigDecimal("1.0"));
+        when(packingLineResolver.resolveChildBatchCount(any(), eq(2))).thenReturn(2);
+        when(packingProductSupport.resolveTargetFinishedGood(company, log, requestLine("500ML", 2), defaultFinishedGood))
+                .thenReturn(defaultFinishedGood);
+        when(packingRecordRepository.save(any())).thenReturn(savedRecord);
+        when(packagingMaterialService.consumePackagingMaterial(
+                eq("500ML"), eq(2), eq("PROD-001-PACK-88"), eq(sizeVariant), eq(savedRecord)))
                 .thenReturn(new PackagingConsumptionResult(false, BigDecimal.ZERO, BigDecimal.ZERO, Map.of(), null));
-        when(productionLogRepository.incrementPackedQuantityAtomic(eq(1L), any())).thenReturn(1);
-        when(productionLogRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
-        when(packingRequestRecordRepository.findByCompanyAndIdempotencyKey(company, "pack-key-1"))
-                .thenReturn(Optional.empty());
-        when(packingRequestRecordRepository.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
-        when(packingRequestRecordRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
-        SizeVariant sizeVariant = new SizeVariant();
-        ReflectionTestUtils.setField(sizeVariant, "id", 600L);
-        sizeVariant.setCompany(company);
-        sizeVariant.setProduct(product);
-        sizeVariant.setSizeLabel("500ML");
-        sizeVariant.setCartonQuantity(1);
-        sizeVariant.setLitersPerUnit(new BigDecimal("0.5000"));
-        sizeVariant.setActive(true);
-        when(sizeVariantRepository.findByCompanyAndProductAndSizeLabelIgnoreCase(company, product, "500ML"))
-                .thenReturn(Optional.of(sizeVariant));
 
-        when(accountingFacade.postPackingJournal(anyString(), any(LocalDate.class), anyString(), any()))
-                .thenReturn(stubEntry(11L));
+        PackingInventoryService.SemiFinishedConsumption semiFinishedConsumption =
+                new PackingInventoryService.SemiFinishedConsumption(
+                        defaultFinishedGood,
+                        null,
+                        new InventoryMovement(),
+                        new BigDecimal("5.00"));
+        when(packingInventoryService.consumeSemiFinishedInventory(log, new BigDecimal("1.0"), 88L))
+                .thenReturn(semiFinishedConsumption);
+
+        when(packingBatchService.registerFinishedGoodBatch(
+                eq(log),
+                eq(defaultFinishedGood),
+                eq(savedRecord),
+                eq(new BigDecimal("1.0")),
+                eq(LocalDate.of(2024, 1, 1)),
+                any(PackagingConsumptionResult.class),
+                eq(semiFinishedConsumption),
+                eq(sizeVariant))).thenAnswer(invocation -> {
+            var batch = new com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatch();
+            ReflectionTestUtils.setField(batch, "id", 777L);
+            batch.setBatchCode("FG-777");
+            return batch;
+        });
+
+        when(productionLogRepository.incrementPackedQuantityAtomic(1L, new BigDecimal("1.0"))).thenReturn(1);
+        when(productionLogRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(packingIdempotencyService.reserveIdempotencyRecord(
+                eq(company), eq(1L), eq("pack-key-1"), anyString()))
+                .thenReturn(new PackingIdempotencyService.IdempotencyReservation(null, null));
+        when(packingIdempotencyService.packingRequestHash(any(), eq(LocalDate.of(2024, 1, 1))))
+                .thenReturn("hash-123");
 
         ProductionLogDetailDto detailDto = new ProductionLogDetailDto(
-                log.getId(),
-                null,
-                log.getProductionCode(),
-                log.getProducedAt(),
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                log.getMixedQuantity(),
-                log.getProductionCode(),
-                log.getMixedQuantity(),
-                log.getTotalPackedQuantity(),
-                log.getWastageQuantity(),
-                null,
-                log.getStatus().name(),
-                log.getMaterialCostTotal(),
-                null,
-                null,
-                log.getUnitCost(),
-                null,
-                null,
-                null,
-                null,
-                List.of(),
-                List.of()
+                1L, null, "PROD-001", log.getProducedAt(), null, null, null, null,
+                null, null, log.getMixedQuantity(), "PROD-001", log.getMixedQuantity(),
+                log.getTotalPackedQuantity(), log.getWastageQuantity(), null, log.getStatus().name(),
+                log.getMaterialCostTotal(), null, null, null, null, null, null, null,
+                List.of(), List.of()
         );
         when(productionLogService.getLog(1L)).thenReturn(detailDto);
 
         PackingRequest request = new PackingRequest(
-                log.getId(),
+                1L,
                 LocalDate.of(2024, 1, 1),
                 "packer",
                 "pack-key-1",
-                List.of(new PackingLineRequest("500ML", null, 2, null, null))
+                List.of(requestLine("500ML", 2))
         );
 
         packingService.recordPacking(request);
 
-        ArgumentCaptor<BigDecimal> packedQuantity = ArgumentCaptor.forClass(BigDecimal.class);
-        verify(productionLogRepository).incrementPackedQuantityAtomic(eq(1L), packedQuantity.capture());
-        assertThat(packedQuantity.getValue()).isEqualByComparingTo("1.0");
-
-        verify(accountingFacade, times(1)).postPackingJournal(
-                eq("PROD-001-PACK-88"),
+        verify(packingBatchService).registerFinishedGoodBatch(
+                eq(log),
+                eq(defaultFinishedGood),
+                eq(savedRecord),
+                eq(new BigDecimal("1.0")),
                 eq(LocalDate.of(2024, 1, 1)),
-                anyString(),
-                any()
-        );
-        verify(inventoryMovementRepository, atLeast(2)).save(any(InventoryMovement.class));
+                any(PackagingConsumptionResult.class),
+                eq(semiFinishedConsumption),
+                eq(sizeVariant));
+
+        verify(productionLogRepository).incrementPackedQuantityAtomic(1L, new BigDecimal("1.0"));
+        verify(packingIdempotencyService).markCompleted(any(), eq(88L));
     }
 
     @Test
@@ -374,9 +259,6 @@ class PackingServiceTest {
         ProductionProduct product = new ProductionProduct();
         product.setSkuCode("SKU-1");
         product.setProductName("Primer");
-        Map<String, Object> metadata = new HashMap<>();
-        metadata.put("wipAccountId", 900L);
-        product.setMetadata(metadata);
 
         ProductionLog log = new ProductionLog();
         ReflectionTestUtils.setField(log, "id", 1L);
@@ -387,58 +269,58 @@ class PackingServiceTest {
         log.setTotalPackedQuantity(BigDecimal.ZERO);
         log.setStatus(ProductionLogStatus.READY_TO_PACK);
 
-        FinishedGood finishedGood = new FinishedGood();
-        ReflectionTestUtils.setField(finishedGood, "id", 5L);
-        finishedGood.setCompany(company);
-        finishedGood.setProductCode(product.getSkuCode());
-        finishedGood.setValuationAccountId(500L);
-        finishedGood.setCurrentStock(BigDecimal.ZERO);
+        FinishedGood defaultFinishedGood = new FinishedGood();
+        defaultFinishedGood.setProductCode("SKU-1");
+
+        PackingRecord savedRecord = new PackingRecord();
+        ReflectionTestUtils.setField(savedRecord, "id", 88L);
+        savedRecord.setCompany(company);
+        savedRecord.setProductionLog(log);
+
+        SizeVariant sizeVariant = new SizeVariant();
+        sizeVariant.setSizeLabel("500ML");
 
         when(companyEntityLookup.lockProductionLog(company, 1L)).thenReturn(log);
-        when(finishedGoodRepository.lockByCompanyAndProductCode(company, "SKU-1"))
-                .thenReturn(Optional.of(finishedGood));
-        when(packingRecordRepository.save(any())).thenAnswer(invocation -> {
-            var record = invocation.getArgument(0);
-            ReflectionTestUtils.setField(record, "id", 88L);
-            return record;
-        });
-        SizeVariant sizeVariant = new SizeVariant();
-        ReflectionTestUtils.setField(sizeVariant, "id", 601L);
-        sizeVariant.setCompany(company);
-        sizeVariant.setProduct(product);
-        sizeVariant.setSizeLabel("500ML");
-        sizeVariant.setCartonQuantity(1);
-        sizeVariant.setLitersPerUnit(new BigDecimal("0.5000"));
-        sizeVariant.setActive(true);
-        when(sizeVariantRepository.findByCompanyAndProductAndSizeLabelIgnoreCase(company, product, "500ML"))
-                .thenReturn(Optional.of(sizeVariant));
+        when(packingProductSupport.ensureFinishedGood(company, log)).thenReturn(defaultFinishedGood);
+        when(packingLineResolver.normalizePackagingSize("500ML", 1)).thenReturn("500ML");
+        when(packingLineResolver.resolveSizeVariant(company, log, "500ML")).thenReturn(sizeVariant);
+        when(packingLineResolver.resolvePiecesPerBox(any(), eq(sizeVariant))).thenReturn(1);
+        when(packingLineResolver.resolvePiecesCountForLine(any(), eq(1), eq(1))).thenReturn(2);
+        when(packingLineResolver.resolveQuantity(any(), eq(sizeVariant), eq("500ML"), eq(2), eq(1)))
+                .thenReturn(new BigDecimal("1.0"));
+        when(packingLineResolver.resolveChildBatchCount(any(), eq(2))).thenReturn(2);
+        when(packingProductSupport.resolveTargetFinishedGood(company, log, requestLine("500ML", 2), defaultFinishedGood))
+                .thenReturn(defaultFinishedGood);
+        when(packingRecordRepository.save(any())).thenReturn(savedRecord);
 
-        when(packagingMaterialService.consumePackagingMaterial(eq("500ML"), eq(2), eq("PROD-001-PACK-88"), eq(sizeVariant), any()))
-                .thenReturn(new PackagingConsumptionResult(
-                        true,
-                        new BigDecimal("20.00"),
-                        new BigDecimal("2"),
-                        Map.of(811L, new BigDecimal("20.00")),
-                        null
-                ));
+        PackagingConsumptionResult packagingResult = new PackagingConsumptionResult(
+                true,
+                new BigDecimal("20.00"),
+                new BigDecimal("2"),
+                Map.of(811L, new BigDecimal("20.00")),
+                null
+        );
+        when(packagingMaterialService.consumePackagingMaterial(
+                eq("500ML"), eq(2), eq("PROD-001-PACK-88"), eq(sizeVariant), eq(savedRecord)))
+                .thenReturn(packagingResult);
+
+        when(packingJournalBuilder.buildWipPackagingConsumptionLines(anyLong(), anyString(), any(), any()))
+                .thenCallRealMethod();
         when(accountingFacade.postPackingJournal(anyString(), any(LocalDate.class), anyString(), any()))
                 .thenReturn(stubEntry(55L));
 
-        RawMaterialMovement existingMovement = new RawMaterialMovement();
-        ReflectionTestUtils.setField(existingMovement, "id", 300L);
-        existingMovement.setJournalEntryId(999L);
-        when(rawMaterialMovementRepository.findByRawMaterialCompanyAndReferenceTypeAndReferenceId(
-                company,
-                InventoryReference.PACKING_RECORD,
-                "PROD-001-PACK-88"))
-                .thenReturn(List.of(existingMovement));
+        doThrow(new ApplicationException(
+                ErrorCode.BUSINESS_CONSTRAINT_VIOLATION,
+                "Packing reference PROD-001-PACK-88 already linked to journal 999"))
+                .when(packingJournalLinkHelper)
+                .linkPackagingMovementsToJournal(company, "PROD-001-PACK-88", 55L);
 
         PackingRequest request = new PackingRequest(
                 1L,
                 LocalDate.of(2024, 1, 1),
                 "packer",
                 null,
-                List.of(new PackingLineRequest("500ML", null, 2, null, null))
+                List.of(requestLine("500ML", 2))
         );
 
         assertThatThrownBy(() -> packingService.recordPacking(request))
@@ -447,36 +329,30 @@ class PackingServiceTest {
                 .satisfies(error -> assertThat(((ApplicationException) error).getErrorCode())
                         .isEqualTo(ErrorCode.BUSINESS_CONSTRAINT_VIOLATION));
 
-        assertThat(existingMovement.getJournalEntryId()).isEqualTo(999L);
-        verify(rawMaterialMovementRepository, never()).saveAll(any());
         verify(productionLogRepository, never()).incrementPackedQuantityAtomic(anyLong(), any());
     }
 
     @Test
     void recordPacking_idempotentReplayDoesNotConsumeOrPostAgain() {
-        PackingRequestRecord existing = new PackingRequestRecord();
-        existing.setCompany(company);
-        existing.setIdempotencyKey("pack-replay");
-        existing.setIdempotencyHash(null);
-        existing.setProductionLogId(1L);
-        existing.setPackingRecordId(99L);
+        ProductionLog log = new ProductionLog();
+        when(companyEntityLookup.lockProductionLog(company, 1L)).thenReturn(log);
 
-        when(packingRequestRecordRepository.findByCompanyAndIdempotencyKey(company, "pack-replay"))
-                .thenReturn(Optional.of(existing));
         ProductionLogDetailDto detailDto = new ProductionLogDetailDto(
                 1L, null, "PROD-001", Instant.parse("2024-01-01T00:00:00Z"), null, null, null, null,
-                null, null, BigDecimal.ONE, "PROD-001", BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ZERO, null, "READY_TO_PACK", null, null, null,
-                null, null, null, null, null, List.of(), List.of()
+                null, null, BigDecimal.ONE, "PROD-001", BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ZERO, null,
+                "READY_TO_PACK", null, null, null, null, null, null, null, null, List.of(), List.of()
         );
-        when(productionLogService.getLog(1L)).thenReturn(detailDto);
-        when(companyEntityLookup.lockProductionLog(company, 1L)).thenReturn(new ProductionLog());
+        when(packingIdempotencyService.reserveIdempotencyRecord(eq(company), eq(1L), eq("pack-replay"), anyString()))
+                .thenReturn(new PackingIdempotencyService.IdempotencyReservation(null, detailDto));
+        when(packingIdempotencyService.packingRequestHash(any(), eq(LocalDate.of(2024, 1, 1))))
+                .thenReturn("hash-replay");
 
         PackingRequest request = new PackingRequest(
                 1L,
                 LocalDate.of(2024, 1, 1),
                 "packer",
                 "pack-replay",
-                List.of(new PackingLineRequest("1L", new BigDecimal("1"), 1, null, null))
+                List.of(requestLine("1L", 1))
         );
 
         ProductionLogDetailDto result = packingService.recordPacking(request);
@@ -489,27 +365,30 @@ class PackingServiceTest {
 
     @Test
     void recordPacking_idempotencyMismatchConflicts() {
-        PackingRequestRecord existing = new PackingRequestRecord();
-        existing.setCompany(company);
-        existing.setIdempotencyKey("pack-mismatch");
-        existing.setIdempotencyHash("aaaaaaaa");
-        existing.setProductionLogId(1L);
+        ProductionLog log = new ProductionLog();
+        when(companyEntityLookup.lockProductionLog(company, 1L)).thenReturn(log);
 
-        when(packingRequestRecordRepository.findByCompanyAndIdempotencyKey(company, "pack-mismatch"))
-                .thenReturn(Optional.of(existing));
-        when(companyEntityLookup.lockProductionLog(company, 1L)).thenReturn(new ProductionLog());
+        when(packingIdempotencyService.reserveIdempotencyRecord(eq(company), eq(1L), eq("pack-mismatch"), anyString()))
+                .thenThrow(new ApplicationException(ErrorCode.CONCURRENCY_CONFLICT,
+                        "Idempotency payload mismatch for packing request"));
+        when(packingIdempotencyService.packingRequestHash(any(), eq(LocalDate.of(2024, 1, 1))))
+                .thenReturn("hash-mismatch");
 
         PackingRequest request = new PackingRequest(
                 1L,
                 LocalDate.of(2024, 1, 1),
                 "packer",
                 "pack-mismatch",
-                List.of(new PackingLineRequest("1L", new BigDecimal("1"), 1, null, null))
+                List.of(requestLine("1L", 1))
         );
 
         assertThatThrownBy(() -> packingService.recordPacking(request))
                 .isInstanceOf(ApplicationException.class)
                 .hasMessageContaining("Idempotency payload mismatch");
+    }
+
+    private PackingLineRequest requestLine(String size, int piecesCount) {
+        return new PackingLineRequest(size, null, piecesCount, null, null);
     }
 
     private JournalEntryDto stubEntry(long id) {
