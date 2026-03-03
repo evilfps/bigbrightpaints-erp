@@ -106,6 +106,7 @@ public abstract class AccountingCoreEngineCore {
     private static final String SETTLEMENT_WRITE_OFF_LINE_DESCRIPTION = "settlement write-off";
     private static final String SETTLEMENT_FX_LOSS_LINE_DESCRIPTION = "fx loss on settlement";
     private static final String INPUT_TAX_LINE_DESCRIPTION_PREFIX = "input tax for ";
+    private static final int IDEMPOTENCY_LOG_HASH_LENGTH = 12;
 
     private final CompanyContextService companyContextService;
     private final AccountRepository accountRepository;
@@ -1169,8 +1170,8 @@ public abstract class AccountingCoreEngineCore {
         try {
             settlementAllocationRepository.saveAll(settlementRows);
         } catch (DataIntegrityViolationException ex) {
-            log.info("Concurrent dealer receipt allocation conflict for idempotency key '{}' detected; retrying in fresh transaction",
-                    idempotencyKey);
+            log.info("Concurrent dealer receipt allocation conflict for idempotency key hash={} detected; retrying in fresh transaction",
+                    sanitizeIdempotencyLogValue(idempotencyKey));
             throw ex;
         }
         for (PartnerSettlementAllocation row : settlementRows) {
@@ -1338,8 +1339,8 @@ public abstract class AccountingCoreEngineCore {
         try {
             settlementAllocationRepository.saveAll(settlementRows);
         } catch (DataIntegrityViolationException ex) {
-            log.info("Concurrent dealer split receipt allocation conflict for idempotency key '{}' detected; retrying in fresh transaction",
-                    idempotencyKey);
+            log.info("Concurrent dealer split receipt allocation conflict for idempotency key hash={} detected; retrying in fresh transaction",
+                    sanitizeIdempotencyLogValue(idempotencyKey));
             throw ex;
         }
         for (PartnerSettlementAllocation row : settlementRows) {
@@ -1973,8 +1974,8 @@ public abstract class AccountingCoreEngineCore {
         try {
             settlementAllocationRepository.saveAll(settlementRows);
         } catch (DataIntegrityViolationException ex) {
-            log.info("Concurrent supplier payment allocation conflict for idempotency key '{}' detected; retrying in fresh transaction",
-                    idempotencyKey);
+            log.info("Concurrent supplier payment allocation conflict for idempotency key hash={} detected; retrying in fresh transaction",
+                    sanitizeIdempotencyLogValue(idempotencyKey));
             throw ex;
         }
         for (Map.Entry<Long, BigDecimal> entryState : remainingByPurchase.entrySet()) {
@@ -2203,8 +2204,8 @@ public abstract class AccountingCoreEngineCore {
         try {
             settlementAllocationRepository.saveAll(settlementRows);
         } catch (DataIntegrityViolationException ex) {
-            log.info("Concurrent dealer settlement allocation conflict for idempotency key '{}' detected; retrying in fresh transaction",
-                    trimmedIdempotencyKey);
+            log.info("Concurrent dealer settlement allocation conflict for idempotency key hash={} detected; retrying in fresh transaction",
+                    sanitizeIdempotencyLogValue(trimmedIdempotencyKey));
             throw ex;
         }
         for (PartnerSettlementAllocation row : settlementRows) {
@@ -2412,8 +2413,8 @@ public abstract class AccountingCoreEngineCore {
         try {
             settlementAllocationRepository.saveAll(settlementRows);
         } catch (DataIntegrityViolationException ex) {
-            log.info("Concurrent supplier settlement allocation conflict for idempotency key '{}' detected; retrying in fresh transaction",
-                    trimmedIdempotencyKey);
+            log.info("Concurrent supplier settlement allocation conflict for idempotency key hash={} detected; retrying in fresh transaction",
+                    sanitizeIdempotencyLogValue(trimmedIdempotencyKey));
             throw ex;
         }
         for (Map.Entry<Long, BigDecimal> entryState : remainingByPurchase.entrySet()) {
@@ -3096,6 +3097,13 @@ public abstract class AccountingCoreEngineCore {
         return key.toLowerCase(Locale.ROOT);
     }
 
+    private String sanitizeIdempotencyLogValue(String idempotencyKey) {
+        if (!StringUtils.hasText(idempotencyKey)) {
+            return "<empty>";
+        }
+        return IdempotencyUtils.sha256Hex(idempotencyKey, IDEMPOTENCY_LOG_HASH_LENGTH);
+    }
+
     private Optional<JournalReferenceMapping> findLatestLegacyReferenceMapping(Company company, String idempotencyKey) {
         if (company == null || !StringUtils.hasText(idempotencyKey)) {
             return Optional.empty();
@@ -3106,8 +3114,8 @@ public abstract class AccountingCoreEngineCore {
             return Optional.empty();
         }
         if (mappings.size() > 1) {
-            log.warn("Multiple journal_reference_mappings rows for company={} idempotencyKey='{}'; selecting deterministic mapping",
-                    company.getId(), idempotencyKey);
+            log.warn("Multiple journal_reference_mappings rows for company={} idempotencyKeyHash={}; selecting deterministic mapping",
+                    company.getId(), sanitizeIdempotencyLogValue(idempotencyKey));
         }
         Comparator<JournalReferenceMapping> ranking = Comparator
                 .comparing((JournalReferenceMapping mapping) -> mapping.getEntityId() != null)

@@ -2,6 +2,7 @@ package com.bigbrightpaints.erp.modules.purchasing.service;
 
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
+import com.bigbrightpaints.erp.core.security.SecurityActorResolver;
 import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.core.util.MoneyUtils;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
@@ -22,8 +23,6 @@ import com.bigbrightpaints.erp.modules.purchasing.dto.PurchaseOrderResponse;
 import com.bigbrightpaints.erp.modules.purchasing.dto.PurchaseOrderStatusHistoryResponse;
 import com.bigbrightpaints.erp.modules.purchasing.dto.PurchaseOrderVoidRequest;
 import jakarta.transaction.Transactional;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -302,7 +301,9 @@ public class PurchaseOrderService {
                 ? reasonCode.trim().toUpperCase(Locale.ROOT)
                 : null);
         history.setReason(clean(reason));
-        history.setChangedBy(StringUtils.hasText(actor) ? actor.trim() : "system");
+        history.setChangedBy(StringUtils.hasText(actor)
+                ? actor.trim()
+                : SecurityActorResolver.resolveActorWithSystemProcessFallback());
         purchaseOrderStatusHistoryRepository.save(history);
     }
 
@@ -347,10 +348,6 @@ public class PurchaseOrderService {
     }
 
     private String currentActorIdentity() {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication == null || !StringUtils.hasText(authentication.getName())) {
-            return "system";
-        }
-        return authentication.getName().trim();
+        return SecurityActorResolver.resolveActorWithSystemProcessFallback();
     }
 }

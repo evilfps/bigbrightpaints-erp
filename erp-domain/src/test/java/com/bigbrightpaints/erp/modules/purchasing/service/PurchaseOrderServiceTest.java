@@ -2,6 +2,7 @@ package com.bigbrightpaints.erp.modules.purchasing.service;
 
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
+import com.bigbrightpaints.erp.core.security.SecurityActorResolver;
 import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
@@ -138,7 +139,7 @@ class PurchaseOrderServiceTest {
         assertThat(history.getToStatus()).isEqualTo("DRAFT");
         assertThat(history.getReasonCode()).isEqualTo("PURCHASE_ORDER_CREATED");
         assertThat(history.getReason()).isEqualTo("Purchase order created");
-        assertThat(history.getChangedBy()).isEqualTo("system");
+        assertThat(history.getChangedBy()).isEqualTo(SecurityActorResolver.UNKNOWN_AUTH_ACTOR);
     }
 
     @Test
