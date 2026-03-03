@@ -1,0 +1,68 @@
+{
+  "featureId": "manufacturing-packaging-flow-redesign",
+  "reviewedAt": "2026-03-03T21:15:00.000Z",
+  "commitId": "059e2db76ea78c9fa5852b09ecf78cd76f92eb83",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "fail",
+  "codeReview": {
+    "summary": "The commit delivers solid size-variant-aware packing, PACKING_RECORD reference linkage, cost traceability DTOs, V38 migration with backfill, and packaging material type enforcement. Accounting entries correctly go through AccountingFacade. Gate-fast passes (380 tests, 0 failures). However, a core requirement — consolidating PackingService and BulkPackingService into one clear service — was NOT addressed. BulkPackingService (788 lines) still exists as a separate service with overlapping packing logic. PackingService itself grew to 994 lines (nearly 2x the 500-line convention). Frontend handoff documentation was not updated with the new size-variant/traceability changes.",
+    "issues": [
+      {
+        "file": "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/factory/service/BulkPackingService.java",
+        "line": 1,
+        "severity": "blocking",
+        "description": "Feature requirement #5 explicitly says 'Clean up duplicate/overlapping logic between PackingService and BulkPackingService -- consolidate into one clear service.' BulkPackingService still exists at 788 lines with its own packing logic and AccountingFacade.postPackingJournal() calls. The expectedBehavior 'No duplicate packing services' is not met."
+      },
+      {
+        "file": "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/factory/service/PackingService.java",
+        "line": 1,
+        "severity": "non_blocking",
+        "description": "PackingService is 994 lines, nearly 2x the 500-line service limit from AGENTS.md coding conventions. The size-variant resolution, child FG matching, journal linkage, and semi-finished consumption logic could be extracted into focused helper services (e.g., PackingJournalService, PackingCostService)."
+      },
+      {
+        "file": ".factory/library/frontend-handoff.md",
+        "line": 0,
+        "severity": "non_blocking",
+        "description": "Frontend handoff doc was NOT updated in this commit. New DTOs (CostComponentTraceDto, PackedBatchTraceDto, RawMaterialTraceDto), size variant fields on PackingRecordDto/ProductionLogPackingRecordDto, and the SizeVariant CRUD/auto-generation behavior are undocumented for frontend consumption. AGENTS.md and skill mandate handoff doc updates for any API-touching feature."
+      },
+      {
+        "file": "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/factory/service/PackingService.java",
+        "line": 402,
+        "severity": "non_blocking",
+        "description": "isMatchingChildSku() uses prefix matching (startsWith parentSku + '-') to validate child FG SKU family membership. This is fragile — a product 'PAINT' would match 'PAINT-RED' but also 'PAINTER-KIT'. Consider using a more robust relationship (e.g., product_id FK on finished_good or explicit parent-child link) rather than string prefix matching."
+      },
+      {
+        "file": "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/production/service/CatalogService.java",
+        "line": 1,
+        "severity": "non_blocking",
+        "description": "CatalogService grew to 639 lines (above 500-line limit). The new size-variant auto-generation on product upsert (parseSizeToLiters, createOrUpdateSizeVariant) adds ~80 lines of logic that could live in a dedicated SizeVariantService."
+      },
+      {
+        "file": "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/production/service/ProductionCatalogService.java",
+        "line": 1287,
+        "severity": "non_blocking",
+        "description": "isLikelyPackagingMaterial() uses heuristic string matching on product name/SKU/category to determine if an imported raw material should have MaterialType.PACKAGING. This could lead to false positives (e.g., a product named 'Bucket Paint' being misclassified). Consider making this explicit via a CSV column or category mapping rather than string heuristics."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "conventions",
+      "observation": "PackingService at 994 lines and BulkPackingService at 788 lines both exceed the 500-line service limit documented in AGENTS.md. The feature was supposed to consolidate these into one but did not. AGENTS.md should perhaps note the BulkPackingService consolidation as a known tech debt item if this review doesn't block.",
+      "evidence": "wc -l PackingService.java = 994, BulkPackingService.java = 788. AGENTS.md states 'No service class should exceed ~500 lines'."
+    },
+    {
+      "area": "skills",
+      "observation": "Worker deviated from TDD (Step 2) and mission context file discovery (Step 1.1). The worker acknowledged both deviations in skillFeedback. The skill's Step 1 assumes mission context files are at a specific path but doesn't specify the path — the worker spent time discovering they were absent in the worker environment.",
+      "evidence": "handoff.skillFeedback.followedProcedure=false. Deviations: (1) 'Worked from an in-progress feature branch with substantial pre-existing staged changes' instead of TDD. (2) 'Attempted to locate mission.md/AGENTS.md/features.json in expected locations... were not present at the expected repository paths'."
+    },
+    {
+      "area": "conventions",
+      "observation": "The feature uses postPackingJournal() on AccountingFacade (a specialized method) alongside createStandardJournal() (the standardized method). AGENTS.md says 'ALL journal creation MUST go through createStandardJournal(JournalCreationRequest)' but postPackingJournal is a pre-existing specialized facade method. This inconsistency should be documented or the specialized method should be deprecated in favor of createStandardJournal.",
+      "evidence": "PackingService.java:571 and :729 use accountingFacade.postPackingJournal(). PackingService.java:808 uses accountingFacade.createStandardJournal(). AGENTS.md service design rules say all journal creation must use createStandardJournal."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "FAIL — The core requirement to consolidate PackingService and BulkPackingService into a single clear service was not addressed. BulkPackingService (788 lines) still exists alongside PackingService (994 lines) with overlapping packing/journal logic. This directly violates the feature's expectedBehavior 'No duplicate packing services'. The implementation otherwise delivers strong work: SizeVariant entity with proper migration/backfill, packaging material type enforcement, cost traceability DTOs, PACKING_RECORD reference linkage for journal/movement traceability, and comprehensive test updates (380 gate-fast tests passing). Non-blocking issues include missing frontend handoff doc updates, service size exceeding conventions, and fragile SKU prefix matching for child FG validation."
+}
