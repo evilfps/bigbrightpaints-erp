@@ -18,3 +18,5 @@ erp:
     credit-account-id: ${ERP_DISPATCH_CREDIT_ACCOUNT_ID:0}
   auto-approval:
     enabled: false
+  export:
+    require-approval: false

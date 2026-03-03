@@ -1,5 +1,9 @@
 package com.bigbrightpaints.erp.modules.reports.controller;
 
+import com.bigbrightpaints.erp.modules.admin.dto.ExportRequestCreateRequest;
+import com.bigbrightpaints.erp.modules.admin.dto.ExportRequestDto;
+import com.bigbrightpaints.erp.modules.admin.dto.ExportRequestDownloadResponse;
+import com.bigbrightpaints.erp.modules.admin.service.ExportApprovalService;
 import com.bigbrightpaints.erp.modules.factory.dto.CostBreakdownDto;
 import com.bigbrightpaints.erp.modules.factory.dto.MonthlyProductionCostDto;
 import com.bigbrightpaints.erp.modules.factory.dto.WastageReportDto;
@@ -7,16 +11,17 @@ import com.bigbrightpaints.erp.modules.reports.dto.*;
 import com.bigbrightpaints.erp.modules.reports.service.ReportQueryRequestBuilder;
 import com.bigbrightpaints.erp.modules.reports.service.ReportService;
 import com.bigbrightpaints.erp.shared.dto.ApiResponse;
+import java.math.BigDecimal;
+import java.util.List;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-
-import java.math.BigDecimal;
-import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1")
@@ -24,9 +29,12 @@ import java.util.List;
 public class ReportController {
 
     private final ReportService reportService;
+    private final ExportApprovalService exportApprovalService;
 
-    public ReportController(ReportService reportService) {
+    public ReportController(ReportService reportService,
+                            ExportApprovalService exportApprovalService) {
         this.reportService = reportService;
+        this.exportApprovalService = exportApprovalService;
     }
 
     @GetMapping("/reports/balance-sheet")
@@ -178,5 +186,17 @@ public class ReportController {
             @RequestParam Integer year,
             @RequestParam Integer month) {
         return ResponseEntity.ok(ApiResponse.success(reportService.monthlyProductionCosts(year, month)));
+    }
+
+    @PostMapping("/exports/request")
+    public ResponseEntity<ApiResponse<ExportRequestDto>> requestExport(
+            @RequestBody ExportRequestCreateRequest request) {
+        return ResponseEntity.ok(ApiResponse.success("Export request queued", exportApprovalService.createRequest(request)));
+    }
+
+    @GetMapping("/exports/{requestId}/download")
+    public ResponseEntity<ApiResponse<ExportRequestDownloadResponse>> downloadExport(
+            @PathVariable Long requestId) {
+        return ResponseEntity.ok(ApiResponse.success(exportApprovalService.resolveDownload(requestId)));
     }
 }

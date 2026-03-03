@@ -2872,6 +2872,109 @@ Export readiness is surfaced via metadata/hints, not separate export-only endpoi
 - In comparative mode, show clearly labeled "Primary" vs "Comparative" windows using each payload’s metadata dates.
 - For Balance Sheet and Trial Balance, show explicit accounting integrity badges (`balanced` + totals) to aid finance review.
 
+#### Export approval gate (VAL-ADMIN-003)
+
+##### Endpoint map (new/changed)
+
+| Method | Path | Auth | Request | Response `data` |
+|---|---|---|---|---|
+| `POST` | `/api/v1/exports/request` | `ROLE_ADMIN` or `ROLE_ACCOUNTING` | `ExportRequestCreateRequest` | `ExportRequestDto` |
+| `GET` | `/api/v1/exports/{requestId}/download` | `ROLE_ADMIN` or `ROLE_ACCOUNTING` | none | `ExportRequestDownloadResponse` |
+| `GET` | `/api/v1/admin/exports/pending` | `ROLE_ADMIN` or `ROLE_SUPER_ADMIN` | none | `List<ExportRequestDto>` |
+| `PUT` | `/api/v1/admin/exports/{requestId}/approve` | `ROLE_ADMIN` or `ROLE_SUPER_ADMIN` | none | `ExportRequestDto` |
+| `PUT` | `/api/v1/admin/exports/{requestId}/reject` | `ROLE_ADMIN` or `ROLE_SUPER_ADMIN` | `ExportRequestDecisionRequest` (optional body) | `ExportRequestDto` |
+| `GET` | `/api/v1/admin/approvals` | `ROLE_ADMIN` or `ROLE_ACCOUNTING` | none | `AdminApprovalsResponse` (now includes `exportRequests[]`) |
+| `GET` | `/api/v1/admin/settings` | `ROLE_ADMIN` | none | `SystemSettingsDto` (now includes `exportApprovalRequired`) |
+| `PUT` | `/api/v1/admin/settings` | `ROLE_ADMIN` | `SystemSettingsUpdateRequest` (now accepts `exportApprovalRequired`) | `SystemSettingsDto` |
+
+##### User flows
+
+1. **Request export (reporting user)**
+   1. User chooses report + export parameters in reports UI.
+   2. Frontend calls `POST /api/v1/exports/request` with `{ reportType, parameters }`.
+   3. Persist returned `ExportRequestDto.id` and show status chip from `status` (`PENDING` initially).
+
+2. **Admin review queue**
+   1. Admin opens approvals center and calls `GET /api/v1/admin/exports/pending` or unified `GET /api/v1/admin/approvals`.
+   2. For each queued row, use `type="EXPORT_REQUEST"`, `reference="EXP-{id}"`, `approveEndpoint`, and `rejectEndpoint` for action wiring.
+
+3. **Approve export**
+   1. Admin clicks approve.
+   2. Frontend calls `PUT /api/v1/admin/exports/{requestId}/approve`.
+   3. UI updates request row to `APPROVED` and enables download attempt for requester.
+
+4. **Reject export**
+   1. Admin optionally captures rejection reason in modal.
+   2. Frontend calls `PUT /api/v1/admin/exports/{requestId}/reject` with optional `{ reason }`.
+   3. UI surfaces terminal `REJECTED` status and `rejectionReason` (if present).
+
+5. **Download gate check**
+   1. Requester attempts download and frontend calls `GET /api/v1/exports/{requestId}/download`.
+   2. If gate is enabled and request not approved, backend returns auth error (handled by global error envelope; in current flow this may surface as `AUTH_004` with 401/403 depending on security chain).
+   3. If approved (or gate disabled), backend returns `ExportRequestDownloadResponse` with gate message and status.
+
+6. **Toggle gate at runtime**
+   1. Admin loads `GET /api/v1/admin/settings` and reads `exportApprovalRequired`.
+   2. Admin toggles flag and submits `PUT /api/v1/admin/settings` with `exportApprovalRequired`.
+   3. Behavior flips immediately for subsequent `/exports/{requestId}/download` requests.
+
+##### State machine
+
+- `PENDING` -> `APPROVED` via `PUT /api/v1/admin/exports/{requestId}/approve`
+- `PENDING` -> `REJECTED` via `PUT /api/v1/admin/exports/{requestId}/reject`
+- `APPROVED` and `REJECTED` are terminal for current API (repeat approve/reject returns invalid-state error).
+- `EXPIRED` is reserved in enum/DB constraint for future lifecycle policy.
+
+##### Error codes and frontend behavior
+
+| Error code | Typical trigger | Suggested frontend behavior |
+|---|---|---|
+| `AUTH_004` (`AUTH_INSUFFICIENT_PERMISSIONS`) | Download check while gate enabled and request not approved, or actor lacks role/scope | Show blocked-download banner with current status and route to approvals/help CTA. |
+| `BUS_003` (`BUSINESS_ENTITY_NOT_FOUND`) | Unknown export request id or cross-company request lookup | Show not-found toast and refresh request list. |
+| `BUS_001` (`BUSINESS_INVALID_STATE`) | Approve/reject attempted on non-`PENDING` request | Refresh row and show immutable state message. |
+| `VAL_001` (`VALIDATION_INVALID_INPUT`) | Blank `reportType` on create request | Inline validation for report selection before submit. |
+
+##### Data contracts
+
+- `ExportRequestCreateRequest`
+  - `reportType: string` (**required**, non-blank)
+  - `parameters: string?` (optional serialized filter payload)
+
+- `ExportRequestDecisionRequest`
+  - `reason: string?` (optional; stored as `rejectionReason` when rejecting)
+
+- `ExportRequestDto`
+  - `id: number`
+  - `userId: number`
+  - `userEmail: string?`
+  - `reportType: string`
+  - `parameters: string?`
+  - `status: "PENDING" | "APPROVED" | "REJECTED" | "EXPIRED"`
+  - `rejectionReason: string?`
+  - `createdAt: string (ISO-8601 instant)`
+  - `approvedBy: string?`
+  - `approvedAt: string? (ISO-8601 instant)`
+
+- `ExportRequestDownloadResponse`
+  - `requestId: number`
+  - `status: "PENDING" | "APPROVED" | "REJECTED" | "EXPIRED"`
+  - `reportType: string`
+  - `parameters: string?`
+  - `message: string` (explicit gate outcome text)
+
+- `SystemSettingsDto` / `SystemSettingsUpdateRequest` additions
+  - `exportApprovalRequired: boolean` (runtime gate toggle)
+
+- `AdminApprovalsResponse` addition
+  - `exportRequests: AdminApprovalItemDto[]` (same shape/pattern as other approval queues)
+
+##### UI hints
+
+- Add **Export approval required** toggle in admin settings, bound to `exportApprovalRequired`.
+- In report export modals, switch from immediate file download to request lifecycle UI (`Requested` / `Approved` / `Rejected`).
+- In unified approvals screen, render export rows alongside credit/payroll using `type === "EXPORT_REQUEST"` and action endpoints supplied by payload.
+- Keep polling/refresh affordance for request status after submission and after admin actions.
+
 ### Cross-module flow playbooks for report-driven frontend guidance
 
 These flows map complete API sequences across modules. Use them to drive wizard-style UX and to decide when to refresh report screens.

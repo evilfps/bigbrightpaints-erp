@@ -31,7 +31,7 @@ class SystemSettingsServiceCorsTest {
     @Test
     void rejectsWildcardOriginWhenCredentialsEnabled() {
         assertThatThrownBy(() ->
-                new SystemSettingsService(new EmailProperties(), settingsRepository, nonProdEnvironment, "*", true, true, true))
+                new SystemSettingsService(new EmailProperties(), settingsRepository, nonProdEnvironment, "*", true, true, true, false))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("*");
     }
@@ -39,7 +39,7 @@ class SystemSettingsServiceCorsTest {
     @Test
     void rejectsPublicHttpOriginsWhenValidationDisabled() {
         assertThatThrownBy(() ->
-                new SystemSettingsService(new EmailProperties(), settingsRepository, nonProdEnvironment, "http://example.com", false, true, true))
+                new SystemSettingsService(new EmailProperties(), settingsRepository, nonProdEnvironment, "http://example.com", false, true, true, false))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("https");
     }
@@ -53,7 +53,8 @@ class SystemSettingsServiceCorsTest {
                 "HTTP://LOCALHOST:3002/",
                 true,
                 true,
-                true
+                true,
+                false
         );
 
         CorsConfiguration configuration = service.buildCorsConfiguration();
@@ -70,7 +71,8 @@ class SystemSettingsServiceCorsTest {
                 "http://192.168.29.187:3002/",
                 false,
                 true,
-                true
+                true,
+                false
         );
 
         CorsConfiguration configuration = service.buildCorsConfiguration();
@@ -88,7 +90,8 @@ class SystemSettingsServiceCorsTest {
                         "http://192.168.29.187:3002",
                         true,
                         true,
-                        true
+                        true,
+                        false
                 ))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("localhost");
@@ -104,7 +107,8 @@ class SystemSettingsServiceCorsTest {
                         "http://localhost:3002",
                         false,
                         true,
-                        true
+                        true,
+                        false
                 ))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("prod profile");

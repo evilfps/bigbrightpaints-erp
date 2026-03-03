@@ -132,6 +132,8 @@ erp:
     service-url: ${AI_SERVICE_URL:http://localhost:8000}
   auto-approval:
     enabled: ${ERP_AUTO_APPROVAL_ENABLED:true}
+  export:
+    require-approval: ${ERP_EXPORT_REQUIRE_APPROVAL:false}
   seed:
     super-admin:
       email: ${ERP_SEED_SUPER_ADMIN_EMAIL:}

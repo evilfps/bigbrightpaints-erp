@@ -7,6 +7,7 @@ import com.bigbrightpaints.erp.modules.admin.dto.SystemSettingsDto;
 import com.bigbrightpaints.erp.modules.admin.dto.SystemSettingsUpdateRequest;
 import com.bigbrightpaints.erp.modules.admin.dto.TenantRuntimeMetricsDto;
 import com.bigbrightpaints.erp.modules.admin.dto.TenantRuntimePolicyUpdateRequest;
+import com.bigbrightpaints.erp.modules.admin.service.ExportApprovalService;
 import com.bigbrightpaints.erp.modules.admin.service.TenantRuntimePolicyService;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.hr.domain.PayrollRunRepository;
@@ -32,6 +33,7 @@ class AdminSettingsControllerTenantRuntimeContractTest {
                 true,
                 true,
                 true,
+                true,
                 "ops@bigbrightpaints.com",
                 "https://mail.bigbrightpaints.com",
                 false,
@@ -44,6 +46,7 @@ class AdminSettingsControllerTenantRuntimeContractTest {
                 mock(EmailService.class),
                 mock(CompanyContextService.class),
                 mock(TenantRuntimePolicyService.class),
+                mock(ExportApprovalService.class),
                 mock(CreditRequestRepository.class),
                 mock(CreditLimitOverrideRequestRepository.class),
                 mock(PayrollRunRepository.class)
@@ -65,6 +68,7 @@ class AdminSettingsControllerTenantRuntimeContractTest {
                 false,
                 true,
                 true,
+                true,
                 "noreply@bigbrightpaints.com",
                 "https://mail.bigbrightpaints.com",
                 true,
@@ -73,6 +77,7 @@ class AdminSettingsControllerTenantRuntimeContractTest {
         SystemSettingsDto updated = new SystemSettingsDto(
                 java.util.List.of("https://portal.bigbrightpaints.com"),
                 false,
+                true,
                 true,
                 true,
                 "noreply@bigbrightpaints.com",
@@ -87,6 +92,7 @@ class AdminSettingsControllerTenantRuntimeContractTest {
                 mock(EmailService.class),
                 mock(CompanyContextService.class),
                 mock(TenantRuntimePolicyService.class),
+                mock(ExportApprovalService.class),
                 mock(CreditRequestRepository.class),
                 mock(CreditLimitOverrideRequestRepository.class),
                 mock(PayrollRunRepository.class)
@@ -108,6 +114,7 @@ class AdminSettingsControllerTenantRuntimeContractTest {
                 emailService,
                 mock(CompanyContextService.class),
                 mock(TenantRuntimePolicyService.class),
+                mock(ExportApprovalService.class),
                 mock(CreditRequestRepository.class),
                 mock(CreditLimitOverrideRequestRepository.class),
                 mock(PayrollRunRepository.class)
@@ -223,6 +230,7 @@ class AdminSettingsControllerTenantRuntimeContractTest {
                 mock(EmailService.class),
                 mock(CompanyContextService.class),
                 tenantRuntimePolicyService,
+                mock(ExportApprovalService.class),
                 mock(CreditRequestRepository.class),
                 mock(CreditLimitOverrideRequestRepository.class),
                 mock(PayrollRunRepository.class)

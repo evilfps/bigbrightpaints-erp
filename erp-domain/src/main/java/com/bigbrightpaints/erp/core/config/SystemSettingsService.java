@@ -34,6 +34,7 @@ public class SystemSettingsService {
     private final boolean environmentValidationEnabled;
     private volatile boolean autoApprovalEnabled;
     private volatile boolean periodLockEnforced;
+    private volatile boolean exportApprovalRequired;
 
     private static final String KEY_ALLOWED_ORIGINS = "cors.allowed-origins";
     private static final String KEY_AUTO_APPROVAL = "auto-approval.enabled";
@@ -43,6 +44,7 @@ public class SystemSettingsService {
     private static final String KEY_MAIL_BASE_URL = "mail.base-url";
     private static final String KEY_SEND_CREDS = "mail.send-credentials";
     private static final String KEY_SEND_RESET = "mail.send-password-reset";
+    private static final String KEY_EXPORT_REQUIRE_APPROVAL = "export.require-approval";
     private static final Set<String> LOOPBACK_HOSTS = Set.of("localhost", "127.0.0.1", "::1");
 
     public SystemSettingsService(EmailProperties emailProperties,
@@ -51,7 +53,8 @@ public class SystemSettingsService {
                                  @Value("${erp.cors.allowed-origins:http://localhost:3002}") String corsOrigins,
                                  @Value("${erp.environment.validation.enabled:false}") boolean environmentValidationEnabled,
                                  @Value("${erp.auto-approval.enabled:true}") boolean autoApprovalEnabled,
-                                 @Value("${erp.period-lock.enforced:true}") boolean periodLockEnforced) {
+                                 @Value("${erp.period-lock.enforced:true}") boolean periodLockEnforced,
+                                 @Value("${erp.export.require-approval:false}") boolean exportApprovalRequired) {
         this.emailProperties = emailProperties;
         this.settingsRepository = settingsRepository;
         this.environment = environment;
@@ -63,6 +66,8 @@ public class SystemSettingsService {
         this.allowedOrigins.addAll(parseOrigins(corsOrigins));
         this.autoApprovalEnabled = parseBool(persisted.getOrDefault(KEY_AUTO_APPROVAL, String.valueOf(autoApprovalEnabled)));
         this.periodLockEnforced = parseBool(persisted.getOrDefault(KEY_PERIOD_LOCK, String.valueOf(periodLockEnforced)));
+        this.exportApprovalRequired = parseBool(persisted.getOrDefault(KEY_EXPORT_REQUIRE_APPROVAL,
+                String.valueOf(exportApprovalRequired)));
 
         // Apply persisted mail settings if present
         if (persisted.containsKey(KEY_MAIL_ENABLED)) emailProperties.setEnabled(parseBool(persisted.get(KEY_MAIL_ENABLED)));
@@ -108,6 +113,15 @@ public class SystemSettingsService {
         settingsRepository.save(new SystemSetting(KEY_PERIOD_LOCK, String.valueOf(periodLockEnforced)));
     }
 
+    public boolean isExportApprovalRequired() {
+        return exportApprovalRequired;
+    }
+
+    public void setExportApprovalRequired(boolean exportApprovalRequired) {
+        this.exportApprovalRequired = exportApprovalRequired;
+        settingsRepository.save(new SystemSetting(KEY_EXPORT_REQUIRE_APPROVAL, String.valueOf(exportApprovalRequired)));
+    }
+
     public EmailProperties getEmailProperties() {
         return emailProperties;
     }
@@ -117,6 +131,7 @@ public class SystemSettingsService {
                 List.copyOf(allowedOrigins),
                 autoApprovalEnabled,
                 periodLockEnforced,
+                exportApprovalRequired,
                 emailProperties.isEnabled(),
                 emailProperties.getFromAddress(),
                 emailProperties.getBaseUrl(),
@@ -134,6 +149,9 @@ public class SystemSettingsService {
         }
         if (request.periodLockEnforced() != null) {
             setPeriodLockEnforced(request.periodLockEnforced());
+        }
+        if (request.exportApprovalRequired() != null) {
+            setExportApprovalRequired(request.exportApprovalRequired());
         }
         if (request.mailEnabled() != null) {
             emailProperties.setEnabled(request.mailEnabled());

@@ -4,6 +4,7 @@ import com.bigbrightpaints.erp.core.config.SystemSettingsService;
 import com.bigbrightpaints.erp.core.notification.EmailService;
 import com.bigbrightpaints.erp.shared.dto.ApiResponse;
 import com.bigbrightpaints.erp.modules.admin.dto.*;
+import com.bigbrightpaints.erp.modules.admin.service.ExportApprovalService;
 import com.bigbrightpaints.erp.modules.admin.service.TenantRuntimePolicyService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
@@ -39,12 +40,15 @@ public class AdminSettingsController {
     private static final String CREDIT_OVERRIDE_APPROVE_ENDPOINT = "/api/v1/credit/override-requests/{id}/approve";
     private static final String CREDIT_OVERRIDE_REJECT_ENDPOINT = "/api/v1/credit/override-requests/{id}/reject";
     private static final String PAYROLL_APPROVE_ENDPOINT = "/api/v1/payroll/runs/{id}/approve";
-
+    private static final String EXPORT_REQUEST_APPROVAL_ACTION = "APPROVE_EXPORT_REQUEST";
+    private static final String EXPORT_REQUEST_APPROVE_ENDPOINT = "/api/v1/admin/exports/{id}/approve";
+    private static final String EXPORT_REQUEST_REJECT_ENDPOINT = "/api/v1/admin/exports/{id}/reject";
 
     private final SystemSettingsService systemSettingsService;
     private final EmailService emailService;
     private final CompanyContextService companyContextService;
     private final TenantRuntimePolicyService tenantRuntimePolicyService;
+    private final ExportApprovalService exportApprovalService;
     private final CreditRequestRepository creditRequestRepository;
     private final CreditLimitOverrideRequestRepository creditLimitOverrideRequestRepository;
     private final PayrollRunRepository payrollRunRepository;
@@ -53,6 +57,7 @@ public class AdminSettingsController {
                                    EmailService emailService,
                                    CompanyContextService companyContextService,
                                    TenantRuntimePolicyService tenantRuntimePolicyService,
+                                   ExportApprovalService exportApprovalService,
                                    CreditRequestRepository creditRequestRepository,
                                    CreditLimitOverrideRequestRepository creditLimitOverrideRequestRepository,
                                    PayrollRunRepository payrollRunRepository) {
@@ -60,6 +65,7 @@ public class AdminSettingsController {
         this.emailService = emailService;
         this.companyContextService = companyContextService;
         this.tenantRuntimePolicyService = tenantRuntimePolicyService;
+        this.exportApprovalService = exportApprovalService;
         this.creditRequestRepository = creditRequestRepository;
         this.creditLimitOverrideRequestRepository = creditLimitOverrideRequestRepository;
         this.payrollRunRepository = payrollRunRepository;
@@ -76,6 +82,27 @@ public class AdminSettingsController {
     public ApiResponse<SystemSettingsDto> updateSettings(@Valid @RequestBody SystemSettingsUpdateRequest request) {
         SystemSettingsDto dto = systemSettingsService.update(request);
         return ApiResponse.success("Settings updated", dto);
+    }
+
+    @GetMapping("/exports/pending")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SUPER_ADMIN')")
+    @Transactional(readOnly = true)
+    public ApiResponse<List<ExportRequestDto>> pendingExportRequests() {
+        return ApiResponse.success("Pending export requests", exportApprovalService.listPending());
+    }
+
+    @PutMapping("/exports/{requestId}/approve")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SUPER_ADMIN')")
+    public ApiResponse<ExportRequestDto> approveExportRequest(@PathVariable Long requestId) {
+        return ApiResponse.success("Export request approved", exportApprovalService.approve(requestId));
+    }
+
+    @PutMapping("/exports/{requestId}/reject")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SUPER_ADMIN')")
+    public ApiResponse<ExportRequestDto> rejectExportRequest(@PathVariable Long requestId,
+                                                             @RequestBody(required = false) ExportRequestDecisionRequest request) {
+        return ApiResponse.success("Export request rejected",
+                exportApprovalService.reject(requestId, request != null ? request.reason() : null));
     }
 
     @GetMapping("/tenant-runtime/metrics")
@@ -127,7 +154,12 @@ public class AdminSettingsController {
                 .map(this::toPayrollApprovalItem)
                 .toList();
 
-        AdminApprovalsResponse response = new AdminApprovalsResponse(creditApprovals, payrollApprovals);
+        List<AdminApprovalItemDto> exportApprovals = exportApprovalService.listPending()
+                .stream()
+                .map(this::toExportApprovalItem)
+                .toList();
+
+        AdminApprovalsResponse response = new AdminApprovalsResponse(creditApprovals, payrollApprovals, exportApprovals);
         return ApiResponse.success("Approvals fetched", response);
     }
 
@@ -226,6 +258,27 @@ public class AdminSettingsController {
                 PAYROLL_APPROVE_ENDPOINT,
                 null,
                 run.getCreatedAt()
+        );
+    }
+
+    private AdminApprovalItemDto toExportApprovalItem(ExportRequestDto request) {
+        String reference = "EXP-" + request.id();
+        String summary = "Approve export request " + reference
+                + " for report " + request.reportType()
+                + " requested by " + (StringUtils.hasText(request.userEmail()) ? request.userEmail() : "unknown user");
+        return approvalItem(
+                "EXPORT_REQUEST",
+                request.id(),
+                null,
+                reference,
+                normalizeStatus(request.status() != null ? request.status().name() : null),
+                summary,
+                EXPORT_REQUEST_APPROVAL_ACTION,
+                "Approve data export",
+                "REPORTS",
+                EXPORT_REQUEST_APPROVE_ENDPOINT,
+                EXPORT_REQUEST_REJECT_ENDPOINT,
+                request.createdAt()
         );
     }
 

@@ -6,6 +6,7 @@ public record SystemSettingsUpdateRequest(
         List<String> allowedOrigins,
         Boolean autoApprovalEnabled,
         Boolean periodLockEnforced,
+        Boolean exportApprovalRequired,
         Boolean mailEnabled,
         String mailFromAddress,
         String mailBaseUrl,

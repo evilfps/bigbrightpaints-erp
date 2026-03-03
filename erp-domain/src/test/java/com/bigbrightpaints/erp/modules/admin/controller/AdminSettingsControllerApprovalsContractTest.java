@@ -4,6 +4,7 @@ import com.bigbrightpaints.erp.core.config.SystemSettingsService;
 import com.bigbrightpaints.erp.core.notification.EmailService;
 import com.bigbrightpaints.erp.modules.admin.dto.AdminApprovalItemDto;
 import com.bigbrightpaints.erp.modules.admin.dto.AdminApprovalsResponse;
+import com.bigbrightpaints.erp.modules.admin.service.ExportApprovalService;
 import com.bigbrightpaints.erp.modules.admin.service.TenantRuntimePolicyService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
@@ -53,11 +54,14 @@ class AdminSettingsControllerApprovalsContractTest {
         CreditLimitOverrideRequestRepository creditLimitOverrideRequestRepository =
                 mock(CreditLimitOverrideRequestRepository.class);
         PayrollRunRepository payrollRunRepository = mock(PayrollRunRepository.class);
+        ExportApprovalService exportApprovalService = mock(ExportApprovalService.class);
+        when(exportApprovalService.listPending()).thenReturn(List.of());
         AdminSettingsController controller = new AdminSettingsController(
                 systemSettingsService,
                 emailService,
                 companyContextService,
                 tenantRuntimePolicyService,
+                exportApprovalService,
                 creditRequestRepository,
                 creditLimitOverrideRequestRepository,
                 payrollRunRepository
@@ -253,11 +257,14 @@ class AdminSettingsControllerApprovalsContractTest {
         CreditLimitOverrideRequestRepository creditLimitOverrideRequestRepository =
                 mock(CreditLimitOverrideRequestRepository.class);
         PayrollRunRepository payrollRunRepository = mock(PayrollRunRepository.class);
+        ExportApprovalService exportApprovalService = mock(ExportApprovalService.class);
+        when(exportApprovalService.listPending()).thenReturn(List.of());
         AdminSettingsController controller = new AdminSettingsController(
                 systemSettingsService,
                 emailService,
                 companyContextService,
                 tenantRuntimePolicyService,
+                exportApprovalService,
                 creditRequestRepository,
                 creditLimitOverrideRequestRepository,
                 payrollRunRepository
@@ -358,11 +365,14 @@ class AdminSettingsControllerApprovalsContractTest {
         CreditLimitOverrideRequestRepository creditLimitOverrideRequestRepository =
                 mock(CreditLimitOverrideRequestRepository.class);
         PayrollRunRepository payrollRunRepository = mock(PayrollRunRepository.class);
+        ExportApprovalService exportApprovalService = mock(ExportApprovalService.class);
+        when(exportApprovalService.listPending()).thenReturn(List.of());
         AdminSettingsController controller = new AdminSettingsController(
                 systemSettingsService,
                 emailService,
                 companyContextService,
                 tenantRuntimePolicyService,
+                exportApprovalService,
                 creditRequestRepository,
                 creditLimitOverrideRequestRepository,
                 payrollRunRepository

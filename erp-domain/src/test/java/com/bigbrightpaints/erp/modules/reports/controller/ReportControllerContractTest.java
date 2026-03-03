@@ -1,5 +1,6 @@
 package com.bigbrightpaints.erp.modules.reports.controller;
 
+import com.bigbrightpaints.erp.modules.admin.service.ExportApprovalService;
 import com.bigbrightpaints.erp.modules.reports.dto.AccountStatementEntryDto;
 import com.bigbrightpaints.erp.modules.reports.dto.GstReturnReportDto;
 import com.bigbrightpaints.erp.modules.reports.dto.TrialBalanceDto;
@@ -26,7 +27,8 @@ class ReportControllerContractTest {
     @Test
     void trialBalance_withDateRangeAndComparativeParametersDelegatesToQueryRequestBuilder() {
         ReportService reportService = mock(ReportService.class);
-        ReportController controller = new ReportController(reportService);
+        ExportApprovalService exportApprovalService = mock(ExportApprovalService.class);
+        ReportController controller = new ReportController(reportService, exportApprovalService);
         TrialBalanceDto expected = new TrialBalanceDto(List.of(), BigDecimal.ZERO, BigDecimal.ZERO, true, null, null);
         when(reportService.trialBalance(any(com.bigbrightpaints.erp.modules.reports.service.FinancialReportQueryRequest.class))).thenReturn(expected);
 
@@ -50,7 +52,8 @@ class ReportControllerContractTest {
     @Test
     void agedDebtorsV2_usesNewReportsPathAndDelegatesToReportServiceWithQueryRequest() {
         ReportService reportService = mock(ReportService.class);
-        ReportController controller = new ReportController(reportService);
+        ExportApprovalService exportApprovalService = mock(ExportApprovalService.class);
+        ReportController controller = new ReportController(reportService, exportApprovalService);
         when(reportService.agedDebtors(any())).thenReturn(List.of());
 
         ResponseEntity<ApiResponse<List<com.bigbrightpaints.erp.modules.reports.dto.AgedDebtorDto>>> response = controller.agedDebtorsV2(
@@ -68,7 +71,8 @@ class ReportControllerContractTest {
     @Test
     void accountStatement_serializesJournalEntryIdInApiResponse() throws Exception {
         ReportService reportService = mock(ReportService.class);
-        ReportController controller = new ReportController(reportService);
+        ExportApprovalService exportApprovalService = mock(ExportApprovalService.class);
+        ReportController controller = new ReportController(reportService, exportApprovalService);
         when(reportService.accountStatement()).thenReturn(List.of(
                 new AccountStatementEntryDto(
                         "Dealer Trace",
@@ -96,7 +100,8 @@ class ReportControllerContractTest {
     @Test
     void accountStatement_serializesNullJournalEntryIdInApiResponse() throws Exception {
         ReportService reportService = mock(ReportService.class);
-        ReportController controller = new ReportController(reportService);
+        ExportApprovalService exportApprovalService = mock(ExportApprovalService.class);
+        ReportController controller = new ReportController(reportService, exportApprovalService);
         when(reportService.accountStatement()).thenReturn(List.of(
                 new AccountStatementEntryDto(
                         "Dealer No Journal",
@@ -124,7 +129,8 @@ class ReportControllerContractTest {
     @Test
     void gstReturn_delegatesToServiceWithPeriodId() {
         ReportService reportService = mock(ReportService.class);
-        ReportController controller = new ReportController(reportService);
+        ExportApprovalService exportApprovalService = mock(ExportApprovalService.class);
+        ReportController controller = new ReportController(reportService, exportApprovalService);
         GstReturnReportDto expected = new GstReturnReportDto(
                 10L,
                 "March 2026",
