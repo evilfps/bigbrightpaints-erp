@@ -1,0 +1,20 @@
+{
+  "milestone": "manual-journal-centralization",
+  "round": 1,
+  "status": "pass",
+  "assertionsSummary": {
+    "total": 3,
+    "passed": 3,
+    "failed": 0,
+    "blocked": 0
+  },
+  "passedAssertions": [
+    "VAL-JRNL-001",
+    "VAL-JRNL-002",
+    "VAL-CLEAN-002"
+  ],
+  "failedAssertions": [],
+  "blockedAssertions": [],
+  "appliedUpdates": [],
+  "previousRound": null
+}

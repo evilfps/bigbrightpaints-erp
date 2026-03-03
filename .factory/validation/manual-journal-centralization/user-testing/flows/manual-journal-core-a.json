@@ -1,0 +1,173 @@
+{
+  "groupId": "manual-journal-core-a",
+  "testedAt": "2026-03-03T10:35:00+05:30",
+  "credentials": {
+    "account": "ut-manual-journal-a@example.com",
+    "namespace": "ut_manual_journal_a"
+  },
+  "toolsUsed": ["mvn test", "grep (source-boundary analysis)"],
+  "assertions": [
+    {
+      "id": "VAL-JRNL-001",
+      "title": "Manual journals through accounting facade",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Grep JournalEntryService for direct journal creation (save/persist calls)",
+          "expected": "No direct journal persistence in JournalEntryService for manual entries",
+          "observed": "Zero matches — JournalEntryService.createManualJournalEntry delegates to AccountingIdempotencyService which delegates to AccountingFacade"
+        },
+        {
+          "action": "Grep AccountingService.createManualJournal",
+          "expected": "Delegates to AccountingFacade.createManualJournal",
+          "observed": "AccountingService.createManualJournal (line 260-265) delegates to facade.createManualJournal(request) when facade is available"
+        },
+        {
+          "action": "Grep AccountingService.createManualJournalEntry",
+          "expected": "Delegates to AccountingFacade.createManualJournalEntry",
+          "observed": "AccountingService.createManualJournalEntry (line 296-301) delegates to facade.createManualJournalEntry(request, idempotencyKey)"
+        },
+        {
+          "action": "Verify AccountingFacade builds JournalCreationRequest with sourceModule=MANUAL",
+          "expected": "AccountingFacade.createManualJournal and createManualJournalEntry both set sourceModule='MANUAL' and call createStandardJournal",
+          "observed": "Confirmed at AccountingFacade.java lines 111 and 142: sourceModule='MANUAL', both call createStandardJournal(journalRequest)"
+        },
+        {
+          "action": "Grep for createManualJournal callers outside accounting module",
+          "expected": "Zero external callers bypass the facade",
+          "observed": "Zero matches outside accounting module — all manual journal creation is contained within accounting"
+        },
+        {
+          "action": "Run AccountingFacadeTest#createManualJournal_routesThroughStandardJournalWithManualSource + createManualJournalEntry_routesThroughStandardJournalWithManualSource",
+          "expected": "Both tests pass, verifying facade routes through createStandardJournal with sourceModule=MANUAL",
+          "observed": "Tests run: 2, Failures: 0, Errors: 0 — both pass confirming facade delegation with MANUAL source"
+        },
+        {
+          "action": "Run AccountingServiceStandardJournalTest#createManualJournal_balancedMultiLineDelegatesToFacade + createManualJournalEntry_delegatesToFacade + createManualJournal_rejectsUnbalancedLines",
+          "expected": "All 3 tests pass, verifying AccountingService delegates to facade and rejects unbalanced entries",
+          "observed": "Tests run: 3, Failures: 0, Errors: 0 — AccountingService correctly delegates to facade"
+        },
+        {
+          "action": "Run AccountingControllerJournalEndpointsTest#createManualJournal_delegatesToAccountingService",
+          "expected": "Test passes, verifying controller layer delegates to AccountingService",
+          "observed": "Tests run: 1, Failures: 0, Errors: 0 — controller correctly delegates"
+        }
+      ],
+      "evidence": {
+        "screenshots": [],
+        "consoleErrors": "none",
+        "commands": [
+          "cd erp-domain && mvn test -Djacoco.skip=true -Dtest='AccountingFacadeTest#createManualJournal_routesThroughStandardJournalWithManualSource+createManualJournalEntry_routesThroughStandardJournalWithManualSource,AccountingServiceStandardJournalTest#createManualJournal_balancedMultiLineDelegatesToFacade+createManualJournalEntry_delegatesToFacade+createManualJournal_rejectsUnbalancedLines' -> 5 tests, 0 failures",
+          "cd erp-domain && mvn test -Djacoco.skip=true -Dtest='AccountingControllerJournalEndpointsTest#createManualJournal_delegatesToAccountingService' -> 1 test, 0 failures",
+          "grep 'createManualJournal' outside accounting module -> 0 matches (no bypass)",
+          "grep 'save|persist' in JournalEntryService.java -> 0 matches (no direct DB writes for manual journals)"
+        ],
+        "sourceAnalysis": {
+          "delegationChain": "Controller -> AccountingService -> AccountingFacade.createManualJournal -> createStandardJournal(JournalCreationRequest with sourceModule=MANUAL)",
+          "JournalEntryServiceBypass": "None — JournalEntryService.createManualJournalEntry delegates to AccountingIdempotencyService -> AccountingFacade",
+          "externalCallers": "Zero callers of createManualJournal/createManualJournalEntry outside accounting module"
+        }
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-JRNL-002",
+      "title": "Manual journal audit trail",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Review AccountingComplianceAuditService.recordJournalCreation for MANUAL journal handling",
+          "expected": "Manual journals flagged with actionType=MANUAL_JOURNAL_CREATED, journalSource=MANUAL, sensitiveOperation=true",
+          "observed": "Confirmed: lines 52-55 check journalType==MANUAL, set actionType='MANUAL_JOURNAL_CREATED'; line 81 sets journalSource='MANUAL'; line 53 marks sensitiveOperation=true for manual journals"
+        },
+        {
+          "action": "Run AccountingComplianceAuditServiceTest#recordJournalCreation_manualJournal_flagsSensitiveOperation",
+          "expected": "Test passes verifying MANUAL_JOURNAL_CREATED action, journalSource=MANUAL, beforeState/afterState metadata",
+          "observed": "Tests run: 1, Failures: 0, Errors: 0 — audit correctly records manual journal creation with MANUAL source, sensitive flag, before/after state"
+        },
+        {
+          "action": "Review AuditTrailQueryService for filtering by actionType and entityType",
+          "expected": "Audit trail queryable by MANUAL_JOURNAL_CREATED action type, actor, date range, entity type",
+          "observed": "AuditTrailQueryServiceTest confirms filtering by user (actorIdentifier), actionType=MANUAL_JOURNAL_CREATED, entityType=JOURNAL_ENTRY, with beforeState/afterState and sensitiveOperation metadata"
+        },
+        {
+          "action": "Run AuditTrailQueryServiceTest#queryAuditTrail_filtersByUserActionAndEntityType",
+          "expected": "Test passes verifying manual journals are filterable and distinguishable from system journals",
+          "observed": "Tests run: 1, Failures: 0, Errors: 0 — audit trail correctly filters MANUAL_JOURNAL_CREATED entries by user, action, entity type"
+        },
+        {
+          "action": "Verify journal listing filters by journalType and sourceModule",
+          "expected": "listJournals endpoint supports filtering by type=MANUAL and sourceModule=MANUAL",
+          "observed": "AccountingServiceStandardJournalTest#listJournals_filtersByDateTypeAndSourceModule passes (1 test, 0 failures) — manual journals set journalType=MANUAL, sourceModule=MANUAL and are filterable in listing"
+        }
+      ],
+      "evidence": {
+        "screenshots": [],
+        "consoleErrors": "none",
+        "commands": [
+          "cd erp-domain && mvn test -Djacoco.skip=true -Dtest='AccountingComplianceAuditServiceTest#recordJournalCreation_manualJournal_flagsSensitiveOperation,AuditTrailQueryServiceTest#queryAuditTrail_filtersByUserActionAndEntityType' -> 2 tests, 0 failures",
+          "cd erp-domain && mvn test -Djacoco.skip=true -Dtest='AccountingServiceStandardJournalTest#listJournals_filtersByDateTypeAndSourceModule' -> 1 test, 0 failures"
+        ],
+        "sourceAnalysis": {
+          "auditActionType": "MANUAL_JOURNAL_CREATED for manual journals, SYSTEM_JOURNAL_CREATED for automated, SETTLEMENT_JOURNAL_CREATED for settlements",
+          "journalSourceMetadata": "journalSource=MANUAL for manual, SYSTEM_GENERATED for automated",
+          "auditTrailFields": "actorIdentifier (user), actionType, entityType=JOURNAL_ENTRY, beforeState, afterState, sensitiveOperation=true for manual journals",
+          "listingFilters": "journalType=MANUAL and sourceModule=MANUAL both set on manual journals, filterable via listJournals endpoint"
+        }
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-CLEAN-002",
+      "title": "Duplicate path elimination",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Grep for all createManualJournal(ManualJournalRequest) implementations in main source",
+          "expected": "Single authoritative implementation in AccountingFacade; overrides in AccountingService and AccountingCoreEngineCore are fallbacks only",
+          "observed": "3 declarations: AccountingFacade.java:61 (authoritative), AccountingService.java:260 (delegates to facade), AccountingCoreEngineCore.java:364 (base fallback). AccountingService.createManualJournal always delegates to facade.createManualJournal when facade is available."
+        },
+        {
+          "action": "Grep for all createManualJournalEntry(JournalEntryRequest, String) implementations",
+          "expected": "Single authoritative implementation in AccountingFacade; others are delegation chains only",
+          "observed": "Chain: Controller -> AccountingService -> AccountingFacade (authoritative). JournalEntryService delegates to AccountingIdempotencyService which delegates to AccountingFacade. All paths converge to one implementation in AccountingFacade.createManualJournalEntry."
+        },
+        {
+          "action": "Verify AccountingFacade.createManualJournal calls createStandardJournal (single creation path)",
+          "expected": "Both createManualJournal and createManualJournalEntry in AccountingFacade call createStandardJournal",
+          "observed": "Confirmed: AccountingFacade.java line 117 calls createStandardJournal(journalRequest) from createManualJournal; line 152 calls createStandardJournal(journalRequest) from createManualJournalEntry. Single journal creation path through createStandardJournal."
+        },
+        {
+          "action": "Verify no external modules (sales, purchasing, hr, etc.) call createManualJournal directly",
+          "expected": "Zero callers outside accounting module",
+          "observed": "grep for createManualJournal/createManualJournalEntry outside accounting module: 0 matches"
+        },
+        {
+          "action": "Run delegation tests to confirm single-path behavior",
+          "expected": "All delegation tests pass (facade tests + service tests + controller tests)",
+          "observed": "All 9 targeted tests pass (0 failures): facade routes through createStandardJournal, service delegates to facade, controller delegates to service"
+        }
+      ],
+      "evidence": {
+        "screenshots": [],
+        "consoleErrors": "none",
+        "commands": [
+          "grep 'public JournalEntryDto createManualJournal(ManualJournalRequest' in src/main/java -> 3 hits (1 authoritative in AccountingFacade, 2 delegation/fallback)",
+          "grep 'public JournalEntryDto createManualJournalEntry(JournalEntryRequest' in src/main/java -> 6 hits (1 authoritative in AccountingFacade, 5 delegation chain)",
+          "grep createManualJournal outside accounting module -> 0 matches",
+          "All 9 unit tests passed confirming single delegation path"
+        ],
+        "sourceAnalysis": {
+          "manualJournalCreationPath": "Controller -> AccountingService -> AccountingFacade -> createStandardJournal (ONE path)",
+          "manualJournalEntryPath": "Controller -> AccountingService -> AccountingFacade -> createStandardJournal (ONE path, with idempotency through AccountingIdempotencyService in the JournalEntryService route)",
+          "duplicatePaths": "NONE — all declarations either delegate to facade or are base fallbacks used only when facade is null (test-only scenario)",
+          "externalBypass": "Zero external callers — manual journal creation is fully contained in accounting module"
+        }
+      },
+      "issues": null
+    }
+  ],
+  "frictions": [],
+  "blockers": [],
+  "summary": "Tested 3 assertions: 3 passed, 0 failed, 0 blocked. VAL-JRNL-001: Manual journal creation routes through AccountingFacade with sourceModule=MANUAL, verified by 6 unit tests + source grep. VAL-JRNL-002: Audit trail records MANUAL_JOURNAL_CREATED with source=MANUAL, user attribution, and before/after state; filterable in listing — verified by 3 unit tests. VAL-CLEAN-002: Single code path for manual journals through AccountingFacade.createStandardJournal with no duplicate paths or external bypasses — verified by 9 unit tests + comprehensive source analysis."
+}
