@@ -1,0 +1,181 @@
+{
+  "groupId": "period-core",
+  "testedAt": "2026-03-04T23:11:28Z",
+  "credentials": {
+    "account": "ut-acct-controls-period@example.com",
+    "namespace": "ut_acct_controls_period"
+  },
+  "toolsUsed": [
+    "mvn test",
+    "surefire report inspection",
+    "code/read inspection"
+  ],
+  "assertions": [
+    {
+      "id": "VAL-PERIOD-001",
+      "title": "Period close maker-checker",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Run period close workflow tests and inspect maker-checker boundary logic.",
+          "expected": "Close requires approved request lifecycle with separate requester/reviewer (maker-checker).",
+          "observed": "`AccountingPeriodServiceTest` passed close/approve flows; `AccountingPeriodServiceCore.assertMakerCheckerBoundary` enforces requester/reviewer separation and throws maker-checker violation when same actor."
+        }
+      ],
+      "evidence": {
+        "commands": [
+          "cd erp-domain && mvn test -Djacoco.skip=true -Dtest=TS_AccountingPeriodReopenAuthorizationContractTest,TS_AccountingPeriodCloseChecklistSafetyContractTest,TS_PeriodCloseBoundaryCoverageTest,TS_PeriodCloseAtomicSnapshotTest,TS_SubledgerControlReconciliationContractTest,TS_RuntimeAccountingPeriodPolicyExecutableCoverageTest,TS_RuntimeAccountingPeriodServiceExecutableCoverageTest,TS_RuntimeAccountingPeriodServiceRegressionExecutableCoverageTest,TS_RuntimeAccountingFacadePeriodCloseBoundaryTest,TS_RuntimeAccountingFacadeExecutableCoverageTest,TS_RuntimeAccountingControllerExportCoverageTest,TS_RuntimeInventoryValuationExecutableCoverageTest,TS_InventoryDispatchStateRuntimeCoverageTest,TS_InventoryCogsLinkageScanContractTest,InventoryAdjustmentControllerTest,RawMaterialStockConstraintTest,BankReconciliationSessionServiceTest,ReconciliationServiceTest,AccountingControllerReconciliationDiscrepancyEndpointsTest,AccountingControllerPeriodCloseWorkflowEndpointsTest,AccountingControllerPeriodCloseWorkflowSecurityContractTest,AdminSettingsControllerApprovalsContractTest -pl ."
+        ],
+        "result": "PASS",
+        "output": "AccountingControllerPeriodCloseWorkflowEndpointsTest and AccountingPeriod runtime tests passed",
+        "codeRefs": [
+          "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/internal/AccountingPeriodServiceCore.java:213-374",
+          "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/internal/AccountingPeriodServiceCore.java:1181-1190",
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingPeriodServiceTest.java:245-302"
+        ]
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-PERIOD-002",
+      "title": "Period reopen requires superadmin",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Run reopen security contracts and reopen-policy tests.",
+          "expected": "Reopen endpoint/service rejects non-super-admin and requires reason.",
+          "observed": "`AccountingControllerPeriodCloseWorkflowSecurityContractTest` and `TS_AccountingPeriodReopenAuthorizationContractTest` passed, asserting `@PreAuthorize(hasAuthority('ROLE_SUPER_ADMIN'))`; `AccountingPeriodServiceTest` verifies ROLE_ACCOUNTING rejection and reason requirement."
+        }
+      ],
+      "evidence": {
+        "commands": [
+          "cd erp-domain && mvn test -Djacoco.skip=true -Dtest=TS_AccountingPeriodReopenAuthorizationContractTest,TS_AccountingPeriodCloseChecklistSafetyContractTest,TS_PeriodCloseBoundaryCoverageTest,TS_PeriodCloseAtomicSnapshotTest,TS_SubledgerControlReconciliationContractTest,TS_RuntimeAccountingPeriodPolicyExecutableCoverageTest,TS_RuntimeAccountingPeriodServiceExecutableCoverageTest,TS_RuntimeAccountingPeriodServiceRegressionExecutableCoverageTest,TS_RuntimeAccountingFacadePeriodCloseBoundaryTest,TS_RuntimeAccountingFacadeExecutableCoverageTest,TS_RuntimeAccountingControllerExportCoverageTest,TS_RuntimeInventoryValuationExecutableCoverageTest,TS_InventoryDispatchStateRuntimeCoverageTest,TS_InventoryCogsLinkageScanContractTest,InventoryAdjustmentControllerTest,RawMaterialStockConstraintTest,BankReconciliationSessionServiceTest,ReconciliationServiceTest,AccountingControllerReconciliationDiscrepancyEndpointsTest,AccountingControllerPeriodCloseWorkflowEndpointsTest,AccountingControllerPeriodCloseWorkflowSecurityContractTest,AdminSettingsControllerApprovalsContractTest -pl .",
+          "cd erp-domain && mvn test -Djacoco.skip=true -Dtest=AccountingControllerPeriodCloseWorkflowSecurityContractTest,TS_AccountingPeriodReopenAuthorizationContractTest -pl ."
+        ],
+        "result": "PASS",
+        "output": "Focused reopen-security run: Tests run 2, Failures 0, Errors 0",
+        "codeRefs": [
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/controller/AccountingControllerPeriodCloseWorkflowSecurityContractTest.java:9-20",
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/accounting/TS_AccountingPeriodReopenAuthorizationContractTest.java:11-24",
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingPeriodServiceTest.java:164-189"
+        ]
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-PERIOD-003",
+      "title": "Full compliance audit trail for period transitions",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Validate transition audit hooks for request/approve/reject/lock/reopen/close and audit service contract.",
+          "expected": "Period transitions produce compliance-audit events containing transition metadata.",
+          "observed": "`AccountingPeriodServiceCore` records lifecycle/transition events for PERIOD_CLOSE_REQUESTED/APPROVED/REJECTED, PERIOD_LOCKED, PERIOD_CLOSED, PERIOD_REOPENED; `AccountingComplianceAuditServiceTest` validates transition metadata serialization."
+        }
+      ],
+      "evidence": {
+        "commands": [
+          "cd erp-domain && mvn test -Djacoco.skip=true -Dtest=TS_AccountingPeriodReopenAuthorizationContractTest,TS_AccountingPeriodCloseChecklistSafetyContractTest,TS_PeriodCloseBoundaryCoverageTest,TS_PeriodCloseAtomicSnapshotTest,TS_SubledgerControlReconciliationContractTest,TS_RuntimeAccountingPeriodPolicyExecutableCoverageTest,TS_RuntimeAccountingPeriodServiceExecutableCoverageTest,TS_RuntimeAccountingPeriodServiceRegressionExecutableCoverageTest,TS_RuntimeAccountingFacadePeriodCloseBoundaryTest,TS_RuntimeAccountingFacadeExecutableCoverageTest,TS_RuntimeAccountingControllerExportCoverageTest,TS_RuntimeInventoryValuationExecutableCoverageTest,TS_InventoryDispatchStateRuntimeCoverageTest,TS_InventoryCogsLinkageScanContractTest,InventoryAdjustmentControllerTest,RawMaterialStockConstraintTest,BankReconciliationSessionServiceTest,ReconciliationServiceTest,AccountingControllerReconciliationDiscrepancyEndpointsTest,AccountingControllerPeriodCloseWorkflowEndpointsTest,AccountingControllerPeriodCloseWorkflowSecurityContractTest,AdminSettingsControllerApprovalsContractTest -pl ."
+        ],
+        "result": "PASS",
+        "output": "Period/runtime suite passed with no failures",
+        "codeRefs": [
+          "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/internal/AccountingPeriodServiceCore.java:268-374",
+          "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/internal/AccountingPeriodServiceCore.java:430-539",
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingComplianceAuditServiceTest.java:116-127"
+        ]
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-PERIOD-004",
+      "title": "Period lock toggle restricted to superadmin",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Inspect admin settings update path for period-lock enforcement RBAC and audit metadata.",
+          "expected": "Changing `periodLockEnforced` requires super-admin authority and is audited.",
+          "observed": "`AdminSettingsController.updateSettings` invokes `requireSuperAdminForPeriodLockEnforcedChange`; non-super-admin change attempts throw AUTH_INSUFFICIENT_PERMISSIONS with explicit message; `recordSettingsUpdateAudit` captures before/requested/after period-lock fields."
+        }
+      ],
+      "evidence": {
+        "commands": [
+          "cd erp-domain && mvn test -Djacoco.skip=true -Dtest=TS_AccountingPeriodReopenAuthorizationContractTest,TS_AccountingPeriodCloseChecklistSafetyContractTest,TS_PeriodCloseBoundaryCoverageTest,TS_PeriodCloseAtomicSnapshotTest,TS_SubledgerControlReconciliationContractTest,TS_RuntimeAccountingPeriodPolicyExecutableCoverageTest,TS_RuntimeAccountingPeriodServiceExecutableCoverageTest,TS_RuntimeAccountingPeriodServiceRegressionExecutableCoverageTest,TS_RuntimeAccountingFacadePeriodCloseBoundaryTest,TS_RuntimeAccountingFacadeExecutableCoverageTest,TS_RuntimeAccountingControllerExportCoverageTest,TS_RuntimeInventoryValuationExecutableCoverageTest,TS_InventoryDispatchStateRuntimeCoverageTest,TS_InventoryCogsLinkageScanContractTest,InventoryAdjustmentControllerTest,RawMaterialStockConstraintTest,BankReconciliationSessionServiceTest,ReconciliationServiceTest,AccountingControllerReconciliationDiscrepancyEndpointsTest,AccountingControllerPeriodCloseWorkflowEndpointsTest,AccountingControllerPeriodCloseWorkflowSecurityContractTest,AdminSettingsControllerApprovalsContractTest -pl ."
+        ],
+        "result": "PASS",
+        "output": "Admin settings contract tests passed in 86-test run",
+        "codeRefs": [
+          "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/admin/controller/AdminSettingsController.java:118-124",
+          "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/admin/controller/AdminSettingsController.java:402-414",
+          "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/admin/controller/AdminSettingsController.java:424-445"
+        ]
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-PERIOD-005",
+      "title": "Checklist blocked on locked periods",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Run checklist/runtime contracts and period service tests.",
+          "expected": "Checklist mutation APIs reject both CLOSED and LOCKED periods.",
+          "observed": "`TS_PeriodCloseBoundaryCoverageTest` and `TS_AccountingPeriodCloseChecklistSafetyContractTest` passed, asserting locked/closed checklist guard; `AccountingPeriodServiceTest.confirmBankReconciliation_rejectsChecklistMutationOnLockedPeriod` passed with expected validation error."
+        }
+      ],
+      "evidence": {
+        "commands": [
+          "cd erp-domain && mvn test -Djacoco.skip=true -Dtest=TS_AccountingPeriodReopenAuthorizationContractTest,TS_AccountingPeriodCloseChecklistSafetyContractTest,TS_PeriodCloseBoundaryCoverageTest,TS_PeriodCloseAtomicSnapshotTest,TS_SubledgerControlReconciliationContractTest,TS_RuntimeAccountingPeriodPolicyExecutableCoverageTest,TS_RuntimeAccountingPeriodServiceExecutableCoverageTest,TS_RuntimeAccountingPeriodServiceRegressionExecutableCoverageTest,TS_RuntimeAccountingFacadePeriodCloseBoundaryTest,TS_RuntimeAccountingFacadeExecutableCoverageTest,TS_RuntimeAccountingControllerExportCoverageTest,TS_RuntimeInventoryValuationExecutableCoverageTest,TS_InventoryDispatchStateRuntimeCoverageTest,TS_InventoryCogsLinkageScanContractTest,InventoryAdjustmentControllerTest,RawMaterialStockConstraintTest,BankReconciliationSessionServiceTest,ReconciliationServiceTest,AccountingControllerReconciliationDiscrepancyEndpointsTest,AccountingControllerPeriodCloseWorkflowEndpointsTest,AccountingControllerPeriodCloseWorkflowSecurityContractTest,AdminSettingsControllerApprovalsContractTest -pl ."
+        ],
+        "result": "PASS",
+        "output": "Truthsuite/runtime period tests passed",
+        "codeRefs": [
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/periodclose/TS_PeriodCloseBoundaryCoverageTest.java:39-46",
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingPeriodServiceTest.java:632-636",
+          "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/internal/AccountingPeriodServiceCore.java:582-589"
+        ]
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-PERIOD-006",
+      "title": "Period close requests in unified approvals dashboard",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Validate approvals dashboard response contract for period-close request inclusion.",
+          "expected": "Pending period close request appears in `/api/v1/admin/approvals` payload with action metadata.",
+          "observed": "`AdminSettingsControllerApprovalsContractTest` passed assertions on `periodCloseRequests` including reference, status, summary text, and approve/reject endpoints."
+        }
+      ],
+      "evidence": {
+        "commands": [
+          "cd erp-domain && mvn test -Djacoco.skip=true -Dtest=TS_AccountingPeriodReopenAuthorizationContractTest,TS_AccountingPeriodCloseChecklistSafetyContractTest,TS_PeriodCloseBoundaryCoverageTest,TS_PeriodCloseAtomicSnapshotTest,TS_SubledgerControlReconciliationContractTest,TS_RuntimeAccountingPeriodPolicyExecutableCoverageTest,TS_RuntimeAccountingPeriodServiceExecutableCoverageTest,TS_RuntimeAccountingPeriodServiceRegressionExecutableCoverageTest,TS_RuntimeAccountingFacadePeriodCloseBoundaryTest,TS_RuntimeAccountingFacadeExecutableCoverageTest,TS_RuntimeAccountingControllerExportCoverageTest,TS_RuntimeInventoryValuationExecutableCoverageTest,TS_InventoryDispatchStateRuntimeCoverageTest,TS_InventoryCogsLinkageScanContractTest,InventoryAdjustmentControllerTest,RawMaterialStockConstraintTest,BankReconciliationSessionServiceTest,ReconciliationServiceTest,AccountingControllerReconciliationDiscrepancyEndpointsTest,AccountingControllerPeriodCloseWorkflowEndpointsTest,AccountingControllerPeriodCloseWorkflowSecurityContractTest,AdminSettingsControllerApprovalsContractTest -pl ."
+        ],
+        "result": "PASS",
+        "output": "AdminSettingsControllerApprovalsContractTest: 5 passed",
+        "codeRefs": [
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/admin/controller/AdminSettingsControllerApprovalsContractTest.java:196-219"
+        ]
+      },
+      "issues": null
+    }
+  ],
+  "frictions": [
+    {
+      "description": "`user-testing-flow-validator` Task spawning remains unavailable in this environment due to model alias error.",
+      "resolved": true,
+      "resolution": "Validated period-control assertions directly in-session with focused contract and runtime tests.",
+      "affectedAssertions": [
+        "VAL-PERIOD-001",
+        "VAL-PERIOD-002",
+        "VAL-PERIOD-003",
+        "VAL-PERIOD-004",
+        "VAL-PERIOD-005",
+        "VAL-PERIOD-006"
+      ]
+    }
+  ],
+  "blockers": [],
+  "summary": "Validated period-lock controls redesign assertions using executable contracts/runtime tests and direct code-path verification; all six assigned assertions passed, including maker-checker flow, super-admin reopen restrictions, transition audit hooks, locked checklist guards, and unified approvals dashboard exposure."
+}

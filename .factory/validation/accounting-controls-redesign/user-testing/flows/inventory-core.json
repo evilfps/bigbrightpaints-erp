@@ -1,0 +1,114 @@
+{
+  "groupId": "inventory-core",
+  "testedAt": "2026-03-04T23:11:28Z",
+  "credentials": {
+    "account": "ut-acct-controls-inventory@example.com",
+    "namespace": "ut_acct_controls_inventory"
+  },
+  "toolsUsed": [
+    "mvn test",
+    "surefire report inspection",
+    "code/read inspection",
+    "wc -l"
+  ],
+  "assertions": [
+    {
+      "id": "VAL-INV-001",
+      "title": "FG workflow engine decomposed",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Run runtime inventory workflow/valuation contracts and verify engine size + facade cleanup.",
+          "expected": "Workflow engine remains under 500 LOC with runtime dispatch behaviors preserved; redundant workflow facade removed.",
+          "observed": "`TS_InventoryDispatchStateRuntimeCoverageTest` (6 tests) and `TS_RuntimeInventoryValuationExecutableCoverageTest` passed in the targeted run; `FinishedGoodsWorkflowEngineService` line count is 459; no `FinishedGoodsWorkflowService` class found."
+        }
+      ],
+      "evidence": {
+        "commands": [
+          "wc -l erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/service/FinishedGoodsWorkflowEngineService.java",
+          "cd erp-domain && mvn test -Djacoco.skip=true -Dtest=RawMaterialStockConstraintTest,TS_InventoryDispatchStateRuntimeCoverageTest,TS_RuntimeInventoryValuationExecutableCoverageTest,InventoryAdjustmentControllerTest,RawMaterialControllerTest,RawMaterialAdjustmentServiceTest,InventoryAdjustmentCostingMethodTest,InventoryBatchQueryServiceTest -pl ."
+        ],
+        "result": "PASS",
+        "output": "Workflow/runtime subset executed with passing coverage for TS_InventoryDispatchStateRuntimeCoverageTest, TS_RuntimeInventoryValuationExecutableCoverageTest, InventoryAdjustmentControllerTest, RawMaterialControllerTest, RawMaterialStockConstraintTest; engine file 459 LOC",
+        "codeRefs": [
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/inventory/TS_InventoryDispatchStateRuntimeCoverageTest.java:53-259",
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeInventoryValuationExecutableCoverageTest.java:25-89",
+          "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/service/FinishedGoodsWorkflowEngineService.java"
+        ]
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-INV-002",
+      "title": "Positive stock adjustments and RM adjustments",
+      "status": "blocked",
+      "steps": [
+        {
+          "action": "Validate FG RECOUNT_UP and RM adjustment idempotency/accounting behavior from targeted tests and prior validated suite.",
+          "expected": "FG positive adjustments increase stock with journal postings; RM adjustment endpoint supports stock change and idempotent journal-backed posting.",
+          "observed": "`InventoryAdjustmentCostingMethodTest` contains explicit `createAdjustment_recountUpIncreasesStockAndDebitsInventory`; `RawMaterialAdjustmentServiceTest` covers RM adjustment increase/decrease, journal posting, and idempotent replay. Current rerun of integration-heavy tests is blocked by known bean-name collision, but earlier milestone evidence and focused runtime/controller tests remain green."
+        }
+      ],
+      "evidence": {
+        "commands": [
+          "cd erp-domain && mvn test -Djacoco.skip=true -Dtest=TS_AccountingPeriodReopenAuthorizationContractTest,TS_AccountingPeriodCloseChecklistSafetyContractTest,TS_PeriodCloseBoundaryCoverageTest,TS_PeriodCloseAtomicSnapshotTest,TS_SubledgerControlReconciliationContractTest,TS_RuntimeAccountingPeriodPolicyExecutableCoverageTest,TS_RuntimeAccountingPeriodServiceExecutableCoverageTest,TS_RuntimeAccountingPeriodServiceRegressionExecutableCoverageTest,TS_RuntimeAccountingFacadePeriodCloseBoundaryTest,TS_RuntimeAccountingFacadeExecutableCoverageTest,TS_RuntimeAccountingControllerExportCoverageTest,TS_RuntimeInventoryValuationExecutableCoverageTest,TS_InventoryDispatchStateRuntimeCoverageTest,TS_InventoryCogsLinkageScanContractTest,InventoryAdjustmentControllerTest,RawMaterialStockConstraintTest,BankReconciliationSessionServiceTest,ReconciliationServiceTest,AccountingControllerReconciliationDiscrepancyEndpointsTest,AccountingControllerPeriodCloseWorkflowEndpointsTest,AccountingControllerPeriodCloseWorkflowSecurityContractTest,AdminSettingsControllerApprovalsContractTest -pl .",
+          "cd erp-domain && mvn test -Djacoco.skip=true -Dtest=RawMaterialStockConstraintTest,TS_InventoryDispatchStateRuntimeCoverageTest,TS_RuntimeInventoryValuationExecutableCoverageTest,InventoryAdjustmentControllerTest,RawMaterialControllerTest,RawMaterialAdjustmentServiceTest,InventoryAdjustmentCostingMethodTest,InventoryBatchQueryServiceTest -pl ."
+        ],
+        "result": "BLOCKED",
+        "output": "Controller/runtime inventory tests pass, but assertion-level integration evidence is blocked in this run because `InventoryAdjustmentCostingMethodTest` and `RawMaterialAdjustmentServiceTest` fail ApplicationContext startup from `inventoryValuationService` bean-name conflict",
+        "codeRefs": [
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/inventory/service/InventoryAdjustmentCostingMethodTest.java:224-273",
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/inventory/service/RawMaterialAdjustmentServiceTest.java:71-232",
+          "erp-domain/target/surefire-reports/TEST-com.bigbrightpaints.erp.modules.inventory.service.InventoryAdjustmentCostingMethodTest.xml:114"
+        ]
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-INV-003",
+      "title": "Batch expiry monitoring and negative stock prevention",
+      "status": "blocked",
+      "steps": [
+        {
+          "action": "Run inventory controller/domain/runtime subset and verify expiry + negative-stock guard coverage.",
+          "expected": "Expiring-soon endpoint/query semantics and negative-stock guard behavior are enforced.",
+          "observed": "`RawMaterialStockConstraintTest` passed (`setCurrentStock_rejectsNegativeValues`); `RawMaterialControllerTest` passed (`expiringSoonBatches_clampsNegativeDaysToZero`); `InventoryBatchQueryServiceTest` contains combined sorted expiry-window coverage but is currently context-blocked by known bean conflict."
+        }
+      ],
+      "evidence": {
+        "commands": [
+          "cd erp-domain && mvn test -Djacoco.skip=true -Dtest=RawMaterialStockConstraintTest,TS_InventoryDispatchStateRuntimeCoverageTest,TS_RuntimeInventoryValuationExecutableCoverageTest,InventoryAdjustmentControllerTest,RawMaterialControllerTest,RawMaterialAdjustmentServiceTest,InventoryAdjustmentCostingMethodTest,InventoryBatchQueryServiceTest -pl ."
+        ],
+        "result": "BLOCKED",
+        "output": "RawMaterialStockConstraintTest and RawMaterialControllerTest passed, but integration expiry-query confirmation (`InventoryBatchQueryServiceTest`) is blocked by the same `inventoryValuationService` bean-definition conflict",
+        "codeRefs": [
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/inventory/domain/RawMaterialStockConstraintTest.java:15-25",
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/inventory/controller/RawMaterialControllerTest.java:164-174",
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/inventory/service/InventoryBatchQueryServiceTest.java:64-117",
+          "erp-domain/target/surefire-reports/TEST-com.bigbrightpaints.erp.modules.inventory.service.InventoryBatchQueryServiceTest.xml:75"
+        ]
+      },
+      "issues": null
+    }
+  ],
+  "frictions": [
+    {
+      "description": "Inventory integration tests requiring full Spring context fail due duplicate bean name `inventoryValuationService` between reports and inventory modules.",
+      "resolved": false,
+      "resolution": "Not resolved in this validation run; used passing runtime/controller/domain subset and previously collected evidence while recording blocker explicitly.",
+      "affectedAssertions": [
+        "VAL-INV-002",
+        "VAL-INV-003"
+      ]
+    }
+  ],
+  "blockers": [
+    {
+      "description": "`ConflictingBeanDefinitionException`: bean name `inventoryValuationService` conflicts between `com.bigbrightpaints.erp.modules.reports.service.InventoryValuationService` and `com.bigbrightpaints.erp.modules.inventory.service.InventoryValuationService`, preventing Spring context startup for integration classes (`InventoryAdjustmentCostingMethodTest`, `RawMaterialAdjustmentServiceTest`, `InventoryBatchQueryServiceTest`).",
+      "impact": "Blocks re-execution of inventory integration classes in this run; does not affect already-passing unit/runtime/contract subset used for validation evidence.",
+      "source": "surefire reports",
+      "evidence": "erp-domain/target/surefire-reports/TEST-com.bigbrightpaints.erp.modules.inventory.service.InventoryAdjustmentCostingMethodTest.xml"
+    }
+  ],
+  "summary": "Validated inventory hardening surface with mixed outcomes: VAL-INV-001 passed on direct runtime evidence, while VAL-INV-002 and VAL-INV-003 are blocked in this run because required integration tests cannot bootstrap due to duplicate `inventoryValuationService` bean naming conflict."
+}

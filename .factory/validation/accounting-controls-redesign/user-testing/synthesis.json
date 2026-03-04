@@ -1,0 +1,63 @@
+{
+  "milestone": "accounting-controls-redesign",
+  "round": 1,
+  "status": "fail",
+  "assertionsSummary": {
+    "total": 14,
+    "passed": 12,
+    "failed": 0,
+    "blocked": 2
+  },
+  "passedAssertions": [
+    "VAL-INV-001",
+    "VAL-PERIOD-001",
+    "VAL-PERIOD-002",
+    "VAL-PERIOD-003",
+    "VAL-PERIOD-004",
+    "VAL-PERIOD-005",
+    "VAL-PERIOD-006",
+    "VAL-RECON-001",
+    "VAL-RECON-002",
+    "VAL-RECON-003",
+    "VAL-RECON-004",
+    "VAL-RECON-005"
+  ],
+  "failedAssertions": [],
+  "blockedAssertions": [
+    {
+      "id": "VAL-INV-002",
+      "blockedBy": "Blocked by test-environment issue: ConflictingBeanDefinitionException on duplicate bean name `inventoryValuationService` during integration context bootstrap."
+    },
+    {
+      "id": "VAL-INV-003",
+      "blockedBy": "Blocked by test-environment issue: ConflictingBeanDefinitionException on duplicate bean name `inventoryValuationService` during integration context bootstrap."
+    }
+  ],
+  "appliedUpdates": [
+    {
+      "target": "user-testing.md",
+      "description": "Recorded systemic blocker that inventory integration tests requiring full Spring context fail due duplicate `inventoryValuationService` bean naming conflict, with guidance to use runtime/controller/domain evidence and report blocker explicitly until resolved.",
+      "source": "flow-report"
+    },
+    {
+      "target": "user-testing.md",
+      "description": "Reinforced fallback guidance for this environment where `user-testing-flow-validator` Task spawning may fail with invalid model alias, requiring in-session grouped flow execution.",
+      "source": "flow-report"
+    }
+  ],
+  "previousRound": null,
+  "flowReports": [
+    ".factory/validation/accounting-controls-redesign/user-testing/flows/inventory-core.json",
+    ".factory/validation/accounting-controls-redesign/user-testing/flows/period-core.json",
+    ".factory/validation/accounting-controls-redesign/user-testing/flows/recon-core.json"
+  ],
+  "capturedAt": "2026-03-04T23:16:10Z",
+  "systemicBlockers": [
+    {
+      "description": "`ConflictingBeanDefinitionException`: bean name `inventoryValuationService` conflicts between `com.bigbrightpaints.erp.modules.reports.service.InventoryValuationService` and `com.bigbrightpaints.erp.modules.inventory.service.InventoryValuationService`, preventing Spring context startup for integration classes (`InventoryAdjustmentCostingMethodTest`, `RawMaterialAdjustmentServiceTest`, `InventoryBatchQueryServiceTest`).",
+      "impact": "Blocks re-execution of inventory integration classes in this run; does not affect already-passing unit/runtime/contract subset used for validation evidence.",
+      "source": "surefire reports",
+      "evidence": "erp-domain/target/surefire-reports/TEST-com.bigbrightpaints.erp.modules.inventory.service.InventoryAdjustmentCostingMethodTest.xml"
+    }
+  ]
+}

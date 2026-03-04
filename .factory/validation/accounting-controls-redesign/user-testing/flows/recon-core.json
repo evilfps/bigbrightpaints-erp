@@ -1,0 +1,148 @@
+{
+  "groupId": "recon-core",
+  "testedAt": "2026-03-04T23:11:28Z",
+  "credentials": {
+    "account": "ut-acct-controls-recon@example.com",
+    "namespace": "ut_acct_controls_recon"
+  },
+  "toolsUsed": [
+    "mvn test",
+    "surefire report inspection",
+    "code/read inspection"
+  ],
+  "assertions": [
+    {
+      "id": "VAL-RECON-001",
+      "title": "Persistent bank reconciliation sessions",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Run targeted reconciliation + period/inventory contracts test suite.",
+          "expected": "Bank reconciliation sessions persist statement metadata and cleared items, and support incremental updates/finalization.",
+          "observed": "`BankReconciliationSessionServiceTest` passed (7 tests) including `startSession_persistsDraftSessionAndReturnsSummary`, `updateItems_addAndRemoveJournalLinesWithinSessionAccount`, `completeSession_marksCompletedAndConfirmsPeriodWhenLinked`, and `reconcileLegacy_delegatesToSessionLifecycleAndReturnsSummary`."
+        }
+      ],
+      "evidence": {
+        "commands": [
+          "cd erp-domain && mvn test -Djacoco.skip=true -Dtest=TS_AccountingPeriodReopenAuthorizationContractTest,TS_AccountingPeriodCloseChecklistSafetyContractTest,TS_PeriodCloseBoundaryCoverageTest,TS_PeriodCloseAtomicSnapshotTest,TS_SubledgerControlReconciliationContractTest,TS_RuntimeAccountingPeriodPolicyExecutableCoverageTest,TS_RuntimeAccountingPeriodServiceExecutableCoverageTest,TS_RuntimeAccountingPeriodServiceRegressionExecutableCoverageTest,TS_RuntimeAccountingFacadePeriodCloseBoundaryTest,TS_RuntimeAccountingFacadeExecutableCoverageTest,TS_RuntimeAccountingControllerExportCoverageTest,TS_RuntimeInventoryValuationExecutableCoverageTest,TS_InventoryDispatchStateRuntimeCoverageTest,TS_InventoryCogsLinkageScanContractTest,InventoryAdjustmentControllerTest,RawMaterialStockConstraintTest,BankReconciliationSessionServiceTest,ReconciliationServiceTest,AccountingControllerReconciliationDiscrepancyEndpointsTest,AccountingControllerPeriodCloseWorkflowEndpointsTest,AccountingControllerPeriodCloseWorkflowSecurityContractTest,AdminSettingsControllerApprovalsContractTest -pl ."
+        ],
+        "result": "PASS",
+        "output": "Tests run: 86, Failures: 0, Errors: 0, Skipped: 0",
+        "codeRefs": [
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/service/BankReconciliationSessionServiceTest.java:81-372"
+        ]
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-RECON-002",
+      "title": "Bank reconciliation session history",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Validate history and detail behavior from service-level executable tests.",
+          "expected": "Paginated newest-first session history and detail endpoint payload with cleared/uncleared summary are returned.",
+          "observed": "`listSessions_returnsPaginatedNewestFirstHistory` and `getSessionDetail_returnsClearedAndUnclearedBreakdown` passed in `BankReconciliationSessionServiceTest`, asserting ordered history, counts, and summary fields."
+        }
+      ],
+      "evidence": {
+        "commands": [
+          "cd erp-domain && mvn test -Djacoco.skip=true -Dtest=TS_AccountingPeriodReopenAuthorizationContractTest,TS_AccountingPeriodCloseChecklistSafetyContractTest,TS_PeriodCloseBoundaryCoverageTest,TS_PeriodCloseAtomicSnapshotTest,TS_SubledgerControlReconciliationContractTest,TS_RuntimeAccountingPeriodPolicyExecutableCoverageTest,TS_RuntimeAccountingPeriodServiceExecutableCoverageTest,TS_RuntimeAccountingPeriodServiceRegressionExecutableCoverageTest,TS_RuntimeAccountingFacadePeriodCloseBoundaryTest,TS_RuntimeAccountingFacadeExecutableCoverageTest,TS_RuntimeAccountingControllerExportCoverageTest,TS_RuntimeInventoryValuationExecutableCoverageTest,TS_InventoryDispatchStateRuntimeCoverageTest,TS_InventoryCogsLinkageScanContractTest,InventoryAdjustmentControllerTest,RawMaterialStockConstraintTest,BankReconciliationSessionServiceTest,ReconciliationServiceTest,AccountingControllerReconciliationDiscrepancyEndpointsTest,AccountingControllerPeriodCloseWorkflowEndpointsTest,AccountingControllerPeriodCloseWorkflowSecurityContractTest,AdminSettingsControllerApprovalsContractTest -pl ."
+        ],
+        "result": "PASS",
+        "output": "BankReconciliationSessionServiceTest: 7 passed",
+        "codeRefs": [
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/service/BankReconciliationSessionServiceTest.java:258-331"
+        ]
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-RECON-003",
+      "title": "Reconciliation discrepancy auto-detection",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Run reconciliation service tests covering discrepancy persistence on control-account variances.",
+          "expected": "AR/AP/Inventory/GST variance > tolerance persists OPEN `ReconciliationDiscrepancy` rows with expected/actual/variance details.",
+          "observed": "`reconcileSubledgerBalances_createsOpenDiscrepanciesForControlVariances` passed in `ReconciliationServiceTest`, verifying four OPEN discrepancy records and concrete expected/actual/variance values."
+        }
+      ],
+      "evidence": {
+        "commands": [
+          "cd erp-domain && mvn test -Djacoco.skip=true -Dtest=TS_AccountingPeriodReopenAuthorizationContractTest,TS_AccountingPeriodCloseChecklistSafetyContractTest,TS_PeriodCloseBoundaryCoverageTest,TS_PeriodCloseAtomicSnapshotTest,TS_SubledgerControlReconciliationContractTest,TS_RuntimeAccountingPeriodPolicyExecutableCoverageTest,TS_RuntimeAccountingPeriodServiceExecutableCoverageTest,TS_RuntimeAccountingPeriodServiceRegressionExecutableCoverageTest,TS_RuntimeAccountingFacadePeriodCloseBoundaryTest,TS_RuntimeAccountingFacadeExecutableCoverageTest,TS_RuntimeAccountingControllerExportCoverageTest,TS_RuntimeInventoryValuationExecutableCoverageTest,TS_InventoryDispatchStateRuntimeCoverageTest,TS_InventoryCogsLinkageScanContractTest,InventoryAdjustmentControllerTest,RawMaterialStockConstraintTest,BankReconciliationSessionServiceTest,ReconciliationServiceTest,AccountingControllerReconciliationDiscrepancyEndpointsTest,AccountingControllerPeriodCloseWorkflowEndpointsTest,AccountingControllerPeriodCloseWorkflowSecurityContractTest,AdminSettingsControllerApprovalsContractTest -pl ."
+        ],
+        "result": "PASS",
+        "output": "ReconciliationServiceTest: 16 passed",
+        "codeRefs": [
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/service/ReconciliationServiceTest.java:307-388"
+        ]
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-RECON-004",
+      "title": "Discrepancy resolution flow",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Execute discrepancy endpoint/service tests for ACKNOWLEDGED, ADJUSTMENT_JOURNAL, and WRITE_OFF paths.",
+          "expected": "Resolution routes persist status transitions, metadata, and journal linkage for journaled paths.",
+          "observed": "`ReconciliationServiceTest` passed resolution-path tests for ACKNOWLEDGED, ADJUSTMENT_JOURNAL, WRITE_OFF, with journal creation assertions for ADJUSTMENT/WRITE_OFF; controller contract test validates resolution endpoint handling."
+        }
+      ],
+      "evidence": {
+        "commands": [
+          "cd erp-domain && mvn test -Djacoco.skip=true -Dtest=TS_AccountingPeriodReopenAuthorizationContractTest,TS_AccountingPeriodCloseChecklistSafetyContractTest,TS_PeriodCloseBoundaryCoverageTest,TS_PeriodCloseAtomicSnapshotTest,TS_SubledgerControlReconciliationContractTest,TS_RuntimeAccountingPeriodPolicyExecutableCoverageTest,TS_RuntimeAccountingPeriodServiceExecutableCoverageTest,TS_RuntimeAccountingPeriodServiceRegressionExecutableCoverageTest,TS_RuntimeAccountingFacadePeriodCloseBoundaryTest,TS_RuntimeAccountingFacadeExecutableCoverageTest,TS_RuntimeAccountingControllerExportCoverageTest,TS_RuntimeInventoryValuationExecutableCoverageTest,TS_InventoryDispatchStateRuntimeCoverageTest,TS_InventoryCogsLinkageScanContractTest,InventoryAdjustmentControllerTest,RawMaterialStockConstraintTest,BankReconciliationSessionServiceTest,ReconciliationServiceTest,AccountingControllerReconciliationDiscrepancyEndpointsTest,AccountingControllerPeriodCloseWorkflowEndpointsTest,AccountingControllerPeriodCloseWorkflowSecurityContractTest,AdminSettingsControllerApprovalsContractTest -pl ."
+        ],
+        "result": "PASS",
+        "output": "ReconciliationServiceTest and AccountingControllerReconciliationDiscrepancyEndpointsTest passed with 0 failures",
+        "codeRefs": [
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/service/ReconciliationServiceTest.java:469-644",
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/controller/AccountingControllerReconciliationDiscrepancyEndpointsTest.java:17-136"
+        ]
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-RECON-005",
+      "title": "Period close gates on reconciliation",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Validate checklist control composition and close gating behavior via truthsuite/runtime tests.",
+          "expected": "Checklist includes reconciliation controls (inventory, AR, AP, GST, discrepancies) and close fails when unresolved.",
+          "observed": "`TS_AccountingPeriodCloseChecklistSafetyContractTest` passed and asserts deterministic reconciliation control order including `gstReconciled` and `reconciliationDiscrepanciesResolved`; `AccountingPeriodServiceTest` includes close rejection when trial balance/checklist gates fail."
+        }
+      ],
+      "evidence": {
+        "commands": [
+          "cd erp-domain && mvn test -Djacoco.skip=true -Dtest=TS_AccountingPeriodReopenAuthorizationContractTest,TS_AccountingPeriodCloseChecklistSafetyContractTest,TS_PeriodCloseBoundaryCoverageTest,TS_PeriodCloseAtomicSnapshotTest,TS_SubledgerControlReconciliationContractTest,TS_RuntimeAccountingPeriodPolicyExecutableCoverageTest,TS_RuntimeAccountingPeriodServiceExecutableCoverageTest,TS_RuntimeAccountingPeriodServiceRegressionExecutableCoverageTest,TS_RuntimeAccountingFacadePeriodCloseBoundaryTest,TS_RuntimeAccountingFacadeExecutableCoverageTest,TS_RuntimeAccountingControllerExportCoverageTest,TS_RuntimeInventoryValuationExecutableCoverageTest,TS_InventoryDispatchStateRuntimeCoverageTest,TS_InventoryCogsLinkageScanContractTest,InventoryAdjustmentControllerTest,RawMaterialStockConstraintTest,BankReconciliationSessionServiceTest,ReconciliationServiceTest,AccountingControllerReconciliationDiscrepancyEndpointsTest,AccountingControllerPeriodCloseWorkflowEndpointsTest,AccountingControllerPeriodCloseWorkflowSecurityContractTest,AdminSettingsControllerApprovalsContractTest -pl ."
+        ],
+        "result": "PASS",
+        "output": "Truthsuite + runtime contracts passed in 86-test run",
+        "codeRefs": [
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/accounting/TS_AccountingPeriodCloseChecklistSafetyContractTest.java:13-46",
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingPeriodServiceTest.java:326-394"
+        ]
+      },
+      "issues": null
+    }
+  ],
+  "frictions": [
+    {
+      "description": "`user-testing-flow-validator` Task subagents could not be launched due to invalid model alias (`custom:CLIProxyAPI-5.3-codex-xhigh-pro`).",
+      "resolved": true,
+      "resolution": "Executed grouped validation directly in-session and produced flow JSON artifacts manually.",
+      "affectedAssertions": [
+        "VAL-RECON-001",
+        "VAL-RECON-002",
+        "VAL-RECON-003",
+        "VAL-RECON-004",
+        "VAL-RECON-005"
+      ]
+    }
+  ],
+  "blockers": [],
+  "summary": "Validated reconciliation redesign assertions with focused executable tests and contracts: all five assigned assertions passed with evidence from reconciliation session persistence/history, discrepancy detection and resolution flows, and reconciliation-gated period close checklist controls."
+}
