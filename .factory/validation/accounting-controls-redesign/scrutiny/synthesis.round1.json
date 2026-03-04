@@ -1,0 +1,61 @@
+{
+  "milestone": "accounting-controls-redesign",
+  "round": 1,
+  "status": "fail",
+  "validatorsRun": {
+    "test": {
+      "passed": true,
+      "command": "cd erp-domain && mvn test -Pgate-fast -Djacoco.skip=true",
+      "exitCode": 0
+    },
+    "typecheck": {
+      "passed": true,
+      "command": "cd erp-domain && mvn compile -q",
+      "exitCode": 0
+    },
+    "lint": {
+      "passed": true,
+      "command": "echo \"Checkstyle in advisory mode (49962 pre-existing violations). Skipped as hard gate.\"",
+      "exitCode": 0
+    }
+  },
+  "reviewsSummary": {
+    "total": 5,
+    "passed": 4,
+    "failed": 1,
+    "failedFeatures": [
+      "period-lock-controls-redesign"
+    ]
+  },
+  "blockingIssues": [
+    {
+      "featureId": "period-lock-controls-redesign",
+      "severity": "blocking",
+      "description": "Accounting reopen endpoint authorization still includes ROLE_ADMIN and ROLE_ACCOUNTING at controller boundary (`@PreAuthorize(\"hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING','ROLE_SUPER_ADMIN')\")`), while the milestone contract requires reopen to be restricted to ROLE_SUPER_ADMIN at endpoint level."
+    }
+  ],
+  "appliedUpdates": [],
+  "suggestedGuidanceUpdates": [
+    {
+      "target": "skills/scrutiny-validator",
+      "suggestion": "Add explicit fallback guidance for reviewer spawning failures (e.g., invalid Task model alias) so manual evidence-based review flow is a documented first-class path.",
+      "evidence": "All scrutiny-feature-reviewer Task calls failed with `Invalid model: custom:CLIProxyAPI-5.3-codex-xhigh-pro`, requiring manual review artifact generation.",
+      "isSystemic": true
+    }
+  ],
+  "rejectedObservations": [
+    {
+      "observation": "Inventory workflow engine still manually wires extracted service collaborators instead of DI injection.",
+      "reason": "non-blocking refactor preference; decomposition objective and behavioral contracts are satisfied"
+    },
+    {
+      "observation": "Global AUTH error-code mapping returns 401 for AUTH_INSUFFICIENT_PERMISSIONS cases.",
+      "reason": "pre-existing cross-cutting behavior not unique to this milestone; keep as non-blocking follow-up outside milestone blocking scope"
+    },
+    {
+      "observation": "Admin override compliance audit currently emits explicit override event only for journal reversals.",
+      "reason": "requirement wording is broad but milestone contract lacks explicit validator assertion for non-reversal override event taxonomy"
+    }
+  ],
+  "previousRound": null
+}

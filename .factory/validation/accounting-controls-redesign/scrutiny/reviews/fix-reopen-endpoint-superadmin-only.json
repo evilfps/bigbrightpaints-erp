@@ -1,0 +1,21 @@
+{
+  "featureId": "fix-reopen-endpoint-superadmin-only",
+  "reviewedAt": "2026-03-05T04:04:48+05:30",
+  "commitId": "f260e1f6",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "Fix feature fully addresses the prior blocking RBAC gap. The reopen endpoint is now restricted at controller boundary with `@PreAuthorize(\"hasAuthority('ROLE_SUPER_ADMIN')\")`, preserving defense-in-depth with service-layer superadmin checks and reason validation. Regression protection was added via both controller contract and truthsuite assertions, and integration coverage validates ROLE_ADMIN/ROLE_ACCOUNTING receive 403 while ROLE_SUPER_ADMIN succeeds.",
+    "issues": []
+  },
+  "sharedStateObservations": [
+    {
+      "area": "skills",
+      "observation": "Scrutiny validator should include first-class fallback guidance for manual review artifact generation when Task-based reviewer fan-out is unavailable due to model alias/environment issues.",
+      "evidence": "scrutiny-feature-reviewer Task invocation failed in this run with `Invalid model: custom:CLIProxyAPI-5.3-codex-xhigh-pro`, requiring direct evidence-based review execution."
+    }
+  ],
+  "addressesFailureFrom": "period-lock-controls-redesign",
+  "summary": "PASS. The previous blocking finding is remediated: reopen endpoint authorization is superadmin-only at the endpoint boundary and reinforced with targeted contract tests."
+}
