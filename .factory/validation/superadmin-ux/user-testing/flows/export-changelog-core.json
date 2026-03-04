@@ -1,0 +1,92 @@
+{
+  "groupId": "export-changelog-core",
+  "testedAt": "2026-03-04T05:22:00Z",
+  "credentials": {
+    "account": "ut-superadmin-export-1@example.com",
+    "namespace": "ut_superadmin_export_1"
+  },
+  "toolsUsed": ["mvn test (unit tests)", "source code review"],
+  "assertions": [
+    {
+      "id": "VAL-ADMIN-003",
+      "title": "Export approval gate",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Run ExportApprovalServiceTest (7 tests) covering create, list pending, approve, reject, download gate",
+          "expected": "All 7 tests pass: createRequest persists PENDING, listPending maps user/status, approve sets APPROVED + metadata, reject sets REJECTED + reason, resolveDownload blocks unapproved when gate enabled, resolveDownload allows approved when gate enabled, resolveDownload bypasses gate when disabled",
+          "observed": "Tests run: 7, Failures: 0, Errors: 0, Skipped: 0 (1.668s)"
+        },
+        {
+          "action": "Run AdminSettingsControllerApprovalsContractTest (4 tests) covering approvals dashboard with export requests",
+          "expected": "All 4 tests pass: approvals is read-only transactional, export approvals appear in unified dashboard alongside credit/payroll, null/unknown status fallbacks handled, payroll fallback reference used",
+          "observed": "Tests run: 4, Failures: 0, Errors: 0, Skipped: 0 (0.456s)"
+        },
+        {
+          "action": "Run ReportControllerContractTest (5 tests) confirming ReportController integrates ExportApprovalService",
+          "expected": "All 5 tests pass confirming controller contract including POST /api/v1/exports/request and GET /api/v1/exports/{id}/download endpoints",
+          "observed": "Tests run: 5, Failures: 0, Errors: 0, Skipped: 0 (1.718s)"
+        },
+        {
+          "action": "Verify source code: SystemSettingsService has erp.export.require-approval config with persistence, ExportApprovalService enforces PENDING->APPROVED->download flow, admin endpoints gated with ROLE_ADMIN/ROLE_SUPER_ADMIN",
+          "expected": "Export approval gate toggleable via settings API PUT /api/v1/admin/settings with exportApprovalRequired field. Export lifecycle: create (PENDING) -> approve/reject -> download gated on APPROVED status when setting enabled",
+          "observed": "SystemSettingsService.isExportApprovalRequired() backed by volatile boolean + persisted SystemSetting. ExportApprovalService: createRequest creates PENDING, approve sets APPROVED, reject sets REJECTED with reason, resolveDownload checks approval gate and returns 403-equivalent ApplicationException if not APPROVED. AdminSettingsController exposes GET /api/v1/admin/exports/pending, PUT /api/v1/admin/exports/{id}/approve, PUT /api/v1/admin/exports/{id}/reject with PreAuthorize(ROLE_ADMIN,ROLE_SUPER_ADMIN). Export requests appear in unified GET /api/v1/admin/approvals dashboard."
+        }
+      ],
+      "evidence": {
+        "screenshots": [],
+        "consoleErrors": "N/A (API testing surface)",
+        "network": "Validated via unit tests: POST /api/v1/exports/request -> PENDING, GET /api/v1/admin/exports/pending -> list, PUT /api/v1/admin/exports/{id}/approve -> APPROVED, PUT /api/v1/admin/exports/{id}/reject -> REJECTED, GET /api/v1/exports/{id}/download -> gated on approval status",
+        "testResults": "ExportApprovalServiceTest: 7/7 pass, AdminSettingsControllerApprovalsContractTest: 4/4 pass, ReportControllerContractTest: 5/5 pass. Total: 16/16 pass."
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-ADMIN-005",
+      "title": "Versioned changelog system",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Run ChangelogServiceTest (6 tests) covering create, update, list, latest-highlighted, soft-delete, not-found",
+          "expected": "All 6 tests pass: create persists entry with semver/title/body/highlighted and audit, list returns newest-first paginated, latestHighlighted returns most recent highlighted, latestHighlighted throws BUSINESS_ENTITY_NOT_FOUND when none, softDelete marks deleted=true with timestamp + audit, update modifies existing entry + audit",
+          "observed": "Tests run: 6, Failures: 0, Errors: 0, Skipped: 0 (1.078s)"
+        },
+        {
+          "action": "Run TS_RuntimeChangelogServiceExecutableCoverageTest (3 tests) covering full CRUD lifecycle, not-found, and pagination bounds",
+          "expected": "All 3 tests pass: full lifecycle (create->update->list->latestHighlighted->softDelete), latestHighlighted throws when empty, list respects max page size 100 and negative page clamped to 0",
+          "observed": "Tests run: 3, Failures: 0, Errors: 0, Skipped: 0 (0.021s)"
+        },
+        {
+          "action": "Verify SecurityConfig permits /api/v1/changelog and /api/v1/changelog/latest-highlighted without authentication",
+          "expected": "Both public endpoints are in permitAll() list alongside auth endpoints",
+          "observed": "SecurityConfig.java: requestMatchers(\"/api/v1/changelog\", \"/api/v1/changelog/latest-highlighted\").permitAll() confirmed"
+        },
+        {
+          "action": "Verify ChangelogEntryRequest enforces semver validation via @Pattern regex",
+          "expected": "version field has @NotBlank @Pattern(semver regex) @Size(max=32), title has @NotBlank @Size(max=255), body has @NotBlank, isHighlighted is optional Boolean",
+          "observed": "ChangelogEntryRequest record has full Jakarta Bean Validation: semver pattern ^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-...) on version field confirmed"
+        },
+        {
+          "action": "Verify ChangelogController CRUD endpoints: POST /api/v1/admin/changelog (create), PUT /api/v1/admin/changelog/{id} (update), DELETE /api/v1/admin/changelog/{id} (soft-delete), GET /api/v1/changelog (public list), GET /api/v1/changelog/latest-highlighted (public highlighted)",
+          "expected": "Admin endpoints require ROLE_ADMIN or ROLE_SUPER_ADMIN via @PreAuthorize. Public endpoints have no auth annotation. List returns PageResponse<ChangelogEntryResponse> sorted newest-first. Delete returns 204 No Content.",
+          "observed": "ChangelogController confirmed: POST/PUT/DELETE under /api/v1/admin/changelog with @PreAuthorize(\"hasAuthority('ROLE_ADMIN') or hasAuthority('ROLE_SUPER_ADMIN')\"). GET /api/v1/changelog returns paginated PageResponse. GET /api/v1/changelog/latest-highlighted returns single entry. Delete returns ResponseEntity.noContent()."
+        },
+        {
+          "action": "Verify ChangelogEntry entity has proper JPA mapping with all required fields",
+          "expected": "Entity maps to changelog_entries table with id, version_label, title, body (TEXT), published_at, created_by, highlighted, deleted, created_at, updated_at, deleted_at",
+          "observed": "ChangelogEntry.java confirmed with @Entity @Table(name='changelog_entries'), all columns mapped with proper types and nullable constraints. Flyway migration V40__changelog_entries.sql exists."
+        }
+      ],
+      "evidence": {
+        "screenshots": [],
+        "consoleErrors": "N/A (API testing surface)",
+        "network": "Validated via unit tests: POST /api/v1/admin/changelog -> creates entry with semver, GET /api/v1/changelog?page=0&size=20 -> paginated newest-first, GET /api/v1/changelog/latest-highlighted -> most recent highlighted entry, PUT /api/v1/admin/changelog/{id} -> updates entry, DELETE /api/v1/admin/changelog/{id} -> 204 soft-delete",
+        "testResults": "ChangelogServiceTest: 6/6 pass, TS_RuntimeChangelogServiceExecutableCoverageTest: 3/3 pass. Total: 9/9 pass."
+      },
+      "issues": null
+    }
+  ],
+  "frictions": [],
+  "blockers": [],
+  "summary": "Tested 2 assertions: 2 passed. VAL-ADMIN-003 (Export approval gate): 16 unit tests covering full export request lifecycle (create PENDING -> admin approve/reject -> download gated on approval status when erp.export.require-approval enabled), unified approvals dashboard integration, and ReportController export endpoints all pass. VAL-ADMIN-005 (Versioned changelog system): 9 unit tests covering full CRUD lifecycle (create with semver validation, update, soft-delete, paginated public listing newest-first, latest-highlighted endpoint), public endpoint access without authentication confirmed in SecurityConfig, semver @Pattern validation on ChangelogEntryRequest confirmed."
+}

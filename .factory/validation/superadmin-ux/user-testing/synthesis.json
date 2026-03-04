@@ -1,0 +1,28 @@
+{
+  "milestone": "superadmin-ux",
+  "round": 1,
+  "status": "fail",
+  "assertionsSummary": {
+    "total": 7,
+    "passed": 6,
+    "failed": 1,
+    "blocked": 0
+  },
+  "passedAssertions": [
+    "VAL-ADMIN-001",
+    "VAL-ADMIN-002",
+    "VAL-ADMIN-003",
+    "VAL-ADMIN-004",
+    "VAL-ADMIN-005",
+    "VAL-ADMIN-007"
+  ],
+  "failedAssertions": [
+    {
+      "id": "VAL-ADMIN-006",
+      "reason": "Category->label mapping to GitHub issue payload is MISSING. The validation contract and AGENTS.md require 'Labels from category (BUG->bug, FEATURE_REQUEST->enhancement, SUPPORT->support)' in the GitHub API payload. GitHubIssueClient.createIssue() only sends title and body \u2014 no 'labels' array is included. The category appears in the issue title as '[CATEGORY] Subject' but this is NOT equivalent to GitHub issue labels. All other aspects pass: local persistence, async GitHub push, graceful degradation, tenant context in body."
+    }
+  ],
+  "blockedAssertions": [],
+  "appliedUpdates": [],
+  "previousRound": null
+}

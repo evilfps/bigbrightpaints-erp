@@ -1,0 +1,129 @@
+{
+  "groupId": "support-ticket-core",
+  "testedAt": "2026-03-04T05:23:00Z",
+  "credentials": {
+    "account": "ut-superadmin-support-1@example.com",
+    "namespace": "ut_superadmin_support_1"
+  },
+  "toolsUsed": ["curl", "mvn test"],
+  "assertions": [
+    {
+      "id": "VAL-ADMIN-006",
+      "title": "Support ticket submission",
+      "status": "fail",
+      "steps": [
+        {
+          "action": "Run TS_RuntimeSupportTicketServiceExecutableCoverageTest (4 tests)",
+          "expected": "All unit tests pass covering ticket creation, GitHub async submission, and role-based scoping",
+          "observed": "Tests run: 4, Failures: 0, Errors: 0, Skipped: 0 — all pass"
+        },
+        {
+          "action": "Run SupportTicketControllerIT (3 integration tests: createTicket_persistsAndReturnsApiEnvelope, listEndpoint_appliesRoleScopedVisibility, getByIdEndpoint_enforcesScopedAccessRules)",
+          "expected": "Integration tests confirm POST /api/v1/support/tickets persists ticket and returns correct API envelope with category/subject/companyCode",
+          "observed": "Tests run: 3, Failures: 0, Errors: 0, Skipped: 0 — all pass. createTicket verifies local persistence and API response shape."
+        },
+        {
+          "action": "Run TS_RuntimeSupportTicketSyncExecutableCoverageTest.submitGitHubIssueAsync_handlesDisabledIntegrationGracefully",
+          "expected": "When GitHub is unavailable/disabled, ticket persists locally with error message and null githubIssueNumber",
+          "observed": "Test passes. Ticket saved with githubLastError containing 'disabled' and no githubIssueNumber."
+        },
+        {
+          "action": "Code review: verify tenant context in GitHub issue body (SupportTicketGitHubSyncService.buildIssueBody)",
+          "expected": "Issue body includes company code and user ID for tenant context",
+          "observed": "Confirmed: body includes 'Company: {companyCode}', 'Requester User ID: {userId}', and 'Category: {category}'"
+        },
+        {
+          "action": "Code review: verify category->label mapping in GitHubIssueClient.createIssue payload",
+          "expected": "Per AGENTS.md: 'Labels from category (BUG->bug, FEATURE_REQUEST->enhancement, SUPPORT->support)' — payload should include 'labels' array",
+          "observed": "MISSING: GitHubIssueClient.createIssue() builds payload with only 'title' and 'body' keys. No 'labels' field is ever set. Grep for 'label' across all three service files (GitHubIssueClient.java, SupportTicketGitHubSyncService.java, SupportTicketService.java) returns zero matches. The category IS included in the issue title as '[CATEGORY] Subject' but is NOT mapped to GitHub labels."
+        }
+      ],
+      "evidence": {
+        "screenshots": [],
+        "consoleErrors": "none",
+        "commands": [
+          "mvn test -Dtest=TS_RuntimeSupportTicketServiceExecutableCoverageTest -> Tests run: 4, Failures: 0",
+          "mvn test -Dtest=SupportTicketControllerIT -> Tests run: 3, Failures: 0",
+          "mvn test -Dtest=TS_RuntimeSupportTicketSyncExecutableCoverageTest -> Tests run: 2, Failures: 0",
+          "grep -n 'labels\\|label' GitHubIssueClient.java -> No matches found",
+          "grep -n 'labels\\|label' SupportTicketGitHubSyncService.java -> No matches found"
+        ],
+        "codeReferences": [
+          "GitHubIssueClient.java:createIssue() lines 43-46: payload only has 'title' and 'body', no 'labels'",
+          "SupportTicketGitHubSyncService.java:buildIssueTitle() — includes [CATEGORY] in title prefix but no label mapping",
+          "SupportTicketGitHubSyncService.java:buildIssueBody() — includes company code and user ID (tenant context OK)"
+        ]
+      },
+      "issues": "Category->label mapping to GitHub issue payload is MISSING. The validation contract and AGENTS.md require 'Labels from category (BUG->bug, FEATURE_REQUEST->enhancement, SUPPORT->support)' in the GitHub API payload. GitHubIssueClient.createIssue() only sends title and body — no 'labels' array is included. The category appears in the issue title as '[CATEGORY] Subject' but this is NOT equivalent to GitHub issue labels. All other aspects pass: local persistence, async GitHub push, graceful degradation, tenant context in body."
+    },
+    {
+      "id": "VAL-ADMIN-007",
+      "title": "Support ticket status sync and notification",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Run TS_RuntimeSupportTicketSyncExecutableCoverageTest.syncGithubStatus_closedIssue_marksResolvedAndSendsNotification",
+          "expected": "When GitHub issue is closed, local ticket status updates to RESOLVED, resolvedAt is set, email notification sent via ticket-resolved template",
+          "observed": "Test passes. Ticket status = RESOLVED, resolvedAt != null, resolvedNotificationSentAt != null, githubIssueState = 'CLOSED'. EmailService.sendTemplatedEmailRequired called with correct email, subject ('Support ticket resolved - #1201'), and template ('mail/ticket-resolved')."
+        },
+        {
+          "action": "Verify @Scheduled polling exists (SupportTicketGitHubSyncService.syncGitHubIssueStatuses)",
+          "expected": "Scheduled job runs periodically to sync GitHub issue statuses",
+          "observed": "@Scheduled(cron = '0 */5 * * * *') — runs every 5 minutes. Queries up to 200 tickets with OPEN/IN_PROGRESS status that have githubIssueNumber. For each, fetches state from GitHub and updates local ticket."
+        },
+        {
+          "action": "Verify graceful degradation during sync when GitHub unavailable",
+          "expected": "Sync errors are caught and recorded per-ticket without crashing the batch",
+          "observed": "Confirmed in code: try-catch blocks around each ticket sync handle both ApplicationException and RuntimeException, set githubLastError and continue to next ticket."
+        },
+        {
+          "action": "Verify role-based ticket visibility via SupportTicketControllerIT.listEndpoint_appliesRoleScopedVisibility",
+          "expected": "Users see own tickets; admins see all tenant tickets; superadmin sees all tickets globally",
+          "observed": "IT passes. RequesterA sees only own ticket (not teammate or foreign). AdminA sees own + teammate (not foreign). SuperAdmin sees all three (own, teammate, foreign)."
+        },
+        {
+          "action": "Verify getById detail visibility via SupportTicketControllerIT.getByIdEndpoint_enforcesScopedAccessRules",
+          "expected": "Same role-based visibility rules apply to detail endpoint",
+          "observed": "IT passes. RequesterA gets 404 for teammate ticket, 200 for own. AdminA gets 200 for tenant tickets, 404 for foreign. SuperAdmin gets 200 for any ticket."
+        },
+        {
+          "action": "Verify email notification template exists (ticket-resolved.html)",
+          "expected": "Thymeleaf template for resolved notification exists and uses layout wrapper",
+          "observed": "Confirmed: src/main/resources/templates/mail/ticket-resolved.html exists. Uses th:replace='~{mail/layout :: layout(~{::content})}' wrapper pattern. Includes ticket ID, subject, category, resolved time, and GitHub issue link."
+        },
+        {
+          "action": "Verify re-open path (GitHub issue re-opened after resolution)",
+          "expected": "If closed issue is re-opened on GitHub, ticket moves back to IN_PROGRESS with resolvedAt/notification reset",
+          "observed": "Confirmed in code: updateTicketFromGitHubState() handles OPEN state on previously RESOLVED/CLOSED tickets — sets status=IN_PROGRESS, clears resolvedAt and resolvedNotificationSentAt."
+        }
+      ],
+      "evidence": {
+        "screenshots": [],
+        "consoleErrors": "none",
+        "commands": [
+          "mvn test -Dtest=TS_RuntimeSupportTicketSyncExecutableCoverageTest -> Tests run: 2, Failures: 0",
+          "mvn test -Dtest=SupportTicketControllerIT -> Tests run: 3, Failures: 0"
+        ],
+        "codeReferences": [
+          "SupportTicketGitHubSyncService.java:syncGitHubIssueStatuses() — @Scheduled cron '0 */5 * * * *', queries OPEN/IN_PROGRESS tickets",
+          "SupportTicketGitHubSyncService.java:updateTicketFromGitHubState() — CLOSED->RESOLVED with notification, OPEN->IN_PROGRESS re-open",
+          "SupportTicketGitHubSyncService.java:notifyResolved() — sends email via EmailService with ticket-resolved template",
+          "SupportTicketService.java:list() — ROLE_SUPER_ADMIN=global, ROLE_ADMIN/ROLE_ACCOUNTING=company, others=self-only",
+          "SupportTicketService.java:getById() — same role-based scoping for detail view",
+          "templates/mail/ticket-resolved.html — layout-wrapped template with ticket details"
+        ]
+      },
+      "issues": null
+    }
+  ],
+  "frictions": [
+    {
+      "description": "Compilation errors in unrelated test files (codered/CR_PeriodClose*, AccountingFacadeTest, AccountingPeriodService*Test, AccountingServiceStandardJournalTest) prevent running gate-fast profile or default test compilation. Required -Dmaven.compiler.testExcludes to isolate support ticket tests.",
+      "resolved": true,
+      "resolution": "Used -Dmaven.compiler.testExcludes to exclude broken codered and accounting test files from compilation while running support ticket tests",
+      "affectedAssertions": ["VAL-ADMIN-006", "VAL-ADMIN-007"]
+    }
+  ],
+  "blockers": [],
+  "summary": "Tested 2 assertions: 1 passed (VAL-ADMIN-007), 1 failed (VAL-ADMIN-006). VAL-ADMIN-006 fails because the category->label mapping to GitHub issue payload is missing — GitHubIssueClient.createIssue() sends only title+body without a 'labels' array. All other aspects of ticket submission (local persistence, async GitHub push, graceful degradation, tenant context, role-based visibility) are working correctly. VAL-ADMIN-007 passes fully — scheduled sync, RESOLVED status on GitHub close, email notification, re-open handling, and role-based visibility all verified via unit and integration tests."
+}
