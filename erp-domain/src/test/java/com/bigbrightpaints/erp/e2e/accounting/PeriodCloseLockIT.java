@@ -39,6 +39,8 @@ class PeriodCloseLockIT extends AbstractIntegrationTest {
     private static final String ADMIN_PASSWORD = "period123";
     private static final String ACCOUNTING_EMAIL = "period-accounting@bbp.com";
     private static final String ACCOUNTING_PASSWORD = "periodacct123";
+    private static final String SUPER_ADMIN_EMAIL = "period-super-admin@bbp.com";
+    private static final String SUPER_ADMIN_PASSWORD = "periodsuper123";
 
     @Autowired private TestRestTemplate rest;
     @Autowired private CompanyRepository companyRepository;
@@ -50,6 +52,7 @@ class PeriodCloseLockIT extends AbstractIntegrationTest {
 
     private HttpHeaders headers;
     private HttpHeaders accountingHeaders;
+    private HttpHeaders superAdminHeaders;
     private Company company;
     private Account revenue;
     private Account expense;
@@ -58,12 +61,15 @@ class PeriodCloseLockIT extends AbstractIntegrationTest {
     @BeforeEach
     void setup() {
         dataSeeder.ensureUser(ADMIN_EMAIL, ADMIN_PASSWORD, "Period Admin", COMPANY_CODE,
-                List.of("ROLE_ADMIN", "ROLE_ACCOUNTING"));
+                List.of("ROLE_ADMIN"));
         dataSeeder.ensureUser(ACCOUNTING_EMAIL, ACCOUNTING_PASSWORD, "Period Accountant", COMPANY_CODE,
                 List.of("ROLE_ACCOUNTING"));
+        dataSeeder.ensureUser(SUPER_ADMIN_EMAIL, SUPER_ADMIN_PASSWORD, "Period Super Admin", COMPANY_CODE,
+                List.of("ROLE_SUPER_ADMIN"));
         company = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();
         headers = authHeaders();
         accountingHeaders = authHeaders(ACCOUNTING_EMAIL, ACCOUNTING_PASSWORD, COMPANY_CODE);
+        superAdminHeaders = authHeaders(SUPER_ADMIN_EMAIL, SUPER_ADMIN_PASSWORD, COMPANY_CODE);
         revenue = ensureAccount("REV-TEST", "Test Revenue", AccountType.REVENUE);
         expense = ensureAccount("EXP-TEST", "Test Expense", AccountType.EXPENSE);
         cash = ensureAccount("CASH-TEST", "Cash", AccountType.ASSET);
@@ -127,7 +133,7 @@ class PeriodCloseLockIT extends AbstractIntegrationTest {
         ResponseEntity<Map> reopenResp = rest.exchange(
                 "/api/v1/accounting/periods/" + periodId + "/reopen",
                 HttpMethod.POST,
-                new HttpEntity<>(Map.of("reason", "Need adjustments"), headers),
+                new HttpEntity<>(Map.of("reason", "Need adjustments"), superAdminHeaders),
                 Map.class);
         assertThat(reopenResp.getStatusCode()).isEqualTo(HttpStatus.OK);
         Map<String, Object> reopened = (Map<String, Object>) reopenResp.getBody().get("data");
@@ -215,7 +221,7 @@ class PeriodCloseLockIT extends AbstractIntegrationTest {
         rest.exchange(
                 "/api/v1/accounting/periods/" + periodId + "/reopen",
                 HttpMethod.POST,
-                new HttpEntity<>(Map.of("reason", "Ensure period open"), headers),
+                new HttpEntity<>(Map.of("reason", "Ensure period open"), superAdminHeaders),
                 Map.class);
         Long entryId = postJournal(today,
                 List.of(
@@ -256,10 +262,24 @@ class PeriodCloseLockIT extends AbstractIntegrationTest {
                 Map.class);
         assertThat(closeResp.getStatusCode()).isEqualTo(HttpStatus.OK);
 
-        ResponseEntity<Map> reopenResp = rest.exchange(
+        ResponseEntity<Map> adminForbidden = rest.exchange(
                 "/api/v1/accounting/periods/" + periodId + "/reopen",
                 HttpMethod.POST,
                 new HttpEntity<>(Map.of(), headers),
+                Map.class);
+        assertThat(adminForbidden.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+
+        ResponseEntity<Map> accountingForbidden = rest.exchange(
+                "/api/v1/accounting/periods/" + periodId + "/reopen",
+                HttpMethod.POST,
+                new HttpEntity<>(Map.of(), accountingHeaders),
+                Map.class);
+        assertThat(accountingForbidden.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+
+        ResponseEntity<Map> reopenResp = rest.exchange(
+                "/api/v1/accounting/periods/" + periodId + "/reopen",
+                HttpMethod.POST,
+                new HttpEntity<>(Map.of(), superAdminHeaders),
                 Map.class);
 
         assertThat(reopenResp.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
@@ -267,8 +287,8 @@ class PeriodCloseLockIT extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("Accounting role can reopen old closed period with auto-reversal")
-    void reopenOldClosedPeriod_allowsAccountingRoleWithAutoReversal() {
+    @DisplayName("Accounting role cannot reopen old closed period; super admin can")
+    void reopenOldClosedPeriod_requiresSuperAdminForReopen() {
         LocalDate today = TestDateUtils.safeDate(company);
         LocalDate oldPeriodDate = today.minusMonths(3);
         oldPeriodDate = oldPeriodDate.withDayOfMonth(Math.min(15, oldPeriodDate.lengthOfMonth()));
@@ -306,8 +326,17 @@ class PeriodCloseLockIT extends AbstractIntegrationTest {
                 HttpMethod.POST,
                 new HttpEntity<>(Map.of("reason", "Historical correction"), accountingHeaders),
                 Map.class);
-        assertThat(reopenResp.getStatusCode()).isEqualTo(HttpStatus.OK);
-        Map<String, Object> reopened = (Map<String, Object>) reopenResp.getBody().get("data");
+        assertThat(reopenResp.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(reopenResp.getBody()).isNotNull();
+        assertThat(reopenResp.getBody().get("message").toString()).containsIgnoringCase("forbidden");
+
+        ResponseEntity<Map> superAdminReopenResp = rest.exchange(
+                "/api/v1/accounting/periods/" + periodId + "/reopen",
+                HttpMethod.POST,
+                new HttpEntity<>(Map.of("reason", "Historical correction"), superAdminHeaders),
+                Map.class);
+        assertThat(superAdminReopenResp.getStatusCode()).isEqualTo(HttpStatus.OK);
+        Map<String, Object> reopened = (Map<String, Object>) superAdminReopenResp.getBody().get("data");
         assertThat(reopened.get("status")).isEqualTo("OPEN");
         assertThat(reopened.get("closingJournalEntryId")).isNull();
     }
@@ -405,7 +434,7 @@ class PeriodCloseLockIT extends AbstractIntegrationTest {
         rest.exchange(
                 "/api/v1/accounting/periods/" + periodId + "/reopen",
                 HttpMethod.POST,
-                new HttpEntity<>(Map.of("reason", "Ensure open for test"), headers),
+                new HttpEntity<>(Map.of("reason", "Ensure open for test"), superAdminHeaders),
                 Map.class);
     }
 
