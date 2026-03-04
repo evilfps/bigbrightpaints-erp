@@ -46,6 +46,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Locale;
 
 @Service
 public class InventoryAdjustmentService {
@@ -155,6 +156,7 @@ public class InventoryAdjustmentService {
             throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput("Finished good not found");
         }
         InventoryAdjustmentType type = request.type() == null ? InventoryAdjustmentType.DAMAGED : request.type();
+        boolean increaseInventory = type == InventoryAdjustmentType.RECOUNT_UP;
         InventoryAdjustment adjustment = new InventoryAdjustment();
         adjustment.setCompany(company);
         adjustment.setReferenceNumber(resolveReference(company, type));
@@ -174,7 +176,7 @@ public class InventoryAdjustmentService {
 
         InventoryAdjustment savedDraft = adjustmentRepository.save(adjustment);
 
-        List<InventoryMovement> movements = applyMovements(savedDraft, null);
+        List<InventoryMovement> movements = applyMovements(savedDraft, null, increaseInventory);
         Map<Long, BigDecimal> inventoryCredits = new HashMap<>();
         BigDecimal totalAmount = BigDecimal.ZERO;
         for (InventoryAdjustmentLine line : savedDraft.getLines()) {
@@ -194,14 +196,25 @@ public class InventoryAdjustmentService {
         boolean adminOverride = Boolean.TRUE.equals(request.adminOverride());
         String memo = memoFor(savedDraft, request.reason());
         List<JournalCreationRequest.LineRequest> standardizedLines = new java.util.ArrayList<>();
-        standardizedLines.add(new JournalCreationRequest.LineRequest(
-                request.adjustmentAccountId(),
-                totalAmount,
-                BigDecimal.ZERO,
-                memo
-        ));
-        inventoryCredits.forEach((accountId, amount) -> standardizedLines.add(
-                new JournalCreationRequest.LineRequest(accountId, BigDecimal.ZERO, amount, memo)));
+        if (increaseInventory) {
+            inventoryCredits.forEach((accountId, amount) -> standardizedLines.add(
+                    new JournalCreationRequest.LineRequest(accountId, amount, BigDecimal.ZERO, memo)));
+            standardizedLines.add(new JournalCreationRequest.LineRequest(
+                    request.adjustmentAccountId(),
+                    BigDecimal.ZERO,
+                    totalAmount,
+                    memo
+            ));
+        } else {
+            standardizedLines.add(new JournalCreationRequest.LineRequest(
+                    request.adjustmentAccountId(),
+                    totalAmount,
+                    BigDecimal.ZERO,
+                    memo
+            ));
+            inventoryCredits.forEach((accountId, amount) -> standardizedLines.add(
+                    new JournalCreationRequest.LineRequest(accountId, BigDecimal.ZERO, amount, memo)));
+        }
         JournalCreationRequest standardizedAdjustmentRequest = new JournalCreationRequest(
                 totalAmount,
                 request.adjustmentAccountId(),
@@ -221,7 +234,7 @@ public class InventoryAdjustmentService {
                 savedDraft.getReferenceNumber(),
                 request.adjustmentAccountId(),
                 Map.copyOf(inventoryCredits),
-                false,
+                increaseInventory,
                 adminOverride,
                 standardizedAdjustmentRequest.narration(),
                 standardizedAdjustmentRequest.entryDate());
@@ -241,27 +254,62 @@ public class InventoryAdjustmentService {
                                               InventoryAdjustmentRequest.LineRequest lineRequest) {
         BigDecimal quantity = ValidationUtils.requirePositive(lineRequest.quantity(), "quantity");
         ValidationUtils.requirePositive(lineRequest.unitCost(), "unitCost");
-        BigDecimal currentStock = finishedGood.getCurrentStock() == null ? BigDecimal.ZERO : finishedGood.getCurrentStock();
-        BigDecimal reservedStock = safeQuantity(finishedGood.getReservedStock());
-        BigDecimal available = currentStock.subtract(reservedStock);
-        if (available.compareTo(quantity) < 0) {
-            throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput("Insufficient available stock for " + finishedGood.getProductCode());
+        if (adjustment.getType() != InventoryAdjustmentType.RECOUNT_UP) {
+            BigDecimal currentStock = finishedGood.getCurrentStock() == null ? BigDecimal.ZERO : finishedGood.getCurrentStock();
+            BigDecimal reservedStock = safeQuantity(finishedGood.getReservedStock());
+            BigDecimal available = currentStock.subtract(reservedStock);
+            if (available.compareTo(quantity) < 0) {
+                throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput("Insufficient available stock for " + finishedGood.getProductCode());
+            }
         }
         InventoryAdjustmentLine line = new InventoryAdjustmentLine();
         line.setAdjustment(adjustment);
         line.setFinishedGood(finishedGood);
         line.setQuantity(quantity);
-        line.setUnitCost(BigDecimal.ZERO);
+        line.setUnitCost(lineRequest.unitCost());
         line.setAmount(BigDecimal.ZERO);
         line.setNote(lineRequest.note());
         adjustment.getLines().add(line);
         return line;
     }
 
-    private List<InventoryMovement> applyMovements(InventoryAdjustment adjustment, Long journalEntryId) {
+    private List<InventoryMovement> applyMovements(InventoryAdjustment adjustment, Long journalEntryId, boolean increaseInventory) {
         List<InventoryMovement> movements = new java.util.ArrayList<>();
         adjustment.getLines().forEach(line -> {
             FinishedGood finishedGood = line.getFinishedGood();
+            if (increaseInventory) {
+                BigDecimal currentStock = finishedGood.getCurrentStock() == null ? BigDecimal.ZERO : finishedGood.getCurrentStock();
+                finishedGood.setCurrentStock(currentStock.add(line.getQuantity()));
+
+                BigDecimal lineUnitCost = safeQuantity(line.getUnitCost());
+                BigDecimal lineAmount = line.getQuantity().multiply(lineUnitCost).setScale(4, RoundingMode.HALF_UP);
+                line.setAmount(lineAmount);
+                line.setUnitCost(lineUnitCost);
+
+                FinishedGoodBatch adjustmentBatch = new FinishedGoodBatch();
+                adjustmentBatch.setFinishedGood(finishedGood);
+                adjustmentBatch.setBatchCode(batchCodeForRecountAdjustment(finishedGood, adjustment.getReferenceNumber()));
+                adjustmentBatch.setQuantityTotal(line.getQuantity());
+                adjustmentBatch.setQuantityAvailable(line.getQuantity());
+                adjustmentBatch.setUnitCost(line.getUnitCost());
+                adjustmentBatch.setManufacturedAt(companyClock.now(finishedGood.getCompany()));
+                adjustmentBatch.setSource(com.bigbrightpaints.erp.modules.inventory.domain.InventoryBatchSource.ADJUSTMENT);
+                adjustmentBatch = finishedGoodBatchRepository.saveAndFlush(adjustmentBatch);
+                finishedGoodsService.invalidateWeightedAverageCost(finishedGood.getId());
+
+                InventoryMovement movement = new InventoryMovement();
+                movement.setFinishedGood(finishedGood);
+                movement.setFinishedGoodBatch(adjustmentBatch);
+                movement.setReferenceType("ADJUSTMENT");
+                movement.setReferenceId(adjustment.getReferenceNumber());
+                movement.setMovementType("ADJUSTMENT_IN");
+                movement.setQuantity(line.getQuantity());
+                movement.setUnitCost(line.getUnitCost());
+                movement.setJournalEntryId(journalEntryId);
+                movements.add(movement);
+                return;
+            }
+
             BigDecimal currentStock = finishedGood.getCurrentStock() == null ? BigDecimal.ZERO : finishedGood.getCurrentStock();
             finishedGood.setCurrentStock(currentStock.subtract(line.getQuantity()));
             ConsumedBatchCost consumedCost = adjustBatchQuantities(
@@ -273,31 +321,18 @@ public class InventoryAdjustmentService {
             line.setAmount(consumedCost.totalCost());
             line.setUnitCost(consumedCost.unitCost());
 
-            if (consumedCost.batchConsumptions().isEmpty()) {
-                InventoryMovement movement = new InventoryMovement();
-                movement.setFinishedGood(finishedGood);
-                movement.setReferenceType("ADJUSTMENT");
-                movement.setReferenceId(adjustment.getReferenceNumber());
-                movement.setMovementType("ADJUSTMENT_OUT");
-                movement.setQuantity(line.getQuantity());
-                movement.setUnitCost(consumedCost.unitCost());
-                movement.setJournalEntryId(journalEntryId);
-                movements.add(movement);
-                return;
+            InventoryMovement movement = new InventoryMovement();
+            movement.setFinishedGood(finishedGood);
+            if (consumedCost.batchConsumptions().size() == 1) {
+                movement.setFinishedGoodBatch(consumedCost.batchConsumptions().getFirst().batch());
             }
-
-            for (BatchConsumption batchConsumption : consumedCost.batchConsumptions()) {
-                InventoryMovement movement = new InventoryMovement();
-                movement.setFinishedGood(finishedGood);
-                movement.setFinishedGoodBatch(batchConsumption.batch());
-                movement.setReferenceType("ADJUSTMENT");
-                movement.setReferenceId(adjustment.getReferenceNumber());
-                movement.setMovementType("ADJUSTMENT_OUT");
-                movement.setQuantity(batchConsumption.quantity());
-                movement.setUnitCost(batchConsumption.unitCost());
-                movement.setJournalEntryId(journalEntryId);
-                movements.add(movement);
-            }
+            movement.setReferenceType("ADJUSTMENT");
+            movement.setReferenceId(adjustment.getReferenceNumber());
+            movement.setMovementType("ADJUSTMENT_OUT");
+            movement.setQuantity(line.getQuantity());
+            movement.setUnitCost(consumedCost.unitCost());
+            movement.setJournalEntryId(journalEntryId);
+            movements.add(movement);
         });
         return movements;
     }
@@ -442,6 +477,17 @@ public class InventoryAdjustmentService {
     private String memoFor(InventoryAdjustment adjustment, String reason) {
         String suffix = StringUtils.hasText(reason) ? reason.trim() : adjustment.getType().name();
         return "Inventory adjustment - " + suffix;
+    }
+
+    private String batchCodeForRecountAdjustment(FinishedGood finishedGood, String referenceNumber) {
+        String product = finishedGood != null && StringUtils.hasText(finishedGood.getProductCode())
+                ? finishedGood.getProductCode().replaceAll("[^A-Za-z0-9]", "").toUpperCase(Locale.ROOT)
+                : "FG";
+        String reference = StringUtils.hasText(referenceNumber)
+                ? referenceNumber.replaceAll("[^A-Za-z0-9]", "").toUpperCase(Locale.ROOT)
+                : "ADJ";
+        String suffix = reference.length() > 12 ? reference.substring(reference.length() - 12) : reference;
+        return "RECOUNT-" + product + "-" + suffix;
     }
 
     private String resolveReference(Company company, InventoryAdjustmentType type) {

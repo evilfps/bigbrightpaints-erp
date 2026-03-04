@@ -26,6 +26,7 @@ public final class InventoryReference {
     public static final String PURCHASE_RETURN = "PURCHASE_RETURN";
     public static final String PACKING_RECORD = "PACKING_RECORD";
     public static final String GOODS_RECEIPT = "GOODS_RECEIPT";
+    public static final String RAW_MATERIAL_ADJUSTMENT = "RAW_MATERIAL_ADJUSTMENT";
 
     private InventoryReference() {
     }

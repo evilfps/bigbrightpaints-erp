@@ -1,5 +1,8 @@
 package com.bigbrightpaints.erp.modules.inventory.domain;
 
+import com.bigbrightpaints.erp.core.domain.VersionedEntity;
+import com.bigbrightpaints.erp.core.exception.ApplicationException;
+import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.util.CompanyTime;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import jakarta.persistence.*;
@@ -7,7 +10,6 @@ import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
-import com.bigbrightpaints.erp.core.domain.VersionedEntity;
 
 @Entity
 @Table(name = "raw_materials",
@@ -144,12 +146,19 @@ public class RawMaterial extends VersionedEntity {
     }
 
     public void setCurrentStock(BigDecimal currentStock) {
-        // Enforce non-negative inventory at the entity boundary
         if (currentStock == null) {
             this.currentStock = BigDecimal.ZERO;
-        } else {
-            this.currentStock = currentStock.max(BigDecimal.ZERO);
+            return;
         }
+        if (currentStock.compareTo(BigDecimal.ZERO) < 0) {
+            throw new ApplicationException(
+                    ErrorCode.BUSINESS_CONSTRAINT_VIOLATION,
+                    "Raw material stock cannot be negative")
+                    .withDetail("currentStock", currentStock)
+                    .withDetail("rawMaterialSku", sku)
+                    .withDetail("rawMaterialName", name);
+        }
+        this.currentStock = currentStock;
     }
 
     public BigDecimal getMinStock() {

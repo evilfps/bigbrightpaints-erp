@@ -21,6 +21,7 @@ import com.bigbrightpaints.erp.modules.sales.domain.CreditLimitOverrideRequestRe
 import com.bigbrightpaints.erp.modules.sales.domain.CreditRequest;
 import com.bigbrightpaints.erp.modules.sales.domain.CreditRequestRepository;
 import jakarta.validation.Valid;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -64,6 +65,7 @@ public class AdminSettingsController {
     private final PayrollRunRepository payrollRunRepository;
     private final AuditService auditService;
 
+    @Autowired
     public AdminSettingsController(SystemSettingsService systemSettingsService,
                                    EmailService emailService,
                                    CompanyContextService companyContextService,

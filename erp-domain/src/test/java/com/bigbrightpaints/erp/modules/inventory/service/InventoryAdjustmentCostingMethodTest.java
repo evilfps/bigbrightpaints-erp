@@ -5,6 +5,8 @@ import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriod;
+import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
+import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriodRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriodStatus;
 import com.bigbrightpaints.erp.modules.accounting.domain.CostingMethod;
@@ -58,6 +60,9 @@ class InventoryAdjustmentCostingMethodTest extends AbstractIntegrationTest {
 
     @Autowired
     private AccountingPeriodRepository accountingPeriodRepository;
+
+    @Autowired
+    private JournalEntryRepository journalEntryRepository;
 
     @AfterEach
     void clearCompanyContext() {
@@ -142,7 +147,7 @@ class InventoryAdjustmentCostingMethodTest extends AbstractIntegrationTest {
 
     private Company seedCompany(String code) {
         Company company = dataSeeder.ensureCompany(code, code + " Ltd");
-        CompanyContextHolder.setCompanyId(company.getCode());
+        CompanyContextHolder.setCompanyCode(company.getCode());
         return company;
     }
 
@@ -219,15 +224,73 @@ class InventoryAdjustmentCostingMethodTest extends AbstractIntegrationTest {
         return finishedGoodBatchRepository.saveAndFlush(batch);
     }
 
+    @Test
+    void createAdjustment_recountUpIncreasesStockAndDebitsInventory() {
+        Company company = seedCompany("ADJ-RECOUNT-UP");
+        Map<String, Account> accounts = ensureAccounts(company);
+        LocalDate movementDate = LocalDate.now();
+        upsertPeriod(company, movementDate, CostingMethod.FIFO);
+
+        FinishedGood finishedGood = createFinishedGood(company, "FG-ADJ-RECOUNT-UP", accounts);
+        createBatch(finishedGood, "RECOUNT-BASE", "2", "2", "10", Instant.parse("2026-01-01T00:00:00Z"));
+
+        InventoryAdjustment adjustment = createAdjustment(
+                company,
+                finishedGood.getId(),
+                accounts.get("VAR").getId(),
+                movementDate,
+                new BigDecimal("3"),
+                InventoryAdjustmentType.RECOUNT_UP,
+                new BigDecimal("15.00")
+        );
+
+        FinishedGood refreshed = finishedGoodRepository.findById(finishedGood.getId()).orElseThrow();
+        assertThat(refreshed.getCurrentStock()).isEqualByComparingTo(new BigDecimal("7"));
+
+        assertThat(adjustment.getTotalAmount()).isEqualByComparingTo(new BigDecimal("45.0000"));
+        assertThat(adjustment.getLines()).hasSize(1);
+        assertThat(adjustment.getLines().getFirst().getUnitCost()).isEqualByComparingTo(new BigDecimal("15.00"));
+
+        InventoryMovement movement = findAdjustmentMovement(adjustment);
+        assertThat(movement.getMovementType()).isEqualTo("ADJUSTMENT_IN");
+        assertThat(movement.getQuantity()).isEqualByComparingTo(new BigDecimal("3"));
+
+        JournalEntry journal = journalEntryRepository.findById(adjustment.getJournalEntryId()).orElseThrow();
+        assertThat(journal.getLines())
+                .anyMatch(line -> line.getAccount().getId().equals(accounts.get("INV").getId())
+                        && line.getDebit().compareTo(new BigDecimal("45.0000")) == 0);
+        assertThat(journal.getLines())
+                .anyMatch(line -> line.getAccount().getId().equals(accounts.get("VAR").getId())
+                        && line.getCredit().compareTo(new BigDecimal("45.0000")) == 0);
+    }
+
     private InventoryAdjustment createAdjustment(Company company,
                                                  Long finishedGoodId,
                                                  Long varianceAccountId,
                                                  LocalDate adjustmentDate,
                                                  BigDecimal quantity) {
+        return createAdjustment(
+                company,
+                finishedGoodId,
+                varianceAccountId,
+                adjustmentDate,
+                quantity,
+                InventoryAdjustmentType.DAMAGED,
+                new BigDecimal("1.00")
+        );
+    }
+
+    private InventoryAdjustment createAdjustment(Company company,
+                                                 Long finishedGoodId,
+                                                 Long varianceAccountId,
+                                                 LocalDate adjustmentDate,
+                                                 BigDecimal quantity,
+                                                 InventoryAdjustmentType type,
+                                                 BigDecimal unitCost) {
         String idempotencyKey = "INV-ADJ-" + UUID.randomUUID();
         InventoryAdjustmentRequest request = new InventoryAdjustmentRequest(
                 adjustmentDate,
-                InventoryAdjustmentType.DAMAGED,
+                type,
                 varianceAccountId,
                 "costing test",
                 true,
@@ -235,12 +298,12 @@ class InventoryAdjustmentCostingMethodTest extends AbstractIntegrationTest {
                 List.of(new InventoryAdjustmentRequest.LineRequest(
                         finishedGoodId,
                         quantity,
-                        new BigDecimal("1.00"),
+                        unitCost,
                         "costing test line"
                 ))
         );
 
-        CompanyContextHolder.setCompanyId(company.getCode());
+        CompanyContextHolder.setCompanyCode(company.getCode());
         try {
             InventoryAdjustmentDto response = inventoryAdjustmentService.createAdjustment(request);
             return inventoryAdjustmentRepository.findById(response.id()).orElseThrow();
@@ -253,6 +316,8 @@ class InventoryAdjustmentCostingMethodTest extends AbstractIntegrationTest {
         return inventoryMovementRepository
                 .findByReferenceTypeAndReferenceIdOrderByCreatedAtAsc("ADJUSTMENT", adjustment.getReferenceNumber())
                 .stream()
+                .filter(movement -> "ADJUSTMENT_OUT".equals(movement.getMovementType())
+                        || "ADJUSTMENT_IN".equals(movement.getMovementType()))
                 .findFirst()
                 .orElseThrow();
     }

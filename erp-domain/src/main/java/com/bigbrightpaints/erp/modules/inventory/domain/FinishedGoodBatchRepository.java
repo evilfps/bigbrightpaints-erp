@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 
 public interface FinishedGoodBatchRepository extends JpaRepository<FinishedGoodBatch, Long> {
@@ -72,6 +73,19 @@ public interface FinishedGoodBatchRepository extends JpaRepository<FinishedGoodB
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select b from FinishedGoodBatch b where b.id = :id")
     java.util.Optional<FinishedGoodBatch> lockById(@Param("id") Long id);
+
+    @Query("""
+            select b from FinishedGoodBatch b
+            where b.finishedGood.company = :company
+              and b.expiryDate is not null
+              and b.expiryDate >= :today
+              and b.expiryDate <= :cutoff
+              and b.quantityAvailable > 0
+            order by b.expiryDate asc, b.manufacturedAt asc, b.id asc
+            """)
+    List<FinishedGoodBatch> findExpiringSoonByCompany(@Param("company") Company company,
+                                                      @Param("today") LocalDate today,
+                                                      @Param("cutoff") LocalDate cutoff);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""

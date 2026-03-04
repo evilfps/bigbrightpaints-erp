@@ -10,6 +10,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
 
@@ -48,4 +49,17 @@ public interface RawMaterialBatchRepository extends JpaRepository<RawMaterialBat
             group by b.rawMaterial.id
             """)
     List<Object[]> countBatchesGroupedByRawMaterialIds(@Param("rawMaterialIds") Collection<Long> rawMaterialIds);
+
+    @Query("""
+            select b from RawMaterialBatch b
+            where b.rawMaterial.company = :company
+              and b.expiryDate is not null
+              and b.expiryDate >= :today
+              and b.expiryDate <= :cutoff
+              and b.quantity > 0
+            order by b.expiryDate asc, b.manufacturedAt asc, b.id asc
+            """)
+    List<RawMaterialBatch> findExpiringSoonByCompany(@Param("company") Company company,
+                                                     @Param("today") LocalDate today,
+                                                     @Param("cutoff") LocalDate cutoff);
 }

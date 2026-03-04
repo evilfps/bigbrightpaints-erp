@@ -133,6 +133,11 @@ public class ReferenceNumberService {
         return generate(company, key, "inventory-adjustment");
     }
 
+    public String rawMaterialAdjustmentReference(Company company) {
+        String key = "RM-ADJ-%s".formatted(sanitize(company != null ? company.getCode() : null));
+        return generate(company, key, "raw-material-adjustment");
+    }
+
     public String openingStockReference(Company company) {
         String companyCode = sanitize(company != null ? company.getCode() : null);
         String key = "OPEN-STOCK-%s".formatted(companyCode);

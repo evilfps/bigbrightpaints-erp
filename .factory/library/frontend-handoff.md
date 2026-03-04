@@ -1755,6 +1755,8 @@ Auth default for controller: `hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING','RO
 |---|---|---|---|---|
 | GET | `/api/v1/inventory/adjustments` | ADMIN/ACCOUNTING | — | `List<InventoryAdjustmentDto>` |
 | POST | `/api/v1/inventory/adjustments` | ADMIN/ACCOUNTING | Header/body idempotency + `InventoryAdjustmentRequest` | `InventoryAdjustmentDto` |
+| POST | `/api/v1/inventory/raw-materials/adjustments` | ADMIN/ACCOUNTING | Header/body idempotency + `RawMaterialAdjustmentRequest` | `RawMaterialAdjustmentDto` |
+| GET | `/api/v1/inventory/batches/expiring-soon` | ADMIN/ACCOUNTING/FACTORY/SALES | Query: `days` (default `30`, negatives clamped to `0`) | `List<InventoryExpiringBatchDto>` |
 | GET | `/api/v1/inventory/batches/{id}/movements` | ADMIN/FACTORY/ACCOUNTING/SALES | Query: `batchType?` | `InventoryBatchTraceabilityDto` |
 | POST | `/api/v1/inventory/opening-stock` | ADMIN/ACCOUNTING/FACTORY | `multipart/form-data` (`file`) + idempotency header | `OpeningStockImportResponse` |
 | GET | `/api/v1/inventory/opening-stock` | ADMIN/ACCOUNTING/FACTORY | Query: `page` (default `0`), `size` (default `20`) | `PageResponse<OpeningStockImportHistoryItem>` |
@@ -1866,6 +1868,23 @@ Auth for report controller endpoints: `hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUN
    5. Refresh slip and totals: `GET /api/v1/dispatch/slip/{slipId}`.
    6. If needed, cancel generated backorder slip: `POST /api/v1/dispatch/backorder/{slipId}/cancel`.
 
+4. **Inventory adjustment flow (finished goods)**
+   1. Build adjustment payload with explicit type: `DAMAGED`, `SHRINKAGE`, `OBSOLETE`, or `RECOUNT_UP`.
+   2. Send `POST /api/v1/inventory/adjustments` with a stable idempotency key (header or body).
+   3. On retry/timeouts, resend the same idempotency key; backend replays or rejects mismatch.
+   4. Refresh adjustment list via `GET /api/v1/inventory/adjustments`.
+
+5. **Raw material adjustment flow (`increase/decrease recount`)**
+   1. Build `RawMaterialAdjustmentRequest` with explicit `direction` (`INCREASE` or `DECREASE`) and line-level quantities/costs.
+   2. Send `POST /api/v1/inventory/raw-materials/adjustments` with stable idempotency key (header/body).
+   3. For `DECREASE`, expect FIFO batch consumption and per-batch movement traces; for `INCREASE`, expect an adjustment batch.
+   4. Refresh stock/batches via raw-material stock/batch endpoints and show posted `journalEntryId` from response.
+
+6. **Expiring inventory watchlist flow**
+   1. Query `GET /api/v1/inventory/batches/expiring-soon?days={N}` from inventory dashboards.
+   2. Backend clamps negative `days` to `0` (same-day expiries only), so UI can safely pass user-entered values after numeric validation.
+   3. Group rows by `batchType` and sort/label using `daysUntilExpiry` for urgency badges.
+
 #### State Machines
 
 ##### Production log lifecycle (`ProductionLogStatus`)
@@ -1937,10 +1956,15 @@ Operational statuses: `PENDING`, `PENDING_STOCK`, `PENDING_PRODUCTION`, `RESERVE
 - `RawMaterialBatchDto`: identity + batch/supplier/quantity/cost fields.
 - `RawMaterialIntakeRequest`: `rawMaterialId*`, `batchCode`, `quantity*`, `unit*`, `costPerUnit*`, `supplierId*`, `notes`.
 - `InventoryStockSnapshot`: `name`, `sku`, `currentStock`, `reorderLevel`, `status`.
-- `InventoryAdjustmentRequest`: `adjustmentDate`, `type* (DAMAGED|SHRINKAGE|OBSOLETE)`, `adjustmentAccountId*`, `reason`, `adminOverride`, `idempotencyKey*`, `lines*`.
+- `InventoryAdjustmentRequest`: `adjustmentDate`, `type* (DAMAGED|SHRINKAGE|OBSOLETE|RECOUNT_UP)`, `adjustmentAccountId*`, `reason`, `adminOverride`, `idempotencyKey*`, `lines*`.
 - `InventoryAdjustmentRequest.LineRequest`: `finishedGoodId*`, `quantity*`, `unitCost*`, `note`.
 - `InventoryAdjustmentDto`: identity + `referenceNumber`, `adjustmentDate`, `type`, `status`, `reason`, `totalAmount`, `journalEntryId`, `lines[]`.
 - `InventoryAdjustmentLineDto`: `finishedGoodId`, `finishedGoodName`, `quantity`, `unitCost`, `amount`, `note`.
+- `RawMaterialAdjustmentRequest`: `adjustmentDate`, `direction* (INCREASE|DECREASE)`, `adjustmentAccountId*`, `reason`, `adminOverride`, `idempotencyKey*`, `lines*`.
+- `RawMaterialAdjustmentRequest.LineRequest`: `rawMaterialId*`, `quantity*`, `unitCost*`, `note`.
+- `RawMaterialAdjustmentDto`: identity + `referenceNumber`, `adjustmentDate`, `status`, `reason`, `totalAmount`, `journalEntryId`, `lines[]`.
+- `RawMaterialAdjustmentLineDto`: `rawMaterialId`, `rawMaterialName`, `quantity` (positive for INCREASE, negative for DECREASE), `unitCost`, `amount`, `note`.
+- `InventoryExpiringBatchDto`: `batchType (RAW_MATERIAL|FINISHED_GOOD)`, `batchId`, `publicId`, `itemCode`, `itemName`, `batchCode`, `quantityAvailable`, `unitCost`, `manufacturedAt`, `expiryDate`, `daysUntilExpiry`.
 - `InventoryBatchTraceabilityDto`: batch identity/type/item/source + quantity/cost + `movements[]`.
 - `InventoryBatchMovementDto`: movement identity/type/qty/cost + `referenceType/referenceId` + linked journal/slip IDs.
 - `OpeningStockImportResponse`: created counts + `errors[]` (`rowNumber`, `message`). Duplicate `sku` rows in a single CSV are treated as per-row validation errors and reported without aborting the rest of the file.
@@ -2006,7 +2030,8 @@ Operational statuses: `PENDING`, `PENDING_STOCK`, `PENDING_PRODUCTION`, `RESERVE
 - **Bulk upsert UX**: render `CatalogProductBulkResponse.results[]` row by row; retry only failed rows.
 - **Dispatch confirm UI**: force explicit per-line shipped quantity entry (cannot exceed ordered quantity).
 - **Slip status controls**: only expose `PENDING`, `PENDING_STOCK`, `PENDING_PRODUCTION`, `RESERVED`; do not expose direct set to `DISPATCHED/BACKORDER/CANCELLED`.
-- **Idempotency-sensitive screens**: send stable idempotency keys for inventory adjustments, opening-stock import, raw-material intake/batch creation, and packing records.
+- **Idempotency-sensitive screens**: send stable idempotency keys for finished-good adjustments, raw-material adjustments, opening-stock import, raw-material intake/batch creation, and packing records.
+- **Expiring inventory widget**: consume `/api/v1/inventory/batches/expiring-soon` and badge rows with `daysUntilExpiry` (`0` = expires today, higher numbers = less urgent).
 - **Opening stock import history screen**: use `GET /api/v1/inventory/opening-stock?page={n}&size={m}` for a company-scoped audit table (newest first) and show `errorCount` as a badge linking to stored import error details.
 - **Wastage dashboard**: combine `/reports/wastage` with `/reports/monthly-production-costs` for trend + variance cards.
 - **Packing history screens**: prefer `sizeVariantLabel` for display badges and keep `packagingSize` as a fallback for legacy records.

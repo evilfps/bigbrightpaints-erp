@@ -6,6 +6,7 @@ import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.idempotency.IdempotencyReservationService;
 import com.bigbrightpaints.erp.core.idempotency.IdempotencySignatureBuilder;
+import com.bigbrightpaints.erp.core.security.SecurityActorResolver;
 import com.bigbrightpaints.erp.core.validation.ValidationUtils;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
@@ -21,6 +22,9 @@ import com.bigbrightpaints.erp.modules.inventory.domain.InventoryBatchSource;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterial;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatch;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatchRepository;
+import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialAdjustment;
+import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialAdjustmentLine;
+import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialAdjustmentRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialIntakeRecord;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialIntakeRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovement;
@@ -42,6 +46,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.Comparator;
@@ -55,6 +60,7 @@ public class RawMaterialService {
     private final RawMaterialRepository rawMaterialRepository;
     private final RawMaterialBatchRepository batchRepository;
     private final RawMaterialMovementRepository movementRepository;
+    private final RawMaterialAdjustmentRepository rawMaterialAdjustmentRepository;
     private final RawMaterialIntakeRepository rawMaterialIntakeRepository;
     private final CompanyContextService companyContextService;
     private final ProductionProductRepository productionProductRepository;
@@ -73,6 +79,7 @@ public class RawMaterialService {
     public RawMaterialService(RawMaterialRepository rawMaterialRepository,
                               RawMaterialBatchRepository batchRepository,
                               RawMaterialMovementRepository movementRepository,
+                              RawMaterialAdjustmentRepository rawMaterialAdjustmentRepository,
                               RawMaterialIntakeRepository rawMaterialIntakeRepository,
                               CompanyContextService companyContextService,
                               ProductionProductRepository productionProductRepository,
@@ -89,6 +96,7 @@ public class RawMaterialService {
         this.rawMaterialRepository = rawMaterialRepository;
         this.batchRepository = batchRepository;
         this.movementRepository = movementRepository;
+        this.rawMaterialAdjustmentRepository = rawMaterialAdjustmentRepository;
         this.rawMaterialIntakeRepository = rawMaterialIntakeRepository;
         this.companyContextService = companyContextService;
         this.productionProductRepository = productionProductRepository;
@@ -325,6 +333,286 @@ public class RawMaterialService {
                 request.notes()
         );
         return createBatch(request.rawMaterialId(), batchRequest, idempotencyKey);
+    }
+
+    public RawMaterialAdjustmentDto adjustStock(RawMaterialAdjustmentRequest request) {
+        if (request == null || request.lines() == null || request.lines().isEmpty()) {
+            throw ValidationUtils.invalidInput("Raw material adjustment lines are required");
+        }
+        Company company = companyContextService.requireCurrentCompany();
+        String idempotencyKey = requireIdempotencyKey(request.idempotencyKey(), "raw material adjustment");
+        LocalDate adjustmentDate = request.adjustmentDate() != null ? request.adjustmentDate() : companyClock.today(company);
+        List<RawMaterialAdjustmentRequest.LineRequest> sortedLines = request.lines().stream()
+                .sorted(Comparator.comparing(RawMaterialAdjustmentRequest.LineRequest::rawMaterialId))
+                .toList();
+
+        String signature = buildRawMaterialAdjustmentSignature(request, sortedLines, adjustmentDate);
+        RawMaterialAdjustment existing = rawMaterialAdjustmentRepository
+                .findWithLinesByCompanyAndIdempotencyKey(company, idempotencyKey)
+                .orElse(null);
+        if (existing != null) {
+            idempotencyReservationService.assertAndRepairSignature(
+                    existing,
+                    idempotencyKey,
+                    signature,
+                    RawMaterialAdjustment::getIdempotencyHash,
+                    RawMaterialAdjustment::setIdempotencyHash,
+                    rawMaterialAdjustmentRepository::save
+            );
+            return toAdjustmentDto(existing);
+        }
+
+        try {
+            RawMaterialAdjustmentDto created = transactionTemplate.execute(status ->
+                    createRawMaterialAdjustmentInternal(company, sortedLines, request, adjustmentDate, idempotencyKey, signature));
+            if (created == null) {
+                throw ValidationUtils.invalidState("Raw material adjustment failed to persist");
+            }
+            return created;
+        } catch (RuntimeException ex) {
+            if (!idempotencyReservationService.isDataIntegrityViolation(ex)) {
+                throw ex;
+            }
+            RawMaterialAdjustment concurrent = rawMaterialAdjustmentRepository
+                    .findWithLinesByCompanyAndIdempotencyKey(company, idempotencyKey)
+                    .orElseThrow(() -> ex);
+            idempotencyReservationService.assertAndRepairSignature(
+                    concurrent,
+                    idempotencyKey,
+                    signature,
+                    RawMaterialAdjustment::getIdempotencyHash,
+                    RawMaterialAdjustment::setIdempotencyHash,
+                    rawMaterialAdjustmentRepository::save
+            );
+            return toAdjustmentDto(concurrent);
+        }
+    }
+
+    private RawMaterialAdjustmentDto createRawMaterialAdjustmentInternal(Company company,
+                                                                         List<RawMaterialAdjustmentRequest.LineRequest> sortedLines,
+                                                                         RawMaterialAdjustmentRequest request,
+                                                                         LocalDate adjustmentDate,
+                                                                         String idempotencyKey,
+                                                                         String signature) {
+        List<Long> materialIds = sortedLines.stream().map(RawMaterialAdjustmentRequest.LineRequest::rawMaterialId).toList();
+        if (materialIds.stream().anyMatch(id -> id == null)) {
+            throw ValidationUtils.invalidInput("Raw material not found");
+        }
+        List<Long> uniqueMaterialIds = materialIds.stream().distinct().toList();
+        List<RawMaterial> lockedMaterials = uniqueMaterialIds.stream()
+                .map(id -> rawMaterialRepository.lockByCompanyAndId(company, id)
+                        .orElseThrow(() -> ValidationUtils.invalidInput("Raw material not found")))
+                .toList();
+        Map<Long, RawMaterial> materialsById = new HashMap<>();
+        lockedMaterials.forEach(material -> materialsById.put(material.getId(), material));
+
+        if (request.direction() == null) {
+            throw ValidationUtils.invalidInput("Adjustment direction is required");
+        }
+        boolean increaseInventory = request.direction() == RawMaterialAdjustmentRequest.AdjustmentDirection.INCREASE;
+
+        RawMaterialAdjustment adjustment = new RawMaterialAdjustment();
+        adjustment.setCompany(company);
+        adjustment.setReferenceNumber(referenceNumberService.rawMaterialAdjustmentReference(company));
+        adjustment.setAdjustmentDate(adjustmentDate);
+        adjustment.setReason(request.reason());
+        adjustment.setCreatedBy(SecurityActorResolver.resolveActorWithSystemProcessFallback());
+        adjustment.setIdempotencyKey(idempotencyKey);
+        adjustment.setIdempotencyHash(signature);
+
+        Map<Long, BigDecimal> inventoryLines = new HashMap<>();
+        List<RawMaterialMovement> movements = new java.util.ArrayList<>();
+        BigDecimal totalAmount = BigDecimal.ZERO;
+
+        for (RawMaterialAdjustmentRequest.LineRequest lineRequest : sortedLines) {
+            RawMaterial material = materialsById.get(lineRequest.rawMaterialId());
+            if (material == null) {
+                throw ValidationUtils.invalidInput("Raw material not found");
+            }
+
+            BigDecimal quantity = ValidationUtils.requirePositive(lineRequest.quantity(), "quantity");
+            BigDecimal unitCost = ValidationUtils.requirePositive(lineRequest.unitCost(), "unitCost");
+            BigDecimal currentStock = material.getCurrentStock() == null ? BigDecimal.ZERO : material.getCurrentStock();
+            if (!increaseInventory && currentStock.compareTo(quantity) < 0) {
+                throw ValidationUtils.invalidInput("Insufficient stock for raw material " + material.getSku());
+            }
+
+            BigDecimal delta = increaseInventory ? quantity : quantity.negate();
+            BigDecimal amount = quantity.multiply(unitCost).setScale(4, RoundingMode.HALF_UP);
+            material.setCurrentStock(currentStock.add(delta));
+            rawMaterialRepository.save(material);
+
+            RawMaterialAdjustmentLine line = new RawMaterialAdjustmentLine();
+            line.setAdjustment(adjustment);
+            line.setRawMaterial(material);
+            line.setQuantity(delta);
+            line.setUnitCost(unitCost);
+            line.setAmount(amount);
+            line.setNote(lineRequest.note());
+            adjustment.getLines().add(line);
+
+            Long inventoryAccountId = material.getInventoryAccountId();
+            if (inventoryAccountId == null && company.getDefaultInventoryAccountId() != null) {
+                inventoryAccountId = company.getDefaultInventoryAccountId();
+                material.setInventoryAccountId(inventoryAccountId);
+            }
+            if (inventoryAccountId == null) {
+                throw new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE,
+                        "Raw material " + material.getSku() + " is missing an inventory account");
+            }
+            inventoryLines.merge(inventoryAccountId, amount, BigDecimal::add);
+            totalAmount = totalAmount.add(amount);
+
+            if (delta.compareTo(BigDecimal.ZERO) > 0) {
+                RawMaterialMovement movement = new RawMaterialMovement();
+                movement.setRawMaterial(material);
+                movement.setReferenceType(InventoryReference.RAW_MATERIAL_ADJUSTMENT);
+                movement.setReferenceId(adjustment.getReferenceNumber());
+                movement.setMovementType("ADJUSTMENT_IN");
+                movement.setQuantity(delta.abs());
+                movement.setUnitCost(unitCost);
+                movements.add(movement);
+
+                RawMaterialBatch batch = new RawMaterialBatch();
+                batch.setRawMaterial(material);
+                batch.setBatchCode(nextUniqueBatchCode(material));
+                batch.setQuantity(quantity);
+                batch.setUnit(material.getUnitType() != null ? material.getUnitType() : "UNIT");
+                batch.setCostPerUnit(unitCost);
+                batch.setSource(InventoryBatchSource.ADJUSTMENT);
+                batch.setNotes("Stock recount positive adjustment " + adjustment.getReferenceNumber());
+                batch = batchRepository.saveAndFlush(batch);
+                movement.setRawMaterialBatch(batch);
+            } else {
+                issueFromRawMaterialBatches(material, quantity, unitCost, adjustment.getReferenceNumber(), movements);
+            }
+        }
+
+        if (totalAmount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw ValidationUtils.invalidInput("Adjustment amount must be greater than zero");
+        }
+
+        adjustment.setTotalAmount(totalAmount);
+        RawMaterialAdjustment saved = rawMaterialAdjustmentRepository.saveAndFlush(adjustment);
+
+        JournalEntryDto journalEntry = accountingFacade.postInventoryAdjustment(
+                "RAW_MATERIAL_ADJUSTMENT",
+                saved.getReferenceNumber(),
+                request.adjustmentAccountId(),
+                Map.copyOf(inventoryLines),
+                increaseInventory,
+                Boolean.TRUE.equals(request.adminOverride()),
+                memoForRawMaterialAdjustment(saved),
+                saved.getAdjustmentDate()
+        );
+
+        if (journalEntry == null) {
+            throw ValidationUtils.invalidState("Raw material adjustment journal was not created");
+        }
+
+        saved.setJournalEntryId(journalEntry.id());
+        saved.setStatus("POSTED");
+        movements.forEach(movement -> movement.setJournalEntryId(journalEntry.id()));
+        movementRepository.saveAll(movements);
+        RawMaterialAdjustment posted = rawMaterialAdjustmentRepository.save(saved);
+
+        return toAdjustmentDto(posted);
+    }
+
+    private void issueFromRawMaterialBatches(RawMaterial material,
+                                             BigDecimal quantity,
+                                             BigDecimal unitCost,
+                                             String referenceNumber,
+                                             List<RawMaterialMovement> movements) {
+        BigDecimal remaining = quantity;
+        List<RawMaterialBatch> batches = batchRepository.findAvailableBatchesFIFO(material);
+        for (RawMaterialBatch batch : batches) {
+            if (remaining.compareTo(BigDecimal.ZERO) <= 0) {
+                break;
+            }
+            BigDecimal available = batch.getQuantity() != null ? batch.getQuantity() : BigDecimal.ZERO;
+            if (available.compareTo(BigDecimal.ZERO) <= 0) {
+                continue;
+            }
+            BigDecimal take = available.min(remaining);
+            if (take.compareTo(BigDecimal.ZERO) <= 0) {
+                continue;
+            }
+
+            int updated = batchRepository.deductQuantityIfSufficient(batch.getId(), take);
+            if (updated == 0) {
+                throw ValidationUtils.invalidInput(
+                        "Concurrent modification detected or insufficient quantity for batch " + batch.getBatchCode());
+            }
+
+            RawMaterialMovement movement = new RawMaterialMovement();
+            movement.setRawMaterial(material);
+            movement.setRawMaterialBatch(batchRepository.findById(batch.getId()).orElse(batch));
+            movement.setReferenceType(InventoryReference.RAW_MATERIAL_ADJUSTMENT);
+            movement.setReferenceId(referenceNumber);
+            movement.setMovementType("ADJUSTMENT_OUT");
+            movement.setQuantity(take);
+            movement.setUnitCost(unitCost);
+            movements.add(movement);
+            remaining = remaining.subtract(take);
+        }
+
+        if (remaining.compareTo(BigDecimal.ZERO) > 0) {
+            throw ValidationUtils.invalidInput("Insufficient batch availability for " + material.getSku());
+        }
+    }
+
+    private RawMaterialAdjustmentDto toAdjustmentDto(RawMaterialAdjustment adjustment) {
+        List<RawMaterialAdjustmentLineDto> lines = adjustment.getLines().stream()
+                .map(line -> new RawMaterialAdjustmentLineDto(
+                        line.getRawMaterial().getId(),
+                        line.getRawMaterial().getName(),
+                        line.getQuantity(),
+                        line.getUnitCost(),
+                        line.getAmount(),
+                        line.getNote()
+                ))
+                .toList();
+
+        return new RawMaterialAdjustmentDto(
+                adjustment.getId(),
+                adjustment.getPublicId(),
+                adjustment.getReferenceNumber(),
+                adjustment.getAdjustmentDate(),
+                adjustment.getStatus(),
+                adjustment.getReason(),
+                adjustment.getTotalAmount(),
+                adjustment.getJournalEntryId(),
+                lines
+        );
+    }
+
+    private String buildRawMaterialAdjustmentSignature(RawMaterialAdjustmentRequest request,
+                                                       List<RawMaterialAdjustmentRequest.LineRequest> sortedLines,
+                                                       LocalDate adjustmentDate) {
+        IdempotencySignatureBuilder builder = IdempotencySignatureBuilder.create()
+                .add(adjustmentDate != null ? adjustmentDate : "")
+                .add(request.direction() != null ? request.direction().name() : "")
+                .add(request.adjustmentAccountId() != null ? request.adjustmentAccountId() : "")
+                .addToken(request.reason())
+                .add(Boolean.TRUE.equals(request.adminOverride()));
+
+        for (RawMaterialAdjustmentRequest.LineRequest line : sortedLines) {
+            builder.add(
+                    (line.rawMaterialId() != null ? line.rawMaterialId() : "")
+                            + ":" + com.bigbrightpaints.erp.core.idempotency.IdempotencyUtils.normalizeAmount(line.quantity())
+                            + ":" + com.bigbrightpaints.erp.core.idempotency.IdempotencyUtils.normalizeAmount(line.unitCost())
+                            + ":" + com.bigbrightpaints.erp.core.idempotency.IdempotencyUtils.normalizeToken(line.note())
+            );
+        }
+        return builder.buildHash();
+    }
+
+    private String memoForRawMaterialAdjustment(RawMaterialAdjustment adjustment) {
+        String suffix = StringUtils.hasText(adjustment.getReason())
+                ? adjustment.getReason().trim()
+                : adjustment.getReferenceNumber();
+        return "Raw material adjustment - " + suffix;
     }
 
     private RawMaterial requireMaterial(Long rawMaterialId) {
