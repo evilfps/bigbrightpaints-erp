@@ -1,0 +1,78 @@
+{
+  "groupId": "support-ticket-labels-rerun",
+  "testedAt": "2026-03-04T06:04:00Z",
+  "credentials": {
+    "account": "ut-superadmin-support-2@example.com",
+    "namespace": "ut_superadmin_support_2"
+  },
+  "toolsUsed": ["mvn test", "source review"],
+  "assertions": [
+    {
+      "id": "VAL-ADMIN-006",
+      "title": "Support ticket submission — category labels rerun",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Source review: GitHubIssueClient.createIssue() signature and payload",
+          "expected": "Method accepts List<String> labels parameter and includes it in the GitHub API POST payload",
+          "observed": "Confirmed: createIssue(String title, String body, List<String> labels) builds a LinkedHashMap payload with keys 'title', 'body', and 'labels' (when non-null and non-empty). The labels list is passed directly to the payload map."
+        },
+        {
+          "action": "Source review: SupportTicketGitHubSyncService.labelsForCategory() mapping",
+          "expected": "BUG->bug, FEATURE_REQUEST->enhancement, SUPPORT->support",
+          "observed": "Confirmed: switch expression maps BUG -> List.of(\"bug\"), FEATURE_REQUEST -> List.of(\"enhancement\"), SUPPORT -> List.of(\"support\"). Null category returns Collections.emptyList()."
+        },
+        {
+          "action": "Source review: submitGitHubIssueAsync passes labels to createIssue",
+          "expected": "labelsForCategory(ticket) is passed as third argument to gitHubIssueClient.createIssue()",
+          "observed": "Confirmed: gitHubIssueClient.createIssue(buildIssueTitle(ticket), buildIssueBody(ticket), labelsForCategory(ticket))"
+        },
+        {
+          "action": "Run TS_RuntimeSupportTicketSyncExecutableCoverageTest (6 tests including 3 label-mapping tests)",
+          "expected": "All 6 tests pass: BUG->bug, FEATURE_REQUEST->enhancement, SUPPORT->support label mapping + disabled integration graceful degradation + payload label assertion + sync/resolve notification",
+          "observed": "Tests run: 6, Failures: 0, Errors: 0, Skipped: 0. All pass. ArgumentCaptor verifications confirm: BUG category ticket calls createIssue with labels=[\"bug\"], FEATURE_REQUEST with labels=[\"enhancement\"], SUPPORT with labels=[\"support\"]. createIssuePayload_containsMappedLabels verifies the actual HTTP entity body map contains key 'labels' with correct value."
+        },
+        {
+          "action": "Run TS_RuntimeSupportTicketServiceExecutableCoverageTest (4 tests — local persistence and GitHub async trigger)",
+          "expected": "All 4 tests pass: ticket creation persists locally and triggers submitGitHubIssueAsync, role-based list scoping works",
+          "observed": "Tests run: 4, Failures: 0, Errors: 0, Skipped: 0. create_savesTicketAndTriggersGithubSubmission confirms ticket is saved to repository and submitGitHubIssueAsync is called with ticket ID."
+        },
+        {
+          "action": "Run SupportTicketControllerIT (3 integration tests — end-to-end API)",
+          "expected": "All 3 tests pass: POST /api/v1/support/tickets persists ticket, list and getById enforce role-based scoping",
+          "observed": "Tests run: 3, Failures: 0, Errors: 0, Skipped: 0. Integration tests with Testcontainers PostgreSQL confirm full request->persist->response cycle and RBAC scoping."
+        },
+        {
+          "action": "Verify graceful degradation when GitHub unavailable (submitGitHubIssueAsync_handlesDisabledIntegrationGracefully)",
+          "expected": "Ticket persists locally with null githubIssueNumber and error message when GitHub is disabled/unavailable",
+          "observed": "Test passes. When gitHubIssueClient.isEnabledAndConfigured() returns false, ticket is saved with githubLastError containing 'disabled' and githubIssueNumber remains null. Additionally, runtime exceptions during createIssue are caught and recorded as githubLastError without losing the ticket."
+        },
+        {
+          "action": "Verify tenant context in GitHub issue body (SupportTicketGitHubSyncService.buildIssueBody)",
+          "expected": "Issue body includes company code, user ID, and category for tenant context",
+          "observed": "Confirmed in source: buildIssueBody() appends 'Company: {company.getCode()}', 'Requester User ID: {userId}', 'Category: {category}', and the full description. Tenant context is present."
+        }
+      ],
+      "evidence": {
+        "screenshots": [],
+        "consoleErrors": "none",
+        "commands": [
+          "cd erp-domain && mvn test -Dtest=TS_RuntimeSupportTicketSyncExecutableCoverageTest -Djacoco.skip=true -> Tests run: 6, Failures: 0, Errors: 0, Skipped: 0 — BUILD SUCCESS",
+          "cd erp-domain && mvn test -Dtest=TS_RuntimeSupportTicketServiceExecutableCoverageTest -Djacoco.skip=true -> Tests run: 4, Failures: 0, Errors: 0, Skipped: 0 — BUILD SUCCESS",
+          "cd erp-domain && mvn test -Dtest=SupportTicketControllerIT -Djacoco.skip=true -Dspring.jpa.hibernate.ddl-auto=update -> Tests run: 3, Failures: 0, Errors: 0, Skipped: 0 — BUILD SUCCESS"
+        ],
+        "codeReferences": [
+          "GitHubIssueClient.java:createIssue(String title, String body, List<String> labels) — payload includes 'labels' key when labels non-null/non-empty",
+          "SupportTicketGitHubSyncService.java:labelsForCategory() — BUG->bug, FEATURE_REQUEST->enhancement, SUPPORT->support",
+          "SupportTicketGitHubSyncService.java:submitGitHubIssueAsync() — passes labelsForCategory(ticket) to createIssue()",
+          "SupportTicketGitHubSyncService.java:buildIssueBody() — includes Company code, Requester User ID, Category (tenant context)",
+          "TS_RuntimeSupportTicketSyncExecutableCoverageTest.java — 6 tests covering all 3 category label mappings, payload verification, disabled integration, and sync notification"
+        ]
+      },
+      "issues": null
+    }
+  ],
+  "frictions": [],
+  "blockers": [],
+  "summary": "Tested 1 assertion (VAL-ADMIN-006 rerun after labels fix): PASS. The fix in commit 8955140d correctly added category-based label mapping to the GitHub issue creation payload. GitHubIssueClient.createIssue() now accepts and includes labels, SupportTicketGitHubSyncService.labelsForCategory() maps BUG->bug, FEATURE_REQUEST->enhancement, SUPPORT->support. All 13 tests pass (6 sync coverage + 4 service coverage + 3 controller IT). Graceful degradation and tenant context in issue body also confirmed."
+}
