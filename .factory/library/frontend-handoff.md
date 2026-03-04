@@ -676,6 +676,11 @@ Comprehensive frontend handoff for `VAL-DOC-003` (chart of accounts, journals, s
 | `POST` | `/api/v1/accounting/receipts/dealer` | `hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')` | `DealerReceiptRequest` | `JournalEntryDto` |
 | `POST` | `/api/v1/accounting/receipts/dealer/hybrid` | `hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')` | `DealerReceiptSplitRequest` | `JournalEntryDto` |
 | `POST` | `/api/v1/accounting/reconciliation/bank` | `hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')` | `BankReconciliationRequest` | `BankReconciliationSummaryDto` |
+| `POST` | `/api/v1/accounting/reconciliation/bank/sessions` | `hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')` | `BankReconciliationSessionCreateRequest` | `BankReconciliationSessionSummaryDto` |
+| `PUT` | `/api/v1/accounting/reconciliation/bank/sessions/{sessionId}/items` | `hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')` | `BankReconciliationSessionItemsUpdateRequest` | `BankReconciliationSessionDetailDto` |
+| `POST` | `/api/v1/accounting/reconciliation/bank/sessions/{sessionId}/complete` | `hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')` | `BankReconciliationSessionCompletionRequest` (optional body) | `BankReconciliationSessionDetailDto` |
+| `GET` | `/api/v1/accounting/reconciliation/bank/sessions` | `hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')` | Query: `page`, `size` | `PageResponse<BankReconciliationSessionSummaryDto>` |
+| `GET` | `/api/v1/accounting/reconciliation/bank/sessions/{sessionId}` | `hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')` | `—` | `BankReconciliationSessionDetailDto` |
 | `GET` | `/api/v1/accounting/reconciliation/subledger` | `hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')` | `—` | `ReconciliationService.SubledgerReconciliationReport` |
 | `GET` | `/api/v1/accounting/reports/aging/dealer/{dealerId}` | `hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')` | `—` | `AgingReportService.DealerAgingDetail` |
 | `GET` | `/api/v1/accounting/reports/aging/dealer/{dealerId}/detailed` | `hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')` | `—` | `AgingReportService.DealerAgingDetailedReport` |
@@ -695,7 +700,7 @@ Comprehensive frontend handoff for `VAL-DOC-003` (chart of accounts, journals, s
 | `POST` | `/api/v1/accounting/suppliers/{supplierId}/auto-settle` | `hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')` | `AutoSettlementRequest` | `PartnerSettlementResponse` |
 | `GET` | `/api/v1/accounting/trial-balance/as-of` | `hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')` | `—` | `TemporalBalanceService.TrialBalanceSnapshot` |
 
-_Total documented accounting endpoints: **75**._
+_Total documented accounting endpoints: **80**._
 
 #### Required User Flows (API call sequences)
 
@@ -726,10 +731,15 @@ _Total documented accounting endpoints: **75**._
    4. Close: `POST /api/v1/accounting/periods/{periodId}/close` (requires non-empty `note`; `force` optional)
    5. Reopen: `POST /api/v1/accounting/periods/{periodId}/reopen` (requires `reason`; auto-reverses closing journal when applicable)
 
-5. **Bank reconciliation**
+5. **Bank reconciliation (persistent session workflow)**
    1. Account source: `GET /api/v1/accounting/accounts` (ASSET/bank account selection)
-   2. Submit statement match: `POST /api/v1/accounting/reconciliation/bank`
-   3. Cross-check AR/AP controls: `GET /api/v1/accounting/reconciliation/subledger`
+   2. Start draft session: `POST /api/v1/accounting/reconciliation/bank/sessions` with statement metadata
+   3. Incrementally clear/un-clear lines across visits: `PUT /api/v1/accounting/reconciliation/bank/sessions/{sessionId}/items`
+   4. Refresh draft/full view at any time: `GET /api/v1/accounting/reconciliation/bank/sessions/{sessionId}`
+   5. List previous sessions for resume/history UX: `GET /api/v1/accounting/reconciliation/bank/sessions?page={page}&size={size}`
+   6. Complete and optionally link accounting period: `POST /api/v1/accounting/reconciliation/bank/sessions/{sessionId}/complete`
+   7. Legacy compatibility path (stateless one-shot): `POST /api/v1/accounting/reconciliation/bank` (internally uses same session service)
+   8. Cross-check AR/AP controls: `GET /api/v1/accounting/reconciliation/subledger`
 
 6. **GST return preparation**
    1. Run tax return: `GET /api/v1/accounting/gst/return?period=YYYY-MM`
@@ -768,6 +778,12 @@ _Total documented accounting endpoints: **75**._
    - `POSTED` (journal + allocation rows persisted, returns `PartnerSettlementResponse`)
    - `PARTIALLY_SETTLED` / `FULLY_SETTLED` determined by outstanding balance after allocation
    - `REVERSED` when the settlement-linked journal is reversed
+
+4. **Bank reconciliation session lifecycle** (`BankReconciliationSessionStatus`)
+   - `DRAFT` -> `DRAFT` via `PUT /api/v1/accounting/reconciliation/bank/sessions/{sessionId}/items` (incremental clear/un-clear updates)
+   - `DRAFT` -> `COMPLETED` via `POST /api/v1/accounting/reconciliation/bank/sessions/{sessionId}/complete`
+   - Terminal state: `COMPLETED` cannot be updated/edited; item updates on completed session return `BUS_001` (`BUSINESS_INVALID_STATE`)
+   - Legacy endpoint `POST /api/v1/accounting/reconciliation/bank` executes the same lifecycle server-side (start -> update -> optional complete) in one request.
 
 #### Accounting ErrorCodes (all referenced in accounting module)
 
@@ -1007,6 +1023,21 @@ _Total documented accounting endpoints: **75**._
   - `accountingPeriodId`: `Long` — validation `—`
   - `markAsComplete`: `Boolean` — validation `—`
   - `note`: `String` — validation `—`
+- **`BankReconciliationSessionCreateRequest`**
+  - `bankAccountId`: `Long` — validation `@NotNull`
+  - `statementDate`: `LocalDate` — validation `@NotNull`
+  - `statementEndingBalance`: `BigDecimal` — validation `@NotNull`
+  - `startDate`: `LocalDate` — validation `—` (defaults to first day of statement month)
+  - `endDate`: `LocalDate` — validation `—` (defaults to statement date)
+  - `accountingPeriodId`: `Long` — validation `—` (when provided must belong to same company and statement month)
+  - `note`: `String` — validation `—`
+- **`BankReconciliationSessionItemsUpdateRequest`**
+  - `addJournalLineIds`: `List<Long>` — validation `—` (ids must be positive and belong to same company + session bank account)
+  - `removeJournalLineIds`: `List<Long>` — validation `—` (ids removed from cleared set if present)
+  - `note`: `String` — validation `—` (trimmed and stored on session)
+- **`BankReconciliationSessionCompletionRequest`**
+  - `note`: `String` — validation `—`
+  - `accountingPeriodId`: `Long` — validation `—` (optional override; must be OPEN and month-matching statement date)
 - **`SalesReturnRequest`**
   - `invoiceId`: `Long` — validation `@NotNull`
   - `reason`: `String` — validation `@NotBlank`
@@ -1430,6 +1461,69 @@ _Total documented accounting endpoints: **75**._
   - `balanced`: `boolean`
   - `unclearedDeposits`: `List<BankReconciliationItemDto>`
   - `unclearedChecks`: `List<BankReconciliationItemDto>`
+- **`PageResponse<BankReconciliationSessionSummaryDto>`**
+  - `content`: `List<BankReconciliationSessionSummaryDto>`
+    - `sessionId`: `Long`
+    - `referenceNumber`: `String`
+    - `bankAccountId`: `Long`
+    - `bankAccountCode`: `String`
+    - `bankAccountName`: `String`
+    - `statementDate`: `LocalDate`
+    - `statementEndingBalance`: `BigDecimal`
+    - `status`: `String` (`DRAFT` or `COMPLETED`)
+    - `createdBy`: `String`
+    - `createdAt`: `Instant`
+    - `completedAt`: `Instant`
+    - `summary`: `BankReconciliationSummaryDto`
+    - `clearedItemCount`: `int`
+  - `totalElements`: `long`
+  - `totalPages`: `int`
+  - `page`: `int` (0-based)
+  - `size`: `int`
+- **`BankReconciliationSessionSummaryDto`**
+  - `sessionId`: `Long`
+  - `referenceNumber`: `String`
+  - `bankAccountId`: `Long`
+  - `bankAccountCode`: `String`
+  - `bankAccountName`: `String`
+  - `statementDate`: `LocalDate`
+  - `statementEndingBalance`: `BigDecimal`
+  - `status`: `String` (`DRAFT` or `COMPLETED`)
+  - `createdBy`: `String`
+  - `createdAt`: `Instant`
+  - `completedAt`: `Instant`
+  - `summary`: `BankReconciliationSummaryDto`
+  - `clearedItemCount`: `int`
+- **`BankReconciliationSessionDetailDto`**
+  - `sessionId`: `Long`
+  - `referenceNumber`: `String`
+  - `bankAccountId`: `Long`
+  - `bankAccountCode`: `String`
+  - `bankAccountName`: `String`
+  - `statementDate`: `LocalDate`
+  - `statementEndingBalance`: `BigDecimal`
+  - `status`: `String` (`DRAFT` or `COMPLETED`)
+  - `accountingPeriodId`: `Long`
+  - `note`: `String`
+  - `createdBy`: `String`
+  - `createdAt`: `Instant`
+  - `completedBy`: `String`
+  - `completedAt`: `Instant`
+  - `clearedItems`: `List<ClearedItemDto>`
+    - `itemId`: `Long`
+    - `journalLineId`: `Long`
+    - `journalEntryId`: `Long`
+    - `referenceNumber`: `String`
+    - `entryDate`: `LocalDate`
+    - `memo`: `String`
+    - `debit`: `BigDecimal`
+    - `credit`: `BigDecimal`
+    - `netAmount`: `BigDecimal`
+    - `clearedAt`: `Instant`
+    - `clearedBy`: `String`
+  - `unclearedDeposits`: `List<BankReconciliationItemDto>`
+  - `unclearedChecks`: `List<BankReconciliationItemDto>`
+  - `summary`: `BankReconciliationSummaryDto`
 - **`ReconciliationService.SubledgerReconciliationReport`**
   - `dealerReconciliation`: `ReconciliationResult`
   - `supplierReconciliation`: `SupplierReconciliationResult`
@@ -1523,6 +1617,12 @@ _Total documented accounting endpoints: **75**._
   - `sourceState`/`destState` (dealer/supplier/company state codes) decide GST type and tax split
   - In settlement requests, non-zero discount/write-off/fx values require corresponding account IDs (`discountAccountId`, `writeOffAccountId`, etc.)
   - Period close requires checklist controls satisfied unless `force=true` is explicitly used
+  - Bank reconciliation session completion with `accountingPeriodId` requires an OPEN period matching `statementDate` month/year.
+- **Bank reconciliation session UX**
+  - Keep draft reconciliation state client-side by `sessionId`; users can leave/return and continue via `GET /reconciliation/bank/sessions/{sessionId}`.
+  - For line-level toggles, send incremental diffs (`addJournalLineIds`, `removeJournalLineIds`) instead of replacing whole sets.
+  - Treat `BUS_001` on update as immutable-completed-session signal; disable line selection and show read-only completed snapshot.
+  - Use `GET /reconciliation/bank/sessions` for history drawer/table and show `status`, `createdAt`, `completedAt`, and `clearedItemCount` badges.
 - **Idempotency**
   - For mutation endpoints supporting replay protection, send `Idempotency-Key` (preferred). Legacy `X-Idempotency-Key` is accepted; mismatches are rejected.
   - Opening balance import uses file-content hash idempotency internally; frontend does **not** need to send idempotency header, but should preserve identical file bytes when expecting replay behavior.

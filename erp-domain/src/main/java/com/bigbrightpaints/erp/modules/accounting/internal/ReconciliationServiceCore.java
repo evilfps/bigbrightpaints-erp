@@ -230,18 +230,37 @@ public class ReconciliationServiceCore {
         if (request == null) {
             throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput("Bank reconciliation request is required");
         }
-        if (request.bankAccountId() == null) {
+        return reconcileBankAccount(
+                request.bankAccountId(),
+                request.statementDate(),
+                request.statementEndingBalance(),
+                request.startDate(),
+                request.endDate(),
+                Collections.emptySet(),
+                normalizeReferences(request.clearedReferences())
+        );
+    }
+
+    @Transactional(readOnly = true)
+    public BankReconciliationSummaryDto reconcileBankAccount(Long bankAccountId,
+                                                             LocalDate statementDate,
+                                                             BigDecimal statementEndingBalanceInput,
+                                                             LocalDate startDate,
+                                                             LocalDate endDate,
+                                                             Set<Long> clearedJournalLineIds,
+                                                             Set<String> clearedReferenceNumbers) {
+        if (bankAccountId == null) {
             throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput("bankAccountId is required");
         }
-        if (request.statementDate() == null) {
+        if (statementDate == null) {
             throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput("statementDate is required");
         }
-        if (request.statementEndingBalance() == null) {
+        if (statementEndingBalanceInput == null) {
             throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput("statementEndingBalance is required");
         }
 
         Company company = companyContextService.requireCurrentCompany();
-        Account account = accountRepository.findByCompanyAndId(company, request.bankAccountId())
+        Account account = accountRepository.findByCompanyAndId(company, bankAccountId)
                 .orElseThrow(() -> new com.bigbrightpaints.erp.core.exception.ApplicationException(
                         com.bigbrightpaints.erp.core.exception.ErrorCode.VALIDATION_INVALID_REFERENCE,
                         "Bank account not found"));
@@ -250,13 +269,26 @@ public class ReconciliationServiceCore {
             throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput("Bank reconciliation account must be an ASSET account");
         }
 
-        LocalDate start = request.startDate() != null ? request.startDate() : request.statementDate().withDayOfMonth(1);
-        LocalDate end = request.endDate() != null ? request.endDate() : request.statementDate();
+        LocalDate start = startDate != null ? startDate : statementDate.withDayOfMonth(1);
+        LocalDate end = endDate != null ? endDate : statementDate;
         if (start.isAfter(end)) {
             throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput("startDate must be on or before endDate");
         }
 
-        Set<String> clearedReferences = normalizeReferences(request.clearedReferences());
+        Set<Long> clearedLineIds = clearedJournalLineIds == null
+                ? Collections.emptySet()
+                : clearedJournalLineIds.stream()
+                        .filter(Objects::nonNull)
+                        .collect(Collectors.toSet());
+        Set<String> clearedReferences = clearedReferenceNumbers == null
+                ? Collections.emptySet()
+                : clearedReferenceNumbers.stream()
+                        .filter(Objects::nonNull)
+                        .map(String::trim)
+                        .filter(value -> !value.isEmpty())
+                        .map(value -> value.toUpperCase(java.util.Locale.ROOT))
+                        .collect(Collectors.toSet());
+
         List<JournalLine> lines = journalLineRepository.findLinesForAccountBetween(company, account.getId(), start, end);
         List<BankReconciliationSummaryDto.BankReconciliationItemDto> unclearedDeposits = new ArrayList<>();
         List<BankReconciliationSummaryDto.BankReconciliationItemDto> unclearedChecks = new ArrayList<>();
@@ -267,7 +299,7 @@ public class ReconciliationServiceCore {
         for (JournalLine line : lines) {
             JournalEntry entry = line.getJournalEntry();
             String reference = entry != null ? entry.getReferenceNumber() : null;
-            if (isReferenceCleared(reference, clearedReferences)) {
+            if (isJournalLineCleared(line, reference, clearedLineIds, clearedReferences)) {
                 continue;
             }
 
@@ -296,7 +328,7 @@ public class ReconciliationServiceCore {
         }
 
         BigDecimal ledgerBalance = safe(temporalBalanceService.getBalanceAsOfDate(account.getId(), end));
-        BigDecimal statementEndingBalance = safe(request.statementEndingBalance());
+        BigDecimal statementEndingBalance = safe(statementEndingBalanceInput);
         BigDecimal adjustedStatementBalance = statementEndingBalance
                 .add(outstandingDeposits)
                 .subtract(outstandingChecks);
@@ -307,7 +339,7 @@ public class ReconciliationServiceCore {
                 account.getId(),
                 account.getCode(),
                 account.getName(),
-                request.statementDate(),
+                statementDate,
                 ledgerBalance,
                 statementEndingBalance,
                 outstandingDeposits,
@@ -590,6 +622,16 @@ public class ReconciliationServiceCore {
             return false;
         }
         return clearedReferences.contains(reference.trim().toUpperCase(java.util.Locale.ROOT));
+    }
+
+    private boolean isJournalLineCleared(JournalLine line,
+                                         String reference,
+                                         Set<Long> clearedLineIds,
+                                         Set<String> clearedReferences) {
+        if (line != null && line.getId() != null && clearedLineIds != null && clearedLineIds.contains(line.getId())) {
+            return true;
+        }
+        return isReferenceCleared(reference, clearedReferences);
     }
 
     private BigDecimal safe(BigDecimal value) {

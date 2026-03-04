@@ -68,6 +68,7 @@ class AccountingControllerPeriodCostingMethodEndpointsTest {
                 null,
                 null,
                 null,
+                null,
                 null
         );
     }

@@ -98,6 +98,6 @@ class AccountingControllerActivityContractTest {
                                            CompanyClock companyClock) {
         return new AccountingController(
                 null, null, null, null, null, null, null, temporalBalanceService, null, null, null,
-                null, companyContextService, companyClock, null);
+                null, companyContextService, companyClock, null, null);
     }
 }

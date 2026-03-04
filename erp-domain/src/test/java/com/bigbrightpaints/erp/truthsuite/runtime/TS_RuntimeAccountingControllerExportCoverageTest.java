@@ -116,7 +116,8 @@ class TS_RuntimeAccountingControllerExportCoverageTest {
                 mock(CompanyDefaultAccountsService.class),
                 mock(AccountingAuditTrailService.class),
                 mock(CompanyContextService.class),
-                mock(CompanyClock.class)
+                mock(CompanyClock.class),
+                null
         );
         ReflectionTestUtils.setField(controller, "auditService", auditService);
         return controller;

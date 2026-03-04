@@ -58,7 +58,8 @@ class AccountingControllerExportGovernanceContractTest {
                 null,
                 null,
                 companyContextService,
-                companyClock
+                companyClock,
+                null
         );
         ReflectionTestUtils.setField(controller, "auditService", auditService);
 

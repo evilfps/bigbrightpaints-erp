@@ -92,7 +92,8 @@ class TS_AccountingControllerExportAuditRuntimeCoverageTest {
                 mock(CompanyDefaultAccountsService.class),
                 mock(AccountingAuditTrailService.class),
                 mock(CompanyContextService.class),
-                mock(CompanyClock.class)
+                mock(CompanyClock.class),
+                null
         );
     }
 }

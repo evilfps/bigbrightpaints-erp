@@ -173,6 +173,7 @@ class AccountingControllerJournalEndpointsTest {
                 null,
                 null,
                 null,
+                null,
                 null
         );
     }

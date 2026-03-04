@@ -20,6 +20,7 @@ import com.bigbrightpaints.erp.modules.accounting.service.AccountHierarchyServic
 import com.bigbrightpaints.erp.modules.accounting.service.AgingReportService;
 import com.bigbrightpaints.erp.modules.accounting.service.CompanyDefaultAccountsService;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingAuditTrailService;
+import com.bigbrightpaints.erp.modules.accounting.service.BankReconciliationSessionService;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
@@ -28,6 +29,7 @@ import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.sales.service.SalesReturnService;
 import com.bigbrightpaints.erp.shared.dto.ApiResponse;
+import com.bigbrightpaints.erp.shared.dto.PageResponse;
 import io.micrometer.core.annotation.Timed;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -79,6 +81,7 @@ public class AccountingController {
     private final AccountingAuditTrailService accountingAuditTrailService;
     private final CompanyContextService companyContextService;
     private final CompanyClock companyClock;
+    private final BankReconciliationSessionService bankReconciliationSessionService;
     private final AuditService auditService;
 
     public AccountingController(AccountingService accountingService,
@@ -100,7 +103,8 @@ public class AccountingController {
                                 CompanyDefaultAccountsService companyDefaultAccountsService,
                                 AccountingAuditTrailService accountingAuditTrailService,
                                 CompanyContextService companyContextService,
-                                CompanyClock companyClock) {
+                                CompanyClock companyClock,
+                                BankReconciliationSessionService bankReconciliationSessionService) {
         this(accountingService,
                 journalEntryService,
                 dealerReceiptService,
@@ -121,6 +125,7 @@ public class AccountingController {
                 accountingAuditTrailService,
                 companyContextService,
                 companyClock,
+                bankReconciliationSessionService,
                 null);
     }
 
@@ -145,6 +150,7 @@ public class AccountingController {
                                 AccountingAuditTrailService accountingAuditTrailService,
                                 CompanyContextService companyContextService,
                                 CompanyClock companyClock,
+                                BankReconciliationSessionService bankReconciliationSessionService,
                                 AuditService auditService) {
         this.accountingService = accountingService;
         this.journalEntryService = journalEntryService;
@@ -166,6 +172,7 @@ public class AccountingController {
         this.accountingAuditTrailService = accountingAuditTrailService;
         this.companyContextService = companyContextService;
         this.companyClock = companyClock;
+        this.bankReconciliationSessionService = bankReconciliationSessionService;
         this.auditService = auditService;
     }
 
@@ -184,12 +191,6 @@ public class AccountingController {
                                 CompanyContextService companyContextService,
                                 CompanyClock companyClock) {
         this(accountingService,
-                bridgeJournalEntryService(accountingService),
-                bridgeDealerReceiptService(accountingService),
-                bridgeSettlementService(accountingService),
-                bridgeCreditDebitNoteService(accountingService),
-                bridgeAccountingAuditService(accountingService),
-                bridgeInventoryAccountingService(accountingService),
                 accountingFacade,
                 salesReturnService,
                 accountingPeriodService,
@@ -203,6 +204,7 @@ public class AccountingController {
                 accountingAuditTrailService,
                 companyContextService,
                 companyClock,
+                null,
                 null);
     }
 
@@ -220,6 +222,40 @@ public class AccountingController {
                                 AccountingAuditTrailService accountingAuditTrailService,
                                 CompanyContextService companyContextService,
                                 CompanyClock companyClock,
+                                AuditService auditService) {
+        this(accountingService,
+                accountingFacade,
+                salesReturnService,
+                accountingPeriodService,
+                reconciliationService,
+                statementService,
+                taxService,
+                temporalBalanceService,
+                accountHierarchyService,
+                agingReportService,
+                companyDefaultAccountsService,
+                accountingAuditTrailService,
+                companyContextService,
+                companyClock,
+                null,
+                auditService);
+    }
+
+    public AccountingController(AccountingService accountingService,
+                                AccountingFacade accountingFacade,
+                                SalesReturnService salesReturnService,
+                                AccountingPeriodService accountingPeriodService,
+                                ReconciliationService reconciliationService,
+                                StatementService statementService,
+                                TaxService taxService,
+                                TemporalBalanceService temporalBalanceService,
+                                AccountHierarchyService accountHierarchyService,
+                                AgingReportService agingReportService,
+                                CompanyDefaultAccountsService companyDefaultAccountsService,
+                                AccountingAuditTrailService accountingAuditTrailService,
+                                CompanyContextService companyContextService,
+                                CompanyClock companyClock,
+                                BankReconciliationSessionService bankReconciliationSessionService,
                                 AuditService auditService) {
         this(accountingService,
                 bridgeJournalEntryService(accountingService),
@@ -241,6 +277,7 @@ public class AccountingController {
                 accountingAuditTrailService,
                 companyContextService,
                 companyClock,
+                bankReconciliationSessionService,
                 auditService);
     }
 
@@ -892,7 +929,53 @@ public class AccountingController {
     public ResponseEntity<ApiResponse<BankReconciliationSummaryDto>> reconcileBank(
             @Valid @RequestBody BankReconciliationRequest request) {
         return ResponseEntity.ok(ApiResponse.success(
-                reconciliationService.reconcileBankAccount(request)));
+                bankReconciliationSessionService.reconcileLegacy(request)));
+    }
+
+    @PostMapping("/reconciliation/bank/sessions")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
+    public ResponseEntity<ApiResponse<BankReconciliationSessionSummaryDto>> startBankReconciliationSession(
+            @Valid @RequestBody BankReconciliationSessionCreateRequest request) {
+        return ResponseEntity.ok(ApiResponse.success(
+                "Bank reconciliation session started",
+                bankReconciliationSessionService.startSession(request)));
+    }
+
+    @PutMapping("/reconciliation/bank/sessions/{sessionId}/items")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
+    public ResponseEntity<ApiResponse<BankReconciliationSessionDetailDto>> updateBankReconciliationSessionItems(
+            @PathVariable Long sessionId,
+            @RequestBody BankReconciliationSessionItemsUpdateRequest request) {
+        return ResponseEntity.ok(ApiResponse.success(
+                "Bank reconciliation session updated",
+                bankReconciliationSessionService.updateItems(sessionId, request)));
+    }
+
+    @PostMapping("/reconciliation/bank/sessions/{sessionId}/complete")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
+    public ResponseEntity<ApiResponse<BankReconciliationSessionDetailDto>> completeBankReconciliationSession(
+            @PathVariable Long sessionId,
+            @RequestBody(required = false) BankReconciliationSessionCompletionRequest request) {
+        return ResponseEntity.ok(ApiResponse.success(
+                "Bank reconciliation session completed",
+                bankReconciliationSessionService.completeSession(sessionId, request)));
+    }
+
+    @GetMapping("/reconciliation/bank/sessions")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
+    public ResponseEntity<ApiResponse<PageResponse<BankReconciliationSessionSummaryDto>>> listBankReconciliationSessions(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(ApiResponse.success(
+                bankReconciliationSessionService.listSessions(page, size)));
+    }
+
+    @GetMapping("/reconciliation/bank/sessions/{sessionId}")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
+    public ResponseEntity<ApiResponse<BankReconciliationSessionDetailDto>> getBankReconciliationSession(
+            @PathVariable Long sessionId) {
+        return ResponseEntity.ok(ApiResponse.success(
+                bankReconciliationSessionService.getSessionDetail(sessionId)));
     }
 
     @GetMapping("/reconciliation/subledger")
