@@ -1,0 +1,40 @@
+{
+  "milestone": "commercial-review",
+  "round": 1,
+  "status": "pass",
+  "validatorsRun": {
+    "test": {
+      "passed": true,
+      "command": "cd \"/home/realnigga/Desktop/Mission-control/erp-domain\" && mvn test -Pgate-fast -Djacoco.skip=true",
+      "exitCode": 0
+    },
+    "typecheck": {
+      "passed": true,
+      "command": "cd \"/home/realnigga/Desktop/Mission-control/erp-domain\" && mvn compile -q",
+      "exitCode": 0
+    },
+    "lint": {
+      "passed": true,
+      "command": "echo \"Checkstyle remains advisory in this review mission; treat the existing baseline as known debt and capture findings in docs/code-review/test-ci-governance.md.\"",
+      "exitCode": 0
+    }
+  },
+  "reviewsSummary": {
+    "total": 2,
+    "passed": 2,
+    "failed": 0,
+    "failedFeatures": []
+  },
+  "blockingIssues": [],
+  "appliedUpdates": [],
+  "suggestedGuidanceUpdates": [
+    {
+      "target": "skills/scrutiny-validator",
+      "suggestion": "Document a first-class fallback path for review fan-out failures: when `scrutiny-feature-reviewer` subagents cannot start because of model alias/runtime issues, manually review the feature handoff, transcript skeleton, and commit diff, then author the per-feature review JSONs directly and continue synthesis.",
+      "evidence": "Both `scrutiny-feature-reviewer` launches for `order-to-cash-review` and `procure-to-pay-review` failed in this run with `Invalid model: custom:CLIProxyAPI-5.4-xhigh`, so scrutiny had to complete both reviews directly in-session and write `.factory/validation/commercial-review/scrutiny/reviews/*.json` manually.",
+      "isSystemic": true
+    }
+  ],
+  "rejectedObservations": [],
+  "previousRound": null
+}

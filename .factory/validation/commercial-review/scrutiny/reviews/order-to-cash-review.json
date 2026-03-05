@@ -1,0 +1,15 @@
+{
+  "featureId": "order-to-cash-review",
+  "reviewedAt": "2026-03-06T03:27:00+05:30",
+  "commitId": "be73cdce6e50651761955e9c5f2a850fabe73cb4",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The order-to-cash review doc satisfies VAL-O2C-001 and VAL-O2C-002. It narrates dealer onboarding, dealer portal, credit requests, override approvals, sales-order lifecycle, dispatch confirmation, invoice generation, settlement, aging/ledger, and accounting linkages with concrete code, schema, test, and OpenAPI evidence.",
+    "issues": []
+  },
+  "sharedStateObservations": [],
+  "addressesFailureFrom": null,
+  "summary": "PASS. The order-to-cash review artifact is thorough, internally consistent with the cited code/tests, and covers the required state-machine, idempotency, accounting-coupling, and ERP-integrity angles without scrutiny-level defects."
+}
