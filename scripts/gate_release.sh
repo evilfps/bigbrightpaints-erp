@@ -141,9 +141,9 @@ CANONICAL_BASE_VERIFIED="false"
 
 resolve_canonical_base() {
   local requested_ref="$CANONICAL_BASE_REF"
-  local -a candidate_refs
-  local -a resolved_refs
-  local -a resolved_shas
+  local -a candidate_refs=()
+  local -a resolved_refs=()
+  local -a resolved_shas=()
   local candidate_ref
   local candidate_sha
 

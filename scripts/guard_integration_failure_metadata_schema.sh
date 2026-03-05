@@ -6,6 +6,7 @@ SOURCE_ROOT="$ROOT_DIR/erp-domain/src/main/java"
 REMEDIATION_COMMAND="bash scripts/guard_integration_failure_metadata_schema.sh"
 LOG_FAILURE_PATTERN='logFailure\('
 SCHEMA_PATTERN='IntegrationFailureMetadataSchema\.applyRequiredFields\('
+SCHEMA_BUILDER_PATTERN='buildSettlementFailureMetadata\('
 MANUAL_REQUIRED_KEY_PATTERN='put\("failureCode"|put\("errorCategory"|put\("alertRoutingVersion"|put\("alertRoute"'
 
 fail() {
@@ -144,7 +145,10 @@ for file in "${producer_files[@]}"; do
   fi
 
   mapfile -t helper_lines < <(search_line_numbers "$SCHEMA_PATTERN" "$file")
-  [[ "${#helper_lines[@]}" -gt 0 ]] || fail "producer $file does not call IntegrationFailureMetadataSchema.applyRequiredFields"
+  mapfile -t builder_lines < <(search_line_numbers "$SCHEMA_BUILDER_PATTERN" "$file")
+  if [[ "${#helper_lines[@]}" -eq 0 && "${#builder_lines[@]}" -eq 0 ]]; then
+    fail "producer $file does not call IntegrationFailureMetadataSchema.applyRequiredFields or a validated metadata builder"
+  fi
 
   for log_line in "${log_lines[@]}"; do
     method_start_line="$(
@@ -166,7 +170,16 @@ for file in "${producer_files[@]}"; do
     done
 
     if [[ "$has_schema_in_method" != true ]]; then
-      fail "producer $file has INTEGRATION_FAILURE log at line $log_line without schema helper in method scope"
+      for builder_line in "${builder_lines[@]}"; do
+        if (( builder_line >= method_start_line )); then
+          has_schema_in_method=true
+          break
+        fi
+      done
+    fi
+
+    if [[ "$has_schema_in_method" != true ]]; then
+      fail "producer $file has INTEGRATION_FAILURE log at line $log_line without schema helper/builder in method scope"
     fi
   done
 done

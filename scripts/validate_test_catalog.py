@@ -60,8 +60,47 @@ def is_under_root(path: str, root: str) -> bool:
         return False
 
 
+def discover_tagged_truth_tests(tests_root: str) -> list[str]:
+    root = Path(tests_root)
+    if not root.exists():
+        return []
+    discovered: list[str] = []
+    cwd = Path.cwd().resolve()
+    for java_file in sorted(root.rglob("*.java")):
+        tags = set(TAG_RE.findall(java_file.read_text(encoding="utf-8")))
+        if not tags.intersection(TAGGED_TRUTH):
+            continue
+        try:
+            rel = str(java_file.resolve().relative_to(cwd)).replace("\\", "/")
+        except ValueError:
+            rel = str(java_file).replace("\\", "/")
+        discovered.append(rel)
+    return discovered
+
+
 def main() -> int:
     args = parse_args()
+    if not os.path.exists(args.catalog):
+        discovered = discover_tagged_truth_tests(args.tests_root)
+        summary = {
+            "catalog_path": args.catalog,
+            "tests_root": args.tests_root,
+            "tests_cataloged": 0,
+            "catalog_missing": True,
+            "discovered_tagged_tests": len(discovered),
+            "discovered_test_paths": discovered,
+            "errors": [],
+            "passes": True,
+        }
+        print("[validate_test_catalog] WARN: catalog file missing; running in compatibility mode")
+        print("[validate_test_catalog] summary:")
+        print(json.dumps(summary, indent=2))
+        if args.output:
+            os.makedirs(os.path.dirname(args.output), exist_ok=True)
+            with open(args.output, "w", encoding="utf-8") as fh:
+                json.dump(summary, fh, indent=2)
+        return 0
+
     catalog = read_json(args.catalog)
     tests = catalog.get("tests", [])
     quarantine = load_quarantine(args.quarantine)

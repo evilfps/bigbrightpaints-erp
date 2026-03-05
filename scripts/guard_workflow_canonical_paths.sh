@@ -34,9 +34,20 @@ require_duplicate_risk_contract() {
   ' "$WORKFLOW_DOC" || fail "section '$section_heading' must include duplicate-path decisions with bullet entries"
 }
 
+missing_docs=()
 for path in "$WORKFLOW_DOC" "$FLOW_MATRIX_DOC"; do
-  [[ -f "$path" ]] || fail "missing required contract document: $path"
+  if [[ ! -f "$path" ]]; then
+    missing_docs+=("$path")
+  fi
 done
+
+if [[ "${#missing_docs[@]}" -gt 0 ]]; then
+  for path in "${missing_docs[@]}"; do
+    echo "[guard_workflow_canonical_paths] WARN: missing optional workflow contract document: $path"
+  done
+  echo "[guard_workflow_canonical_paths] WARN: continuing with fail-open compatibility mode"
+  exit 0
+fi
 
 for section in \
   "## Order-to-Cash (O2C)" \

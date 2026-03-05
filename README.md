@@ -103,6 +103,17 @@ bash scripts/gate_release.sh
 bash scripts/gate_reconciliation.sh
 ```
 
+### CI-specific setup notes
+- CI and local gate scripts default to **Flyway v2** (`MIGRATION_SET=v2`).
+- To run gate-fast exactly like CI manually dispatched runs, provide a base SHA:
+```bash
+DIFF_BASE=<40-char-base-sha> GATE_FAST_REQUIRE_DIFF_BASE=true bash scripts/gate_fast.sh
+```
+- To build the application image using the same Dockerfile/context as Compose/CI:
+```bash
+docker build -t erp-test -f erp-domain/Dockerfile .
+```
+
 ---
 
 ## 6) Docker Deployment

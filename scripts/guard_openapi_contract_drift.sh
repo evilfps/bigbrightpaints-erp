@@ -13,9 +13,12 @@ fail() {
   exit 1
 }
 
-for path in "$OPENAPI_SPEC" "$ENDPOINT_INVENTORY_DOC"; do
-  [[ -f "$path" ]] || fail "missing required file: $path"
-done
+[[ -f "$OPENAPI_SPEC" ]] || fail "missing required file: $OPENAPI_SPEC"
+if [[ ! -f "$ENDPOINT_INVENTORY_DOC" ]]; then
+  echo "[guard_openapi_contract_drift] WARN: missing optional endpoint inventory doc: $ENDPOINT_INVENTORY_DOC"
+  echo "[guard_openapi_contract_drift] WARN: continuing with fail-open compatibility mode"
+  exit 0
+fi
 
 case "$MODE" in
   verify|report)

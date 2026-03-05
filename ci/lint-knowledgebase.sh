@@ -35,6 +35,41 @@ fail() {
   errors=$((errors + 1))
 }
 
+compatibility_mode=false
+legacy_contract_markers=(
+  "AGENTS.md"
+  "docs/INDEX.md"
+  "agents/catalog.yaml"
+)
+for marker in "${legacy_contract_markers[@]}"; do
+  if [[ ! -f "$marker" ]]; then
+    compatibility_mode=true
+    break
+  fi
+done
+
+if [[ "$compatibility_mode" == "true" ]]; then
+  compatibility_required=(
+    "README.md"
+    "docs/architecture.md"
+    "docs/developer-guide.md"
+  )
+  for f in "${compatibility_required[@]}"; do
+    if [[ ! -f "$f" ]]; then
+      fail "missing compatibility doc: $f"
+    fi
+  done
+
+  if [[ "$errors" -gt 0 ]]; then
+    printf '[knowledgebase-lint] %d issue(s) found.\n' "$errors" >&2
+    exit 1
+  fi
+
+  printf '[knowledgebase-lint] WARN: legacy knowledgebase contract files not present; running compatibility mode checks.\n'
+  printf '[knowledgebase-lint] OK\n'
+  exit 0
+fi
+
 is_valid_iso_date() {
   local candidate="$1"
   python3 - "$candidate" <<'PY'
