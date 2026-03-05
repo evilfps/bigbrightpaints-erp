@@ -1,0 +1,50 @@
+# Data Migration Workflow (Business Operations View)
+
+**Audience:** Finance onboarding lead, warehouse lead, implementation manager
+
+This guide complements **`docs/migration-guide.md`** by translating migration into business execution steps and ownership.
+
+> Use this together with `docs/migration-guide.md` (templates, exact field mapping, and error catalog).
+
+## End-to-End Steps
+
+| Step | What to do | Screen + API mapping | What to expect | What can go wrong (and quick fix) |
+|---|---|---|---|---|
+| 1 | Prepare migration checklist and owners | **Project Runbook** (internal) + reference `docs/migration-guide.md` | Clear owner per stream (accounts, stock, master data) and cutover date | No owner assigned, file formats mixed, or old templates used. Freeze template versions before upload day. |
+| 2 | Import opening accounting balances | `POST /api/v1/accounting/opening-balances` (CSV upload) | Opening journal posted; debits and credits are balanced | File rejected for unbalanced totals, bad account type, or missing account fields. Fix rows and re-upload. |
+| 3 | Import opening inventory stock | `POST /api/v1/inventory/opening-stock` (CSV upload), history via `GET /api/v1/inventory/opening-stock` | RM/FG opening stock and batch data load with per-row results | Duplicate batch/SKU rows, invalid dates, or quantity/cost format errors. Correct failed rows only and retry. |
+| 4 | Optional Tally XML migration | `POST /api/v1/migration/tally-import` | Ledger + opening references are mapped into ERP structures | Unmapped groups/items returned; source Tally grouping needs correction before re-run. |
+| 5 | Validate post-migration balances and stock | Trial balance: `GET /api/v1/reports/trial-balance`; stock checks: `GET /api/v1/finished-goods/stock-summary`, `GET /api/v1/raw-materials/stock/inventory` | Financial opening and physical stock align with source system sign-off | Mismatch indicates missing rows or wrong mapping. Reconcile using migration error reports + statements before go-live. |
+
+## Recommended Business Cutover Sequence
+
+1. **Master data freeze** in legacy system (customers, suppliers, SKUs)
+2. **Finance opening balance upload** and trial balance validation
+3. **Warehouse opening stock upload** and physical count sign-off
+4. **Optional Tally import reconciliation** for legacy ledgers
+5. **First controlled transaction in ERP** (one sale + one purchase)
+6. **Formal go-live approval** from finance and operations owners
+
+## Which Team Owns What
+
+- **Finance team:** opening balances, AR/AP review, reconciliation sign-off
+- **Warehouse team:** opening stock quantities, batch expiry/manufacture data
+- **Admin/super admin:** tenant readiness, user access, module enablement
+- **Implementation lead:** cutover checklist, issue triage, rollback decision
+
+## Fast Issue Triage During Migration
+
+1. **Import rejected immediately:** check required headers and value formats in `docs/migration-guide.md`.
+2. **Partial import success:** isolate failed rows from response and re-upload corrected subset.
+3. **Opening balances not matching source:** rerun trial balance after confirming no duplicate/replayed file upload.
+4. **Stock appears but dispatch fails:** verify SKU mapping and batch traceability before first sales dispatch.
+
+## Go-Live Acceptance Criteria
+
+- Trial balance is balanced and approved by finance
+- Opening stock totals signed off by warehouse
+- No unresolved critical errors in last import response
+- First sale and first purchase flow complete without manual DB fixes
+- Period close checklist baseline prepared for first month-end
+
+For technical CSV examples, Tally mapping details, and error dictionary, see **`docs/migration-guide.md`**.
