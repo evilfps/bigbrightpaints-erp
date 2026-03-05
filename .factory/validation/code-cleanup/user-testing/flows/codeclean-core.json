@@ -1,0 +1,87 @@
+{
+  "groupId": "codeclean-core",
+  "testedAt": "2026-03-05T09:35:10+05:30",
+  "credentials": {
+    "account": "ut-codeclean-core@example.com",
+    "namespace": "ut_codeclean_core"
+  },
+  "toolsUsed": [
+    "bash scripts/gate_fast.sh",
+    "mvn test -Pgate-fast",
+    "workflow/script inspection"
+  ],
+  "assertions": [
+    {
+      "id": "VAL-CLEAN-001",
+      "title": "Dead code elimination",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Review cleanup feature evidence and rerun relevant baseline gates",
+          "expected": "Dead/duplicate cleanup changes are integrated and do not regress critical behavior",
+          "observed": "Scrutiny review artifact for dead-code-and-duplicate-cleanup reports PASS with no blocking issues and commit-level confirmation of duplicate-path removals, bean collision fix, and cleanup completion; local gate-fast rerun completed successfully after those changes."
+        },
+        {
+          "action": "Verify no runtime regressions after cleanup in user-facing critical lane",
+          "expected": "Critical user-surface tests remain green",
+          "observed": "gate-fast executed 394 tests with 0 failures and 0 errors, indicating cleanup work did not break the primary user-surface truth suite."
+        }
+      ],
+      "evidence": {
+        "commands": [
+          "cd /home/realnigga/Desktop/Mission-control && bash scripts/gate_fast.sh"
+        ],
+        "result": "PASS",
+        "output": "[gate-fast] OK with BUILD SUCCESS; Tests run: 394, Failures: 0, Errors: 0, Skipped: 0.",
+        "fileRefs": [
+          ".factory/validation/code-cleanup/scrutiny/reviews/dead-code-and-duplicate-cleanup.json",
+          "artifacts/gate-fast/changed-coverage.json"
+        ]
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-CLEAN-003",
+      "title": "CI pipeline green on Factory-droid branch",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Run CI-equivalent gate-fast command from repository scripts",
+          "expected": "gate-fast passes locally in same lane used by CI for this branch",
+          "observed": "scripts/gate_fast.sh completed successfully with gate guards and truthsuite execution; final status [gate-fast] OK."
+        },
+        {
+          "action": "Inspect workflow configuration compatibility",
+          "expected": "Factory-droid branch uses migration v2 and invokes gate-fast through workflow",
+          "observed": ".github/workflows/ci.yml sets MIGRATION_SET=v2 and gate-fast job calls bash scripts/gate_fast.sh, matching local validation command."
+        }
+      ],
+      "evidence": {
+        "commands": [
+          "cd /home/realnigga/Desktop/Mission-control && bash scripts/gate_fast.sh"
+        ],
+        "result": "PASS",
+        "output": "Gate-fast run summary: Tests run 394, Failures 0, Errors 0, Skipped 0; traceability artifact emitted and gate finished with [gate-fast] OK.",
+        "fileRefs": [
+          ".github/workflows/ci.yml",
+          "scripts/gate_fast.sh",
+          "artifacts/gate-fast/gate-fast-traceability.json"
+        ]
+      },
+      "issues": null
+    }
+  ],
+  "frictions": [
+    {
+      "description": "Task subagent spawn failed with model alias error (`Invalid model: custom:CLIProxyAPI-5.3-codex-xhigh-pro`).",
+      "resolved": true,
+      "resolution": "Executed flow validation directly in-session and produced flow report artifact manually.",
+      "affectedAssertions": [
+        "VAL-CLEAN-001",
+        "VAL-CLEAN-003"
+      ]
+    }
+  ],
+  "blockers": [],
+  "summary": "Validated code-cleanup core assertions with CI-equivalent gate execution and workflow/script inspection: VAL-CLEAN-001 PASS, VAL-CLEAN-003 PASS."
+}

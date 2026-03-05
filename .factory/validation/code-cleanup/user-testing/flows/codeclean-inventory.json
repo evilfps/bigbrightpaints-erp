@@ -1,0 +1,97 @@
+{
+  "groupId": "codeclean-inventory",
+  "testedAt": "2026-03-05T09:34:30+05:30",
+  "credentials": {
+    "account": "ut-codeclean-inv@example.com",
+    "namespace": "ut_codeclean_inv"
+  },
+  "toolsUsed": [
+    "mvn test (targeted)",
+    "Read/Grep evidence checks"
+  ],
+  "assertions": [
+    {
+      "id": "VAL-INV-002",
+      "title": "Positive stock adjustments and RM adjustments",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Run InventoryAdjustmentCostingMethodTest#createAdjustment_recountUpIncreasesStockAndDebitsInventory",
+          "expected": "RECOUNT_UP increases FG stock and posts balanced journal with inventory debit and variance credit",
+          "observed": "Targeted test suite passed. RECOUNT_UP path raised stock from 4 to 7, movement type ADJUSTMENT_IN with qty 3, and journal lines included INV debit 45.0000 and VAR credit 45.0000."
+        },
+        {
+          "action": "Run RawMaterialAdjustmentServiceTest scenarios for increase/decrease/idempotency",
+          "expected": "Raw material adjustment endpoint/service supports stock updates, movement tracking, balanced journals, and idempotent replay protection",
+          "observed": "RawMaterialAdjustmentServiceTest passed all 4 tests: increase flow posted journal amount 37.5000 with ADJUSTMENT_IN movement and stock 5.00→8.00; decrease flow consumed FIFO batches and remained idempotent on replay; payload mismatch with same idempotency key returned ApplicationException; insufficient batch coverage rejected with no stock mutation."
+        },
+        {
+          "action": "Cross-check implementation wiring for RM adjustment surface",
+          "expected": "Dedicated raw material adjustment endpoint exists and delegates to adjustment service path",
+          "observed": "RawMaterialController exposes POST /api/v1/inventory/raw-materials/adjustments and returns 'Raw material adjustment posted' with RawMaterialService.adjustStock(..), matching dedicated adjustment surface required by the assertion."
+        }
+      ],
+      "evidence": {
+        "commands": [
+          "cd /home/realnigga/Desktop/Mission-control/erp-domain && mvn test -Djacoco.skip=true -Dtest=InventoryAdjustmentCostingMethodTest,RawMaterialAdjustmentServiceTest -pl ."
+        ],
+        "result": "PASS",
+        "output": "BUILD SUCCESS; Tests run: 8, Failures: 0, Errors: 0, Skipped: 0 for the two targeted classes.",
+        "fileRefs": [
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/inventory/service/InventoryAdjustmentCostingMethodTest.java",
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/inventory/service/RawMaterialAdjustmentServiceTest.java",
+          "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/controller/RawMaterialController.java"
+        ]
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-INV-003",
+      "title": "Batch expiry monitoring and negative stock prevention",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Run InventoryBatchQueryServiceTest for expiring-soon window behavior",
+          "expected": "Expiring-soon query returns only batches within window and sorts combined RM/FG results",
+          "observed": "InventoryBatchQueryServiceTest passed: listExpiringSoonBatches(30) returned exactly RM-NEAR-A, FG-NEAR, RM-NEAR-B (out-of-window batches excluded); negative days were clamped to zero and returned only same-day expiry batch."
+        },
+        {
+          "action": "Validate negative stock guard on RawMaterial domain",
+          "expected": "RawMaterial.setCurrentStock throws ApplicationException when input is negative",
+          "observed": "RawMaterialStockConstraintTest passed: setCurrentStock(-0.01) threw ApplicationException with ErrorCode.BUSINESS_CONSTRAINT_VIOLATION and message 'Raw material stock cannot be negative'."
+        },
+        {
+          "action": "Cross-check API surface for expiry monitoring endpoint",
+          "expected": "GET /api/v1/inventory/batches/expiring-soon endpoint exists",
+          "observed": "RawMaterialController defines @GetMapping('/inventory/batches/expiring-soon') and delegates to inventoryBatchQueryService.listExpiringSoonBatches(..)."
+        }
+      ],
+      "evidence": {
+        "commands": [
+          "cd /home/realnigga/Desktop/Mission-control/erp-domain && mvn test -Djacoco.skip=true -Dtest=InventoryBatchQueryServiceTest,RawMaterialStockConstraintTest -pl ."
+        ],
+        "result": "PASS",
+        "output": "BUILD SUCCESS; Tests run: 4, Failures: 0, Errors: 0, Skipped: 0 for expiry query + stock guard classes.",
+        "fileRefs": [
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/inventory/service/InventoryBatchQueryServiceTest.java",
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/inventory/domain/RawMaterialStockConstraintTest.java",
+          "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/controller/RawMaterialController.java"
+        ]
+      },
+      "issues": null
+    }
+  ],
+  "frictions": [
+    {
+      "description": "Task subagent spawn failed with model alias error (`Invalid model: custom:CLIProxyAPI-5.3-codex-xhigh-pro`).",
+      "resolved": true,
+      "resolution": "Executed flow validation directly in-session and produced flow report artifact manually.",
+      "affectedAssertions": [
+        "VAL-INV-002",
+        "VAL-INV-003"
+      ]
+    }
+  ],
+  "blockers": [],
+  "summary": "Validated inventory assertions for code-cleanup using targeted integration/domain tests and endpoint wiring checks: VAL-INV-002 PASS, VAL-INV-003 PASS."
+}
