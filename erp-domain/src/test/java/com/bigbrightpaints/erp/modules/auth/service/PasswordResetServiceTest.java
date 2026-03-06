@@ -222,6 +222,27 @@ class PasswordResetServiceTest {
     }
 
     @Test
+    void requestResetDoesNotMaskTokenPersistenceFailure() {
+        UserAccount user = new UserAccount("user@example.com", "hash", "User");
+        user.setEnabled(true);
+        when(userAccountRepository.findByEmailIgnoreCase("user@example.com"))
+                .thenReturn(Optional.of(user));
+        doThrow(new DataAccessResourceFailureException("db unavailable"))
+                .when(tokenRepository)
+                .saveAndFlush(any(PasswordResetToken.class));
+
+        ApplicationException ex = assertThrows(ApplicationException.class,
+                () -> passwordResetService.requestReset("user@example.com"));
+
+        assertEquals(ErrorCode.SYSTEM_DATABASE_ERROR, ex.getErrorCode());
+        assertEquals("Password reset request could not be processed. Please try again later.", ex.getUserMessage());
+        verify(tokenRepository).deleteByUser(user);
+        verify(tokenRepository).saveAndFlush(any(PasswordResetToken.class));
+        verify(tokenRepository, never()).deleteByTokenDigest(anyString());
+        verify(emailService, never()).sendPasswordResetEmailRequired(anyString(), anyString(), anyString());
+    }
+
+    @Test
     void concurrentForgotPasswordRequests_keepExactlyOneLatestResetToken() throws Exception {
         UserAccount user = new UserAccount("user@example.com", "hash", "User");
         user.setEnabled(true);

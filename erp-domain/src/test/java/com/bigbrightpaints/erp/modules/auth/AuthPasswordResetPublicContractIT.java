@@ -1,6 +1,8 @@
 package com.bigbrightpaints.erp.modules.auth;
 
 import com.bigbrightpaints.erp.core.notification.EmailService;
+import com.bigbrightpaints.erp.modules.auth.domain.PasswordResetToken;
+import com.bigbrightpaints.erp.modules.auth.domain.PasswordResetTokenRepository;
 import com.bigbrightpaints.erp.test.AbstractIntegrationTest;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -16,6 +18,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.web.client.TestRestTemplate;
+import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -24,8 +27,10 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.doAnswer;
 
 class AuthPasswordResetPublicContractIT extends AbstractIntegrationTest {
@@ -40,6 +45,9 @@ class AuthPasswordResetPublicContractIT extends AbstractIntegrationTest {
 
     @SpyBean
     private EmailService emailService;
+
+    @SpyBean
+    private PasswordResetTokenRepository passwordResetTokenRepository;
 
     @BeforeEach
     void seedSuperAdmin() {
@@ -117,6 +125,25 @@ class AuthPasswordResetPublicContractIT extends AbstractIntegrationTest {
         assertThat(data).isNotNull();
         assertThat(data.get("canonicalPath")).isEqualTo("/api/v1/auth/password/forgot");
         assertThat(data.get("supportResetPath")).isEqualTo("/api/v1/companies/{id}/support/admin-password-reset");
+    }
+
+    @Test
+    void forgotEndpoint_doesNotReturnGenericSuccessWhenTokenPersistenceFails() {
+        doThrow(new DataAccessResourceFailureException("db unavailable"))
+                .when(passwordResetTokenRepository)
+                .saveAndFlush(any(PasswordResetToken.class));
+
+        ResponseEntity<Map> response = postForgot(SUPERADMIN_EMAIL, "ANY-TENANT");
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().get("success")).isEqualTo(false);
+        assertThat(response.getBody().get("message"))
+                .isEqualTo("Password reset request could not be processed. Please try again later.");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> data = (Map<String, Object>) response.getBody().get("data");
+        assertThat(data).isNotNull();
+        assertThat(data.get("code")).isEqualTo("SYS_003");
     }
 
     @Test
