@@ -1,0 +1,14 @@
+{
+  "featureId": "tenant-lifecycle-rollout-safety-hardening",
+  "reviewedAt": "2026-03-07T00:33:46+05:30",
+  "commitId": "7f793d64277a2389bf8c286a8f2cd715c1939059",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The feature cleanly addresses the rollout-safety review findings. `CompanyLifecycleStateConverter` now preserves legacy null/blank compatibility by mapping those rows to `ACTIVE`, but any nonblank unrecognized stored value resolves to `DEACTIVATED`, which satisfies the fail-closed requirement instead of reopening tenant access. The commit also adds focused converter tests, controller-level persistence checks that assert the Flyway-v2-compatible stored values `ACTIVE`/`HOLD`/`BLOCKED`, and adjacent auth-token test cleanup that removes brittle reflection-only assertions without changing runtime behavior.",
+    "issues": []
+  },
+  "sharedStateObservations": [],
+  "summary": "PASS. Tenant lifecycle persistence stays schema-compatible on the supported Flyway v2 path, corrupted lifecycle rows fail closed, and the added regression coverage directly exercises the reviewed risk areas."
+}

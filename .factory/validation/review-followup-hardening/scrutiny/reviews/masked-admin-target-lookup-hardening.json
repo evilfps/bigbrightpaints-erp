@@ -1,0 +1,14 @@
+{
+  "featureId": "masked-admin-target-lookup-hardening",
+  "reviewedAt": "2026-03-07T00:33:46+05:30",
+  "commitId": "e8fd1195b79c6f96593a86e62f45d3af2e3896b8",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The implementation matches the reviewed authorization intent. `AdminUserService` now distinguishes between update operations that should keep returning `403` on out-of-scope targets and auth-sensitive user-control operations that should mask foreign-tenant targets as the existing `400 User not found` validation contract, while still logging internal `ACCESS_DENIED` audit evidence before returning the masked response. In parallel, `RoleController` now uses `@roleService.canManageSharedRoleMutation(authentication, #request.name())`, and the new guard method audits and blocks shared/system-role mutations at the controller boundary so tenant admins no longer reach later service denials for reviewed role-management cases. Targeted integration and contract coverage back both changes without widening the API surface.",
+    "issues": []
+  },
+  "sharedStateObservations": [],
+  "summary": "PASS. Foreign tenant-admin targets are externally indistinguishable from missing ids on the reviewed auth-sensitive endpoints, denial auditing remains intact, and controller/service authorization for role mutation is aligned at the intended boundary."
+}
