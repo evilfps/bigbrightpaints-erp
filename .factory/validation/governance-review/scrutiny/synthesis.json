@@ -1,0 +1,54 @@
+{
+  "milestone": "governance-review",
+  "round": 1,
+  "status": "fail",
+  "validatorsRun": {
+    "test": {
+      "passed": true,
+      "command": "cd \"/home/realnigga/Desktop/Mission-control/erp-domain\" && mvn test -Pgate-fast -Djacoco.skip=true",
+      "exitCode": 0
+    },
+    "typecheck": {
+      "passed": true,
+      "command": "cd \"/home/realnigga/Desktop/Mission-control/erp-domain\" && mvn compile -q",
+      "exitCode": 0
+    },
+    "lint": {
+      "passed": true,
+      "command": "echo \"Checkstyle remains advisory in this review mission; treat the existing baseline as known debt and capture findings in docs/code-review/test-ci-governance.md.\"",
+      "exitCode": 0
+    }
+  },
+  "reviewsSummary": {
+    "total": 3,
+    "passed": 2,
+    "failed": 1,
+    "failedFeatures": [
+      "remediation-backlog-synthesis"
+    ]
+  },
+  "blockingIssues": [
+    {
+      "featureId": "remediation-backlog-synthesis",
+      "severity": "blocking",
+      "description": "`remediation-backlog-synthesis` added `docs/code-review/remediation-backlog.md` without refreshing `docs/code-review/README.md`; the README still says the backlog is pending and does not link it, so current HEAD regresses VAL-CROSS-001's requirement that the review index link every produced artifact and reflect the final review structure."
+    }
+  ],
+  "appliedUpdates": [],
+  "suggestedGuidanceUpdates": [
+    {
+      "target": "skills/review-worker",
+      "suggestion": "When a docs-only review feature adds a new required artifact under `docs/code-review/` after synthesis/index files already exist, require the worker to update `docs/code-review/README.md` (and any related index files) in the same change so VAL-CROSS-001 stays true on milestone HEAD.",
+      "evidence": "Commit `489da9c3736dd36ea6091fdc12c4bfcea7e1c443` added `docs/code-review/remediation-backlog.md` only; `README.md` still says the backlog is a remaining planned artifact and omits a link to it, which is the blocking issue in this scrutiny round.",
+      "isSystemic": false
+    },
+    {
+      "target": "skills/scrutiny-validator",
+      "suggestion": "Document a first-class manual fallback for reviewer fan-out failures: if `scrutiny-feature-reviewer` subagents cannot launch because of model alias/runtime issues, inspect the handoffs, transcript skeletons, and diffs directly, then author the per-feature review JSON files in-session before continuing synthesis.",
+      "evidence": "All three `scrutiny-feature-reviewer` Task launches for governance-review failed in this run with `Invalid model: custom:CLIProxyAPI-5.4-xhigh`, so the reviews had to be completed manually in-session.",
+      "isSystemic": true
+    }
+  ],
+  "rejectedObservations": [],
+  "previousRound": null
+}

@@ -1,0 +1,15 @@
+{
+  "featureId": "test-ci-governance-review",
+  "reviewedAt": "2026-03-06T06:39:42+05:30",
+  "commitId": "22202cbb477ee6d24515c9e8304025b8526b5074",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The feature adds `docs/code-review/test-ci-governance.md` and `docs/code-review/static-analysis-triage.md` with the required test inventory, gate classification, usefulness assessment, missing-gate analysis, severity/type buckets, rule-concentration hotspots, and baseline/new-violations-only quality-gate strategy. The handoff, transcript skeleton, commit diff, and current artifact contents are consistent with VAL-QA-001, VAL-QA-002, and VAL-QA-003.",
+    "issues": []
+  },
+  "sharedStateObservations": [],
+  "addressesFailureFrom": null,
+  "summary": "PASS. The governance QA review artifacts are thorough, internally consistent, and still satisfy the milestone's test/CI/static-analysis review requirements on current HEAD."
+}

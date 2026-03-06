@@ -1,0 +1,22 @@
+{
+  "featureId": "remediation-backlog-synthesis",
+  "reviewedAt": "2026-03-06T06:39:44+05:30",
+  "commitId": "489da9c3736dd36ea6091fdc12c4bfcea7e1c443",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "fail",
+  "codeReview": {
+    "summary": "The new `docs/code-review/remediation-backlog.md` is well-structured and does cover the risk-register IDs, but the feature commit only added the backlog file. It did not update `docs/code-review/README.md`, so current HEAD still says `remediation-backlog.md` is the only remaining planned artifact and does not link the new document. That regresses the cross-area synthesis contract because the review index no longer links every produced artifact after the backlog landed.",
+    "issues": [
+      {
+        "file": "docs/code-review/README.md",
+        "line": 5,
+        "severity": "blocking",
+        "description": "After `docs/code-review/remediation-backlog.md` was added, `docs/code-review/README.md` was left stale: it still says the backlog is a remaining planned artifact and omits a link to it, so current HEAD no longer satisfies VAL-CROSS-001's requirement that the review index link every produced review artifact and reflect the final review structure."
+      }
+    ]
+  },
+  "sharedStateObservations": [],
+  "addressesFailureFrom": null,
+  "summary": "FAIL. The backlog document itself is strong, but adding it without refreshing the review index leaves the governance-review docs internally inconsistent and blocks the cross-area contract from passing on current HEAD."
+}
