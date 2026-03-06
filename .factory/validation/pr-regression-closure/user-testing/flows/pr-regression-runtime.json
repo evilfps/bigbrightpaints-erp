@@ -1,0 +1,185 @@
+{
+  "groupId": "pr-regression-runtime",
+  "surface": "api",
+  "appUrl": "http://localhost:8081",
+  "testedAt": "2026-03-06T21:23:52Z",
+  "credentials": {
+    "account": "ut_pr_regression_1",
+    "namespace": "ut_pr_regression_1",
+    "actors": [
+      "uat.superadmin@example.com",
+      "ut.taab.admin2@example.com",
+      "ut.taab.user2@example.com",
+      "uat.sales@example.com"
+    ]
+  },
+  "toolsUsed": [
+    "docker compose runtime rebuild with explicit Flyway-v2 + MailHog overrides",
+    "python urllib API probes",
+    "temporary Postgres trigger failure injection via docker exec psql",
+    "row-lock concurrency probe via docker exec psql",
+    "mvn test -Djacoco.skip=true -pl . '-Dtest=CompanyControllerIT,TenantRuntimeEnforcementServiceTest,TS_RuntimeTenantPolicyControlExecutableCoverageTest,TenantRuntimeEnforcementAuthIT'",
+    "mvn test -Djacoco.skip=true -pl . '-Dtest=PasswordResetServiceTest,AuthPasswordResetPublicContractIT,AuthControllerIT,CompanyContextFilterPasswordResetBypassTest'",
+    "mvn test -Djacoco.skip=true -pl . '-Dtest=AdminUserSecurityIT,AdminUserServiceTest,AuthTenantAuthorityIT,TenantAdminProvisioningServiceTest'"
+  ],
+  "assertions": [
+    {
+      "id": "VAL-TEN-001",
+      "title": "Canonical tenant-runtime policy updates invalidate live enforcement immediately",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Warm a UTTAAB2 tenant-admin session on the live compose-backed runtime before changing policy",
+          "expected": "The request should succeed first so the same-node policy cache is populated before the canonical update.",
+          "observed": "Logging in as `ut.taab.admin2@example.com` with company `UTTAAB2` returned 200, and `GET /api/v1/auth/me` returned 200 with the expected tenant-admin payload before the policy change."
+        },
+        {
+          "action": "As `uat.superadmin@example.com` in `MOCK`, call canonical `PUT /api/v1/companies/2/tenant-runtime/policy` with `holdState=BLOCKED`",
+          "expected": "The canonical company-scoped control path should accept the update and propagate the new policy immediately on the handling node.",
+          "observed": "`PUT /api/v1/companies/2/tenant-runtime/policy` returned 200 `Company tenant runtime policy updated` with `data.state=BLOCKED`, `data.reasonCode=INCIDENT-LOCKDOWN`, and an `auditChainId`."
+        },
+        {
+          "action": "Replay the already-issued UTTAAB2 bearer token against `/api/v1/auth/me` immediately after the canonical update, then restore policy to ACTIVE",
+          "expected": "The same node should reject protected work immediately after the block and allow it again immediately after restore without waiting for TTL expiry.",
+          "observed": "The immediate post-update `GET /api/v1/auth/me` returned 403 with `data.code=TENANT_BLOCKED`, `data.reason=TENANT_BLOCKED`, `data.tenantReasonCode=INCIDENT-LOCKDOWN`, and the same `auditChainId` from the update response. Restoring the same canonical endpoint to `holdState=ACTIVE` returned 200, and the next `/api/v1/auth/me` for the existing UTTAAB2 session returned 200 again."
+        },
+        {
+          "action": "Run the canonical runtime-policy regression suites",
+          "expected": "Service, controller, truth-suite, and auth runtime-policy coverage should stay green.",
+          "observed": "`mvn test -Djacoco.skip=true -pl . '-Dtest=CompanyControllerIT,TenantRuntimeEnforcementServiceTest,TS_RuntimeTenantPolicyControlExecutableCoverageTest,TenantRuntimeEnforcementAuthIT'` completed with `BUILD SUCCESS`; 84 tests ran with 0 failures and 0 errors."
+        }
+      ],
+      "evidence": {
+        "runtime": {
+          "warmMeStatus": 200,
+          "canonicalUpdateStatus": 200,
+          "canonicalUpdateMessage": "Company tenant runtime policy updated",
+          "blockedState": "BLOCKED",
+          "blockedReasonCode": "INCIDENT-LOCKDOWN",
+          "blockedMeStatus": 403,
+          "blockedMeCode": "TENANT_BLOCKED",
+          "blockedMeReason": "TENANT_BLOCKED",
+          "blockedMeTenantReasonCode": "INCIDENT-LOCKDOWN",
+          "restoreStatus": 200,
+          "restoredState": "ACTIVE",
+          "restoredMeStatus": 200
+        },
+        "tests": {
+          "command": "cd /home/realnigga/Desktop/Mission-control/erp-domain && mvn test -Djacoco.skip=true -pl . '-Dtest=CompanyControllerIT,TenantRuntimeEnforcementServiceTest,TS_RuntimeTenantPolicyControlExecutableCoverageTest,TenantRuntimeEnforcementAuthIT'",
+          "result": "BUILD SUCCESS; Tests run: 84, Failures: 0, Errors: 0, Skipped: 0"
+        }
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-RESET-003",
+      "title": "Public forgot-password does not hide token-persistence failures behind success",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Probe the normal public forgot-password path for `ut.taab.user2@example.com` on the live runtime",
+          "expected": "The healthy path should still preserve the generic no-enumeration success contract.",
+          "observed": "`POST /api/v1/auth/password/forgot` returned 200 with `message=If the email exists, a reset link has been sent` and `data=OK` when the reset-token table was healthy."
+        },
+        {
+          "action": "Temporarily install a local `BEFORE INSERT` trigger on `password_reset_tokens` that raises an exception for user id `8`, then repeat the public forgot-password call",
+          "expected": "A real reset-token persistence failure should no longer return the normal 200 success contract.",
+          "observed": "With the trigger active, the same `POST /api/v1/auth/password/forgot` request returned 503 with `success=false`, `message=Password reset request could not be processed. Please try again later.`, `data.code=SYS_003`, and `data.path=/api/v1/auth/password/forgot`."
+        },
+        {
+          "action": "Drop the temporary trigger and retry the public forgot-password request",
+          "expected": "Cleanup should restore the generic success contract for the normal path.",
+          "observed": "After removing the trigger and helper function, the public forgot-password request returned the normal 200 generic success response again."
+        },
+        {
+          "action": "Run the forgot/reset regression suites that cover controller, contract, and service behavior",
+          "expected": "The public forgot-password persistence-failure regressions should stay green in automated coverage.",
+          "observed": "`mvn test -Djacoco.skip=true -pl . '-Dtest=PasswordResetServiceTest,AuthPasswordResetPublicContractIT,AuthControllerIT,CompanyContextFilterPasswordResetBypassTest'` completed with `BUILD SUCCESS`; 57 tests ran with 0 failures and 0 errors."
+        }
+      ],
+      "evidence": {
+        "runtime": {
+          "normalForgotStatus": 200,
+          "normalForgotMessage": "If the email exists, a reset link has been sent",
+          "failureForgotStatus": 503,
+          "failureCode": "SYS_003",
+          "failureMessage": "Password reset request could not be processed. Please try again later.",
+          "failurePath": "/api/v1/auth/password/forgot",
+          "restoredForgotStatus": 200
+        },
+        "tests": {
+          "command": "cd /home/realnigga/Desktop/Mission-control/erp-domain && mvn test -Djacoco.skip=true -pl . '-Dtest=PasswordResetServiceTest,AuthPasswordResetPublicContractIT,AuthControllerIT,CompanyContextFilterPasswordResetBypassTest'",
+          "result": "BUILD SUCCESS; Tests run: 57, Failures: 0, Errors: 0, Skipped: 0"
+        }
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-AUTHZ-005",
+      "title": "Masked admin denials do not acquire cross-tenant write locks before scope checks",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "As UTTAAB2 tenant admin `ut.taab.admin2@example.com`, compare foreign-target and missing-target deny contracts on the affected admin user-control endpoints",
+          "expected": "Suspend, unsuspend, delete, and MFA-disable should keep foreign ids externally indistinguishable from missing ids.",
+          "observed": "`PATCH /api/v1/admin/users/3/suspend`, `PATCH /api/v1/admin/users/3/unsuspend`, `PATCH /api/v1/admin/users/3/mfa/disable`, and `DELETE /api/v1/admin/users/3` each returned the same masked 400 contract as the matching missing-id probes (`999999`): `success=false`, `message=User not found`, `data.code=VAL_001`, and `data.reason=User not found`."
+        },
+        {
+          "action": "Hold a manual `SELECT ... FOR UPDATE` lock on foreign user row `app_users.id=3` in Postgres while issuing the tenant-admin foreign-target suspend probe",
+          "expected": "If scope is checked before any cross-tenant write lock, the masked denial should return immediately instead of waiting on the foreign row lock.",
+          "observed": "While a separate `docker exec erp_db psql` session held `BEGIN; SELECT id FROM app_users WHERE id = 3 FOR UPDATE; SELECT pg_sleep(8);`, `PATCH /api/v1/admin/users/3/suspend` still returned the masked 400 response in about 0.071 seconds, showing the deny path no longer blocks on a foreign write lock."
+        },
+        {
+          "action": "Run the affected admin-security regression suites",
+          "expected": "The lock-scope and masked-denial regression suites should pass for the affected endpoints.",
+          "observed": "`mvn test -Djacoco.skip=true -pl . '-Dtest=AdminUserSecurityIT,AdminUserServiceTest,AuthTenantAuthorityIT,TenantAdminProvisioningServiceTest'` completed with `BUILD SUCCESS`; 67 tests ran with 0 failures and 0 errors."
+        }
+      ],
+      "evidence": {
+        "runtime": {
+          "foreignSuspendStatus": 400,
+          "missingSuspendStatus": 400,
+          "foreignUnsuspendStatus": 400,
+          "missingUnsuspendStatus": 400,
+          "foreignDisableMfaStatus": 400,
+          "missingDisableMfaStatus": 400,
+          "foreignDeleteStatus": 400,
+          "missingDeleteStatus": 400,
+          "maskedCode": "VAL_001",
+          "maskedReason": "User not found",
+          "lockHeldSuspendStatus": 400,
+          "lockHeldSuspendElapsedSeconds": 0.071
+        },
+        "tests": {
+          "command": "cd /home/realnigga/Desktop/Mission-control/erp-domain && mvn test -Djacoco.skip=true -pl . '-Dtest=AdminUserSecurityIT,AdminUserServiceTest,AuthTenantAuthorityIT,TenantAdminProvisioningServiceTest'",
+          "result": "BUILD SUCCESS; Tests run: 67, Failures: 0, Errors: 0, Skipped: 0"
+        }
+      },
+      "issues": null
+    }
+  ],
+  "frictions": [
+    {
+      "description": "Launching the delegated `user-testing-flow-validator` subagent failed immediately with `Invalid model: custom:CLIProxyAPI-5.4-high`.",
+      "resolved": true,
+      "resolution": "Fell back to direct in-session validation, consistent with mission guidance and the documented helper-launch limitation.",
+      "affectedAssertions": [
+        "VAL-TEN-001",
+        "VAL-RESET-003",
+        "VAL-AUTHZ-005"
+      ]
+    },
+    {
+      "description": "The compose runtime still reports `503 {\"status\":\"DOWN\"}` on `http://localhost:9090/actuator/health` even while the target auth/admin APIs on `8081` are healthy.",
+      "resolved": false,
+      "resolution": "Treated actuator as non-blocking and verified the target milestone endpoints directly.",
+      "affectedAssertions": [
+        "VAL-TEN-001",
+        "VAL-RESET-003",
+        "VAL-AUTHZ-005"
+      ]
+    }
+  ],
+  "blockers": [],
+  "summary": "Validated all three pending pr-regression-closure assertions directly in-session after the delegated helper failed. The compose-backed runtime enforced a canonical company-scoped tenant-runtime block immediately on the same node, public forgot-password surfaced a real reset-token persistence failure as a controlled non-success 503 instead of a false-success 200, and tenant-admin masked foreign-target denials stayed indistinguishable from missing ids while returning immediately even when the foreign row was manually locked."
+}

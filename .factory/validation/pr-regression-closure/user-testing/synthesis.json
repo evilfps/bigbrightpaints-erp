@@ -1,0 +1,34 @@
+{
+  "milestone": "pr-regression-closure",
+  "round": 1,
+  "status": "pass",
+  "generatedAt": "2026-03-06T21:23:52Z",
+  "assertionsSummary": {
+    "total": 3,
+    "passed": 3,
+    "failed": 0,
+    "blocked": 0
+  },
+  "passedAssertions": [
+    "VAL-TEN-001",
+    "VAL-RESET-003",
+    "VAL-AUTHZ-005"
+  ],
+  "failedAssertions": [],
+  "blockedAssertions": [],
+  "appliedUpdates": [
+    {
+      "target": "user-testing.md",
+      "description": "Recorded two reproducible runtime-validation techniques: a temporary password-reset token insert trigger to prove public forgot-password surfaces persistence failures as non-success, and a foreign-row lock probe showing masked tenant-admin suspend denials return immediately without waiting on cross-tenant write locks.",
+      "source": "flow-report"
+    }
+  ],
+  "previousRound": null,
+  "flowReports": [
+    ".factory/validation/pr-regression-closure/user-testing/flows/pr-regression-runtime.json"
+  ],
+  "environmentConstraints": [
+    "The delegated `user-testing-flow-validator` helper still fails immediately with `Invalid model: custom:CLIProxyAPI-5.4-high`, so this round used the approved direct in-session fallback.",
+    "The compose-backed runtime still reports `503 {\"status\":\"DOWN\"}` on `http://localhost:9090/actuator/health`; validation readiness was judged from the milestone endpoints on `8081` instead of actuator health."
+  ]
+}
