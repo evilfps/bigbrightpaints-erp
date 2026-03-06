@@ -1,0 +1,14 @@
+{
+  "featureId": "controlled-auth-error-contracts",
+  "reviewedAt": "2026-03-06T21:18:00+05:30",
+  "commitId": "53e38592b67c25ff9cea037dfd9daafe89c71d1e",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The feature replaces raw servlet and framework-auth failure leakage on the hardened paths with explicit `ApiResponse` contracts while preserving supported success payloads and the retired forgot-password alias migration contract. The CompanyContextFilter and TenantRuntimeEnforcementService changes now produce structured denial metadata for tenant-binding and runtime-policy failures, and the updated auth, filter, runtime, and OpenAPI tests cover the representative lockout, company-context mismatch, retired alias, and tenant runtime rejection cases.",
+    "issues": []
+  },
+  "sharedStateObservations": [],
+  "summary": "PASS. The hardened auth-sensitive failure paths now return controlled application contracts with no blocking regression found in the reviewed lockout, tenant-binding, alias-retirement, or tenant-runtime denial flows."
+}

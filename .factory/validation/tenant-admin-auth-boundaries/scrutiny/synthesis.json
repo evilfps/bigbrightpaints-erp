@@ -1,0 +1,40 @@
+{
+  "milestone": "tenant-admin-auth-boundaries",
+  "round": 1,
+  "status": "pass",
+  "validatorsRun": {
+    "test": {
+      "passed": true,
+      "command": "cd \"/home/realnigga/Desktop/Mission-control/erp-domain\" && mvn test -Pgate-fast -Djacoco.skip=true",
+      "exitCode": 0
+    },
+    "typecheck": {
+      "passed": true,
+      "command": "cd \"/home/realnigga/Desktop/Mission-control/erp-domain\" && mvn compile -q",
+      "exitCode": 0
+    },
+    "lint": {
+      "passed": true,
+      "command": "bash \"/home/realnigga/Desktop/Mission-control/ci/lint-knowledgebase.sh\" && bash \"/home/realnigga/Desktop/Mission-control/ci/check-architecture.sh\" && bash \"/home/realnigga/Desktop/Mission-control/ci/check-enterprise-policy.sh\" && bash \"/home/realnigga/Desktop/Mission-control/ci/check-orchestrator-layer.sh\" && python3 \"/home/realnigga/Desktop/Mission-control/scripts/check_flaky_tags.py\" --tests-root \"/home/realnigga/Desktop/Mission-control/erp-domain/src/test/java\" --gate gate-fast && bash \"/home/realnigga/Desktop/Mission-control/scripts/guard_openapi_contract_drift.sh\"",
+      "exitCode": 0
+    }
+  },
+  "reviewsSummary": {
+    "total": 4,
+    "passed": 4,
+    "failed": 0,
+    "failedFeatures": []
+  },
+  "blockingIssues": [],
+  "appliedUpdates": [],
+  "suggestedGuidanceUpdates": [
+    {
+      "target": "skills/scrutiny-validator",
+      "suggestion": "Document a required in-session fallback when `scrutiny-feature-reviewer` fan-out fails: review each completed feature directly from the worker transcript skeleton, handoff, and commit diff; author the per-feature review JSONs manually; and continue to synthesis instead of depending on the broken subagent path.",
+      "evidence": "This milestone attempted parallel `scrutiny-feature-reviewer` Task launches for all four completed implementation features, and every launch failed with `Invalid model: custom:CLIProxyAPI-5.4-high`. Scrutiny still completed by manually reviewing the four feature transcript skeletons, handoffs, and commit diffs and writing `.factory/validation/tenant-admin-auth-boundaries/scrutiny/reviews/*.json` directly.",
+      "isSystemic": true
+    }
+  ],
+  "rejectedObservations": [],
+  "previousRound": null
+}

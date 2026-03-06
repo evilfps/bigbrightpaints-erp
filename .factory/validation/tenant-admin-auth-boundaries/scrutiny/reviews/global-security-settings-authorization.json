@@ -1,0 +1,14 @@
+{
+  "featureId": "global-security-settings-authorization",
+  "reviewedAt": "2026-03-06T21:18:00+05:30",
+  "commitId": "2cffda5dd014510d91cc995d33b88b149770f04d",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The change is intentionally narrow: only `PUT /api/v1/admin/settings` moves to `ROLE_SUPER_ADMIN`, while tenant-runtime metrics readability and the super-admin runtime-policy mutation path stay intact. Regression coverage includes the original red-path gap, the allowed super-admin global-settings mutation path, tenant-admin denial, and an adjacent export-approval workflow that depends on the global settings toggle, so the tightened authorization does not appear to break the intended operator flow.",
+    "issues": []
+  },
+  "sharedStateObservations": [],
+  "summary": "PASS. Platform-wide settings mutation is now restricted to super admins, tenant-scoped metrics visibility remains available, and adjacent approval behavior stays covered without a blocking regression."
+}
