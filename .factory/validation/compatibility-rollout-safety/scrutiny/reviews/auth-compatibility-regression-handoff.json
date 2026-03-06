@@ -1,0 +1,14 @@
+{
+  "featureId": "auth-compatibility-regression-handoff",
+  "reviewedAt": "2026-03-06T22:38:00+05:30",
+  "commitId": "07e617afe2e5143e5175b377091cc9702420fa98",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The feature closes the observed auth/admin compatibility drift without changing frontend payload shapes: it adds explicit `204 No Content` response metadata to the live no-content auth/admin endpoints, expands `OpenApiSnapshotIT` to assert the touched auth/admin contracts directly, refreshes `openapi.json`, and updates `.factory/library/frontend-handoff.md` to state that no auth/admin request/response shapes changed. The implementation is narrowly scoped, aligns the generated OpenAPI spec with runtime behavior, and is backed by targeted auth/admin contract tests plus full `gate-fast` validation.",
+    "issues": []
+  },
+  "sharedStateObservations": [],
+  "summary": "PASS. Auth/admin compatibility regression coverage is strengthened, published OpenAPI now matches the live 204 logout and admin user-control behavior, and the frontend handoff explicitly records that no auth/admin payload shapes changed."
+}
