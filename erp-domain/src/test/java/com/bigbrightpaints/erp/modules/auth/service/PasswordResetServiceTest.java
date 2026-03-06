@@ -24,9 +24,21 @@ import com.bigbrightpaints.erp.modules.auth.domain.UserAccount;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
 import com.bigbrightpaints.erp.modules.rbac.domain.Role;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.locks.ReentrantLock;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -102,7 +114,7 @@ class PasswordResetServiceTest {
         verify(tokenRepository).saveAndFlush(tokenCaptor.capture());
         ArgumentCaptor<String> emailTokenCaptor = ArgumentCaptor.forClass(String.class);
         verify(emailService).sendPasswordResetEmailRequired(eq("user@example.com"), eq("User"), emailTokenCaptor.capture());
-        verify(tokenRepository).deleteByUserAndIdNot(eq(user), anyLong());
+        verify(tokenRepository).deleteByUser(user);
         // ensure token is linked to the same user
         assertEquals(user, tokenCaptor.getValue().getUser());
         assertNull(tokenCaptor.getValue().getToken());
@@ -162,7 +174,7 @@ class PasswordResetServiceTest {
 
         verify(tokenRepository).saveAndFlush(any(PasswordResetToken.class));
         verify(emailService).sendPasswordResetEmailRequired(eq("managed@example.com"), eq("Managed User"), anyString());
-        verify(tokenRepository).deleteByUserAndIdNot(eq(adminManagedUser), anyLong());
+        verify(tokenRepository).deleteByUser(adminManagedUser);
         verify(emailService, never()).sendSimpleEmail(anyString(), anyString(), anyString());
     }
 
@@ -207,6 +219,98 @@ class PasswordResetServiceTest {
 
         verify(tokenRepository).saveAndFlush(any(PasswordResetToken.class));
         verify(tokenRepository).deleteByTokenDigest(anyString());
+    }
+
+    @Test
+    void concurrentForgotPasswordRequests_keepExactlyOneLatestResetToken() throws Exception {
+        UserAccount user = new UserAccount("user@example.com", "hash", "User");
+        user.setEnabled(true);
+        ReflectionTestUtils.setField(user, "id", 101L);
+        when(userAccountRepository.findByEmailIgnoreCase("user@example.com"))
+                .thenReturn(Optional.of(user));
+        ReentrantLock issuanceLock = new ReentrantLock(true);
+        when(userAccountRepository.lockById(101L)).thenAnswer(invocation -> {
+            issuanceLock.lock();
+            return Optional.of(user);
+        });
+
+        ConcurrentResetTokenState tokenState = new ConcurrentResetTokenState();
+        tokenState.stub(tokenRepository, issuanceLock);
+        CountDownLatch bothEmailsIssued = new CountDownLatch(2);
+        List<String> dispatchedTokens = Collections.synchronizedList(new ArrayList<>());
+        doAnswer(invocation -> {
+            dispatchedTokens.add(invocation.getArgument(2));
+            bothEmailsIssued.countDown();
+            assertTrue(bothEmailsIssued.await(5, TimeUnit.SECONDS));
+            return null;
+        }).when(emailService).sendPasswordResetEmailRequired(eq("user@example.com"), eq("User"), anyString());
+
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            Future<?> first = executor.submit(() -> passwordResetService.requestReset("user@example.com"));
+            Future<?> second = executor.submit(() -> passwordResetService.requestReset("user@example.com"));
+            first.get(5, TimeUnit.SECONDS);
+            second.get(5, TimeUnit.SECONDS);
+        } finally {
+            executor.shutdownNow();
+        }
+
+        assertEquals(2, dispatchedTokens.size());
+        assertEquals(
+                1,
+                tokenState.activeTokenCount(),
+                "Concurrent forgot-password requests must not cross-delete every valid reset token");
+        String latestDispatchedToken = dispatchedTokens.getLast();
+        assertEquals(
+                AuthTokenDigests.passwordResetTokenDigest(latestDispatchedToken),
+                tokenState.activeTokenDigests().iterator().next(),
+                "The latest issued forgot-password link should remain the sole valid reset token");
+    }
+
+    @Test
+    void overlappingForgotAndAdminResetRequests_keepExactlyOneLatestResetToken() throws Exception {
+        UserAccount user = new UserAccount("user@example.com", "hash", "User");
+        user.setEnabled(true);
+        ReflectionTestUtils.setField(user, "id", 202L);
+        when(userAccountRepository.findByEmailIgnoreCase("user@example.com"))
+                .thenReturn(Optional.of(user));
+        ReentrantLock issuanceLock = new ReentrantLock(true);
+        when(userAccountRepository.lockById(202L)).thenAnswer(invocation -> {
+            issuanceLock.lock();
+            return Optional.of(user);
+        });
+
+        ConcurrentResetTokenState tokenState = new ConcurrentResetTokenState();
+        tokenState.stub(tokenRepository, issuanceLock);
+        CountDownLatch bothEmailsIssued = new CountDownLatch(2);
+        List<String> dispatchedTokens = Collections.synchronizedList(new ArrayList<>());
+        doAnswer(invocation -> {
+            dispatchedTokens.add(invocation.getArgument(2));
+            bothEmailsIssued.countDown();
+            assertTrue(bothEmailsIssued.await(5, TimeUnit.SECONDS));
+            return null;
+        }).when(emailService).sendPasswordResetEmailRequired(eq("user@example.com"), eq("User"), anyString());
+
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            Future<?> publicReset = executor.submit(() -> passwordResetService.requestReset("user@example.com"));
+            Future<?> adminReset = executor.submit(() -> passwordResetService.requestResetByAdmin(user));
+            publicReset.get(5, TimeUnit.SECONDS);
+            adminReset.get(5, TimeUnit.SECONDS);
+        } finally {
+            executor.shutdownNow();
+        }
+
+        assertEquals(2, dispatchedTokens.size());
+        assertEquals(
+                1,
+                tokenState.activeTokenCount(),
+                "Overlapping public and admin reset issuance must leave exactly one valid reset token behind");
+        String latestDispatchedToken = dispatchedTokens.getLast();
+        assertEquals(
+                AuthTokenDigests.passwordResetTokenDigest(latestDispatchedToken),
+                tokenState.activeTokenDigests().iterator().next(),
+                "The latest overlapping reset request should deterministically win");
     }
 
     @Test
@@ -919,6 +1023,37 @@ class PasswordResetServiceTest {
                     .toList();
         } finally {
             serviceLogger.detachAppender(listAppender);
+        }
+    }
+
+    private static final class ConcurrentResetTokenState {
+        private final AtomicLong idSequence = new AtomicLong();
+        private final Map<Long, String> activeTokenDigests = new ConcurrentHashMap<>();
+
+        void stub(PasswordResetTokenRepository tokenRepository, ReentrantLock issuanceLock) {
+            doAnswer(invocation -> {
+                PasswordResetToken token = invocation.getArgument(0);
+                long id = idSequence.incrementAndGet();
+                ReflectionTestUtils.setField(token, "id", id);
+                activeTokenDigests.put(id, token.getTokenDigest());
+                if (issuanceLock != null && issuanceLock.isHeldByCurrentThread()) {
+                    issuanceLock.unlock();
+                }
+                return token;
+            }).when(tokenRepository).saveAndFlush(any(PasswordResetToken.class));
+
+            doAnswer(invocation -> {
+                activeTokenDigests.clear();
+                return null;
+            }).when(tokenRepository).deleteByUser(any(UserAccount.class));
+        }
+
+        int activeTokenCount() {
+            return activeTokenDigests.size();
+        }
+
+        Set<String> activeTokenDigests() {
+            return Set.copyOf(activeTokenDigests.values());
         }
     }
 }

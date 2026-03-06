@@ -1,10 +1,19 @@
 package com.bigbrightpaints.erp.modules.auth;
 
+import com.bigbrightpaints.erp.core.notification.EmailService;
 import com.bigbrightpaints.erp.test.AbstractIntegrationTest;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.http.HttpEntity;
@@ -15,6 +24,9 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 
 class AuthPasswordResetPublicContractIT extends AbstractIntegrationTest {
 
@@ -25,6 +37,9 @@ class AuthPasswordResetPublicContractIT extends AbstractIntegrationTest {
 
     @Autowired
     private TestRestTemplate rest;
+
+    @SpyBean
+    private EmailService emailService;
 
     @BeforeEach
     void seedSuperAdmin() {
@@ -104,6 +119,40 @@ class AuthPasswordResetPublicContractIT extends AbstractIntegrationTest {
         assertThat(data.get("supportResetPath")).isEqualTo("/api/v1/companies/{id}/support/admin-password-reset");
     }
 
+    @Test
+    void overlappingForgotRequests_leaveLatestResetLinkUsable() throws Exception {
+        CountDownLatch bothEmailsQueued = new CountDownLatch(2);
+        List<String> deliveredTokens = Collections.synchronizedList(new ArrayList<>());
+        doAnswer(invocation -> {
+            deliveredTokens.add(invocation.getArgument(2, String.class));
+            bothEmailsQueued.countDown();
+            assertThat(bothEmailsQueued.await(5, TimeUnit.SECONDS)).isTrue();
+            return null;
+        }).when(emailService).sendPasswordResetEmailRequired(eq(SUPERADMIN_EMAIL), eq("Reset Super Admin"), anyString());
+
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            Future<ResponseEntity<Map>> first = executor.submit(() -> postForgot(SUPERADMIN_EMAIL, "TENANT-A"));
+            Future<ResponseEntity<Map>> second = executor.submit(() -> postForgot(SUPERADMIN_EMAIL, "TENANT-B"));
+
+            assertThat(first.get(5, TimeUnit.SECONDS).getStatusCode()).isEqualTo(HttpStatus.OK);
+            assertThat(second.get(5, TimeUnit.SECONDS).getStatusCode()).isEqualTo(HttpStatus.OK);
+        } finally {
+            executor.shutdownNow();
+        }
+
+        assertThat(deliveredTokens).hasSize(2);
+        ResponseEntity<Map> staleReset = postReset(deliveredTokens.getFirst(), "NewPass123!");
+        ResponseEntity<Map> latestReset = postReset(deliveredTokens.getLast(), "NewPass123!");
+
+        assertThat(staleReset.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(staleReset.getBody()).isNotNull();
+        assertThat(staleReset.getBody().get("message")).isEqualTo("Invalid or expired token");
+        assertThat(latestReset.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(latestReset.getBody()).isNotNull();
+        assertThat(latestReset.getBody().get("success")).isEqualTo(true);
+    }
+
     private ResponseEntity<Map> postForgot(String email, String companyCodeHeader) {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
@@ -114,6 +163,19 @@ class AuthPasswordResetPublicContractIT extends AbstractIntegrationTest {
                 "/api/v1/auth/password/forgot",
                 HttpMethod.POST,
                 new HttpEntity<>(payload, headers),
+                Map.class);
+    }
+
+    private ResponseEntity<Map> postReset(String token, String newPassword) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        return rest.exchange(
+                "/api/v1/auth/password/reset",
+                HttpMethod.POST,
+                new HttpEntity<>(Map.of(
+                        "token", token,
+                        "newPassword", newPassword,
+                        "confirmPassword", newPassword), headers),
                 Map.class);
     }
 }
