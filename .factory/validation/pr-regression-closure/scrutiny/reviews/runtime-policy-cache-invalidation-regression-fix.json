@@ -1,0 +1,14 @@
+{
+  "featureId": "runtime-policy-cache-invalidation-regression-fix",
+  "reviewedAt": "2026-03-07T02:36:28+05:30",
+  "commitId": "d150c976c1e722b3f7a9dd5cdb51af7ae32ad425",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The fix cleanly closes the reviewed cache invalidation regression. `CompanyContextFilter` now treats canonical `PUT /api/v1/companies/{id}/tenant-runtime/policy` requests as tracked policy-control operations for authorized super-admins, and `TenantRuntimeEnforcementService.updatePolicy(...)` persists the refreshed state, quotas, audit chain, and timestamp before successful policy-control completion invalidates the in-memory cache. The added integration, service, and truth-suite coverage demonstrates both halves of the fix: canonical company-scoped policy updates are tracked, and a warmed same-node request is denied immediately after the canonical update blocks the tenant.",
+    "issues": []
+  },
+  "sharedStateObservations": [],
+  "summary": "PASS. Canonical company-scoped tenant-runtime policy updates now invalidate the same-node cache immediately after persisting the new policy, and the regression coverage directly exercises the reviewed failure mode."
+}

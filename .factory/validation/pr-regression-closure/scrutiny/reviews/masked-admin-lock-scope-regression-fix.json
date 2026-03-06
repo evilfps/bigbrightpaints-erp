@@ -1,0 +1,14 @@
+{
+  "featureId": "masked-admin-lock-scope-regression-fix",
+  "reviewedAt": "2026-03-07T02:36:28+05:30",
+  "commitId": "4eaafbf0990da949b1ec6eb7fc6d35c1d04f3a3f",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The lock-scope regression is fixed without reopening the masked lookup contract. `AdminUserService.resolveScopedUserForAdminAction(...)` now uses `lockByIdAndCompanyId(...)` for tenant-admin lock-taking operations and only falls back to a non-locking `findById(...)` when it needs to preserve denial auditing for an out-of-scope target. Super-admin flows still use global locking, and the masked `User not found` response remains intact for tenant-admin foreign-target suspend, unsuspend, delete, and MFA-disable actions. The expanded `AdminUserServiceTest` suite explicitly verifies the company-scoped locking behavior for all four affected actions and confirms that the old cross-tenant `lockById(...)` path is no longer used for masked tenant-admin denials.",
+    "issues": []
+  },
+  "sharedStateObservations": [],
+  "summary": "PASS. Tenant-admin masked denials no longer acquire cross-tenant write locks before scope checks, while denial auditing and external foreign-vs-missing indistinguishability stay intact."
+}
