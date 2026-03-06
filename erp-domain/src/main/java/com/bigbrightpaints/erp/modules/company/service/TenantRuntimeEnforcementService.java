@@ -261,7 +261,7 @@ public class TenantRuntimeEnforcementService {
                                               Integer maxActiveUsers,
                                               String actor) {
         String normalizedCompany = requireCompanyCode(companyCode);
-        companyRepository.findByCodeIgnoreCase(normalizedCompany)
+        Company company = companyRepository.findByCodeIgnoreCase(normalizedCompany)
                 .orElseThrow(() -> com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput("Company not found: " + normalizedCompany));
         if (targetState == null
                 && maxConcurrentRequests == null
@@ -292,6 +292,7 @@ public class TenantRuntimeEnforcementService {
             policy.updatedAt = now;
             policy.auditChainId = newChainId;
         }
+        persistPolicy(company, policy);
         auditPolicyChange(
                 "UPDATE_TENANT_RUNTIME_POLICY",
                 normalizedCompany,
@@ -332,6 +333,20 @@ public class TenantRuntimeEnforcementService {
             return;
         }
         policies.remove(normalizedCompany);
+    }
+
+    private void persistPolicy(Company company, TenantRuntimePolicy policy) {
+        if (company == null || company.getId() == null || policy == null) {
+            return;
+        }
+        Long companyId = company.getId();
+        persistSetting(keyHoldState(companyId), policy.state.name());
+        persistSetting(keyHoldReason(companyId), policy.reasonCode);
+        persistSetting(keyMaxConcurrentRequests(companyId), Integer.toString(policy.maxConcurrentRequests));
+        persistSetting(keyMaxRequestsPerMinute(companyId), Integer.toString(policy.maxRequestsPerMinute));
+        persistSetting(keyMaxActiveUsers(companyId), Integer.toString(policy.maxActiveUsers));
+        persistSetting(keyPolicyReference(companyId), policy.auditChainId);
+        persistSetting(keyPolicyUpdatedAt(companyId), policy.updatedAt == null ? null : policy.updatedAt.toString());
     }
 
     private TenantRuntimeSnapshot updateState(String companyCode,
@@ -687,6 +702,13 @@ public class TenantRuntimeEnforcementService {
         } catch (RuntimeException ignored) {
             return fallback;
         }
+    }
+
+    private void persistSetting(String key, String value) {
+        if (!StringUtils.hasText(key)) {
+            return;
+        }
+        systemSettingsRepository.save(new SystemSetting(key, value));
     }
 
     private String keyHoldState(Long companyId) {

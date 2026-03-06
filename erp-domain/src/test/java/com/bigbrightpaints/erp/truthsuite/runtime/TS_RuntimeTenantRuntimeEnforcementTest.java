@@ -407,6 +407,13 @@ class TS_RuntimeTenantRuntimeEnforcementTest {
         authenticateForCompanyWithAuthorities("super-admin@bbp.com", "ROOT", "ROLE_SUPER_ADMIN");
         when(companyService.resolveCompanyCodeById(42L)).thenReturn("ACME");
         when(companyService.resolveLifecycleStateByCode("ACME")).thenReturn(CompanyLifecycleState.DEACTIVATED);
+        TenantRuntimeEnforcementService.TenantRequestAdmission admittedAdmission = admission(true, "ACME", 200, null);
+        when(tenantRuntimeEnforcementService.beginRequest(
+                "ACME",
+                "/api/v1/companies/42/tenant-runtime/policy",
+                "PUT",
+                "super-admin@bbp.com",
+                true)).thenReturn(admittedAdmission);
 
         MockHttpServletRequest request = new MockHttpServletRequest("PUT", "/api/v1/companies/42/tenant-runtime/policy");
         request.setAttribute("jwtClaims", claims("ACME", null));
@@ -417,9 +424,13 @@ class TS_RuntimeTenantRuntimeEnforcementTest {
 
         assertThat(response.getStatus()).isEqualTo(200);
         assertThat(chainCalled.get()).isTrue();
-        verify(tenantRuntimeEnforcementService, never())
-                .beginRequest(anyString(), anyString(), anyString(), anyString(), anyBoolean());
-        verify(tenantRuntimeEnforcementService).completeRequest(any(), eq(200));
+        verify(tenantRuntimeEnforcementService).beginRequest(
+                "ACME",
+                "/api/v1/companies/42/tenant-runtime/policy",
+                "PUT",
+                "super-admin@bbp.com",
+                true);
+        verify(tenantRuntimeEnforcementService).completeRequest(eq(admittedAdmission), eq(200));
     }
 
     @Test

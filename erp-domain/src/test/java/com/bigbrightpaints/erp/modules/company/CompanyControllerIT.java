@@ -1,11 +1,14 @@
 package com.bigbrightpaints.erp.modules.company;
 
+import com.bigbrightpaints.erp.core.config.SystemSettingsRepository;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyLifecycleState;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
+import com.bigbrightpaints.erp.modules.company.service.TenantRuntimeEnforcementService;
 import com.bigbrightpaints.erp.test.AbstractIntegrationTest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.http.*;
 
@@ -15,12 +18,17 @@ import java.util.Locale;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.verify;
 
 public class CompanyControllerIT extends AbstractIntegrationTest {
 
     @Autowired private TestRestTemplate rest;
     @Autowired private CompanyRepository companyRepository;
     @Autowired private UserAccountRepository userAccountRepository;
+    @Autowired private SystemSettingsRepository systemSettingsRepository;
+    @SpyBean private TenantRuntimeEnforcementService tenantRuntimeEnforcementService;
     private static final String COMPANY_CODE = "ACME";
     private static final String ROOT_COMPANY_CODE = "ROOT";
     private static final String ADMIN_EMAIL = "admin@bbp.com";
@@ -56,12 +64,28 @@ public class CompanyControllerIT extends AbstractIntegrationTest {
             company.setLifecycleState(CompanyLifecycleState.ACTIVE);
             company.setLifecycleReason(null);
             companyRepository.save(company);
+            resetTenantRuntimePolicy(company.getId(), company.getCode());
         });
         companyRepository.findByCodeIgnoreCase(ROOT_COMPANY_CODE).ifPresent(company -> {
             company.setLifecycleState(CompanyLifecycleState.ACTIVE);
             company.setLifecycleReason(null);
             companyRepository.save(company);
+            resetTenantRuntimePolicy(company.getId(), company.getCode());
         });
+    }
+
+    private void resetTenantRuntimePolicy(Long companyId, String companyCode) {
+        if (companyId == null) {
+            return;
+        }
+        systemSettingsRepository.deleteById("tenant.runtime.hold-state." + companyId);
+        systemSettingsRepository.deleteById("tenant.runtime.hold-reason." + companyId);
+        systemSettingsRepository.deleteById("tenant.runtime.max-active-users." + companyId);
+        systemSettingsRepository.deleteById("tenant.runtime.max-requests-per-minute." + companyId);
+        systemSettingsRepository.deleteById("tenant.runtime.max-concurrent-requests." + companyId);
+        systemSettingsRepository.deleteById("tenant.runtime.policy-reference." + companyId);
+        systemSettingsRepository.deleteById("tenant.runtime.policy-updated-at." + companyId);
+        tenantRuntimeEnforcementService.invalidatePolicyCache(companyCode);
     }
 
     private String loginToken() {
@@ -449,5 +473,67 @@ public class CompanyControllerIT extends AbstractIntegrationTest {
                 Map.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+    }
+
+    @Test
+    void canonical_tenant_runtime_policy_update_tracks_policy_control_and_blocks_same_node_immediately() {
+        Long companyId = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow().getId();
+        String rootOnlySuperAdminEmail = "root-policy-super-admin@bbp.com";
+        dataSeeder.ensureUser(rootOnlySuperAdminEmail, ADMIN_PASSWORD, "Root Policy Super Admin", ROOT_COMPANY_CODE,
+                java.util.List.of("ROLE_SUPER_ADMIN"));
+
+        String adminToken = loginToken(ADMIN_EMAIL, COMPANY_CODE);
+        HttpHeaders adminHeaders = new HttpHeaders();
+        adminHeaders.setBearerAuth(adminToken);
+        adminHeaders.setContentType(MediaType.APPLICATION_JSON);
+        adminHeaders.set("X-Company-Code", COMPANY_CODE);
+
+        ResponseEntity<Map> warmResponse = rest.exchange(
+                "/api/v1/auth/me",
+                HttpMethod.GET,
+                new HttpEntity<>(adminHeaders),
+                Map.class);
+        assertThat(warmResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+        clearInvocations(tenantRuntimeEnforcementService);
+
+        String rootToken = loginToken(rootOnlySuperAdminEmail, ROOT_COMPANY_CODE);
+        HttpHeaders rootHeaders = new HttpHeaders();
+        rootHeaders.setBearerAuth(rootToken);
+        rootHeaders.setContentType(MediaType.APPLICATION_JSON);
+        rootHeaders.set("X-Company-Code", ROOT_COMPANY_CODE);
+
+        ResponseEntity<Map> updateResponse = rest.exchange(
+                "/api/v1/companies/" + companyId + "/tenant-runtime/policy",
+                HttpMethod.PUT,
+                new HttpEntity<>(Map.of(
+                        "holdState", "BLOCKED",
+                        "reasonCode", "incident-lockdown",
+                        "maxConcurrentRequests", 25,
+                        "maxRequestsPerMinute", 250,
+                        "maxActiveUsers", 45
+                ), rootHeaders),
+                Map.class);
+
+        assertThat(updateResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        verify(tenantRuntimeEnforcementService).beginRequest(
+                eq(COMPANY_CODE),
+                eq("/api/v1/companies/" + companyId + "/tenant-runtime/policy"),
+                eq("PUT"),
+                eq(rootOnlySuperAdminEmail),
+                eq(true));
+
+        ResponseEntity<Map> blockedMeResponse = rest.exchange(
+                "/api/v1/auth/me",
+                HttpMethod.GET,
+                new HttpEntity<>(adminHeaders),
+                Map.class);
+
+        assertThat(blockedMeResponse.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(blockedMeResponse.getBody()).isNotNull();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> errorData = (Map<String, Object>) blockedMeResponse.getBody().get("data");
+        assertThat(errorData).isNotNull();
+        assertThat(errorData.get("reason")).isEqualTo("TENANT_BLOCKED");
     }
 }

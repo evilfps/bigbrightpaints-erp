@@ -104,6 +104,12 @@ class TenantRuntimeEnforcementServiceTest {
                     }
                     return Optional.of(new SystemSetting(key, value));
                 });
+        lenient().when(systemSettingsRepository.save(any(SystemSetting.class)))
+                .thenAnswer(invocation -> {
+                    SystemSetting setting = invocation.getArgument(0, SystemSetting.class);
+                    persistedSettingsByKey.put(setting.getKey(), setting.getValue());
+                    return setting;
+                });
     }
 
     @AfterEach
@@ -463,6 +469,54 @@ class TenantRuntimeEnforcementServiceTest {
                 "GET",
                 "actor@bbp.com");
         assertThat(stillUsingCachedPolicy.isAdmitted()).isTrue();
+    }
+
+    @Test
+    void canonicalUpdatePolicy_persistsSettings_and_survivesPolicyControlInvalidation() {
+        TenantRuntimeEnforcementService.TenantRequestAdmission warmed = service.beginRequest(
+                "ACME",
+                "/api/v1/private",
+                "GET",
+                "actor@bbp.com");
+        assertThat(warmed.isAdmitted()).isTrue();
+        service.completeRequest(warmed, 200);
+
+        TenantRuntimeEnforcementService.TenantRuntimeSnapshot updated = service.updatePolicy(
+                "ACME",
+                TenantRuntimeEnforcementService.TenantRuntimeState.BLOCKED,
+                "incident_lockdown",
+                5,
+                7,
+                9,
+                "ops@bbp.com");
+
+        assertThat(updated.state()).isEqualTo(TenantRuntimeEnforcementService.TenantRuntimeState.BLOCKED);
+        assertThat(persistedSettingsByKey.get(keyHoldState(1L))).isEqualTo("BLOCKED");
+        assertThat(persistedSettingsByKey.get(keyHoldReason(1L))).isEqualTo("INCIDENT_LOCKDOWN");
+        assertThat(persistedSettingsByKey.get(keyMaxConcurrentRequests(1L))).isEqualTo("5");
+        assertThat(persistedSettingsByKey.get(keyMaxRequestsPerMinute(1L))).isEqualTo("7");
+        assertThat(persistedSettingsByKey.get(keyMaxActiveUsers(1L))).isEqualTo("9");
+        assertThat(persistedSettingsByKey.get(keyPolicyReference(1L))).isEqualTo(updated.auditChainId());
+        assertThat(persistedSettingsByKey.get(keyPolicyUpdatedAt(1L))).isEqualTo(updated.updatedAt().toString());
+
+        TenantRuntimeEnforcementService.TenantRequestAdmission controlAdmission = service.beginRequest(
+                "ACME",
+                "/api/v1/companies/1/tenant-runtime/policy",
+                "PUT",
+                "ops@bbp.com",
+                true);
+        assertThat(controlAdmission.isAdmitted()).isTrue();
+        service.completeRequest(controlAdmission, 200);
+
+        TenantRuntimeEnforcementService.TenantRequestAdmission blockedAfterInvalidate = service.beginRequest(
+                "ACME",
+                "/api/v1/private",
+                "GET",
+                "actor@bbp.com");
+
+        assertThat(blockedAfterInvalidate.isAdmitted()).isFalse();
+        assertThat(blockedAfterInvalidate.statusCode()).isEqualTo(HttpStatus.FORBIDDEN.value());
+        assertThat(blockedAfterInvalidate.message()).isEqualTo("Tenant is currently blocked");
     }
 
     @Test

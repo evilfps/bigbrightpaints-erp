@@ -67,6 +67,8 @@ public class CompanyContextFilter extends OncePerRequestFilter {
                 return;
             }
             boolean lifecycleControlRequest = isLifecycleControlRequest(runtimePath, request.getMethod());
+            boolean tenantRuntimePolicyControlRequest =
+                    hasTenantRuntimePolicyControlAuthority(runtimePath, request.getMethod());
             if (lifecycleControlRequest && !hasAuthenticatedPrincipal()) {
                 denyControlPlaneRequest(response);
                 return;
@@ -163,13 +165,13 @@ public class CompanyContextFilter extends OncePerRequestFilter {
                             lifecycleDeniedMessage(lifecycleState, request.getMethod()));
                     return;
                 }
-                if (!lifecycleControlRequest) {
+                if (!lifecycleControlRequest || tenantRuntimePolicyControlRequest) {
                     admission = tenantRuntimeEnforcementService.beginRequest(
                             companyCode,
                             runtimePath,
                             request.getMethod(),
                             resolveCurrentActor(),
-                            hasTenantRuntimePolicyControlAuthority(runtimePath, request.getMethod()));
+                            tenantRuntimePolicyControlRequest);
                     if (!admission.isAdmitted()) {
                         writeRuntimeAdmissionDenied(response, admission);
                         return;
