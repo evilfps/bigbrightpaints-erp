@@ -41,18 +41,52 @@ public class OpenApiSnapshotIT extends AbstractIntegrationTest {
     private TestRestTemplate rest;
 
     @Test
+    void auth_and_admin_contract_paths_preserve_expected_response_shapes() throws IOException {
+        JsonNode root = fetchCurrentSpecNode();
+
+        assertOperationContract(root, "/api/v1/auth/login", "post",
+                "#/components/schemas/LoginRequest", "200", "#/components/schemas/AuthResponse");
+        assertOperationContract(root, "/api/v1/auth/refresh-token", "post",
+                "#/components/schemas/RefreshTokenRequest", "200", "#/components/schemas/AuthResponse");
+        assertOperationContract(root, "/api/v1/auth/logout", "post",
+                null, "204", null);
+        assertOperationContract(root, "/api/v1/auth/me", "get",
+                null, "200", "#/components/schemas/ApiResponseMeResponse");
+        assertOperationContract(root, "/api/v1/auth/password/change", "post",
+                "#/components/schemas/ChangePasswordRequest", "200", "#/components/schemas/ApiResponseString");
+        assertOperationContract(root, "/api/v1/auth/password/forgot", "post",
+                "#/components/schemas/ForgotPasswordRequest", "200", "#/components/schemas/ApiResponseString");
+        assertOperationContract(root, "/api/v1/auth/password/forgot/superadmin", "post",
+                "#/components/schemas/ForgotPasswordRequest", "410", "#/components/schemas/ApiResponseMapStringString");
+        assertOperationContract(root, "/api/v1/auth/password/reset", "post",
+                "#/components/schemas/ResetPasswordRequest", "200", "#/components/schemas/ApiResponseString");
+
+        assertOperationContract(root, "/api/v1/admin/settings", "get",
+                null, "200", "#/components/schemas/ApiResponseSystemSettingsDto");
+        assertOperationContract(root, "/api/v1/admin/settings", "put",
+                "#/components/schemas/SystemSettingsUpdateRequest", "200", "#/components/schemas/ApiResponseSystemSettingsDto");
+        assertOperationContract(root, "/api/v1/admin/tenant-runtime/metrics", "get",
+                null, "200", "#/components/schemas/ApiResponseTenantRuntimeMetricsDto");
+        assertOperationContract(root, "/api/v1/admin/tenant-runtime/policy", "put",
+                "#/components/schemas/TenantRuntimePolicyUpdateRequest", "200", "#/components/schemas/ApiResponseTenantRuntimeMetricsDto");
+        assertOperationContract(root, "/api/v1/admin/users/{userId}/force-reset-password", "post",
+                null, "200", "#/components/schemas/ApiResponseString");
+        assertOperationContract(root, "/api/v1/admin/users/{userId}/status", "put",
+                "#/components/schemas/UpdateUserStatusRequest", "200", "#/components/schemas/ApiResponseUserDto");
+        assertOperationContract(root, "/api/v1/admin/users/{id}/suspend", "patch",
+                null, "204", null);
+        assertOperationContract(root, "/api/v1/admin/users/{id}/unsuspend", "patch",
+                null, "204", null);
+        assertOperationContract(root, "/api/v1/admin/users/{id}/mfa/disable", "patch",
+                null, "204", null);
+        assertOperationContract(root, "/api/v1/admin/users/{id}", "delete",
+                null, "204", null);
+    }
+
+    @Test
     void openapi_snapshot_matches_repository_contract() throws IOException {
-        SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
-        requestFactory.setConnectTimeout(30_000);
-        requestFactory.setReadTimeout(120_000);
-        rest.getRestTemplate().setRequestFactory(requestFactory);
-
-        ResponseEntity<String> json = rest.getForEntity("/v3/api-docs", String.class);
-        assertThat(json.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(json.getBody()).as("OpenAPI payload").isNotBlank();
-
         Path openApiSnapshotPath = resolveRepoRoot().resolve("openapi.json");
-        String currentSpec = canonicalizeJson(json.getBody());
+        String currentSpec = canonicalizeJson(fetchCurrentSpecNode().toString());
         if (refreshRequested()) {
             assertThat(verifyRequested())
                     .withFailMessage("Refresh requires verify mode. Set -D%s=true (or %s=true) together with "
@@ -225,5 +259,67 @@ public class OpenApiSnapshotIT extends AbstractIntegrationTest {
         } catch (NoSuchAlgorithmException e) {
             throw new IllegalStateException("SHA-256 algorithm is unavailable", e);
         }
+    }
+
+    private JsonNode fetchCurrentSpecNode() throws IOException {
+        SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
+        requestFactory.setConnectTimeout(30_000);
+        requestFactory.setReadTimeout(120_000);
+        rest.getRestTemplate().setRequestFactory(requestFactory);
+
+        ResponseEntity<String> json = rest.getForEntity("/v3/api-docs", String.class);
+        assertThat(json.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(json.getBody()).as("OpenAPI payload").isNotBlank();
+        return CANONICAL_JSON.readTree(json.getBody());
+    }
+
+    private void assertOperationContract(JsonNode root,
+                                         String path,
+                                         String method,
+                                         String expectedRequestRef,
+                                         String expectedResponseCode,
+                                         String expectedResponseRef) {
+        JsonNode operation = root.path("paths").path(path).path(method);
+        assertThat(operation.isMissingNode())
+                .withFailMessage("Missing %s %s from generated OpenAPI spec", method.toUpperCase(), path)
+                .isFalse();
+
+        if (expectedRequestRef == null) {
+            assertThat(operation.path("requestBody").isMissingNode())
+                    .withFailMessage("Did not expect a request body for %s %s", method.toUpperCase(), path)
+                    .isTrue();
+        } else {
+            assertThat(operation.path("requestBody").path("content").path("application/json").path("schema").path("$ref").asText())
+                    .withFailMessage("Unexpected request contract for %s %s", method.toUpperCase(), path)
+                    .isEqualTo(expectedRequestRef);
+        }
+
+        JsonNode responses = operation.path("responses");
+        List<String> documentedResponseCodes = new ArrayList<>();
+        responses.fieldNames().forEachRemaining(documentedResponseCodes::add);
+        assertThat(responses.has(expectedResponseCode))
+                .withFailMessage("Expected %s response for %s %s but found %s",
+                        expectedResponseCode,
+                        method.toUpperCase(),
+                        path,
+                        documentedResponseCodes)
+                .isTrue();
+
+        JsonNode response = responses.path(expectedResponseCode);
+        if (expectedResponseRef == null) {
+            assertThat(response.path("content").isMissingNode() || response.path("content").isEmpty())
+                    .withFailMessage("Did not expect a response body for %s %s %s", expectedResponseCode, method.toUpperCase(), path)
+                    .isTrue();
+            return;
+        }
+
+        JsonNode content = response.path("content");
+        JsonNode schema = content.path("*/*").path("schema");
+        if (schema.isMissingNode()) {
+            schema = content.path("application/json").path("schema");
+        }
+        assertThat(schema.path("$ref").asText())
+                .withFailMessage("Unexpected response contract for %s %s %s", expectedResponseCode, method.toUpperCase(), path)
+                .isEqualTo(expectedResponseRef);
     }
 }

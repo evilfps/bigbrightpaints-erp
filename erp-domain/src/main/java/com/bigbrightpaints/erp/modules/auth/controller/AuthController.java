@@ -59,6 +59,7 @@ public class AuthController {
 
     @PostMapping("/logout")
     @PreAuthorize("isAuthenticated()")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
     public ResponseEntity<Void> logout(@RequestParam(required = false) String refreshToken,
                                        Authentication authentication) {
         String accessToken = null;

@@ -6,6 +6,7 @@ import com.bigbrightpaints.erp.modules.admin.dto.UserDto;
 import com.bigbrightpaints.erp.modules.admin.service.AdminUserService;
 import com.bigbrightpaints.erp.shared.dto.ApiResponse;
 import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -54,24 +55,28 @@ public class AdminUserController {
     }
 
     @PatchMapping("/{id}/suspend")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
     public ResponseEntity<Void> suspend(@PathVariable Long id) {
         adminUserService.suspend(id);
         return ResponseEntity.noContent().build();
     }
 
     @PatchMapping("/{id}/unsuspend")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
     public ResponseEntity<Void> unsuspend(@PathVariable Long id) {
         adminUserService.unsuspend(id);
         return ResponseEntity.noContent().build();
     }
 
     @PatchMapping("/{id}/mfa/disable")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
     public ResponseEntity<Void> disableMfa(@PathVariable Long id) {
         adminUserService.disableMfa(id);
         return ResponseEntity.noContent().build();
     }
 
     @DeleteMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
     public ResponseEntity<Void> delete(@PathVariable Long id) {
         adminUserService.deleteUser(id);
         return ResponseEntity.noContent().build();
