@@ -3,7 +3,7 @@ spring:
     activate:
       on-profile: flyway-v2
   datasource:
-    url: ${SPRING_DATASOURCE_V2_URL:jdbc:postgresql://localhost:5432/erp_domain_v2}
+    url: ${SPRING_DATASOURCE_V2_URL:jdbc:postgresql://localhost:5432/erp_domain}
     username: ${SPRING_DATASOURCE_V2_USERNAME:${SPRING_DATASOURCE_USERNAME:erp}}
     password: ${SPRING_DATASOURCE_V2_PASSWORD:${SPRING_DATASOURCE_PASSWORD:erp}}
     driver-class-name: org.postgresql.Driver

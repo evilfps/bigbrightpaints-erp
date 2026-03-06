@@ -32,6 +32,7 @@ public class SystemSettingsService {
     private final Environment environment;
     private final CopyOnWriteArrayList<String> allowedOrigins = new CopyOnWriteArrayList<>();
     private final boolean environmentValidationEnabled;
+    private final boolean allowTailscaleHttpOrigins;
     private volatile boolean autoApprovalEnabled;
     private volatile boolean periodLockEnforced;
     private volatile boolean exportApprovalRequired;
@@ -52,6 +53,7 @@ public class SystemSettingsService {
                                  Environment environment,
                                  @Value("${erp.cors.allowed-origins:http://localhost:3002}") String corsOrigins,
                                  @Value("${erp.environment.validation.enabled:false}") boolean environmentValidationEnabled,
+                                 @Value("${erp.cors.allow-tailscale-http-origins:false}") boolean allowTailscaleHttpOrigins,
                                  @Value("${erp.auto-approval.enabled:true}") boolean autoApprovalEnabled,
                                  @Value("${erp.period-lock.enforced:true}") boolean periodLockEnforced,
                                  @Value("${erp.export.require-approval:false}") boolean exportApprovalRequired) {
@@ -59,6 +61,7 @@ public class SystemSettingsService {
         this.settingsRepository = settingsRepository;
         this.environment = environment;
         this.environmentValidationEnabled = environmentValidationEnabled;
+        this.allowTailscaleHttpOrigins = allowTailscaleHttpOrigins;
         // Load persisted values (if any), else fall back to config defaults
         Map<String, String> persisted = settingsRepository.findAll().stream()
                 .collect(Collectors.toMap(SystemSetting::getKey, SystemSetting::getValue));
@@ -201,9 +204,10 @@ public class SystemSettingsService {
             return List.of();
         }
         if (isProdProfileActive()) {
-            if (origins.stream().anyMatch(this::isLocalOrPrivateHttpOrigin)) {
+            if (origins.stream().anyMatch(this::isDisallowedProdHttpOrigin)) {
                 throw new IllegalArgumentException(
-                        "Invalid CORS origins for prod profile (only explicit https origins are allowed): " + origins);
+                        "Invalid CORS origins for prod profile (only explicit https origins are allowed, unless "
+                                + "erp.cors.allow-tailscale-http-origins=true for Tailscale 100.64.0.0/10 origins): " + origins);
             }
         }
         List<String> invalidOrigins = new ArrayList<>();
@@ -244,7 +248,8 @@ public class SystemSettingsService {
             boolean httpsAllowed = "https".equals(normalizedScheme);
             boolean httpAllowed = "http".equals(normalizedScheme)
                     && (LOOPBACK_HOSTS.contains(normalizedHost)
-                    || (!environmentValidationEnabled && isPrivateNetworkIpv4Literal(normalizedHost)));
+                    || (!environmentValidationEnabled && isPrivateNetworkIpv4Literal(normalizedHost))
+                    || (allowTailscaleHttpOrigins && isTailscaleIpv4Literal(normalizedHost)));
             if (!httpsAllowed && !httpAllowed) {
                 invalidOrigins.add(origin);
                 continue;
@@ -259,6 +264,9 @@ public class SystemSettingsService {
             String httpPolicy = environmentValidationEnabled
                     ? "http allowed only for localhost"
                     : "http allowed only for localhost or private-network IPv4 when erp.environment.validation.enabled=false";
+            if (allowTailscaleHttpOrigins) {
+                httpPolicy = httpPolicy + ", plus Tailscale 100.64.0.0/10 when erp.cors.allow-tailscale-http-origins=true";
+            }
             throw new IllegalArgumentException(
                     "Invalid CORS origins (must be https, without wildcards; " + httpPolicy + "): "
                             + invalidOrigins);
@@ -290,6 +298,28 @@ public class SystemSettingsService {
                 || (octets[0] == 192 && octets[1] == 168);
     }
 
+    private boolean isTailscaleIpv4Literal(String host) {
+        String[] parts = host.split("\\.");
+        if (parts.length != 4) {
+            return false;
+        }
+        int[] octets = new int[4];
+        for (int i = 0; i < parts.length; i++) {
+            if (!parts[i].chars().allMatch(Character::isDigit)) {
+                return false;
+            }
+            try {
+                octets[i] = Integer.parseInt(parts[i]);
+            } catch (NumberFormatException ex) {
+                return false;
+            }
+            if (octets[i] < 0 || octets[i] > 255) {
+                return false;
+            }
+        }
+        return octets[0] == 100 && octets[1] >= 64 && octets[1] <= 127;
+    }
+
     private boolean parseBool(String value) {
         return value != null && Boolean.parseBoolean(value.trim());
     }
@@ -315,5 +345,27 @@ public class SystemSettingsService {
         }
         String normalizedHost = host.toLowerCase(Locale.ROOT);
         return LOOPBACK_HOSTS.contains(normalizedHost) || isPrivateNetworkIpv4Literal(normalizedHost);
+    }
+
+    private boolean isDisallowedProdHttpOrigin(String origin) {
+        if (origin == null || origin.isBlank()) {
+            return false;
+        }
+        URI uri;
+        try {
+            uri = URI.create(origin.trim());
+        } catch (IllegalArgumentException ex) {
+            return false;
+        }
+        String scheme = uri.getScheme();
+        String host = uri.getHost();
+        if (scheme == null || host == null || !"http".equalsIgnoreCase(scheme)) {
+            return false;
+        }
+        String normalizedHost = host.toLowerCase(Locale.ROOT);
+        if (allowTailscaleHttpOrigins && isTailscaleIpv4Literal(normalizedHost)) {
+            return false;
+        }
+        return LOOPBACK_HOSTS.contains(normalizedHost) || isPrivateNetworkIpv4Literal(normalizedHost) || isTailscaleIpv4Literal(normalizedHost);
     }
 }

@@ -6,16 +6,23 @@ commands:
   test-unit: cd /home/realnigga/Desktop/Mission-control/erp-domain && mvn test -Djacoco.skip=true '-Dtest=!*IT,!*ITCase,!*codered*' -pl .
   test-full: cd /home/realnigga/Desktop/Mission-control/erp-domain && mvn test -Djacoco.skip=true '-Dtest=!*IT,!*ITCase,!*codered*' -pl .
   test-coverage: cd /home/realnigga/Desktop/Mission-control/erp-domain && mvn verify -Pgate-fast
-  runtime-probe: curl -sf http://localhost:8081/actuator/health
+  runtime-probe: curl -sf http://localhost:9090/actuator/health
   lint: echo "Checkstyle remains advisory in this review mission; treat the existing baseline as known debt and capture findings in docs/code-review/test-ci-governance.md."
 
 services:
   backend-review-surface:
     start: echo "Reuse existing backend on port 8081 for review probes; do not start a new app in this mission."
     stop: echo "No-op: existing backend on 8081 is outside mission ownership."
-    healthcheck: curl -sf http://localhost:8081/actuator/health
+    healthcheck: python3 -c "import socket; s=socket.create_connection(('127.0.0.1', 8081), 2); s.close()"
     port: 8081
     depends_on: []
+
+  management-review-surface:
+    start: echo "Reuse existing management surface on port 9090 for actuator health probes; do not start a new app in this mission."
+    stop: echo "No-op: existing management surface on 9090 is outside mission ownership."
+    healthcheck: curl -sf http://localhost:9090/actuator/health
+    port: 9090
+    depends_on: [backend-review-surface]
 
   validation-postgres:
     start: echo "Reuse existing validation PostgreSQL on port 5433 if read-only confirmation is required; do not start a new database in this mission."

@@ -31,7 +31,7 @@ class SystemSettingsServiceCorsTest {
     @Test
     void rejectsWildcardOriginWhenCredentialsEnabled() {
         assertThatThrownBy(() ->
-                new SystemSettingsService(new EmailProperties(), settingsRepository, nonProdEnvironment, "*", true, true, true, false))
+                new SystemSettingsService(new EmailProperties(), settingsRepository, nonProdEnvironment, "*", true, false, true, true, false))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("*");
     }
@@ -39,7 +39,7 @@ class SystemSettingsServiceCorsTest {
     @Test
     void rejectsPublicHttpOriginsWhenValidationDisabled() {
         assertThatThrownBy(() ->
-                new SystemSettingsService(new EmailProperties(), settingsRepository, nonProdEnvironment, "http://example.com", false, true, true, false))
+                new SystemSettingsService(new EmailProperties(), settingsRepository, nonProdEnvironment, "http://example.com", false, false, true, true, false))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("https");
     }
@@ -52,6 +52,7 @@ class SystemSettingsServiceCorsTest {
                 nonProdEnvironment,
                 "HTTP://LOCALHOST:3002/",
                 true,
+                false,
                 true,
                 true,
                 false
@@ -69,6 +70,7 @@ class SystemSettingsServiceCorsTest {
                 settingsRepository,
                 nonProdEnvironment,
                 "http://192.168.29.187:3002/",
+                false,
                 false,
                 true,
                 true,
@@ -89,6 +91,7 @@ class SystemSettingsServiceCorsTest {
                         nonProdEnvironment,
                         "http://192.168.29.187:3002",
                         true,
+                        false,
                         true,
                         true,
                         false
@@ -106,11 +109,49 @@ class SystemSettingsServiceCorsTest {
                         prodEnvironment,
                         "http://localhost:3002",
                         false,
+                        false,
                         true,
                         true,
                         false
                 ))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("prod profile");
+    }
+
+    @Test
+    void allowsTailscaleHttpOriginsWhenExplicitlyEnabledInProd() {
+        SystemSettingsService service = new SystemSettingsService(
+                new EmailProperties(),
+                settingsRepository,
+                prodEnvironment,
+                "http://100.109.241.47:3000/",
+                true,
+                true,
+                true,
+                true,
+                false
+        );
+
+        CorsConfiguration configuration = service.buildCorsConfiguration();
+
+        assertThat(configuration.getAllowedOrigins()).containsExactly("http://100.109.241.47:3000");
+    }
+
+    @Test
+    void rejectsTailscaleHttpOriginsInProdWithoutExplicitOptIn() {
+        assertThatThrownBy(() ->
+                new SystemSettingsService(
+                        new EmailProperties(),
+                        settingsRepository,
+                        prodEnvironment,
+                        "http://100.109.241.47:3000",
+                        true,
+                        false,
+                        true,
+                        true,
+                        false
+                ))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("allow-tailscale-http-origins");
     }
 }

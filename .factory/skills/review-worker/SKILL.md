@@ -33,6 +33,7 @@ This worker does **not** fix application code in this mission.
    - `curl -sf http://localhost:8081/actuator/health`
    - read-only Swagger/OpenAPI surfaces if available
 4. Do not mutate shared state unless the feature explicitly requires it and the mission boundaries allow it.
+5. If delegated helper tooling or Task-style subagents are unavailable because of model-resolution issues, continue with direct in-session analysis whenever the feature can still be completed to the required evidence standard. Record the limitation explicitly in the handoff instead of returning solely because helper delegation failed.
 
 ### Step 3: Write the review artifact
 1. Create or update only the files owned by the feature under `docs/code-review/**`.
@@ -56,7 +57,7 @@ This worker does **not** fix application code in this mission.
    - repo inspection commands
    - passive runtime probes if needed
    - compile/test commands only when the feature depends on them for evidence
-3. Confirm no files outside `docs/code-review/**` were modified by the session.
+3. If the repository started dirty outside your scope, leave unrelated changes untouched and isolate your owned changes clearly. Confirm that you did not modify files outside `docs/code-review/**` during the session, and call out any pre-existing unrelated dirty files in the handoff instead of trying to clean them.
 
 ### Step 5: Produce a high-signal handoff
 1. Summarize what review artifact was produced.
