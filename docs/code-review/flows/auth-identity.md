@@ -214,3 +214,16 @@ Lockout is narrower than disablement. `AuthService.registerFailure(...)` increme
 - `AuthHardeningIT` proves five failed logins set `locked_until` and that successful login works again after the lock is cleared.
 - `TenantRuntimeEnforcementAuthIT` proves tenant runtime hold/block/quota policy can reject login and authenticated requests with audit-chain evidence.
 - `AdminUserServiceTest` proves admin force-reset delegates to `PasswordResetService.requestResetByAdmin(...)` and that the action is audited as `PASSWORD_RESET_REQUESTED`.
+
+## Risk hotspots
+
+| Severity | Category | Finding | Evidence | Why it matters |
+| --- | --- | --- | --- | --- |
+| high | protocol / security | The deprecated `/api/v1/auth/password/forgot/superadmin` route is drifted and effectively broken: not public in `SecurityConfig`, not bypassed in `CompanyContextFilter`, and wired to generic `requestReset(...)` instead of `requestResetForSuperAdmin(...)`. | `AuthController.forgotPasswordForSuperAdmin(...)`, `SecurityConfig.securityFilterChain(...)`, `CompanyContextFilter.PUBLIC_PASSWORD_RESET_ENDPOINTS`, `PasswordResetService.requestResetForSuperAdmin(...)`, `openapi.json` | Operators and clients see a legacy super-admin recovery contract that does not actually reach the hardened implementation or public semantics implied by the code comments. |
+| high | secret handling | Password-reset tokens and refresh tokens are stored as plaintext bearer secrets in the database. | `PasswordResetToken.token`, `RefreshToken.token`, `PasswordResetService.generateToken(...)`, `RefreshTokenService.issue(...)`, `V1__core_auth_rbac.sql` | Read access to the database is enough to replay refresh tokens or complete password resets; hashing/token-digest storage would reduce blast radius. |
+| medium | delivery integrity | Generic forgot-password and admin link-reset flows are fail-open on email delivery. They can persist reset tokens and return success even when mail delivery is disabled or SMTP fails. | `PasswordResetService.requestReset(...)`, `PasswordResetService.requestResetByAdmin(...)`, `EmailService.sendPasswordResetEmail(...)`, `AdminUserController.forceResetPassword(...)` | Users/support can believe a reset link was sent when nothing left the system, and valid reset tokens still sit in storage until expiry or replacement. |
+| medium | persistence error masking | Public forgot-password currently masks token-persistence failures together with delivery failures, because `requestReset()` swallows any `RuntimeException` thrown while token issuance and email dispatch share the same try block. | PR review on `PasswordResetService.requestReset(...)` / `issueResetToken(...)`, live code path for `/api/v1/auth/password/forgot` | Database outages or deadlocks can return the normal success contract even though no reset token exists, leaving users unable to recover passwords while monitoring only sees 200s. |
+
+## Additional regression note
+
+- Current PR review also flagged that storage failures in the public forgot-password path should still surface internally as real failures even if delivery/config failures are intentionally masked to preserve the no-enumeration contract.
