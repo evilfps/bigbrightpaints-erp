@@ -1,0 +1,98 @@
+{
+  "groupId": "auth-boundaries-rerun",
+  "surface": "api",
+  "appUrl": "http://localhost:8081",
+  "testedAt": "2026-03-06T16:15:56Z",
+  "credentials": {
+    "account": "ut_taab_auth_boundaries_2",
+    "namespace": "ut_taab_auth_boundaries_2"
+  },
+  "toolsUsed": [
+    "curl runtime probe",
+    "mvn test -Djacoco.skip=true -pl . -Dtest=AuthTenantAuthorityIT"
+  ],
+  "assertions": [
+    {
+      "id": "VAL-RESET-002",
+      "title": "Resetting or controlling other users respects tenant and role boundaries",
+      "status": "fail",
+      "steps": [
+        {
+          "action": "Probe the live runtime before re-running boundary validation",
+          "expected": "Actuator is reachable so runtime reset/control probes can be executed",
+          "observed": "`curl http://localhost:9090/actuator/health` failed with exit code 7 and HTTP code `000`, so no fresh live API probe was available in this rerun."
+        },
+        {
+          "action": "Re-run the dedicated tenant-authority regression suite",
+          "expected": "Cross-tenant reset/control boundary cases and denial evidence pass cleanly",
+          "observed": "`AuthTenantAuthorityIT` still failed 3/23 tests. The suite continues to report missing `ACCESS_DENIED` audit metadata for denied privileged actions, and `control_plane_support_reset_denials_use_uniform_message_for_unknown_and_foreign_tenants` remains red."
+        }
+      ],
+      "evidence": {
+        "runtime": {
+          "actuatorStatus": "unavailable",
+          "probeCommand": "curl -s -o /tmp/taab_runtime_health.txt -w '%{http_code}' http://localhost:9090/actuator/health",
+          "probeExitCode": 7,
+          "probeHttpCode": "000"
+        },
+        "tests": {
+          "command": "cd /home/realnigga/Desktop/Mission-control/erp-domain && mvn test -Djacoco.skip=true -pl . '-Dtest=AuthTenantAuthorityIT'",
+          "result": "BUILD FAILURE; Tests run: 23, Failures: 3, Errors: 0, Skipped: 0",
+          "failingCases": [
+            "tenant_admin_cross_tenant_privileged_user_actions_are_denied_and_audited",
+            "admin_cannot_create_tenant_admin_user",
+            "control_plane_support_reset_denials_use_uniform_message_for_unknown_and_foreign_tenants"
+          ]
+        }
+      },
+      "issues": [
+        "Denied privileged/reset paths still do not emit the expected `ACCESS_DENIED` audit metadata in `AuthTenantAuthorityIT`.",
+        "The support-reset denial regression still fails its uniform-contract assertion; the compared payloads only differ by dynamic `traceId` and `timestamp`, but the suite remains red and the assertion is not validation-clean."
+      ]
+    },
+    {
+      "id": "VAL-AUTHZ-002",
+      "title": "Privileged auth-sensitive user actions are boundary-consistent",
+      "status": "fail",
+      "steps": [
+        {
+          "action": "Re-run the tenant-authority boundary matrix",
+          "expected": "Denied privileged user actions are consistently blocked and audited across the matrix",
+          "observed": "The matrix still fails because `tenant_admin_cross_tenant_privileged_user_actions_are_denied_and_audited` and `admin_cannot_create_tenant_admin_user` cannot find the expected `ACCESS_DENIED` audit event metadata."
+        }
+      ],
+      "evidence": {
+        "tests": {
+          "command": "cd /home/realnigga/Desktop/Mission-control/erp-domain && mvn test -Djacoco.skip=true -pl . '-Dtest=AuthTenantAuthorityIT'",
+          "result": "BUILD FAILURE; Tests run: 23, Failures: 3, Errors: 0, Skipped: 0"
+        }
+      },
+      "issues": [
+        "Privileged-action denial auditing is still not validation-clean, so the boundary-consistency matrix remains failed.",
+        "No fresh runtime allow/deny probe was available in this rerun because the local runtime was down."
+      ]
+    }
+  ],
+  "frictions": [
+    {
+      "description": "Launching the delegated `user-testing-flow-validator` subagent failed immediately with `Invalid model: custom:CLIProxyAPI-5.4-high`.",
+      "resolved": true,
+      "resolution": "Fell back to direct in-session validation, consistent with mission guidance.",
+      "affectedAssertions": [
+        "VAL-RESET-002",
+        "VAL-AUTHZ-002"
+      ]
+    },
+    {
+      "description": "The local runtime was unavailable on `http://localhost:9090/actuator/health` during this rerun.",
+      "resolved": false,
+      "resolution": "Used the dedicated integration suite as the available validation surface and recorded the missing live-probe evidence.",
+      "affectedAssertions": [
+        "VAL-RESET-002",
+        "VAL-AUTHZ-002"
+      ]
+    }
+  ],
+  "blockers": [],
+  "summary": "Reran the failed tenant-admin boundary assertions directly in-session after the delegated flow validator failed to launch. The live runtime was unavailable, and `AuthTenantAuthorityIT` still failed 3/23 tests with missing `ACCESS_DENIED` audit metadata plus the remaining support-reset denial regression, so both assertions remain failed."
+}

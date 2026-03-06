@@ -1,44 +1,34 @@
 {
   "milestone": "tenant-admin-auth-boundaries",
-  "round": 1,
+  "round": 2,
   "status": "fail",
-  "generatedAt": "2026-03-06T16:06:30Z",
+  "generatedAt": "2026-03-06T16:15:56Z",
   "assertionsSummary": {
-    "total": 5,
-    "passed": 3,
+    "total": 2,
+    "passed": 0,
     "failed": 2,
     "blocked": 0
   },
-  "passedAssertions": [
-    "VAL-AUTHZ-001",
-    "VAL-AUTHZ-003",
-    "VAL-SEC-001"
-  ],
+  "passedAssertions": [],
   "failedAssertions": [
     {
       "id": "VAL-RESET-002",
-      "reason": "Representative runtime deny/allow behavior is visible, but `AuthTenantAuthorityIT` still fails because denied privileged/reset actions do not emit the expected `ACCESS_DENIED` audit metadata and the support-reset denial regression remains red."
+      "reason": "`AuthTenantAuthorityIT` still fails because denied privileged/reset actions do not emit the expected `ACCESS_DENIED` audit metadata, and the support-reset denial regression remains red on rerun."
     },
     {
       "id": "VAL-AUTHZ-002",
-      "reason": "The dedicated privileged-action matrix is not validation-clean: `AuthTenantAuthorityIT` still reports missing denial audit metadata and one remaining support-reset denial regression."
+      "reason": "The privileged-action boundary matrix remains validation-red: denied privileged actions still miss expected `ACCESS_DENIED` audit evidence, and no fresh live runtime probe was available in this rerun."
     }
   ],
   "blockedAssertions": [],
-  "appliedUpdates": [
-    {
-      "target": "user-testing.md",
-      "description": "Recorded the newer delegated-helper invalid-model failure (`custom:CLIProxyAPI-5.4-high`) and the compose restart overrides required to run the current code on the local auth runtime (`prod,flyway-v2` plus explicit CORS overrides).",
-      "source": "setup"
-    }
-  ],
-  "previousRound": null,
+  "appliedUpdates": [],
+  "previousRound": ".factory/validation/tenant-admin-auth-boundaries/user-testing/synthesis.round1.json",
   "flowReports": [
-    ".factory/validation/tenant-admin-auth-boundaries/user-testing/flows/auth-boundaries-core.json"
+    ".factory/validation/tenant-admin-auth-boundaries/user-testing/flows/auth-boundaries-rerun.json"
   ],
   "environmentConstraints": [
-    "The delegated `user-testing-flow-validator` helper could not launch because the local Task runner still references `custom:CLIProxyAPI-5.4-high`; validation was completed directly in-session.",
-    "A plain `docker compose up -d --build app` is not sufficient for current-code runtime validation on this branch because `.env` forces `SPRING_PROFILES_ACTIVE=dev`, the compose database only has `flyway_schema_history_v2`, and production CORS validation rejects the persisted HTTP origins. The runtime was rebuilt successfully only with explicit profile/CORS overrides.",
-    "The rebuilt runtime returned `503 SYS_004 Failed to dispatch email via SMTP` for the super-admin force-reset probe, so live reset-allow-path evidence relied partly on targeted integration tests."
+    "The delegated `user-testing-flow-validator` helper still could not launch because the local Task runner references `custom:CLIProxyAPI-5.4-high`; validation was completed directly in-session.",
+    "`curl http://localhost:9090/actuator/health` returned exit code 7 / HTTP 000 during this rerun, so no fresh live API probes were available.",
+    "Validation evidence for this rerun comes from the dedicated `AuthTenantAuthorityIT` integration suite plus the preserved round-1 runtime evidence."
   ]
 }
