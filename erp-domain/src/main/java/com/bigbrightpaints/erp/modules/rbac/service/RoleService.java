@@ -76,6 +76,19 @@ public class RoleService {
         return persistRole(request);
     }
 
+    public boolean canManageSharedRoleMutation(Authentication authentication, String roleName) {
+        if (!StringUtils.hasText(roleName)) {
+            return true;
+        }
+        String normalizedName = normalizeRoleName(roleName);
+        if (SystemRole.fromName(normalizedName).isEmpty()) {
+            return true;
+        }
+        boolean granted = hasAuthority(authentication, "ROLE_SUPER_ADMIN");
+        auditAuthorityDecision(granted, "shared-role-permission-mutation", normalizedName, authentication);
+        return granted;
+    }
+
     @Transactional
     public Role ensureRoleExists(String roleName) {
         String normalizedName = normalizeRoleName(roleName);

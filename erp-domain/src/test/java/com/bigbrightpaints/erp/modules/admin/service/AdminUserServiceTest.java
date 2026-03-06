@@ -440,7 +440,7 @@ class AdminUserServiceTest {
     }
 
     @Test
-    void suspend_crossTenantUser_forTenantAdminThrowsAccessDeniedAndAudits() {
+    void suspend_crossTenantUser_forTenantAdmin_masksTargetAsMissingAndAuditsDenial() {
         Company foreignCompany = new Company();
         ReflectionTestUtils.setField(foreignCompany, "id", 21L);
         foreignCompany.setCode("FOREIGN");
@@ -452,8 +452,8 @@ class AdminUserServiceTest {
         when(userRepository.lockById(306L)).thenReturn(Optional.of(foreignUser));
 
         assertThatThrownBy(() -> service.suspend(306L))
-                .isInstanceOf(AccessDeniedException.class)
-                .hasMessageContaining("out of scope");
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("User not found");
 
         verify(auditService).logAuthFailure(
                 eq(AuditEvent.ACCESS_DENIED),

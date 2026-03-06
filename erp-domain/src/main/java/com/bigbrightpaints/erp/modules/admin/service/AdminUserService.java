@@ -45,6 +45,7 @@ import java.util.stream.Collectors;
 public class AdminUserService {
     private static final String SUPER_ADMIN_ROLE = "ROLE_SUPER_ADMIN";
     private static final String OUT_OF_SCOPE_MESSAGE = "Target user is out of scope for this operation";
+    private static final String USER_NOT_FOUND_MESSAGE = "User not found";
 
     private final UserAccountRepository userRepository;
     private final CompanyContextService companyContextService;
@@ -179,7 +180,12 @@ public class AdminUserService {
     @Transactional
     public UserDto updateUser(Long id, UpdateUserRequest request) {
         Company company = companyContextService.requireCurrentCompany();
-        UserAccount user = resolveScopedUserForAdminAction(id, company, "admin-update-user-out-of-scope", false);
+        UserAccount user = resolveScopedUserForAdminAction(
+                id,
+                company,
+                "admin-update-user-out-of-scope",
+                false,
+                OutOfScopeResponseMode.ACCESS_DENIED);
         user.setDisplayName(request.displayName());
         boolean requiresReauth = false;
         if (request.enabled() != null) {
@@ -214,7 +220,12 @@ public class AdminUserService {
     @Transactional
     public void forceResetPassword(Long userId) {
         Company company = companyContextService.requireCurrentCompany();
-        UserAccount targetUser = resolveScopedUserForAdminAction(userId, company, "admin-force-reset-password-out-of-scope", false);
+        UserAccount targetUser = resolveScopedUserForAdminAction(
+                userId,
+                company,
+                "admin-force-reset-password-out-of-scope",
+                false,
+                OutOfScopeResponseMode.MASK_AS_MISSING);
         passwordResetService.requestResetByAdmin(targetUser);
         auditUserAccountAction(
                 AuditEvent.PASSWORD_RESET_REQUESTED,
@@ -227,28 +238,48 @@ public class AdminUserService {
     @Transactional
     public UserDto updateUserStatus(Long userId, boolean enabled) {
         Company company = companyContextService.requireCurrentCompany();
-        UserAccount user = resolveScopedUserForAdminAction(userId, company, "admin-status-update-out-of-scope", false);
+        UserAccount user = resolveScopedUserForAdminAction(
+                userId,
+                company,
+                "admin-status-update-out-of-scope",
+                false,
+                OutOfScopeResponseMode.MASK_AS_MISSING);
         return updateUserStatusInternal(user, enabled, company, "ADMIN_USER_STATUS");
     }
 
     @Transactional
     public void suspend(Long id) {
         Company company = companyContextService.requireCurrentCompany();
-        UserAccount user = resolveScopedUserForAdminAction(id, company, "admin-suspend-user-out-of-scope", true);
+        UserAccount user = resolveScopedUserForAdminAction(
+                id,
+                company,
+                "admin-suspend-user-out-of-scope",
+                true,
+                OutOfScopeResponseMode.MASK_AS_MISSING);
         updateUserStatusInternal(user, false, company, "ADMIN_USER_SUSPEND");
     }
 
     @Transactional
     public void unsuspend(Long id) {
         Company company = companyContextService.requireCurrentCompany();
-        UserAccount user = resolveScopedUserForAdminAction(id, company, "admin-unsuspend-user-out-of-scope", true);
+        UserAccount user = resolveScopedUserForAdminAction(
+                id,
+                company,
+                "admin-unsuspend-user-out-of-scope",
+                true,
+                OutOfScopeResponseMode.MASK_AS_MISSING);
         updateUserStatusInternal(user, true, company, "ADMIN_USER_UNSUSPEND");
     }
 
     @Transactional
     public void deleteUser(Long id) {
         Company company = companyContextService.requireCurrentCompany();
-        UserAccount user = resolveScopedUserForAdminAction(id, company, "admin-delete-user-out-of-scope", true);
+        UserAccount user = resolveScopedUserForAdminAction(
+                id,
+                company,
+                "admin-delete-user-out-of-scope",
+                true,
+                OutOfScopeResponseMode.MASK_AS_MISSING);
         tokenBlacklistService.revokeAllUserTokens(user.getEmail());
         refreshTokenService.revokeAllForUser(user.getEmail());
         userRepository.delete(user);
@@ -264,7 +295,12 @@ public class AdminUserService {
     @Transactional
     public void disableMfa(Long id) {
         Company company = companyContextService.requireCurrentCompany();
-        UserAccount user = resolveScopedUserForAdminAction(id, company, "admin-disable-mfa-out-of-scope", true);
+        UserAccount user = resolveScopedUserForAdminAction(
+                id,
+                company,
+                "admin-disable-mfa-out-of-scope",
+                true,
+                OutOfScopeResponseMode.MASK_AS_MISSING);
         user.setMfaEnabled(false);
         user.setMfaSecret(null);
         user.setMfaRecoveryCodeHashes(List.of());
@@ -282,12 +318,13 @@ public class AdminUserService {
     private UserAccount resolveScopedUserForAdminAction(Long userId,
                                                         Company activeCompany,
                                                         String denialReason,
-                                                        boolean lockTarget) {
+                                                        boolean lockTarget,
+                                                        OutOfScopeResponseMode outOfScopeResponseMode) {
         java.util.Optional<UserAccount> candidate = lockTarget
                 ? userRepository.lockById(userId)
                 : userRepository.findById(userId);
         UserAccount user = candidate
-                .orElseThrow(() -> com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput("User not found"));
+                .orElseThrow(() -> com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(USER_NOT_FOUND_MESSAGE));
         if (hasSuperAdminAuthority()) {
             return user;
         }
@@ -295,7 +332,15 @@ public class AdminUserService {
             return user;
         }
         auditPrivilegedUserActionDenied(user, activeCompany, denialReason);
+        if (outOfScopeResponseMode == OutOfScopeResponseMode.MASK_AS_MISSING) {
+            throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(USER_NOT_FOUND_MESSAGE);
+        }
         throw new AccessDeniedException(OUT_OF_SCOPE_MESSAGE);
+    }
+
+    private enum OutOfScopeResponseMode {
+        ACCESS_DENIED,
+        MASK_AS_MISSING
     }
 
     private UserDto updateUserStatusInternal(UserAccount user,
