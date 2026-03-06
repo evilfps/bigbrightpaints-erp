@@ -1,0 +1,91 @@
+{
+  "surface": "api",
+  "appUrl": "http://localhost:8081",
+  "testedAt": "2026-03-06T14:07:38.851469+00:00",
+  "toolsUsed": [
+    "curl-compatible HTTP via python urllib",
+    "MailHog API"
+  ],
+  "assertionResults": [
+    {
+      "id": "VAL-AUTH-002",
+      "status": "pass",
+      "checks": [
+        {
+          "name": "Public password reset rejects previously issued access and refresh tokens",
+          "observed": {
+            "oldAccessMeStatus": 403,
+            "oldRefreshStatus": 400,
+            "reloginSucceeded": true
+          }
+        },
+        {
+          "name": "Admin-triggered reset followed by password reset rejects previously issued access and refresh tokens",
+          "observed": {
+            "oldAccessMeStatus": 403,
+            "oldRefreshStatus": 400,
+            "reloginSucceeded": true
+          }
+        },
+        {
+          "name": "Support hard-reset immediately rejects previously issued access and refresh tokens",
+          "observed": {
+            "oldAccessMeStatus": 403,
+            "oldRefreshStatus": 400,
+            "reloginWithTempPasswordVerified": true
+          }
+        }
+      ],
+      "summary": "Old sessions were rejected after public reset, admin-reset completion, and support hard-reset on the runtime API."
+    },
+    {
+      "id": "VAL-RESET-001",
+      "status": "pass",
+      "checks": [
+        {
+          "name": "Public forgot response is generic and reset link works",
+          "observed": {
+            "forgotStatus": 200,
+            "forgotMessage": "If the email exists, a reset link has been sent",
+            "resetStatus": 200,
+            "mailSubject": "Reset your BigBright ERP password",
+            "tokenExtracted": true
+          }
+        },
+        {
+          "name": "Admin force-reset response does not leak temporary credentials and delivered reset link works",
+          "observed": {
+            "status": 200,
+            "message": "Password reset link sent",
+            "responseLeakDetected": false,
+            "resetStatus": 200,
+            "mailSubject": "Reset your BigBright ERP password",
+            "tokenExtracted": true
+          }
+        },
+        {
+          "name": "Support hard-reset response does not leak temporary credentials and preserves credential email behavior",
+          "observed": {
+            "status": 200,
+            "message": "Admin credentials reset and emailed",
+            "dataKeys": [
+              "adminEmail",
+              "companyCode",
+              "companyId",
+              "status"
+            ],
+            "responseLeakDetected": false,
+            "mailSubject": "Your BigBright ERP account credentials",
+            "tempPasswordParsed": true,
+            "reloginStatus": 200,
+            "mustChangePassword": true
+          }
+        }
+      ],
+      "summary": "Public forgot/reset, admin force-reset, and support hard-reset all delivered recovery emails and kept credentials out of API bodies on the runtime API."
+    }
+  ],
+  "frictions": [],
+  "blockers": [],
+  "notes": []
+}

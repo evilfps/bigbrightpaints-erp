@@ -30,11 +30,13 @@ Testing surface: tools, URLs, setup steps, isolation notes, known quirks.
 4. Start the backend on `8081/9090`.
 5. Wait for health: `curl -sf http://localhost:9090/actuator/health`.
 6. Exercise auth/admin endpoints with `curl`.
+7. For the compose-backed auth runtime currently on `8081`, the seeded `MOCK` tenant already has usable UAT actors (`uat.admin@example.com`, `uat.sales@example.com`, `uat.superadmin@example.com`). If their passwords drift, reset them directly in the local `erp_db` container with `crypt('<password>', gen_salt('bf'))` before user-testing.
 
 ## Known Issues
 - Delegated validator/reviewer helpers may fail with `Invalid model: custom:CLIProxyAPI-5.4-xhigh`; attempt once if required by procedure, then fall back to direct in-session validation.
 - Local runtime surfaces may be down until the backend is started explicitly for this mission.
 - Local PostgreSQL on `5432` is reused by this mission; do not start another database on the same port.
+- Starting a second local Spring Boot instance against the compose database on `127.0.0.1:5433/erp_domain` currently fails at Flyway startup because the schema is populated but only `flyway_schema_history_v2` exists; prefer the already-running compose app on `8081/9090` for runtime auth validation instead of a parallel local app process.
 - If runtime validation is unavailable, continue with compile/test evidence and record the limitation explicitly in synthesis.
 - Inventory full-context tests may still hit `ConflictingBeanDefinitionException` around `inventoryValuationService`; prefer the auth/admin-targeted suites and `gate-fast` unless the feature truly needs that broader context.
 
