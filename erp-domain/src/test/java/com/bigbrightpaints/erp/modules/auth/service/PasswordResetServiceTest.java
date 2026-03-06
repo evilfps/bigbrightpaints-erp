@@ -94,9 +94,13 @@ class PasswordResetServiceTest {
         verify(tokenRepository).deleteByUser(user);
         ArgumentCaptor<PasswordResetToken> tokenCaptor = ArgumentCaptor.forClass(PasswordResetToken.class);
         verify(tokenRepository).save(tokenCaptor.capture());
-        verify(emailService).sendPasswordResetEmail(eq("user@example.com"), eq("User"), any());
+        ArgumentCaptor<String> emailTokenCaptor = ArgumentCaptor.forClass(String.class);
+        verify(emailService).sendPasswordResetEmail(eq("user@example.com"), eq("User"), emailTokenCaptor.capture());
         // ensure token is linked to the same user
         assertEquals(user, tokenCaptor.getValue().getUser());
+        assertNull(tokenCaptor.getValue().getToken());
+        assertTrue(ReflectionTestUtils.getField(tokenCaptor.getValue(), "tokenDigest") instanceof String);
+        assertTrue(emailTokenCaptor.getValue() != null && !emailTokenCaptor.getValue().isBlank());
     }
 
     @Test
@@ -108,6 +112,36 @@ class PasswordResetServiceTest {
 
         assertThrows(ApplicationException.class,
                 () -> passwordResetService.resetPassword("token", "NewPass123", "NewPass123"));
+
+        verify(passwordService, never()).resetPassword(any(), any(), any());
+    }
+
+    @Test
+    void resetPasswordAcceptsLegacyRawTokenDuringTransition() {
+        UserAccount user = new UserAccount("user@example.com", "hash", "User");
+        user.setEnabled(true);
+        PasswordResetToken legacy = new PasswordResetToken(user, "legacy-token", Instant.now().plusSeconds(300));
+        when(tokenRepository.findByToken("legacy-token")).thenReturn(Optional.of(legacy));
+
+        passwordResetService.resetPassword("legacy-token", "NewPass123!", "NewPass123!");
+
+        verify(passwordService).resetPassword(user, "NewPass123!", "NewPass123!");
+        verify(tokenBlacklistService).revokeAllUserTokens("user@example.com");
+        verify(refreshTokenService).revokeAllForUser("user@example.com");
+        verify(tokenRepository).save(legacy);
+        verify(tokenRepository).deleteByUser(user);
+    }
+
+    @Test
+    void resetPasswordRejectsAlreadyUsedLegacyTokenDuringTransition() {
+        UserAccount user = new UserAccount("user@example.com", "hash", "User");
+        user.setEnabled(true);
+        PasswordResetToken used = new PasswordResetToken(user, "used-token", Instant.now().plusSeconds(300));
+        used.markUsed();
+        when(tokenRepository.findByToken("used-token")).thenReturn(Optional.of(used));
+
+        assertThrows(ApplicationException.class,
+                () -> passwordResetService.resetPassword("used-token", "NewPass123!", "NewPass123!"));
 
         verify(passwordService, never()).resetPassword(any(), any(), any());
     }
@@ -192,7 +226,7 @@ class PasswordResetServiceTest {
         inOrder.verify(tokenRepository).deleteByUser(superAdmin);
         inOrder.verify(tokenRepository).saveAndFlush(tokenCaptor.capture());
         inOrder.verify(emailService).sendSimpleEmail(eq("superadmin@example.com"), any(), any());
-        inOrder.verify(tokenRepository).deleteByToken(tokenCaptor.getValue().getToken());
+        inOrder.verify(tokenRepository).deleteByTokenDigest(anyString());
     }
 
     @Test

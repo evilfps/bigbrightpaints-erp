@@ -6,7 +6,9 @@ import jakarta.persistence.*;
 import java.time.Instant;
 
 @Entity
-@Table(name = "password_reset_tokens")
+@Table(name = "password_reset_tokens", indexes = {
+    @Index(name = "idx_password_reset_tokens_token_digest", columnList = "token_digest")
+})
 public class PasswordResetToken extends VersionedEntity {
 
     @Id
@@ -17,8 +19,11 @@ public class PasswordResetToken extends VersionedEntity {
     @JoinColumn(name = "user_id", nullable = false)
     private UserAccount user;
 
-    @Column(name = "token", nullable = false, unique = true, length = 255)
+    @Column(name = "token", length = 255)
     private String token;
+
+    @Column(name = "token_digest", length = 64)
+    private String tokenDigest;
 
     @Column(name = "expires_at", nullable = false)
     private Instant expiresAt;
@@ -33,10 +38,19 @@ public class PasswordResetToken extends VersionedEntity {
     }
 
     public PasswordResetToken(UserAccount user, String token, Instant expiresAt) {
+        this(user, token, null, expiresAt);
+    }
+
+    private PasswordResetToken(UserAccount user, String token, String tokenDigest, Instant expiresAt) {
         this.user = user;
         this.token = token;
+        this.tokenDigest = tokenDigest;
         this.expiresAt = expiresAt;
         this.createdAt = Instant.now();
+    }
+
+    public static PasswordResetToken digestOnly(UserAccount user, String tokenDigest, Instant expiresAt) {
+        return new PasswordResetToken(user, null, tokenDigest, expiresAt);
     }
 
     public Long getId() {
@@ -49,6 +63,10 @@ public class PasswordResetToken extends VersionedEntity {
 
     public String getToken() {
         return token;
+    }
+
+    public String getTokenDigest() {
+        return tokenDigest;
     }
 
     public Instant getExpiresAt() {
@@ -73,6 +91,14 @@ public class PasswordResetToken extends VersionedEntity {
 
     public boolean isUsed() {
         return usedAt != null;
+    }
+
+    public void migrateToDigest(String newTokenDigest) {
+        if (token == null || token.isBlank() || tokenDigest != null) {
+            return;
+        }
+        this.tokenDigest = newTokenDigest;
+        this.token = null;
     }
 }
 

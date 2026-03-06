@@ -22,6 +22,11 @@ Mission-specific guidance for the security/auth remediation wave.
 - If a shape change is unavoidable, update `.factory/library/frontend-handoff.md` in the same feature and say exactly what changed.
 - Characterization tests come before implementation whenever a frontend-sensitive endpoint is touched.
 
+## Rollout caveats
+- `V158__auth_token_digest_storage.sql` adds `token_digest` columns for refresh-token and password-reset storage while keeping legacy token columns nullable during the transition.
+- `AuthSecretStorageBackfillRunner` backfills legacy plaintext rows to digest-only storage at startup.
+- Runtime lookup/revoke/reset flows still fall back to legacy raw-token columns so pre-existing rows remain usable during rollout even before every node has restarted onto the backfill-capable build.
+
 ## Adjacent regression flows to recheck
 - login / refresh / logout
 - `/auth/me` and `/auth/profile`

@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -26,7 +27,11 @@ public class RefreshTokenService {
     @Transactional
     public String issue(String userEmail, Instant expiresAt) {
         String token = UUID.randomUUID().toString();
-        RefreshToken record = new RefreshToken(token, userEmail, Instant.now(), expiresAt);
+        RefreshToken record = RefreshToken.digestOnly(
+                AuthTokenDigests.refreshTokenDigest(token),
+                userEmail,
+                Instant.now(),
+                expiresAt);
         refreshTokenRepository.save(record);
         return token;
     }
@@ -36,7 +41,11 @@ public class RefreshTokenService {
         if (refreshToken == null || refreshToken.isBlank()) {
             return Optional.empty();
         }
-        Optional<RefreshToken> record = refreshTokenRepository.findForUpdate(refreshToken);
+        String tokenDigest = AuthTokenDigests.refreshTokenDigest(refreshToken);
+        Optional<RefreshToken> record = refreshTokenRepository.findForUpdateByTokenDigest(tokenDigest);
+        if (record.isEmpty()) {
+            record = refreshTokenRepository.findForUpdate(refreshToken);
+        }
         if (record.isEmpty()) {
             return Optional.empty();
         }
@@ -54,7 +63,11 @@ public class RefreshTokenService {
         if (refreshToken == null || refreshToken.isBlank()) {
             return;
         }
-        refreshTokenRepository.deleteByToken(refreshToken);
+        String tokenDigest = AuthTokenDigests.refreshTokenDigest(refreshToken);
+        int deleted = refreshTokenRepository.deleteByTokenDigest(tokenDigest);
+        if (deleted == 0) {
+            refreshTokenRepository.deleteByToken(refreshToken);
+        }
     }
 
     @Transactional
@@ -63,6 +76,16 @@ public class RefreshTokenService {
             return;
         }
         refreshTokenRepository.deleteByUserEmail(userEmail);
+    }
+
+    @Transactional
+    public int backfillLegacyTokens() {
+        List<RefreshToken> legacyTokens = refreshTokenRepository.findAllByTokenIsNotNullAndTokenDigestIsNull();
+        legacyTokens.forEach(token -> token.migrateToDigest(AuthTokenDigests.refreshTokenDigest(token.getToken())));
+        if (!legacyTokens.isEmpty()) {
+            refreshTokenRepository.saveAll(legacyTokens);
+        }
+        return legacyTokens.size();
     }
 
     @Scheduled(fixedDelay = 3600000) // 1 hour

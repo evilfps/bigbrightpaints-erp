@@ -26,6 +26,7 @@ import org.springframework.util.StringUtils;
 import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.Base64;
+import java.util.List;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
@@ -99,7 +100,10 @@ public class PasswordResetService {
                     String token = generateToken();
                     Instant now = Instant.now();
                     Instant expiresAt = now.plusSeconds(RESET_TOKEN_TTL_SECONDS);
-                    PasswordResetToken resetToken = new PasswordResetToken(user, token, expiresAt);
+                    PasswordResetToken resetToken = PasswordResetToken.digestOnly(
+                            user,
+                            AuthTokenDigests.passwordResetTokenDigest(token),
+                            expiresAt);
                     tokenRepository.save(resetToken);
                     emailService.sendPasswordResetEmail(user.getEmail(), user.getDisplayName(), token);
                 });
@@ -140,7 +144,9 @@ public class PasswordResetService {
     @Transactional
     public void resetPassword(String tokenValue, String newPassword, String confirmPassword) {
         logTenantContextIgnoredIfPresent("reset_password", resolveCorrelationId());
-        PasswordResetToken token = tokenRepository.findByToken(tokenValue)
+        String tokenDigest = AuthTokenDigests.passwordResetTokenDigest(tokenValue);
+        PasswordResetToken token = tokenRepository.findByTokenDigest(tokenDigest)
+                .or(() -> tokenRepository.findByToken(tokenValue))
                 .orElseThrow(() -> com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput("Invalid or expired token"));
         Instant now = Instant.now();
         if (token.isUsed() || token.isExpired(now)) {
@@ -156,6 +162,7 @@ public class PasswordResetService {
         userAccountRepository.save(user);
         tokenBlacklistService.revokeAllUserTokens(user.getEmail());
         refreshTokenService.revokeAllForUser(user.getEmail());
+        token.migrateToDigest(tokenDigest);
         token.markUsed();
         tokenRepository.save(token);
         tokenRepository.deleteByUser(user);
@@ -223,7 +230,10 @@ public class PasswordResetService {
             tokenRepository.deleteByUser(user);
             String token = generateToken();
             Instant expiresAt = Instant.now().plusSeconds(RESET_TOKEN_TTL_SECONDS);
-            PasswordResetToken resetToken = new PasswordResetToken(user, token, expiresAt);
+            PasswordResetToken resetToken = PasswordResetToken.digestOnly(
+                    user,
+                    AuthTokenDigests.passwordResetTokenDigest(token),
+                    expiresAt);
             tokenRepository.saveAndFlush(resetToken);
             return token;
         });
@@ -246,7 +256,7 @@ public class PasswordResetService {
         try {
             tokenCleanupTransactionTemplate.executeWithoutResult(status -> {
                 assertTokenLifecycleTransactionActive("cleanup", correlationId, maskedEmail);
-                tokenRepository.deleteByToken(tokenValue);
+                deletePersistedResetToken(tokenValue);
             });
             log.info(
                     "event=password_reset.superadmin_forgot.cleanup policy={} correlationId={} email={} outcome=token_removed",
@@ -282,6 +292,14 @@ public class PasswordResetService {
                 maskedEmail,
                 stage);
         throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidState("Password reset token lifecycle operation requires an active transaction");
+    }
+
+    private void deletePersistedResetToken(String tokenValue) {
+        String tokenDigest = AuthTokenDigests.passwordResetTokenDigest(tokenValue);
+        int deleted = tokenRepository.deleteByTokenDigest(tokenDigest);
+        if (deleted == 0) {
+            tokenRepository.deleteByToken(tokenValue);
+        }
     }
 
     private String classifySuperAdminDispatchFailure(RuntimeException exception, String persistedToken) {
@@ -405,5 +423,15 @@ public class PasswordResetService {
             return "<redacted>";
         }
         return candidate;
+    }
+
+    @Transactional
+    public int backfillLegacyTokens() {
+        List<PasswordResetToken> legacyTokens = tokenRepository.findAllByTokenIsNotNullAndTokenDigestIsNull();
+        legacyTokens.forEach(token -> token.migrateToDigest(AuthTokenDigests.passwordResetTokenDigest(token.getToken())));
+        if (!legacyTokens.isEmpty()) {
+            tokenRepository.saveAll(legacyTokens);
+        }
+        return legacyTokens.size();
     }
 }

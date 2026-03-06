@@ -6,12 +6,13 @@ import com.bigbrightpaints.erp.test.AbstractIntegrationTest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Instant;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-class RefreshTokenServiceIT extends AbstractIntegrationTest {
+class RefreshTokenServiceTest extends AbstractIntegrationTest {
 
     @Autowired
     private RefreshTokenService refreshTokenService;
@@ -25,17 +26,20 @@ class RefreshTokenServiceIT extends AbstractIntegrationTest {
     }
 
     @Test
-    void issue_persists_and_consume_removes() {
+    void issue_persists_digest_only_consume_removes_and_replay_is_rejected() {
         Instant expiresAt = Instant.now().plusSeconds(300);
         String token = refreshTokenService.issue("user@example.com", expiresAt);
 
-        assertThat(refreshTokenRepository.findByToken(token)).isPresent();
+        RefreshToken stored = refreshTokenRepository.findAll().getFirst();
+        assertThat(stored.getToken()).isNull();
+        assertThat(ReflectionTestUtils.getField(stored, "tokenDigest")).isNotNull();
 
         RefreshTokenService.TokenRecord record = refreshTokenService.consume(token).orElseThrow();
         assertThat(record.userEmail()).isEqualTo("user@example.com");
         assertThat(record.expiresAt()).isAfterOrEqualTo(expiresAt.minusSeconds(1));
         assertThat(record.expiresAt()).isBeforeOrEqualTo(expiresAt.plusSeconds(1));
-        assertThat(refreshTokenRepository.findByToken(token)).isEmpty();
+        assertThat(refreshTokenService.consume(token)).isEmpty();
+        assertThat(refreshTokenRepository.findAll()).isEmpty();
     }
 
     @Test
@@ -50,14 +54,25 @@ class RefreshTokenServiceIT extends AbstractIntegrationTest {
     }
 
     @Test
+    void consume_accepts_legacy_raw_token_during_transition() {
+        Instant issuedAt = Instant.now().minusSeconds(30);
+        Instant expiresAt = Instant.now().plusSeconds(300);
+        refreshTokenRepository.save(new RefreshToken("legacy-token", "legacy@example.com", issuedAt, expiresAt));
+
+        RefreshTokenService.TokenRecord record = refreshTokenService.consume("legacy-token").orElseThrow();
+
+        assertThat(record.userEmail()).isEqualTo("legacy@example.com");
+        assertThat(refreshTokenRepository.findAll()).isEmpty();
+    }
+
+    @Test
     void revokeAllForUser_removes_user_tokens_only() {
         refreshTokenService.issue("user@example.com", Instant.now().plusSeconds(300));
         refreshTokenService.issue("User@Example.com", Instant.now().plusSeconds(300));
-        String otherToken = refreshTokenService.issue("other@example.com", Instant.now().plusSeconds(300));
+        refreshTokenService.issue("other@example.com", Instant.now().plusSeconds(300));
 
         refreshTokenService.revokeAllForUser("USER@example.com");
 
-        assertThat(refreshTokenRepository.findByToken(otherToken)).isPresent();
         assertThat(refreshTokenRepository.findAll())
                 .allMatch(record -> record.getUserEmail().equalsIgnoreCase("other@example.com"));
     }

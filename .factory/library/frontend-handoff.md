@@ -23,6 +23,10 @@ Each module section should include:
 
 ### Auth
 
+#### Current mission note
+
+- 2026-03-06 `auth-token-secret-storage-hardening`: no auth/admin request or response shape changes were required. Login, refresh-token, logout, forgot-password, and reset-password payloads stay the same; only backend persistence changed so refresh-token and password-reset secrets are now stored as digests with compatibility backfill/fallback for legacy rows.
+
 #### Endpoint Map
 
 | Method | Path | Auth | Request | Response |
