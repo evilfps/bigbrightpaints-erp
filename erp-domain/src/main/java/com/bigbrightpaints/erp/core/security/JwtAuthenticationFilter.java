@@ -83,6 +83,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     filterChain.doFilter(request, response);
                     return;
                 }
+                if (!principal.isAccountNonLocked()) {
+                    logger.warn("Attempted use of token for locked user - User: {}, IP: {}",
+                            claims.getSubject(), request.getRemoteAddr());
+                    filterChain.doFilter(request, response);
+                    return;
+                }
                 Collection<? extends GrantedAuthority> effectiveAuthorities = resolveAuthorities(principal);
                 UsernamePasswordAuthenticationToken authentication =
                         new UsernamePasswordAuthenticationToken(principal, token, effectiveAuthorities);

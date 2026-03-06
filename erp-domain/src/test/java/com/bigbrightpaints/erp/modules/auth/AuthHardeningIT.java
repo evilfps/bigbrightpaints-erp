@@ -12,6 +12,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -92,5 +93,49 @@ public class AuthHardeningIT extends AbstractIntegrationTest {
         ResponseEntity<Map> success = rest.postForEntity("/api/v1/auth/login",
                 new HttpEntity<>(goodReq, headers), Map.class);
         assertThat(success.getStatusCode()).isEqualTo(HttpStatus.OK);
+    }
+
+    @Test
+    void lockout_revokes_existing_access_and_refresh_tokens() {
+        ResponseEntity<Map> loginResponse = rest.postForEntity(
+                "/api/v1/auth/login",
+                Map.of(
+                        "email", USER_EMAIL,
+                        "password", PASSWORD,
+                        "companyCode", COMPANY),
+                Map.class);
+
+        assertThat(loginResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(loginResponse.getBody()).isNotNull();
+        String accessToken = loginResponse.getBody().get("accessToken").toString();
+        String refreshToken = loginResponse.getBody().get("refreshToken").toString();
+
+        Map<String, Object> badReq = Map.of(
+                "email", USER_EMAIL,
+                "password", "wrong",
+                "companyCode", COMPANY
+        );
+        for (int i = 0; i < 5; i++) {
+            ResponseEntity<Map> resp = rest.postForEntity("/api/v1/auth/login", badReq, Map.class);
+            assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        }
+
+        HttpHeaders accessHeaders = new HttpHeaders();
+        accessHeaders.setBearerAuth(accessToken);
+        accessHeaders.set("X-Company-Code", COMPANY);
+        ResponseEntity<Map> meResponse = rest.exchange(
+                "/api/v1/auth/me",
+                HttpMethod.GET,
+                new HttpEntity<>(accessHeaders),
+                Map.class);
+        assertThat(meResponse.getStatusCode()).isIn(HttpStatus.UNAUTHORIZED, HttpStatus.FORBIDDEN);
+
+        ResponseEntity<Map> refreshResponse = rest.postForEntity(
+                "/api/v1/auth/refresh-token",
+                Map.of(
+                        "refreshToken", refreshToken,
+                        "companyCode", COMPANY),
+                Map.class);
+        assertThat(refreshResponse.getStatusCode()).isIn(HttpStatus.BAD_REQUEST, HttpStatus.UNAUTHORIZED);
     }
 }

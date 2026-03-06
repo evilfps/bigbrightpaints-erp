@@ -16,6 +16,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.time.Instant;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -271,6 +272,38 @@ class TenantAdminProvisioningServiceTest {
         String resetEmail = service.resetTenantAdminPassword(target, "admin@ske.com");
 
         assertThat(resetEmail).isEqualTo("admin@ske.com");
+        verify(emailService).sendUserCredentialsEmailRequired(eq("admin@ske.com"), eq("Admin"), any(), eq("SKE"));
+    }
+
+    @Test
+    void resetTenantAdminPassword_revokesExistingSessionsAndClearsLockout() {
+        TenantAdminProvisioningService service = new TenantAdminProvisioningService(
+                userAccountRepository,
+                roleService,
+                passwordEncoder,
+                emailService,
+                tokenBlacklistService,
+                refreshTokenService);
+        Company target = company(55L, "SKE", "SKE");
+        UserAccount user = new UserAccount("admin@ske.com", "hash", "Admin");
+        user.addCompany(target);
+        user.setFailedLoginAttempts(5);
+        user.setLockedUntil(Instant.parse("2026-01-01T00:00:00Z"));
+        Role adminRole = new Role();
+        adminRole.setName("ROLE_ADMIN");
+        user.addRole(adminRole);
+        when(userAccountRepository.findByEmailIgnoreCase("admin@ske.com")).thenReturn(Optional.of(user));
+        when(passwordEncoder.encode(any())).thenReturn("encoded");
+        when(userAccountRepository.save(any(UserAccount.class))).thenReturn(user);
+
+        String resetEmail = service.resetTenantAdminPassword(target, "admin@ske.com");
+
+        assertThat(resetEmail).isEqualTo("admin@ske.com");
+        assertThat(user.getFailedLoginAttempts()).isZero();
+        assertThat(user.getLockedUntil()).isNull();
+        assertThat(user.isMustChangePassword()).isTrue();
+        verify(tokenBlacklistService).revokeAllUserTokens("admin@ske.com");
+        verify(refreshTokenService).revokeAllForUser("admin@ske.com");
         verify(emailService).sendUserCredentialsEmailRequired(eq("admin@ske.com"), eq("Admin"), any(), eq("SKE"));
     }
 

@@ -195,13 +195,21 @@ public class AuthService {
         Claims accessTokenClaims = parseLogoutClaims(accessToken);
         String tokenUserEmail = extractTokenSubject(accessTokenClaims);
 
-        if (refreshToken != null && !refreshToken.isBlank()) {
+        if (tokenUserEmail != null) {
+            revokeActiveSessions(tokenUserEmail);
+        } else if (refreshToken != null && !refreshToken.isBlank()) {
             refreshTokenService.revoke(refreshToken);
-        } else if (tokenUserEmail != null) {
-            refreshTokenService.revokeAllForUser(tokenUserEmail);
         }
 
         blacklistAccessToken(accessTokenClaims, tokenUserEmail);
+    }
+
+    private void revokeActiveSessions(String userEmail) {
+        if (userEmail == null || userEmail.isBlank()) {
+            return;
+        }
+        tokenBlacklistService.revokeAllUserTokens(userEmail);
+        refreshTokenService.revokeAllForUser(userEmail);
     }
 
     private Claims parseLogoutClaims(String accessToken) {
@@ -271,9 +279,13 @@ public class AuthService {
     private void registerFailure(UserAccount user) {
         int attempts = user.getFailedLoginAttempts() + 1;
         user.setFailedLoginAttempts(attempts);
+        boolean locked = attempts >= MAX_FAILED_ATTEMPTS;
         if (attempts >= MAX_FAILED_ATTEMPTS) {
             user.setLockedUntil(Instant.now().plus(LOCKOUT_DURATION));
         }
         userAccountRepository.save(user);
+        if (locked) {
+            revokeActiveSessions(user.getEmail());
+        }
     }
 }

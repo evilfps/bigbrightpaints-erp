@@ -89,7 +89,30 @@ class AuthDisabledUserTokenIT extends AbstractIntegrationTest {
         assertThat(loginResponse.getBody().get("message")).isEqualTo("Account is disabled");
     }
 
+    @Test
+    void disabledUserRefreshToken_isRejectedAfterDisablement() {
+        Map<String, Object> loginPayload = loginPayload();
+        String refreshToken = loginPayload.get("refreshToken").toString();
+
+        UserAccount user = userAccountRepository.findByEmailIgnoreCase(USER_EMAIL).orElseThrow();
+        user.setEnabled(false);
+        userAccountRepository.save(user);
+
+        ResponseEntity<Map> refreshResponse = rest.postForEntity(
+                "/api/v1/auth/refresh-token",
+                Map.of(
+                        "refreshToken", refreshToken,
+                        "companyCode", COMPANY_CODE),
+                Map.class);
+
+        assertThat(refreshResponse.getStatusCode()).isIn(HttpStatus.BAD_REQUEST, HttpStatus.UNAUTHORIZED);
+    }
+
     private String loginToken() {
+        return loginPayload().get("accessToken").toString();
+    }
+
+    private Map<String, Object> loginPayload() {
         Map<String, Object> request = Map.of(
                 "email", USER_EMAIL,
                 "password", USER_PASSWORD,
@@ -98,6 +121,6 @@ class AuthDisabledUserTokenIT extends AbstractIntegrationTest {
         ResponseEntity<Map> loginResponse = rest.postForEntity("/api/v1/auth/login", request, Map.class);
         assertThat(loginResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(loginResponse.getBody()).isNotNull();
-        return (String) loginResponse.getBody().get("accessToken");
+        return loginResponse.getBody();
     }
 }

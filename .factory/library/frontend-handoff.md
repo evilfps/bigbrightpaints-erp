@@ -26,6 +26,7 @@ Each module section should include:
 #### Current mission note
 
 - 2026-03-06 `auth-token-secret-storage-hardening`: no auth/admin request or response shape changes were required. Login, refresh-token, logout, forgot-password, and reset-password payloads stay the same; only backend persistence changed so refresh-token and password-reset secrets are now stored as digests with compatibility backfill/fallback for legacy rows.
+- 2026-03-06 `auth-session-revocation-hardening`: no auth/admin request or response shape changes were required. Logout now invalidates all previously issued access and refresh sessions for the authenticated user, and password change, password reset, disablement, lockout, and support hard-reset now consistently reject old tokens instead of letting prior sessions remain usable.
 
 #### Endpoint Map
 
@@ -78,7 +79,12 @@ Notes:
    4. Backend revokes existing sessions/tokens; user must log in again.
    5. `POST /api/v1/auth/password/forgot/superadmin` remains as a deprecated compatibility route but now delegates to the unified forgot flow and requires authentication context.
 
-5. **Token refresh flow**
+5. **Password change flow**
+   1. Authenticated user submits `POST /api/v1/auth/password/change` with current + new password fields.
+   2. Backend validates policy/history, updates the stored password, and revokes all previously issued access/refresh tokens for that user.
+   3. UI should clear stored tokens and force a fresh login with the new password after success.
+
+6. **Token refresh flow**
    1. Before access token expiry (or after 401), call `POST /api/v1/auth/refresh-token` with `{ refreshToken, companyCode }`.
    2. Backend consumes old refresh token and returns a new access + refresh token pair (rotation).
    3. Client must atomically replace both tokens.
@@ -88,9 +94,9 @@ Notes:
 - Access token contains tenant and identity claims (`sub`, `companyCode`, `cid`, `name`, `jti`, `iat`, `exp`).
 - Refresh tokens are one-time-use and rotated on every refresh.
 - `logout` behavior:
-  - If `refreshToken` query param is supplied, backend revokes that token.
-  - Otherwise backend revokes all refresh tokens for token subject.
-  - Access token `jti` is blacklisted when parseable.
+  - When the current bearer token can be parsed, backend revokes all refresh tokens for that authenticated user and marks all previously issued access tokens invalid.
+  - The current access token `jti` is still blacklisted when parseable for immediate single-token rejection.
+  - If token subject recovery fails but `refreshToken` query param is supplied, backend falls back to revoking that refresh token only.
 - Token/company consistency:
   - If request carries `X-Company-Code`, it must match token `companyCode` claim.
   - Mismatch is rejected with `403` by company-context enforcement.

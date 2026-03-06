@@ -27,6 +27,11 @@ Mission-specific guidance for the security/auth remediation wave.
 - `AuthSecretStorageBackfillRunner` backfills legacy plaintext rows to digest-only storage at startup.
 - Runtime lookup/revoke/reset flows still fall back to legacy raw-token columns so pre-existing rows remain usable during rollout even before every node has restarted onto the backfill-capable build.
 
+## Session invalidation rules
+- As of 2026-03-06, logout, password change, password reset, disablement, lockout, and support hard-reset all revoke prior access sessions through `UserTokenRevocation` and delete outstanding refresh tokens for the affected user.
+- `JwtAuthenticationFilter` now fails closed for locked users in addition to disabled users and token-revocation markers, so previously issued bearer tokens stop authenticating once a lockout event lands.
+- There is no per-device session lineage model in the current auth stack, so logout hardening intentionally invalidates all active sessions for the authenticated user instead of trying to preserve sibling sessions.
+
 ## Adjacent regression flows to recheck
 - login / refresh / logout
 - `/auth/me` and `/auth/profile`

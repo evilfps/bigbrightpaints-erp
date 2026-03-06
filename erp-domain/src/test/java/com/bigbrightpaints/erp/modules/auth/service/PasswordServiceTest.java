@@ -5,6 +5,7 @@ import com.bigbrightpaints.erp.modules.auth.domain.UserAccount;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
 import com.bigbrightpaints.erp.modules.auth.domain.UserPasswordHistory;
 import com.bigbrightpaints.erp.modules.auth.domain.UserPasswordHistoryRepository;
+import com.bigbrightpaints.erp.core.security.TokenBlacklistService;
 import com.bigbrightpaints.erp.modules.auth.web.ChangePasswordRequest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -36,6 +37,12 @@ class PasswordServiceTest {
     @Mock
     private UserPasswordHistoryRepository passwordHistoryRepository;
 
+    @Mock
+    private TokenBlacklistService tokenBlacklistService;
+
+    @Mock
+    private RefreshTokenService refreshTokenService;
+
     private PasswordEncoder passwordEncoder;
     private PasswordPolicy passwordPolicy;
     private PasswordService passwordService;
@@ -44,7 +51,13 @@ class PasswordServiceTest {
     void setUp() {
         passwordEncoder = new BCryptPasswordEncoder();
         passwordPolicy = new PasswordPolicy();
-        passwordService = new PasswordService(userAccountRepository, passwordHistoryRepository, passwordEncoder, passwordPolicy);
+        passwordService = new PasswordService(
+                userAccountRepository,
+                passwordHistoryRepository,
+                passwordEncoder,
+                passwordPolicy,
+                tokenBlacklistService,
+                refreshTokenService);
     }
 
     @Test
@@ -59,6 +72,7 @@ class PasswordServiceTest {
         assertThrows(ApplicationException.class, () -> passwordService.changePassword(user, request));
         verify(passwordHistoryRepository, never()).save(any());
         verifyNoInteractions(userAccountRepository);
+        verifyNoInteractions(tokenBlacklistService, refreshTokenService);
     }
 
     @Test
@@ -69,6 +83,7 @@ class PasswordServiceTest {
         assertThrows(ApplicationException.class, () -> passwordService.changePassword(user, request));
         verify(passwordHistoryRepository, never()).save(any());
         verifyNoInteractions(userAccountRepository);
+        verifyNoInteractions(tokenBlacklistService, refreshTokenService);
     }
 
     @Test
@@ -86,6 +101,8 @@ class PasswordServiceTest {
         verify(passwordHistoryRepository).save(argThat(entry ->
                 entry.getUser() == user && passwordEncoder.matches("CurrentPass1!", entry.getPasswordHash())));
         verify(userAccountRepository).save(user);
+        verify(tokenBlacklistService).revokeAllUserTokens("user@bbp.dev");
+        verify(refreshTokenService).revokeAllForUser("user@bbp.dev");
         assertTrue(passwordEncoder.matches("NewPassword1!", user.getPasswordHash()));
     }
 

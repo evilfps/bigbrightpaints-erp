@@ -120,6 +120,25 @@ class JwtAuthenticationFilterRoleHierarchyTest {
         verify(filterChain).doFilter(request, response);
     }
 
+    @Test
+    void doFilter_skipsAuthenticationForLockedUser() throws ServletException, IOException {
+        Claims claims = claims("user@bbp.com", "jti-3", Instant.parse("2026-01-01T00:00:00Z"));
+        UserPrincipal principal = principalWithRole("user@bbp.com", "ROLE_ADMIN");
+        principal.getUser().setLockedUntil(Instant.now().plusSeconds(300));
+        when(tokenService.parse("valid-token")).thenReturn(claims);
+        when(blacklistService.isTokenBlacklisted("jti-3")).thenReturn(false);
+        when(blacklistService.isUserTokenRevoked(eq("user@bbp.com"), any())).thenReturn(false);
+        when(userDetailsService.loadUserByUsername("user@bbp.com")).thenReturn(principal);
+
+        MockHttpServletRequest request = requestWithBearer("valid-token");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, filterChain);
+
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+        verify(filterChain).doFilter(request, response);
+    }
+
     private Claims claims(String subject, String tokenId, Instant issuedAt) {
         Claims claims = mock(Claims.class);
         when(claims.getSubject()).thenReturn(subject);

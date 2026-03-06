@@ -41,12 +41,19 @@ public class CompanyControllerIT extends AbstractIntegrationTest {
     }
 
     private String loginToken(String email, String companyCode) {
+        return loginPayload(email, companyCode).get("accessToken").toString();
+    }
+
+    private Map<String, Object> loginPayload(String email, String companyCode) {
         Map<String, Object> req = Map.of(
                 "email", email,
                 "password", ADMIN_PASSWORD,
                 "companyCode", companyCode
         );
-        return (String) rest.postForEntity("/api/v1/auth/login", req, Map.class).getBody().get("accessToken");
+        ResponseEntity<Map> response = rest.postForEntity("/api/v1/auth/login", req, Map.class);
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isNotNull();
+        return response.getBody();
     }
 
     @Test
@@ -151,6 +158,48 @@ public class CompanyControllerIT extends AbstractIntegrationTest {
         assertThat(data.get("companyCode").toString().toUpperCase(Locale.ROOT)).isEqualTo(COMPANY_CODE);
         assertThat(data.get("warningId")).isNotNull();
         assertThat(data.get("requestedLifecycleState")).isEqualTo("SUSPENDED");
+    }
+
+    @Test
+    void support_admin_password_reset_revokes_existing_admin_tokens() {
+        Long companyId = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow().getId();
+        Map<String, Object> adminLogin = loginPayload(ADMIN_EMAIL, COMPANY_CODE);
+        String adminAccessToken = adminLogin.get("accessToken").toString();
+        String adminRefreshToken = adminLogin.get("refreshToken").toString();
+
+        String superAdminToken = loginToken(SUPER_ADMIN_EMAIL, ROOT_COMPANY_CODE);
+        HttpHeaders supportHeaders = new HttpHeaders();
+        supportHeaders.setBearerAuth(superAdminToken);
+        supportHeaders.setContentType(MediaType.APPLICATION_JSON);
+        supportHeaders.set("X-Company-Code", ROOT_COMPANY_CODE);
+
+        ResponseEntity<Map> resetResponse = rest.exchange(
+                "/api/v1/companies/" + companyId + "/support/admin-password-reset",
+                HttpMethod.POST,
+                new HttpEntity<>(Map.of(
+                        "adminEmail", ADMIN_EMAIL,
+                        "reason", "Security hard reset"), supportHeaders),
+                Map.class);
+
+        assertThat(resetResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+        HttpHeaders adminHeaders = new HttpHeaders();
+        adminHeaders.setBearerAuth(adminAccessToken);
+        adminHeaders.set("X-Company-Code", COMPANY_CODE);
+        ResponseEntity<Map> meResponse = rest.exchange(
+                "/api/v1/auth/me",
+                HttpMethod.GET,
+                new HttpEntity<>(adminHeaders),
+                Map.class);
+        assertThat(meResponse.getStatusCode()).isIn(HttpStatus.UNAUTHORIZED, HttpStatus.FORBIDDEN);
+
+        ResponseEntity<Map> refreshResponse = rest.postForEntity(
+                "/api/v1/auth/refresh-token",
+                Map.of(
+                        "refreshToken", adminRefreshToken,
+                        "companyCode", COMPANY_CODE),
+                Map.class);
+        assertThat(refreshResponse.getStatusCode()).isIn(HttpStatus.BAD_REQUEST, HttpStatus.UNAUTHORIZED);
     }
 
     @Test

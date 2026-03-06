@@ -4,6 +4,7 @@ import com.bigbrightpaints.erp.modules.auth.domain.UserAccount;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
 import com.bigbrightpaints.erp.modules.auth.domain.UserPasswordHistory;
 import com.bigbrightpaints.erp.modules.auth.domain.UserPasswordHistoryRepository;
+import com.bigbrightpaints.erp.core.security.TokenBlacklistService;
 import com.bigbrightpaints.erp.modules.auth.web.ChangePasswordRequest;
 import jakarta.transaction.Transactional;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -21,15 +22,21 @@ public class PasswordService {
     private final UserPasswordHistoryRepository passwordHistoryRepository;
     private final PasswordEncoder passwordEncoder;
     private final PasswordPolicy passwordPolicy;
+    private final TokenBlacklistService tokenBlacklistService;
+    private final RefreshTokenService refreshTokenService;
 
     public PasswordService(UserAccountRepository userAccountRepository,
                            UserPasswordHistoryRepository passwordHistoryRepository,
                            PasswordEncoder passwordEncoder,
-                           PasswordPolicy passwordPolicy) {
+                           PasswordPolicy passwordPolicy,
+                           TokenBlacklistService tokenBlacklistService,
+                           RefreshTokenService refreshTokenService) {
         this.userAccountRepository = userAccountRepository;
         this.passwordHistoryRepository = passwordHistoryRepository;
         this.passwordEncoder = passwordEncoder;
         this.passwordPolicy = passwordPolicy;
+        this.tokenBlacklistService = tokenBlacklistService;
+        this.refreshTokenService = refreshTokenService;
     }
 
     @Transactional
@@ -67,6 +74,15 @@ public class PasswordService {
         user.setPasswordHash(passwordEncoder.encode(newPassword));
         user.setMustChangePassword(false);
         userAccountRepository.save(user);
+        revokeExistingSessions(user);
+    }
+
+    private void revokeExistingSessions(UserAccount user) {
+        if (user == null || !StringUtils.hasText(user.getEmail())) {
+            return;
+        }
+        tokenBlacklistService.revokeAllUserTokens(user.getEmail());
+        refreshTokenService.revokeAllForUser(user.getEmail());
     }
 
     private void ensureNotReused(UserAccount user, String candidate) {
