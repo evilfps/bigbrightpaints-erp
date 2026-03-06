@@ -50,6 +50,7 @@ class TenantRuntimeEnforcementAuthIT extends AbstractIntegrationTest {
                 Map.class);
 
         assertThat(loginResponse.getStatusCode()).isEqualTo(HttpStatus.LOCKED);
+        assertControlledRuntimeError(loginResponse, "TENANT_ON_HOLD", "Tenant is currently on hold");
         Map<String, String> metadata = awaitAccessDeniedMetadata(snapshot.auditChainId(), "TENANT_ON_HOLD");
         assertThat(metadata).containsEntry("tenantReasonCode", "COMPLIANCE_REVIEW");
     }
@@ -70,6 +71,7 @@ class TenantRuntimeEnforcementAuthIT extends AbstractIntegrationTest {
                 Map.class);
 
         assertThat(meResponse.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertControlledRuntimeError(meResponse, "TENANT_BLOCKED", "Tenant is currently blocked");
         Map<String, String> metadata = awaitAccessDeniedMetadata(snapshot.auditChainId(), "TENANT_BLOCKED");
         assertThat(metadata).containsEntry("tenantReasonCode", "ABUSE_INCIDENT");
     }
@@ -98,6 +100,10 @@ class TenantRuntimeEnforcementAuthIT extends AbstractIntegrationTest {
                 Map.class);
 
         assertThat(loginResponse.getStatusCode()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
+        assertControlledRuntimeError(
+                loginResponse,
+                "TENANT_ACTIVE_USER_QUOTA_EXCEEDED",
+                "Tenant active-user quota exceeded");
         Map<String, String> metadata = awaitAccessDeniedMetadata(snapshot.auditChainId(), "TENANT_ACTIVE_USER_QUOTA_EXCEEDED");
         assertThat(metadata).containsEntry("limitType", "MAX_ACTIVE_USERS");
     }
@@ -129,8 +135,27 @@ class TenantRuntimeEnforcementAuthIT extends AbstractIntegrationTest {
 
         assertThat(firstCall.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(secondCall.getStatusCode()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
+        assertControlledRuntimeError(
+                secondCall,
+                "TENANT_REQUEST_RATE_EXCEEDED",
+                "Tenant request rate quota exceeded");
         Map<String, String> metadata = awaitAccessDeniedMetadata(snapshot.auditChainId(), "TENANT_REQUEST_RATE_EXCEEDED");
         assertThat(metadata).containsEntry("limitType", "MAX_REQUESTS_PER_MINUTE");
+    }
+
+    private void assertControlledRuntimeError(ResponseEntity<Map> response,
+                                              String expectedCode,
+                                              String expectedMessage) {
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody()).containsEntry("success", false);
+        assertThat(response.getBody()).containsEntry("message", expectedMessage);
+        Object payload = response.getBody().get("data");
+        assertThat(payload).isInstanceOf(Map.class);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> error = (Map<String, Object>) payload;
+        assertThat(error).containsEntry("code", expectedCode);
+        assertThat(error).containsEntry("message", expectedMessage);
+        assertThat(error).containsKey("traceId");
     }
 
     private Scenario seedScenario(String prefix) {

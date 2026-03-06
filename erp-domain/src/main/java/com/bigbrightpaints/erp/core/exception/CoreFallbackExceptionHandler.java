@@ -15,6 +15,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.LockedException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.ControllerAdvice;
@@ -92,13 +93,40 @@ public class CoreFallbackExceptionHandler {
                                                                                            HttpServletRequest request) {
         String traceId = UUID.randomUUID().toString();
         logger.warn("Authentication failed [{}] - Path: {}, IP: {}", traceId, request.getRequestURI(), request.getRemoteAddr());
-        ErrorCode errorCode = ex instanceof BadCredentialsException
-                ? ErrorCode.AUTH_INVALID_CREDENTIALS : ErrorCode.AUTH_TOKEN_INVALID;
+        ErrorCode errorCode;
+        HttpStatus status = HttpStatus.UNAUTHORIZED;
+        String responseMessage = "Authentication failed";
+        if (ex instanceof LockedException) {
+            errorCode = ErrorCode.AUTH_ACCOUNT_LOCKED;
+            responseMessage = errorCode.getDefaultMessage();
+        } else if (ex instanceof BadCredentialsException) {
+            errorCode = ErrorCode.AUTH_INVALID_CREDENTIALS;
+        } else {
+            errorCode = ErrorCode.AUTH_TOKEN_INVALID;
+        }
         Map<String, Object> data = new HashMap<>();
         data.put("code", errorCode.getCode());
         data.put("message", errorCode.getDefaultMessage());
         data.put("traceId", traceId);
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ApiResponse.failure("Authentication failed", data));
+        return ResponseEntity.status(status).body(ApiResponse.failure(responseMessage, data));
+    }
+
+    @ExceptionHandler(AuthSecurityContractException.class)
+    public ResponseEntity<ApiResponse<Map<String, Object>>> handleAuthSecurityContract(
+            AuthSecurityContractException ex,
+            HttpServletRequest request) {
+        String traceId = UUID.randomUUID().toString();
+        logger.warn("Auth/security contract failure [{}] - Path: {}, status: {}, code: {}",
+                traceId,
+                request.getRequestURI(),
+                ex.getHttpStatus().value(),
+                ex.getCode());
+        Map<String, Object> data = new HashMap<>();
+        data.put("code", ex.getCode());
+        data.put("message", ex.getUserMessage());
+        data.put("traceId", traceId);
+        data.putAll(ex.getDetails());
+        return ResponseEntity.status(ex.getHttpStatus()).body(ApiResponse.failure(ex.getUserMessage(), data));
     }
 
     @ExceptionHandler(AccessDeniedException.class)

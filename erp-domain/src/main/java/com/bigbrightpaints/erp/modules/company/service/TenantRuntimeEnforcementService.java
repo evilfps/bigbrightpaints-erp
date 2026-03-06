@@ -4,6 +4,7 @@ import com.bigbrightpaints.erp.core.audit.AuditEvent;
 import com.bigbrightpaints.erp.core.audit.AuditService;
 import com.bigbrightpaints.erp.core.config.SystemSetting;
 import com.bigbrightpaints.erp.core.config.SystemSettingsRepository;
+import com.bigbrightpaints.erp.core.exception.AuthSecurityContractException;
 import com.bigbrightpaints.erp.core.idempotency.IdempotencyUtils;
 import com.bigbrightpaints.erp.core.util.CompanyTime;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
@@ -172,7 +173,7 @@ public class TenantRuntimeEnforcementService {
         if (stateRejection != null) {
             usageCounters.rejectedRequests.incrementAndGet();
             auditRejection(stateRejection, actor, scope, "POST");
-            throw stateRejection.asException();
+            throw stateRejection.asAuthSecurityContractException();
         }
 
         Company company = companyRepository.findByCodeIgnoreCase(normalizedCompany)
@@ -193,7 +194,7 @@ public class TenantRuntimeEnforcementService {
                     Long.toString(activeUsers),
                     Integer.toString(maxActiveUsers));
             auditRejection(rejection, actor, scope, null);
-            throw rejection.asException();
+            throw rejection.asAuthSecurityContractException();
         }
     }
 
@@ -783,7 +784,8 @@ public class TenantRuntimeEnforcementService {
 
     public static final class TenantRequestAdmission {
         private static final TenantRequestAdmission NOT_TRACKED =
-                new TenantRequestAdmission(false, null, null, null, HttpStatus.OK.value(), null, false);
+                new TenantRequestAdmission(false, null, null, null, HttpStatus.OK.value(), null,
+                        false, null, null, null, null, null);
 
         private final boolean admitted;
         private final String companyCode;
@@ -792,6 +794,11 @@ public class TenantRuntimeEnforcementService {
         private final int statusCode;
         private final String message;
         private final boolean policyControlRequest;
+        private final String reasonCode;
+        private final String tenantReasonCode;
+        private final String limitType;
+        private final String observedValue;
+        private final String limitValue;
 
         private TenantRequestAdmission(boolean admitted,
                                        String companyCode,
@@ -799,7 +806,8 @@ public class TenantRuntimeEnforcementService {
                                        TenantRuntimeCounters counters,
                                        int statusCode,
                                        String message) {
-            this(admitted, companyCode, auditChainId, counters, statusCode, message, false);
+            this(admitted, companyCode, auditChainId, counters, statusCode, message,
+                    false, null, null, null, null, null);
         }
 
         private TenantRequestAdmission(boolean admitted,
@@ -808,7 +816,12 @@ public class TenantRuntimeEnforcementService {
                                        TenantRuntimeCounters counters,
                                        int statusCode,
                                        String message,
-                                       boolean policyControlRequest) {
+                                       boolean policyControlRequest,
+                                       String reasonCode,
+                                       String tenantReasonCode,
+                                       String limitType,
+                                       String observedValue,
+                                       String limitValue) {
             this.admitted = admitted;
             this.companyCode = companyCode;
             this.auditChainId = auditChainId;
@@ -816,6 +829,11 @@ public class TenantRuntimeEnforcementService {
             this.statusCode = statusCode;
             this.message = message;
             this.policyControlRequest = policyControlRequest;
+            this.reasonCode = reasonCode;
+            this.tenantReasonCode = tenantReasonCode;
+            this.limitType = limitType;
+            this.observedValue = observedValue;
+            this.limitValue = limitValue;
         }
 
         public static TenantRequestAdmission notTracked() {
@@ -838,7 +856,12 @@ public class TenantRuntimeEnforcementService {
                     counters,
                     HttpStatus.OK.value(),
                     null,
-                    true);
+                    true,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null);
         }
 
         public static TenantRequestAdmission rejected(TenantRuntimeRejection rejection) {
@@ -848,7 +871,13 @@ public class TenantRuntimeEnforcementService {
                     rejection.auditChainId,
                     null,
                     rejection.httpStatus.value(),
-                    rejection.reasonDetail);
+                    rejection.reasonDetail,
+                    false,
+                    rejection.reasonCode,
+                    rejection.tenantReasonCode,
+                    rejection.limitType,
+                    rejection.observedValue,
+                    rejection.limitValue);
         }
 
         public boolean isAdmitted() {
@@ -873,6 +902,26 @@ public class TenantRuntimeEnforcementService {
 
         public String auditChainId() {
             return auditChainId;
+        }
+
+        public String reasonCode() {
+            return reasonCode;
+        }
+
+        public String tenantReasonCode() {
+            return tenantReasonCode;
+        }
+
+        public String limitType() {
+            return limitType;
+        }
+
+        public String observedValue() {
+            return observedValue;
+        }
+
+        public String limitValue() {
+            return limitValue;
         }
 
         private boolean isPolicyControlRequest() {
@@ -942,6 +991,27 @@ public class TenantRuntimeEnforcementService {
                                           String limitValue) {
         private ResponseStatusException asException() {
             return new ResponseStatusException(httpStatus, reasonDetail);
+        }
+
+        private AuthSecurityContractException asAuthSecurityContractException() {
+            AuthSecurityContractException ex = new AuthSecurityContractException(httpStatus, reasonCode, reasonDetail)
+                    .withDetail("reason", reasonCode);
+            if (auditChainId != null && !auditChainId.isBlank()) {
+                ex.withDetail("auditChainId", auditChainId);
+            }
+            if (tenantReasonCode != null && !tenantReasonCode.isBlank()) {
+                ex.withDetail("tenantReasonCode", tenantReasonCode);
+            }
+            if (limitType != null && !limitType.isBlank()) {
+                ex.withDetail("limitType", limitType);
+            }
+            if (observedValue != null && !observedValue.isBlank()) {
+                ex.withDetail("observedValue", observedValue);
+            }
+            if (limitValue != null && !limitValue.isBlank()) {
+                ex.withDetail("limitValue", limitValue);
+            }
+            return ex;
         }
     }
 }

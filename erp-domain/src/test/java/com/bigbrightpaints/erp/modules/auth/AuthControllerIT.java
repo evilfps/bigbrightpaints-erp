@@ -261,6 +261,33 @@ public class AuthControllerIT extends AbstractIntegrationTest {
     }
 
     @Test
+    void tenantBindingMismatch_returnsControlledAuthErrorContract() {
+        String accessToken = login(ADMIN_EMAIL, ADMIN_PASSWORD).get("accessToken").toString();
+
+        ResponseEntity<Map> mismatchedCompanyResponse = rest.exchange(
+                "/api/v1/auth/me",
+                HttpMethod.GET,
+                new HttpEntity<>(bearer(accessToken, "OTHER")),
+                Map.class);
+
+        assertThat(mismatchedCompanyResponse.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(mismatchedCompanyResponse.getBody()).isNotNull();
+        assertThat(mismatchedCompanyResponse.getBody()).containsEntry("success", false);
+        assertThat(mismatchedCompanyResponse.getBody()).containsEntry("message", "Access denied");
+        Object payload = mismatchedCompanyResponse.getBody().get("data");
+        assertThat(payload).isInstanceOf(Map.class);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> error = (Map<String, Object>) payload;
+        assertThat(error).containsEntry("code", "AUTH_004");
+        assertThat(error).containsEntry("message", "Insufficient permissions for this operation");
+        assertThat(error).containsEntry("reason", "COMPANY_CONTEXT_MISMATCH");
+        assertThat(error).containsEntry(
+                "reasonDetail",
+                "Company header does not match authenticated company context");
+        assertThat(error).containsKey("traceId");
+    }
+
+    @Test
     void overlappingPublicAndAdminResetRequests_leaveLatestResetLinkUsable() throws Exception {
         UserAccount resetTarget = userAccountRepository.findByEmailIgnoreCase(USER_EMAIL).orElseThrow();
         String adminAccessToken = login(ADMIN_EMAIL, ADMIN_PASSWORD).get("accessToken").toString();

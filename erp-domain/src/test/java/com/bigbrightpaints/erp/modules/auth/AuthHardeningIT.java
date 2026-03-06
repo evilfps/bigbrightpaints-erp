@@ -40,8 +40,12 @@ public class AuthHardeningIT extends AbstractIntegrationTest {
     @BeforeEach
     void setup() {
         configureRestTemplate();
-        dataSeeder.ensureUser(USER_EMAIL, PASSWORD, "Lock Tester", COMPANY,
+        UserAccount user = dataSeeder.ensureUser(USER_EMAIL, PASSWORD, "Lock Tester", COMPANY,
                 java.util.List.of("ROLE_ADMIN", "ROLE_ACCOUNTING"));
+        user.setEnabled(true);
+        user.setFailedLoginAttempts(0);
+        user.setLockedUntil(null);
+        userAccountRepository.save(user);
     }
 
     private void configureRestTemplate() {
@@ -80,6 +84,16 @@ public class AuthHardeningIT extends AbstractIntegrationTest {
         );
         ResponseEntity<Map> lockedResp = rest.postForEntity("/api/v1/auth/login", goodReq, Map.class);
         assertThat(lockedResp.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        assertThat(lockedResp.getBody()).isNotNull();
+        assertThat(lockedResp.getBody()).containsEntry("success", false);
+        assertThat(lockedResp.getBody()).containsEntry("message", "Account is locked");
+        Object lockedData = lockedResp.getBody().get("data");
+        assertThat(lockedData).isInstanceOf(Map.class);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> lockedError = (Map<String, Object>) lockedData;
+        assertThat(lockedError).containsEntry("code", "AUTH_005");
+        assertThat(lockedError).containsEntry("message", "Account is locked");
+        assertThat(lockedError).containsKey("traceId");
         user = userAccountRepository.findByEmailIgnoreCase(USER_EMAIL).orElseThrow();
         assertThat(user.getLockedUntil()).isAfterOrEqualTo(lockedUntil);
 

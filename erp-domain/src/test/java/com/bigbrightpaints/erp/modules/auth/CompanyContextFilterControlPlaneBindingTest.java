@@ -2,6 +2,7 @@ package com.bigbrightpaints.erp.modules.auth;
 
 import com.bigbrightpaints.erp.core.security.CompanyContextFilter;
 import com.bigbrightpaints.erp.core.security.CompanyContextHolder;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccount;
 import com.bigbrightpaints.erp.modules.auth.domain.UserPrincipal;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
@@ -58,7 +59,10 @@ class CompanyContextFilterControlPlaneBindingTest {
 
     @BeforeEach
     void setUp() {
-        filter = new CompanyContextFilter(tenantRuntimeEnforcementService, companyService);
+        filter = new CompanyContextFilter(
+                tenantRuntimeEnforcementService,
+                companyService,
+                new ObjectMapper().findAndRegisterModules());
     }
 
     @AfterEach
@@ -140,7 +144,7 @@ class CompanyContextFilterControlPlaneBindingTest {
         filter.doFilter(request, response, filterChain);
 
         assertThat(response.getStatus()).isEqualTo(403);
-        assertThat(response.getErrorMessage()).isEqualTo(CONTROL_PLANE_AUTH_DENIED_MESSAGE);
+        assertThat(response.getContentAsString()).contains(CONTROL_PLANE_AUTH_DENIED_MESSAGE);
         verify(companyService).resolveCompanyCodeById(42L);
         verify(companyService, never()).resolveLifecycleStateByCode(anyString());
         verify(tenantRuntimeEnforcementService, never())
@@ -166,9 +170,9 @@ class CompanyContextFilterControlPlaneBindingTest {
         filter.doFilter(unknownTenantRequest, unknownTenantResponse, filterChain);
 
         assertThat(foreignTenantResponse.getStatus()).isEqualTo(403);
-        assertThat(foreignTenantResponse.getErrorMessage()).isEqualTo(CONTROL_PLANE_AUTH_DENIED_MESSAGE);
+        assertThat(foreignTenantResponse.getContentAsString()).contains(CONTROL_PLANE_AUTH_DENIED_MESSAGE);
         assertThat(unknownTenantResponse.getStatus()).isEqualTo(403);
-        assertThat(unknownTenantResponse.getErrorMessage()).isEqualTo(CONTROL_PLANE_AUTH_DENIED_MESSAGE);
+        assertThat(unknownTenantResponse.getContentAsString()).contains(CONTROL_PLANE_AUTH_DENIED_MESSAGE);
         verify(companyService).resolveCompanyCodeById(42L);
         verify(companyService).resolveCompanyCodeById(404L);
         verify(companyService, never()).resolveLifecycleStateByCode(anyString());
@@ -184,13 +188,13 @@ class CompanyContextFilterControlPlaneBindingTest {
         MockHttpServletResponse existingTenantResponse = new MockHttpServletResponse();
         filter.doFilter(existingTenantRequest, existingTenantResponse, filterChain);
         assertThat(existingTenantResponse.getStatus()).isEqualTo(403);
-        assertThat(existingTenantResponse.getErrorMessage()).isEqualTo(CONTROL_PLANE_AUTH_DENIED_MESSAGE);
+        assertThat(existingTenantResponse.getContentAsString()).contains(CONTROL_PLANE_AUTH_DENIED_MESSAGE);
 
         MockHttpServletRequest unknownTenantRequest = request("POST", "/api/v1/companies/404/lifecycle-state");
         MockHttpServletResponse unknownTenantResponse = new MockHttpServletResponse();
         filter.doFilter(unknownTenantRequest, unknownTenantResponse, filterChain);
         assertThat(unknownTenantResponse.getStatus()).isEqualTo(403);
-        assertThat(unknownTenantResponse.getErrorMessage()).isEqualTo(CONTROL_PLANE_AUTH_DENIED_MESSAGE);
+        assertThat(unknownTenantResponse.getContentAsString()).contains(CONTROL_PLANE_AUTH_DENIED_MESSAGE);
 
         verifyNoInteractions(companyService);
         verify(tenantRuntimeEnforcementService, never())
@@ -211,7 +215,7 @@ class CompanyContextFilterControlPlaneBindingTest {
         filter.doFilter(request, response, filterChain);
 
         assertThat(response.getStatus()).isEqualTo(403);
-        assertThat(response.getErrorMessage()).isEqualTo(CONTROL_PLANE_AUTH_DENIED_MESSAGE);
+        assertThat(response.getContentAsString()).contains(CONTROL_PLANE_AUTH_DENIED_MESSAGE);
         verifyNoInteractions(companyService);
         verify(tenantRuntimeEnforcementService, never())
                 .beginRequest(anyString(), anyString(), anyString(), anyString(), anyBoolean());
@@ -230,7 +234,7 @@ class CompanyContextFilterControlPlaneBindingTest {
         filter.doFilter(request, response, filterChain);
 
         assertThat(response.getStatus()).isEqualTo(403);
-        assertThat(response.getErrorMessage()).isEqualTo(CONTROL_PLANE_AUTH_DENIED_MESSAGE);
+        assertThat(response.getContentAsString()).contains(CONTROL_PLANE_AUTH_DENIED_MESSAGE);
         verifyNoInteractions(companyService);
         verify(tenantRuntimeEnforcementService, never())
                 .beginRequest(anyString(), anyString(), anyString(), anyString(), anyBoolean());
@@ -250,7 +254,7 @@ class CompanyContextFilterControlPlaneBindingTest {
         filter.doFilter(request, response, filterChain);
 
         assertThat(response.getStatus()).isEqualTo(403);
-        assertThat(response.getErrorMessage()).isEqualTo(CONTROL_PLANE_AUTH_DENIED_MESSAGE);
+        assertThat(response.getContentAsString()).contains(CONTROL_PLANE_AUTH_DENIED_MESSAGE);
         verify(companyService).resolveCompanyCodeById(404L);
         verify(companyService, never()).resolveLifecycleStateByCode(anyString());
         verify(tenantRuntimeEnforcementService, never())
@@ -326,7 +330,12 @@ class CompanyContextFilterControlPlaneBindingTest {
                             countersClass,
                             int.class,
                             String.class,
-                            boolean.class);
+                            boolean.class,
+                            String.class,
+                            String.class,
+                            String.class,
+                            String.class,
+                            String.class);
             constructor.setAccessible(true);
             return constructor.newInstance(
                     admitted,
@@ -335,7 +344,12 @@ class CompanyContextFilterControlPlaneBindingTest {
                     admitted ? counters : null,
                     statusCode,
                     message,
-                    false);
+                    false,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null);
         } catch (ReflectiveOperationException ex) {
             throw new IllegalStateException("Unable to construct tenant admission handle", ex);
         }

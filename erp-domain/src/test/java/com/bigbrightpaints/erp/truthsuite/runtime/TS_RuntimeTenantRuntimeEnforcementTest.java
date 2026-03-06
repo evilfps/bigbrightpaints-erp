@@ -12,6 +12,8 @@ import static org.mockito.Mockito.when;
 
 import com.bigbrightpaints.erp.core.security.CompanyContextFilter;
 import com.bigbrightpaints.erp.core.security.CompanyContextHolder;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccount;
 import com.bigbrightpaints.erp.modules.auth.domain.UserPrincipal;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
@@ -21,6 +23,7 @@ import com.bigbrightpaints.erp.modules.company.service.TenantRuntimeEnforcementS
 import io.jsonwebtoken.Claims;
 import java.util.Arrays;
 import java.lang.reflect.Constructor;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterEach;
@@ -54,7 +57,10 @@ class TS_RuntimeTenantRuntimeEnforcementTest {
 
     @BeforeEach
     void setUp() {
-        filter = new CompanyContextFilter(tenantRuntimeEnforcementService, companyService);
+        filter = new CompanyContextFilter(
+                tenantRuntimeEnforcementService,
+                companyService,
+                new ObjectMapper().findAndRegisterModules());
     }
 
     @AfterEach
@@ -162,7 +168,7 @@ class TS_RuntimeTenantRuntimeEnforcementTest {
         filter.doFilter(request, response, chain);
 
         assertThat(response.getStatus()).isEqualTo(403);
-        assertThat(response.getErrorMessage()).isEqualTo("Tenant is suspended");
+        assertThat(response.getContentAsString()).contains("Tenant is suspended");
         assertThat(chain.getRequest()).isNull();
         verify(companyService).resolveLifecycleStateByCode("ACME");
         verify(tenantRuntimeEnforcementService, never())
@@ -361,7 +367,10 @@ class TS_RuntimeTenantRuntimeEnforcementTest {
 
         assertThat(response.getStatus()).isEqualTo(429);
         assertThat(response.getContentType()).isEqualTo("application/json;charset=UTF-8");
-        assertThat(response.getContentAsString()).isEqualTo("{\"message\":\"quota \\\"hit\\\" \\\\\\\\ retry\"}");
+        Map<String, Object> payload = new ObjectMapper().findAndRegisterModules()
+                .readValue(response.getContentAsString(), new TypeReference<>() {});
+        assertThat(payload).containsEntry("success", false);
+        assertThat(payload).containsEntry("message", "quota \"hit\" \\\\ retry");
         assertThat(chain.getRequest()).isNull();
         verify(tenantRuntimeEnforcementService).completeRequest(eq(deniedAdmission), eq(429));
     }
@@ -669,10 +678,25 @@ class TS_RuntimeTenantRuntimeEnforcementTest {
                             Arrays.stream(TenantRuntimeEnforcementService.TenantRequestAdmission.class
                                             .getDeclaredConstructors())
                                     .filter(candidate -> candidate.getParameterCount() == 6
-                                            || candidate.getParameterCount() == 7)
+                                            || candidate.getParameterCount() == 7
+                                            || candidate.getParameterCount() == 12)
                                     .findFirst()
                                     .orElseThrow();
             ctor.setAccessible(true);
+            if (ctor.getParameterCount() == 12) {
+                return ctor.newInstance(admitted,
+                        companyCode,
+                        "chain-id",
+                        null,
+                        statusCode,
+                        message,
+                        false,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null);
+            }
             if (ctor.getParameterCount() == 7) {
                 return ctor.newInstance(admitted, companyCode, "chain-id", null, statusCode, message, false);
             }
