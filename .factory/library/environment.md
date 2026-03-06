@@ -26,3 +26,8 @@ Environment variables, external dependencies, and setup notes.
 - Java 21 (OpenJDK 21.0.10)
 - Maven 3.8.7
 - Annotation processors: MapStruct 1.5.5.Final, Lombok 1.18.32
+
+## Security/Auth Mission Notes
+- Runtime validation for this mission expects the local PostgreSQL dependency to be available before starting the backend.
+- Mail and broker dependencies are only needed when a feature or validator requires runtime-assisted evidence.
+- The helper/subagent model alias is currently unreliable; workers should rely on direct compile/test/curl fallback when delegation fails.
