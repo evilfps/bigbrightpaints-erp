@@ -1,0 +1,31 @@
+{
+  "milestone": "operations-review",
+  "round": 1,
+  "status": "pass",
+  "generatedAt": "2026-03-06T00:03:36Z",
+  "assertionsSummary": {
+    "total": 6,
+    "passed": 6,
+    "failed": 0,
+    "blocked": 0
+  },
+  "passedAssertions": [
+    "VAL-MFG-001",
+    "VAL-MFG-002",
+    "VAL-MFG-003",
+    "VAL-FIN-001",
+    "VAL-ORCH-001",
+    "VAL-OPS-001"
+  ],
+  "failedAssertions": [],
+  "blockedAssertions": [],
+  "appliedUpdates": [],
+  "previousRound": null,
+  "flowReports": [
+    ".factory/validation/operations-review/user-testing/flows/operations-review-docs.json"
+  ],
+  "environmentConstraints": [
+    "Delegated Task/subagent launches failed with `Invalid model: custom:CLIProxyAPI-5.4-xhigh`; flow validation was completed directly in-session after the failed delegation attempt.",
+    "Passive runtime probes remained degraded during this round: `http://localhost:9090/actuator/health` returned HTTP 503 with `{\"status\":\"DOWN\"}`, `http://localhost:8081/actuator/health` returned HTTP 404, while TCP connects to `127.0.0.1:8081` and `127.0.0.1:5433` still succeeded. The operations-review assertion set was documentation-only and remained fully testable via `docs/code-review/**`."
+  ]
+}

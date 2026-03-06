@@ -1,0 +1,132 @@
+{
+  "groupId": "operations-review-docs",
+  "surface": "docs",
+  "generatedAt": "2026-03-06T00:03:36Z",
+  "assertions": [
+    {
+      "id": "VAL-MFG-001",
+      "status": "pass",
+      "reason": "The manufacturing/inventory review narrates the required catalog, raw-material, opening-stock, adjustment, production, packing, dispatch, valuation, and accounting-boundary flows across entrypoints, data path, service chain, and side-effect sections.",
+      "evidence": [
+        {
+          "source": "docs/code-review/flows/manufacturing-inventory.md",
+          "observed": "The file contains `## Entrypoints`, `## Data path and schema touchpoints`, `## Service chain`, and `## Side effects, integrations, and recovery behavior`, matching the contract's flow-narrative, entity-path, and side-effect coverage requirements."
+        },
+        {
+          "source": "docs/code-review/flows/manufacturing-inventory.md",
+          "observed": "The service-chain narrative explicitly covers `Dual product surfaces`, `Raw-material intake, receipts, and the purchasing boundary`, `Opening stock import`, `Adjustments and batch traceability`, `Production logs`, `Packaging mappings, standard packing, and bulk packing`, `Finished goods, reservations, dispatch, and COGS`, and `Valuation, reconciliation, and manual accounting overrides`."
+        },
+        {
+          "source": ".factory/validation/operations-review/scrutiny/reviews/manufacturing-inventory-review.json",
+          "observed": "Scrutiny marked the artifact PASS and summarized that it narrates dual product/catalog surfaces, raw-material intake and purchasing boundary, opening stock and adjustments, batch traceability, production and packing flows, finished-goods reservation/dispatch/COGS, valuation/reporting, and the inventory GL automation dependency."
+        }
+      ]
+    },
+    {
+      "id": "VAL-MFG-002",
+      "status": "pass",
+      "reason": "The manufacturing/inventory review explicitly documents stock, traceability, concurrency, costing, reservation, valuation, and replay invariants plus the failure modes that could corrupt operational or financial state.",
+      "evidence": [
+        {
+          "source": "docs/code-review/flows/manufacturing-inventory.md",
+          "observed": "`## State machine and idempotency assumptions` lists explicit assumptions for stock-bearing product masters, raw materials, finished goods, opening-stock import, production logs, packaging slips/reservations, and cost allocation, then details replay expectations for imports, adjustments, packing, bulk packing, cost allocation, production logs, and dispatch confirm."
+        },
+        {
+          "source": "docs/code-review/flows/manufacturing-inventory.md",
+          "observed": "`## Risk hotspots` calls out a critical inventory-accounting double-posting boundary, high master-data integrity risk between catalog paths, a high replay gap for production-log creation, optional packaging-BOM costing completeness, and historical valuation reconstruction risk."
+        },
+        {
+          "source": "python3 doc assertion check (2026-03-06T00:03:07Z)",
+          "observed": "The read-only validator reported `VAL-MFG-002` passed after confirming the manufacturing doc contains `## State machine and idempotency assumptions`, `## Risk hotspots`, and costing/concurrency keywords including `FIFO` and `WAC`."
+        }
+      ]
+    },
+    {
+      "id": "VAL-MFG-003",
+      "status": "pass",
+      "reason": "The manufacturing/inventory review explicitly explains the product-creation surfaces, the product-to-inventory linkage model, and the integrity risks created by noncanonical flows.",
+      "evidence": [
+        {
+          "source": "docs/code-review/flows/manufacturing-inventory.md",
+          "observed": "The service chain opens with `Dual product surfaces: one is generic, one is manufacturing-canonical`, distinguishing generic `CatalogService` CRUD from the accounting-aware `ProductionCatalogService` path that provisions inventory-linked rows and validates account metadata."
+        },
+        {
+          "source": "docs/code-review/flows/manufacturing-inventory.md",
+          "observed": "`Product-to-inventory linkage invariants` describes bidirectional convergence between `ProductionProduct`, `FinishedGood`, and `RawMaterial`, including `ensureCatalogFinishedGood(...)`, `syncRawMaterial(...)`, and `syncProductFromMaterial(...)`."
+        },
+        {
+          "source": "docs/code-review/flows/manufacturing-inventory.md",
+          "observed": "The doc explicitly records the product-integrity risk that `Opening stock can therefore create an FG row that is inventory-visible but not catalog/production-visible`, and `## Risk hotspots` further warns that using `/api/v1/catalog/products` instead of the accounting catalog path can leave a SKU unusable for valuation, reservation, or dispatch."
+        }
+      ]
+    },
+    {
+      "id": "VAL-FIN-001",
+      "status": "pass",
+      "reason": "The finance/reporting/audit review narrates accounting bootstrap, journal posting, period close/reopen, reconciliation, GST/tax, payroll accounting, audit surfaces, report/export governance, temporal reporting, and the GRN/inventory accounting boundary across the full stack.",
+      "evidence": [
+        {
+          "source": "docs/code-review/flows/finance-reporting-audit.md",
+          "observed": "The file contains `## Flow narrative`, `## Control points`, `## State machine and idempotency assumptions`, `## Side effects, integrations, and recovery behavior`, and `## Audit and reporting risks`, matching the contract's narrative, control-point, and risk requirements."
+        },
+        {
+          "source": "docs/code-review/flows/finance-reporting-audit.md",
+          "observed": "The flow narrative sections cover finance bootstrap and migration imports, strictly balanced journal posting, maker/checker period close, multi-layer reconciliation, GST/tax reporting, canonical and shortcut payroll accounting, three audit surfaces, report/export governance, and the purchasing/GRN double-posting answer."
+        },
+        {
+          "source": ".factory/validation/operations-review/scrutiny/reviews/finance-reporting-audit-review.json",
+          "observed": "Scrutiny marked the artifact PASS and summarized that it covers accounting bootstrap/defaults, balanced journal posting, maker/checker period close, reconciliation layers, GST/tax handling, payroll accounting, audit-trail surfaces, report/export governance, temporal reporting, and the GRN versus purchase-invoice double-posting boundary."
+        }
+      ]
+    },
+    {
+      "id": "VAL-ORCH-001",
+      "status": "pass",
+      "reason": "The orchestrator/background/integration review narrates command dispatch, auto-approval listeners, outbox publication, dashboards, schedulers, integration health, trace/correlation handling, retries, failure routing, and resilience assumptions with explicit side-effect analysis.",
+      "evidence": [
+        {
+          "source": "docs/code-review/flows/orchestrator-background-integration.md",
+          "observed": "The file contains `## Flow narrative`, `## Retries, failures, and failure routing`, `## Side effects, integrations, and recovery behavior`, and `## Resilience, observability, and incident recovery`, which map directly to the contract's narrative, retries/failures, and resilience requirements."
+        },
+        {
+          "source": "docs/code-review/flows/orchestrator-background-integration.md",
+          "observed": "The narrative walks through lease-based command dispatch, order-created auto-approval, fail-closed fulfillment/legacy dispatch branches, outbox publication and scheduler registration, dashboard aggregation, global event-health exposure, and non-ShedLock background jobs such as enterprise audit retries, GitHub sync, audit digests, and dunning sweeps."
+        },
+        {
+          "source": ".factory/validation/operations-review/scrutiny/reviews/orchestrator-background-integration-review.json",
+          "observed": "Scrutiny marked the artifact PASS and summarized that it covers command dispatch, outbox publication, listeners, scheduler jobs, integration health, trace/correlation handling, retries, failure routing, recovery assumptions, and observability gaps."
+        }
+      ]
+    },
+    {
+      "id": "VAL-OPS-001",
+      "status": "pass",
+      "reason": "The ops/runtime review documents runtime topology, env/secrets posture, health and management boundaries, observability hooks, blast radius, resilience/recovery assumptions, and the degraded runtime probe story affecting this review mission.",
+      "evidence": [
+        {
+          "source": "docs/code-review/ops-deployment-runtime.md",
+          "observed": "The file contains `## Runtime boundaries`, `## Env and secrets`, `## Health endpoints and management ports`, `## Observability`, `## Runtime dependencies and blast radius analysis`, `## Resilience and recovery`, and `## Degraded review surfaces and operational implications`, satisfying the contract's runtime-boundary, env/secrets, observability, and resilience coverage."
+        },
+        {
+          "source": "docs/code-review/ops-deployment-runtime.md",
+          "observed": "The degraded-surface table records `8081` health returning HTTP 404, `9090` as the management port, and `5433` as an unstable validator/benchmark dependency, then explains why docs-only assertions remain verifiable even when runtime evidence is inconsistent."
+        },
+        {
+          "source": "runtime probes (2026-03-06T00:03:07Z)",
+          "observed": "The current validation round saw TCP connects succeed on `127.0.0.1:8081` and `127.0.0.1:5433`, `http://localhost:9090/actuator/health` return HTTP 503 with `{\"status\":\"DOWN\"}`, and `http://localhost:8081/actuator/health` return HTTP 404; these observations reinforce the doc's claim that live runtime evidence is degraded and inconsistent."
+        }
+      ]
+    }
+  ],
+  "toolsUsed": [
+    "Task (delegation attempt failed)",
+    "Read",
+    "Grep",
+    "Execute"
+  ],
+  "frictions": [
+    "Task delegation to `user-testing-flow-validator` failed in this environment with `Invalid model: custom:CLIProxyAPI-5.4-xhigh`, so validation fell back to direct in-session docs inspection per `.factory/library/user-testing.md`.",
+    "Passive runtime probes remained degraded during this round: `http://localhost:9090/actuator/health` returned HTTP 503 with `{\"status\":\"DOWN\"}`, `http://localhost:8081/actuator/health` returned HTTP 404, while TCP connects to `127.0.0.1:8081` and `127.0.0.1:5433` still succeeded."
+  ],
+  "blockers": []
+}
