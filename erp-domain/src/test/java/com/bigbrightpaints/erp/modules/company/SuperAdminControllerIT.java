@@ -19,6 +19,7 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 class SuperAdminControllerIT extends AbstractIntegrationTest {
 
@@ -34,11 +35,24 @@ class SuperAdminControllerIT extends AbstractIntegrationTest {
     @Autowired
     private CompanyRepository companyRepository;
 
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
     @BeforeEach
     void seedUsers() {
         dataSeeder.ensureUser(ADMIN_EMAIL, PASSWORD, "Admin", COMPANY_CODE, List.of("ROLE_ADMIN"));
         dataSeeder.ensureUser(SUPER_ADMIN_EMAIL, PASSWORD, "Super Admin", ROOT_COMPANY_CODE,
                 List.of("ROLE_SUPER_ADMIN", "ROLE_ADMIN"));
+        companyRepository.findByCodeIgnoreCase(COMPANY_CODE).ifPresent(company -> {
+            company.setLifecycleState(CompanyLifecycleState.ACTIVE);
+            company.setLifecycleReason(null);
+            companyRepository.save(company);
+        });
+        companyRepository.findByCodeIgnoreCase(ROOT_COMPANY_CODE).ifPresent(company -> {
+            company.setLifecycleState(CompanyLifecycleState.ACTIVE);
+            company.setLifecycleReason(null);
+            companyRepository.save(company);
+        });
     }
 
     @Test
@@ -130,6 +144,37 @@ class SuperAdminControllerIT extends AbstractIntegrationTest {
     }
 
     @Test
+    void superAdmin_lifecycle_transitions_persist_schemaCompatible_values() {
+        Company tenant = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();
+        String superAdminToken = loginToken(SUPER_ADMIN_EMAIL, ROOT_COMPANY_CODE);
+        HttpHeaders superAdminHeaders = headers(superAdminToken, ROOT_COMPANY_CODE);
+
+        ResponseEntity<Map> suspendResponse = rest.exchange(
+                "/api/v1/superadmin/tenants/" + tenant.getId() + "/suspend",
+                HttpMethod.POST,
+                new HttpEntity<>(superAdminHeaders),
+                Map.class);
+        assertThat(suspendResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(readLifecycleState(tenant.getId())).isEqualTo("HOLD");
+
+        ResponseEntity<Map> activateResponse = rest.exchange(
+                "/api/v1/superadmin/tenants/" + tenant.getId() + "/activate",
+                HttpMethod.POST,
+                new HttpEntity<>(superAdminHeaders),
+                Map.class);
+        assertThat(activateResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(readLifecycleState(tenant.getId())).isEqualTo("ACTIVE");
+
+        ResponseEntity<Map> deactivateResponse = rest.exchange(
+                "/api/v1/superadmin/tenants/" + tenant.getId() + "/deactivate",
+                HttpMethod.POST,
+                new HttpEntity<>(superAdminHeaders),
+                Map.class);
+        assertThat(deactivateResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(readLifecycleState(tenant.getId())).isEqualTo("BLOCKED");
+    }
+
+    @Test
     void superAdmin_canConfigureTenantModules() {
         Company tenant = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();
         String superAdminToken = loginToken(SUPER_ADMIN_EMAIL, ROOT_COMPANY_CODE);
@@ -169,5 +214,12 @@ class SuperAdminControllerIT extends AbstractIntegrationTest {
                 "companyCode", companyCode);
         ResponseEntity<Map> response = rest.postForEntity("/api/v1/auth/login", request, Map.class);
         return (String) response.getBody().get("accessToken");
+    }
+
+    private String readLifecycleState(Long companyId) {
+        return jdbcTemplate.queryForObject(
+                "select lifecycle_state from companies where id = ?",
+                String.class,
+                companyId);
     }
 }

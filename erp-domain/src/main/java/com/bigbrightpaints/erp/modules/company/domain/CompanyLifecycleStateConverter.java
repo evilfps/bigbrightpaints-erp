@@ -16,7 +16,10 @@ public class CompanyLifecycleStateConverter implements AttributeConverter<Compan
 
     @Override
     public CompanyLifecycleState convertToEntityAttribute(String dbData) {
+        if (dbData == null || dbData.isBlank()) {
+            return CompanyLifecycleState.ACTIVE;
+        }
         return CompanyLifecycleState.fromStoredValue(dbData)
-                .orElse(CompanyLifecycleState.ACTIVE);
+                .orElse(CompanyLifecycleState.DEACTIVATED);
     }
 }

@@ -6,7 +6,6 @@ import com.bigbrightpaints.erp.test.AbstractIntegrationTest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Instant;
 
@@ -32,7 +31,7 @@ class RefreshTokenServiceTest extends AbstractIntegrationTest {
 
         RefreshToken stored = refreshTokenRepository.findAll().getFirst();
         assertThat(stored.getToken()).isNull();
-        assertThat(ReflectionTestUtils.getField(stored, "tokenDigest")).isNotNull();
+        assertThat(stored.getTokenDigest()).isNotNull();
 
         RefreshTokenService.TokenRecord record = refreshTokenService.consume(token).orElseThrow();
         assertThat(record.userEmail()).isEqualTo("user@example.com");

@@ -1,5 +1,7 @@
 package com.bigbrightpaints.erp.modules.company;
 
+import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
+import com.bigbrightpaints.erp.modules.company.domain.CompanyLifecycleState;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
 import com.bigbrightpaints.erp.test.AbstractIntegrationTest;
 import org.junit.jupiter.api.Test;
@@ -18,6 +20,7 @@ public class CompanyControllerIT extends AbstractIntegrationTest {
 
     @Autowired private TestRestTemplate rest;
     @Autowired private CompanyRepository companyRepository;
+    @Autowired private UserAccountRepository userAccountRepository;
     private static final String COMPANY_CODE = "ACME";
     private static final String ROOT_COMPANY_CODE = "ROOT";
     private static final String ADMIN_EMAIL = "admin@bbp.com";
@@ -34,6 +37,31 @@ public class CompanyControllerIT extends AbstractIntegrationTest {
                 java.util.List.of("ROLE_SUPER_ADMIN", "ROLE_ADMIN"));
         dataSeeder.ensureUser(HIERARCHY_SUPER_ADMIN_EMAIL, ADMIN_PASSWORD, "Hierarchy Super Admin", COMPANY_CODE,
                 java.util.List.of("ROLE_SUPER_ADMIN"));
+        userAccountRepository.findByEmailIgnoreCase(ADMIN_EMAIL).ifPresent(user -> {
+            user.setMustChangePassword(false);
+            user.setEnabled(true);
+            userAccountRepository.save(user);
+        });
+        userAccountRepository.findByEmailIgnoreCase(SUPER_ADMIN_EMAIL).ifPresent(user -> {
+            user.setMustChangePassword(false);
+            user.setEnabled(true);
+            userAccountRepository.save(user);
+        });
+        userAccountRepository.findByEmailIgnoreCase(HIERARCHY_SUPER_ADMIN_EMAIL).ifPresent(user -> {
+            user.setMustChangePassword(false);
+            user.setEnabled(true);
+            userAccountRepository.save(user);
+        });
+        companyRepository.findByCodeIgnoreCase(COMPANY_CODE).ifPresent(company -> {
+            company.setLifecycleState(CompanyLifecycleState.ACTIVE);
+            company.setLifecycleReason(null);
+            companyRepository.save(company);
+        });
+        companyRepository.findByCodeIgnoreCase(ROOT_COMPANY_CODE).ifPresent(company -> {
+            company.setLifecycleState(CompanyLifecycleState.ACTIVE);
+            company.setLifecycleReason(null);
+            companyRepository.save(company);
+        });
     }
 
     private String loginToken() {
@@ -62,6 +90,7 @@ public class CompanyControllerIT extends AbstractIntegrationTest {
         HttpHeaders headers = new HttpHeaders();
         headers.setBearerAuth(token);
         headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.set("X-Company-Code", COMPANY_CODE);
 
         ResponseEntity<Map> listResp = rest.exchange("/api/v1/companies", HttpMethod.GET, new HttpEntity<>(headers), Map.class);
         assertThat(listResp.getStatusCode()).isEqualTo(HttpStatus.OK);

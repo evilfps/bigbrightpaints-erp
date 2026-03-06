@@ -118,7 +118,7 @@ class PasswordResetServiceTest {
         // ensure token is linked to the same user
         assertEquals(user, tokenCaptor.getValue().getUser());
         assertNull(tokenCaptor.getValue().getToken());
-        assertTrue(ReflectionTestUtils.getField(tokenCaptor.getValue(), "tokenDigest") instanceof String);
+        assertTrue(tokenCaptor.getValue().getTokenDigest() instanceof String);
         assertTrue(emailTokenCaptor.getValue() != null && !emailTokenCaptor.getValue().isBlank());
     }
 
