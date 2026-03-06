@@ -1,0 +1,128 @@
+{
+  "groupId": "auth-boundaries-round3",
+  "surface": "api",
+  "appUrl": "http://localhost:8081",
+  "testedAt": "2026-03-06T16:45:37Z",
+  "credentials": {
+    "account": "ut_taab_auth_boundaries_3",
+    "namespace": "ut_taab_auth_boundaries_3",
+    "actors": [
+      "ut.taab.admin2@example.com",
+      "uat.superadmin@example.com",
+      "uat.sales@example.com"
+    ]
+  },
+  "toolsUsed": [
+    "curl runtime probe",
+    "python urllib API probes",
+    "mvn test -Djacoco.skip=true -pl . '-Dtest=AdminUserSecurityIT,AdminUserServiceTest,CompanyContextFilterPasswordResetBypassTest,AuthTenantAuthorityIT'"
+  ],
+  "assertions": [
+    {
+      "id": "VAL-RESET-002",
+      "title": "Resetting or controlling other users respects tenant and role boundaries",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Probe support-reset denials for foreign and unknown tenants as tenant admin `ut.taab.admin2@example.com` in `UTTAAB2`",
+          "expected": "Both out-of-scope support-reset attempts are denied with one uniform controlled contract",
+          "observed": "`POST /api/v1/companies/1/support/admin-password-reset` and `POST /api/v1/companies/9999/support/admin-password-reset` both returned 403 with `message=Access denied`, `code=AUTH_004`, `reason=COMPANY_CONTROL_ACCESS_DENIED`, and the same `reasonDetail`; only `traceId`/`timestamp` changed."
+        },
+        {
+          "action": "Probe authorized super-admin support reset and admin force reset after restarting the compose runtime with explicit MailHog SMTP overrides",
+          "expected": "Authorized super-admin reset paths succeed without temporary-credential leakage",
+          "observed": "`POST /api/v1/admin/users/3/force-reset-password` returned 200 `Password reset link sent`, and `POST /api/v1/companies/2/support/admin-password-reset` returned 200 `Admin credentials reset and emailed` with `data={companyId:2, companyCode:UTTAAB2, adminEmail:ut.taab.admin2@example.com, status:credentials-emailed}` and no temporary-password fields."
+        },
+        {
+          "action": "Run the boundary regression suites covering reset/control behavior",
+          "expected": "Tenant-boundary reset/control suites pass cleanly",
+          "observed": "`mvn test -Djacoco.skip=true -pl . '-Dtest=AdminUserSecurityIT,AdminUserServiceTest,CompanyContextFilterPasswordResetBypassTest,AuthTenantAuthorityIT'` completed with `BUILD SUCCESS`; 57 tests ran with 0 failures and 0 errors, including the previously failing support-reset denial and denial-audit matrix coverage."
+        }
+      ],
+      "evidence": {
+        "runtime": {
+          "foreignSupportResetStatus": 403,
+          "unknownSupportResetStatus": 403,
+          "foreignSupportResetCode": "AUTH_004",
+          "unknownSupportResetCode": "AUTH_004",
+          "superAdminForceResetStatus": 200,
+          "superAdminSupportResetStatus": 200,
+          "superAdminSupportResetData": {
+            "companyId": 2,
+            "companyCode": "UTTAAB2",
+            "adminEmail": "ut.taab.admin2@example.com",
+            "status": "credentials-emailed"
+          }
+        },
+        "tests": {
+          "command": "cd /home/realnigga/Desktop/Mission-control/erp-domain && mvn test -Djacoco.skip=true -pl . '-Dtest=AdminUserSecurityIT,AdminUserServiceTest,CompanyContextFilterPasswordResetBypassTest,AuthTenantAuthorityIT'",
+          "result": "BUILD SUCCESS; Tests run: 57, Failures: 0, Errors: 0, Skipped: 0"
+        }
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-AUTHZ-002",
+      "title": "Privileged auth-sensitive user actions are boundary-consistent",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Probe representative deny/allow privileged user actions on the compose runtime",
+          "expected": "Tenant admin is denied cross-tenant privileged actions while super-admin retains the allowed path",
+          "observed": "Tenant admin `ut.taab.admin2@example.com` received 403 `AUTH_004` on `POST /api/v1/admin/users/3/force-reset-password` and `PUT /api/v1/admin/users/3/status`, while super-admin `uat.superadmin@example.com` received 200 for the same force-reset and disable/reenable status update sequence on user `uat.sales@example.com` (id `3`)."
+        },
+        {
+          "action": "Re-run the dedicated privileged-action matrix and adjacent admin-security regressions",
+          "expected": "Boundary matrix and denial-audit evidence pass across reset, suspend, unsuspend, disable, delete, and MFA-disable paths",
+          "observed": "The 57-test targeted suite passed, including `AuthTenantAuthorityIT` and `AdminUserSecurityIT`; the rerun no longer reports missing `ACCESS_DENIED` audit metadata and the privileged-action matrix is validation-clean."
+        }
+      ],
+      "evidence": {
+        "runtime": {
+          "tenantAdminForceResetStatus": 403,
+          "tenantAdminDisableStatus": 403,
+          "tenantAdminDeniedCode": "AUTH_004",
+          "superAdminForceResetStatus": 200,
+          "superAdminDisableStatus": 200,
+          "superAdminReenableStatus": 200
+        },
+        "tests": {
+          "command": "cd /home/realnigga/Desktop/Mission-control/erp-domain && mvn test -Djacoco.skip=true -pl . '-Dtest=AdminUserSecurityIT,AdminUserServiceTest,CompanyContextFilterPasswordResetBypassTest,AuthTenantAuthorityIT'",
+          "result": "BUILD SUCCESS; Tests run: 57, Failures: 0, Errors: 0, Skipped: 0"
+        }
+      },
+      "issues": null
+    }
+  ],
+  "frictions": [
+    {
+      "description": "Launching the delegated `user-testing-flow-validator` subagent failed immediately with `Invalid model: custom:CLIProxyAPI-5.4-high`.",
+      "resolved": true,
+      "resolution": "Fell back to direct in-session validation, consistent with mission guidance.",
+      "affectedAssertions": [
+        "VAL-RESET-002",
+        "VAL-AUTHZ-002"
+      ]
+    },
+    {
+      "description": "The compose-backed runtime initially inherited `.env` SMTP credentials, which made reset-allow probes fail with `503 SYS_004 Failed to dispatch email via SMTP` even though MailHog was running.",
+      "resolved": true,
+      "resolution": "Recreated the app with explicit MailHog SMTP overrides and recorded the exact command in `.factory/library/user-testing.md`; reset-allow probes then returned 200.",
+      "affectedAssertions": [
+        "VAL-RESET-002",
+        "VAL-AUTHZ-002"
+      ]
+    },
+    {
+      "description": "The compose app still reports `503 {\"status\":\"DOWN\"}` on `/actuator/health` even while auth/admin API probes on `8081` succeed.",
+      "resolved": false,
+      "resolution": "Treated the health endpoint as non-blocking and verified the target API endpoints directly; documented the behavior in `.factory/library/user-testing.md`.",
+      "affectedAssertions": [
+        "VAL-RESET-002",
+        "VAL-AUTHZ-002"
+      ]
+    }
+  ],
+  "blockers": [],
+  "summary": "The rerun validated both remaining tenant-admin auth-boundary assertions as passing. After forcing MailHog SMTP overrides on the compose runtime, live probes showed tenant-admin cross-tenant reset/control attempts returning uniform 403 `AUTH_004` contracts while authorized super-admin reset/control paths returned 200, and the dedicated 57-test boundary suite passed cleanly."
+}

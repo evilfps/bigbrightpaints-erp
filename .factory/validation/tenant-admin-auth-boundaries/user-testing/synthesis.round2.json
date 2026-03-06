@@ -1,0 +1,34 @@
+{
+  "milestone": "tenant-admin-auth-boundaries",
+  "round": 2,
+  "status": "fail",
+  "generatedAt": "2026-03-06T16:15:56Z",
+  "assertionsSummary": {
+    "total": 2,
+    "passed": 0,
+    "failed": 2,
+    "blocked": 0
+  },
+  "passedAssertions": [],
+  "failedAssertions": [
+    {
+      "id": "VAL-RESET-002",
+      "reason": "`AuthTenantAuthorityIT` still fails because denied privileged/reset actions do not emit the expected `ACCESS_DENIED` audit metadata, and the support-reset denial regression remains red on rerun."
+    },
+    {
+      "id": "VAL-AUTHZ-002",
+      "reason": "The privileged-action boundary matrix remains validation-red: denied privileged actions still miss expected `ACCESS_DENIED` audit evidence, and no fresh live runtime probe was available in this rerun."
+    }
+  ],
+  "blockedAssertions": [],
+  "appliedUpdates": [],
+  "previousRound": ".factory/validation/tenant-admin-auth-boundaries/user-testing/synthesis.round1.json",
+  "flowReports": [
+    ".factory/validation/tenant-admin-auth-boundaries/user-testing/flows/auth-boundaries-rerun.json"
+  ],
+  "environmentConstraints": [
+    "The delegated `user-testing-flow-validator` helper still could not launch because the local Task runner references `custom:CLIProxyAPI-5.4-high`; validation was completed directly in-session.",
+    "`curl http://localhost:9090/actuator/health` returned exit code 7 / HTTP 000 during this rerun, so no fresh live API probes were available.",
+    "Validation evidence for this rerun comes from the dedicated `AuthTenantAuthorityIT` integration suite plus the preserved round-1 runtime evidence."
+  ]
+}
