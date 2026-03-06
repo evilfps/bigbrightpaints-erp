@@ -55,8 +55,6 @@ public class PasswordResetService {
     private static final String SUPER_ADMIN_CLEANUP_FAILURE_SECURITY_EVENT_CODE =
             "SEC_AUTH_SUPERADMIN_RESET_CLEANUP_FAILURE";
     private static final String PUBLIC_RESET_PERSISTENCE_FAILURE_REASON_CODE = "RESET_PERSISTENCE_FAILURE";
-    private static final String PUBLIC_RESET_PERSISTENCE_FAILURE_MESSAGE =
-            "Password reset request could not be processed. Please try again later.";
     private static final int MAX_TENANT_CONTEXT_LENGTH = 64;
     private static final Pattern SAFE_TENANT_CONTEXT_PATTERN =
             Pattern.compile("^[A-Za-z0-9._:-]{1,64}$");
@@ -264,27 +262,15 @@ public class PasswordResetService {
             emailService.sendPasswordResetEmailRequired(user.getEmail(), user.getDisplayName(), issuedResetToken.rawToken());
             return true;
         } catch (RuntimeException ex) {
-            cleanupIssuedResetToken(issuedResetToken, correlationId, maskedEmail);
-            if (suppressFailures && shouldSuppressPublicResetFailure(ex, issuedResetToken)) {
-                log.warn(
-                        "event=password_reset.{}.masked policy={} correlationId={} email={} outcome=suppressed_failure exceptionClass={}",
-                        operation,
-                        RESET_POLICY_SCOPE,
-                        correlationId,
-                        maskedEmail,
-                        ex.getClass().getSimpleName());
-                return false;
+            RuntimeException cleanupFailure = suppressFailures
+                    ? cleanupIssuedResetTokenMasked(issuedResetToken, correlationId, maskedEmail, operation)
+                    : null;
+            if (!suppressFailures) {
+                cleanupIssuedResetToken(issuedResetToken, correlationId, maskedEmail);
             }
             if (suppressFailures) {
-                log.error(
-                        "event=password_reset.{}.failed policy={} correlationId={} email={} outcome=token_persistence_failed reasonCode={} exceptionClass={}",
-                        operation,
-                        RESET_POLICY_SCOPE,
-                        correlationId,
-                        maskedEmail,
-                        PUBLIC_RESET_PERSISTENCE_FAILURE_REASON_CODE,
-                        ex.getClass().getSimpleName());
-                throw publicResetPersistenceFailure(ex);
+                logMaskedPublicResetFailure(operation, correlationId, maskedEmail, ex, issuedResetToken, cleanupFailure);
+                return false;
             }
             log.warn(
                     "event=password_reset.{}.failed policy={} correlationId={} email={} outcome=delivery_failed exceptionClass={}",
@@ -295,26 +281,6 @@ public class PasswordResetService {
                     ex.getClass().getSimpleName());
             throw ex;
         }
-    }
-
-    private boolean shouldSuppressPublicResetFailure(RuntimeException exception, IssuedResetToken issuedResetToken) {
-        if (exception instanceof ApplicationException appException
-                && appException.getErrorCode() == ErrorCode.SYSTEM_CONFIGURATION_ERROR) {
-            return true;
-        }
-        return issuedResetToken != null && StringUtils.hasText(issuedResetToken.rawToken());
-    }
-
-    private ApplicationException publicResetPersistenceFailure(RuntimeException exception) {
-        if (exception instanceof ApplicationException appException
-                && appException.getErrorCode() == ErrorCode.SYSTEM_DATABASE_ERROR
-                && PUBLIC_RESET_PERSISTENCE_FAILURE_MESSAGE.equals(appException.getUserMessage())) {
-            return appException;
-        }
-        return new ApplicationException(
-                ErrorCode.SYSTEM_DATABASE_ERROR,
-                PUBLIC_RESET_PERSISTENCE_FAILURE_MESSAGE,
-                exception);
     }
 
     private IssuedResetToken issueResetToken(UserAccount user, String correlationId, String maskedEmail) {
@@ -365,6 +331,61 @@ public class PasswordResetService {
             assertTokenLifecycleTransactionActive("cleanup_failed_issue", correlationId, maskedEmail);
             deletePersistedResetToken(issuedResetToken.rawToken());
         });
+    }
+
+    private RuntimeException cleanupIssuedResetTokenMasked(IssuedResetToken issuedResetToken,
+                                                           String correlationId,
+                                                           String maskedEmail,
+                                                           String operation) {
+        try {
+            cleanupIssuedResetToken(issuedResetToken, correlationId, maskedEmail);
+            return null;
+        } catch (RuntimeException cleanupEx) {
+            log.error(
+                    "event=password_reset.{}.masked policy={} correlationId={} email={} outcome=cleanup_failed reasonCode={} exceptionClass={}",
+                    operation,
+                    RESET_POLICY_SCOPE,
+                    correlationId,
+                    maskedEmail,
+                    PUBLIC_RESET_PERSISTENCE_FAILURE_REASON_CODE,
+                    cleanupEx.getClass().getSimpleName());
+            return cleanupEx;
+        }
+    }
+
+    private void logMaskedPublicResetFailure(String operation,
+                                             String correlationId,
+                                             String maskedEmail,
+                                             RuntimeException dispatchFailure,
+                                             IssuedResetToken issuedResetToken,
+                                             RuntimeException cleanupFailure) {
+        RuntimeException effectiveFailure = cleanupFailure != null ? cleanupFailure : dispatchFailure;
+        if (isPublicResetPersistenceFailure(dispatchFailure, issuedResetToken) || cleanupFailure != null) {
+            log.error(
+                    "event=password_reset.{}.masked policy={} correlationId={} email={} outcome=suppressed_failure reasonCode={} exceptionClass={}",
+                    operation,
+                    RESET_POLICY_SCOPE,
+                    correlationId,
+                    maskedEmail,
+                    PUBLIC_RESET_PERSISTENCE_FAILURE_REASON_CODE,
+                    effectiveFailure.getClass().getSimpleName());
+            return;
+        }
+        log.warn(
+                "event=password_reset.{}.masked policy={} correlationId={} email={} outcome=suppressed_failure exceptionClass={}",
+                operation,
+                RESET_POLICY_SCOPE,
+                correlationId,
+                maskedEmail,
+                effectiveFailure.getClass().getSimpleName());
+    }
+
+    private boolean isPublicResetPersistenceFailure(RuntimeException exception, IssuedResetToken issuedResetToken) {
+        if (exception instanceof ApplicationException appException
+                && appException.getErrorCode() == ErrorCode.SYSTEM_CONFIGURATION_ERROR) {
+            return false;
+        }
+        return issuedResetToken == null || !StringUtils.hasText(issuedResetToken.rawToken());
     }
 
     private void cleanupFailedSuperAdminResetToken(UserAccount user, String tokenValue, String correlationId) {
