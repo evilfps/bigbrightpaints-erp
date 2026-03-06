@@ -1,0 +1,205 @@
+{
+  "groupId": "review-followup-runtime",
+  "surface": "api",
+  "appUrl": "http://localhost:8081",
+  "testedAt": "2026-03-06T19:26:13Z",
+  "credentials": {
+    "account": "ut_review_followup_1",
+    "namespace": "ut_review_followup_1",
+    "actors": [
+      "uat.superadmin@example.com",
+      "ut.taab.admin2@example.com",
+      "ut.taab.user2@example.com",
+      "uat.sales@example.com"
+    ]
+  },
+  "toolsUsed": [
+    "docker compose runtime rebuild with explicit Flyway-v2 + MailHog overrides",
+    "python urllib API probes",
+    "docker exec psql lifecycle inspection and reversible corruption setup",
+    "repository doc review",
+    "mvn test -Djacoco.skip=true -pl . '-Dtest=CompanyControllerIT,CompanyServiceTest,TenantLifecycleServiceTest,TenantRuntimeEnforcementServiceTest,TS_RuntimeTenantRuntimeEnforcementTest,RefreshTokenServiceTest'",
+    "mvn test -Djacoco.skip=true -pl . '-Dtest=AdminUserSecurityIT,AdminUserServiceTest,AuthTenantAuthorityIT,RoleServiceRbacTenantIsolationTest,TenantAdminProvisioningServiceTest'"
+  ],
+  "assertions": [
+    {
+      "id": "VAL-LIFE-001",
+      "title": "Supported lifecycle persistence remains compatible with the rollout schema path",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Inspect the rebuilt compose runtime startup logs",
+          "expected": "The live validation runtime should boot on the supported Flyway v2 path",
+          "observed": "`docker compose logs app` showed profiles `prod, flyway-v2`, validated 46 migrations, and reported `Current version of schema \"public\": 158` before Tomcat started on `8081/9090`."
+        },
+        {
+          "action": "Drive tenant lifecycle mutations through the live super-admin endpoints and inspect persisted storage values in Postgres",
+          "expected": "API vocabulary remains `SUSPENDED` / `ACTIVE` / `DEACTIVATED` while stored values remain Flyway-v2-compatible (`HOLD` / `ACTIVE` / `BLOCKED`)",
+          "observed": "As `uat.superadmin@example.com`, `POST /api/v1/superadmin/tenants/2/suspend` returned 200 `Tenant suspended` with `data.status=SUSPENDED` while `companies.lifecycle_state` became `HOLD`; `POST /api/v1/superadmin/tenants/2/activate` returned 200 `Tenant activated` and persisted `ACTIVE`; `POST /api/v1/superadmin/tenants/2/deactivate` returned 200 `Tenant deactivated` with `data.status=DEACTIVATED` while the stored value became `BLOCKED`. The row was restored to `ACTIVE` after the probe."
+        },
+        {
+          "action": "Run the lifecycle-focused regression suite",
+          "expected": "Lifecycle persistence compatibility coverage passes cleanly",
+          "observed": "`mvn test -Djacoco.skip=true -pl . '-Dtest=CompanyControllerIT,CompanyServiceTest,TenantLifecycleServiceTest,TenantRuntimeEnforcementServiceTest,TS_RuntimeTenantRuntimeEnforcementTest,RefreshTokenServiceTest'` finished with `BUILD SUCCESS`; 152 tests ran with 0 failures and 0 errors."
+        }
+      ],
+      "evidence": {
+        "runtime": {
+          "profiles": [
+            "prod",
+            "flyway-v2"
+          ],
+          "schemaVersion": 158,
+          "suspendStatus": 200,
+          "suspendApiState": "SUSPENDED",
+          "afterSuspendDb": "HOLD",
+          "activateStatus": 200,
+          "afterActivateDb": "ACTIVE",
+          "deactivateStatus": 200,
+          "deactivateApiState": "DEACTIVATED",
+          "afterDeactivateDb": "BLOCKED",
+          "restoredDb": "ACTIVE"
+        },
+        "tests": {
+          "command": "cd /home/realnigga/Desktop/Mission-control/erp-domain && mvn test -Djacoco.skip=true -pl . '-Dtest=CompanyControllerIT,CompanyServiceTest,TenantLifecycleServiceTest,TenantRuntimeEnforcementServiceTest,TS_RuntimeTenantRuntimeEnforcementTest,RefreshTokenServiceTest'",
+          "result": "BUILD SUCCESS; Tests run: 152, Failures: 0, Errors: 0, Skipped: 0"
+        }
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-LIFE-002",
+      "title": "Unrecognized stored lifecycle values fail closed",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Temporarily inject an unsupported lifecycle value into the local validation tenant and probe protected endpoints",
+          "expected": "User-visible protected work should fail closed instead of treating the tenant as active",
+          "observed": "After temporarily dropping `chk_companies_lifecycle_state` and setting tenant `UTTAAB2` to `UNSUPPORTED_TEST_STATE`, `GET /api/v1/auth/me` for an existing UTTAAB2 admin bearer token returned 403, and `GET /api/v1/admin/users` returned 403 `ApiResponse` with `code=AUTH_004`, `reason=TENANT_LIFECYCLE_RESTRICTED`, and `reasonDetail=Tenant is deactivated`. The row value and check constraint were then restored to `ACTIVE` / `chk_companies_lifecycle_state`."
+        },
+        {
+          "action": "Cross-check the converter/runtime regression coverage for unknown stored values",
+          "expected": "Regression tests should confirm unknown lifecycle values map to a fail-closed runtime state",
+          "observed": "`CompanyLifecycleStateConverterTest.convertToEntityAttribute_failsClosed_forUnknownStoredValue` asserts that `mystery-state` maps to `DEACTIVATED`, and the same 152-test lifecycle-focused Maven subset passed cleanly, covering the runtime enforcement layer alongside the converter/service behavior."
+        }
+      ],
+      "evidence": {
+        "runtime": {
+          "corruptDbState": "UNSUPPORTED_TEST_STATE",
+          "meAfterCorruptStatus": 403,
+          "adminUsersAfterCorruptStatus": 403,
+          "adminUsersAfterCorruptCode": "AUTH_004",
+          "adminUsersAfterCorruptReason": "TENANT_LIFECYCLE_RESTRICTED",
+          "adminUsersAfterCorruptReasonDetail": "Tenant is deactivated",
+          "restoredDbState": "ACTIVE"
+        },
+        "tests": {
+          "converterTest": "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/company/domain/CompanyLifecycleStateConverterTest.java",
+          "command": "cd /home/realnigga/Desktop/Mission-control/erp-domain && mvn test -Djacoco.skip=true -pl . '-Dtest=CompanyControllerIT,CompanyServiceTest,TenantLifecycleServiceTest,TenantRuntimeEnforcementServiceTest,TS_RuntimeTenantRuntimeEnforcementTest,RefreshTokenServiceTest'",
+          "result": "BUILD SUCCESS; Tests run: 152, Failures: 0, Errors: 0, Skipped: 0"
+        }
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-AUTHZ-004",
+      "title": "Out-of-scope admin user targets stay indistinguishable from missing IDs",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Probe an in-scope tenant-admin user-control action on the live API",
+          "expected": "The tenant admin should keep the allowed in-tenant path",
+          "observed": "As `ut.taab.admin2@example.com` in `UTTAAB2`, `POST /api/v1/admin/users/8/force-reset-password` returned 200 `ApiResponse<String>` with `message=Password reset link sent` and `data=OK`."
+        },
+        {
+          "action": "Compare foreign-target and missing-target responses on auth-sensitive admin user-control endpoints",
+          "expected": "Foreign and missing ids should be externally indistinguishable for tenant-admin requests",
+          "observed": "`POST /api/v1/admin/users/3/force-reset-password` and `POST /api/v1/admin/users/999999/force-reset-password` both returned 400 `User not found` with the same controlled envelope (`success=false`, `message=User not found`, `data.code=VAL_001`, `data.reason=User not found`). `PUT /api/v1/admin/users/3/status` and `PUT /api/v1/admin/users/999999/status` likewise returned the same 400 `User not found` contract."
+        },
+        {
+          "action": "Probe the role-mutation controller guard and re-run the reviewed authz regression suite",
+          "expected": "Tenant-admin shared-role mutation is denied at the intended boundary while the reviewed authz regressions stay green",
+          "observed": "Tenant admin `POST /api/v1/admin/roles` with `{name: ROLE_ADMIN, permissions:[factory.dispatch]}` returned 403 `Access denied` with `code=AUTH_004`, confirming the controller guard stops shared-role mutation before service-level validation. A representative allowed super-admin path still succeeded on `POST /api/v1/admin/users/3/force-reset-password` with 200 `Password reset link sent`, and `mvn test -Djacoco.skip=true -pl . '-Dtest=AdminUserSecurityIT,AdminUserServiceTest,AuthTenantAuthorityIT,RoleServiceRbacTenantIsolationTest,TenantAdminProvisioningServiceTest'` finished with `BUILD SUCCESS`; 69 tests ran with 0 failures and 0 errors."
+        }
+      ],
+      "evidence": {
+        "runtime": {
+          "inScopeForceResetStatus": 200,
+          "foreignForceResetStatus": 400,
+          "missingForceResetStatus": 400,
+          "forceResetForeignMissingMatch": true,
+          "foreignStatusStatus": 400,
+          "missingStatusStatus": 400,
+          "statusForeignMissingMatch": true,
+          "roleCreateDeniedStatus": 403,
+          "roleCreateDeniedCode": "AUTH_004",
+          "superAdminForceResetStatus": 200
+        },
+        "tests": {
+          "command": "cd /home/realnigga/Desktop/Mission-control/erp-domain && mvn test -Djacoco.skip=true -pl . '-Dtest=AdminUserSecurityIT,AdminUserServiceTest,AuthTenantAuthorityIT,RoleServiceRbacTenantIsolationTest,TenantAdminProvisioningServiceTest'",
+          "result": "BUILD SUCCESS; Tests run: 69, Failures: 0, Errors: 0, Skipped: 0"
+        }
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-CROSS-003",
+      "title": "Frontend update v2 tracking exists for current and future frontend-impacting changes",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Review `docs/frontend-update-v2/README.md` and the review-followup feature notes",
+          "expected": "The dedicated tracker should exist and explicitly record both frontend-impacting and no-op entries for this milestone",
+          "observed": "`docs/frontend-update-v2/README.md` exists and lists both `tenant-lifecycle-rollout-safety-hardening` and `masked-admin-target-lookup-hardening` in the per-change tracker. The lifecycle row marks `Frontend action = None` / `No frontend code change required`, and the masked-target row marks `Frontend action = Review only` with the note to treat foreign-target and missing-target 400s the same."
+        },
+        {
+          "action": "Read the dedicated per-feature follow-up notes for the current milestone",
+          "expected": "Each current feature note should explicitly call out whether frontend work is needed",
+          "observed": "`docs/frontend-update-v2/tenant-lifecycle-rollout-safety-hardening.md` explicitly says no auth/admin/lifecycle request or response shapes changed and no frontend code change is required. `docs/frontend-update-v2/masked-admin-target-lookup-hardening.md` explicitly says no request-body or success-response shapes changed and explains the intentional masked 400 behavior without requiring new frontend code beyond treating foreign and missing targets the same."
+        }
+      ],
+      "evidence": {
+        "trackerDir": "/home/realnigga/Desktop/Mission-control/docs/frontend-update-v2",
+        "trackerReadme": "/home/realnigga/Desktop/Mission-control/docs/frontend-update-v2/README.md",
+        "milestoneFiles": [
+          "docs/frontend-update-v2/tenant-lifecycle-rollout-safety-hardening.md",
+          "docs/frontend-update-v2/masked-admin-target-lookup-hardening.md"
+        ]
+      },
+      "issues": null
+    }
+  ],
+  "frictions": [
+    {
+      "description": "Launching the delegated `user-testing-flow-validator` subagent failed immediately with `Invalid model: custom:CLIProxyAPI-5.4-high`.",
+      "resolved": true,
+      "resolution": "Fell back to direct in-session validation, consistent with mission guidance and the existing helper-failure note in `.factory/library/user-testing.md`.",
+      "affectedAssertions": [
+        "VAL-LIFE-001",
+        "VAL-LIFE-002",
+        "VAL-AUTHZ-004",
+        "VAL-CROSS-003"
+      ]
+    },
+    {
+      "description": "The compose-backed runtime initially served a stale app image after `docker compose up -d app`.",
+      "resolved": true,
+      "resolution": "Rebuilt and restarted the app with the explicit override command plus `--build`; the updated runtime then exposed the reviewed masking and lifecycle behavior. `.factory/library/user-testing.md` was updated to preserve this startup requirement.",
+      "affectedAssertions": [
+        "VAL-LIFE-001",
+        "VAL-LIFE-002",
+        "VAL-AUTHZ-004"
+      ]
+    },
+    {
+      "description": "The local `companies` table check constraint prevented direct insertion of an unsupported lifecycle value for the fail-closed runtime probe.",
+      "resolved": true,
+      "resolution": "Temporarily dropped `chk_companies_lifecycle_state`, inserted the unsupported value for the isolated tenant probe, captured the protected-endpoint denials, then restored both the row value and the check constraint.",
+      "affectedAssertions": [
+        "VAL-LIFE-002"
+      ]
+    }
+  ],
+  "blockers": [],
+  "summary": "Validated all four review-followup-hardening assertions directly in-session after the delegated flow-validator launch failed. The rebuilt compose runtime showed Flyway-v2 startup, super-admin lifecycle mutations persisted `HOLD` / `ACTIVE` / `BLOCKED` while keeping the existing API vocabulary, protected UTTAAB2 requests failed closed when an unsupported stored lifecycle value was injected, tenant-admin foreign vs missing user-control targets now return indistinguishable 400 envelopes, shared-role mutation is denied at the intended boundary, and `docs/frontend-update-v2/` explicitly tracks the milestone’s no-op and review-only frontend follow-up items."
+}

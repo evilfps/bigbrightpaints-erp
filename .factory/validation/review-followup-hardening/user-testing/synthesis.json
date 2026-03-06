@@ -1,0 +1,36 @@
+{
+  "milestone": "review-followup-hardening",
+  "round": 1,
+  "status": "pass",
+  "generatedAt": "2026-03-06T19:26:13Z",
+  "assertionsSummary": {
+    "total": 4,
+    "passed": 4,
+    "failed": 0,
+    "blocked": 0
+  },
+  "passedAssertions": [
+    "VAL-LIFE-001",
+    "VAL-LIFE-002",
+    "VAL-AUTHZ-004",
+    "VAL-CROSS-003"
+  ],
+  "failedAssertions": [],
+  "blockedAssertions": [],
+  "appliedUpdates": [
+    {
+      "target": "user-testing.md",
+      "description": "Updated the compose-runtime startup note to require `docker compose up -d --build app` with the explicit Flyway-v2/MailHog overrides, and documented that shared-role mutation probes must use a system role name while unknown-lifecycle probes should use protected endpoints and restore the local check constraint afterward.",
+      "source": "setup"
+    }
+  ],
+  "previousRound": null,
+  "flowReports": [
+    ".factory/validation/review-followup-hardening/user-testing/flows/review-followup-runtime.json"
+  ],
+  "environmentConstraints": [
+    "The delegated `user-testing-flow-validator` helper still fails immediately with `Invalid model: custom:CLIProxyAPI-5.4-high`, so this round used the approved direct in-session fallback.",
+    "The compose-backed runtime must be rebuilt with the explicit override command plus `--build`; `docker compose up -d app` alone can leave a stale image in place even though the container starts successfully.",
+    "The compose actuator health surface may still report `503 {\"status\":\"DOWN\"}` while the target auth/admin APIs on `8081` are usable, so readiness should be judged from the actual milestone endpoints rather than actuator alone."
+  ]
+}
