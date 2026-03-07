@@ -478,7 +478,7 @@ public class CompanyContextFilter extends OncePerRequestFilter {
                 : lifecycleState;
         return switch (resolvedState) {
             case ACTIVE -> false;
-            case SUSPENDED -> true;
+            case SUSPENDED -> isMutatingMethod(method);
             case DEACTIVATED -> true;
         };
     }
