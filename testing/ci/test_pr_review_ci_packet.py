@@ -25,6 +25,12 @@ changed_files_coverage = load_module("changed_files_coverage", CHANGED_COVERAGE_
 
 
 class CiRiskRouterTest(unittest.TestCase):
+    def test_pr_fast_profile_remains_defined_for_pr_callers(self):
+        pom_text = (REPO_ROOT / "erp-domain" / "pom.xml").read_text(encoding="utf-8")
+
+        self.assertIn("<id>pr-fast</id>", pom_text)
+        self.assertIn("<include>**/smoke/**/*Test.java</include>", pom_text)
+
     def test_docs_only_change_skips_runtime_shards_and_changed_coverage(self):
         flags = ci_risk_router.compute_flags(["docs/SECURITY.md"])
 
@@ -143,6 +149,16 @@ class ChangedFilesCoverageTest(unittest.TestCase):
     @staticmethod
     def run_git(repo_dir: Path, *args: str) -> str:
         return subprocess.check_output(["git", *args], cwd=repo_dir, text=True).strip()
+
+
+class RuntimeProbeContractTest(unittest.TestCase):
+    def test_runtime_probe_fails_closed_on_health_status(self):
+        services_text = (REPO_ROOT / ".factory" / "services.yaml").read_text(encoding="utf-8")
+
+        self.assertIn('status1=$(curl -s -o /tmp/factory-health.out -w \'%{http_code}\' http://localhost:9090/actuator/health || true)', services_text)
+        self.assertIn('[ "$status1" = "200" ]', services_text)
+        self.assertIn('[ "$status2" = "401" ]', services_text)
+        self.assertNotIn('echo "$status1;$status2" && { [ "$status2" = "200" ] || [ "$status2" = "401" ] || [ "$status2" = "403" ]; }', services_text)
 
 
 if __name__ == "__main__":

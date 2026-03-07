@@ -4,6 +4,26 @@ This register carries forward the findings from every completed area review plus
 
 Repeated themes (for example the inventory-accounting double-posting boundary) are intentionally preserved under each source review that found them. The goal of this register is traceability first, deduplication second.
 
+## Execution package
+
+This register is not the execution order. Use the execution package below when work starts:
+
+- [executable-specs/README.md](./executable-specs/README.md)
+- [executable-specs/00-program-map.md](./executable-specs/00-program-map.md)
+- [remediation-backlog.md](./remediation-backlog.md)
+
+Planning rule:
+- this register preserves every finding for traceability, but implementation should follow lane ownership, packet sequencing, and release gates from the executable-spec package
+
+## Validation-first findings in the current plan
+
+These items remain in the register for evidence traceability, but the current plan treats them as validation-first rather than automatic backend implementation:
+
+- `TEN-09`
+- `ADMIN-07`
+- `ADMIN-13`
+- `ORCH-10`
+
 ## Review-finding summary
 
 | Severity | Count |
@@ -87,6 +107,8 @@ Repeated themes (for example the inventory-accounting double-posting boundary) a
 
 **Affected surface:** Dealer credit, sales order lifecycle, dispatch, invoicing, settlement, and receivable truth
 
+Lane 03 opens from this sales / dispatch / orders pain, but it must do so through the prove-first boundary note in [`executable-specs/03-lane-accounting-truth-boundary/00-lane03-boundary-decision-note.md`](./executable-specs/03-lane-accounting-truth-boundary/00-lane03-boundary-decision-note.md): dispatch confirmation is the candidate canonical sales posting event, while order confirmation, invoice issuance, and marker-reconciliation stay downstream or repair-only until Packet 1 re-proves them.
+
 | ID | Severity | Category | Affected surface | Finding | Evidence | Impact |
 | --- | --- | --- | --- | --- | --- | --- |
 | O2C-01 | critical | accounting boundary / integrity | Dealer credit, sales order lifecycle, dispatch, invoicing, settlement, and receivable truth | Dispatch confirmation, not order confirmation, is the true AR/revenue/COGS boundary. Order-truth journal posting is intentionally disabled, and a separate marker-reconciliation endpoint exists to heal drift. | `SalesJournalService.postSalesJournal(...)`, `SalesFulfillmentService`, `SalesCoreEngine.confirmDispatch(...)`, `/sales/dispatch/reconcile-order-markers` | Any bypass, partial failure, or replay bug in dispatch can orphan revenue, tax, invoice, or inventory truth while the order itself still appears commercially valid. |
@@ -103,6 +125,8 @@ Repeated themes (for example the inventory-accounting double-posting boundary) a
 
 **Affected surface:** Supplier governance, purchase orders, goods receipts, returns, and AP settlement
 
+Lane 03 Packet 0 must keep this section tied to the same prove-first boundary note: goods receipt is the physical stock event, purchase invoicing is the candidate canonical AP posting event, and listener/manual inventory paths remain explicitly noncanonical until Packet 2 says otherwise.
+
 | ID | Severity | Category | Affected surface | Finding | Evidence | Impact |
 | --- | --- | --- | --- | --- | --- | --- |
 | P2P-01 | critical | accounting boundary / configuration assumption | Supplier governance, purchase orders, goods receipts, returns, and AP settlement | The AP truth boundary is purchase invoicing, not goods receipt, yet GRN posting emits `InventoryMovementEvent` with payable and inventory accounts populated. `CR_InventoryGlAutomationProdOffIT` proves production safety currently depends on `erp.inventory.accounting.events.enabled=false`. | `GoodsReceiptService`, `InventoryAccountingEventListener`, `CR_InventoryGlAutomationProdOffIT` | Re-enabling inventory auto-posting in production without redesign would likely create a second inventory/AP journal at receipt time in addition to the purchase invoice journal. |
@@ -115,6 +139,8 @@ Repeated themes (for example the inventory-accounting double-posting boundary) a
 ## [Manufacturing and inventory review](./flows/manufacturing-inventory.md)
 
 **Affected surface:** Product/catalog setup, stock movements, production, packing, valuation, and inventory-accounting boundaries
+
+For Lane 03 opening scope, manufacturing and inventory surfaces are downstream consumers of the boundary note first, not redesign targets: Packet 0 may map `ProductionLogService`, packing, valuation, and listener risk, but it must not collapse Packet 0 into catalog/manufacturing runtime cleanup.
 
 | ID | Severity | Category | Affected surface | Finding | Evidence | Impact |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -131,6 +157,8 @@ Repeated themes (for example the inventory-accounting double-posting boundary) a
 ## [Finance, reporting, and audit review](./flows/finance-reporting-audit.md)
 
 **Affected surface:** GL posting, period close, reporting, payroll accounting, export controls, and enterprise audit trail
+
+Lane 03 Packet 0 must also make the finance consumer contract explicit: period close, reconciliation, statements, and reports consume the chosen dispatch/purchase truth boundaries and may not be used to bless an alternate posting path just because a downstream discrepancy is visible.
 
 | ID | Severity | Category | Affected surface | Finding | Evidence | Impact |
 | --- | --- | --- | --- | --- | --- | --- |

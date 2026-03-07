@@ -208,6 +208,12 @@ resolve_canonical_base
 TRACEABILITY_STRICT_MODE="$GIT_CONTEXT_AVAILABLE"
 TRACEABILITY_FILE="$ARTIFACT_DIR/release-gate-traceability.json"
 
+echo "[gate-release] confidence-lane contract"
+python3 "$ROOT_DIR/scripts/validate_confidence_lanes.py" \
+  --contract "$ROOT_DIR/testing/local/confidence-lanes.json" \
+  --lane staging \
+  --output "$ARTIFACT_DIR/confidence-lane-contract.json"
+
 echo "[gate-release] validate catalog"
 python3 "$ROOT_DIR/scripts/validate_test_catalog.py" \
   --catalog "$ROOT_DIR/docs/CODE-RED/confidence-suite/TEST_CATALOG.json" \

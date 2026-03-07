@@ -1,0 +1,205 @@
+{
+  "contract_version": 1,
+  "authoritative_surfaces": {
+    "packet": "docs/code-review/executable-specs/08-lane-quality-governance/01-confidence-lanes-and-deployability-contract.md",
+    "library": ".factory/library/local-testing-confidence.md",
+    "quarantine": "scripts/test_quarantine.txt"
+  },
+  "risk_model": {
+    "P0": "auth, tenant isolation, accounting truth, migrations, period close, idempotency/outbox",
+    "P1": "high-value business workflows",
+    "P2": "cleanup, duplication, style, dead code"
+  },
+  "lane_order": [
+    "local",
+    "pr",
+    "main",
+    "staging",
+    "canary"
+  ],
+  "lanes": {
+    "local": {
+      "decision_point": "safe to continue coding",
+      "goal": "Protect the normal edit/run loop with fast, deterministic, business-critical proof instead of a giant undifferentiated suite.",
+      "prove": [
+        "The active slice still passes the curated dev-smoke/local-guard truthsuite manifests.",
+        "Fast-lane manifests remain fail-closed and still cover every stable critical non-flaky truthsuite test expected for local work.",
+        "No deployability claim is made from local-only evidence."
+      ],
+      "primary_commands": [
+        "test-dev-smoke",
+        "test-local-guard"
+      ],
+      "allowed_test_classes": [
+        "stable",
+        "deterministic",
+        "business-critical"
+      ],
+      "disallowed_proof": [
+        "infra-heavy suites used as the default coding loop",
+        "broad CODE-RED or nightly-quality suites treated as mandatory for every edit",
+        "staging/deployability sign-off from local-only success"
+      ]
+    },
+    "pr": {
+      "decision_point": "safe to merge",
+      "goal": "Keep routed PR CI as the authoritative merge-confidence lane without regressing the pre-existing bar.",
+      "prove": [
+        "The routed PR CI path passes with changed-files traceability, catalog/quarantine guards, and critical truthsuite proof.",
+        "Broken-test classification and quarantine policy ran before merge confidence was claimed.",
+        "Fast local shortcuts did not weaken the remote PR merge baseline."
+      ],
+      "primary_commands": [
+        "test-pr-ci"
+      ],
+      "required_scripts": [
+        "scripts/gate_fast.sh"
+      ],
+      "disallowed_proof": [
+        "manual reruns replacing CI evidence",
+        "treating local-only success as merge approval",
+        "staging-only deployability evidence used to waive PR regressions"
+      ]
+    },
+    "main": {
+      "decision_point": "safe to integrate",
+      "goal": "Add slower but still stable integration proof after merge, rather than pushing all of it into every local or PR loop.",
+      "prove": [
+        "The mainline gate-core lane passes critical, concurrency, and reconciliation truthsuite proof with hard guards.",
+        "Module-coverage and contract guards stay green for touched high-risk areas.",
+        "Integration confidence is stronger than PR confidence but still not a substitute for staging deployability evidence."
+      ],
+      "primary_commands": [
+        "test-baseline-core"
+      ],
+      "required_scripts": [
+        "scripts/gate_core.sh"
+      ],
+      "disallowed_proof": [
+        "smoke-only sign-off on its own",
+        "untagged flaky or low-signal suites promoted into blockers without classification"
+      ]
+    },
+    "staging": {
+      "decision_point": "safe to deploy",
+      "goal": "Prove the candidate artifact is deployable on the approved Flyway v2 path, not merely that tests happen to be green.",
+      "prove": [
+        "The release-grade lane passes with release guards, migration checks, and the deployable-state contract attached.",
+        "The candidate artifact demonstrates boot, health/readiness evidence, auth, tenant isolation, one O2C path, and one P2P/accounting path.",
+        "Rollback owner, trigger, and rehearsal evidence remain explicit before promotion."
+      ],
+      "primary_commands": [
+        "test-release-local"
+      ],
+      "required_scripts": [
+        "scripts/gate_release.sh",
+        "scripts/verify_local.sh"
+      ],
+      "deployable_state_required": true,
+      "disallowed_proof": [
+        "fast-lane success treated as deployability proof",
+        "degraded actuator health used to waive route-level runtime evidence",
+        "rollback omitted because the artifact compiled locally"
+      ]
+    },
+    "canary": {
+      "decision_point": "safe under real traffic",
+      "goal": "Treat canary as production-like confirmation after staging passes, never as a substitute for staging proof.",
+      "prove": [
+        "The already-staged artifact satisfies the deployable-state contract before receiving real traffic.",
+        "A narrow canary slice exercises auth, tenant isolation, one core O2C path, and one core P2P/accounting path under live telemetry.",
+        "Rollback-by-artifact-digest remains immediately available while the canary runs."
+      ],
+      "required_signals": [
+        "live telemetry",
+        "rollback readiness",
+        "lane-owner acknowledgement"
+      ],
+      "disallowed_proof": [
+        "treating canary as a replacement for staging",
+        "nightly bulk-suite success claimed as live-traffic evidence",
+        "expanding traffic before rollback and ownership are explicit"
+      ]
+    }
+  },
+  "deployable_state": {
+    "summary": "Deployable means the promoted artifact boots, migrates, protects tenant boundaries, proves one core O2C and one core P2P/accounting path, surfaces meaningful health/readiness evidence, and can roll back safely.",
+    "required_proof": [
+      {
+        "id": "app_boots",
+        "description": "Application boots on the promoted artifact/profile."
+      },
+      {
+        "id": "migrations_run",
+        "description": "Flyway v2 migrations apply cleanly on the approved path."
+      },
+      {
+        "id": "auth_works",
+        "description": "Auth surfaces respond with the expected controlled contract."
+      },
+      {
+        "id": "tenant_isolation_holds",
+        "description": "Tenant/company binding still fails closed."
+      },
+      {
+        "id": "o2c_path_works",
+        "description": "One core order-to-cash path succeeds on the candidate artifact."
+      },
+      {
+        "id": "p2p_accounting_path_works",
+        "description": "One core procure-to-pay/accounting path succeeds on the candidate artifact."
+      },
+      {
+        "id": "health_or_readiness_is_real",
+        "description": "Health/readiness evidence is captured; degraded actuator health cannot waive route-level proof."
+      },
+      {
+        "id": "rollback_is_possible",
+        "description": "Rollback owner, trigger threshold, and rehearsal path are explicit before promotion."
+      }
+    ]
+  },
+  "broken_test_policy": {
+    "summary": "Broken tests are information, not ceremony. Every failing or flaky test touched by this mission must be classified before it can influence a confidence lane.",
+    "classifications": {
+      "product-bug": {
+        "meaning": "The test exposed a real defect in production behavior or an invariant that the product currently violates.",
+        "default_action": "fix"
+      },
+      "bad-test": {
+        "meaning": "The assertion, fixture, or expectation is wrong or too stale to represent the real contract.",
+        "default_action": "delete-or-demote"
+      },
+      "infra-coupled": {
+        "meaning": "The failure depends on an environment or dependency that makes the test too unstable for a fast lane.",
+        "default_action": "quarantine-or-demote"
+      }
+    },
+    "allowed_actions": {
+      "fix": "Repair the product or the test and keep the strongest appropriate lane intact.",
+      "quarantine": "Allowed only with owner, repro_notes, start_date, expiry, classification, and action metadata in scripts/test_quarantine.txt; quarantined tests must stay out of gate-fast/core/release/reconciliation lane membership.",
+      "delete": "Remove the test only when it is proven obsolete and replaced by stronger proof or an explicit no-longer-needed contract.",
+      "demote": "Move the test to a slower or advisory lane when it is still useful but not stable enough for a fast lane."
+    },
+    "quarantine_metadata": {
+      "required_keys": [
+        "owner",
+        "repro_notes",
+        "start_date",
+        "expiry",
+        "classification",
+        "action"
+      ],
+      "classification_enum": [
+        "product-bug",
+        "bad-test",
+        "infra-coupled"
+      ],
+      "action_enum": [
+        "quarantine"
+      ],
+      "max_expiry_days_from_start": 14
+    },
+    "fast_lane_rule": "Fast lanes remain reserved for stable, business-critical proof. Slow, infra-heavy, or low-signal evidence belongs in stronger lanes or advisory observation loops instead of the default developer loop."
+  }
+}

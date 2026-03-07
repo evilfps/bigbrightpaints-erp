@@ -20,6 +20,20 @@ Primary evidence:
 
 Supporting runtime evidence was degraded in this session: `curl -i -s http://localhost:8081/actuator/health` failed with exit code `7`, so this review relies on static inspection plus existing tests. Baseline suite `mvn test -Pgate-fast -Djacoco.skip=true` passed before drafting.
 
+## Executable remediation handoff
+
+This review feeds:
+
+- [Lane 03 exec spec](../executable-specs/03-lane-accounting-truth-boundary/EXEC-SPEC.md)
+- [Lane 04 exec spec](../executable-specs/04-lane-commercial-workflows/EXEC-SPEC.md)
+
+Planning notes:
+
+- Lane 03 Packet 0 is the prove-first boundary note in [`../executable-specs/03-lane-accounting-truth-boundary/00-lane03-boundary-decision-note.md`](../executable-specs/03-lane-accounting-truth-boundary/00-lane03-boundary-decision-note.md); it keeps `GoodsReceiptService` as the physical stock boundary, `PurchaseInvoiceEngine` as the candidate canonical AP truth boundary, and the inventory-accounting listener/manual inventory journals explicitly noncanonical until Packet 2 narrows them.
+- Downstream P2P/finance consumers that must inherit that note are `AccountingCoreEngineCore.{recordSupplierPayment,settleSupplierInvoices,autoSettleSupplier}(...)`, `SupplierLedgerService`, `StatementService`, `ReconciliationServiceCore`, and `AccountingPeriodServiceCore`.
+- `P2P-01` stays in Lane 03 because purchase invoice remains the canonical AP boundary and goods receipt must not become a second posting path.
+- Keep GRN idempotency and settlement-parity hardening in Lane 04, separate from posting-boundary redesign.
+
 ## Entrypoints
 
 | Surface | Entrypoints | Controller | Notes |

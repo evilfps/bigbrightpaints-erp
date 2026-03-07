@@ -1,0 +1,1654 @@
+{
+  "contract_version": 1,
+  "suite": "confidence-suite",
+  "source_of_truth": "junit-tags",
+  "tests_root": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite",
+  "tests": [
+    {
+      "id": "test-catalog::accounting-ts-accountingauditsafetycoveragetest-java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/accounting/TS_AccountingAuditSafetyCoverageTest.java",
+      "module": "accounting",
+      "owner": "lane03-accounting-truth",
+      "class": "critical",
+      "tags": [
+        "critical",
+        "reconciliation"
+      ],
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-reconciliation",
+        "gate-quality"
+      ],
+      "accounting_math_critical": true,
+      "cross_module_critical": false
+    },
+    {
+      "id": "test-catalog::accounting-ts-accountingaudittrailconsistencycontracttest-java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/accounting/TS_AccountingAuditTrailConsistencyContractTest.java",
+      "module": "accounting",
+      "owner": "lane03-accounting-truth",
+      "class": "critical",
+      "tags": [
+        "critical",
+        "reconciliation"
+      ],
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-reconciliation",
+        "gate-quality"
+      ],
+      "accounting_math_critical": true,
+      "cross_module_critical": false
+    },
+    {
+      "id": "test-catalog::accounting-ts-accountingcontrolleridempotencyheaderparityruntimecoveragetest-java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/accounting/TS_AccountingControllerIdempotencyHeaderParityRuntimeCoverageTest.java",
+      "module": "accounting",
+      "owner": "lane03-accounting-truth",
+      "class": "critical",
+      "tags": [
+        "concurrency",
+        "critical",
+        "reconciliation"
+      ],
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-reconciliation",
+        "gate-quality"
+      ],
+      "accounting_math_critical": true,
+      "cross_module_critical": false
+    },
+    {
+      "id": "test-catalog::accounting-ts-accountingperiodclosechecklistsafetycontracttest-java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/accounting/TS_AccountingPeriodCloseChecklistSafetyContractTest.java",
+      "module": "accounting",
+      "owner": "lane03-accounting-truth",
+      "class": "critical",
+      "tags": [
+        "critical",
+        "reconciliation"
+      ],
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-reconciliation",
+        "gate-quality"
+      ],
+      "accounting_math_critical": true,
+      "cross_module_critical": false
+    },
+    {
+      "id": "test-catalog::accounting-ts-accountingperiodreopenauthorizationcontracttest-java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/accounting/TS_AccountingPeriodReopenAuthorizationContractTest.java",
+      "module": "accounting",
+      "owner": "lane03-accounting-truth",
+      "class": "critical",
+      "tags": [
+        "critical"
+      ],
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-quality"
+      ],
+      "accounting_math_critical": true,
+      "cross_module_critical": false
+    },
+    {
+      "id": "test-catalog::accounting-ts-doubleentrymathinvarianttest-java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/accounting/TS_DoubleEntryMathInvariantTest.java",
+      "module": "accounting",
+      "owner": "lane03-accounting-truth",
+      "class": "critical",
+      "tags": [
+        "critical",
+        "reconciliation"
+      ],
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-reconciliation",
+        "gate-quality"
+      ],
+      "accounting_math_critical": true,
+      "cross_module_critical": false
+    },
+    {
+      "id": "test-catalog::accounting-ts-subledgercontrolreconciliationcontracttest-java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/accounting/TS_SubledgerControlReconciliationContractTest.java",
+      "module": "accounting",
+      "owner": "lane03-accounting-truth",
+      "class": "critical",
+      "tags": [
+        "critical",
+        "reconciliation"
+      ],
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-reconciliation",
+        "gate-quality"
+      ],
+      "accounting_math_critical": true,
+      "cross_module_critical": false
+    },
+    {
+      "id": "test-catalog::catalog-ts-catalogimportcompanyscopedidempotencytest-java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/catalog/TS_CatalogImportCompanyScopedIdempotencyTest.java",
+      "module": "catalog",
+      "owner": "lane05-catalog-manufacturing",
+      "class": "critical",
+      "tags": [
+        "concurrency",
+        "critical"
+      ],
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-quality"
+      ],
+      "accounting_math_critical": false,
+      "cross_module_critical": false
+    },
+    {
+      "id": "test-catalog::crossmodule-ts-costinghelpercentralizationcontracttest-java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/crossmodule/TS_CostingHelperCentralizationContractTest.java",
+      "module": "crossmodule",
+      "owner": "lane08-quality-governance",
+      "class": "critical",
+      "tags": [
+        "critical",
+        "reconciliation"
+      ],
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-reconciliation",
+        "gate-quality"
+      ],
+      "accounting_math_critical": true,
+      "cross_module_critical": true
+    },
+    {
+      "id": "test-catalog::crossmodule-ts-crossmodulelinkagecontracttest-java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/crossmodule/TS_CrossModuleLinkageContractTest.java",
+      "module": "crossmodule",
+      "owner": "lane08-quality-governance",
+      "class": "critical",
+      "tags": [
+        "critical",
+        "reconciliation"
+      ],
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-reconciliation",
+        "gate-quality"
+      ],
+      "accounting_math_critical": true,
+      "cross_module_critical": true
+    },
+    {
+      "id": "test-catalog::inventory-ts-inventorycogslinkagescancontracttest-java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/inventory/TS_InventoryCogsLinkageScanContractTest.java",
+      "module": "inventory",
+      "owner": "lane03-inventory-accounting",
+      "class": "critical",
+      "tags": [
+        "critical",
+        "reconciliation"
+      ],
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-reconciliation",
+        "gate-quality"
+      ],
+      "accounting_math_critical": true,
+      "cross_module_critical": false
+    },
+    {
+      "id": "test-catalog::inventory-ts-inventorydispatchstateruntimecoveragetest-java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/inventory/TS_InventoryDispatchStateRuntimeCoverageTest.java",
+      "module": "inventory",
+      "owner": "lane03-inventory-accounting",
+      "class": "critical",
+      "tags": [
+        "critical"
+      ],
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-quality"
+      ],
+      "accounting_math_critical": false,
+      "cross_module_critical": false
+    },
+    {
+      "id": "test-catalog::manufacturing-ts-bulkpackdeterministicreferencetest-java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/manufacturing/TS_BulkPackDeterministicReferenceTest.java",
+      "module": "manufacturing",
+      "owner": "lane05-catalog-manufacturing",
+      "class": "critical",
+      "tags": [
+        "concurrency",
+        "critical",
+        "reconciliation"
+      ],
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-reconciliation",
+        "gate-quality"
+      ],
+      "accounting_math_critical": true,
+      "cross_module_critical": false
+    },
+    {
+      "id": "test-catalog::manufacturing-ts-factoryrawmaterialwacfallbackcontracttest-java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/manufacturing/TS_FactoryRawMaterialWacFallbackContractTest.java",
+      "module": "manufacturing",
+      "owner": "lane05-catalog-manufacturing",
+      "class": "critical",
+      "tags": [
+        "critical",
+        "reconciliation"
+      ],
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-reconciliation",
+        "gate-quality"
+      ],
+      "accounting_math_critical": true,
+      "cross_module_critical": false
+    },
+    {
+      "id": "test-catalog::manufacturing-ts-packingidempotencyandfacadeboundarytest-java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/manufacturing/TS_PackingIdempotencyAndFacadeBoundaryTest.java",
+      "module": "manufacturing",
+      "owner": "lane05-catalog-manufacturing",
+      "class": "critical",
+      "tags": [
+        "concurrency",
+        "critical",
+        "reconciliation"
+      ],
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-reconciliation",
+        "gate-quality"
+      ],
+      "accounting_math_critical": true,
+      "cross_module_critical": true
+    },
+    {
+      "id": "test-catalog::o2c-ts-o2capprovaldecisioncoveragetest-java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/o2c/TS_O2CApprovalDecisionCoverageTest.java",
+      "module": "o2c",
+      "owner": "lane03-sales-dispatch-orders",
+      "class": "critical",
+      "tags": [
+        "critical"
+      ],
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-quality"
+      ],
+      "accounting_math_critical": false,
+      "cross_module_critical": false
+    },
+    {
+      "id": "test-catalog::o2c-ts-o2cdispatchcanonicalpostingtest-java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/o2c/TS_O2CDispatchCanonicalPostingTest.java",
+      "module": "o2c",
+      "owner": "lane03-sales-dispatch-orders",
+      "class": "critical",
+      "tags": [
+        "critical",
+        "reconciliation"
+      ],
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-reconciliation",
+        "gate-quality"
+      ],
+      "accounting_math_critical": true,
+      "cross_module_critical": false
+    },
+    {
+      "id": "test-catalog::o2c-ts-truthsuite-o2c-approval-runtimetest-java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/o2c/TS_truthsuite_o2c_Approval_RuntimeTest.java",
+      "module": "o2c",
+      "owner": "lane03-sales-dispatch-orders",
+      "class": "critical",
+      "tags": [
+        "critical"
+      ],
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-quality"
+      ],
+      "accounting_math_critical": false,
+      "cross_module_critical": false
+    },
+    {
+      "id": "test-catalog::o2c-ts-truthsuite-o2c-override-runtimetest-java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/o2c/TS_truthsuite_o2c_Override_RuntimeTest.java",
+      "module": "o2c",
+      "owner": "lane03-sales-dispatch-orders",
+      "class": "critical",
+      "tags": [
+        "critical"
+      ],
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-quality"
+      ],
+      "accounting_math_critical": false,
+      "cross_module_critical": false
+    },
+    {
+      "id": "test-catalog::orchestrator-ts-orchestratorexactlyonceoutboxtest-java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/orchestrator/TS_OrchestratorExactlyOnceOutboxTest.java",
+      "module": "orchestrator",
+      "owner": "lane08-quality-governance",
+      "class": "critical",
+      "tags": [
+        "concurrency",
+        "critical",
+        "reconciliation"
+      ],
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-reconciliation",
+        "gate-quality"
+      ],
+      "accounting_math_critical": true,
+      "cross_module_critical": true
+    },
+    {
+      "id": "test-catalog::orchestrator-ts-orchestratoridempotencycoveragetest-java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/orchestrator/TS_OrchestratorIdempotencyCoverageTest.java",
+      "module": "orchestrator",
+      "owner": "lane08-quality-governance",
+      "class": "critical",
+      "tags": [
+        "concurrency",
+        "critical",
+        "reconciliation"
+      ],
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-reconciliation",
+        "gate-quality"
+      ],
+      "accounting_math_critical": true,
+      "cross_module_critical": true
+    },
+    {
+      "id": "test-catalog::p2p-ts-p2papprovalruntimetest-java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/p2p/TS_P2PApprovalRuntimeTest.java",
+      "module": "p2p",
+      "owner": "lane03-p2p-accounting",
+      "class": "critical",
+      "tags": [
+        "critical",
+        "reconciliation"
+      ],
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-reconciliation",
+        "gate-quality"
+      ],
+      "accounting_math_critical": true,
+      "cross_module_critical": false
+    },
+    {
+      "id": "test-catalog::p2p-ts-p2pgoodsreceiptidempotencytest-java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/p2p/TS_P2PGoodsReceiptIdempotencyTest.java",
+      "module": "p2p",
+      "owner": "lane03-p2p-accounting",
+      "class": "critical",
+      "tags": [
+        "concurrency",
+        "critical",
+        "reconciliation"
+      ],
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-reconciliation",
+        "gate-quality"
+      ],
+      "accounting_math_critical": true,
+      "cross_module_critical": false
+    },
+    {
+      "id": "test-catalog::p2p-ts-p2pgstdecisioningfailclosedtest-java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/p2p/TS_P2PGstDecisioningFailClosedTest.java",
+      "module": "p2p",
+      "owner": "lane03-p2p-accounting",
+      "class": "critical",
+      "tags": [
+        "critical",
+        "reconciliation"
+      ],
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-reconciliation",
+        "gate-quality"
+      ],
+      "accounting_math_critical": true,
+      "cross_module_critical": false
+    },
+    {
+      "id": "test-catalog::p2p-ts-p2ppurchaseaudittrailrepositorycompatibilitytest-java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/p2p/TS_P2PPurchaseAuditTrailRepositoryCompatibilityTest.java",
+      "module": "p2p",
+      "owner": "lane03-p2p-accounting",
+      "class": "critical",
+      "tags": [
+        "critical",
+        "reconciliation"
+      ],
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-reconciliation",
+        "gate-quality"
+      ],
+      "accounting_math_critical": true,
+      "cross_module_critical": false
+    },
+    {
+      "id": "test-catalog::p2p-ts-p2ppurchasejournallinkagetest-java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/p2p/TS_P2PPurchaseJournalLinkageTest.java",
+      "module": "p2p",
+      "owner": "lane03-p2p-accounting",
+      "class": "critical",
+      "tags": [
+        "critical",
+        "reconciliation"
+      ],
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-reconciliation",
+        "gate-quality"
+      ],
+      "accounting_math_critical": true,
+      "cross_module_critical": false
+    },
+    {
+      "id": "test-catalog::p2p-ts-p2ppurchasesettlementboundarytest-java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/p2p/TS_P2PPurchaseSettlementBoundaryTest.java",
+      "module": "p2p",
+      "owner": "lane03-p2p-accounting",
+      "class": "critical",
+      "tags": [
+        "critical",
+        "reconciliation"
+      ],
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-reconciliation",
+        "gate-quality"
+      ],
+      "accounting_math_critical": true,
+      "cross_module_critical": false
+    },
+    {
+      "id": "test-catalog::p2p-ts-p2psettlementruntimetest-java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/p2p/TS_P2PSettlementRuntimeTest.java",
+      "module": "p2p",
+      "owner": "lane03-p2p-accounting",
+      "class": "critical",
+      "tags": [
+        "critical",
+        "reconciliation"
+      ],
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-reconciliation",
+        "gate-quality"
+      ],
+      "accounting_math_critical": true,
+      "cross_module_critical": false
+    },
+    {
+      "id": "test-catalog::p2p-ts-p2psupplierapprovalcoveragetest-java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/p2p/TS_P2PSupplierApprovalCoverageTest.java",
+      "module": "p2p",
+      "owner": "lane03-p2p-accounting",
+      "class": "critical",
+      "tags": [
+        "critical",
+        "reconciliation"
+      ],
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-reconciliation",
+        "gate-quality"
+      ],
+      "accounting_math_critical": true,
+      "cross_module_critical": false
+    },
+    {
+      "id": "test-catalog::p2p-ts-truthsuite-p2p-approval-test-java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/p2p/TS_truthsuite_p2p_Approval_Test.java",
+      "module": "p2p",
+      "owner": "lane03-p2p-accounting",
+      "class": "critical",
+      "tags": [
+        "critical"
+      ],
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-quality"
+      ],
+      "accounting_math_critical": false,
+      "cross_module_critical": false
+    },
+    {
+      "id": "test-catalog::p2p-ts-truthsuite-p2p-settlement-test-java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/p2p/TS_truthsuite_p2p_Settlement_Test.java",
+      "module": "p2p",
+      "owner": "lane03-p2p-accounting",
+      "class": "critical",
+      "tags": [
+        "critical"
+      ],
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-quality"
+      ],
+      "accounting_math_critical": true,
+      "cross_module_critical": false
+    },
+    {
+      "id": "test-catalog::payroll-ts-payrollliabilityclearingpolicytest-java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/payroll/TS_PayrollLiabilityClearingPolicyTest.java",
+      "module": "payroll",
+      "owner": "lane06-governance-finance",
+      "class": "critical",
+      "tags": [
+        "critical",
+        "reconciliation"
+      ],
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-reconciliation",
+        "gate-quality"
+      ],
+      "accounting_math_critical": true,
+      "cross_module_critical": false
+    },
+    {
+      "id": "test-catalog::payroll-ts-payrollpostedauditmetadataexecutablecoveragetest-java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/payroll/TS_PayrollPostedAuditMetadataExecutableCoverageTest.java",
+      "module": "payroll",
+      "owner": "lane06-governance-finance",
+      "class": "critical",
+      "tags": [
+        "critical"
+      ],
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-quality"
+      ],
+      "accounting_math_critical": true,
+      "cross_module_critical": false
+    },
+    {
+      "id": "test-catalog::periodclose-ts-periodcloseatomicsnapshottest-java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/periodclose/TS_PeriodCloseAtomicSnapshotTest.java",
+      "module": "periodclose",
+      "owner": "lane03-accounting-truth",
+      "class": "critical",
+      "tags": [
+        "concurrency",
+        "critical",
+        "reconciliation"
+      ],
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-reconciliation",
+        "gate-quality"
+      ],
+      "accounting_math_critical": true,
+      "cross_module_critical": false
+    },
+    {
+      "id": "test-catalog::periodclose-ts-periodcloseboundarycoveragetest-java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/periodclose/TS_PeriodCloseBoundaryCoverageTest.java",
+      "module": "periodclose",
+      "owner": "lane03-accounting-truth",
+      "class": "critical",
+      "tags": [
+        "critical",
+        "reconciliation"
+      ],
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-reconciliation",
+        "gate-quality"
+      ],
+      "accounting_math_critical": true,
+      "cross_module_critical": false
+    },
+    {
+      "id": "test-catalog::reports-ts-accountingcontrollerexportauditruntimecoveragetest-java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/reports/TS_AccountingControllerExportAuditRuntimeCoverageTest.java",
+      "module": "reports",
+      "owner": "lane06-governance-finance",
+      "class": "critical",
+      "tags": [
+        "critical"
+      ],
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-quality"
+      ],
+      "accounting_math_critical": true,
+      "cross_module_critical": false
+    },
+    {
+      "id": "test-catalog::reports-ts-accountingexportauditgovernancecontracttest-java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/reports/TS_AccountingExportAuditGovernanceContractTest.java",
+      "module": "reports",
+      "owner": "lane06-governance-finance",
+      "class": "critical",
+      "tags": [
+        "critical"
+      ],
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-quality"
+      ],
+      "accounting_math_critical": true,
+      "cross_module_critical": false
+    },
+    {
+      "id": "test-catalog::reports-ts-reportsnapshotsourceselectiontest-java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/reports/TS_ReportSnapshotSourceSelectionTest.java",
+      "module": "reports",
+      "owner": "lane06-governance-finance",
+      "class": "critical",
+      "tags": [
+        "critical",
+        "reconciliation"
+      ],
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-reconciliation",
+        "gate-quality"
+      ],
+      "accounting_math_critical": true,
+      "cross_module_critical": false
+    },
+    {
+      "id": "test-catalog::runtime-ts-runtimeaccountingaudittrailserviceexecutablecoveragetest-java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeAccountingAuditTrailServiceExecutableCoverageTest.java",
+      "module": "runtime",
+      "owner": "lane08-quality-governance",
+      "class": "critical",
+      "tags": [
+        "critical",
+        "reconciliation"
+      ],
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-reconciliation",
+        "gate-quality"
+      ],
+      "accounting_math_critical": true,
+      "cross_module_critical": true
+    },
+    {
+      "id": "test-catalog::runtime-ts-runtimeaccountingcontrollerexportcoveragetest-java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeAccountingControllerExportCoverageTest.java",
+      "module": "runtime",
+      "owner": "lane08-quality-governance",
+      "class": "critical",
+      "tags": [
+        "critical"
+      ],
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-quality"
+      ],
+      "accounting_math_critical": true,
+      "cross_module_critical": true
+    },
+    {
+      "id": "test-catalog::runtime-ts-runtimeaccountingfacadeexecutablecoveragetest-java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeAccountingFacadeExecutableCoverageTest.java",
+      "module": "runtime",
+      "owner": "lane08-quality-governance",
+      "class": "critical",
+      "tags": [
+        "critical",
+        "reconciliation"
+      ],
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-reconciliation",
+        "gate-quality"
+      ],
+      "accounting_math_critical": true,
+      "cross_module_critical": true
+    },
+    {
+      "id": "test-catalog::runtime-ts-runtimeaccountingfacadeperiodcloseboundarytest-java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeAccountingFacadePeriodCloseBoundaryTest.java",
+      "module": "runtime",
+      "owner": "lane08-quality-governance",
+      "class": "critical",
+      "tags": [
+        "critical",
+        "reconciliation"
+      ],
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-reconciliation",
+        "gate-quality"
+      ],
+      "accounting_math_critical": true,
+      "cross_module_critical": true
+    },
+    {
+      "id": "test-catalog::runtime-ts-runtimeaccountingpayrollpostingexecutablecoveragetest-java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeAccountingPayrollPostingExecutableCoverageTest.java",
+      "module": "runtime",
+      "owner": "lane08-quality-governance",
+      "class": "critical",
+      "tags": [
+        "critical"
+      ],
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-quality"
+      ],
+      "accounting_math_critical": true,
+      "cross_module_critical": true
+    },
+    {
+      "id": "test-catalog::runtime-ts-runtimeaccountingperiodpolicyexecutablecoveragetest-java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeAccountingPeriodPolicyExecutableCoverageTest.java",
+      "module": "runtime",
+      "owner": "lane08-quality-governance",
+      "class": "critical",
+      "tags": [
+        "critical",
+        "reconciliation"
+      ],
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-reconciliation",
+        "gate-quality"
+      ],
+      "accounting_math_critical": true,
+      "cross_module_critical": true
+    },
+    {
+      "id": "test-catalog::runtime-ts-runtimeaccountingperiodserviceexecutablecoveragetest-java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeAccountingPeriodServiceExecutableCoverageTest.java",
+      "module": "runtime",
+      "owner": "lane08-quality-governance",
+      "class": "critical",
+      "tags": [
+        "concurrency",
+        "critical",
+        "reconciliation"
+      ],
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-reconciliation",
+        "gate-quality"
+      ],
+      "accounting_math_critical": true,
+      "cross_module_critical": true
+    },
+    {
+      "id": "test-catalog::runtime-ts-runtimeaccountingperiodserviceregressionexecutablecoveragetest-java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeAccountingPeriodServiceRegressionExecutableCoverageTest.java",
+      "module": "runtime",
+      "owner": "lane08-quality-governance",
+      "class": "critical",
+      "tags": [
+        "critical",
+        "reconciliation"
+      ],
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-reconciliation",
+        "gate-quality"
+      ],
+      "accounting_math_critical": true,
+      "cross_module_critical": true
+    },
+    {
+      "id": "test-catalog::runtime-ts-runtimeaccountingreplayconflictexecutablecoveragetest-java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeAccountingReplayConflictExecutableCoverageTest.java",
+      "module": "runtime",
+      "owner": "lane08-quality-governance",
+      "class": "critical",
+      "tags": [
+        "critical"
+      ],
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-quality"
+      ],
+      "accounting_math_critical": true,
+      "cross_module_critical": true
+    },
+    {
+      "id": "test-catalog::runtime-ts-runtimechangelogserviceexecutablecoveragetest-java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeChangelogServiceExecutableCoverageTest.java",
+      "module": "runtime",
+      "owner": "lane08-quality-governance",
+      "class": "critical",
+      "tags": [
+        "critical"
+      ],
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-quality"
+      ],
+      "accounting_math_critical": false,
+      "cross_module_critical": true
+    },
+    {
+      "id": "test-catalog::runtime-ts-runtimecompanycontextfilterexecutablecoveragetest-java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeCompanyContextFilterExecutableCoverageTest.java",
+      "module": "runtime",
+      "owner": "lane08-quality-governance",
+      "class": "critical",
+      "tags": [
+        "concurrency",
+        "critical"
+      ],
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-quality"
+      ],
+      "accounting_math_critical": false,
+      "cross_module_critical": true
+    },
+    {
+      "id": "test-catalog::runtime-ts-runtimecompanycontrollerexecutablecoveragetest-java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeCompanyControllerExecutableCoverageTest.java",
+      "module": "runtime",
+      "owner": "lane08-quality-governance",
+      "class": "critical",
+      "tags": [
+        "critical",
+        "reconciliation"
+      ],
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-reconciliation",
+        "gate-quality"
+      ],
+      "accounting_math_critical": true,
+      "cross_module_critical": true
+    },
+    {
+      "id": "test-catalog::runtime-ts-runtimecompanydefaultaccountsexecutablecoveragetest-java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeCompanyDefaultAccountsExecutableCoverageTest.java",
+      "module": "runtime",
+      "owner": "lane08-quality-governance",
+      "class": "useful",
+      "tags": [
+        "concurrency",
+        "reconciliation"
+      ],
+      "gate_membership": [
+        "gate-core",
+        "gate-release",
+        "gate-reconciliation",
+        "gate-quality"
+      ],
+      "accounting_math_critical": true,
+      "cross_module_critical": true
+    },
+    {
+      "id": "test-catalog::runtime-ts-runtimecompanyserviceexecutablecoveragetest-java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeCompanyServiceExecutableCoverageTest.java",
+      "module": "runtime",
+      "owner": "lane08-quality-governance",
+      "class": "critical",
+      "tags": [
+        "critical"
+      ],
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-quality"
+      ],
+      "accounting_math_critical": false,
+      "cross_module_critical": true
+    },
+    {
+      "id": "test-catalog::runtime-ts-runtimedatainitializerexecutablecoveragetest-java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeDataInitializerExecutableCoverageTest.java",
+      "module": "runtime",
+      "owner": "lane08-quality-governance",
+      "class": "critical",
+      "tags": [
+        "critical"
+      ],
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-quality"
+      ],
+      "accounting_math_critical": false,
+      "cross_module_critical": true
+    },
+    {
+      "id": "test-catalog::runtime-ts-runtimedealerportalcontrollerexportcoveragetest-java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeDealerPortalControllerExportCoverageTest.java",
+      "module": "runtime",
+      "owner": "lane08-quality-governance",
+      "class": "critical",
+      "tags": [
+        "critical"
+      ],
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-quality"
+      ],
+      "accounting_math_critical": false,
+      "cross_module_critical": true
+    },
+    {
+      "id": "test-catalog::runtime-ts-runtimeemailserviceexecutablecoveragetest-java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeEmailServiceExecutableCoverageTest.java",
+      "module": "runtime",
+      "owner": "lane08-quality-governance",
+      "class": "critical",
+      "tags": [
+        "critical"
+      ],
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-quality"
+      ],
+      "accounting_math_critical": false,
+      "cross_module_critical": true
+    },
+    {
+      "id": "test-catalog::runtime-ts-runtimeeventpublisherexecutablecoveragetest-java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeEventPublisherExecutableCoverageTest.java",
+      "module": "runtime",
+      "owner": "lane08-quality-governance",
+      "class": "critical",
+      "tags": [
+        "concurrency",
+        "critical",
+        "reconciliation"
+      ],
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-reconciliation",
+        "gate-quality"
+      ],
+      "accounting_math_critical": true,
+      "cross_module_critical": true
+    },
+    {
+      "id": "test-catalog::runtime-ts-runtimeglobalexceptionhandlerexecutablecoveragetest-java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeGlobalExceptionHandlerExecutableCoverageTest.java",
+      "module": "runtime",
+      "owner": "lane08-quality-governance",
+      "class": "critical",
+      "tags": [
+        "critical"
+      ],
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-quality"
+      ],
+      "accounting_math_critical": false,
+      "cross_module_critical": true
+    },
+    {
+      "id": "test-catalog::runtime-ts-runtimehrserviceenumparsingcoveragetest-java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeHrServiceEnumParsingCoverageTest.java",
+      "module": "runtime",
+      "owner": "lane08-quality-governance",
+      "class": "critical",
+      "tags": [
+        "critical"
+      ],
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-quality"
+      ],
+      "accounting_math_critical": false,
+      "cross_module_critical": true
+    },
+    {
+      "id": "test-catalog::runtime-ts-runtimeinventoryvaluationexecutablecoveragetest-java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeInventoryValuationExecutableCoverageTest.java",
+      "module": "runtime",
+      "owner": "lane08-quality-governance",
+      "class": "critical",
+      "tags": [
+        "critical",
+        "reconciliation"
+      ],
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-reconciliation",
+        "gate-quality"
+      ],
+      "accounting_math_critical": true,
+      "cross_module_critical": true
+    },
+    {
+      "id": "test-catalog::runtime-ts-runtimeinvoicecontrollerexportcoveragetest-java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeInvoiceControllerExportCoverageTest.java",
+      "module": "runtime",
+      "owner": "lane08-quality-governance",
+      "class": "critical",
+      "tags": [
+        "critical"
+      ],
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-quality"
+      ],
+      "accounting_math_critical": true,
+      "cross_module_critical": true
+    },
+    {
+      "id": "test-catalog::runtime-ts-runtimeinvoicesettlementpolicyexecutablecoveragetest-java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeInvoiceSettlementPolicyExecutableCoverageTest.java",
+      "module": "runtime",
+      "owner": "lane08-quality-governance",
+      "class": "useful",
+      "tags": [
+        "concurrency",
+        "reconciliation"
+      ],
+      "gate_membership": [
+        "gate-core",
+        "gate-release",
+        "gate-reconciliation",
+        "gate-quality"
+      ],
+      "accounting_math_critical": true,
+      "cross_module_critical": true
+    },
+    {
+      "id": "test-catalog::runtime-ts-runtimemoduleexecutablecoveragetest-java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeModuleExecutableCoverageTest.java",
+      "module": "runtime",
+      "owner": "lane08-quality-governance",
+      "class": "useful",
+      "tags": [
+        "concurrency",
+        "reconciliation"
+      ],
+      "gate_membership": [
+        "gate-core",
+        "gate-release",
+        "gate-reconciliation",
+        "gate-quality"
+      ],
+      "accounting_math_critical": true,
+      "cross_module_critical": true
+    },
+    {
+      "id": "test-catalog::runtime-ts-runtimeorchestratorcorrelationcoveragetest-java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeOrchestratorCorrelationCoverageTest.java",
+      "module": "runtime",
+      "owner": "lane08-quality-governance",
+      "class": "critical",
+      "tags": [
+        "concurrency",
+        "critical",
+        "reconciliation"
+      ],
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-reconciliation",
+        "gate-quality"
+      ],
+      "accounting_math_critical": true,
+      "cross_module_critical": true
+    },
+    {
+      "id": "test-catalog::runtime-ts-runtimeorchestratorexecutablecoveragetest-java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeOrchestratorExecutableCoverageTest.java",
+      "module": "runtime",
+      "owner": "lane08-quality-governance",
+      "class": "critical",
+      "tags": [
+        "concurrency",
+        "critical",
+        "reconciliation"
+      ],
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-reconciliation",
+        "gate-quality"
+      ],
+      "accounting_math_critical": true,
+      "cross_module_critical": true
+    },
+    {
+      "id": "test-catalog::runtime-ts-runtimeorchestratoridempotencyexecutablecoveragetest-java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeOrchestratorIdempotencyExecutableCoverageTest.java",
+      "module": "runtime",
+      "owner": "lane08-quality-governance",
+      "class": "critical",
+      "tags": [
+        "concurrency",
+        "critical",
+        "reconciliation"
+      ],
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-reconciliation",
+        "gate-quality"
+      ],
+      "accounting_math_critical": true,
+      "cross_module_critical": true
+    },
+    {
+      "id": "test-catalog::runtime-ts-runtimepasswordresetserviceexecutablecoveragetest-java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimePasswordResetServiceExecutableCoverageTest.java",
+      "module": "runtime",
+      "owner": "lane08-quality-governance",
+      "class": "critical",
+      "tags": [
+        "critical"
+      ],
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-quality"
+      ],
+      "accounting_math_critical": false,
+      "cross_module_critical": true
+    },
+    {
+      "id": "test-catalog::runtime-ts-runtimepayrollmarkpaidexecutablecoveragetest-java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimePayrollMarkPaidExecutableCoverageTest.java",
+      "module": "runtime",
+      "owner": "lane08-quality-governance",
+      "class": "critical",
+      "tags": [
+        "critical",
+        "reconciliation"
+      ],
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-reconciliation",
+        "gate-quality"
+      ],
+      "accounting_math_critical": true,
+      "cross_module_critical": true
+    },
+    {
+      "id": "test-catalog::runtime-ts-runtimepayrollserviceguardrailstest-java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimePayrollServiceGuardrailsTest.java",
+      "module": "runtime",
+      "owner": "lane08-quality-governance",
+      "class": "critical",
+      "tags": [
+        "critical"
+      ],
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-quality"
+      ],
+      "accounting_math_critical": true,
+      "cross_module_critical": true
+    },
+    {
+      "id": "test-catalog::runtime-ts-runtimereferencenumberserviceexecutablecoveragetest-java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeReferenceNumberServiceExecutableCoverageTest.java",
+      "module": "runtime",
+      "owner": "lane08-quality-governance",
+      "class": "useful",
+      "tags": [
+        "concurrency",
+        "reconciliation"
+      ],
+      "gate_membership": [
+        "gate-core",
+        "gate-release",
+        "gate-reconciliation",
+        "gate-quality"
+      ],
+      "accounting_math_critical": true,
+      "cross_module_critical": true
+    },
+    {
+      "id": "test-catalog::runtime-ts-runtimesecurityconfigexecutablecoveragetest-java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeSecurityConfigExecutableCoverageTest.java",
+      "module": "runtime",
+      "owner": "lane08-quality-governance",
+      "class": "critical",
+      "tags": [
+        "critical"
+      ],
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-quality"
+      ],
+      "accounting_math_critical": false,
+      "cross_module_critical": true
+    },
+    {
+      "id": "test-catalog::runtime-ts-runtimesmtppropertiesvalidatorexecutablecoveragetest-java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeSmtpPropertiesValidatorExecutableCoverageTest.java",
+      "module": "runtime",
+      "owner": "lane08-quality-governance",
+      "class": "critical",
+      "tags": [
+        "critical"
+      ],
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-quality"
+      ],
+      "accounting_math_critical": false,
+      "cross_module_critical": true
+    },
+    {
+      "id": "test-catalog::runtime-ts-runtimesupportticketserviceexecutablecoveragetest-java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeSupportTicketServiceExecutableCoverageTest.java",
+      "module": "runtime",
+      "owner": "lane08-quality-governance",
+      "class": "critical",
+      "tags": [
+        "critical"
+      ],
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-quality"
+      ],
+      "accounting_math_critical": false,
+      "cross_module_critical": true
+    },
+    {
+      "id": "test-catalog::runtime-ts-runtimesupportticketsyncexecutablecoveragetest-java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeSupportTicketSyncExecutableCoverageTest.java",
+      "module": "runtime",
+      "owner": "lane08-quality-governance",
+      "class": "critical",
+      "tags": [
+        "critical"
+      ],
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-quality"
+      ],
+      "accounting_math_critical": false,
+      "cross_module_critical": true
+    },
+    {
+      "id": "test-catalog::runtime-ts-runtimesystemroleexecutablecoveragetest-java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeSystemRoleExecutableCoverageTest.java",
+      "module": "runtime",
+      "owner": "lane08-quality-governance",
+      "class": "critical",
+      "tags": [
+        "critical"
+      ],
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-quality"
+      ],
+      "accounting_math_critical": false,
+      "cross_module_critical": true
+    },
+    {
+      "id": "test-catalog::runtime-ts-runtimetaxserviceexecutablecoveragetest-java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeTaxServiceExecutableCoverageTest.java",
+      "module": "runtime",
+      "owner": "lane08-quality-governance",
+      "class": "critical",
+      "tags": [
+        "critical",
+        "reconciliation"
+      ],
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-reconciliation",
+        "gate-quality"
+      ],
+      "accounting_math_critical": true,
+      "cross_module_critical": true
+    },
+    {
+      "id": "test-catalog::runtime-ts-runtimetenantadminprovisioningserviceexecutablecoveragetest-java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeTenantAdminProvisioningServiceExecutableCoverageTest.java",
+      "module": "runtime",
+      "owner": "lane08-quality-governance",
+      "class": "critical",
+      "tags": [
+        "critical"
+      ],
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-quality"
+      ],
+      "accounting_math_critical": false,
+      "cross_module_critical": true
+    },
+    {
+      "id": "test-catalog::runtime-ts-runtimetenantcontrolplaneenforcementtest-java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeTenantControlPlaneEnforcementTest.java",
+      "module": "runtime",
+      "owner": "lane08-quality-governance",
+      "class": "critical",
+      "tags": [
+        "critical",
+        "reconciliation"
+      ],
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-reconciliation",
+        "gate-quality"
+      ],
+      "accounting_math_critical": true,
+      "cross_module_critical": true
+    },
+    {
+      "id": "test-catalog::runtime-ts-runtimetenantpolicycontrolexecutablecoveragetest-java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeTenantPolicyControlExecutableCoverageTest.java",
+      "module": "runtime",
+      "owner": "lane08-quality-governance",
+      "class": "critical",
+      "tags": [
+        "critical"
+      ],
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-quality"
+      ],
+      "accounting_math_critical": false,
+      "cross_module_critical": true
+    },
+    {
+      "id": "test-catalog::runtime-ts-runtimetenantruntimeenforcementinterceptorexecutablecoveragetest-java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeTenantRuntimeEnforcementInterceptorExecutableCoverageTest.java",
+      "module": "runtime",
+      "owner": "lane08-quality-governance",
+      "class": "critical",
+      "tags": [
+        "concurrency",
+        "critical",
+        "reconciliation"
+      ],
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-reconciliation",
+        "gate-quality"
+      ],
+      "accounting_math_critical": true,
+      "cross_module_critical": true
+    },
+    {
+      "id": "test-catalog::runtime-ts-runtimetenantruntimeenforcementserviceexecutablecoveragetest-java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeTenantRuntimeEnforcementServiceExecutableCoverageTest.java",
+      "module": "runtime",
+      "owner": "lane08-quality-governance",
+      "class": "critical",
+      "tags": [
+        "concurrency",
+        "critical",
+        "reconciliation"
+      ],
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-reconciliation",
+        "gate-quality"
+      ],
+      "accounting_math_critical": true,
+      "cross_module_critical": true
+    },
+    {
+      "id": "test-catalog::runtime-ts-runtimetenantruntimeenforcementtest-java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeTenantRuntimeEnforcementTest.java",
+      "module": "runtime",
+      "owner": "lane08-quality-governance",
+      "class": "critical",
+      "tags": [
+        "concurrency",
+        "critical",
+        "reconciliation"
+      ],
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-reconciliation",
+        "gate-quality"
+      ],
+      "accounting_math_critical": true,
+      "cross_module_critical": true
+    },
+    {
+      "id": "test-catalog::runtime-ts-runtimeticket015executablecoveragebridgetest-java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeTicket015ExecutableCoverageBridgeTest.java",
+      "module": "runtime",
+      "owner": "lane08-quality-governance",
+      "class": "critical",
+      "tags": [
+        "critical"
+      ],
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-quality"
+      ],
+      "accounting_math_critical": false,
+      "cross_module_critical": true
+    },
+    {
+      "id": "test-catalog::runtime-ts-runtimetraceserviceexecutablecoveragetest-java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeTraceServiceExecutableCoverageTest.java",
+      "module": "runtime",
+      "owner": "lane08-quality-governance",
+      "class": "useful",
+      "tags": [
+        "concurrency",
+        "reconciliation"
+      ],
+      "gate_membership": [
+        "gate-core",
+        "gate-release",
+        "gate-reconciliation",
+        "gate-quality"
+      ],
+      "accounting_math_critical": true,
+      "cross_module_critical": true
+    },
+    {
+      "id": "test-catalog::tax-ts-accountingtaxsafetycontracttest-java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/tax/TS_AccountingTaxSafetyContractTest.java",
+      "module": "tax",
+      "owner": "lane03-accounting-truth",
+      "class": "critical",
+      "tags": [
+        "critical",
+        "reconciliation"
+      ],
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-reconciliation",
+        "gate-quality"
+      ],
+      "accounting_math_critical": true,
+      "cross_module_critical": false
+    },
+    {
+      "id": "test-catalog::tax-ts-gstroundingdeterminismcontracttest-java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/tax/TS_GstRoundingDeterminismContractTest.java",
+      "module": "tax",
+      "owner": "lane03-accounting-truth",
+      "class": "critical",
+      "tags": [
+        "critical",
+        "reconciliation"
+      ],
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-reconciliation",
+        "gate-quality"
+      ],
+      "accounting_math_critical": true,
+      "cross_module_critical": false
+    }
+  ]
+}

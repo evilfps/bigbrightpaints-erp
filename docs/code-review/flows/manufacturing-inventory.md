@@ -25,6 +25,20 @@ Primary evidence:
 
 Supporting runtime evidence was degraded in this session: `curl -i -s http://localhost:8081/actuator/health` failed with exit code `7`, so this review relies on static inspection plus existing regression/e2e/truth-suite coverage. Baseline suite `mvn test -Pgate-fast -Djacoco.skip=true` passed before drafting.
 
+## Executable remediation handoff
+
+This review feeds:
+
+- [Lane 03 exec spec](../executable-specs/03-lane-accounting-truth-boundary/EXEC-SPEC.md)
+- [Lane 05 exec spec](../executable-specs/05-lane-catalog-manufacturing/EXEC-SPEC.md)
+
+Planning notes:
+
+- Lane 03 opens with the prove-first boundary note in [`../executable-specs/03-lane-accounting-truth-boundary/00-lane03-boundary-decision-note.md`](../executable-specs/03-lane-accounting-truth-boundary/00-lane03-boundary-decision-note.md); Packet 0 may map manufacturing, packing, dispatch, valuation, and listener surfaces as downstream consumers of accounting truth, but it must not turn this lane-opening slice into catalog/manufacturing runtime cleanup.
+- The downstream consumers called out for Packet 0 are `ProductionLogService`, `PackingService`, `PackingCompletionService`, `BulkPackingService`, `FinishedGoodsDispatchEngine`, and `InventoryValuationService`, all of which must inherit the chosen sales/purchase truth boundary instead of inventing a competing one.
+- `MFG-09` is a real execution blocker for stock-bearing create flows and should be closed before broad catalog authority cleanup.
+- Do not collapse packaging-workbench convergence into the same slice that fixes product, raw-material, or default-account authority paths.
+
 ## Entrypoints
 
 | Surface | Entrypoints | Controller | Notes |

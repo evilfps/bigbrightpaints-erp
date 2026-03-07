@@ -45,8 +45,11 @@ def load_quarantine(path: str) -> set[str]:
     with open(path, "r", encoding="utf-8") as fh:
         for raw in fh:
             line = raw.split("#", 1)[0].strip()
-            if line:
-                out.add(line.replace("\\", "/"))
+            if not line:
+                continue
+            path_token = line.split("|", 1)[0].strip()
+            if path_token:
+                out.add(path_token.replace("\\", "/"))
     return out
 
 
