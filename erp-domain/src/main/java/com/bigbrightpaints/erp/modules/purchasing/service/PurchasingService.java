@@ -139,7 +139,6 @@ public class PurchasingService {
                 accountingPeriodService,
                 responseMapper,
                 this.purchaseOrderService,
-                event -> {},
                 transactionManager
         );
         this.purchaseInvoiceService = new PurchaseInvoiceService(

@@ -604,6 +604,23 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
         PurchaseWorkflowIds workflow = createPurchaseOrderAndReceipt(headers, p2p.supplier().getId(),
                 material.getId(), new BigDecimal("10"), new BigDecimal("15.00"), entryDate);
 
+        List<RawMaterialMovement> receiptMovementsBeforeInvoice = rawMaterialMovementRepository
+                .findByRawMaterialCompanyAndReferenceTypeAndReferenceId(
+                        company,
+                        InventoryReference.GOODS_RECEIPT,
+                        workflow.goodsReceiptNumber());
+        assertThat(receiptMovementsBeforeInvoice)
+                .as("GRN should create one stock movement before invoice posting")
+                .hasSize(1);
+        assertThat(receiptMovementsBeforeInvoice.getFirst().getJournalEntryId())
+                .as("GRN stock truth should not post AP before purchase invoice")
+                .isNull();
+        assertThat(journalEntryRepository.findByCompanyAndReferenceNumberStartingWith(
+                company,
+                workflow.goodsReceiptNumber()))
+                .as("GRN should not create listener-side AP journals")
+                .isEmpty();
+
         Map<String, Object> purchaseReq = new HashMap<>();
         purchaseReq.put("supplierId", p2p.supplier().getId());
         purchaseReq.put("invoiceNumber", "P2P-INV-001");
@@ -1609,10 +1626,12 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
         Map<?, ?> grData = requireData(grResp, "create goods receipt");
         Long goodsReceiptId = ((Number) grData.get("id")).longValue();
 
-        return new PurchaseWorkflowIds(purchaseOrderId, goodsReceiptId);
+        String goodsReceiptNumber = (String) grData.get("receiptNumber");
+
+        return new PurchaseWorkflowIds(purchaseOrderId, goodsReceiptId, goodsReceiptNumber);
     }
 
-    private record PurchaseWorkflowIds(Long purchaseOrderId, Long goodsReceiptId) {}
+    private record PurchaseWorkflowIds(Long purchaseOrderId, Long goodsReceiptId, String goodsReceiptNumber) {}
 
     private ProductionProduct ensureProduct(Company company, ProductionBrand brand,
                                             String sku, String name, CanonicalErpDataset dataset) {

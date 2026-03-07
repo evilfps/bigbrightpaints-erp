@@ -48,8 +48,10 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -198,9 +200,9 @@ class PurchaseInvoiceEngineLifecycleTest {
         when(purchaseRepository.lockByCompanyAndInvoiceNumberIgnoreCase(company, "INV-40")).thenReturn(Optional.empty());
         when(goodsReceiptRepository.lockByCompanyAndId(company, 40L)).thenReturn(Optional.of(goodsReceipt));
         when(purchaseRepository.findByCompanyAndGoodsReceipt(company, goodsReceipt)).thenReturn(Optional.empty());
-        when(rawMaterialRepository.lockByCompanyAndId(company, 20L)).thenReturn(Optional.of(rawMaterial));
-        when(referenceNumberService.purchaseReference(company, supplier, "INV-40")).thenReturn("RMP-SUP10-INV40");
-        when(gstService.splitTaxAmount(any(), any(), any(), any()))
+        lenient().when(rawMaterialRepository.lockByCompanyAndId(company, 20L)).thenReturn(Optional.of(rawMaterial));
+        lenient().when(referenceNumberService.purchaseReference(company, supplier, "INV-40")).thenReturn("RMP-SUP10-INV40");
+        lenient().when(gstService.splitTaxAmount(any(), any(), any(), any()))
                 .thenAnswer(invocation -> new GstService.GstBreakdown(
                         invocation.getArgument(0),
                         BigDecimal.ZERO,
@@ -242,23 +244,23 @@ class PurchaseInvoiceEngineLifecycleTest {
                 "tester",
                 "tester"
         );
-        when(accountingFacade.postPurchaseJournal(any(), any(), any(), any(), any(), any(), any(), any(), any()))
+        lenient().when(accountingFacade.postPurchaseJournal(any(), any(), any(), any(), any(), any(), any(), any(), any()))
                 .thenReturn(journalEntryDto);
 
         JournalEntry linkedEntry = new JournalEntry();
         ReflectionTestUtils.setField(linkedEntry, "id", 700L);
         linkedEntry.setStatus("POSTED");
         linkedEntry.setReferenceNumber("RMP-SUP10-INV40");
-        when(companyEntityLookup.requireJournalEntry(company, 700L)).thenReturn(linkedEntry);
+        lenient().when(companyEntityLookup.requireJournalEntry(company, 700L)).thenReturn(linkedEntry);
 
-        when(purchaseRepository.save(any(RawMaterialPurchase.class))).thenAnswer(invocation -> {
+        lenient().when(purchaseRepository.save(any(RawMaterialPurchase.class))).thenAnswer(invocation -> {
             RawMaterialPurchase purchase = invocation.getArgument(0);
             ReflectionTestUtils.setField(purchase, "id", 600L);
             ReflectionTestUtils.setField(purchase, "createdAt", Instant.parse("2026-03-02T00:00:00Z"));
             return purchase;
         });
-        when(goodsReceiptRepository.save(goodsReceipt)).thenReturn(goodsReceipt);
-        when(purchaseOrderRepository.save(purchaseOrder)).thenReturn(purchaseOrder);
+        lenient().when(goodsReceiptRepository.save(goodsReceipt)).thenReturn(goodsReceipt);
+        lenient().when(purchaseOrderRepository.save(purchaseOrder)).thenReturn(purchaseOrder);
     }
 
     @Test
@@ -390,5 +392,42 @@ class PurchaseInvoiceEngineLifecycleTest {
         verify(goodsReceiptRepository).save(goodsReceipt);
         verify(rawMaterialBatchRepository, never()).save(any(RawMaterialBatch.class));
         verifyNoInteractions(rawMaterialService);
+    }
+
+    @Test
+    @DisplayName("createPurchase rejects goods receipt movements already linked to another journal")
+    void createPurchase_rejectsGoodsReceiptMovementAlreadyLinkedToJournal() {
+        RawMaterialMovement linkedMovement = movementRepository.findByRawMaterialCompanyAndReferenceTypeAndReferenceId(
+                company,
+                "GOODS_RECEIPT",
+                "GRN-40"
+        ).getFirst();
+        linkedMovement.setJournalEntryId(701L);
+
+        RawMaterialPurchaseRequest request = new RawMaterialPurchaseRequest(
+                10L,
+                "INV-40",
+                LocalDate.of(2026, 3, 2),
+                "invoice",
+                30L,
+                40L,
+                BigDecimal.ZERO,
+                List.of(new RawMaterialPurchaseLineRequest(
+                        20L,
+                        null,
+                        new BigDecimal("10.0000"),
+                        "KG",
+                        new BigDecimal("12.50"),
+                        null,
+                        null,
+                        "line"
+                ))
+        );
+
+        assertThatThrownBy(() -> purchaseInvoiceEngine.createPurchase(request))
+                .isInstanceOf(com.bigbrightpaints.erp.core.exception.ApplicationException.class)
+                .hasMessageContaining("already linked to journal 701");
+
+        verify(accountingFacade, never()).postPurchaseJournal(any(), any(), any(), any(), any(), any(), any(), any(), any());
     }
 }

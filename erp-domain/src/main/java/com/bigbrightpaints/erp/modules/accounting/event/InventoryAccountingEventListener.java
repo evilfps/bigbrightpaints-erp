@@ -9,6 +9,7 @@ import com.bigbrightpaints.erp.modules.accounting.service.AccountingService;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
+import com.bigbrightpaints.erp.modules.inventory.domain.InventoryReference;
 import com.bigbrightpaints.erp.core.security.CompanyContextHolder;
 import com.bigbrightpaints.erp.modules.inventory.event.InventoryMovementEvent;
 import com.bigbrightpaints.erp.modules.inventory.event.InventoryValuationChangedEvent;
@@ -161,6 +162,12 @@ public class InventoryAccountingEventListener {
             return;
         }
 
+        if (isCanonicalWorkflowMovement(event)) {
+            log.debug("Canonical workflow movement {}, skipping listener auto-posting",
+                    event.relatedEntityType());
+            return;
+        }
+
         // Skip if accounts not specified (let caller handle GL posting)
         if (event.sourceAccountId() == null || event.destinationAccountId() == null) {
             log.debug("Source/destination accounts not specified, skipping auto-posting");
@@ -304,5 +311,15 @@ public class InventoryAccountingEventListener {
             event.itemName() != null ? event.itemName() : "");
         String hash = IdempotencyUtils.sha256Hex(eventFingerprint, 16); // 16 hex chars = 64 bits
         return String.format("%s-%s", referencePrefix, hash);
+    }
+
+    private boolean isCanonicalWorkflowMovement(InventoryMovementEvent event) {
+        String relatedEntityType = event.relatedEntityType();
+        if (relatedEntityType == null || relatedEntityType.isBlank()) {
+            return false;
+        }
+        return InventoryReference.GOODS_RECEIPT.equalsIgnoreCase(relatedEntityType)
+                || InventoryReference.SALES_ORDER.equalsIgnoreCase(relatedEntityType)
+                || "PACKAGING_SLIP".equalsIgnoreCase(relatedEntityType);
     }
 }
