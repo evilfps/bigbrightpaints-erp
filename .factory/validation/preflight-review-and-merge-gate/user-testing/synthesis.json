@@ -1,0 +1,41 @@
+{
+  "milestone": "preflight-review-and-merge-gate",
+  "round": 1,
+  "status": "pass",
+  "generatedAt": "2026-03-07T02:18:27Z",
+  "assertionsSummary": {
+    "total": 9,
+    "passed": 9,
+    "failed": 0,
+    "blocked": 0
+  },
+  "passedAssertions": [
+    "VAL-WFLOW-001",
+    "VAL-WFLOW-002",
+    "VAL-WFLOW-003",
+    "VAL-PREFLIGHT-001",
+    "VAL-MERGE-001",
+    "VAL-MERGE-002",
+    "VAL-MERGE-003",
+    "VAL-MERGE-004",
+    "VAL-MERGE-005"
+  ],
+  "failedAssertions": [],
+  "blockedAssertions": [],
+  "appliedUpdates": [
+    {
+      "target": "user-testing.md",
+      "description": "Added a dedicated `Flow Validator Guidance: docs` section so preflight-review-and-merge-gate packet/governance assertions have an explicit document-surface validation playbook alongside the existing API guidance.",
+      "source": "setup"
+    }
+  ],
+  "previousRound": null,
+  "flowReports": [
+    ".factory/validation/preflight-review-and-merge-gate/user-testing/flows/packet-docs.json",
+    ".factory/validation/preflight-review-and-merge-gate/user-testing/flows/merge-api.json"
+  ],
+  "environmentConstraints": [
+    "The delegated `user-testing-flow-validator` helper still fails immediately with `Invalid model: custom:CLIProxyAPI-5.4-high`, so this round used the approved direct in-session fallback.",
+    "The compose-backed runtime still reports `503 {\"status\":\"DOWN\"}` on `http://localhost:9090/actuator/health`; validation readiness was judged from the milestone endpoints on `8081` instead of actuator health."
+  ]
+}

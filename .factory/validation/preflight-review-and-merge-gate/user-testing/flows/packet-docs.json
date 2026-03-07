@@ -1,0 +1,96 @@
+{
+  "groupId": "packet-docs",
+  "surface": "docs",
+  "generatedAt": "2026-03-07T02:18:27Z",
+  "assertions": [
+    {
+      "id": "VAL-WFLOW-001",
+      "status": "pass",
+      "reason": "The milestone preserves the docs-only work before later Factory-droid remediation by explicitly pointing preflight review back to the preserved docs branch and by retaining review evidence that the preservation commit contained only docs/.factory assets.",
+      "evidence": [
+        {
+          "source": "docs/code-review/executable-specs/00-preflight-review-merged-auth-company-admin-hardening.md",
+          "observed": "The `Source of truth and review window` section names `docs/packet-governance-baseline:docs/code-review/executable-specs/**` as the executable-spec source of truth, showing the preflight review depended on the preserved docs-only branch after base sync."
+        },
+        {
+          "source": ".factory/validation/preflight-review-and-merge-gate/scrutiny/reviews/packet-governance-baseline.json",
+          "observed": "The review summary states that `docs/packet-governance-baseline` captured only `.factory/**` and `docs/code-review/**` assets and that local `Factory-droid` was reset to `origin/Factory-droid` on a clean tree, which matches the docs-only preservation requirement."
+        }
+      ]
+    },
+    {
+      "id": "VAL-WFLOW-002",
+      "status": "pass",
+      "reason": "The preflight review explicitly inventories merged auth/company/admin changes, classifies the open regression set, and writes packet-boundary notes separating merge-gate work from Lane 01 and Lane 02.",
+      "evidence": [
+        {
+          "source": "docs/code-review/executable-specs/00-preflight-review-merged-auth-company-admin-hardening.md",
+          "observed": "The inventory table maps merged changes to executable-spec packets and marks `TEN-10` and `ADMIN-14` as already closed while keeping `AUTH-09` and token-revocation precision open."
+        },
+        {
+          "source": "docs/code-review/executable-specs/00-preflight-review-merged-auth-company-admin-hardening.md",
+          "observed": "The `Packet-boundary note` section has dedicated subsections for `What belongs in the merge-gate fix packet now`, `What does not belong in the merge-gate fix packet`, `What remains for Lane 01`, and `What remains for Lane 02`, which is the explicit boundary note required by the contract."
+        }
+      ]
+    },
+    {
+      "id": "VAL-PREFLIGHT-001",
+      "status": "pass",
+      "reason": "The merged auth/company/admin hardening on Factory-droid was reviewed before later packets, and the review artifact explicitly identifies the still-open regressions including token-revocation precision.",
+      "evidence": [
+        {
+          "source": "docs/code-review/executable-specs/00-preflight-review-merged-auth-company-admin-hardening.md",
+          "observed": "The `Inventory mapped to the executable-spec package` section reviews merged Factory-droid changes including runtime-policy invalidation, forgot-password persistence handling, masked admin lock scope, and token-revocation timing follow-up."
+        },
+        {
+          "source": "docs/code-review/executable-specs/00-preflight-review-merged-auth-company-admin-hardening.md",
+          "observed": "The `Exact regression classification` table marks `AUTH-09` and `token-revocation precision` as open while marking `TEN-10` and `ADMIN-14` as closed, satisfying the requirement to classify still-open regressions."
+        }
+      ]
+    },
+    {
+      "id": "VAL-WFLOW-003",
+      "status": "pass",
+      "reason": "The merge-gate review packet names the required roles and attaches proof and rollback notes before merge recommendation.",
+      "evidence": [
+        {
+          "source": "docs/code-review/executable-specs/00-current-auth-merge-gate.md",
+          "observed": "The `Header` section names the implementer, reviewer, QA owner, and release approver, and the `Proof Pack` / `Rollback Pack` sections attach exact command evidence and rollback expectations for the merge-gate packet."
+        },
+        {
+          "source": "docs/code-review/executable-specs/00-current-auth-merge-gate-release-gate.md",
+          "observed": "The release gate repeats the named roles, lists the must-pass proof commands, and records code-only rollback expectations with `revert commit 4ef5f4e1 first` plus expected RTO/RPO."
+        }
+      ]
+    },
+    {
+      "id": "VAL-MERGE-005",
+      "status": "pass",
+      "reason": "The merge-gate packet records no new contract-shape change, ties that statement to frontend handoff and tracker artifacts, and keeps the parity evidence alongside the release-gate packet.",
+      "evidence": [
+        {
+          "source": "docs/code-review/executable-specs/00-current-auth-merge-gate.md",
+          "observed": "The `Scope` and `Handoff` sections require `openapi.json` no diff, a `.factory/library/frontend-handoff.md` note, and a `docs/frontend-update-v2/**` no-op entry for the merge-gate review packet."
+        },
+        {
+          "source": "docs/code-review/executable-specs/00-current-auth-merge-gate-release-gate.md",
+          "observed": "The release gate states that `openapi.json` has no diff for the packet review and lists `.factory/library/frontend-handoff.md`, `docs/frontend-update-v2/README.md`, and `docs/frontend-update-v2/merge-gate-release-governance-review.md` as the explicit frontend parity evidence."
+        },
+        {
+          "source": ".factory/library/frontend-handoff.md and docs/frontend-update-v2/merge-gate-release-governance-review.md",
+          "observed": "The frontend handoff current mission note says the merge-gate release review added no new auth/admin request-body or success-response shape changes, and the dedicated tracker entry repeats that `openapi.json` stayed unchanged and no frontend cutover is required."
+        }
+      ]
+    }
+  ],
+  "toolsUsed": [
+    "Task (delegation attempt failed)",
+    "Read",
+    "Execute"
+  ],
+  "frictions": [
+    "Delegated `user-testing-flow-validator` launches failed immediately with `Invalid model: custom:CLIProxyAPI-5.4-high`, so docs validation was completed directly in-session using the documented fallback path."
+  ],
+  "blockers": [],
+  "summary": "Validated all five document-surface assertions directly in-session after the delegated flow-validator launch failed. The preserved docs-only baseline, preflight packet-boundary review, merge-gate role/proof/rollback records, and frontend/OpenAPI parity artifacts are all present on the milestone head."
+}

@@ -43,6 +43,12 @@ Testing surface: tools, URLs, setup steps, isolation notes, known quirks.
 - If runtime validation is unavailable, continue with compile/test evidence and record the limitation explicitly in synthesis.
 - Inventory full-context tests may still hit `ConflictingBeanDefinitionException` around `inventoryValuationService`; prefer the auth/admin-targeted suites and `gate-fast` unless the feature truly needs that broader context.
 
+## Flow Validator Guidance: docs
+- Treat packet/governance assertions as document-surface validation against the actual packet artifacts, release-gate files, frontend handoff notes, and executable-spec records produced by the milestone.
+- Do not edit packet artifacts while validating them unless you are explicitly fixing a factual testing-guide issue in `.factory/library/**` or `.factory/services.yaml`.
+- For `preflight-review-and-merge-gate`, keep docs validation limited to the milestone-owned artifacts proving docs-only preservation, preflight packet boundaries, release-gate named roles, rollback notes, and frontend/OpenAPI parity or explicit no-op evidence.
+- Evidence should cite exact file paths and the concrete statements that satisfy each assertion rather than paraphrasing the packet intent.
+
 ## Flow Validator Guidance: api
 - Verify login, refresh, logout, public forgot/reset, admin force-reset, support reset, must-change-password corridor, privileged user-control boundaries, and admin settings authz when the relevant feature claims those assertions.
 - Preserve evidence for both allowed and denied boundary cases.
