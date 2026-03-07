@@ -1,0 +1,82 @@
+{
+  "loginStatus": 200,
+  "loginKeys": [
+    "accessToken",
+    "companyCode",
+    "displayName",
+    "expiresIn",
+    "mustChangePassword",
+    "refreshToken",
+    "tokenType"
+  ],
+  "/api/v1/admin/tenant-runtime/metrics": {
+    "status": 200,
+    "topLevelKeys": [
+      "data",
+      "message",
+      "success",
+      "timestamp"
+    ],
+    "dataKeys": [
+      "blockedThisMinute",
+      "companyCode",
+      "enabledUsers",
+      "holdReason",
+      "holdState",
+      "inFlightRequests",
+      "maxActiveUsers",
+      "maxConcurrentRequests",
+      "maxRequestsPerMinute",
+      "policyReference",
+      "policyUpdatedAt",
+      "requestsThisMinute",
+      "totalUsers"
+    ]
+  },
+  "/api/v1/portal/dashboard": {
+    "status": 200,
+    "topLevelKeys": [
+      "data",
+      "message",
+      "success",
+      "timestamp"
+    ],
+    "dataKeys": [
+      "highlights",
+      "hrPulse",
+      "pipeline"
+    ]
+  },
+  "/api/v1/portal/operations": {
+    "status": 200,
+    "topLevelKeys": [
+      "data",
+      "message",
+      "success",
+      "timestamp"
+    ],
+    "dataKeys": [
+      "automationRuns",
+      "summary",
+      "supplyAlerts"
+    ]
+  },
+  "/api/v1/portal/workforce": {
+    "status": 200,
+    "topLevelKeys": [
+      "data",
+      "message",
+      "success",
+      "timestamp"
+    ],
+    "dataKeys": [
+      "leaders",
+      "moments",
+      "squads"
+    ]
+  },
+  "actuatorHealth": {
+    "status": 503,
+    "body": "{\"status\":\"DOWN\",\"groups\":[\"liveness\",\"readiness\"]}"
+  }
+}

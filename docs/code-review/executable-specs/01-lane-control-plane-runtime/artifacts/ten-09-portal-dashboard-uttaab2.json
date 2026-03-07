@@ -1,0 +1,47 @@
+{
+  "success": true,
+  "message": "Dashboard insights",
+  "data": {
+    "highlights": [
+      {
+        "label": "Revenue run rate",
+        "value": "\u20b90.00",
+        "detail": "Last 30d: \u20b90.00"
+      },
+      {
+        "label": "Fulfilment SLA",
+        "value": "0.0%",
+        "detail": "Awaiting fulfilment data"
+      },
+      {
+        "label": "Active workforce",
+        "value": "0",
+        "detail": "No workforce records"
+      },
+      {
+        "label": "Dealer coverage",
+        "value": "0",
+        "detail": "Seed dealer records to unlock insights"
+      }
+    ],
+    "pipeline": [],
+    "hrPulse": [
+      {
+        "label": "Engagement",
+        "score": "0.0%",
+        "context": "Active employees"
+      },
+      {
+        "label": "Leave utilisation",
+        "score": "0.0%",
+        "context": "Approved leave records"
+      },
+      {
+        "label": "Payroll readiness",
+        "score": "0",
+        "context": "Draft payroll runs awaiting approval"
+      }
+    ]
+  },
+  "timestamp": 1772876453.2751415
+}

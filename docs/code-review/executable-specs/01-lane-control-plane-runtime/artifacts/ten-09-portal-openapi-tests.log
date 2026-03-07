@@ -1,0 +1,230 @@
+[[1;34mINFO[m] Scanning for projects...
+[[1;34mINFO[m] 
+[[1;34mINFO[m] [1m-----------------< [0;36mcom.bigbrightpaints.erp:erp-domain[0;1m >-----------------[m
+[[1;34mINFO[m] [1mBuilding BigBright ERP Domain Service 0.1.0-SNAPSHOT[m
+[[1;34mINFO[m] [1m--------------------------------[ jar ]---------------------------------[m
+[[1;34mINFO[m] 
+[[1;34mINFO[m] [1m--- [0;32mjacoco-maven-plugin:0.8.12:prepare-agent[m [1m(default)[m @ [36merp-domain[0;1m ---[m
+[[1;34mINFO[m] Skipping JaCoCo execution because property jacoco.skip is set.
+[[1;34mINFO[m] argLine set to empty
+[[1;34mINFO[m] 
+[[1;34mINFO[m] [1m--- [0;32mmaven-resources-plugin:3.3.1:resources[m [1m(default-resources)[m @ [36merp-domain[0;1m ---[m
+[[1;34mINFO[m] Copying 10 resources from src/main/resources to target/classes
+[[1;34mINFO[m] Copying 213 resources from src/main/resources to target/classes
+[[1;34mINFO[m] 
+[[1;34mINFO[m] [1m--- [0;32mmaven-compiler-plugin:3.13.0:compile[m [1m(default-compile)[m @ [36merp-domain[0;1m ---[m
+[[1;34mINFO[m] Recompiling the module because of [1mchanged source code[m.
+[[1;34mINFO[m] Compiling 833 source files with javac [debug parameters release 21] to target/classes
+[[1;33mWARNING[m] unknown enum constant javax.annotation.meta.When.MAYBE
+  reason: class file for javax.annotation.meta.When not found
+[[1;33mWARNING[m] unknown enum constant javax.annotation.meta.When.MAYBE
+  reason: class file for javax.annotation.meta.When not found
+[[1;33mWARNING[m] unknown enum constant javax.annotation.meta.When.MAYBE
+  reason: class file for javax.annotation.meta.When not found
+[[1;33mWARNING[m] unknown enum constant javax.annotation.meta.When.MAYBE
+  reason: class file for javax.annotation.meta.When not found
+[[1;33mWARNING[m] unknown enum constant javax.annotation.meta.When.MAYBE
+  reason: class file for javax.annotation.meta.When not found
+[[1;34mINFO[m] /home/realnigga/Desktop/Mission-control/erp-domain/src/main/java/com/bigbrightpaints/erp/core/audittrail/EnterpriseAuditTrailService.java: Some input files use or override a deprecated API.
+[[1;34mINFO[m] /home/realnigga/Desktop/Mission-control/erp-domain/src/main/java/com/bigbrightpaints/erp/core/audittrail/EnterpriseAuditTrailService.java: Recompile with -Xlint:deprecation for details.
+[[1;34mINFO[m] 
+[[1;34mINFO[m] [1m--- [0;32mmaven-resources-plugin:3.3.1:testResources[m [1m(default-testResources)[m @ [36merp-domain[0;1m ---[m
+[[1;34mINFO[m] Copying 4 resources from src/test/resources to target/test-classes
+[[1;34mINFO[m] 
+[[1;34mINFO[m] [1m--- [0;32mmaven-compiler-plugin:3.13.0:testCompile[m [1m(default-testCompile)[m @ [36merp-domain[0;1m ---[m
+[[1;34mINFO[m] Recompiling the module because of [1mchanged dependency[m.
+[[1;34mINFO[m] Compiling 424 source files with javac [debug parameters release 21] to target/test-classes
+[[1;34mINFO[m] /home/realnigga/Desktop/Mission-control/erp-domain/src/test/java/com/bigbrightpaints/erp/OpenApiSnapshotIT.java: Some input files use or override a deprecated API.
+[[1;34mINFO[m] /home/realnigga/Desktop/Mission-control/erp-domain/src/test/java/com/bigbrightpaints/erp/OpenApiSnapshotIT.java: Recompile with -Xlint:deprecation for details.
+[[1;34mINFO[m] /home/realnigga/Desktop/Mission-control/erp-domain/src/test/java/com/bigbrightpaints/erp/codered/CR_ActuatorProdHardeningIT.java: Some input files use unchecked or unsafe operations.
+[[1;34mINFO[m] /home/realnigga/Desktop/Mission-control/erp-domain/src/test/java/com/bigbrightpaints/erp/codered/CR_ActuatorProdHardeningIT.java: Recompile with -Xlint:unchecked for details.
+[[1;34mINFO[m] 
+[[1;34mINFO[m] [1m--- [0;32mmaven-surefire-plugin:3.2.5:test[m [1m(default-test)[m @ [36merp-domain[0;1m ---[m
+[[1;34mINFO[m] Using auto detected provider org.apache.maven.surefire.junitplatform.JUnitPlatformProvider
+[[1;34mINFO[m] 
+[[1;34mINFO[m] -------------------------------------------------------
+[[1;34mINFO[m]  T E S T S
+[[1;34mINFO[m] -------------------------------------------------------
+[[1;34mINFO[m] Running com.bigbrightpaints.erp.modules.portal.[1mPortalInsightsControllerIT[m
+15:12:18.880 [main] INFO org.testcontainers.images.PullPolicy -- Image pull policy will be performed by: DefaultPullPolicy()
+15:12:18.883 [main] INFO org.testcontainers.utility.ImageNameSubstitutor -- Image name substitution will be performed by: DefaultImageNameSubstitutor (composite of 'ConfigurationFileImageNameSubstitutor' and 'PrefixingImageNameSubstitutor')
+15:12:18.897 [main] INFO org.testcontainers.DockerClientFactory -- Testcontainers version: 1.20.2
+15:12:18.979 [main] INFO org.testcontainers.dockerclient.DockerClientProviderStrategy -- Loaded org.testcontainers.dockerclient.UnixSocketClientProviderStrategy from ~/.testcontainers.properties, will try it first
+15:12:19.129 [main] INFO org.testcontainers.dockerclient.DockerClientProviderStrategy -- Found Docker environment with local Unix socket (unix:///var/run/docker.sock)
+15:12:19.130 [main] INFO org.testcontainers.DockerClientFactory -- Docker host IP address is localhost
+15:12:19.138 [main] INFO org.testcontainers.DockerClientFactory -- Connected to docker: 
+  Server Version: 28.2.2
+  API Version: 1.50
+  Operating System: Ubuntu 24.04.3 LTS
+  Total Memory: 15612 MB
+15:12:19.157 [main] INFO tc.testcontainers/ryuk:0.9.0 -- Creating container for image: testcontainers/ryuk:0.9.0
+15:12:19.160 [main] INFO org.testcontainers.utility.RegistryAuthLocator -- Failure when attempting to lookup auth config. Please ignore if you don't have images in an authenticated registry. Details: (dockerImageName: testcontainers/ryuk:0.9.0, configFile: /home/realnigga/.docker/config.json, configEnv: DOCKER_AUTH_CONFIG). Falling back to docker-java default behaviour. Exception message: Status 404: No config supplied. Checked in order: /home/realnigga/.docker/config.json (file not found), DOCKER_AUTH_CONFIG (not set)
+15:12:19.233 [main] INFO tc.testcontainers/ryuk:0.9.0 -- Container testcontainers/ryuk:0.9.0 is starting: 5011bd576f856c5375a8d1dc29b45f7cb27e903cbbbf654b1a03590011fd62ac
+15:12:19.464 [main] INFO tc.testcontainers/ryuk:0.9.0 -- Container testcontainers/ryuk:0.9.0 started in PT0.307281101S
+15:12:19.468 [main] INFO org.testcontainers.utility.RyukResourceReaper -- Ryuk started - will monitor and terminate Testcontainers containers on JVM exit
+15:12:19.468 [main] INFO org.testcontainers.DockerClientFactory -- Checking the system...
+15:12:19.468 [main] INFO org.testcontainers.DockerClientFactory -- ✔︎ Docker server version should be at least 1.6.0
+15:12:19.469 [main] INFO tc.postgres:16-alpine -- Creating container for image: postgres:16-alpine
+15:12:19.482 [main] INFO tc.postgres:16-alpine -- Container postgres:16-alpine is starting: b61df527f9b3a46ce7b7982376d3f6a88e15c780575b387ce35c431b85b9b3f9
+15:12:20.410 [main] INFO tc.postgres:16-alpine -- Container postgres:16-alpine started in PT0.941796533S
+15:12:20.412 [main] INFO tc.postgres:16-alpine -- Container is started (JDBC URL: jdbc:postgresql://localhost:32987/erp_domain_test?loggerLevel=OFF)
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::                (v3.3.4)
+
+2026-03-07 15:12:20 - Starting PortalInsightsControllerIT using Java 21.0.10 with PID 1632594 (started by realnigga in /home/realnigga/Desktop/Mission-control/erp-domain)
+2026-03-07 15:12:20 - The following 1 profile is active: "test"
+2026-03-07 15:12:21 - Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+2026-03-07 15:12:21 - Finished Spring Data repository scanning in 134 ms. Found 90 JPA repository interfaces.
+2026-03-07 15:12:22 - Tomcat initialized with port 0 (http)
+2026-03-07 15:12:22 - Starting service [Tomcat]
+2026-03-07 15:12:22 - Starting Servlet engine: [Apache Tomcat/10.1.30]
+2026-03-07 15:12:22 - Initializing Spring embedded WebApplicationContext
+2026-03-07 15:12:22 - Root WebApplicationContext: initialization completed in 1696 ms
+2026-03-07 15:12:22 - HikariPool-1 - Starting...
+2026-03-07 15:12:22 - HikariPool-1 - Added connection org.postgresql.jdbc.PgConnection@602e7a9e
+2026-03-07 15:12:22 - HikariPool-1 - Start completed.
+2026-03-07 15:12:22 - Database: jdbc:postgresql://localhost:32987/erp_domain_test (PostgreSQL 16.11)
+2026-03-07 15:12:22 - Schema history table "public"."flyway_schema_history_v2" does not exist yet
+2026-03-07 15:12:22 - Successfully validated 46 migrations (execution time 00:00.020s)
+2026-03-07 15:12:22 - Creating Schema History table "public"."flyway_schema_history_v2" ...
+2026-03-07 15:12:22 - Current version of schema "public": << Empty Schema >>
+2026-03-07 15:12:23 - Migrating schema "public" to version "1 - core auth rbac"
+2026-03-07 15:12:23 - Migrating schema "public" to version "2 - accounting core"
+2026-03-07 15:12:23 - Migrating schema "public" to version "3 - sales invoice"
+2026-03-07 15:12:23 - Migrating schema "public" to version "4 - inventory production"
+2026-03-07 15:12:23 - Migrating schema "public" to version "5 - purchasing hr"
+2026-03-07 15:12:23 - Migrating schema "public" to version "6 - orchestrator"
+2026-03-07 15:12:23 - Migrating schema "public" to version "7 - enterprise audit ml events"
+2026-03-07 15:12:23 - Migrating schema "public" to version "8 - idempotency case insensitive lookup indexes"
+2026-03-07 15:12:23 - Migrating schema "public" to version "9 - dealer portal user binding hardening"
+2026-03-07 15:12:23 - Migrating schema "public" to version "10 - accounting replay hotspot indexes"
+2026-03-07 15:12:23 - Migrating schema "public" to version "11 - accounting replay index cleanup"
+2026-03-07 15:12:23 - Migrating schema "public" to version "12 - invoice pending exposure status norm indexes"
+2026-03-07 15:12:23 - Migrating schema "public" to version "13 - invoice pending exposure index convergence"
+2026-03-07 15:12:23 - Migrating schema "public" to version "14 - audit action event retry queue"
+2026-03-07 15:12:23 - Migrating schema "public" to version "15 - accounting audit read model hotspot indexes"
+2026-03-07 15:12:23 - Migrating schema "public" to version "16 - accounting audit read model hotspot indexes journal lines"
+2026-03-07 15:12:23 - Migrating schema "public" to version "17 - accounting audit read model hotspot indexes invoices"
+2026-03-07 15:12:23 - Migrating schema "public" to version "18 - accounting audit read model hotspot indexes purchases"
+2026-03-07 15:12:23 - Migrating schema "public" to version "19 - company lifecycle state"
+2026-03-07 15:12:23 - DB: constraint "chk_companies_lifecycle_state" of relation "companies" does not exist, skipping
+2026-03-07 15:12:23 - Migrating schema "public" to version "20 - company quota controls"
+2026-03-07 15:12:23 - DB: constraint "chk_companies_quota_max_active_users_non_negative" of relation "companies" does not exist, skipping
+2026-03-07 15:12:23 - DB: constraint "chk_companies_quota_max_api_requests_non_negative" of relation "companies" does not exist, skipping
+2026-03-07 15:12:23 - DB: constraint "chk_companies_quota_max_storage_bytes_non_negative" of relation "companies" does not exist, skipping
+2026-03-07 15:12:23 - DB: constraint "chk_companies_quota_max_concurrent_sessions_non_negative" of relation "companies" does not exist, skipping
+2026-03-07 15:12:23 - DB: constraint "chk_companies_quota_enforcement_fail_closed" of relation "companies" does not exist, skipping
+2026-03-07 15:12:23 - Migrating schema "public" to version "21 - super admin role seed"
+2026-03-07 15:12:23 - Migrating schema "public" to version "22 - promotions image url"
+2026-03-07 15:12:23 - Migrating schema "public" to version "23 - payroll run payment reference"
+2026-03-07 15:12:23 - Migrating schema "public" to version "24 - tenant onboarding coa templates"
+2026-03-07 15:12:23 - Migrating schema "public" to version "25 - module gating and period costing method"
+2026-03-07 15:12:23 - Migrating schema "public" to version "26 - journal entry type and source columns"
+2026-03-07 15:12:23 - Migrating schema "public" to version "28 - hr employee leave redesign"
+2026-03-07 15:12:23 - Migrating schema "public" to version "29 - supplier management improvements"
+2026-03-07 15:12:23 - Migrating schema "public" to version "30 - catalog inventory traceability columns"
+2026-03-07 15:12:23 - Migrating schema "public" to version "31 - sales history and raw material batch expiry"
+2026-03-07 15:12:23 - Migrating schema "public" to version "32 - gst component tracking fields"
+2026-03-07 15:12:23 - Migrating schema "public" to version "33 - payroll payment date and production wastage reason"
+2026-03-07 15:12:23 - Migrating schema "public" to version "34 - hr p2p factory schema parity"
+2026-03-07 15:12:23 - Migrating schema "public" to version "35 - performance hotspot indexes"
+2026-03-07 15:12:23 - Migrating schema "public" to version "36 - opening balance import idempotency"
+2026-03-07 15:12:23 - Migrating schema "public" to version "37 - tally import idempotency"
+2026-03-07 15:12:23 - Migrating schema "public" to version "38 - size variants and packing traceability"
+2026-03-07 15:12:23 - Migrating schema "public" to version "39 - export requests approval gate"
+2026-03-07 15:12:23 - Migrating schema "public" to version "40 - changelog entries"
+2026-03-07 15:12:23 - Migrating schema "public" to version "41 - support tickets github integration"
+2026-03-07 15:12:23 - Migrating schema "public" to version "42 - bank reconciliation sessions"
+2026-03-07 15:12:23 - Migrating schema "public" to version "43 - reconciliation discrepancies"
+2026-03-07 15:12:23 - Migrating schema "public" to version "44 - period close requests"
+2026-03-07 15:12:23 - Migrating schema "public" to version "45 - raw material adjustments"
+2026-03-07 15:12:23 - Migrating schema "public" to version "157 - drop legacy user reset columns"
+2026-03-07 15:12:23 - Migrating schema "public" to version "158 - auth token digest storage"
+2026-03-07 15:12:23 - Successfully applied 46 migrations to schema "public", now at version v158 (execution time 00:00.669s)
+2026-03-07 15:12:23 - HHH000204: Processing PersistenceUnitInfo [name: default]
+2026-03-07 15:12:23 - HHH000412: Hibernate ORM core version 6.5.3.Final
+2026-03-07 15:12:23 - HHH000026: Second-level cache disabled
+2026-03-07 15:12:24 - No LoadTimeWeaver setup: ignoring JPA class transformer
+2026-03-07 15:12:25 - HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
+2026-03-07 15:12:25 - Initialized JPA EntityManagerFactory for persistence unit 'default'
+2026-03-07 15:12:25 - Hibernate is in classpath; If applicable, HQL parser will be used.
+WARNING: A Java agent has been loaded dynamically (/home/realnigga/.m2/repository/net/bytebuddy/byte-buddy-agent/1.14.19/byte-buddy-agent-1.14.19.jar)
+WARNING: If a serviceability tool is in use, please run with -XX:+EnableDynamicAgentLoading to hide this warning
+WARNING: If a serviceability tool is not in use, please run with -Djdk.instrument.traceUsage for more information
+WARNING: Dynamic loading of agents will be disallowed by default in a future release
+2026-03-07 15:12:26 - JWT secret is using a known static placeholder in test-only profile context test; override with env secret for non-test runtime
+2026-03-07 15:12:28 - Dispatch debit/credit accounts not configured; COGS postings for dispatch mapping will be skipped. Set erp.dispatch.debit-account-id and erp.dispatch.credit-account-id to enable dispatch journals.
+2026-03-07 15:12:28 - Order auto-approval enabled=false
+2026-03-07 15:12:29 - Exposing 3 endpoints beneath base path '/actuator'
+2026-03-07 15:12:29 - Tomcat started on port 44701 (http) with context path '/'
+2026-03-07 15:12:29 - Started PortalInsightsControllerIT in 9.165 seconds (process running for 11.294)
+2026-03-07 15:12:29 - Environment validation disabled; skipping configuration health checks
+2026-03-07 15:12:29 - Skipping critical fixture seeding: no companies present
+2026-03-07 15:12:30 - Initializing Spring DispatcherServlet 'dispatcherServlet'
+2026-03-07 15:12:30 - Initializing Servlet 'dispatcherServlet'
+2026-03-07 15:12:30 - Completed initialization in 2 ms
+[[1;34mINFO[m] [1;32mTests run: [0;1;32m3[m, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 13.02 s -- in com.bigbrightpaints.erp.modules.portal.[1mPortalInsightsControllerIT[m
+[[1;34mINFO[m] Running com.bigbrightpaints.erp.[1mOpenApiSnapshotIT[m
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::                (v3.3.4)
+
+2026-03-07 15:12:31 - Starting OpenApiSnapshotIT using Java 21.0.10 with PID 1632594 (started by realnigga in /home/realnigga/Desktop/Mission-control/erp-domain)
+2026-03-07 15:12:31 - The following 1 profile is active: "test"
+2026-03-07 15:12:32 - Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+2026-03-07 15:12:32 - Finished Spring Data repository scanning in 49 ms. Found 90 JPA repository interfaces.
+2026-03-07 15:12:32 - Tomcat initialized with port 0 (http)
+2026-03-07 15:12:32 - Starting service [Tomcat]
+2026-03-07 15:12:32 - Starting Servlet engine: [Apache Tomcat/10.1.30]
+2026-03-07 15:12:32 - Initializing Spring embedded WebApplicationContext
+2026-03-07 15:12:32 - Root WebApplicationContext: initialization completed in 389 ms
+2026-03-07 15:12:32 - HikariPool-2 - Starting...
+2026-03-07 15:12:32 - HikariPool-2 - Added connection org.postgresql.jdbc.PgConnection@1e092f02
+2026-03-07 15:12:32 - HikariPool-2 - Start completed.
+2026-03-07 15:12:32 - Database: jdbc:postgresql://localhost:32987/erp_domain_test (PostgreSQL 16.11)
+2026-03-07 15:12:32 - Successfully validated 46 migrations (execution time 00:00.011s)
+2026-03-07 15:12:32 - Current version of schema "public": 158
+2026-03-07 15:12:32 - Schema "public" is up to date. No migration necessary.
+2026-03-07 15:12:32 - HHH000204: Processing PersistenceUnitInfo [name: default]
+2026-03-07 15:12:32 - HHH000026: Second-level cache disabled
+2026-03-07 15:12:32 - No LoadTimeWeaver setup: ignoring JPA class transformer
+2026-03-07 15:12:32 - HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
+2026-03-07 15:12:32 - Initialized JPA EntityManagerFactory for persistence unit 'default'
+2026-03-07 15:12:33 - JWT secret is using a known static placeholder in test-only profile context test; override with env secret for non-test runtime
+2026-03-07 15:12:33 - Order auto-approval enabled=false
+2026-03-07 15:12:33 - Exposing 3 endpoints beneath base path '/actuator'
+2026-03-07 15:12:34 - Tomcat started on port 42295 (http) with context path '/'
+2026-03-07 15:12:34 - Started OpenApiSnapshotIT in 2.289 seconds (process running for 15.712)
+2026-03-07 15:12:34 - Environment validation disabled; skipping configuration health checks
+2026-03-07 15:12:34 - Initializing Spring DispatcherServlet 'dispatcherServlet'
+2026-03-07 15:12:34 - Initializing Servlet 'dispatcherServlet'
+2026-03-07 15:12:34 - Completed initialization in 2 ms
+2026-03-07 15:12:35 - Init duration for springdoc-openapi is: 1535 ms
+[[1;34mINFO[m] [1;32mTests run: [0;1;32m2[m, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 4.051 s -- in com.bigbrightpaints.erp.[1mOpenApiSnapshotIT[m
+[[1;34mINFO[m] 
+[[1;34mINFO[m] Results:
+[[1;34mINFO[m] 
+[[1;34mINFO[m] [1;32mTests run: 5, Failures: 0, Errors: 0, Skipped: 0[m
+[[1;34mINFO[m] 
+[[1;34mINFO[m] 
+[[1;34mINFO[m] [1m--- [0;32mjacoco-maven-plugin:0.8.12:report[m [1m(report)[m @ [36merp-domain[0;1m ---[m
+[[1;34mINFO[m] Skipping JaCoCo execution because property jacoco.skip is set.
+[[1;34mINFO[m] [1m------------------------------------------------------------------------[m
+[[1;34mINFO[m] [1;32mBUILD SUCCESS[m
+[[1;34mINFO[m] [1m------------------------------------------------------------------------[m
+[[1;34mINFO[m] Total time:  31.370 s
+[[1;34mINFO[m] Finished at: 2026-03-07T15:12:36+05:30
+[[1;34mINFO[m] [1m------------------------------------------------------------------------[m
