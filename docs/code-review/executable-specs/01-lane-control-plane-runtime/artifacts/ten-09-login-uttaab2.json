@@ -1,7 +1,7 @@
 {
   "tokenType": "Bearer",
-  "accessToken": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ1dC50YWFiLmFkbWluMkBleGFtcGxlLmNvbSIsImp0aSI6ImY5ZmY4Mjg2LWEyZWEtNDIyMS1iMmU0LTlhNWVmZGUwOThlYiIsIm5hbWUiOiJVVCBCb3VuZGFyeSBBZG1pbiAyIiwiY29tcGFueUNvZGUiOiJVVFRBQUIyIiwiY2lkIjoiVVRUQUFCMiIsImlhdE1zIjoxNzcyODc2NDUzMTA3LCJpYXQiOjE3NzI4NzY0NTMsImV4cCI6MTc3Mjg3NzM1M30.YUq-nja_uqqj5jrt_6xXnEs6NUMjXn5gtPgnf2mrB9k",
-  "refreshToken": "a54c50a5-b1fd-4030-b364-314b7cb629e2",
+  "accessToken": "REDACTED_RUNTIME_ACCESS_TOKEN",
+  "refreshToken": "REDACTED_RUNTIME_REFRESH_TOKEN",
   "expiresIn": 900,
   "companyCode": "UTTAAB2",
   "displayName": "UT Boundary Admin 2",
