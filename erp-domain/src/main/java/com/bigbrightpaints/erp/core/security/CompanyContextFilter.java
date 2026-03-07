@@ -166,12 +166,25 @@ public class CompanyContextFilter extends OncePerRequestFilter {
                     return;
                 }
                 if (!lifecycleControlRequest || tenantRuntimePolicyControlRequest) {
-                    admission = tenantRuntimeEnforcementService.beginRequest(
+                    TenantRuntimeEnforcementService.TenantRequestAdmission runtimeAdmission =
+                            tenantRuntimeEnforcementService.beginRequest(
                             companyCode,
                             runtimePath,
                             request.getMethod(),
                             resolveCurrentActor(),
                             tenantRuntimePolicyControlRequest);
+                    if (runtimeAdmission == null) {
+                        log.warn("Rejecting request because tenant runtime admission was unavailable. companyCode={}, path={}, method={}",
+                                companyCode,
+                                runtimePath,
+                                request.getMethod());
+                        admission = TenantRuntimeEnforcementService.TenantRequestAdmission.notTracked();
+                        writeAccessDenied(response,
+                                "TENANT_RUNTIME_ADMISSION_UNAVAILABLE",
+                                "Tenant runtime admission is unavailable");
+                        return;
+                    }
+                    admission = runtimeAdmission;
                     if (!admission.isAdmitted()) {
                         writeRuntimeAdmissionDenied(response, admission);
                         return;
@@ -472,8 +485,7 @@ public class CompanyContextFilter extends OncePerRequestFilter {
                 : lifecycleState;
         return switch (resolvedState) {
             case ACTIVE -> false;
-            case SUSPENDED -> isMutatingMethod(method);
-            case DEACTIVATED -> true;
+            case SUSPENDED, DEACTIVATED -> true;
         };
     }
 
@@ -483,18 +495,8 @@ public class CompanyContextFilter extends OncePerRequestFilter {
                 : lifecycleState;
         return switch (resolvedState) {
             case ACTIVE -> "Tenant lifecycle state allows access";
-            case SUSPENDED -> isMutatingMethod(method)
-                    ? "Suspended tenants are read-only"
-                    : "Tenant is suspended";
+            case SUSPENDED -> "Tenant is suspended";
             case DEACTIVATED -> "Tenant is deactivated";
         };
-    }
-
-    private boolean isMutatingMethod(String method) {
-        if (!StringUtils.hasText(method)) {
-            return true;
-        }
-        String normalized = method.trim().toUpperCase();
-        return !"GET".equals(normalized) && !"HEAD".equals(normalized) && !"OPTIONS".equals(normalized);
     }
 }
