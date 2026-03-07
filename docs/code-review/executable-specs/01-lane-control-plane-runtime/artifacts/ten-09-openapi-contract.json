@@ -1,0 +1,281 @@
+{
+  "paths": {
+    "/api/v1/admin/tenant-runtime/metrics": {
+      "get": {
+        "operationId": "tenantRuntimeMetrics",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseTenantRuntimeMetricsDto"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "admin-settings-controller",
+          "ADMIN"
+        ]
+      }
+    },
+    "/api/v1/portal/dashboard": {
+      "get": {
+        "operationId": "dashboard_2",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseDashboardInsights"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "portal-insights-controller",
+          "ADMIN"
+        ]
+      }
+    },
+    "/api/v1/portal/operations": {
+      "get": {
+        "operationId": "operations",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOperationsInsights"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "portal-insights-controller",
+          "ADMIN"
+        ]
+      }
+    },
+    "/api/v1/portal/workforce": {
+      "get": {
+        "operationId": "workforce",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseWorkforceInsights"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "portal-insights-controller",
+          "ADMIN"
+        ]
+      }
+    }
+  },
+  "schemas": {
+    "ApiResponseTenantRuntimeMetricsDto": {
+      "properties": {
+        "data": {
+          "$ref": "#/components/schemas/TenantRuntimeMetricsDto"
+        },
+        "message": {
+          "type": "string"
+        },
+        "success": {
+          "type": "boolean"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "TenantRuntimeMetricsDto": {
+      "properties": {
+        "blockedThisMinute": {
+          "format": "int32",
+          "type": "integer"
+        },
+        "companyCode": {
+          "type": "string"
+        },
+        "enabledUsers": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "holdReason": {
+          "type": "string"
+        },
+        "holdState": {
+          "type": "string"
+        },
+        "inFlightRequests": {
+          "format": "int32",
+          "type": "integer"
+        },
+        "maxActiveUsers": {
+          "format": "int32",
+          "type": "integer"
+        },
+        "maxConcurrentRequests": {
+          "format": "int32",
+          "type": "integer"
+        },
+        "maxRequestsPerMinute": {
+          "format": "int32",
+          "type": "integer"
+        },
+        "policyReference": {
+          "type": "string"
+        },
+        "policyUpdatedAt": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "requestsThisMinute": {
+          "format": "int32",
+          "type": "integer"
+        },
+        "totalUsers": {
+          "format": "int64",
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "ApiResponseDashboardInsights": {
+      "properties": {
+        "data": {
+          "$ref": "#/components/schemas/DashboardInsights"
+        },
+        "message": {
+          "type": "string"
+        },
+        "success": {
+          "type": "boolean"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "DashboardInsights": {
+      "properties": {
+        "highlights": {
+          "items": {
+            "$ref": "#/components/schemas/HighlightMetric"
+          },
+          "type": "array"
+        },
+        "hrPulse": {
+          "items": {
+            "$ref": "#/components/schemas/HrPulseMetric"
+          },
+          "type": "array"
+        },
+        "pipeline": {
+          "items": {
+            "$ref": "#/components/schemas/PipelineStage"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "ApiResponseOperationsInsights": {
+      "properties": {
+        "data": {
+          "$ref": "#/components/schemas/OperationsInsights"
+        },
+        "message": {
+          "type": "string"
+        },
+        "success": {
+          "type": "boolean"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "OperationsInsights": {
+      "properties": {
+        "automationRuns": {
+          "items": {
+            "$ref": "#/components/schemas/AutomationRun"
+          },
+          "type": "array"
+        },
+        "summary": {
+          "$ref": "#/components/schemas/OperationsSummary"
+        },
+        "supplyAlerts": {
+          "items": {
+            "$ref": "#/components/schemas/SupplyAlert"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "ApiResponseWorkforceInsights": {
+      "properties": {
+        "data": {
+          "$ref": "#/components/schemas/WorkforceInsights"
+        },
+        "message": {
+          "type": "string"
+        },
+        "success": {
+          "type": "boolean"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "WorkforceInsights": {
+      "properties": {
+        "leaders": {
+          "items": {
+            "$ref": "#/components/schemas/PerformanceLeader"
+          },
+          "type": "array"
+        },
+        "moments": {
+          "items": {
+            "$ref": "#/components/schemas/UpcomingMoment"
+          },
+          "type": "array"
+        },
+        "squads": {
+          "items": {
+            "$ref": "#/components/schemas/SquadSummary"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    }
+  }
+}

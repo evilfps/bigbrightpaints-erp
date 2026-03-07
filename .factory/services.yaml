@@ -10,6 +10,8 @@ commands:
     cd /home/realnigga/Desktop/Mission-control/erp-domain && MIGRATION_SET=v2 mvn test -Djacoco.skip=true -pl . '-Dtest=TokenBlacklistServiceTest,AuthPasswordResetPublicContractIT,AdminUserServiceTest,AdminUserSecurityIT,TenantRuntimeEnforcementServiceTest,TS_RuntimeTenantPolicyControlExecutableCoverageTest'
   test-lane01: >-
     cd /home/realnigga/Desktop/Mission-control/erp-domain && MIGRATION_SET=v2 mvn test -Djacoco.skip=true -pl . '-Dtest=AdminSettingsControllerTenantRuntimeContractTest,SystemSettingsServiceCorsTest,CompanyControllerIT,SuperAdminControllerIT,CompanyLifecycleStateConverterTest,TenantLifecycleServiceTest,TenantRuntimeEnforcementServiceTest,TS_RuntimeTenantRuntimeEnforcementTest,TS_RuntimeTenantPolicyControlExecutableCoverageTest,TS_RuntimeCompanyContextFilterExecutableCoverageTest'
+  test-lane01-proof: >-
+    cd /home/realnigga/Desktop/Mission-control/erp-domain && MIGRATION_SET=v2 mvn test -Djacoco.skip=true -pl . '-Dtest=AdminSettingsControllerTenantRuntimeContractTest,CompanyControllerIT,SuperAdminControllerIT,TS_RuntimeCompanyContextFilterExecutableCoverageTest,TS_RuntimeTenantPolicyControlExecutableCoverageTest'
   test-lane02: >-
     cd /home/realnigga/Desktop/Mission-control/erp-domain && MIGRATION_SET=v2 mvn test -Djacoco.skip=true -pl . '-Dtest=AuthControllerIT,AuthHardeningIT,AuthPasswordResetPublicContractIT,AuthTenantAuthorityIT,PasswordResetServiceTest,PasswordServiceTest,RefreshTokenServiceTest,TokenBlacklistServiceTest,AdminUserSecurityIT,AdminUserServiceTest,TenantAdminProvisioningServiceTest,OpenApiSnapshotIT'
   lint: >-

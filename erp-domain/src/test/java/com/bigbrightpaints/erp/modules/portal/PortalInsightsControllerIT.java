@@ -221,6 +221,22 @@ public class PortalInsightsControllerIT extends AbstractIntegrationTest {
     }
 
     @Test
+    void portal_runtime_surfaces_publish_wrapper_timestamps_as_date_time_strings() {
+        HttpHeaders headers = authenticatedHeaders();
+
+        ResponseEntity<Map> dashboard = rest.exchange("/api/v1/portal/dashboard", HttpMethod.GET, new HttpEntity<>(headers), Map.class);
+        ResponseEntity<Map> operations = rest.exchange("/api/v1/portal/operations", HttpMethod.GET, new HttpEntity<>(headers), Map.class);
+        ResponseEntity<Map> workforce = rest.exchange("/api/v1/portal/workforce", HttpMethod.GET, new HttpEntity<>(headers), Map.class);
+
+        assertThat(dashboard.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(operations.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(workforce.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertIsoInstantString(dashboard.getBody().get("timestamp"));
+        assertIsoInstantString(operations.getBody().get("timestamp"));
+        assertIsoInstantString(workforce.getBody().get("timestamp"));
+    }
+
+    @Test
     @SuppressWarnings("unchecked")
     void dashboardRevenueUsesRecognizedInvoicesNotOrderStatus() {
         String suffix = Long.toUnsignedString(System.nanoTime());
@@ -376,5 +392,10 @@ public class PortalInsightsControllerIT extends AbstractIntegrationTest {
         headers.setBearerAuth(token);
         headers.set("X-Company-Id", COMPANY_CODE);
         return headers;
+    }
+
+    private void assertIsoInstantString(Object value) {
+        assertThat(value).isInstanceOf(String.class);
+        assertThat(Instant.parse(value.toString())).isNotNull();
     }
 }

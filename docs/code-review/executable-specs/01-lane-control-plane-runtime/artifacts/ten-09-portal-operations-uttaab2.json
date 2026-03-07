@@ -1,0 +1,14 @@
+{
+  "success": true,
+  "message": "Operations insights",
+  "data": {
+    "summary": {
+      "productionVelocity": 0.0,
+      "logisticsSla": 0.0,
+      "workingCapital": "\u20b90.00"
+    },
+    "supplyAlerts": [],
+    "automationRuns": []
+  },
+  "timestamp": 1772876453.335031
+}

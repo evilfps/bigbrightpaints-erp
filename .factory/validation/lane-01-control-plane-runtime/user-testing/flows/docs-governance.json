@@ -1,0 +1,48 @@
+{
+  "groupId": "docs-governance",
+  "surface": "docs",
+  "testedAt": "2026-03-07T10:45:44Z",
+  "assertions": [
+    {
+      "id": "VAL-CTRL-005",
+      "title": "Lane 01 packet carries release-gate, rollback, operator/frontend handoff, and frontend v2 doc evidence",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Review the Lane 01 release-review and release-gate packet artifacts",
+          "expected": "The packet should name the packet commits, release roles, rollback order, and the explicit stop-at-orchestrator rule before Lane 02 can consume the lane",
+          "observed": "The packet files `docs/code-review/executable-specs/01-lane-control-plane-runtime/01-lane01-release-review.md` and `01-lane01-release-gate.md` both identify commits `ddf28d7b` and `13cfee89`, name the reviewer/QA/release approver roles, record rollback order and RTO/RPO notes, and explicitly state that Lane 02 remains blocked until orchestrator base-branch review accepts Lane 01."
+        },
+        {
+          "action": "Cross-check operator/frontend handoff references and the frontend-update-v2 tracker entries cited by the packet",
+          "expected": "The release-gate should point to concrete handoff references and either updated frontend tracker entries or an explicit no-op note for the surviving control-plane surfaces",
+          "observed": "The release-review caller map and release-gate both reference `.factory/library/frontend-handoff.md`, `docs/frontend-update-v2/README.md`, `docs/frontend-update-v2/global-security-settings-authorization.md`, `docs/frontend-update-v2/lane01-align-lifecycle-and-runtime-truth.md`, and `docs/frontend-update-v2/lane01-release-gate-and-handoff.md`. Those files explicitly record that tenant-admin global-settings mutation stays blocked, tenant-runtime metrics remain the read surface, suspended tenants keep protected auth reads while writes stay denied, and the release-governance packet itself introduces no new request/response shape delta."
+        }
+      ],
+      "evidence": {
+        "releaseReview": "docs/code-review/executable-specs/01-lane-control-plane-runtime/01-lane01-release-review.md",
+        "releaseGate": "docs/code-review/executable-specs/01-lane-control-plane-runtime/01-lane01-release-gate.md",
+        "handoff": ".factory/library/frontend-handoff.md",
+        "frontendTracker": [
+          "docs/frontend-update-v2/README.md",
+          "docs/frontend-update-v2/global-security-settings-authorization.md",
+          "docs/frontend-update-v2/lane01-align-lifecycle-and-runtime-truth.md",
+          "docs/frontend-update-v2/lane01-release-gate-and-handoff.md"
+        ]
+      },
+      "issues": null
+    }
+  ],
+  "frictions": [
+    {
+      "description": "Launching the delegated `user-testing-flow-validator` subagent failed immediately with `Invalid model: custom:CLIProxyAPI-5.4-high`.",
+      "resolved": true,
+      "resolution": "Fell back to direct in-session packet and handoff validation as instructed by the mission guidance.",
+      "affectedAssertions": [
+        "VAL-CTRL-005"
+      ]
+    }
+  ],
+  "blockers": [],
+  "summary": "Validated the Lane 01 governance/documentation assertion directly in-session after delegated helper launch failed. The release-review and release-gate artifacts name the exact packet commits, roles, rollback plan, and stop rule before Lane 02, and they point to explicit frontend/operator handoff references plus the required frontend-update-v2 tracker entries."
+}

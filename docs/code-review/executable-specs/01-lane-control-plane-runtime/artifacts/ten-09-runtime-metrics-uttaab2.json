@@ -1,0 +1,20 @@
+{
+  "success": true,
+  "message": "Tenant runtime metrics",
+  "data": {
+    "companyCode": "UTTAAB2",
+    "holdState": "ACTIVE",
+    "holdReason": null,
+    "maxActiveUsers": 45,
+    "maxRequestsPerMinute": 250,
+    "maxConcurrentRequests": 25,
+    "enabledUsers": 2,
+    "totalUsers": 2,
+    "requestsThisMinute": 0,
+    "blockedThisMinute": 0,
+    "inFlightRequests": 0,
+    "policyReference": "42476d92-fa77-4afb-aaf1-fdd4157668ac",
+    "policyUpdatedAt": 1772849373.238909
+  },
+  "timestamp": 1772876453.1920705
+}

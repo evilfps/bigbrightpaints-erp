@@ -220,6 +220,17 @@ public class AuthControllerIT extends AbstractIntegrationTest {
                 new HttpEntity<>(bearer(accessToken)),
                 Map.class);
         assertThat(blockedAdminResponse.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(blockedAdminResponse.getBody()).isNotNull();
+        assertThat(blockedAdminResponse.getBody()).containsEntry("success", false);
+        assertThat(blockedAdminResponse.getBody()).containsEntry(
+                "message",
+                "Password change required before accessing this resource");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> blockedAdminError = (Map<String, Object>) blockedAdminResponse.getBody().get("data");
+        assertThat(blockedAdminError).isNotNull();
+        assertThat(blockedAdminError).containsEntry("code", "AUTH_004");
+        assertThat(blockedAdminError).containsEntry("reason", "PASSWORD_CHANGE_REQUIRED");
+        assertThat(blockedAdminError).containsEntry("mustChangePassword", true);
 
         ResponseEntity<Map> changePasswordResponse = rest.exchange(
                 "/api/v1/auth/password/change",

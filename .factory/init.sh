@@ -6,6 +6,7 @@ ERP_DIR="$PROJECT_ROOT/erp-domain"
 LIB_DIR="$PROJECT_ROOT/.factory/library"
 FRONTEND_HANDOFF="$LIB_DIR/frontend-handoff.md"
 PACKET_GUIDE="$LIB_DIR/packet-governance.md"
+AUTH_GUIDE="$LIB_DIR/auth-hardening.md"
 
 if [ ! -f "$PROJECT_ROOT/.env" ]; then
   cp "$PROJECT_ROOT/.env.example" "$PROJECT_ROOT/.env"
@@ -28,6 +29,14 @@ if [ ! -f "$PACKET_GUIDE" ]; then
 # Packet Governance
 
 Packet-branch, base-branch, review, and release-gate rules for the current remediation mission.
+EOF
+fi
+
+if [ ! -f "$AUTH_GUIDE" ]; then
+  cat > "$AUTH_GUIDE" <<'EOF'
+# Auth Hardening
+
+Mission-specific guidance for auth, token, and incident-response packets.
 EOF
 fi
 

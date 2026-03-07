@@ -7,7 +7,6 @@ public record TenantOnboardingResponse(
         Integer accountsCreated,
         Long accountingPeriodId,
         String adminEmail,
-        String adminTemporaryPassword,
         boolean credentialsEmailSent,
         boolean systemSettingsInitialized
 ) {

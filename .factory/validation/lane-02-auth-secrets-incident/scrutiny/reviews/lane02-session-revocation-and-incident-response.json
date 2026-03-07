@@ -1,0 +1,15 @@
+{
+  "featureId": "lane02-session-revocation-and-incident-response",
+  "reviewedAt": "2026-03-07T18:56:47+05:30",
+  "commitId": "a00b0f83d1b714b772276fcef5ef6c23d7f58ba1",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The revocation fix is small and targeted: `TokenBlacklistService.alignIssuedAtAfterRevocation(...)` bumps only newly issued login/refresh timestamps whose millisecond bucket would otherwise collide with a stored revocation marker, and `AuthService` now consistently uses the aligned issue time for both access-token minting and refresh-token issuance. Existing fail-closed checks remain unchanged for older tokens because revocation still compares the original consumed refresh-token issue time on refresh and exact instants on bearer validation; the added unit/service coverage plus compose-backed probes demonstrate the intended boundary behavior—old sessions are rejected after logout while immediate fresh sessions stay usable, and masked foreign-tenant admin denials still preserve the existing `User not found` contract.",
+    "issues": []
+  },
+  "sharedStateObservations": [],
+  "addressesFailureFrom": null,
+  "summary": "PASS. Immediate post-revocation relogins are preserved without reopening stale-session access or cross-tenant incident-response regressions."
+}

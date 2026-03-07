@@ -1,0 +1,40 @@
+{
+  "milestone": "lane-01-control-plane-runtime",
+  "round": 1,
+  "status": "pass",
+  "validatorsRun": {
+    "test": {
+      "passed": true,
+      "command": "cd \"/home/realnigga/Desktop/Mission-control/erp-domain\" && MIGRATION_SET=v2 mvn -T8 test -Pgate-fast -Djacoco.skip=true",
+      "exitCode": 0
+    },
+    "typecheck": {
+      "passed": true,
+      "command": "cd \"/home/realnigga/Desktop/Mission-control/erp-domain\" && MIGRATION_SET=v2 mvn -T8 compile -q",
+      "exitCode": 0
+    },
+    "lint": {
+      "passed": true,
+      "command": "bash \"/home/realnigga/Desktop/Mission-control/ci/lint-knowledgebase.sh\" && bash \"/home/realnigga/Desktop/Mission-control/ci/check-architecture.sh\" && bash \"/home/realnigga/Desktop/Mission-control/ci/check-enterprise-policy.sh\" && bash \"/home/realnigga/Desktop/Mission-control/ci/check-orchestrator-layer.sh\" && python3 \"/home/realnigga/Desktop/Mission-control/scripts/check_flaky_tags.py\" --tests-root \"/home/realnigga/Desktop/Mission-control/erp-domain/src/test/java\" --gate gate-fast && bash \"/home/realnigga/Desktop/Mission-control/scripts/guard_openapi_contract_drift.sh\"",
+      "exitCode": 0
+    }
+  },
+  "reviewsSummary": {
+    "total": 4,
+    "passed": 4,
+    "failed": 0,
+    "failedFeatures": []
+  },
+  "blockingIssues": [],
+  "appliedUpdates": [],
+  "suggestedGuidanceUpdates": [
+    {
+      "target": "skills/scrutiny-validator",
+      "suggestion": "Repair the `scrutiny-feature-reviewer` Task model configuration or explicitly codify the current manual fallback path in the skill so scrutiny validators can complete per-feature reviews without subagent fan-out when the reviewer model alias is unavailable.",
+      "evidence": "This milestone attempted four `scrutiny-feature-reviewer` Task launches for `lane01-prove-current-control-plane-contract`, `lane01-scope-global-settings-and-runtime-surface`, `lane01-align-lifecycle-and-runtime-truth`, and `lane01-release-gate-and-handoff`; each failed immediately with `Invalid model: custom:CLIProxyAPI-5.4-high`, so the validator completed the reviews directly from handoff JSON, transcript skeletons, packet artifacts, and commit diffs.",
+      "isSystemic": true
+    }
+  ],
+  "rejectedObservations": [],
+  "previousRound": null
+}

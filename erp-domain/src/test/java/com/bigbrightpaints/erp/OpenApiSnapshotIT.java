@@ -58,8 +58,14 @@ public class OpenApiSnapshotIT extends AbstractIntegrationTest {
                 "#/components/schemas/ForgotPasswordRequest", "200", "#/components/schemas/ApiResponseString");
         assertOperationContract(root, "/api/v1/auth/password/forgot/superadmin", "post",
                 "#/components/schemas/ForgotPasswordRequest", "410", "#/components/schemas/ApiResponseMapStringString");
+        assertThat(root.path("paths").path("/api/v1/auth/password/forgot/superadmin").path("post").path("deprecated").asBoolean())
+                .withFailMessage("Expected POST /api/v1/auth/password/forgot/superadmin to stay published as deprecated")
+                .isTrue();
         assertOperationContract(root, "/api/v1/auth/password/reset", "post",
                 "#/components/schemas/ResetPasswordRequest", "200", "#/components/schemas/ApiResponseString");
+        assertOperationContract(root, "/api/v1/companies/{id}/support/admin-password-reset", "post",
+                "#/components/schemas/CompanyAdminPasswordResetRequest", "200",
+                "#/components/schemas/ApiResponseCompanyAdminCredentialResetDto");
 
         assertOperationContract(root, "/api/v1/admin/settings", "get",
                 null, "200", "#/components/schemas/ApiResponseSystemSettingsDto");

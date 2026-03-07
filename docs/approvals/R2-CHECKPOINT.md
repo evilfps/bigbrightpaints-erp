@@ -1,36 +1,36 @@
 # R2 Checkpoint
 
 ## Scope
-- Feature: `preflight-review-and-merge-gate`
-- Published review chain: PR #90 `review: preflight review and merge-gate closure`; PR #91 `review: lane 01 control-plane runtime packet`
-- Base / branch lineage: `Factory-droid` -> `packet/preflight-review-and-merge-gate` -> `packet/lane01-control-plane-runtime`
-- High-risk packet commit: `4ef5f4e1` (`fix(auth): surface reset persistence failures and preserve revocation ordering`)
-- Why this is R2: the published review stack still carries a narrow auth/security merge-gate packet that changes password-reset persistence handling and token-revocation ordering in security-sensitive paths.
+- Feature: `lane-02-auth-secrets-incident`
+- Published review chain: PR #91 `review: lane 01 control-plane runtime packet`; PR #93 `review: lane 02 auth secrets incident packet`
+- Base / branch lineage: `Factory-droid` -> `packet/preflight-review-and-merge-gate` -> `packet/lane01-control-plane-runtime` -> `packet/lane02-auth-secrets-incident`
+- High-risk packet commits: `b4ff6e08` (`fix(company): stop exposing onboarding temp credentials`), `dbdbf27a` (`fix(auth): lock recovery contract parity`), `b130febf` (`fix(company): fail closed when onboarding credential delivery is disabled`)
+- Why this is R2: the published Lane 02 packet changes auth and tenant-onboarding behavior on privileged control-plane flows, so the review branch needs explicit approval evidence tied to the final packet scope before merge.
 
 ## Risk Trigger
-- Triggered by `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/auth/service/PasswordResetService.java` and `erp-domain/src/main/java/com/bigbrightpaints/erp/core/security/TokenBlacklistService.java`.
-- Contract surfaces affected: `POST /api/v1/auth/password/forgot` and access-token revocation enforcement on protected auth surfaces.
-- Regression guardrails re-proved alongside the packet: `AdminUserServiceTest`, `AdminUserSecurityIT`, `TenantRuntimeEnforcementServiceTest`, and `TS_RuntimeTenantPolicyControlExecutableCoverageTest`.
-- Main risks being controlled: false-success masking of reset-token persistence failures, same-millisecond revocation ordering drift, and accidental widening beyond the narrow merge-gate packet.
+- Triggered by `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/company/service/TenantOnboardingService.java`, `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/company/dto/TenantOnboardingResponse.java`, and the password-recovery contract surfaces documented in `openapi.json`.
+- Contract surfaces affected: `POST /api/v1/superadmin/tenants/onboard`, `POST /api/v1/auth/password/forgot`, `POST /api/v1/auth/password/forgot/superadmin`, and `POST /api/v1/companies/{id}/support/admin-password-reset`.
+- Regression guardrails re-proved alongside the packet: `AuthControllerIT`, `AuthHardeningIT`, `AuthPasswordResetPublicContractIT`, `AuthTenantAuthorityIT`, `PasswordResetServiceTest`, `PasswordServiceTest`, `RefreshTokenServiceIT`, `TokenBlacklistServiceTest`, `AdminUserSecurityIT`, `AdminUserServiceTest`, `TenantAdminProvisioningServiceTest`, `OpenApiSnapshotIT`, and `TenantOnboardingControllerTest`.
+- Main risks being controlled: temporary credential leakage, successful tenant bootstrap when credential delivery is disabled, drift between retired recovery aliases and supported reset paths, and packet widening beyond the documented Lane 02 auth/onboarding scope.
 
 ## Approval Authority
 - Mode: orchestrator
-- Approver: Factory-droid packet/governance orchestration for PR #90 and PR #91
-- Basis: compatibility-preserving high-risk remediation required before Lane 01 review can proceed and before any Lane 02 remote publication.
+- Approver: Factory-droid packet/governance orchestration for PR #93
+- Basis: compatibility-preserving auth/company remediation within the approved Lane 02 packet scope, with no privilege widening or destructive migration behavior.
 
 ## Escalation Decision
 - Human escalation required: no
-- Reason: this follow-up only restores governance evidence for the already-published merge-gate packet and does not widen product behavior, privileges, or migration scope.
+- Reason: the packet removes credential exposure, fails closed on delivery-disabled onboarding, and locks published recovery parity without widening tenant boundaries or introducing destructive schema changes.
 
 ## Rollback Owner
 - Owner: Factory-droid packet/governance worker
-- Rollback method: revert commit `4ef5f4e1`, refresh PR #90 / PR #91 to remove the merge-gate packet, then rerun the targeted merge-gate regression pack and `mvn test -Pgate-fast -Djacoco.skip=true` before any new merge recommendation.
+- Rollback method: revert `b130febf`, `dbdbf27a`, and `b4ff6e08` from `packet/lane02-auth-secrets-incident`, then rerun the targeted Lane 02 auth/admin/OpenAPI regression pack plus `mvn -T8 test -Pgate-fast -Djacoco.skip=true` before making any new merge recommendation.
 
 ## Expiry
 - Valid until: 2026-03-14
-- Re-evaluate if: PR #90 / PR #91 add new auth/company/orchestrator logic, the merge-gate packet scope widens beyond the listed files and guardrails, or any Lane 02 packet is prepared for remote publication.
+- Re-evaluate if: PR #93 widens beyond the listed auth/company/OpenAPI surfaces, changes tenant-boundary semantics, or adds migration work outside the already-reviewed digest-storage compatibility path.
 
 ## Verification Evidence
-- Commands run: `cd /home/realnigga/Desktop/Mission-control/erp-domain && MIGRATION_SET=v2 mvn test -Djacoco.skip=true -pl . '-Dtest=TokenBlacklistServiceTest,AuthPasswordResetPublicContractIT,AdminUserServiceTest,AdminUserSecurityIT,TenantRuntimeEnforcementServiceTest,TS_RuntimeTenantPolicyControlExecutableCoverageTest'`; `cd /home/realnigga/Desktop/Mission-control/erp-domain && MIGRATION_SET=v2 mvn -T8 test -Pgate-fast -Djacoco.skip=true`; `git show --stat --name-only --format=fuller 4ef5f4e1`; `git diff -- openapi.json .factory/library/frontend-handoff.md docs/frontend-update-v2 docs/code-review/executable-specs`; `REVIEW_POLICY_DIFF_BASE=b93c91aa6d703d75708df66a5bb6f805f7e47154 bash /home/realnigga/Desktop/Mission-control/scripts/enforce_codex_review_policy.sh`; `ENTERPRISE_DIFF_BASE=b93c91aa6d703d75708df66a5bb6f805f7e47154 bash /home/realnigga/Desktop/Mission-control/ci/check-enterprise-policy.sh`
-- Result summary: the targeted merge-gate regression pack stayed green, `gate-fast` passed with 395 tests and 0 failures, commit `4ef5f4e1` remained limited to the two production files plus three regression tests, packet parity evidence stayed attached, and the repo-root review-policy / R2 governance artifacts now exist for the published preflight and Lane 01 review chain.
-- Artifacts/links: `docs/code-review/executable-specs/00-preflight-review-merged-auth-company-admin-hardening.md`, `docs/code-review/executable-specs/00-current-auth-merge-gate.md`, `docs/code-review/executable-specs/00-current-auth-merge-gate-release-gate.md`, `https://github.com/anasibnanwar-XYE/bigbrightpaints-erp/pull/90`, `https://github.com/anasibnanwar-XYE/bigbrightpaints-erp/pull/91`, `AGENTS.md`, `docs/SECURITY.md`, `docs/agents/PERMISSIONS.md`, `docs/agents/CATALOG.md`
+- Commands run: `cd /home/realnigga/Desktop/Mission-control/erp-domain && MIGRATION_SET=v2 mvn test -Djacoco.skip=true -pl . '-Dtest=AuthControllerIT,AuthHardeningIT,AuthPasswordResetPublicContractIT,AuthTenantAuthorityIT,PasswordResetServiceTest,PasswordServiceTest,RefreshTokenServiceTest,TokenBlacklistServiceTest,AdminUserSecurityIT,AdminUserServiceTest,TenantAdminProvisioningServiceTest,OpenApiSnapshotIT,TenantOnboardingControllerTest'`; `cd /home/realnigga/Desktop/Mission-control/erp-domain && MIGRATION_SET=v2 mvn -T8 test -Pgate-fast -Djacoco.skip=true`; `bash /home/realnigga/Desktop/Mission-control/ci/lint-knowledgebase.sh && bash /home/realnigga/Desktop/Mission-control/ci/check-architecture.sh && bash /home/realnigga/Desktop/Mission-control/ci/check-enterprise-policy.sh && bash /home/realnigga/Desktop/Mission-control/ci/check-orchestrator-layer.sh && python3 /home/realnigga/Desktop/Mission-control/scripts/check_flaky_tags.py --tests-root /home/realnigga/Desktop/Mission-control/erp-domain/src/test/java --gate gate-fast && bash /home/realnigga/Desktop/Mission-control/scripts/guard_openapi_contract_drift.sh`; `git diff --name-only packet/lane01-control-plane-runtime...packet/lane02-auth-secrets-incident`; `ENTERPRISE_DIFF_BASE=86b38cde5b8910f39fb7365e2069869f83f67e60 bash /home/realnigga/Desktop/Mission-control/ci/check-enterprise-policy.sh`
+- Result summary: the targeted Lane 02 regression pack passed, `gate-fast` stayed green with 395 tests and 0 failures, the final Lane 02 diff remained constrained to onboarding/auth/OpenAPI/handoff/review artifacts, and the R2 checkpoint now matches the exact PR #93 packet scope required by enterprise policy.
+- Artifacts/links: `docs/code-review/executable-specs/02-lane-auth-secrets-incident/01-lane02-release-review.md`, `docs/code-review/executable-specs/02-lane-auth-secrets-incident/01-lane02-release-gate.md`, `.factory/validation/lane-02-auth-secrets-incident/scrutiny/synthesis.json`, `.factory/validation/lane-02-auth-secrets-incident/user-testing/synthesis.json`, `https://github.com/anasibnanwar-XYE/bigbrightpaints-erp/pull/93`

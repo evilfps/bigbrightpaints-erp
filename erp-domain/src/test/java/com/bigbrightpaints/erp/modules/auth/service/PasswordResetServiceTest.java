@@ -152,6 +152,25 @@ class PasswordResetServiceTest {
     }
 
     @Test
+    void resetPasswordUsesDigestLookupForDigestOnlyRows() {
+        UserAccount user = new UserAccount("user@example.com", "hash", "User");
+        user.setEnabled(true);
+        String rawToken = "digest-token";
+        String tokenDigest = AuthTokenDigests.passwordResetTokenDigest(rawToken);
+        PasswordResetToken digestOnly = PasswordResetToken.digestOnly(user, tokenDigest, Instant.now().plusSeconds(300));
+        when(tokenRepository.findByTokenDigest(tokenDigest)).thenReturn(Optional.of(digestOnly));
+
+        passwordResetService.resetPassword(rawToken, "NewPass123!", "NewPass123!");
+
+        verify(passwordService).resetPassword(user, "NewPass123!", "NewPass123!");
+        verify(tokenBlacklistService).revokeAllUserTokens("user@example.com");
+        verify(refreshTokenService).revokeAllForUser("user@example.com");
+        verify(tokenRepository, never()).findByToken(rawToken);
+        verify(tokenRepository).save(digestOnly);
+        verify(tokenRepository).deleteByUser(user);
+    }
+
+    @Test
     void resetPasswordRejectsAlreadyUsedLegacyTokenDuringTransition() {
         UserAccount user = new UserAccount("user@example.com", "hash", "User");
         user.setEnabled(true);
@@ -176,6 +195,20 @@ class PasswordResetServiceTest {
         verify(emailService).sendPasswordResetEmailRequired(eq("managed@example.com"), eq("Managed User"), anyString());
         verify(tokenRepository).deleteByUser(adminManagedUser);
         verify(emailService, never()).sendSimpleEmail(anyString(), anyString(), anyString());
+    }
+
+    @Test
+    void backfillLegacyTokensMigratesPlaintextRowsToDigestOnlyStorage() {
+        UserAccount user = new UserAccount("user@example.com", "hash", "User");
+        PasswordResetToken legacy = new PasswordResetToken(user, "legacy-token", Instant.now().plusSeconds(300));
+        when(tokenRepository.findAllByTokenIsNotNullAndTokenDigestIsNull()).thenReturn(List.of(legacy));
+
+        int migrated = passwordResetService.backfillLegacyTokens();
+
+        assertEquals(1, migrated);
+        assertNull(legacy.getToken());
+        assertEquals(AuthTokenDigests.passwordResetTokenDigest("legacy-token"), legacy.getTokenDigest());
+        verify(tokenRepository).saveAll(List.of(legacy));
     }
 
     @Test

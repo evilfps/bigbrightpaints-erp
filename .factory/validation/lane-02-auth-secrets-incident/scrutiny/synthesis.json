@@ -1,0 +1,40 @@
+{
+  "milestone": "lane-02-auth-secrets-incident",
+  "round": 2,
+  "status": "pass",
+  "validatorsRun": {
+    "test": {
+      "passed": true,
+      "command": "cd \"/home/realnigga/Desktop/Mission-control/erp-domain\" && MIGRATION_SET=v2 mvn -T8 test -Pgate-fast -Djacoco.skip=true",
+      "exitCode": 0
+    },
+    "typecheck": {
+      "passed": true,
+      "command": "cd \"/home/realnigga/Desktop/Mission-control/erp-domain\" && MIGRATION_SET=v2 mvn -T8 compile -q",
+      "exitCode": 0
+    },
+    "lint": {
+      "passed": true,
+      "command": "bash \"/home/realnigga/Desktop/Mission-control/ci/lint-knowledgebase.sh\" && bash \"/home/realnigga/Desktop/Mission-control/ci/check-architecture.sh\" && bash \"/home/realnigga/Desktop/Mission-control/ci/check-enterprise-policy.sh\" && bash \"/home/realnigga/Desktop/Mission-control/ci/check-orchestrator-layer.sh\" && python3 \"/home/realnigga/Desktop/Mission-control/scripts/check_flaky_tags.py\" --tests-root \"/home/realnigga/Desktop/Mission-control/erp-domain/src/test/java\" --gate gate-fast && bash \"/home/realnigga/Desktop/Mission-control/scripts/guard_openapi_contract_drift.sh\"",
+      "exitCode": 0
+    }
+  },
+  "reviewsSummary": {
+    "total": 5,
+    "passed": 5,
+    "failed": 0,
+    "failedFeatures": []
+  },
+  "blockingIssues": [],
+  "appliedUpdates": [],
+  "suggestedGuidanceUpdates": [
+    {
+      "target": "skills/scrutiny-validator",
+      "suggestion": "Repair the `scrutiny-feature-reviewer` Task model configuration or codify the manual fallback path directly in the skill so scrutiny validators can complete per-feature reviews without failed fan-out attempts when the reviewer model alias is unavailable.",
+      "evidence": "Round 2 again attempted five `scrutiny-feature-reviewer` Task launches for `lane02-temp-credential-and-corridor-hardening`, `lane02-token-digest-v2-migration`, `lane02-session-revocation-and-incident-response`, `lane02-recovery-contract-parity`, and `lane02-release-gate-and-cross-area-audit`; each failed immediately with `Invalid model: custom:CLIProxyAPI-5.4-high`, so the validator completed the reviews directly from handoff JSON, transcript skeletons, packet artifacts, and commit diffs instead.",
+      "isSystemic": true
+    }
+  ],
+  "rejectedObservations": [],
+  "previousRound": "git:cf0e591c:.factory/validation/lane-02-auth-secrets-incident/scrutiny/synthesis.json"
+}

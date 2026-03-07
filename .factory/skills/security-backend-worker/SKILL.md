@@ -31,6 +31,7 @@ Use for backend features that change:
    - the lane-specific `EXEC-SPEC.md`
 5. Enumerate all touched endpoints, DTOs, roles, tenant/company-boundary checks, token stores, migrations, and adjacent ERP-sensitive flows before coding.
 6. Explicitly note whether the feature is expected to preserve the current request/response shape. Default assumption: preserve it.
+7. Reconfirm the packet stays inside its assigned lane: Lane 01 work must not absorb auth-secret migration, and Lane 02 work must not reopen control-plane lifecycle/runtime redesign.
 
 ### Step 2: Write characterization tests first
 1. Before implementation, add or update tests that lock in the current contract and reproduce the security or boundary problem.
@@ -64,8 +65,9 @@ Use for backend features that change:
 ### Step 5: Update shared knowledge
 1. Update `.factory/library/frontend-handoff.md` for any touched auth/admin surface. If nothing changed, say so explicitly.
 2. Update the relevant `docs/frontend-update-v2/**` entry for any frontend-relevant auth/admin/control-plane outcome, including explicit no-op notes where applicable.
-3. If you learned a new auth/security constraint or rollout caveat, update `.factory/library/auth-hardening.md`.
-4. If runtime setup/verification changed, update `.factory/library/user-testing.md`.
+3. When a packet restores live runtime behavior to an already-published contract on a frontend-relevant surface, still record that parity/no-op conclusion in the handoff docs instead of silently skipping the update.
+4. If you learned a new auth/security constraint or rollout caveat, update `.factory/library/auth-hardening.md`.
+5. If runtime setup/verification changed, update `.factory/library/user-testing.md`.
 
 ### Step 6: Produce a strict handoff
 Your handoff must make shortcuts visible. Include:

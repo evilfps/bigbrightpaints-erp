@@ -1,0 +1,15 @@
+{
+  "featureId": "lane02-recovery-contract-parity",
+  "reviewedAt": "2026-03-07T18:56:47+05:30",
+  "commitId": "2941da8367853f1890e40353cd38a0292dd1b2b9",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The parity packet tightens contract proof rather than changing live auth behavior: `OpenApiSnapshotIT` now locks both sides of the documented recovery story by asserting the deprecated super-admin forgot alias stays published as `deprecated` with `410 Gone`, while the supported company support-reset path remains present with its existing response schema. The companion frontend/support notes correctly record this as a no-op contract confirmation, and the worker's runtime probe matched the published behavior (`410` alias retirement with canonical/support pointers plus `200` on the canonical public forgot route), so the packet closes documentation drift without widening auth surface area.",
+    "issues": []
+  },
+  "sharedStateObservations": [],
+  "addressesFailureFrom": null,
+  "summary": "PASS. The retired recovery alias, canonical public forgot-password route, OpenAPI snapshot, and consumer handoff notes are now explicitly locked to the same live contract."
+}

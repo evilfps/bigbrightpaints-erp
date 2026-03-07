@@ -3,6 +3,7 @@ package com.bigbrightpaints.erp.modules.company;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bigbrightpaints.erp.core.config.SystemSettingsRepository;
+import com.bigbrightpaints.erp.core.notification.EmailService;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriodRepository;
@@ -21,12 +22,15 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.web.client.TestRestTemplate;
+import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+
+import static org.mockito.Mockito.doReturn;
 
 class TenantOnboardingControllerTest extends AbstractIntegrationTest {
 
@@ -51,6 +55,9 @@ class TenantOnboardingControllerTest extends AbstractIntegrationTest {
 
     @Autowired
     private SystemSettingsRepository systemSettingsRepository;
+
+    @SpyBean
+    private EmailService emailService;
 
     @BeforeEach
     void seedSuperAdmin() {
@@ -88,7 +95,7 @@ class TenantOnboardingControllerTest extends AbstractIntegrationTest {
             assertThat(data.get("templateCode").toString()).isEqualTo(templateCode);
             assertThat(data.get("companyCode").toString()).isEqualTo(companyCode);
             assertThat(data.get("adminEmail").toString()).isEqualTo(adminEmail);
-            assertThat(data.get("adminTemporaryPassword").toString()).isNotBlank();
+            assertThat(data).doesNotContainKey("adminTemporaryPassword");
 
             Company company = companyRepository.findByCodeIgnoreCase(companyCode).orElseThrow();
             List<Account> accounts = accountRepository.findByCompanyOrderByCodeAsc(company);
@@ -124,6 +131,36 @@ class TenantOnboardingControllerTest extends AbstractIntegrationTest {
         assertThat(systemSettingsRepository.findById("auto-approval.enabled")).isPresent();
         assertThat(systemSettingsRepository.findById("period-lock.enforced")).isPresent();
         assertThat(systemSettingsRepository.findById("cors.allowed-origins")).isNotPresent();
+    }
+
+    @Test
+    void onboardTenant_rejectsWhenCredentialDeliveryIsDisabled() {
+        doReturn(false).when(emailService).isCredentialEmailDeliveryEnabled();
+
+        String superAdminToken = loginToken(SUPER_ADMIN_EMAIL, ROOT_COMPANY_CODE);
+        String companyCode = uniqueCode("TEN");
+        String adminEmail = "disabled-" + UUID.randomUUID() + "@example.com";
+        Map<String, Object> request = Map.of(
+                "name", "Tenant Disabled Delivery",
+                "code", companyCode,
+                "timezone", "UTC",
+                "firstAdminEmail", adminEmail,
+                "firstAdminDisplayName", "Disabled Delivery Admin",
+                "coaTemplateCode", "GENERIC");
+
+        ResponseEntity<Map> response = rest.exchange(
+                "/api/v1/superadmin/tenants/onboard",
+                HttpMethod.POST,
+                new HttpEntity<>(request, headers(superAdminToken, ROOT_COMPANY_CODE)),
+                Map.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody()).containsEntry("success", false);
+        assertThat(String.valueOf(response.getBody().get("message")))
+                .contains("Credential email delivery is disabled");
+        assertThat(companyRepository.findByCodeIgnoreCase(companyCode)).isEmpty();
+        assertThat(userAccountRepository.findByEmailIgnoreCase(adminEmail)).isEmpty();
     }
 
     private String uniqueCode(String prefix) {

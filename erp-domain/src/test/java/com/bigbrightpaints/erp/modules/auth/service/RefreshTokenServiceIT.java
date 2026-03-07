@@ -65,6 +65,25 @@ class RefreshTokenServiceTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void backfillLegacyTokens_migrates_plaintext_rows_to_digest_only_storage() {
+        Instant issuedAt = Instant.now().minusSeconds(30);
+        Instant expiresAt = Instant.now().plusSeconds(300);
+        RefreshToken legacy = refreshTokenRepository.save(
+                new RefreshToken("legacy-token", "legacy@example.com", issuedAt, expiresAt));
+
+        int migrated = refreshTokenService.backfillLegacyTokens();
+
+        assertThat(migrated).isEqualTo(1);
+        RefreshToken stored = refreshTokenRepository.findById(legacy.getId()).orElseThrow();
+        assertThat(stored.getToken()).isNull();
+        assertThat(stored.getTokenDigest()).isEqualTo(AuthTokenDigests.refreshTokenDigest("legacy-token"));
+
+        RefreshTokenService.TokenRecord record = refreshTokenService.consume("legacy-token").orElseThrow();
+        assertThat(record.userEmail()).isEqualTo("legacy@example.com");
+        assertThat(refreshTokenRepository.findAll()).isEmpty();
+    }
+
+    @Test
     void revokeAllForUser_removes_user_tokens_only() {
         refreshTokenService.issue("user@example.com", Instant.now().plusSeconds(300));
         refreshTokenService.issue("User@Example.com", Instant.now().plusSeconds(300));

@@ -1,0 +1,15 @@
+{
+  "featureId": "lane01-align-lifecycle-and-runtime-truth",
+  "reviewedAt": "2026-03-07T16:01:23+05:30",
+  "commitId": "13cfee89addf81f173027f8b66f13cded486d62a",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The lifecycle/runtime alignment change is intentionally small and preserves fail-closed behavior where required. `CompanyContextFilter` now treats stored `SUSPENDED` the same as runtime hold semantics for protected reads by delegating non-mutating requests to `TenantRuntimeEnforcementService`, while mutating requests and `DEACTIVATED` tenants remain blocked. The updated truthsuite test proves that suspended reads actually reach runtime admission instead of being rejected early, and the handoff shows the original `AuthTenantAuthorityIT` drift reproduced red before the fix and then passed in both the targeted feature pack and full `gate-fast` rerun.",
+    "issues": []
+  },
+  "sharedStateObservations": [],
+  "addressesFailureFrom": null,
+  "summary": "PASS. Suspended tenants now consistently get the documented read-only auth corridor without reopening protected writes or deactivated-tenant access."
+}

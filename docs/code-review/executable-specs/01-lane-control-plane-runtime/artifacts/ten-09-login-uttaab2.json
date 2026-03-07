@@ -1,0 +1,9 @@
+{
+  "tokenType": "Bearer",
+  "accessToken": "REDACTED_RUNTIME_ACCESS_TOKEN",
+  "refreshToken": "REDACTED_RUNTIME_REFRESH_TOKEN",
+  "expiresIn": 900,
+  "companyCode": "UTTAAB2",
+  "displayName": "UT Boundary Admin 2",
+  "mustChangePassword": false
+}

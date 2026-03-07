@@ -1,6 +1,7 @@
 package com.bigbrightpaints.erp.shared.dto;
 
 import com.bigbrightpaints.erp.core.util.CompanyTime;
+import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import java.time.Instant;
 
@@ -9,6 +10,7 @@ public record ApiResponse<T>(
         boolean success,
         String message,
         T data,
+        @JsonFormat(shape = JsonFormat.Shape.STRING)
         Instant timestamp
 ) {
     public static <T> ApiResponse<T> success(String message, T data) {
