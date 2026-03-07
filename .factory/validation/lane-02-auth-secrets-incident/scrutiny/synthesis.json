@@ -1,6 +1,6 @@
 {
   "milestone": "lane-02-auth-secrets-incident",
-  "round": 1,
+  "round": 2,
   "status": "pass",
   "validatorsRun": {
     "test": {
@@ -30,11 +30,11 @@
   "suggestedGuidanceUpdates": [
     {
       "target": "skills/scrutiny-validator",
-      "suggestion": "Repair the `scrutiny-feature-reviewer` Task model configuration or codify the current manual fallback path directly in the skill so scrutiny validators can complete per-feature reviews without failed fan-out attempts when the reviewer model alias is unavailable.",
-      "evidence": "This milestone attempted five `scrutiny-feature-reviewer` Task launches for `lane02-temp-credential-and-corridor-hardening`, `lane02-token-digest-v2-migration`, `lane02-session-revocation-and-incident-response`, `lane02-recovery-contract-parity`, and `lane02-release-gate-and-cross-area-audit`; each failed immediately with `Invalid model: custom:CLIProxyAPI-5.4-high`, so the validator completed the reviews directly from handoff JSON, transcript skeletons, packet artifacts, and commit diffs.",
+      "suggestion": "Repair the `scrutiny-feature-reviewer` Task model configuration or codify the manual fallback path directly in the skill so scrutiny validators can complete per-feature reviews without failed fan-out attempts when the reviewer model alias is unavailable.",
+      "evidence": "Round 2 again attempted five `scrutiny-feature-reviewer` Task launches for `lane02-temp-credential-and-corridor-hardening`, `lane02-token-digest-v2-migration`, `lane02-session-revocation-and-incident-response`, `lane02-recovery-contract-parity`, and `lane02-release-gate-and-cross-area-audit`; each failed immediately with `Invalid model: custom:CLIProxyAPI-5.4-high`, so the validator completed the reviews directly from handoff JSON, transcript skeletons, packet artifacts, and commit diffs instead.",
       "isSystemic": true
     }
   ],
   "rejectedObservations": [],
-  "previousRound": null
+  "previousRound": "git:cf0e591c:.factory/validation/lane-02-auth-secrets-incident/scrutiny/synthesis.json"
 }
