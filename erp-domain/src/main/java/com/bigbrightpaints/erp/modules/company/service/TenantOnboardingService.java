@@ -104,7 +104,6 @@ public class TenantOnboardingService {
                 createdAccounts.size(),
                 defaultPeriod.getId(),
                 normalizedAdminEmail,
-                adminProvisioningResult.temporaryPassword(),
                 adminProvisioningResult.credentialsEmailSent(),
                 systemSettingsInitialized);
     }
@@ -208,7 +207,7 @@ public class TenantOnboardingService {
                 admin.getDisplayName(),
                 temporaryPassword,
                 company.getCode());
-        return new AdminProvisioningResult(temporaryPassword, emailService.isCredentialEmailDeliveryEnabled());
+        return new AdminProvisioningResult(emailService.isCredentialEmailDeliveryEnabled());
     }
 
     private String resolveAdminDisplayName(String requestedDisplayName, Company company) {
@@ -441,6 +440,6 @@ public class TenantOnboardingService {
     private record AccountBlueprint(String code, String name, AccountType type, String parentCode) {
     }
 
-    private record AdminProvisioningResult(String temporaryPassword, boolean credentialsEmailSent) {
+    private record AdminProvisioningResult(boolean credentialsEmailSent) {
     }
 }

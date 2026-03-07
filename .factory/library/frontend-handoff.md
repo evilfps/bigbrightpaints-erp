@@ -31,6 +31,7 @@ Each module section should include:
 - 2026-03-06 `auth-reset-recovery-contract-hardening`: supported public forgot/reset, admin force-reset, and support admin-password-reset request/response shapes stay the same. The deprecated compatibility alias `POST /api/v1/auth/password/forgot/superadmin` is now explicitly retired with a `410 Gone` `ApiResponse` that carries `canonicalPath=/api/v1/auth/password/forgot` plus `supportResetPath=/api/v1/companies/{id}/support/admin-password-reset`; public forgot suppresses delivery failures without leaving a newly issued undispatched reset token behind, and admin force-reset now only succeeds when reset-email delivery is enabled and dispatch completes.
 - 2026-03-06 `reset-token-issuance-race-hardening`: no auth/admin request or response shape changes were required. Public forgot-password and admin force-reset now serialize reset-token issuance per user so duplicate or overlapping requests deterministically leave only the latest reset link usable instead of cross-deleting every valid token.
 - 2026-03-06 `must-change-password-corridor-hardening`: login, refresh-token, `/auth/me`, `GET /auth/profile`, password-change, and logout success payloads stay the same. While `mustChangePassword=true`, the backend now confines the bearer session to that corridor, denies normal protected work with a `403` `ApiResponse` carrying `reason=PASSWORD_CHANGE_REQUIRED` and `mustChangePassword=true`, and still preserves company binding on the allowed corridor endpoints.
+- 2026-03-07 `lane02-temp-credential-and-corridor-hardening`: the forced-password-change corridor contract is unchanged from the earlier hardening, but `POST /api/v1/superadmin/tenants/onboard` no longer exposes `adminTemporaryPassword` in the success payload. Superadmin onboarding consumers must now treat credential delivery as email-only and rely on the existing support reset path if recovery is needed.
 - 2026-03-06 `controlled-auth-error-contracts`: supported auth/admin success payloads stay the same, but previously raw framework/servlet failure paths are now normalized into `ApiResponse` contracts. Lockout now returns `401` with `AUTH_005`, authenticated tenant-binding mismatches now return `403` `ApiResponse` envelopes with `AUTH_004` plus `reason` / `reasonDetail`, and tenant runtime hold/block/quota denials on login or authenticated auth requests now return controlled `ApiResponse` error bodies carrying their runtime denial codes (for example `TENANT_ON_HOLD`, `TENANT_BLOCKED`, `TENANT_REQUEST_RATE_EXCEEDED`).
 - 2026-03-06 `auth-compatibility-regression-handoff`: no auth/admin request or response shape changes were required. Login, refresh-token, logout, `/auth/me`, password-change, forgot/reset, admin user-control, and admin settings payloads remain frontend-safe; contract regression coverage was refreshed across those surfaces, and the published OpenAPI contract now matches the live `204 No Content` logout response so the `AuthControllerIT.refresh_token_revoked_after_logout` regression stays aligned with runtime behavior.
 - 2026-03-07 `review-fix-auth-regressions-from-pr90`: no auth/admin request or response payload shapes changed. Fresh-session usability across same-millisecond revocation markers is an internal token-timestamp fix only, and `POST /api/v1/auth/password/forgot` once again keeps the same generic success contract even when reset-token persistence fails for a known account; clients should continue to treat known/unknown forgot-password requests as externally indistinguishable while backend logs/metrics carry the failure diagnostics.
@@ -113,7 +114,7 @@ Notes:
   - Mismatch is rejected with `403` by company-context enforcement.
 - Recommended frontend storage strategy:
   - Keep access token in memory (preferred) and refresh token in secure storage with shortest feasible lifetime.
-  - Never persist `adminTemporaryPassword` from onboarding.
+  - Legacy clients must stop expecting or persisting `adminTemporaryPassword` from tenant onboarding because the backend no longer returns it.
 - Expiry handling:
   - Use `expiresIn` from `AuthResponse` for refresh scheduling.
   - On refresh failure, clear tokens and route to login.
@@ -238,6 +239,7 @@ Password-policy failures currently surface as `VAL_001` with message prefix `Pas
 - 2026-03-07 `lane01-release-gate-and-handoff`: the Lane 01 release review confirms there is no additional frontend contract delta beyond the already-tracked control-plane clarifications. Operators and frontend consumers should treat `GET /api/v1/admin/tenant-runtime/metrics` as the surviving tenant-admin/runtime read surface, `PUT /api/v1/admin/settings` and `PUT /api/v1/admin/tenant-runtime/policy` as privileged mutation paths, and suspended tenants as read-only on protected auth `GET` routes while writes remain denied. `openapi.json` stays unchanged for this governance packet, and no further frontend cutover is required before orchestrator base-branch review.
 - 2026-03-07 `masked-admin-target-lookup-hardening`: admin user-management request and success-response payload shapes still did not change, but tenant-admin attempts to `POST /api/v1/admin/users/{id}/force-reset-password`, `PUT /api/v1/admin/users/{id}/status`, `PATCH /api/v1/admin/users/{id}/{suspend|unsuspend}`, `PATCH /api/v1/admin/users/{id}/mfa/disable`, or `DELETE /api/v1/admin/users/{id}` against a foreign-tenant user id now return the same `400 User not found` validation envelope as a truly missing id. This masks foreign targets from enumeration while preserving internal `ACCESS_DENIED` audit evidence, and `POST /api/v1/admin/roles` remains request/response compatible while now enforcing the super-admin mutation boundary directly at the controller guard.
 - 2026-03-07 `masked-admin-lock-scope-regression-fix`: no admin request or response payload shapes changed. The masked foreign-target behavior from `masked-admin-target-lookup-hardening` remains the same for tenant-admin `suspend`, `unsuspend`, `mfa/disable`, and `delete` actions, but those paths no longer take cross-tenant pessimistic locks before scope checks, so the frontend should continue treating foreign and missing targets identically and needs no migration.
+- 2026-03-07 `lane02-temp-credential-and-corridor-hardening`: `POST /api/v1/superadmin/tenants/onboard` still returns the same company/accounting metadata, but it no longer includes `adminTemporaryPassword`. Superadmin tooling must stop expecting an inline temporary-password reveal/modal and instead treat `credentialsEmailSent` plus the support reset flow as the supported credential-delivery surfaces.
 
 #### Endpoint Map
 
@@ -311,7 +313,7 @@ Disabled module requests return `403` with `BUS_010` (`MODULE_DISABLED`). Runtim
    1. Load templates with `GET /api/v1/superadmin/tenants/coa-templates`.
    2. Submit `POST /api/v1/superadmin/tenants/onboard` with selected `coaTemplateCode`.
    3. Backend creates company, admin user, default accounting period, and 50-100 CoA accounts.
-   4. Show one-time `adminTemporaryPassword` modal.
+   4. Read `credentialsEmailSent`; if false, show an operator warning that the admin credentials were created but were not delivered by email.
    5. Optionally configure enabled modules via `PUT /api/v1/superadmin/tenants/{id}/modules`.
 
 3. **User creation with role assignment**
@@ -410,7 +412,7 @@ Disabled module requests return `403` with `BUS_010` (`MODULE_DISABLED`). Runtim
 - `TenantOnboardingResponse`
   - `companyId`, `companyCode`, `templateCode`
   - `accountsCreated`, `accountingPeriodId`
-  - `adminEmail`, `adminTemporaryPassword`
+  - `adminEmail`
   - `credentialsEmailSent`, `systemSettingsInitialized`
 
 - `CreateUserRequest`
@@ -463,7 +465,7 @@ Disabled module requests return `403` with `BUS_010` (`MODULE_DISABLED`). Runtim
   - company multi-select from `GET /api/v1/companies`
   - if password omitted, show “temporary password will be emailed” helper text.
 - Superadmin onboarding UI should present CoA templates as cards (`name`, `description`, `accountCount`).
-- After onboarding, show/copy `adminTemporaryPassword` once and require explicit confirmation.
+- After onboarding, show the created `adminEmail` plus the `credentialsEmailSent` state; if delivery failed or is disabled, route operators to the supported support-reset workflow instead of expecting an inline temporary password.
 - On lifecycle mutations, use confirmation dialogs and refresh dashboard + tenant list metrics after mutation.
 
 #### Versioned changelog system (VAL-ADMIN-005)

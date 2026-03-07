@@ -4,9 +4,11 @@ This folder is the dedicated review surface for frontend follow-up from the `sec
 
 ## Overall contract summary
 
-- No auth/admin request-body shapes or success-response payload shapes were changed for the supported mission endpoints.
+- Supported auth endpoints keep their existing request bodies and success payload shapes, but `POST /api/v1/superadmin/tenants/onboard` no longer returns `adminTemporaryPassword` in its success payload.
 - The only request/response contract delta that may require endpoint migration is the retired compatibility alias `POST /api/v1/auth/password/forgot/superadmin`, which now returns `410 Gone` with canonical migration pointers.
+<<<<<<< HEAD
 - `review-fix-auth-regressions-from-pr90` adds no new auth/admin request or response shape changes: the same-millisecond revocation fix is internal only, and `POST /api/v1/auth/password/forgot` now stays on the generic masked success contract even when reset-token persistence fails for a known account.
+- The must-change-password corridor itself is unchanged: while `mustChangePassword=true`, denied out-of-corridor requests still return `403` `ApiResponse` with `reason=PASSWORD_CHANGE_REQUIRED` and `mustChangePassword=true`.
 - Tenant-admin foreign-target `suspend`, `unsuspend`, `mfa/disable`, and `delete` flows keep the same masked `400 User not found` contract; the latest regression fix only removes an internal cross-tenant lock side effect.
 - `review-fix-auth-regressions-from-pr90` adds no new auth/admin request or response shape changes: the same-millisecond revocation fix is internal only, and `POST /api/v1/auth/password/forgot` now stays on the generic masked success contract even when reset-token persistence fails for a known account.
 - Tenant-admin foreign-target `suspend`, `unsuspend`, `mfa/disable`, and `delete` flows keep the same masked `400 User not found` contract; the latest regression fix only removes an internal cross-tenant lock side effect.
@@ -23,6 +25,7 @@ This folder is the dedicated review surface for frontend follow-up from the `sec
 | `auth-reset-recovery-contract-hardening` | Reset and recovery | Conditional migration review | Verify no shipped client still calls the retired super-admin forgot alias | [auth-reset-recovery-contract-hardening.md](./auth-reset-recovery-contract-hardening.md) |
 | `reset-token-issuance-race-hardening` | Reset issuance | None | No frontend code change required | [reset-token-issuance-race-hardening.md](./reset-token-issuance-race-hardening.md) |
 | `must-change-password-corridor-hardening` | Auth workflow | Required workflow confirmation | Keep `mustChangePassword` users in the password-change corridor | [must-change-password-corridor-hardening.md](./must-change-password-corridor-hardening.md) |
+| `lane02-temp-credential-and-corridor-hardening` | Tenant onboarding + auth workflow | Required onboarding follow-up | Stop expecting inline onboarding passwords; keep honoring the existing password-change corridor | [lane02-temp-credential-and-corridor-hardening.md](./lane02-temp-credential-and-corridor-hardening.md) |
 | `global-security-settings-authorization` | Admin settings RBAC | Required RBAC/UI follow-up | Hide or disable global settings mutation for tenant admins | [global-security-settings-authorization.md](./global-security-settings-authorization.md) |
 | `controlled-auth-error-contracts` | Auth error handling | Review only | Optional UX mapping for new explicit error codes and reasons | [controlled-auth-error-contracts.md](./controlled-auth-error-contracts.md) |
 | `privileged-user-boundary-hardening` | Admin user controls | None | No frontend code change required; later masking refinement noted separately | [privileged-user-boundary-hardening.md](./privileged-user-boundary-hardening.md) |

@@ -88,7 +88,7 @@ class TenantOnboardingControllerTest extends AbstractIntegrationTest {
             assertThat(data.get("templateCode").toString()).isEqualTo(templateCode);
             assertThat(data.get("companyCode").toString()).isEqualTo(companyCode);
             assertThat(data.get("adminEmail").toString()).isEqualTo(adminEmail);
-            assertThat(data.get("adminTemporaryPassword").toString()).isNotBlank();
+            assertThat(data).doesNotContainKey("adminTemporaryPassword");
 
             Company company = companyRepository.findByCodeIgnoreCase(companyCode).orElseThrow();
             List<Account> accounts = accountRepository.findByCompanyOrderByCodeAsc(company);
