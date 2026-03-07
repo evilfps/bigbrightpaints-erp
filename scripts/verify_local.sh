@@ -34,6 +34,11 @@ esac
 echo "[verify_local] root=$ROOT_DIR"
 echo "[verify_local] migration_set=$MIGRATION_SET"
 
+echo "[verify_local] confidence-lane contract"
+python3 "$ROOT_DIR/scripts/validate_confidence_lanes.py" \
+  --contract "$ROOT_DIR/testing/local/confidence-lanes.json" \
+  --lane staging
+
 VERIFY_LOCAL_TEST_STRATEGY="${VERIFY_LOCAL_TEST_STRATEGY:-high-signal}"
 case "$VERIFY_LOCAL_TEST_STRATEGY" in
   high-signal|full)

@@ -20,9 +20,19 @@ LANE_TAGS = {
 TAG_RE = re.compile(r'@Tag\(\s*"([^"]+)"\s*\)')
 ISO_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 START_DATE_KEY = "start_date"
-REQUIRED_METADATA_KEYS = ("owner", "repro_notes", START_DATE_KEY)
+CLASSIFICATION_KEY = "classification"
+ACTION_KEY = "action"
+REQUIRED_METADATA_KEYS = (
+    "owner",
+    "repro_notes",
+    START_DATE_KEY,
+    CLASSIFICATION_KEY,
+    ACTION_KEY,
+)
 EXPIRY_METADATA_KEYS = ("expiry", "expires", "expiry_date")
 MAX_QUARANTINE_DAYS = 14
+ALLOWED_CLASSIFICATIONS = {"product-bug", "bad-test", "infra-coupled"}
+ALLOWED_ACTIONS = {"quarantine"}
 
 
 def parse_args() -> argparse.Namespace:
@@ -73,6 +83,18 @@ def parse_quarantine_line(raw: str, line_no: int) -> dict | None:
     if not expiry_key or not expiry_raw:
         reasons.append(
             "missing required metadata 'expiry' (accepted keys: expiry|expires|expiry_date)"
+        )
+
+    classification = metadata.get(CLASSIFICATION_KEY, "").strip()
+    if classification and classification not in ALLOWED_CLASSIFICATIONS:
+        reasons.append(
+            f"invalid {CLASSIFICATION_KEY} '{classification}' (expected one of {sorted(ALLOWED_CLASSIFICATIONS)})"
+        )
+
+    action = metadata.get(ACTION_KEY, "").strip()
+    if action and action not in ALLOWED_ACTIONS:
+        reasons.append(
+            f"invalid {ACTION_KEY} '{action}' (expected one of {sorted(ALLOWED_ACTIONS)})"
         )
 
     start_on = None
@@ -185,6 +207,10 @@ def main() -> int:
             "required_metadata_keys": [*REQUIRED_METADATA_KEYS, "expiry"],
             "accepted_expiry_keys": list(EXPIRY_METADATA_KEYS),
             "start_key": START_DATE_KEY,
+            "classification_key": CLASSIFICATION_KEY,
+            "classification_enum": sorted(ALLOWED_CLASSIFICATIONS),
+            "action_key": ACTION_KEY,
+            "action_enum": sorted(ALLOWED_ACTIONS),
             "date_format": "YYYY-MM-DD",
             "max_expiry_days_from_start": MAX_QUARANTINE_DAYS,
         },

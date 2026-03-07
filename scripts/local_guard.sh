@@ -20,6 +20,12 @@ LOCAL_GUARD_MANIFEST="${LOCAL_GUARD_MANIFEST:-$ROOT_DIR/testing/local/manifests/
 rm -rf "$ARTIFACT_DIR"
 mkdir -p "$ARTIFACT_DIR"
 
+echo "[local-guard] confidence-lane contract"
+python3 "$ROOT_DIR/scripts/validate_confidence_lanes.py" \
+  --contract "$ROOT_DIR/testing/local/confidence-lanes.json" \
+  --lane local \
+  --output "$ARTIFACT_DIR/confidence-lane-contract.json"
+
 echo "[local-guard] validate local manifests"
 python3 "$ROOT_DIR/scripts/validate_local_test_manifests.py" \
   --tests-root "$TRUTH_TEST_ROOT" \

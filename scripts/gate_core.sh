@@ -102,6 +102,12 @@ resolve_canonical_base() {
 resolve_canonical_base
 TRACEABILITY_FILE="$ARTIFACT_DIR/gate-core-traceability.json"
 
+echo "[gate-core] confidence-lane contract"
+python3 "$ROOT_DIR/scripts/validate_confidence_lanes.py" \
+  --contract "$ROOT_DIR/testing/local/confidence-lanes.json" \
+  --lane main \
+  --output "$ARTIFACT_DIR/confidence-lane-contract.json"
+
 echo "[gate-core] validate catalog"
 python3 "$ROOT_DIR/scripts/validate_test_catalog.py" \
   --catalog "$ROOT_DIR/docs/CODE-RED/confidence-suite/TEST_CATALOG.json" \
