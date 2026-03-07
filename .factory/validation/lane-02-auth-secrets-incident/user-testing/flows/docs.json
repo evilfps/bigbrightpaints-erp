@@ -1,0 +1,118 @@
+{
+  "groupId": "docs",
+  "surface": "docs",
+  "testedAt": "2026-03-07T14:10:00Z",
+  "credentials": {
+    "account": "ut_lane02_docs_1",
+    "namespace": "ut_lane02_docs_1"
+  },
+  "toolsUsed": [
+    "Task (delegation attempt failed)",
+    "repository packet/release-gate review",
+    "git status --short --branch",
+    "git merge-base HEAD origin/Factory-droid",
+    "git diff --name-only origin/Factory-droid...HEAD"
+  ],
+  "assertions": [
+    {
+      "id": "VAL-AUTH-007",
+      "title": "Lane 02 packet has release-gate, consumer handoff, and frontend v2 doc evidence",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Review the Lane 02 release review and release gate packet artifacts",
+          "expected": "The packet should name the Lane 02 scope, rollback order, release roles, and required proof without widening into later packets",
+          "observed": "`docs/code-review/executable-specs/02-lane-auth-secrets-incident/01-lane02-release-review.md` identifies slice `lane02-release-gate-and-cross-area-audit`, lists the exact Lane 02 commits, records rollback order in section 10, and states in sections 2/12/13 that workers must stop for orchestrator base-branch review. `01-lane02-release-gate.md` names base branch `Factory-droid`, records the targeted 138-test Lane 02 pack plus green `gate-fast`, and reiterates that later review-follow-up / remote-review packets stay outside Lane 02 publication scope."
+        },
+        {
+          "action": "Review the frontend/support handoff surfaces referenced by the Lane 02 packet",
+          "expected": "The surviving auth/admin consumer-facing changes should be explicitly tracked in the frontend handoff and frontend v2 tracker",
+          "observed": "`.factory/library/frontend-handoff.md` records `lane02-temp-credential-and-corridor-hardening` and `lane02-recovery-contract-parity`, including onboarding temp-credential redaction, the unchanged corridor contract, and the retired recovery alias/support-reset replacement. `docs/frontend-update-v2/README.md`, `docs/frontend-update-v2/lane02-temp-credential-and-corridor-hardening.md`, `docs/frontend-update-v2/lane02-recovery-contract-parity.md`, and `docs/frontend-update-v2/lane02-release-gate-and-cross-area-audit.md` all exist and explicitly describe the same onboarding and recovery notes plus the release-review no-new-frontend-change outcome."
+        }
+      ],
+      "evidence": {
+        "packet": "docs/code-review/executable-specs/02-lane-auth-secrets-incident/01-lane02-release-review.md",
+        "releaseGate": "docs/code-review/executable-specs/02-lane-auth-secrets-incident/01-lane02-release-gate.md",
+        "handoff": [
+          ".factory/library/frontend-handoff.md",
+          "docs/frontend-update-v2/README.md",
+          "docs/frontend-update-v2/lane02-temp-credential-and-corridor-hardening.md",
+          "docs/frontend-update-v2/lane02-recovery-contract-parity.md",
+          "docs/frontend-update-v2/lane02-release-gate-and-cross-area-audit.md"
+        ]
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-CROSS-001",
+      "title": "Packet lineage stays on Factory-droid across preflight, Lane 01, and Lane 02",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Review the preflight, merge-gate, Lane 01, and Lane 02 release artifacts for their declared integration base and packet lineage",
+          "expected": "Each packet chain artifact should remain anchored to `Factory-droid` instead of silently rebasing onto an unrelated branch",
+          "observed": "`docs/code-review/executable-specs/00-current-auth-merge-gate.md` and `00-current-auth-merge-gate-release-gate.md` name branch/base `Factory-droid`; `01-lane01-release-review.md` and `01-lane01-release-gate.md` do the same for Lane 01; and `01-lane02-release-review.md` plus `01-lane02-release-gate.md` continue that lineage while explicitly naming the earlier preflight/Lane 01 packets as the prerequisite chain."
+        },
+        {
+          "action": "Cross-check the live branch ancestry and raw stack diff against `origin/Factory-droid`",
+          "expected": "The working branch should still trace back to the published integration base, and any additional stacked work should remain visible rather than hidden inside the Lane 02 packet claim",
+          "observed": "`git merge-base HEAD origin/Factory-droid` returned `b93c91aa6d703d75708df66a5bb6f805f7e47154`, confirming the current stack still roots on `Factory-droid`. `git status --short --branch` reported `## Factory-droid...origin/Factory-droid [ahead 30]`, and `git diff --name-only origin/Factory-droid...HEAD` still showed the later review-follow-up and remote-review packet artifacts separately, matching the Lane 02 release-gate warning not to collapse the full stack into a single Lane 02 publication."
+        }
+      ],
+      "evidence": {
+        "mergeBase": "b93c91aa6d703d75708df66a5bb6f805f7e47154",
+        "lineageFiles": [
+          "docs/code-review/executable-specs/00-current-auth-merge-gate.md",
+          "docs/code-review/executable-specs/00-current-auth-merge-gate-release-gate.md",
+          "docs/code-review/executable-specs/01-lane-control-plane-runtime/01-lane01-release-review.md",
+          "docs/code-review/executable-specs/01-lane-control-plane-runtime/01-lane01-release-gate.md",
+          "docs/code-review/executable-specs/02-lane-auth-secrets-incident/01-lane02-release-review.md",
+          "docs/code-review/executable-specs/02-lane-auth-secrets-incident/01-lane02-release-gate.md"
+        ]
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-CROSS-002",
+      "title": "Downstream lane consumption waits for proof and rollback readiness",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Review the Lane 01 release review/gate artifacts for proof, rollback, and release-gate readiness",
+          "expected": "Lane 01 should carry its own proof pack, rollback notes, and release-gate evidence before any downstream lane treats it as usable input",
+          "observed": "`docs/code-review/executable-specs/01-lane-control-plane-runtime/01-lane01-release-review.md` sections 8-10 record the prove-first bundle, targeted 147-test pack, rollback order, and consumer handoff; `01-lane01-release-gate.md` reiterates the same proof, named release roles, and the explicit stop rule that Lane 02 remains blocked until orchestrator base-branch review."
+        },
+        {
+          "action": "Review Lane 02's prerequisite language and current branch-state evidence",
+          "expected": "Lane 02 should cite Lane 01 only as review-ready prerequisite evidence and should not use degraded runtime or stacked-branch state as a waiver for missing product proof",
+          "observed": "`docs/code-review/executable-specs/02-lane-auth-secrets-incident/01-lane02-release-review.md` section 2 says Lane 02 may reference Lane 01 only as `review-ready input, but not as already-merged truth`, while section 12 repeats that Lane 02 still must not treat Lane 01 as merged truth before orchestrator review. `01-lane02-release-gate.md` further states that degraded runtime evidence is recorded only as a confidence note and does not waive the targeted Lane 02 regression pack, `gate-fast`, or the packet-lineage audit; the current `git diff --name-only origin/Factory-droid...HEAD` output still includes later packets, reinforcing the requirement to return to the orchestrator instead of claiming downstream consumption is complete."
+        }
+      ],
+      "evidence": {
+        "lane01Proof": [
+          "docs/code-review/executable-specs/01-lane-control-plane-runtime/01-lane01-release-review.md",
+          "docs/code-review/executable-specs/01-lane-control-plane-runtime/01-lane01-release-gate.md"
+        ],
+        "lane02ConsumptionGuard": [
+          "docs/code-review/executable-specs/02-lane-auth-secrets-incident/01-lane02-release-review.md",
+          "docs/code-review/executable-specs/02-lane-auth-secrets-incident/01-lane02-release-gate.md"
+        ]
+      },
+      "issues": null
+    }
+  ],
+  "frictions": [
+    {
+      "description": "Launching the delegated `user-testing-flow-validator` subagent failed immediately with `Invalid model: custom:CLIProxyAPI-5.4-high`.",
+      "resolved": true,
+      "resolution": "Fell back to direct in-session packet and repository analysis, consistent with the mission guidance and the existing helper-launch limitation note in `.factory/library/user-testing.md`.",
+      "affectedAssertions": [
+        "VAL-AUTH-007",
+        "VAL-CROSS-001",
+        "VAL-CROSS-002"
+      ]
+    }
+  ],
+  "blockers": [],
+  "summary": "Validated all three Lane 02 docs/governance assertions directly in-session after the delegated flow-validator launch failed. The Lane 02 packet carries its own release review, rollback note, and frontend/support handoff evidence; the packet chain remains explicitly rooted on `Factory-droid` across merge-gate, Lane 01, and Lane 02; and Lane 02 still cites Lane 01 only as review-ready prerequisite proof rather than already-merged truth, with the current stacked diff still requiring orchestrator handling."
+}
