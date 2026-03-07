@@ -33,7 +33,8 @@ Use for backend features that change:
 2. For endpoint or DTO changes, write contract-focused tests first.
 3. For boundary changes, write both allowed and denied cases first.
 4. For token or session changes, write replay/revocation tests first.
-5. Run the targeted suite and confirm it fails before implementation.
+5. If the touched security/control area already has stale policy or regression coverage, realign that suite in the same packet instead of leaving it behind.
+6. Run the targeted suite and confirm it fails before implementation.
 
 ### Step 3: Implement the minimal compatible fix
 1. Make the smallest change that closes the security gap without unnecessary API churn.
@@ -54,6 +55,7 @@ Use for backend features that change:
 4. Re-read every touched controller, DTO, migration, and error path in the diff looking for silent regressions.
 5. Explicitly verify adjacent ERP-sensitive flows touched by the change (for example: login/refresh/logout, `/auth/me`, forgot/reset, admin user controls, admin settings authz, tenant binding).
 6. If the local app is started and the feature needs runtime evidence, verify the changed flow with `curl` and capture the exact sequence.
+7. If the change surfaced stale adjacent security or period-policy tests, update them before handoff or return a tracked issue against a pending feature.
 
 ### Step 5: Update shared knowledge
 1. Update `.factory/library/frontend-handoff.md` for any touched auth/admin surface. If nothing changed, say so explicitly.

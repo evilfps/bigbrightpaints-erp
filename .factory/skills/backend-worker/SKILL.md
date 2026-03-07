@@ -29,7 +29,8 @@ Use for any backend Java/Spring feature in the BigBright ERP, including:
 1. For bug fixes: write a test that reproduces the bug (should fail).
 2. For new features: write tests covering happy path, error cases, and edge cases (should fail).
 3. For refactoring: ensure existing tests pass first, then write any missing tests for the code being refactored.
-4. Run tests to confirm they fail as expected: `cd erp-domain && mvn test -Djacoco.skip=true -pl . -Dtest=YourTestClass`
+4. If the feature changes behavior in an already-covered area, update or replace the stale policy/contract/regression tests in that area as part of the same packet; do not leave drift behind.
+5. Run tests to confirm they fail as expected: `cd erp-domain && mvn test -Djacoco.skip=true -pl . -Dtest=YourTestClass`
 
 ### Step 3: Implement
 1. Make the minimal changes needed to satisfy the feature requirements.
@@ -57,6 +58,7 @@ Use for any backend Java/Spring feature in the BigBright ERP, including:
    - For refactoring: confirm all callers are updated and tests pass
    - For bug fixes: confirm the specific bug is fixed via the test you wrote
 5. Check for any regressions in related modules.
+6. If your change exposed stale adjacent tests in the touched control surface, either fix them in the same feature or return a clearly tracked discovered issue tied to a pending feature.
 
 ### Step 5: Document Frontend Handoff
 If your feature adds or changes API endpoints, you MUST update `.factory/library/frontend-handoff.md` with:
