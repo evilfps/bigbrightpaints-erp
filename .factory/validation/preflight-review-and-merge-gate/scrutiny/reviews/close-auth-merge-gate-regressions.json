@@ -1,0 +1,14 @@
+{
+  "featureId": "close-auth-merge-gate-regressions",
+  "reviewedAt": "2026-03-07T07:27:53+05:30",
+  "commitId": "4ef5f4e1f4aaea4a030062129d4a5dc876c794b1",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The merge-gate auth fix is narrowly scoped and matches the required contract. `PasswordResetService` still masks unknown-user and delivery/configuration outcomes on the public forgot-password path, but now escalates true token persistence or cleanup failures as a controlled `SYSTEM_DATABASE_ERROR` response instead of a false-success `200 OK`. `TokenBlacklistService` now compares raw `Instant` values with `!tokenIssuedAt.isAfter(revokedAt)`, which restores same-millisecond ordering without reopening later-issued tokens. The handoff and current tests show red-phase reproduction, focused green regression suites, a clean compile, a full green `gate-fast`, and compose-backed runtime probes for both forgot-password and logout-driven revocation behavior.",
+    "issues": []
+  },
+  "sharedStateObservations": [],
+  "summary": "PASS. Forgot-password persistence failures now surface as controlled non-successes, and token revocation preserves sub-millisecond ordering while adjacent guardrails remain green."
+}

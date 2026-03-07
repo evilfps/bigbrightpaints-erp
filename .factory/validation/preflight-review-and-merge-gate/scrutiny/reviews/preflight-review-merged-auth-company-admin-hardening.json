@@ -1,0 +1,21 @@
+{
+  "featureId": "preflight-review-merged-auth-company-admin-hardening",
+  "reviewedAt": "2026-03-07T07:27:53+05:30",
+  "commitId": "9a96f1caee96e06b021b0c1304cb78cad74aa231",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The preflight review artifact is specific, evidence-backed, and correctly narrows the remaining merge-gate scope. The note maps the merged auth/company/admin commits on `origin/Factory-droid` to the executable-spec package, explicitly proves `TEN-10` and `ADMIN-14` are already closed, and isolates `AUTH-09` plus token-revocation precision as the only still-open merge-gate regressions. The supporting handoff shows the review used both history inspection and targeted regression suites, including the intentional failing `TokenBlacklistServiceTest` proof that justified keeping revocation precision open at preflight time.",
+    "issues": []
+  },
+  "sharedStateObservations": [
+    {
+      "kind": "guidance",
+      "target": "AGENTS.md",
+      "observation": "The governance worker had to recover the executable-spec package from `docs/packet-governance-baseline` because the active `Factory-droid` branch did not contain the packet-governance skill/artifacts or mention that preserved-docs branch as the source of truth.",
+      "rationale": "This is mission-bootstrap guidance rather than a product defect; future governance workers would be less error-prone if the bootstrap explicitly pointed to the preserved docs branch and noted the missing active-branch packet-governance assets."
+    }
+  ],
+  "summary": "PASS. The preflight review accurately set packet boundaries and correctly identified the last open merge-gate regressions before implementation continued."
+}

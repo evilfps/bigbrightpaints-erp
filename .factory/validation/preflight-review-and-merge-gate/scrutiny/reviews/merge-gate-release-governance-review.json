@@ -1,0 +1,14 @@
+{
+  "featureId": "merge-gate-release-governance-review",
+  "reviewedAt": "2026-03-07T07:27:53+05:30",
+  "commitId": "38190cc1214161d019b623a59370dfdfa79fe5f5",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The release-governance packet provides the required review controls without widening the code slice. The updated packet record and dedicated release-gate artifact name the implementer/reviewer/QA/release roles, preserve the exact proof commands for the merge-gate packet, document rollback expectations, and record explicit frontend/OpenAPI parity evidence, including the no-op frontend tracker entry. Although the compose-backed runtime was not running during this governance session, the packet handles that correctly by recording degraded runtime evidence instead of treating it as a proof waiver, while relying on the already-green targeted regression pack and `gate-fast` results.",
+    "issues": []
+  },
+  "sharedStateObservations": [],
+  "summary": "PASS. The merge-gate packet now has named ownership, proof, rollback notes, and frontend parity evidence, and it properly returns control to the orchestrator for base-branch review."
+}

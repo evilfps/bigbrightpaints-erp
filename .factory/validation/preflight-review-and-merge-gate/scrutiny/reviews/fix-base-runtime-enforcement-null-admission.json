@@ -1,0 +1,14 @@
+{
+  "featureId": "fix-base-runtime-enforcement-null-admission",
+  "reviewedAt": "2026-03-07T07:27:53+05:30",
+  "commitId": "8c8ab71714847080a38823fe0efb5e01490ec497",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The runtime-enforcement blocker fix is narrow and correct. `CompanyContextFilter` now explicitly treats a null `TenantRequestAdmission` as a controlled forbidden response instead of dereferencing it, and the added truth-suite regression covers the missing-admission path that previously crashed `gate-fast`. The handoff shows red-phase reproduction, targeted green verification, a clean compile, repository lint checks, and a final green `gate-fast`, so the fix convincingly restores fail-closed behavior without widening the request contract.",
+    "issues": []
+  },
+  "sharedStateObservations": [],
+  "summary": "PASS. Missing tenant runtime admission now fails closed instead of crashing the filter chain, and the regression is locked in by targeted truth-suite coverage."
+}
