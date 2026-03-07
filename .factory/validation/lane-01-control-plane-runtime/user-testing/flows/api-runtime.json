@@ -1,0 +1,251 @@
+{
+  "groupId": "api-runtime",
+  "surface": "api",
+  "appUrl": "http://localhost:8081",
+  "testedAt": "2026-03-07T10:45:44Z",
+  "credentials": {
+    "account": "ut_lane01_api_1",
+    "namespace": "ut_lane01_api_1",
+    "actors": [
+      "uat.superadmin@example.com",
+      "ut.taab.admin2@example.com"
+    ]
+  },
+  "toolsUsed": [
+    "Task (delegation attempt failed)",
+    "docker compose runtime rebuild with explicit Flyway-v2 + MailHog overrides",
+    "docker exec psql password reset and reversible lifecycle-state probes",
+    "python urllib runtime probes",
+    "mvn test -Djacoco.skip=true -pl . '-Dtest=AdminSettingsControllerTenantRuntimeContractTest,SystemSettingsServiceCorsTest,CompanyControllerIT,SuperAdminControllerIT,CompanyLifecycleStateConverterTest,TenantLifecycleServiceTest,TenantRuntimeEnforcementServiceTest,TS_RuntimeTenantRuntimeEnforcementTest,TS_RuntimeTenantPolicyControlExecutableCoverageTest,TS_RuntimeCompanyContextFilterExecutableCoverageTest'",
+    "mvn test -Djacoco.skip=true -pl . '-Dtest=PortalInsightsControllerIT,OpenApiSnapshotIT'"
+  ],
+  "assertions": [
+    {
+      "id": "VAL-CTRL-001",
+      "title": "Tenant admins cannot mutate global settings while approved runtime read surfaces stay available with published date-time semantics",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Fetch global settings as super-admin, replay the same payload as a tenant admin, and then fetch the surviving tenant-runtime and portal read surfaces as the tenant admin",
+          "expected": "Tenant admin global-settings mutation is denied, while tenant-runtime metrics and portal read surfaces remain available and keep string date-time fields aligned with the published contract",
+          "observed": "On the compose-backed runtime, `GET /api/v1/admin/settings` returned 200 for `uat.superadmin@example.com`, but replaying that payload through `PUT /api/v1/admin/settings` as `ut.taab.admin2@example.com` returned 403 with `data.code=AUTH_004`. The same tenant-admin session successfully fetched `GET /api/v1/admin/tenant-runtime/metrics` plus `/api/v1/portal/dashboard`, `/operations`, and `/workforce`, and each response exposed wrapper `timestamp` as a string while metrics `data.policyUpdatedAt` also came back as a string."
+        },
+        {
+          "action": "Run the Lane 01 regression and contract subsets that cover admin settings, lifecycle, runtime enforcement, portal payloads, and OpenAPI parity",
+          "expected": "The claim stays green in targeted automated coverage",
+          "observed": "The core Lane 01 Maven subset finished with `BUILD SUCCESS; Tests run: 147, Failures: 0, Errors: 0, Skipped: 0`, and the portal/OpenAPI subset finished with `BUILD SUCCESS; Tests run: 6, Failures: 0, Errors: 0, Skipped: 0`."
+        }
+      ],
+      "evidence": {
+        "runtime": {
+          "settingsGetStatus": 200,
+          "tenantAdminSettingsPutStatus": 403,
+          "tenantAdminSettingsDeniedCode": "AUTH_004",
+          "metricsStatus": 200,
+          "metricsTimestampType": "str",
+          "metricsPolicyUpdatedAtType": "str",
+          "metricsCompanyCode": "UTTAAB2",
+          "portal": {
+            "dashboard": {
+              "status": 200,
+              "timestampType": "str",
+              "dataKeys": [
+                "highlights",
+                "hrPulse",
+                "pipeline"
+              ]
+            },
+            "operations": {
+              "status": 200,
+              "timestampType": "str",
+              "dataKeys": [
+                "automationRuns",
+                "summary",
+                "supplyAlerts"
+              ]
+            },
+            "workforce": {
+              "status": 200,
+              "timestampType": "str",
+              "dataKeys": [
+                "leaders",
+                "moments",
+                "squads"
+              ]
+            }
+          }
+        },
+        "tests": {
+          "coreLane01": "BUILD SUCCESS; Tests run: 147, Failures: 0, Errors: 0, Skipped: 0",
+          "portalOpenApi": "BUILD SUCCESS; Tests run: 6, Failures: 0, Errors: 0, Skipped: 0"
+        }
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-CTRL-002",
+      "title": "Lifecycle vocabulary persists compatible stored values and unknown stored values fail closed",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Drive the live super-admin lifecycle controls on tenant `UTTAAB2` and inspect the stored `companies.lifecycle_state` values",
+          "expected": "Supported API vocabulary remains `SUSPENDED`/`ACTIVE`/`DEACTIVATED` while stored values remain schema-compatible (`HOLD`/`ACTIVE`/`BLOCKED`)",
+          "observed": "`POST /api/v1/superadmin/tenants/2/suspend` returned 200 with `data.status=SUSPENDED` while the stored value became `HOLD`. A follow-up `POST /api/v1/superadmin/tenants/2/activate` returned 200 with `data.status=ACTIVE` and restored the stored value to `ACTIVE`. Separately, `POST /api/v1/superadmin/tenants/2/deactivate` returned 200 with `data.status=DEACTIVATED` while the stored value became `BLOCKED`."
+        },
+        {
+          "action": "Probe protected endpoints during suspended, deactivated, and intentionally corrupted stored-lifecycle states",
+          "expected": "Suspended tenants keep the documented protected-read path, deactivated tenants lose protected access, and unknown stored values fail closed instead of reopening access",
+          "observed": "While tenant `UTTAAB2` was suspended, the already-issued tenant-admin bearer token still reached `GET /api/v1/auth/me` with status 200. After deactivation, the same protected read returned 403 with `reason=TENANT_LIFECYCLE_RESTRICTED`. After temporarily dropping `chk_companies_lifecycle_state` and setting `companies.lifecycle_state` to `UNSUPPORTED_TEST_STATE`, both `GET /api/v1/auth/me` and `GET /api/v1/admin/users` returned 403; the admin-user response carried `reason=TENANT_LIFECYCLE_RESTRICTED` and `reasonDetail=Tenant is deactivated` before the row and constraint were restored to ACTIVE."
+        },
+        {
+          "action": "Run the lifecycle and runtime-enforcement regression pack",
+          "expected": "Converter, controller, and runtime enforcement coverage stays green",
+          "observed": "The Lane 01 core subset passed with 147 tests, including `CompanyLifecycleStateConverterTest`, `TenantLifecycleServiceTest`, `CompanyControllerIT`, `SuperAdminControllerIT`, `TenantRuntimeEnforcementServiceTest`, `TS_RuntimeTenantRuntimeEnforcementTest`, and `TS_RuntimeCompanyContextFilterExecutableCoverageTest`."
+        }
+      ],
+      "evidence": {
+        "runtime": {
+          "suspendActivate": {
+            "suspendStatus": 200,
+            "suspendApiState": "SUSPENDED",
+            "afterSuspendDb": "HOLD",
+            "activateStatus": 200,
+            "activateApiState": "ACTIVE",
+            "afterActivateDb": "ACTIVE"
+          },
+          "deactivateAndFailClosed": {
+            "suspendStatus": 200,
+            "suspendApiState": "SUSPENDED",
+            "afterSuspendDb": "HOLD",
+            "suspendMeStatus": 200,
+            "deactivateStatus": 200,
+            "deactivateApiState": "DEACTIVATED",
+            "afterDeactivateDb": "BLOCKED",
+            "deactivateMeStatus": 403,
+            "deactivateMeReason": "TENANT_LIFECYCLE_RESTRICTED",
+            "unknownDbState": "UNSUPPORTED_TEST_STATE",
+            "unknownMeStatus": 403,
+            "unknownAdminUsersStatus": 403,
+            "unknownAdminUsersReason": "TENANT_LIFECYCLE_RESTRICTED",
+            "unknownAdminUsersReasonDetail": "Tenant is deactivated",
+            "restoredDbState": "ACTIVE"
+          }
+        },
+        "tests": "BUILD SUCCESS; Tests run: 147, Failures: 0, Errors: 0, Skipped: 0"
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-CTRL-003",
+      "title": "One authoritative runtime-policy write and enforcement path remains",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Warm a tenant-admin bearer session, update runtime policy through the canonical company-scoped path, and immediately replay the warmed bearer token",
+          "expected": "The same runtime-policy model that the canonical write path updates is enforced immediately on the handling node",
+          "observed": "`GET /api/v1/auth/me` for `ut.taab.admin2@example.com` returned 200 before the change. `PUT /api/v1/companies/2/tenant-runtime/policy` as `uat.superadmin@example.com` then returned 200 with `data.state=BLOCKED` and `data.reasonCode=INCIDENT-LOCKDOWN`. Replaying the preexisting tenant-admin bearer token immediately after the write returned 403 with `reason=TENANT_BLOCKED`, and restoring the same canonical path to ACTIVE returned 200; the next `/auth/me` call recovered to 200."
+        },
+        {
+          "action": "Run the runtime-policy controller/service/truth-suite subset",
+          "expected": "Canonical path coverage stays green",
+          "observed": "The Lane 01 core subset passed with 147 tests, including `CompanyControllerIT`, `TenantRuntimeEnforcementServiceTest`, `TS_RuntimeTenantPolicyControlExecutableCoverageTest`, and `TS_RuntimeTenantRuntimeEnforcementTest`."
+        }
+      ],
+      "evidence": {
+        "runtime": {
+          "warmStatus": 200,
+          "blockUpdateStatus": 200,
+          "blockState": "BLOCKED",
+          "blockReasonCode": "INCIDENT-LOCKDOWN",
+          "blockedMeStatus": 403,
+          "blockedMeReason": "TENANT_BLOCKED",
+          "restoreStatus": 200,
+          "restoredMeStatus": 200
+        },
+        "tests": "BUILD SUCCESS; Tests run: 147, Failures: 0, Errors: 0, Skipped: 0"
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-CTRL-004",
+      "title": "TEN-09 remains closed by a completed validation-first bundle with current runtime/OpenAPI parity evidence",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Review the sealed TEN-09 validation-first bundle and its attached runtime/OpenAPI artifacts",
+          "expected": "The bundle records exact commands, payload evidence, verdict, and reviewer sign-off for the questioned tenant-runtime and portal surfaces",
+          "observed": "The sealed packet `docs/code-review/executable-specs/01-lane-control-plane-runtime/00-ten-09-validation-first-bundle.md` cites the exact targeted Maven commands, the compose-backed runtime rebuild and password reset commands, saved route captures under `artifacts/ten-09-*.json`, the verdict `confirmed backend defect`, and the packet-governance reviewer sign-off that blocked wider lane work until parity was fixed."
+        },
+        {
+          "action": "Re-probe the live tenant-runtime metrics and portal routes and re-run the portal/OpenAPI regression subset",
+          "expected": "Current runtime behavior matches the surviving published contract, confirming the Lane 01 timestamp-parity fix closed the earlier TEN-09 mismatch",
+          "observed": "In this validation session, `GET /api/v1/admin/tenant-runtime/metrics` plus `/api/v1/portal/dashboard`, `/operations`, and `/workforce` all returned 200 on the compose-backed runtime for the seeded UTTAAB2 tenant-admin session. The runtime wrapper `timestamp` fields and metrics `policyUpdatedAt` are now strings instead of numeric epochs, and the `PortalInsightsControllerIT` + `OpenApiSnapshotIT` subset passed 6/6 tests."
+        }
+      ],
+      "evidence": {
+        "bundle": "docs/code-review/executable-specs/01-lane-control-plane-runtime/00-ten-09-validation-first-bundle.md",
+        "runtime": {
+          "metricsStatus": 200,
+          "metricsTimestampType": "str",
+          "metricsPolicyUpdatedAtType": "str",
+          "portal": {
+            "dashboard": {
+              "status": 200,
+              "timestampType": "str",
+              "dataKeys": [
+                "highlights",
+                "hrPulse",
+                "pipeline"
+              ]
+            },
+            "operations": {
+              "status": 200,
+              "timestampType": "str",
+              "dataKeys": [
+                "automationRuns",
+                "summary",
+                "supplyAlerts"
+              ]
+            },
+            "workforce": {
+              "status": 200,
+              "timestampType": "str",
+              "dataKeys": [
+                "leaders",
+                "moments",
+                "squads"
+              ]
+            }
+          }
+        },
+        "tests": "BUILD SUCCESS; Tests run: 6, Failures: 0, Errors: 0, Skipped: 0"
+      },
+      "issues": null
+    }
+  ],
+  "frictions": [
+    {
+      "description": "Launching the delegated `user-testing-flow-validator` subagent failed immediately with `Invalid model: custom:CLIProxyAPI-5.4-high`.",
+      "resolved": true,
+      "resolution": "Fell back to direct in-session validation, consistent with mission guidance and the existing helper-launch limitation note in `.factory/library/user-testing.md`.",
+      "affectedAssertions": [
+        "VAL-CTRL-001",
+        "VAL-CTRL-002",
+        "VAL-CTRL-003",
+        "VAL-CTRL-004"
+      ]
+    },
+    {
+      "description": "The compose-backed actuator endpoint still reported `503 {\"status\":\"DOWN\"}` while the target API routes on `8081` were usable.",
+      "resolved": true,
+      "resolution": "Used the target API routes themselves as the primary runtime evidence and recorded the degraded actuator note instead of treating it as a blocker.",
+      "affectedAssertions": [
+        "VAL-CTRL-001",
+        "VAL-CTRL-003",
+        "VAL-CTRL-004"
+      ]
+    }
+  ],
+  "blockers": [],
+  "summary": "Validated all four Lane 01 API/runtime assertions directly in-session after the delegated flow-validator launch failed. Tenant-admin global-settings mutation remained denied while the surviving runtime metrics and portal read surfaces were available with string date-time fields, lifecycle vocabulary persisted compatible stored values and failed closed for unsupported stored states, the canonical company-scoped runtime-policy path enforced immediately on the warmed bearer session, and the sealed TEN-09 validation-first bundle remained backed by fresh runtime/OpenAPI parity evidence."
+}

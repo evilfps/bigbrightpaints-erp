@@ -1,0 +1,22 @@
+{
+  "milestone": "lane-01-control-plane-runtime",
+  "round": 1,
+  "status": "pass",
+  "assertionsSummary": {
+    "total": 5,
+    "passed": 5,
+    "failed": 0,
+    "blocked": 0
+  },
+  "passedAssertions": [
+    "VAL-CTRL-001",
+    "VAL-CTRL-002",
+    "VAL-CTRL-003",
+    "VAL-CTRL-004",
+    "VAL-CTRL-005"
+  ],
+  "failedAssertions": [],
+  "blockedAssertions": [],
+  "appliedUpdates": [],
+  "previousRound": null
+}
