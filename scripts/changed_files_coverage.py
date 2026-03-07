@@ -48,7 +48,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument(
         "--fail-on-vacuous",
         action="store_true",
-        help="Fail when changed-file coverage is vacuous (no files considered or no executable changed lines)",
+        help="Fail when changed-file coverage cannot make a trustworthy decision for changed source files",
     )
     p.add_argument("--output", default="", help="Optional JSON summary output")
     return p.parse_args()
@@ -93,7 +93,7 @@ def merge_line_stats(
     missed_line = max(total_line - covered_line, 0)
 
     total_branch = max(current_mb + current_cb, incoming_mb + incoming_cb)
-    covered_branch = min(total_branch, current_cb + incoming_cb)
+    covered_branch = max(current_cb, incoming_cb)
     missed_branch = max(total_branch - covered_branch, 0)
 
     return missed_line, covered_line, missed_branch, covered_branch
@@ -179,6 +179,8 @@ def main() -> int:
 
     jacoco = build_jacoco_line_map(args.jacoco, args.src_root)
 
+    changed_source_files = len(changed)
+
     line_cov = 0
     line_total = 0
     branch_cov = 0
@@ -255,16 +257,24 @@ def main() -> int:
         and not files_with_unmapped_lines
         and not skipped_files
     )
-    no_changed_source_files = files_considered == 0
-    vacuous = (not no_changed_source_files) and (line_total == 0 and not structural_only)
+    no_changed_source_files = changed_source_files == 0
+    missing_coverage = bool(skipped_files or files_with_unmapped_lines)
+    vacuous = (not no_changed_source_files) and (
+        missing_coverage or (line_total == 0 and not structural_only)
+    )
     vacuous_reason = ""
     if no_changed_source_files:
         vacuous_reason = "no_changed_source_files"
+    elif skipped_files:
+        vacuous_reason = "coverage_skipped_files"
+    elif files_with_unmapped_lines:
+        vacuous_reason = "unmapped_changed_lines"
     elif line_total == 0 and not structural_only:
         vacuous_reason = "no_instrumented_lines"
 
     summary = {
         "diff_base": base,
+        "changed_source_files": changed_source_files,
         "files_considered": files_considered,
         "no_changed_source_files": no_changed_source_files,
         "line_covered": line_cov,
@@ -277,11 +287,13 @@ def main() -> int:
         "branch_threshold": args.threshold_branch,
         "vacuous": vacuous,
         "vacuous_reason": vacuous_reason,
+        "missing_coverage": missing_coverage,
         "structural_only": structural_only,
         "structural_files": sorted(structural_files),
         "coverage_skipped_files": sorted(skipped_files),
         "files_with_unmapped_lines": sorted(files_with_unmapped_lines),
-        "passes": (line_ratio >= args.threshold_line
+        "passes": (not missing_coverage
+                   and line_ratio >= args.threshold_line
                    and branch_ratio >= args.threshold_branch
                    and not (args.fail_on_vacuous and vacuous)),
         "per_file": per_file,
@@ -295,10 +307,19 @@ def main() -> int:
         with open(args.output, "w", encoding="utf-8") as fh:
             json.dump(summary, fh, indent=2)
 
+    if missing_coverage:
+        print(
+            "[changed_files_coverage] FAIL: changed source files were not fully mapped into shard coverage "
+            f"(skipped_files={len(skipped_files)}, unmapped_files={len(files_with_unmapped_lines)})",
+            file=sys.stderr,
+        )
+        return 1
+
     if args.fail_on_vacuous and vacuous:
         print(
             "[changed_files_coverage] FAIL: vacuous changed-files coverage "
-            f"(files_considered={files_considered}, line_total={line_total}, reason={vacuous_reason})",
+            f"(changed_source_files={changed_source_files}, files_considered={files_considered}, "
+            f"line_total={line_total}, reason={vacuous_reason})",
             file=sys.stderr,
         )
         return 1

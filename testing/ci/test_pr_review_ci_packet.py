@@ -1,0 +1,137 @@
+import importlib.util
+import json
+import subprocess
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+RISK_ROUTER_PATH = REPO_ROOT / "scripts" / "ci_risk_router.py"
+CHANGED_COVERAGE_PATH = REPO_ROOT / "scripts" / "changed_files_coverage.py"
+
+
+def load_module(module_name: str, file_path: Path):
+    spec = importlib.util.spec_from_file_location(module_name, file_path)
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+    return module
+
+
+ci_risk_router = load_module("ci_risk_router", RISK_ROUTER_PATH)
+changed_files_coverage = load_module("changed_files_coverage", CHANGED_COVERAGE_PATH)
+
+
+class CiRiskRouterTest(unittest.TestCase):
+    def test_docs_only_change_skips_runtime_shards_and_changed_coverage(self):
+        flags = ci_risk_router.compute_flags(["docs/SECURITY.md"])
+
+        self.assertEqual("false", flags["run_auth_tenant"])
+        self.assertEqual("false", flags["run_accounting"])
+        self.assertEqual("false", flags["run_idempotency_outbox"])
+        self.assertEqual("false", flags["run_business_slice"])
+        self.assertEqual("false", flags["run_persistence_smoke"])
+        self.assertEqual("false", flags["run_codered_access"])
+        self.assertEqual("false", flags["run_codered_finance"])
+        self.assertEqual("false", flags["run_changed_coverage"])
+
+    def test_auth_source_routes_auth_family_only(self):
+        flags = ci_risk_router.compute_flags(
+            [
+                "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/auth/service/AuthService.java",
+            ]
+        )
+
+        self.assertEqual("true", flags["run_auth_tenant"])
+        self.assertEqual("true", flags["run_persistence_smoke"])
+        self.assertEqual("true", flags["run_codered_access"])
+        self.assertEqual("true", flags["run_changed_coverage"])
+        self.assertEqual("false", flags["run_accounting"])
+        self.assertEqual("false", flags["run_idempotency_outbox"])
+        self.assertEqual("false", flags["run_business_slice"])
+        self.assertEqual("false", flags["run_codered_finance"])
+
+    def test_ci_infra_change_runs_all_shards_but_not_changed_coverage(self):
+        flags = ci_risk_router.compute_flags([".github/workflows/ci.yml"])
+
+        self.assertEqual("true", flags["run_auth_tenant"])
+        self.assertEqual("true", flags["run_accounting"])
+        self.assertEqual("true", flags["run_idempotency_outbox"])
+        self.assertEqual("true", flags["run_business_slice"])
+        self.assertEqual("true", flags["run_persistence_smoke"])
+        self.assertEqual("true", flags["run_codered_access"])
+        self.assertEqual("true", flags["run_codered_finance"])
+        self.assertEqual("false", flags["run_changed_coverage"])
+
+
+class ChangedFilesCoverageTest(unittest.TestCase):
+    def test_branch_merge_is_conservative(self):
+        merged = changed_files_coverage.merge_line_stats((0, 1, 1, 1), (0, 1, 1, 1))
+        self.assertEqual((0, 1, 1, 1), merged)
+
+    def test_changed_source_without_jacoco_mapping_fails_closed(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            repo_dir = Path(tmp_dir)
+            java_file = repo_dir / "erp-domain/src/main/java/com/example/Demo.java"
+            java_file.parent.mkdir(parents=True, exist_ok=True)
+
+            self.run_git(repo_dir, "init")
+            self.run_git(repo_dir, "config", "user.name", "Factory Droid")
+            self.run_git(repo_dir, "config", "user.email", "factory@example.com")
+
+            java_file.write_text(
+                "package com.example;\npublic class Demo {\n  int value() { return 1; }\n}\n",
+                encoding="utf-8",
+            )
+            self.run_git(repo_dir, "add", ".")
+            self.run_git(repo_dir, "commit", "-m", "base")
+            base_sha = self.run_git(repo_dir, "rev-parse", "HEAD")
+
+            java_file.write_text(
+                "package com.example;\npublic class Demo {\n  int value() { return 2; }\n}\n",
+                encoding="utf-8",
+            )
+            self.run_git(repo_dir, "add", ".")
+            self.run_git(repo_dir, "commit", "-m", "change")
+
+            jacoco_file = repo_dir / "jacoco.xml"
+            jacoco_file.write_text("<report name=\"test\"></report>\n", encoding="utf-8")
+            summary_file = repo_dir / "summary.json"
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(CHANGED_COVERAGE_PATH),
+                    "--jacoco",
+                    str(jacoco_file),
+                    "--diff-base",
+                    base_sha,
+                    "--src-root",
+                    "erp-domain/src/main/java",
+                    "--fail-on-vacuous",
+                    "--output",
+                    str(summary_file),
+                ],
+                cwd=repo_dir,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+            self.assertEqual(1, result.returncode, result.stdout + result.stderr)
+            summary = json.loads(summary_file.read_text(encoding="utf-8"))
+            self.assertTrue(summary["missing_coverage"])
+            self.assertEqual(
+                ["erp-domain/src/main/java/com/example/Demo.java"],
+                summary["coverage_skipped_files"],
+            )
+
+    @staticmethod
+    def run_git(repo_dir: Path, *args: str) -> str:
+        return subprocess.check_output(["git", *args], cwd=repo_dir, text=True).strip()
+
+
+if __name__ == "__main__":
+    unittest.main()

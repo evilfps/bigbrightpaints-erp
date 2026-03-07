@@ -110,7 +110,9 @@ jobs:
       run_persistence_smoke: ${{ steps.route.outputs.run_persistence_smoke }}
       run_codered_access: ${{ steps.route.outputs.run_codered_access }}
       run_codered_finance: ${{ steps.route.outputs.run_codered_finance }}
+      run_changed_coverage: ${{ steps.route.outputs.run_changed_coverage }}
       changed_files_count: ${{ steps.route.outputs.changed_files_count }}
+      changed_runtime_source_count: ${{ steps.route.outputs.changed_runtime_source_count }}
 
     steps:
       - name: Checkout
@@ -418,14 +420,44 @@ jobs:
           fetch-depth: 0
 
       - name: Download shard coverage
+        if: needs.pr-risk-router.outputs.run_changed_coverage == 'true'
         uses: actions/download-artifact@v4
         with:
           pattern: pr-jacoco-*
           path: artifacts/pr-jacoco
 
       - name: Enforce changed-files coverage
+        env:
+          DIFF_BASE: ${{ github.event.pull_request.base.sha }}
+          RUN_CHANGED_COVERAGE: ${{ needs.pr-risk-router.outputs.run_changed_coverage }}
+          CHANGED_FILES_COUNT: ${{ needs.pr-risk-router.outputs.changed_files_count }}
+          CHANGED_RUNTIME_SOURCE_COUNT: ${{ needs.pr-risk-router.outputs.changed_runtime_source_count }}
         run: |
           set -euo pipefail
+          mkdir -p artifacts/pr-jacoco
+
+          if [[ "$RUN_CHANGED_COVERAGE" != "true" ]]; then
+            python3 - <<'PY'
+            import json
+            import os
+
+            summary = {
+                "diff_base": os.environ["DIFF_BASE"],
+                "skipped": True,
+                "reason": "no_runtime_source_changes",
+                "changed_files_count": int(os.environ["CHANGED_FILES_COUNT"]),
+                "changed_runtime_source_count": int(os.environ["CHANGED_RUNTIME_SOURCE_COUNT"]),
+                "passes": True,
+            }
+            output_path = "artifacts/pr-jacoco/changed-coverage.json"
+            with open(output_path, "w", encoding="utf-8") as fh:
+                json.dump(summary, fh, indent=2)
+            print("[pr-changed-coverage] no runtime source changes; recorded explicit skip summary")
+            print(json.dumps(summary, indent=2))
+            PY
+            exit 0
+          fi
+
           mapfile -t jacoco_files < <(find artifacts/pr-jacoco -name jacoco.xml -type f | sort)
           if [[ "${#jacoco_files[@]}" -eq 0 ]]; then
             echo "[pr-changed-coverage] FAIL: no shard jacoco.xml files were downloaded" >&2
@@ -439,7 +471,7 @@ jobs:
 
           python3 scripts/changed_files_coverage.py \
             "${args[@]}" \
-            --diff-base "${{ github.event.pull_request.base.sha }}" \
+            --diff-base "$DIFF_BASE" \
             --src-root erp-domain/src/main/java \
             --threshold-line 0.95 \
             --threshold-branch 0.90 \
