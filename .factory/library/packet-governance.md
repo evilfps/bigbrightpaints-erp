@@ -23,8 +23,8 @@ Packet-branch, base-branch, review, and release-gate rules for the current remed
 
 Current continuation state:
 - Steps 1-4 are sealed and already evidenced on `Factory-droid`.
-- Active execution resumes at Lane 01 packet work.
-- Lane 02 can start only after Lane 01 release-gate review returns to the orchestrator.
+- Lane 01 packet work is complete and its release-gate / handoff packet is now assembled for orchestrator base-branch review.
+- Lane 02 can start only after that orchestrator review accepts Lane 01 as review-ready.
 
 ## Required Packet Controls
 
@@ -48,4 +48,4 @@ Current continuation state:
 - Keep `Factory-droid` as the base when reviewing or comparing packet scope.
 - Do not let Lane 02 consume Lane 01 work until Lane 01 has its release-gate evidence.
 - Keep Flyway work on `db/migration_v2` only.
-- Treat the current Lane 01 HOLD/SUSPENDED lifecycle/runtime semantics drift as the active control-plane truth risk until the lane closes it explicitly.
+- The prior Lane 01 HOLD/SUSPENDED lifecycle/runtime semantics drift is now closed in code; remaining risk is governance-only until orchestrator review accepts the release gate.
