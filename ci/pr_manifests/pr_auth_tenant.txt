@@ -1,0 +1,4 @@
+com.bigbrightpaints.erp.truthsuite.runtime.TS_RuntimeSecurityConfigExecutableCoverageTest
+com.bigbrightpaints.erp.truthsuite.runtime.TS_RuntimeCompanyContextFilterExecutableCoverageTest
+com.bigbrightpaints.erp.truthsuite.runtime.TS_RuntimeTenantControlPlaneEnforcementTest
+com.bigbrightpaints.erp.truthsuite.runtime.TS_RuntimeTenantPolicyControlExecutableCoverageTest

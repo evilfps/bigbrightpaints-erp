@@ -1,0 +1,1 @@
+com.bigbrightpaints.erp.smoke.ApplicationSmokeTest

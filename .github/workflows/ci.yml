@@ -98,9 +98,412 @@ jobs:
           set -euo pipefail
           bash ci/check-orchestrator-layer.sh
 
+  pr-risk-router:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      run_auth_tenant: ${{ steps.route.outputs.run_auth_tenant }}
+      run_accounting: ${{ steps.route.outputs.run_accounting }}
+      run_idempotency_outbox: ${{ steps.route.outputs.run_idempotency_outbox }}
+      run_business_slice: ${{ steps.route.outputs.run_business_slice }}
+      run_persistence_smoke: ${{ steps.route.outputs.run_persistence_smoke }}
+      run_codered_access: ${{ steps.route.outputs.run_codered_access }}
+      run_codered_finance: ${{ steps.route.outputs.run_codered_finance }}
+      changed_files_count: ${{ steps.route.outputs.changed_files_count }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Route Risk
+        id: route
+        run: |
+          set -euo pipefail
+          python3 scripts/ci_risk_router.py \
+            --base "${{ github.event.pull_request.base.sha }}" \
+            --head "${{ github.sha }}" \
+            --github-output "$GITHUB_OUTPUT"
+
+  pr-build:
+    if: github.event_name == 'pull_request'
+    needs: [pr-risk-router]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: Compile package
+        run: |
+          set -euo pipefail
+          cd erp-domain
+          mvn -B -ntp -Ppr-fast -DskipTests package
+
+  pr-auth-tenant:
+    if: github.event_name == 'pull_request' && needs.pr-risk-router.outputs.run_auth_tenant == 'true'
+    needs: [pr-risk-router]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: Run auth and tenant shard
+        run: |
+          set -euo pipefail
+          bash scripts/run_test_manifest.sh \
+            --profile pr-fast \
+            --label auth-tenant \
+            --manifest ci/pr_manifests/pr_auth_tenant.txt
+
+      - name: Upload shard coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-jacoco-auth-tenant
+          path: erp-domain/target/site/jacoco/jacoco.xml
+          if-no-files-found: ignore
+
+  pr-accounting:
+    if: github.event_name == 'pull_request' && needs.pr-risk-router.outputs.run_accounting == 'true'
+    needs: [pr-risk-router]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: Run accounting shard
+        run: |
+          set -euo pipefail
+          bash scripts/run_test_manifest.sh \
+            --profile pr-fast \
+            --label accounting \
+            --manifest ci/pr_manifests/pr_accounting.txt
+
+      - name: Upload shard coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-jacoco-accounting
+          path: erp-domain/target/site/jacoco/jacoco.xml
+          if-no-files-found: ignore
+
+  pr-idempotency-outbox:
+    if: github.event_name == 'pull_request' && needs.pr-risk-router.outputs.run_idempotency_outbox == 'true'
+    needs: [pr-risk-router]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: Run idempotency and outbox shard
+        run: |
+          set -euo pipefail
+          bash scripts/run_test_manifest.sh \
+            --profile pr-fast \
+            --label idempotency-outbox \
+            --manifest ci/pr_manifests/pr_idempotency_outbox.txt
+
+      - name: Upload shard coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-jacoco-idempotency-outbox
+          path: erp-domain/target/site/jacoco/jacoco.xml
+          if-no-files-found: ignore
+
+  pr-business-slice:
+    if: github.event_name == 'pull_request' && needs.pr-risk-router.outputs.run_business_slice == 'true'
+    needs: [pr-risk-router]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: Run business slice shard
+        run: |
+          set -euo pipefail
+          bash scripts/run_test_manifest.sh \
+            --profile pr-fast \
+            --label business-slice \
+            --manifest ci/pr_manifests/pr_business_slice.txt
+
+      - name: Upload shard coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-jacoco-business-slice
+          path: erp-domain/target/site/jacoco/jacoco.xml
+          if-no-files-found: ignore
+
+  pr-persistence-smoke:
+    if: github.event_name == 'pull_request' && needs.pr-risk-router.outputs.run_persistence_smoke == 'true'
+    needs: [pr-risk-router]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: Run persistence smoke shard
+        run: |
+          set -euo pipefail
+          bash scripts/run_test_manifest.sh \
+            --profile pr-fast \
+            --label persistence-smoke \
+            --manifest ci/pr_manifests/pr_persistence_smoke.txt
+
+      - name: Upload shard coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-jacoco-persistence-smoke
+          path: erp-domain/target/site/jacoco/jacoco.xml
+          if-no-files-found: ignore
+
+  pr-codered-access:
+    if: github.event_name == 'pull_request' && needs.pr-risk-router.outputs.run_codered_access == 'true'
+    needs: [pr-risk-router]
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: Run CODE-RED access shard
+        run: |
+          set -euo pipefail
+          bash scripts/run_test_manifest.sh \
+            --profile codered \
+            --label codered-access \
+            --manifest ci/pr_manifests/pr_codered_access.txt
+
+      - name: Upload shard coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-jacoco-codered-access
+          path: erp-domain/target/site/jacoco/jacoco.xml
+          if-no-files-found: ignore
+
+  pr-codered-finance:
+    if: github.event_name == 'pull_request' && needs.pr-risk-router.outputs.run_codered_finance == 'true'
+    needs: [pr-risk-router]
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: Run CODE-RED finance shard
+        run: |
+          set -euo pipefail
+          bash scripts/run_test_manifest.sh \
+            --profile codered \
+            --label codered-finance \
+            --manifest ci/pr_manifests/pr_codered_finance.txt
+
+      - name: Upload shard coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-jacoco-codered-finance
+          path: erp-domain/target/site/jacoco/jacoco.xml
+          if-no-files-found: ignore
+
+  pr-changed-coverage:
+    if: always() && github.event_name == 'pull_request'
+    needs:
+      - pr-risk-router
+      - pr-auth-tenant
+      - pr-accounting
+      - pr-idempotency-outbox
+      - pr-business-slice
+      - pr-persistence-smoke
+      - pr-codered-access
+      - pr-codered-finance
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download shard coverage
+        uses: actions/download-artifact@v4
+        with:
+          pattern: pr-jacoco-*
+          path: artifacts/pr-jacoco
+
+      - name: Enforce changed-files coverage
+        run: |
+          set -euo pipefail
+          mapfile -t jacoco_files < <(find artifacts/pr-jacoco -name jacoco.xml -type f | sort)
+          if [[ "${#jacoco_files[@]}" -eq 0 ]]; then
+            echo "[pr-changed-coverage] FAIL: no shard jacoco.xml files were downloaded" >&2
+            exit 1
+          fi
+
+          args=()
+          for jacoco_file in "${jacoco_files[@]}"; do
+            args+=(--jacoco "$jacoco_file")
+          done
+
+          python3 scripts/changed_files_coverage.py \
+            "${args[@]}" \
+            --diff-base "${{ github.event.pull_request.base.sha }}" \
+            --src-root erp-domain/src/main/java \
+            --threshold-line 0.95 \
+            --threshold-branch 0.90 \
+            --fail-on-vacuous \
+            --output artifacts/pr-jacoco/changed-coverage.json
+
+      - name: Upload changed coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-changed-coverage
+          path: artifacts/pr-jacoco/changed-coverage.json
+          if-no-files-found: ignore
+
+  pr-merge-gate:
+    if: always() && github.event_name == 'pull_request'
+    needs:
+      - knowledgebase-lint
+      - architecture-check
+      - enterprise-policy-check
+      - orchestrator-layer-check
+      - pr-risk-router
+      - pr-build
+      - pr-auth-tenant
+      - pr-accounting
+      - pr-idempotency-outbox
+      - pr-business-slice
+      - pr-persistence-smoke
+      - pr-codered-access
+      - pr-codered-finance
+      - pr-changed-coverage
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Evaluate PR gate
+        env:
+          NEEDS_JSON: ${{ toJson(needs) }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import os
+          import sys
+
+          needs = json.loads(os.environ["NEEDS_JSON"])
+          blocking = {
+              name: data["result"]
+              for name, data in needs.items()
+              if data["result"] not in {"success", "skipped"}
+          }
+
+          if blocking:
+              print("[pr-merge-gate] FAIL: blocking jobs detected")
+              for name, result in sorted(blocking.items()):
+                  print(f"  - {name}: {result}")
+              sys.exit(1)
+
+          print("[pr-merge-gate] OK: all required jobs succeeded or were skipped")
+          PY
+
   gate-fast:
     needs: [knowledgebase-lint, architecture-check, enterprise-policy-check, orchestrator-layer-check]
-    if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.event.inputs.diff_base != '')
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.diff_base != ''
     runs-on: ubuntu-latest
     timeout-minutes: 20
 

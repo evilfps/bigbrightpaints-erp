@@ -506,6 +506,32 @@
         </profile>
 
         <profile>
+            <id>pr-fast</id>
+            <properties>
+                <skipTests>false</skipTests>
+                <test.groups>critical</test.groups>
+                <test.excludedGroups>flaky</test.excludedGroups>
+                <test.failIfNoTests>true</test.failIfNoTests>
+            </properties>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-surefire-plugin</artifactId>
+                        <configuration>
+                            <includes combine.self="override">
+                                <include>**/truthsuite/**/*Test.java</include>
+                                <include>**/truthsuite/**/*IT.java</include>
+                                <include>**/truthsuite/**/*Suite.java</include>
+                                <include>**/smoke/**/*Test.java</include>
+                            </includes>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+
+        <profile>
             <id>gate-core</id>
             <properties>
                 <skipTests>false</skipTests>

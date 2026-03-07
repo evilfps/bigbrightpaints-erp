@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+from __future__ import annotations
+
 import argparse
 import json
 import os
@@ -34,7 +36,7 @@ def resolve_diff_base(explicit_base: str) -> str:
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Enforce changed-file JaCoCo coverage")
-    p.add_argument("--jacoco", required=True, help="Path to jacoco.xml")
+    p.add_argument("--jacoco", required=True, action="append", help="Path to jacoco.xml (repeatable)")
     p.add_argument(
         "--diff-base",
         default="",
@@ -76,24 +78,47 @@ def parse_changed_lines(diff_text: str) -> dict[str, set[int]]:
     return changed
 
 
-def build_jacoco_line_map(jacoco_xml: str, src_root: str) -> dict[str, dict[int, tuple[int, int, int, int]]]:
-    tree = ET.parse(jacoco_xml)
-    root = tree.getroot()
+def merge_line_stats(
+    current: tuple[int, int, int, int] | None,
+    incoming: tuple[int, int, int, int],
+) -> tuple[int, int, int, int]:
+    if current is None:
+        return incoming
+
+    current_mi, current_ci, current_mb, current_cb = current
+    incoming_mi, incoming_ci, incoming_mb, incoming_cb = incoming
+
+    total_line = max(current_mi + current_ci, incoming_mi + incoming_ci)
+    covered_line = max(current_ci, incoming_ci)
+    missed_line = max(total_line - covered_line, 0)
+
+    total_branch = max(current_mb + current_cb, incoming_mb + incoming_cb)
+    covered_branch = max(current_cb, incoming_cb)
+    missed_branch = max(total_branch - covered_branch, 0)
+
+    return missed_line, covered_line, missed_branch, covered_branch
+
+
+def build_jacoco_line_map(jacoco_xmls: list[str], src_root: str) -> dict[str, dict[int, tuple[int, int, int, int]]]:
     mapped: dict[str, dict[int, tuple[int, int, int, int]]] = {}
-    for pkg in root.findall(".//package"):
-        pkg_name = pkg.get("name", "")
-        for sf in pkg.findall("sourcefile"):
-            sf_name = sf.get("name", "")
-            rel_path = os.path.join(src_root, pkg_name, sf_name).replace("\\", "/")
-            lines: dict[int, tuple[int, int, int, int]] = {}
-            for line in sf.findall("line"):
-                nr = int(line.get("nr", "0"))
-                mi = int(line.get("mi", "0"))
-                ci = int(line.get("ci", "0"))
-                mb = int(line.get("mb", "0"))
-                cb = int(line.get("cb", "0"))
-                lines[nr] = (mi, ci, mb, cb)
-            mapped[rel_path] = lines
+    for jacoco_xml in jacoco_xmls:
+        tree = ET.parse(jacoco_xml)
+        root = tree.getroot()
+        for pkg in root.findall(".//package"):
+            pkg_name = pkg.get("name", "")
+            for sf in pkg.findall("sourcefile"):
+                sf_name = sf.get("name", "")
+                rel_path = os.path.join(src_root, pkg_name, sf_name).replace("\\", "/")
+                lines = mapped.setdefault(rel_path, {})
+                for line in sf.findall("line"):
+                    nr = int(line.get("nr", "0"))
+                    incoming = (
+                        int(line.get("mi", "0")),
+                        int(line.get("ci", "0")),
+                        int(line.get("mb", "0")),
+                        int(line.get("cb", "0")),
+                    )
+                    lines[nr] = merge_line_stats(lines.get(nr), incoming)
     return mapped
 
 
