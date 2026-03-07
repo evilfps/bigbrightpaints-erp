@@ -33,29 +33,29 @@ class TokenBlacklistServiceTest {
     }
 
     @Test
-    void isUserTokenRevokedTreatsSameMillisecondIssuanceAsRevoked() {
+    void isUserTokenRevokedTreatsEarlierTokenWithinSameMillisecondAsRevoked() {
         UserTokenRevocation revocation = new UserTokenRevocation("user@example.com", "all tokens revoked");
-        revocation.setRevokedAt(Instant.parse("2026-03-07T12:00:00.123Z"));
+        revocation.setRevokedAt(Instant.parse("2026-03-07T12:00:00.123999Z"));
+        when(userTokenRevocationRepository.findByUserId("user@example.com"))
+                .thenReturn(Optional.of(revocation));
+
+        boolean revoked = tokenBlacklistService.isUserTokenRevoked(
+                "user@example.com",
+                Instant.parse("2026-03-07T12:00:00.123111Z"));
+
+        assertTrue(revoked);
+    }
+
+    @Test
+    void isUserTokenRevokedAllowsTokensIssuedLaterWithinSameMillisecond() {
+        UserTokenRevocation revocation = new UserTokenRevocation("user@example.com", "all tokens revoked");
+        revocation.setRevokedAt(Instant.parse("2026-03-07T12:00:00.123111Z"));
         when(userTokenRevocationRepository.findByUserId("user@example.com"))
                 .thenReturn(Optional.of(revocation));
 
         boolean revoked = tokenBlacklistService.isUserTokenRevoked(
                 "user@example.com",
                 Instant.parse("2026-03-07T12:00:00.123999Z"));
-
-        assertTrue(revoked);
-    }
-
-    @Test
-    void isUserTokenRevokedAllowsTokensIssuedAfterRevocationMillisecond() {
-        UserTokenRevocation revocation = new UserTokenRevocation("user@example.com", "all tokens revoked");
-        revocation.setRevokedAt(Instant.parse("2026-03-07T12:00:00.123Z"));
-        when(userTokenRevocationRepository.findByUserId("user@example.com"))
-                .thenReturn(Optional.of(revocation));
-
-        boolean revoked = tokenBlacklistService.isUserTokenRevoked(
-                "user@example.com",
-                Instant.parse("2026-03-07T12:00:00.124Z"));
 
         assertFalse(revoked);
     }

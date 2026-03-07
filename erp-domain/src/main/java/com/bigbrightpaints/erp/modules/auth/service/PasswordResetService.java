@@ -55,6 +55,8 @@ public class PasswordResetService {
     private static final String SUPER_ADMIN_CLEANUP_FAILURE_SECURITY_EVENT_CODE =
             "SEC_AUTH_SUPERADMIN_RESET_CLEANUP_FAILURE";
     private static final String PUBLIC_RESET_PERSISTENCE_FAILURE_REASON_CODE = "RESET_PERSISTENCE_FAILURE";
+    private static final String PUBLIC_RESET_PERSISTENCE_FAILURE_MESSAGE =
+            "Password reset request could not be processed. Please try again later.";
     private static final int MAX_TENANT_CONTEXT_LENGTH = 64;
     private static final Pattern SAFE_TENANT_CONTEXT_PATTERN =
             Pattern.compile("^[A-Za-z0-9._:-]{1,64}$");
@@ -270,6 +272,9 @@ public class PasswordResetService {
             }
             if (suppressFailures) {
                 logMaskedPublicResetFailure(operation, correlationId, maskedEmail, ex, issuedResetToken, cleanupFailure);
+                if (isPublicResetPersistenceFailure(ex, issuedResetToken) || cleanupFailure != null) {
+                    throw publicResetPersistenceFailure(cleanupFailure != null ? cleanupFailure : ex);
+                }
                 return false;
             }
             log.warn(
@@ -386,6 +391,13 @@ public class PasswordResetService {
             return false;
         }
         return issuedResetToken == null || !StringUtils.hasText(issuedResetToken.rawToken());
+    }
+
+    private ApplicationException publicResetPersistenceFailure(RuntimeException cause) {
+        return new ApplicationException(
+                ErrorCode.SYSTEM_DATABASE_ERROR,
+                PUBLIC_RESET_PERSISTENCE_FAILURE_MESSAGE,
+                cause);
     }
 
     private void cleanupFailedSuperAdminResetToken(UserAccount user, String tokenValue, String correlationId) {
