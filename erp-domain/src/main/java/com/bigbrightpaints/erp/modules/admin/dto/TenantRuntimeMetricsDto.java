@@ -1,5 +1,6 @@
 package com.bigbrightpaints.erp.modules.admin.dto;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import java.time.Instant;
 
 public record TenantRuntimeMetricsDto(
@@ -15,6 +16,7 @@ public record TenantRuntimeMetricsDto(
         int blockedThisMinute,
         int inFlightRequests,
         String policyReference,
+        @JsonFormat(shape = JsonFormat.Shape.STRING)
         Instant policyUpdatedAt
 ) {
 }

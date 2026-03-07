@@ -13,6 +13,7 @@ import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.http.*;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -450,6 +451,62 @@ public class CompanyControllerIT extends AbstractIntegrationTest {
     }
 
     @Test
+    void lane01_global_settings_mutation_is_denied_for_tenant_admins_and_runtime_metrics_keep_date_time_shape() {
+        String adminToken = loginToken(ADMIN_EMAIL, COMPANY_CODE);
+        HttpHeaders adminHeaders = new HttpHeaders();
+        adminHeaders.setBearerAuth(adminToken);
+        adminHeaders.setContentType(MediaType.APPLICATION_JSON);
+        adminHeaders.set("X-Company-Code", COMPANY_CODE);
+
+        ResponseEntity<Map> forbiddenSettingsUpdate = rest.exchange(
+                "/api/v1/admin/settings",
+                HttpMethod.PUT,
+                new HttpEntity<>(Map.of("exportApprovalRequired", true), adminHeaders),
+                Map.class);
+
+        assertThat(forbiddenSettingsUpdate.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+
+        String superAdminToken = loginToken(SUPER_ADMIN_EMAIL, COMPANY_CODE);
+        HttpHeaders superAdminHeaders = new HttpHeaders();
+        superAdminHeaders.setBearerAuth(superAdminToken);
+        superAdminHeaders.setContentType(MediaType.APPLICATION_JSON);
+        superAdminHeaders.set("X-Company-Code", COMPANY_CODE);
+
+        ResponseEntity<Map> updatePolicy = rest.exchange(
+                "/api/v1/admin/tenant-runtime/policy",
+                HttpMethod.PUT,
+                new HttpEntity<>(Map.of(
+                        "holdState", "ACTIVE",
+                        "holdReason", "Contract parity verification",
+                        "changeReason", "Lane 01 runtime contract test",
+                        "maxActiveUsers", 45,
+                        "maxRequestsPerMinute", 120,
+                        "maxConcurrentRequests", 15
+                ), superAdminHeaders),
+                Map.class);
+
+        assertThat(updatePolicy.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+        ResponseEntity<Map> metricsResponse = rest.exchange(
+                "/api/v1/admin/tenant-runtime/metrics",
+                HttpMethod.GET,
+                new HttpEntity<>(adminHeaders),
+                Map.class);
+
+        assertThat(metricsResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(metricsResponse.getBody()).isNotNull();
+        assertIsoInstantString(metricsResponse.getBody().get("timestamp"));
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> metricsData = (Map<String, Object>) metricsResponse.getBody().get("data");
+        assertThat(metricsData).isNotNull();
+        assertThat(metricsData.get("companyCode")).isEqualTo(COMPANY_CODE);
+        assertThat(metricsData.get("holdState")).isEqualTo("ACTIVE");
+        assertThat(metricsData.get("policyReference")).isNotNull();
+        assertIsoInstantString(metricsData.get("policyUpdatedAt"));
+    }
+
+    @Test
     void tenant_runtime_policy_update_allows_super_admin_outside_target_tenant_membership() {
         Long companyId = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow().getId();
         String rootOnlySuperAdminEmail = "root-only-super-admin-runtime@bbp.com";
@@ -535,5 +592,10 @@ public class CompanyControllerIT extends AbstractIntegrationTest {
         Map<String, Object> errorData = (Map<String, Object>) blockedMeResponse.getBody().get("data");
         assertThat(errorData).isNotNull();
         assertThat(errorData.get("reason")).isEqualTo("TENANT_BLOCKED");
+    }
+
+    private void assertIsoInstantString(Object value) {
+        assertThat(value).isInstanceOf(String.class);
+        assertThat(Instant.parse(value.toString())).isNotNull();
     }
 }
