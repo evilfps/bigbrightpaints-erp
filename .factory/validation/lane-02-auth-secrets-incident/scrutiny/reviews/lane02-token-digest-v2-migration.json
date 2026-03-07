@@ -1,0 +1,15 @@
+{
+  "featureId": "lane02-token-digest-v2-migration",
+  "reviewedAt": "2026-03-07T18:56:47+05:30",
+  "commitId": "2baa117516ee13e847cfd883c26fa10f00e54dcb",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "This commit intentionally stays verification-only: it adds missing regression coverage around the already-landed digest-backed refresh-token and password-reset implementation rather than changing production auth code or schema. The new tests cover digest-only lookup, legacy-row backfill, and continued legacy-token consumption through the compatibility window, while the handoff separately confirms no `db/migration_v2` or legacy `db/migration` files changed in this packet, so the feature strengthens proof for VAL-AUTH-003 without introducing new runtime risk.",
+    "issues": []
+  },
+  "sharedStateObservations": [],
+  "addressesFailureFrom": null,
+  "summary": "PASS. The digest-storage rollout remains narrow and v2-only, and this packet closes the evidence gap with focused compatibility tests instead of widening implementation scope."
+}
