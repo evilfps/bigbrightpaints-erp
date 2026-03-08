@@ -1,0 +1,14 @@
+{
+  "featureId": "o2c-truth.phase-one-cost-carry-forward",
+  "reviewedAt": "2026-03-08T08:00:00+05:30",
+  "commitId": "63384502c0de7e816e582f608853d9a278269f08",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The costing follow-up narrows dispatch valuation to the reserved finished-good batch when that batch is known, preventing shipment-time reblending under weighted-average defaults and keeping profitability/reporting aligned with the same batch truth. The reviewed valuation/service changes and expanded regression coverage substantiate the intended batch-actual plus packaging carry-forward behavior without showing a defect in the touched dispatch, reporting, or profitability paths.",
+    "issues": []
+  },
+  "sharedStateObservations": [],
+  "summary": "Pass. Reserved batch cost now carries through dispatch, COGS, and profitability-facing outputs instead of being recomputed from weighted average when concrete batch truth already exists."
+}

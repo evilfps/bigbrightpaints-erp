@@ -1,0 +1,14 @@
+{
+  "featureId": "o2c-truth.dispatch-factory-boundary-and-final-invoicing",
+  "reviewedAt": "2026-03-08T08:00:00+05:30",
+  "commitId": "666d5bde20b2a802cbba483fabbcb64a4a1690b1",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The dispatch refactor makes dispatch confirmation the canonical owner of final invoicing, persists logistics metadata on the packaging-slip truth boundary, and redacts commercial/accounting fields from pure factory responses while preserving admin/sales visibility. The reviewed controller, invoice-service, dispatch-engine, and integration-test changes align with the feature contract for operational-only factory views, challan output, replay safety, and dispatch-owned final invoice creation, and I did not find a blocking regression in the touched code paths.",
+    "issues": []
+  },
+  "sharedStateObservations": [],
+  "summary": "Pass. Dispatch now owns final invoice creation, factory surfaces are operational-only, logistics metadata is persisted, and challan/replay behavior is covered by the reviewed tests."
+}
