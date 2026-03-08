@@ -163,6 +163,7 @@ class SalesControllerIdempotencyHeaderTest {
                         "INR",
                         null,
                         null,
+                        null,
                         Instant.now(),
                         List.of(),
                         List.of()));

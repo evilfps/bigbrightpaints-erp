@@ -22,6 +22,8 @@ public record SalesOrderRequest(
         String paymentMode
 ) {
     private static final String DEFAULT_PAYMENT_MODE = "CREDIT";
+    private static final String LEGACY_HYBRID_PAYMENT_MODE = "SPLIT";
+    private static final String HYBRID_PAYMENT_MODE = "HYBRID";
 
     public SalesOrderRequest(
             Long dealerId,
@@ -41,6 +43,9 @@ public record SalesOrderRequest(
         String normalized = IdempotencyUtils.normalizeUpperToken(paymentMode);
         if (normalized.isBlank()) {
             return DEFAULT_PAYMENT_MODE;
+        }
+        if (LEGACY_HYBRID_PAYMENT_MODE.equals(normalized)) {
+            return HYBRID_PAYMENT_MODE;
         }
         return normalized;
     }

@@ -13,6 +13,7 @@ import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalLine;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGood;
+import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatchRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodRepository;
 import com.bigbrightpaints.erp.modules.inventory.service.FinishedGoodsService;
 import com.bigbrightpaints.erp.modules.inventory.domain.PackagingSlipRepository;
@@ -117,6 +118,8 @@ class SalesServiceTest {
     @Mock
     private FinishedGoodRepository finishedGoodRepository;
     @Mock
+    private FinishedGoodBatchRepository finishedGoodBatchRepository;
+    @Mock
     private AccountRepository accountRepository;
     @Mock
     private CompanyEntityLookup companyEntityLookup;
@@ -169,6 +172,7 @@ class SalesServiceTest {
                 productionProductRepository,
                 dealerLedgerService,
                 finishedGoodRepository,
+                finishedGoodBatchRepository,
                 accountRepository,
                 companyEntityLookup,
                 packagingSlipRepository,
@@ -190,6 +194,9 @@ class SalesServiceTest {
 
         when(finishedGoodsService.reserveForOrder(any()))
                 .thenReturn(new InventoryReservationResult(null, List.of()));
+        lenient().when(salesOrderRepository.sumPendingCreditExposureByCompanyAndDealer(any(), any(), any(), any()))
+                .thenReturn(BigDecimal.ZERO);
+        lenient().when(factoryTaskRepository.findByCompanyAndSalesOrderId(any(), anyLong())).thenReturn(List.of());
         when(companyDefaultAccountsService.requireDefaults())
                 .thenReturn(new CompanyDefaultAccountsService.DefaultAccounts(1L, 2L, 3L, 4L, 5L));
         when(companyDefaultAccountsService.getDefaults())
@@ -3359,7 +3366,7 @@ class SalesServiceTest {
     }
 
     @Test
-    void createOrderCreditLimitIgnoresPendingOrderExposureProjection() {
+    void createOrderCreditLimitIncludesPendingOrderExposureProjection() {
         setupProduct("SKU3-EXPOSURE", BigDecimal.valueOf(200), BigDecimal.ZERO);
         FinishedGood finishedGood = buildFinishedGood("SKU3-EXPOSURE");
         finishedGood.setRevenueAccountId(5L);
@@ -3370,13 +3377,8 @@ class SalesServiceTest {
         when(dealerRepository.lockByCompanyAndId(company, dealer.getId())).thenReturn(Optional.of(dealer));
         when(orderNumberService.nextOrderNumber(company)).thenReturn("SO-EXPOSURE-42");
         when(dealerLedgerService.currentBalance(422L)).thenReturn(BigDecimal.valueOf(400));
-        when(salesOrderRepository.save(ArgumentMatchers.any(SalesOrder.class))).thenAnswer(invocation -> {
-            SalesOrder entity = invocation.getArgument(0);
-            if (entity.getId() == null) {
-                setField(entity, "id", 4220L);
-            }
-            return entity;
-        });
+        when(salesOrderRepository.sumPendingCreditExposureByCompanyAndDealer(eq(company), eq(dealer), any(), eq(null)))
+                .thenReturn(BigDecimal.valueOf(450));
 
         SalesOrderRequest request = new SalesOrderRequest(
                 422L,
@@ -3389,19 +3391,11 @@ class SalesServiceTest {
                 null,
                 null);
 
-        SalesOrderDto dto = salesService.createOrder(request);
+        CreditLimitExceededException ex = assertThrows(CreditLimitExceededException.class,
+                () -> salesService.createOrder(request));
 
-        assertEquals("RESERVED", dto.status());
-        assertEquals(1.0d, meterRegistry.get("erp.business.orders.processed").counter().count(), 0.0001d);
-        assertEquals(1.0d, meterRegistry.get("erp.business.orders.processed.by_company")
-                .tag("company", "COMP")
-                .counter()
-                .count(), 0.0001d);
-        verify(salesOrderRepository, never()).sumPendingCreditExposureByCompanyAndDealer(
-                ArgumentMatchers.any(),
-                ArgumentMatchers.any(),
-                ArgumentMatchers.anySet(),
-                ArgumentMatchers.any());
+        assertEquals(BigDecimal.valueOf(450), ex.getDetails().get("pendingOrderExposure"));
+        assertEquals(BigDecimal.valueOf(850), ex.getDetails().get("currentExposure"));
     }
 
     @Test
@@ -3469,7 +3463,7 @@ class SalesServiceTest {
     }
 
     @Test
-    void createOrderCashPaymentModeStillEnforcesDealerCreditLimit() {
+    void createOrderCashPaymentModeSkipsDealerCreditLimit() {
         setupProduct("SKU3-CASH", BigDecimal.valueOf(200), BigDecimal.ZERO);
         FinishedGood finishedGood = buildFinishedGood("SKU3-CASH");
         finishedGood.setRevenueAccountId(5L);
@@ -3500,12 +3494,15 @@ class SalesServiceTest {
                 null,
                 " cash ");
 
-        assertThrows(CreditLimitExceededException.class, () -> salesService.createOrder(request));
-        verify(dealerLedgerService).currentBalance(420L);
+        SalesOrderDto dto = salesService.createOrder(request);
+
+        assertEquals("RESERVED", dto.status());
+        assertEquals("CASH", dto.paymentMode());
+        verify(dealerLedgerService, never()).currentBalance(420L);
     }
 
     @Test
-    void updateOrderCashPaymentModeStillEnforcesDealerCreditLimit() {
+    void updateOrderCashPaymentModeSkipsDealerCreditLimit() {
         setupProduct("SKU3-UPD-CASH", BigDecimal.valueOf(200), BigDecimal.ZERO);
         FinishedGood finishedGood = buildFinishedGood("SKU3-UPD-CASH");
         finishedGood.setRevenueAccountId(5L);
@@ -3544,12 +3541,14 @@ class SalesServiceTest {
                 null,
                 "CASH");
 
-        assertThrows(CreditLimitExceededException.class, () -> salesService.updateOrder(4300L, request));
-        verify(dealerLedgerService).currentBalance(430L);
+        SalesOrderDto dto = salesService.updateOrder(4300L, request);
+
+        assertEquals("CASH", dto.paymentMode());
+        verify(dealerLedgerService, never()).currentBalance(430L);
     }
 
     @Test
-    void createOrderSplitPaymentModeStillEnforcesDealerCreditLimit() {
+    void createOrderHybridPaymentModeStillEnforcesDealerCreditLimit() {
         setupProduct("SKU3-SPLIT", BigDecimal.valueOf(200), BigDecimal.ZERO);
         FinishedGood finishedGood = buildFinishedGood("SKU3-SPLIT");
         finishedGood.setRevenueAccountId(5L);
@@ -3571,7 +3570,7 @@ class SalesServiceTest {
                 null,
                 null,
                 null,
-                "SPLIT");
+                "HYBRID");
 
         assertThrows(CreditLimitExceededException.class, () -> salesService.createOrder(request));
         verify(dealerLedgerService).currentBalance(421L);
@@ -4100,9 +4099,9 @@ class SalesServiceTest {
             setField(entity, "id", 901L);
             return entity;
         });
-
-        InventoryShortage shortage = new InventoryShortage("SKU10", BigDecimal.ONE, "Prod 10");
-        when(finishedGoodsService.reserveForOrder(any())).thenReturn(new InventoryReservationResult(null, List.of(shortage)));
+        when(finishedGoodBatchRepository.findByFinishedGoodOrderByManufacturedAtAsc(fg1)).thenReturn(List.of());
+        when(finishedGoodBatchRepository.findByFinishedGoodOrderByManufacturedAtAsc(fg2))
+                .thenReturn(List.of(batch(fg2, BigDecimal.ONE)));
 
         SalesOrderRequest request = new SalesOrderRequest(
                 null,
@@ -4121,7 +4120,8 @@ class SalesServiceTest {
         SalesOrderDto dto = salesService.createOrder(request);
 
         assertEquals("PENDING_PRODUCTION", dto.status());
-        verify(finishedGoodsService).reserveForOrder(any());
+        verify(finishedGoodsService, never()).reserveForOrder(any());
+        verify(factoryTaskRepository).saveAll(any());
     }
 
     @Test
@@ -4293,16 +4293,30 @@ class SalesServiceTest {
         finishedGood.setReservedStock(BigDecimal.ZERO);
         finishedGood.setValuationAccountId(10L);
         finishedGood.setCogsAccountId(11L);
+        lenient().when(finishedGoodBatchRepository.findByFinishedGoodOrderByManufacturedAtAsc(finishedGood))
+                .thenReturn(List.of(batch(finishedGood, new BigDecimal("1000"))));
         return finishedGood;
     }
 
     private Dealer dealerWithCreditLimit(long id, BigDecimal limit) {
         Dealer dealer = new Dealer();
+        Account receivableAccount = new Account();
+        receivableAccount.setActive(true);
         dealer.setCompany(company);
         dealer.setName("Dealer");
         dealer.setCreditLimit(limit);
+        dealer.setReceivableAccount(receivableAccount);
         setField(dealer, "id", id);
         return dealer;
+    }
+
+    private FinishedGoodBatch batch(FinishedGood finishedGood, BigDecimal quantityAvailable) {
+        FinishedGoodBatch batch = new FinishedGoodBatch();
+        batch.setFinishedGood(finishedGood);
+        batch.setQuantityAvailable(quantityAvailable);
+        batch.setQuantityTotal(quantityAvailable);
+        batch.setUnitCost(BigDecimal.ONE);
+        return batch;
     }
 
     private void setField(Object target, String name, Object value) {
