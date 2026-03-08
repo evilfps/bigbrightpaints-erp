@@ -1,5 +1,6 @@
 package com.bigbrightpaints.erp.modules.inventory.controller;
 
+import com.bigbrightpaints.erp.core.security.PortalRoleActionMatrix;
 import com.bigbrightpaints.erp.shared.dto.ApiResponse;
 import com.bigbrightpaints.erp.modules.inventory.dto.*;
 import com.bigbrightpaints.erp.modules.inventory.service.DeliveryChallanPdfService;
@@ -44,7 +45,7 @@ public class DispatchController {
      * Get all packaging slips pending dispatch.
      */
     @GetMapping("/pending")
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_FACTORY','ROLE_SALES')")
+    @PreAuthorize(PortalRoleActionMatrix.ADMIN_FACTORY_SALES)
     public ResponseEntity<ApiResponse<List<PackagingSlipDto>>> getPendingSlips() {
         List<PackagingSlipDto> slips = finishedGoodsService.listPackagingSlips().stream()
                 .filter(s -> !"DISPATCHED".equalsIgnoreCase(s.status()))
@@ -58,7 +59,7 @@ public class DispatchController {
      * Shows what was ordered vs what's available to ship.
      */
     @GetMapping("/preview/{slipId}")
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_FACTORY')")
+    @PreAuthorize(PortalRoleActionMatrix.ADMIN_FACTORY)
     public ResponseEntity<ApiResponse<DispatchPreviewDto>> getDispatchPreview(@PathVariable Long slipId) {
         DispatchPreviewDto preview = finishedGoodsService.getDispatchPreview(slipId);
         return ResponseEntity.ok(ApiResponse.success(toDispatchPreviewView(preview)));
@@ -68,7 +69,7 @@ public class DispatchController {
      * Cancel a backorder slip; releases reserved stock and quantity without shipping.
      */
     @PostMapping("/backorder/{slipId}/cancel")
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_FACTORY')")
+    @PreAuthorize(PortalRoleActionMatrix.ADMIN_FACTORY)
     public ResponseEntity<ApiResponse<PackagingSlipDto>> cancelBackorder(
             @PathVariable Long slipId,
             @RequestParam(required = false) String reason,
@@ -82,7 +83,7 @@ public class DispatchController {
      * Get packaging slip details.
      */
     @GetMapping("/slip/{slipId}")
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_FACTORY','ROLE_SALES')")
+    @PreAuthorize(PortalRoleActionMatrix.ADMIN_FACTORY_SALES)
     public ResponseEntity<ApiResponse<PackagingSlipDto>> getPackagingSlip(@PathVariable Long slipId) {
         PackagingSlipDto slip = finishedGoodsService.getPackagingSlip(slipId);
         return ResponseEntity.ok(ApiResponse.success(toPackagingSlipView(slip)));
@@ -92,7 +93,7 @@ public class DispatchController {
      * Get packaging slip by sales order ID.
      */
     @GetMapping("/order/{orderId}")
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_FACTORY','ROLE_SALES')")
+    @PreAuthorize(PortalRoleActionMatrix.ADMIN_FACTORY_SALES)
     public ResponseEntity<ApiResponse<PackagingSlipDto>> getPackagingSlipByOrder(@PathVariable Long orderId) {
         PackagingSlipDto slip = finishedGoodsService.getPackagingSlipByOrder(orderId);
         return ResponseEntity.ok(ApiResponse.success(toPackagingSlipView(slip)));
@@ -103,11 +104,12 @@ public class DispatchController {
      * This is the final step - journals, inventory, and ledger updates happen here.
      */
     @PostMapping("/confirm")
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_FACTORY') and hasAuthority('dispatch.confirm')")
+    @PreAuthorize(PortalRoleActionMatrix.OPERATIONAL_DISPATCH)
     public ResponseEntity<ApiResponse<DispatchConfirmationResponse>> confirmDispatch(
             @Valid @RequestBody DispatchConfirmationRequest request,
             Principal principal) {
         String username = principal != null ? principal.getName() : "system";
+        validateFactoryDispatchMetadata(request);
         DispatchConfirmRequest accountingRequest = new DispatchConfirmRequest(
                 request.packagingSlipId(),
                 null,
@@ -142,7 +144,7 @@ public class DispatchController {
     }
 
     @GetMapping(value = "/slip/{slipId}/challan/pdf", produces = MediaType.APPLICATION_PDF_VALUE)
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_FACTORY')")
+    @PreAuthorize(PortalRoleActionMatrix.ADMIN_FACTORY)
     public ResponseEntity<byte[]> downloadDeliveryChallan(@PathVariable Long slipId) {
         DeliveryChallanPdfService.PdfDocument pdf = deliveryChallanPdfService.renderDeliveryChallanPdf(slipId);
         return ResponseEntity.ok()
@@ -155,7 +157,7 @@ public class DispatchController {
      * Update packaging slip status (e.g., PENDING -> PACKING -> READY).
      */
     @PatchMapping("/slip/{slipId}/status")
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_FACTORY')")
+    @PreAuthorize(PortalRoleActionMatrix.ADMIN_FACTORY)
     public ResponseEntity<ApiResponse<PackagingSlipDto>> updateSlipStatus(
             @PathVariable Long slipId,
             @RequestParam String status) {
@@ -176,6 +178,28 @@ public class DispatchController {
             return slip != null && "DISPATCHED".equalsIgnoreCase(slip.status());
         } catch (RuntimeException ex) {
             return false;
+        }
+    }
+
+    private void validateFactoryDispatchMetadata(DispatchConfirmationRequest request) {
+        if (!isOperationalFactoryView()) {
+            return;
+        }
+        if (request == null || isDispatchedSlipReplay(request.packagingSlipId())) {
+            return;
+        }
+        boolean hasTransportActor = hasText(request.transporterName()) || hasText(request.driverName());
+        if (!hasTransportActor) {
+            throw com.bigbrightpaints.erp.core.validation.ValidationUtils
+                    .invalidInput(PortalRoleActionMatrix.transporterOrDriverRequiredMessage());
+        }
+        if (!hasText(request.vehicleNumber())) {
+            throw com.bigbrightpaints.erp.core.validation.ValidationUtils
+                    .invalidInput(PortalRoleActionMatrix.vehicleNumberRequiredMessage());
+        }
+        if (!hasText(request.challanReference())) {
+            throw com.bigbrightpaints.erp.core.validation.ValidationUtils
+                    .invalidInput(PortalRoleActionMatrix.challanReferenceRequiredMessage());
         }
     }
 

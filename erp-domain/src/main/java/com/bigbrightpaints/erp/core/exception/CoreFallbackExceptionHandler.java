@@ -1,5 +1,6 @@
 package com.bigbrightpaints.erp.core.exception;
 
+import com.bigbrightpaints.erp.core.security.PortalRoleActionMatrix;
 import com.bigbrightpaints.erp.modules.auth.exception.InvalidMfaException;
 import com.bigbrightpaints.erp.modules.auth.exception.MfaRequiredException;
 import com.bigbrightpaints.erp.modules.auth.web.MfaChallengeResponse;
@@ -17,6 +18,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.LockedException;
 import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -136,11 +138,17 @@ public class CoreFallbackExceptionHandler {
         logger.warn("Access denied [{}] - Path: {}, User: {}",
                 traceId, request.getRequestURI(),
                 request.getUserPrincipal() != null ? request.getUserPrincipal().getName() : "anonymous");
+        String userMessage = PortalRoleActionMatrix.resolveAccessDeniedMessage(
+                SecurityContextHolder.getContext().getAuthentication(),
+                request);
+        if (!StringUtils.hasText(userMessage)) {
+            userMessage = "Access denied";
+        }
         Map<String, Object> data = new HashMap<>();
         data.put("code", ErrorCode.AUTH_INSUFFICIENT_PERMISSIONS.getCode());
         data.put("message", ErrorCode.AUTH_INSUFFICIENT_PERMISSIONS.getDefaultMessage());
         data.put("traceId", traceId);
-        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ApiResponse.failure("Access denied", data));
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ApiResponse.failure(userMessage, data));
     }
 
     @ExceptionHandler(DataIntegrityViolationException.class)

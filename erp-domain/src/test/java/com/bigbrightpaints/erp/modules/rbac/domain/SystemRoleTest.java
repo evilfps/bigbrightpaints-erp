@@ -61,6 +61,16 @@ class SystemRoleTest {
     }
 
     @Test
+    void accountingDefaultPermissions_includeDispatchConfirmForFinancialDispatchSurface() {
+        assertThat(SystemRole.ACCOUNTING.getDefaultPermissions()).contains("dispatch.confirm");
+    }
+
+    @Test
+    void salesDefaultPermissions_doNotIncludeFactoryOnlyDispatchPermission() {
+        assertThat(SystemRole.SALES.getDefaultPermissions()).doesNotContain("dispatch.confirm");
+    }
+
+    @Test
     void defaultPermissions_presentForAllRoles() {
         Arrays.stream(SystemRole.values())
                 .map(SystemRole::getDefaultPermissions)

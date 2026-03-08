@@ -4,6 +4,7 @@ import com.bigbrightpaints.erp.core.audit.AuditEvent;
 import com.bigbrightpaints.erp.core.audit.AuditService;
 import com.bigbrightpaints.erp.core.config.SystemSettingsService;
 import com.bigbrightpaints.erp.core.notification.EmailService;
+import com.bigbrightpaints.erp.core.security.PortalRoleActionMatrix;
 import com.bigbrightpaints.erp.core.security.SecurityActorResolver;
 import com.bigbrightpaints.erp.shared.dto.ApiResponse;
 import com.bigbrightpaints.erp.modules.accounting.domain.PeriodCloseRequest;
@@ -109,13 +110,13 @@ public class AdminSettingsController {
     }
 
     @GetMapping("/settings")
-    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
+    @PreAuthorize(PortalRoleActionMatrix.ADMIN_ONLY)
     public ApiResponse<SystemSettingsDto> getSettings() {
         return ApiResponse.success("Settings fetched", systemSettingsService.snapshot());
     }
 
     @PutMapping("/settings")
-    @PreAuthorize("hasAuthority('ROLE_SUPER_ADMIN')")
+    @PreAuthorize(PortalRoleActionMatrix.SUPER_ADMIN_ONLY)
     public ApiResponse<SystemSettingsDto> updateSettings(@Valid @RequestBody SystemSettingsUpdateRequest request) {
         SystemSettingsDto before = systemSettingsService.snapshot();
         requireSuperAdminForPeriodLockEnforcedChange(before, request);
@@ -146,27 +147,27 @@ public class AdminSettingsController {
     }
 
     @GetMapping("/tenant-runtime/metrics")
-    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
+    @PreAuthorize(PortalRoleActionMatrix.ADMIN_ONLY)
     public ApiResponse<TenantRuntimeMetricsDto> tenantRuntimeMetrics() {
         return ApiResponse.success("Tenant runtime metrics", tenantRuntimePolicyService.metrics());
     }
 
     @PutMapping("/tenant-runtime/policy")
-    @PreAuthorize("hasAuthority('ROLE_SUPER_ADMIN')")
+    @PreAuthorize(PortalRoleActionMatrix.SUPER_ADMIN_ONLY)
     public ApiResponse<TenantRuntimeMetricsDto> updateTenantRuntimePolicy(
             @Valid @RequestBody TenantRuntimePolicyUpdateRequest request) {
         return ApiResponse.success("Tenant runtime policy updated", tenantRuntimePolicyService.updatePolicy(request));
     }
 
     @PostMapping("/notify")
-    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
+    @PreAuthorize(PortalRoleActionMatrix.ADMIN_ONLY)
     public ApiResponse<String> notifyUser(@Valid @RequestBody AdminNotifyRequest request) {
         emailService.sendSimpleEmail(request.to(), request.subject(), request.body());
         return ApiResponse.success("Notification sent", "Email dispatched");
     }
 
     @GetMapping("/approvals")
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING','ROLE_SUPER_ADMIN')")
+    @PreAuthorize(PortalRoleActionMatrix.ADMIN_ACCOUNTING_SUPER_ADMIN)
     @Transactional(readOnly = true)
     public ApiResponse<AdminApprovalsResponse> approvals() {
         Company company = companyContextService.requireCurrentCompany();

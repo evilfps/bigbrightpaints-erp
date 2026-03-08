@@ -2,6 +2,7 @@ package com.bigbrightpaints.erp.modules.sales.controller;
 
 import com.bigbrightpaints.erp.modules.inventory.dto.PackagingSlipDto;
 import com.bigbrightpaints.erp.modules.inventory.service.FinishedGoodsService;
+import com.bigbrightpaints.erp.core.security.PortalRoleActionMatrix;
 import com.bigbrightpaints.erp.modules.sales.dto.*;
 import com.bigbrightpaints.erp.modules.sales.service.DealerService;
 import com.bigbrightpaints.erp.modules.sales.service.SalesDashboardService;
@@ -58,13 +59,13 @@ public class SalesController {
 
     /* Dealers alias - frontend calls /sales/dealers, backend has /dealers */
     @GetMapping("/sales/dealers")
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SALES','ROLE_ACCOUNTING')")
+    @PreAuthorize(PortalRoleActionMatrix.ADMIN_SALES_ACCOUNTING)
     public ResponseEntity<ApiResponse<List<DealerResponse>>> listDealers() {
         return ResponseEntity.ok(ApiResponse.success("Dealer directory", dealerService.listDealers()));
     }
 
     @GetMapping("/sales/dealers/search")
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SALES','ROLE_ACCOUNTING')")
+    @PreAuthorize(PortalRoleActionMatrix.ADMIN_SALES_ACCOUNTING)
     public ResponseEntity<ApiResponse<List<DealerLookupResponse>>> searchDealers(
             @RequestParam(defaultValue = "") String query,
             @RequestParam(required = false) String status,
@@ -76,7 +77,7 @@ public class SalesController {
     /* Sales Orders */
     @GetMapping("/sales/orders")
     @Timed(value = "erp.sales.orders.list", description = "List sales orders")
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SALES','ROLE_FACTORY','ROLE_ACCOUNTING')")
+    @PreAuthorize(PortalRoleActionMatrix.ADMIN_SALES_FACTORY_ACCOUNTING)
     public ResponseEntity<ApiResponse<List<SalesOrderDto>>> orders(@RequestParam(required = false) String status,
                                                                    @RequestParam(required = false) Long dealerId,
                                                                    @RequestParam(defaultValue = "0") int page,
@@ -86,7 +87,7 @@ public class SalesController {
 
     @GetMapping("/sales/orders/search")
     @Timed(value = "erp.sales.orders.search", description = "Search sales orders")
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SALES','ROLE_FACTORY','ROLE_ACCOUNTING')")
+    @PreAuthorize(PortalRoleActionMatrix.ADMIN_SALES_FACTORY_ACCOUNTING)
     public ResponseEntity<ApiResponse<PageResponse<SalesOrderDto>>> searchOrders(@RequestParam(required = false) String status,
                                                                                   @RequestParam(required = false) Long dealerId,
                                                                                   @RequestParam(required = false) String orderNumber,
@@ -106,7 +107,7 @@ public class SalesController {
     }
 
     @GetMapping("/sales/dashboard")
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SALES','ROLE_FACTORY','ROLE_ACCOUNTING')")
+    @PreAuthorize(PortalRoleActionMatrix.ADMIN_SALES_FACTORY_ACCOUNTING)
     public ResponseEntity<ApiResponse<SalesDashboardDto>> dashboard() {
         return ResponseEntity.ok(ApiResponse.success("Sales dashboard", salesDashboardService.getDashboard()));
     }
@@ -158,7 +159,7 @@ public class SalesController {
     }
 
     @GetMapping("/sales/orders/{id}/timeline")
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SALES','ROLE_FACTORY','ROLE_ACCOUNTING')")
+    @PreAuthorize(PortalRoleActionMatrix.ADMIN_SALES_FACTORY_ACCOUNTING)
     public ResponseEntity<ApiResponse<List<SalesOrderStatusHistoryDto>>> orderTimeline(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.success(salesOrderLifecycleService.orderTimeline(id)));
     }
@@ -354,7 +355,7 @@ public class SalesController {
     }
 
     @PostMapping("/sales/dispatch/reconcile-order-markers")
-    @PreAuthorize("hasAnyAuthority('ROLE_ACCOUNTING','ROLE_ADMIN') and hasAuthority('dispatch.confirm')")
+    @PreAuthorize(PortalRoleActionMatrix.FINANCIAL_DISPATCH)
     public ResponseEntity<ApiResponse<DispatchMarkerReconciliationResponse>> reconcileOrderMarkers(
             @RequestParam(defaultValue = "200") int limit) {
         return ResponseEntity.ok(ApiResponse.success(

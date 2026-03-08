@@ -10,7 +10,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 class CreditLimitOverrideControllerSecurityContractTest {
 
     @Test
-    void approveRequest_requiresAdminAuthorityAnnotation() throws NoSuchMethodException {
+    void approveRequest_requiresAdminOrAccountingAuthorityAnnotation() throws NoSuchMethodException {
         Method method = CreditLimitOverrideController.class.getMethod(
                 "approveRequest",
                 Long.class,
@@ -19,11 +19,11 @@ class CreditLimitOverrideControllerSecurityContractTest {
 
         PreAuthorize preAuthorize = method.getAnnotation(PreAuthorize.class);
         assertThat(preAuthorize).isNotNull();
-        assertThat(preAuthorize.value()).isEqualTo("hasAuthority('ROLE_ADMIN')");
+        assertThat(preAuthorize.value()).isEqualTo("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')");
     }
 
     @Test
-    void rejectRequest_requiresAdminAuthorityAnnotation() throws NoSuchMethodException {
+    void rejectRequest_requiresAdminOrAccountingAuthorityAnnotation() throws NoSuchMethodException {
         Method method = CreditLimitOverrideController.class.getMethod(
                 "rejectRequest",
                 Long.class,
@@ -32,6 +32,6 @@ class CreditLimitOverrideControllerSecurityContractTest {
 
         PreAuthorize preAuthorize = method.getAnnotation(PreAuthorize.class);
         assertThat(preAuthorize).isNotNull();
-        assertThat(preAuthorize.value()).isEqualTo("hasAuthority('ROLE_ADMIN')");
+        assertThat(preAuthorize.value()).isEqualTo("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')");
     }
 }
