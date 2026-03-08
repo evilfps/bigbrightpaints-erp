@@ -37,7 +37,7 @@ public class ValidationSeedDataInitializer {
                                            DealerRepository dealerRepository,
                                            AccountRepository accountRepository,
                                            PasswordEncoder passwordEncoder,
-                                           @Value("${erp.validation-seed.password:Validation123!}") String defaultPassword) {
+                                           @Value("${erp.validation-seed.password:changeme}") String defaultPassword) {
         return args -> {
             Company mockCompany = ensureCompany(companyRepository, "MOCK", "Mock Training Co");
             Company rivalCompany = ensureCompany(companyRepository, "RIVAL", "Rival Validation Co");
@@ -79,7 +79,7 @@ public class ValidationSeedDataInitializer {
             ensureUser(userAccountRepository, passwordEncoder, "validation.superadmin@example.com", "Validation Super Admin",
                     defaultPassword, List.of(superAdminCompany, mockCompany), List.of(admin, superAdmin));
 
-            log.info("Validation seed ready for companies [MOCK, RIVAL, SKE] with default actor password '{}'.", defaultPassword);
+            log.info("Validation seed ready for companies [MOCK, RIVAL, SKE]. Actor password comes from erp.validation-seed.password / ERP_VALIDATION_SEED_PASSWORD.");
         };
     }
 
