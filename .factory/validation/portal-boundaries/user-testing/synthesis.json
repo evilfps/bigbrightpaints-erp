@@ -1,0 +1,28 @@
+{
+  "milestone": "portal-boundaries",
+  "round": 1,
+  "status": "pass",
+  "assertionsSummary": {
+    "total": 5,
+    "passed": 5,
+    "failed": 0,
+    "blocked": 0
+  },
+  "passedAssertions": [
+    "VAL-PORTAL-001",
+    "VAL-PORTAL-002",
+    "VAL-PORTAL-003",
+    "VAL-PORTAL-004",
+    "VAL-CROSS-003"
+  ],
+  "failedAssertions": [],
+  "blockedAssertions": [],
+  "appliedUpdates": [
+    {
+      "target": ".factory/library/user-testing.md",
+      "description": "Documented the preferred `portal-boundaries` validation suites and noted that broader `DealerPortalControllerSecurityIT` / `DealerControllerSecurityIT` runs still include unrelated stale expectations, so method-scoped portal boundary checks should be used for milestone validation.",
+      "source": "flow-report"
+    }
+  ],
+  "previousRound": null
+}
