@@ -340,6 +340,10 @@ public class SalesControllerIT extends AbstractIntegrationTest {
                 new HttpEntity<>(payload, headers),
                 Map.class);
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody()).containsEntry(
+                "message",
+                "Accounting must complete the final dispatch posting after the shipment is confirmed.");
     }
 
     @Test

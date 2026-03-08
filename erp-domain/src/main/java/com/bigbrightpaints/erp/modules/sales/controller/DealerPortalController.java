@@ -2,6 +2,7 @@ package com.bigbrightpaints.erp.modules.sales.controller;
 
 import com.bigbrightpaints.erp.core.audit.AuditEvent;
 import com.bigbrightpaints.erp.core.audit.AuditService;
+import com.bigbrightpaints.erp.core.security.PortalRoleActionMatrix;
 import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 import com.bigbrightpaints.erp.modules.sales.dto.CreditRequestDto;
 import com.bigbrightpaints.erp.modules.sales.dto.CreditRequestRequest;
@@ -33,7 +34,7 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @RestController
 @RequestMapping("/api/v1/dealer-portal")
-@PreAuthorize("hasAuthority('ROLE_DEALER')")
+@PreAuthorize(PortalRoleActionMatrix.DEALER_ONLY)
 public class DealerPortalController {
 
     private final DealerPortalService dealerPortalService;

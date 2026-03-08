@@ -1,5 +1,6 @@
 package com.bigbrightpaints.erp.modules.sales.controller;
 
+import com.bigbrightpaints.erp.core.security.PortalRoleActionMatrix;
 import com.bigbrightpaints.erp.modules.sales.dto.CreateDealerRequest;
 import com.bigbrightpaints.erp.modules.sales.dto.DealerLookupResponse;
 import com.bigbrightpaints.erp.modules.sales.dto.DealerResponse;
@@ -40,19 +41,19 @@ public class DealerController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SALES','ROLE_ACCOUNTING')")
+    @PreAuthorize(PortalRoleActionMatrix.ADMIN_SALES_ACCOUNTING)
     public ResponseEntity<ApiResponse<DealerResponse>> createDealer(@Valid @RequestBody CreateDealerRequest request) {
         return ResponseEntity.ok(ApiResponse.success("Dealer created", dealerService.createDealer(request)));
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SALES','ROLE_ACCOUNTING')")
+    @PreAuthorize(PortalRoleActionMatrix.ADMIN_SALES_ACCOUNTING)
     public ResponseEntity<ApiResponse<List<DealerResponse>>> listDealers() {
         return ResponseEntity.ok(ApiResponse.success("Dealer directory", dealerService.listDealers()));
     }
 
     @GetMapping("/search")
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SALES','ROLE_ACCOUNTING')")
+    @PreAuthorize(PortalRoleActionMatrix.ADMIN_SALES_ACCOUNTING)
     public ResponseEntity<ApiResponse<List<DealerLookupResponse>>> searchDealers(
             @RequestParam(defaultValue = "") String query,
             @RequestParam(required = false) String status,
@@ -62,7 +63,7 @@ public class DealerController {
     }
 
     @PutMapping("/{dealerId}")
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SALES','ROLE_ACCOUNTING')")
+    @PreAuthorize(PortalRoleActionMatrix.ADMIN_SALES_ACCOUNTING)
     public ResponseEntity<ApiResponse<DealerResponse>> updateDealer(
             @PathVariable Long dealerId,
             @Valid @RequestBody CreateDealerRequest request) {
@@ -70,35 +71,35 @@ public class DealerController {
     }
 
     @GetMapping("/{dealerId}/ledger")
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SALES','ROLE_ACCOUNTING')")
+    @PreAuthorize(PortalRoleActionMatrix.ADMIN_SALES_ACCOUNTING)
     public ResponseEntity<ApiResponse<Map<String, Object>>> dealerLedger(@PathVariable Long dealerId) {
         Map<String, Object> payload = dealerPortalService.getLedgerForDealer(dealerId);
         return ResponseEntity.ok(ApiResponse.success("Dealer ledger", payload));
     }
 
     @GetMapping("/{dealerId}/invoices")
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SALES','ROLE_ACCOUNTING')")
+    @PreAuthorize(PortalRoleActionMatrix.ADMIN_SALES_ACCOUNTING)
     public ResponseEntity<ApiResponse<Map<String, Object>>> dealerInvoices(@PathVariable Long dealerId) {
         Map<String, Object> payload = dealerPortalService.getInvoicesForDealer(dealerId);
         return ResponseEntity.ok(ApiResponse.success("Dealer invoices", payload));
     }
 
     @GetMapping("/{dealerId}/credit-utilization")
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SALES','ROLE_ACCOUNTING')")
+    @PreAuthorize(PortalRoleActionMatrix.ADMIN_SALES_ACCOUNTING)
     public ResponseEntity<ApiResponse<Map<String, Object>>> dealerCreditUtilization(@PathVariable Long dealerId) {
         Map<String, Object> payload = dealerService.creditUtilization(dealerId);
         return ResponseEntity.ok(ApiResponse.success("Dealer credit utilization", payload));
     }
 
     @GetMapping("/{dealerId}/aging")
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SALES','ROLE_ACCOUNTING')")
+    @PreAuthorize(PortalRoleActionMatrix.ADMIN_SALES_ACCOUNTING)
     public ResponseEntity<ApiResponse<Map<String, Object>>> dealerAging(@PathVariable Long dealerId) {
         Map<String, Object> payload = dealerPortalService.getAgingForDealer(dealerId);
         return ResponseEntity.ok(ApiResponse.success("Dealer aging", payload));
     }
 
     @PostMapping("/{dealerId}/dunning/hold")
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SALES','ROLE_ACCOUNTING')")
+    @PreAuthorize(PortalRoleActionMatrix.ADMIN_SALES_ACCOUNTING)
     public ResponseEntity<ApiResponse<Map<String, Object>>> holdIfOverdue(@PathVariable Long dealerId,
                                                                           @RequestParam(defaultValue = "45") int overdueDays,
                                                                           @RequestParam(defaultValue = "0") BigDecimal minAmount) {

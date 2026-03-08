@@ -1,5 +1,6 @@
 package com.bigbrightpaints.erp.modules.sales.controller;
 
+import com.bigbrightpaints.erp.core.security.PortalRoleActionMatrix;
 import com.bigbrightpaints.erp.modules.sales.dto.CreditLimitOverrideDecisionRequest;
 import com.bigbrightpaints.erp.modules.sales.dto.CreditLimitOverrideRequestCreateRequest;
 import com.bigbrightpaints.erp.modules.sales.dto.CreditLimitOverrideRequestDto;
@@ -29,7 +30,7 @@ public class CreditLimitOverrideController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SALES','ROLE_FACTORY')")
+    @PreAuthorize(PortalRoleActionMatrix.ADMIN_FACTORY_SALES)
     public ResponseEntity<ApiResponse<CreditLimitOverrideRequestDto>> createRequest(
             @Valid @RequestBody CreditLimitOverrideRequestCreateRequest request,
             Principal principal) {
@@ -39,7 +40,7 @@ public class CreditLimitOverrideController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
+    @PreAuthorize(PortalRoleActionMatrix.ADMIN_OR_ACCOUNTING)
     public ResponseEntity<ApiResponse<List<CreditLimitOverrideRequestDto>>> listRequests(
             @RequestParam(required = false) String status) {
         List<CreditLimitOverrideRequestDto> requests = creditLimitOverrideService.listRequests(status);
@@ -47,7 +48,7 @@ public class CreditLimitOverrideController {
     }
 
     @PostMapping("/{id}/approve")
-    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
+    @PreAuthorize(PortalRoleActionMatrix.ADMIN_OR_ACCOUNTING)
     public ResponseEntity<ApiResponse<CreditLimitOverrideRequestDto>> approveRequest(
             @PathVariable Long id,
             @RequestBody(required = false) CreditLimitOverrideDecisionRequest request,
@@ -58,7 +59,7 @@ public class CreditLimitOverrideController {
     }
 
     @PostMapping("/{id}/reject")
-    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
+    @PreAuthorize(PortalRoleActionMatrix.ADMIN_OR_ACCOUNTING)
     public ResponseEntity<ApiResponse<CreditLimitOverrideRequestDto>> rejectRequest(
             @PathVariable Long id,
             @RequestBody(required = false) CreditLimitOverrideDecisionRequest request,

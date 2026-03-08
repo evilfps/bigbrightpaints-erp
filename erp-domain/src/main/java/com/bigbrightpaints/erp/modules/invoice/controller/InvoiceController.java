@@ -3,8 +3,7 @@ package com.bigbrightpaints.erp.modules.invoice.controller;
 import com.bigbrightpaints.erp.core.audit.AuditEvent;
 import com.bigbrightpaints.erp.core.audit.AuditService;
 import com.bigbrightpaints.erp.core.notification.EmailService;
-import com.bigbrightpaints.erp.core.audit.AuditEvent;
-import com.bigbrightpaints.erp.core.audit.AuditService;
+import com.bigbrightpaints.erp.core.security.PortalRoleActionMatrix;
 import com.bigbrightpaints.erp.modules.invoice.dto.InvoiceDto;
 import com.bigbrightpaints.erp.modules.invoice.service.InvoicePdfService;
 import com.bigbrightpaints.erp.modules.invoice.service.InvoiceService;
@@ -19,8 +18,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.HashMap;
-import java.util.Map;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.List;
@@ -28,7 +25,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/invoices")
-@PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SALES','ROLE_ACCOUNTING')")
+@PreAuthorize(PortalRoleActionMatrix.ADMIN_SALES_ACCOUNTING)
 public class InvoiceController {
 
     private final InvoiceService invoiceService;
@@ -68,7 +65,7 @@ public class InvoiceController {
                     schema = @Schema(type = "string", format = "binary")
             )
     )
-    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
+    @PreAuthorize(PortalRoleActionMatrix.ADMIN_ONLY)
     public ResponseEntity<byte[]> downloadInvoicePdf(@PathVariable Long id) {
         InvoicePdfService.PdfDocument pdf = invoicePdfService.renderInvoicePdf(id);
         logInvoiceExport(id, pdf.fileName(), "pdf");

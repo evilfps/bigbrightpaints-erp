@@ -73,6 +73,13 @@ Backend-facing working notes for frontend-v2 consumers.
 
 - Expected frontend-sensitive areas: role-action matrix, dealer read-only behavior, super-admin isolation, and role-appropriate blocker language.
 
+#### 2026-03-08 implemented note — `portal-boundaries.role-action-matrix-and-blocker-language`
+
+- `POST /api/v1/dispatch/confirm` remains the factory/admin operational dispatch workspace and now returns business-language metadata blockers when transporter-or-driver, vehicle number, or challan reference is missing.
+- `POST /api/v1/sales/dispatch/confirm` and `POST /api/v1/sales/dispatch/reconcile-order-markers` are now explicitly accounting/admin-only surfaces with `dispatch.confirm`; sales and factory users should treat backend deny text as the source of truth and not expose accounting-only posting controls.
+- Sales users denied on final dispatch posting now receive a business-language blocker telling them accounting must complete final posting; factory users get a blocker directing them back to the factory dispatch workspace.
+- Credit override creation stays available to sales/factory/admin, but approve/reject review now belongs to admin/accounting only; dealer portal routes remain dealer-only.
+
 ## Update Rules For Future Packets
 
 - Record only backend-facing facts supported by merged code, tests, or approved mission evidence.

@@ -2105,7 +2105,15 @@ Operational statuses: `PENDING`, `PENDING_STOCK`, `PENDING_PRODUCTION`, `RESERVE
 | `POST` | `/api/v1/dealer-portal/credit-requests` | `ROLE_DEALER` | `DealerPortalCreditRequestCreateRequest` | `CreditRequestDto` |
 | `GET` | `/api/v1/dealer-portal/invoices/{invoiceId}/pdf` | `ROLE_DEALER` | — | `application/pdf` |
 | `GET` | `/api/v1/dispatch/preview/{slipId}` | `ROLE_ADMIN`/`ROLE_FACTORY` | — | `DispatchPreviewDto` |
-| `POST` | `/api/v1/sales/dispatch/confirm` | `ROLE_FACTORY`/`ROLE_ADMIN` + `dispatch.confirm` | `DispatchConfirmRequest` | `DispatchConfirmResponse` |
+| `POST` | `/api/v1/dispatch/confirm` | `ROLE_ADMIN`/`ROLE_FACTORY` + `dispatch.confirm` | `DispatchConfirmationRequest` | `DispatchConfirmationResponse` |
+| `POST` | `/api/v1/sales/dispatch/confirm` | `ROLE_ACCOUNTING`/`ROLE_ADMIN` + `dispatch.confirm` | `DispatchConfirmRequest` | `DispatchConfirmResponse` |
+| `POST` | `/api/v1/sales/dispatch/reconcile-order-markers` | `ROLE_ACCOUNTING`/`ROLE_ADMIN` + `dispatch.confirm` | Query: `limit?` (default `200`) | `DispatchMarkerReconciliationResponse` |
+
+#### Portal boundary notes (2026-03-08)
+
+- `/api/v1/dispatch/confirm` is the factory/admin operational dispatch workspace. When transporter-or-driver, vehicle number, or challan reference is missing, backend blockers now return business-language instructions instead of technical field names.
+- `/api/v1/sales/dispatch/confirm` is the accounting/admin final dispatch posting surface. Sales denials now say accounting must complete final dispatch posting; factory denials now direct users back to the factory dispatch workspace.
+- Credit override requests can still be created by sales/factory/admin on `/api/v1/credit/override-requests`, but approve/reject review is now limited to admin/accounting.
 
 #### User Flows
 
@@ -2136,8 +2144,9 @@ Operational statuses: `PENDING`, `PENDING_STOCK`, `PENDING_PRODUCTION`, `RESERVE
 5. **Dispatch reserve -> preview -> confirm with GST breakdown**
    1. Reserve inventory during order creation/confirmation.
    2. Open modal with `GET /api/v1/dispatch/preview/{slipId}` and render per-line pricing/tax totals plus aggregate GST breakdown.
-   3. Confirm financial dispatch via `POST /api/v1/sales/dispatch/confirm`.
-   4. Use `DispatchConfirmResponse.gstBreakdown` to render final invoice-tax summary on success toast/detail page.
+   3. Factory/admin should use the dispatch workspace endpoint `POST /api/v1/dispatch/confirm` for shipment confirmation and challan metadata capture.
+   4. If the frontend uses the sales posting surface, `POST /api/v1/sales/dispatch/confirm` is reserved for accounting/admin users with `dispatch.confirm`.
+   5. Use `DispatchConfirmResponse.gstBreakdown` to render final invoice-tax summary on success toast/detail page.
 
 6. **Cancel order with reason code**
    1. UI collects structured reason code + optional free-text reason.
@@ -3385,7 +3394,7 @@ These flows map complete API sequences across modules. Use them to drive wizard-
 1. Dealer onboarding: `POST /api/v1/dealers`.
 2. Create sales order: `POST /api/v1/sales/orders`.
 3. Confirm order: `POST /api/v1/sales/orders/{id}/confirm`.
-4. Dispatch + invoice creation: `POST /api/v1/sales/dispatch/confirm` (returns `finalInvoiceId`, AR journal links).
+4. Dispatch + invoice creation: use `POST /api/v1/dispatch/confirm` from the factory/admin dispatch workspace, or `POST /api/v1/sales/dispatch/confirm` only from accounting/admin posting flows (both return `finalInvoiceId`, AR journal links).
 5. Receive/allocate payment: `POST /api/v1/accounting/settlements/dealers` (or auto-settle endpoint if used).
 6. Operational reconciliation checks:
    - `GET /api/v1/dealers/{dealerId}/aging`
