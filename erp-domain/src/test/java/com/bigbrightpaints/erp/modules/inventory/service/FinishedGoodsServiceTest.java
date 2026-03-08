@@ -166,7 +166,62 @@ class FinishedGoodsServiceTest extends AbstractIntegrationTest {
     }
 
     @Test
-    void dispatchUsesLegacyWeightedAverageAliasUnderTurkishLocale() {
+    void confirmDispatchUsesReservedBatchActualCostWhenPeriodDefaultsToWeightedAverage() {
+        Company company = seedCompany("WAC-CONFIRM-BATCH-ACTUAL");
+        FinishedGood fg = createFinishedGood(company, "FG-WAC-CONFIRM-BATCH-ACTUAL", new BigDecimal("20"), new BigDecimal("5"), "WAC");
+
+        FinishedGoodBatch reservedBatch = createBatch(
+                fg,
+                "BATCH-WAC-CONFIRM-ACTUAL-A",
+                new BigDecimal("10"),
+                new BigDecimal("5"),
+                new BigDecimal("20"));
+        reservedBatch.setManufacturedAt(Instant.now().minusSeconds(7200));
+        reservedBatch = finishedGoodBatchRepository.saveAndFlush(reservedBatch);
+
+        FinishedGoodBatch otherBatch = createBatch(
+                fg,
+                "BATCH-WAC-CONFIRM-ACTUAL-B",
+                new BigDecimal("10"),
+                new BigDecimal("10"),
+                new BigDecimal("40"));
+        otherBatch.setManufacturedAt(Instant.now().minusSeconds(3600));
+        finishedGoodBatchRepository.saveAndFlush(otherBatch);
+
+        SalesOrder order = createOrder(
+                company,
+                "SO-WAC-CBA-" + UUID.randomUUID().toString().substring(0, 8),
+                fg.getProductCode(),
+                new BigDecimal("5"));
+        PackagingSlip slip = createSlip(company, order, "RESERVED", reservedBatch, new BigDecimal("5"));
+        createReservation(order, fg, reservedBatch, new BigDecimal("5"));
+
+        PackagingSlipLine line = slip.getLines().getFirst();
+        DispatchConfirmationRequest request = new DispatchConfirmationRequest(
+                slip.getId(),
+                List.of(new DispatchConfirmationRequest.LineConfirmation(line.getId(), new BigDecimal("5"), null)),
+                null,
+                null,
+                null);
+
+        finishedGoodsService.confirmDispatch(request, "tester");
+
+        PackagingSlip refreshedSlip = packagingSlipRepository.findByIdAndCompany(slip.getId(), company).orElseThrow();
+        assertThat(refreshedSlip.getLines().getFirst().getUnitCost()).isEqualByComparingTo(new BigDecimal("20"));
+
+        InventoryMovement dispatchMovement = inventoryMovementRepository
+                .findByReferenceTypeAndReferenceIdOrderByCreatedAtAsc(InventoryReference.SALES_ORDER, order.getId().toString())
+                .stream()
+                .filter(mv -> "DISPATCH".equalsIgnoreCase(mv.getMovementType()))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(dispatchMovement.getUnitCost()).isEqualByComparingTo(new BigDecimal("20"));
+        assertThat(dispatchMovement.getUnitCost()).isNotEqualByComparingTo(new BigDecimal("30"));
+    }
+
+    @Test
+    void dispatchUsesReservedBatchActualCostUnderLegacyWeightedAverageAliasUnderTurkishLocale() {
         Locale previous = Locale.getDefault();
         Locale.setDefault(Locale.forLanguageTag("tr-TR"));
         try {
@@ -205,7 +260,7 @@ class FinishedGoodsServiceTest extends AbstractIntegrationTest {
                     .findFirst()
                     .orElseThrow();
 
-            assertThat(dispatchMovement.getUnitCost()).isEqualByComparingTo(new BigDecimal("30"));
+            assertThat(dispatchMovement.getUnitCost()).isEqualByComparingTo(new BigDecimal("20"));
         } finally {
             Locale.setDefault(previous);
         }

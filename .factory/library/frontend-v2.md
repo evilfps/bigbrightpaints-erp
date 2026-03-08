@@ -48,6 +48,12 @@ Backend-facing working notes for frontend-v2 consumers.
 - Expected frontend-sensitive areas: dealer onboarding, payment-mode capture, dispatch logistics metadata, delivery challan access, and role-filtered factory responses.
 - Do not assume current proforma/dispatch/invoice payloads have changed until those packets land and are documented in `.factory/library/frontend-handoff.md`.
 
+#### 2026-03-08 implemented note — `o2c-truth.phase-one-cost-carry-forward`
+
+- Profitability-facing report surfaces now follow the reserved/dispatched finished-good batch cost that already includes production actuals plus packaging carry-forward; they no longer drift to a company-wide weighted-average cost when the dispatch path already knows the exact batch.
+- Inventory valuation low-stock reporting now mirrors stock-summary semantics for reserved-over-on-hand finished goods, so frontend consumers may see low-stock counts where reserved demand exceeds current stock instead of that drift being masked.
+- No endpoint shapes changed in this packet; the update is behavioral/semantic only.
+
 ### p2p-truth
 
 - Expected frontend-sensitive areas: supplier lifecycle blockers, GRN vs purchase-invoice boundary, and supplier-settlement guidance.

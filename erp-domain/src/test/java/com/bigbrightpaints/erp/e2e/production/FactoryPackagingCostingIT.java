@@ -45,6 +45,10 @@ import com.bigbrightpaints.erp.modules.production.domain.ProductionBrand;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionBrandRepository;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionProduct;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionProductRepository;
+import com.bigbrightpaints.erp.modules.reports.dto.InventoryValuationDto;
+import com.bigbrightpaints.erp.modules.reports.dto.InventoryValuationItemDto;
+import com.bigbrightpaints.erp.modules.reports.dto.ProfitLossDto;
+import com.bigbrightpaints.erp.modules.reports.service.ReportService;
 import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrder;
@@ -96,6 +100,7 @@ public class FactoryPackagingCostingIT extends AbstractIntegrationTest {
     @Autowired private SalesOrderRepository salesOrderRepository;
     @Autowired private SalesService salesService;
     @Autowired private JournalEntryRepository journalEntryRepository;
+    @Autowired private ReportService reportService;
 
     private Company company;
     private Account wip;
@@ -174,16 +179,24 @@ public class FactoryPackagingCostingIT extends AbstractIntegrationTest {
         ));
 
         FinishedGood fg = finishedGoodRepository.findByCompanyAndProductCode(company, product.getSkuCode()).orElseThrow();
+        Long finishedGoodId = fg.getId();
         FinishedGoodBatch fgBatch = finishedGoodBatchRepository.findAll().stream()
-                .filter(b -> b.getFinishedGood().getId().equals(fg.getId()))
+                .filter(b -> b.getFinishedGood().getId().equals(finishedGoodId))
                 .findFirst()
                 .orElseThrow();
+        FinishedGoodBatch higherCostBatch = addFinishedGoodBatch(
+                fg,
+                productionCode + "-ALT",
+                new BigDecimal("20"),
+                new BigDecimal("90.0000"),
+                log.producedAt().plusSeconds(3600));
+        FinishedGood refreshedFinishedGood = finishedGoodRepository.findById(finishedGoodId).orElseThrow();
 
         // STEP 3: Create order + reservation + slip, then dispatch 2 buckets (40L)
         Dealer dealer = createDealer("DEALER-1");
         SalesOrder order = createOrder(dealer, product.getSkuCode(), new BigDecimal("40"), new BigDecimal("1500"));
         PackagingSlip slip = createSlip(order, fgBatch, new BigDecimal("40"), fgBatch.getUnitCost());
-        createReservation(fg, fgBatch, order.getId(), new BigDecimal("40"));
+        createReservation(refreshedFinishedGood, fgBatch, order.getId(), new BigDecimal("40"));
 
         salesService.confirmDispatch(new DispatchConfirmRequest(
                 slip.getId(),
@@ -201,8 +214,10 @@ public class FactoryPackagingCostingIT extends AbstractIntegrationTest {
                 .isEqualByComparingTo(new BigDecimal("145")); // 200 - 55
         assertThat(rawMaterialRepository.findById(bucket.getId()).orElseThrow().getCurrentStock())
                 .isEqualByComparingTo(new BigDecimal("5")); // 10 - 5 buckets
-        assertThat(finishedGoodRepository.findById(fg.getId()).orElseThrow().getCurrentStock())
-                .isEqualByComparingTo(new BigDecimal("60")); // 100L produced - 40L shipped
+        assertThat(finishedGoodRepository.findById(finishedGoodId).orElseThrow().getCurrentStock())
+                .isEqualByComparingTo(new BigDecimal("80")); // 100L produced + 20L higher-cost batch - 40L shipped
+        assertThat(finishedGoodBatchRepository.findById(higherCostBatch.getId()).orElseThrow().getQuantityAvailable())
+                .isEqualByComparingTo(new BigDecimal("20"));
 
         BigDecimal expectedUnitCost = fgBatch.getUnitCost(); // 55 production + 2.5 packaging = 57.5 per liter
         assertThat(expectedUnitCost).isEqualByComparingTo(new BigDecimal("57.5000"));
@@ -270,6 +285,18 @@ public class FactoryPackagingCostingIT extends AbstractIntegrationTest {
                 "RECEIPT".equals(movement.getMovementType())
                         && packingSessionJournal.getId().equals(movement.getJournalEntryId())
                         && movement.getUnitCost().compareTo(expectedUnitCost) == 0);
+
+        InventoryValuationDto valuation = reportService.inventoryValuation();
+        InventoryValuationItemDto fgValuation = valuation.items().stream()
+                .filter(item -> product.getSkuCode().equals(item.code()))
+                .findFirst()
+                .orElseThrow();
+        assertThat(fgValuation.quantityOnHand()).isEqualByComparingTo(new BigDecimal("80.00"));
+        assertThat(fgValuation.totalValue()).isEqualByComparingTo(new BigDecimal("5250.00"));
+
+        ProfitLossDto profitLoss = reportService.profitLoss();
+        assertThat(profitLoss.costOfGoodsSold()).isEqualByComparingTo(new BigDecimal("2300.00"));
+        assertThat(profitLoss.grossProfit()).isEqualByComparingTo(new BigDecimal("57700.00"));
     }
 
     private Account ensureAccount(String code, AccountType type) {
@@ -339,6 +366,25 @@ public class FactoryPackagingCostingIT extends AbstractIntegrationTest {
         batch.setUnit(Optional.ofNullable(rm.getUnitType()).orElse("UNIT"));
         batch.setCostPerUnit(costPerUnit);
         rawMaterialBatchRepository.save(batch);
+    }
+
+    private FinishedGoodBatch addFinishedGoodBatch(FinishedGood fg,
+                                                   String batchCode,
+                                                   BigDecimal quantity,
+                                                   BigDecimal unitCost,
+                                                   java.time.Instant manufacturedAt) {
+        FinishedGoodBatch batch = new FinishedGoodBatch();
+        batch.setFinishedGood(fg);
+        batch.setBatchCode(batchCode);
+        batch.setQuantityTotal(quantity);
+        batch.setQuantityAvailable(quantity);
+        batch.setUnitCost(unitCost);
+        batch.setManufacturedAt(manufacturedAt);
+        FinishedGoodBatch saved = finishedGoodBatchRepository.save(batch);
+
+        fg.setCurrentStock(fg.getCurrentStock().add(quantity));
+        finishedGoodRepository.save(fg);
+        return saved;
     }
 
     private void mapPackagingSize(String size, RawMaterial bucket) {

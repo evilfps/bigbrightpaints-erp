@@ -1,7 +1,6 @@
 package com.bigbrightpaints.erp.modules.inventory.service;
 
 import com.bigbrightpaints.erp.core.util.CostingMethodUtils;
-import com.bigbrightpaints.erp.modules.accounting.service.CostingMethodService;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGood;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatch;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatchRepository;
@@ -24,13 +23,10 @@ public class InventoryValuationService {
     private static final long WAC_CACHE_MILLIS = 5 * 60 * 1000;
 
     private final FinishedGoodBatchRepository finishedGoodBatchRepository;
-    private final CostingMethodService costingMethodService;
     private final Map<Long, CachedWac> wacCache = new ConcurrentHashMap<>();
 
-    public InventoryValuationService(FinishedGoodBatchRepository finishedGoodBatchRepository,
-                                     CostingMethodService costingMethodService) {
+    public InventoryValuationService(FinishedGoodBatchRepository finishedGoodBatchRepository) {
         this.finishedGoodBatchRepository = finishedGoodBatchRepository;
-        this.costingMethodService = costingMethodService;
     }
 
     public BigDecimal safeQuantity(BigDecimal value) {
@@ -133,13 +129,10 @@ public class InventoryValuationService {
         if (finishedGood == null) {
             return BigDecimal.ZERO;
         }
-        String activeMethod = costingMethodService.resolveActiveMethod(
-                finishedGood.getCompany(),
-                referenceDate).name();
-        if (CostingMethodUtils.isWeightedAverage(activeMethod)) {
-            return currentWeightedAverageCost(finishedGood);
+        if (batch != null && batch.getUnitCost() != null) {
+            return batch.getUnitCost();
         }
-        return batch != null && batch.getUnitCost() != null ? batch.getUnitCost() : BigDecimal.ZERO;
+        return currentWeightedAverageCost(finishedGood);
     }
 
     public void requireNonZeroDispatchCost(FinishedGood finishedGood, BigDecimal unitCost, BigDecimal shippedQuantity) {

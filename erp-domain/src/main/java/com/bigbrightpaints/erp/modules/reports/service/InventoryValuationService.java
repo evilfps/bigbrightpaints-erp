@@ -124,8 +124,8 @@ public class InventoryValuationService {
         for (FinishedGood finishedGood : finishedGoods) {
             BigDecimal adjustedStock = applyAsOfStock(finishedGood.getCurrentStock(), finishedGood.getId(),
                     adjustments != null ? adjustments.finishedGoodQtyDelta() : null);
-            BigDecimal adjustedReserved = safe(finishedGood.getReservedStock()).min(adjustedStock);
-            BigDecimal available = adjustedStock.subtract(adjustedReserved);
+            BigDecimal adjustedReserved = safe(finishedGood.getReservedStock());
+            BigDecimal available = adjustedStock.subtract(adjustedReserved).max(BigDecimal.ZERO);
             FinishedGoodValuation valuation = valueFromFinishedGood(finishedGood, adjustedStock, costingMethodContext.method());
             totalValue = totalValue.add(valuation.totalValue());
             boolean isLowStock = adjustedReserved.compareTo(BigDecimal.ZERO) > 0
