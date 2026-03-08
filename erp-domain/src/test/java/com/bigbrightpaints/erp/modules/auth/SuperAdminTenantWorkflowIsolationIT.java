@@ -20,7 +20,7 @@ class SuperAdminTenantWorkflowIsolationIT extends AbstractIntegrationTest {
 
     private static final String TENANT = "SUPERADMIN-ISOLATION";
     private static final String SUPER_ADMIN_EMAIL = "workflow-superadmin@bbp.com";
-    private static final String PASSWORD = "Workflow123!";
+    private static final String PASSWORD = "changeme";
 
     @Autowired
     private TestRestTemplate rest;
