@@ -146,7 +146,7 @@ public class CoreFallbackExceptionHandler {
         }
         Map<String, Object> data = new HashMap<>();
         data.put("code", ErrorCode.AUTH_INSUFFICIENT_PERMISSIONS.getCode());
-        data.put("message", ErrorCode.AUTH_INSUFFICIENT_PERMISSIONS.getDefaultMessage());
+        data.put("message", userMessage);
         data.put("traceId", traceId);
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ApiResponse.failure(userMessage, data));
     }

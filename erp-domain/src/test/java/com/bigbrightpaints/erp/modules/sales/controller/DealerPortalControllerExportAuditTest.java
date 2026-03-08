@@ -4,7 +4,6 @@ import com.bigbrightpaints.erp.core.audit.AuditEvent;
 import com.bigbrightpaints.erp.core.audit.AuditService;
 import com.bigbrightpaints.erp.modules.invoice.service.InvoicePdfService;
 import com.bigbrightpaints.erp.modules.sales.service.DealerPortalService;
-import com.bigbrightpaints.erp.modules.sales.service.SalesDealerCrudService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -29,15 +28,13 @@ class DealerPortalControllerExportAuditTest {
     @Mock
     private DealerPortalService dealerPortalService;
     @Mock
-    private SalesDealerCrudService salesDealerCrudService;
-    @Mock
     private AuditService auditService;
 
     private DealerPortalController controller;
 
     @BeforeEach
     void setup() {
-        controller = new DealerPortalController(dealerPortalService, salesDealerCrudService, auditService);
+        controller = new DealerPortalController(dealerPortalService, auditService);
     }
 
     @Test

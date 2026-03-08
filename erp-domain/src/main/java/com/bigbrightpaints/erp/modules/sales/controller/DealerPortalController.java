@@ -2,28 +2,24 @@ package com.bigbrightpaints.erp.modules.sales.controller;
 
 import com.bigbrightpaints.erp.core.audit.AuditEvent;
 import com.bigbrightpaints.erp.core.audit.AuditService;
+import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.security.PortalRoleActionMatrix;
-import com.bigbrightpaints.erp.modules.sales.dto.CreditRequestDto;
-import com.bigbrightpaints.erp.modules.sales.dto.DealerPortalCreditRequestCreateRequest;
 import com.bigbrightpaints.erp.modules.sales.service.DealerPortalService;
-import com.bigbrightpaints.erp.modules.sales.service.SalesDealerCrudService;
 import com.bigbrightpaints.erp.modules.invoice.service.InvoicePdfService;
 import com.bigbrightpaints.erp.shared.dto.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
-import jakarta.validation.Valid;
 import java.util.HashMap;
 import java.util.Map;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -36,15 +32,15 @@ import org.springframework.web.bind.annotation.RestController;
 @PreAuthorize(PortalRoleActionMatrix.DEALER_ONLY)
 public class DealerPortalController {
 
+    private static final String DEALER_PORTAL_READ_ONLY_MESSAGE =
+            "Dealer portal is read-only. Ask your sales or admin contact to review credit-limit changes.";
+
     private final DealerPortalService dealerPortalService;
-    private final SalesDealerCrudService salesDealerCrudService;
     private final AuditService auditService;
 
     public DealerPortalController(DealerPortalService dealerPortalService,
-                                  SalesDealerCrudService salesDealerCrudService,
                                   AuditService auditService) {
         this.dealerPortalService = dealerPortalService;
-        this.salesDealerCrudService = salesDealerCrudService;
         this.auditService = auditService;
     }
 
@@ -97,9 +93,13 @@ public class DealerPortalController {
      * Submit a dealer-scoped credit-limit increase request.
      */
     @PostMapping("/credit-requests")
-    public ResponseEntity<ApiResponse<CreditRequestDto>> createCreditRequest(
-            @Valid @RequestBody DealerPortalCreditRequestCreateRequest request) {
-        throw new AccessDeniedException("Dealer portal is read-only");
+    public ResponseEntity<ApiResponse<Map<String, Object>>> createCreditRequest() {
+        Map<String, Object> data = new HashMap<>();
+        data.put("code", ErrorCode.AUTH_INSUFFICIENT_PERMISSIONS.getCode());
+        data.put("message", DEALER_PORTAL_READ_ONLY_MESSAGE);
+        data.put("reason", "DEALER_PORTAL_READ_ONLY");
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(ApiResponse.failure(DEALER_PORTAL_READ_ONLY_MESSAGE, data));
     }
 
     /**

@@ -15,7 +15,6 @@ import com.bigbrightpaints.erp.modules.invoice.service.InvoicePdfService;
 import com.bigbrightpaints.erp.modules.portal.service.TenantRuntimeEnforcementInterceptor;
 import com.bigbrightpaints.erp.modules.sales.controller.DealerPortalController;
 import com.bigbrightpaints.erp.modules.sales.service.DealerPortalService;
-import com.bigbrightpaints.erp.modules.sales.service.SalesDealerCrudService;
 import java.util.Map;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -28,9 +27,8 @@ class TS_RuntimeDealerPortalControllerExportCoverageTest {
     @Test
     void getMyInvoicePdf_emitsDealerExportAuditMetadata() {
         DealerPortalService dealerPortalService = org.mockito.Mockito.mock(DealerPortalService.class);
-        SalesDealerCrudService salesDealerCrudService = org.mockito.Mockito.mock(SalesDealerCrudService.class);
         AuditService auditService = org.mockito.Mockito.mock(AuditService.class);
-        DealerPortalController controller = new DealerPortalController(dealerPortalService, salesDealerCrudService, auditService);
+        DealerPortalController controller = new DealerPortalController(dealerPortalService, auditService);
 
         when(dealerPortalService.getMyInvoicePdf(88L)).thenReturn(
                 new InvoicePdfService.PdfDocument("dealer-invoice-88.pdf", "pdf".getBytes()));
@@ -50,9 +48,8 @@ class TS_RuntimeDealerPortalControllerExportCoverageTest {
     @Test
     void getMyInvoicePdf_handlesNullResourceMetadataFailClosed() {
         DealerPortalService dealerPortalService = org.mockito.Mockito.mock(DealerPortalService.class);
-        SalesDealerCrudService salesDealerCrudService = org.mockito.Mockito.mock(SalesDealerCrudService.class);
         AuditService auditService = org.mockito.Mockito.mock(AuditService.class);
-        DealerPortalController controller = new DealerPortalController(dealerPortalService, salesDealerCrudService, auditService);
+        DealerPortalController controller = new DealerPortalController(dealerPortalService, auditService);
 
         when(dealerPortalService.getMyInvoicePdf(null)).thenReturn(
                 new InvoicePdfService.PdfDocument(null, new byte[0]));

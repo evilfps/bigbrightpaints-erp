@@ -62,6 +62,26 @@ class SuperAdminTenantWorkflowIsolationIT extends AbstractIntegrationTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
     }
 
+    @Test
+    void superAdmin_cannotApproveTenantCreditOverrideWorkflow() {
+        ResponseEntity<Map> response = rest.exchange(
+                "/api/v1/credit/override-requests/999999/approve",
+                HttpMethod.POST,
+                new HttpEntity<>(Map.of("reason", "platform-only-super-admin"), jsonHeaders()),
+                Map.class
+        );
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().get("message")).isEqualTo("Access denied");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> data = (Map<String, Object>) response.getBody().get("data");
+        assertThat(data).isNotNull();
+        assertThat(data.get("reason")).isEqualTo("SUPER_ADMIN_PLATFORM_ONLY");
+        assertThat(data.get("reasonDetail"))
+                .isEqualTo("Super Admin is limited to platform control-plane operations and cannot execute tenant business workflows");
+    }
+
     private HttpHeaders jsonHeaders() {
         HttpHeaders headers = authHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);

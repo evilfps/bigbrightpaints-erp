@@ -77,6 +77,27 @@ class DealerPortalReadOnlySecurityIT extends AbstractIntegrationTest {
         );
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertDeniedMessage(
+                response,
+                "Dealer portal is read-only. Ask your sales or admin contact to review credit-limit changes.");
+    }
+
+    @Test
+    void dealerPortalCreditRequests_failClosedBeforePayloadValidation() {
+        HttpHeaders headers = authHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+
+        ResponseEntity<Map> response = rest.exchange(
+                "/api/v1/dealer-portal/credit-requests",
+                HttpMethod.POST,
+                new HttpEntity<>(Map.of(), headers),
+                Map.class
+        );
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertDeniedMessage(
+                response,
+                "Dealer portal is read-only. Ask your sales or admin contact to review credit-limit changes.");
     }
 
     @Test
@@ -105,5 +126,13 @@ class DealerPortalReadOnlySecurityIT extends AbstractIntegrationTest {
         headers.setBearerAuth((String) login.getBody().get("accessToken"));
         headers.set("X-Company-Code", COMPANY_CODE);
         return headers;
+    }
+
+    private void assertDeniedMessage(ResponseEntity<Map> response, String expectedMessage) {
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().get("message")).isEqualTo(expectedMessage);
+        Map<?, ?> data = (Map<?, ?>) response.getBody().get("data");
+        assertThat(data).isNotNull();
+        assertThat(data.get("message")).isEqualTo(expectedMessage);
     }
 }
