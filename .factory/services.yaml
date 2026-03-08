@@ -14,6 +14,10 @@ commands:
     cd /home/realnigga/Desktop/Mission-control/erp-domain && MIGRATION_SET=v2 mvn -Dtest=ApplicationSmokeTest -Djacoco.skip=true test
   invariants: >-
     cd /home/realnigga/Desktop/Mission-control/erp-domain && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest=ErpInvariantsSuiteIT test
+  final-validation-reset: >-
+    bash /home/realnigga/Desktop/Mission-control/scripts/reset_final_validation_runtime.sh
+  final-validation-targeted-tests: >-
+    cd /home/realnigga/Desktop/Mission-control/erp-domain && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='OrderFulfillmentE2ETest,FinishedGoodsServiceTest,SalesReturnCreditNoteE2EIT,CreditDebitNoteIT,SettlementE2ETest,PeriodCloseLockIT,CR_PurchasingToApAccountingTest,DealerPortalControllerSecurityIT,DealerControllerSecurityIT,FactoryPackagingCostingIT,ReportInventoryParityIT' test
   build: >-
     cd /home/realnigga/Desktop/Mission-control/erp-domain && MIGRATION_SET=v2 mvn -T8 package -DskipTests
   lint: >-

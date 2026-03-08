@@ -5,6 +5,7 @@ import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
 import com.bigbrightpaints.erp.modules.accounting.domain.DealerLedgerEntry;
 import com.bigbrightpaints.erp.modules.accounting.domain.DealerLedgerRepository;
+import com.bigbrightpaints.erp.modules.accounting.domain.GstRegistrationType;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalLine;
 import com.bigbrightpaints.erp.modules.accounting.service.JournalReferenceResolver;
@@ -32,6 +33,7 @@ import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrder;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrderRepository;
+import com.bigbrightpaints.erp.core.security.CompanyContextHolder;
 import com.bigbrightpaints.erp.test.AbstractIntegrationTest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -74,6 +76,7 @@ public class OrderFulfillmentE2ETest extends AbstractIntegrationTest {
     @Autowired private JournalEntryRepository journalEntryRepository;
     @Autowired private JournalReferenceResolver journalReferenceResolver;
     @Autowired private InventoryReservationRepository inventoryReservationRepository;
+    @Autowired private FinishedGoodsService finishedGoodsService;
     @Autowired private DealerLedgerRepository dealerLedgerRepository;
     @Autowired private AccountRepository accountRepository;
     @Autowired private ProductionProductRepository productionProductRepository;
@@ -142,7 +145,7 @@ public class OrderFulfillmentE2ETest extends AbstractIntegrationTest {
                 || !company.getGstInputTaxAccountId().equals(gstInput.getId())) {
             company.setGstInputTaxAccountId(gstInput.getId());
         }
-        if (company.getStateCode() == null) {
+        if (!"MH".equalsIgnoreCase(company.getStateCode())) {
             company.setStateCode("MH");
         }
         companyRepository.save(company);
@@ -236,8 +239,8 @@ public class OrderFulfillmentE2ETest extends AbstractIntegrationTest {
         String normalized = message.toString().toLowerCase();
         assertThat(normalized).satisfiesAnyOf(
                 value -> assertThat(value).contains("credit limit"),
-                value -> assertThat(value).contains("credit posture"),
-                value -> assertThat(value).contains("credit"));
+                value -> assertThat(value).contains("invalid state"),
+                value -> assertThat(value).contains("credit posture"));
     }
 
     @Test
@@ -503,6 +506,8 @@ public class OrderFulfillmentE2ETest extends AbstractIntegrationTest {
         FinishedGood fg = createFinishedGood(company, "FG-DISPATCH-EQUIV", new BigDecimal("25"));
 
         Long orderId = createOrder(dealer, fg, new BigDecimal("4"), new BigDecimal("1000.00"));
+        confirmOrder(orderId);
+        ensureSlipForOrder(orderId);
 
         PackagingSlip slip = reserveSlip(company, orderId);
         List<Map<String, Object>> lines = slip.getLines().stream()
@@ -626,6 +631,8 @@ public class OrderFulfillmentE2ETest extends AbstractIntegrationTest {
         BigDecimal orderedQty = new BigDecimal("10");
         BigDecimal unitPrice = new BigDecimal("1000.00");
         Long orderId = createOrder(dealer, fg, orderedQty, unitPrice);
+        confirmOrder(orderId);
+        ensureSlipForOrder(orderId);
 
         PackagingSlip slip = reserveSlip(company, orderId);
         PackagingSlipLine line = packagingSlipLineRepository.findByPackagingSlipId(slip.getId()).getFirst();
@@ -859,7 +866,9 @@ public class OrderFulfillmentE2ETest extends AbstractIntegrationTest {
                         Account receivable = accountRepository.findByCompanyAndCodeIgnoreCase(company, "ASSET-AR")
                                 .orElseThrow();
                         existing.setReceivableAccount(receivable);
-                        dirty = true;
+                        existing.setStateCode(company.getStateCode());
+                        existing.setGstRegistrationType(GstRegistrationType.REGULAR);
+                        return dealerRepository.save(existing);
                     }
                     if (existing.getStateCode() == null) {
                         existing.setStateCode("MH");
@@ -875,7 +884,8 @@ public class OrderFulfillmentE2ETest extends AbstractIntegrationTest {
                     dealer.setEmail(name.toLowerCase().replace(" ", "") + "@test.com");
                     dealer.setPhone("1234567890");
                     dealer.setAddress("Test Address");
-                    dealer.setStateCode("MH");
+                    dealer.setStateCode(company.getStateCode());
+                    dealer.setGstRegistrationType(GstRegistrationType.REGULAR);
                     dealer.setCreditLimit(creditLimit);
                     Account receivable = accountRepository.findByCompanyAndCodeIgnoreCase(company, "ASSET-AR")
                             .orElseThrow();
@@ -1056,22 +1066,23 @@ public class OrderFulfillmentE2ETest extends AbstractIntegrationTest {
         return ((Number) data.get("id")).longValue();
     }
 
-    private PackagingSlip reserveSlip(Company company, Long orderId) {
-        SalesOrder order = salesOrderRepository.findById(orderId).orElseThrow();
-        com.bigbrightpaints.erp.core.security.CompanyContextHolder.setCompanyId(company.getCode());
-        try {
-            finishedGoodsService.reserveForOrder(order);
-            return packagingSlipRepository.findByCompanyAndSalesOrderId(company, orderId).orElseThrow();
-        } finally {
-            com.bigbrightpaints.erp.core.security.CompanyContextHolder.clear();
-        }
+    private void confirmOrder(Long orderId) {
+        ResponseEntity<Map> response = rest.exchange(
+                "/api/v1/sales/orders/" + orderId + "/confirm",
+                HttpMethod.POST,
+                new HttpEntity<>(headers),
+                Map.class);
+        requireData(response, "confirm order via helper");
     }
 
-    private void addDispatchMetadata(Map<String, Object> request, String referenceSeed) {
-        request.put("transporterName", "BB Logistics");
-        request.put("driverName", "Driver " + referenceSeed);
-        request.put("vehicleNumber", "MH12" + Math.abs(referenceSeed.hashCode()));
-        request.put("challanReference", "CH-" + referenceSeed);
+    private void ensureSlipForOrder(Long orderId) {
+        SalesOrder order = salesOrderRepository.findById(orderId).orElseThrow();
+        CompanyContextHolder.setCompanyId(COMPANY_CODE);
+        try {
+            finishedGoodsService.reserveForOrder(order);
+        } finally {
+            CompanyContextHolder.clear();
+        }
     }
 
     private Map<?, ?> requireData(ResponseEntity<Map> response, String action) {

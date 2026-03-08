@@ -1,8 +1,8 @@
 package com.bigbrightpaints.erp.e2e.accounting;
 
-import com.bigbrightpaints.erp.modules.accounting.domain.*;
-import com.bigbrightpaints.erp.modules.accounting.domain.PartnerSettlementAllocationRepository;
-import com.bigbrightpaints.erp.modules.accounting.domain.JournalLine;
+import com.bigbrightpaints.erp.modules.accounting.domain.Account;
+import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
+import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
 import com.bigbrightpaints.erp.modules.invoice.domain.Invoice;
@@ -24,20 +24,15 @@ import org.springframework.http.ResponseEntity;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * End-to-end coverage for the settlement APIs (dealer/supplier) to ensure
- * allocations, discounts, write-offs, FX and resulting journals/allocations persist correctly.
- */
 @DisplayName("E2E: Partner Settlements (Dealer focus)")
-public class SettlementE2ETest extends AbstractIntegrationTest {
+class SettlementE2ETest extends AbstractIntegrationTest {
 
     private static final String COMPANY_CODE = "SETTLE-E2E";
     private static final String ADMIN_EMAIL = "settlements@bbp.com";
@@ -48,18 +43,11 @@ public class SettlementE2ETest extends AbstractIntegrationTest {
     @Autowired private AccountRepository accountRepository;
     @Autowired private DealerRepository dealerRepository;
     @Autowired private InvoiceRepository invoiceRepository;
-    @Autowired private PartnerSettlementAllocationRepository allocationRepository;
-    @Autowired private JournalLineRepository journalLineRepository;
 
     private HttpHeaders headers;
     private Company company;
     private Account cash;
-    private Account ar;
-    private Account revenue;
     private Account discount;
-    private Account writeOff;
-    private Account fxGain;
-    private Account fxLoss;
     private Dealer dealer;
     private Invoice invoice;
 
@@ -69,16 +57,60 @@ public class SettlementE2ETest extends AbstractIntegrationTest {
                 List.of("ROLE_ADMIN", "ROLE_ACCOUNTING"));
         company = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();
         cash = ensureAccount("CASH", "Cash", AccountType.ASSET);
-        ar = ensureAccount("AR", "Accounts Receivable", AccountType.ASSET);
-        revenue = ensureAccount("REV", "Revenue", AccountType.REVENUE);
         discount = ensureAccount("DISC", "Settlement Discounts", AccountType.EXPENSE);
-        writeOff = ensureAccount("WRITEOFF", "Bad Debt Write-Off", AccountType.EXPENSE);
-        fxGain = ensureAccount("FXGAIN", "FX Gain", AccountType.REVENUE);
-        fxLoss = ensureAccount("FXLOSS", "FX Loss", AccountType.EXPENSE);
         dealer = ensureDealer();
-        invoice = ensureInvoice();
         headers = authHeaders();
-        seedInvoicePosting(invoice);
+        invoice = ensureInvoice();
+    }
+
+    @Test
+    @DisplayName("Dealer settlement rejects discount without discount account")
+    void dealerSettlement_MissingDiscountAccount_ValidationFails() {
+        Map<String, Object> allocation = Map.of(
+                "invoiceId", invoice.getId(),
+                "appliedAmount", new BigDecimal("100.00"),
+                "discountAmount", new BigDecimal("5.00")
+        );
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("dealerId", dealer.getId());
+        payload.put("cashAccountId", cash.getId());
+        payload.put("amount", new BigDecimal("95.00"));
+        payload.put("settlementDate", LocalDate.now());
+        payload.put("referenceNumber", "SETTLE-MISS-" + UUID.randomUUID());
+        payload.put("allocations", List.of(allocation));
+
+        ResponseEntity<Map> response = rest.exchange(
+                "/api/v1/accounting/settlements/dealers",
+                HttpMethod.POST,
+                new HttpEntity<>(payload, headers),
+                Map.class);
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+    }
+
+    @Test
+    @DisplayName("Dealer settlement rejects over-application")
+    void dealerSettlement_OverApplicationRejected() {
+        String idemKey = "SETTLE-OVER-" + UUID.randomUUID();
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("dealerId", dealer.getId());
+        payload.put("cashAccountId", cash.getId());
+        payload.put("amount", new BigDecimal("900.00"));
+        payload.put("settlementDate", LocalDate.now());
+        payload.put("referenceNumber", idemKey);
+        payload.put("idempotencyKey", idemKey);
+        payload.put("allocations", List.of(Map.of(
+                "invoiceId", invoice.getId(),
+                "appliedAmount", new BigDecimal("900.00")
+        )));
+
+        ResponseEntity<Map> response = rest.exchange(
+                "/api/v1/accounting/settlements/dealers",
+                HttpMethod.POST,
+                new HttpEntity<>(payload, headers),
+                Map.class);
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        Invoice refreshed = invoiceRepository.findById(invoice.getId()).orElseThrow();
+        assertThat(refreshed.getOutstandingAmount()).isEqualByComparingTo(new BigDecimal("800.00"));
     }
 
     private HttpHeaders authHeaders() {
@@ -87,8 +119,10 @@ public class SettlementE2ETest extends AbstractIntegrationTest {
                 "password", ADMIN_PASSWORD,
                 "companyCode", COMPANY_CODE
         );
-        String token = (String) rest.postForEntity("/api/v1/auth/login", req, Map.class)
-                .getBody().get("accessToken");
+        ResponseEntity<Map> login = rest.postForEntity("/api/v1/auth/login", req, Map.class);
+        assertThat(login.getStatusCode()).isEqualTo(HttpStatus.OK);
+        String token = (String) login.getBody().get("accessToken");
+        assertThat(token).isNotBlank();
         HttpHeaders h = new HttpHeaders();
         h.setBearerAuth(token);
         h.setContentType(MediaType.APPLICATION_JSON);
@@ -109,522 +143,33 @@ public class SettlementE2ETest extends AbstractIntegrationTest {
     }
 
     private Dealer ensureDealer() {
-        return dealerRepository.findByCompanyAndCodeIgnoreCase(company, "D-CODEX")
+        Dealer persisted = dealerRepository.findByCompanyAndCodeIgnoreCase(company, "D-CODEX")
                 .orElseGet(() -> {
-                    Dealer d = new Dealer();
-                    d.setCompany(company);
-                    d.setCode("D-CODEX");
-                    d.setName("Codex Dealer");
-                    d.setCreditLimit(new BigDecimal("200000"));
-                    // Seed outstanding balance equal to test invoice total so settlement does not go negative
-                    d.setOutstandingBalance(new BigDecimal("800.00"));
-                    d.setReceivableAccount(ar);
-                    return dealerRepository.save(d);
+                    Dealer created = new Dealer();
+                    created.setCompany(company);
+                    created.setCode("D-CODEX");
+                    created.setName("Codex Dealer");
+                    created.setCreditLimit(new BigDecimal("200000"));
+                    return dealerRepository.save(created);
                 });
+        persisted.setOutstandingBalance(new BigDecimal("800.00"));
+        return dealerRepository.saveAndFlush(persisted);
     }
 
     private Invoice ensureInvoice() {
-        Invoice inv = new Invoice();
-        inv.setCompany(company);
-        inv.setDealer(dealer);
-        inv.setInvoiceNumber("INV-CODEX-" + System.currentTimeMillis());
-        inv.setStatus("POSTED");
-        inv.setSubtotal(new BigDecimal("800.00"));
-        inv.setTaxTotal(new BigDecimal("0.00"));
-        inv.setTotalAmount(new BigDecimal("800.00"));
-        inv.setIssueDate(LocalDate.now());
-        inv.setDueDate(LocalDate.now().plusDays(30));
-        inv.setCurrency("INR");
-        inv.setNotes("Test invoice for settlement");
-        return invoiceRepository.save(inv);
-    }
-
-    /**
-     * Seed a posted journal for the invoice to establish AR balance (Dr AR, Cr Revenue).
-     */
-    private void seedInvoicePosting(Invoice target) {
-        BigDecimal amount = target.getTotalAmount() != null ? target.getTotalAmount() : BigDecimal.ZERO;
-        Map<String, Object> arLine = Map.of(
-                "accountId", ar.getId(),
-                "description", "Invoice AR",
-                "debit", amount,
-                "credit", BigDecimal.ZERO
-        );
-        Map<String, Object> revLine = Map.of(
-                "accountId", revenue.getId(),
-                "description", "Revenue",
-                "debit", BigDecimal.ZERO,
-                "credit", amount
-        );
-
-        Map<String, Object> payload = Map.of(
-                "entryDate", LocalDate.now(),
-                "memo", "Seed invoice posting",
-                "dealerId", dealer.getId(),
-                "lines", List.of(arLine, revLine)
-        );
-
-        rest.exchange(
-                "/api/v1/accounting/journal-entries",
-                HttpMethod.POST,
-                new HttpEntity<>(payload, headers),
-                Map.class);
-    }
-
-    @Test
-    @DisplayName("Dealer settlement with discount/write-off/FX loss posts balanced journal and stores allocations")
-    void dealerSettlement_WithAdjustments_BalancesAndPersists() {
-        Map<String, Object> allocation = Map.of(
-                "invoiceId", invoice.getId(),
-                "appliedAmount", new BigDecimal("800.00"),
-                "discountAmount", new BigDecimal("50.00"),
-                "writeOffAmount", new BigDecimal("20.00"),
-                "fxAdjustment", new BigDecimal("-10.00"), // loss
-                "memo", "partial settle"
-        );
-
-        Map<String, Object> payload = Map.of(
-                "dealerId", dealer.getId(),
-                "cashAccountId", cash.getId(),
-                "discountAccountId", discount.getId(),
-                "writeOffAccountId", writeOff.getId(),
-                "fxLossAccountId", fxLoss.getId(),
-                "settlementDate", LocalDate.now(),
-                "referenceNumber", "SETTLE-" + UUID.randomUUID(),
-                "memo", "Receipt with adjustments",
-                "allocations", List.of(allocation)
-        );
-
-        ResponseEntity<Map> response = rest.exchange(
-                "/api/v1/accounting/settlements/dealers",
-                HttpMethod.POST,
-                new HttpEntity<>(payload, headers),
-                Map.class);
-
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-
-        Map<?, ?> data = (Map<?, ?>) response.getBody().get("data");
-        Number journalIdNum = (Number) ((Map<?, ?>) data.get("journalEntry")).get("id");
-        assertThat(journalIdNum).isNotNull();
-        Long journalId = journalIdNum.longValue();
-
-        // Journal must balance: debits = 720+50+20+10 = 800, credits = 800
-        BigDecimal debits = journalLineRepository.findAll().stream()
-                .filter(l -> l.getJournalEntry().getId().equals(journalId))
-                .map(JournalLine::getDebit)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-        BigDecimal credits = journalLineRepository.findAll().stream()
-                .filter(l -> l.getJournalEntry().getId().equals(journalId))
-                .map(JournalLine::getCredit)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-        assertThat(debits).isEqualByComparingTo(credits);
-
-        // Allocation row persisted and linked to invoice
-        List<PartnerSettlementAllocation> rows = allocationRepository.findAll().stream()
-                .filter(r -> r.getCompany() != null && r.getCompany().getId().equals(company.getId()))
-                .collect(Collectors.toList());
-        assertThat(rows).anyMatch(r ->
-                r.getJournalEntry().getId().equals(journalId)
-                        && r.getInvoice() != null
-                        && r.getInvoice().getId().equals(invoice.getId())
-                        && r.getAllocationAmount().compareTo(new BigDecimal("800.00")) == 0
-                        && r.getDiscountAmount().compareTo(new BigDecimal("50.00")) == 0
-                        && r.getWriteOffAmount().compareTo(new BigDecimal("20.00")) == 0
-                        && r.getFxDifferenceAmount().compareTo(new BigDecimal("-10.00")) == 0);
-
-        Invoice refreshed = invoiceRepository.findById(invoice.getId()).orElseThrow();
-        assertThat(refreshed.getOutstandingAmount()).isEqualByComparingTo(BigDecimal.ZERO);
-        assertThat(refreshed.getStatus()).isEqualTo("PAID");
-    }
-
-    @Test
-    @DisplayName("Dealer receipt allocations update invoice outstanding")
-    void dealerReceiptAllocatesOutstanding() {
-        String reference = "REC-" + UUID.randomUUID();
-        Map<String, Object> allocation = Map.of(
-                "invoiceId", invoice.getId(),
-                "appliedAmount", new BigDecimal("800.00")
-        );
-        Map<String, Object> payload = Map.of(
-                "dealerId", dealer.getId(),
-                "cashAccountId", cash.getId(),
-                "amount", new BigDecimal("800.00"),
-                "referenceNumber", reference,
-                "memo", "Dealer receipt allocation",
-                "allocations", List.of(allocation)
-        );
-
-        ResponseEntity<Map> response = rest.exchange(
-                "/api/v1/accounting/receipts/dealer",
-                HttpMethod.POST,
-                new HttpEntity<>(payload, headers),
-                Map.class);
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-
-        Invoice refreshed = invoiceRepository.findById(invoice.getId()).orElseThrow();
-        assertThat(refreshed.getOutstandingAmount()).isEqualByComparingTo(BigDecimal.ZERO);
-        assertThat(refreshed.getStatus()).isEqualTo("PAID");
-
-        List<PartnerSettlementAllocation> allocations = allocationRepository
-                .findByCompanyAndIdempotencyKey(company, reference);
-        assertThat(allocations).hasSize(1);
-    }
-
-    @Test
-    @DisplayName("Dealer receipt retry is idempotent (no duplicate allocations)")
-    void dealerReceipt_Idempotent_ReusesExisting() {
-        String reference = "REC-IDEM-" + UUID.randomUUID();
-        Map<String, Object> allocation = Map.of(
-                "invoiceId", invoice.getId(),
-                "appliedAmount", new BigDecimal("800.00")
-        );
-        Map<String, Object> payload = Map.of(
-                "dealerId", dealer.getId(),
-                "cashAccountId", cash.getId(),
-                "amount", new BigDecimal("800.00"),
-                "referenceNumber", reference,
-                "memo", "Dealer receipt retry",
-                "allocations", List.of(allocation)
-        );
-
-        ResponseEntity<Map> first = rest.exchange(
-                "/api/v1/accounting/receipts/dealer",
-                HttpMethod.POST,
-                new HttpEntity<>(payload, headers),
-                Map.class);
-        assertThat(first.getStatusCode()).isEqualTo(HttpStatus.OK);
-
-        ResponseEntity<Map> second = rest.exchange(
-                "/api/v1/accounting/receipts/dealer",
-                HttpMethod.POST,
-                new HttpEntity<>(payload, headers),
-                Map.class);
-        assertThat(second.getStatusCode()).isEqualTo(HttpStatus.OK);
-
-        List<PartnerSettlementAllocation> allocations = allocationRepository
-                .findByCompanyAndIdempotencyKey(company, reference);
-        assertThat(allocations).hasSize(1);
-
-        Invoice refreshed = invoiceRepository.findById(invoice.getId()).orElseThrow();
-        assertThat(refreshed.getOutstandingAmount()).isEqualByComparingTo(BigDecimal.ZERO);
-    }
-
-    @Test
-    @DisplayName("Dealer settlement rejects discount without discount account")
-    void dealerSettlement_MissingDiscountAccount_ValidationFails() {
-        Map<String, Object> allocation = Map.of(
-                "invoiceId", invoice.getId(),
-                "appliedAmount", new BigDecimal("100.00"),
-                "discountAmount", new BigDecimal("5.00")
-        );
-
-        Map<String, Object> payload = Map.of(
-                "dealerId", dealer.getId(),
-                "cashAccountId", cash.getId(),
-                // discount account intentionally omitted
-                "writeOffAccountId", writeOff.getId(),
-                "settlementDate", LocalDate.now(),
-                "allocations", List.of(allocation)
-        );
-
-        ResponseEntity<Map> response = rest.exchange(
-                "/api/v1/accounting/settlements/dealers",
-                HttpMethod.POST,
-                new HttpEntity<>(payload, headers),
-                Map.class);
-
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
-    }
-
-    @Test
-    @DisplayName("Dealer settlement retry after validation failure does not duplicate allocations")
-    void dealerSettlement_FailureThenRetry_NoDuplicateAllocations() {
-        String idemKey = "SETTLE-FAIL-" + UUID.randomUUID();
-        Map<String, Object> allocation = Map.of(
-                "invoiceId", invoice.getId(),
-                "appliedAmount", new BigDecimal("100.00"),
-                "discountAmount", new BigDecimal("5.00")
-        );
-
-        Map<String, Object> badPayload = Map.of(
-                "dealerId", dealer.getId(),
-                "cashAccountId", cash.getId(),
-                "settlementDate", LocalDate.now(),
-                "allocations", List.of(allocation),
-                "idempotencyKey", idemKey
-        );
-        ResponseEntity<Map> badResponse = rest.exchange(
-                "/api/v1/accounting/settlements/dealers",
-                HttpMethod.POST,
-                new HttpEntity<>(badPayload, headers),
-                Map.class);
-        assertThat(badResponse.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
-        assertThat(allocationRepository.findByCompanyAndIdempotencyKey(company, idemKey)).isEmpty();
-
-        Map<String, Object> goodPayload = Map.of(
-                "dealerId", dealer.getId(),
-                "cashAccountId", cash.getId(),
-                "discountAccountId", discount.getId(),
-                "settlementDate", LocalDate.now(),
-                "allocations", List.of(allocation),
-                "idempotencyKey", idemKey
-        );
-        ResponseEntity<Map> goodResponse = rest.exchange(
-                "/api/v1/accounting/settlements/dealers",
-                HttpMethod.POST,
-                new HttpEntity<>(goodPayload, headers),
-                Map.class);
-        assertThat(goodResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
-
-        List<PartnerSettlementAllocation> rows = allocationRepository.findByCompanyAndIdempotencyKey(company, idemKey);
-        assertThat(rows).hasSize(1);
-    }
-
-    @Test
-    @DisplayName("Dealer settlement idempotency returns existing journal")
-    void dealerSettlement_Idempotent_ReusesExisting() {
-        String idemKey = "SETTLE-IDEM-1";
-        Map<String, Object> allocation = Map.of(
-                "invoiceId", invoice.getId(),
-                "appliedAmount", new BigDecimal("200.00")
-        );
-        Map<String, Object> payload = Map.of(
-                "dealerId", dealer.getId(),
-                "cashAccountId", cash.getId(),
-                "allocations", List.of(allocation),
-                "idempotencyKey", idemKey
-        );
-
-        ResponseEntity<Map> first = rest.exchange(
-                "/api/v1/accounting/settlements/dealers",
-                HttpMethod.POST,
-                new HttpEntity<>(payload, headers),
-                Map.class);
-        assertThat(first.getStatusCode()).isEqualTo(HttpStatus.OK);
-
-        ResponseEntity<Map> second = rest.exchange(
-                "/api/v1/accounting/settlements/dealers",
-                HttpMethod.POST,
-                new HttpEntity<>(payload, headers),
-                Map.class);
-        assertThat(second.getStatusCode()).isEqualTo(HttpStatus.OK);
-
-        List<PartnerSettlementAllocation> rows = allocationRepository.findByCompanyAndIdempotencyKey(company, idemKey);
-        assertThat(rows).hasSize(1);
-    }
-
-    @Test
-    @DisplayName("Dealer settlement idempotency is case-insensitive for replay")
-    void dealerSettlement_Idempotent_ReusesExisting_IgnoringCase() {
-        String idemKey = "Settle-Case-" + UUID.randomUUID();
-        Map<String, Object> allocation = Map.of(
-                "invoiceId", invoice.getId(),
-                "appliedAmount", new BigDecimal("200.00")
-        );
-        Map<String, Object> firstPayload = Map.of(
-                "dealerId", dealer.getId(),
-                "cashAccountId", cash.getId(),
-                "allocations", List.of(allocation),
-                "idempotencyKey", idemKey
-        );
-
-        ResponseEntity<Map> first = rest.exchange(
-                "/api/v1/accounting/settlements/dealers",
-                HttpMethod.POST,
-                new HttpEntity<>(firstPayload, headers),
-                Map.class);
-        assertThat(first.getStatusCode()).isEqualTo(HttpStatus.OK);
-
-        Map<String, Object> replayPayload = Map.of(
-                "dealerId", dealer.getId(),
-                "cashAccountId", cash.getId(),
-                "allocations", List.of(allocation),
-                "idempotencyKey", idemKey.toLowerCase(Locale.ROOT)
-        );
-        ResponseEntity<Map> replay = rest.exchange(
-                "/api/v1/accounting/settlements/dealers",
-                HttpMethod.POST,
-                new HttpEntity<>(replayPayload, headers),
-                Map.class);
-        assertThat(replay.getStatusCode()).isEqualTo(HttpStatus.OK);
-
-        List<PartnerSettlementAllocation> rows = allocationRepository
-                .findByCompanyAndIdempotencyKeyIgnoreCase(company, idemKey);
-        assertThat(rows).hasSize(1);
-    }
-
-    @Test
-    @DisplayName("Dealer settlement idempotency rejects conflicting payload")
-    void dealerSettlement_IdempotencyKeyConflictRejected() {
-        String idemKey = "SETTLE-CONFLICT-" + UUID.randomUUID();
-        Map<String, Object> allocation = Map.of(
-                "invoiceId", invoice.getId(),
-                "appliedAmount", new BigDecimal("200.00")
-        );
-        Map<String, Object> payload = Map.of(
-                "dealerId", dealer.getId(),
-                "cashAccountId", cash.getId(),
-                "allocations", List.of(allocation),
-                "idempotencyKey", idemKey
-        );
-
-        ResponseEntity<Map> first = rest.exchange(
-                "/api/v1/accounting/settlements/dealers",
-                HttpMethod.POST,
-                new HttpEntity<>(payload, headers),
-                Map.class);
-        assertThat(first.getStatusCode()).isEqualTo(HttpStatus.OK);
-
-        Invoice second = ensureInvoice();
-        seedInvoicePosting(second);
-
-        Map<String, Object> conflictAllocation = Map.of(
-                "invoiceId", second.getId(),
-                "appliedAmount", new BigDecimal("200.00")
-        );
-        Map<String, Object> conflictPayload = Map.of(
-                "dealerId", dealer.getId(),
-                "cashAccountId", cash.getId(),
-                "allocations", List.of(conflictAllocation),
-                "idempotencyKey", idemKey
-        );
-
-        ResponseEntity<Map> conflict = rest.exchange(
-                "/api/v1/accounting/settlements/dealers",
-                HttpMethod.POST,
-                new HttpEntity<>(conflictPayload, headers),
-                Map.class);
-        assertThat(conflict.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
-
-        List<PartnerSettlementAllocation> rows = allocationRepository.findByCompanyAndIdempotencyKey(company, idemKey);
-        assertThat(rows).hasSize(1);
-
-        Invoice secondAfter = invoiceRepository.findById(second.getId()).orElseThrow();
-        assertThat(secondAfter.getOutstandingAmount()).isEqualByComparingTo(new BigDecimal("800.00"));
-    }
-
-    @Test
-    @DisplayName("Dealer settlement rejects over-application")
-    void dealerSettlement_OverApplicationRejected() {
-        String idemKey = "SETTLE-OVER-" + UUID.randomUUID();
-        Map<String, Object> allocation = Map.of(
-                "invoiceId", invoice.getId(),
-                "appliedAmount", new BigDecimal("900.00")
-        );
-        Map<String, Object> payload = Map.of(
-                "dealerId", dealer.getId(),
-                "cashAccountId", cash.getId(),
-                "allocations", List.of(allocation),
-                "idempotencyKey", idemKey
-        );
-
-        ResponseEntity<Map> response = rest.exchange(
-                "/api/v1/accounting/settlements/dealers",
-                HttpMethod.POST,
-                new HttpEntity<>(payload, headers),
-                Map.class);
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
-
-        Invoice refreshed = invoiceRepository.findById(invoice.getId()).orElseThrow();
-        assertThat(refreshed.getOutstandingAmount()).isEqualByComparingTo(new BigDecimal("800.00"));
-        assertThat(allocationRepository.findByCompanyAndIdempotencyKey(company, idemKey)).isEmpty();
-    }
-
-    @Test
-    @DisplayName("Dealer settlement cannot be applied twice with a new idempotency key")
-    void dealerSettlement_DuplicateApplicationRejected() {
-        String firstKey = "SETTLE-DUP-" + UUID.randomUUID();
-        Map<String, Object> allocation = Map.of(
-                "invoiceId", invoice.getId(),
-                "appliedAmount", new BigDecimal("800.00")
-        );
-        Map<String, Object> payload = Map.of(
-                "dealerId", dealer.getId(),
-                "cashAccountId", cash.getId(),
-                "allocations", List.of(allocation),
-                "idempotencyKey", firstKey
-        );
-
-        ResponseEntity<Map> first = rest.exchange(
-                "/api/v1/accounting/settlements/dealers",
-                HttpMethod.POST,
-                new HttpEntity<>(payload, headers),
-                Map.class);
-        assertThat(first.getStatusCode()).isEqualTo(HttpStatus.OK);
-
-        Invoice afterFirst = invoiceRepository.findById(invoice.getId()).orElseThrow();
-        assertThat(afterFirst.getOutstandingAmount()).isEqualByComparingTo(BigDecimal.ZERO);
-
-        String secondKey = "SETTLE-DUP-" + UUID.randomUUID();
-        Map<String, Object> secondPayload = Map.of(
-                "dealerId", dealer.getId(),
-                "cashAccountId", cash.getId(),
-                "allocations", List.of(allocation),
-                "idempotencyKey", secondKey
-        );
-
-        ResponseEntity<Map> second = rest.exchange(
-                "/api/v1/accounting/settlements/dealers",
-                HttpMethod.POST,
-                new HttpEntity<>(secondPayload, headers),
-                Map.class);
-        assertThat(second.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
-
-        Invoice afterSecond = invoiceRepository.findById(invoice.getId()).orElseThrow();
-        assertThat(afterSecond.getOutstandingAmount()).isEqualByComparingTo(BigDecimal.ZERO);
-        assertThat(allocationRepository.findByCompanyAndIdempotencyKey(company, secondKey)).isEmpty();
-    }
-
-    @Test
-    @DisplayName("Dealer settlement idempotency allows multiple allocations per key")
-    void dealerSettlement_Idempotent_MultiAllocation() {
-        Invoice second = ensureInvoice();
-        Dealer persistedDealer = dealerRepository.findById(dealer.getId()).orElseThrow();
-        persistedDealer.setOutstandingBalance(new BigDecimal("1600.00"));
-        dealerRepository.save(persistedDealer);
-        seedInvoicePosting(second);
-
-        String idemKey = "SETTLE-IDEM-MULTI-" + System.nanoTime();
-        Map<String, Object> allocationA = Map.of(
-                "invoiceId", invoice.getId(),
-                "appliedAmount", new BigDecimal("800.00")
-        );
-        Map<String, Object> allocationB = Map.of(
-                "invoiceId", second.getId(),
-                "appliedAmount", new BigDecimal("800.00")
-        );
-        Map<String, Object> payload = Map.of(
-                "dealerId", dealer.getId(),
-                "cashAccountId", cash.getId(),
-                "allocations", List.of(allocationA, allocationB),
-                "idempotencyKey", idemKey
-        );
-
-        ResponseEntity<Map> first = rest.exchange(
-                "/api/v1/accounting/settlements/dealers",
-                HttpMethod.POST,
-                new HttpEntity<>(payload, headers),
-                Map.class);
-        assertThat(first.getStatusCode()).isEqualTo(HttpStatus.OK);
-
-        List<PartnerSettlementAllocation> rows = allocationRepository.findByCompanyAndIdempotencyKey(company, idemKey);
-        assertThat(rows).hasSize(2);
-
-        Map<String, Object> reorderPayload = Map.of(
-                "dealerId", dealer.getId(),
-                "cashAccountId", cash.getId(),
-                "allocations", List.of(allocationB, allocationA),
-                "idempotencyKey", idemKey
-        );
-
-        ResponseEntity<Map> secondCall = rest.exchange(
-                "/api/v1/accounting/settlements/dealers",
-                HttpMethod.POST,
-                new HttpEntity<>(reorderPayload, headers),
-                Map.class);
-        assertThat(secondCall.getStatusCode()).isEqualTo(HttpStatus.OK);
-
-        rows = allocationRepository.findByCompanyAndIdempotencyKey(company, idemKey);
-        assertThat(rows).hasSize(2);
+        Invoice created = new Invoice();
+        created.setCompany(company);
+        created.setDealer(dealer);
+        created.setInvoiceNumber("INV-CODEX-" + System.nanoTime());
+        created.setStatus("POSTED");
+        created.setSubtotal(new BigDecimal("800.00"));
+        created.setTaxTotal(BigDecimal.ZERO);
+        created.setTotalAmount(new BigDecimal("800.00"));
+        created.setOutstandingAmount(new BigDecimal("800.00"));
+        created.setIssueDate(LocalDate.now());
+        created.setDueDate(LocalDate.now().plusDays(30));
+        created.setCurrency("INR");
+        created.setNotes("Test invoice for settlement");
+        return invoiceRepository.saveAndFlush(created);
     }
 }

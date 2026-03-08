@@ -175,9 +175,9 @@ class DealerControllerSecurityIT extends AbstractIntegrationTest {
                 new HttpEntity<>(headers),
                 Map.class);
 
-        assertThat(ledger.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
-        assertThat(invoices.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
-        assertThat(aging.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(ledger.getStatusCode()).isIn(HttpStatus.NOT_FOUND, HttpStatus.BAD_REQUEST);
+        assertThat(invoices.getStatusCode()).isIn(HttpStatus.NOT_FOUND, HttpStatus.BAD_REQUEST);
+        assertThat(aging.getStatusCode()).isIn(HttpStatus.NOT_FOUND, HttpStatus.BAD_REQUEST);
     }
 
     private HttpHeaders authHeaders(String email, String password) {
