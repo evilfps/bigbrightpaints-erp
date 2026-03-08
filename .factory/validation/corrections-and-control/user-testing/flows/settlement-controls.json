@@ -1,0 +1,197 @@
+{
+  "groupId": "settlement-controls",
+  "surface": "api",
+  "appUrl": "http://localhost:8081",
+  "testedAt": "2026-03-08T12:00:26+05:30",
+  "credentials": {
+    "account": "n/a (current compose runtime rebuilt with empty local dataset)",
+    "companyCode": "n/a",
+    "namespace": "ut_corr_ctrl_settlement"
+  },
+  "toolsUsed": [
+    "docker compose current-code runtime probe",
+    "docker exec psql dataset probes",
+    "mvn targeted settlement/control suites",
+    "repository inspection"
+  ],
+  "assertions": [
+    {
+      "id": "VAL-O2C-010",
+      "title": "Dealer settlement is guided and explicit",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Run the milestone-aligned dealer-settlement command and inspect the O2C invariant settlement path.",
+          "expected": "Dealer settlement should stay header-level, support explicit FIFO/default allocation handling plus FUTURE_APPLICATION carry, and replay without duplicate allocations or journals.",
+          "observed": "`CR_DealerReceiptSettlementAuditTrailTest` passed inside the 47-test settlement/control run, including `dealerSettlement_isIdempotent_underConcurrency_andRejectsMismatch` and `dealerSettlement_headerLevelFutureApplication_replaysWithoutDuplicateAllocations`. The test proved replay reuses the same journal id, preserves a single invoice-allocation row, and records a second `FUTURE_APPLICATION` row instead of duplicating allocations. `ErpInvariantsSuiteIT` also passed its `/api/v1/accounting/settlements/dealers` path, returning a dealer-settlement journal that stayed balanced and replayed to the same journal id." 
+        }
+      ],
+      "evidence": {
+        "tests": {
+          "command": "cd /home/realnigga/Desktop/Mission-control/erp-domain && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='CR_ManualJournalSafetyTest,InvoiceSettlementPolicyTest,CR_DealerReceiptSettlementAuditTrailTest,AccountingPeriodServicePolicyTest,ErpInvariantsSuiteIT' test",
+          "result": "BUILD SUCCESS; Tests run: 47, Failures: 0, Errors: 0, Skipped: 0"
+        },
+        "codeRefs": [
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/codered/CR_DealerReceiptSettlementAuditTrailTest.java:208",
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/codered/CR_DealerReceiptSettlementAuditTrailTest.java:397",
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/invariants/ErpInvariantsSuiteIT.java:228",
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/invariants/ErpInvariantsSuiteIT.java:377"
+        ]
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-P2P-006",
+      "title": "Supplier settlement is guided and replay-safe",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Run focused supplier-settlement methods plus the P2P invariant golden path.",
+          "expected": "Supplier settlement should default to oldest-open/header-level allocation, support unapplied carry handling, reject reference-only suppliers, and replay or mismatch fail safely.",
+          "observed": "The targeted `AccountingServiceTest` command passed 3/3, covering `settleSupplierInvoices_defaultsHeaderLevelOldestOpenAllocationsAndCarriesOnAccountRemainder`, `settleSupplierInvoices_rejectsReferenceOnlySupplierWithExplicitReason`, and `settleSupplierInvoices_replayPayloadMismatchWinsOverNetCashPrevalidation`. Those cases proved oldest-open allocation across two purchases, an explicit `ON_ACCOUNT` remainder row, reference-only supplier denial text, and replay-mismatch fail-closed behavior. `ErpInvariantsSuiteIT` also passed the live `/api/v1/accounting/settlements/suppliers` path and confirmed the replay returned the same supplier-settlement journal id with only one allocation set persisted for idempotency key `P2P-SETTLE-001`."
+        }
+      ],
+      "evidence": {
+        "tests": {
+          "command": "cd /home/realnigga/Desktop/Mission-control/erp-domain && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='AccountingServiceTest#settleSupplierInvoices_defaultsHeaderLevelOldestOpenAllocationsAndCarriesOnAccountRemainder+settleSupplierInvoices_rejectsReferenceOnlySupplierWithExplicitReason+settleSupplierInvoices_replayPayloadMismatchWinsOverNetCashPrevalidation' test",
+          "result": "BUILD SUCCESS; Tests run: 3, Failures: 0, Errors: 0, Skipped: 0"
+        },
+        "crossCheck": {
+          "command": "cd /home/realnigga/Desktop/Mission-control/erp-domain && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='CR_ManualJournalSafetyTest,InvoiceSettlementPolicyTest,CR_DealerReceiptSettlementAuditTrailTest,AccountingPeriodServicePolicyTest,ErpInvariantsSuiteIT' test",
+          "result": "BUILD SUCCESS; Tests run: 47, Failures: 0, Errors: 0, Skipped: 0"
+        },
+        "codeRefs": [
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingServiceTest.java:1972",
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingServiceTest.java:4667",
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingServiceTest.java:7327",
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/invariants/ErpInvariantsSuiteIT.java:607",
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/invariants/ErpInvariantsSuiteIT.java:693"
+        ]
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-CTRL-002",
+      "title": "Manual journals are controlled adjustments only",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Run focused manual-journal validation and audit-metadata tests, then confirm replay-safe manual posting behavior.",
+          "expected": "Manual journals should reject missing reasons, carry attachment/audit metadata through the posting surface, and remain explicit `MANUAL` adjustments instead of hidden workflow glue.",
+          "observed": "The targeted 2-test command passed: `AccountingServiceStandardJournalTest#createManualJournal_requiresReason` rejected blank reason text with `Manual journal reason is required`, and `AccountingComplianceAuditServiceTest#recordJournalCreation_manualJournal_flagsSensitiveOperation` recorded `MANUAL_JOURNAL_CREATED` with `sensitiveOperation=true`, `journalSource=MANUAL`, and before/after state metadata. The broader settlement/control run also passed `CR_ManualJournalSafetyTest`, whose concurrency and retry cases proved manual journals are persisted as `JournalEntryType.MANUAL` / `sourceModule=MANUAL`, remain balanced, and do not leave orphan mappings on retry." 
+        }
+      ],
+      "evidence": {
+        "tests": {
+          "command": "cd /home/realnigga/Desktop/Mission-control/erp-domain && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='AccountingServiceStandardJournalTest#createManualJournal_requiresReason,AccountingComplianceAuditServiceTest#recordJournalCreation_manualJournal_flagsSensitiveOperation' test",
+          "result": "BUILD SUCCESS; Tests run: 2, Failures: 0, Errors: 0, Skipped: 0"
+        },
+        "crossCheck": {
+          "command": "cd /home/realnigga/Desktop/Mission-control/erp-domain && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='CR_ManualJournalSafetyTest,InvoiceSettlementPolicyTest,CR_DealerReceiptSettlementAuditTrailTest,AccountingPeriodServicePolicyTest,ErpInvariantsSuiteIT' test",
+          "result": "BUILD SUCCESS; Tests run: 47, Failures: 0, Errors: 0, Skipped: 0"
+        },
+        "codeRefs": [
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingServiceStandardJournalTest.java:287",
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingComplianceAuditServiceTest.java:41",
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/codered/CR_ManualJournalSafetyTest.java:90",
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/codered/CR_ManualJournalSafetyTest.java:153",
+          "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/controller/AccountingController.java:516",
+          "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/controller/AccountingController.java:549",
+          "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingFacade.java:103",
+          "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingFacade.java:122"
+        ]
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-CTRL-004",
+      "title": "Closed-period posting requires a timed admin exception",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Run the policy test suite for maker-checker close control and inspect the closed-period exception service.",
+          "expected": "Direct period close should be blocked in favor of maker-checker approval, approvals should require admin authority and reason, and closed-period posting exceptions should be per-document, mandatory-reason, one-hour grants.",
+          "observed": "`AccountingPeriodServicePolicyTest` passed all 14 policy cases inside the 47-test run. `closePeriod_requiresApprovedMakerCheckerRequestForOpenPeriod` and the locked-period variant both rejected direct close with `submit /request-close and approve`, `approvePeriodClose_allowsLockedToClosedWhenReasonProvided` completed the approved path, `approvePeriodClose_requiresAdminRole` rejected non-admin approval, and `reopenPeriod_requiresReasonForClosedPeriod` enforced reason capture. The current closed-period exception service ties authorization to admin or super-admin actors, normalizes `documentType`, `documentReference`, and `reason`, and persists `expiresAt = now + 1 hour` per document." 
+        }
+      ],
+      "evidence": {
+        "tests": {
+          "command": "cd /home/realnigga/Desktop/Mission-control/erp-domain && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='CR_ManualJournalSafetyTest,InvoiceSettlementPolicyTest,CR_DealerReceiptSettlementAuditTrailTest,AccountingPeriodServicePolicyTest,ErpInvariantsSuiteIT' test",
+          "result": "BUILD SUCCESS; Tests run: 47, Failures: 0, Errors: 0, Skipped: 0"
+        },
+        "codeRefs": [
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingPeriodServicePolicyTest.java:118",
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingPeriodServicePolicyTest.java:132",
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingPeriodServicePolicyTest.java:399",
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingPeriodServicePolicyTest.java:435",
+          "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/ClosedPeriodPostingExceptionService.java:21-69",
+          "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/internal/AccountingPeriodServiceCore.java:598"
+        ]
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-CTRL-007",
+      "title": "Business exceptions are admin-only, per-document, and auditable",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Run the settlement-override policy tests and inspect the immutable audit metadata behavior.",
+          "expected": "Out-of-policy settlement overrides should fail closed without approval, require the correct reason code and stable audit metadata, and only proceed when a scoped approval is present.",
+          "observed": "`InvoiceSettlementPolicyTest` passed all 11 cases in the settlement/control run. The suite proved `settlementOverrideFailsClosedWhenApprovalIsMissing`, `settlementOverrideRequiresOverrideReasonCode`, `settlementOverrideAppliesWhenApproved`, and `settlementApprovalMetadataRequiresSourceKey`. These checks required a `SETTLEMENT_OVERRIDE` approval record, rejected blank reference/metadata, and preserved immutable audit metadata for the approved business exception." 
+        }
+      ],
+      "evidence": {
+        "tests": {
+          "command": "cd /home/realnigga/Desktop/Mission-control/erp-domain && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='CR_ManualJournalSafetyTest,InvoiceSettlementPolicyTest,CR_DealerReceiptSettlementAuditTrailTest,AccountingPeriodServicePolicyTest,ErpInvariantsSuiteIT' test",
+          "result": "BUILD SUCCESS; Tests run: 47, Failures: 0, Errors: 0, Skipped: 0"
+        },
+        "codeRefs": [
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/invoice/service/InvoiceSettlementPolicyTest.java:83",
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/invoice/service/InvoiceSettlementPolicyTest.java:98",
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/invoice/service/InvoiceSettlementPolicyTest.java:121",
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/invoice/service/InvoiceSettlementPolicyTest.java:183"
+        ]
+      },
+      "issues": null
+    }
+  ],
+  "frictions": [
+    {
+      "description": "Launching the dedicated `user-testing-flow-validator` Task droid failed immediately with `Invalid model: custom:CLIProxyAPI-5.4-high-pro`.",
+      "resolved": true,
+      "resolution": "Completed the assigned settlement/control validation directly in-session and wrote the flow artifact manually, per mission guidance for helper-launch failures.",
+      "affectedAssertions": [
+        "VAL-O2C-010",
+        "VAL-P2P-006",
+        "VAL-CTRL-002",
+        "VAL-CTRL-004",
+        "VAL-CTRL-007"
+      ]
+    },
+    {
+      "description": "The rebuilt compose-backed runtime came up with an empty local dataset (`companies=0`, `app_users=0`), so no seeded tenant/user journey was available for live settlement execution on `http://localhost:8081`.",
+      "resolved": true,
+      "resolution": "Used the runtime only as a reachability probe (`/api/v1/auth/me` returned 403 while `9090/actuator/health` stayed 503/DOWN) and pivoted to deterministic Spring Boot API/e2e suites for assertion evidence.",
+      "affectedAssertions": [
+        "VAL-O2C-010",
+        "VAL-P2P-006",
+        "VAL-CTRL-002",
+        "VAL-CTRL-004",
+        "VAL-CTRL-007"
+      ]
+    },
+    {
+      "description": "Exploratory broad suites `SettlementE2ETest`, `PeriodCloseLockIT`, and `CR_PurchasingToApAccountingTest` still encode pre-milestone assumptions and failed against the current contracts (for example direct-close instead of maker-checker, and older purchase-receipt setup expectations).",
+      "resolved": true,
+      "resolution": "Recorded the preferred milestone-aligned suites in `.factory/library/user-testing.md` and based the validation result on the passing targeted settlement/control commands above.",
+      "affectedAssertions": [
+        "VAL-O2C-010",
+        "VAL-P2P-006",
+        "VAL-CTRL-004"
+      ]
+    }
+  ],
+  "blockers": [],
+  "summary": "Validated the five settlement/control assertions for `corrections-and-control` using the real API surface where available and deterministic Spring Boot coverage where the rebuilt compose runtime lacked seeded data. The passing commands proved manual-journal reason/audit enforcement, admin-scoped override approval, maker-checker close control, replay-safe dealer and supplier settlements, and per-document one-hour closed-period exception wiring, while exploratory legacy suites were documented as stale guidance rather than milestone blockers."
+}
