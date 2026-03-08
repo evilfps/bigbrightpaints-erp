@@ -238,6 +238,12 @@ public class SalesControllerIT extends AbstractIntegrationTest {
         return Long.parseLong(String.valueOf(value));
     }
 
+    private void assertFailureDataMessage(ResponseEntity<Map> response, String expectedMessage) {
+        Map<?, ?> data = (Map<?, ?>) response.getBody().get("data");
+        assertThat(data).isNotNull();
+        assertThat(data.get("message")).isEqualTo(expectedMessage);
+    }
+
     @Test
     void create_dealer_and_sales_order() {
         String token = loginToken();
@@ -343,6 +349,9 @@ public class SalesControllerIT extends AbstractIntegrationTest {
         assertThat(response.getBody()).isNotNull();
         assertThat(response.getBody()).containsEntry(
                 "message",
+                "Accounting must complete the final dispatch posting after the shipment is confirmed.");
+        assertFailureDataMessage(
+                response,
                 "Accounting must complete the final dispatch posting after the shipment is confirmed.");
     }
 

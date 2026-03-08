@@ -140,6 +140,9 @@ class AdminApprovalRbacIT extends AbstractIntegrationTest {
                 new HttpEntity<>(decision, salesHeaders),
                 Map.class);
         assertThat(salesApprove.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertFailureMessage(
+                salesApprove,
+                "An admin or accountant must review this credit limit override request.");
 
         ResponseEntity<Map> factoryReject = rest.exchange(
                 "/api/v1/credit/override-requests/" + unknownRequestId + "/reject",
@@ -147,20 +150,25 @@ class AdminApprovalRbacIT extends AbstractIntegrationTest {
                 new HttpEntity<>(decision, factoryHeaders),
                 Map.class);
         assertThat(factoryReject.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertFailureMessage(
+                factoryReject,
+                "An admin or accountant must review this credit limit override request.");
 
         ResponseEntity<Map> accountingApprove = rest.exchange(
                 "/api/v1/credit/override-requests/" + unknownRequestId + "/approve",
                 HttpMethod.POST,
                 new HttpEntity<>(decision, accountingHeaders),
                 Map.class);
-        assertThat(accountingApprove.getStatusCode()).isNotEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(accountingApprove.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertBusinessNotFound(accountingApprove, "Credit override request not found");
 
         ResponseEntity<Map> adminReject = rest.exchange(
                 "/api/v1/credit/override-requests/" + unknownRequestId + "/reject",
                 HttpMethod.POST,
                 new HttpEntity<>(decision, adminHeaders),
                 Map.class);
-        assertThat(adminReject.getStatusCode()).isNotEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(adminReject.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertBusinessNotFound(adminReject, "Credit override request not found");
     }
 
     @Test
@@ -238,7 +246,7 @@ class AdminApprovalRbacIT extends AbstractIntegrationTest {
     }
 
     @Test
-    void dealerPortalCreditRequestFeedsAdminApprovalsQueue() {
+    void dealerPortalCreditRequest_isReadOnlyAndDoesNotCreateApprovalQueueEntry() {
         HttpHeaders dealerHeaders = authHeaders(DEALER_EMAIL, PASSWORD);
         HttpHeaders adminHeaders = authHeaders(ADMIN_EMAIL, PASSWORD);
 
@@ -251,13 +259,10 @@ class AdminApprovalRbacIT extends AbstractIntegrationTest {
                 HttpMethod.POST,
                 new HttpEntity<>(payload, dealerHeaders),
                 Map.class);
-        assertThat(createResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
-        Map<?, ?> createBody = createResponse.getBody();
-        assertThat(createBody).isNotNull();
-        Map<?, ?> createData = (Map<?, ?>) createBody.get("data");
-        assertThat(createData).isNotNull();
-        long creditRequestId = ((Number) createData.get("id")).longValue();
-        assertThat(String.valueOf(createData.get("status"))).isEqualTo("PENDING");
+        assertThat(createResponse.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertFailureMessage(
+                createResponse,
+                "Dealer portal is read-only. Ask your sales or admin contact to review credit-limit changes.");
 
         ResponseEntity<Map> approvalsResponse = rest.exchange(
                 "/api/v1/admin/approvals",
@@ -270,23 +275,7 @@ class AdminApprovalRbacIT extends AbstractIntegrationTest {
         Map<?, ?> approvalsData = (Map<?, ?>) approvalsBody.get("data");
         assertThat(approvalsData).isNotNull();
         List<?> creditApprovals = (List<?>) approvalsData.get("creditRequests");
-        assertThat(creditApprovals).isNotNull();
-
-        Map<?, ?> requestApproval = creditApprovals.stream()
-                .filter(Map.class::isInstance)
-                .map(Map.class::cast)
-                .filter(item -> "CREDIT_REQUEST".equals(String.valueOf(item.get("type"))))
-                .filter(item -> ((Number) item.get("id")).longValue() == creditRequestId)
-                .findFirst()
-                .orElse(null);
-
-        assertThat(requestApproval).isNotNull();
-        assertThat(String.valueOf(requestApproval.get("reference"))).isEqualTo("CR-" + creditRequestId);
-        assertThat(String.valueOf(requestApproval.get("actionType"))).isEqualTo("APPROVE_DEALER_CREDIT_REQUEST");
-        assertThat(String.valueOf(requestApproval.get("sourcePortal"))).isEqualTo("DEALER_PORTAL");
-        assertThat(String.valueOf(requestApproval.get("summary")))
-                .contains("Approve dealer credit-limit increase request")
-                .contains("Need temporary limit increase for new order");
+        assertThat(creditApprovals).isEmpty();
     }
 
     private HttpHeaders authHeaders(String email, String password) {
@@ -349,6 +338,25 @@ class AdminApprovalRbacIT extends AbstractIntegrationTest {
         Map<?, ?> data = (Map<?, ?>) body.get("data");
         assertThat(data).isNotNull();
         return String.valueOf(data.get("status"));
+    }
+
+    private void assertFailureMessage(ResponseEntity<Map> response, String expectedMessage) {
+        Map<?, ?> body = response.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.get("message")).isEqualTo(expectedMessage);
+        Map<?, ?> data = (Map<?, ?>) body.get("data");
+        assertThat(data).isNotNull();
+        assertThat(data.get("message")).isEqualTo(expectedMessage);
+    }
+
+    private void assertBusinessNotFound(ResponseEntity<Map> response, String expectedMessage) {
+        Map<?, ?> body = response.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.get("message")).isEqualTo(expectedMessage);
+        Map<?, ?> data = (Map<?, ?>) body.get("data");
+        assertThat(data).isNotNull();
+        assertThat(data.get("code")).isEqualTo("BUS_003");
+        assertThat(data.get("message")).isEqualTo(expectedMessage);
     }
 
     private void ensureDealerPortalMapping() {

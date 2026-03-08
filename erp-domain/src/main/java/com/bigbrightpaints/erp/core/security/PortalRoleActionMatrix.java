@@ -61,7 +61,7 @@ public final class PortalRoleActionMatrix {
         }
         if (path.startsWith("/api/v1/credit/override-requests/")
                 && (hasAuthority(authentication, "ROLE_SALES") || hasAuthority(authentication, "ROLE_FACTORY"))) {
-            return "An admin or accountant must review this dispatch credit override request.";
+            return "An admin or accountant must review this credit limit override request.";
         }
         return null;
     }
