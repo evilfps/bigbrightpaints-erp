@@ -5,9 +5,9 @@ ROOT="/home/realnigga/Desktop/Mission-control"
 COMPOSE_FILE="$ROOT/docker-compose.yml"
 DB_PORT="5433"
 
-JWT_SECRET="${JWT_SECRET:-factory-validation-jwt-secret-20260308-keep-local}"
-ERP_SECURITY_ENCRYPTION_KEY="${ERP_SECURITY_ENCRYPTION_KEY:-factory-validation-encryption-key-20260308}"
-ERP_VALIDATION_SEED_PASSWORD="${ERP_VALIDATION_SEED_PASSWORD:-Validation123!}"
+JWT_SECRET="${JWT_SECRET:-placeholder}"
+ERP_SECURITY_ENCRYPTION_KEY="${ERP_SECURITY_ENCRYPTION_KEY:-placeholder}"
+ERP_VALIDATION_SEED_PASSWORD="${ERP_VALIDATION_SEED_PASSWORD:-changeme}"
 
 if [[ -f "$ROOT/.env" ]]; then
   set -a
@@ -16,11 +16,22 @@ if [[ -f "$ROOT/.env" ]]; then
   set +a
 fi
 
-if [[ -z "${JWT_SECRET:-}" || "$JWT_SECRET" == YOUR_* ]]; then
-  JWT_SECRET="factory-validation-jwt-secret-20260308-keep-local"
+if [[ -z "${JWT_SECRET:-}" || "$JWT_SECRET" == YOUR_* || "$JWT_SECRET" == "placeholder" ]]; then
+  JWT_SECRET="$(python3 - <<'PY'
+import secrets
+print(secrets.token_urlsafe(48))
+PY
+)"
 fi
-if [[ -z "${ERP_SECURITY_ENCRYPTION_KEY:-}" || "$ERP_SECURITY_ENCRYPTION_KEY" == YOUR_* ]]; then
-  ERP_SECURITY_ENCRYPTION_KEY="factory-validation-encryption-key-20260308"
+if [[ -z "${ERP_SECURITY_ENCRYPTION_KEY:-}" || "$ERP_SECURITY_ENCRYPTION_KEY" == YOUR_* || "$ERP_SECURITY_ENCRYPTION_KEY" == "placeholder" ]]; then
+  ERP_SECURITY_ENCRYPTION_KEY="$(python3 - <<'PY'
+import secrets
+print(secrets.token_hex(32))
+PY
+)"
+fi
+if [[ -z "${ERP_VALIDATION_SEED_PASSWORD:-}" || "$ERP_VALIDATION_SEED_PASSWORD" == YOUR_* || "$ERP_VALIDATION_SEED_PASSWORD" == "placeholder" ]]; then
+  ERP_VALIDATION_SEED_PASSWORD="changeme"
 fi
 
 echo "[final-validation-reset] Resetting compose runtime on port ${DB_PORT}"
@@ -78,7 +89,7 @@ Runtime:
   MailHog:  http://localhost:8025
   Profiles: prod,flyway-v2,mock,validation-seed
 
-Seeded actors (password: ${ERP_VALIDATION_SEED_PASSWORD})
+Seeded actors (password source: ERP_VALIDATION_SEED_PASSWORD; local default is 'changeme')
   validation.admin@example.com        -> MOCK (ROLE_ADMIN, ROLE_ACCOUNTING, ROLE_SALES)
   validation.accounting@example.com   -> MOCK (ROLE_ACCOUNTING)
   validation.sales@example.com        -> MOCK (ROLE_SALES)
