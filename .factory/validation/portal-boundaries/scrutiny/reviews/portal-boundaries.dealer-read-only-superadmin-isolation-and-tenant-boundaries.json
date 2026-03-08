@@ -1,0 +1,15 @@
+{
+  "featureId": "portal-boundaries.dealer-read-only-superadmin-isolation-and-tenant-boundaries",
+  "reviewedAt": "2026-03-08T13:10:45+05:30",
+  "commitId": "d6d79b5b09081bca038015dab01b90babe8ba68d",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The feature hardens `CompanyContextFilter` to fail closed for super-admin access on tenant business paths, turns the dealer credit-request compatibility endpoint into an explicit read-only denial, and adds focused regression coverage for dealer write attempts, super-admin tenant workflow denial, export denial, and control-plane path enforcement. The reviewed transcript skeleton shows deliberate red/green validation and the diff preserves tenant isolation while leaving only the intended period-reopen control-plane exception available to super admins.",
+    "issues": []
+  },
+  "sharedStateObservations": [],
+  "addressesFailureFrom": null,
+  "summary": "Pass. Dealer users remain confined to own-record read-only surfaces, super admins are blocked from tenant business execution, and the touched report/accounting export paths fail closed without leaking foreign tenant workflow access."
+}
