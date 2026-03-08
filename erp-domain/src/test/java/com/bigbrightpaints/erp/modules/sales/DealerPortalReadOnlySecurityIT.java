@@ -28,7 +28,7 @@ class DealerPortalReadOnlySecurityIT extends AbstractIntegrationTest {
 
     private static final String COMPANY_CODE = "DEALER-PORTAL-READONLY";
     private static final String DEALER_EMAIL = "readonly-dealer@bbp.com";
-    private static final String PASSWORD = "DealerPass123!";
+    private static final String PASSWORD = "changeme";
 
     @Autowired
     private TestRestTemplate rest;

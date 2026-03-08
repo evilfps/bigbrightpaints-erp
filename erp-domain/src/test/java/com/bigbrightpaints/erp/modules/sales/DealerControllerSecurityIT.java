@@ -29,7 +29,7 @@ class DealerControllerSecurityIT extends AbstractIntegrationTest {
     private static final String DEALER_A_EMAIL = "dealer-a@bbp.com";
     private static final String DEALER_B_EMAIL = "dealer-b@bbp.com";
     private static final String ADMIN_EMAIL = "dealer-admin@bbp.com";
-    private static final String PASSWORD = "DealerPass123!";
+    private static final String PASSWORD = "changeme";
 
     @Autowired
     private TestRestTemplate rest;
