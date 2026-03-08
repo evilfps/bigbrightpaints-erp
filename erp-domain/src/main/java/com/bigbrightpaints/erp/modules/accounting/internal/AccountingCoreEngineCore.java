@@ -1918,11 +1918,16 @@ public abstract class AccountingCoreEngineCore {
         BigDecimal amount = ValidationUtils.requirePositive(request.amount(), "amount");
         List<SettlementAllocationRequest> allocations = request.allocations();
         validatePaymentAllocations(allocations, amount, "supplier payment", false);
+        String idempotencyKey = resolveReceiptIdempotencyKey(request.idempotencyKey(), request.referenceNumber(), "supplier payment");
+        boolean replayCandidate = hasExistingIdempotencyMapping(company, idempotencyKey)
+                || hasExistingSettlementAllocations(company, idempotencyKey);
+        if (!replayCandidate) {
+            supplier.requireTransactionalUsage("record supplier payments");
+        }
         Account cashAccount = requireCashAccountForSettlement(company, request.cashAccountId(), "supplier payment", false);
         String memo = StringUtils.hasText(request.memo())
                 ? request.memo().trim()
                 : "Payment to supplier " + supplier.getName();
-        String idempotencyKey = resolveReceiptIdempotencyKey(request.idempotencyKey(), request.referenceNumber(), "supplier payment");
         String reference = resolveSupplierPaymentReference(company, supplier, request.referenceNumber(), idempotencyKey);
         IdempotencyReservation reservation = reserveReferenceMapping(company, idempotencyKey, reference, ENTITY_TYPE_SUPPLIER_PAYMENT);
 
@@ -2099,6 +2104,7 @@ public abstract class AccountingCoreEngineCore {
         Account receivableAccount = requireDealerReceivable(dealer);
         String trimmedIdempotencyKey = resolveDealerSettlementIdempotencyKey(company, request);
         List<SettlementAllocationRequest> allocations = resolveDealerSettlementAllocations(company, dealer, request, trimmedIdempotencyKey);
+        boolean allocationsDerivedForReplay = request.allocations() != allocations;
         DealerSettlementRequest requestForReplay = request.allocations() == allocations
                 ? request
                 : new DealerSettlementRequest(
@@ -2118,6 +2124,26 @@ public abstract class AccountingCoreEngineCore {
                 allocations,
                 request.payments());
         trimmedIdempotencyKey = resolveDealerSettlementIdempotencyKey(company, requestForReplay);
+        List<SettlementAllocationRequest> replayAllocations = replayAllocations(company, trimmedIdempotencyKey);
+        if (allocationsDerivedForReplay && !replayAllocations.isEmpty()) {
+            allocations = replayAllocations;
+            requestForReplay = new DealerSettlementRequest(
+                    request.dealerId(),
+                    request.cashAccountId(),
+                    request.discountAccountId(),
+                    request.writeOffAccountId(),
+                    request.fxGainAccountId(),
+                    request.fxLossAccountId(),
+                    request.amount(),
+                    request.unappliedAmountApplication(),
+                    request.settlementDate(),
+                    request.referenceNumber(),
+                    request.memo(),
+                    request.idempotencyKey(),
+                    request.adminOverride(),
+                    replayAllocations,
+                    request.payments());
+        }
         if (!StringUtils.hasText(trimmedIdempotencyKey)) {
             throw new ApplicationException(ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD,
                     "Idempotency key is required for dealer settlements");
@@ -2351,9 +2377,20 @@ public abstract class AccountingCoreEngineCore {
         Company company = companyContextService.requireCurrentCompany();
         Supplier supplier = supplierRepository.lockByCompanyAndId(company, request.supplierId())
                 .orElseThrow(() -> new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE, "Supplier not found"));
+        supplier.requireTransactionalUsage("settle supplier invoices");
         Account payableAccount = requireSupplierPayable(supplier);
+        String generatedReference = !StringUtils.hasText(request.referenceNumber())
+                ? referenceNumberService.supplierPaymentReference(company, supplier)
+                : null;
         String trimmedIdempotencyKey = resolveSupplierSettlementIdempotencyKey(request);
+        if (!StringUtils.hasText(request.idempotencyKey()) && !StringUtils.hasText(request.referenceNumber())) {
+            String replayIdempotencyKey = findSupplierSettlementReplayIdempotencyKey(company, supplier, generatedReference);
+            if (StringUtils.hasText(replayIdempotencyKey)) {
+                trimmedIdempotencyKey = replayIdempotencyKey;
+            }
+        }
         List<SettlementAllocationRequest> allocations = resolveSupplierSettlementAllocations(company, supplier, request, trimmedIdempotencyKey);
+        boolean allocationsDerivedForReplay = request.allocations() != allocations;
         SupplierSettlementRequest requestForReplay = request.allocations() == allocations
                 ? request
                 : new SupplierSettlementRequest(
@@ -2372,6 +2409,25 @@ public abstract class AccountingCoreEngineCore {
                 request.adminOverride(),
                 allocations);
         trimmedIdempotencyKey = resolveSupplierSettlementIdempotencyKey(requestForReplay);
+        List<SettlementAllocationRequest> replayAllocations = replayAllocations(company, trimmedIdempotencyKey);
+        if (allocationsDerivedForReplay && !replayAllocations.isEmpty()) {
+            allocations = replayAllocations;
+            requestForReplay = new SupplierSettlementRequest(
+                    request.supplierId(),
+                    request.cashAccountId(),
+                    request.discountAccountId(),
+                    request.writeOffAccountId(),
+                    request.fxGainAccountId(),
+                    request.fxLossAccountId(),
+                    request.amount(),
+                    request.unappliedAmountApplication(),
+                    request.settlementDate(),
+                    request.referenceNumber(),
+                    request.memo(),
+                    request.idempotencyKey(),
+                    request.adminOverride(),
+                    replayAllocations);
+        }
         boolean replayCandidate = hasExistingIdempotencyMapping(company, trimmedIdempotencyKey)
                 || hasExistingSettlementAllocations(company, trimmedIdempotencyKey);
         if (!replayCandidate) {
@@ -2385,7 +2441,7 @@ public abstract class AccountingCoreEngineCore {
         if (settlementOverrideRequested) {
             requireAdminExceptionReason("Settlement override", request.adminOverride(), request.memo());
         }
-        String reference = resolveSupplierSettlementReference(company, supplier, request, trimmedIdempotencyKey);
+        String reference = resolveSupplierSettlementReference(company, supplier, request, trimmedIdempotencyKey, generatedReference);
         IdempotencyReservation reservation = reserveReferenceMapping(company, trimmedIdempotencyKey, reference, ENTITY_TYPE_SUPPLIER_SETTLEMENT);
 
         if (!reservation.leader()) {
@@ -3576,7 +3632,8 @@ public abstract class AccountingCoreEngineCore {
     private String resolveSupplierSettlementReference(Company company,
                                                       Supplier supplier,
                                                       SupplierSettlementRequest request,
-                                                      String idempotencyKey) {
+                                                      String idempotencyKey,
+                                                      String generatedReference) {
         if (request != null && StringUtils.hasText(request.referenceNumber())) {
             return request.referenceNumber().trim();
         }
@@ -3587,7 +3644,39 @@ public abstract class AccountingCoreEngineCore {
                 return mapping.get().getCanonicalReference().trim();
             }
         }
+        if (StringUtils.hasText(generatedReference)) {
+            return generatedReference.trim();
+        }
         return referenceNumberService.supplierPaymentReference(company, supplier);
+    }
+
+    private String findSupplierSettlementReplayIdempotencyKey(Company company,
+                                                              Supplier supplier,
+                                                              String generatedReference) {
+        if (company == null || supplier == null || !StringUtils.hasText(generatedReference)) {
+            return null;
+        }
+        Optional<JournalEntry> existingEntry = journalReferenceResolver.findExistingEntry(company, generatedReference.trim());
+        if (existingEntry.isEmpty()) {
+            return null;
+        }
+        List<PartnerSettlementAllocation> existingAllocations = settlementAllocationRepository
+                .findByCompanyAndJournalEntryOrderByCreatedAtAsc(company, existingEntry.get());
+        if (existingAllocations.isEmpty()) {
+            return null;
+        }
+        Long supplierId = supplier.getId();
+        boolean supplierMismatch = existingAllocations.stream().anyMatch(row ->
+                row.getSupplier() == null || !Objects.equals(row.getSupplier().getId(), supplierId));
+        if (supplierMismatch) {
+            return null;
+        }
+        return existingAllocations.stream()
+                .map(PartnerSettlementAllocation::getIdempotencyKey)
+                .filter(StringUtils::hasText)
+                .map(String::trim)
+                .findFirst()
+                .orElse(null);
     }
 
     private boolean hasExistingIdempotencyMapping(Company company, String idempotencyKey) {

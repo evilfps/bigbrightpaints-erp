@@ -54,6 +54,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.stream.Stream;
 import java.time.YearMonth;
 import java.time.LocalDate;
 import java.time.Instant;
@@ -895,7 +896,10 @@ public class AccountingController {
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING','ROLE_SALES')")
     public ResponseEntity<ApiResponse<List<JournalEntryDto>>> listSalesReturns() {
         return ResponseEntity.ok(ApiResponse.success("Sales returns",
-            journalEntryService.listJournalEntriesByReferencePrefix("CRN-")));
+            Stream.concat(
+                    journalEntryService.listJournalEntriesByReferencePrefix("CRN-").stream(),
+                    journalEntryService.listJournalEntriesByReferencePrefix("CN-").stream())
+                    .toList()));
     }
 
     @PostMapping("/sales/returns/preview")

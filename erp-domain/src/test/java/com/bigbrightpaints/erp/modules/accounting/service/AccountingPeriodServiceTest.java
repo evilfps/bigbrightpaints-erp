@@ -163,10 +163,6 @@ class AccountingPeriodServiceTest {
 
     @Test
     void reopenPeriod_requiresSuperAdminRole() {
-        Company company = company(1L, "ACME");
-        AccountingPeriod period = openPeriod(company, 2026, 2);
-        when(companyContextService.requireCurrentCompany()).thenReturn(company);
-        when(accountingPeriodRepository.lockByCompanyAndId(company, 20L)).thenReturn(Optional.of(period));
         authenticate("accounting.user", "ROLE_ACCOUNTING");
 
         assertThatThrownBy(() -> service.reopenPeriod(20L, null))
@@ -232,11 +228,6 @@ class AccountingPeriodServiceTest {
 
     @Test
     void closePeriod_requiresApprovedMakerCheckerRequest() {
-        Company company = company(1L, "ACME");
-        AccountingPeriod period = openPeriod(company, 2026, 2);
-        when(companyContextService.requireCurrentCompany()).thenReturn(company);
-        when(accountingPeriodRepository.lockByCompanyAndId(company, 30L)).thenReturn(Optional.of(period));
-
         assertThatThrownBy(() -> service.closePeriod(30L, null))
                 .isInstanceOf(ApplicationException.class)
                 .hasMessageContaining("submit /request-close and approve");
@@ -246,6 +237,7 @@ class AccountingPeriodServiceTest {
     void approvePeriodClose_closesAndCapturesSnapshotWhenNetIncomeZero() {
         Company company = company(1L, "ACME");
         AccountingPeriod period = openPeriod(company, 2026, 2);
+        ReflectionTestUtils.setField(period, "id", 31L);
         PeriodCloseRequest pending = pendingCloseRequest(company, period, 501L, "maker.user");
         when(companyContextService.requireCurrentCompany()).thenReturn(company);
         when(accountingPeriodRepository.lockByCompanyAndId(company, 31L)).thenReturn(Optional.of(period), Optional.of(period));
@@ -277,6 +269,7 @@ class AccountingPeriodServiceTest {
     void approvePeriodClose_setsClosingJournalEntryIdWhenNetIncomeNonZero() {
         Company company = company(1L, "ACME");
         AccountingPeriod period = openPeriod(company, 2026, 2);
+        ReflectionTestUtils.setField(period, "id", 32L);
         PeriodCloseRequest pending = pendingCloseRequest(company, period, 502L, "maker.user");
         JournalEntry closingEntry = journalEntryWithId(444L);
         when(companyContextService.requireCurrentCompany()).thenReturn(company);
@@ -306,13 +299,14 @@ class AccountingPeriodServiceTest {
     void approvePeriodClose_uninvoicedReceiptsPreventCloseAndSnapshotCapture() {
         Company company = company(1L, "ACME");
         AccountingPeriod period = openPeriod(company, 2026, 2);
+        ReflectionTestUtils.setField(period, "id", 33L);
         PeriodCloseRequest pending = pendingCloseRequest(company, period, 503L, "maker.user");
         when(companyContextService.requireCurrentCompany()).thenReturn(company);
         when(accountingPeriodRepository.lockByCompanyAndId(company, 33L)).thenReturn(Optional.of(period), Optional.of(period));
         when(periodCloseRequestRepository.lockByCompanyAndAccountingPeriodAndStatus(
                 company, period, PeriodCloseRequestStatus.PENDING)).thenReturn(Optional.of(pending));
         when(goodsReceiptRepository.countByCompanyAndReceiptDateBetweenAndStatusNot(
-                company, period.getStartDate(), period.getEndDate(), "INVOICED")).thenReturn(3L);
+                company, period.getStartDate(), period.getEndDate(), GoodsReceiptStatus.INVOICED)).thenReturn(3L);
         authenticate("checker.user", "ROLE_ADMIN");
 
         assertThatThrownBy(() -> service.approvePeriodClose(33L, new PeriodCloseRequestActionRequest("close", true)))
@@ -327,6 +321,7 @@ class AccountingPeriodServiceTest {
     void approvePeriodClose_failsWhenTrialBalanceIsNotBalanced() {
         Company company = company(1L, "ACME");
         AccountingPeriod period = openPeriod(company, 2026, 2);
+        ReflectionTestUtils.setField(period, "id", 34L);
         PeriodCloseRequest pending = pendingCloseRequest(company, period, 504L, "maker.user");
         period.setBankReconciled(true);
         period.setInventoryCounted(true);

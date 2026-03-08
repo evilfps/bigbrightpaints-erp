@@ -161,10 +161,13 @@ class AccountingControllerJournalEndpointsTest {
         AccountingService accountingService = mock(AccountingService.class);
         JournalEntryService journalEntryService = mock(JournalEntryService.class);
         AccountingController controller = newController(accountingService, journalEntryService, null);
+        when(journalEntryService.listJournalEntriesByReferencePrefix("CRN-")).thenReturn(List.of());
+        when(journalEntryService.listJournalEntriesByReferencePrefix("CN-")).thenReturn(List.of());
 
         controller.listSalesReturns();
 
         verify(journalEntryService).listJournalEntriesByReferencePrefix("CRN-");
+        verify(journalEntryService).listJournalEntriesByReferencePrefix("CN-");
     }
 
     @Test

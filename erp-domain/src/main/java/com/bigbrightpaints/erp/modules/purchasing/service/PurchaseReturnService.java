@@ -321,6 +321,11 @@ public class PurchaseReturnService {
                         entry.setSourceModule("PURCHASING_RETURN");
                         changed = true;
                     }
+                    if (entry.getReversalOf() == null
+                            || !Objects.equals(entry.getReversalOf().getId(), sourceEntry.getId())) {
+                        entry.setReversalOf(sourceEntry);
+                        changed = true;
+                    }
                     if (!Objects.equals(purchaseInvoiceNumber, entry.getSourceReference())) {
                         entry.setSourceReference(purchaseInvoiceNumber);
                         changed = true;

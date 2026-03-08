@@ -9,6 +9,7 @@ import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriod;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriodRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriodStatus;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
+import com.bigbrightpaints.erp.modules.purchasing.domain.GoodsReceiptStatus;
 import com.bigbrightpaints.erp.modules.accounting.domain.ReconciliationDiscrepancyStatus;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalLineRepository;
@@ -306,7 +307,7 @@ class AccountingPeriodServicePolicyTest {
         when(periodCloseRequestRepository.lockByCompanyAndAccountingPeriodAndStatus(
                 company, period, PeriodCloseRequestStatus.PENDING)).thenReturn(Optional.of(pending));
         when(goodsReceiptRepository.countByCompanyAndReceiptDateBetweenAndStatusNot(
-                company, period.getStartDate(), period.getEndDate(), "INVOICED")).thenReturn(0L);
+                company, period.getStartDate(), period.getEndDate(), GoodsReceiptStatus.INVOICED)).thenReturn(0L);
         when(journalEntryRepository.countByCompanyAndEntryDateBetweenAndStatusIn(
                 company, period.getStartDate(), period.getEndDate(), List.of("DRAFT", "PENDING"))).thenReturn(0L);
         when(reportService.inventoryReconciliation()).thenReturn(inventoryReconciliation(BigDecimal.ZERO));

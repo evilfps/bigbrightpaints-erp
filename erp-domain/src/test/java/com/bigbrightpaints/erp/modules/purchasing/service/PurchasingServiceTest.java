@@ -16,9 +16,11 @@ import com.bigbrightpaints.erp.modules.accounting.service.GstService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryType;
+import com.bigbrightpaints.erp.modules.inventory.domain.InventoryReference;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterial;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatch;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatchRepository;
+import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovement;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovementRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialRepository;
 import com.bigbrightpaints.erp.modules.inventory.service.RawMaterialService;
@@ -146,6 +148,7 @@ class PurchasingServiceTest {
         supplier.setName("Test Supplier");
         supplier.setCompany(company);
         supplier.setPayableAccount(payableAccount);
+        supplier.setStatus("ACTIVE");
 
         rawMaterial = new RawMaterial();
         ReflectionTestUtils.setField(rawMaterial, "id", 20L);
@@ -351,9 +354,12 @@ class PurchasingServiceTest {
         when(rawMaterialRepository.lockByCompanyAndId(company, 20L)).thenReturn(Optional.of(rawMaterial));
         when(companyClock.today(company)).thenReturn(LocalDate.now());
 
-        JournalEntryDto journalDto = dummyJournal("PRN-SUP001-ABC123");
+        JournalEntryDto journalDto = dummyJournal("PRN-SUP001-ABC123", 321L);
         when(accountingFacade.postPurchaseReturn(any(), any(), any(), any(), any(), any(), any(), any()))
                 .thenReturn(journalDto);
+        JournalEntry persistedReturnEntry = new JournalEntry();
+        ReflectionTestUtils.setField(persistedReturnEntry, "id", 321L);
+        when(journalEntryRepository.findByCompanyAndId(company, 321L)).thenReturn(Optional.of(persistedReturnEntry));
 
         RawMaterialBatch batch = new RawMaterialBatch();
         ReflectionTestUtils.setField(batch, "id", 55L);
@@ -387,6 +393,10 @@ class PurchasingServiceTest {
         verify(rawMaterialBatchRepository).findAvailableBatchesFIFO(rawMaterial);
         verify(rawMaterialBatchRepository).deductQuantityIfSufficient(55L, BigDecimal.valueOf(5));
         verify(movementRepository).saveAll(any());
+        verify(journalEntryRepository).save(argThat(entry -> entry.getId().equals(321L)
+                && entry.getReversalOf() != null
+                && entry.getReversalOf().getId().equals(931L)
+                && "PURCHASE_RETURN".equals(entry.getCorrectionReason())));
         assert result != null;
     }
 
@@ -1076,6 +1086,26 @@ class PurchasingServiceTest {
         privateReceiptLine.setRawMaterialBatch(privateBatch);
         receipt.getLines().add(privateReceiptLine);
 
+        RawMaterialMovement baseMovement = new RawMaterialMovement();
+        ReflectionTestUtils.setField(baseMovement, "id", 2207L);
+        baseMovement.setRawMaterial(rawMaterial);
+        baseMovement.setReferenceType(InventoryReference.GOODS_RECEIPT);
+        baseMovement.setReferenceId(receipt.getReceiptNumber());
+        baseMovement.setQuantity(BigDecimal.TEN);
+        baseMovement.setUnitCost(BigDecimal.valueOf(5));
+
+        RawMaterialMovement privateMovement = new RawMaterialMovement();
+        ReflectionTestUtils.setField(privateMovement, "id", 2307L);
+        privateMovement.setRawMaterial(privateMaterial);
+        privateMovement.setReferenceType(InventoryReference.GOODS_RECEIPT);
+        privateMovement.setReferenceId(receipt.getReceiptNumber());
+        privateMovement.setQuantity(new BigDecimal("4"));
+        privateMovement.setUnitCost(new BigDecimal("3.00"));
+        when(movementRepository.findByRawMaterialCompanyAndReferenceTypeAndReferenceId(
+                company,
+                InventoryReference.GOODS_RECEIPT,
+                receipt.getReceiptNumber())).thenReturn(List.of(baseMovement, privateMovement));
+
         when(goodsReceiptRepository.lockByCompanyAndId(company, 307L)).thenReturn(Optional.of(receipt));
         when(purchaseRepository.findByCompanyAndGoodsReceipt(company, receipt)).thenReturn(Optional.empty());
 
@@ -1216,6 +1246,18 @@ class PurchasingServiceTest {
         batch.setCostPerUnit(costPerUnit);
         line.setRawMaterialBatch(batch);
         receipt.getLines().add(line);
+
+        RawMaterialMovement movement = new RawMaterialMovement();
+        ReflectionTestUtils.setField(movement, "id", receiptId + 2000);
+        movement.setRawMaterial(material);
+        movement.setReferenceType(InventoryReference.GOODS_RECEIPT);
+        movement.setReferenceId(receipt.getReceiptNumber());
+        movement.setQuantity(quantity);
+        movement.setUnitCost(costPerUnit);
+        when(movementRepository.findByRawMaterialCompanyAndReferenceTypeAndReferenceId(
+                company,
+                InventoryReference.GOODS_RECEIPT,
+                receipt.getReceiptNumber())).thenReturn(List.of(movement));
         return receipt;
     }
 

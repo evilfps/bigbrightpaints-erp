@@ -42,6 +42,7 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -232,6 +233,16 @@ public class SalesReturnService {
             returnAlreadyProcessed = inventoryMovementRepository
                     .existsByFinishedGood_CompanyAndReferenceTypeAndReferenceIdContainingIgnoreCase(
                             company, SALES_RETURN_REFERENCE, marker);
+            if (!returnAlreadyProcessed) {
+                ReturnMovementSummary existingReturns = loadReturnMovements(company, invoice.getInvoiceNumber());
+                returnAlreadyProcessed = matchesLegacyReplay(
+                        existingReturns,
+                        requestedReturnQtyByLine,
+                        invoiceLines,
+                        finishedGoodsByCode,
+                        returnProductCodes,
+                        invoiceLineIdsByFg);
+            }
         }
         if (!returnAlreadyProcessed) {
             ReturnMovementSummary existingReturns = loadReturnMovements(company, invoice.getInvoiceNumber());
@@ -671,6 +682,11 @@ public class SalesReturnService {
                         entry.setSourceModule("SALES_RETURN");
                         changed = true;
                     }
+                    if (entry.getReversalOf() == null
+                            || !Objects.equals(entry.getReversalOf().getId(), sourceJournal.getId())) {
+                        entry.setReversalOf(sourceJournal);
+                        changed = true;
+                    }
                     if (!invoiceNumber.equals(entry.getSourceReference())) {
                         entry.setSourceReference(invoiceNumber);
                         changed = true;
@@ -689,17 +705,30 @@ public class SalesReturnService {
         if (journalEntryId == null || request == null || request.lines() == null || request.lines().isEmpty()) {
             return;
         }
-        List<InventoryMovement> existingMovements = inventoryMovementRepository
+        List<InventoryMovement> existingMovements = new java.util.ArrayList<>();
+        List<InventoryMovement> invoiceMovements = inventoryMovementRepository
+                .findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdOrderByCreatedAtAsc(
+                        company,
+                        SALES_RETURN_REFERENCE,
+                        invoiceNumber);
+        if (invoiceMovements != null && !invoiceMovements.isEmpty()) {
+            existingMovements.addAll(invoiceMovements);
+        }
+        List<InventoryMovement> lineMovements = inventoryMovementRepository
                 .findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdStartingWithOrderByCreatedAtAsc(
                         company,
                         SALES_RETURN_REFERENCE,
                         invoiceNumber + SALES_RETURN_LINE_SEPARATOR);
-        if (existingMovements == null || existingMovements.isEmpty()) {
+        if (lineMovements != null && !lineMovements.isEmpty()) {
+            existingMovements.addAll(lineMovements);
+        }
+        if (existingMovements.isEmpty()) {
             return;
         }
         Set<String> expectedReferences = request.lines().stream()
-                .map(line -> buildReturnReference(invoiceNumber, line.invoiceLineId(), returnKey))
+                .flatMap(line -> StreamReferenceHelper.salesReturnReferences(invoiceNumber, line.invoiceLineId(), returnKey).stream())
                 .collect(Collectors.toSet());
+        expectedReferences.add(invoiceNumber);
         boolean changed = false;
         for (InventoryMovement movement : existingMovements) {
             if (!expectedReferences.contains(movement.getReferenceId())) {
@@ -926,6 +955,91 @@ public class SalesReturnService {
         return new ReturnMovementSummary(totalsByLine, totalsByFinishedGood);
     }
 
+    private boolean matchesLegacyReplay(ReturnMovementSummary existingReturns,
+                                        Map<Long, BigDecimal> requestedReturnQtyByLine,
+                                        Map<Long, InvoiceLine> invoiceLines,
+                                        Map<String, FinishedGood> finishedGoodsByCode,
+                                        Set<String> returnProductCodes,
+                                        Map<Long, List<Long>> invoiceLineIdsByFg) {
+        if (existingReturns == null || requestedReturnQtyByLine == null || requestedReturnQtyByLine.isEmpty()) {
+            return false;
+        }
+        Map<Long, BigDecimal> replayQuantitiesByLine = deriveLegacyReplayQuantitiesByLine(
+                existingReturns,
+                invoiceLines,
+                finishedGoodsByCode,
+                returnProductCodes,
+                invoiceLineIdsByFg);
+        if (replayQuantitiesByLine.size() != requestedReturnQtyByLine.size()) {
+            return false;
+        }
+        for (Map.Entry<Long, BigDecimal> requested : requestedReturnQtyByLine.entrySet()) {
+            BigDecimal existing = replayQuantitiesByLine.get(requested.getKey());
+            if (existing == null || existing.compareTo(requested.getValue()) != 0) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private Map<Long, BigDecimal> deriveLegacyReplayQuantitiesByLine(ReturnMovementSummary existingReturns,
+                                                                      Map<Long, InvoiceLine> invoiceLines,
+                                                                      Map<String, FinishedGood> finishedGoodsByCode,
+                                                                      Set<String> returnProductCodes,
+                                                                      Map<Long, List<Long>> invoiceLineIdsByFg) {
+        Map<Long, BigDecimal> existingReturnsByLine = existingReturns.byInvoiceLineId();
+        Map<Long, BigDecimal> legacyReturnsByLine = new LinkedHashMap<>(existingReturnsByLine);
+        Map<Long, BigDecimal> legacyReturnsByFg = new LinkedHashMap<>();
+        existingReturns.byFinishedGoodId().forEach(legacyReturnsByFg::put);
+        for (Map.Entry<Long, BigDecimal> entry : existingReturnsByLine.entrySet()) {
+            InvoiceLine invoiceLine = invoiceLines.get(entry.getKey());
+            if (invoiceLine == null || invoiceLine.getProductCode() == null) {
+                continue;
+            }
+            if (!returnProductCodes.contains(invoiceLine.getProductCode())) {
+                continue;
+            }
+            FinishedGood finishedGood = finishedGoodsByCode.get(invoiceLine.getProductCode());
+            if (finishedGood == null || finishedGood.getId() == null) {
+                continue;
+            }
+            legacyReturnsByFg.merge(finishedGood.getId(), entry.getValue().negate(), BigDecimal::add);
+        }
+        for (Map.Entry<Long, BigDecimal> entry : legacyReturnsByFg.entrySet()) {
+            BigDecimal remainingLegacy = entry.getValue();
+            if (remainingLegacy == null || remainingLegacy.compareTo(BigDecimal.ZERO) <= 0) {
+                continue;
+            }
+            List<Long> lineIds = invoiceLineIdsByFg.getOrDefault(entry.getKey(), List.of());
+            if (lineIds.isEmpty()) {
+                continue;
+            }
+            java.util.ArrayList<Long> orderedLineIds = new java.util.ArrayList<>(lineIds);
+            orderedLineIds.sort(Comparator.naturalOrder());
+            for (Long lineId : orderedLineIds) {
+                InvoiceLine invoiceLine = invoiceLines.get(lineId);
+                if (invoiceLine == null) {
+                    continue;
+                }
+                BigDecimal lineQty = quantityValue(invoiceLine.getQuantity());
+                BigDecimal lineReturned = legacyReturnsByLine.getOrDefault(lineId, BigDecimal.ZERO);
+                BigDecimal lineRemaining = lineQty.subtract(lineReturned);
+                if (lineRemaining.compareTo(BigDecimal.ZERO) <= 0) {
+                    continue;
+                }
+                BigDecimal allocate = remainingLegacy.min(lineRemaining);
+                if (allocate.compareTo(BigDecimal.ZERO) > 0) {
+                    legacyReturnsByLine.merge(lineId, allocate, BigDecimal::add);
+                    remainingLegacy = remainingLegacy.subtract(allocate);
+                }
+                if (remainingLegacy.compareTo(BigDecimal.ZERO) <= 0) {
+                    break;
+                }
+            }
+        }
+        return legacyReturnsByLine;
+    }
+
     private String buildReturnReference(String invoiceNumber, Long invoiceLineId) {
         return buildReturnReference(invoiceNumber, invoiceLineId, null);
     }
@@ -940,6 +1054,21 @@ public class SalesReturnService {
             return base;
         }
         return base + SALES_RETURN_KEY_SEPARATOR + returnKey;
+    }
+
+    private static final class StreamReferenceHelper {
+        private static List<String> salesReturnReferences(String invoiceNumber, Long invoiceLineId, String returnKey) {
+            String base = invoiceNumber != null && invoiceLineId != null
+                    ? invoiceNumber.trim() + SALES_RETURN_LINE_SEPARATOR + invoiceLineId
+                    : invoiceNumber;
+            if (!StringUtils.hasText(base)) {
+                return List.of();
+            }
+            if (!StringUtils.hasText(returnKey)) {
+                return List.of(base);
+            }
+            return List.of(base, base + SALES_RETURN_KEY_SEPARATOR + returnKey);
+        }
     }
 
     private String buildReturnIdempotencyKey(Invoice invoice, SalesReturnRequest request) {
