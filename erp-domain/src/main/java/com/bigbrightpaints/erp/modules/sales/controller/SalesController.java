@@ -327,7 +327,7 @@ public class SalesController {
 
     /* Dispatch confirmation (final invoice + AR at shipment) */
     @PostMapping("/sales/dispatch/confirm")
-    @PreAuthorize("hasAnyAuthority('ROLE_FACTORY','ROLE_ADMIN') and hasAuthority('dispatch.confirm')")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING') and hasAuthority('dispatch.confirm')")
     public ResponseEntity<ApiResponse<DispatchConfirmResponse>> confirmDispatch(@Valid @RequestBody DispatchConfirmRequest request) {
         return ResponseEntity.ok(ApiResponse.success("Dispatch confirmed", salesDispatchReconciliationService.confirmDispatch(request)));
     }

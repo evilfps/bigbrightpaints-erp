@@ -16,8 +16,6 @@ import com.bigbrightpaints.erp.modules.inventory.domain.PackagingSlipRepository;
 import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrder;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrderRepository;
-import com.bigbrightpaints.erp.modules.sales.dto.DispatchConfirmRequest;
-import com.bigbrightpaints.erp.modules.sales.dto.DispatchConfirmResponse;
 import com.bigbrightpaints.erp.modules.sales.service.SalesDispatchReconciliationService;
 import com.bigbrightpaints.erp.modules.sales.service.SalesJournalService;
 import com.bigbrightpaints.erp.modules.sales.service.SalesOrderCrudService;
@@ -29,7 +27,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageImpl;
@@ -84,7 +81,6 @@ class InvoiceServiceTest {
                 companyContextService,
                 invoiceRepository,
                 salesOrderCrudService,
-                salesDispatchReconciliationService,
                 salesOrderRepository,
                 companyEntityLookup,
                 packagingSlipRepository,
@@ -274,7 +270,7 @@ class InvoiceServiceTest {
     }
 
     @Test
-    void issueInvoiceForOrder_usesSingleActiveSlipWhenSecondarySlipCancelled() {
+    void issueInvoiceForOrder_requiresDispatchOwnedInvoiceBoundaryWhenSlipExistsWithoutInvoice() {
         Long orderId = 78L;
         when(companyContextService.requireCurrentCompany()).thenReturn(company);
         when(invoiceRepository.findAllByCompanyAndSalesOrderId(company, orderId)).thenReturn(List.of());
@@ -296,31 +292,9 @@ class InvoiceServiceTest {
         cancelledSlip.setStatus("CANCELLED");
         when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, orderId))
                 .thenReturn(List.of(activeSlip, cancelledSlip));
+        assertThrows(ApplicationException.class, () -> invoiceService.issueInvoiceForOrder(orderId));
 
-        DispatchConfirmResponse response = new DispatchConfirmResponse(
-                activeSlip.getId(),
-                orderId,
-                223L,
-                null,
-                List.of(),
-                true,
-                List.of(),
-                null
-        );
-        when(salesDispatchReconciliationService.confirmDispatch(any())).thenReturn(response);
-
-        Invoice invoice = new Invoice();
-        ReflectionTestUtils.setField(invoice, "id", 223L);
-        invoice.setCompany(company);
-        invoice.setInvoiceNumber("INV-78");
-        when(invoiceRepository.findByCompanyAndId(company, 223L)).thenReturn(Optional.of(invoice));
-
-        InvoiceDto dto = invoiceService.issueInvoiceForOrder(orderId);
-
-        ArgumentCaptor<DispatchConfirmRequest> requestCaptor = ArgumentCaptor.forClass(DispatchConfirmRequest.class);
-        verify(salesDispatchReconciliationService).confirmDispatch(requestCaptor.capture());
-        assertThat(requestCaptor.getValue().packingSlipId()).isEqualTo(199L);
-        assertThat(dto.id()).isEqualTo(223L);
+        verifyNoInteractions(salesDispatchReconciliationService);
     }
 
     @Test
@@ -388,7 +362,7 @@ class InvoiceServiceTest {
     }
 
     @Test
-    void issueInvoiceForOrder_usesDispatchConfirmationWhenSlipExists() {
+    void issueInvoiceForOrder_returnsInvoiceLinkedToDispatchedSlip() {
         Long orderId = 77L;
         when(companyContextService.requireCurrentCompany()).thenReturn(company);
         when(invoiceRepository.findAllByCompanyAndSalesOrderId(company, orderId)).thenReturn(List.of());
@@ -404,19 +378,9 @@ class InvoiceServiceTest {
 
         PackagingSlip slip = new PackagingSlip();
         ReflectionTestUtils.setField(slip, "id", 99L);
+        slip.setStatus("DISPATCHED");
+        slip.setInvoiceId(123L);
         when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, orderId)).thenReturn(List.of(slip));
-
-        DispatchConfirmResponse response = new DispatchConfirmResponse(
-                slip.getId(),
-                orderId,
-                123L,
-                null,
-                List.of(),
-                true,
-                List.of(),
-                null
-        );
-        when(salesDispatchReconciliationService.confirmDispatch(any())).thenReturn(response);
 
         Invoice invoice = new Invoice();
         ReflectionTestUtils.setField(invoice, "id", 123L);
@@ -426,12 +390,8 @@ class InvoiceServiceTest {
 
         InvoiceDto dto = invoiceService.issueInvoiceForOrder(orderId);
 
-        ArgumentCaptor<DispatchConfirmRequest> requestCaptor = ArgumentCaptor.forClass(DispatchConfirmRequest.class);
-        verify(salesDispatchReconciliationService).confirmDispatch(requestCaptor.capture());
-        assertThat(requestCaptor.getValue().packingSlipId()).isEqualTo(99L);
         assertThat(dto.id()).isEqualTo(123L);
-
-        verifyNoInteractions(invoiceNumberService);
+        verifyNoInteractions(salesDispatchReconciliationService, invoiceNumberService);
     }
 
     @Test

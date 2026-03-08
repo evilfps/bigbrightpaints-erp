@@ -19,9 +19,6 @@ import com.bigbrightpaints.erp.modules.inventory.domain.PackagingSlipRepository;
 import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrder;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrderRepository;
-import com.bigbrightpaints.erp.modules.sales.dto.DispatchConfirmRequest;
-import com.bigbrightpaints.erp.modules.sales.dto.DispatchConfirmResponse;
-import com.bigbrightpaints.erp.modules.sales.service.SalesDispatchReconciliationService;
 import com.bigbrightpaints.erp.modules.sales.service.SalesOrderCrudService;
 import com.bigbrightpaints.erp.shared.dto.DocumentLifecycleDto;
 import com.bigbrightpaints.erp.shared.dto.LinkedBusinessReferenceDto;
@@ -29,7 +26,6 @@ import jakarta.transaction.Transactional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -44,14 +40,21 @@ public class InvoiceService {
     private final CompanyContextService companyContextService;
     private final InvoiceRepository invoiceRepository;
     private final SalesOrderCrudService salesOrderCrudService;
-    private final SalesDispatchReconciliationService salesDispatchReconciliationService;
     private final SalesOrderRepository salesOrderRepository;
     private final CompanyEntityLookup companyEntityLookup;
-    private final PackagingSlipRepository packagingSlipRepository; private final PartnerSettlementAllocationRepository settlementAllocationRepository; public InvoiceService(CompanyContextService companyContextService, InvoiceRepository invoiceRepository, SalesOrderCrudService salesOrderCrudService, SalesDispatchReconciliationService salesDispatchReconciliationService, SalesOrderRepository salesOrderRepository, CompanyEntityLookup companyEntityLookup, PackagingSlipRepository packagingSlipRepository, PartnerSettlementAllocationRepository settlementAllocationRepository) {
+    private final PackagingSlipRepository packagingSlipRepository;
+    private final PartnerSettlementAllocationRepository settlementAllocationRepository;
+
+    public InvoiceService(CompanyContextService companyContextService,
+                          InvoiceRepository invoiceRepository,
+                          SalesOrderCrudService salesOrderCrudService,
+                          SalesOrderRepository salesOrderRepository,
+                          CompanyEntityLookup companyEntityLookup,
+                          PackagingSlipRepository packagingSlipRepository,
+                          PartnerSettlementAllocationRepository settlementAllocationRepository) {
         this.companyContextService = companyContextService;
         this.invoiceRepository = invoiceRepository;
         this.salesOrderCrudService = salesOrderCrudService;
-        this.salesDispatchReconciliationService = salesDispatchReconciliationService;
         this.salesOrderRepository = salesOrderRepository;
         this.companyEntityLookup = companyEntityLookup;
         this.packagingSlipRepository = packagingSlipRepository;
@@ -91,26 +94,16 @@ public class InvoiceService {
             PackagingSlip slip = findSingleActiveSlip(slips);
             if (slip == null) {
                 throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
-                        "Packing slip is required before issuing an invoice; issue invoices per dispatch");
+                        "Dispatch confirmation is required before issuing an invoice; issue invoices per dispatch");
             }
-            DispatchConfirmResponse response = salesDispatchReconciliationService.confirmDispatch(new DispatchConfirmRequest(
-                    slip.getId(),
-                    null,
-                    null,
-                    null,
-                    null,
-                    Boolean.FALSE,
-                    null,
-                    null
-            ));
-            if (response == null || response.finalInvoiceId() == null) {
+            if (!"DISPATCHED".equalsIgnoreCase(slip.getStatus()) || slip.getInvoiceId() == null) {
                 throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
-                        "Dispatch confirmation did not produce an invoice");
+                        "Final invoice is created by dispatch confirmation; confirm dispatch on the packaging slip first");
             }
-            return getInvoice(response.finalInvoiceId());
+            return getInvoice(slip.getInvoiceId());
         }
         throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
-                "Packing slip is required before issuing an invoice; issue invoices per dispatch");
+                "Dispatch confirmation is required before issuing an invoice; issue invoices per dispatch");
     }
 
     private void linkInvoiceToPackagingSlip(SalesOrder order,

@@ -54,6 +54,18 @@ public class PackagingSlip extends VersionedEntity {
     @Column(name = "dispatch_notes", length = 1000)
     private String dispatchNotes;
 
+    @Column(name = "transporter_name", length = 255)
+    private String transporterName;
+
+    @Column(name = "driver_name", length = 255)
+    private String driverName;
+
+    @Column(name = "vehicle_number", length = 120)
+    private String vehicleNumber;
+
+    @Column(name = "challan_reference", length = 255)
+    private String challanReference;
+
     @Column(name = "journal_entry_id")
     private Long journalEntryId;
 
@@ -97,6 +109,14 @@ public class PackagingSlip extends VersionedEntity {
     public void setConfirmedBy(String confirmedBy) { this.confirmedBy = confirmedBy; }
     public String getDispatchNotes() { return dispatchNotes; }
     public void setDispatchNotes(String dispatchNotes) { this.dispatchNotes = dispatchNotes; }
+    public String getTransporterName() { return transporterName; }
+    public void setTransporterName(String transporterName) { this.transporterName = transporterName; }
+    public String getDriverName() { return driverName; }
+    public void setDriverName(String driverName) { this.driverName = driverName; }
+    public String getVehicleNumber() { return vehicleNumber; }
+    public void setVehicleNumber(String vehicleNumber) { this.vehicleNumber = vehicleNumber; }
+    public String getChallanReference() { return challanReference; }
+    public void setChallanReference(String challanReference) { this.challanReference = challanReference; }
     public Long getJournalEntryId() { return journalEntryId; }
     public void setJournalEntryId(Long journalEntryId) { this.journalEntryId = journalEntryId; }
     public Long getCogsJournalEntryId() { return cogsJournalEntryId; }

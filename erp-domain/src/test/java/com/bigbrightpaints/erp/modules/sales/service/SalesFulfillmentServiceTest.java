@@ -1,21 +1,15 @@
 package com.bigbrightpaints.erp.modules.sales.service;
 
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
 import com.bigbrightpaints.erp.modules.inventory.domain.PackagingSlipRepository;
 import com.bigbrightpaints.erp.modules.inventory.service.FinishedGoodsService;
 import com.bigbrightpaints.erp.modules.invoice.dto.InvoiceDto;
 import com.bigbrightpaints.erp.modules.invoice.service.InvoiceService;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrder;
-import com.bigbrightpaints.erp.modules.sales.domain.SalesOrderRepository;
 import com.bigbrightpaints.erp.modules.sales.dto.DispatchConfirmResponse;
-import com.bigbrightpaints.erp.core.util.CompanyClock;
 import java.lang.reflect.Field;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -33,19 +27,11 @@ class SalesFulfillmentServiceTest {
     @Mock
     private SalesService salesService;
     @Mock
-    private SalesOrderRepository salesOrderRepository;
-    @Mock
     private FinishedGoodsService finishedGoodsService;
     @Mock
     private PackagingSlipRepository packagingSlipRepository;
     @Mock
-    private SalesJournalService salesJournalService;
-    @Mock
-    private AccountingFacade accountingFacade;
-    @Mock
     private InvoiceService invoiceService;
-    @Mock
-    private CompanyClock companyClock;
 
     private SalesFulfillmentService fulfillmentService;
 
@@ -53,13 +39,9 @@ class SalesFulfillmentServiceTest {
     void setup() {
         fulfillmentService = new SalesFulfillmentService(
                 salesService,
-                salesOrderRepository,
                 finishedGoodsService,
                 packagingSlipRepository,
-                salesJournalService,
-                accountingFacade,
-                invoiceService,
-                companyClock);
+                invoiceService);
     }
 
     @Test
@@ -88,8 +70,6 @@ class SalesFulfillmentServiceTest {
 
         var result = fulfillmentService.fulfillOrder(1L, options);
 
-        // Sales journal should be skipped to avoid double posting
-        verify(salesJournalService, never()).postSalesJournal(any(), any(), anyString(), any(), anyString());
         verify(salesService).confirmDispatch(any());
         verify(invoiceService).getInvoice(10L);
         org.junit.jupiter.api.Assertions.assertEquals(555L, result.salesJournalId());
@@ -122,7 +102,6 @@ class SalesFulfillmentServiceTest {
 
         var result = fulfillmentService.fulfillOrder(2L, options);
 
-        verify(salesJournalService, never()).postSalesJournal(any(), any(), anyString(), any(), anyString());
         verify(salesService).confirmDispatch(any());
         verify(invoiceService).getInvoice(11L);
         org.junit.jupiter.api.Assertions.assertEquals(999L, result.salesJournalId());
@@ -155,8 +134,6 @@ class SalesFulfillmentServiceTest {
         fulfillmentService.fulfillOrder(3L, options);
 
         verify(salesService).confirmDispatch(any());
-        verify(finishedGoodsService, never()).markSlipDispatched(anyLong());
-        verify(accountingFacade, never()).postCogsJournal(anyString(), any(), any(), anyString(), any());
     }
 
     @Test

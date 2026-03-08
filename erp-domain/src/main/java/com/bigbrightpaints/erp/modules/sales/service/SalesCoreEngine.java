@@ -2916,7 +2916,11 @@ public class SalesCoreEngine {
                             confirmations,
                             dispatchNotes,
                             request.confirmedBy(),
-                            request.overrideRequestId()
+                            request.overrideRequestId(),
+                            request.transporterName(),
+                            request.driverName(),
+                            request.vehicleNumber(),
+                            request.challanReference()
                     ),
                     request.confirmedBy() != null ? request.confirmedBy() : "system"
             );

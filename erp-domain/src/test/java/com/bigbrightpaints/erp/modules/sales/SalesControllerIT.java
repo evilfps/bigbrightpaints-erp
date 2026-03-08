@@ -335,7 +335,7 @@ public class SalesControllerIT extends AbstractIntegrationTest {
     }
 
     @Test
-    void dispatch_confirm_allows_factory_with_dispatch_confirm_authority_to_reach_business_validation() {
+    void dispatch_confirm_denies_factory_on_financial_dispatch_endpoint() {
         String token = loginToken(FACTORY_DISPATCH_EMAIL, FACTORY_DISPATCH_PASSWORD);
 
         HttpHeaders headers = new HttpHeaders();
@@ -356,8 +356,7 @@ public class SalesControllerIT extends AbstractIntegrationTest {
                 HttpMethod.POST,
                 new HttpEntity<>(payload, headers),
                 Map.class);
-        assertThat(response.getStatusCode()).isNotEqualTo(HttpStatus.FORBIDDEN);
-        assertThat(response.getStatusCode().is4xxClientError()).isTrue();
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
     }
 
     @Test
