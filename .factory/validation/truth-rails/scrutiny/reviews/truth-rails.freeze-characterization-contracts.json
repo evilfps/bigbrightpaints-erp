@@ -1,0 +1,22 @@
+{
+  "featureId": "truth-rails.freeze-characterization-contracts",
+  "reviewedAt": "2026-03-08T05:37:13+05:30",
+  "commitId": "a9c96cb30599ed4ba178c0c95bce75cd2b78a396",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The packet added meaningful characterization coverage across the intended replay and linkage hotspots without changing production behavior. The updated hotspot tests and milestone validators support the feature's stated goal of freezing current truth-rail behavior before deeper refactors.",
+    "issues": [
+      {
+        "file": "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingPeriodServicePolicyTest.java",
+        "line": 1,
+        "severity": "non_blocking",
+        "description": "A pre-existing stale policy suite remains outside the packet: direct runs of AccountingPeriodServicePolicyTest still fail against the current maker-checker close/reopen workflow, so close-policy characterization is not yet fully aligned in the broader accounting-policy surface."
+      }
+    ]
+  },
+  "sharedStateObservations": [],
+  "addressesFailureFrom": null,
+  "summary": "Pass. The feature successfully froze the targeted replay/linkage seams, though a separate stale period-policy test class remains as a non-blocking adjacent issue."
+}

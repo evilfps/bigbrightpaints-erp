@@ -1,0 +1,59 @@
+{
+  "milestone": "truth-rails",
+  "round": 1,
+  "status": "fail",
+  "validatorsRun": {
+    "test": {
+      "passed": true,
+      "command": "cd /home/realnigga/Desktop/Mission-control/erp-domain && MIGRATION_SET=v2 mvn -T8 test -Pgate-fast -Djacoco.skip=true",
+      "exitCode": 0
+    },
+    "typecheck": {
+      "passed": true,
+      "command": "cd /home/realnigga/Desktop/Mission-control/erp-domain && MIGRATION_SET=v2 mvn -T8 compile -q",
+      "exitCode": 0
+    },
+    "lint": {
+      "passed": true,
+      "command": "bash /home/realnigga/Desktop/Mission-control/ci/lint-knowledgebase.sh && bash /home/realnigga/Desktop/Mission-control/ci/check-architecture.sh && bash /home/realnigga/Desktop/Mission-control/ci/check-enterprise-policy.sh && bash /home/realnigga/Desktop/Mission-control/ci/check-orchestrator-layer.sh && python3 /home/realnigga/Desktop/Mission-control/scripts/check_flaky_tags.py --tests-root /home/realnigga/Desktop/Mission-control/erp-domain/src/test/java --gate gate-fast && bash /home/realnigga/Desktop/Mission-control/scripts/guard_openapi_contract_drift.sh",
+      "exitCode": 0
+    }
+  },
+  "reviewsSummary": {
+    "total": 5,
+    "passed": 4,
+    "failed": 1,
+    "failedFeatures": [
+      "truth-rails.shared-truth-contracts-and-state-split"
+    ]
+  },
+  "blockingIssues": [
+    {
+      "featureId": "truth-rails.shared-truth-contracts-and-state-split",
+      "severity": "blocking",
+      "description": "`BusinessDocumentTruths.salesOrderLifecycle` reports accounting status `PENDING` for any sales order with a workflow status even when the order has neither `fulfillmentInvoiceId` nor `salesJournalEntryId`, so linked-reference surfaces can still overstate accounting eligibility before dispatch/invoice truth exists."
+    }
+  ],
+  "appliedUpdates": [],
+  "suggestedGuidanceUpdates": [
+    {
+      "target": ".factory/skills/backend-worker/SKILL.md",
+      "suggestion": "Clarify that Step 5 frontend-handoff/frontend-v2 updates are mandatory only when the feature actually changes a frontend-facing contract and no higher-priority mission instruction forbids doc edits.",
+      "evidence": "`truth-rails.shared-truth-contracts-and-state-split` completed successfully but had to deviate because the session instructions said not to update docs unless explicitly requested; its handoff skillFeedback documents the conflict.",
+      "isSystemic": true
+    },
+    {
+      "target": ".factory/skills/security-backend-worker/SKILL.md",
+      "suggestion": "Clarify that Step 5 shared-knowledge/doc updates can be skipped when a higher-priority no-docs instruction applies and the feature preserves existing auth/admin request-response shapes.",
+      "evidence": "`truth-rails.restore-tenant-runtime-baseline` preserved the endpoint contract but still had to deviate from the skill's mandatory doc-update wording; the handoff records the justified conflict.",
+      "isSystemic": true
+    }
+  ],
+  "rejectedObservations": [
+    {
+      "observation": "The scrutiny-feature-reviewer Task droid intermittently failed to launch with `Invalid model: custom:CLIProxyAPI-5.4-high-pro`.",
+      "reason": "outside-repo-tooling"
+    }
+  ],
+  "previousRound": null
+}

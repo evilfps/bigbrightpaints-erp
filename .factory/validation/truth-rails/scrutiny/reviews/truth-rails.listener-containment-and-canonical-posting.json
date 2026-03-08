@@ -1,0 +1,15 @@
+{
+  "featureId": "truth-rails.listener-containment-and-canonical-posting",
+  "reviewedAt": "2026-03-08T05:37:13+05:30",
+  "commitId": "d56e2a8cd5259deaed494ff8e0b981af5b445847",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The packet materially reduced duplicate-posting risk by removing GRN-side account-bearing event publication and teaching the inventory listener to skip canonical workflow-owned boundaries. The regression and invariant updates provide direct evidence that GRN stays stock-only until purchase-invoice posting and that listener-side duplicates are suppressed.",
+    "issues": []
+  },
+  "sharedStateObservations": [],
+  "addressesFailureFrom": null,
+  "summary": "Pass. Canonical posting ownership is clearer after the listener containment changes, and the updated regression/invariant suites back the behavior."
+}
