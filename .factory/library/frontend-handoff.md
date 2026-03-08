@@ -1896,13 +1896,14 @@ Auth for report controller endpoints: `hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUN
    5. Verify stock: `GET /api/v1/finished-goods/stock-summary` + `GET /api/v1/finished-goods/{id}/batches`.
    6. Optional size conversion: `POST /api/v1/factory/pack`.
 
-3. **Dispatch flow (`reserve -> preview -> confirm`)**
+3. **Dispatch flow (`reserve -> operational confirm -> accounting posting`)**
    1. Inventory reservation is created during sales order create/update flows (`POST/PUT /api/v1/sales/orders...`) via `SalesService.reserveForOrder`; there is no standalone reserve endpoint.
    2. Resolve slip: `GET /api/v1/dispatch/order/{orderId}` (or list via `/pending`).
-   3. Show preview modal: `GET /api/v1/dispatch/preview/{slipId}`.
-   4. Confirm actual shipped quantities: `POST /api/v1/dispatch/confirm` (this finalizes shipment + accounting; it does not perform initial reservation).
-   5. Refresh slip and totals: `GET /api/v1/dispatch/slip/{slipId}`.
-   6. If needed, cancel generated backorder slip: `POST /api/v1/dispatch/backorder/{slipId}/cancel`.
+   3. Show the operational preview modal with `GET /api/v1/dispatch/preview/{slipId}` and expect redacted pricing/accounting fields.
+   4. Factory/admin confirm shipment details with `POST /api/v1/dispatch/confirm`; this captures logistics metadata and challan output for the operational workspace.
+   5. Accounting/admin use `POST /api/v1/sales/dispatch/confirm` when the UI needs the finance posting/invoice result.
+   6. Refresh slip state via `GET /api/v1/dispatch/slip/{slipId}`.
+   7. If needed, cancel generated backorder slip: `POST /api/v1/dispatch/backorder/{slipId}/cancel`.
 
 4. **Inventory adjustment flow (finished goods)**
    1. Build adjustment payload with explicit type: `DAMAGED`, `SHRINKAGE`, `OBSOLETE`, or `RECOUNT_UP`.
@@ -2008,11 +2009,11 @@ Operational statuses: `PENDING`, `PENDING_STOCK`, `PENDING_PRODUCTION`, `RESERVE
 - `PageResponse<OpeningStockImportHistoryItem>`: paginated import history payload for `GET /api/v1/inventory/opening-stock`.
 - `PackagingSlipDto`: slip identity + order/dealer + status/timestamps + journal links + `lines[]`.
 - `PackagingSlipLineDto`: line batch/product/ordered/shipped/backorder/qty/cost/notes fields.
-- `DispatchPreviewDto`: slip/order/dealer summary + `lines[]` with availability/suggested ship quantities.
+- `DispatchPreviewDto`: slip/order/dealer summary + `lines[]` with availability/suggested ship quantities; on the operational factory/admin surface, pricing/tax fields are redacted and `gstBreakdown` is `null`.
 - `DispatchConfirmationRequest`: `packagingSlipId*`, `lines*`, `notes`, `confirmedBy`, `overrideRequestId`.
 - `DispatchConfirmationRequest.LineConfirmation`: `lineId*`, `shippedQuantity*`, `notes`.
-- `DispatchConfirmationResponse`: slip + totals + `lines[]` + `backorderSlipId`.
-- `DispatchConfirmationResponse.LineResult`: ordered/shipped/backorder quantities + costing and notes.
+- `DispatchConfirmationResponse`: operational dispatch result with slip identity, logistics metadata, challan details/path, `lines[]`, and optional `backorderSlipId`; finance-only fields such as posted journal ids and commercial totals are redacted on this surface.
+- `DispatchConfirmationResponse.LineResult`: ordered/shipped/backorder quantities plus notes; costing/price fields are intentionally redacted for factory-role consumers.
 
 ##### Manufacturing DTOs
 
@@ -2102,7 +2103,7 @@ Operational statuses: `PENDING`, `PENDING_STOCK`, `PENDING_PRODUCTION`, `RESERVE
 | `GET` | `/api/v1/dealer-portal/invoices` | `ROLE_DEALER` | — | `Map<String,Object>` |
 | `GET` | `/api/v1/dealer-portal/aging` | `ROLE_DEALER` | — | `Map<String,Object>` |
 | `GET` | `/api/v1/dealer-portal/orders` | `ROLE_DEALER` | — | `Map<String,Object>` |
-| `POST` | `/api/v1/dealer-portal/credit-requests` | `ROLE_DEALER` | `DealerPortalCreditRequestCreateRequest` | `CreditRequestDto` |
+| `POST` | `/api/v1/dealer-portal/credit-requests` | `ROLE_DEALER` | `DealerPortalCreditRequestCreateRequest` | Compatibility path only; live runtime denies with read-only blocker |
 | `GET` | `/api/v1/dealer-portal/invoices/{invoiceId}/pdf` | `ROLE_DEALER` | — | `application/pdf` |
 | `GET` | `/api/v1/dispatch/preview/{slipId}` | `ROLE_ADMIN`/`ROLE_FACTORY` | — | `DispatchPreviewDto` |
 | `POST` | `/api/v1/dispatch/confirm` | `ROLE_ADMIN`/`ROLE_FACTORY` + `dispatch.confirm` | `DispatchConfirmationRequest` | `DispatchConfirmationResponse` |
@@ -2114,6 +2115,9 @@ Operational statuses: `PENDING`, `PENDING_STOCK`, `PENDING_PRODUCTION`, `RESERVE
 - `/api/v1/dispatch/confirm` is the factory/admin operational dispatch workspace. When transporter-or-driver, vehicle number, or challan reference is missing, backend blockers now return business-language instructions instead of technical field names.
 - `/api/v1/sales/dispatch/confirm` is the accounting/admin final dispatch posting surface. Sales denials now say accounting must complete final dispatch posting; factory denials now direct users back to the factory dispatch workspace.
 - Credit override requests can still be created by sales/factory/admin on `/api/v1/credit/override-requests`, but approve/reject review is now limited to admin/accounting.
+- Dealer portal routes remain read-only: dashboard, ledger, invoices, aging, orders, and invoice PDF export are allowed for the authenticated dealer's own records, while `POST /api/v1/dealer-portal/credit-requests` now fails closed with the read-only blocker message.
+- Dealer invoice PDF export stays dealer-scoped and audited; cross-dealer invoice-id guessing returns `404`, and token/header company mismatches return `403`.
+- Super admin is platform-only in tenant-facing UX: do not route `ROLE_SUPER_ADMIN` users into tenant portal dashboards or tenant workflow execution screens.
 
 #### User Flows
 
@@ -2139,14 +2143,14 @@ Operational statuses: `PENDING`, `PENDING_STOCK`, `PENDING_PRODUCTION`, `RESERVE
    1. Load summary from `GET /api/v1/dealer-portal/dashboard` (includes `creditStatus`, `pendingOrderExposure`, aging buckets).
    2. Load detailed ledgers/invoices/orders from `/ledger`, `/invoices`, `/orders`.
    3. Load overdue details from `GET /api/v1/dealer-portal/aging`.
-   4. Dealers submit limit requests via `POST /api/v1/dealer-portal/credit-requests` and can download invoice PDFs via `/invoices/{invoiceId}/pdf`.
+   4. Keep the portal read-only in UI. Dealers can download invoice PDFs via `/invoices/{invoiceId}/pdf`, but credit-limit or other workflow requests must be routed to sales/admin flows outside the dealer portal.
 
-5. **Dispatch reserve -> preview -> confirm with GST breakdown**
+5. **Dispatch reserve -> operational preview -> confirm**
    1. Reserve inventory during order creation/confirmation.
-   2. Open modal with `GET /api/v1/dispatch/preview/{slipId}` and render per-line pricing/tax totals plus aggregate GST breakdown.
-   3. Factory/admin should use the dispatch workspace endpoint `POST /api/v1/dispatch/confirm` for shipment confirmation and challan metadata capture.
-   4. If the frontend uses the sales posting surface, `POST /api/v1/sales/dispatch/confirm` is reserved for accounting/admin users with `dispatch.confirm`.
-   5. Use `DispatchConfirmResponse.gstBreakdown` to render final invoice-tax summary on success toast/detail page.
+   2. Open modal with `GET /api/v1/dispatch/preview/{slipId}` and render operational shipment context only; do not expect price totals or GST breakdown on this factory/admin preview.
+   3. Factory/admin use `POST /api/v1/dispatch/confirm` for shipment confirmation, transporter/driver capture, vehicle number capture, challan reference capture, and delivery challan access.
+   4. Accounting/admin use `POST /api/v1/sales/dispatch/confirm` when the UI needs final invoice and AR-journal linkage.
+   5. Keep sales and factory users away from the accounting-only posting surface and surface backend deny text verbatim if a stale route is hit.
 
 6. **Cancel order with reason code**
    1. UI collects structured reason code + optional free-text reason.
@@ -2242,12 +2246,14 @@ Frontend behavior: treat these as non-retryable user/action-state errors; surfac
 
 - `DispatchPreviewDto`
   - Existing slip/order summary + `lines[]`
-  - `lines[]` now include `unitPrice`, `lineSubtotal`, `lineTax`, `lineTotal`
-  - New aggregate `gstBreakdown { taxableAmount, cgst, sgst, igst, totalTax, grandTotal }`
+  - On the operational `/api/v1/dispatch/preview/{slipId}` surface, `unitPrice`, `lineSubtotal`, `lineTax`, and `lineTotal` are redacted and `gstBreakdown` is `null`
 
-- `DispatchConfirmResponse`
-  - Existing `packingSlipId/salesOrderId/finalInvoiceId/arJournalEntryId/cogsPostings/dispatched/arPostings`
-  - New `gstBreakdown { taxableAmount, cgst, sgst, igst, totalTax }`
+- `DispatchConfirmationResponse` (`POST /api/v1/dispatch/confirm`)
+  - Operational response includes `packingSlipId`, shipment/challan metadata, `deliveryChallanNumber`, `deliveryChallanPdfPath`, and line shipment results
+  - `journalEntryId`, `cogsJournalEntryId`, `totalShippedAmount`, and per-line costing/price fields are intentionally redacted on this surface
+
+- `DispatchConfirmResponse` (`POST /api/v1/sales/dispatch/confirm`)
+  - Finance posting response includes `packingSlipId`, `salesOrderId`, `finalInvoiceId`, `arJournalEntryId`, and related accounting/posting linkage fields
 
 - `SalesOrderSearchFilters` (query-model used by backend)
   - `status?: string` (canonicalized on backend)
@@ -2299,7 +2305,8 @@ Frontend behavior: treat these as non-retryable user/action-state errors; surfac
 - Dealer forms must include payment terms + region dropdown/input and normalize state code/GST client-side before submit for better UX.
 - Dealer search table should expose independent filters: `status`, `region`, and `creditStatus`; do not derive `creditStatus` client-side.
 - Dealer portal dashboard should highlight `creditStatus` using thresholds from backend response and show `pendingOrderExposure` alongside outstanding dues.
-- Dispatch confirmation modal should render both per-line tax and aggregate GST cards from preview; confirmation success should read final `DispatchConfirmResponse.gstBreakdown` instead of reusing stale preview totals.
+- Do not render dealer portal write CTAs for credit-limit requests or other tenant-internal workflow actions.
+- Dispatch confirmation modal for the factory/admin operational surface should not expect price/tax cards from preview; use the accounting/admin posting surface when finance totals are required.
 
 #### GST Fields
 
@@ -3394,7 +3401,7 @@ These flows map complete API sequences across modules. Use them to drive wizard-
 1. Dealer onboarding: `POST /api/v1/dealers`.
 2. Create sales order: `POST /api/v1/sales/orders`.
 3. Confirm order: `POST /api/v1/sales/orders/{id}/confirm`.
-4. Dispatch + invoice creation: use `POST /api/v1/dispatch/confirm` from the factory/admin dispatch workspace, or `POST /api/v1/sales/dispatch/confirm` only from accounting/admin posting flows (both return `finalInvoiceId`, AR journal links).
+4. Dispatch + invoice creation: use `POST /api/v1/dispatch/confirm` from the factory/admin dispatch workspace for shipment metadata plus challan output, then use `POST /api/v1/sales/dispatch/confirm` only from accounting/admin posting flows when the UI needs `finalInvoiceId` and AR journal links.
 5. Receive/allocate payment: `POST /api/v1/accounting/settlements/dealers` (or auto-settle endpoint if used).
 6. Operational reconciliation checks:
    - `GET /api/v1/dealers/{dealerId}/aging`

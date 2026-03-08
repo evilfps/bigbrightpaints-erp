@@ -99,3 +99,29 @@ Track cleanup, duplicate-truth removals, dead-code retirement, and production-re
 - **Duplicate-truth or dead-code impact:** removed repeated ad hoc `@PreAuthorize` strings in the touched portal controllers and retired the fallback behavior where dispatch metadata blockers surfaced technical field names instead of one shared business-language contract.
 - **Evidence:** `PortalRoleActionMatrix`, `CoreFallbackExceptionHandler`, `DispatchController`, `SalesController`, `CreditLimitOverrideController`, `AdminApprovalRbacIT`, `DispatchControllerTest`, `SalesControllerIT`, `CreditLimitOverrideControllerSecurityContractTest`, `SystemRoleTest`; verification commands: `MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='CreditLimitOverrideControllerSecurityContractTest,SystemRoleTest,DispatchControllerTest,SalesControllerIT,AdminApprovalRbacIT' test`, `MIGRATION_SET=v2 mvn compile -q`, `MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='InvoiceControllerSecurityContractTest,ErpInvariantsSuiteIT' test`, and `MIGRATION_SET=v2 mvn -Pgate-fast -Djacoco.skip=true test`.
 - **Follow-up:** later portal packets should keep new role checks anchored to the shared matrix helper and continue surfacing backend blocker text verbatim instead of rebuilding per-role copies in frontend code.
+
+## 2026-03-08 — `portal-boundaries.dealer-read-only-superadmin-isolation-and-tenant-boundaries`
+
+- **Area:** dealer portal scoping, super-admin isolation, and tenant-boundary fail-closed behavior.
+- **Risk addressed:** dealer self-service surfaces still had writable compatibility affordances, super-admin could drift toward tenant-business execution, and cross-tenant or foreign-record probes risked leaking whether a protected resource existed.
+- **Cleanup/remediation performed:** enforced dealer-portal read-only behavior in the controller boundary, kept dealer responses scoped to the authenticated dealer and own-record exports, logged invoice-PDF exports for auditability, and hardened super-admin and foreign-record denial paths so tenant workflows fail closed instead of drifting into platform/business overlap.
+- **Duplicate-truth or dead-code impact:** retired the touched compatibility behavior that implied dealer-side mutation was still part of the supported portal model and removed remaining reliance on broad role assumptions instead of explicit dealer/super-admin boundary checks.
+- **Evidence:** `DealerPortalController`, `DealerPortalControllerExportAuditTest`, `DealerPortalControllerSecurityIT`, `InvoiceControllerSecurityContractTest`, `SuperAdminTenantWorkflowIsolationIT`, `ErpInvariantsSuiteIT`; verification commands: `MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='DealerPortalControllerExportAuditTest,DealerPortalControllerSecurityIT,InvoiceControllerSecurityContractTest,SuperAdminTenantWorkflowIsolationIT,ErpInvariantsSuiteIT' test` and `MIGRATION_SET=v2 mvn -Pgate-fast -Djacoco.skip=true test`.
+- **Follow-up:** final-hardening should reuse these dealer/super-admin/cross-tenant fail-closed contracts during the adversarial validation pass instead of introducing alternate portal shortcuts.
+
+## 2026-03-08 — `portal-boundaries.final-docs-handoff-and-readme-alignment`
+
+- **Area:** mission handoff docs for frontend-v2 consumers, reviewers, and local operators.
+- **Risk addressed:** the repo still had stale documentation that mixed planned behavior with delivered behavior, especially around dealer portal writes, operational dispatch redaction, and Flyway/local-run expectations.
+- **Cleanup/remediation performed:** aligned `README.md`, `.factory/library/frontend-v2.md`, and `.factory/library/frontend-handoff.md` to the merged O2C/P2P/control/portal contract; explicitly marked the dealer portal as read-only, split operational dispatch from accounting dispatch posting in the docs, and made Flyway v2 plus the `5433` local runtime boundary explicit in the README.
+- **Duplicate-truth or dead-code impact:** removed doc-level duplicate truth where older handoff notes still described dealer credit-request writes and finance data on factory dispatch responses even though the live backend now fails those paths closed or redacts those fields.
+- **Evidence:** updated docs cited against `PortalRoleActionMatrix`, `DealerPortalController`, `DealerPortalControllerSecurityIT`, `DealerPortalControllerExportAuditTest`, `DispatchOperationalBoundaryIT`, `SalesControllerIT`, `SuperAdminTenantWorkflowIsolationIT`, `.factory/library/environment.md`, and `.factory/services.yaml`.
+- **Follow-up:** the `final-hardening` milestone should add runtime/adversarial evidence, but frontend-facing contract docs should remain on the merged backend truth captured here unless a later code packet changes them.
+
+## Mission Roll-Up (as of 2026-03-08)
+
+- **O2C stabilized:** dealer provisioning, explicit payment modes, commercial-only pre-dispatch behavior, dispatch-owned invoicing, delivery challan output, replay safety, and batch-actual plus packaging cost carry-forward are documented and merged.
+- **P2P stabilized:** supplier provisioning now creates payable truth up front, GRN remains stock-only, purchase invoice remains AP-only, and linkage drift fails closed instead of recreating receipt truth.
+- **Control stabilized:** settlements are header-level and replay-safe, manual journals are controlled adjustments only, posted documents are corrected through linked flows, and period/approval exceptions are explicit and auditable.
+- **Portal stabilized:** dealer surfaces are read-only and own-record scoped, sales/factory/accounting/admin boundaries are explicit, super-admin is platform-only, and cross-tenant attempts fail closed without data leakage.
+- **Still pending outside this log roll-up:** the separate `final-hardening` milestone remains responsible for the end-to-end real-user/adversarial validation pass and its synthesis artifacts.
