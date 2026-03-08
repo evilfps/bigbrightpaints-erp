@@ -45,25 +45,42 @@ Install these before running locally:
    - `JWT_SECRET` (32+ byte secret)
    - `ERP_SECURITY_ENCRYPTION_KEY` (32+ byte key)
 
-3. **Start local dependencies**
+3. **Run the repository bootstrap**
    ```bash
-   docker compose up -d db rabbitmq mailhog
+   bash .factory/init.sh
    ```
 
-4. **Compile**
+4. **Start local dependencies**
+   ```bash
+   DB_PORT=5433 docker compose up -d db rabbitmq mailhog
+   ```
+   > Mission/local validation is **Flyway v2 only** and reserves host PostgreSQL port `5433`. Do not use `5432` for this repo's compose-backed runtime.
+
+5. **Compile**
    ```bash
    cd erp-domain
-   mvn compile -q
+   MIGRATION_SET=v2 mvn compile -q
    ```
 
-5. **Run tests**
+6. **Run tests**
    ```bash
-   mvn test -Pgate-fast -Djacoco.skip=true
+   MIGRATION_SET=v2 mvn test -Pgate-fast -Djacoco.skip=true
    ```
 
-6. **(Optional) Run the app in dev mode**
+7. **(Optional) Run the compose-backed app with the same Flyway v2 profile used by the mission**
    ```bash
-   SPRING_PROFILES_ACTIVE=dev mvn spring-boot:run
+   SPRING_PROFILES_ACTIVE='prod,flyway-v2' \
+   ERP_CORS_ALLOWED_ORIGINS='https://app.bigbrightpaints.com' \
+   ERP_CORS_ALLOW_TAILSCALE_HTTP_ORIGINS='true' \
+   DB_PORT=5433 \
+   SPRING_MAIL_HOST='mailhog' \
+   SPRING_MAIL_PORT='1025' \
+   SPRING_MAIL_USERNAME='' \
+   SPRING_MAIL_PASSWORD='' \
+   SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH='false' \
+   SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE='false' \
+   SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_REQUIRED='false' \
+   docker compose up -d --build app
    ```
 
 ---
@@ -72,27 +89,27 @@ Install these before running locally:
 ### Quick gate (recommended before commits)
 ```bash
 cd erp-domain
-mvn test -Pgate-fast -Djacoco.skip=true
+MIGRATION_SET=v2 mvn test -Pgate-fast -Djacoco.skip=true
 ```
 
 ### Full suite
 ```bash
 cd erp-domain
-mvn test -Djacoco.skip=true
+MIGRATION_SET=v2 mvn test -Djacoco.skip=true
 ```
 
 ### Integration tests only
 ```bash
 cd erp-domain
-mvn test -Djacoco.skip=true -Dtest='*IT,*ITCase'
+MIGRATION_SET=v2 mvn test -Djacoco.skip=true -Dtest='*IT,*ITCase'
 ```
 
 ### Run tests for a specific module (examples)
 ```bash
 cd erp-domain
-mvn test -Djacoco.skip=true -Dtest='*Accounting*Test,*Accounting*IT'
-mvn test -Djacoco.skip=true -Dtest='*Sales*Test,*Sales*IT'
-mvn test -Djacoco.skip=true -Dtest='*Inventory*Test,*Inventory*IT'
+MIGRATION_SET=v2 mvn test -Djacoco.skip=true -Dtest='*Accounting*Test,*Accounting*IT'
+MIGRATION_SET=v2 mvn test -Djacoco.skip=true -Dtest='*Sales*Test,*Sales*IT'
+MIGRATION_SET=v2 mvn test -Djacoco.skip=true -Dtest='*Inventory*Test,*Inventory*IT'
 ```
 
 ### CI-aligned gate scripts (repo root)
@@ -173,6 +190,8 @@ Notes:
 
 ## 9) Architecture
 - Architecture reference: [`.factory/library/architecture.md`](.factory/library/architecture.md)
+- Frontend/backend contract handoff: [`.factory/library/frontend-v2.md`](.factory/library/frontend-v2.md) and [`.factory/library/frontend-handoff.md`](.factory/library/frontend-handoff.md)
+- Cleanup/remediation roll-up: [`.factory/library/remediation-log.md`](.factory/library/remediation-log.md)
 
 Key backend patterns used across modules:
 - **Facade pattern:** module entry services centralize validation/routing (for example, accounting facade flows)
