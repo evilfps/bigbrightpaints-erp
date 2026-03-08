@@ -13,6 +13,7 @@ import com.bigbrightpaints.erp.modules.accounting.domain.PartnerSettlementAlloca
 import com.bigbrightpaints.erp.modules.accounting.dto.AccountingTransactionAuditDetailDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.AccountingTransactionAuditListItemDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalLineDto;
+import com.bigbrightpaints.erp.modules.accounting.dto.SettlementAllocationApplication;
 import com.bigbrightpaints.erp.modules.accounting.event.AccountingEvent;
 import com.bigbrightpaints.erp.modules.accounting.event.AccountingEventRepository;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
@@ -231,21 +232,25 @@ public class AccountingAuditTrailServiceCore {
                 .toList();
 
         List<AccountingTransactionAuditDetailDto.SettlementAllocation> allocationRows = allocations.stream()
-                .map(allocation -> new AccountingTransactionAuditDetailDto.SettlementAllocation(
-                        allocation.getId(),
-                        allocation.getPartnerType() != null ? allocation.getPartnerType().name() : null,
-                        allocation.getDealer() != null ? allocation.getDealer().getId() : null,
-                        allocation.getSupplier() != null ? allocation.getSupplier().getId() : null,
-                        allocation.getInvoice() != null ? allocation.getInvoice().getId() : null,
-                        allocation.getPurchase() != null ? allocation.getPurchase().getId() : null,
-                        allocation.getAllocationAmount(),
-                        allocation.getDiscountAmount(),
-                        allocation.getWriteOffAmount(),
-                        allocation.getFxDifferenceAmount(),
-                        allocation.getMemo(),
-                        allocation.getSettlementDate(),
-                        allocation.getIdempotencyKey()
-                ))
+                .map(allocation -> {
+                    SettlementAuditMemoParts memoParts = decodeSettlementAuditMemo(allocation);
+                    return new AccountingTransactionAuditDetailDto.SettlementAllocation(
+                            allocation.getId(),
+                            allocation.getPartnerType() != null ? allocation.getPartnerType().name() : null,
+                            allocation.getDealer() != null ? allocation.getDealer().getId() : null,
+                            allocation.getSupplier() != null ? allocation.getSupplier().getId() : null,
+                            allocation.getInvoice() != null ? allocation.getInvoice().getId() : null,
+                            allocation.getPurchase() != null ? allocation.getPurchase().getId() : null,
+                            allocation.getAllocationAmount(),
+                            allocation.getDiscountAmount(),
+                            allocation.getWriteOffAmount(),
+                            allocation.getFxDifferenceAmount(),
+                            memoParts.applicationType().name(),
+                            memoParts.memo(),
+                            allocation.getSettlementDate(),
+                            allocation.getIdempotencyKey()
+                    );
+                })
                 .toList();
 
         List<AccountingTransactionAuditDetailDto.EventTrailItem> eventTrail = events.stream()
@@ -577,9 +582,43 @@ public class AccountingAuditTrailServiceCore {
         return new ConsistencyResult(status, notes);
     }
 
+    private SettlementAuditMemoParts decodeSettlementAuditMemo(PartnerSettlementAllocation allocation) {
+        if (allocation == null || allocation.getInvoice() != null || allocation.getPurchase() != null) {
+            return new SettlementAuditMemoParts(SettlementAllocationApplication.DOCUMENT, normalizeSettlementAuditMemo(allocation != null ? allocation.getMemo() : null));
+        }
+        String memo = normalizeSettlementAuditMemo(allocation.getMemo());
+        if (memo == null || !memo.startsWith("[SETTLEMENT-APPLICATION:")) {
+            return new SettlementAuditMemoParts(SettlementAllocationApplication.ON_ACCOUNT, memo);
+        }
+        int closingBracket = memo.indexOf(']');
+        if (closingBracket <= 0) {
+            return new SettlementAuditMemoParts(SettlementAllocationApplication.ON_ACCOUNT, memo);
+        }
+        String token = memo.substring("[SETTLEMENT-APPLICATION:".length(), closingBracket).trim();
+        SettlementAllocationApplication applicationType;
+        try {
+            applicationType = SettlementAllocationApplication.valueOf(token);
+        } catch (IllegalArgumentException ex) {
+            applicationType = SettlementAllocationApplication.ON_ACCOUNT;
+        }
+        String visibleMemo = normalizeSettlementAuditMemo(memo.substring(closingBracket + 1));
+        return new SettlementAuditMemoParts(applicationType, visibleMemo);
+    }
+
+    private String normalizeSettlementAuditMemo(String memo) {
+        if (memo == null) {
+            return null;
+        }
+        String trimmed = memo.trim();
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+
     private record ConsistencyResult(String status, List<String> notes) {
     }
 
     private record JournalTotals(BigDecimal totalDebit, BigDecimal totalCredit) {
+    }
+
+    private record SettlementAuditMemoParts(SettlementAllocationApplication applicationType, String memo) {
     }
 }

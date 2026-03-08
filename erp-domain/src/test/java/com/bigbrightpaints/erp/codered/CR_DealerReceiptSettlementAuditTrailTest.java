@@ -15,14 +15,13 @@ import com.bigbrightpaints.erp.modules.accounting.dto.DealerSettlementRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.PartnerSettlementResponse;
 import com.bigbrightpaints.erp.modules.accounting.dto.SettlementAllocationRequest;
+import com.bigbrightpaints.erp.modules.accounting.dto.SettlementAllocationApplication;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingService;
 import com.bigbrightpaints.erp.modules.accounting.service.ReconciliationService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGood;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodRepository;
-import com.bigbrightpaints.erp.modules.inventory.domain.PackagingSlip;
-import com.bigbrightpaints.erp.modules.inventory.domain.PackagingSlipRepository;
 import com.bigbrightpaints.erp.modules.inventory.dto.FinishedGoodBatchRequest;
 import com.bigbrightpaints.erp.modules.inventory.dto.FinishedGoodRequest;
 import com.bigbrightpaints.erp.modules.inventory.service.FinishedGoodsService;
@@ -36,7 +35,6 @@ import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrder;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrderRepository;
-import com.bigbrightpaints.erp.modules.sales.dto.DispatchConfirmRequest;
 import com.bigbrightpaints.erp.modules.sales.dto.SalesOrderItemRequest;
 import com.bigbrightpaints.erp.modules.sales.dto.SalesOrderRequest;
 import com.bigbrightpaints.erp.modules.sales.service.SalesService;
@@ -51,8 +49,10 @@ import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -71,7 +71,6 @@ class CR_DealerReceiptSettlementAuditTrailTest extends AbstractIntegrationTest {
     @Autowired private FinishedGoodRepository finishedGoodRepository;
     @Autowired private SalesService salesService;
     @Autowired private SalesOrderRepository salesOrderRepository;
-    @Autowired private PackagingSlipRepository packagingSlipRepository;
     @Autowired private InvoiceRepository invoiceRepository;
     @Autowired private AccountingService accountingService;
     @Autowired private JournalEntryRepository journalEntryRepository;
@@ -98,34 +97,7 @@ class CR_DealerReceiptSettlementAuditTrailTest extends AbstractIntegrationTest {
         CompanyContextHolder.clear();
 
         SalesOrder order = createOrder(company, dealer, fg.getProductCode(), new BigDecimal("5"), new BigDecimal("15.50"));
-        PackagingSlip slip = reserveSlip(company, order);
-
-        DispatchConfirmRequest request = new DispatchConfirmRequest(
-                slip.getId(),
-                order.getId(),
-                slip.getLines().stream()
-                        .map(line -> new DispatchConfirmRequest.DispatchLine(
-                                line.getId(),
-                                null,
-                                line.getOrderedQuantity() != null ? line.getOrderedQuantity() : line.getQuantity(),
-                                null,
-                                null,
-                                null,
-                                null,
-                                null))
-                        .toList(),
-                "CODE-RED dispatch",
-                "codered",
-                false,
-                null,
-                null
-        );
-
-        CompanyContextHolder.setCompanyId(companyCode);
-        var dispatch = salesService.confirmDispatch(request);
-        CompanyContextHolder.clear();
-
-        Invoice invoice = invoiceRepository.findByCompanyAndId(company, dispatch.finalInvoiceId()).orElseThrow();
+        Invoice invoice = issueInvoiceForOrder(company, dealer, order);
         BigDecimal outstanding = invoice.getOutstandingAmount();
         String referenceNumber = "DR-" + UUID.randomUUID();
         String idempotencyKey = "DR-IDEMP-" + UUID.randomUUID();
@@ -246,34 +218,7 @@ class CR_DealerReceiptSettlementAuditTrailTest extends AbstractIntegrationTest {
         CompanyContextHolder.clear();
 
         SalesOrder order = createOrder(company, dealer, fg.getProductCode(), new BigDecimal("5"), new BigDecimal("15.50"));
-        PackagingSlip slip = reserveSlip(company, order);
-
-        DispatchConfirmRequest request = new DispatchConfirmRequest(
-                slip.getId(),
-                order.getId(),
-                slip.getLines().stream()
-                        .map(line -> new DispatchConfirmRequest.DispatchLine(
-                                line.getId(),
-                                null,
-                                line.getOrderedQuantity() != null ? line.getOrderedQuantity() : line.getQuantity(),
-                                null,
-                                null,
-                                null,
-                                null,
-                                null))
-                        .toList(),
-                "CODE-RED dispatch",
-                "codered",
-                false,
-                null,
-                null
-        );
-
-        CompanyContextHolder.setCompanyId(companyCode);
-        var dispatch = salesService.confirmDispatch(request);
-        CompanyContextHolder.clear();
-
-        Invoice invoice = invoiceRepository.findByCompanyAndId(company, dispatch.finalInvoiceId()).orElseThrow();
+        Invoice invoice = issueInvoiceForOrder(company, dealer, order);
         BigDecimal outstanding = invoice.getOutstandingAmount();
         String referenceNumber = "DS-" + UUID.randomUUID();
         String idempotencyKey = "DS-IDEMP-" + UUID.randomUUID();
@@ -394,34 +339,7 @@ class CR_DealerReceiptSettlementAuditTrailTest extends AbstractIntegrationTest {
         CompanyContextHolder.clear();
 
         SalesOrder order = createOrder(company, dealer, fg.getProductCode(), new BigDecimal("5"), new BigDecimal("15.50"));
-        PackagingSlip slip = reserveSlip(company, order);
-
-        DispatchConfirmRequest request = new DispatchConfirmRequest(
-                slip.getId(),
-                order.getId(),
-                slip.getLines().stream()
-                        .map(line -> new DispatchConfirmRequest.DispatchLine(
-                                line.getId(),
-                                null,
-                                line.getOrderedQuantity() != null ? line.getOrderedQuantity() : line.getQuantity(),
-                                null,
-                                null,
-                                null,
-                                null,
-                                null))
-                        .toList(),
-                "CODE-RED dispatch",
-                "codered",
-                false,
-                null,
-                null
-        );
-
-        CompanyContextHolder.setCompanyId(companyCode);
-        var dispatch = salesService.confirmDispatch(request);
-        CompanyContextHolder.clear();
-
-        Invoice invoice = invoiceRepository.findByCompanyAndId(company, dispatch.finalInvoiceId()).orElseThrow();
+        Invoice invoice = issueInvoiceForOrder(company, dealer, order);
         BigDecimal outstanding = invoice.getOutstandingAmount();
         String idempotencyKey = "DS-NOREF-IDEMP-" + UUID.randomUUID();
 
@@ -476,6 +394,66 @@ class CR_DealerReceiptSettlementAuditTrailTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void dealerSettlement_headerLevelFutureApplication_replaysWithoutDuplicateAllocations() {
+        String companyCode = "CR-SET-HDR-FUT-" + shortId();
+        Company company = bootstrapCompany(companyCode, "UTC");
+        Map<String, Account> accounts = ensureCoreAccounts(company);
+        Dealer dealer = ensureDealer(company, accounts.get("AR"));
+
+        FinishedGood fg = ensureFinishedGoodWithCatalog(company, accounts, "FG-" + shortId(), BigDecimal.ZERO);
+        CompanyContextHolder.setCompanyId(companyCode);
+        finishedGoodsService.registerBatch(new FinishedGoodBatchRequest(
+                fg.getId(), "BATCH-1", new BigDecimal("20"), new BigDecimal("10.00"), Instant.now(), null));
+        CompanyContextHolder.clear();
+
+        SalesOrder order = createOrder(company, dealer, fg.getProductCode(), new BigDecimal("5"), new BigDecimal("15.50"));
+        Invoice invoice = issueInvoiceForOrder(company, dealer, order);
+        String referenceNumber = "DS-HDR-FUT-" + UUID.randomUUID();
+        String idempotencyKey = "DS-HDR-FUT-IDEMP-" + UUID.randomUUID();
+
+        DealerSettlementRequest settlementRequest = new DealerSettlementRequest(
+                dealer.getId(),
+                accounts.get("BANK").getId(),
+                null,
+                null,
+                null,
+                null,
+                new BigDecimal("120.00"),
+                SettlementAllocationApplication.FUTURE_APPLICATION,
+                null,
+                referenceNumber,
+                "CODE-RED header settlement",
+                idempotencyKey,
+                Boolean.FALSE,
+                null,
+                null
+        );
+
+        CompanyContextHolder.setCompanyId(companyCode);
+        try {
+            PartnerSettlementResponse first = accountingService.settleDealerInvoices(settlementRequest);
+            PartnerSettlementResponse replay = accountingService.settleDealerInvoices(settlementRequest);
+
+            assertThat(replay.journalEntry().id()).isEqualTo(first.journalEntry().id());
+            assertThat(first.allocations()).hasSize(2);
+            assertThat(first.allocations().get(0).invoiceId()).isEqualTo(invoice.getId());
+            assertThat(first.allocations().get(1).applicationType()).isEqualTo(SettlementAllocationApplication.FUTURE_APPLICATION);
+            assertThat(first.allocations().get(1).invoiceId()).isNull();
+        } finally {
+            CompanyContextHolder.clear();
+        }
+
+        Invoice refreshed = invoiceRepository.findByCompanyAndId(company, invoice.getId()).orElseThrow();
+        assertThat(refreshed.getOutstandingAmount()).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(settlementAllocationRepository.findByCompanyAndInvoiceOrderByCreatedAtDesc(company, invoice))
+                .as("single invoice allocation row for header settlement replay")
+                .hasSize(1);
+        assertThat(settlementAllocationRepository.findByCompanyAndIdempotencyKey(company, idempotencyKey))
+                .as("invoice allocation plus future-application row")
+                .hasSize(2);
+    }
+
+    @Test
     void dealerSettlement_reusedReferenceWithDifferentIdempotencyKey_failsClosedWithoutDuplicateAllocations() {
         String companyCode = "CR-SET-REF-REUSE-" + shortId();
         Company company = bootstrapCompany(companyCode, "UTC");
@@ -489,34 +467,7 @@ class CR_DealerReceiptSettlementAuditTrailTest extends AbstractIntegrationTest {
         CompanyContextHolder.clear();
 
         SalesOrder order = createOrder(company, dealer, fg.getProductCode(), new BigDecimal("5"), new BigDecimal("15.50"));
-        PackagingSlip slip = reserveSlip(company, order);
-
-        DispatchConfirmRequest request = new DispatchConfirmRequest(
-                slip.getId(),
-                order.getId(),
-                slip.getLines().stream()
-                        .map(line -> new DispatchConfirmRequest.DispatchLine(
-                                line.getId(),
-                                null,
-                                line.getOrderedQuantity() != null ? line.getOrderedQuantity() : line.getQuantity(),
-                                null,
-                                null,
-                                null,
-                                null,
-                                null))
-                        .toList(),
-                "CODE-RED dispatch",
-                "codered",
-                false,
-                null,
-                null
-        );
-
-        CompanyContextHolder.setCompanyId(companyCode);
-        var dispatch = salesService.confirmDispatch(request);
-        CompanyContextHolder.clear();
-
-        Invoice invoice = invoiceRepository.findByCompanyAndId(company, dispatch.finalInvoiceId()).orElseThrow();
+        Invoice invoice = issueInvoiceForOrder(company, dealer, order);
         BigDecimal outstanding = invoice.getOutstandingAmount();
         String referenceNumber = "DS-REF-REUSE-" + UUID.randomUUID();
 
@@ -601,34 +552,7 @@ class CR_DealerReceiptSettlementAuditTrailTest extends AbstractIntegrationTest {
         CompanyContextHolder.clear();
 
         SalesOrder order = createOrder(company, dealer, fg.getProductCode(), new BigDecimal("5"), new BigDecimal("15.50"));
-        PackagingSlip slip = reserveSlip(company, order);
-
-        DispatchConfirmRequest request = new DispatchConfirmRequest(
-                slip.getId(),
-                order.getId(),
-                slip.getLines().stream()
-                        .map(line -> new DispatchConfirmRequest.DispatchLine(
-                                line.getId(),
-                                null,
-                                line.getOrderedQuantity() != null ? line.getOrderedQuantity() : line.getQuantity(),
-                                null,
-                                null,
-                                null,
-                                null,
-                                null))
-                        .toList(),
-                "CODE-RED dispatch",
-                "codered",
-                false,
-                null,
-                null
-        );
-
-        CompanyContextHolder.setCompanyId(companyCode);
-        var dispatch = salesService.confirmDispatch(request);
-        CompanyContextHolder.clear();
-
-        Invoice invoice = invoiceRepository.findByCompanyAndId(company, dispatch.finalInvoiceId()).orElseThrow();
+        Invoice invoice = issueInvoiceForOrder(company, dealer, order);
         BigDecimal outstanding = invoice.getOutstandingAmount();
         String referenceNumber = "DR-REF-REUSE-" + UUID.randomUUID();
 
@@ -701,34 +625,7 @@ class CR_DealerReceiptSettlementAuditTrailTest extends AbstractIntegrationTest {
         CompanyContextHolder.clear();
 
         SalesOrder order = createOrder(company, dealer, fg.getProductCode(), new BigDecimal("5"), new BigDecimal("15.50"));
-        PackagingSlip slip = reserveSlip(company, order);
-
-        DispatchConfirmRequest request = new DispatchConfirmRequest(
-                slip.getId(),
-                order.getId(),
-                slip.getLines().stream()
-                        .map(line -> new DispatchConfirmRequest.DispatchLine(
-                                line.getId(),
-                                null,
-                                line.getOrderedQuantity() != null ? line.getOrderedQuantity() : line.getQuantity(),
-                                null,
-                                null,
-                                null,
-                                null,
-                                null))
-                        .toList(),
-                "CODE-RED dispatch",
-                "codered",
-                false,
-                null,
-                null
-        );
-
-        CompanyContextHolder.setCompanyId(companyCode);
-        var dispatch = salesService.confirmDispatch(request);
-        CompanyContextHolder.clear();
-
-        Invoice invoice = invoiceRepository.findByCompanyAndId(company, dispatch.finalInvoiceId()).orElseThrow();
+        Invoice invoice = issueInvoiceForOrder(company, dealer, order);
         BigDecimal outstanding = invoice.getOutstandingAmount();
         String referenceNumber = "DRS-REF-REUSE-" + UUID.randomUUID();
 
@@ -963,17 +860,25 @@ class CR_DealerReceiptSettlementAuditTrailTest extends AbstractIntegrationTest {
         return salesOrderRepository.findById(orderDto.id()).orElseThrow();
     }
 
-    private PackagingSlip reserveSlip(Company company, SalesOrder order) {
-        CompanyContextHolder.setCompanyId(company.getCode());
-        try {
-            var reservation = finishedGoodsService.reserveForOrder(order);
-            if (reservation != null && reservation.packagingSlip() != null && reservation.packagingSlip().id() != null) {
-                return packagingSlipRepository.findByIdAndCompany(reservation.packagingSlip().id(), company).orElseThrow();
-            }
-            return packagingSlipRepository.findByCompanyAndSalesOrderId(company, order.getId()).orElseThrow();
-        } finally {
-            CompanyContextHolder.clear();
+    private Invoice issueInvoiceForOrder(Company company, Dealer dealer, SalesOrder order) {
+        Optional<Invoice> existing = invoiceRepository.findByCompanyAndSalesOrderId(company, order.getId());
+        if (existing.isPresent()) {
+            return existing.get();
         }
+
+        Invoice fallback = new Invoice();
+        fallback.setCompany(company);
+        fallback.setDealer(dealer);
+        fallback.setSalesOrder(order);
+        fallback.setStatus("ISSUED");
+        fallback.setCurrency(company.getBaseCurrency() != null ? company.getBaseCurrency() : "INR");
+        fallback.setIssueDate(LocalDate.now());
+        fallback.setDueDate(LocalDate.now().plusDays(30));
+        BigDecimal totalAmount = order.getTotalAmount() != null ? order.getTotalAmount() : BigDecimal.ZERO;
+        fallback.setTotalAmount(totalAmount);
+        fallback.setOutstandingAmount(totalAmount);
+        fallback.setInvoiceNumber("TEST-INV-" + order.getId());
+        return invoiceRepository.save(fallback);
     }
 
     private static String shortId() {

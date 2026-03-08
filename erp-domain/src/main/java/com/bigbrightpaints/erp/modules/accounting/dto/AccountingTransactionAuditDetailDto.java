@@ -29,6 +29,7 @@ public record AccountingTransactionAuditDetailDto(Long journalEntryId, UUID jour
             BigDecimal discountAmount,
             BigDecimal writeOffAmount,
             BigDecimal fxDifferenceAmount,
+            String applicationType,
             String memo,
             LocalDate settlementDate,
             String idempotencyKey

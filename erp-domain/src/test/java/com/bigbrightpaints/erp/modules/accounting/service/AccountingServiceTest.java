@@ -31,6 +31,7 @@ import com.bigbrightpaints.erp.modules.accounting.dto.InventoryRevaluationReques
 import com.bigbrightpaints.erp.modules.accounting.dto.PartnerSettlementResponse;
 import com.bigbrightpaints.erp.modules.accounting.dto.PayrollPaymentRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.SettlementAllocationRequest;
+import com.bigbrightpaints.erp.modules.accounting.dto.SettlementAllocationApplication;
 import com.bigbrightpaints.erp.modules.accounting.dto.SettlementPaymentRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.SupplierPaymentRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.SupplierSettlementRequest;
@@ -2106,7 +2107,7 @@ class AccountingServiceTest {
         when(supplierRepository.lockByCompanyAndId(eq(company), eq(1L))).thenReturn(Optional.of(supplier));
         when(rawMaterialPurchaseRepository.lockByCompanyAndId(eq(company), eq(2L))).thenReturn(Optional.of(purchase));
         when(settlementAllocationRepository.findByCompanyAndIdempotencyKey(any(), any())).thenReturn(List.of());
-        when(companyEntityLookup.requireAccount(eq(company), eq(20L))).thenReturn(cash);
+        lenient().when(companyEntityLookup.requireAccount(eq(company), eq(20L))).thenReturn(cash);
         when(companyEntityLookup.requireAccount(eq(company), eq(21L))).thenReturn(discount);
         when(companyEntityLookup.requireAccount(eq(company), eq(22L))).thenReturn(fxGain);
 
@@ -2216,8 +2217,8 @@ class AccountingServiceTest {
         purchase.setJournalEntry(purchaseJournal);
 
         when(supplierRepository.lockByCompanyAndId(eq(company), eq(1L))).thenReturn(Optional.of(supplier));
-        when(companyEntityLookup.requireAccount(eq(company), eq(20L))).thenReturn(cash);
         when(rawMaterialPurchaseRepository.lockByCompanyAndId(eq(company), eq(7001L))).thenReturn(Optional.of(purchase));
+        lenient().when(companyEntityLookup.requireAccount(eq(company), eq(20L))).thenReturn(cash);
 
         SupplierSettlementRequest request = new SupplierSettlementRequest(
                 1L,
@@ -2315,8 +2316,8 @@ class AccountingServiceTest {
         purchase.setJournalEntry(purchaseJournal);
 
         when(supplierRepository.lockByCompanyAndId(eq(company), eq(1L))).thenReturn(Optional.of(supplier));
-        when(companyEntityLookup.requireAccount(eq(company), eq(20L))).thenReturn(cash);
         when(rawMaterialPurchaseRepository.lockByCompanyAndId(eq(company), eq(7002L))).thenReturn(Optional.of(purchase));
+        lenient().when(companyEntityLookup.requireAccount(eq(company), eq(20L))).thenReturn(cash);
 
         SupplierSettlementRequest request = new SupplierSettlementRequest(
                 1L,
@@ -2381,8 +2382,8 @@ class AccountingServiceTest {
         ReflectionTestUtils.setField(invoice, "id", 730L);
 
         when(dealerRepository.lockByCompanyAndId(eq(company), eq(1L))).thenReturn(Optional.of(dealer));
-        when(companyEntityLookup.requireAccount(eq(company), eq(20L))).thenReturn(cash);
         when(invoiceRepository.lockByCompanyAndId(eq(company), eq(730L))).thenReturn(Optional.of(invoice));
+        lenient().when(companyEntityLookup.requireAccount(eq(company), eq(20L))).thenReturn(cash);
 
         DealerSettlementRequest request = new DealerSettlementRequest(
                 1L,
@@ -2475,7 +2476,7 @@ class AccountingServiceTest {
         purchase.setJournalEntry(purchaseJournal);
 
         when(supplierRepository.lockByCompanyAndId(eq(company), eq(1L))).thenReturn(Optional.of(supplier));
-        when(companyEntityLookup.requireAccount(eq(company), eq(20L))).thenReturn(cash);
+        lenient().when(companyEntityLookup.requireAccount(eq(company), eq(20L))).thenReturn(cash);
         when(rawMaterialPurchaseRepository.lockByCompanyAndId(eq(company), eq(740L))).thenReturn(Optional.of(purchase));
 
         SupplierSettlementRequest request = new SupplierSettlementRequest(
@@ -2524,14 +2525,7 @@ class AccountingServiceTest {
         ReflectionTestUtils.setField(payable, "id", 10L);
         supplier.setPayableAccount(payable);
 
-        Account cash = new Account();
-        cash.setCompany(company);
-        cash.setCode("CASH");
-        cash.setType(AccountType.ASSET);
-        ReflectionTestUtils.setField(cash, "id", 20L);
-
         when(supplierRepository.lockByCompanyAndId(eq(company), eq(1L))).thenReturn(Optional.of(supplier));
-        when(companyEntityLookup.requireAccount(eq(company), eq(20L))).thenReturn(cash);
 
         SettlementAllocationRequest allocation = new SettlementAllocationRequest(
                 null,
@@ -2614,7 +2608,7 @@ class AccountingServiceTest {
         mapping.setEntityId(null);
 
         when(dealerRepository.lockByCompanyAndId(eq(company), eq(1L))).thenReturn(Optional.of(dealer));
-        when(companyEntityLookup.requireAccount(eq(company), eq(20L))).thenReturn(cash);
+        lenient().when(companyEntityLookup.requireAccount(eq(company), eq(20L))).thenReturn(cash);
         when(journalReferenceMappingRepository.findAllByCompanyAndLegacyReferenceIgnoreCase(eq(company), eq("idemp-dr-replay")))
                 .thenReturn(List.of(mapping));
         when(journalReferenceResolver.findExistingEntry(eq(company), eq("DR-REPLAY-1")))
@@ -2707,7 +2701,7 @@ class AccountingServiceTest {
         mapping.setEntityId(null);
 
         when(dealerRepository.lockByCompanyAndId(eq(company), eq(1L))).thenReturn(Optional.of(dealer));
-        when(companyEntityLookup.requireAccount(eq(company), eq(20L))).thenReturn(cash);
+        lenient().when(companyEntityLookup.requireAccount(eq(company), eq(20L))).thenReturn(cash);
         when(companyEntityLookup.requireAccount(eq(company), eq(21L))).thenReturn(bank);
         when(journalReferenceMappingRepository.findAllByCompanyAndLegacyReferenceIgnoreCase(eq(company), eq("idemp-dr-split-replay")))
                 .thenReturn(List.of(mapping));
@@ -2769,7 +2763,7 @@ class AccountingServiceTest {
         mapping.setEntityId(null);
 
         when(dealerRepository.lockByCompanyAndId(eq(company), eq(1L))).thenReturn(Optional.of(dealer));
-        when(companyEntityLookup.requireAccount(eq(company), eq(20L))).thenReturn(cash);
+        lenient().when(companyEntityLookup.requireAccount(eq(company), eq(20L))).thenReturn(cash);
         when(journalReferenceMappingRepository.findAllByCompanyAndLegacyReferenceIgnoreCase(eq(company), eq("idemp-dr-race-miss")))
                 .thenReturn(List.of(mapping));
         when(journalReferenceResolver.findExistingEntry(eq(company), eq("DR-RACE-MISS-1")))
@@ -2849,7 +2843,7 @@ class AccountingServiceTest {
         mapping.setEntityId(null);
 
         when(dealerRepository.lockByCompanyAndId(eq(company), eq(1L))).thenReturn(Optional.of(dealer));
-        when(companyEntityLookup.requireAccount(eq(company), eq(20L))).thenReturn(cash);
+        lenient().when(companyEntityLookup.requireAccount(eq(company), eq(20L))).thenReturn(cash);
         when(companyEntityLookup.requireAccount(eq(company), eq(21L))).thenReturn(bank);
         when(journalReferenceMappingRepository.findAllByCompanyAndLegacyReferenceIgnoreCase(eq(company), eq("idemp-dr-split-race-miss")))
                 .thenReturn(List.of(mapping));
@@ -2938,7 +2932,7 @@ class AccountingServiceTest {
         mapping.setEntityId(null);
 
         when(supplierRepository.lockByCompanyAndId(eq(company), eq(1L))).thenReturn(Optional.of(supplier));
-        when(companyEntityLookup.requireAccount(eq(company), eq(20L))).thenReturn(cash);
+        lenient().when(companyEntityLookup.requireAccount(eq(company), eq(20L))).thenReturn(cash);
         when(journalReferenceMappingRepository.findAllByCompanyAndLegacyReferenceIgnoreCase(eq(company), eq("idemp-sup-pay-replay")))
                 .thenReturn(List.of(mapping));
         when(journalReferenceResolver.findExistingEntry(eq(company), eq("SUP-PAY-REPLAY-1")))
@@ -3009,7 +3003,7 @@ class AccountingServiceTest {
         mapping.setEntityId(null);
 
         when(supplierRepository.lockByCompanyAndId(eq(company), eq(1L))).thenReturn(Optional.of(supplier));
-        when(companyEntityLookup.requireAccount(eq(company), eq(20L))).thenReturn(cash);
+        lenient().when(companyEntityLookup.requireAccount(eq(company), eq(20L))).thenReturn(cash);
         when(journalReferenceMappingRepository.findAllByCompanyAndLegacyReferenceIgnoreCase(eq(company), eq("idemp-sup-pay-race-miss")))
                 .thenReturn(List.of(mapping));
         when(journalReferenceResolver.findExistingEntry(eq(company), eq("SUP-PAY-RACE-MISS-1")))
@@ -7200,6 +7194,256 @@ class AccountingServiceTest {
     }
 
     @Test
+    void settleDealerInvoices_defaultsHeaderLevelFifoAllocationsForPartialAmount() {
+        AccountingService service = spy(accountingService);
+
+        Dealer dealer = new Dealer();
+        dealer.setName("Dealer");
+        ReflectionTestUtils.setField(dealer, "id", 1L);
+
+        Account receivable = new Account();
+        receivable.setCompany(company);
+        receivable.setCode("AR");
+        receivable.setType(AccountType.ASSET);
+        ReflectionTestUtils.setField(receivable, "id", 10L);
+        dealer.setReceivableAccount(receivable);
+
+        Account cash = new Account();
+        cash.setCompany(company);
+        cash.setCode("BANK");
+        cash.setType(AccountType.ASSET);
+        ReflectionTestUtils.setField(cash, "id", 20L);
+
+        Invoice first = new Invoice();
+        first.setCompany(company);
+        first.setDealer(dealer);
+        first.setCurrency("INR");
+        first.setOutstandingAmount(new BigDecimal("100.00"));
+        first.setTotalAmount(new BigDecimal("100.00"));
+        ReflectionTestUtils.setField(first, "id", 701L);
+
+        Invoice second = new Invoice();
+        second.setCompany(company);
+        second.setDealer(dealer);
+        second.setCurrency("INR");
+        second.setOutstandingAmount(new BigDecimal("50.00"));
+        second.setTotalAmount(new BigDecimal("50.00"));
+        ReflectionTestUtils.setField(second, "id", 702L);
+
+        when(dealerRepository.lockByCompanyAndId(eq(company), eq(1L))).thenReturn(Optional.of(dealer));
+        when(invoiceRepository.lockOpenInvoicesForSettlement(eq(company), eq(dealer))).thenReturn(List.of(first, second));
+        when(invoiceRepository.lockByCompanyAndId(eq(company), eq(701L))).thenReturn(Optional.of(first));
+        when(invoiceRepository.lockByCompanyAndId(eq(company), eq(702L))).thenReturn(Optional.of(second));
+        when(companyEntityLookup.requireAccount(eq(company), eq(20L))).thenReturn(cash);
+        when(companyEntityLookup.requireJournalEntry(eq(company), eq(901L))).thenReturn(new JournalEntry());
+        doReturn(stubEntry(901L)).when(service).createJournalEntry(any(JournalEntryRequest.class));
+
+        DealerSettlementRequest request = new DealerSettlementRequest(
+                1L,
+                20L,
+                null,
+                null,
+                null,
+                null,
+                new BigDecimal("120.00"),
+                null,
+                LocalDate.of(2024, 5, 1),
+                "HDR-DEALER-DEFAULT",
+                "Header dealer settlement",
+                "IDEMP-HDR-DEALER-DEFAULT",
+                Boolean.FALSE,
+                null,
+                null
+        );
+
+        PartnerSettlementResponse response = service.settleDealerInvoices(request);
+
+        assertThat(response.totalApplied()).isEqualByComparingTo("120.00");
+        assertThat(response.cashAmount()).isEqualByComparingTo("120.00");
+        assertThat(response.allocations()).hasSize(2);
+        assertThat(response.allocations().get(0).invoiceId()).isEqualTo(701L);
+        assertThat(response.allocations().get(0).appliedAmount()).isEqualByComparingTo("100.00");
+        assertThat(response.allocations().get(0).applicationType()).isEqualTo(SettlementAllocationApplication.DOCUMENT);
+        assertThat(response.allocations().get(1).invoiceId()).isEqualTo(702L);
+        assertThat(response.allocations().get(1).appliedAmount()).isEqualByComparingTo("20.00");
+        assertThat(response.allocations().get(1).applicationType()).isEqualTo(SettlementAllocationApplication.DOCUMENT);
+
+        verify(invoiceSettlementPolicy).applySettlement(eq(first), eq(new BigDecimal("100.00")), eq("HDR-DEALER-DEFAULT-INV-701"));
+        verify(invoiceSettlementPolicy).applySettlement(eq(second), eq(new BigDecimal("20.00")), eq("HDR-DEALER-DEFAULT-INV-702"));
+    }
+
+    @Test
+    void settleDealerInvoices_allowsExplicitFutureApplicationAllocation() {
+        AccountingService service = spy(accountingService);
+
+        Dealer dealer = new Dealer();
+        dealer.setName("Dealer");
+        ReflectionTestUtils.setField(dealer, "id", 1L);
+
+        Account receivable = new Account();
+        receivable.setCompany(company);
+        receivable.setCode("AR");
+        receivable.setType(AccountType.ASSET);
+        ReflectionTestUtils.setField(receivable, "id", 10L);
+        dealer.setReceivableAccount(receivable);
+
+        Account cash = new Account();
+        cash.setCompany(company);
+        cash.setCode("BANK");
+        cash.setType(AccountType.ASSET);
+        ReflectionTestUtils.setField(cash, "id", 20L);
+
+        Invoice invoice = new Invoice();
+        invoice.setCompany(company);
+        invoice.setDealer(dealer);
+        invoice.setCurrency("INR");
+        invoice.setOutstandingAmount(new BigDecimal("100.00"));
+        invoice.setTotalAmount(new BigDecimal("100.00"));
+        ReflectionTestUtils.setField(invoice, "id", 703L);
+
+        when(dealerRepository.lockByCompanyAndId(eq(company), eq(1L))).thenReturn(Optional.of(dealer));
+        when(invoiceRepository.lockByCompanyAndId(eq(company), eq(703L))).thenReturn(Optional.of(invoice));
+        when(companyEntityLookup.requireAccount(eq(company), eq(20L))).thenReturn(cash);
+        when(companyEntityLookup.requireJournalEntry(eq(company), eq(902L))).thenReturn(new JournalEntry());
+        doReturn(stubEntry(902L)).when(service).createJournalEntry(any(JournalEntryRequest.class));
+
+        DealerSettlementRequest request = new DealerSettlementRequest(
+                1L,
+                20L,
+                null,
+                null,
+                null,
+                null,
+                new BigDecimal("125.00"),
+                null,
+                LocalDate.of(2024, 5, 2),
+                "HDR-DEALER-FUTURE",
+                "Header dealer settlement",
+                "IDEMP-HDR-DEALER-FUTURE",
+                Boolean.FALSE,
+                List.of(
+                        new SettlementAllocationRequest(
+                                703L,
+                                null,
+                                new BigDecimal("100.00"),
+                                BigDecimal.ZERO,
+                                BigDecimal.ZERO,
+                                BigDecimal.ZERO,
+                                SettlementAllocationApplication.DOCUMENT,
+                                "Apply oldest invoice"
+                        ),
+                        new SettlementAllocationRequest(
+                                null,
+                                null,
+                                new BigDecimal("25.00"),
+                                BigDecimal.ZERO,
+                                BigDecimal.ZERO,
+                                BigDecimal.ZERO,
+                                SettlementAllocationApplication.FUTURE_APPLICATION,
+                                "Keep for future invoice"
+                        )
+                ),
+                null
+        );
+
+        PartnerSettlementResponse response = service.settleDealerInvoices(request);
+
+        assertThat(response.totalApplied()).isEqualByComparingTo("125.00");
+        assertThat(response.allocations()).hasSize(2);
+        assertThat(response.allocations().get(1).applicationType()).isEqualTo(SettlementAllocationApplication.FUTURE_APPLICATION);
+        assertThat(response.allocations().get(1).invoiceId()).isNull();
+        assertThat(response.allocations().get(1).memo()).isEqualTo("Keep for future invoice");
+        verify(invoiceSettlementPolicy).applySettlement(eq(invoice), eq(new BigDecimal("100.00")), eq("HDR-DEALER-FUTURE-INV-703"));
+    }
+
+    @Test
+    void settleSupplierInvoices_defaultsHeaderLevelOldestOpenAllocationsAndCarriesOnAccountRemainder() {
+        AccountingService service = spy(accountingService);
+
+        Supplier supplier = new Supplier();
+        supplier.setName("Supplier");
+        supplier.setStatus(SupplierStatus.ACTIVE);
+        ReflectionTestUtils.setField(supplier, "id", 1L);
+
+        Account payable = new Account();
+        payable.setCompany(company);
+        payable.setCode("AP");
+        payable.setType(AccountType.LIABILITY);
+        ReflectionTestUtils.setField(payable, "id", 10L);
+        supplier.setPayableAccount(payable);
+
+        Account cash = new Account();
+        cash.setCompany(company);
+        cash.setCode("BANK");
+        cash.setType(AccountType.ASSET);
+        ReflectionTestUtils.setField(cash, "id", 20L);
+
+        RawMaterialPurchase first = new RawMaterialPurchase();
+        first.setCompany(company);
+        first.setSupplier(supplier);
+        first.setTotalAmount(new BigDecimal("100.00"));
+        first.setOutstandingAmount(new BigDecimal("100.00"));
+        ReflectionTestUtils.setField(first, "id", 801L);
+
+        JournalEntry firstPosting = new JournalEntry();
+        ReflectionTestUtils.setField(firstPosting, "id", 811L);
+        firstPosting.setSupplier(supplier);
+        firstPosting.getLines().add(journalLine(firstPosting, payable, "purchase 801", BigDecimal.ZERO, new BigDecimal("100.00")));
+        first.setJournalEntry(firstPosting);
+
+        RawMaterialPurchase second = new RawMaterialPurchase();
+        second.setCompany(company);
+        second.setSupplier(supplier);
+        second.setTotalAmount(new BigDecimal("50.00"));
+        second.setOutstandingAmount(new BigDecimal("50.00"));
+        ReflectionTestUtils.setField(second, "id", 802L);
+
+        JournalEntry secondPosting = new JournalEntry();
+        ReflectionTestUtils.setField(secondPosting, "id", 812L);
+        secondPosting.setSupplier(supplier);
+        secondPosting.getLines().add(journalLine(secondPosting, payable, "purchase 802", BigDecimal.ZERO, new BigDecimal("50.00")));
+        second.setJournalEntry(secondPosting);
+
+        when(supplierRepository.lockByCompanyAndId(eq(company), eq(1L))).thenReturn(Optional.of(supplier));
+        when(rawMaterialPurchaseRepository.lockOpenPurchasesForSettlement(eq(company), eq(supplier))).thenReturn(List.of(first, second));
+        when(rawMaterialPurchaseRepository.lockByCompanyAndId(eq(company), eq(801L))).thenReturn(Optional.of(first));
+        when(rawMaterialPurchaseRepository.lockByCompanyAndId(eq(company), eq(802L))).thenReturn(Optional.of(second));
+        when(companyEntityLookup.requireAccount(eq(company), eq(20L))).thenReturn(cash);
+        when(companyEntityLookup.requireJournalEntry(eq(company), eq(903L))).thenReturn(new JournalEntry());
+        doReturn(stubEntry(903L)).when(service).createJournalEntry(any(JournalEntryRequest.class));
+
+        SupplierSettlementRequest request = new SupplierSettlementRequest(
+                1L,
+                20L,
+                null,
+                null,
+                null,
+                null,
+                new BigDecimal("180.00"),
+                SettlementAllocationApplication.ON_ACCOUNT,
+                LocalDate.of(2024, 5, 3),
+                "HDR-SUPPLIER-DEFAULT",
+                "Header supplier settlement",
+                "IDEMP-HDR-SUPPLIER-DEFAULT",
+                Boolean.FALSE,
+                null
+        );
+
+        PartnerSettlementResponse response = service.settleSupplierInvoices(request);
+
+        assertThat(response.totalApplied()).isEqualByComparingTo("180.00");
+        assertThat(response.cashAmount()).isEqualByComparingTo("180.00");
+        assertThat(response.allocations()).hasSize(3);
+        assertThat(response.allocations().get(0).purchaseId()).isEqualTo(801L);
+        assertThat(response.allocations().get(0).applicationType()).isEqualTo(SettlementAllocationApplication.DOCUMENT);
+        assertThat(response.allocations().get(1).purchaseId()).isEqualTo(802L);
+        assertThat(response.allocations().get(1).applicationType()).isEqualTo(SettlementAllocationApplication.DOCUMENT);
+        assertThat(response.allocations().get(2).purchaseId()).isNull();
+        assertThat(response.allocations().get(2).applicationType()).isEqualTo(SettlementAllocationApplication.ON_ACCOUNT);
+        assertThat(response.allocations().get(2).appliedAmount()).isEqualByComparingTo("30.00");
+    }
+
+    @Test
     void settleSupplierInvoices_rejectsOnAccountAllocationWithAdjustments() {
         AccountingService service = spy(accountingService);
 
@@ -7221,7 +7465,7 @@ class AccountingServiceTest {
         ReflectionTestUtils.setField(cash, "id", 20L);
 
         when(supplierRepository.lockByCompanyAndId(eq(company), eq(1L))).thenReturn(Optional.of(supplier));
-        when(companyEntityLookup.requireAccount(eq(company), eq(20L))).thenReturn(cash);
+        lenient().when(companyEntityLookup.requireAccount(eq(company), eq(20L))).thenReturn(cash);
 
         SettlementAllocationRequest allocation = new SettlementAllocationRequest(
                 null,
@@ -7276,7 +7520,7 @@ class AccountingServiceTest {
         ReflectionTestUtils.setField(cash, "id", 20L);
 
         when(supplierRepository.lockByCompanyAndId(eq(company), eq(1L))).thenReturn(Optional.of(supplier));
-        when(companyEntityLookup.requireAccount(eq(company), eq(20L))).thenReturn(cash);
+        lenient().when(companyEntityLookup.requireAccount(eq(company), eq(20L))).thenReturn(cash);
 
         SupplierSettlementRequest request = new SupplierSettlementRequest(
                 1L,
@@ -7340,7 +7584,7 @@ class AccountingServiceTest {
         ReflectionTestUtils.setField(cash, "id", 20L);
 
         when(supplierRepository.lockByCompanyAndId(eq(company), eq(1L))).thenReturn(Optional.of(supplier));
-        when(companyEntityLookup.requireAccount(eq(company), eq(20L))).thenReturn(cash);
+        lenient().when(companyEntityLookup.requireAccount(eq(company), eq(20L))).thenReturn(cash);
 
         SupplierSettlementRequest request = new SupplierSettlementRequest(
                 1L,
@@ -7396,14 +7640,7 @@ class AccountingServiceTest {
         supplier.setPayableAccount(payable);
         ReflectionTestUtils.setField(supplier, "id", 1L);
 
-        Account cash = new Account();
-        cash.setCompany(company);
-        cash.setCode("CASH");
-        cash.setType(AccountType.ASSET);
-        ReflectionTestUtils.setField(cash, "id", 20L);
-
         when(supplierRepository.lockByCompanyAndId(eq(company), eq(1L))).thenReturn(Optional.of(supplier));
-        when(companyEntityLookup.requireAccount(eq(company), eq(20L))).thenReturn(cash);
         when(journalReferenceMappingRepository.findAllByCompanyAndLegacyReferenceIgnoreCase(
                 eq(company), eq("idemp-neg-cash-supplier-tolerance")))
                 .thenReturn(List.of());
@@ -7782,10 +8019,7 @@ class AccountingServiceTest {
         existingRow.setMemo(null);
 
         when(supplierRepository.lockByCompanyAndId(eq(company), eq(1L))).thenReturn(Optional.of(supplier));
-        when(companyEntityLookup.requireAccount(eq(company), eq(20L))).thenReturn(cash);
-        when(journalReferenceMappingRepository.findAllByCompanyAndLegacyReferenceIgnoreCase(
-                eq(company), eq("idemp-ap-mismatch-leader")))
-                .thenReturn(List.of());
+        lenient().when(companyEntityLookup.requireAccount(eq(company), eq(20L))).thenReturn(cash);
         when(journalReferenceResolver.findExistingEntry(eq(company), eq("SUP-SETTLE-MAP-LEADER-1")))
                 .thenReturn(Optional.of(mappingEntry));
         when(settlementAllocationRepository.findByCompanyAndIdempotencyKeyIgnoreCaseOrderByCreatedAtAscIdAsc(
@@ -7855,7 +8089,7 @@ class AccountingServiceTest {
         mapping.setEntityId(null);
 
         when(supplierRepository.lockByCompanyAndId(eq(company), eq(1L))).thenReturn(Optional.of(supplier));
-        when(companyEntityLookup.requireAccount(eq(company), eq(20L))).thenReturn(cash);
+        lenient().when(companyEntityLookup.requireAccount(eq(company), eq(20L))).thenReturn(cash);
         when(journalReferenceMappingRepository.findAllByCompanyAndLegacyReferenceIgnoreCase(eq(company), eq("idemp-ap-race-miss")))
                 .thenReturn(List.of(mapping));
         when(settlementAllocationRepository.findByCompanyAndIdempotencyKey(eq(company), eq("IDEMP-AP-RACE-MISS")))

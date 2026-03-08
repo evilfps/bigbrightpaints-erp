@@ -105,6 +105,7 @@ public abstract class AccountingCoreEngineCore {
     private static final String SETTLEMENT_DISCOUNT_LINE_DESCRIPTION = "settlement discount";
     private static final String SETTLEMENT_WRITE_OFF_LINE_DESCRIPTION = "settlement write-off";
     private static final String SETTLEMENT_FX_LOSS_LINE_DESCRIPTION = "fx loss on settlement";
+    private static final String SETTLEMENT_APPLICATION_PREFIX = "[SETTLEMENT-APPLICATION:";
     private static final String INPUT_TAX_LINE_DESCRIPTION_PREFIX = "input tax for ";
     private static final int IDEMPOTENCY_LOG_HASH_LENGTH = 12;
 
@@ -1216,7 +1217,7 @@ public abstract class AccountingCoreEngineCore {
             row.setWriteOffAmount(BigDecimal.ZERO);
             row.setFxDifferenceAmount(BigDecimal.ZERO);
             row.setIdempotencyKey(idempotencyKey);
-            if (invoice.getCurrency() != null) {
+            if (invoice != null && invoice.getCurrency() != null) {
                 row.setCurrency(invoice.getCurrency());
             }
             row.setMemo(allocation.memo());
@@ -1379,7 +1380,7 @@ public abstract class AccountingCoreEngineCore {
             row.setWriteOffAmount(BigDecimal.ZERO);
             row.setFxDifferenceAmount(BigDecimal.ZERO);
             row.setIdempotencyKey(idempotencyKey);
-            if (invoice.getCurrency() != null) {
+            if (invoice != null && invoice.getCurrency() != null) {
                 row.setCurrency(invoice.getCurrency());
             }
             row.setMemo(request.memo());
@@ -1914,10 +1915,10 @@ public abstract class AccountingCoreEngineCore {
         Supplier supplier = supplierRepository.lockByCompanyAndId(company, request.supplierId())
                 .orElseThrow(() -> new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE, "Supplier not found"));
         Account payableAccount = requireSupplierPayable(supplier);
-        Account cashAccount = requireCashAccountForSettlement(company, request.cashAccountId(), "supplier payment", false);
         BigDecimal amount = ValidationUtils.requirePositive(request.amount(), "amount");
         List<SettlementAllocationRequest> allocations = request.allocations();
         validatePaymentAllocations(allocations, amount, "supplier payment", false);
+        Account cashAccount = requireCashAccountForSettlement(company, request.cashAccountId(), "supplier payment", false);
         String memo = StringUtils.hasText(request.memo())
                 ? request.memo().trim()
                 : "Payment to supplier " + supplier.getName();
@@ -2093,17 +2094,33 @@ public abstract class AccountingCoreEngineCore {
     @Transactional
     public PartnerSettlementResponse settleDealerInvoices(DealerSettlementRequest request) {
         Company company = companyContextService.requireCurrentCompany();
-        String trimmedIdempotencyKey = resolveDealerSettlementIdempotencyKey(company, request);
-        if (!StringUtils.hasText(trimmedIdempotencyKey)) {
-            throw new ApplicationException(ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD,
-                    "Idempotency key is required for dealer settlements");
-        }
         Dealer dealer = dealerRepository.lockByCompanyAndId(company, request.dealerId())
                 .orElseThrow(() -> new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE, "Dealer not found"));
         Account receivableAccount = requireDealerReceivable(dealer);
-        List<SettlementAllocationRequest> allocations = request.allocations();
-        if (allocations == null || allocations.isEmpty()) {
-            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT, "At least one allocation is required");
+        String trimmedIdempotencyKey = resolveDealerSettlementIdempotencyKey(company, request);
+        List<SettlementAllocationRequest> allocations = resolveDealerSettlementAllocations(company, dealer, request, trimmedIdempotencyKey);
+        DealerSettlementRequest requestForReplay = request.allocations() == allocations
+                ? request
+                : new DealerSettlementRequest(
+                request.dealerId(),
+                request.cashAccountId(),
+                request.discountAccountId(),
+                request.writeOffAccountId(),
+                request.fxGainAccountId(),
+                request.fxLossAccountId(),
+                request.amount(),
+                request.unappliedAmountApplication(),
+                request.settlementDate(),
+                request.referenceNumber(),
+                request.memo(),
+                request.idempotencyKey(),
+                request.adminOverride(),
+                allocations,
+                request.payments());
+        trimmedIdempotencyKey = resolveDealerSettlementIdempotencyKey(company, requestForReplay);
+        if (!StringUtils.hasText(trimmedIdempotencyKey)) {
+            throw new ApplicationException(ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD,
+                    "Idempotency key is required for dealer settlements");
         }
         boolean replayCandidate = hasExistingSettlementAllocations(company, trimmedIdempotencyKey);
         if (!replayCandidate) {
@@ -2194,10 +2211,6 @@ public abstract class AccountingCoreEngineCore {
         Map<Long, BigDecimal> remainingByInvoice = new HashMap<>();
 
         for (SettlementAllocationRequest allocation : allocations) {
-            if (allocation.invoiceId() == null) {
-                throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
-                        "Invoice allocation is required for dealer settlements");
-            }
             if (allocation.purchaseId() != null) {
                 throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
                         "Dealer settlements cannot allocate to purchases");
@@ -2206,27 +2219,38 @@ public abstract class AccountingCoreEngineCore {
             BigDecimal discount = normalizeNonNegative(allocation.discountAmount(), "discountAmount");
             BigDecimal writeOff = normalizeNonNegative(allocation.writeOffAmount(), "writeOffAmount");
             BigDecimal fxAdjustment = MoneyUtils.zeroIfNull(allocation.fxAdjustment());
+            SettlementAllocationApplication applicationType = resolveSettlementApplicationType(allocation);
 
-            Invoice invoice = invoiceRepository.lockByCompanyAndId(company, allocation.invoiceId())
-                    .orElseThrow(() -> new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE, "Invoice not found"));
-            if (invoice.getDealer() == null || !invoice.getDealer().getId().equals(dealer.getId())) {
-                throw new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE, "Invoice does not belong to the dealer");
-            }
-            enforceSettlementCurrency(company, invoice);
-
-            // Open-item tracking: applied amount represents gross invoice reduction.
-            BigDecimal cleared = applied;
-            BigDecimal currentOutstanding = remainingByInvoice.getOrDefault(
-                    invoice.getId(),
-                    MoneyUtils.zeroIfNull(invoice.getOutstandingAmount()));
-            if (cleared.subtract(currentOutstanding).compareTo(ALLOCATION_TOLERANCE) > 0) {
+            if (applicationType.isUnapplied()
+                    && (discount.compareTo(BigDecimal.ZERO) > 0
+                    || writeOff.compareTo(BigDecimal.ZERO) > 0
+                    || fxAdjustment.compareTo(BigDecimal.ZERO) != 0)) {
                 throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
-                        "Settlement allocation exceeds invoice outstanding amount")
-                        .withDetail("invoiceId", invoice.getId())
-                        .withDetail("outstandingAmount", currentOutstanding)
-                        .withDetail("appliedAmount", cleared);
+                        "On-account dealer settlement allocations cannot include discount/write-off/FX adjustments");
             }
-            remainingByInvoice.put(invoice.getId(), currentOutstanding.subtract(cleared).max(BigDecimal.ZERO));
+
+            Invoice invoice = null;
+            if (!applicationType.isUnapplied()) {
+                invoice = invoiceRepository.lockByCompanyAndId(company, allocation.invoiceId())
+                        .orElseThrow(() -> new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE, "Invoice not found"));
+                if (invoice.getDealer() == null || !invoice.getDealer().getId().equals(dealer.getId())) {
+                    throw new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE, "Invoice does not belong to the dealer");
+                }
+                enforceSettlementCurrency(company, invoice);
+
+                BigDecimal cleared = applied;
+                BigDecimal currentOutstanding = remainingByInvoice.getOrDefault(
+                        invoice.getId(),
+                        MoneyUtils.zeroIfNull(invoice.getOutstandingAmount()));
+                if (cleared.subtract(currentOutstanding).compareTo(ALLOCATION_TOLERANCE) > 0) {
+                    throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                            "Settlement allocation exceeds invoice outstanding amount")
+                            .withDetail("invoiceId", invoice.getId())
+                            .withDetail("outstandingAmount", currentOutstanding)
+                            .withDetail("appliedAmount", cleared);
+                }
+                remainingByInvoice.put(invoice.getId(), currentOutstanding.subtract(cleared).max(BigDecimal.ZERO));
+            }
 
             PartnerSettlementAllocation row = new PartnerSettlementAllocation();
             row.setCompany(company);
@@ -2239,10 +2263,10 @@ public abstract class AccountingCoreEngineCore {
             row.setWriteOffAmount(writeOff);
             row.setFxDifferenceAmount(fxAdjustment);
             row.setIdempotencyKey(trimmedIdempotencyKey);
-            if (invoice.getCurrency() != null) {
+            if (invoice != null && invoice.getCurrency() != null) {
                 row.setCurrency(invoice.getCurrency());
             }
-            row.setMemo(allocation.memo());
+            row.setMemo(encodeSettlementAllocationMemo(applicationType, allocation.memo()));
             settlementRows.add(row);
         }
 
@@ -2325,15 +2349,29 @@ public abstract class AccountingCoreEngineCore {
     @Transactional
     public PartnerSettlementResponse settleSupplierInvoices(SupplierSettlementRequest request) {
         Company company = companyContextService.requireCurrentCompany();
-        String trimmedIdempotencyKey = resolveReceiptIdempotencyKey(request.idempotencyKey(), request.referenceNumber(), "supplier settlement");
         Supplier supplier = supplierRepository.lockByCompanyAndId(company, request.supplierId())
                 .orElseThrow(() -> new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE, "Supplier not found"));
         Account payableAccount = requireSupplierPayable(supplier);
-        Account cashAccount = requireCashAccountForSettlement(company, request.cashAccountId(), "supplier settlement", false);
-        List<SettlementAllocationRequest> allocations = request.allocations();
-        if (allocations == null || allocations.isEmpty()) {
-            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT, "At least one allocation is required");
-        }
+        String trimmedIdempotencyKey = resolveSupplierSettlementIdempotencyKey(request);
+        List<SettlementAllocationRequest> allocations = resolveSupplierSettlementAllocations(company, supplier, request, trimmedIdempotencyKey);
+        SupplierSettlementRequest requestForReplay = request.allocations() == allocations
+                ? request
+                : new SupplierSettlementRequest(
+                request.supplierId(),
+                request.cashAccountId(),
+                request.discountAccountId(),
+                request.writeOffAccountId(),
+                request.fxGainAccountId(),
+                request.fxLossAccountId(),
+                request.amount(),
+                request.unappliedAmountApplication(),
+                request.settlementDate(),
+                request.referenceNumber(),
+                request.memo(),
+                request.idempotencyKey(),
+                request.adminOverride(),
+                allocations);
+        trimmedIdempotencyKey = resolveSupplierSettlementIdempotencyKey(requestForReplay);
         boolean replayCandidate = hasExistingIdempotencyMapping(company, trimmedIdempotencyKey)
                 || hasExistingSettlementAllocations(company, trimmedIdempotencyKey);
         if (!replayCandidate) {
@@ -2355,7 +2393,7 @@ public abstract class AccountingCoreEngineCore {
             List<PartnerSettlementAllocation> existingAllocations = awaitAllocations(company, trimmedIdempotencyKey);
             if (!existingAllocations.isEmpty()) {
                 SettlementLineDraft replayLineDraft =
-                        buildSupplierSettlementLines(company, request, payableAccount, cashAccount, totals, memo);
+                        buildSupplierSettlementLines(company, request, payableAccount, totals, memo, false);
                 JournalEntry entry = resolveReplayJournalEntry(trimmedIdempotencyKey, existingEntry, existingAllocations);
                 linkReferenceMapping(company, trimmedIdempotencyKey, entry, ENTITY_TYPE_SUPPLIER_SETTLEMENT);
                 validateSettlementIdempotencyKey(trimmedIdempotencyKey, PartnerType.SUPPLIER, supplier.getId(), existingAllocations, allocations);
@@ -2383,7 +2421,7 @@ public abstract class AccountingCoreEngineCore {
                     trimmedIdempotencyKey,
                     existingAllocations);
             SettlementLineDraft replayLineDraft =
-                    buildSupplierSettlementLines(company, request, payableAccount, cashAccount, totals, memo);
+                    buildSupplierSettlementLines(company, request, payableAccount, totals, memo, false);
             linkReferenceMapping(company, trimmedIdempotencyKey, entry, ENTITY_TYPE_SUPPLIER_SETTLEMENT);
             validateSettlementIdempotencyKey(trimmedIdempotencyKey, PartnerType.SUPPLIER, supplier.getId(), existingAllocations, allocations);
             validatePartnerSettlementJournalLines(
@@ -2396,9 +2434,7 @@ public abstract class AccountingCoreEngineCore {
             return buildSupplierSettlementResponse(existingAllocations);
         }
 
-        supplier.requireTransactionalUsage("settle supplier invoices");
-        cashAccount = requireCashAccountForSettlement(company, request.cashAccountId(), "supplier settlement", true);
-        SettlementLineDraft lineDraft = buildSupplierSettlementLines(company, request, payableAccount, cashAccount, totals, memo);
+        SettlementLineDraft lineDraft = buildSupplierSettlementLines(company, request, payableAccount, totals, memo, true);
 
         LocalDate entryDate = request.settlementDate() != null ? request.settlementDate() : currentDate(company);
 
@@ -2421,8 +2457,9 @@ public abstract class AccountingCoreEngineCore {
             BigDecimal discount = normalizeNonNegative(allocation.discountAmount(), "discountAmount");
             BigDecimal writeOff = normalizeNonNegative(allocation.writeOffAmount(), "writeOffAmount");
             BigDecimal fxAdjustment = MoneyUtils.zeroIfNull(allocation.fxAdjustment());
+            SettlementAllocationApplication applicationType = resolveSettlementApplicationType(allocation);
 
-            if (allocation.purchaseId() == null
+            if (applicationType.isUnapplied()
                     && (discount.compareTo(BigDecimal.ZERO) > 0
                     || writeOff.compareTo(BigDecimal.ZERO) > 0
                     || fxAdjustment.compareTo(BigDecimal.ZERO) != 0)) {
@@ -2431,7 +2468,7 @@ public abstract class AccountingCoreEngineCore {
             }
 
             RawMaterialPurchase purchase = null;
-            if (allocation.purchaseId() != null) {
+            if (!applicationType.isUnapplied()) {
                 purchase = rawMaterialPurchaseRepository.lockByCompanyAndId(company, allocation.purchaseId())
                         .orElseThrow(() -> new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE, "Raw material purchase not found"));
                 if (purchase.getSupplier() == null || !purchase.getSupplier().getId().equals(supplier.getId())) {
@@ -2465,7 +2502,7 @@ public abstract class AccountingCoreEngineCore {
             row.setWriteOffAmount(writeOff);
             row.setFxDifferenceAmount(fxAdjustment);
             row.setIdempotencyKey(trimmedIdempotencyKey);
-            row.setMemo(allocation.memo());
+            row.setMemo(encodeSettlementAllocationMemo(applicationType, allocation.memo()));
             settlementRows.add(row);
         }
 
@@ -2770,17 +2807,75 @@ public abstract class AccountingCoreEngineCore {
                         "cashAccountId is required when no active default cash/bank account is configured for " + operation));
     }
 
-    private List<SettlementAllocationRequest> buildDealerAutoSettlementAllocations(Company company,
-                                                                                    Dealer dealer,
-                                                                                    BigDecimal amount) {
-        List<Invoice> openInvoices = invoiceRepository.lockOpenInvoicesForSettlement(company, dealer);
-        if (openInvoices.isEmpty()) {
-            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
-                    "No open invoices available for auto-settlement");
-        }
+    private List<SettlementAllocationRequest> resolveDealerSettlementAllocations(Company company,
+                                                                                 Dealer dealer,
+                                                                                 DealerSettlementRequest request) {
+        return resolveDealerSettlementAllocations(company, dealer, request, request != null && StringUtils.hasText(request.idempotencyKey())
+                ? request.idempotencyKey().trim()
+                : request != null && StringUtils.hasText(request.referenceNumber())
+                ? request.referenceNumber().trim()
+                : null);
+    }
 
-        BigDecimal totalOutstanding = BigDecimal.ZERO;
+    private List<SettlementAllocationRequest> resolveDealerSettlementAllocations(Company company,
+                                                                                 Dealer dealer,
+                                                                                 DealerSettlementRequest request,
+                                                                                 String replayIdempotencyKey) {
+        List<SettlementAllocationRequest> provided = request != null ? request.allocations() : null;
+        if (provided != null && !provided.isEmpty()) {
+            validateOptionalHeaderSettlementAmount("dealer", request != null ? request.amount() : null, provided);
+            return provided;
+        }
+        List<SettlementAllocationRequest> replayAllocations = replayAllocations(company, replayIdempotencyKey);
+        if (!replayAllocations.isEmpty()) {
+            return replayAllocations;
+        }
+        BigDecimal amount = resolveDealerHeaderSettlementAmount(request);
+        SettlementAllocationApplication unappliedApplication = request != null
+                ? normalizeRequestedUnappliedApplication(request.unappliedAmountApplication())
+                : null;
+        return buildDealerHeaderSettlementAllocations(company, dealer, amount, unappliedApplication);
+    }
+
+    private BigDecimal resolveDealerHeaderSettlementAmount(DealerSettlementRequest request) {
+        if (request == null) {
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT, "Dealer settlement request is required");
+        }
+        BigDecimal requestedAmount = request.amount() != null ? ValidationUtils.requirePositive(request.amount(), "amount") : null;
+        BigDecimal paymentTotal = null;
+        if (request.payments() != null && !request.payments().isEmpty()) {
+            paymentTotal = BigDecimal.ZERO;
+            for (SettlementPaymentRequest payment : request.payments()) {
+                if (payment == null) {
+                    continue;
+                }
+                paymentTotal = paymentTotal.add(ValidationUtils.requirePositive(payment.amount(), "payment amount"));
+            }
+        }
+        if (requestedAmount != null && paymentTotal != null
+                && requestedAmount.subtract(paymentTotal).abs().compareTo(ALLOCATION_TOLERANCE) > 0) {
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                    "Dealer settlement amount must match the total payment amount when header-level default allocation is used")
+                    .withDetail("amount", requestedAmount)
+                    .withDetail("paymentTotal", paymentTotal);
+        }
+        if (requestedAmount != null) {
+            return requestedAmount;
+        }
+        if (paymentTotal != null && paymentTotal.compareTo(BigDecimal.ZERO) > 0) {
+            return paymentTotal;
+        }
+        throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                "Provide allocations or an amount (or payment lines) for dealer settlements");
+    }
+
+    private List<SettlementAllocationRequest> buildDealerHeaderSettlementAllocations(Company company,
+                                                                                     Dealer dealer,
+                                                                                     BigDecimal amount,
+                                                                                     SettlementAllocationApplication unappliedApplication) {
+        List<Invoice> openInvoices = invoiceRepository.lockOpenInvoicesForSettlement(company, dealer);
         BigDecimal remaining = amount;
+        BigDecimal totalOutstanding = BigDecimal.ZERO;
         List<SettlementAllocationRequest> allocations = new ArrayList<>();
 
         for (Invoice invoice : openInvoices) {
@@ -2800,36 +2895,93 @@ public abstract class AccountingCoreEngineCore {
                     BigDecimal.ZERO,
                     BigDecimal.ZERO,
                     BigDecimal.ZERO,
-                    "Auto-settlement FIFO allocation"
+                    SettlementAllocationApplication.DOCUMENT,
+                    "Header-level FIFO allocation"
             ));
             remaining = remaining.subtract(applied);
         }
 
-        if (totalOutstanding.add(ALLOCATION_TOLERANCE).compareTo(amount) < 0) {
-            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
-                    "Auto-settlement amount exceeds total outstanding invoices")
-                    .withDetail("outstandingTotal", totalOutstanding)
-                    .withDetail("requestedAmount", amount);
+        if (remaining.compareTo(ALLOCATION_TOLERANCE) > 0) {
+            if (unappliedApplication == null) {
+                String message = totalOutstanding.compareTo(BigDecimal.ZERO) > 0
+                        ? "Header-level settlement amount exceeds open invoice outstanding total; choose ON_ACCOUNT or FUTURE_APPLICATION to keep the remainder"
+                        : "No open invoices are available; choose ON_ACCOUNT or FUTURE_APPLICATION to keep the settlement unapplied";
+                throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT, message)
+                        .withDetail("requestedAmount", amount)
+                        .withDetail("outstandingTotal", totalOutstanding)
+                        .withDetail("remaining", remaining);
+            }
+            allocations.add(new SettlementAllocationRequest(
+                    null,
+                    null,
+                    remaining,
+                    BigDecimal.ZERO,
+                    BigDecimal.ZERO,
+                    BigDecimal.ZERO,
+                    unappliedApplication,
+                    defaultUnappliedAllocationMemo(unappliedApplication)
+            ));
+            remaining = BigDecimal.ZERO;
         }
-        if (remaining.abs().compareTo(ALLOCATION_TOLERANCE) > 0) {
+
+        if (allocations.isEmpty()) {
             throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
-                    "Auto-settlement amount could not be fully allocated")
-                    .withDetail("remaining", remaining);
+                    "At least one dealer settlement allocation is required");
         }
         return allocations;
     }
 
-    private List<SettlementAllocationRequest> buildSupplierAutoSettlementAllocations(Company company,
-                                                                                      Supplier supplier,
-                                                                                      BigDecimal amount) {
-        List<RawMaterialPurchase> openPurchases = rawMaterialPurchaseRepository.lockOpenPurchasesForSettlement(company, supplier);
-        if (openPurchases.isEmpty()) {
-            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
-                    "No open purchases available for auto-settlement");
-        }
+    private List<SettlementAllocationRequest> buildDealerAutoSettlementAllocations(Company company,
+                                                                                    Dealer dealer,
+                                                                                    BigDecimal amount) {
+        return buildDealerHeaderSettlementAllocations(company, dealer, amount, null);
+    }
 
-        BigDecimal totalOutstanding = BigDecimal.ZERO;
+    private List<SettlementAllocationRequest> resolveSupplierSettlementAllocations(Company company,
+                                                                                   Supplier supplier,
+                                                                                   SupplierSettlementRequest request) {
+        return resolveSupplierSettlementAllocations(company, supplier, request, request != null && StringUtils.hasText(request.idempotencyKey())
+                ? request.idempotencyKey().trim()
+                : request != null && StringUtils.hasText(request.referenceNumber())
+                ? request.referenceNumber().trim()
+                : null);
+    }
+
+    private List<SettlementAllocationRequest> resolveSupplierSettlementAllocations(Company company,
+                                                                                   Supplier supplier,
+                                                                                   SupplierSettlementRequest request,
+                                                                                   String replayIdempotencyKey) {
+        List<SettlementAllocationRequest> provided = request != null ? request.allocations() : null;
+        if (provided != null && !provided.isEmpty()) {
+            validateOptionalHeaderSettlementAmount("supplier", request != null ? request.amount() : null, provided);
+            return provided;
+        }
+        List<SettlementAllocationRequest> replayAllocations = replayAllocations(company, replayIdempotencyKey);
+        if (!replayAllocations.isEmpty()) {
+            return replayAllocations;
+        }
+        BigDecimal amount = resolveSupplierHeaderSettlementAmount(request);
+        SettlementAllocationApplication unappliedApplication = request != null
+                ? normalizeRequestedUnappliedApplication(request.unappliedAmountApplication())
+                : null;
+        return buildSupplierHeaderSettlementAllocations(company, supplier, amount, unappliedApplication);
+    }
+
+    private BigDecimal resolveSupplierHeaderSettlementAmount(SupplierSettlementRequest request) {
+        if (request == null || request.amount() == null) {
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                    "Provide allocations or an amount for supplier settlements");
+        }
+        return ValidationUtils.requirePositive(request.amount(), "amount");
+    }
+
+    private List<SettlementAllocationRequest> buildSupplierHeaderSettlementAllocations(Company company,
+                                                                                       Supplier supplier,
+                                                                                       BigDecimal amount,
+                                                                                       SettlementAllocationApplication unappliedApplication) {
+        List<RawMaterialPurchase> openPurchases = rawMaterialPurchaseRepository.lockOpenPurchasesForSettlement(company, supplier);
         BigDecimal remaining = amount;
+        BigDecimal totalOutstanding = BigDecimal.ZERO;
         List<SettlementAllocationRequest> allocations = new ArrayList<>();
 
         for (RawMaterialPurchase purchase : openPurchases) {
@@ -2849,23 +3001,82 @@ public abstract class AccountingCoreEngineCore {
                     BigDecimal.ZERO,
                     BigDecimal.ZERO,
                     BigDecimal.ZERO,
-                    "Auto-settlement FIFO allocation"
+                    SettlementAllocationApplication.DOCUMENT,
+                    "Header-level oldest-open allocation"
             ));
             remaining = remaining.subtract(applied);
         }
 
-        if (totalOutstanding.add(ALLOCATION_TOLERANCE).compareTo(amount) < 0) {
-            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
-                    "Auto-settlement amount exceeds total outstanding purchases")
-                    .withDetail("outstandingTotal", totalOutstanding)
-                    .withDetail("requestedAmount", amount);
+        if (remaining.compareTo(ALLOCATION_TOLERANCE) > 0) {
+            if (unappliedApplication == null) {
+                String message = totalOutstanding.compareTo(BigDecimal.ZERO) > 0
+                        ? "Header-level settlement amount exceeds open purchase outstanding total; choose ON_ACCOUNT or FUTURE_APPLICATION to keep the remainder"
+                        : "No open purchases are available; choose ON_ACCOUNT or FUTURE_APPLICATION to keep the settlement unapplied";
+                throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT, message)
+                        .withDetail("requestedAmount", amount)
+                        .withDetail("outstandingTotal", totalOutstanding)
+                        .withDetail("remaining", remaining);
+            }
+            allocations.add(new SettlementAllocationRequest(
+                    null,
+                    null,
+                    remaining,
+                    BigDecimal.ZERO,
+                    BigDecimal.ZERO,
+                    BigDecimal.ZERO,
+                    unappliedApplication,
+                    defaultUnappliedAllocationMemo(unappliedApplication)
+            ));
+            remaining = BigDecimal.ZERO;
         }
-        if (remaining.abs().compareTo(ALLOCATION_TOLERANCE) > 0) {
+
+        if (allocations.isEmpty()) {
             throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
-                    "Auto-settlement amount could not be fully allocated")
-                    .withDetail("remaining", remaining);
+                    "At least one supplier settlement allocation is required");
         }
         return allocations;
+    }
+
+    private List<SettlementAllocationRequest> buildSupplierAutoSettlementAllocations(Company company,
+                                                                                      Supplier supplier,
+                                                                                      BigDecimal amount) {
+        return buildSupplierHeaderSettlementAllocations(company, supplier, amount, null);
+    }
+
+    private void validateOptionalHeaderSettlementAmount(String label,
+                                                        BigDecimal requestedAmount,
+                                                        List<SettlementAllocationRequest> allocations) {
+        if (requestedAmount == null || allocations == null || allocations.isEmpty()) {
+            return;
+        }
+        BigDecimal totalApplied = allocations.stream()
+                .map(SettlementAllocationRequest::appliedAmount)
+                .map(MoneyUtils::zeroIfNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        if (requestedAmount.subtract(totalApplied).abs().compareTo(ALLOCATION_TOLERANCE) > 0) {
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                    "Explicit " + label + " settlement allocations must add up to the request amount")
+                    .withDetail("amount", requestedAmount)
+                    .withDetail("allocationTotal", totalApplied);
+        }
+    }
+
+    private SettlementAllocationApplication normalizeRequestedUnappliedApplication(SettlementAllocationApplication application) {
+        if (application == null) {
+            return null;
+        }
+        if (application == SettlementAllocationApplication.DOCUMENT) {
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                    "Unapplied amount handling must be ON_ACCOUNT or FUTURE_APPLICATION");
+        }
+        return application;
+    }
+
+    private String defaultUnappliedAllocationMemo(SettlementAllocationApplication application) {
+        if (application == SettlementAllocationApplication.FUTURE_APPLICATION) {
+            return "Header-level future application";
+        }
+        return "Header-level on-account carry";
     }
 
     private PartnerSettlementResponse buildAutoSettlementResponse(Company company, JournalEntryDto journalEntry) {
@@ -3058,6 +3269,104 @@ public abstract class AccountingCoreEngineCore {
         }
         throw new ApplicationException(ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD,
                 "Idempotency key or reference number is required for " + label);
+    }
+
+    private String resolveSupplierSettlementIdempotencyKey(SupplierSettlementRequest request) {
+        if (request == null) {
+            return "";
+        }
+        if (StringUtils.hasText(request.idempotencyKey())) {
+            return request.idempotencyKey().trim();
+        }
+        if (StringUtils.hasText(request.referenceNumber())) {
+            return request.referenceNumber().trim();
+        }
+        return buildSupplierSettlementIdempotencyKey(request);
+    }
+
+    private SettlementAllocationApplication resolveSettlementApplicationType(SettlementAllocationRequest allocation) {
+        if (allocation == null) {
+            return SettlementAllocationApplication.DOCUMENT;
+        }
+        if (allocation.applicationType() != null) {
+            return allocation.applicationType();
+        }
+        if (allocation.invoiceId() == null && allocation.purchaseId() == null) {
+            return SettlementAllocationApplication.ON_ACCOUNT;
+        }
+        return SettlementAllocationApplication.DOCUMENT;
+    }
+
+    private SettlementAllocationApplication resolveSettlementApplicationType(PartnerSettlementAllocation allocation) {
+        if (allocation == null) {
+            return SettlementAllocationApplication.DOCUMENT;
+        }
+        if (allocation.getInvoice() != null || allocation.getPurchase() != null) {
+            return SettlementAllocationApplication.DOCUMENT;
+        }
+        return decodeSettlementAllocationMemo(allocation.getMemo()).applicationType();
+    }
+
+    private String encodeSettlementAllocationMemo(SettlementAllocationApplication applicationType, String memo) {
+        SettlementAllocationApplication resolved = applicationType != null ? applicationType : SettlementAllocationApplication.DOCUMENT;
+        String visibleMemo = normalizeVisibleSettlementMemo(memo);
+        if (!resolved.isUnapplied()) {
+            return visibleMemo;
+        }
+        String prefix = SETTLEMENT_APPLICATION_PREFIX + resolved.name() + "]";
+        return StringUtils.hasText(visibleMemo) ? prefix + " " + visibleMemo : prefix;
+    }
+
+    private SettlementMemoParts decodeSettlementAllocationMemo(String memo) {
+        String normalized = normalizeVisibleSettlementMemo(memo);
+        if (!StringUtils.hasText(normalized) || !normalized.startsWith(SETTLEMENT_APPLICATION_PREFIX)) {
+            return new SettlementMemoParts(SettlementAllocationApplication.ON_ACCOUNT, normalized);
+        }
+        int closingBracket = normalized.indexOf(']');
+        if (closingBracket <= SETTLEMENT_APPLICATION_PREFIX.length()) {
+            return new SettlementMemoParts(SettlementAllocationApplication.ON_ACCOUNT, normalized);
+        }
+        String token = normalized.substring(SETTLEMENT_APPLICATION_PREFIX.length(), closingBracket).trim();
+        SettlementAllocationApplication resolved;
+        try {
+            resolved = SettlementAllocationApplication.valueOf(token);
+        } catch (IllegalArgumentException ex) {
+            resolved = SettlementAllocationApplication.ON_ACCOUNT;
+        }
+        String visibleMemo = normalizeVisibleSettlementMemo(normalized.substring(closingBracket + 1));
+        return new SettlementMemoParts(resolved, visibleMemo);
+    }
+
+    private String normalizeVisibleSettlementMemo(String memo) {
+        return StringUtils.hasText(memo) ? memo.trim() : null;
+    }
+
+    private List<SettlementAllocationRequest> replayAllocations(Company company, String replayIdempotencyKey) {
+        if (!StringUtils.hasText(replayIdempotencyKey)) {
+            return List.of();
+        }
+        List<PartnerSettlementAllocation> existingAllocations = findAllocationsByIdempotencyKey(company, replayIdempotencyKey.trim());
+        if (existingAllocations.isEmpty()) {
+            return List.of();
+        }
+        return existingAllocations.stream()
+                .map(allocation -> {
+                    SettlementAllocationApplication applicationType = resolveSettlementApplicationType(allocation);
+                    String visibleMemo = applicationType == SettlementAllocationApplication.DOCUMENT
+                            ? normalizeVisibleSettlementMemo(allocation.getMemo())
+                            : decodeSettlementAllocationMemo(allocation.getMemo()).memo();
+                    return new SettlementAllocationRequest(
+                            allocation.getInvoice() != null ? allocation.getInvoice().getId() : null,
+                            allocation.getPurchase() != null ? allocation.getPurchase().getId() : null,
+                            allocation.getAllocationAmount(),
+                            allocation.getDiscountAmount(),
+                            allocation.getWriteOffAmount(),
+                            allocation.getFxDifferenceAmount(),
+                            applicationType,
+                            visibleMemo
+                    );
+                })
+                .toList();
     }
 
     private String resolveDealerSettlementIdempotencyKey(Company company, DealerSettlementRequest request) {
@@ -3735,25 +4044,45 @@ public abstract class AccountingCoreEngineCore {
             return;
         }
         Set<Long> seenInvoiceIds = new HashSet<>();
+        Set<SettlementAllocationApplication> seenUnappliedApplications = new HashSet<>();
         for (SettlementAllocationRequest allocation : allocations) {
-            if (allocation.invoiceId() == null) {
-                throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
-                        "Invoice allocation is required for dealer settlements");
-            }
-            if (!seenInvoiceIds.add(allocation.invoiceId())) {
-                throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
-                        "Dealer settlements cannot include duplicate invoice allocations; combine repeated invoice lines into one allocation")
-                        .withDetail("invoiceId", allocation.invoiceId())
-                        .withDetail("hint", "Combine all amounts for a given invoiceId into a single allocation line.");
-            }
-            if (allocation.purchaseId() != null) {
-                throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
-                        "Dealer settlements cannot allocate to purchases");
+            SettlementAllocationApplication applicationType = resolveSettlementApplicationType(allocation);
+            if (applicationType.isUnapplied()) {
+                if (allocation.invoiceId() != null) {
+                    throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                            "Unapplied dealer settlement rows cannot reference an invoice");
+                }
+                if (!seenUnappliedApplications.add(applicationType)) {
+                    throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                            "Dealer settlements cannot include duplicate unapplied allocation rows; combine repeated ON_ACCOUNT or FUTURE_APPLICATION lines");
+                }
+            } else {
+                if (allocation.invoiceId() == null) {
+                    throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                            "Invoice allocation is required for dealer settlements");
+                }
+                if (allocation.purchaseId() != null) {
+                    throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                            "Dealer settlements cannot allocate to purchases");
+                }
+                if (!seenInvoiceIds.add(allocation.invoiceId())) {
+                    throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                            "Dealer settlements cannot include duplicate invoice allocations; combine repeated invoice lines into one allocation")
+                            .withDetail("invoiceId", allocation.invoiceId())
+                            .withDetail("hint", "Combine all amounts for a given invoiceId into a single allocation line.");
+                }
             }
             BigDecimal applied = ValidationUtils.requirePositive(allocation.appliedAmount(), "appliedAmount");
             BigDecimal discount = normalizeNonNegative(allocation.discountAmount(), "discountAmount");
             BigDecimal writeOff = normalizeNonNegative(allocation.writeOffAmount(), "writeOffAmount");
             BigDecimal fxAdjustment = MoneyUtils.zeroIfNull(allocation.fxAdjustment());
+            if (applicationType.isUnapplied()
+                    && (discount.compareTo(BigDecimal.ZERO) > 0
+                    || writeOff.compareTo(BigDecimal.ZERO) > 0
+                    || fxAdjustment.compareTo(BigDecimal.ZERO) != 0)) {
+                throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                        "On-account dealer settlement allocations cannot include discount/write-off/FX adjustments");
+            }
             validateDealerAllocationCashContribution(allocation.invoiceId(), applied, discount, writeOff, fxAdjustment);
         }
     }
@@ -3763,27 +4092,41 @@ public abstract class AccountingCoreEngineCore {
             return;
         }
         Set<Long> seenPurchaseIds = new HashSet<>();
+        Set<SettlementAllocationApplication> seenUnappliedApplications = new HashSet<>();
         for (SettlementAllocationRequest allocation : allocations) {
             if (allocation.invoiceId() != null) {
                 throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
                         "Supplier settlements cannot allocate to invoices");
             }
+            SettlementAllocationApplication applicationType = resolveSettlementApplicationType(allocation);
             BigDecimal applied = ValidationUtils.requirePositive(allocation.appliedAmount(), "appliedAmount");
             BigDecimal discount = normalizeNonNegative(allocation.discountAmount(), "discountAmount");
             BigDecimal writeOff = normalizeNonNegative(allocation.writeOffAmount(), "writeOffAmount");
             BigDecimal fxAdjustment = MoneyUtils.zeroIfNull(allocation.fxAdjustment());
-            if (allocation.purchaseId() == null
+            if (applicationType.isUnapplied()) {
+                if (allocation.purchaseId() != null) {
+                    throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                            "Unapplied supplier settlement rows cannot reference a purchase");
+                }
+                if (!seenUnappliedApplications.add(applicationType)) {
+                    throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                            "Supplier settlements cannot include duplicate unapplied allocation rows; combine repeated ON_ACCOUNT or FUTURE_APPLICATION lines");
+                }
+            } else if (allocation.purchaseId() != null && !seenPurchaseIds.add(allocation.purchaseId())) {
+                throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                        "Supplier settlements cannot include duplicate purchase allocations; combine repeated purchase lines into one allocation")
+                        .withDetail("purchaseId", allocation.purchaseId())
+                        .withDetail("hint", "Combine all amounts for a given purchaseId into a single allocation line.");
+            } else if (allocation.purchaseId() == null) {
+                throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                        "Purchase allocation is required for supplier settlements unless the row is ON_ACCOUNT or FUTURE_APPLICATION");
+            }
+            if (applicationType.isUnapplied()
                     && (discount.compareTo(BigDecimal.ZERO) > 0
                     || writeOff.compareTo(BigDecimal.ZERO) > 0
                     || fxAdjustment.compareTo(BigDecimal.ZERO) != 0)) {
                 throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
                         "On-account supplier settlement allocations cannot include discount/write-off/FX adjustments");
-            }
-            if (allocation.purchaseId() != null && !seenPurchaseIds.add(allocation.purchaseId())) {
-                throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
-                        "Supplier settlements cannot include duplicate purchase allocations; combine repeated purchase lines into one allocation")
-                        .withDetail("purchaseId", allocation.purchaseId())
-                        .withDetail("hint", "Combine all amounts for a given purchaseId into a single allocation line.");
             }
             validateSupplierAllocationCashContribution(allocation.purchaseId(), applied, discount, writeOff, fxAdjustment);
         }
@@ -3981,11 +4324,11 @@ public abstract class AccountingCoreEngineCore {
     }
 
     private SettlementLineDraft buildSupplierSettlementLines(Company company,
-                                                            SupplierSettlementRequest request,
-                                                            Account payableAccount,
-                                                            Account cashAccount,
-                                                            SettlementTotals totals,
-                                                            String memo) {
+                                                             SupplierSettlementRequest request,
+                                                             Account payableAccount,
+                                                             SettlementTotals totals,
+                                                             String memo,
+                                                             boolean requireActiveCashAccount) {
         if (totals == null) {
             totals = new SettlementTotals(BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO);
         }
@@ -4036,6 +4379,7 @@ public abstract class AccountingCoreEngineCore {
                     BigDecimal.ZERO));
         }
         if (cashAmount.compareTo(BigDecimal.ZERO) > 0) {
+            Account cashAccount = requireCashAccountForSettlement(company, request.cashAccountId(), "supplier settlement", requireActiveCashAccount);
             lines.add(new JournalEntryRequest.JournalLineRequest(cashAccount.getId(), memo, BigDecimal.ZERO, cashAmount));
         }
         if (totals.totalDiscount().compareTo(BigDecimal.ZERO) > 0) {
@@ -4142,15 +4486,21 @@ public abstract class AccountingCoreEngineCore {
     private List<PartnerSettlementResponse.Allocation> toSettlementAllocationSummaries(
             List<PartnerSettlementAllocation> allocations) {
         return allocations.stream()
-                .map(row -> new PartnerSettlementResponse.Allocation(
-                        row.getInvoice() != null ? row.getInvoice().getId() : null,
-                        row.getPurchase() != null ? row.getPurchase().getId() : null,
-                        row.getAllocationAmount(),
-                        row.getDiscountAmount(),
-                        row.getWriteOffAmount(),
-                        row.getFxDifferenceAmount(),
-                        row.getMemo()
-                ))
+                .map(row -> {
+                    SettlementMemoParts memoParts = row.getInvoice() != null || row.getPurchase() != null
+                            ? new SettlementMemoParts(SettlementAllocationApplication.DOCUMENT, normalizeVisibleSettlementMemo(row.getMemo()))
+                            : decodeSettlementAllocationMemo(row.getMemo());
+                    return new PartnerSettlementResponse.Allocation(
+                            row.getInvoice() != null ? row.getInvoice().getId() : null,
+                            row.getPurchase() != null ? row.getPurchase().getId() : null,
+                            row.getAllocationAmount(),
+                            row.getDiscountAmount(),
+                            row.getWriteOffAmount(),
+                            row.getFxDifferenceAmount(),
+                            memoParts.applicationType(),
+                            memoParts.memo()
+                    );
+                })
                 .toList();
     }
 
@@ -4231,6 +4581,10 @@ public abstract class AccountingCoreEngineCore {
 
     private record SettlementLineDraft(List<JournalEntryRequest.JournalLineRequest> lines,
                                        BigDecimal cashAmount) {
+    }
+
+    private record SettlementMemoParts(SettlementAllocationApplication applicationType,
+                                       String memo) {
     }
 
     private void enforceSettlementCurrency(Company company, Invoice invoice) {
@@ -5081,15 +5435,20 @@ public abstract class AccountingCoreEngineCore {
         appendPartnerFingerprint(fingerprint, PartnerType.DEALER, request.dealerId());
         List<SettlementAllocationRequest> allocations = request.allocations() != null
                 ? request.allocations().stream()
-                .sorted(Comparator.comparing(SettlementAllocationRequest::invoiceId, Comparator.nullsLast(Long::compareTo)))
+                .sorted(Comparator
+                        .comparing(SettlementAllocationRequest::invoiceId, Comparator.nullsLast(Long::compareTo))
+                        .thenComparing(SettlementAllocationRequest::purchaseId, Comparator.nullsLast(Long::compareTo))
+                        .thenComparing(allocation -> resolveSettlementApplicationType(allocation).name()))
                 .toList()
                 : List.of();
         for (SettlementAllocationRequest allocation : allocations) {
             fingerprint.append("|inv=").append(allocation.invoiceId() != null ? allocation.invoiceId() : "null")
+                    .append(":pur=").append(allocation.purchaseId() != null ? allocation.purchaseId() : "null")
                     .append(":").append(normalizeDecimal(allocation.appliedAmount()))
                     .append(":disc=").append(normalizeDecimal(allocation.discountAmount()))
                     .append(":woff=").append(normalizeDecimal(allocation.writeOffAmount()))
-                    .append(":fx=").append(normalizeDecimal(allocation.fxAdjustment()));
+                    .append(":fx=").append(normalizeDecimal(allocation.fxAdjustment()))
+                    .append(":app=").append(resolveSettlementApplicationType(allocation).name());
         }
         for (SettlementPaymentRequest payment : orderedPayments) {
             fingerprint.append("|pay=").append(payment.accountId() != null ? payment.accountId() : "null")
@@ -5108,15 +5467,20 @@ public abstract class AccountingCoreEngineCore {
         fingerprint.append("|cashAccountId=").append(request.cashAccountId() != null ? request.cashAccountId() : "null");
         List<SettlementAllocationRequest> allocations = request.allocations() != null
                 ? request.allocations().stream()
-                .sorted(Comparator.comparing(SettlementAllocationRequest::purchaseId, Comparator.nullsLast(Long::compareTo)))
+                .sorted(Comparator
+                        .comparing(SettlementAllocationRequest::purchaseId, Comparator.nullsLast(Long::compareTo))
+                        .thenComparing(SettlementAllocationRequest::invoiceId, Comparator.nullsLast(Long::compareTo))
+                        .thenComparing(allocation -> resolveSettlementApplicationType(allocation).name()))
                 .toList()
                 : List.of();
         for (SettlementAllocationRequest allocation : allocations) {
             fingerprint.append("|pur=").append(allocation.purchaseId() != null ? allocation.purchaseId() : "null")
+                    .append(":inv=").append(allocation.invoiceId() != null ? allocation.invoiceId() : "null")
                     .append(":").append(normalizeDecimal(allocation.appliedAmount()))
                     .append(":disc=").append(normalizeDecimal(allocation.discountAmount()))
                     .append(":woff=").append(normalizeDecimal(allocation.writeOffAmount()))
-                    .append(":fx=").append(normalizeDecimal(allocation.fxAdjustment()));
+                    .append(":fx=").append(normalizeDecimal(allocation.fxAdjustment()))
+                    .append(":app=").append(resolveSettlementApplicationType(allocation).name());
         }
         String hash = IdempotencyUtils.sha256Hex(fingerprint.toString(), 12);
         return "SUPPLIER-SETTLEMENT-" + hash;
@@ -5932,6 +6296,10 @@ public abstract class AccountingCoreEngineCore {
     private Map<String, Integer> allocationSignatureCountsFromRows(List<PartnerSettlementAllocation> allocations) {
         Map<String, Integer> counts = new HashMap<>();
         for (PartnerSettlementAllocation allocation : allocations) {
+            SettlementAllocationApplication applicationType = resolveSettlementApplicationType(allocation);
+            String visibleMemo = applicationType == SettlementAllocationApplication.DOCUMENT
+                    ? normalizeVisibleSettlementMemo(allocation.getMemo())
+                    : decodeSettlementAllocationMemo(allocation.getMemo()).memo();
             String signature = allocationSignature(
                     allocation.getInvoice() != null ? allocation.getInvoice().getId() : null,
                     allocation.getPurchase() != null ? allocation.getPurchase().getId() : null,
@@ -5939,7 +6307,8 @@ public abstract class AccountingCoreEngineCore {
                     allocation.getDiscountAmount(),
                     allocation.getWriteOffAmount(),
                     allocation.getFxDifferenceAmount(),
-                    allocation.getMemo()
+                    applicationType,
+                    visibleMemo
             );
             counts.merge(signature, 1, Integer::sum);
         }
@@ -5948,6 +6317,9 @@ public abstract class AccountingCoreEngineCore {
 
     private Map<String, Integer> allocationSignatureCountsFromRequests(List<SettlementAllocationRequest> allocations) {
         Map<String, Integer> counts = new HashMap<>();
+        if (allocations == null) {
+            return counts;
+        }
         for (SettlementAllocationRequest allocation : allocations) {
             String signature = allocationSignature(
                     allocation.invoiceId(),
@@ -5956,6 +6328,7 @@ public abstract class AccountingCoreEngineCore {
                     allocation.discountAmount(),
                     allocation.writeOffAmount(),
                     allocation.fxAdjustment(),
+                    resolveSettlementApplicationType(allocation),
                     allocation.memo()
             );
             counts.merge(signature, 1, Integer::sum);
@@ -6322,6 +6695,7 @@ public abstract class AccountingCoreEngineCore {
                                        BigDecimal discountAmount,
                                        BigDecimal writeOffAmount,
                                        BigDecimal fxAdjustment,
+                                       SettlementAllocationApplication applicationType,
                                        String memo) {
         return "inv=" + (invoiceId != null ? invoiceId : "null")
                 + "|pur=" + (purchaseId != null ? purchaseId : "null")
@@ -6329,6 +6703,7 @@ public abstract class AccountingCoreEngineCore {
                 + "|discount=" + normalizeSignatureAmount(discountAmount)
                 + "|writeOff=" + normalizeSignatureAmount(writeOffAmount)
                 + "|fx=" + normalizeSignatureAmount(fxAdjustment)
+                + "|application=" + (applicationType != null ? applicationType.name() : SettlementAllocationApplication.DOCUMENT.name())
                 + "|memo=" + normalizeMemo(memo);
     }
 

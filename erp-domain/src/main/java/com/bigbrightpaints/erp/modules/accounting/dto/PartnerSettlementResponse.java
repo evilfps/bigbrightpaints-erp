@@ -21,6 +21,7 @@ public record PartnerSettlementResponse(
             BigDecimal discountAmount,
             BigDecimal writeOffAmount,
             BigDecimal fxAdjustment,
+            SettlementAllocationApplication applicationType,
             String memo
     ) {}
 }

@@ -14,6 +14,7 @@ import com.bigbrightpaints.erp.modules.accounting.dto.AutoSettlementRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.DealerSettlementRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.PartnerSettlementResponse;
+import com.bigbrightpaints.erp.modules.accounting.dto.SettlementAllocationApplication;
 import com.bigbrightpaints.erp.modules.accounting.dto.SupplierPaymentRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.SupplierSettlementRequest;
 import com.bigbrightpaints.erp.modules.accounting.event.AccountingEventStore;
@@ -158,6 +159,8 @@ public class SettlementService extends AccountingCoreEngine {
                 request.writeOffAccountId(),
                 request.fxGainAccountId(),
                 request.fxLossAccountId(),
+                positiveAmountOrNull(request.amount()),
+                normalizeUnappliedApplication(request.unappliedAmountApplication()),
                 request.settlementDate(),
                 normalizeText(request.referenceNumber()),
                 normalizeText(request.memo()),
@@ -171,7 +174,6 @@ public class SettlementService extends AccountingCoreEngine {
     private SupplierSettlementRequest normalizeSupplierSettlementRequest(SupplierSettlementRequest request) {
         ValidationUtils.requireNotNull(request, "request");
         ValidationUtils.requireNotNull(request.supplierId(), "supplierId");
-        ValidationUtils.requireNotNull(request.cashAccountId(), "cashAccountId");
         return new SupplierSettlementRequest(
                 request.supplierId(),
                 request.cashAccountId(),
@@ -179,6 +181,8 @@ public class SettlementService extends AccountingCoreEngine {
                 request.writeOffAccountId(),
                 request.fxGainAccountId(),
                 request.fxLossAccountId(),
+                positiveAmountOrNull(request.amount()),
+                normalizeUnappliedApplication(request.unappliedAmountApplication()),
                 request.settlementDate(),
                 normalizeText(request.referenceNumber()),
                 normalizeText(request.memo()),
@@ -220,5 +224,20 @@ public class SettlementService extends AccountingCoreEngine {
     private String normalizeText(String value) {
         String normalized = IdempotencyUtils.normalizeToken(value);
         return normalized.isBlank() ? null : normalized;
+    }
+
+    private BigDecimal positiveAmountOrNull(BigDecimal value) {
+        if (value == null) {
+            return null;
+        }
+        ValidationUtils.requirePositive(value, "amount");
+        return value.abs();
+    }
+
+    private SettlementAllocationApplication normalizeUnappliedApplication(SettlementAllocationApplication value) {
+        if (value == null || value == SettlementAllocationApplication.DOCUMENT) {
+            return null;
+        }
+        return value;
     }
 }
