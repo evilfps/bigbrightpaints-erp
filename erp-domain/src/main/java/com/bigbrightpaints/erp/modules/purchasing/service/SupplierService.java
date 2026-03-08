@@ -90,8 +90,6 @@ public class SupplierService {
         supplier.setStatus(SupplierStatus.PENDING);
         supplier.setCreditLimit(request.creditLimit() != null ? request.creditLimit() : BigDecimal.ZERO);
         applyBankDetails(supplier, request);
-        supplier = supplierRepository.save(supplier);
-
         Account payableAccount = createPayableAccount(company, supplier);
         supplier.setPayableAccount(payableAccount);
         supplier = supplierRepository.save(supplier);
@@ -177,13 +175,6 @@ public class SupplierService {
     private Optional<Account> resolveControlAccount(Company company, String code, AccountType expectedType) {
         return accountRepository.findByCompanyAndCodeIgnoreCase(company, code)
                 .filter(account -> account.getType() == expectedType);
-    }
-
-    private SupplierResponse toResponse(Supplier supplier) {
-        BigDecimal balance = supplier.getId() != null
-                ? supplierLedgerService.currentBalance(supplier.getId())
-                : BigDecimal.ZERO;
-        return toResponse(supplier, balance);
     }
 
     private SupplierResponse toResponse(Supplier supplier, BigDecimal outstandingBalance) {

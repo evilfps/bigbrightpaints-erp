@@ -63,3 +63,12 @@ Track cleanup, duplicate-truth removals, dead-code retirement, and production-re
 - **Duplicate-truth or dead-code impact:** removed the conflicting dispatch-side costing branch that recomputed COGS from period costing policy even after reservation had already chosen a concrete batch with an actual carried cost.
 - **Evidence:** `FinishedGoodsServiceTest#confirmDispatchUsesReservedBatchActualCostWhenPeriodDefaultsToWeightedAverage`, `FinishedGoodsServiceTest#dispatchUsesReservedBatchActualCostUnderLegacyWeightedAverageAliasUnderTurkishLocale`, `FactoryPackagingCostingIT`, `ReportInventoryParityIT`, `InventorySmokeIT`, `ErpInvariantsSuiteIT`, and `mvn -T8 test -Pgate-fast -Djacoco.skip=true` all pass.
 - **Follow-up:** future costing packets should keep period-close or revaluation adjustments updating batch truth upstream instead of introducing new dispatch-time costing branches.
+
+## 2026-03-08 — `p2p-truth.supplier-lifecycle-and-payable-provisioning`
+
+- **Area:** supplier onboarding, supplier lifecycle guardrails, and supplier-driven P2P/AP transaction entry points.
+- **Risk addressed:** supplier creation previously saved the supplier twice during payable provisioning, and non-active suppliers could stay visible yet still slip through later GRN, purchase-invoice, return, payment, or settlement paths with inconsistent blocker behavior.
+- **Cleanup/remediation performed:** collapsed supplier onboarding into one supplier save after payable-account provisioning, added shared lifecycle guardrails with explicit business-language blocker reasons, and enforced those guards across purchase-order creation, goods-receipt progression, purchase invoicing, purchase returns, AP journal posting, supplier payments, and supplier settlements.
+- **Duplicate-truth or dead-code impact:** removed the redundant intermediate supplier save in onboarding and retired the touched fallback behavior where later P2P/AP flows each decided supplier usability differently instead of sharing one lifecycle truth.
+- **Evidence:** `SupplierServiceTest`, `PurchaseOrderServiceTest`, `PurchasingServiceGoodsReceiptTest`, `PurchaseInvoiceEngineLifecycleTest`, `AccountingServiceTest`, and `ErpInvariantsSuiteIT` now cover payable provisioning plus visible-but-blocked reference-only supplier behavior.
+- **Follow-up:** the next P2P packets should keep reusing the shared supplier lifecycle guard so GRN, purchase invoice, settlement, and correction work stays aligned to the same reference-only semantics.

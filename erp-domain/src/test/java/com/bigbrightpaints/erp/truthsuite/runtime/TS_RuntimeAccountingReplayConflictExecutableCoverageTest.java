@@ -34,6 +34,7 @@ import com.bigbrightpaints.erp.modules.invoice.domain.Invoice;
 import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchase;
 import com.bigbrightpaints.erp.modules.purchasing.domain.Supplier;
 import com.bigbrightpaints.erp.modules.purchasing.domain.SupplierRepository;
+import com.bigbrightpaints.erp.modules.purchasing.domain.SupplierStatus;
 import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -1129,6 +1130,7 @@ class TS_RuntimeAccountingReplayConflictExecutableCoverageTest {
     private Supplier supplier(Long id) {
         Supplier supplier = new Supplier();
         ReflectionTestUtils.setField(supplier, "id", id);
+        supplier.setStatus(SupplierStatus.ACTIVE);
         return supplier;
     }
 

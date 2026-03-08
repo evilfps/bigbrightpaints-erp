@@ -145,6 +145,7 @@ public class GoodsReceiptService {
         PurchaseOrder purchaseOrder = purchaseOrderRepository.lockByCompanyAndId(company, request.purchaseOrderId())
                 .orElseThrow(() -> com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput("Purchase order not found"));
         Supplier supplier = purchaseOrder.getSupplier();
+        supplier.requireTransactionalUsage("progress goods receipts");
 
         String receiptNumber = request.receiptNumber().trim();
         goodsReceiptRepository.lockByCompanyAndReceiptNumberIgnoreCase(company, receiptNumber)

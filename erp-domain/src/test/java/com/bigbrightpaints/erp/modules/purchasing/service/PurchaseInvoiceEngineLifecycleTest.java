@@ -29,6 +29,7 @@ import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchase;
 import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchaseLine;
 import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchaseRepository;
 import com.bigbrightpaints.erp.modules.purchasing.domain.Supplier;
+import com.bigbrightpaints.erp.modules.purchasing.domain.SupplierStatus;
 import com.bigbrightpaints.erp.modules.purchasing.dto.RawMaterialPurchaseLineRequest;
 import com.bigbrightpaints.erp.modules.purchasing.dto.RawMaterialPurchaseRequest;
 import com.bigbrightpaints.erp.modules.purchasing.dto.RawMaterialPurchaseResponse;
@@ -134,6 +135,7 @@ class PurchaseInvoiceEngineLifecycleTest {
         supplier.setCompany(company);
         supplier.setCode("SUP-10");
         supplier.setName("Supplier 10");
+        supplier.setStatus(SupplierStatus.ACTIVE);
         supplier.setStateCode("KA");
         supplier.setPayableAccount(payableAccount);
 
@@ -346,6 +348,7 @@ class PurchaseInvoiceEngineLifecycleTest {
     }
 
     @Test
+<<<<<<< HEAD
     void listPurchases_usesBatchMapperPathWithoutSupplierFilter() {
         RawMaterialPurchase purchase = new RawMaterialPurchase();
         ReflectionTestUtils.setField(purchase, "id", 601L);
@@ -370,6 +373,38 @@ class PurchaseInvoiceEngineLifecycleTest {
         assertThat(responses.get(0).invoiceNumber()).isEqualTo("PINV-601");
         verify(purchaseRepository).findByCompanyWithLinesOrderByInvoiceDateDesc(company);
         verifyNoMoreInteractions(purchaseRepository);
+=======
+    @DisplayName("createPurchase rejects suppliers that are no longer active")
+    void createPurchase_rejectsSuspendedSupplierWithExplicitReason() {
+        supplier.setStatus(SupplierStatus.SUSPENDED);
+
+        RawMaterialPurchaseRequest request = new RawMaterialPurchaseRequest(
+                10L,
+                "INV-40",
+                LocalDate.of(2026, 3, 2),
+                "invoice",
+                30L,
+                40L,
+                BigDecimal.ZERO,
+                List.of(new RawMaterialPurchaseLineRequest(
+                        20L,
+                        null,
+                        new BigDecimal("10.0000"),
+                        "KG",
+                        new BigDecimal("12.50"),
+                        null,
+                        null,
+                        "line"
+                ))
+        );
+
+        assertThatThrownBy(() -> purchaseInvoiceEngine.createPurchase(request))
+                .isInstanceOf(com.bigbrightpaints.erp.core.exception.ApplicationException.class)
+                .hasMessageContaining("suspended")
+                .hasMessageContaining("reference only");
+
+        verify(accountingFacade, never()).postPurchaseJournal(any(), any(), any(), any(), any(), any(), any(), any(), any());
+>>>>>>> 04949be9 (fix(p2p): stabilize supplier lifecycle truth)
     }
 
     @Test

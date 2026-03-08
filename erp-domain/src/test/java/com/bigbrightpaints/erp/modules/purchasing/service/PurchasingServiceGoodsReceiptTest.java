@@ -30,6 +30,7 @@ import com.bigbrightpaints.erp.modules.purchasing.domain.PurchaseOrderStatusHist
 import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchase;
 import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchaseRepository;
 import com.bigbrightpaints.erp.modules.purchasing.domain.Supplier;
+import com.bigbrightpaints.erp.modules.purchasing.domain.SupplierStatus;
 import com.bigbrightpaints.erp.modules.purchasing.dto.GoodsReceiptLineRequest;
 import com.bigbrightpaints.erp.modules.purchasing.dto.GoodsReceiptRequest;
 import com.bigbrightpaints.erp.modules.purchasing.dto.GoodsReceiptResponse;
@@ -140,6 +141,7 @@ class PurchasingServiceGoodsReceiptTest {
         supplier.setCompany(company);
         supplier.setCode("SUP-10");
         supplier.setName("Supplier 10");
+        supplier.setStatus(SupplierStatus.ACTIVE);
 
         rawMaterial = new RawMaterial();
         ReflectionTestUtils.setField(rawMaterial, "id", 20L);
@@ -206,6 +208,33 @@ class PurchasingServiceGoodsReceiptTest {
 
         verify(goodsReceiptRepository).findWithLinesByCompanyAndIdempotencyKey(company, "idem-missing-date");
         verifyNoInteractions(accountingPeriodService, purchaseOrderRepository, rawMaterialRepository, rawMaterialService);
+    }
+
+    @Test
+    @DisplayName("createGoodsReceipt rejects suppliers that were suspended after purchase order approval")
+    void createGoodsReceipt_rejectsSuspendedSupplierWithExplicitReason() {
+        supplier.setStatus(SupplierStatus.SUSPENDED);
+        GoodsReceiptRequest request = request(
+                "idem-suspended-supplier",
+                LocalDate.of(2026, 2, 20),
+                List.of(new GoodsReceiptLineRequest(20L, null, new BigDecimal("4.0000"), "KG", new BigDecimal("5.00"), "line note"))
+        );
+
+        when(goodsReceiptRepository.findWithLinesByCompanyAndIdempotencyKey(company, "idem-suspended-supplier"))
+                .thenReturn(Optional.empty());
+        when(purchaseOrderRepository.lockByCompanyAndId(company, 30L))
+                .thenReturn(Optional.of(purchaseOrder));
+
+        assertThatThrownBy(() -> purchasingService.createGoodsReceipt(request))
+                .isInstanceOf(ApplicationException.class)
+                .satisfies(ex -> assertThat(((ApplicationException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.BUSINESS_INVALID_STATE))
+                .hasMessageContaining("suspended")
+                .hasMessageContaining("reference only");
+
+        verify(goodsReceiptRepository).findWithLinesByCompanyAndIdempotencyKey(company, "idem-suspended-supplier");
+        verify(accountingPeriodService).requireOpenPeriod(company, LocalDate.of(2026, 2, 20));
+        verifyNoInteractions(rawMaterialRepository, rawMaterialService, accountingFacade, journalEntryRepository);
     }
 
     @Test

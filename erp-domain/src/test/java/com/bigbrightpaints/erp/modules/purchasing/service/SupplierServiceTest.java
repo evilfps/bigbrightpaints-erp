@@ -10,6 +10,7 @@ import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.purchasing.domain.Supplier;
 import com.bigbrightpaints.erp.modules.purchasing.domain.SupplierRepository;
+import com.bigbrightpaints.erp.modules.purchasing.domain.SupplierStatus;
 import com.bigbrightpaints.erp.modules.purchasing.dto.SupplierRequest;
 import java.math.BigDecimal;
 import java.util.Optional;
@@ -26,6 +27,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -99,12 +101,20 @@ class SupplierServiceTest {
                 BigDecimal.ZERO
         );
 
-        supplierService.createSupplier(request);
+        var response = supplierService.createSupplier(request);
 
         ArgumentCaptor<Account> accountCaptor = ArgumentCaptor.forClass(Account.class);
         verify(accountRepository).save(accountCaptor.capture());
         Account created = accountCaptor.getValue();
         assertThat(created.getCode()).startsWith("AP-SKEINA");
         assertThat(created.getParent()).isSameAs(apControl);
+
+        ArgumentCaptor<Supplier> supplierCaptor = ArgumentCaptor.forClass(Supplier.class);
+        verify(supplierRepository, times(1)).save(supplierCaptor.capture());
+        Supplier savedSupplier = supplierCaptor.getValue();
+        assertThat(savedSupplier.getPayableAccount()).isNotNull();
+        assertThat(savedSupplier.getStatusEnum()).isEqualTo(SupplierStatus.PENDING);
+        assertThat(response.payableAccountId()).isEqualTo(123L);
+        assertThat(response.payableAccountCode()).startsWith("AP-SKEINA");
     }
 }

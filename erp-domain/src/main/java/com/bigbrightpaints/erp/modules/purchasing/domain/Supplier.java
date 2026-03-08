@@ -1,5 +1,7 @@
 package com.bigbrightpaints.erp.modules.purchasing.domain;
 
+import com.bigbrightpaints.erp.core.exception.ApplicationException;
+import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.domain.VersionedEntity;
 import com.bigbrightpaints.erp.core.util.CompanyTime;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
@@ -129,6 +131,24 @@ public class Supplier extends VersionedEntity {
 
     public SupplierStatus getStatusEnum() {
         return status;
+    }
+
+    public boolean isTransactionalUsageAllowed() {
+        return getResolvedStatus() == SupplierStatus.ACTIVE;
+    }
+
+    public void requireTransactionalUsage(String action) {
+        SupplierStatus resolvedStatus = getResolvedStatus();
+        if (resolvedStatus == SupplierStatus.ACTIVE) {
+            return;
+        }
+        throw new ApplicationException(
+                ErrorCode.BUSINESS_INVALID_STATE,
+                transactionalBlockReason(resolvedStatus, action))
+                .withDetail("supplierId", id)
+                .withDetail("supplierCode", code)
+                .withDetail("supplierStatus", resolvedStatus.name())
+                .withDetail("action", org.springframework.util.StringUtils.hasText(action) ? action.trim() : null);
     }
 
     public void setStatus(SupplierStatus status) {
@@ -266,5 +286,22 @@ public class Supplier extends VersionedEntity {
 
     public Instant getCreatedAt() {
         return createdAt;
+    }
+
+    private SupplierStatus getResolvedStatus() {
+        return status == null ? SupplierStatus.PENDING : status;
+    }
+
+    private String transactionalBlockReason(SupplierStatus resolvedStatus, String action) {
+        String supplierName = org.springframework.util.StringUtils.hasText(name) ? name : "Supplier";
+        String normalizedAction = org.springframework.util.StringUtils.hasText(action)
+                ? action.trim()
+                : "continue this purchasing flow";
+        return switch (resolvedStatus) {
+            case PENDING -> supplierName + " is pending approval and remains visible for reference only; approve and activate it before you can " + normalizedAction;
+            case APPROVED -> supplierName + " is approved but not yet active and remains visible for reference only; activate it before you can " + normalizedAction;
+            case SUSPENDED -> supplierName + " is suspended and remains visible for reference only; resolve the suspension and reactivate it before you can " + normalizedAction;
+            case ACTIVE -> supplierName + " is active";
+        };
     }
 }

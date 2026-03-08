@@ -131,6 +131,7 @@ public class PurchaseInvoiceEngine {
     public RawMaterialPurchaseResponse createPurchase(RawMaterialPurchaseRequest request) {
         Company company = companyContextService.requireCurrentCompany();
         Supplier supplier = companyEntityLookup.requireSupplier(company, request.supplierId());
+        supplier.requireTransactionalUsage("post purchase invoices");
         if (supplier.getPayableAccount() == null) {
             throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidState("Supplier " + supplier.getName() + " is missing a payable account");
         }

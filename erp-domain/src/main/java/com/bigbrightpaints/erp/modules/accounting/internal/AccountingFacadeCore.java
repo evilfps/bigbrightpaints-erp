@@ -424,6 +424,7 @@ public class AccountingFacadeCore {
 
         Company company = companyContextService.requireCurrentCompany();
         Supplier supplier = requireSupplier(company, supplierId);
+        supplier.requireTransactionalUsage("post purchase journals");
 
         if (inventoryLines == null || inventoryLines.isEmpty()) {
             throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,

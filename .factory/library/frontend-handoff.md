@@ -2328,6 +2328,10 @@ Comprehensive frontend handoff for `VAL-DOC-006` (supplier management, purchase 
 | `POST` | `/api/v1/suppliers/{id}/activate` | `ROLE_ADMIN` or `ROLE_ACCOUNTING` | path `id` | `SupplierResponse` |
 | `POST` | `/api/v1/suppliers/{id}/suspend` | `ROLE_ADMIN` or `ROLE_ACCOUNTING` | path `id` | `SupplierResponse` |
 
+2026-03-08 lifecycle/provisioning note:
+- `POST /api/v1/suppliers` now provisions the linked payable account before the supplier response returns; treat `payableAccountId` / `payableAccountCode` as immediately available onboarding output.
+- `GET /api/v1/suppliers` and `GET /api/v1/suppliers/{id}` continue to return non-active suppliers for reference workflows; the frontend should not hide `PENDING`, `APPROVED`, or `SUSPENDED` rows.
+
 Search behavior today:
 - Server-side search query params are not exposed on supplier endpoints.
 - Frontend search should call `GET /api/v1/suppliers` and filter client-side by `code`, `name`, `status`, GST fields, etc.
@@ -2375,13 +2379,14 @@ Idempotency contract for GRN creation:
 
 1. **Supplier onboarding flow**
    1. `POST /api/v1/suppliers` with supplier master + optional GST/bank/payment data
+   2. Use returned `payableAccountId` / `payableAccountCode` immediately for finance-facing confirmation UI
    2. `POST /api/v1/suppliers/{id}/approve` (`PENDING -> APPROVED`)
    3. `POST /api/v1/suppliers/{id}/activate` (`APPROVED -> ACTIVE`)
    4. Refresh list/detail: `GET /api/v1/suppliers` or `GET /api/v1/suppliers/{id}`
 
 2. **Create PO flow (select supplier -> add items -> approve)**
    1. Load suppliers: `GET /api/v1/suppliers`
-   2. Enforce active-only supplier selection in UI
+   2. Enforce active-only supplier selection in UI, but keep non-active suppliers visible as reference-only rows/badges
    3. Build PO lines (raw material, qty, unit, cost)
    4. Submit draft PO: `POST /api/v1/purchasing/purchase-orders`
    5. Backend persists PO in `DRAFT`
@@ -2391,7 +2396,7 @@ Idempotency contract for GRN creation:
 
 3. **Receive goods flow (GRN)**
    1. Load PO: `GET /api/v1/purchasing/purchase-orders/{id}`
-   2. Ensure PO is `APPROVED` before showing GRN submit action
+   2. Ensure PO is `APPROVED` and supplier is still `ACTIVE` before showing GRN submit action
    3. Determine remaining per line (ordered - already received from prior GRNs)
    4. Submit GRN: `POST /api/v1/purchasing/goods-receipts` with `Idempotency-Key`
    5. Refresh GRN list/detail: `GET /api/v1/purchasing/goods-receipts` / `{id}`
@@ -2399,7 +2404,7 @@ Idempotency contract for GRN creation:
    7. Optionally render PO timeline to explain transition reason codes (`GOODS_RECEIPT_PARTIAL`, `GOODS_RECEIPT_COMPLETED`)
 
 4. **Post purchase invoice flow (required before final close)**
-   1. Select supplier + GRN to invoice
+   1. Select supplier + GRN to invoice; fail closed if supplier status is no longer `ACTIVE`
    2. Submit: `POST /api/v1/purchasing/raw-material-purchases`
    3. Backend links GRN + PO + journal entry and sets GRN status to `INVOICED`
    4. PO becomes:
@@ -2409,7 +2414,7 @@ Idempotency contract for GRN creation:
 
 5. **Process return flow**
    1. Load purchases to pick return candidate: `GET /api/v1/purchasing/raw-material-purchases?supplierId={id}`
-   2. Submit return: `POST /api/v1/purchasing/raw-material-purchases/returns`
+   2. Submit return: `POST /api/v1/purchasing/raw-material-purchases/returns` (backend now rejects non-active suppliers with explicit reference-only blocker text)
    3. Backend validates returnable qty + outstanding payable, creates corrective journal, and reverses inventory movement
    4. Refresh purchase to show updated `outstandingAmount` / status: `GET /api/v1/purchasing/raw-material-purchases/{id}`
 
@@ -2426,6 +2431,7 @@ Guards:
 - Approve allowed only from `PENDING`
 - Suspend allowed only from `ACTIVE`
 - Activate allowed only from `APPROVED` or `SUSPENDED`
+- Non-active supplier records remain visible for lookup/reference, but purchase-order creation, goods-receipt progression, purchase invoice posting, purchase return posting, supplier payment posting, and supplier settlement posting now all fail closed until the supplier returns to `ACTIVE`.
 
 ##### Purchase order lifecycle
 
@@ -2474,6 +2480,12 @@ Transitions:
 | `BUSINESS_CONSTRAINT_VIOLATION` | `BUS_004` | PO non-receivable (`CLOSED`/`VOID`), already-invoiced GRN, duplicate lock/linkage rules | Show non-retryable toast/banner and reload latest entity state |
 | `CONCURRENCY_CONFLICT` | `CONC_001` | Idempotency key reused with different payload; duplicate invoice/GRN linking race | Show stale/conflict dialog and ask user to refresh before retry |
 | `RETURN_EXCEEDS_OUTSTANDING` | `BUS_009` | Return amount would drop purchase outstanding below zero | Keep return form open and display max returnable/outstanding guidance |
+
+Reference-only supplier blocker message contract:
+- `PENDING`: backend message contains `pending approval` + `reference only`
+- `APPROVED`: backend message contains `approved but not yet active` + `reference only`
+- `SUSPENDED`: backend message contains `suspended` + `reference only`
+- Frontend should surface the backend message verbatim and refresh supplier status before allowing retry.
 
 #### Data Contracts (DTOs)
 
@@ -2656,6 +2668,7 @@ Return response:
   - Use staged actions: `Create -> Approve -> Activate`.
   - Disable invalid transition buttons based on current `status`.
   - Show payable account code from response so finance team can verify ledger linkage.
+  - Treat `PENDING`, `APPROVED`, and `SUSPENDED` as reference-only states: visible in lookup UI, but no create/progress/post CTA should remain enabled.
 
 - **Supplier search/list UI**
   - Since backend has no dedicated query endpoint, implement client-side filtering on top of `GET /suppliers`.

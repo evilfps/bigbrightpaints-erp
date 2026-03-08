@@ -143,6 +143,37 @@ class PurchaseOrderServiceTest {
     }
 
     @Test
+    @DisplayName("createPurchaseOrder rejects suppliers that are still reference-only")
+    void createPurchaseOrder_rejectsReferenceOnlySupplierWithExplicitReason() {
+        supplier.setStatus(SupplierStatus.PENDING);
+        when(companyContextService.requireCurrentCompany()).thenReturn(company);
+        when(companyEntityLookup.requireSupplier(company, 11L)).thenReturn(supplier);
+
+        PurchaseOrderRequest request = new PurchaseOrderRequest(
+                11L,
+                "PO-1002",
+                LocalDate.of(2026, 3, 1),
+                "Reference-only supplier order",
+                List.of(new PurchaseOrderLineRequest(
+                        21L,
+                        new BigDecimal("5.0000"),
+                        "KG",
+                        new BigDecimal("10.00"),
+                        "line note"
+                ))
+        );
+
+        assertThatThrownBy(() -> purchaseOrderService.createPurchaseOrder(request))
+                .isInstanceOf(ApplicationException.class)
+                .satisfies(ex -> assertThat(((ApplicationException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.BUSINESS_INVALID_STATE))
+                .hasMessageContaining("pending approval")
+                .hasMessageContaining("reference only");
+
+        verify(purchaseOrderRepository, never()).save(any(PurchaseOrder.class));
+    }
+
+    @Test
     @DisplayName("approvePurchaseOrder transitions DRAFT to APPROVED")
     void approvePurchaseOrder_transitionsDraftToApproved() {
         when(companyContextService.requireCurrentCompany()).thenReturn(company);

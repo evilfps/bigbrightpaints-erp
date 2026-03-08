@@ -80,6 +80,7 @@ public class PurchaseReturnService {
     public JournalEntryDto recordPurchaseReturn(PurchaseReturnRequest request) {
         Company company = companyContextService.requireCurrentCompany();
         Supplier supplier = companyEntityLookup.requireSupplier(company, request.supplierId());
+        supplier.requireTransactionalUsage("post purchase returns");
         if (supplier.getPayableAccount() == null) {
             throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidState(
                     "Supplier " + supplier.getName() + " is missing a payable account");

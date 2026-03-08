@@ -25,6 +25,7 @@ import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.purchasing.domain.Supplier;
 import com.bigbrightpaints.erp.modules.purchasing.domain.SupplierRepository;
+import com.bigbrightpaints.erp.modules.purchasing.domain.SupplierStatus;
 import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -101,6 +102,7 @@ class TS_RuntimeAccountingFacadePeriodCloseBoundaryTest {
         when(companyContextService.requireCurrentCompany()).thenReturn(company);
 
         Supplier supplier = new Supplier();
+        supplier.setStatus(SupplierStatus.ACTIVE);
         Account payable = new Account();
         ReflectionTestUtils.setField(payable, "id", 301L);
         supplier.setPayableAccount(payable);
@@ -175,6 +177,7 @@ class TS_RuntimeAccountingFacadePeriodCloseBoundaryTest {
         when(companyContextService.requireCurrentCompany()).thenReturn(company);
 
         Supplier supplier = new Supplier();
+        supplier.setStatus(SupplierStatus.ACTIVE);
         Account payable = new Account();
         ReflectionTestUtils.setField(payable, "id", 401L);
         supplier.setPayableAccount(payable);
@@ -239,6 +242,7 @@ class TS_RuntimeAccountingFacadePeriodCloseBoundaryTest {
         when(companyContextService.requireCurrentCompany()).thenReturn(company);
 
         Supplier supplier = new Supplier();
+        supplier.setStatus(SupplierStatus.ACTIVE);
         Account payable = new Account();
         ReflectionTestUtils.setField(payable, "id", 601L);
         supplier.setPayableAccount(payable);

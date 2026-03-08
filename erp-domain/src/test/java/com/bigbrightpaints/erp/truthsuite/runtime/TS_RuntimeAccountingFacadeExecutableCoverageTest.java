@@ -25,6 +25,7 @@ import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.purchasing.domain.Supplier;
 import com.bigbrightpaints.erp.modules.purchasing.domain.SupplierRepository;
+import com.bigbrightpaints.erp.modules.purchasing.domain.SupplierStatus;
 import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
 import com.bigbrightpaints.erp.modules.sales.util.SalesOrderReference;
@@ -87,6 +88,7 @@ class TS_RuntimeAccountingFacadeExecutableCoverageTest {
     void postPurchaseJournal_legacyPrefixFallback_ignoresReversalSuffixes() {
         Long supplierId = 88L;
         Supplier supplier = new Supplier();
+        supplier.setStatus(SupplierStatus.ACTIVE);
         Account payable = new Account();
         payable.setCode("AP");
         payable.setName("Accounts Payable");
