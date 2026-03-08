@@ -276,7 +276,9 @@ def main() -> int:
         and not skipped_files
     )
     no_changed_source_files = changed_source_files == 0
-    missing_coverage = bool(skipped_files or files_with_unmapped_lines)
+    thresholds_met = line_ratio >= args.threshold_line and branch_ratio >= args.threshold_branch
+    unmapped_lines_blocking = bool(files_with_unmapped_lines) and not thresholds_met
+    missing_coverage = bool(skipped_files or unmapped_lines_blocking)
     vacuous = (not no_changed_source_files) and (
         missing_coverage or (line_total == 0 and not structural_only)
     )
@@ -306,13 +308,13 @@ def main() -> int:
         "vacuous": vacuous,
         "vacuous_reason": vacuous_reason,
         "missing_coverage": missing_coverage,
+        "unmapped_lines_blocking": unmapped_lines_blocking,
         "structural_only": structural_only,
         "structural_files": sorted(structural_files),
         "coverage_skipped_files": sorted(skipped_files),
         "files_with_unmapped_lines": sorted(files_with_unmapped_lines),
         "passes": (not missing_coverage
-                   and line_ratio >= args.threshold_line
-                   and branch_ratio >= args.threshold_branch
+                   and thresholds_met
                    and not (args.fail_on_vacuous and vacuous)),
         "per_file": per_file,
     }
@@ -332,6 +334,13 @@ def main() -> int:
             file=sys.stderr,
         )
         return 1
+
+    if files_with_unmapped_lines:
+        print(
+            "[changed_files_coverage] WARN: changed source files still include unmapped lines, "
+            "but mapped changed-line and branch thresholds were satisfied",
+            file=sys.stderr,
+        )
 
     if args.fail_on_vacuous and vacuous:
         print(

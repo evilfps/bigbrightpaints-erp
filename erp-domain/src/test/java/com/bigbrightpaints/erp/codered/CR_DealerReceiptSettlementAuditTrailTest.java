@@ -98,7 +98,7 @@ class CR_DealerReceiptSettlementAuditTrailTest extends AbstractIntegrationTest {
         CompanyContextHolder.clear();
 
         SalesOrder order = createOrder(company, dealer, fg.getProductCode(), new BigDecimal("5"), new BigDecimal("15.50"));
-        PackagingSlip slip = packagingSlipRepository.findByCompanyAndSalesOrderId(company, order.getId()).orElseThrow();
+        PackagingSlip slip = reserveSlip(company, order);
 
         DispatchConfirmRequest request = new DispatchConfirmRequest(
                 slip.getId(),
@@ -246,7 +246,7 @@ class CR_DealerReceiptSettlementAuditTrailTest extends AbstractIntegrationTest {
         CompanyContextHolder.clear();
 
         SalesOrder order = createOrder(company, dealer, fg.getProductCode(), new BigDecimal("5"), new BigDecimal("15.50"));
-        PackagingSlip slip = packagingSlipRepository.findByCompanyAndSalesOrderId(company, order.getId()).orElseThrow();
+        PackagingSlip slip = reserveSlip(company, order);
 
         DispatchConfirmRequest request = new DispatchConfirmRequest(
                 slip.getId(),
@@ -394,7 +394,7 @@ class CR_DealerReceiptSettlementAuditTrailTest extends AbstractIntegrationTest {
         CompanyContextHolder.clear();
 
         SalesOrder order = createOrder(company, dealer, fg.getProductCode(), new BigDecimal("5"), new BigDecimal("15.50"));
-        PackagingSlip slip = packagingSlipRepository.findByCompanyAndSalesOrderId(company, order.getId()).orElseThrow();
+        PackagingSlip slip = reserveSlip(company, order);
 
         DispatchConfirmRequest request = new DispatchConfirmRequest(
                 slip.getId(),
@@ -489,7 +489,7 @@ class CR_DealerReceiptSettlementAuditTrailTest extends AbstractIntegrationTest {
         CompanyContextHolder.clear();
 
         SalesOrder order = createOrder(company, dealer, fg.getProductCode(), new BigDecimal("5"), new BigDecimal("15.50"));
-        PackagingSlip slip = packagingSlipRepository.findByCompanyAndSalesOrderId(company, order.getId()).orElseThrow();
+        PackagingSlip slip = reserveSlip(company, order);
 
         DispatchConfirmRequest request = new DispatchConfirmRequest(
                 slip.getId(),
@@ -601,7 +601,7 @@ class CR_DealerReceiptSettlementAuditTrailTest extends AbstractIntegrationTest {
         CompanyContextHolder.clear();
 
         SalesOrder order = createOrder(company, dealer, fg.getProductCode(), new BigDecimal("5"), new BigDecimal("15.50"));
-        PackagingSlip slip = packagingSlipRepository.findByCompanyAndSalesOrderId(company, order.getId()).orElseThrow();
+        PackagingSlip slip = reserveSlip(company, order);
 
         DispatchConfirmRequest request = new DispatchConfirmRequest(
                 slip.getId(),
@@ -701,7 +701,7 @@ class CR_DealerReceiptSettlementAuditTrailTest extends AbstractIntegrationTest {
         CompanyContextHolder.clear();
 
         SalesOrder order = createOrder(company, dealer, fg.getProductCode(), new BigDecimal("5"), new BigDecimal("15.50"));
-        PackagingSlip slip = packagingSlipRepository.findByCompanyAndSalesOrderId(company, order.getId()).orElseThrow();
+        PackagingSlip slip = reserveSlip(company, order);
 
         DispatchConfirmRequest request = new DispatchConfirmRequest(
                 slip.getId(),
@@ -961,6 +961,19 @@ class CR_DealerReceiptSettlementAuditTrailTest extends AbstractIntegrationTest {
         ));
         CompanyContextHolder.clear();
         return salesOrderRepository.findById(orderDto.id()).orElseThrow();
+    }
+
+    private PackagingSlip reserveSlip(Company company, SalesOrder order) {
+        CompanyContextHolder.setCompanyId(company.getCode());
+        try {
+            var reservation = finishedGoodsService.reserveForOrder(order);
+            if (reservation != null && reservation.packagingSlip() != null && reservation.packagingSlip().id() != null) {
+                return packagingSlipRepository.findByIdAndCompany(reservation.packagingSlip().id(), company).orElseThrow();
+            }
+            return packagingSlipRepository.findByCompanyAndSalesOrderId(company, order.getId()).orElseThrow();
+        } finally {
+            CompanyContextHolder.clear();
+        }
     }
 
     private static String shortId() {

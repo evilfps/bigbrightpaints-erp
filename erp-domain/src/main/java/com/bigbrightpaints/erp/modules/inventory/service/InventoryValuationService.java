@@ -9,7 +9,6 @@ import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -124,8 +123,7 @@ public class InventoryValuationService {
     }
 
     public BigDecimal resolveDispatchUnitCost(FinishedGood finishedGood,
-                                              FinishedGoodBatch batch,
-                                              LocalDate referenceDate) {
+                                              FinishedGoodBatch batch) {
         if (finishedGood == null) {
             return BigDecimal.ZERO;
         }

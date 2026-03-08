@@ -207,8 +207,7 @@ public class FinishedGoodsDispatchEngine {
 
             BigDecimal unitCost = inventoryValuationService.resolveDispatchUnitCost(
                     fg,
-                    batch,
-                    companyClock.today(slip.getCompany()));
+                    batch);
             inventoryValuationService.requireNonZeroDispatchCost(fg, unitCost, shipQty);
 
             BigDecimal reserved = inventoryValuationService.safeQuantity(fg.getReservedStock());
@@ -551,8 +550,7 @@ public class FinishedGoodsDispatchEngine {
             inventoryValuationService.invalidateWeightedAverageCost(fg.getId());
             BigDecimal unitCost = inventoryValuationService.resolveDispatchUnitCost(
                     fg,
-                    batch,
-                    companyClock.today(company));
+                    batch);
             inventoryValuationService.requireNonZeroDispatchCost(fg, unitCost, shipped);
             line.setUnitCost(unitCost);
 

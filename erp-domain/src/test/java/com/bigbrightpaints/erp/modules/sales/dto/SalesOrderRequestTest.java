@@ -97,4 +97,20 @@ class SalesOrderRequestTest {
         assertThat(request.resolveIdempotencyKeyIncludingDefaultPaymentMode())
                 .isEqualTo(DigestUtils.sha256Hex(transitionalPayload));
     }
+
+    @Test
+    void constructor_defaultsBlankPaymentModeToCredit() {
+        SalesOrderRequest request = requestWithIdempotency("key-default", "INR", "FG-1", BigDecimal.ONE);
+
+        assertThat(request.normalizedPaymentMode()).isEqualTo("CREDIT");
+    }
+
+    @Test
+    void constructor_mapsLegacySplitPaymentModeToHybrid() {
+        SalesOrderItemRequest item = new SalesOrderItemRequest("FG-1", "Item", new BigDecimal("2"), new BigDecimal("10"), null);
+        SalesOrderRequest request = new SalesOrderRequest(7L, new BigDecimal("100"), "INR", null, List.of(item),
+                "NONE", BigDecimal.ZERO, false, null, "split");
+
+        assertThat(request.normalizedPaymentMode()).isEqualTo("HYBRID");
+    }
 }

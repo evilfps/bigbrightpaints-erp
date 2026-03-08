@@ -26,6 +26,7 @@ import com.bigbrightpaints.erp.modules.invoice.service.InvoiceNumberService;
 import com.bigbrightpaints.erp.modules.invoice.domain.Invoice;
 import com.bigbrightpaints.erp.modules.invoice.domain.InvoiceRepository;
 import com.bigbrightpaints.erp.modules.factory.domain.FactoryTaskRepository;
+import com.bigbrightpaints.erp.modules.factory.domain.FactoryTask;
 import com.bigbrightpaints.erp.modules.sales.dto.SalesOrderDto;
 import com.bigbrightpaints.erp.modules.sales.dto.DealerDto;
 import com.bigbrightpaints.erp.modules.sales.dto.CreditRequestDto;
@@ -1307,6 +1308,28 @@ class SalesServiceTest {
         DispatchConfirmRequest request = new DispatchConfirmRequest(null, 10L, List.of(), null, null, false, null, null);
 
         assertThrows(ApplicationException.class, () -> salesService.confirmDispatch(request));
+    }
+
+    @Test
+    void confirmDispatchIncludesShortagesWhenReservationStillProducesNoSlip() {
+        SalesOrder order = new SalesOrder();
+        setField(order, "id", 10L);
+        order.setCompany(company);
+        order.setStatus("READY_TO_SHIP");
+        order.setTotalAmount(new BigDecimal("100.00"));
+
+        when(companyEntityLookup.requireSalesOrder(company, 10L)).thenReturn(order);
+        when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 10L)).thenReturn(List.of(), List.of());
+        when(finishedGoodsService.reserveForOrder(order)).thenReturn(new InventoryReservationResult(
+                null,
+                List.of(new InventoryShortage("FG-1", BigDecimal.ONE, "Primer"))));
+
+        ApplicationException ex = assertThrows(ApplicationException.class,
+                () -> salesService.confirmDispatch(new DispatchConfirmRequest(null, 10L, List.of(), null, "admin", Boolean.FALSE, null, null)));
+
+        assertEquals(ErrorCode.VALIDATION_INVALID_REFERENCE, ex.getErrorCode());
+        assertTrue(ex.getMessage().contains("Packing slip not found for order 10"));
+        assertTrue(ex.getDetails().containsKey("shortages"));
     }
 
     @Test
@@ -3548,6 +3571,95 @@ class SalesServiceTest {
     }
 
     @Test
+    void updateOrderMovesReservedOrdersBackToPendingProductionWhenShortageAppears() {
+        setupProduct("SKU-UPD-SHORT", BigDecimal.valueOf(100), BigDecimal.ZERO);
+        FinishedGood finishedGood = buildFinishedGood("SKU-UPD-SHORT");
+        finishedGood.setRevenueAccountId(5L);
+        when(finishedGoodRepository.findByCompanyAndProductCode(company, "SKU-UPD-SHORT"))
+                .thenReturn(Optional.of(finishedGood));
+        when(finishedGoodBatchRepository.findByFinishedGoodOrderByManufacturedAtAsc(finishedGood)).thenReturn(List.of());
+
+        SalesOrder existing = new SalesOrder();
+        setField(existing, "id", 4301L);
+        existing.setCompany(company);
+        existing.setStatus("RESERVED");
+        existing.setCurrency("INR");
+        existing.setGstTreatment("NONE");
+        existing.setGstInclusive(false);
+        existing.setGstRate(BigDecimal.ZERO);
+        existing.setSubtotalAmount(BigDecimal.valueOf(100));
+        existing.setGstTotal(BigDecimal.ZERO);
+        existing.setGstRoundingAdjustment(BigDecimal.ZERO);
+        existing.setTotalAmount(BigDecimal.valueOf(100));
+
+        when(companyEntityLookup.requireSalesOrder(company, 4301L)).thenReturn(existing);
+        when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 4301L)).thenReturn(List.of());
+        when(factoryTaskRepository.findByCompanyAndSalesOrderId(company, 4301L)).thenReturn(List.of());
+        when(companyClock.today(company)).thenReturn(java.time.LocalDate.of(2026, 3, 9));
+
+        SalesOrderRequest request = new SalesOrderRequest(
+                null,
+                BigDecimal.valueOf(100),
+                "INR",
+                null,
+                List.of(new SalesOrderItemRequest("SKU-UPD-SHORT", "Desc", BigDecimal.ONE, BigDecimal.valueOf(100), null)),
+                "NONE",
+                null,
+                null,
+                null,
+                "CASH");
+
+        SalesOrderDto dto = salesService.updateOrder(4301L, request);
+
+        assertEquals("PENDING_PRODUCTION", dto.status());
+        verify(factoryTaskRepository).saveAll(any());
+    }
+
+    @Test
+    void updateOrderReturnsPendingProductionOrdersToReservedWhenShortageClears() {
+        setupProduct("SKU-UPD-CLEAR", BigDecimal.valueOf(100), BigDecimal.ZERO);
+        FinishedGood finishedGood = buildFinishedGood("SKU-UPD-CLEAR");
+        finishedGood.setRevenueAccountId(5L);
+        when(finishedGoodRepository.findByCompanyAndProductCode(company, "SKU-UPD-CLEAR"))
+                .thenReturn(Optional.of(finishedGood));
+        when(finishedGoodBatchRepository.findByFinishedGoodOrderByManufacturedAtAsc(finishedGood))
+                .thenReturn(List.of(batch(finishedGood, BigDecimal.ONE)));
+
+        SalesOrder existing = new SalesOrder();
+        setField(existing, "id", 4302L);
+        existing.setCompany(company);
+        existing.setStatus("PENDING_PRODUCTION");
+        existing.setCurrency("INR");
+        existing.setGstTreatment("NONE");
+        existing.setGstInclusive(false);
+        existing.setGstRate(BigDecimal.ZERO);
+        existing.setSubtotalAmount(BigDecimal.valueOf(100));
+        existing.setGstTotal(BigDecimal.ZERO);
+        existing.setGstRoundingAdjustment(BigDecimal.ZERO);
+        existing.setTotalAmount(BigDecimal.valueOf(100));
+
+        when(companyEntityLookup.requireSalesOrder(company, 4302L)).thenReturn(existing);
+        when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 4302L)).thenReturn(List.of());
+        when(factoryTaskRepository.findByCompanyAndSalesOrderId(company, 4302L)).thenReturn(List.of());
+
+        SalesOrderRequest request = new SalesOrderRequest(
+                null,
+                BigDecimal.valueOf(100),
+                "INR",
+                null,
+                List.of(new SalesOrderItemRequest("SKU-UPD-CLEAR", "Desc", BigDecimal.ONE, BigDecimal.valueOf(100), null)),
+                "NONE",
+                null,
+                null,
+                null,
+                "CASH");
+
+        SalesOrderDto dto = salesService.updateOrder(4302L, request);
+
+        assertEquals("RESERVED", dto.status());
+    }
+
+    @Test
     void createOrderHybridPaymentModeStillEnforcesDealerCreditLimit() {
         setupProduct("SKU3-SPLIT", BigDecimal.valueOf(200), BigDecimal.ZERO);
         FinishedGood finishedGood = buildFinishedGood("SKU3-SPLIT");
@@ -4122,6 +4234,109 @@ class SalesServiceTest {
         assertEquals("PENDING_PRODUCTION", dto.status());
         verify(finishedGoodsService, never()).reserveForOrder(any());
         verify(factoryTaskRepository).saveAll(any());
+    }
+
+    @Test
+    void createOrderTreatsMissingFinishedGoodAsProductionShortage() {
+        SalesProformaBoundaryService boundaryService = new SalesProformaBoundaryService(
+                dealerRepository,
+                dealerLedgerService,
+                salesOrderRepository,
+                finishedGoodRepository,
+                finishedGoodBatchRepository,
+                factoryTaskRepository,
+                companyClock);
+
+        SalesOrder order = new SalesOrder();
+        order.setCompany(company);
+        order.setOrderNumber("SO-401");
+        setField(order, "id", 902L);
+
+        SalesOrderItem item = new SalesOrderItem();
+        item.setProductCode("SKU-MISSING");
+        item.setDescription("Missing SKU");
+        item.setQuantity(BigDecimal.ONE);
+        item.setSalesOrder(order);
+        order.getItems().add(item);
+
+        when(finishedGoodRepository.findByCompanyAndProductCode(company, "SKU-MISSING")).thenReturn(Optional.empty());
+        when(factoryTaskRepository.findByCompanyAndSalesOrderId(company, 902L)).thenReturn(List.of());
+        when(companyClock.today(company)).thenReturn(java.time.LocalDate.of(2026, 3, 9));
+
+        SalesProformaBoundaryService.CommercialAssessment assessment = boundaryService.assessCommercialAvailability(company, order);
+
+        assertEquals("PENDING_PRODUCTION", assessment.commercialStatus());
+        assertEquals(1, assessment.shortages().size());
+        assertEquals("SKU-MISSING", assessment.shortages().getFirst().productCode());
+        assertEquals(BigDecimal.ONE, assessment.shortages().getFirst().shortageQuantity());
+        ArgumentCaptor<List<FactoryTask>> tasksCaptor = ArgumentCaptor.forClass(List.class);
+        verify(factoryTaskRepository).saveAll(tasksCaptor.capture());
+        assertEquals(1, tasksCaptor.getValue().size());
+        assertEquals("Production requirement: SKU-MISSING", tasksCaptor.getValue().getFirst().getTitle());
+        assertTrue(tasksCaptor.getValue().getFirst().getDescription().contains("Missing SKU"));
+    }
+
+    @Test
+    void confirmOrderRejectsWhenProductionRequirementsRemainWithoutReservedSlip() {
+        SalesOrder order = new SalesOrder();
+        order.setCompany(company);
+        order.setStatus("READY_TO_SHIP");
+        order.setTotalAmount(new BigDecimal("100.00"));
+        order.setPaymentMode("CASH");
+        setField(order, "id", 904L);
+
+        FactoryTask requirement = new FactoryTask();
+        requirement.setCompany(company);
+        requirement.setTitle("Production requirement: SKU-OPEN");
+        requirement.setStatus("PENDING");
+        requirement.setSalesOrderId(904L);
+
+        when(companyEntityLookup.requireSalesOrder(company, 904L)).thenReturn(order);
+        when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 904L)).thenReturn(List.of());
+        when(factoryTaskRepository.findByCompanyAndSalesOrderId(company, 904L)).thenReturn(List.of(requirement));
+
+        ApplicationException ex = assertThrows(ApplicationException.class, () -> salesService.confirmOrder(904L));
+
+        assertEquals(ErrorCode.BUSINESS_INVALID_STATE, ex.getErrorCode());
+        assertTrue(ex.getMessage().contains("production is still required"));
+        assertEquals(List.of("SKU-OPEN"), ex.getDetails().get("productionRequirementSkus"));
+    }
+
+    @Test
+    void confirmOrderRejectsWhenSlipLinesHaveNoReservedQuantity() {
+        SalesOrder order = new SalesOrder();
+        order.setCompany(company);
+        order.setStatus("READY_TO_SHIP");
+        order.setTotalAmount(new BigDecimal("100.00"));
+        order.setPaymentMode("CASH");
+        setField(order, "id", 905L);
+
+        FinishedGood finishedGood = buildFinishedGood("SKU-UNRESERVED");
+        FinishedGoodBatch batch = new FinishedGoodBatch();
+        batch.setFinishedGood(finishedGood);
+        batch.setBatchCode("BATCH-UNRESERVED");
+
+        PackagingSlipLine line = new PackagingSlipLine();
+        line.setFinishedGoodBatch(batch);
+        line.setOrderedQuantity(new BigDecimal("5.00"));
+        line.setBackorderQuantity(new BigDecimal("5.00"));
+        line.setShippedQuantity(BigDecimal.ZERO);
+        line.setQuantity(new BigDecimal("5.00"));
+
+        PackagingSlip slip = new PackagingSlip();
+        slip.setCompany(company);
+        slip.setSalesOrder(order);
+        slip.setStatus("RESERVED");
+        slip.getLines().add(line);
+
+        when(companyEntityLookup.requireSalesOrder(company, 905L)).thenReturn(order);
+        when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 905L)).thenReturn(List.of(slip));
+
+        ApplicationException ex = assertThrows(ApplicationException.class, () -> salesService.confirmOrder(905L));
+
+        assertEquals(ErrorCode.BUSINESS_INVALID_STATE, ex.getErrorCode());
+        assertTrue(ex.getMessage().contains("no stock is reserved"));
+        assertEquals(List.of("SKU-UNRESERVED"), ex.getDetails().get("unreservedSkus"));
     }
 
     @Test

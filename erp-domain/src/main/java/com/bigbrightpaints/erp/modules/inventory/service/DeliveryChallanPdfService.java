@@ -43,6 +43,10 @@ public class DeliveryChallanPdfService {
             throw com.bigbrightpaints.erp.core.validation.ValidationUtils
                     .invalidState("Delivery challan is available only after dispatch confirmation");
         }
+        if (!isEligibleForDeliveryChallan(slip)) {
+            throw com.bigbrightpaints.erp.core.validation.ValidationUtils
+                    .invalidState("Delivery challan is available only for dispatched slips with shipped quantity");
+        }
 
         SalesOrder order = slip.getSalesOrder();
         Dealer dealer = order != null ? order.getDealer() : null;
@@ -118,12 +122,20 @@ public class DeliveryChallanPdfService {
         if (value == null || value.isBlank()) {
             return "";
         }
-        return value
-                .replace("&", "&amp;")
-                .replace("<", "&lt;")
-                .replace(">", "&gt;")
-                .replace("\"", "&quot;")
-                .replace("'", "&#39;");
+        return value;
+    }
+
+    private boolean isEligibleForDeliveryChallan(PackagingSlip slip) {
+        if (slip == null || !"DISPATCHED".equalsIgnoreCase(slip.getStatus())) {
+            return false;
+        }
+        return slip.getLines().stream()
+                .map(line -> {
+                    BigDecimal shipped = line.getShippedQuantity();
+                    return shipped != null ? shipped : line.getQuantity();
+                })
+                .filter(Objects::nonNull)
+                .anyMatch(quantity -> quantity.compareTo(BigDecimal.ZERO) > 0);
     }
 
     public record DeliveryChallanLineView(String productCode,

@@ -180,6 +180,11 @@ final class SalesProformaBoundaryService {
             String sku = entry.getKey();
             FinishedGood finishedGood = finishedGoodRepository.findByCompanyAndProductCode(company, sku).orElse(null);
             if (finishedGood == null) {
+                shortages.add(new FinishedGoodsService.InventoryShortage(
+                        sku,
+                        entry.getValue(),
+                        productNamesBySku.getOrDefault(sku, sku)
+                ));
                 continue;
             }
             BigDecimal availableQuantity = finishedGoodBatchRepository.findByFinishedGoodOrderByManufacturedAtAsc(finishedGood)

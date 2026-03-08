@@ -133,42 +133,40 @@ public class SalesFulfillmentService {
                 log.info("Reserved inventory for order {}", orderNumber);
             }
 
-            if (options.issueInvoice()) {
-                DispatchConfirmRequest dispatchRequest = new DispatchConfirmRequest(
-                        slipId,
-                        slipId != null ? null : orderId,
-                        null,
-                        null,
-                        null,
-                        Boolean.FALSE,
-                        null,
-                        null);
-                var dispatchResponse = salesService.confirmDispatch(dispatchRequest);
-                List<DispatchPosting> dispatches = dispatchResponse.cogsPostings().stream()
-                        .map(p -> new DispatchPosting(p.inventoryAccountId(), p.cogsAccountId(), p.cost()))
-                        .toList();
-                result.dispatches(dispatches);
-                BigDecimal totalCogs = dispatches.stream()
-                        .map(DispatchPosting::cost)
-                        .filter(c -> c != null)
-                        .reduce(BigDecimal.ZERO, BigDecimal::add);
-                result.cogsAmount(totalCogs);
-                result.salesJournalId(dispatchResponse.arJournalEntryId());
-                if (dispatchResponse.finalInvoiceId() != null) {
-                    InvoiceDto invoice = invoiceService.getInvoice(dispatchResponse.finalInvoiceId());
-                    result.invoiceId(invoice.id());
-                    result.invoiceNumber(invoice.invoiceNumber());
-                }
-                List<Long> slipCogsIds = resolveSlipCogsJournalIds(dispatchResponse.packingSlipId(), order);
-                if (!slipCogsIds.isEmpty()) {
-                    result.cogsJournalIds(slipCogsIds);
-                }
-                result.status(FulfillmentStatus.COMPLETED);
-                log.info("Completed fulfillment for order {} - Revenue: {}, COGS: {}, Gross Profit: {}",
-                        orderNumber, order.getTotalAmount(), totalCogs,
-                        order.getTotalAmount().subtract(totalCogs));
-                return result.build();
+            DispatchConfirmRequest dispatchRequest = new DispatchConfirmRequest(
+                    slipId,
+                    slipId != null ? null : orderId,
+                    null,
+                    null,
+                    null,
+                    Boolean.FALSE,
+                    null,
+                    null);
+            var dispatchResponse = salesService.confirmDispatch(dispatchRequest);
+            List<DispatchPosting> dispatches = dispatchResponse.cogsPostings().stream()
+                    .map(p -> new DispatchPosting(p.inventoryAccountId(), p.cogsAccountId(), p.cost()))
+                    .toList();
+            result.dispatches(dispatches);
+            BigDecimal totalCogs = dispatches.stream()
+                    .map(DispatchPosting::cost)
+                    .filter(c -> c != null)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            result.cogsAmount(totalCogs);
+            result.salesJournalId(dispatchResponse.arJournalEntryId());
+            if (dispatchResponse.finalInvoiceId() != null) {
+                InvoiceDto invoice = invoiceService.getInvoice(dispatchResponse.finalInvoiceId());
+                result.invoiceId(invoice.id());
+                result.invoiceNumber(invoice.invoiceNumber());
             }
+            List<Long> slipCogsIds = resolveSlipCogsJournalIds(dispatchResponse.packingSlipId(), order);
+            if (!slipCogsIds.isEmpty()) {
+                result.cogsJournalIds(slipCogsIds);
+            }
+            result.status(FulfillmentStatus.COMPLETED);
+            log.info("Completed fulfillment for order {} - Revenue: {}, COGS: {}, Gross Profit: {}",
+                    orderNumber, order.getTotalAmount(), totalCogs,
+                    order.getTotalAmount().subtract(totalCogs));
+            return result.build();
 
         } catch (Exception e) {
             log.error("Fulfillment failed for order {}: {}", orderNumber, e.getMessage(), e);
@@ -176,9 +174,6 @@ public class SalesFulfillmentService {
             result.errorMessage(e.getMessage());
             throw e; // Re-throw to trigger transaction rollback
         }
-
-        throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
-                "Fulfillment requires dispatch confirmation; issueInvoice must be true");
     }
 
     /**

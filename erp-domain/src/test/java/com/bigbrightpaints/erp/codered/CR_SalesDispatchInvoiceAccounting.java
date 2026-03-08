@@ -86,7 +86,7 @@ class CR_SalesDispatchInvoiceAccounting extends AbstractIntegrationTest {
                 fg.getId(), "BATCH-1", new BigDecimal("50"), new BigDecimal("10.00"), Instant.now(), null));
 
         SalesOrder order = createOrder(company, dealer, fg.getProductCode(), new BigDecimal("10"), new BigDecimal("12.34"));
-        PackagingSlip slip = packagingSlipRepository.findByCompanyAndSalesOrderId(company, order.getId()).orElseThrow();
+        PackagingSlip slip = reserveSlip(company, order);
 
         DispatchConfirmRequest request = new DispatchConfirmRequest(
                 slip.getId(),
@@ -140,7 +140,7 @@ class CR_SalesDispatchInvoiceAccounting extends AbstractIntegrationTest {
                 fg.getId(), "BATCH-BO", new BigDecimal("20"), new BigDecimal("9.50"), Instant.now(), null));
 
         SalesOrder order = createOrder(company, dealer, fg.getProductCode(), new BigDecimal("10"), new BigDecimal("100.00"));
-        PackagingSlip slip = packagingSlipRepository.findByCompanyAndSalesOrderId(company, order.getId()).orElseThrow();
+        PackagingSlip slip = reserveSlip(company, order);
 
         BigDecimal orderedQty = slip.getLines().getFirst().getOrderedQuantity() != null
                 ? slip.getLines().getFirst().getOrderedQuantity()
@@ -234,7 +234,7 @@ class CR_SalesDispatchInvoiceAccounting extends AbstractIntegrationTest {
                 fg.getId(), "BATCH-CONC", new BigDecimal("50"), new BigDecimal("10.00"), Instant.now(), null));
 
         SalesOrder order = createOrder(company, dealer, fg.getProductCode(), new BigDecimal("10"), new BigDecimal("99.99"));
-        PackagingSlip slip = packagingSlipRepository.findByCompanyAndSalesOrderId(company, order.getId()).orElseThrow();
+        PackagingSlip slip = reserveSlip(company, order);
 
         DispatchConfirmRequest request = new DispatchConfirmRequest(
                 slip.getId(),
@@ -480,6 +480,14 @@ class CR_SalesDispatchInvoiceAccounting extends AbstractIntegrationTest {
                 UUID.randomUUID().toString()
         ));
         return salesOrderRepository.findById(orderDto.id()).orElseThrow();
+    }
+
+    private PackagingSlip reserveSlip(Company company, SalesOrder order) {
+        var reservation = finishedGoodsService.reserveForOrder(order);
+        if (reservation != null && reservation.packagingSlip() != null && reservation.packagingSlip().id() != null) {
+            return packagingSlipRepository.findByIdAndCompany(reservation.packagingSlip().id(), company).orElseThrow();
+        }
+        return packagingSlipRepository.findByCompanyAndSalesOrderId(company, order.getId()).orElseThrow();
     }
 
     private static String shortId() {

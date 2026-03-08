@@ -297,6 +297,37 @@ class InvoiceServiceTest {
         verifyNoInteractions(salesDispatchReconciliationService);
     }
 
+
+    @Test
+    void issueInvoiceForOrder_rejectsWhenMultipleActiveSlipsExist() {
+        Long orderId = 79L;
+        when(companyContextService.requireCurrentCompany()).thenReturn(company);
+        when(invoiceRepository.findAllByCompanyAndSalesOrderId(company, orderId)).thenReturn(List.of());
+
+        Dealer dealer = new Dealer();
+        SalesOrder order = new SalesOrder();
+        order.setCompany(company);
+        order.setDealer(dealer);
+        order.setOrderNumber("SO-79");
+        order.setCurrency("INR");
+        ReflectionTestUtils.setField(order, "id", orderId);
+
+        when(salesOrderCrudService.getOrderWithItems(orderId)).thenReturn(order);
+        PackagingSlip firstSlip = new PackagingSlip();
+        ReflectionTestUtils.setField(firstSlip, "id", 101L);
+        firstSlip.setStatus("RESERVED");
+        PackagingSlip secondSlip = new PackagingSlip();
+        ReflectionTestUtils.setField(secondSlip, "id", 102L);
+        secondSlip.setStatus("PENDING_STOCK");
+        when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, orderId))
+                .thenReturn(List.of(firstSlip, secondSlip));
+
+        ApplicationException ex = assertThrows(ApplicationException.class, () -> invoiceService.issueInvoiceForOrder(orderId));
+
+        assertThat(ex.getMessage()).contains("Multiple packing slips exist for order; issue invoices per dispatch");
+        verifyNoInteractions(invoiceNumberService);
+        verifyNoInteractions(salesJournalService);
+    }
     @Test
     void issueInvoiceForOrder_existingInvoiceDoesNotReplayDispatchWhenSingleActiveSlipExists() {
         Long orderId = 79L;
