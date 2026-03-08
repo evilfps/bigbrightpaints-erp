@@ -3562,7 +3562,7 @@ class SalesServiceTest {
         assertEquals("RESERVED", dto.status());
         assertEquals("CASH", dto.paymentMode());
         verify(dealerLedgerService, never()).currentBalance(420L);
-        verify(finishedGoodsService).reserveForOrder(any(SalesOrder.class));
+        verify(finishedGoodsService, never()).reserveForOrder(any(SalesOrder.class));
     }
 
     @Test
@@ -3699,7 +3699,8 @@ class SalesServiceTest {
         SalesOrderDto dto = salesService.updateOrder(4301L, request);
 
         assertEquals("PENDING_PRODUCTION", dto.status());
-        verify(finishedGoodsService).releaseReservationsForOrder(4301L);
+        verify(finishedGoodsService, never()).releaseReservationsForOrder(4301L);
+        verify(finishedGoodsService, never()).reserveForOrder(existing);
         verify(factoryTaskRepository, org.mockito.Mockito.times(2)).saveAll(any());
     }
 
@@ -3745,7 +3746,8 @@ class SalesServiceTest {
         SalesOrderDto dto = salesService.updateOrder(4302L, request);
 
         assertEquals("RESERVED", dto.status());
-        verify(finishedGoodsService).reserveForOrder(existing);
+        verify(finishedGoodsService, never()).reserveForOrder(existing);
+        verify(finishedGoodsService, never()).releaseReservationsForOrder(4302L);
     }
 
     @Test
