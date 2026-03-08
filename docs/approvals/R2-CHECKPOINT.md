@@ -67,3 +67,33 @@
 - Commands run: `cd /home/realnigga/Desktop/Mission-control && bash ci/check-enterprise-policy.sh`; `cd /home/realnigga/Desktop/Mission-control && bash ci/check-codex-review-guidelines.sh`; `cd /home/realnigga/Desktop/Mission-control/erp-domain && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='PurchaseInvoiceEngineLifecycleTest,PurchasingServiceGoodsReceiptTest,AccountingServiceTest,CR_PurchasingToApAccountingTest' test`; `cd /home/realnigga/Desktop/Mission-control/erp-domain && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='PurchaseReturnIdempotencyRegressionIT' test`; `cd /home/realnigga/Desktop/Mission-control/erp-domain && MIGRATION_SET=v2 mvn -T8 test -Pgate-fast -Djacoco.skip=true`
 - Result summary: the packet now records scope-specific R2 evidence for the high-risk accounting/P2P paths, preserves replay-safe supplier payment and settlement behavior even if a supplier becomes non-transactional after the original success, keeps purchase-return replay resolution ahead of mutable supplier lifecycle rejection, keeps the packet-local supplier onboarding handoff polish corrected, and adds focused regression coverage so the touched P2P paths stay branch-locally reviewable.
 - Artifacts/links: `docs/approvals/R2-CHECKPOINT.md`, `.factory/library/frontend-handoff.md`, `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/internal/AccountingCoreEngineCore.java`, `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/internal/AccountingFacadeCore.java`, `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/purchasing/service/PurchaseReturnService.java`, `erp-domain/src/test/java/com/bigbrightpaints/erp/codered/CR_PurchasingToApAccountingTest.java`, `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingServiceTest.java`, `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/purchasing/service/PurchaseInvoiceEngineLifecycleTest.java`, `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/purchasing/domain/SupplierLifecycleGuardTest.java`, `erp-domain/src/test/java/com/bigbrightpaints/erp/regression/PurchaseReturnIdempotencyRegressionIT.java`
+
+---
+
+## Scope
+- Feature: `recovery-followup.corrections-control-linkage-and-close-blockers`
+- Branch: `recovery/05-corrections-control`
+- High-risk paths touched: accounting correction linkage, purchase/sales return truth surfaces, and accounting period-close blocker enforcement under `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/`, `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/purchasing/`, and `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/sales/`.
+- Why this is R2: the packet changes enterprise accounting correction controls and period-close fail-closed behavior on posted-document paths.
+
+## Risk Trigger
+- Triggered by edits under `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/`, `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/purchasing/`, and `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/sales/`.
+- Contract surfaces affected: correction journal linkage, posted-document correction previews, purchase return replay truth, and accounting period-close blocker checks.
+- Main risks being controlled: silent posted-document mutation, unlinked correction journals, and replay paths that lose linkage metadata or bypass close blockers.
+
+## Approval Authority
+- Mode: orchestrator
+- Approver: ERP truth-stabilization recovery-review orchestration
+- Basis: compatibility-preserving recovery remediation in enterprise accounting paths with no privilege widening, tenant-boundary expansion, or destructive migration behavior.
+
+## Escalation Decision
+- Human escalation required: no
+- Reason: the packet tightens existing accounting controls and linkage invariants without widening access or mutating tenant boundaries.
+
+## Rollback Owner
+- Owner: recovery-review corrections-control worker
+- Rollback method: revert the corrections-control recovery commit, then rerun the targeted correction suites and `MIGRATION_SET=v2 mvn -Pgate-fast -Djacoco.skip=true test` before merge.
+
+## Expiry
+- Valid until: 2026-03-16
+- Re-evaluate if: additional correction flows, tenant-crossing journal behaviors, or new migration-backed linkage fields are added.

@@ -23,6 +23,7 @@ import com.bigbrightpaints.erp.modules.purchasing.dto.GoodsReceiptRequest;
 import com.bigbrightpaints.erp.modules.purchasing.dto.GoodsReceiptResponse;
 import com.bigbrightpaints.erp.modules.purchasing.dto.PurchaseOrderRequest;
 import com.bigbrightpaints.erp.modules.purchasing.dto.PurchaseOrderResponse;
+import com.bigbrightpaints.erp.modules.purchasing.dto.PurchaseReturnPreviewDto;
 import com.bigbrightpaints.erp.modules.purchasing.dto.PurchaseOrderStatusHistoryResponse;
 import com.bigbrightpaints.erp.modules.purchasing.dto.PurchaseOrderVoidRequest;
 import com.bigbrightpaints.erp.modules.purchasing.dto.PurchaseReturnRequest;
@@ -168,6 +169,7 @@ public class PurchasingService {
                 rawMaterialBatchRepository,
                 movementRepository,
                 accountingFacade,
+                journalEntryRepository,
                 companyEntityLookup,
                 referenceNumberService,
                 companyClock,
@@ -253,5 +255,9 @@ public class PurchasingService {
 
     public JournalEntryDto recordPurchaseReturn(PurchaseReturnRequest request) {
         return purchaseReturnService.recordPurchaseReturn(request);
+    }
+
+    public PurchaseReturnPreviewDto previewPurchaseReturn(PurchaseReturnRequest request) {
+        return purchaseReturnService.previewPurchaseReturn(request);
     }
 }

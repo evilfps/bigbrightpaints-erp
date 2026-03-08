@@ -485,9 +485,16 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
         returnReq.put("reason", "Damaged on delivery");
         returnReq.put("lines", List.of(returnLine));
 
+        ResponseEntity<Map> previewResp = rest.exchange("/api/v1/accounting/sales/returns/preview",
+                HttpMethod.POST, new HttpEntity<>(returnReq, headers), Map.class);
+        Map<?, ?> previewData = requireData(previewResp, "sales return preview");
+        assertThat(new BigDecimal(String.valueOf(previewData.get("totalReturnAmount"))))
+                .isEqualByComparingTo(new BigDecimal("100.00"));
+
         ResponseEntity<Map> returnResp = rest.exchange("/api/v1/accounting/sales/returns",
                 HttpMethod.POST, new HttpEntity<>(returnReq, headers), Map.class);
-        requireData(returnResp, "sales return");
+        Map<?, ?> returnData = requireData(returnResp, "sales return");
+        Long salesReturnEntryId = ((Number) returnData.get("id")).longValue();
 
         BigDecimal stockAfterReturn = finishedGoodRepository.findById(finishedGood.getId())
                 .orElseThrow(() -> new AssertionError("Finished good missing after return"))
@@ -500,6 +507,12 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
         assertThat(journalEntryRepository.findByCompanyAndReferenceNumber(company, salesReturnRef))
                 .as("sales return journal entry exists")
                 .isPresent();
+        JournalEntry salesReturnEntry = journalEntryRepository.findById(salesReturnEntryId)
+                .orElseThrow(() -> new AssertionError("Sales return journal missing"));
+        assertThat(salesReturnEntry.getCorrectionType()).isNotNull();
+        assertThat(salesReturnEntry.getCorrectionReason()).isEqualTo("SALES_RETURN");
+        assertThat(salesReturnEntry.getSourceModule()).isEqualTo("SALES_RETURN");
+        assertThat(salesReturnEntry.getSourceReference()).isEqualTo(invoice.getInvoiceNumber());
         assertThat(journalEntryRepository.findFirstByCompanyAndReferenceNumberStartingWith(company,
                 salesReturnRef + "-COGS"))
                 .as("COGS reversal journal entry exists")
@@ -515,6 +528,7 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
         assertThat(returnedQuantity)
                 .as("inventory return movement quantity")
                 .isEqualByComparingTo(new BigDecimal("1"));
+        assertThat(returnMovements).allMatch(movement -> salesReturnEntryId.equals(movement.getJournalEntryId()));
     }
 
     @Test
@@ -883,6 +897,14 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
         returnReq.put("returnDate", entryDate);
         returnReq.put("reason", "Return test");
 
+        Map<?, ?> previewData = requireData(rest.exchange(
+                "/api/v1/purchasing/raw-material-purchases/returns/preview",
+                HttpMethod.POST,
+                new HttpEntity<>(returnReq, headers),
+                Map.class), "purchase return preview");
+        assertThat(new BigDecimal(String.valueOf(previewData.get("totalAmount"))))
+                .isEqualByComparingTo(new BigDecimal("60.00"));
+
         ResponseEntity<Map> returnResp = rest.exchange("/api/v1/purchasing/raw-material-purchases/returns",
                 HttpMethod.POST, new HttpEntity<>(returnReq, headers), Map.class);
         Map<?, ?> returnData = requireData(returnResp, "purchase return");
@@ -902,6 +924,10 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
 
         JournalEntry returnEntry = journalEntryRepository.findById(returnEntryId)
                 .orElseThrow(() -> new AssertionError("Return journal missing"));
+        assertThat(returnEntry.getCorrectionType()).isNotNull();
+        assertThat(returnEntry.getCorrectionReason()).isEqualTo("PURCHASE_RETURN");
+        assertThat(returnEntry.getSourceModule()).isEqualTo("PURCHASING_RETURN");
+        assertThat(returnEntry.getSourceReference()).isEqualTo(invoiceNumber);
         BigDecimal expectedTotal = new BigDecimal("60.00");
         Long inventoryAccountId = returnDataset.requireAccount("INV").getId();
         Long payableAccountId = returnDataset.requireAccount("AP").getId();

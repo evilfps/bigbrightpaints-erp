@@ -59,6 +59,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 import static org.mockito.Mockito.lenient;
@@ -156,6 +157,7 @@ class PurchasingServiceTest {
 
         lenient().when(referenceNumberService.purchaseReference(any(), any(), any())).thenReturn("RMP-TEST-0001");
         lenient().when(referenceNumberService.purchaseReturnReference(any(), any())).thenReturn("PRN-TEST-0001");
+        lenient().when(journalEntryRepository.findByCompanyAndId(any(), anyLong())).thenReturn(Optional.empty());
     }
 
     @Test
@@ -287,11 +289,13 @@ class PurchasingServiceTest {
     @Test
     @DisplayName("recordPurchaseReturn uses atomic deduction to prevent negative stock")
     void recordPurchaseReturn_insufficientStock_throws() {
+        activateSupplier();
         when(companyContextService.requireCurrentCompany()).thenReturn(company);
         when(companyEntityLookup.requireSupplier(company, 10L)).thenReturn(supplier);
         RawMaterialPurchase purchase = new RawMaterialPurchase();
         ReflectionTestUtils.setField(purchase, "id", 30L);
         purchase.setSupplier(supplier);
+        attachPostedJournal(purchase, 930L);
         purchase.setTotalAmount(BigDecimal.valueOf(1000));
         purchase.setOutstandingAmount(BigDecimal.valueOf(1000));
         RawMaterialPurchaseLine purchaseLine = new RawMaterialPurchaseLine();
@@ -329,11 +333,13 @@ class PurchasingServiceTest {
     @Test
     @DisplayName("recordPurchaseReturn succeeds with atomic deduction when stock sufficient")
     void recordPurchaseReturn_sufficientStock_succeeds() {
+        activateSupplier();
         when(companyContextService.requireCurrentCompany()).thenReturn(company);
         when(companyEntityLookup.requireSupplier(company, 10L)).thenReturn(supplier);
         RawMaterialPurchase purchase = new RawMaterialPurchase();
         ReflectionTestUtils.setField(purchase, "id", 40L);
         purchase.setSupplier(supplier);
+        attachPostedJournal(purchase, 931L);
         purchase.setTotalAmount(BigDecimal.valueOf(100));
         purchase.setOutstandingAmount(BigDecimal.valueOf(100));
         RawMaterialPurchaseLine purchaseLine = new RawMaterialPurchaseLine();
@@ -387,11 +393,13 @@ class PurchasingServiceTest {
     @Test
     @DisplayName("recordPurchaseReturn rejects quantity above remaining returnable quantity")
     void recordPurchaseReturn_quantityExceedsRemaining_throws() {
+        activateSupplier();
         when(companyContextService.requireCurrentCompany()).thenReturn(company);
         when(companyEntityLookup.requireSupplier(company, 10L)).thenReturn(supplier);
         RawMaterialPurchase purchase = new RawMaterialPurchase();
         ReflectionTestUtils.setField(purchase, "id", 50L);
         purchase.setSupplier(supplier);
+        attachPostedJournal(purchase, 932L);
         purchase.setTotalAmount(BigDecimal.valueOf(100));
         purchase.setOutstandingAmount(BigDecimal.valueOf(100));
         RawMaterialPurchaseLine purchaseLine = new RawMaterialPurchaseLine();
@@ -428,11 +436,13 @@ class PurchasingServiceTest {
     @Test
     @DisplayName("recordPurchaseReturn rejects return when amount exceeds outstanding payable")
     void recordPurchaseReturn_amountExceedsOutstanding_throws() {
+        activateSupplier();
         when(companyContextService.requireCurrentCompany()).thenReturn(company);
         when(companyEntityLookup.requireSupplier(company, 10L)).thenReturn(supplier);
         RawMaterialPurchase purchase = new RawMaterialPurchase();
         ReflectionTestUtils.setField(purchase, "id", 60L);
         purchase.setSupplier(supplier);
+        attachPostedJournal(purchase, 933L);
         purchase.setTotalAmount(BigDecimal.valueOf(20));
         purchase.setOutstandingAmount(BigDecimal.valueOf(5));
         RawMaterialPurchaseLine purchaseLine = new RawMaterialPurchaseLine();
@@ -482,11 +492,13 @@ class PurchasingServiceTest {
     @Test
     @DisplayName("recordPurchaseReturn compares outstanding at currency precision")
     void recordPurchaseReturn_currencyPrecisionComparison_allowsRoundedMatch() {
+        activateSupplier();
         when(companyContextService.requireCurrentCompany()).thenReturn(company);
         when(companyEntityLookup.requireSupplier(company, 10L)).thenReturn(supplier);
         RawMaterialPurchase purchase = new RawMaterialPurchase();
         ReflectionTestUtils.setField(purchase, "id", 61L);
         purchase.setSupplier(supplier);
+        attachPostedJournal(purchase, 934L);
         purchase.setTotalAmount(new BigDecimal("10.00"));
         purchase.setOutstandingAmount(new BigDecimal("10.00"));
         RawMaterialPurchaseLine purchaseLine = new RawMaterialPurchaseLine();
@@ -1235,5 +1247,17 @@ class PurchasingServiceTest {
                 "tester",
                 "tester"
         );
+    }
+
+    private void attachPostedJournal(RawMaterialPurchase purchase, long journalId) {
+        JournalEntry journalEntry = new JournalEntry();
+        ReflectionTestUtils.setField(journalEntry, "id", journalId);
+        journalEntry.setStatus("POSTED");
+        purchase.setJournalEntry(journalEntry);
+        purchase.setStatus("POSTED");
+    }
+
+    private void activateSupplier() {
+        supplier.setStatus("ACTIVE");
     }
 }

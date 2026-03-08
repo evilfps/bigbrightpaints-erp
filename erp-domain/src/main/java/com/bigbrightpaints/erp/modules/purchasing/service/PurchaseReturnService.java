@@ -5,6 +5,9 @@ import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.core.util.MoneyUtils;
+import com.bigbrightpaints.erp.modules.accounting.domain.JournalCorrectionType;
+import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
+import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalCreationRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
@@ -23,6 +26,7 @@ import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchase;
 import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchaseLine;
 import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchaseRepository;
 import com.bigbrightpaints.erp.modules.purchasing.domain.Supplier;
+import com.bigbrightpaints.erp.modules.purchasing.dto.PurchaseReturnPreviewDto;
 import com.bigbrightpaints.erp.modules.purchasing.dto.PurchaseReturnRequest;
 import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
@@ -46,6 +50,7 @@ public class PurchaseReturnService {
     private final RawMaterialBatchRepository rawMaterialBatchRepository;
     private final RawMaterialMovementRepository movementRepository;
     private final AccountingFacade accountingFacade;
+    private final JournalEntryRepository journalEntryRepository;
     private final CompanyEntityLookup companyEntityLookup;
     private final ReferenceNumberService referenceNumberService;
     private final CompanyClock companyClock;
@@ -58,6 +63,7 @@ public class PurchaseReturnService {
                                  RawMaterialBatchRepository rawMaterialBatchRepository,
                                  RawMaterialMovementRepository movementRepository,
                                  AccountingFacade accountingFacade,
+                                 JournalEntryRepository journalEntryRepository,
                                  CompanyEntityLookup companyEntityLookup,
                                  ReferenceNumberService referenceNumberService,
                                  CompanyClock companyClock,
@@ -69,11 +75,64 @@ public class PurchaseReturnService {
         this.rawMaterialBatchRepository = rawMaterialBatchRepository;
         this.movementRepository = movementRepository;
         this.accountingFacade = accountingFacade;
+        this.journalEntryRepository = journalEntryRepository;
         this.companyEntityLookup = companyEntityLookup;
         this.referenceNumberService = referenceNumberService;
         this.companyClock = companyClock;
         this.gstService = gstService;
         this.allocationService = allocationService;
+    }
+
+    @Transactional
+    public PurchaseReturnPreviewDto previewPurchaseReturn(PurchaseReturnRequest request) {
+        Company company = companyContextService.requireCurrentCompany();
+        Supplier supplier = companyEntityLookup.requireSupplier(company, request.supplierId());
+        supplier.requireTransactionalUsage("preview purchase returns");
+        RawMaterialPurchase purchase = purchaseRepository.lockByCompanyAndId(company, request.purchaseId())
+                .orElseThrow(() -> com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput("Raw material purchase not found"));
+        ensurePostedPurchase(purchase);
+        if (purchase.getSupplier() == null || !purchase.getSupplier().getId().equals(supplier.getId())) {
+            throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput("Purchase does not belong to the supplier");
+        }
+        RawMaterial material = rawMaterialRepository.lockByCompanyAndId(company, request.rawMaterialId())
+                .orElseThrow(() -> com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput("Raw material not found"));
+        boolean materialInPurchase = purchase.getLines().stream()
+                .anyMatch(line -> line.getRawMaterial() != null
+                        && line.getRawMaterial().getId().equals(material.getId()));
+        if (!materialInPurchase) {
+            throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
+                    "Purchase does not include raw material " + material.getName());
+        }
+        BigDecimal quantity = positive(request.quantity(), "quantity");
+        BigDecimal unitCost = positive(request.unitCost(), "unitCost");
+        BigDecimal remainingReturnableQty = allocationService.remainingReturnableQuantity(purchase, material);
+        if (quantity.compareTo(remainingReturnableQty) > 0) {
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                    "Purchase return quantity exceeds remaining returnable quantity")
+                    .withDetail("purchaseId", purchase.getId())
+                    .withDetail("rawMaterialId", material.getId())
+                    .withDetail("remainingReturnableQuantity", remainingReturnableQty)
+                    .withDetail("requestedQuantity", quantity);
+        }
+        BigDecimal lineNet = currency(MoneyUtils.safeMultiply(quantity, unitCost));
+        BigDecimal taxAmount = computeReturnTax(purchase, material, quantity);
+        String reference = StringUtils.hasText(request.referenceNumber())
+                ? request.referenceNumber().trim()
+                : referenceNumberService.purchaseReturnReference(company, supplier);
+        LocalDate returnDate = request.returnDate() != null ? request.returnDate() : companyClock.today(company);
+        return new PurchaseReturnPreviewDto(
+                purchase.getId(),
+                purchase.getInvoiceNumber(),
+                material.getId(),
+                material.getName(),
+                quantity,
+                remainingReturnableQty.subtract(quantity).max(BigDecimal.ZERO),
+                lineNet,
+                taxAmount,
+                currency(lineNet.add(taxAmount)),
+                returnDate,
+                reference
+        );
     }
 
     @Transactional
@@ -118,6 +177,7 @@ public class PurchaseReturnService {
                     returnDate, memo, existingMovements);
         }
 
+        ensurePostedPurchase(purchase);
         supplier.requireTransactionalUsage("post purchase returns");
         if (supplier.getPayableAccount() == null) {
             throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidState(
@@ -162,6 +222,7 @@ public class PurchaseReturnService {
                 gstBreakdown,
                 totalAmount
         );
+        ensureLinkedCorrectionJournal(companyContextService.requireCurrentCompany(), entry, purchase.getJournalEntry(), purchase.getInvoiceNumber());
 
         int updated = rawMaterialRepository.deductStockIfSufficient(material.getId(), quantity);
         if (updated == 0) {
@@ -211,6 +272,7 @@ public class PurchaseReturnService {
                 gstBreakdown,
                 totalAmount
         );
+        ensureLinkedCorrectionJournal(companyContextService.requireCurrentCompany(), entry, purchase.getJournalEntry(), purchase.getInvoiceNumber());
         if (entry != null) {
             Long entryId = entry.id();
             boolean needsLink = existingMovements.stream()
@@ -222,6 +284,56 @@ public class PurchaseReturnService {
             }
         }
         return entry;
+    }
+
+    private void ensurePostedPurchase(RawMaterialPurchase purchase) {
+        if (purchase == null) {
+            return;
+        }
+        if (purchase.getJournalEntry() == null || purchase.getJournalEntry().getId() == null) {
+            throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidState(
+                    "Only posted purchases can be corrected through purchase return");
+        }
+        String status = purchase.getStatus();
+        if (!StringUtils.hasText(status)
+                || "DRAFT".equalsIgnoreCase(status)
+                || "VOID".equalsIgnoreCase(status)
+                || "REVERSED".equalsIgnoreCase(status)) {
+            throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidState(
+                    "Only posted purchases can be corrected through purchase return");
+        }
+    }
+
+    private void ensureLinkedCorrectionJournal(Company company,
+                                               JournalEntryDto entryDto,
+                                               JournalEntry sourceEntry,
+                                               String purchaseInvoiceNumber) {
+        if (entryDto == null || entryDto.id() == null || sourceEntry == null || sourceEntry.getId() == null) {
+            return;
+        }
+        journalEntryRepository.findByCompanyAndId(company, entryDto.id())
+                .ifPresent(entry -> {
+                    boolean changed = false;
+                    if (entry.getCorrectionType() != JournalCorrectionType.REVERSAL) {
+                        entry.setCorrectionType(JournalCorrectionType.REVERSAL);
+                        changed = true;
+                    }
+                    if (!"PURCHASE_RETURN".equalsIgnoreCase(entry.getCorrectionReason())) {
+                        entry.setCorrectionReason("PURCHASE_RETURN");
+                        changed = true;
+                    }
+                    if (!"PURCHASING_RETURN".equalsIgnoreCase(entry.getSourceModule())) {
+                        entry.setSourceModule("PURCHASING_RETURN");
+                        changed = true;
+                    }
+                    if (!Objects.equals(purchaseInvoiceNumber, entry.getSourceReference())) {
+                        entry.setSourceReference(purchaseInvoiceNumber);
+                        changed = true;
+                    }
+                    if (changed) {
+                        journalEntryRepository.save(entry);
+                    }
+                });
     }
 
     private void validateReturnReplay(RawMaterial material,

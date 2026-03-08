@@ -4,6 +4,8 @@ import com.bigbrightpaints.erp.core.security.CompanyContextHolder;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
+import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
+import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
@@ -60,6 +62,9 @@ class PurchaseReturnIdempotencyRegressionIT extends AbstractIntegrationTest {
 
     @Autowired
     private RawMaterialPurchaseRepository purchaseRepository;
+
+    @Autowired
+    private JournalEntryRepository journalEntryRepository;
 
     private Company company;
     private Supplier supplier;
@@ -134,6 +139,14 @@ class PurchaseReturnIdempotencyRegressionIT extends AbstractIntegrationTest {
         line.setLineTotal(new BigDecimal("20.00"));
         seeded.getLines().add(line);
 
+        JournalEntry purchaseJournal = new JournalEntry();
+        purchaseJournal.setCompany(company);
+        purchaseJournal.setReferenceNumber("PINV-LF022-" + seedSuffix);
+        purchaseJournal.setEntryDate(invoiceDate);
+        purchaseJournal.setMemo("Seeded purchase journal");
+        purchaseJournal.setStatus("POSTED");
+        seeded.setJournalEntry(journalEntryRepository.save(purchaseJournal));
+
         purchase = purchaseRepository.save(seeded);
     }
 
@@ -166,6 +179,14 @@ class PurchaseReturnIdempotencyRegressionIT extends AbstractIntegrationTest {
         assertThat(movements).allMatch(movement -> movement.getJournalEntryId() != null);
         assertThat(purchaseAfterFirst.getOutstandingAmount()).isEqualByComparingTo(BigDecimal.ZERO);
         assertThat(purchaseAfterFirst.getStatus()).isEqualTo("VOID");
+        assertThat(journalEntryRepository.findById(first.id()))
+                .get()
+                .satisfies(entry -> {
+                    assertThat(entry.getCorrectionType()).isNotNull();
+                    assertThat(entry.getCorrectionReason()).isEqualTo("PURCHASE_RETURN");
+                    assertThat(entry.getSourceModule()).isEqualTo("PURCHASING_RETURN");
+                    assertThat(entry.getSourceReference()).isEqualTo(purchase.getInvoiceNumber());
+                });
 
         JournalEntryDto second = purchasingService.recordPurchaseReturn(request);
         BigDecimal stockAfterSecond = rawMaterialRepository.findById(material.getId()).orElseThrow().getCurrentStock();

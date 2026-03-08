@@ -5677,6 +5677,7 @@ public abstract class AccountingCoreEngineCore {
             BigDecimal existingAmount = calculateCreditNoteAmount(existingEntry, invoice, source);
             BigDecimal totalCredited = totalCreditNoteAmount(company, source, invoice);
             validateCreditNoteIdempotency(idempotencyKey, invoice, source, existingEntry, request.amount(), invoice.getTotalAmount());
+            ensureCorrectionJournalProvenance(existingEntry, source, "CREDIT_NOTE", "CREDIT_NOTE", invoice.getInvoiceNumber());
             applyCreditNoteToInvoice(invoice, existingAmount, totalCredited, existingEntry.getReferenceNumber(), entryDate);
             return toDto(existingEntry);
         }
@@ -5735,6 +5736,8 @@ public abstract class AccountingCoreEngineCore {
         saved.setReversalOf(source);
         saved.setCorrectionType(JournalCorrectionType.REVERSAL);
         saved.setCorrectionReason("CREDIT_NOTE");
+        saved.setSourceModule("CREDIT_NOTE");
+        saved.setSourceReference(invoice.getInvoiceNumber());
         journalEntryRepository.save(saved);
         linkReferenceMapping(company, idempotencyKey, saved, ENTITY_TYPE_CREDIT_NOTE);
         BigDecimal postedAmount = calculateCreditNoteAmount(saved, invoice, source);
@@ -5759,6 +5762,7 @@ public abstract class AccountingCoreEngineCore {
         if (existing.isPresent()) {
             BigDecimal existingAmount = calculateEntryTotal(existing.get());
             BigDecimal totalDebited = totalNoteAmount(company, source, "DEBIT_NOTE");
+            ensureCorrectionJournalProvenance(existing.get(), source, "DEBIT_NOTE", "DEBIT_NOTE", purchase.getInvoiceNumber());
             applyDebitNoteToPurchase(purchase, existingAmount, totalDebited);
             return toDto(existing.get());
         }
@@ -5808,11 +5812,47 @@ public abstract class AccountingCoreEngineCore {
         saved.setReversalOf(source);
         saved.setCorrectionType(JournalCorrectionType.REVERSAL);
         saved.setCorrectionReason("DEBIT_NOTE");
+        saved.setSourceModule("DEBIT_NOTE");
+        saved.setSourceReference(purchase.getInvoiceNumber());
         journalEntryRepository.save(saved);
         BigDecimal postedAmount = calculateEntryTotal(saved);
         BigDecimal totalDebited = debitedSoFar.add(postedAmount);
         applyDebitNoteToPurchase(purchase, postedAmount, totalDebited);
         return toDto(saved);
+    }
+
+    private void ensureCorrectionJournalProvenance(JournalEntry entry,
+                                                   JournalEntry source,
+                                                   String correctionReason,
+                                                   String sourceModule,
+                                                   String sourceReference) {
+        if (entry == null || source == null) {
+            return;
+        }
+        boolean changed = false;
+        if (entry.getReversalOf() == null || !Objects.equals(entry.getReversalOf().getId(), source.getId())) {
+            entry.setReversalOf(source);
+            changed = true;
+        }
+        if (entry.getCorrectionType() != JournalCorrectionType.REVERSAL) {
+            entry.setCorrectionType(JournalCorrectionType.REVERSAL);
+            changed = true;
+        }
+        if (!correctionReason.equalsIgnoreCase(entry.getCorrectionReason())) {
+            entry.setCorrectionReason(correctionReason);
+            changed = true;
+        }
+        if (!sourceModule.equalsIgnoreCase(entry.getSourceModule())) {
+            entry.setSourceModule(sourceModule);
+            changed = true;
+        }
+        if (!Objects.equals(sourceReference, entry.getSourceReference())) {
+            entry.setSourceReference(sourceReference);
+            changed = true;
+        }
+        if (changed) {
+            journalEntryRepository.save(entry);
+        }
     }
 
     /* Accruals / Provisions */

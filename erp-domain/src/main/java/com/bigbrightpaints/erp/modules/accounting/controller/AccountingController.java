@@ -894,9 +894,14 @@ public class AccountingController {
     @GetMapping("/sales/returns")
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING','ROLE_SALES')")
     public ResponseEntity<ApiResponse<List<JournalEntryDto>>> listSalesReturns() {
-        // Returns are stored as credit note journal entries - filter by reference prefix
-        return ResponseEntity.ok(ApiResponse.success("Sales returns", 
-            journalEntryService.listJournalEntriesByReferencePrefix("CN-")));
+        return ResponseEntity.ok(ApiResponse.success("Sales returns",
+            journalEntryService.listJournalEntriesByReferencePrefix("CRN-")));
+    }
+
+    @PostMapping("/sales/returns/preview")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
+    public ResponseEntity<ApiResponse<SalesReturnPreviewDto>> previewSalesReturn(@Valid @RequestBody SalesReturnRequest request) {
+        return ResponseEntity.ok(ApiResponse.success("Sales return preview", salesReturnService.previewReturn(request)));
     }
 
     @PostMapping("/sales/returns")

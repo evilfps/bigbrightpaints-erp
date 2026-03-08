@@ -1170,7 +1170,47 @@ public class AccountingPeriodServiceCore {
                 period.getStartDate(),
                 period.getEndDate(),
                 List.of(PayrollRun.PayrollStatus.POSTED, PayrollRun.PayrollStatus.PAID));
-        return invoiceUnlinked + purchaseUnlinked + payrollUnlinked;
+        long correctionLinkageGaps = countCorrectionLinkageGaps(company, period);
+        return invoiceUnlinked + purchaseUnlinked + payrollUnlinked + correctionLinkageGaps;
+    }
+
+    private long countCorrectionLinkageGaps(Company company, AccountingPeriod period) {
+        List<JournalEntry> periodEntries = journalEntryRepository.findByCompanyAndEntryDateBetweenOrderByEntryDateAsc(
+                company,
+                period.getStartDate(),
+                period.getEndDate());
+        if (periodEntries == null || periodEntries.isEmpty()) {
+            return 0;
+        }
+        return periodEntries.stream()
+                .filter(this::isCorrectionJournal)
+                .filter(this::isMissingCorrectionLinkage)
+                .count();
+    }
+
+    private boolean isCorrectionJournal(JournalEntry entry) {
+        if (entry == null) {
+            return false;
+        }
+        if (entry.getCorrectionType() != null || entry.getReversalOf() != null) {
+            return true;
+        }
+        String reference = entry.getReferenceNumber();
+        if (!StringUtils.hasText(reference)) {
+            return false;
+        }
+        String normalized = reference.trim().toUpperCase();
+        return normalized.startsWith("CRN-")
+                || normalized.startsWith("CN-")
+                || normalized.startsWith("DN-")
+                || normalized.startsWith("PRN-");
+    }
+
+    private boolean isMissingCorrectionLinkage(JournalEntry entry) {
+        return entry.getCorrectionType() == null
+                || !StringUtils.hasText(entry.getCorrectionReason())
+                || !StringUtils.hasText(entry.getSourceModule())
+                || !StringUtils.hasText(entry.getSourceReference());
     }
 
     private PeriodCloseRequestDto toPeriodCloseRequestDto(PeriodCloseRequest request) {

@@ -4,6 +4,7 @@ import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
+import com.bigbrightpaints.erp.modules.accounting.domain.JournalCorrectionType;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriod;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriodRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriodStatus;
@@ -283,6 +284,75 @@ class AccountingPeriodServicePolicyTest {
     }
 
     @Test
+    void approvePeriodClose_failsWhenCorrectionJournalLinkageIsMissing() {
+        Company company = company(1L, "POLICY");
+        AccountingPeriod period = openPeriod(company, 2026, 2);
+        ReflectionTestUtils.setField(period, "id", 12L);
+        PeriodCloseRequest pending = pendingCloseRequest(company, period, 703L, "maker.user");
+        period.setBankReconciled(true);
+        period.setInventoryCounted(true);
+        JournalEntry correctionEntry = new JournalEntry();
+        correctionEntry.setCompany(company);
+        correctionEntry.setReferenceNumber("CRN-INV-100");
+        correctionEntry.setEntryDate(period.getStartDate().plusDays(3));
+        correctionEntry.setStatus("POSTED");
+        correctionEntry.setCorrectionType(JournalCorrectionType.REVERSAL);
+        correctionEntry.setCorrectionReason("SALES_RETURN");
+        when(companyContextService.requireCurrentCompany()).thenReturn(company);
+        when(accountingPeriodRepository.lockByCompanyAndId(company, 12L)).thenReturn(Optional.of(period), Optional.of(period));
+        when(periodCloseRequestRepository.lockByCompanyAndAccountingPeriodAndStatus(
+                company, period, PeriodCloseRequestStatus.PENDING)).thenReturn(Optional.of(pending));
+        when(goodsReceiptRepository.countByCompanyAndReceiptDateBetweenAndStatusNot(
+                company, period.getStartDate(), period.getEndDate(), "INVOICED")).thenReturn(0L);
+        when(journalEntryRepository.countByCompanyAndEntryDateBetweenAndStatusIn(
+                company, period.getStartDate(), period.getEndDate(), List.of("DRAFT", "PENDING"))).thenReturn(0L);
+        when(reportService.inventoryReconciliation()).thenReturn(inventoryReconciliation(BigDecimal.ZERO));
+        when(reconciliationService.reconcileSubledgersForPeriod(period.getStartDate(), period.getEndDate()))
+                .thenReturn(new ReconciliationService.PeriodReconciliationResult(
+                        period.getStartDate(),
+                        period.getEndDate(),
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        true,
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        true));
+        when(reconciliationService.generateGstReconciliation(java.time.YearMonth.from(period.getStartDate())))
+                .thenReturn(gstReconciliation(BigDecimal.ZERO));
+        when(reconciliationDiscrepancyRepository.countByCompanyAndAccountingPeriodAndStatus(
+                company, period, ReconciliationDiscrepancyStatus.OPEN)).thenReturn(0L);
+        when(journalEntryRepository.findByCompanyAndEntryDateBetweenOrderByEntryDateAsc(
+                company, period.getStartDate(), period.getEndDate())).thenReturn(List.of(correctionEntry));
+        when(invoiceRepository.countByCompanyAndIssueDateBetweenAndStatusNotAndJournalEntryIsNull(
+                company, period.getStartDate(), period.getEndDate(), "DRAFT")).thenReturn(0L);
+        when(rawMaterialPurchaseRepository.countByCompanyAndInvoiceDateBetweenAndStatusInAndJournalEntryIsNull(
+                company, period.getStartDate(), period.getEndDate(), List.of("POSTED", "PARTIAL", "PAID"))).thenReturn(0L);
+        when(payrollRunRepository.countByCompanyAndPeriodBetweenAndStatusInAndJournalMissing(
+                company,
+                period.getStartDate(),
+                period.getEndDate(),
+                List.of(PayrollRun.PayrollStatus.POSTED, PayrollRun.PayrollStatus.PAID))).thenReturn(0L);
+        when(invoiceRepository.countByCompanyAndIssueDateBetweenAndStatusIn(
+                company, period.getStartDate(), period.getEndDate(), List.of("DRAFT"))).thenReturn(0L);
+        when(rawMaterialPurchaseRepository.countByCompanyAndInvoiceDateBetweenAndStatusNotIn(
+                company, period.getStartDate(), period.getEndDate(), List.of("POSTED", "PARTIAL", "PAID"))).thenReturn(0L);
+        when(payrollRunRepository.countByCompanyAndPeriodBetweenAndStatusIn(
+                company,
+                period.getStartDate(),
+                period.getEndDate(),
+                List.of(PayrollRun.PayrollStatus.DRAFT,
+                        PayrollRun.PayrollStatus.CALCULATED,
+                        PayrollRun.PayrollStatus.APPROVED))).thenReturn(0L);
+        authenticate("policy.admin", "ROLE_ADMIN");
+
+        assertThatThrownBy(() -> service.approvePeriodClose(12L, new PeriodCloseRequestActionRequest("period close", false)))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Documents missing journal links in this period (1)");
+    }
+
+    @Test
     void confirmBankReconciliation_rejectsChecklistMutationOnClosedPeriod() {
         Company company = company(1L, "POLICY");
         AccountingPeriod period = openPeriod(company, 2026, 2);
@@ -419,5 +489,12 @@ class AccountingPeriodServicePolicyTest {
         summary.setTotal(netTotal);
         dto.setNetLiability(summary);
         return dto;
+    }
+
+    private com.bigbrightpaints.erp.modules.reports.dto.ReconciliationSummaryDto inventoryReconciliation(BigDecimal variance) {
+        return new com.bigbrightpaints.erp.modules.reports.dto.ReconciliationSummaryDto(
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                variance);
     }
 }
