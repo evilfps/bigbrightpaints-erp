@@ -21,6 +21,7 @@ import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.hr.domain.PayrollRun;
 import com.bigbrightpaints.erp.modules.hr.domain.PayrollRunRepository;
 import com.bigbrightpaints.erp.modules.invoice.domain.InvoiceRepository;
+import com.bigbrightpaints.erp.modules.purchasing.domain.GoodsReceiptStatus;
 import com.bigbrightpaints.erp.modules.purchasing.domain.GoodsReceiptRepository;
 import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchaseRepository;
 import com.bigbrightpaints.erp.modules.reports.service.ReportService;
@@ -136,7 +137,7 @@ class AccountingPeriodServicePolicyTest {
         when(companyContextService.requireCurrentCompany()).thenReturn(company);
         when(accountingPeriodRepository.lockByCompanyAndId(company, 10L)).thenReturn(Optional.of(period));
         when(goodsReceiptRepository.countByCompanyAndReceiptDateBetweenAndStatusNot(
-                company, period.getStartDate(), period.getEndDate(), "INVOICED")).thenReturn(0L);
+                company, period.getStartDate(), period.getEndDate(), GoodsReceiptStatus.INVOICED)).thenReturn(0L);
         when(journalLineRepository.summarizeByAccountType(
                 company, period.getStartDate(), period.getEndDate())).thenReturn(List.of());
         when(accountingPeriodRepository.save(period)).thenReturn(period);
@@ -156,7 +157,7 @@ class AccountingPeriodServicePolicyTest {
         when(companyContextService.requireCurrentCompany()).thenReturn(company);
         when(accountingPeriodRepository.lockByCompanyAndId(company, 10L)).thenReturn(Optional.of(period));
         when(goodsReceiptRepository.countByCompanyAndReceiptDateBetweenAndStatusNot(
-                company, period.getStartDate(), period.getEndDate(), "INVOICED")).thenReturn(0L);
+                company, period.getStartDate(), period.getEndDate(), GoodsReceiptStatus.INVOICED)).thenReturn(0L);
         when(journalEntryRepository.countByCompanyAndEntryDateBetweenAndStatusIn(
                 company, period.getStartDate(), period.getEndDate(), List.of("DRAFT", "PENDING"))).thenReturn(0L);
         when(reportService.inventoryReconciliation()).thenReturn(null);
@@ -227,7 +228,7 @@ class AccountingPeriodServicePolicyTest {
         when(companyContextService.requireCurrentCompany()).thenReturn(company);
         when(accountingPeriodRepository.lockByCompanyAndId(company, 11L)).thenReturn(Optional.of(period));
         when(goodsReceiptRepository.countByCompanyAndReceiptDateBetweenAndStatusNot(
-                company, period.getStartDate(), period.getEndDate(), "INVOICED")).thenReturn(0L);
+                company, period.getStartDate(), period.getEndDate(), GoodsReceiptStatus.INVOICED)).thenReturn(0L);
         when(journalEntryRepository.countByCompanyAndEntryDateBetweenAndStatusIn(
                 company, period.getStartDate(), period.getEndDate(), List.of("DRAFT", "PENDING"))).thenReturn(0L);
         when(reportService.inventoryReconciliation()).thenReturn(null);

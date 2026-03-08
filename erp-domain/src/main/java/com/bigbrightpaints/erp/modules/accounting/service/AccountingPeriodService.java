@@ -24,6 +24,7 @@ import com.bigbrightpaints.erp.modules.purchasing.domain.GoodsReceiptRepository;
 import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchaseRepository;
 import com.bigbrightpaints.erp.modules.reports.service.ReportService;
 import com.bigbrightpaints.erp.core.validation.ValidationUtils;
+import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.Authentication;
@@ -160,6 +161,7 @@ public class AccountingPeriodService extends AccountingPeriodServiceCore {
     }
 
     @Override
+    @Transactional
     public AccountingPeriodDto reopenPeriod(Long periodId, AccountingPeriodReopenRequest request) {
         requireSuperAdminRole();
         return super.reopenPeriod(periodId, request);

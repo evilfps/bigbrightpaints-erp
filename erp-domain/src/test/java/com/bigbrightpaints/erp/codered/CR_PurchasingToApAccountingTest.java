@@ -18,6 +18,7 @@ import com.bigbrightpaints.erp.modules.accounting.dto.AccountingPeriodCloseReque
 import com.bigbrightpaints.erp.modules.accounting.dto.PartnerSettlementResponse;
 import com.bigbrightpaints.erp.modules.accounting.dto.MonthEndChecklistDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.MonthEndChecklistItemDto;
+import com.bigbrightpaints.erp.modules.accounting.dto.PeriodCloseRequestActionRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.SettlementAllocationRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.SupplierPaymentRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.SupplierSettlementRequest;
@@ -59,6 +60,9 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
@@ -98,6 +102,7 @@ class CR_PurchasingToApAccountingTest extends AbstractIntegrationTest {
     @AfterEach
     void clearCompanyContext() {
         CompanyContextHolder.clear();
+        SecurityContextHolder.clearContext();
     }
 
     @Test
@@ -116,18 +121,13 @@ class CR_PurchasingToApAccountingTest extends AbstractIntegrationTest {
         String grnIdempotencyKey = "GRN-IDEMP-" + shortId();
 
         CompanyContextHolder.setCompanyId(companyCode);
-        PurchaseOrderResponse po = purchasingService.createPurchaseOrder(new PurchaseOrderRequest(
-                supplier.getId(),
+        PurchaseOrderResponse po = createApprovedPurchaseOrder(
+                supplier,
+                rm,
                 orderNumber,
                 today,
-                "CODE-RED PO",
-                List.of(new PurchaseOrderLineRequest(
-                        rm.getId(),
-                        new BigDecimal("10"),
-                        rm.getUnitType(),
-                        new BigDecimal("12.50"),
-                        "RM line"))
-        ));
+                new BigDecimal("10"),
+                new BigDecimal("12.50"));
 
         GoodsReceiptResponse grn = purchasingService.createGoodsReceipt(new GoodsReceiptRequest(
                 po.id(),
@@ -181,7 +181,7 @@ class CR_PurchasingToApAccountingTest extends AbstractIntegrationTest {
         CoderedDbAssertions.assertRawMaterialMovementsLinkedToJournal(
                 jdbcTemplate,
                 company.getId(),
-                InventoryReference.RAW_MATERIAL_PURCHASE,
+                InventoryReference.GOODS_RECEIPT,
                 grn.receiptNumber(),
                 journalId
         );
@@ -230,7 +230,7 @@ class CR_PurchasingToApAccountingTest extends AbstractIntegrationTest {
         CoderedDbAssertions.assertRawMaterialMovementsLinkedToJournal(
                 jdbcTemplate,
                 company.getId(),
-                InventoryReference.RAW_MATERIAL_PURCHASE,
+                InventoryReference.GOODS_RECEIPT,
                 purchase.goodsReceiptNumber(),
                 journalId
         );
@@ -238,7 +238,7 @@ class CR_PurchasingToApAccountingTest extends AbstractIntegrationTest {
         List<Long> movementRawMaterialIds = movementRepository
                 .findByRawMaterialCompanyAndReferenceTypeAndReferenceId(
                         company,
-                        InventoryReference.RAW_MATERIAL_PURCHASE,
+                        InventoryReference.GOODS_RECEIPT,
                         purchase.goodsReceiptNumber())
                 .stream()
                 .map(movement -> movement.getRawMaterial().getId())
@@ -274,18 +274,13 @@ class CR_PurchasingToApAccountingTest extends AbstractIntegrationTest {
             String invoiceNumber = "INV-" + shortId();
             String grnIdempotencyKey = "GRN-IDEMP-" + shortId();
 
-            PurchaseOrderResponse po = purchasingService.createPurchaseOrder(new PurchaseOrderRequest(
-                    supplier.getId(),
+            PurchaseOrderResponse po = createApprovedPurchaseOrder(
+                    supplier,
+                    importedRawMaterial,
                     orderNumber,
                     today,
-                    "CODE-RED Drift PO",
-                    List.of(new PurchaseOrderLineRequest(
-                            importedRawMaterial.getId(),
-                            new BigDecimal("6"),
-                            importedRawMaterial.getUnitType(),
-                            new BigDecimal("11.75"),
-                            "RM line"))
-            ));
+                    new BigDecimal("6"),
+                    new BigDecimal("11.75"));
 
             GoodsReceiptResponse grn = purchasingService.createGoodsReceipt(new GoodsReceiptRequest(
                     po.id(),
@@ -304,7 +299,7 @@ class CR_PurchasingToApAccountingTest extends AbstractIntegrationTest {
 
             var driftedMovements = movementRepository.findByRawMaterialCompanyAndReferenceTypeAndReferenceId(
                     company,
-                    InventoryReference.RAW_MATERIAL_PURCHASE,
+                    InventoryReference.GOODS_RECEIPT,
                     grn.receiptNumber());
             assertThat(driftedMovements).isNotEmpty();
             driftedMovements.forEach(movement -> movement.setJournalEntryId(baselineJournalId));
@@ -335,7 +330,7 @@ class CR_PurchasingToApAccountingTest extends AbstractIntegrationTest {
 
             List<Long> movementJournalIds = movementRepository.findByRawMaterialCompanyAndReferenceTypeAndReferenceId(
                             company,
-                            InventoryReference.RAW_MATERIAL_PURCHASE,
+                            InventoryReference.GOODS_RECEIPT,
                             grn.receiptNumber())
                     .stream()
                     .map(movement -> movement.getJournalEntryId())
@@ -369,18 +364,13 @@ class CR_PurchasingToApAccountingTest extends AbstractIntegrationTest {
         String grnIdempotencyKey = "GRN-IDEMP-" + shortId();
 
         CompanyContextHolder.setCompanyId(companyCode);
-        PurchaseOrderResponse po = purchasingService.createPurchaseOrder(new PurchaseOrderRequest(
-                supplier.getId(),
+        PurchaseOrderResponse po = createApprovedPurchaseOrder(
+                supplier,
+                rm,
                 orderNumber,
                 today,
-                "CODE-RED PO",
-                List.of(new PurchaseOrderLineRequest(
-                        rm.getId(),
-                        new BigDecimal("5"),
-                        rm.getUnitType(),
-                        new BigDecimal("8.75"),
-                        "RM line"))
-        ));
+                new BigDecimal("5"),
+                new BigDecimal("8.75"));
 
         GoodsReceiptResponse grn = purchasingService.createGoodsReceipt(new GoodsReceiptRequest(
                 po.id(),
@@ -462,7 +452,7 @@ class CR_PurchasingToApAccountingTest extends AbstractIntegrationTest {
         CoderedDbAssertions.assertRawMaterialMovementsLinkedToJournal(
                 jdbcTemplate,
                 company.getId(),
-                InventoryReference.RAW_MATERIAL_PURCHASE,
+                InventoryReference.GOODS_RECEIPT,
                 receiptNumber,
                 journalId
         );
@@ -483,18 +473,13 @@ class CR_PurchasingToApAccountingTest extends AbstractIntegrationTest {
         String idempotencyKey = "GRN-IDEMP-" + shortId();
 
         CompanyContextHolder.setCompanyId(companyCode);
-        PurchaseOrderResponse po = purchasingService.createPurchaseOrder(new PurchaseOrderRequest(
-                supplier.getId(),
+        PurchaseOrderResponse po = createApprovedPurchaseOrder(
+                supplier,
+                rm,
                 orderNumber,
                 today,
-                "CODE-RED PO",
-                List.of(new PurchaseOrderLineRequest(
-                        rm.getId(),
-                        new BigDecimal("10"),
-                        rm.getUnitType(),
-                        new BigDecimal("12.50"),
-                        "RM line"))
-        ));
+                new BigDecimal("10"),
+                new BigDecimal("12.50"));
 
         GoodsReceiptRequest request = new GoodsReceiptRequest(
                 po.id(),
@@ -514,14 +499,14 @@ class CR_PurchasingToApAccountingTest extends AbstractIntegrationTest {
         GoodsReceiptResponse first = purchasingService.createGoodsReceipt(request);
         int movementCount = movementRepository.findByRawMaterialCompanyAndReferenceTypeAndReferenceId(
                 company,
-                InventoryReference.RAW_MATERIAL_PURCHASE,
+                InventoryReference.GOODS_RECEIPT,
                 receiptNumber
         ).size();
 
         GoodsReceiptResponse second = purchasingService.createGoodsReceipt(request);
         int movementCountAfter = movementRepository.findByRawMaterialCompanyAndReferenceTypeAndReferenceId(
                 company,
-                InventoryReference.RAW_MATERIAL_PURCHASE,
+                InventoryReference.GOODS_RECEIPT,
                 receiptNumber
         ).size();
 
@@ -544,18 +529,13 @@ class CR_PurchasingToApAccountingTest extends AbstractIntegrationTest {
         String idempotencyKey = "GRN-IDEMP-" + shortId();
 
         CompanyContextHolder.setCompanyId(companyCode);
-        PurchaseOrderResponse po = purchasingService.createPurchaseOrder(new PurchaseOrderRequest(
-                supplier.getId(),
+        PurchaseOrderResponse po = createApprovedPurchaseOrder(
+                supplier,
+                rm,
                 orderNumber,
                 today,
-                "CODE-RED PO",
-                List.of(new PurchaseOrderLineRequest(
-                        rm.getId(),
-                        new BigDecimal("5"),
-                        rm.getUnitType(),
-                        new BigDecimal("8.75"),
-                        "RM line"))
-        ));
+                new BigDecimal("5"),
+                new BigDecimal("8.75"));
 
         GoodsReceiptRequest request = new GoodsReceiptRequest(
                 po.id(),
@@ -613,20 +593,15 @@ class CR_PurchasingToApAccountingTest extends AbstractIntegrationTest {
         accountingPeriodService.listPeriods();
         AccountingPeriod period = accountingPeriodRepository.findByCompanyAndYearAndMonth(
                 company, receiptDate.getYear(), receiptDate.getMonthValue()).orElseThrow();
-        accountingPeriodService.closePeriod(period.getId(), new AccountingPeriodCloseRequest(true, "CODE-RED close"));
+        forceClosePeriod(period.getId(), "CODE-RED close request", "CODE-RED close approval");
 
-        PurchaseOrderResponse po = purchasingService.createPurchaseOrder(new PurchaseOrderRequest(
-                supplier.getId(),
+        PurchaseOrderResponse po = createApprovedPurchaseOrder(
+                supplier,
+                rm,
                 orderNumber,
                 receiptDate,
-                "CODE-RED PO",
-                List.of(new PurchaseOrderLineRequest(
-                        rm.getId(),
-                        new BigDecimal("3"),
-                        rm.getUnitType(),
-                        new BigDecimal("9.50"),
-                        "RM line"))
-        ));
+                new BigDecimal("3"),
+                new BigDecimal("9.50"));
 
         GoodsReceiptRequest request = new GoodsReceiptRequest(
                 po.id(),
@@ -900,6 +875,7 @@ class CR_PurchasingToApAccountingTest extends AbstractIntegrationTest {
         Company company = companyRepository.findByCodeIgnoreCase(companyCode).orElseThrow();
         company.setTimezone("UTC");
         company.setBaseCurrency("INR");
+        company.setStateCode("KA");
         return companyRepository.save(company);
     }
 
@@ -943,9 +919,11 @@ class CR_PurchasingToApAccountingTest extends AbstractIntegrationTest {
                 .map(existing -> {
                     if (existing.getPayableAccount() == null) {
                         existing.setPayableAccount(apAccount);
-                        return supplierRepository.save(existing);
                     }
-                    return existing;
+                    if (existing.getStateCode() == null) {
+                        existing.setStateCode("KA");
+                    }
+                    return supplierRepository.save(existing);
                 })
                 .orElseGet(() -> {
                     Supplier supplier = new Supplier();
@@ -954,6 +932,7 @@ class CR_PurchasingToApAccountingTest extends AbstractIntegrationTest {
                     supplier.setName("Code-Red Supplier");
                     supplier.setStatus("ACTIVE");
                     supplier.setPayableAccount(apAccount);
+                    supplier.setStateCode("KA");
                     return supplierRepository.save(supplier);
                 });
     }
@@ -978,18 +957,13 @@ class CR_PurchasingToApAccountingTest extends AbstractIntegrationTest {
         String invoiceNumber = "INV-" + shortId();
         String grnIdempotencyKey = "GRN-IDEMP-" + shortId();
 
-        PurchaseOrderResponse po = purchasingService.createPurchaseOrder(new PurchaseOrderRequest(
-                supplier.getId(),
+        PurchaseOrderResponse po = createApprovedPurchaseOrder(
+                supplier,
+                rm,
                 orderNumber,
                 entryDate,
-                "CODE-RED PO",
-                List.of(new PurchaseOrderLineRequest(
-                        rm.getId(),
-                        new BigDecimal("10"),
-                        rm.getUnitType(),
-                        new BigDecimal("12.50"),
-                        "RM line"))
-        ));
+                new BigDecimal("10"),
+                new BigDecimal("12.50"));
 
         GoodsReceiptResponse grn = purchasingService.createGoodsReceipt(new GoodsReceiptRequest(
                 po.id(),
@@ -1044,6 +1018,46 @@ class CR_PurchasingToApAccountingTest extends AbstractIntegrationTest {
                 .filter(item -> key.equals(item.key()))
                 .findFirst()
                 .orElseThrow(() -> new AssertionError("Checklist item missing: " + key));
+    }
+
+    private PurchaseOrderResponse createApprovedPurchaseOrder(Supplier supplier,
+                                                              RawMaterial rawMaterial,
+                                                              String orderNumber,
+                                                              LocalDate orderDate,
+                                                              BigDecimal quantity,
+                                                              BigDecimal costPerUnit) {
+        PurchaseOrderResponse draft = purchasingService.createPurchaseOrder(new PurchaseOrderRequest(
+                supplier.getId(),
+                orderNumber,
+                orderDate,
+                "CODE-RED PO",
+                List.of(new PurchaseOrderLineRequest(
+                        rawMaterial.getId(),
+                        quantity,
+                        rawMaterial.getUnitType(),
+                        costPerUnit,
+                        "RM line"))
+        ));
+        return purchasingService.approvePurchaseOrder(draft.id());
+    }
+
+    private void forceClosePeriod(Long periodId, String requestNote, String approvalNote) {
+        authenticate("maker.user", "ROLE_ACCOUNTING");
+        accountingPeriodService.requestPeriodClose(periodId, new PeriodCloseRequestActionRequest(requestNote, true));
+        authenticate("checker.user", "ROLE_ACCOUNTING");
+        accountingPeriodService.approvePeriodClose(periodId, new PeriodCloseRequestActionRequest(approvalNote, true));
+    }
+
+    private void authenticate(String username, String... roles) {
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken(
+                        username,
+                        "N/A",
+                        java.util.Arrays.stream(roles)
+                                .map(SimpleGrantedAuthority::new)
+                                .toList()
+                )
+        );
     }
 
     private static String shortId() {

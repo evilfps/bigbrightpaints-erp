@@ -35,7 +35,10 @@ public interface GoodsReceiptRepository extends JpaRepository<GoodsReceipt, Long
 
     boolean existsByPurchaseOrder(PurchaseOrder purchaseOrder);
 
-    long countByCompanyAndReceiptDateBetweenAndStatusNot(Company company, LocalDate startDate, LocalDate endDate, String status);
+    long countByCompanyAndReceiptDateBetweenAndStatusNot(Company company,
+                                                         LocalDate startDate,
+                                                         LocalDate endDate,
+                                                         GoodsReceiptStatus status);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select gr from GoodsReceipt gr where gr.company = :company and gr.id = :id")

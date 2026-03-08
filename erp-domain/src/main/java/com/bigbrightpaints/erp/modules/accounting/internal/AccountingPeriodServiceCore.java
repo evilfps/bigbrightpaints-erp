@@ -34,6 +34,7 @@ import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.hr.domain.PayrollRun;
 import com.bigbrightpaints.erp.modules.hr.domain.PayrollRunRepository;
 import com.bigbrightpaints.erp.modules.invoice.domain.InvoiceRepository;
+import com.bigbrightpaints.erp.modules.purchasing.domain.GoodsReceiptStatus;
 import com.bigbrightpaints.erp.modules.purchasing.domain.GoodsReceiptRepository;
 import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchaseRepository;
 import com.bigbrightpaints.erp.modules.reports.dto.ReconciliationSummaryDto;
@@ -1125,7 +1126,7 @@ public class AccountingPeriodServiceCore {
                 company,
                 period.getStartDate(),
                 period.getEndDate(),
-                "INVOICED");
+                GoodsReceiptStatus.INVOICED);
     }
 
     private long countUnlinkedDocuments(Company company, AccountingPeriod period) {
