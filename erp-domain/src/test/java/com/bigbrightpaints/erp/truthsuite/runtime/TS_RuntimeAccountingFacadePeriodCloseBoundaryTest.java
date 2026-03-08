@@ -150,7 +150,7 @@ class TS_RuntimeAccountingFacadePeriodCloseBoundaryTest {
     }
 
     @Test
-    void postPurchaseJournal_existingBaseReference_shortCircuitsIdempotently() {
+    void postPurchaseJournal_existingBaseReference_shortCircuitsEvenWhenSupplierSuspended() {
         CompanyContextService companyContextService = mock(CompanyContextService.class);
         AccountingService accountingService = mock(AccountingService.class);
         JournalEntryRepository journalEntryRepository = mock(JournalEntryRepository.class);
@@ -177,7 +177,7 @@ class TS_RuntimeAccountingFacadePeriodCloseBoundaryTest {
         when(companyContextService.requireCurrentCompany()).thenReturn(company);
 
         Supplier supplier = new Supplier();
-        supplier.setStatus(SupplierStatus.ACTIVE);
+        supplier.setStatus(SupplierStatus.SUSPENDED);
         Account payable = new Account();
         ReflectionTestUtils.setField(payable, "id", 401L);
         supplier.setPayableAccount(payable);

@@ -297,11 +297,12 @@ public class Supplier extends VersionedEntity {
         String normalizedAction = org.springframework.util.StringUtils.hasText(action)
                 ? action.trim()
                 : "continue this purchasing flow";
-        return switch (resolvedStatus) {
-            case PENDING -> supplierName + " is pending approval and remains visible for reference only; approve and activate it before you can " + normalizedAction;
-            case APPROVED -> supplierName + " is approved but not yet active and remains visible for reference only; activate it before you can " + normalizedAction;
-            case SUSPENDED -> supplierName + " is suspended and remains visible for reference only; resolve the suspension and reactivate it before you can " + normalizedAction;
-            case ACTIVE -> supplierName + " is active";
-        };
+        if (resolvedStatus == SupplierStatus.PENDING) {
+            return supplierName + " is pending approval and remains visible for reference only; approve and activate it before you can " + normalizedAction;
+        }
+        if (resolvedStatus == SupplierStatus.APPROVED) {
+            return supplierName + " is approved but not yet active and remains visible for reference only; activate it before you can " + normalizedAction;
+        }
+        return supplierName + " is suspended and remains visible for reference only; resolve the suspension and reactivate it before you can " + normalizedAction;
     }
 }

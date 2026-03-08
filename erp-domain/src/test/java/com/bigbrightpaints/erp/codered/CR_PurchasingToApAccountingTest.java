@@ -691,6 +691,56 @@ class CR_PurchasingToApAccountingTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void supplierPayment_idempotencyReplay_returnsOriginalJournal_afterSupplierSuspends() {
+        String companyCode = "CR-SUP-PAY-REPLAY-SUSP-" + shortId();
+        Company company = bootstrapCompany(companyCode);
+        Map<String, Account> accounts = ensurePurchasingAccounts(company);
+        Account cash = ensureAccount(company, "CASH", "Cash", AccountType.ASSET);
+
+        Supplier supplier = ensureSupplier(company, accounts.get("AP"));
+        RawMaterial rm = ensureRawMaterial(company, accounts.get("RM_INV"));
+        LocalDate today = TestDateUtils.safeDate(company);
+
+        CompanyContextHolder.setCompanyId(companyCode);
+        RawMaterialPurchaseResponse purchase = createPurchaseFlow(supplier, rm, today);
+
+        BigDecimal amount = purchase.totalAmount();
+        SettlementAllocationRequest allocation = new SettlementAllocationRequest(
+                null,
+                purchase.id(),
+                amount,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                "supplier payment");
+        String idempotencyKey = "SUP-PAY-REPLAY-SUSP-" + shortId();
+        SupplierPaymentRequest request = new SupplierPaymentRequest(
+                supplier.getId(),
+                cash.getId(),
+                amount,
+                "PAY-" + shortId(),
+                "Supplier payment",
+                idempotencyKey,
+                List.of(allocation)
+        );
+
+        JournalEntryDto first = accountingService.recordSupplierPayment(request);
+        Supplier suspendedSupplier = supplierRepository.findById(supplier.getId()).orElseThrow();
+        suspendedSupplier.setStatus("SUSPENDED");
+        supplierRepository.save(suspendedSupplier);
+
+        JournalEntryDto replay = accountingService.recordSupplierPayment(request);
+
+        assertThat(replay.id()).as("idempotent replay returns same journal").isEqualTo(first.id());
+        assertThat(settlementAllocationRepository.findByCompanyAndIdempotencyKey(company, idempotencyKey))
+                .as("single allocation row")
+                .hasSize(1);
+
+        RawMaterialPurchase saved = purchaseRepository.findById(purchase.id()).orElseThrow();
+        assertThat(saved.getOutstandingAmount()).as("outstanding reduced once").isEqualByComparingTo(BigDecimal.ZERO);
+    }
+
+    @Test
     void supplierSettlement_idempotencyReplay_doesNotDoubleReduceOutstanding() {
         String companyCode = "CR-SUP-SETTLE-IDEMP-" + shortId();
         Company company = bootstrapCompany(companyCode);
@@ -730,6 +780,9 @@ class CR_PurchasingToApAccountingTest extends AbstractIntegrationTest {
         );
 
         PartnerSettlementResponse first = accountingService.settleSupplierInvoices(request);
+        Supplier suspendedSupplier = supplierRepository.findById(supplier.getId()).orElseThrow();
+        suspendedSupplier.setStatus("SUSPENDED");
+        supplierRepository.save(suspendedSupplier);
         PartnerSettlementResponse replay = accountingService.settleSupplierInvoices(request);
         assertThat(replay.journalEntry().id()).as("idempotent replay returns same journal")
                 .isEqualTo(first.journalEntry().id());

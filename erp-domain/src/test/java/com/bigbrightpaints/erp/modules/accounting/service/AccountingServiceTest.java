@@ -1929,9 +1929,21 @@ class AccountingServiceTest {
         Supplier supplier = new Supplier();
         supplier.setName("Supplier");
         supplier.setStatus(SupplierStatus.SUSPENDED);
+        Account payable = new Account();
+        payable.setCompany(company);
+        payable.setCode("AP-REFONLY");
+        payable.setType(AccountType.LIABILITY);
+        ReflectionTestUtils.setField(payable, "id", 10L);
+        supplier.setPayableAccount(payable);
+        Account cash = new Account();
+        cash.setCompany(company);
+        cash.setCode("CASH-REFONLY");
+        cash.setType(AccountType.ASSET);
+        ReflectionTestUtils.setField(cash, "id", 20L);
         ReflectionTestUtils.setField(supplier, "id", 1L);
 
         when(supplierRepository.lockByCompanyAndId(eq(company), eq(1L))).thenReturn(Optional.of(supplier));
+        when(companyEntityLookup.requireAccount(eq(company), eq(20L))).thenReturn(cash);
 
         SupplierPaymentRequest request = new SupplierPaymentRequest(
                 1L,
@@ -1940,7 +1952,15 @@ class AccountingServiceTest {
                 "SUP-PAY-REFONLY-1",
                 "Supplier payment",
                 "IDEMP-SUP-PAY-REFONLY-1",
-                List.of()
+                List.of(new SettlementAllocationRequest(
+                        null,
+                        7001L,
+                        new BigDecimal("50.00"),
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        null
+                ))
         );
 
         assertThatThrownBy(() -> service.recordSupplierPayment(request))
@@ -1958,9 +1978,21 @@ class AccountingServiceTest {
         Supplier supplier = new Supplier();
         supplier.setName("Supplier");
         supplier.setStatus(SupplierStatus.PENDING);
+        Account payable = new Account();
+        payable.setCompany(company);
+        payable.setCode("AP-REFONLY-SETTLE");
+        payable.setType(AccountType.LIABILITY);
+        ReflectionTestUtils.setField(payable, "id", 10L);
+        supplier.setPayableAccount(payable);
+        Account cash = new Account();
+        cash.setCompany(company);
+        cash.setCode("CASH-REFONLY-SETTLE");
+        cash.setType(AccountType.ASSET);
+        ReflectionTestUtils.setField(cash, "id", 20L);
         ReflectionTestUtils.setField(supplier, "id", 1L);
 
         when(supplierRepository.lockByCompanyAndId(eq(company), eq(1L))).thenReturn(Optional.of(supplier));
+        when(companyEntityLookup.requireAccount(eq(company), eq(20L))).thenReturn(cash);
 
         SupplierSettlementRequest request = new SupplierSettlementRequest(
                 1L,
@@ -2834,10 +2866,10 @@ class AccountingServiceTest {
     }
 
     @Test
-    void recordSupplierPayment_nonLeaderReplayRepairsReferenceMapping() {
+    void recordSupplierPayment_nonLeaderReplayRepairsReferenceMapping_afterSupplierBecomesReferenceOnly() {
         Supplier supplier = new Supplier();
         supplier.setName("Replay Supplier");
-        supplier.setStatus(SupplierStatus.ACTIVE);
+        supplier.setStatus(SupplierStatus.SUSPENDED);
         ReflectionTestUtils.setField(supplier, "id", 1L);
 
         Account payable = new Account();

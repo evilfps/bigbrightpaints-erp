@@ -508,10 +508,10 @@ public class PurchaseInvoiceEngine {
     private List<RawMaterialMovement> requireGoodsReceiptMovementsReadyForInvoicing(Company company,
                                                                                      GoodsReceipt goodsReceipt,
                                                                                      Map<Long, GoodsReceiptLine> receiptLinesByMaterial) {
-        if (goodsReceipt == null || !StringUtils.hasText(goodsReceipt.getReceiptNumber())) {
+        if (!StringUtils.hasText(goodsReceipt.getReceiptNumber())) {
             throw new ApplicationException(ErrorCode.BUSINESS_CONSTRAINT_VIOLATION,
                     "Goods receipt linkage is incomplete; purchase invoice requires a persisted goods receipt reference")
-                    .withDetail("goodsReceiptId", goodsReceipt != null ? goodsReceipt.getId() : null);
+                    .withDetail("goodsReceiptId", goodsReceipt.getId());
         }
         if (receiptLinesByMaterial.isEmpty()) {
             throw new ApplicationException(ErrorCode.BUSINESS_CONSTRAINT_VIOLATION,

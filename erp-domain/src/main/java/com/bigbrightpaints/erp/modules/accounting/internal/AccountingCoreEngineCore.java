@@ -1874,7 +1874,6 @@ public abstract class AccountingCoreEngineCore {
         Company company = companyContextService.requireCurrentCompany();
         Supplier supplier = supplierRepository.lockByCompanyAndId(company, request.supplierId())
                 .orElseThrow(() -> new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE, "Supplier not found"));
-        supplier.requireTransactionalUsage("record supplier payments");
         Account payableAccount = requireSupplierPayable(supplier);
         Account cashAccount = requireCashAccountForSettlement(company, request.cashAccountId(), "supplier payment", false);
         BigDecimal amount = ValidationUtils.requirePositive(request.amount(), "amount");
@@ -1917,6 +1916,7 @@ public abstract class AccountingCoreEngineCore {
             return toDto(entry);
         }
 
+        supplier.requireTransactionalUsage("record supplier payments");
         cashAccount = requireCashAccountForSettlement(company, request.cashAccountId(), "supplier payment", true);
         JournalEntryRequest payload = new JournalEntryRequest(
                 reference,
@@ -2022,7 +2022,6 @@ public abstract class AccountingCoreEngineCore {
         Company company = companyContextService.requireCurrentCompany();
         Supplier supplier = supplierRepository.lockByCompanyAndId(company, supplierId)
                 .orElseThrow(() -> new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE, "Supplier not found"));
-        supplier.requireTransactionalUsage("auto-settle supplier invoices");
         BigDecimal amount = ValidationUtils.requirePositive(request.amount(), "amount");
         Long cashAccountId = resolveAutoSettlementCashAccountId(company, request.cashAccountId(), "supplier auto-settlement");
         List<SettlementAllocationRequest> allocations = buildSupplierAutoSettlementAllocations(company, supplier, amount);
@@ -2277,7 +2276,6 @@ public abstract class AccountingCoreEngineCore {
         String trimmedIdempotencyKey = resolveReceiptIdempotencyKey(request.idempotencyKey(), request.referenceNumber(), "supplier settlement");
         Supplier supplier = supplierRepository.lockByCompanyAndId(company, request.supplierId())
                 .orElseThrow(() -> new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE, "Supplier not found"));
-        supplier.requireTransactionalUsage("settle supplier invoices");
         Account payableAccount = requireSupplierPayable(supplier);
         Account cashAccount = requireCashAccountForSettlement(company, request.cashAccountId(), "supplier settlement", false);
         List<SettlementAllocationRequest> allocations = request.allocations();
@@ -2342,6 +2340,7 @@ public abstract class AccountingCoreEngineCore {
             return buildSupplierSettlementResponse(existingAllocations);
         }
 
+        supplier.requireTransactionalUsage("settle supplier invoices");
         cashAccount = requireCashAccountForSettlement(company, request.cashAccountId(), "supplier settlement", true);
         SettlementLineDraft lineDraft = buildSupplierSettlementLines(company, request, payableAccount, cashAccount, totals, memo);
 

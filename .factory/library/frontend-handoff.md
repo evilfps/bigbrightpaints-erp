@@ -2380,9 +2380,9 @@ Idempotency contract for GRN creation:
 1. **Supplier onboarding flow**
    1. `POST /api/v1/suppliers` with supplier master + optional GST/bank/payment data
    2. Use returned `payableAccountId` / `payableAccountCode` immediately for finance-facing confirmation UI
-   2. `POST /api/v1/suppliers/{id}/approve` (`PENDING -> APPROVED`)
-   3. `POST /api/v1/suppliers/{id}/activate` (`APPROVED -> ACTIVE`)
-   4. Refresh list/detail: `GET /api/v1/suppliers` or `GET /api/v1/suppliers/{id}`
+   3. `POST /api/v1/suppliers/{id}/approve` (`PENDING -> APPROVED`)
+   4. `POST /api/v1/suppliers/{id}/activate` (`APPROVED -> ACTIVE`)
+   5. Refresh list/detail: `GET /api/v1/suppliers` or `GET /api/v1/suppliers/{id}`
 
 2. **Create PO flow (select supplier -> add items -> approve)**
    1. Load suppliers: `GET /api/v1/suppliers`

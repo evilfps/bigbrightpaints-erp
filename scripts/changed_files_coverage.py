@@ -55,6 +55,7 @@ def parse_args() -> argparse.Namespace:
 
 
 INTERFACE_DECL_RE = re.compile(r"^\s*(?:public\s+)?(?:sealed\s+|non-sealed\s+)?(?:abstract\s+)?interface\s+\w+")
+PACKAGE_DECL_RE = re.compile(r"^\s*package\s+([\w.]+)\s*;")
 
 
 def parse_changed_lines(diff_text: str) -> dict[str, set[int]]:
@@ -122,25 +123,51 @@ def build_jacoco_line_map(jacoco_xmls: list[str], src_root: str) -> dict[str, di
     return mapped
 
 
-def load_source_info(path: str, cache: dict[str, tuple[list[str], bool]]) -> tuple[list[str], bool]:
+def load_source_info(path: str, cache: dict[str, tuple[list[str], bool, str]]) -> tuple[list[str], bool, str]:
     info = cache.get(path)
     if info is not None:
         return info
     lines: list[str] = []
     is_interface = False
+    package_name = ""
     try:
         with open(path, "r", encoding="utf-8") as fh:
             lines = fh.readlines()
     except FileNotFoundError:
-        cache[path] = (lines, is_interface)
-        return lines, is_interface
+        cache[path] = (lines, is_interface, package_name)
+        return lines, is_interface, package_name
 
     for line in lines:
+        if not package_name:
+            match = PACKAGE_DECL_RE.match(line)
+            if match:
+                package_name = match.group(1)
         if INTERFACE_DECL_RE.match(line):
             is_interface = True
             break
-    cache[path] = (lines, is_interface)
-    return lines, is_interface
+    cache[path] = (lines, is_interface, package_name)
+    return lines, is_interface, package_name
+
+
+def resolve_jacoco_line_map(
+    file_path: str,
+    src_root: str,
+    source_package: str,
+    jacoco: dict[str, dict[int, tuple[int, int, int, int]]],
+) -> dict[int, tuple[int, int, int, int]] | None:
+    line_map = jacoco.get(file_path)
+    if line_map is not None:
+        return line_map
+
+    if not source_package:
+        return None
+
+    package_relative_path = os.path.join(
+        src_root,
+        source_package.replace(".", os.sep),
+        os.path.basename(file_path),
+    ).replace("\\", "/")
+    return jacoco.get(package_relative_path)
 
 
 def is_structural_source_line(text: str, is_interface_file: bool) -> bool:
@@ -191,16 +218,16 @@ def main() -> int:
     files_with_unmapped_lines: list[str] = []
     skipped_files: list[str] = []
 
-    source_cache: dict[str, tuple[list[str], bool]] = {}
+    source_cache: dict[str, tuple[list[str], bool, str]] = {}
 
     for file_path, changed_lines in changed.items():
         if not changed_lines:
             continue
-        line_map = jacoco.get(file_path)
+        lines, is_interface_file, source_package = load_source_info(file_path, source_cache)
+        line_map = resolve_jacoco_line_map(file_path, args.src_root, source_package, jacoco)
         if line_map is None:
             skipped_files.append(file_path)
             continue
-        lines, is_interface_file = load_source_info(file_path, source_cache)
         files_considered += 1
         f_line_cov = 0
         f_line_total = 0

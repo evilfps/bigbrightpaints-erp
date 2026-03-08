@@ -97,9 +97,6 @@ class TS_RuntimeAccountingFacadeExecutableCoverageTest {
         when(companyEntityLookup.requireSupplier(eq(company), eq(supplierId))).thenReturn(supplier);
 
         Long inventoryAccountId = 201L;
-        Account inventory = new Account();
-        ReflectionTestUtils.setField(inventory, "id", inventoryAccountId);
-        when(companyEntityLookup.requireAccount(eq(company), eq(inventoryAccountId))).thenReturn(inventory);
 
         String baseReference = "RMP-ACME-SUP-INV100";
         when(referenceNumberService.purchaseReferenceKey(eq(company), eq(supplier), eq("INV-100"))).thenReturn(baseReference);
