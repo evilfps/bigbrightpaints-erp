@@ -303,7 +303,7 @@ class DispatchControllerTest {
 
         assertThat(org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class,
                 () -> controller.confirmDispatch(request, () -> "factory.user")).getMessage())
-                .isEqualTo("Add the transporter name or driver name before confirming dispatch.");
+                .isEqualTo("Dispatch confirmation requires transporterName or driverName");
     }
 
     @Test
@@ -339,10 +339,10 @@ class DispatchControllerTest {
 
         assertThat(org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class,
                 () -> controller.confirmDispatch(missingVehicle, () -> "factory.user")).getMessage())
-                .isEqualTo("Add the vehicle number before confirming dispatch.");
+                .isEqualTo("Dispatch confirmation requires vehicleNumber");
         assertThat(org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class,
                 () -> controller.confirmDispatch(missingChallan, () -> "factory.user")).getMessage())
-                .isEqualTo("Add the challan reference before confirming dispatch.");
+                .isEqualTo("Dispatch confirmation requires challanReference");
     }
 
     @Test
@@ -880,7 +880,7 @@ class DispatchControllerTest {
 
         assertThatThrownBy(() -> controller.confirmDispatch(request, () -> "factory.user"))
                 .isInstanceOf(ApplicationException.class)
-                .hasMessage("Add the transporter name or driver name before confirming dispatch.");
+                .hasMessage("Dispatch confirmation requires transporterName or driverName");
 
         SecurityContextHolder.clearContext();
     }
@@ -907,7 +907,7 @@ class DispatchControllerTest {
 
         assertThatThrownBy(() -> controller.confirmDispatch(missingVehicle, () -> "factory.user"))
                 .isInstanceOf(ApplicationException.class)
-                .hasMessage("Add the vehicle number before confirming dispatch.");
+                .hasMessage("Dispatch confirmation requires vehicleNumber");
 
         DispatchConfirmationRequest missingChallan = new DispatchConfirmationRequest(
                 10L,
@@ -923,7 +923,7 @@ class DispatchControllerTest {
 
         assertThatThrownBy(() -> controller.confirmDispatch(missingChallan, () -> "factory.user"))
                 .isInstanceOf(ApplicationException.class)
-                .hasMessage("Add the challan reference before confirming dispatch.");
+                .hasMessage("Dispatch confirmation requires challanReference");
 
         SecurityContextHolder.clearContext();
     }

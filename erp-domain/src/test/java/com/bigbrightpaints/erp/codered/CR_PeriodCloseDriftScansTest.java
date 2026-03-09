@@ -408,7 +408,7 @@ class CR_PeriodCloseDriftScansTest extends AbstractIntegrationTest {
     private AccountingPeriodDto forceClosePeriod(Long periodId, String requestNote, String approvalNote) {
         authenticate("maker.user", "ROLE_ACCOUNTING");
         accountingPeriodService.requestPeriodClose(periodId, new PeriodCloseRequestActionRequest(requestNote, true));
-        authenticate("checker.user", "ROLE_ACCOUNTING");
+        authenticate("checker.user", "ROLE_ADMIN");
         return accountingPeriodService.approvePeriodClose(periodId, new PeriodCloseRequestActionRequest(approvalNote, true));
     }
 

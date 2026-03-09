@@ -1097,7 +1097,7 @@ class CR_PurchasingToApAccountingTest extends AbstractIntegrationTest {
     private void forceClosePeriod(Long periodId, String requestNote, String approvalNote) {
         authenticate("maker.user", "ROLE_ACCOUNTING");
         accountingPeriodService.requestPeriodClose(periodId, new PeriodCloseRequestActionRequest(requestNote, true));
-        authenticate("checker.user", "ROLE_ACCOUNTING");
+        authenticate("checker.user", "ROLE_ADMIN");
         accountingPeriodService.approvePeriodClose(periodId, new PeriodCloseRequestActionRequest(approvalNote, true));
     }
 

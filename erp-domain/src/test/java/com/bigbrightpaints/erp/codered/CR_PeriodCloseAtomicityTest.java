@@ -163,7 +163,7 @@ class CR_PeriodCloseAtomicityTest extends AbstractIntegrationTest {
 
             assertThat(secondRequest.id()).isEqualTo(firstRequest.id());
 
-            authenticate("checker.user", "ROLE_ACCOUNTING");
+            authenticate("checker.user", "ROLE_ADMIN");
             AccountingPeriodDto closed = accountingPeriodService.approvePeriodClose(
                     period.getId(),
                     new PeriodCloseRequestActionRequest("CODE-RED close approval", true));
@@ -254,7 +254,7 @@ class CR_PeriodCloseAtomicityTest extends AbstractIntegrationTest {
     private AccountingPeriodDto forceClosePeriod(Long periodId, String requestNote, String approvalNote) {
         authenticate("maker.user", "ROLE_ACCOUNTING");
         accountingPeriodService.requestPeriodClose(periodId, new PeriodCloseRequestActionRequest(requestNote, true));
-        authenticate("checker.user", "ROLE_ACCOUNTING");
+        authenticate("checker.user", "ROLE_ADMIN");
         return accountingPeriodService.approvePeriodClose(periodId, new PeriodCloseRequestActionRequest(approvalNote, true));
     }
 
