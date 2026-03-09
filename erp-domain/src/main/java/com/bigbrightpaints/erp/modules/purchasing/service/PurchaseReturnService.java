@@ -80,11 +80,6 @@ public class PurchaseReturnService {
     public JournalEntryDto recordPurchaseReturn(PurchaseReturnRequest request) {
         Company company = companyContextService.requireCurrentCompany();
         Supplier supplier = companyEntityLookup.requireSupplier(company, request.supplierId());
-        supplier.requireTransactionalUsage("post purchase returns");
-        if (supplier.getPayableAccount() == null) {
-            throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidState(
-                    "Supplier " + supplier.getName() + " is missing a payable account");
-        }
         RawMaterialPurchase purchase = purchaseRepository.lockByCompanyAndId(company, request.purchaseId())
                 .orElseThrow(() -> com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput("Raw material purchase not found"));
         if (purchase.getSupplier() == null || !purchase.getSupplier().getId().equals(supplier.getId())) {
@@ -121,6 +116,12 @@ public class PurchaseReturnService {
         if (!existingMovements.isEmpty()) {
             return returnExistingPurchaseReturn(purchase, material, supplier, quantity, unitCost, reference,
                     returnDate, memo, existingMovements);
+        }
+
+        supplier.requireTransactionalUsage("post purchase returns");
+        if (supplier.getPayableAccount() == null) {
+            throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidState(
+                    "Supplier " + supplier.getName() + " is missing a payable account");
         }
 
         BigDecimal remainingReturnableQty = allocationService.remainingReturnableQuantity(purchase, material);
