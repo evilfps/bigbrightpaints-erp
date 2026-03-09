@@ -55,6 +55,7 @@ Human-friendly alias: `AGENTMAP.md`.
 - Build: `cd erp-domain && mvn -B -ntp -DskipTests package`
 - Run local stack: `docker compose up --build`
 - Run tests: `cd erp-domain && mvn -B -ntp test`
+- Codex/cloud test path: `./scripts/codex-mvn-test.sh`
 - Harness: `bash scripts/verify_local.sh`
 - Gate tiers:
   - `bash scripts/gate_fast.sh`
