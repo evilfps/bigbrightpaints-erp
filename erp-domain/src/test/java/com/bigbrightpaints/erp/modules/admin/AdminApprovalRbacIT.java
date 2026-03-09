@@ -207,42 +207,48 @@ class AdminApprovalRbacIT extends AbstractIntegrationTest {
                 HttpMethod.POST,
                 new HttpEntity<>(null, accountingHeaders),
                 Map.class);
-        assertThat(accountingApprove.getStatusCode()).isNotEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(accountingApprove.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertValidationFailure(accountingApprove, "Payroll run not found");
 
         ResponseEntity<Map> adminApprove = rest.exchange(
                 "/api/v1/payroll/runs/" + unknownRunId + "/approve",
                 HttpMethod.POST,
                 new HttpEntity<>(null, adminHeaders),
                 Map.class);
-        assertThat(adminApprove.getStatusCode()).isNotEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(adminApprove.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertValidationFailure(adminApprove, "Payroll run not found");
 
         ResponseEntity<Map> accountingPost = rest.exchange(
                 "/api/v1/payroll/runs/" + unknownRunId + "/post",
                 HttpMethod.POST,
                 new HttpEntity<>(null, accountingHeaders),
                 Map.class);
-        assertThat(accountingPost.getStatusCode()).isNotEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(accountingPost.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertValidationFailure(accountingPost, "Payroll run not found");
 
         ResponseEntity<Map> adminPost = rest.exchange(
                 "/api/v1/payroll/runs/" + unknownRunId + "/post",
                 HttpMethod.POST,
                 new HttpEntity<>(null, adminHeaders),
                 Map.class);
-        assertThat(adminPost.getStatusCode()).isNotEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(adminPost.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertValidationFailure(adminPost, "Payroll run not found");
 
         ResponseEntity<Map> accountingMarkPaid = rest.exchange(
                 "/api/v1/payroll/runs/" + unknownRunId + "/mark-paid",
                 HttpMethod.POST,
                 new HttpEntity<>(markPaidPayload, accountingHeaders),
                 Map.class);
-        assertThat(accountingMarkPaid.getStatusCode()).isNotEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(accountingMarkPaid.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertValidationFailure(accountingMarkPaid, "Payroll run not found");
 
         ResponseEntity<Map> adminMarkPaid = rest.exchange(
                 "/api/v1/payroll/runs/" + unknownRunId + "/mark-paid",
                 HttpMethod.POST,
                 new HttpEntity<>(markPaidPayload, adminHeaders),
                 Map.class);
-        assertThat(adminMarkPaid.getStatusCode()).isNotEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(adminMarkPaid.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertValidationFailure(adminMarkPaid, "Payroll run not found");
     }
 
     @Test
@@ -357,6 +363,16 @@ class AdminApprovalRbacIT extends AbstractIntegrationTest {
         assertThat(data).isNotNull();
         assertThat(data.get("code")).isEqualTo("BUS_003");
         assertThat(data.get("message")).isEqualTo(expectedMessage);
+    }
+
+    private void assertValidationFailure(ResponseEntity<Map> response, String expectedMessage) {
+        Map<?, ?> body = response.getBody();
+        assertThat(body).isNotNull();
+        assertThat(String.valueOf(body.get("message"))).startsWith(expectedMessage);
+        Map<?, ?> data = (Map<?, ?>) body.get("data");
+        assertThat(data).isNotNull();
+        assertThat(data.get("code")).isEqualTo("VAL_001");
+        assertThat(String.valueOf(data.get("message"))).startsWith(expectedMessage);
     }
 
     private void ensureDealerPortalMapping() {

@@ -396,13 +396,14 @@ public class CompanyContextFilter extends OncePerRequestFilter {
     private void writeAccessDenied(HttpServletResponse response,
                                    String reason,
                                    String reasonDetail) throws IOException {
+        String userMessage = "Access denied";
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("code", ErrorCode.AUTH_INSUFFICIENT_PERMISSIONS.getCode());
-        data.put("message", ErrorCode.AUTH_INSUFFICIENT_PERMISSIONS.getDefaultMessage());
+        data.put("message", userMessage);
         data.put("reason", reason);
         data.put("reasonDetail", reasonDetail);
         data.put("traceId", UUID.randomUUID().toString());
-        writeControlledError(response, HttpServletResponse.SC_FORBIDDEN, "Access denied", data);
+        writeControlledError(response, HttpServletResponse.SC_FORBIDDEN, userMessage, data);
     }
 
     private void writeRuntimeAdmissionDenied(HttpServletResponse response,

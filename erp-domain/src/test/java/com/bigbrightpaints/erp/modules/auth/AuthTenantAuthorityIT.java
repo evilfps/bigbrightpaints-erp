@@ -258,8 +258,8 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
         assertThat(unknownTenantError).isNotNull();
         assertThat(foreignTenantError.get("code")).isEqualTo("AUTH_004");
         assertThat(unknownTenantError.get("code")).isEqualTo("AUTH_004");
-        assertThat(foreignTenantError.get("message")).isEqualTo("Insufficient permissions for this operation");
-        assertThat(unknownTenantError.get("message")).isEqualTo("Insufficient permissions for this operation");
+        assertThat(foreignTenantError.get("message")).isEqualTo("Access denied");
+        assertThat(unknownTenantError.get("message")).isEqualTo("Access denied");
         assertThat(foreignTenantError.get("reason")).isEqualTo("COMPANY_CONTROL_ACCESS_DENIED");
         assertThat(unknownTenantError.get("reason")).isEqualTo("COMPANY_CONTROL_ACCESS_DENIED");
         assertThat(foreignTenantError.get("reasonDetail")).isEqualTo(CONTROL_PLANE_AUTH_DENIED_MESSAGE);
@@ -926,7 +926,7 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
         @SuppressWarnings("unchecked")
         Map<String, Object> error = (Map<String, Object>) errorValue;
         assertThat(error.get("code")).isEqualTo("AUTH_004");
-        assertThat(error.get("message")).isEqualTo("Insufficient permissions for this operation");
+        assertThat(error.get("message")).isEqualTo("Access denied");
     }
 
     private void assertMaskedPrivilegedUserActionPair(ResponseEntity<Map> foreignResponse,

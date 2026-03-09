@@ -279,7 +279,7 @@ public class AuthControllerIT extends AbstractIntegrationTest {
         @SuppressWarnings("unchecked")
         Map<String, Object> error = (Map<String, Object>) payload;
         assertThat(error).containsEntry("code", "AUTH_004");
-        assertThat(error).containsEntry("message", "Insufficient permissions for this operation");
+        assertThat(error).containsEntry("message", "Access denied");
         assertThat(error).containsEntry("reason", "COMPANY_CONTEXT_MISMATCH");
         assertThat(error).containsEntry(
                 "reasonDetail",

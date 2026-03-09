@@ -77,6 +77,7 @@ class SuperAdminTenantWorkflowIsolationIT extends AbstractIntegrationTest {
         @SuppressWarnings("unchecked")
         Map<String, Object> data = (Map<String, Object>) response.getBody().get("data");
         assertThat(data).isNotNull();
+        assertThat(data.get("message")).isEqualTo("Access denied");
         assertThat(data.get("reason")).isEqualTo("SUPER_ADMIN_PLATFORM_ONLY");
         assertThat(data.get("reasonDetail"))
                 .isEqualTo("Super Admin is limited to platform control-plane operations and cannot execute tenant business workflows");

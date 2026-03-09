@@ -15,6 +15,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
@@ -187,16 +188,17 @@ public class DispatchController {
         if (request == null || isDispatchedSlipReplay(request.packagingSlipId())) {
             return;
         }
-        boolean hasTransportActor = hasText(request.transporterName()) || hasText(request.driverName());
+        boolean hasTransportActor = StringUtils.hasText(request.transporterName())
+                || StringUtils.hasText(request.driverName());
         if (!hasTransportActor) {
             throw com.bigbrightpaints.erp.core.validation.ValidationUtils
                     .invalidInput(PortalRoleActionMatrix.transporterOrDriverRequiredMessage());
         }
-        if (!hasText(request.vehicleNumber())) {
+        if (!StringUtils.hasText(request.vehicleNumber())) {
             throw com.bigbrightpaints.erp.core.validation.ValidationUtils
                     .invalidInput(PortalRoleActionMatrix.vehicleNumberRequiredMessage());
         }
-        if (!hasText(request.challanReference())) {
+        if (!StringUtils.hasText(request.challanReference())) {
             throw com.bigbrightpaints.erp.core.validation.ValidationUtils
                     .invalidInput(PortalRoleActionMatrix.challanReferenceRequiredMessage());
         }
