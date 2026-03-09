@@ -283,7 +283,7 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
     }
 
     @Test
-    void super_admin_can_hold_and_block_tenant_and_runtime_enforcement_denies_access() throws InterruptedException {
+    void super_admin_can_hold_and_block_tenant_and_hold_lifecycle_denies_authenticated_access() throws InterruptedException {
         String adminToken = login(ADMIN_EMAIL, TENANT_A);
         String superToken = login(SUPER_ADMIN_EMAIL, ROOT_TENANT);
         Long tenantAId = companyRepository.findByCodeIgnoreCase(TENANT_A).map(Company::getId).orElseThrow();
@@ -317,7 +317,10 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
                 HttpMethod.GET,
                 new HttpEntity<>(jsonHeaders(adminToken, TENANT_A)),
                 Map.class);
-        assertThat(meDuringHold.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertControlledAccessDenied(
+                meDuringHold,
+                "TENANT_LIFECYCLE_RESTRICTED",
+                "Tenant is suspended");
 
         String blockReason = "Critical security incident";
         ResponseEntity<Map> blockResponse = updateLifecycleState(tenantAId, superToken, ROOT_TENANT, "BLOCKED", blockReason);
@@ -335,7 +338,10 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
                 HttpMethod.GET,
                 new HttpEntity<>(jsonHeaders(adminToken, TENANT_A)),
                 Map.class);
-        assertThat(meDuringBlock.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertControlledAccessDenied(
+                meDuringBlock,
+                "TENANT_LIFECYCLE_RESTRICTED",
+                "Tenant is deactivated");
     }
 
     @Test
@@ -437,7 +443,7 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
     }
 
     @Test
-    void super_admin_without_admin_role_can_execute_admin_only_sales_target_flow() {
+    void super_admin_without_admin_role_is_still_blocked_from_admin_only_sales_target_flow() {
         String token = login(SUPER_ADMIN_HIERARCHY_EMAIL, TENANT_A);
         String targetName = "Hierarchy Target " + System.nanoTime();
 
@@ -454,13 +460,10 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
                 ), jsonHeaders(token, TENANT_A)),
                 Map.class);
 
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        Map<String, Object> body = response.getBody();
-        assertThat(body).isNotNull();
-        @SuppressWarnings("unchecked")
-        Map<String, Object> data = (Map<String, Object>) body.get("data");
-        assertThat(data).isNotNull();
-        assertThat(data.get("name")).isEqualTo(targetName);
+        assertControlledAccessDenied(
+                response,
+                "SUPER_ADMIN_PLATFORM_ONLY",
+                "Super Admin is limited to platform control-plane operations and cannot execute tenant business workflows");
     }
 
     @Test
@@ -927,6 +930,25 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
         Map<String, Object> error = (Map<String, Object>) errorValue;
         assertThat(error.get("code")).isEqualTo("AUTH_004");
         assertThat(error.get("message")).isEqualTo("Access denied");
+    }
+
+    @SuppressWarnings("unchecked")
+    private void assertControlledAccessDenied(ResponseEntity<Map> response,
+                                              String reason,
+                                              String reasonDetail) {
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        Map<String, Object> body = response.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.get("success")).isEqualTo(Boolean.FALSE);
+        assertThat(body.get("message")).isEqualTo("Access denied");
+        Object errorValue = body.get("data");
+        assertThat(errorValue).isInstanceOf(Map.class);
+        Map<String, Object> error = (Map<String, Object>) errorValue;
+        assertThat(error.get("code")).isEqualTo("AUTH_004");
+        assertThat(error.get("message")).isEqualTo("Access denied");
+        assertThat(error.get("reason")).isEqualTo(reason);
+        assertThat(error.get("reasonDetail")).isEqualTo(reasonDetail);
+        assertThat(error.get("traceId")).isNotNull();
     }
 
     private void assertMaskedPrivilegedUserActionPair(ResponseEntity<Map> foreignResponse,
