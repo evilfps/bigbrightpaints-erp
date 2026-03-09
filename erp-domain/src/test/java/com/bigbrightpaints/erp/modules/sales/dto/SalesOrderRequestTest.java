@@ -5,8 +5,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.math.BigDecimal;
 import java.util.List;
 import org.apache.commons.codec.digest.DigestUtils;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
+@Tag("critical")
 class SalesOrderRequestTest {
 
     private SalesOrderRequest requestWithIdempotency(String key, String currency, String productCode, BigDecimal quantity) {

@@ -426,6 +426,32 @@ class InvoiceServiceTest {
     }
 
     @Test
+    void issueInvoiceForOrder_rejectsDispatchedSlipWhenInvoiceMarkerIsMissing() {
+        Long orderId = 780L;
+        when(companyContextService.requireCurrentCompany()).thenReturn(company);
+        when(invoiceRepository.findAllByCompanyAndSalesOrderId(company, orderId)).thenReturn(List.of());
+
+        Dealer dealer = new Dealer();
+        SalesOrder order = new SalesOrder();
+        order.setCompany(company);
+        order.setDealer(dealer);
+        order.setOrderNumber("SO-780");
+        ReflectionTestUtils.setField(order, "id", orderId);
+        when(salesOrderCrudService.getOrderWithItems(orderId)).thenReturn(order);
+
+        PackagingSlip slip = new PackagingSlip();
+        ReflectionTestUtils.setField(slip, "id", 7801L);
+        slip.setStatus("DISPATCHED");
+        slip.setInvoiceId(null);
+        when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, orderId)).thenReturn(List.of(slip));
+
+        ApplicationException ex = assertThrows(ApplicationException.class, () -> invoiceService.issueInvoiceForOrder(orderId));
+
+        assertThat(ex.getMessage()).contains("Final invoice is created by dispatch confirmation");
+        verifyNoInteractions(salesDispatchReconciliationService);
+    }
+
+    @Test
     void issueInvoiceForOrder_failsWhenDispatchConfirmationDoesNotReturnInvoiceId() {
         Long orderId = 80L;
         when(companyContextService.requireCurrentCompany()).thenReturn(company);

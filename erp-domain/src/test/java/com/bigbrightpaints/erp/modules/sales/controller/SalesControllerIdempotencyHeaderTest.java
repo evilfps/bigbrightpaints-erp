@@ -13,6 +13,7 @@ import com.bigbrightpaints.erp.modules.sales.service.SalesDispatchReconciliation
 import com.bigbrightpaints.erp.modules.sales.service.SalesOrderCrudService;
 import com.bigbrightpaints.erp.modules.sales.service.SalesOrderLifecycleService;
 import com.bigbrightpaints.erp.modules.sales.service.SalesService;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.http.HttpStatus;
@@ -33,6 +34,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
+@Tag("critical")
 class SalesControllerIdempotencyHeaderTest {
 
     @Mock

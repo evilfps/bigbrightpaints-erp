@@ -5,6 +5,7 @@ import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatch;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatchRepository;
 import java.math.BigDecimal;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -14,6 +15,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
+@Tag("critical")
 class InventoryValuationServiceTest {
 
     @Mock
@@ -42,6 +44,17 @@ class InventoryValuationServiceTest {
         when(finishedGoodBatchRepository.calculateWeightedAverageCost(finishedGood)).thenReturn(new BigDecimal("19.75"));
 
         assertThat(service.resolveDispatchUnitCost(finishedGood, null)).isEqualByComparingTo("19.75");
+    }
+
+    @Test
+    void resolveDispatchUnitCost_fallsBackToWeightedAverageWhenBatchExistsWithoutUnitCost() {
+        FinishedGood finishedGood = new FinishedGood();
+        setId(finishedGood, 45L);
+        FinishedGoodBatch batch = new FinishedGoodBatch();
+        batch.setUnitCost(null);
+        when(finishedGoodBatchRepository.calculateWeightedAverageCost(finishedGood)).thenReturn(new BigDecimal("14.25"));
+
+        assertThat(service.resolveDispatchUnitCost(finishedGood, batch)).isEqualByComparingTo("14.25");
     }
 
     @Test
