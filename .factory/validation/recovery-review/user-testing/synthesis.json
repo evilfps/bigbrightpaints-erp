@@ -1,0 +1,17 @@
+{
+  "milestone": "recovery-review",
+  "round": 1,
+  "status": "pass",
+  "scopeNote": "No completed recovery-review implementation feature declared fulfills assertions in mission features.json, so user-testing had no validation-contract assertions to execute for this milestone.",
+  "assertionsSummary": {
+    "total": 0,
+    "passed": 0,
+    "failed": 0,
+    "blocked": 0
+  },
+  "passedAssertions": [],
+  "failedAssertions": [],
+  "blockedAssertions": [],
+  "appliedUpdates": [],
+  "previousRound": null
+}
