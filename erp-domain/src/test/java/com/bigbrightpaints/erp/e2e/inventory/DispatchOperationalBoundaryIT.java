@@ -124,7 +124,6 @@ class DispatchOperationalBoundaryIT extends AbstractIntegrationTest {
         Long orderId = salesService.createOrder(orderReq).id();
         SalesOrder order = salesOrderRepository.findById(orderId).orElseThrow();
         finishedGoodsService.reserveForOrder(order);
-
         PackagingSlip slip = packagingSlipRepository.findByCompanyAndSalesOrderId(company, orderId).orElseThrow();
 
         HttpHeaders headers = authHeaders(loginToken());
@@ -136,6 +135,7 @@ class DispatchOperationalBoundaryIT extends AbstractIntegrationTest {
         assertThat(previewResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
         Map<?, ?> previewData = requireData(previewResponse);
         assertThat(previewData.get("gstBreakdown")).isNull();
+        assertThat(previewData.get("totalAvailableAmount")).isNull();
         Map<?, ?> previewLine = ((List<Map<?, ?>>) previewData.get("lines")).getFirst();
         assertThat(previewLine.get("unitPrice")).isNull();
         assertThat(previewLine.get("lineTotal")).isNull();

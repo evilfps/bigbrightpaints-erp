@@ -691,7 +691,10 @@ public class SalesCoreEngine {
         recordInitialOrderHistory(saved);
 
         SalesProformaBoundaryService.CommercialAssessment commercialAssessment =
-                salesProformaBoundaryService.assessCommercialAvailability(company, saved);
+                syncFactoryDispatchReadiness(
+                        company,
+                        saved,
+                        salesProformaBoundaryService.assessCommercialAvailability(company, saved));
         if (!commercialAssessment.shortages().isEmpty()) {
             transitionOrderStatus(saved,
                     ORDER_STATUS_PENDING_PRODUCTION,
@@ -943,7 +946,10 @@ public class SalesCoreEngine {
         }
         salesOrderRepository.save(order);
         SalesProformaBoundaryService.CommercialAssessment commercialAssessment =
-                salesProformaBoundaryService.assessCommercialAvailability(order.getCompany(), order);
+                syncFactoryDispatchReadiness(
+                        order.getCompany(),
+                        order,
+                        salesProformaBoundaryService.assessCommercialAvailability(order.getCompany(), order));
         if (ORDER_STATUS_PENDING_PRODUCTION.equals(commercialAssessment.commercialStatus())
                 && !ORDER_STATUS_PENDING_PRODUCTION.equals(canonicalOrderStatus(order.getStatus()))) {
             transitionOrderStatus(order,
@@ -960,6 +966,27 @@ public class SalesCoreEngine {
                     currentActorIdentity());
         }
         return toDto(order);
+    }
+
+    private SalesProformaBoundaryService.CommercialAssessment syncFactoryDispatchReadiness(
+            Company company,
+            SalesOrder order,
+            SalesProformaBoundaryService.CommercialAssessment assessment) {
+        if (order == null || order.getId() == null || assessment == null) {
+            return assessment;
+        }
+        if (!assessment.shortages().isEmpty()) {
+            finishedGoodsService.releaseReservationsForOrder(order.getId());
+            return assessment;
+        }
+
+        FinishedGoodsService.InventoryReservationResult reservation = finishedGoodsService.reserveForOrder(order);
+        if (reservation == null || reservation.shortages() == null || reservation.shortages().isEmpty()) {
+            return assessment;
+        }
+
+        finishedGoodsService.releaseReservationsForOrder(order.getId());
+        return salesProformaBoundaryService.assessCommercialAvailability(company, order);
     }
 
     public void deleteOrder(Long id) {

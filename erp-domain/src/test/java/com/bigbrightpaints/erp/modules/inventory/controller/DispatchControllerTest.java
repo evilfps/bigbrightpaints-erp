@@ -184,7 +184,18 @@ class DispatchControllerTest {
                 "notes",
                 111L,
                 222L,
-                List.of(),
+                List.of(new com.bigbrightpaints.erp.modules.inventory.dto.PackagingSlipLineDto(
+                        11L,
+                        UUID.randomUUID(),
+                        "BATCH-1",
+                        "FG-1",
+                        "Primer",
+                        new BigDecimal("5.00"),
+                        new BigDecimal("4.00"),
+                        BigDecimal.ONE,
+                        new BigDecimal("5.00"),
+                        new BigDecimal("70.00"),
+                        "pack carefully")),
                 "FastMove Logistics",
                 "Ayaan",
                 "MH12AB1234",
@@ -198,11 +209,13 @@ class DispatchControllerTest {
         PackagingSlipDto redactedSlip = controller.getPackagingSlip(5L).getBody().data();
 
         assertThat(redactedPreview.totalOrderedAmount()).isNull();
+        assertThat(redactedPreview.totalAvailableAmount()).isNull();
         assertThat(redactedPreview.gstBreakdown()).isNull();
         assertThat(redactedPreview.lines().getFirst().unitPrice()).isNull();
         assertThat(redactedPreview.lines().getFirst().lineTotal()).isNull();
         assertThat(redactedSlip.journalEntryId()).isNull();
         assertThat(redactedSlip.cogsJournalEntryId()).isNull();
+        assertThat(redactedSlip.lines().getFirst().unitCost()).isNull();
         assertThat(redactedSlip.deliveryChallanPdfPath()).isEqualTo("/api/v1/dispatch/slip/5/challan/pdf");
     }
 

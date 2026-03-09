@@ -179,7 +179,7 @@ public class DispatchController {
                 slip.dispatchNotes(),
                 null,
                 null,
-                slip.lines(),
+                redactFactorySlipLines(slip.lines()),
                 slip.transporterName(),
                 slip.driverName(),
                 slip.vehicleNumber(),
@@ -221,10 +221,30 @@ public class DispatchController {
                 preview.dealerCode(),
                 preview.createdAt(),
                 null,
-                preview.totalAvailableAmount(),
+                null,
                 null,
                 lines
         );
+    }
+
+    private List<PackagingSlipLineDto> redactFactorySlipLines(List<PackagingSlipLineDto> lines) {
+        if (lines == null) {
+            return List.of();
+        }
+        return lines.stream()
+                .map(line -> new PackagingSlipLineDto(
+                        line.id(),
+                        line.batchPublicId(),
+                        line.batchCode(),
+                        line.productCode(),
+                        line.productName(),
+                        line.orderedQuantity(),
+                        line.shippedQuantity(),
+                        line.backorderQuantity(),
+                        line.quantity(),
+                        null,
+                        line.notes()))
+                .toList();
     }
 
     private DispatchConfirmationResponse toDispatchConfirmationView(DispatchConfirmationResponse response) {

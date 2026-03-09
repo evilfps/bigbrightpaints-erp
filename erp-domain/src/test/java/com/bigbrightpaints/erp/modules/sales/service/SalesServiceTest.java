@@ -3522,6 +3522,7 @@ class SalesServiceTest {
         assertEquals("RESERVED", dto.status());
         assertEquals("CASH", dto.paymentMode());
         verify(dealerLedgerService, never()).currentBalance(420L);
+        verify(finishedGoodsService).reserveForOrder(any(SalesOrder.class));
     }
 
     @Test
@@ -3612,6 +3613,7 @@ class SalesServiceTest {
         SalesOrderDto dto = salesService.updateOrder(4301L, request);
 
         assertEquals("PENDING_PRODUCTION", dto.status());
+        verify(finishedGoodsService).releaseReservationsForOrder(4301L);
         verify(factoryTaskRepository).saveAll(any());
     }
 
@@ -3657,6 +3659,7 @@ class SalesServiceTest {
         SalesOrderDto dto = salesService.updateOrder(4302L, request);
 
         assertEquals("RESERVED", dto.status());
+        verify(finishedGoodsService).reserveForOrder(existing);
     }
 
     @Test
