@@ -7,8 +7,10 @@ import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.modules.sales.dto.DispatchConfirmRequest;
 import java.math.BigDecimal;
 import java.util.List;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
+@Tag("critical")
 class DispatchMetadataValidatorTest {
 
     @Test

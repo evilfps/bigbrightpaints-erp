@@ -2,10 +2,12 @@ package com.bigbrightpaints.erp.modules.sales.dto;
 
 import java.math.BigDecimal;
 import java.util.List;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+@Tag("critical")
 class DispatchConfirmRequestTest {
 
     @Test
