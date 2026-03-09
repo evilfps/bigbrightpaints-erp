@@ -1,0 +1,15 @@
+{
+  "featureId": "recovery-review.o2c-feedback-and-coverage",
+  "reviewedAt": "2026-03-09T06:10:00+05:30",
+  "commitId": "85d6eff5aa202d47c40ceca7b955dac8df5b66b4",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "Manual scrutiny review of the final handoff and commit confirmed the packet finished the earlier partial O2C recovery work instead of masking it: dealer-receipt CODE-RED coverage was repaired to follow the shipped reservation-driven dispatch truth, changed-files coverage cleared the stacked thresholds, and the challan/dispatch/proforma/payment-mode review fixes remained protected by targeted tests.",
+    "issues": []
+  },
+  "sharedStateObservations": [],
+  "addressesFailureFrom": null,
+  "summary": "Pass. O2C recovery closed its review comments, restored codered-finance, and passed stacked changed-files coverage at 97.04% line and 90.08% branch on commit 85d6eff5."
+}

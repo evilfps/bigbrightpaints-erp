@@ -1,0 +1,15 @@
+{
+  "featureId": "recovery-review.portal-boundary-comment-closure",
+  "reviewedAt": "2026-03-09T06:10:00+05:30",
+  "commitId": "14ed5e29",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "Manual scrutiny review confirmed the portal recovery fixes are appropriately fail-closed and branch-local: super-admin tenant workflow denial, deterministic dealer portal read-only handling, aligned denial payloads, and tighter RBAC assertions are all covered by the focused portal suite and a green gate-fast rerun.",
+    "issues": []
+  },
+  "sharedStateObservations": [],
+  "addressesFailureFrom": null,
+  "summary": "Pass. PR #100 portal-boundary review gaps were closed with deterministic fail-closed behavior and passing focused plus gate-fast validation."
+}
