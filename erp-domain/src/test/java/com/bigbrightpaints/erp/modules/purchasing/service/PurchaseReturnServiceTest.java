@@ -5,6 +5,8 @@ import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
+import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
+import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
 import com.bigbrightpaints.erp.modules.accounting.service.GstService;
 import com.bigbrightpaints.erp.modules.accounting.service.ReferenceNumberService;
@@ -37,6 +39,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -52,6 +55,7 @@ class PurchaseReturnServiceTest {
     @Mock private RawMaterialBatchRepository rawMaterialBatchRepository;
     @Mock private RawMaterialMovementRepository movementRepository;
     @Mock private AccountingFacade accountingFacade;
+    @Mock private JournalEntryRepository journalEntryRepository;
     @Mock private CompanyEntityLookup companyEntityLookup;
     @Mock private ReferenceNumberService referenceNumberService;
     @Mock private CompanyClock companyClock;
@@ -63,6 +67,7 @@ class PurchaseReturnServiceTest {
     private Supplier supplier;
     private RawMaterial material;
     private RawMaterialPurchase purchase;
+    private Account payableAccount;
 
     @BeforeEach
     void setUp() {
@@ -73,6 +78,7 @@ class PurchaseReturnServiceTest {
                 rawMaterialBatchRepository,
                 movementRepository,
                 accountingFacade,
+                journalEntryRepository,
                 companyEntityLookup,
                 referenceNumberService,
                 companyClock,
@@ -90,6 +96,9 @@ class PurchaseReturnServiceTest {
         supplier.setCode("SUP-10");
         supplier.setName("Supplier 10");
         supplier.setStatus(SupplierStatus.ACTIVE);
+        payableAccount = new Account();
+        ReflectionTestUtils.setField(payableAccount, "id", 40L);
+        supplier.setPayableAccount(payableAccount);
 
         material = new RawMaterial();
         ReflectionTestUtils.setField(material, "id", 20L);
@@ -102,6 +111,9 @@ class PurchaseReturnServiceTest {
         purchase.setCompany(company);
         purchase.setSupplier(supplier);
         purchase.setTaxAmount(BigDecimal.ZERO);
+        JournalEntry purchaseJournal = new JournalEntry();
+        ReflectionTestUtils.setField(purchaseJournal, "id", 50L);
+        purchase.setJournalEntry(purchaseJournal);
         RawMaterialPurchaseLine line = new RawMaterialPurchaseLine();
         line.setPurchase(purchase);
         line.setRawMaterial(material);
@@ -111,14 +123,14 @@ class PurchaseReturnServiceTest {
 
         when(companyContextService.requireCurrentCompany()).thenReturn(company);
         when(companyEntityLookup.requireSupplier(company, 10L)).thenReturn(supplier);
-        when(purchaseRepository.lockByCompanyAndId(company, 30L)).thenReturn(Optional.of(purchase));
-        when(rawMaterialRepository.lockByCompanyAndId(company, 20L)).thenReturn(Optional.of(material));
-        when(movementRepository.findByRawMaterialCompanyAndReferenceTypeAndReferenceId(eq(company), eq(com.bigbrightpaints.erp.modules.inventory.domain.InventoryReference.PURCHASE_RETURN), eq("PR-30")))
+        lenient().when(purchaseRepository.lockByCompanyAndId(company, 30L)).thenReturn(Optional.of(purchase));
+        lenient().when(rawMaterialRepository.lockByCompanyAndId(company, 20L)).thenReturn(Optional.of(material));
+        lenient().when(movementRepository.findByRawMaterialCompanyAndReferenceTypeAndReferenceId(eq(company), eq(com.bigbrightpaints.erp.modules.inventory.domain.InventoryReference.PURCHASE_RETURN), eq("PR-30")))
                 .thenReturn(List.of());
     }
 
     @Test
-    void recordPurchaseReturn_rejectsReferenceOnlySupplierBeforeMutations() {
+    void previewPurchaseReturn_rejectsReferenceOnlySupplierBeforeMutations() {
         supplier.setStatus(SupplierStatus.SUSPENDED);
 
         PurchaseReturnRequest request = new PurchaseReturnRequest(
@@ -132,11 +144,11 @@ class PurchaseReturnServiceTest {
                 "Damaged"
         );
 
-        assertThatThrownBy(() -> purchaseReturnService.recordPurchaseReturn(request))
+        assertThatThrownBy(() -> purchaseReturnService.previewPurchaseReturn(request))
                 .isInstanceOfSatisfying(ApplicationException.class, ex -> {
                     assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_INVALID_STATE);
                     assertThat(ex).hasMessageContaining("reference only")
-                            .hasMessageContaining("post purchase returns");
+                            .hasMessageContaining("preview purchase returns");
                 });
 
         verifyNoInteractions(accountingFacade, allocationService);
@@ -144,8 +156,8 @@ class PurchaseReturnServiceTest {
     }
 
     @Test
-    void recordPurchaseReturn_rejectsMissingPayableAccountBeforeAllocationMutations() {
-        supplier.setPayableAccount(null);
+    void recordPurchaseReturn_rejectsUnpostedPurchaseBeforeAllocationMutations() {
+        purchase.setJournalEntry(null);
 
         PurchaseReturnRequest request = new PurchaseReturnRequest(
                 10L,
@@ -161,7 +173,7 @@ class PurchaseReturnServiceTest {
         assertThatThrownBy(() -> purchaseReturnService.recordPurchaseReturn(request))
                 .isInstanceOfSatisfying(ApplicationException.class, ex -> {
                     assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.VALIDATION_INVALID_STATE);
-                    assertThat(ex).hasMessageContaining("missing a payable account");
+                    assertThat(ex).hasMessageContaining("Only posted purchases can be corrected through purchase return");
                 });
 
         verifyNoInteractions(accountingFacade, allocationService);

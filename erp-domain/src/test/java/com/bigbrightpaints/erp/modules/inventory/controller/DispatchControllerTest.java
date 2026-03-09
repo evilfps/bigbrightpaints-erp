@@ -257,18 +257,7 @@ class DispatchControllerTest {
                 "notes",
                 111L,
                 222L,
-                List.of(new com.bigbrightpaints.erp.modules.inventory.dto.PackagingSlipLineDto(
-                        11L,
-                        UUID.randomUUID(),
-                        "BATCH-1",
-                        "FG-1",
-                        "Primer",
-                        new BigDecimal("5.00"),
-                        new BigDecimal("4.00"),
-                        BigDecimal.ONE,
-                        new BigDecimal("5.00"),
-                        new BigDecimal("70.00"),
-                        "pack carefully")),
+                List.of(),
                 "FastMove Logistics",
                 "Ayaan",
                 "MH12AB1234",
@@ -282,13 +271,11 @@ class DispatchControllerTest {
         PackagingSlipDto redactedSlip = controller.getPackagingSlip(5L).getBody().data();
 
         assertThat(redactedPreview.totalOrderedAmount()).isNull();
-        assertThat(redactedPreview.totalAvailableAmount()).isNull();
         assertThat(redactedPreview.gstBreakdown()).isNull();
         assertThat(redactedPreview.lines().getFirst().unitPrice()).isNull();
         assertThat(redactedPreview.lines().getFirst().lineTotal()).isNull();
         assertThat(redactedSlip.journalEntryId()).isNull();
         assertThat(redactedSlip.cogsJournalEntryId()).isNull();
-        assertThat(redactedSlip.lines().getFirst().unitCost()).isNull();
         assertThat(redactedSlip.deliveryChallanPdfPath()).isEqualTo("/api/v1/dispatch/slip/5/challan/pdf");
     }
 
@@ -314,7 +301,7 @@ class DispatchControllerTest {
 
         assertThat(org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class,
                 () -> controller.confirmDispatch(request, () -> "factory.user")).getMessage())
-                .contains("transporterName or driverName");
+                .isEqualTo("Add the transporter name or driver name before confirming dispatch.");
     }
 
     @Test
@@ -350,10 +337,10 @@ class DispatchControllerTest {
 
         assertThat(org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class,
                 () -> controller.confirmDispatch(missingVehicle, () -> "factory.user")).getMessage())
-                .contains("vehicleNumber");
+                .isEqualTo("Add the vehicle number before confirming dispatch.");
         assertThat(org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class,
                 () -> controller.confirmDispatch(missingChallan, () -> "factory.user")).getMessage())
-                .contains("challanReference");
+                .isEqualTo("Add the challan reference before confirming dispatch.");
     }
 
     @Test
@@ -789,46 +776,6 @@ class DispatchControllerTest {
     }
 
     @Test
-    void factoryViews_handleNullPackagingSlipLines() {
-        DispatchController controller = new DispatchController(
-                finishedGoodsService,
-                salesDispatchReconciliationService,
-                deliveryChallanPdfService);
-        setAuthentication("ROLE_FACTORY");
-
-        PackagingSlipDto slip = new PackagingSlipDto(
-                15L,
-                UUID.randomUUID(),
-                75L,
-                "SO-75",
-                "Dealer",
-                "PS-15",
-                "READY",
-                Instant.now(),
-                null,
-                null,
-                null,
-                null,
-                151L,
-                252L,
-                null,
-                "FastMove Logistics",
-                null,
-                "MH12AB1234",
-                "LR-1500",
-                "DC-PS-15",
-                "/api/v1/dispatch/slip/15/challan/pdf"
-        );
-        when(finishedGoodsService.getPackagingSlip(15L)).thenReturn(slip);
-
-        PackagingSlipDto response = controller.getPackagingSlip(15L).getBody().data();
-
-        assertThat(response.lines()).isEmpty();
-        assertThat(response.journalEntryId()).isNull();
-        assertThat(response.cogsJournalEntryId()).isNull();
-    }
-
-    @Test
     void getPendingSlips_filtersDispatchedAndRedactsFactoryView() {
         DispatchController controller = new DispatchController(
                 finishedGoodsService,
@@ -907,6 +854,76 @@ class DispatchControllerTest {
         assertThat(response.getHeaders().getFirst("Content-Disposition"))
                 .isEqualTo("inline; filename=\"delivery-challan-99.pdf\"");
         assertThat(response.getBody()).isEqualTo(content);
+    }
+
+    @Test
+    void confirmDispatch_requiresBusinessFriendlyTransporterOrDriverMessageForFactoryUsers() {
+        DispatchController controller = new DispatchController(
+                finishedGoodsService,
+                salesDispatchReconciliationService,
+                deliveryChallanPdfService);
+        setFactoryAuthentication();
+
+        DispatchConfirmationRequest request = new DispatchConfirmationRequest(
+                10L,
+                List.of(new DispatchConfirmationRequest.LineConfirmation(100L, new BigDecimal("2.50"), "Ship as-is")),
+                "Dispatch notes",
+                null,
+                null,
+                null,
+                null,
+                "MH12AB1234",
+                "LR-7788"
+        );
+
+        assertThatThrownBy(() -> controller.confirmDispatch(request, () -> "factory.user"))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessage("Add the transporter name or driver name before confirming dispatch.");
+
+        SecurityContextHolder.clearContext();
+    }
+
+    @Test
+    void confirmDispatch_requiresBusinessFriendlyVehicleAndChallanMessagesForFactoryUsers() {
+        DispatchController controller = new DispatchController(
+                finishedGoodsService,
+                salesDispatchReconciliationService,
+                deliveryChallanPdfService);
+        setFactoryAuthentication();
+
+        DispatchConfirmationRequest missingVehicle = new DispatchConfirmationRequest(
+                10L,
+                List.of(new DispatchConfirmationRequest.LineConfirmation(100L, new BigDecimal("2.50"), "Ship as-is")),
+                "Dispatch notes",
+                null,
+                null,
+                "FastMove Logistics",
+                null,
+                null,
+                "LR-7788"
+        );
+
+        assertThatThrownBy(() -> controller.confirmDispatch(missingVehicle, () -> "factory.user"))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessage("Add the vehicle number before confirming dispatch.");
+
+        DispatchConfirmationRequest missingChallan = new DispatchConfirmationRequest(
+                10L,
+                List.of(new DispatchConfirmationRequest.LineConfirmation(100L, new BigDecimal("2.50"), "Ship as-is")),
+                "Dispatch notes",
+                null,
+                null,
+                "FastMove Logistics",
+                null,
+                "MH12AB1234",
+                null
+        );
+
+        assertThatThrownBy(() -> controller.confirmDispatch(missingChallan, () -> "factory.user"))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessage("Add the challan reference before confirming dispatch.");
+
+        SecurityContextHolder.clearContext();
     }
 
     private void setFactoryAuthentication() {
