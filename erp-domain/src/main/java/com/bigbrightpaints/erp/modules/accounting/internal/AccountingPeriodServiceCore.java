@@ -25,6 +25,7 @@ import com.bigbrightpaints.erp.modules.accounting.dto.PeriodCloseRequestDto;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingComplianceAuditService;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingPeriodSnapshotService;
+import com.bigbrightpaints.erp.modules.accounting.service.ClosedPeriodPostingExceptionService;
 import com.bigbrightpaints.erp.modules.accounting.service.PeriodCloseHook;
 import com.bigbrightpaints.erp.modules.accounting.service.ReconciliationService;
 import com.bigbrightpaints.erp.modules.accounting.service.ReconciliationServiceCore;
@@ -1201,7 +1202,6 @@ public class AccountingPeriodServiceCore {
         }
         String normalized = reference.trim().toUpperCase();
         return normalized.startsWith("CRN-")
-                || normalized.startsWith("CN-")
                 || normalized.startsWith("DN-")
                 || normalized.startsWith("PRN-");
     }

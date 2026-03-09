@@ -2104,51 +2104,12 @@ public abstract class AccountingCoreEngineCore {
         Account receivableAccount = requireDealerReceivable(dealer);
         String trimmedIdempotencyKey = resolveDealerSettlementIdempotencyKey(company, request);
         List<SettlementAllocationRequest> allocations = resolveDealerSettlementAllocations(company, dealer, request, trimmedIdempotencyKey);
-        boolean allocationsDerivedForReplay = request.allocations() != allocations;
-        DealerSettlementRequest requestForReplay = request.allocations() == allocations
-                ? request
-                : new DealerSettlementRequest(
-                request.dealerId(),
-                request.cashAccountId(),
-                request.discountAccountId(),
-                request.writeOffAccountId(),
-                request.fxGainAccountId(),
-                request.fxLossAccountId(),
-                request.amount(),
-                request.unappliedAmountApplication(),
-                request.settlementDate(),
-                request.referenceNumber(),
-                request.memo(),
-                request.idempotencyKey(),
-                request.adminOverride(),
-                allocations,
-                request.payments());
-        trimmedIdempotencyKey = resolveDealerSettlementIdempotencyKey(company, requestForReplay);
-        List<SettlementAllocationRequest> replayAllocations = replayAllocations(company, trimmedIdempotencyKey);
-        if (allocationsDerivedForReplay && !replayAllocations.isEmpty()) {
-            allocations = replayAllocations;
-            requestForReplay = new DealerSettlementRequest(
-                    request.dealerId(),
-                    request.cashAccountId(),
-                    request.discountAccountId(),
-                    request.writeOffAccountId(),
-                    request.fxGainAccountId(),
-                    request.fxLossAccountId(),
-                    request.amount(),
-                    request.unappliedAmountApplication(),
-                    request.settlementDate(),
-                    request.referenceNumber(),
-                    request.memo(),
-                    request.idempotencyKey(),
-                    request.adminOverride(),
-                    replayAllocations,
-                    request.payments());
-        }
         if (!StringUtils.hasText(trimmedIdempotencyKey)) {
             throw new ApplicationException(ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD,
                     "Idempotency key is required for dealer settlements");
         }
-        boolean replayCandidate = hasExistingSettlementAllocations(company, trimmedIdempotencyKey);
+        boolean replayCandidate = hasExistingSettlementAllocations(company, trimmedIdempotencyKey)
+                || hasExistingIdempotencyMapping(company, trimmedIdempotencyKey);
         if (!replayCandidate) {
             validateDealerSettlementAllocations(allocations);
         }
@@ -2377,59 +2338,17 @@ public abstract class AccountingCoreEngineCore {
         Company company = companyContextService.requireCurrentCompany();
         Supplier supplier = supplierRepository.lockByCompanyAndId(company, request.supplierId())
                 .orElseThrow(() -> new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE, "Supplier not found"));
-        supplier.requireTransactionalUsage("settle supplier invoices");
         Account payableAccount = requireSupplierPayable(supplier);
         String generatedReference = !StringUtils.hasText(request.referenceNumber())
                 ? referenceNumberService.supplierPaymentReference(company, supplier)
                 : null;
         String trimmedIdempotencyKey = resolveSupplierSettlementIdempotencyKey(request);
-        if (!StringUtils.hasText(request.idempotencyKey()) && !StringUtils.hasText(request.referenceNumber())) {
-            String replayIdempotencyKey = findSupplierSettlementReplayIdempotencyKey(company, supplier, generatedReference);
-            if (StringUtils.hasText(replayIdempotencyKey)) {
-                trimmedIdempotencyKey = replayIdempotencyKey;
-            }
-        }
         List<SettlementAllocationRequest> allocations = resolveSupplierSettlementAllocations(company, supplier, request, trimmedIdempotencyKey);
-        boolean allocationsDerivedForReplay = request.allocations() != allocations;
-        SupplierSettlementRequest requestForReplay = request.allocations() == allocations
-                ? request
-                : new SupplierSettlementRequest(
-                request.supplierId(),
-                request.cashAccountId(),
-                request.discountAccountId(),
-                request.writeOffAccountId(),
-                request.fxGainAccountId(),
-                request.fxLossAccountId(),
-                request.amount(),
-                request.unappliedAmountApplication(),
-                request.settlementDate(),
-                request.referenceNumber(),
-                request.memo(),
-                request.idempotencyKey(),
-                request.adminOverride(),
-                allocations);
-        trimmedIdempotencyKey = resolveSupplierSettlementIdempotencyKey(requestForReplay);
-        List<SettlementAllocationRequest> replayAllocations = replayAllocations(company, trimmedIdempotencyKey);
-        if (allocationsDerivedForReplay && !replayAllocations.isEmpty()) {
-            allocations = replayAllocations;
-            requestForReplay = new SupplierSettlementRequest(
-                    request.supplierId(),
-                    request.cashAccountId(),
-                    request.discountAccountId(),
-                    request.writeOffAccountId(),
-                    request.fxGainAccountId(),
-                    request.fxLossAccountId(),
-                    request.amount(),
-                    request.unappliedAmountApplication(),
-                    request.settlementDate(),
-                    request.referenceNumber(),
-                    request.memo(),
-                    request.idempotencyKey(),
-                    request.adminOverride(),
-                    replayAllocations);
-        }
         boolean replayCandidate = hasExistingIdempotencyMapping(company, trimmedIdempotencyKey)
                 || hasExistingSettlementAllocations(company, trimmedIdempotencyKey);
+        if (!replayCandidate) {
+            supplier.requireTransactionalUsage("settle supplier invoices");
+        }
         if (!replayCandidate) {
             validateSupplierSettlementAllocations(allocations);
         }
@@ -2469,6 +2388,9 @@ public abstract class AccountingCoreEngineCore {
                     supplier.getId());
         }
 
+        if (!replayCandidate) {
+            supplier.requireTransactionalUsage("settle supplier invoices");
+        }
         List<PartnerSettlementAllocation> existingAllocations = findAllocationsByIdempotencyKey(company, trimmedIdempotencyKey);
         if (!existingAllocations.isEmpty()) {
             JournalEntry entry = resolveReplayJournalEntryFromExistingAllocations(
@@ -3337,6 +3259,9 @@ public abstract class AccountingCoreEngineCore {
         if (StringUtils.hasText(request.referenceNumber())) {
             return request.referenceNumber().trim();
         }
+        if (request.allocations() == null || request.allocations().isEmpty()) {
+            return buildSupplierHeaderSettlementIdempotencyKey(request);
+        }
         return buildSupplierSettlementIdempotencyKey(request);
     }
 
@@ -3434,6 +3359,9 @@ public abstract class AccountingCoreEngineCore {
         }
         if (StringUtils.hasText(request.referenceNumber())) {
             return request.referenceNumber().trim();
+        }
+        if (request.allocations() == null || request.allocations().isEmpty()) {
+            return buildDealerHeaderSettlementIdempotencyKey(request);
         }
 
         String canonicalKey = buildDealerSettlementIdempotencyKey(request);
@@ -3648,35 +3576,6 @@ public abstract class AccountingCoreEngineCore {
             return generatedReference.trim();
         }
         return referenceNumberService.supplierPaymentReference(company, supplier);
-    }
-
-    private String findSupplierSettlementReplayIdempotencyKey(Company company,
-                                                              Supplier supplier,
-                                                              String generatedReference) {
-        if (company == null || supplier == null || !StringUtils.hasText(generatedReference)) {
-            return null;
-        }
-        Optional<JournalEntry> existingEntry = journalReferenceResolver.findExistingEntry(company, generatedReference.trim());
-        if (existingEntry.isEmpty()) {
-            return null;
-        }
-        List<PartnerSettlementAllocation> existingAllocations = settlementAllocationRepository
-                .findByCompanyAndJournalEntryOrderByCreatedAtAsc(company, existingEntry.get());
-        if (existingAllocations.isEmpty()) {
-            return null;
-        }
-        Long supplierId = supplier.getId();
-        boolean supplierMismatch = existingAllocations.stream().anyMatch(row ->
-                row.getSupplier() == null || !Objects.equals(row.getSupplier().getId(), supplierId));
-        if (supplierMismatch) {
-            return null;
-        }
-        return existingAllocations.stream()
-                .map(PartnerSettlementAllocation::getIdempotencyKey)
-                .filter(StringUtils::hasText)
-                .map(String::trim)
-                .findFirst()
-                .orElse(null);
     }
 
     private boolean hasExistingIdempotencyMapping(Company company, String idempotencyKey) {
@@ -5473,6 +5372,30 @@ public abstract class AccountingCoreEngineCore {
         return buildDealerSettlementIdempotencyKey(request, paymentComparator, true);
     }
 
+    private String buildDealerHeaderSettlementIdempotencyKey(DealerSettlementRequest request) {
+        Comparator<SettlementPaymentRequest> paymentComparator = Comparator
+                .comparing(SettlementPaymentRequest::accountId, Comparator.nullsLast(Long::compareTo))
+                .thenComparing(SettlementPaymentRequest::amount, Comparator.nullsLast(BigDecimal::compareTo));
+        List<SettlementPaymentRequest> orderedPayments =
+                orderedDealerSettlementPaymentsForFingerprint(request, paymentComparator, true);
+        StringBuilder fingerprint = new StringBuilder();
+        appendPartnerFingerprint(fingerprint, PartnerType.DEALER, request != null ? request.dealerId() : null);
+        fingerprint.append("|headerAmount=")
+                .append(normalizeDecimal(request != null ? resolveDealerHeaderSettlementAmount(request) : null));
+        SettlementAllocationApplication unappliedApplication = request != null
+                ? normalizeRequestedUnappliedApplication(request.unappliedAmountApplication())
+                : null;
+        fingerprint.append("|unapplied=")
+                .append(unappliedApplication != null ? unappliedApplication.name() : "null");
+        for (SettlementPaymentRequest payment : orderedPayments) {
+            fingerprint.append("|pay=")
+                    .append(payment.accountId() != null ? payment.accountId() : "null")
+                    .append(":")
+                    .append(normalizeDecimal(payment.amount()));
+        }
+        return "DEALER-SETTLEMENT-" + IdempotencyUtils.sha256Hex(fingerprint.toString(), 12);
+    }
+
     private String buildLegacyDealerSettlementIdempotencyKey(DealerSettlementRequest request) {
         Comparator<SettlementPaymentRequest> paymentComparator = Comparator
                 .comparing(SettlementPaymentRequest::accountId, Comparator.nullsLast(Long::compareTo));
@@ -5573,6 +5496,23 @@ public abstract class AccountingCoreEngineCore {
         }
         String hash = IdempotencyUtils.sha256Hex(fingerprint.toString(), 12);
         return "SUPPLIER-SETTLEMENT-" + hash;
+    }
+
+    private String buildSupplierHeaderSettlementIdempotencyKey(SupplierSettlementRequest request) {
+        if (request == null) {
+            return UUID.randomUUID().toString();
+        }
+        StringBuilder fingerprint = new StringBuilder();
+        appendPartnerFingerprint(fingerprint, PartnerType.SUPPLIER, request.supplierId());
+        fingerprint.append("|cashAccountId=")
+                .append(request.cashAccountId() != null ? request.cashAccountId() : "null")
+                .append("|headerAmount=")
+                .append(normalizeDecimal(resolveSupplierHeaderSettlementAmount(request)));
+        SettlementAllocationApplication unappliedApplication = normalizeRequestedUnappliedApplication(
+                request.unappliedAmountApplication());
+        fingerprint.append("|unapplied=")
+                .append(unappliedApplication != null ? unappliedApplication.name() : "null");
+        return "SUPPLIER-SETTLEMENT-" + IdempotencyUtils.sha256Hex(fingerprint.toString(), 12);
     }
 
     private String normalizeDecimal(BigDecimal value) {

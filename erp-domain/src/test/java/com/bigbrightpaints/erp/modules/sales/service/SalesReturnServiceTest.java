@@ -377,7 +377,7 @@ class SalesReturnServiceTest {
         priorReturn.setFinishedGood(fg);
         priorReturn.setQuantity(new BigDecimal("1.5"));
         priorReturn.setReferenceType("SALES_RETURN");
-        priorReturn.setReferenceId("INV-1");
+        priorReturn.setReferenceId("INV-1:55:RET-prior");
 
         when(invoiceRepository.lockByCompanyAndId(company, 10L)).thenReturn(Optional.of(invoice));
         when(finishedGoodRepository.lockByCompanyAndProductCode(company, "FG-1")).thenReturn(Optional.of(fg));
@@ -385,12 +385,12 @@ class SalesReturnServiceTest {
                 eq(company),
                 eq("SALES_RETURN"),
                 eq("INV-1")
-        )).thenReturn(List.of(priorReturn));
+        )).thenReturn(List.of());
         when(inventoryMovementRepository.findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdStartingWithOrderByCreatedAtAsc(
                 eq(company),
                 eq("SALES_RETURN"),
                 eq("INV-1:")
-        )).thenReturn(List.of());
+        )).thenReturn(List.of(priorReturn));
 
         SalesReturnRequest request = new SalesReturnRequest(
                 10L,
@@ -524,11 +524,6 @@ class SalesReturnServiceTest {
                 eq("SALES_RETURN"),
                 eq("INV-1")
         )).thenReturn(List.of(priorReturn));
-        when(inventoryMovementRepository.findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdStartingWithOrderByCreatedAtAsc(
-                eq(company),
-                eq("SALES_RETURN"),
-                eq("INV-1:")
-        )).thenReturn(List.of());
 
         SalesReturnRequest request = new SalesReturnRequest(
                 10L,
@@ -538,7 +533,8 @@ class SalesReturnServiceTest {
 
         assertThatThrownBy(() -> salesReturnService.processReturn(request))
                 .isInstanceOf(ApplicationException.class)
-                .hasMessageContaining("remaining invoiced amount");
+                .hasMessageContaining("requires one-time normalization")
+                .hasMessageContaining("canonical line-scoped replay markers");
     }
 
     @Test
@@ -676,7 +672,81 @@ class SalesReturnServiceTest {
     }
 
     @Test
-    void processReturn_legacyReplayWithoutMarkerSkipsRestockAndRelinksSourceJournal() {
+    void processReturn_replayAfterInvoiceBecomesVoidReturnsOriginalEntry() {
+        Dealer dealer = new Dealer();
+        dealer.setCompany(company);
+        dealer.setName("Replay Partner");
+        Account receivable = new Account();
+        setField(receivable, "id", 73L);
+        dealer.setReceivableAccount(receivable);
+        setField(dealer, "id", 10L);
+
+        Invoice invoice = new Invoice();
+        invoice.setCompany(company);
+        invoice.setDealer(dealer);
+        invoice.setInvoiceNumber("INV-VOID-REPLAY");
+        attachPostedJournal(invoice, 907L);
+        invoice.setStatus("VOID");
+        setField(invoice, "id", 31L);
+
+        InvoiceLine line = new InvoiceLine();
+        line.setInvoice(invoice);
+        line.setProductCode("FG-VOID");
+        line.setQuantity(BigDecimal.ONE);
+        line.setUnitPrice(new BigDecimal("100"));
+        line.setTaxableAmount(new BigDecimal("100"));
+        line.setTaxAmount(BigDecimal.ZERO);
+        line.setLineTotal(new BigDecimal("100"));
+        setField(line, "id", 78L);
+        invoice.getLines().add(line);
+
+        FinishedGood fg = new FinishedGood();
+        fg.setCompany(company);
+        fg.setProductCode("FG-VOID");
+        fg.setRevenueAccountId(713L);
+        setField(fg, "id", 24L);
+
+        JournalEntry replayEntry = new JournalEntry();
+        setField(replayEntry, "id", 121L);
+
+        when(invoiceRepository.lockByCompanyAndId(company, 31L)).thenReturn(Optional.of(invoice));
+        when(finishedGoodRepository.lockByCompanyAndProductCode(company, "FG-VOID")).thenReturn(Optional.of(fg));
+        when(inventoryMovementRepository.existsByFinishedGood_CompanyAndReferenceTypeAndReferenceIdContainingIgnoreCase(
+                eq(company),
+                eq("SALES_RETURN"),
+                anyString()
+        )).thenReturn(true);
+        when(accountingFacade.postSalesReturn(
+                eq(dealer.getId()),
+                eq("INV-VOID-REPLAY"),
+                anyMap(),
+                argThat(total -> total.compareTo(new BigDecimal("100")) == 0),
+                eq("Replay return")
+        )).thenReturn(stubEntry(121L));
+        when(journalEntryRepository.findByCompanyAndId(company, 121L)).thenReturn(Optional.of(replayEntry));
+
+        SalesReturnRequest request = new SalesReturnRequest(
+                31L,
+                "Replay return",
+                List.of(new SalesReturnRequest.ReturnLine(78L, BigDecimal.ONE))
+        );
+
+        JournalEntryDto result = salesReturnService.processReturn(request);
+
+        assertThat(result.id()).isEqualTo(121L);
+        verify(finishedGoodRepository, never()).save(any(FinishedGood.class));
+        verify(finishedGoodBatchRepository, never()).save(any(FinishedGoodBatch.class));
+        verify(inventoryMovementRepository, never()).save(any(InventoryMovement.class));
+        verify(accountingFacade, never()).postInventoryAdjustment(anyString(), anyString(), anyLong(), anyMap(), anyBoolean(), anyBoolean(), anyString());
+        verify(journalEntryRepository).save(argThat(entry -> Objects.equals(entry.getId(), 121L)
+                && entry.getReversalOf() != null
+                && Objects.equals(entry.getReversalOf().getId(), 907L)
+                && Objects.equals(entry.getSourceReference(), "INV-VOID-REPLAY")
+                && Objects.equals(entry.getCorrectionReason(), "SALES_RETURN")));
+    }
+
+    @Test
+    void processReturn_legacyMarkerlessMovementsFailClosedWithRecoveryGuidance() {
         Dealer dealer = new Dealer();
         dealer.setCompany(company);
         dealer.setName("Legacy Replay Partner");
@@ -715,9 +785,6 @@ class SalesReturnServiceTest {
         legacyMovement.setReferenceType("SALES_RETURN");
         legacyMovement.setReferenceId("INV-LEGACY-1");
 
-        JournalEntry replayEntry = new JournalEntry();
-        setField(replayEntry, "id", 121L);
-
         when(invoiceRepository.lockByCompanyAndId(company, 31L)).thenReturn(Optional.of(invoice));
         when(finishedGoodRepository.lockByCompanyAndProductCode(company, "FG-LEGACY")).thenReturn(Optional.of(fg));
         when(inventoryMovementRepository.existsByFinishedGood_CompanyAndReferenceTypeAndReferenceIdContainingIgnoreCase(
@@ -730,19 +797,6 @@ class SalesReturnServiceTest {
                 eq("SALES_RETURN"),
                 eq("INV-LEGACY-1")
         )).thenReturn(List.of(legacyMovement));
-        when(inventoryMovementRepository.findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdStartingWithOrderByCreatedAtAsc(
-                eq(company),
-                eq("SALES_RETURN"),
-                eq("INV-LEGACY-1:")
-        )).thenReturn(List.of());
-        when(accountingFacade.postSalesReturn(
-                eq(dealer.getId()),
-                eq("INV-LEGACY-1"),
-                anyMap(),
-                argThat(total -> total.compareTo(new BigDecimal("100")) == 0),
-                eq("Legacy replay")
-        )).thenReturn(stubEntry(121L));
-        when(journalEntryRepository.findByCompanyAndId(company, 121L)).thenReturn(Optional.of(replayEntry));
 
         SalesReturnRequest request = new SalesReturnRequest(
                 31L,
@@ -750,26 +804,16 @@ class SalesReturnServiceTest {
                 List.of(new SalesReturnRequest.ReturnLine(78L, BigDecimal.ONE))
         );
 
-        JournalEntryDto result = salesReturnService.processReturn(request);
+        assertThatThrownBy(() -> salesReturnService.processReturn(request))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("requires one-time normalization")
+                .hasMessageContaining("canonical line-scoped replay markers")
+                .hasMessageContaining("INV-LEGACY-1");
 
-        assertThat(result.id()).isEqualTo(121L);
+        verify(accountingFacade, never()).postSalesReturn(anyLong(), anyString(), anyMap(), any(), anyString());
         verify(finishedGoodRepository, never()).save(any(FinishedGood.class));
         verify(finishedGoodBatchRepository, never()).save(any(FinishedGoodBatch.class));
         verify(inventoryMovementRepository, never()).save(any(InventoryMovement.class));
-        verify(accountingFacade, never()).postInventoryAdjustment(anyString(), anyString(), anyLong(), anyMap(), anyBoolean(), anyBoolean(), anyString());
-        verify(inventoryMovementRepository).saveAll(argThat((List<InventoryMovement> movements) -> {
-            if (movements.size() != 1) {
-                return false;
-            }
-            InventoryMovement movement = movements.getFirst();
-            return Objects.equals(movement.getJournalEntryId(), 121L)
-                    && "INV-LEGACY-1".equals(movement.getReferenceId());
-        }));
-        verify(journalEntryRepository).save(argThat(entry -> Objects.equals(entry.getId(), 121L)
-                && entry.getReversalOf() != null
-                && Objects.equals(entry.getReversalOf().getId(), 907L)
-                && Objects.equals(entry.getSourceReference(), "INV-LEGACY-1")
-                && Objects.equals(entry.getCorrectionReason(), "SALES_RETURN")));
     }
 
     @Test

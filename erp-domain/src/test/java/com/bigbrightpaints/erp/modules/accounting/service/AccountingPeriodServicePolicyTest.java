@@ -22,6 +22,7 @@ import com.bigbrightpaints.erp.modules.accounting.dto.AccountingPeriodLockReques
 import com.bigbrightpaints.erp.modules.accounting.dto.AccountingPeriodReopenRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.MonthEndChecklistUpdateRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.PeriodCloseRequestActionRequest;
+import com.bigbrightpaints.erp.modules.accounting.internal.AccountingPeriodServiceCore;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.hr.domain.PayrollRun;
@@ -103,6 +104,7 @@ class AccountingPeriodServicePolicyTest {
                 periodCloseHook,
                 snapshotService
         );
+        coreService = service;
         SecurityContextHolder.clearContext();
     }
 
@@ -410,7 +412,7 @@ class AccountingPeriodServicePolicyTest {
 
         assertThatThrownBy(() -> service.reopenPeriod(12L, new AccountingPeriodReopenRequest("   ")))
                 .isInstanceOf(ApplicationException.class)
-                .hasMessageContaining("SUPER_ADMIN authority required");
+                .hasMessageContaining("Reopen reason is required");
     }
 
     @Test

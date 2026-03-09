@@ -19,8 +19,9 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.when;
 
 class AccountingControllerJournalEndpointsTest {
 
@@ -162,12 +163,11 @@ class AccountingControllerJournalEndpointsTest {
         JournalEntryService journalEntryService = mock(JournalEntryService.class);
         AccountingController controller = newController(accountingService, journalEntryService, null);
         when(journalEntryService.listJournalEntriesByReferencePrefix("CRN-")).thenReturn(List.of());
-        when(journalEntryService.listJournalEntriesByReferencePrefix("CN-")).thenReturn(List.of());
 
         controller.listSalesReturns();
 
         verify(journalEntryService).listJournalEntriesByReferencePrefix("CRN-");
-        verify(journalEntryService).listJournalEntriesByReferencePrefix("CN-");
+        verifyNoMoreInteractions(journalEntryService);
     }
 
     @Test

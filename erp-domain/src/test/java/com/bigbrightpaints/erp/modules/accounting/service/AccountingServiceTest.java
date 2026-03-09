@@ -7363,6 +7363,7 @@ class AccountingServiceTest {
         assertThat(replayResponse.journalEntry().id()).isEqualTo(911L);
         verify(service, times(1)).createJournalEntry(any(JournalEntryRequest.class));
         verify(settlementAllocationRepository, times(1)).saveAll(any());
+        verify(invoiceRepository, times(1)).lockOpenInvoicesForSettlement(eq(company), eq(dealer));
         verify(invoiceSettlementPolicy, times(1)).applySettlement(eq(first), eq(new BigDecimal("100.00")), contains("INV-701"));
         verify(invoiceSettlementPolicy, times(1)).applySettlement(eq(second), eq(new BigDecimal("20.00")), contains("INV-702"));
     }
@@ -7630,10 +7631,6 @@ class AccountingServiceTest {
                             ? List.copyOf(savedRows)
                             : List.of();
                 });
-        when(journalReferenceResolver.findExistingEntry(eq(company), eq("HDR-SUPPLIER-REPLAY")))
-                .thenAnswer(invocation -> savedRows.isEmpty() ? Optional.empty() : Optional.of(persistedEntry));
-        when(settlementAllocationRepository.findByCompanyAndJournalEntryOrderByCreatedAtAsc(eq(company), eq(persistedEntry)))
-                .thenAnswer(invocation -> savedRows.isEmpty() ? List.of() : List.copyOf(savedRows));
         when(settlementAllocationRepository.saveAll(any())).thenAnswer(invocation -> {
             @SuppressWarnings("unchecked")
             List<PartnerSettlementAllocation> incoming = (List<PartnerSettlementAllocation>) invocation.getArgument(0);
@@ -7644,12 +7641,14 @@ class AccountingServiceTest {
         doReturn(stubEntry(912L)).when(service).createJournalEntry(any(JournalEntryRequest.class));
 
         PartnerSettlementResponse firstResponse = service.settleSupplierInvoices(request);
+        supplier.setStatus(SupplierStatus.SUSPENDED);
         PartnerSettlementResponse replayResponse = service.settleSupplierInvoices(request);
 
         assertThat(firstResponse.journalEntry().id()).isEqualTo(912L);
         assertThat(replayResponse.journalEntry().id()).isEqualTo(912L);
         verify(service, times(1)).createJournalEntry(any(JournalEntryRequest.class));
         verify(settlementAllocationRepository, times(1)).saveAll(any());
+        verify(rawMaterialPurchaseRepository, times(1)).lockOpenPurchasesForSettlement(eq(company), eq(supplier));
     }
 
     @Test
