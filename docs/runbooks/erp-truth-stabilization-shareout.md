@@ -8,7 +8,7 @@ This is the single engineer-facing handoff for the ERP truth-stabilization missi
 
 - Mission scope was completed against the approved **definition-of-done** baseline in `.factory/library/erp-definition-of-done.md`.
 - Mission validation state shows **38/38 assertions passed** across O2C, P2P, accounting/control, portal boundaries, cross-area linkage/costing/tenant isolation, and final-hardening validation.
-- The shipped result is a workflow-first ERP boundary model: commercial intent stays separate from stock/accounting truth, GRN stays stock-only, purchase invoice stays AP-only, posted documents correct through linked flows, and portal surfaces now fail closed around role and tenant boundaries.
+- The shipped result is a workflow-first ERP boundary model: commercial intent stays separate from stock/accounting truth, GRN stays stock-only, purchase invoice stays AP-only, posted documents correct through linked flows, and portal surfaces now fail-closed around role and tenant boundaries.
 - Final validation evidence combined a repeatable seeded runtime reset, live API probes on role-scoped surfaces, focused abuse/replay probes, and passing compile/test/lint scrutiny artifacts.
 
 ## Approved Scope And Delivered Coverage
@@ -48,7 +48,7 @@ P2P was delivered as a separate receipt-then-liability chain with explicit suppl
 ### Delivered outcomes
 
 - Supplier onboarding now provisions the supplier, payable account, and lifecycle state together.
-- Inactive/suspended suppliers remain visible for reference, but transactional progression and posting fail closed with explicit blocker reasons.
+- Inactive/suspended suppliers remain visible for reference, but transactional progression and posting fail-closed with explicit blocker reasons.
 - Goods receipt (GRN) is now the stock truth boundary only.
 - Purchase invoice is now the AP/tax truth boundary only.
 - GRN-to-purchase-invoice linkage prevents duplicate or overlapping AP truth and fails closed when linkage drift would otherwise recreate receipt truth.
@@ -86,7 +86,7 @@ Portal work normalized who can see or do what across tenant-facing surfaces.
 - Factory dispatch views remain operational-only and do not expose pricing/accounting detail.
 - Dealer portal is read-only and limited to the authenticated dealer's own records and exports.
 - Super Admin remains platform-only and cannot execute tenant business workflows.
-- Cross-tenant read/export/post/settlement attempts fail closed without leaking foreign document bodies.
+- Cross-tenant read/export/post/settlement attempts fail-closed without leaking foreign document bodies.
 
 ## Cleanup, Remediation, And Removed Duplicate Truth
 
@@ -108,7 +108,7 @@ The final-hardening package did not rely on narrative claims alone. It left repe
 
 ### 1. Repeatable seeded runtime
 
-- Canonical reset command: `bash /home/realnigga/Desktop/Mission-control/scripts/reset_final_validation_runtime.sh`
+- Canonical reset command (from the repo root): `bash scripts/reset_final_validation_runtime.sh`
 - Runtime resets the compose stack on mission-safe ports, rebuilds the app with `prod,flyway-v2,mock,validation-seed`, recreates the DB volume, and reseeds deterministic actors.
 - Seeded actors covered the main proof surfaces: `MOCK` admin/accounting/sales, factory, and dealer; `RIVAL` admin/dealer; and a platform `SUPER_ADMIN` actor.
 
@@ -169,4 +169,4 @@ The curated final-hardening suite specifically covered O2C fulfillment, sales re
 
 ## Bottom Line
 
-The shipped ERP now matches the approved O2C/P2P-centered definition-of-done scope: O2C and P2P truth boundaries are explicit, accounting/control flows are auditable instead of implicit, portal boundaries fail closed, duplicate-truth paths were removed from touched areas, and the final-hardening validation evidence shows the result is stable under normal use, correction flows, abuse probes, and replay/concurrency pressure.
+The shipped ERP now matches the approved O2C/P2P-centered definition-of-done scope: O2C and P2P truth boundaries are explicit, accounting/control flows are auditable instead of implicit, portal boundaries fail-closed, duplicate-truth paths were removed from touched areas, and the final-hardening validation evidence shows the result is stable under normal use, correction flows, abuse probes, and replay/concurrency pressure.
