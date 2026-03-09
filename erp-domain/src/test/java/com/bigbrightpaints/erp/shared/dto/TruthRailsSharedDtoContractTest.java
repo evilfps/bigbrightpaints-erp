@@ -39,7 +39,7 @@ class TruthRailsSharedDtoContractTest {
     }
 
     @Test
-    void convenienceConstructorsDefaultOptionalLifecycleReferences() {
+    void canonicalConstructorsExposeLifecycleAndLinkedReferenceFields() {
         InvoiceDto invoiceDto = new InvoiceDto(
                 11L,
                 UUID.fromString("00000000-0000-0000-0000-000000000011"),
@@ -57,7 +57,9 @@ class TruthRailsSharedDtoContractTest {
                 71L,
                 81L,
                 Instant.parse("2026-02-20T00:00:00Z"),
-                List.of(new InvoiceLineDto(1L, "FG-1", "Paint", new BigDecimal("1.00"), new BigDecimal("90.00"), new BigDecimal("10.00"), new BigDecimal("100.00"), new BigDecimal("90.00"), new BigDecimal("10.00"), BigDecimal.ZERO, new BigDecimal("5.00"), new BigDecimal("5.00"), BigDecimal.ZERO))
+                List.of(new InvoiceLineDto(1L, "FG-1", "Paint", new BigDecimal("1.00"), new BigDecimal("90.00"), new BigDecimal("10.00"), new BigDecimal("100.00"), new BigDecimal("90.00"), new BigDecimal("10.00"), BigDecimal.ZERO, new BigDecimal("5.00"), new BigDecimal("5.00"), BigDecimal.ZERO)),
+                null,
+                List.of()
         );
         GoodsReceiptResponse goodsReceiptResponse = new GoodsReceiptResponse(
                 12L,
@@ -73,7 +75,9 @@ class TruthRailsSharedDtoContractTest {
                 121L,
                 "PO-121",
                 Instant.parse("2026-02-21T00:00:00Z"),
-                List.of(new GoodsReceiptLineResponse(31L, "Resin", "BATCH-31", new BigDecimal("3.00"), "KG", new BigDecimal("25.00"), new BigDecimal("75.00"), "note"))
+                List.of(new GoodsReceiptLineResponse(31L, "Resin", "BATCH-31", new BigDecimal("3.00"), "KG", new BigDecimal("25.00"), new BigDecimal("75.00"), "note")),
+                null,
+                List.of()
         );
         RawMaterialPurchaseResponse purchaseResponse = new RawMaterialPurchaseResponse(
                 13L,
@@ -94,7 +98,9 @@ class TruthRailsSharedDtoContractTest {
                 "GRN-222",
                 322L,
                 Instant.parse("2026-02-22T00:00:00Z"),
-                List.of(new RawMaterialPurchaseLineResponse(41L, "Resin", 51L, "LOT-51", new BigDecimal("4.00"), "KG", new BigDecimal("20.00"), new BigDecimal("80.00"), new BigDecimal("10.00"), new BigDecimal("8.00"), "note", new BigDecimal("4.00"), new BigDecimal("4.00"), BigDecimal.ZERO))
+                List.of(new RawMaterialPurchaseLineResponse(41L, "Resin", 51L, "LOT-51", new BigDecimal("4.00"), "KG", new BigDecimal("20.00"), new BigDecimal("80.00"), new BigDecimal("10.00"), new BigDecimal("8.00"), "note", new BigDecimal("4.00"), new BigDecimal("4.00"), BigDecimal.ZERO)),
+                null,
+                List.of()
         );
 
         assertThat(invoiceDto.lifecycle()).isNull();

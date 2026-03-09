@@ -1,4 +1,4 @@
-package com.bigbrightpaints.erp.modules.accounting.service;
+package com.bigbrightpaints.erp.modules.accounting.internal;
 
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
@@ -55,18 +55,7 @@ public class AccountingAuditTrailServiceCore {
     private final JournalLineRepository journalLineRepository;
     private final AccountingEventRepository accountingEventRepository;
     private final PartnerSettlementAllocationRepository settlementAllocationRepository;
-    private final InvoiceRepository invoiceRepository;
-    private final RawMaterialPurchaseRepository rawMaterialPurchaseRepository;
-    private final PackagingSlipRepository packagingSlipRepository;
-
-    public AccountingAuditTrailServiceCore(CompanyContextService companyContextService,
-                                       JournalEntryRepository journalEntryRepository,
-                                       JournalLineRepository journalLineRepository,
-                                       AccountingEventRepository accountingEventRepository,
-                                       PartnerSettlementAllocationRepository settlementAllocationRepository,
-                                       InvoiceRepository invoiceRepository,
-                                       RawMaterialPurchaseRepository rawMaterialPurchaseRepository,
-                                       PackagingSlipRepository packagingSlipRepository) {
+    private final InvoiceRepository invoiceRepository; private final RawMaterialPurchaseRepository rawMaterialPurchaseRepository; private final PackagingSlipRepository packagingSlipRepository; public AccountingAuditTrailServiceCore(CompanyContextService companyContextService, JournalEntryRepository journalEntryRepository, JournalLineRepository journalLineRepository, AccountingEventRepository accountingEventRepository, PartnerSettlementAllocationRepository settlementAllocationRepository, InvoiceRepository invoiceRepository, RawMaterialPurchaseRepository rawMaterialPurchaseRepository, PackagingSlipRepository packagingSlipRepository) {
         this.companyContextService = companyContextService;
         this.journalEntryRepository = journalEntryRepository;
         this.journalLineRepository = journalLineRepository;
@@ -281,13 +270,7 @@ public class AccountingAuditTrailServiceCore {
                 .toList();
 
         LinkedBusinessReferenceDto drivingDocument = resolveDrivingDocument(invoice.orElse(null), purchase.orElse(null), allocations);
-        List<LinkedBusinessReferenceDto> linkedReferenceChain = buildReferenceChain(
-                entry,
-                invoice.orElse(null),
-                purchase.orElse(null),
-                allocations,
-                drivingDocument
-        );
+        List<LinkedBusinessReferenceDto> linkedReferenceChain = buildReferenceChain(entry, invoice.orElse(null), purchase.orElse(null), allocations, drivingDocument);
 
         return new AccountingTransactionAuditDetailDto(
                 entry.getId(),
@@ -319,15 +302,7 @@ public class AccountingAuditTrailServiceCore {
                 lines,
                 dedupedLinkedDocuments,
                 allocationRows,
-                eventTrail,
-                drivingDocument,
-                linkedReferenceChain,
-                entry.getCreatedAt(),
-                entry.getUpdatedAt(),
-                entry.getPostedAt(),
-                entry.getCreatedBy(),
-                entry.getPostedBy(),
-                entry.getLastModifiedBy()
+                eventTrail, drivingDocument, linkedReferenceChain, entry.getCreatedAt(), entry.getUpdatedAt(), entry.getPostedAt(), entry.getCreatedBy(), entry.getPostedBy(), entry.getLastModifiedBy()
         );
     }
 
@@ -344,85 +319,35 @@ public class AccountingAuditTrailServiceCore {
         return rawMaterialPurchaseRepository.findByCompanyAndJournalEntry(company, journalEntry);
     }
 
-    private LinkedBusinessReferenceDto resolveDrivingDocument(Invoice invoice,
-                                                              RawMaterialPurchase purchase,
-                                                              List<PartnerSettlementAllocation> allocations) {
-        if (invoice != null) {
-            return BusinessDocumentTruths.reference(
-                    "DRIVING_DOCUMENT",
-                    "INVOICE",
-                    invoice.getId(),
-                    invoice.getInvoiceNumber(),
-                    BusinessDocumentTruths.invoiceLifecycle(invoice.getStatus(), invoice.getJournalEntry()),
-                    invoice.getJournalEntry() != null ? invoice.getJournalEntry().getId() : null
-            );
+    private LinkedBusinessReferenceDto resolveDrivingDocument(Invoice invoice, RawMaterialPurchase purchase, List<PartnerSettlementAllocation> allocations) { if (invoice != null) {
+            return BusinessDocumentTruths.reference("DRIVING_DOCUMENT", "INVOICE", invoice.getId(), invoice.getInvoiceNumber(), BusinessDocumentTruths.invoiceLifecycle(invoice.getStatus(), invoice.getJournalEntry()), invoice.getJournalEntry() != null ? invoice.getJournalEntry().getId() : null);
         }
         if (purchase != null) {
-            return BusinessDocumentTruths.reference(
-                    "DRIVING_DOCUMENT",
-                    "PURCHASE_INVOICE",
-                    purchase.getId(),
-                    purchase.getInvoiceNumber(),
-                    BusinessDocumentTruths.purchaseLifecycle(purchase),
-                    purchase.getJournalEntry() != null ? purchase.getJournalEntry().getId() : null
-            );
+            return BusinessDocumentTruths.reference("DRIVING_DOCUMENT", "PURCHASE_INVOICE", purchase.getId(), purchase.getInvoiceNumber(), BusinessDocumentTruths.purchaseLifecycle(purchase), purchase.getJournalEntry() != null ? purchase.getJournalEntry().getId() : null);
         }
         if (allocations != null && !allocations.isEmpty()) {
             PartnerSettlementAllocation allocation = allocations.getFirst();
             if (allocation.getInvoice() != null) {
                 Invoice settledInvoice = allocation.getInvoice();
-                return BusinessDocumentTruths.reference(
-                        "DRIVING_DOCUMENT",
-                        "INVOICE",
-                        settledInvoice.getId(),
-                        settledInvoice.getInvoiceNumber(),
-                        BusinessDocumentTruths.invoiceLifecycle(settledInvoice.getStatus(), settledInvoice.getJournalEntry()),
-                        settledInvoice.getJournalEntry() != null ? settledInvoice.getJournalEntry().getId() : null
-                );
+                return BusinessDocumentTruths.reference("DRIVING_DOCUMENT", "INVOICE", settledInvoice.getId(), settledInvoice.getInvoiceNumber(), BusinessDocumentTruths.invoiceLifecycle(settledInvoice.getStatus(), settledInvoice.getJournalEntry()), settledInvoice.getJournalEntry() != null ? settledInvoice.getJournalEntry().getId() : null);
             }
             if (allocation.getPurchase() != null) {
                 RawMaterialPurchase settledPurchase = allocation.getPurchase();
-                return BusinessDocumentTruths.reference(
-                        "DRIVING_DOCUMENT",
-                        "PURCHASE_INVOICE",
-                        settledPurchase.getId(),
-                        settledPurchase.getInvoiceNumber(),
-                        BusinessDocumentTruths.purchaseLifecycle(settledPurchase),
-                        settledPurchase.getJournalEntry() != null ? settledPurchase.getJournalEntry().getId() : null
-                );
+                return BusinessDocumentTruths.reference("DRIVING_DOCUMENT", "PURCHASE_INVOICE", settledPurchase.getId(), settledPurchase.getInvoiceNumber(), BusinessDocumentTruths.purchaseLifecycle(settledPurchase), settledPurchase.getJournalEntry() != null ? settledPurchase.getJournalEntry().getId() : null);
             }
         }
         return null;
     }
 
-    private List<LinkedBusinessReferenceDto> buildReferenceChain(JournalEntry entry,
-                                                                 Invoice invoice,
-                                                                 RawMaterialPurchase purchase,
-                                                                 List<PartnerSettlementAllocation> allocations,
-                                                                 LinkedBusinessReferenceDto drivingDocument) {
-        List<LinkedBusinessReferenceDto> chain = new ArrayList<>();
+    private List<LinkedBusinessReferenceDto> buildReferenceChain(JournalEntry entry, Invoice invoice, RawMaterialPurchase purchase, List<PartnerSettlementAllocation> allocations, LinkedBusinessReferenceDto drivingDocument) { List<LinkedBusinessReferenceDto> chain = new ArrayList<>();
         if (drivingDocument != null) {
             chain.add(drivingDocument);
         }
         if (invoice != null) {
             if (invoice.getSalesOrder() != null) {
-                chain.add(BusinessDocumentTruths.reference(
-                        "SOURCE_ORDER",
-                        "SALES_ORDER",
-                        invoice.getSalesOrder().getId(),
-                        invoice.getSalesOrder().getOrderNumber(),
-                        BusinessDocumentTruths.salesOrderLifecycle(invoice.getSalesOrder()),
-                        invoice.getSalesOrder().getSalesJournalEntryId()
-                ));
+                chain.add(BusinessDocumentTruths.reference("SOURCE_ORDER", "SALES_ORDER", invoice.getSalesOrder().getId(), invoice.getSalesOrder().getOrderNumber(), BusinessDocumentTruths.salesOrderLifecycle(invoice.getSalesOrder()), invoice.getSalesOrder().getSalesJournalEntryId()));
                 for (PackagingSlip slip : packagingSlipRepository.findAllByCompanyAndSalesOrderId(invoice.getCompany(), invoice.getSalesOrder().getId())) {
-                    chain.add(BusinessDocumentTruths.reference(
-                            "DISPATCH",
-                            "PACKAGING_SLIP",
-                            slip.getId(),
-                            slip.getSlipNumber(),
-                            BusinessDocumentTruths.packagingSlipLifecycle(slip),
-                            slip.getCogsJournalEntryId() != null ? slip.getCogsJournalEntryId() : slip.getJournalEntryId()
-                    ));
+                    chain.add(BusinessDocumentTruths.reference("DISPATCH", "PACKAGING_SLIP", slip.getId(), slip.getSlipNumber(), BusinessDocumentTruths.packagingSlipLifecycle(slip), slip.getCogsJournalEntryId() != null ? slip.getCogsJournalEntryId() : slip.getJournalEntryId()));
                 }
             }
             appendSettlementReferences(chain, invoice.getCompany(), invoice, null);
@@ -430,59 +355,26 @@ public class AccountingAuditTrailServiceCore {
         if (purchase != null) {
             PurchaseOrder purchaseOrder = purchase.getPurchaseOrder();
             if (purchaseOrder != null) {
-                chain.add(BusinessDocumentTruths.reference(
-                        "PURCHASE_ORDER",
-                        "PURCHASE_ORDER",
-                        purchaseOrder.getId(),
-                        purchaseOrder.getOrderNumber(),
-                        new DocumentLifecycleDto(purchaseOrder.getStatusValue(), "NOT_ELIGIBLE"),
-                        null
-                ));
+                chain.add(BusinessDocumentTruths.reference("PURCHASE_ORDER", "PURCHASE_ORDER", purchaseOrder.getId(), purchaseOrder.getOrderNumber(), new DocumentLifecycleDto(purchaseOrder.getStatusValue(), "NOT_ELIGIBLE"), null));
             }
             GoodsReceipt goodsReceipt = purchase.getGoodsReceipt();
             if (goodsReceipt != null) {
-                chain.add(BusinessDocumentTruths.reference(
-                        "GOODS_RECEIPT",
-                        "GOODS_RECEIPT",
-                        goodsReceipt.getId(),
-                        goodsReceipt.getReceiptNumber(),
-                        BusinessDocumentTruths.goodsReceiptLifecycle(goodsReceipt, purchase),
-                        purchase.getJournalEntry() != null ? purchase.getJournalEntry().getId() : null
-                ));
+                chain.add(BusinessDocumentTruths.reference("GOODS_RECEIPT", "GOODS_RECEIPT", goodsReceipt.getId(), goodsReceipt.getReceiptNumber(), BusinessDocumentTruths.goodsReceiptLifecycle(goodsReceipt, purchase), purchase.getJournalEntry() != null ? purchase.getJournalEntry().getId() : null));
             }
             appendSettlementReferences(chain, purchase.getCompany(), null, purchase);
         }
         for (PartnerSettlementAllocation allocation : allocations) {
-            chain.add(BusinessDocumentTruths.reference(
-                    "SETTLEMENT",
-                    "SETTLEMENT_ALLOCATION",
-                    allocation.getId(),
-                    allocation.getIdempotencyKey(),
-                    BusinessDocumentTruths.settlementLifecycle(allocation.getJournalEntry()),
-                    allocation.getJournalEntry() != null ? allocation.getJournalEntry().getId() : null
-            ));
+            chain.add(BusinessDocumentTruths.reference("SETTLEMENT", "SETTLEMENT_ALLOCATION", allocation.getId(), allocation.getIdempotencyKey(), BusinessDocumentTruths.settlementLifecycle(allocation.getJournalEntry()), allocation.getJournalEntry() != null ? allocation.getJournalEntry().getId() : null));
         }
-        chain.add(BusinessDocumentTruths.reference(
-                "ACCOUNTING_ENTRY",
-                "JOURNAL_ENTRY",
-                entry.getId(),
-                entry.getReferenceNumber(),
-                BusinessDocumentTruths.journalLifecycle(entry),
-                entry.getId()
-        ));
+        chain.add(BusinessDocumentTruths.reference("ACCOUNTING_ENTRY", "JOURNAL_ENTRY", entry.getId(), entry.getReferenceNumber(), BusinessDocumentTruths.journalLifecycle(entry), entry.getId()));
         return chain.stream()
                 .filter(reference -> reference.documentId() != null)
                 .distinct()
                 .toList();
     }
 
-    private void appendSettlementReferences(List<LinkedBusinessReferenceDto> chain,
-                                            Company company,
-                                            Invoice invoice,
-                                            RawMaterialPurchase purchase) {
-        if (company == null) {
-            return;
-        }
+    private void appendSettlementReferences(List<LinkedBusinessReferenceDto> chain, Company company, Invoice invoice, RawMaterialPurchase purchase) { if (company == null) {
+            return; }
         List<PartnerSettlementAllocation> allocations = invoice != null
                 ? settlementAllocationRepository.findByCompanyAndInvoiceOrderByCreatedAtDesc(company, invoice)
                 : settlementAllocationRepository.findByCompanyAndPurchaseOrderByCreatedAtDesc(company, purchase);
@@ -490,14 +382,7 @@ public class AccountingAuditTrailServiceCore {
             return;
         }
         for (PartnerSettlementAllocation allocation : allocations) {
-            chain.add(BusinessDocumentTruths.reference(
-                    "SETTLEMENT",
-                    "SETTLEMENT_ALLOCATION",
-                    allocation.getId(),
-                    allocation.getIdempotencyKey(),
-                    BusinessDocumentTruths.settlementLifecycle(allocation.getJournalEntry()),
-                    allocation.getJournalEntry() != null ? allocation.getJournalEntry().getId() : null
-            ));
+            chain.add(BusinessDocumentTruths.reference("SETTLEMENT", "SETTLEMENT_ALLOCATION", allocation.getId(), allocation.getIdempotencyKey(), BusinessDocumentTruths.settlementLifecycle(allocation.getJournalEntry()), allocation.getJournalEntry() != null ? allocation.getJournalEntry().getId() : null));
         }
     }
 

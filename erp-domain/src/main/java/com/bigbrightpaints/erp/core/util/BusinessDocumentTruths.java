@@ -10,13 +10,7 @@ import com.bigbrightpaints.erp.shared.dto.LinkedBusinessReferenceDto;
 import java.util.Locale;
 import org.springframework.util.StringUtils;
 
-public final class BusinessDocumentTruths {
-
-    private BusinessDocumentTruths() {
-    }
-
-    public static DocumentLifecycleDto salesOrderLifecycle(SalesOrder order) {
-        String workflowStatus = normalizeWorkflow(order != null ? order.getStatus() : null, "DRAFT");
+public final class BusinessDocumentTruths { private BusinessDocumentTruths() {} public static DocumentLifecycleDto salesOrderLifecycle(SalesOrder order) { String workflowStatus = normalizeWorkflow(order != null ? order.getStatus() : null, "DRAFT");
         String accountingStatus = "NOT_ELIGIBLE";
         if (order != null && order.getSalesJournalEntryId() != null) {
             accountingStatus = "POSTED";
@@ -26,8 +20,7 @@ public final class BusinessDocumentTruths {
         return new DocumentLifecycleDto(workflowStatus, accountingStatus);
     }
 
-    public static DocumentLifecycleDto packagingSlipLifecycle(PackagingSlip slip) {
-        String workflowStatus = normalizeWorkflow(slip != null ? slip.getStatus() : null, "PENDING");
+    public static DocumentLifecycleDto packagingSlipLifecycle(PackagingSlip slip) { String workflowStatus = normalizeWorkflow(slip != null ? slip.getStatus() : null, "PENDING");
         String accountingStatus = "PENDING";
         if (slip != null && (slip.getInvoiceId() != null || slip.getJournalEntryId() != null || slip.getCogsJournalEntryId() != null)) {
             accountingStatus = "POSTED";
@@ -35,63 +28,27 @@ public final class BusinessDocumentTruths {
         return new DocumentLifecycleDto(workflowStatus, accountingStatus);
     }
 
-    public static DocumentLifecycleDto invoiceLifecycle(String workflowStatus, JournalEntry journalEntry) {
-        String normalizedWorkflow = normalizeWorkflow(workflowStatus, "DRAFT");
-        boolean accountingEligible = !"DRAFT".equals(normalizedWorkflow);
-        return new DocumentLifecycleDto(
-                normalizedWorkflow,
-                deriveAccountingStatus(normalizedWorkflow, journalEntry, accountingEligible)
-        );
+    public static DocumentLifecycleDto invoiceLifecycle(String workflowStatus, JournalEntry journalEntry) { String normalizedWorkflow = normalizeWorkflow(workflowStatus, "DRAFT");
+        return new DocumentLifecycleDto(normalizedWorkflow, deriveAccountingStatus(normalizedWorkflow, journalEntry, !"DRAFT".equals(normalizedWorkflow)));
     }
 
-    public static DocumentLifecycleDto goodsReceiptLifecycle(GoodsReceipt goodsReceipt, RawMaterialPurchase linkedPurchase) {
-        String workflowStatus = normalizeWorkflow(goodsReceipt != null ? goodsReceipt.getStatus() : null, "RECEIVED");
-        String accountingStatus = linkedPurchase == null
-                ? "PENDING"
-                : purchaseLifecycle(linkedPurchase).accountingStatus();
-        return new DocumentLifecycleDto(workflowStatus, accountingStatus);
+    public static DocumentLifecycleDto goodsReceiptLifecycle(GoodsReceipt goodsReceipt, RawMaterialPurchase linkedPurchase) { String workflowStatus = normalizeWorkflow(goodsReceipt != null ? goodsReceipt.getStatus() : null, "RECEIVED");
+        return new DocumentLifecycleDto(workflowStatus, linkedPurchase == null ? "PENDING" : purchaseLifecycle(linkedPurchase).accountingStatus());
     }
 
-    public static DocumentLifecycleDto purchaseLifecycle(RawMaterialPurchase purchase) {
-        String workflowStatus = normalizeWorkflow(purchase != null ? purchase.getStatus() : null, "POSTED");
-        return new DocumentLifecycleDto(
-                workflowStatus,
-                deriveAccountingStatus(workflowStatus, purchase != null ? purchase.getJournalEntry() : null, true)
-        );
+    public static DocumentLifecycleDto purchaseLifecycle(RawMaterialPurchase purchase) { String workflowStatus = normalizeWorkflow(purchase != null ? purchase.getStatus() : null, "POSTED");
+        return new DocumentLifecycleDto(workflowStatus, deriveAccountingStatus(workflowStatus, purchase != null ? purchase.getJournalEntry() : null, true));
     }
 
-    public static DocumentLifecycleDto settlementLifecycle(JournalEntry journalEntry) {
-        return new DocumentLifecycleDto(
-                "ALLOCATED",
-                deriveAccountingStatus(null, journalEntry, true)
-        );
-    }
+    public static DocumentLifecycleDto settlementLifecycle(JournalEntry journalEntry) { return new DocumentLifecycleDto("ALLOCATED", deriveAccountingStatus(null, journalEntry, true)); }
 
-    public static DocumentLifecycleDto journalLifecycle(JournalEntry journalEntry) {
-        String workflowStatus = normalizeWorkflow(journalEntry != null ? journalEntry.getStatus() : null, "DRAFT");
+    public static DocumentLifecycleDto journalLifecycle(JournalEntry journalEntry) { String workflowStatus = normalizeWorkflow(journalEntry != null ? journalEntry.getStatus() : null, "DRAFT");
         return new DocumentLifecycleDto(workflowStatus, deriveAccountingStatus(workflowStatus, journalEntry, true));
     }
 
-    public static LinkedBusinessReferenceDto reference(String relationType,
-                                                       String documentType,
-                                                       Long documentId,
-                                                       String documentNumber,
-                                                       DocumentLifecycleDto lifecycle,
-                                                       Long journalEntryId) {
-        return new LinkedBusinessReferenceDto(
-                relationType,
-                documentType,
-                documentId,
-                documentNumber,
-                lifecycle,
-                journalEntryId
-        );
-    }
+    public static LinkedBusinessReferenceDto reference(String relationType, String documentType, Long documentId, String documentNumber, DocumentLifecycleDto lifecycle, Long journalEntryId) { return new LinkedBusinessReferenceDto(relationType, documentType, documentId, documentNumber, lifecycle, journalEntryId); }
 
-    private static String deriveAccountingStatus(String workflowStatus,
-                                                 JournalEntry journalEntry,
-                                                 boolean accountingEligible) {
-        String normalizedWorkflow = normalizeWorkflow(workflowStatus, null);
+    private static String deriveAccountingStatus(String workflowStatus, JournalEntry journalEntry, boolean accountingEligible) { String normalizedWorkflow = normalizeWorkflow(workflowStatus, null);
         if ("BLOCKED".equals(normalizedWorkflow)) {
             return "BLOCKED";
         }
@@ -110,17 +67,14 @@ public final class BusinessDocumentTruths {
         };
     }
 
-    private static boolean isReversedWorkflow(String workflowStatus) {
-        return "REVERSED".equals(workflowStatus)
+    private static boolean isReversedWorkflow(String workflowStatus) { return "REVERSED".equals(workflowStatus)
                 || "VOID".equals(workflowStatus)
                 || "VOIDED".equals(workflowStatus)
                 || "CANCELLED".equals(workflowStatus);
     }
 
-    private static String normalizeWorkflow(String value, String defaultValue) {
-        if (!StringUtils.hasText(value)) {
-            return defaultValue;
-        }
+    private static String normalizeWorkflow(String value, String defaultValue) { if (!StringUtils.hasText(value)) {
+            return defaultValue; }
         return value.trim().toUpperCase(Locale.ROOT);
     }
 }

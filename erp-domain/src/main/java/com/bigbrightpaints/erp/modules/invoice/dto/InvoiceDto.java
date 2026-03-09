@@ -8,18 +8,4 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
-public record InvoiceDto(Long id, UUID publicId, String invoiceNumber, String status, BigDecimal subtotal,
-                         BigDecimal taxTotal, BigDecimal totalAmount, BigDecimal outstandingAmount, String currency,
-                         LocalDate issueDate, LocalDate dueDate, Long dealerId, String dealerName, Long salesOrderId,
-                         Long journalEntryId, Instant createdAt, List<InvoiceLineDto> lines,
-                         DocumentLifecycleDto lifecycle, List<LinkedBusinessReferenceDto> linkedReferences) {
-
-    public InvoiceDto(Long id, UUID publicId, String invoiceNumber, String status, BigDecimal subtotal,
-                      BigDecimal taxTotal, BigDecimal totalAmount, BigDecimal outstandingAmount, String currency,
-                      LocalDate issueDate, LocalDate dueDate, Long dealerId, String dealerName, Long salesOrderId,
-                      Long journalEntryId, Instant createdAt, List<InvoiceLineDto> lines) {
-        this(id, publicId, invoiceNumber, status, subtotal, taxTotal, totalAmount, outstandingAmount, currency,
-                issueDate, dueDate, dealerId, dealerName, salesOrderId, journalEntryId, createdAt, lines,
-                null, List.of());
-    }
-}
+public record InvoiceDto(Long id, UUID publicId, String invoiceNumber, String status, BigDecimal subtotal, BigDecimal taxTotal, BigDecimal totalAmount, BigDecimal outstandingAmount, String currency, LocalDate issueDate, LocalDate dueDate, Long dealerId, String dealerName, Long salesOrderId, Long journalEntryId, Instant createdAt, List<InvoiceLineDto> lines, DocumentLifecycleDto lifecycle, List<LinkedBusinessReferenceDto> linkedReferences) {}

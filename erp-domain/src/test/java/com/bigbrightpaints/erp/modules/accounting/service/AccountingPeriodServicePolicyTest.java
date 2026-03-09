@@ -11,11 +11,13 @@ import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
 import com.bigbrightpaints.erp.modules.accounting.domain.ReconciliationDiscrepancyStatus;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalLineRepository;
+import com.bigbrightpaints.erp.modules.accounting.domain.PeriodCloseRequestRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.ReconciliationDiscrepancyRepository;
 import com.bigbrightpaints.erp.modules.accounting.dto.AccountingPeriodCloseRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.AccountingPeriodLockRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.AccountingPeriodReopenRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.MonthEndChecklistUpdateRequest;
+import com.bigbrightpaints.erp.modules.accounting.internal.AccountingPeriodServiceCore;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.hr.domain.PayrollRun;
@@ -30,11 +32,15 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -62,12 +68,14 @@ class AccountingPeriodServicePolicyTest {
     @Mock private RawMaterialPurchaseRepository rawMaterialPurchaseRepository;
     @Mock private PayrollRunRepository payrollRunRepository;
     @Mock private ReconciliationDiscrepancyRepository reconciliationDiscrepancyRepository;
+    @Mock private PeriodCloseRequestRepository periodCloseRequestRepository;
     @Mock private ObjectProvider<AccountingFacade> accountingFacadeProvider;
     @Mock private AccountingFacade accountingFacade;
     @Mock private PeriodCloseHook periodCloseHook;
     @Mock private AccountingPeriodSnapshotService snapshotService;
 
     private AccountingPeriodService service;
+    private AccountingPeriodServiceCore coreService;
 
     @BeforeEach
     void setUp() {
@@ -86,10 +94,36 @@ class AccountingPeriodServicePolicyTest {
                 rawMaterialPurchaseRepository,
                 payrollRunRepository,
                 reconciliationDiscrepancyRepository,
+                periodCloseRequestRepository,
                 accountingFacadeProvider,
                 periodCloseHook,
                 snapshotService
         );
+        coreService = new AccountingPeriodServiceCore(
+                accountingPeriodRepository,
+                companyContextService,
+                journalEntryRepository,
+                companyEntityLookup,
+                journalLineRepository,
+                accountRepository,
+                companyClock,
+                reportService,
+                reconciliationService,
+                invoiceRepository,
+                goodsReceiptRepository,
+                rawMaterialPurchaseRepository,
+                payrollRunRepository,
+                reconciliationDiscrepancyRepository,
+                periodCloseRequestRepository,
+                accountingFacadeProvider,
+                periodCloseHook,
+                snapshotService
+        );
+    }
+
+    @AfterEach
+    void tearDown() {
+        SecurityContextHolder.clearContext();
     }
 
     @Test
@@ -105,28 +139,17 @@ class AccountingPeriodServicePolicyTest {
     }
 
     @Test
-    void closePeriod_requiresReasonForOpenPeriod() {
-        Company company = company(1L, "POLICY");
-        AccountingPeriod period = openPeriod(company, 2026, 2);
-        when(companyContextService.requireCurrentCompany()).thenReturn(company);
-        when(accountingPeriodRepository.lockByCompanyAndId(company, 10L)).thenReturn(Optional.of(period));
-
+    void closePeriod_requiresMakerCheckerWorkflow() {
         assertThatThrownBy(() -> service.closePeriod(10L, new AccountingPeriodCloseRequest(true, "   ")))
                 .isInstanceOf(ApplicationException.class)
-                .hasMessageContaining("Close reason is required");
+                .hasMessageContaining("Direct close is disabled");
     }
 
     @Test
-    void closePeriod_requiresReasonForLockedPeriod() {
-        Company company = company(1L, "POLICY");
-        AccountingPeriod period = openPeriod(company, 2026, 2);
-        period.setStatus(AccountingPeriodStatus.LOCKED);
-        when(companyContextService.requireCurrentCompany()).thenReturn(company);
-        when(accountingPeriodRepository.lockByCompanyAndId(company, 10L)).thenReturn(Optional.of(period));
-
+    void closePeriod_requiresMakerCheckerWorkflow_forLockedPeriod() {
         assertThatThrownBy(() -> service.closePeriod(10L, new AccountingPeriodCloseRequest(true, "   ")))
                 .isInstanceOf(ApplicationException.class)
-                .hasMessageContaining("Close reason is required");
+                .hasMessageContaining("Direct close is disabled");
     }
 
     @Test
@@ -144,7 +167,7 @@ class AccountingPeriodServicePolicyTest {
         when(accountingPeriodRepository.findByCompanyAndYearAndMonth(company, 2026, 3))
                 .thenReturn(Optional.of(openPeriod(company, 2026, 3)));
 
-        assertThat(service.closePeriod(10L, new AccountingPeriodCloseRequest(true, "close from lock")).status())
+        assertThat(coreService.closePeriod(10L, new AccountingPeriodCloseRequest(true, "close from lock")).status())
                 .isEqualTo("CLOSED");
     }
 
@@ -200,7 +223,7 @@ class AccountingPeriodServicePolicyTest {
                         PayrollRun.PayrollStatus.CALCULATED,
                         PayrollRun.PayrollStatus.APPROVED))).thenReturn(0L);
 
-        assertThatThrownBy(() -> service.closePeriod(10L, new AccountingPeriodCloseRequest(false, "period close")))
+        assertThatThrownBy(() -> coreService.closePeriod(10L, new AccountingPeriodCloseRequest(false, "period close")))
                 .isInstanceOf(ApplicationException.class)
                 .hasMessageContaining("Checklist controls unresolved for this period")
                 .hasMessageContaining("inventoryReconciled");
@@ -214,7 +237,7 @@ class AccountingPeriodServicePolicyTest {
         when(companyContextService.requireCurrentCompany()).thenReturn(company);
         when(accountingPeriodRepository.lockByCompanyAndId(company, 14L)).thenReturn(Optional.of(period));
 
-        assertThat(service.closePeriod(14L, new AccountingPeriodCloseRequest(true, "repeat close")).status())
+        assertThat(coreService.closePeriod(14L, new AccountingPeriodCloseRequest(true, "repeat close")).status())
                 .isEqualTo("CLOSED");
         verify(snapshotService, never()).captureSnapshot(any(), any(), anyString());
     }
@@ -263,7 +286,7 @@ class AccountingPeriodServicePolicyTest {
                         PayrollRun.PayrollStatus.CALCULATED,
                         PayrollRun.PayrollStatus.APPROVED))).thenReturn(0L);
 
-        assertThatThrownBy(() -> service.closePeriod(11L, new AccountingPeriodCloseRequest(false, "period close")))
+        assertThatThrownBy(() -> coreService.closePeriod(11L, new AccountingPeriodCloseRequest(false, "period close")))
                 .isInstanceOf(ApplicationException.class)
                 .hasMessage("Checklist controls unresolved for this period: "
                         + "inventoryReconciled [inventory reconciliation result unavailable; run inventory reconciliation before close], "
@@ -317,16 +340,10 @@ class AccountingPeriodServicePolicyTest {
     }
 
     @Test
-    void reopenPeriod_requiresReasonForClosedPeriod() {
-        Company company = company(1L, "POLICY");
-        AccountingPeriod period = openPeriod(company, 2026, 2);
-        period.setStatus(AccountingPeriodStatus.CLOSED);
-        when(companyContextService.requireCurrentCompany()).thenReturn(company);
-        when(accountingPeriodRepository.lockByCompanyAndId(company, 12L)).thenReturn(Optional.of(period));
-
+    void reopenPeriod_requiresSuperAdminAuthority() {
         assertThatThrownBy(() -> service.reopenPeriod(12L, new AccountingPeriodReopenRequest("   ")))
                 .isInstanceOf(ApplicationException.class)
-                .hasMessageContaining("Reopen reason is required");
+                .hasMessageContaining("SUPER_ADMIN authority required");
     }
 
     @Test
@@ -343,11 +360,25 @@ class AccountingPeriodServicePolicyTest {
         when(accountingPeriodRepository.save(period)).thenReturn(period);
         when(accountingFacadeProvider.getObject()).thenReturn(accountingFacade);
 
-        assertThat(service.reopenPeriod(13L, new AccountingPeriodReopenRequest("  reopen adjustment  ")).status())
+        assertThat(coreService.reopenPeriod(13L, new AccountingPeriodReopenRequest("  reopen adjustment  ")).status())
                 .isEqualTo("OPEN");
         assertThat(period.getReopenReason()).isEqualTo("reopen adjustment");
         assertThat(period.getClosingJournalEntryId()).isNull();
         verify(accountingFacade).reverseClosingEntryForPeriodReopen(closing, period, "reopen adjustment");
+    }
+
+    @Test
+    void reopenPeriod_requiresReasonOnceSuperAdminGatePasses() {
+        Company company = company(1L, "POLICY");
+        AccountingPeriod period = openPeriod(company, 2026, 2);
+        period.setStatus(AccountingPeriodStatus.CLOSED);
+        when(companyContextService.requireCurrentCompany()).thenReturn(company);
+        when(accountingPeriodRepository.lockByCompanyAndId(company, 23L)).thenReturn(Optional.of(period));
+        authenticateAsSuperAdmin();
+
+        assertThatThrownBy(() -> service.reopenPeriod(23L, new AccountingPeriodReopenRequest("   ")))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Reopen reason is required");
     }
 
     private Company company(Long id, String code) {
@@ -379,5 +410,13 @@ class AccountingPeriodServicePolicyTest {
         summary.setTotal(netTotal);
         dto.setNetLiability(summary);
         return dto;
+    }
+
+    private void authenticateAsSuperAdmin() {
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken(
+                        "super-admin@bbp.com",
+                        "n/a",
+                        List.of(new SimpleGrantedAuthority("ROLE_SUPER_ADMIN"))));
     }
 }

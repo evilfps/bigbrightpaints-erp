@@ -46,17 +46,7 @@ public class InvoiceService {
     private final SalesDispatchReconciliationService salesDispatchReconciliationService;
     private final SalesOrderRepository salesOrderRepository;
     private final CompanyEntityLookup companyEntityLookup;
-    private final PackagingSlipRepository packagingSlipRepository;
-    private final PartnerSettlementAllocationRepository settlementAllocationRepository;
-
-    public InvoiceService(CompanyContextService companyContextService,
-                          InvoiceRepository invoiceRepository,
-                          SalesOrderCrudService salesOrderCrudService,
-                          SalesDispatchReconciliationService salesDispatchReconciliationService,
-                          SalesOrderRepository salesOrderRepository,
-                          CompanyEntityLookup companyEntityLookup,
-                          PackagingSlipRepository packagingSlipRepository,
-                          PartnerSettlementAllocationRepository settlementAllocationRepository) {
+    private final PackagingSlipRepository packagingSlipRepository; private final PartnerSettlementAllocationRepository settlementAllocationRepository; public InvoiceService(CompanyContextService companyContextService, InvoiceRepository invoiceRepository, SalesOrderCrudService salesOrderCrudService, SalesDispatchReconciliationService salesDispatchReconciliationService, SalesOrderRepository salesOrderRepository, CompanyEntityLookup companyEntityLookup, PackagingSlipRepository packagingSlipRepository, PartnerSettlementAllocationRepository settlementAllocationRepository) {
         this.companyContextService = companyContextService;
         this.invoiceRepository = invoiceRepository;
         this.salesOrderCrudService = salesOrderCrudService;
@@ -271,8 +261,7 @@ public class InvoiceService {
         return toDto(invoice, buildLinkedReferenceContext(invoice.getCompany(), List.of(invoice)));
     }
 
-    private InvoiceDto toDto(Invoice invoice, LinkedReferenceContext linkedReferenceContext) {
-        List<InvoiceLineDto> lineDtos = invoice.getLines().stream()
+    private InvoiceDto toDto(Invoice invoice, LinkedReferenceContext linkedReferenceContext) { List<InvoiceLineDto> lineDtos = invoice.getLines().stream()
                 .map(line -> new InvoiceLineDto(
                         line.getId(),
                         line.getProductCode(),
@@ -288,93 +277,37 @@ public class InvoiceService {
                         line.getSgstAmount(),
                         line.getIgstAmount()))
                 .toList();
-        DocumentLifecycleDto lifecycle = BusinessDocumentTruths.invoiceLifecycle(
-                invoice.getStatus(),
-                invoice.getJournalEntry()
-        );
+        DocumentLifecycleDto lifecycle = BusinessDocumentTruths.invoiceLifecycle(invoice.getStatus(), invoice.getJournalEntry());
         List<LinkedBusinessReferenceDto> linkedReferences = buildLinkedReferences(invoice, lifecycle, linkedReferenceContext);
         Dealer dealer = invoice.getDealer();
-        return new InvoiceDto(
-                invoice.getId(),
-                invoice.getPublicId(),
-                invoice.getInvoiceNumber(),
-                invoice.getStatus(),
-                invoice.getSubtotal(),
-                invoice.getTaxTotal(),
-                invoice.getTotalAmount(),
-                invoice.getOutstandingAmount(),
-                invoice.getCurrency(),
-                invoice.getIssueDate(),
-                invoice.getDueDate(),
-                dealer != null ? dealer.getId() : null,
-                dealer != null ? dealer.getName() : null,
-                invoice.getSalesOrder() != null ? invoice.getSalesOrder().getId() : null,
-                invoice.getJournalEntry() != null ? invoice.getJournalEntry().getId() : null,
-                invoice.getCreatedAt(),
-                lineDtos,
-                lifecycle,
-                linkedReferences
-        );
+        return new InvoiceDto(invoice.getId(), invoice.getPublicId(), invoice.getInvoiceNumber(), invoice.getStatus(), invoice.getSubtotal(), invoice.getTaxTotal(), invoice.getTotalAmount(), invoice.getOutstandingAmount(), invoice.getCurrency(), invoice.getIssueDate(), invoice.getDueDate(), dealer != null ? dealer.getId() : null, dealer != null ? dealer.getName() : null, invoice.getSalesOrder() != null ? invoice.getSalesOrder().getId() : null, invoice.getJournalEntry() != null ? invoice.getJournalEntry().getId() : null, invoice.getCreatedAt(), lineDtos, lifecycle, linkedReferences);
     }
 
-    private List<InvoiceDto> toDtos(Company company, List<Invoice> invoices) {
-        if (invoices == null || invoices.isEmpty()) {
-            return List.of();
-        }
+    private List<InvoiceDto> toDtos(Company company, List<Invoice> invoices) { if (invoices == null || invoices.isEmpty()) {
+            return List.of(); }
         LinkedReferenceContext linkedReferenceContext = buildLinkedReferenceContext(company, invoices);
         return invoices.stream()
                 .map(invoice -> toDto(invoice, linkedReferenceContext))
                 .toList();
     }
 
-    private List<LinkedBusinessReferenceDto> buildLinkedReferences(Invoice invoice,
-                                                                   DocumentLifecycleDto lifecycle,
-                                                                   LinkedReferenceContext linkedReferenceContext) {
-        List<LinkedBusinessReferenceDto> linkedReferences = new ArrayList<>();
+    private List<LinkedBusinessReferenceDto> buildLinkedReferences(Invoice invoice, DocumentLifecycleDto lifecycle, LinkedReferenceContext linkedReferenceContext) { List<LinkedBusinessReferenceDto> linkedReferences = new ArrayList<>();
         SalesOrder salesOrder = invoice.getSalesOrder();
         if (salesOrder != null) {
-            linkedReferences.add(BusinessDocumentTruths.reference(
-                    "SOURCE_ORDER",
-                    "SALES_ORDER",
-                    salesOrder.getId(),
-                    salesOrder.getOrderNumber(),
-                    BusinessDocumentTruths.salesOrderLifecycle(salesOrder),
-                    salesOrder.getSalesJournalEntryId()
-            ));
+            linkedReferences.add(BusinessDocumentTruths.reference("SOURCE_ORDER", "SALES_ORDER", salesOrder.getId(), salesOrder.getOrderNumber(), BusinessDocumentTruths.salesOrderLifecycle(salesOrder), salesOrder.getSalesJournalEntryId()));
             for (PackagingSlip slip : linkedReferenceContext.packagingSlipsBySalesOrderId()
                     .getOrDefault(salesOrder.getId(), List.of())) {
-                linkedReferences.add(BusinessDocumentTruths.reference(
-                        "DISPATCH",
-                        "PACKAGING_SLIP",
-                        slip.getId(),
-                        slip.getSlipNumber(),
-                        BusinessDocumentTruths.packagingSlipLifecycle(slip),
-                        slip.getCogsJournalEntryId() != null ? slip.getCogsJournalEntryId() : slip.getJournalEntryId()
-                ));
+                linkedReferences.add(BusinessDocumentTruths.reference("DISPATCH", "PACKAGING_SLIP", slip.getId(), slip.getSlipNumber(), BusinessDocumentTruths.packagingSlipLifecycle(slip), slip.getCogsJournalEntryId() != null ? slip.getCogsJournalEntryId() : slip.getJournalEntryId()));
             }
         }
         if (invoice.getJournalEntry() != null) {
-            linkedReferences.add(BusinessDocumentTruths.reference(
-                    "ACCOUNTING_ENTRY",
-                    "JOURNAL_ENTRY",
-                    invoice.getJournalEntry().getId(),
-                    invoice.getJournalEntry().getReferenceNumber(),
-                    BusinessDocumentTruths.journalLifecycle(invoice.getJournalEntry()),
-                    invoice.getJournalEntry().getId()
-            ));
+            linkedReferences.add(BusinessDocumentTruths.reference("ACCOUNTING_ENTRY", "JOURNAL_ENTRY", invoice.getJournalEntry().getId(), invoice.getJournalEntry().getReferenceNumber(), BusinessDocumentTruths.journalLifecycle(invoice.getJournalEntry()), invoice.getJournalEntry().getId()));
         }
         List<PartnerSettlementAllocation> settlementAllocations = linkedReferenceContext.settlementAllocationsByInvoiceId()
                 .getOrDefault(invoice.getId(), List.of());
         if (settlementAllocations != null) {
             for (PartnerSettlementAllocation allocation : settlementAllocations) {
-                linkedReferences.add(BusinessDocumentTruths.reference(
-                        "SETTLEMENT",
-                        "SETTLEMENT_ALLOCATION",
-                        allocation.getId(),
-                        allocation.getIdempotencyKey(),
-                        BusinessDocumentTruths.settlementLifecycle(allocation.getJournalEntry()),
-                        allocation.getJournalEntry() != null ? allocation.getJournalEntry().getId() : null
-                ));
+                linkedReferences.add(BusinessDocumentTruths.reference("SETTLEMENT", "SETTLEMENT_ALLOCATION", allocation.getId(), allocation.getIdempotencyKey(), BusinessDocumentTruths.settlementLifecycle(allocation.getJournalEntry()), allocation.getJournalEntry() != null ? allocation.getJournalEntry().getId() : null));
             }
         }
         return linkedReferences.stream()
@@ -383,10 +316,8 @@ public class InvoiceService {
                 .toList();
     }
 
-    private LinkedReferenceContext buildLinkedReferenceContext(Company company, List<Invoice> invoices) {
-        if (company == null || invoices == null || invoices.isEmpty()) {
-            return LinkedReferenceContext.empty();
-        }
+    private LinkedReferenceContext buildLinkedReferenceContext(Company company, List<Invoice> invoices) { if (company == null || invoices == null || invoices.isEmpty()) {
+            return LinkedReferenceContext.empty(); }
         List<Long> salesOrderIds = invoices.stream()
                 .map(Invoice::getSalesOrder)
                 .filter(Objects::nonNull)
@@ -413,12 +344,7 @@ public class InvoiceService {
         return new LinkedReferenceContext(packagingSlipsBySalesOrderId, settlementAllocationsByInvoiceId);
     }
 
-    private record LinkedReferenceContext(
-            Map<Long, List<PackagingSlip>> packagingSlipsBySalesOrderId,
-            Map<Long, List<PartnerSettlementAllocation>> settlementAllocationsByInvoiceId
-    ) {
-        private static LinkedReferenceContext empty() {
-            return new LinkedReferenceContext(Map.of(), Map.of());
-        }
+    private record LinkedReferenceContext(Map<Long, List<PackagingSlip>> packagingSlipsBySalesOrderId, Map<Long, List<PartnerSettlementAllocation>> settlementAllocationsByInvoiceId) {
+        private static LinkedReferenceContext empty() { return new LinkedReferenceContext(Map.of(), Map.of()); }
     }
 }

@@ -145,6 +145,31 @@ class InvoiceServiceTest {
     }
 
     @Test
+    void issueInvoiceForOrder_throwsWhenMultipleInvoicesAlreadyExist() {
+        Long orderId = 54L;
+        when(companyContextService.requireCurrentCompany()).thenReturn(company);
+        when(invoiceRepository.findAllByCompanyAndSalesOrderId(company, orderId)).thenReturn(List.of(new Invoice(), new Invoice()));
+
+        assertThrows(ApplicationException.class, () -> invoiceService.issueInvoiceForOrder(orderId));
+    }
+
+    @Test
+    void issueInvoiceForOrder_failsWhenOrderDealerIsMissing() {
+        Long orderId = 59L;
+        when(companyContextService.requireCurrentCompany()).thenReturn(company);
+        when(invoiceRepository.findAllByCompanyAndSalesOrderId(company, orderId)).thenReturn(List.of());
+
+        SalesOrder order = new SalesOrder();
+        order.setCompany(company);
+        order.setOrderNumber("SO-59");
+        ReflectionTestUtils.setField(order, "id", orderId);
+
+        when(salesOrderCrudService.getOrderWithItems(orderId)).thenReturn(order);
+
+        assertThrows(ApplicationException.class, () -> invoiceService.issueInvoiceForOrder(orderId));
+    }
+
+    @Test
     void issueInvoiceForOrder_existingInvoiceDoesNotSetOrderInvoiceIdWhenMultiSlip() {
         Long orderId = 56L;
         when(companyContextService.requireCurrentCompany()).thenReturn(company);
@@ -408,6 +433,37 @@ class InvoiceServiceTest {
     }
 
     @Test
+    void issueInvoiceForOrder_failsWhenDispatchConfirmationDoesNotReturnInvoiceId() {
+        Long orderId = 80L;
+        when(companyContextService.requireCurrentCompany()).thenReturn(company);
+        when(invoiceRepository.findAllByCompanyAndSalesOrderId(company, orderId)).thenReturn(List.of());
+
+        Dealer dealer = new Dealer();
+        SalesOrder order = new SalesOrder();
+        order.setCompany(company);
+        order.setDealer(dealer);
+        order.setOrderNumber("SO-80");
+        ReflectionTestUtils.setField(order, "id", orderId);
+        when(salesOrderCrudService.getOrderWithItems(orderId)).thenReturn(order);
+
+        PackagingSlip slip = new PackagingSlip();
+        ReflectionTestUtils.setField(slip, "id", 801L);
+        when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, orderId)).thenReturn(List.of(slip));
+        when(salesDispatchReconciliationService.confirmDispatch(any())).thenReturn(new DispatchConfirmResponse(
+                slip.getId(),
+                orderId,
+                null,
+                null,
+                List.of(),
+                true,
+                List.of(),
+                null
+        ));
+
+        assertThrows(ApplicationException.class, () -> invoiceService.issueInvoiceForOrder(orderId));
+    }
+
+    @Test
     void listInvoices_batchesLinkedReferenceLookupsForPage() {
         when(companyContextService.requireCurrentCompany()).thenReturn(company);
         when(invoiceRepository.findIdsByCompanyOrderByIssueDateDescIdDesc(company, PageRequest.of(0, 50)))
@@ -479,6 +535,122 @@ class InvoiceServiceTest {
         verify(settlementAllocationRepository).findByCompanyAndInvoice_IdInOrderByCreatedAtDesc(company, List.of(11L, 12L));
         verify(packagingSlipRepository, org.mockito.Mockito.never()).findAllByCompanyAndSalesOrderId(any(), anyLong());
         verify(settlementAllocationRepository, org.mockito.Mockito.never()).findByCompanyAndInvoiceOrderByCreatedAtDesc(any(), any());
+    }
+
+    @Test
+    void listDealerInvoices_batchesLookupsForDealerPage() {
+        Dealer dealer = new Dealer();
+        ReflectionTestUtils.setField(dealer, "id", 901L);
+        when(companyContextService.requireCurrentCompany()).thenReturn(company);
+        when(companyEntityLookup.requireDealer(company, 901L)).thenReturn(dealer);
+        when(invoiceRepository.findIdsByCompanyAndDealerOrderByIssueDateDescIdDesc(company, dealer, PageRequest.of(0, 25)))
+                .thenReturn(new PageImpl<>(List.of(81L)));
+
+        SalesOrder order = new SalesOrder();
+        ReflectionTestUtils.setField(order, "id", 701L);
+        order.setCompany(company);
+        order.setOrderNumber("SO-701");
+
+        Invoice invoice = new Invoice();
+        ReflectionTestUtils.setField(invoice, "id", 81L);
+        invoice.setCompany(company);
+        invoice.setDealer(dealer);
+        invoice.setInvoiceNumber("INV-81");
+        invoice.setStatus("ISSUED");
+        invoice.setSalesOrder(order);
+        when(invoiceRepository.findByCompanyAndIdInOrderByIssueDateDescIdDesc(company, List.of(81L))).thenReturn(List.of(invoice));
+
+        PackagingSlip slip = new PackagingSlip();
+        ReflectionTestUtils.setField(slip, "id", 702L);
+        slip.setSalesOrder(order);
+        slip.setSlipNumber("PS-702");
+        slip.setStatus("DISPATCHED");
+        when(packagingSlipRepository.findAllByCompanyAndSalesOrderIdIn(company, List.of(701L))).thenReturn(List.of(slip));
+        when(settlementAllocationRepository.findByCompanyAndInvoice_IdInOrderByCreatedAtDesc(company, List.of(81L))).thenReturn(List.of());
+
+        List<InvoiceDto> invoices = invoiceService.listDealerInvoices(901L, 0, 25);
+
+        assertThat(invoices).singleElement().extracting(InvoiceDto::invoiceNumber).isEqualTo("INV-81");
+        verify(packagingSlipRepository).findAllByCompanyAndSalesOrderIdIn(company, List.of(701L));
+    }
+
+    @Test
+    void helperMethods_coverLockedOrderAndSlipFallbackBranches() {
+        Long orderId = 990L;
+        SalesOrder lockedOrder = new SalesOrder();
+        lockedOrder.setCompany(company);
+        ReflectionTestUtils.setField(lockedOrder, "id", orderId);
+        when(salesOrderRepository.findWithItemsByCompanyAndIdForUpdate(company, orderId)).thenReturn(Optional.of(lockedOrder));
+
+        @SuppressWarnings("unchecked")
+        List<PackagingSlip> slips = (List<PackagingSlip>) ReflectionTestUtils.invokeMethod(invoiceService, "findOrderSlips", company, orderId, true);
+        SalesOrder resolved = ReflectionTestUtils.invokeMethod(invoiceService, "requireOrderForUpdate", company, orderId);
+
+        assertThat(slips).isEmpty();
+        assertThat(resolved).isSameAs(lockedOrder);
+    }
+
+    @Test
+    void helperMethods_coverFallbackAndNoOpBranches() {
+        Long orderId = 991L;
+        when(salesOrderRepository.findWithItemsByCompanyAndIdForUpdate(company, orderId)).thenReturn(Optional.empty());
+
+        SalesOrder fallbackOrder = new SalesOrder();
+        fallbackOrder.setCompany(company);
+        ReflectionTestUtils.setField(fallbackOrder, "id", orderId);
+        when(salesOrderCrudService.getOrderWithItems(orderId)).thenReturn(fallbackOrder);
+
+        PackagingSlip existingSlip = new PackagingSlip();
+        ReflectionTestUtils.setField(existingSlip, "id", 911L);
+        existingSlip.setStatus("CANCELLED");
+        when(packagingSlipRepository.findAllByCompanyAndSalesOrderIdForUpdate(company, orderId)).thenReturn(List.of(existingSlip));
+
+        SalesOrder resolved = ReflectionTestUtils.invokeMethod(invoiceService, "requireOrderForUpdate", company, orderId);
+        @SuppressWarnings("unchecked")
+        List<PackagingSlip> slips = (List<PackagingSlip>) ReflectionTestUtils.invokeMethod(invoiceService, "findOrderSlips", company, orderId, true);
+
+        assertThat(resolved).isSameAs(fallbackOrder);
+        assertThat(slips).containsExactly(existingSlip);
+        assertThat((Long) ReflectionTestUtils.invokeMethod(invoiceService, "activeSlipCount", List.of(existingSlip))).isZero();
+        assertThat((PackagingSlip) ReflectionTestUtils.invokeMethod(invoiceService, "findSingleActiveSlip", List.of(existingSlip))).isNull();
+        assertThat((Boolean) ReflectionTestUtils.invokeMethod(invoiceService, "reconcileOrderInvoiceMarker", fallbackOrder, 1L, false)).isFalse();
+    }
+
+    @Test
+    void listInvoices_returnsEmptyWhenNoIdsFound() {
+        when(companyContextService.requireCurrentCompany()).thenReturn(company);
+        when(invoiceRepository.findIdsByCompanyOrderByIssueDateDescIdDesc(company, PageRequest.of(0, 10)))
+                .thenReturn(new PageImpl<>(List.of()));
+
+        assertThat(invoiceService.listInvoices(0, 10)).isEmpty();
+    }
+
+    @Test
+    void dealerListingAndLinkedReferenceHelpers_coverEmptyBranches() {
+        Dealer dealer = new Dealer();
+        ReflectionTestUtils.setField(dealer, "id", 902L);
+        when(companyContextService.requireCurrentCompany()).thenReturn(company);
+        when(companyEntityLookup.requireDealer(company, 902L)).thenReturn(dealer);
+        when(invoiceRepository.findIdsByCompanyAndDealerOrderByIssueDateDescIdDesc(company, dealer, PageRequest.of(0, 10)))
+                .thenReturn(new PageImpl<>(List.of()));
+
+        assertThat(invoiceService.listDealerInvoices(902L, 0, 10)).isEmpty();
+        assertThat((Object) ReflectionTestUtils.invokeMethod(invoiceService, "buildLinkedReferenceContext", null, List.of())).isNotNull();
+
+        SalesOrder order = new SalesOrder();
+        order.setCompany(company);
+        ReflectionTestUtils.setField(order, "id", 903L);
+        Invoice invoice = new Invoice();
+        ReflectionTestUtils.setField(invoice, "id", 904L);
+        invoice.setCompany(company);
+        invoice.setSalesOrder(order);
+        PackagingSlip slip = new PackagingSlip();
+        ReflectionTestUtils.setField(slip, "id", 905L);
+        slip.setInvoiceId(904L);
+
+        ReflectionTestUtils.invokeMethod(invoiceService, "linkInvoiceToPackagingSlip", order, invoice, List.of(slip));
+
+        verify(packagingSlipRepository, org.mockito.Mockito.never()).save(any());
     }
 
     @Test

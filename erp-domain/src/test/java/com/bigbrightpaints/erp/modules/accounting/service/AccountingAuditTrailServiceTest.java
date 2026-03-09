@@ -40,6 +40,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -48,6 +49,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.test.util.ReflectionTestUtils;
 
 @ExtendWith(MockitoExtension.class)
 class AccountingAuditTrailServiceTest {
@@ -562,6 +564,114 @@ class AccountingAuditTrailServiceTest {
         assertThat(detail.drivingDocument().documentType()).isEqualTo("PURCHASE_INVOICE");
         assertThat(detail.drivingDocument().documentId()).isEqualTo(311L);
         assertThat(detail.drivingDocument().journalEntryId()).isEqualTo(211L);
+    }
+
+    @Test
+    void helperMethods_coverModuleClassificationConsistencyAndNullGuards() {
+        JournalEntry entry = new JournalEntry();
+        setField(entry, "id", 777L);
+        entry.setReferenceNumber("MISC-777");
+        entry.setStatus("POSTED");
+
+        Object consistency = ReflectionTestUtils.invokeMethod(
+                service,
+                "assessConsistency",
+                entry,
+                List.of(),
+                new BigDecimal("10.00"),
+                new BigDecimal("5.00"));
+
+        assertThat((String) ReflectionTestUtils.invokeMethod(consistency, "status")).isEqualTo("ERROR");
+        assertThat((String) ReflectionTestUtils.invokeMethod(service, "deriveModule", "GENERAL_JOURNAL", "MISC-777"))
+                .isEqualTo("ACCOUNTING");
+        assertThat((Object) ReflectionTestUtils.invokeMethod(service, "resolveDrivingDocument", null, null, List.of()))
+                .isNull();
+
+        when(rawMaterialPurchaseRepository.findByCompanyAndJournalEntry_IdIn(any(), eq(List.of()))).thenReturn(List.of());
+        @SuppressWarnings("unchecked")
+        Map<Long, RawMaterialPurchase> purchasesByJournal = ReflectionTestUtils.invokeMethod(
+                service,
+                "findPurchasesByJournalEntryIds",
+                new Company(),
+                List.of());
+        assertThat(purchasesByJournal).isEmpty();
+    }
+
+    @Test
+    void appendSettlementReferences_usesInvoiceAndPurchaseQueries() {
+        Company company = new Company();
+        company.setCode("BBP");
+
+        Invoice invoice = new Invoice();
+        setField(invoice, "id", 888L);
+        invoice.setCompany(company);
+        invoice.setInvoiceNumber("INV-888");
+        invoice.setStatus("ISSUED");
+
+        RawMaterialPurchase purchase = new RawMaterialPurchase();
+        setField(purchase, "id", 889L);
+        purchase.setCompany(company);
+        purchase.setInvoiceNumber("PINV-889");
+        purchase.setStatus("POSTED");
+
+        PartnerSettlementAllocation allocation = new PartnerSettlementAllocation();
+        setField(allocation, "id", 890L);
+        allocation.setCompany(company);
+        allocation.setInvoice(invoice);
+        allocation.setPurchase(purchase);
+        allocation.setIdempotencyKey("settlement-890");
+
+        when(settlementAllocationRepository.findByCompanyAndInvoiceOrderByCreatedAtDesc(company, invoice)).thenReturn(List.of(allocation));
+        when(settlementAllocationRepository.findByCompanyAndPurchaseOrderByCreatedAtDesc(company, purchase)).thenReturn(List.of(allocation));
+
+        List<LinkedBusinessReferenceDto> invoiceChain = new java.util.ArrayList<>();
+        ReflectionTestUtils.invokeMethod(service, "appendSettlementReferences", invoiceChain, company, invoice, null);
+        List<LinkedBusinessReferenceDto> purchaseChain = new java.util.ArrayList<>();
+        ReflectionTestUtils.invokeMethod(service, "appendSettlementReferences", purchaseChain, company, null, purchase);
+
+        assertThat(invoiceChain).extracting(LinkedBusinessReferenceDto::relationType).contains("SETTLEMENT");
+        assertThat(purchaseChain).extracting(LinkedBusinessReferenceDto::relationType).contains("SETTLEMENT");
+    }
+
+    @Test
+    void deriveTransactionTypeAndModulePrefixes_coverFallbackBranches() {
+        JournalEntry reversal = new JournalEntry();
+        reversal.setReferenceNumber("REV-1");
+        reversal.setReversalOf(new JournalEntry());
+        JournalEntry reversedOriginal = new JournalEntry();
+        reversedOriginal.setReferenceNumber("VOID-1");
+        reversedOriginal.setReversalEntry(new JournalEntry());
+        JournalEntry payroll = new JournalEntry();
+        payroll.setReferenceNumber("PAY-1");
+        JournalEntry inventory = new JournalEntry();
+        inventory.setReferenceNumber("REVAL-1");
+        JournalEntry supplierSettlement = new JournalEntry();
+        supplierSettlement.setReferenceNumber("SUP-SET-1");
+        JournalEntry general = new JournalEntry();
+        general.setReferenceNumber("GEN-1");
+
+        assertThat((String) ReflectionTestUtils.invokeMethod(service, "deriveTransactionType", reversal, null, null, List.of()))
+                .isEqualTo("REVERSAL_ENTRY");
+        assertThat((String) ReflectionTestUtils.invokeMethod(service, "deriveTransactionType", reversedOriginal, null, null, List.of()))
+                .isEqualTo("REVERSED_ORIGINAL");
+        assertThat((String) ReflectionTestUtils.invokeMethod(service, "deriveTransactionType", payroll, null, null, List.of()))
+                .isEqualTo("PAYROLL_ENTRY");
+        assertThat((String) ReflectionTestUtils.invokeMethod(service, "deriveTransactionType", inventory, null, null, List.of()))
+                .isEqualTo("INVENTORY_ADJUSTMENT");
+        assertThat((String) ReflectionTestUtils.invokeMethod(service, "deriveTransactionType", supplierSettlement, null, null, List.of()))
+                .isEqualTo("SETTLEMENT_SUPPLIER");
+        assertThat((String) ReflectionTestUtils.invokeMethod(service, "deriveTransactionType", general, null, null, List.of()))
+                .isEqualTo("GENERAL_JOURNAL");
+
+        @SuppressWarnings("unchecked")
+        List<String> inventoryPrefixes = ReflectionTestUtils.invokeMethod(service, "moduleReferencePrefixes", "INVENTORY");
+        @SuppressWarnings("unchecked")
+        List<String> unknownPrefixes = ReflectionTestUtils.invokeMethod(service, "moduleReferencePrefixes", "UNKNOWN");
+
+        assertThat(inventoryPrefixes).contains("REVAL", "WIP");
+        assertThat(unknownPrefixes).isEmpty();
+        assertThat((String) ReflectionTestUtils.invokeMethod(service, "deriveModule", "REVERSAL_ENTRY", "REV-1"))
+                .isEqualTo("ADJUSTMENT");
     }
 
     private static JournalLine line(String accountCode, String debitAmount, String creditAmount) {

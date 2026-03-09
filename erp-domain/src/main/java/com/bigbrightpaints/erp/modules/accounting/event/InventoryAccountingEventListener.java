@@ -313,8 +313,7 @@ public class InventoryAccountingEventListener {
         return String.format("%s-%s", referencePrefix, hash);
     }
 
-    private boolean isCanonicalWorkflowMovement(InventoryMovementEvent event) {
-        String relatedEntityType = event.relatedEntityType();
+    private boolean isCanonicalWorkflowMovement(InventoryMovementEvent event) { String relatedEntityType = event.relatedEntityType();
         if (relatedEntityType == null || relatedEntityType.isBlank()) {
             return false;
         }

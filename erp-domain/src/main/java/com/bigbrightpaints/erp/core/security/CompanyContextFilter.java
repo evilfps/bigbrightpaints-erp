@@ -174,14 +174,9 @@ public class CompanyContextFilter extends OncePerRequestFilter {
                             resolveCurrentActor(),
                             tenantRuntimePolicyControlRequest);
                     if (runtimeAdmission == null) {
-                        log.warn("Rejecting request because tenant runtime admission was unavailable. companyCode={}, path={}, method={}",
-                                companyCode,
-                                runtimePath,
-                                request.getMethod());
+                        log.warn("Rejecting request because tenant runtime admission was unavailable. companyCode={}, path={}, method={}", companyCode, runtimePath, request.getMethod());
                         admission = TenantRuntimeEnforcementService.TenantRequestAdmission.notTracked();
-                        writeAccessDenied(response,
-                                "TENANT_RUNTIME_ADMISSION_UNAVAILABLE",
-                                "Tenant runtime admission is unavailable");
+                        writeAccessDenied(response, "TENANT_RUNTIME_ADMISSION_UNAVAILABLE", "Tenant runtime admission is unavailable");
                         return;
                     }
                     admission = runtimeAdmission;

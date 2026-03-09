@@ -25,6 +25,7 @@ import com.bigbrightpaints.erp.shared.dto.LinkedBusinessReferenceDto;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -146,6 +147,20 @@ class PurchaseResponseMapperTest {
     }
 
     @Test
+    void toGoodsReceiptResponses_batchesOnlyReceiptsWithResolvableCompanyAndIds() {
+        GoodsReceipt receiptWithoutCompany = new GoodsReceipt();
+        ReflectionTestUtils.setField(receiptWithoutCompany, "id", 801L);
+        receiptWithoutCompany.setReceiptNumber("GRN-801");
+
+        GoodsReceipt receiptWithoutId = goodsReceipt(null, "GRN-NULL");
+
+        when(purchaseRepository.findByCompanyAndGoodsReceipt_IdIn(company, List.of(801L))).thenReturn(List.of());
+
+        assertThat(mapper.toGoodsReceiptResponses(List.of(receiptWithoutCompany, receiptWithoutId))).hasSize(2);
+        verify(purchaseRepository).findByCompanyAndGoodsReceipt_IdIn(company, List.of(801L));
+    }
+
+    @Test
     void toPurchaseOrderResponse_mapsSupplierAndLineTotals() {
         PurchaseOrder order = new PurchaseOrder();
         ReflectionTestUtils.setField(order, "id", 101L);
@@ -198,6 +213,16 @@ class PurchaseResponseMapperTest {
     }
 
     @Test
+    void nullSafeConstructors_doNotRequireRepositoriesForSingleMappings() {
+        PurchaseResponseMapper nullSafeMapper = new PurchaseResponseMapper();
+        GoodsReceipt receipt = goodsReceipt(901L, "GRN-901");
+
+        assertThat(nullSafeMapper.toGoodsReceiptResponse(receipt).linkedReferences())
+                .extracting(LinkedBusinessReferenceDto::relationType)
+                .containsExactlyInAnyOrder("PURCHASE_ORDER", "SELF");
+    }
+
+    @Test
     void toGoodsReceiptResponses_fallsBackToSelfReferenceWhenNoLinkedPurchaseIsResolved() {
         GoodsReceipt unlinkedReceipt = goodsReceipt(701L, "GRN-701");
 
@@ -239,6 +264,40 @@ class PurchaseResponseMapperTest {
                 .filteredOn(reference -> "SETTLEMENT".equals(reference.relationType()))
                 .first()
                 .satisfies(reference -> assertThat(reference.journalEntryId()).isNull());
+    }
+
+    @Test
+    void toPurchaseResponse_skipsSettlementLookupWhenCompanyIsMissing() {
+        RawMaterialPurchase purchase = new RawMaterialPurchase();
+        ReflectionTestUtils.setField(purchase, "id", 82L);
+        purchase.setInvoiceNumber("PINV-82");
+        purchase.setStatus("POSTED");
+        purchase.getLines().add(purchaseLine(purchase));
+
+        RawMaterialPurchaseResponse response = mapper.toPurchaseResponse(purchase);
+
+        assertThat(response.linkedReferences())
+                .extracting(LinkedBusinessReferenceDto::relationType)
+                .containsExactly("SELF");
+        verify(settlementAllocationRepository, never()).findByCompanyAndPurchaseOrderByCreatedAtDesc(any(), any());
+    }
+
+    @Test
+    void helperMethods_coverLinkedPurchaseFallbackBranches() {
+        GoodsReceipt receipt = new GoodsReceipt();
+        ReflectionTestUtils.setField(receipt, "id", 910L);
+
+        assertThat((Object) ReflectionTestUtils.invokeMethod(mapper, "resolveLinkedPurchase", receipt)).isNull();
+
+        @SuppressWarnings("unchecked")
+        Map<Long, RawMaterialPurchase> emptyLookup = ReflectionTestUtils.invokeMethod(mapper, "resolveLinkedPurchases", List.of(receipt));
+        assertThat(emptyLookup).isEmpty();
+
+        PurchaseResponseMapper noSettlementMapper = new PurchaseResponseMapper(purchaseRepository);
+        GoodsReceipt linkedOnlyReceipt = goodsReceipt(920L, "GRN-920");
+        assertThat(noSettlementMapper.toGoodsReceiptResponse(linkedOnlyReceipt, null).linkedReferences())
+                .extracting(LinkedBusinessReferenceDto::relationType)
+                .containsExactlyInAnyOrder("PURCHASE_ORDER", "SELF");
     }
 
     private GoodsReceipt goodsReceipt(Long id, String receiptNumber) {

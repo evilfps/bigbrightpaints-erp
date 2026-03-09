@@ -131,6 +131,40 @@ class BusinessDocumentTruthsTest {
     }
 
     @Test
+    void lifecycleHelpers_coverPostedBlockedAndCancelledJournalStatuses() {
+        JournalEntry paidJournal = new JournalEntry();
+        paidJournal.setStatus("PAID");
+        JournalEntry settledJournal = new JournalEntry();
+        settledJournal.setStatus("SETTLED");
+        JournalEntry closedJournal = new JournalEntry();
+        closedJournal.setStatus("CLOSED");
+        JournalEntry blockedJournal = new JournalEntry();
+        blockedJournal.setStatus("BLOCKED");
+        JournalEntry cancelledJournal = new JournalEntry();
+        cancelledJournal.setStatus("CANCELLED");
+
+        assertThat(BusinessDocumentTruths.invoiceLifecycle("ISSUED", paidJournal).accountingStatus()).isEqualTo("POSTED");
+        assertThat(BusinessDocumentTruths.invoiceLifecycle("ISSUED", settledJournal).accountingStatus()).isEqualTo("POSTED");
+        assertThat(BusinessDocumentTruths.invoiceLifecycle("ISSUED", closedJournal).accountingStatus()).isEqualTo("POSTED");
+        assertThat(BusinessDocumentTruths.invoiceLifecycle("ISSUED", blockedJournal).accountingStatus()).isEqualTo("BLOCKED");
+        assertThat(BusinessDocumentTruths.journalLifecycle(cancelledJournal).accountingStatus()).isEqualTo("REVERSED");
+    }
+
+    @Test
+    void invoiceAndGoodsReceiptLifecycle_coverPendingAndNotEligibleBranches() {
+        GoodsReceipt receipt = new GoodsReceipt();
+        receipt.setStatus("RECEIVED");
+
+        assertThat(BusinessDocumentTruths.invoiceLifecycle("DRAFT", null).accountingStatus()).isEqualTo("NOT_ELIGIBLE");
+        assertThat(BusinessDocumentTruths.invoiceLifecycle("ISSUED", null).accountingStatus()).isEqualTo("PENDING");
+        assertThat(BusinessDocumentTruths.goodsReceiptLifecycle(receipt, null).accountingStatus()).isEqualTo("PENDING");
+
+        JournalEntry failedJournal = new JournalEntry();
+        failedJournal.setStatus("FAILED");
+        assertThat(BusinessDocumentTruths.journalLifecycle(failedJournal).accountingStatus()).isEqualTo("BLOCKED");
+    }
+
+    @Test
     void settlementLifecycle_andReference_preserveDocumentMetadata() {
         JournalEntry settlementJournal = new JournalEntry();
         ReflectionTestUtils.setField(settlementJournal, "id", 808L);

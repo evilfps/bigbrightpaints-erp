@@ -274,6 +274,34 @@ class InventoryAccountingEventListenerIT extends AbstractIntegrationTest {
     }
 
     @Test
+    void movementEventPostsWhenRelatedEntityTypeIsNull() {
+        LocalDate movementDate = LocalDate.now().minusDays(1);
+        long before = journalEntryRepository.count();
+        InventoryMovementEvent event = InventoryMovementEvent.builder()
+                .companyId(company.getId())
+                .movementType(InventoryMovementEvent.MovementType.ISSUE)
+                .inventoryType(InventoryValuationChangedEvent.InventoryType.FINISHED_GOOD)
+                .itemId(8L)
+                .itemCode("FG-NULL-REL")
+                .itemName("Finished Good Null Relation")
+                .quantity(new BigDecimal("1"))
+                .unitCost(new BigDecimal("14.00"))
+                .totalCost(new BigDecimal("14.00"))
+                .sourceAccountId(inventoryAccount.getId())
+                .destinationAccountId(cogsAccount.getId())
+                .referenceNumber("INV-MOVE-NULL-REL")
+                .movementDate(movementDate)
+                .memo("Null related entity type should not be treated as canonical")
+                .relatedEntityId(801L)
+                .relatedEntityType(null)
+                .build();
+
+        listener.onInventoryMovement(event);
+
+        assertThat(journalEntryRepository.count()).isEqualTo(before + 1);
+    }
+
+    @Test
     void valuationEventSkipsWhenValueChangeIsZero() {
         long before = journalEntryRepository.count();
         InventoryValuationChangedEvent event = InventoryValuationChangedEvent.builder()

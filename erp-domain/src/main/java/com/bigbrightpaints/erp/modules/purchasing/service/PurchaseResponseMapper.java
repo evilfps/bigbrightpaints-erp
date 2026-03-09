@@ -34,28 +34,17 @@ import org.springframework.beans.factory.annotation.Autowired;
 @Component
 public class PurchaseResponseMapper {
 
-    private final RawMaterialPurchaseRepository purchaseRepository;
-    private final PartnerSettlementAllocationRepository settlementAllocationRepository;
-
-    @Autowired
-    public PurchaseResponseMapper(RawMaterialPurchaseRepository purchaseRepository,
-                                  PartnerSettlementAllocationRepository settlementAllocationRepository) {
+    private final RawMaterialPurchaseRepository purchaseRepository; private final PartnerSettlementAllocationRepository settlementAllocationRepository; @Autowired public PurchaseResponseMapper(RawMaterialPurchaseRepository purchaseRepository, PartnerSettlementAllocationRepository settlementAllocationRepository) {
         this.purchaseRepository = purchaseRepository;
         this.settlementAllocationRepository = settlementAllocationRepository;
     }
 
-    PurchaseResponseMapper() {
-        this(null, null);
-    }
+    PurchaseResponseMapper() { this(null, null); }
 
-    PurchaseResponseMapper(RawMaterialPurchaseRepository purchaseRepository) {
-        this(purchaseRepository, null);
-    }
+    PurchaseResponseMapper(RawMaterialPurchaseRepository purchaseRepository) { this(purchaseRepository, null); }
 
-    public List<GoodsReceiptResponse> toGoodsReceiptResponses(List<GoodsReceipt> receipts) {
-        if (receipts == null || receipts.isEmpty()) {
-            return List.of();
-        }
+    public List<GoodsReceiptResponse> toGoodsReceiptResponses(List<GoodsReceipt> receipts) { if (receipts == null || receipts.isEmpty()) {
+            return List.of(); }
         Map<Long, RawMaterialPurchase> linkedPurchasesByReceiptId = resolveLinkedPurchases(receipts);
         return receipts.stream()
                 .map(receipt -> toGoodsReceiptResponse(receipt, linkedPurchasesByReceiptId.get(receipt.getId())))
@@ -71,29 +60,7 @@ public class PurchaseResponseMapper {
                 .map(this::toPurchaseLineResponse)
                 .toList();
         DocumentLifecycleDto lifecycle = BusinessDocumentTruths.purchaseLifecycle(purchase);
-        return new RawMaterialPurchaseResponse(
-                purchase.getId(),
-                purchase.getPublicId(),
-                purchase.getInvoiceNumber(),
-                purchase.getInvoiceDate(),
-                purchase.getTotalAmount(),
-                purchase.getTaxAmount(),
-                purchase.getOutstandingAmount(),
-                purchase.getStatus(),
-                purchase.getMemo(),
-                supplier != null ? supplier.getId() : null,
-                supplier != null ? supplier.getCode() : null,
-                supplier != null ? supplier.getName() : null,
-                purchaseOrder != null ? purchaseOrder.getId() : null,
-                purchaseOrder != null ? purchaseOrder.getOrderNumber() : null,
-                goodsReceipt != null ? goodsReceipt.getId() : null,
-                goodsReceipt != null ? goodsReceipt.getReceiptNumber() : null,
-                journalEntry != null ? journalEntry.getId() : null,
-                purchase.getCreatedAt(),
-                lines,
-                lifecycle,
-                purchaseLinkedReferences(purchase, lifecycle)
-        );
+        return new RawMaterialPurchaseResponse(purchase.getId(), purchase.getPublicId(), purchase.getInvoiceNumber(), purchase.getInvoiceDate(), purchase.getTotalAmount(), purchase.getTaxAmount(), purchase.getOutstandingAmount(), purchase.getStatus(), purchase.getMemo(), supplier != null ? supplier.getId() : null, supplier != null ? supplier.getCode() : null, supplier != null ? supplier.getName() : null, purchaseOrder != null ? purchaseOrder.getId() : null, purchaseOrder != null ? purchaseOrder.getOrderNumber() : null, goodsReceipt != null ? goodsReceipt.getId() : null, goodsReceipt != null ? goodsReceipt.getReceiptNumber() : null, journalEntry != null ? journalEntry.getId() : null, purchase.getCreatedAt(), lines, lifecycle, purchaseLinkedReferences(purchase, lifecycle));
     }
 
     public RawMaterialPurchaseLineResponse toPurchaseLineResponse(RawMaterialPurchaseLine line) {
@@ -158,8 +125,7 @@ public class PurchaseResponseMapper {
         return toGoodsReceiptResponse(receipt, resolveLinkedPurchase(receipt));
     }
 
-    GoodsReceiptResponse toGoodsReceiptResponse(GoodsReceipt receipt, RawMaterialPurchase linkedPurchase) {
-        Supplier supplier = receipt.getSupplier();
+    GoodsReceiptResponse toGoodsReceiptResponse(GoodsReceipt receipt, RawMaterialPurchase linkedPurchase) { Supplier supplier = receipt.getSupplier();
         PurchaseOrder purchaseOrder = receipt.getPurchaseOrder();
         List<GoodsReceiptLineResponse> lines = receipt.getLines().stream()
                 .map(this::toGoodsReceiptLineResponse)
@@ -169,24 +135,7 @@ public class PurchaseResponseMapper {
                 .filter(Objects::nonNull)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         DocumentLifecycleDto lifecycle = BusinessDocumentTruths.goodsReceiptLifecycle(receipt, linkedPurchase);
-        return new GoodsReceiptResponse(
-                receipt.getId(),
-                receipt.getPublicId(),
-                receipt.getReceiptNumber(),
-                receipt.getReceiptDate(),
-                totalAmount,
-                receipt.getStatusValue(),
-                receipt.getMemo(),
-                supplier != null ? supplier.getId() : null,
-                supplier != null ? supplier.getCode() : null,
-                supplier != null ? supplier.getName() : null,
-                purchaseOrder != null ? purchaseOrder.getId() : null,
-                purchaseOrder != null ? purchaseOrder.getOrderNumber() : null,
-                receipt.getCreatedAt(),
-                lines,
-                lifecycle,
-                goodsReceiptLinkedReferences(receipt, linkedPurchase, lifecycle)
-        );
+        return new GoodsReceiptResponse(receipt.getId(), receipt.getPublicId(), receipt.getReceiptNumber(), receipt.getReceiptDate(), totalAmount, receipt.getStatusValue(), receipt.getMemo(), supplier != null ? supplier.getId() : null, supplier != null ? supplier.getCode() : null, supplier != null ? supplier.getName() : null, purchaseOrder != null ? purchaseOrder.getId() : null, purchaseOrder != null ? purchaseOrder.getOrderNumber() : null, receipt.getCreatedAt(), lines, lifecycle, goodsReceiptLinkedReferences(receipt, linkedPurchase, lifecycle));
     }
 
     public GoodsReceiptLineResponse toGoodsReceiptLineResponse(GoodsReceiptLine line) {
@@ -203,132 +152,60 @@ public class PurchaseResponseMapper {
         );
     }
 
-    private List<LinkedBusinessReferenceDto> purchaseLinkedReferences(RawMaterialPurchase purchase,
-                                                                      DocumentLifecycleDto lifecycle) {
-        List<LinkedBusinessReferenceDto> linkedReferences = new ArrayList<>();
+    private List<LinkedBusinessReferenceDto> purchaseLinkedReferences(RawMaterialPurchase purchase, DocumentLifecycleDto lifecycle) { List<LinkedBusinessReferenceDto> linkedReferences = new ArrayList<>();
         PurchaseOrder purchaseOrder = purchase.getPurchaseOrder();
         if (purchaseOrder != null) {
-            linkedReferences.add(BusinessDocumentTruths.reference(
-                    "PURCHASE_ORDER",
-                    "PURCHASE_ORDER",
-                    purchaseOrder.getId(),
-                    purchaseOrder.getOrderNumber(),
-                    new DocumentLifecycleDto(purchaseOrder.getStatusValue(), "NOT_ELIGIBLE"),
-                    null
-            ));
+            linkedReferences.add(BusinessDocumentTruths.reference("PURCHASE_ORDER", "PURCHASE_ORDER", purchaseOrder.getId(), purchaseOrder.getOrderNumber(), new DocumentLifecycleDto(purchaseOrder.getStatusValue(), "NOT_ELIGIBLE"), null));
         }
         GoodsReceipt goodsReceipt = purchase.getGoodsReceipt();
         if (goodsReceipt != null) {
-            linkedReferences.add(BusinessDocumentTruths.reference(
-                    "GOODS_RECEIPT",
-                    "GOODS_RECEIPT",
-                    goodsReceipt.getId(),
-                    goodsReceipt.getReceiptNumber(),
-                    BusinessDocumentTruths.goodsReceiptLifecycle(goodsReceipt, purchase),
-                    purchase.getJournalEntry() != null ? purchase.getJournalEntry().getId() : null
-            ));
+            linkedReferences.add(BusinessDocumentTruths.reference("GOODS_RECEIPT", "GOODS_RECEIPT", goodsReceipt.getId(), goodsReceipt.getReceiptNumber(), BusinessDocumentTruths.goodsReceiptLifecycle(goodsReceipt, purchase), purchase.getJournalEntry() != null ? purchase.getJournalEntry().getId() : null));
         }
         if (purchase.getJournalEntry() != null) {
-            linkedReferences.add(BusinessDocumentTruths.reference(
-                    "ACCOUNTING_ENTRY",
-                    "JOURNAL_ENTRY",
-                    purchase.getJournalEntry().getId(),
-                    purchase.getJournalEntry().getReferenceNumber(),
-                    BusinessDocumentTruths.journalLifecycle(purchase.getJournalEntry()),
-                    purchase.getJournalEntry().getId()
-            ));
+            linkedReferences.add(BusinessDocumentTruths.reference("ACCOUNTING_ENTRY", "JOURNAL_ENTRY", purchase.getJournalEntry().getId(), purchase.getJournalEntry().getReferenceNumber(), BusinessDocumentTruths.journalLifecycle(purchase.getJournalEntry()), purchase.getJournalEntry().getId()));
         }
         if (settlementAllocationRepository != null && purchase.getCompany() != null) {
             List<PartnerSettlementAllocation> settlementAllocations = settlementAllocationRepository
                     .findByCompanyAndPurchaseOrderByCreatedAtDesc(purchase.getCompany(), purchase);
             if (settlementAllocations != null) {
                 for (PartnerSettlementAllocation allocation : settlementAllocations) {
-                    linkedReferences.add(BusinessDocumentTruths.reference(
-                            "SETTLEMENT",
-                            "SETTLEMENT_ALLOCATION",
-                            allocation.getId(),
-                            allocation.getIdempotencyKey(),
-                            BusinessDocumentTruths.settlementLifecycle(allocation.getJournalEntry()),
-                            allocation.getJournalEntry() != null ? allocation.getJournalEntry().getId() : null
-                    ));
+                    linkedReferences.add(BusinessDocumentTruths.reference("SETTLEMENT", "SETTLEMENT_ALLOCATION", allocation.getId(), allocation.getIdempotencyKey(), BusinessDocumentTruths.settlementLifecycle(allocation.getJournalEntry()), allocation.getJournalEntry() != null ? allocation.getJournalEntry().getId() : null));
                 }
             }
         }
-        linkedReferences.add(BusinessDocumentTruths.reference(
-                "SELF",
-                "PURCHASE_INVOICE",
-                purchase.getId(),
-                purchase.getInvoiceNumber(),
-                lifecycle,
-                purchase.getJournalEntry() != null ? purchase.getJournalEntry().getId() : null
-        ));
+        linkedReferences.add(BusinessDocumentTruths.reference("SELF", "PURCHASE_INVOICE", purchase.getId(), purchase.getInvoiceNumber(), lifecycle, purchase.getJournalEntry() != null ? purchase.getJournalEntry().getId() : null));
         return linkedReferences.stream()
                 .filter(reference -> reference.documentId() != null)
                 .distinct()
                 .toList();
     }
 
-    private List<LinkedBusinessReferenceDto> goodsReceiptLinkedReferences(GoodsReceipt receipt,
-                                                                          RawMaterialPurchase linkedPurchase,
-                                                                          DocumentLifecycleDto lifecycle) {
-        List<LinkedBusinessReferenceDto> linkedReferences = new ArrayList<>();
+    private List<LinkedBusinessReferenceDto> goodsReceiptLinkedReferences(GoodsReceipt receipt, RawMaterialPurchase linkedPurchase, DocumentLifecycleDto lifecycle) { List<LinkedBusinessReferenceDto> linkedReferences = new ArrayList<>();
         PurchaseOrder purchaseOrder = receipt.getPurchaseOrder();
         if (purchaseOrder != null) {
-            linkedReferences.add(BusinessDocumentTruths.reference(
-                    "PURCHASE_ORDER",
-                    "PURCHASE_ORDER",
-                    purchaseOrder.getId(),
-                    purchaseOrder.getOrderNumber(),
-                    new DocumentLifecycleDto(purchaseOrder.getStatusValue(), "NOT_ELIGIBLE"),
-                    null
-            ));
+            linkedReferences.add(BusinessDocumentTruths.reference("PURCHASE_ORDER", "PURCHASE_ORDER", purchaseOrder.getId(), purchaseOrder.getOrderNumber(), new DocumentLifecycleDto(purchaseOrder.getStatusValue(), "NOT_ELIGIBLE"), null));
         }
         if (linkedPurchase != null) {
             DocumentLifecycleDto purchaseLifecycle = BusinessDocumentTruths.purchaseLifecycle(linkedPurchase);
-            linkedReferences.add(BusinessDocumentTruths.reference(
-                    "PURCHASE_INVOICE",
-                    "PURCHASE_INVOICE",
-                    linkedPurchase.getId(),
-                    linkedPurchase.getInvoiceNumber(),
-                    purchaseLifecycle,
-                    linkedPurchase.getJournalEntry() != null ? linkedPurchase.getJournalEntry().getId() : null
-            ));
+            linkedReferences.add(BusinessDocumentTruths.reference("PURCHASE_INVOICE", "PURCHASE_INVOICE", linkedPurchase.getId(), linkedPurchase.getInvoiceNumber(), purchaseLifecycle, linkedPurchase.getJournalEntry() != null ? linkedPurchase.getJournalEntry().getId() : null));
             if (linkedPurchase.getJournalEntry() != null) {
-                linkedReferences.add(BusinessDocumentTruths.reference(
-                        "ACCOUNTING_ENTRY",
-                        "JOURNAL_ENTRY",
-                        linkedPurchase.getJournalEntry().getId(),
-                        linkedPurchase.getJournalEntry().getReferenceNumber(),
-                        BusinessDocumentTruths.journalLifecycle(linkedPurchase.getJournalEntry()),
-                        linkedPurchase.getJournalEntry().getId()
-                ));
+                linkedReferences.add(BusinessDocumentTruths.reference("ACCOUNTING_ENTRY", "JOURNAL_ENTRY", linkedPurchase.getJournalEntry().getId(), linkedPurchase.getJournalEntry().getReferenceNumber(), BusinessDocumentTruths.journalLifecycle(linkedPurchase.getJournalEntry()), linkedPurchase.getJournalEntry().getId()));
             }
         }
-        linkedReferences.add(BusinessDocumentTruths.reference(
-                "SELF",
-                "GOODS_RECEIPT",
-                receipt.getId(),
-                receipt.getReceiptNumber(),
-                lifecycle,
-                linkedPurchase != null && linkedPurchase.getJournalEntry() != null ? linkedPurchase.getJournalEntry().getId() : null
-        ));
+        linkedReferences.add(BusinessDocumentTruths.reference("SELF", "GOODS_RECEIPT", receipt.getId(), receipt.getReceiptNumber(), lifecycle, linkedPurchase != null && linkedPurchase.getJournalEntry() != null ? linkedPurchase.getJournalEntry().getId() : null));
         return linkedReferences.stream()
                 .filter(reference -> reference.documentId() != null)
                 .distinct()
                 .toList();
     }
 
-    private RawMaterialPurchase resolveLinkedPurchase(GoodsReceipt receipt) {
-        if (purchaseRepository == null || receipt == null || receipt.getCompany() == null) {
-            return null;
-        }
+    private RawMaterialPurchase resolveLinkedPurchase(GoodsReceipt receipt) { if (purchaseRepository == null || receipt == null || receipt.getCompany() == null) {
+            return null; }
         return purchaseRepository.findByCompanyAndGoodsReceipt(receipt.getCompany(), receipt).orElse(null);
     }
 
-    private Map<Long, RawMaterialPurchase> resolveLinkedPurchases(List<GoodsReceipt> receipts) {
-        if (purchaseRepository == null || receipts == null || receipts.isEmpty()) {
-            return Map.of();
-        }
+    private Map<Long, RawMaterialPurchase> resolveLinkedPurchases(List<GoodsReceipt> receipts) { if (purchaseRepository == null || receipts == null || receipts.isEmpty()) {
+            return Map.of(); }
         com.bigbrightpaints.erp.modules.company.domain.Company company = receipts.stream()
                 .map(GoodsReceipt::getCompany)
                 .filter(Objects::nonNull)
@@ -346,10 +223,6 @@ public class PurchaseResponseMapper {
         }
         return purchaseRepository.findByCompanyAndGoodsReceipt_IdIn(company, receiptIds).stream()
                 .filter(purchase -> purchase.getGoodsReceipt() != null && purchase.getGoodsReceipt().getId() != null)
-                .collect(Collectors.toMap(
-                        purchase -> purchase.getGoodsReceipt().getId(),
-                        purchase -> purchase,
-                        (left, right) -> left
-                ));
+                .collect(Collectors.toMap(purchase -> purchase.getGoodsReceipt().getId(), purchase -> purchase, (left, right) -> left));
     }
 }
