@@ -191,6 +191,7 @@ public class ValidationSeedDataInitializer {
                                 String code,
                                 String name) {
         Dealer dealer = dealerRepository.findByCompanyAndCodeIgnoreCase(company, code).orElseGet(Dealer::new);
+        BigDecimal existingOutstandingBalance = dealer.getOutstandingBalance();
         dealer.setCompany(company);
         dealer.setCode(code);
         dealer.setName(name);
@@ -200,7 +201,7 @@ public class ValidationSeedDataInitializer {
         dealer.setReceivableAccount(receivableAccount);
         dealer.setStateCode(company.getStateCode());
         dealer.setCreditLimit(new BigDecimal("500000"));
-        dealer.setOutstandingBalance(BigDecimal.ZERO);
+        dealer.setOutstandingBalance(existingOutstandingBalance == null ? BigDecimal.ZERO : existingOutstandingBalance);
         return dealerRepository.save(dealer);
     }
 }
