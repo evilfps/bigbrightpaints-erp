@@ -5,6 +5,7 @@ import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccount;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
+import com.bigbrightpaints.erp.modules.auth.service.PasswordPolicy;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
 import com.bigbrightpaints.erp.modules.rbac.domain.Role;
@@ -18,11 +19,14 @@ import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
+import org.springframework.core.env.Environment;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.math.BigDecimal;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 
 @Configuration
 @Profile("validation-seed")
@@ -37,8 +41,19 @@ public class ValidationSeedDataInitializer {
                                            DealerRepository dealerRepository,
                                            AccountRepository accountRepository,
                                            PasswordEncoder passwordEncoder,
-                                           @Value("${erp.validation-seed.password:changeme}") String defaultPassword) {
+                                           PasswordPolicy passwordPolicy,
+                                           Environment environment,
+                                           @Value("${erp.validation-seed.enabled:false}") boolean validationSeedEnabled,
+                                           @Value("${erp.validation-seed.password:}") String defaultPassword) {
         return args -> {
+            if (!validationSeedEnabled) {
+                log.info("Validation seed disabled; set erp.validation-seed.enabled=true to seed local validation actors.");
+                return;
+            }
+
+            ensureMockProfileEnabled(environment);
+            String validatedPassword = requireStrongPassword(passwordPolicy, defaultPassword);
+
             Company mockCompany = ensureCompany(companyRepository, "MOCK", "Mock Training Co");
             Company rivalCompany = ensureCompany(companyRepository, "RIVAL", "Rival Validation Co");
             Company superAdminCompany = ensureCompany(companyRepository, "SKE", "Platform Super Admin");
@@ -54,33 +69,50 @@ public class ValidationSeedDataInitializer {
             Account rivalReceivable = ensureAccount(accountRepository, rivalCompany, "AR", "Accounts Receivable", AccountType.ASSET);
 
             ensureUser(userAccountRepository, passwordEncoder, "validation.admin@example.com", "Validation Admin",
-                    defaultPassword, List.of(mockCompany), List.of(admin, accounting, sales));
+                    validatedPassword, List.of(mockCompany), List.of(admin, accounting, sales));
             ensureUser(userAccountRepository, passwordEncoder, "validation.accounting@example.com", "Validation Accounting",
-                    defaultPassword, List.of(mockCompany), List.of(accounting));
+                    validatedPassword, List.of(mockCompany), List.of(accounting));
             ensureUser(userAccountRepository, passwordEncoder, "validation.sales@example.com", "Validation Sales",
-                    defaultPassword, List.of(mockCompany), List.of(sales));
+                    validatedPassword, List.of(mockCompany), List.of(sales));
             ensureUser(userAccountRepository, passwordEncoder, "validation.factory@example.com", "Validation Factory",
-                    defaultPassword, List.of(mockCompany), List.of(factory));
+                    validatedPassword, List.of(mockCompany), List.of(factory));
 
             UserAccount dealerUser = ensureUser(userAccountRepository, passwordEncoder,
                     "validation.dealer@example.com", "Validation Dealer",
-                    defaultPassword, List.of(mockCompany), List.of(dealerRole));
+                    validatedPassword, List.of(mockCompany), List.of(dealerRole));
             ensureDealer(dealerRepository, mockCompany, mockReceivable, dealerUser,
                     "VALID-DEALER", "Validation Dealer");
 
             UserAccount rivalDealerUser = ensureUser(userAccountRepository, passwordEncoder,
                     "validation.rival.dealer@example.com", "Rival Validation Dealer",
-                    defaultPassword, List.of(rivalCompany), List.of(dealerRole));
+                    validatedPassword, List.of(rivalCompany), List.of(dealerRole));
             ensureDealer(dealerRepository, rivalCompany, rivalReceivable, rivalDealerUser,
                     "RIVAL-DEALER", "Rival Validation Dealer");
 
             ensureUser(userAccountRepository, passwordEncoder, "validation.rival.admin@example.com", "Rival Validation Admin",
-                    defaultPassword, List.of(rivalCompany), List.of(admin));
+                    validatedPassword, List.of(rivalCompany), List.of(admin));
             ensureUser(userAccountRepository, passwordEncoder, "validation.superadmin@example.com", "Validation Super Admin",
-                    defaultPassword, List.of(superAdminCompany, mockCompany), List.of(admin, superAdmin));
+                    validatedPassword, List.of(superAdminCompany, mockCompany), List.of(admin, superAdmin));
 
             log.info("Validation seed ready for companies [MOCK, RIVAL, SKE]. Actor password comes from erp.validation-seed.password / ERP_VALIDATION_SEED_PASSWORD.");
         };
+    }
+
+    private void ensureMockProfileEnabled(Environment environment) {
+        boolean mockProfileEnabled = Arrays.asList(environment.getActiveProfiles()).contains("mock");
+        if (!mockProfileEnabled) {
+            throw new IllegalStateException("Validation seed may only run when the mock profile is active for local validation.");
+        }
+    }
+
+    private String requireStrongPassword(PasswordPolicy passwordPolicy, String password) {
+        String candidate = password == null ? "" : password.trim();
+        List<String> violations = passwordPolicy.validate(candidate);
+        if (!violations.isEmpty()) {
+            throw new IllegalStateException("Validation seed password must satisfy the application password policy: "
+                    + String.join(", ", violations));
+        }
+        return candidate;
     }
 
     private Company ensureCompany(CompanyRepository companyRepository, String code, String name) {
@@ -133,9 +165,29 @@ public class ValidationSeedDataInitializer {
         user.setPasswordHash(passwordEncoder.encode(password));
         user.setEnabled(true);
         user.setMustChangePassword(false);
-        companies.forEach(user::addCompany);
-        roles.forEach(user::addRole);
+        companies.forEach(company -> ensureCompanyMembership(user, company));
+        roles.forEach(role -> ensureRoleMembership(user, role));
         return userAccountRepository.save(user);
+    }
+
+    private void ensureCompanyMembership(UserAccount user, Company company) {
+        boolean alreadyAssigned = user.getCompanies().stream()
+                .map(Company::getCode)
+                .filter(Objects::nonNull)
+                .anyMatch(existingCode -> existingCode.equalsIgnoreCase(company.getCode()));
+        if (!alreadyAssigned) {
+            user.addCompany(company);
+        }
+    }
+
+    private void ensureRoleMembership(UserAccount user, Role role) {
+        boolean alreadyAssigned = user.getRoles().stream()
+                .map(Role::getName)
+                .filter(Objects::nonNull)
+                .anyMatch(existingName -> existingName.equalsIgnoreCase(role.getName()));
+        if (!alreadyAssigned) {
+            user.addRole(role);
+        }
     }
 
     private Dealer ensureDealer(DealerRepository dealerRepository,

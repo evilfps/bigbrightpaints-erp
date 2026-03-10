@@ -1,13 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="/home/realnigga/Desktop/Mission-control"
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
+ROOT="$(cd -- "${SCRIPT_DIR}/.." >/dev/null 2>&1 && pwd)"
 COMPOSE_FILE="$ROOT/docker-compose.yml"
-DB_PORT="5433"
+PINNED_DB_PORT="5433"
+DB_PORT="$PINNED_DB_PORT"
 
 JWT_SECRET="${JWT_SECRET:-placeholder}"
 ERP_SECURITY_ENCRYPTION_KEY="${ERP_SECURITY_ENCRYPTION_KEY:-placeholder}"
-ERP_VALIDATION_SEED_PASSWORD="${ERP_VALIDATION_SEED_PASSWORD:-changeme}"
+ERP_VALIDATION_SEED_PASSWORD="${ERP_VALIDATION_SEED_PASSWORD:-}"
+ERP_VALIDATION_SEED_PASSWORD_SOURCE="configured"
 
 if [[ -f "$ROOT/.env" ]]; then
   set -a
@@ -15,6 +18,8 @@ if [[ -f "$ROOT/.env" ]]; then
   source "$ROOT/.env"
   set +a
 fi
+
+DB_PORT="$PINNED_DB_PORT"
 
 if [[ -z "${JWT_SECRET:-}" || "$JWT_SECRET" == YOUR_* || "$JWT_SECRET" == "placeholder" ]]; then
   JWT_SECRET="$(python3 - <<'PY'
@@ -31,30 +36,45 @@ PY
 )"
 fi
 if [[ -z "${ERP_VALIDATION_SEED_PASSWORD:-}" || "$ERP_VALIDATION_SEED_PASSWORD" == YOUR_* || "$ERP_VALIDATION_SEED_PASSWORD" == "placeholder" ]]; then
-  ERP_VALIDATION_SEED_PASSWORD="changeme"
+  ERP_VALIDATION_SEED_PASSWORD="$(python3 - <<'PY'
+import secrets
+print(f"Validation!{secrets.token_hex(8)}")
+PY
+)"
+  ERP_VALIDATION_SEED_PASSWORD_SOURCE="generated"
 fi
 
 echo "[final-validation-reset] Resetting compose runtime on port ${DB_PORT}"
 DB_PORT="$DB_PORT" docker compose -f "$COMPOSE_FILE" down -v --remove-orphans
 DB_PORT="$DB_PORT" docker compose -f "$COMPOSE_FILE" up -d db rabbitmq mailhog
 
+ready=0
 for _ in $(seq 1 60); do
-  if python3 - <<'PY'
+  if DB_PORT="$DB_PORT" python3 - <<'PY'
+import os
 import socket
-for host, port in [('127.0.0.1', 5433), ('127.0.0.1', 5672)]:
-    s = socket.create_connection((host, port), 2)
-    s.close()
+
+for host, port in [('127.0.0.1', int(os.environ['DB_PORT'])), ('127.0.0.1', 5672)]:
+    with socket.create_connection((host, port), 2):
+        pass
 PY
   then
+    ready=1
     break
   fi
   sleep 2
 done
 
+if [[ "$ready" -ne 1 ]]; then
+  echo "[final-validation-reset] ERROR: DB/RabbitMQ did not become ready on ports ${DB_PORT}/5672 after 60 attempts" >&2
+  exit 1
+fi
+
 DB_PORT="$DB_PORT" \
 SPRING_PROFILES_ACTIVE='prod,flyway-v2,mock,validation-seed' \
 JWT_SECRET="$JWT_SECRET" \
 ERP_SECURITY_ENCRYPTION_KEY="$ERP_SECURITY_ENCRYPTION_KEY" \
+ERP_VALIDATION_SEED_ENABLED='true' \
 ERP_VALIDATION_SEED_PASSWORD="$ERP_VALIDATION_SEED_PASSWORD" \
 ERP_CORS_ALLOWED_ORIGINS='https://app.bigbrightpaints.com' \
 ERP_CORS_ALLOW_TAILSCALE_HTTP_ORIGINS='true' \
@@ -89,7 +109,8 @@ Runtime:
   MailHog:  http://localhost:8025
   Profiles: prod,flyway-v2,mock,validation-seed
 
-Seeded actors (password source: ERP_VALIDATION_SEED_PASSWORD; local default is 'changeme')
+Seeded actors (password source: ERP_VALIDATION_SEED_PASSWORD; reset fallback: ${ERP_VALIDATION_SEED_PASSWORD_SOURCE})
+  Seed password: ${ERP_VALIDATION_SEED_PASSWORD}
   validation.admin@example.com        -> MOCK (ROLE_ADMIN, ROLE_ACCOUNTING, ROLE_SALES)
   validation.accounting@example.com   -> MOCK (ROLE_ACCOUNTING)
   validation.sales@example.com        -> MOCK (ROLE_SALES)
