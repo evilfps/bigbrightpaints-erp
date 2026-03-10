@@ -182,6 +182,73 @@ class FinishedGoodsReservationEngineTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void reserveForOrderReplay_reusesSameSkuMultiLineReservationsWithoutResettingShape() {
+        Company company = seedCompany("RES-REPLAY-SAME-SKU");
+        FinishedGood finishedGood = createFinishedGood(company, "FG-RES-REPLAY-SAME-SKU", new BigDecimal("10"), BigDecimal.ZERO);
+        FinishedGoodBatch batch = createBatch(
+                finishedGood,
+                "BATCH-RES-REPLAY-SAME-SKU",
+                new BigDecimal("10"),
+                new BigDecimal("10"),
+                new BigDecimal("11"));
+        SalesOrder order = createOrder(
+                company,
+                "SO-RES-REPLAY-SAME-SKU-" + UUID.randomUUID(),
+                List.of(
+                        new OrderLineSeed(finishedGood.getProductCode(), new BigDecimal("2")),
+                        new OrderLineSeed(finishedGood.getProductCode(), new BigDecimal("3"))));
+        createSlip(company, order, "RESERVED", batch, new BigDecimal("2"), new BigDecimal("3"));
+        InventoryReservation firstReservation = createReservation(order, finishedGood, batch, new BigDecimal("2"));
+        InventoryReservation secondReservation = createReservation(order, finishedGood, batch, new BigDecimal("3"));
+
+        FinishedGoodsService.InventoryReservationResult replay = finishedGoodsService.reserveForOrder(order);
+
+        List<InventoryReservation> reservations = reservationsFor(company, order.getId());
+        assertThat(replay.shortages()).isEmpty();
+        assertThat(reservations).hasSize(2);
+        assertThat(reservations)
+                .extracting(InventoryReservation::getId)
+                .containsExactly(firstReservation.getId(), secondReservation.getId());
+        assertThat(reservations)
+                .extracting(InventoryReservation::getStatus)
+                .containsOnly("RESERVED");
+        assertThat(reservations)
+                .extracting(InventoryReservation::getQuantity)
+                .containsExactly(new BigDecimal("2"), new BigDecimal("3"));
+        assertThat(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, order.getId()))
+                .singleElement()
+                .satisfies(existing -> {
+                    assertThat(existing.getStatus()).isEqualTo("RESERVED");
+                    assertThat(existing.getLines())
+                            .extracting(PackagingSlipLine::getOrderedQuantity)
+                            .containsExactly(new BigDecimal("2"), new BigDecimal("3"));
+                });
+        assertThat(finishedGoodRepository.findById(finishedGood.getId()).orElseThrow().getReservedStock())
+                .isEqualByComparingTo(new BigDecimal("5"));
+    }
+
+    @Test
+    void slipLinesMatchOrder_acceptsSameSkuMultiLineOrdersByAggregatedQuantity() {
+        Company company = seedCompany("RES-SHAPE-SAME-SKU");
+        FinishedGood finishedGood = createFinishedGood(company, "FG-RES-SHAPE-SAME-SKU", new BigDecimal("10"), BigDecimal.ZERO);
+        FinishedGoodBatch batch = createBatch(
+                finishedGood,
+                "BATCH-RES-SHAPE-SAME-SKU",
+                new BigDecimal("10"),
+                new BigDecimal("10"),
+                new BigDecimal("8"));
+        SalesOrder order = createOrder(
+                company,
+                "SO-RES-SHAPE-SAME-SKU-" + UUID.randomUUID(),
+                List.of(
+                        new OrderLineSeed(finishedGood.getProductCode(), new BigDecimal("2")),
+                        new OrderLineSeed(finishedGood.getProductCode(), new BigDecimal("3"))));
+        PackagingSlip slip = createSlip(company, order, "RESERVED", batch, new BigDecimal("2"), new BigDecimal("3"));
+
+        assertThat(reservationEngine().slipLinesMatchOrder(slip, order)).isTrue();
+    }
+
+    @Test
     void synchronizeReservationsForSlip_returnsFalseWhenSlipHasNoLines() {
         PackagingSlip slip = new PackagingSlip();
 
@@ -305,6 +372,10 @@ class FinishedGoodsReservationEngineTest extends AbstractIntegrationTest {
     }
 
     private SalesOrder createOrder(Company company, String orderNumber, String productCode, BigDecimal quantity) {
+        return createOrder(company, orderNumber, List.of(new OrderLineSeed(productCode, quantity)));
+    }
+
+    private SalesOrder createOrder(Company company, String orderNumber, List<OrderLineSeed> items) {
         SalesOrder order = new SalesOrder();
         order.setCompany(company);
         order.setOrderNumber(orderNumber);
@@ -312,15 +383,20 @@ class FinishedGoodsReservationEngineTest extends AbstractIntegrationTest {
         order.setTotalAmount(BigDecimal.ZERO);
         order.setCurrency("INR");
 
-        SalesOrderItem item = new SalesOrderItem();
-        item.setSalesOrder(order);
-        item.setProductCode(productCode);
-        item.setQuantity(quantity);
-        item.setUnitPrice(BigDecimal.ONE);
-        item.setLineSubtotal(BigDecimal.ZERO);
-        item.setLineTotal(BigDecimal.ZERO);
-        order.getItems().add(item);
+        for (OrderLineSeed seed : items) {
+            SalesOrderItem item = new SalesOrderItem();
+            item.setSalesOrder(order);
+            item.setProductCode(seed.productCode());
+            item.setQuantity(seed.quantity());
+            item.setUnitPrice(BigDecimal.ONE);
+            item.setLineSubtotal(BigDecimal.ZERO);
+            item.setLineTotal(BigDecimal.ZERO);
+            order.getItems().add(item);
+        }
         return salesOrderRepository.saveAndFlush(order);
+    }
+
+    private record OrderLineSeed(String productCode, BigDecimal quantity) {
     }
 
     private FinishedGood createFinishedGood(Company company,

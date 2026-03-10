@@ -473,15 +473,25 @@ public class FinishedGoodsReservationEngine {
             slipQuantities.merge(productCode, orderedQty, BigDecimal::add);
         }
 
+        Map<String, BigDecimal> orderQuantities = new HashMap<>();
         for (SalesOrderItem item : order.getItems()) {
-            BigDecimal slipQty = slipQuantities.get(item.getProductCode());
-            if (slipQty == null
-                    || slipQty.compareTo(inventoryValuationService.safeQuantity(item.getQuantity())) != 0) {
+            orderQuantities.merge(
+                    item.getProductCode(),
+                    inventoryValuationService.safeQuantity(item.getQuantity()),
+                    BigDecimal::add);
+        }
+
+        if (!slipQuantities.keySet().equals(orderQuantities.keySet())) {
+            return false;
+        }
+
+        for (Map.Entry<String, BigDecimal> entry : orderQuantities.entrySet()) {
+            BigDecimal slipQty = slipQuantities.get(entry.getKey());
+            if (slipQty == null || slipQty.compareTo(entry.getValue()) != 0) {
                 return false;
             }
-            slipQuantities.remove(item.getProductCode());
         }
-        return slipQuantities.isEmpty();
+        return true;
     }
 
     private PackagingSlip createPrimarySlip(SalesOrder order) {
