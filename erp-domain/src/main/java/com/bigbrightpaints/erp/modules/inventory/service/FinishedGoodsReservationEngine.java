@@ -10,6 +10,7 @@ import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatch;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatchRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryMovementRepository;
+import com.bigbrightpaints.erp.modules.inventory.domain.InventoryMovement;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryReference;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryReservation;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryReservationRepository;
@@ -255,6 +256,16 @@ public class FinishedGoodsReservationEngine {
             return false;
         }
 
+        Map<Long, BigDecimal> fulfilledByBatchId = fulfilledReservationQuantitiesByBatchId(reservations);
+        if (!fulfilledByBatchId.isEmpty() && fulfilledByBatchId.equals(expectedByBatchId)) {
+            return true;
+        }
+
+        Map<Long, BigDecimal> dispatchedByBatchId = dispatchedMovementQuantitiesByBatchId(slip);
+        return !dispatchedByBatchId.isEmpty() && dispatchedByBatchId.equals(expectedByBatchId);
+    }
+
+    private Map<Long, BigDecimal> fulfilledReservationQuantitiesByBatchId(List<InventoryReservation> reservations) {
         Map<Long, BigDecimal> fulfilledByBatchId = new HashMap<>();
         for (InventoryReservation reservation : reservations) {
             if (reservation == null || !"FULFILLED".equalsIgnoreCase(reservation.getStatus())) {
@@ -262,11 +273,42 @@ public class FinishedGoodsReservationEngine {
             }
             FinishedGoodBatch batch = reservation.getFinishedGoodBatch();
             if (batch == null || batch.getId() == null) {
-                return false;
+                return Map.of();
             }
             fulfilledByBatchId.merge(batch.getId(), inventoryValuationService.safeQuantity(reservation.getQuantity()), BigDecimal::add);
         }
-        return !fulfilledByBatchId.isEmpty() && fulfilledByBatchId.equals(expectedByBatchId);
+        return fulfilledByBatchId;
+    }
+
+    private Map<Long, BigDecimal> dispatchedMovementQuantitiesByBatchId(PackagingSlip slip) {
+        Map<Long, BigDecimal> dispatchedByBatchId = new HashMap<>();
+
+        List<InventoryMovement> dispatchMovements = inventoryMovementRepository
+                .findByFinishedGood_CompanyAndPackingSlipIdAndMovementTypeIgnoreCaseOrderByCreatedAtAsc(
+                        slip.getCompany(),
+                        slip.getId(),
+                        "DISPATCH");
+
+        if (dispatchMovements.isEmpty() && slip.getSalesOrder() != null && slip.getSalesOrder().getId() != null) {
+            dispatchMovements = inventoryMovementRepository
+                    .findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdAndPackingSlipIdIsNullAndMovementTypeIgnoreCaseOrderByCreatedAtAsc(
+                            slip.getCompany(),
+                            InventoryReference.SALES_ORDER,
+                            slip.getSalesOrder().getId().toString(),
+                            "DISPATCH");
+        }
+
+        for (InventoryMovement movement : dispatchMovements) {
+            if (movement == null || movement.getFinishedGoodBatch() == null || movement.getFinishedGoodBatch().getId() == null) {
+                return Map.of();
+            }
+            dispatchedByBatchId.merge(
+                    movement.getFinishedGoodBatch().getId(),
+                    inventoryValuationService.safeQuantity(movement.getQuantity()),
+                    BigDecimal::add);
+        }
+
+        return dispatchedByBatchId;
     }
 
     private Map<Long, FinishedGood> lockTouchedGoods(Company company, List<InventoryReservation> reservations) {
