@@ -1212,6 +1212,9 @@ public class AccountingPeriodServiceCore {
     }
 
     private boolean isMissingCorrectionLinkage(JournalEntry entry) {
+        if (isLegacyReturnJournalWithoutCorrectionMetadata(entry)) {
+            return false;
+        }
         if (entry.getCorrectionType() == null
                 || !StringUtils.hasText(entry.getCorrectionReason())) {
             return true;
@@ -1222,6 +1225,30 @@ public class AccountingPeriodServiceCore {
             return false;
         }
         return !hasSourceModule || !hasSourceReference;
+    }
+
+    private boolean isLegacyReturnJournalWithoutCorrectionMetadata(JournalEntry entry) {
+        if (entry == null || entry.getReversalOf() != null) {
+            return false;
+        }
+        if (entry.getCorrectionType() != null
+                || StringUtils.hasText(entry.getCorrectionReason())
+                || StringUtils.hasText(entry.getSourceModule())
+                || StringUtils.hasText(entry.getSourceReference())) {
+            return false;
+        }
+        String reference = entry.getReferenceNumber();
+        if (!StringUtils.hasText(reference)) {
+            return false;
+        }
+        String normalized = reference.trim().toUpperCase();
+        if (isCorrectionReference(normalized)) {
+            return entry.getDealer() != null;
+        }
+        if (normalized.startsWith("PRN-")) {
+            return entry.getSupplier() != null;
+        }
+        return false;
     }
 
     private PeriodCloseRequestDto toPeriodCloseRequestDto(PeriodCloseRequest request) {

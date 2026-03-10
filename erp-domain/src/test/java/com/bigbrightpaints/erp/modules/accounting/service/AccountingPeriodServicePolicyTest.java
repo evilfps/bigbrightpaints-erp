@@ -31,7 +31,9 @@ import com.bigbrightpaints.erp.modules.invoice.domain.InvoiceRepository;
 import com.bigbrightpaints.erp.modules.purchasing.domain.GoodsReceiptStatus;
 import com.bigbrightpaints.erp.modules.purchasing.domain.GoodsReceiptRepository;
 import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchaseRepository;
+import com.bigbrightpaints.erp.modules.purchasing.domain.Supplier;
 import com.bigbrightpaints.erp.modules.reports.service.ReportService;
+import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 import java.time.Instant;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -317,6 +319,41 @@ class AccountingPeriodServicePolicyTest {
         assertThat((Boolean) ReflectionTestUtils.invokeMethod(coreService, "isCorrectionJournal", blankReference)).isFalse();
         assertThat((Boolean) ReflectionTestUtils.invokeMethod(coreService, "isMissingCorrectionLinkage", legacyMissingSource)).isFalse();
         assertThat((Boolean) ReflectionTestUtils.invokeMethod(coreService, "isMissingCorrectionLinkage", partialMissingSource)).isTrue();
+    }
+
+    @Test
+    void correctionLinkageHelpers_allowLegacyReturnPrefixesWithoutPersistedMetadata() {
+        Company company = company(1L, "POLICY");
+        AccountingPeriod period = openPeriod(company, 2026, 3);
+
+        JournalEntry legacySalesReturn = new JournalEntry();
+        legacySalesReturn.setReferenceNumber("CRN-INV-100");
+        legacySalesReturn.setDealer(dealer(company, 10L, "Legacy Dealer"));
+
+        JournalEntry legacyPurchaseReturn = new JournalEntry();
+        legacyPurchaseReturn.setReferenceNumber("PRN-POLICY-SUP-10-0001");
+        legacyPurchaseReturn.setSupplier(supplier(company, 20L, "Legacy Supplier"));
+
+        JournalEntry currentIncomplete = new JournalEntry();
+        currentIncomplete.setReferenceNumber("CRN-INV-101");
+        currentIncomplete.setDealer(dealer(company, 11L, "Current Dealer"));
+        currentIncomplete.setCorrectionType(JournalCorrectionType.REVERSAL);
+        currentIncomplete.setCorrectionReason("SALES_RETURN");
+        currentIncomplete.setSourceModule("SALES_RETURN");
+
+        when(journalEntryRepository.findByCompanyAndEntryDateBetweenOrderByEntryDateAsc(
+                company,
+                period.getStartDate(),
+                period.getEndDate())).thenReturn(List.of(legacySalesReturn, legacyPurchaseReturn, currentIncomplete));
+
+        assertThat((Long) ReflectionTestUtils.invokeMethod(coreService, "countCorrectionLinkageGaps", company, period))
+                .isEqualTo(1L);
+        assertThat((Boolean) ReflectionTestUtils.invokeMethod(coreService, "isMissingCorrectionLinkage", legacySalesReturn))
+                .isFalse();
+        assertThat((Boolean) ReflectionTestUtils.invokeMethod(coreService, "isMissingCorrectionLinkage", legacyPurchaseReturn))
+                .isFalse();
+        assertThat((Boolean) ReflectionTestUtils.invokeMethod(coreService, "isMissingCorrectionLinkage", currentIncomplete))
+                .isTrue();
     }
 
     @Test
@@ -760,6 +797,22 @@ class AccountingPeriodServicePolicyTest {
         company.setTimezone("Asia/Kolkata");
         ReflectionTestUtils.setField(company, "id", id);
         return company;
+    }
+
+    private Dealer dealer(Company company, Long id, String name) {
+        Dealer dealer = new Dealer();
+        dealer.setCompany(company);
+        dealer.setName(name);
+        ReflectionTestUtils.setField(dealer, "id", id);
+        return dealer;
+    }
+
+    private Supplier supplier(Company company, Long id, String name) {
+        Supplier supplier = new Supplier();
+        supplier.setCompany(company);
+        supplier.setName(name);
+        ReflectionTestUtils.setField(supplier, "id", id);
+        return supplier;
     }
 
     private AccountingPeriod openPeriod(Company company, int year, int month) {
