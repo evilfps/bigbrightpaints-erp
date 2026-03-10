@@ -366,6 +366,60 @@ class CompanyContextFilterControlPlaneBindingTest {
     }
 
     @Test
+    void tenantRawMaterialIntakeRequest_rejectsSuperAdminBeforeWorkflowExecution()
+            throws ServletException, IOException {
+        authenticate("root-superadmin@bbp.com", Set.of("ROLE_SUPER_ADMIN"), Set.of("TENANT-A"));
+
+        MockHttpServletRequest request = request("POST", "/api/v1/raw-materials/intake");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, filterChain);
+
+        assertThat(response.getStatus()).isEqualTo(403);
+        assertThat(response.getContentAsString()).contains("SUPER_ADMIN_PLATFORM_ONLY");
+        verifyNoInteractions(companyService);
+        verify(tenantRuntimeEnforcementService, never())
+                .beginRequest(anyString(), anyString(), anyString(), anyString(), anyBoolean());
+        verify(filterChain, never()).doFilter(request, response);
+    }
+
+    @Test
+    void tenantRawMaterialBatchRequest_rejectsSuperAdminBeforeWorkflowExecution()
+            throws ServletException, IOException {
+        authenticate("root-superadmin@bbp.com", Set.of("ROLE_SUPER_ADMIN"), Set.of("TENANT-A"));
+
+        MockHttpServletRequest request = request("POST", "/api/v1/raw-material-batches/77");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, filterChain);
+
+        assertThat(response.getStatus()).isEqualTo(403);
+        assertThat(response.getContentAsString()).contains("SUPER_ADMIN_PLATFORM_ONLY");
+        verifyNoInteractions(companyService);
+        verify(tenantRuntimeEnforcementService, never())
+                .beginRequest(anyString(), anyString(), anyString(), anyString(), anyBoolean());
+        verify(filterChain, never()).doFilter(request, response);
+    }
+
+    @Test
+    void tenantMigrationImportRequest_rejectsSuperAdminBeforeWorkflowExecution()
+            throws ServletException, IOException {
+        authenticate("root-superadmin@bbp.com", Set.of("ROLE_SUPER_ADMIN"), Set.of("TENANT-A"));
+
+        MockHttpServletRequest request = request("POST", "/api/v1/migration/tally-import");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, filterChain);
+
+        assertThat(response.getStatus()).isEqualTo(403);
+        assertThat(response.getContentAsString()).contains("SUPER_ADMIN_PLATFORM_ONLY");
+        verifyNoInteractions(companyService);
+        verify(tenantRuntimeEnforcementService, never())
+                .beginRequest(anyString(), anyString(), anyString(), anyString(), anyBoolean());
+        verify(filterChain, never()).doFilter(request, response);
+    }
+
+    @Test
     void adminSettingsRequest_keepsPlatformControlPlaneAccessForSuperAdmin()
             throws ServletException, IOException {
         authenticate("root-superadmin@bbp.com", Set.of("ROLE_SUPER_ADMIN"), Set.of("TENANT-A"));
