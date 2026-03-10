@@ -153,6 +153,42 @@ class SuperAdminTenantWorkflowIsolationIT extends AbstractIntegrationTest {
         assertPlatformOnlyForbidden(openingStockResponse);
     }
 
+    @Test
+    void superAdmin_cannotAccessTenantFinishedGoodsAndCatalogWorkflows() {
+        ResponseEntity<Map> finishedGoodsResponse = rest.exchange(
+                "/api/v1/finished-goods",
+                HttpMethod.GET,
+                new HttpEntity<>(authHeaders()),
+                Map.class
+        );
+
+        ResponseEntity<Map> catalogResponse = rest.exchange(
+                "/api/v1/catalog/products?page=0&pageSize=5",
+                HttpMethod.GET,
+                new HttpEntity<>(authHeaders()),
+                Map.class
+        );
+
+        ResponseEntity<Map> productionCatalogResponse = rest.exchange(
+                "/api/v1/production/brands",
+                HttpMethod.GET,
+                new HttpEntity<>(authHeaders()),
+                Map.class
+        );
+
+        ResponseEntity<Map> accountingCatalogResponse = rest.exchange(
+                "/api/v1/accounting/catalog/products",
+                HttpMethod.GET,
+                new HttpEntity<>(authHeaders()),
+                Map.class
+        );
+
+        assertPlatformOnlyForbidden(finishedGoodsResponse);
+        assertPlatformOnlyForbidden(catalogResponse);
+        assertPlatformOnlyForbidden(productionCatalogResponse);
+        assertPlatformOnlyForbidden(accountingCatalogResponse);
+    }
+
     private void assertPlatformOnlyForbidden(ResponseEntity<Map> response) {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
         assertThat(response.getBody()).isNotNull();

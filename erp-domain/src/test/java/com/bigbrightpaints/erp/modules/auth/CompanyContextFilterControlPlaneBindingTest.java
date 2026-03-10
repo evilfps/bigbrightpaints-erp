@@ -240,6 +240,78 @@ class CompanyContextFilterControlPlaneBindingTest {
     }
 
     @Test
+    void tenantFinishedGoodsRequest_rejectsSuperAdminBeforeWorkflowExecution()
+            throws ServletException, IOException {
+        authenticate("root-superadmin@bbp.com", Set.of("ROLE_SUPER_ADMIN"), Set.of("TENANT-A"));
+
+        MockHttpServletRequest request = request("GET", "/api/v1/finished-goods");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, filterChain);
+
+        assertThat(response.getStatus()).isEqualTo(403);
+        assertThat(response.getContentAsString()).contains("SUPER_ADMIN_PLATFORM_ONLY");
+        verifyNoInteractions(companyService);
+        verify(tenantRuntimeEnforcementService, never())
+                .beginRequest(anyString(), anyString(), anyString(), anyString(), anyBoolean());
+        verify(filterChain, never()).doFilter(request, response);
+    }
+
+    @Test
+    void tenantCatalogRequest_rejectsSuperAdminBeforeWorkflowExecution()
+            throws ServletException, IOException {
+        authenticate("root-superadmin@bbp.com", Set.of("ROLE_SUPER_ADMIN"), Set.of("TENANT-A"));
+
+        MockHttpServletRequest request = request("GET", "/api/v1/catalog/products");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, filterChain);
+
+        assertThat(response.getStatus()).isEqualTo(403);
+        assertThat(response.getContentAsString()).contains("SUPER_ADMIN_PLATFORM_ONLY");
+        verifyNoInteractions(companyService);
+        verify(tenantRuntimeEnforcementService, never())
+                .beginRequest(anyString(), anyString(), anyString(), anyString(), anyBoolean());
+        verify(filterChain, never()).doFilter(request, response);
+    }
+
+    @Test
+    void tenantProductionCatalogRequest_rejectsSuperAdminBeforeWorkflowExecution()
+            throws ServletException, IOException {
+        authenticate("root-superadmin@bbp.com", Set.of("ROLE_SUPER_ADMIN"), Set.of("TENANT-A"));
+
+        MockHttpServletRequest request = request("GET", "/api/v1/production/brands");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, filterChain);
+
+        assertThat(response.getStatus()).isEqualTo(403);
+        assertThat(response.getContentAsString()).contains("SUPER_ADMIN_PLATFORM_ONLY");
+        verifyNoInteractions(companyService);
+        verify(tenantRuntimeEnforcementService, never())
+                .beginRequest(anyString(), anyString(), anyString(), anyString(), anyBoolean());
+        verify(filterChain, never()).doFilter(request, response);
+    }
+
+    @Test
+    void tenantAccountingCatalogRequest_rejectsSuperAdminBeforeWorkflowExecution()
+            throws ServletException, IOException {
+        authenticate("root-superadmin@bbp.com", Set.of("ROLE_SUPER_ADMIN"), Set.of("TENANT-A"));
+
+        MockHttpServletRequest request = request("GET", "/api/v1/accounting/catalog/products");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, filterChain);
+
+        assertThat(response.getStatus()).isEqualTo(403);
+        assertThat(response.getContentAsString()).contains("SUPER_ADMIN_PLATFORM_ONLY");
+        verifyNoInteractions(companyService);
+        verify(tenantRuntimeEnforcementService, never())
+                .beginRequest(anyString(), anyString(), anyString(), anyString(), anyBoolean());
+        verify(filterChain, never()).doFilter(request, response);
+    }
+
+    @Test
     void lifecycleControlRequest_rejectsNonSuperAdminWhenPathTargetDiffersFromContextCompany()
             throws ServletException, IOException {
         authenticate("tenant-admin@bbp.com", Set.of("ROLE_ADMIN"), Set.of("ROOT"));
