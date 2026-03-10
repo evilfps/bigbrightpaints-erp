@@ -2,7 +2,7 @@
   "milestone": "recovery-review",
   "round": 1,
   "status": "pass",
-  "scopeNote": "Recovery-review is clean on the current propagated stack, but that clean state depends on re-anchoring the review evidence to resolvable propagated commits after the restack churn rather than on an uninterrupted first-pass trace.",
+  "scopeNote": "Recovery-review is clean on the current propagated stack because the re-anchored review evidence now resolves on the current branch, so the restored pass state is auditable rather than a stale clean summary carried forward from pre-restack history.",
   "validatorsRun": {
     "test": {
       "passed": true,
@@ -26,12 +26,24 @@
     "failed": 0,
     "failedFeatures": []
   },
+  "reviewCommitTraceability": {
+    "verifiedOnCurrentBranch": true,
+    "artifactsChecked": 8,
+    "resolvedCommitIds": 8,
+    "unresolvedCommitIds": 0,
+    "unresolvedArtifacts": []
+  },
   "blockingIssues": [],
   "appliedUpdates": [
     {
       "target": ".factory/validation/recovery-review/scrutiny/reviews/*.json",
       "description": "Re-anchored the aggregate recovery-review traceability chain to the current propagated commits, including the docs-only PR #102 shareout review on resolvable commit `1eb52bef6d674e5c2224eb5d09a5c17c60aa4c62`, so the milestone pass now reflects a re-established auditable stack rather than a stale clean summary from before restack churn was closed.",
       "source": "review-traceability"
+    },
+    {
+      "target": ".factory/validation/recovery-review/scrutiny/synthesis.json",
+      "description": "Recorded the aggregate traceability verification result explicitly: all eight linked recovery-review artifacts now point at commitIds that resolve on the current propagated branch, so the reported 8/8 pass count no longer overstates replayable evidence.",
+      "source": "review-traceability-verification"
     }
   ],
   "suggestedGuidanceUpdates": [],
