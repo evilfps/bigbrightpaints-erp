@@ -894,8 +894,7 @@ public class SalesReturnService {
                         SALES_RETURN_REFERENCE,
                         normalized);
         if (legacyMovements != null && !legacyMovements.isEmpty()) {
-            throw ValidationUtils.invalidState(
-                    "Sales return replay for invoice " + normalized + " requires one-time normalization to canonical line-scoped replay markers before preview or retry");
+            movements.addAll(legacyMovements);
         }
         String prefix = normalized + SALES_RETURN_LINE_SEPARATOR;
         List<InventoryMovement> lineMovements = inventoryMovementRepository

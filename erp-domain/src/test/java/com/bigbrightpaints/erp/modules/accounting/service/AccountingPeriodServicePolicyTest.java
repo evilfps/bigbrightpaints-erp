@@ -299,14 +299,19 @@ class AccountingPeriodServicePolicyTest {
         debitNote.setReferenceNumber("DN-2026-0001");
         JournalEntry blankReference = new JournalEntry();
         blankReference.setReferenceNumber("   ");
-        JournalEntry missingSource = new JournalEntry();
-        missingSource.setCorrectionType(JournalCorrectionType.REVERSAL);
-        missingSource.setCorrectionReason("SALES_RETURN");
+        JournalEntry legacyMissingSource = new JournalEntry();
+        legacyMissingSource.setCorrectionType(JournalCorrectionType.REVERSAL);
+        legacyMissingSource.setCorrectionReason("SALES_RETURN");
+        JournalEntry partialMissingSource = new JournalEntry();
+        partialMissingSource.setCorrectionType(JournalCorrectionType.REVERSAL);
+        partialMissingSource.setCorrectionReason("SALES_RETURN");
+        partialMissingSource.setSourceModule("SALES_RETURN");
 
         assertThat((Boolean) ReflectionTestUtils.invokeMethod(coreService, "isCorrectionJournal", reversalLinked)).isTrue();
         assertThat((Boolean) ReflectionTestUtils.invokeMethod(coreService, "isCorrectionJournal", debitNote)).isTrue();
         assertThat((Boolean) ReflectionTestUtils.invokeMethod(coreService, "isCorrectionJournal", blankReference)).isFalse();
-        assertThat((Boolean) ReflectionTestUtils.invokeMethod(coreService, "isMissingCorrectionLinkage", missingSource)).isTrue();
+        assertThat((Boolean) ReflectionTestUtils.invokeMethod(coreService, "isMissingCorrectionLinkage", legacyMissingSource)).isFalse();
+        assertThat((Boolean) ReflectionTestUtils.invokeMethod(coreService, "isMissingCorrectionLinkage", partialMissingSource)).isTrue();
     }
 
     @Test
@@ -381,7 +386,7 @@ class AccountingPeriodServicePolicyTest {
     }
 
     @Test
-    void approvePeriodClose_failsWhenCorrectionJournalLinkageIsMissing() {
+    void approvePeriodClose_allowsLegacyCorrectionJournalWithoutBackfilledSourceFields() {
         Company company = company(1L, "POLICY");
         AccountingPeriod period = openPeriod(company, 2026, 2);
         ReflectionTestUtils.setField(period, "id", 12L);
@@ -442,9 +447,82 @@ class AccountingPeriodServicePolicyTest {
                 List.of(PayrollRun.PayrollStatus.DRAFT,
                         PayrollRun.PayrollStatus.CALCULATED,
                         PayrollRun.PayrollStatus.APPROVED))).thenReturn(0L);
+        when(accountingPeriodRepository.save(period)).thenReturn(period);
+        when(accountingPeriodRepository.findByCompanyAndYearAndMonth(company, 2026, 3))
+                .thenReturn(Optional.of(openPeriod(company, 2026, 3)));
+        when(periodCloseRequestRepository.save(pending)).thenReturn(pending);
         authenticate("policy.admin", "ROLE_ADMIN");
 
-        assertThatThrownBy(() -> service.approvePeriodClose(12L, new PeriodCloseRequestActionRequest("period close", false)))
+        assertThat(service.approvePeriodClose(12L, new PeriodCloseRequestActionRequest("period close", false)).status())
+                .isEqualTo("CLOSED");
+    }
+
+    @Test
+    void approvePeriodClose_failsWhenCorrectionJournalLinkageIsPartiallyMissing() {
+        Company company = company(1L, "POLICY");
+        AccountingPeriod period = openPeriod(company, 2026, 2);
+        ReflectionTestUtils.setField(period, "id", 13L);
+        PeriodCloseRequest pending = pendingCloseRequest(company, period, 704L, "maker.user");
+        period.setBankReconciled(true);
+        period.setInventoryCounted(true);
+        JournalEntry correctionEntry = new JournalEntry();
+        correctionEntry.setCompany(company);
+        correctionEntry.setReferenceNumber("CRN-INV-101");
+        correctionEntry.setEntryDate(period.getStartDate().plusDays(3));
+        correctionEntry.setStatus("POSTED");
+        correctionEntry.setCorrectionType(JournalCorrectionType.REVERSAL);
+        correctionEntry.setCorrectionReason("SALES_RETURN");
+        correctionEntry.setSourceModule("SALES_RETURN");
+        when(companyContextService.requireCurrentCompany()).thenReturn(company);
+        when(accountingPeriodRepository.lockByCompanyAndId(company, 13L)).thenReturn(Optional.of(period), Optional.of(period));
+        when(periodCloseRequestRepository.lockByCompanyAndAccountingPeriodAndStatus(
+                company, period, PeriodCloseRequestStatus.PENDING)).thenReturn(Optional.of(pending));
+        when(goodsReceiptRepository.countByCompanyAndReceiptDateBetweenAndStatusNot(
+                company, period.getStartDate(), period.getEndDate(), GoodsReceiptStatus.INVOICED)).thenReturn(0L);
+        when(journalEntryRepository.countByCompanyAndEntryDateBetweenAndStatusIn(
+                company, period.getStartDate(), period.getEndDate(), List.of("DRAFT", "PENDING"))).thenReturn(0L);
+        when(reportService.inventoryReconciliation()).thenReturn(inventoryReconciliation(BigDecimal.ZERO));
+        when(reconciliationService.reconcileSubledgersForPeriod(period.getStartDate(), period.getEndDate()))
+                .thenReturn(new ReconciliationService.PeriodReconciliationResult(
+                        period.getStartDate(),
+                        period.getEndDate(),
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        true,
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        true));
+        when(reconciliationService.generateGstReconciliation(java.time.YearMonth.from(period.getStartDate())))
+                .thenReturn(gstReconciliation(BigDecimal.ZERO));
+        when(reconciliationDiscrepancyRepository.countByCompanyAndAccountingPeriodAndStatus(
+                company, period, ReconciliationDiscrepancyStatus.OPEN)).thenReturn(0L);
+        when(journalEntryRepository.findByCompanyAndEntryDateBetweenOrderByEntryDateAsc(
+                company, period.getStartDate(), period.getEndDate())).thenReturn(List.of(correctionEntry));
+        when(invoiceRepository.countByCompanyAndIssueDateBetweenAndStatusNotAndJournalEntryIsNull(
+                company, period.getStartDate(), period.getEndDate(), "DRAFT")).thenReturn(0L);
+        when(rawMaterialPurchaseRepository.countByCompanyAndInvoiceDateBetweenAndStatusInAndJournalEntryIsNull(
+                company, period.getStartDate(), period.getEndDate(), List.of("POSTED", "PARTIAL", "PAID"))).thenReturn(0L);
+        when(payrollRunRepository.countByCompanyAndPeriodBetweenAndStatusInAndJournalMissing(
+                company,
+                period.getStartDate(),
+                period.getEndDate(),
+                List.of(PayrollRun.PayrollStatus.POSTED, PayrollRun.PayrollStatus.PAID))).thenReturn(0L);
+        when(invoiceRepository.countByCompanyAndIssueDateBetweenAndStatusIn(
+                company, period.getStartDate(), period.getEndDate(), List.of("DRAFT"))).thenReturn(0L);
+        when(rawMaterialPurchaseRepository.countByCompanyAndInvoiceDateBetweenAndStatusNotIn(
+                company, period.getStartDate(), period.getEndDate(), List.of("POSTED", "PARTIAL", "PAID"))).thenReturn(0L);
+        when(payrollRunRepository.countByCompanyAndPeriodBetweenAndStatusIn(
+                company,
+                period.getStartDate(),
+                period.getEndDate(),
+                List.of(PayrollRun.PayrollStatus.DRAFT,
+                        PayrollRun.PayrollStatus.CALCULATED,
+                        PayrollRun.PayrollStatus.APPROVED))).thenReturn(0L);
+        authenticate("policy.admin", "ROLE_ADMIN");
+
+        assertThatThrownBy(() -> service.approvePeriodClose(13L, new PeriodCloseRequestActionRequest("period close", false)))
                 .isInstanceOf(ApplicationException.class)
                 .hasMessageContaining("Documents missing journal links in this period (1)");
     }

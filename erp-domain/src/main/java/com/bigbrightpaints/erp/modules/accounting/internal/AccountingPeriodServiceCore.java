@@ -1207,10 +1207,16 @@ public class AccountingPeriodServiceCore {
     }
 
     private boolean isMissingCorrectionLinkage(JournalEntry entry) {
-        return entry.getCorrectionType() == null
-                || !StringUtils.hasText(entry.getCorrectionReason())
-                || !StringUtils.hasText(entry.getSourceModule())
-                || !StringUtils.hasText(entry.getSourceReference());
+        if (entry.getCorrectionType() == null
+                || !StringUtils.hasText(entry.getCorrectionReason())) {
+            return true;
+        }
+        boolean hasSourceModule = StringUtils.hasText(entry.getSourceModule());
+        boolean hasSourceReference = StringUtils.hasText(entry.getSourceReference());
+        if (!hasSourceModule && !hasSourceReference) {
+            return false;
+        }
+        return !hasSourceModule || !hasSourceReference;
     }
 
     private PeriodCloseRequestDto toPeriodCloseRequestDto(PeriodCloseRequest request) {

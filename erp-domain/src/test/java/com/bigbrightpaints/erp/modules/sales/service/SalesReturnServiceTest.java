@@ -567,8 +567,7 @@ class SalesReturnServiceTest {
 
         assertThatThrownBy(() -> salesReturnService.processReturn(request))
                 .isInstanceOf(ApplicationException.class)
-                .hasMessageContaining("requires one-time normalization")
-                .hasMessageContaining("canonical line-scoped replay markers");
+                .hasMessageContaining("remaining invoiced amount");
     }
 
     @Test
@@ -780,7 +779,7 @@ class SalesReturnServiceTest {
     }
 
     @Test
-    void processReturn_legacyMarkerlessMovementsFailClosedWithRecoveryGuidance() {
+    void processReturn_legacyInvoiceScopedMovementsRemainUsableAndScoped() {
         Dealer dealer = new Dealer();
         dealer.setCompany(company);
         dealer.setName("Legacy Replay Partner");
@@ -799,7 +798,7 @@ class SalesReturnServiceTest {
         InvoiceLine line = new InvoiceLine();
         line.setInvoice(invoice);
         line.setProductCode("FG-LEGACY");
-        line.setQuantity(BigDecimal.ONE);
+        line.setQuantity(new BigDecimal("2"));
         line.setUnitPrice(new BigDecimal("100"));
         line.setTaxableAmount(new BigDecimal("100"));
         line.setTaxAmount(BigDecimal.ZERO);
@@ -810,6 +809,8 @@ class SalesReturnServiceTest {
         FinishedGood fg = new FinishedGood();
         fg.setCompany(company);
         fg.setProductCode("FG-LEGACY");
+        fg.setValuationAccountId(513L);
+        fg.setCogsAccountId(613L);
         fg.setRevenueAccountId(713L);
         setField(fg, "id", 24L);
 
@@ -821,6 +822,12 @@ class SalesReturnServiceTest {
 
         when(invoiceRepository.lockByCompanyAndId(company, 31L)).thenReturn(Optional.of(invoice));
         when(finishedGoodRepository.lockByCompanyAndProductCode(company, "FG-LEGACY")).thenReturn(Optional.of(fg));
+        when(finishedGoodRepository.lockByCompanyAndId(company, 24L)).thenReturn(Optional.of(fg));
+        when(finishedGoodRepository.findByCompanyAndId(company, 24L)).thenReturn(Optional.of(fg));
+        when(finishedGoodRepository.save(any(FinishedGood.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(finishedGoodBatchRepository.save(any(FinishedGoodBatch.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(batchNumberService.nextFinishedGoodBatchCode(any(), any())).thenReturn("RET-LEGACY");
+        when(inventoryMovementRepository.save(any(InventoryMovement.class))).thenAnswer(inv -> inv.getArgument(0));
         when(inventoryMovementRepository.existsByFinishedGood_CompanyAndReferenceTypeAndReferenceIdContainingIgnoreCase(
                 eq(company),
                 eq("SALES_RETURN"),
@@ -831,6 +838,42 @@ class SalesReturnServiceTest {
                 eq("SALES_RETURN"),
                 eq("INV-LEGACY-1")
         )).thenReturn(List.of(legacyMovement));
+        when(inventoryMovementRepository.findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdStartingWithOrderByCreatedAtAsc(
+                eq(company),
+                eq("SALES_RETURN"),
+                eq("INV-LEGACY-1:")
+        )).thenReturn(List.of());
+        InventoryMovement dispatchMovement = new InventoryMovement();
+        dispatchMovement.setFinishedGood(fg);
+        dispatchMovement.setReferenceType(InventoryReference.SALES_ORDER);
+        dispatchMovement.setReferenceId("99");
+        dispatchMovement.setMovementType("DISPATCH");
+        dispatchMovement.setQuantity(new BigDecimal("2"));
+        dispatchMovement.setUnitCost(new BigDecimal("50"));
+        SalesOrder salesOrder = new SalesOrder();
+        setField(salesOrder, "id", 99L);
+        invoice.setSalesOrder(salesOrder);
+        when(inventoryMovementRepository.findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdOrderByCreatedAtAsc(
+                eq(company),
+                eq(InventoryReference.SALES_ORDER),
+                eq("99")
+        )).thenReturn(List.of(dispatchMovement));
+        when(accountingFacade.postSalesReturn(
+                anyLong(),
+                anyString(),
+                anyMap(),
+                any(BigDecimal.class),
+                anyString()
+        )).thenReturn(stubEntry(123L));
+        when(accountingFacade.postInventoryAdjustment(
+                anyString(),
+                anyString(),
+                anyLong(),
+                anyMap(),
+                anyBoolean(),
+                anyBoolean(),
+                anyString())
+        ).thenReturn(stubEntry(124L));
 
         SalesReturnRequest request = new SalesReturnRequest(
                 31L,
@@ -838,16 +881,19 @@ class SalesReturnServiceTest {
                 List.of(new SalesReturnRequest.ReturnLine(78L, BigDecimal.ONE))
         );
 
-        assertThatThrownBy(() -> salesReturnService.processReturn(request))
-                .isInstanceOf(ApplicationException.class)
-                .hasMessageContaining("requires one-time normalization")
-                .hasMessageContaining("canonical line-scoped replay markers")
-                .hasMessageContaining("INV-LEGACY-1");
+        JournalEntryDto result = salesReturnService.processReturn(request);
 
-        verify(accountingFacade, never()).postSalesReturn(anyLong(), anyString(), anyMap(), any(), anyString());
-        verify(finishedGoodRepository, never()).save(any(FinishedGood.class));
-        verify(finishedGoodBatchRepository, never()).save(any(FinishedGoodBatch.class));
-        verify(inventoryMovementRepository, never()).save(any(InventoryMovement.class));
+        assertThat(result.id()).isEqualTo(123L);
+        verify(accountingFacade).postSalesReturn(
+                eq(dealer.getId()),
+                eq("INV-LEGACY-1"),
+                anyMap(),
+                argThat(total -> total.compareTo(new BigDecimal("50")) == 0),
+                eq("Legacy replay")
+        );
+        verify(inventoryMovementRepository).save(argThat(movement -> Objects.equals(movement.getJournalEntryId(), 123L)
+                && movement.getReferenceId() != null
+                && movement.getReferenceId().startsWith("INV-LEGACY-1:78:RET-")));
     }
 
     @Test
@@ -1406,7 +1452,7 @@ class SalesReturnServiceTest {
     }
 
     @Test
-    void validateReturnQuantities_allocatesLegacyFinishedGoodReturnsAcrossKnownInvoiceLines() {
+    void validateReturnQuantities_allocatesLegacyInvoiceScopedReturnsAcrossKnownInvoiceLines() {
         Invoice invoice = new Invoice();
         invoice.setCompany(company);
         invoice.setInvoiceNumber("INV-LEGACY");
@@ -1439,20 +1485,20 @@ class SalesReturnServiceTest {
         setField(fg1, "id", 401L);
 
         when(finishedGoodRepository.lockByCompanyAndProductCode(company, "FG-1")).thenReturn(Optional.of(fg1));
+        InventoryMovement invoiceScopedLegacy = new InventoryMovement();
+        invoiceScopedLegacy.setFinishedGood(fg1);
+        invoiceScopedLegacy.setReferenceId("INV-LEGACY");
+        invoiceScopedLegacy.setQuantity(new BigDecimal("2.00"));
+
         when(inventoryMovementRepository.findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdOrderByCreatedAtAsc(
                 company,
                 "SALES_RETURN",
-                "INV-LEGACY")).thenReturn(List.of());
+                "INV-LEGACY")).thenReturn(List.of(invoiceScopedLegacy));
 
         InventoryMovement lineScoped = new InventoryMovement();
         lineScoped.setFinishedGood(fg1);
         lineScoped.setReferenceId("INV-LEGACY:81");
         lineScoped.setQuantity(new BigDecimal("2.00"));
-
-        InventoryMovement legacyProductLevel = new InventoryMovement();
-        legacyProductLevel.setFinishedGood(fg1);
-        legacyProductLevel.setReferenceId("INV-LEGACY:999");
-        legacyProductLevel.setQuantity(new BigDecimal("2.00"));
 
         FinishedGood otherFinishedGood = new FinishedGood();
         otherFinishedGood.setProductCode("FG-2");
@@ -1466,7 +1512,7 @@ class SalesReturnServiceTest {
         when(inventoryMovementRepository.findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdStartingWithOrderByCreatedAtAsc(
                 company,
                 "SALES_RETURN",
-                "INV-LEGACY:")).thenReturn(List.of(lineScoped, legacyProductLevel, otherProduct));
+                "INV-LEGACY:")).thenReturn(List.of(lineScoped, otherProduct));
 
         SalesReturnRequest request = new SalesReturnRequest(
                 81L,
