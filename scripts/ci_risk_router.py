@@ -9,10 +9,12 @@ JAVA_SOURCE_ROOT = "erp-domain/src/main/java/"
 
 CI_INFRA_PATTERNS = (
     ".github/workflows/ci.yml",
+    ".factory/services.yaml",
     "erp-domain/pom.xml",
     "scripts/ci_risk_router.py",
     "scripts/changed_files_coverage.py",
     "scripts/manifest_to_dtest.py",
+    "scripts/pr_ci_parity.py",
     "scripts/run_test_manifest.sh",
     "ci/pr_manifests/",
 )

@@ -10,18 +10,21 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 RISK_ROUTER_PATH = REPO_ROOT / "scripts" / "ci_risk_router.py"
 CHANGED_COVERAGE_PATH = REPO_ROOT / "scripts" / "changed_files_coverage.py"
+PR_CI_PARITY_PATH = REPO_ROOT / "scripts" / "pr_ci_parity.py"
 
 
 def load_module(module_name: str, file_path: Path):
     spec = importlib.util.spec_from_file_location(module_name, file_path)
     module = importlib.util.module_from_spec(spec)
     assert spec.loader is not None
+    sys.modules[module_name] = module
     spec.loader.exec_module(module)
     return module
 
 
 ci_risk_router = load_module("ci_risk_router", RISK_ROUTER_PATH)
 changed_files_coverage = load_module("changed_files_coverage", CHANGED_COVERAGE_PATH)
+pr_ci_parity = load_module("pr_ci_parity", PR_CI_PARITY_PATH)
 
 
 class CiRiskRouterTest(unittest.TestCase):
@@ -61,6 +64,30 @@ class CiRiskRouterTest(unittest.TestCase):
 
     def test_ci_infra_change_runs_core_pr_shards_but_not_codered_or_changed_coverage(self):
         flags = ci_risk_router.compute_flags([".github/workflows/ci.yml"])
+
+        self.assertEqual("true", flags["run_auth_tenant"])
+        self.assertEqual("true", flags["run_accounting"])
+        self.assertEqual("true", flags["run_idempotency_outbox"])
+        self.assertEqual("true", flags["run_business_slice"])
+        self.assertEqual("true", flags["run_persistence_smoke"])
+        self.assertEqual("false", flags["run_codered_access"])
+        self.assertEqual("false", flags["run_codered_finance"])
+        self.assertEqual("false", flags["run_changed_coverage"])
+
+    def test_local_pr_parity_runner_counts_as_ci_infra(self):
+        flags = ci_risk_router.compute_flags(["scripts/pr_ci_parity.py"])
+
+        self.assertEqual("true", flags["run_auth_tenant"])
+        self.assertEqual("true", flags["run_accounting"])
+        self.assertEqual("true", flags["run_idempotency_outbox"])
+        self.assertEqual("true", flags["run_business_slice"])
+        self.assertEqual("true", flags["run_persistence_smoke"])
+        self.assertEqual("false", flags["run_codered_access"])
+        self.assertEqual("false", flags["run_codered_finance"])
+        self.assertEqual("false", flags["run_changed_coverage"])
+
+    def test_services_manifest_change_counts_as_ci_infra(self):
+        flags = ci_risk_router.compute_flags([".factory/services.yaml"])
 
         self.assertEqual("true", flags["run_auth_tenant"])
         self.assertEqual("true", flags["run_accounting"])
@@ -248,6 +275,60 @@ class ChangedFilesCoverageTest(unittest.TestCase):
 
 
 class RuntimeProbeContractTest(unittest.TestCase):
+    def test_pr_ci_parity_skip_summary_matches_ci_contract(self):
+        summary = pr_ci_parity.create_changed_coverage_skip_summary(
+            diff_base="abc123",
+            changed_files_count=4,
+            changed_runtime_source_count=0,
+        )
+
+        self.assertEqual(
+            {
+                "diff_base": "abc123",
+                "skipped": True,
+                "reason": "no_runtime_source_changes",
+                "changed_files_count": 4,
+                "changed_runtime_source_count": 0,
+                "passes": True,
+            },
+            summary,
+        )
+
+    def test_pr_ci_parity_merge_gate_blocks_failed_jobs(self):
+        blocking = pr_ci_parity.evaluate_merge_gate(
+            {
+                "knowledgebase-lint": "success",
+                "architecture-check": "success",
+                "enterprise-policy-check": "failure",
+                "orchestrator-layer-check": "success",
+                "pr-risk-router": "success",
+                "pr-build": "success",
+                "pr-auth-tenant": "skipped",
+                "pr-accounting": "success",
+                "pr-idempotency-outbox": "skipped",
+                "pr-business-slice": "success",
+                "pr-persistence-smoke": "success",
+                "pr-codered-access": "skipped",
+                "pr-codered-finance": "success",
+                "pr-changed-coverage": "failure",
+            }
+        )
+
+        self.assertEqual(
+            {
+                "enterprise-policy-check": "failure",
+                "pr-changed-coverage": "failure",
+            },
+            blocking,
+        )
+
+    def test_services_manifest_exposes_pr_ci_parity_command(self):
+        services_text = (REPO_ROOT / ".factory" / "services.yaml").read_text(encoding="utf-8")
+
+        self.assertIn("pr-ci-parity:", services_text)
+        self.assertIn('scripts/pr_ci_parity.py', services_text)
+        self.assertIn('PR_CI_BASE', services_text)
+
     def test_runtime_probe_fails_closed_on_health_status(self):
         services_text = (REPO_ROOT / ".factory" / "services.yaml").read_text(encoding="utf-8")
 
@@ -258,6 +339,7 @@ class RuntimeProbeContractTest(unittest.TestCase):
         self.assertIn('[ "$status" = "200" ]', services_text)
         self.assertIn('[ "$status" = "401" ]', services_text)
         self.assertIn('[ "$status" = "403" ]', services_text)
+        self.assertNotIn('echo "$status"', services_text)
 
 
 if __name__ == "__main__":
