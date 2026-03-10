@@ -8,6 +8,8 @@ commands:
     cd /home/realnigga/Desktop/Mission-control/erp-domain && MIGRATION_SET=v2 mvn -T8 compile -q
   test: >-
     cd /home/realnigga/Desktop/Mission-control/erp-domain && MIGRATION_SET=v2 mvn -T8 test -Pgate-fast -Djacoco.skip=true
+  pr-ci-parity: >-
+    ROOT=$(git rev-parse --show-toplevel) && python3 "$ROOT/scripts/pr_ci_parity.py" --base "${PR_CI_BASE:?set PR_CI_BASE to the PR base sha/ref}"
   smoke: >-
     cd /home/realnigga/Desktop/Mission-control/erp-domain && MIGRATION_SET=v2 mvn -Dtest=ApplicationSmokeTest -Djacoco.skip=true test
   invariants: >-
