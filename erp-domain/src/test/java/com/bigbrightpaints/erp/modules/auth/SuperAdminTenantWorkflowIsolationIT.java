@@ -189,6 +189,52 @@ class SuperAdminTenantWorkflowIsolationIT extends AbstractIntegrationTest {
         assertPlatformOnlyForbidden(accountingCatalogResponse);
     }
 
+    @Test
+    void superAdmin_cannotAccessTenantAdminApprovalsOrUserManagementWorkflows() {
+        ResponseEntity<Map> approvalsResponse = rest.exchange(
+                "/api/v1/admin/approvals",
+                HttpMethod.GET,
+                new HttpEntity<>(authHeaders()),
+                Map.class
+        );
+
+        ResponseEntity<Map> usersResponse = rest.exchange(
+                "/api/v1/admin/users",
+                HttpMethod.GET,
+                new HttpEntity<>(authHeaders()),
+                Map.class
+        );
+
+        assertPlatformOnlyForbidden(approvalsResponse);
+        assertPlatformOnlyForbidden(usersResponse);
+    }
+
+    @Test
+    void superAdmin_cannotExecuteTenantAdminExportApprovalWorkflows() {
+        ResponseEntity<Map> response = rest.exchange(
+                "/api/v1/admin/exports/999999/approve",
+                HttpMethod.PUT,
+                new HttpEntity<>(authHeaders()),
+                Map.class
+        );
+
+        assertPlatformOnlyForbidden(response);
+    }
+
+    @Test
+    void superAdmin_keepsPlatformAdminSettingsAccess() {
+        ResponseEntity<Map> response = rest.exchange(
+                "/api/v1/admin/settings",
+                HttpMethod.GET,
+                new HttpEntity<>(authHeaders()),
+                Map.class
+        );
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().get("success")).isEqualTo(Boolean.TRUE);
+    }
+
     private void assertPlatformOnlyForbidden(ResponseEntity<Map> response) {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
         assertThat(response.getBody()).isNotNull();

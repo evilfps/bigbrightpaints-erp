@@ -75,7 +75,7 @@ public class AdminUserSecurityIT extends AbstractIntegrationTest {
     }
 
     @Test
-    void super_admin_can_force_reset_password_across_company_scope() {
+    void super_admin_tenant_context_cannot_force_reset_password_via_admin_user_management_surface() {
         String token = login(SUPER_ADMIN_EMAIL, SUPER_ADMIN_PASSWORD, COMPANY);
         HttpHeaders headers = new HttpHeaders();
         headers.setBearerAuth(token);
@@ -86,13 +86,11 @@ public class AdminUserSecurityIT extends AbstractIntegrationTest {
                 new HttpEntity<>(headers),
                 Map.class);
 
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(response.getBody()).isNotNull();
-        assertThat(response.getBody().get("success")).isEqualTo(Boolean.TRUE);
+        assertPlatformOnlyAccessDenied(response);
     }
 
     @Test
-    void super_admin_can_access_admin_users_via_role_hierarchy() {
+    void super_admin_tenant_context_cannot_access_admin_users_via_tenant_workflow_surface() {
         String token = login(SUPER_ADMIN_EMAIL, SUPER_ADMIN_PASSWORD, COMPANY);
         HttpHeaders headers = new HttpHeaders();
         headers.setBearerAuth(token);
@@ -103,7 +101,7 @@ public class AdminUserSecurityIT extends AbstractIntegrationTest {
                 new HttpEntity<>(headers),
                 Map.class);
 
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertPlatformOnlyAccessDenied(response);
     }
 
     @Test
@@ -227,34 +225,34 @@ public class AdminUserSecurityIT extends AbstractIntegrationTest {
     }
 
     @Test
-    void super_admin_can_suspend_unsuspend_disable_mfa_and_delete_across_company_scope() {
+    void super_admin_tenant_context_cannot_execute_admin_user_action_matrix() {
         String token = login(SUPER_ADMIN_EMAIL, SUPER_ADMIN_PASSWORD, COMPANY);
         HttpHeaders headers = new HttpHeaders();
         headers.setBearerAuth(token);
 
-        assertThat(rest.exchange(
+        assertPlatformOnlyAccessDenied(rest.exchange(
                 "/api/v1/admin/users/" + otherCompanyUser.getId() + "/suspend",
                 HttpMethod.PATCH,
                 new HttpEntity<>(headers),
-                Void.class).getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
+                Map.class));
 
-        assertThat(rest.exchange(
+        assertPlatformOnlyAccessDenied(rest.exchange(
                 "/api/v1/admin/users/" + otherCompanyUser.getId() + "/unsuspend",
                 HttpMethod.PATCH,
                 new HttpEntity<>(headers),
-                Void.class).getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
+                Map.class));
 
-        assertThat(rest.exchange(
+        assertPlatformOnlyAccessDenied(rest.exchange(
                 "/api/v1/admin/users/" + otherCompanyUser.getId() + "/mfa/disable",
                 HttpMethod.PATCH,
                 new HttpEntity<>(headers),
-                Void.class).getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
+                Map.class));
 
-        assertThat(rest.exchange(
+        assertPlatformOnlyAccessDenied(rest.exchange(
                 "/api/v1/admin/users/" + otherCompanyUser.getId(),
                 HttpMethod.DELETE,
                 new HttpEntity<>(headers),
-                Void.class).getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
+                Map.class));
     }
 
     @Test
@@ -458,5 +456,19 @@ public class AdminUserSecurityIT extends AbstractIntegrationTest {
         assertThat(error.get("traceId")).isNotNull();
         assertThat(error.get("path")).isNotNull();
         return error;
+    }
+
+    @SuppressWarnings("unchecked")
+    private void assertPlatformOnlyAccessDenied(ResponseEntity<Map> response) {
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().get("success")).isEqualTo(Boolean.FALSE);
+        assertThat(response.getBody().get("message")).isEqualTo("Access denied");
+        Map<String, Object> error = (Map<String, Object>) response.getBody().get("data");
+        assertThat(error).isNotNull();
+        assertThat(error.get("code")).isEqualTo("AUTH_004");
+        assertThat(error.get("reason")).isEqualTo("SUPER_ADMIN_PLATFORM_ONLY");
+        assertThat(error.get("reasonDetail")).isEqualTo(
+                "Super Admin is limited to platform control-plane operations and cannot execute tenant business workflows");
     }
 }

@@ -56,6 +56,19 @@ public class RoleService {
                 .toList();
     }
 
+    @Transactional
+    public int synchronizeSystemRolePermissions() {
+        int updatedRoles = 0;
+        for (Role role : roleRepository.findByNameIn(SystemRole.roleNames())) {
+            SystemRole definition = SystemRole.fromName(role.getName()).orElse(null);
+            if (definition != null && synchronizeSystemRolePermissions(role, definition)) {
+                roleRepository.save(role);
+                updatedRoles++;
+            }
+        }
+        return updatedRoles;
+    }
+
     private List<RoleDto> allSystemRoles() {
         Map<String, Role> rolesByName = roleRepository.findByNameIn(SystemRole.roleNames())
                 .stream()
@@ -94,16 +107,20 @@ public class RoleService {
         String normalizedName = normalizeRoleName(roleName);
         enforceSuperAdminForPrivilegedRoles(normalizedName, "tenant-admin-role-management");
         SystemRole definition = SystemRole.fromName(normalizedName).orElse(null);
+        boolean[] created = {false};
         // Use pessimistic lock to prevent race condition on concurrent role creation
-        return roleRepository.lockByName(normalizedName).orElseGet(() -> {
-            Role role = new Role();
-            role.setName(normalizedName);
-            role.setDescription(definition != null ? definition.getDescription() : normalizedName);
-            if (definition != null) {
-                definition.getDefaultPermissions().forEach(code -> role.getPermissions().add(ensurePermissionExists(code)));
-            }
-            return roleRepository.save(role);
+        Role role = roleRepository.lockByName(normalizedName).orElseGet(() -> {
+            created[0] = true;
+            Role newRole = new Role();
+            newRole.setName(normalizedName);
+            newRole.setDescription(definition != null ? definition.getDescription() : normalizedName);
+            return newRole;
         });
+        boolean changed = definition != null && synchronizeSystemRolePermissions(role, definition);
+        if (created[0] || changed) {
+            return roleRepository.save(role);
+        }
+        return role;
     }
 
     public Permission ensurePermissionExists(String code) {
@@ -153,6 +170,24 @@ public class RoleService {
             throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput("Role name is required");
         }
         return roleName.trim().toUpperCase(Locale.ROOT);
+    }
+
+    private boolean synchronizeSystemRolePermissions(Role role, SystemRole definition) {
+        boolean changed = false;
+        if (!StringUtils.hasText(role.getDescription())) {
+            role.setDescription(definition.getDescription());
+            changed = true;
+        }
+        HashSet<String> existingCodes = role.getPermissions().stream()
+                .map(Permission::getCode)
+                .collect(Collectors.toCollection(HashSet::new));
+        for (String code : definition.getDefaultPermissions()) {
+            if (existingCodes.add(code)) {
+                role.getPermissions().add(ensurePermissionExists(code));
+                changed = true;
+            }
+        }
+        return changed;
     }
 
     private RoleDto toDto(Role role) {
