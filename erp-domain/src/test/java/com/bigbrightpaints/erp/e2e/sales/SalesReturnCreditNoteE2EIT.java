@@ -222,18 +222,10 @@ class SalesReturnCreditNoteE2EIT extends AbstractIntegrationTest {
         );
         Long orderId = ((Number) requireData(orderResp, "create order").get("id")).longValue();
 
-        ResponseEntity<Map> confirmResp = rest.exchange(
-                "/api/v1/sales/orders/" + orderId + "/confirm",
-                HttpMethod.POST,
-                new HttpEntity<>(headers),
-                Map.class
-        );
-        requireData(confirmResp, "confirm order");
-
-        Map<String, Object> dispatchReq = Map.of(
-                "orderId", orderId,
-                "confirmedBy", "sales-return-e2e"
-        );
+        Map<String, Object> dispatchReq = new HashMap<>();
+        dispatchReq.put("orderId", orderId);
+        dispatchReq.put("confirmedBy", "sales-return-e2e");
+        addDispatchMetadata(dispatchReq, "sales-return-" + orderId);
         ResponseEntity<Map> dispatchResp = rest.exchange(
                 "/api/v1/sales/dispatch/confirm",
                 HttpMethod.POST,
@@ -346,6 +338,13 @@ class SalesReturnCreditNoteE2EIT extends AbstractIntegrationTest {
                     product.setActive(true);
                     return productionProductRepository.save(product);
                 });
+    }
+
+    private void addDispatchMetadata(Map<String, Object> request, String referenceSeed) {
+        request.put("transporterName", "BB Logistics");
+        request.put("driverName", "Driver " + referenceSeed);
+        request.put("vehicleNumber", "MH12" + Math.abs(referenceSeed.hashCode()));
+        request.put("challanReference", "CH-" + referenceSeed);
     }
 
     private Map<?, ?> requireData(ResponseEntity<Map> response, String action) {

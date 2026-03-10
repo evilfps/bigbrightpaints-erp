@@ -43,8 +43,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockMultipartFile;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.math.BigDecimal;
@@ -393,25 +391,6 @@ class CR_PurchasingToApAccountingTest extends AbstractIntegrationTest {
                         "RM line"))
         ));
         return purchasingService.approvePurchaseOrder(draft.id());
-    }
-
-    private void forceClosePeriod(Long periodId, String requestNote, String approvalNote) {
-        authenticate("maker.user", "ROLE_ACCOUNTING");
-        accountingPeriodService.requestPeriodClose(periodId, new PeriodCloseRequestActionRequest(requestNote, true));
-        authenticate("checker.user", "ROLE_ADMIN");
-        accountingPeriodService.approvePeriodClose(periodId, new PeriodCloseRequestActionRequest(approvalNote, true));
-    }
-
-    private void authenticate(String username, String... roles) {
-        SecurityContextHolder.getContext().setAuthentication(
-                new UsernamePasswordAuthenticationToken(
-                        username,
-                        "N/A",
-                        java.util.Arrays.stream(roles)
-                                .map(SimpleGrantedAuthority::new)
-                                .toList()
-                )
-        );
     }
 
     private static String shortId() {

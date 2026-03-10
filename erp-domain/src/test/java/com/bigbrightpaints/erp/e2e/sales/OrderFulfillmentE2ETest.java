@@ -76,7 +76,6 @@ public class OrderFulfillmentE2ETest extends AbstractIntegrationTest {
     @Autowired private JournalEntryRepository journalEntryRepository;
     @Autowired private JournalReferenceResolver journalReferenceResolver;
     @Autowired private InventoryReservationRepository inventoryReservationRepository;
-    @Autowired private FinishedGoodsService finishedGoodsService;
     @Autowired private DealerLedgerRepository dealerLedgerRepository;
     @Autowired private AccountRepository accountRepository;
     @Autowired private ProductionProductRepository productionProductRepository;
@@ -506,8 +505,6 @@ public class OrderFulfillmentE2ETest extends AbstractIntegrationTest {
         FinishedGood fg = createFinishedGood(company, "FG-DISPATCH-EQUIV", new BigDecimal("25"));
 
         Long orderId = createOrder(dealer, fg, new BigDecimal("4"), new BigDecimal("1000.00"));
-        confirmOrder(orderId);
-        ensureSlipForOrder(orderId);
 
         PackagingSlip slip = reserveSlip(company, orderId);
         List<Map<String, Object>> lines = slip.getLines().stream()
@@ -631,8 +628,6 @@ public class OrderFulfillmentE2ETest extends AbstractIntegrationTest {
         BigDecimal orderedQty = new BigDecimal("10");
         BigDecimal unitPrice = new BigDecimal("1000.00");
         Long orderId = createOrder(dealer, fg, orderedQty, unitPrice);
-        confirmOrder(orderId);
-        ensureSlipForOrder(orderId);
 
         PackagingSlip slip = reserveSlip(company, orderId);
         PackagingSlipLine line = packagingSlipLineRepository.findByPackagingSlipId(slip.getId()).getFirst();
@@ -1066,23 +1061,49 @@ public class OrderFulfillmentE2ETest extends AbstractIntegrationTest {
         return ((Number) data.get("id")).longValue();
     }
 
-    private void confirmOrder(Long orderId) {
-        ResponseEntity<Map> response = rest.exchange(
-                "/api/v1/sales/orders/" + orderId + "/confirm",
-                HttpMethod.POST,
-                new HttpEntity<>(headers),
-                Map.class);
-        requireData(response, "confirm order via helper");
-    }
-
-    private void ensureSlipForOrder(Long orderId) {
+    private PackagingSlip reserveSlip(Company company, Long orderId) {
         SalesOrder order = salesOrderRepository.findById(orderId).orElseThrow();
-        CompanyContextHolder.setCompanyId(COMPANY_CODE);
+        CompanyContextHolder.setCompanyId(company.getCode());
         try {
+            PackagingSlip existing = packagingSlipRepository.findByCompanyAndSalesOrderId(company, orderId).orElse(null);
+            if (existing != null) {
+                boolean dispatched = "DISPATCHED".equalsIgnoreCase(existing.getStatus())
+                        || existing.getInvoiceId() != null
+                        || existing.getCogsJournalEntryId() != null;
+                if (dispatched || hasReservedQuantity(existing)) {
+                    return existing;
+                }
+                finishedGoodsService.releaseReservationsForOrder(orderId);
+                PackagingSlip refreshed = packagingSlipRepository.findByCompanyAndSalesOrderId(company, orderId).orElse(existing);
+                refreshed.getLines().clear();
+                refreshed.setStatus("PENDING");
+                refreshed.setBackorder(false);
+                packagingSlipRepository.save(refreshed);
+            }
             finishedGoodsService.reserveForOrder(order);
+            return packagingSlipRepository.findByCompanyAndSalesOrderId(company, orderId).orElseThrow();
         } finally {
             CompanyContextHolder.clear();
         }
+    }
+
+    private boolean hasReservedQuantity(PackagingSlip slip) {
+        return slip.getLines().stream().anyMatch(line -> {
+            BigDecimal ordered = line.getOrderedQuantity() != null ? line.getOrderedQuantity() : line.getQuantity();
+            BigDecimal shipped = line.getShippedQuantity() != null ? line.getShippedQuantity() : BigDecimal.ZERO;
+            BigDecimal backorder = line.getBackorderQuantity() != null
+                    ? line.getBackorderQuantity()
+                    : (ordered != null ? ordered.subtract(shipped).max(BigDecimal.ZERO) : BigDecimal.ZERO);
+            BigDecimal reservedQty = ordered != null ? ordered.subtract(backorder).max(BigDecimal.ZERO) : BigDecimal.ZERO;
+            return reservedQty.compareTo(BigDecimal.ZERO) > 0;
+        });
+    }
+
+    private void addDispatchMetadata(Map<String, Object> request, String referenceSeed) {
+        request.put("transporterName", "BB Logistics");
+        request.put("driverName", "Driver " + referenceSeed);
+        request.put("vehicleNumber", "MH12" + Math.abs(referenceSeed.hashCode()));
+        request.put("challanReference", "CH-" + referenceSeed);
     }
 
     private Map<?, ?> requireData(ResponseEntity<Map> response, String action) {
