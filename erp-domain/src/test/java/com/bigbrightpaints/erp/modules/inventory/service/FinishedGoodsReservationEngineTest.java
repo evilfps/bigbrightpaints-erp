@@ -87,6 +87,32 @@ class FinishedGoodsReservationEngineTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void reserveForOrderReplayAfterDispatchWithMissingReservationRows_doesNotRebuildReservedStock() {
+        Company company = seedCompany("RES-REPLAY-NO-ROWS");
+        FinishedGood finishedGood = createFinishedGood(company, "FG-RES-REPLAY-NO-ROWS", new BigDecimal("5"), BigDecimal.ZERO);
+        FinishedGoodBatch batch = createBatch(finishedGood, "BATCH-RES-REPLAY-NO-ROWS", new BigDecimal("5"), new BigDecimal("5"), new BigDecimal("8"));
+        SalesOrder order = createOrder(company, "SO-RES-REPLAY-NO-ROWS-" + UUID.randomUUID(), finishedGood.getProductCode(), new BigDecimal("5"));
+
+        finishedGoodsService.reserveForOrder(order);
+        PackagingSlip primarySlip = findPrimarySlip(company, order.getId());
+        finishedGoodsService.markSlipDispatched(order.getId(), primarySlip);
+
+        inventoryReservationRepository.deleteAll(reservationsFor(company, order.getId()));
+        inventoryReservationRepository.flush();
+
+        FinishedGoodsService.InventoryReservationResult replay = finishedGoodsService.reserveForOrder(order);
+
+        assertThat(replay.shortages()).isEmpty();
+        assertThat(reservationsFor(company, order.getId())).isEmpty();
+        assertThat(finishedGoodRepository.findById(finishedGood.getId()).orElseThrow().getReservedStock())
+                .isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(finishedGoodBatchRepository.findById(batch.getId()).orElseThrow().getQuantityAvailable())
+                .isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(packagingSlipRepository.findByIdAndCompany(primarySlip.getId(), company).orElseThrow().getStatus())
+                .isEqualTo("DISPATCHED");
+    }
+
+    @Test
     void reserveForOrderReplayAfterPartialDispatch_preservesRemainingBalanceAndPartialState() {
         Company company = seedCompany("RES-REPLAY-PARTIAL");
         FinishedGood finishedGood = createFinishedGood(company, "FG-RES-REPLAY-PARTIAL", new BigDecimal("10"), BigDecimal.ZERO);
