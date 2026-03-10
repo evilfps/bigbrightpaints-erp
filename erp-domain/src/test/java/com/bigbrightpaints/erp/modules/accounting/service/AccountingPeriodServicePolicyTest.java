@@ -647,6 +647,19 @@ class AccountingPeriodServicePolicyTest {
                 .isFalse();
     }
 
+    @Test
+    void isMissingCorrectionLinkage_acceptsJournalReversalSourceMetadata() {
+        JournalEntry reversal = new JournalEntry();
+        reversal.setCorrectionType(JournalCorrectionType.REVERSAL);
+        reversal.setCorrectionReason("Manual reversal");
+        reversal.setSourceModule("JOURNAL");
+        reversal.setSourceReference("REV-100");
+        reversal.setReversalOf(new JournalEntry());
+
+        assertThat((Boolean) ReflectionTestUtils.invokeMethod(coreService, "isMissingCorrectionLinkage", reversal))
+                .isFalse();
+    }
+
     private Company company(Long id, String code) {
         Company company = new Company();
         company.setCode(code);

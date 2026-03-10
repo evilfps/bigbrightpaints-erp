@@ -1003,12 +1003,20 @@ public abstract class AccountingCoreEngineCore {
             reversalEntry.setAccountingPeriod(postingPeriod);
             reversalEntry.setCorrectionType(JournalCorrectionType.VOID);
             reversalEntry.setCorrectionReason(sanitizedReason);
+            reversalEntry.setSourceModule(resolveJournalCorrectionSourceModule(entry));
+            reversalEntry.setSourceReference(resolveJournalCorrectionSourceReference(entry));
             reversalEntry.setLastModifiedBy(resolveCurrentUsername());
             journalEntryRepository.save(reversalEntry);
 
             entry.setStatus("VOIDED");
             entry.setCorrectionType(JournalCorrectionType.VOID);
             entry.setCorrectionReason(sanitizedReason);
+            if (!StringUtils.hasText(entry.getSourceModule())) {
+                entry.setSourceModule(resolveJournalCorrectionSourceModule(entry));
+            }
+            if (!StringUtils.hasText(entry.getSourceReference())) {
+                entry.setSourceReference(resolveJournalCorrectionSourceReference(entry));
+            }
             entry.setVoidReason(sanitizedReason);
             entry.setVoidedAt(now);
             entry.setReversalEntry(reversalEntry);
@@ -1050,11 +1058,19 @@ public abstract class AccountingCoreEngineCore {
         reversalEntry.setAccountingPeriod(postingPeriod);
         reversalEntry.setCorrectionType(JournalCorrectionType.REVERSAL);
         reversalEntry.setCorrectionReason(sanitizedReason);
+        reversalEntry.setSourceModule(resolveJournalCorrectionSourceModule(entry));
+        reversalEntry.setSourceReference(resolveJournalCorrectionSourceReference(entry));
         reversalEntry.setLastModifiedBy(resolveCurrentUsername());
         journalEntryRepository.save(reversalEntry);
         entry.setStatus("REVERSED");
         entry.setCorrectionType(JournalCorrectionType.REVERSAL);
         entry.setCorrectionReason(sanitizedReason);
+        if (!StringUtils.hasText(entry.getSourceModule())) {
+            entry.setSourceModule(resolveJournalCorrectionSourceModule(entry));
+        }
+        if (!StringUtils.hasText(entry.getSourceReference())) {
+            entry.setSourceReference(resolveJournalCorrectionSourceReference(entry));
+        }
         entry.setVoidReason(null);
         entry.setVoidedAt(null);
         entry.setReversalEntry(reversalEntry);
@@ -2625,6 +2641,19 @@ public abstract class AccountingCoreEngineCore {
             return null;
         }
         return sourceReference.trim();
+    }
+
+    private String resolveJournalCorrectionSourceModule(JournalEntry entry) {
+        String existing = entry != null ? normalizeSourceModule(entry.getSourceModule()) : null;
+        return StringUtils.hasText(existing) ? existing : "JOURNAL";
+    }
+
+    private String resolveJournalCorrectionSourceReference(JournalEntry entry) {
+        String existing = entry != null ? normalizeSourceReference(entry.getSourceReference()) : null;
+        if (StringUtils.hasText(existing)) {
+            return existing;
+        }
+        return entry != null ? normalizeSourceReference(entry.getReferenceNumber()) : null;
     }
 
     private JournalListItemDto toJournalListItemDto(JournalEntry entry) {

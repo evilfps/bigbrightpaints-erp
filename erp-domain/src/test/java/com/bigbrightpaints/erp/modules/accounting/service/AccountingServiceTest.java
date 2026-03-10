@@ -604,6 +604,49 @@ class AccountingServiceTest {
     }
 
     @Test
+    void reverseJournalEntry_populatesCorrectionSourceLinkageForReversalRecords() {
+        LocalDate today = LocalDate.of(2024, 4, 3);
+        when(companyClock.today(company)).thenReturn(today);
+        AccountingPeriod openPeriod = openPeriod(today);
+        when(accountingPeriodService.requirePostablePeriod(eq(company), eq(today), any(), any(), any(), anyBoolean())).thenReturn(openPeriod);
+
+        AccountingService service = spy(accountingService);
+        JournalEntry original = reversalSourceEntry(504L, "REV-LINKAGE-1", today);
+        JournalEntry reversal = new JournalEntry();
+        ReflectionTestUtils.setField(reversal, "id", 904L);
+
+        when(companyEntityLookup.requireJournalEntry(company, 504L)).thenReturn(original);
+        when(companyEntityLookup.requireJournalEntry(company, 904L)).thenReturn(reversal);
+        when(journalEntryRepository.save(any(JournalEntry.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        doReturn(stubEntry(904L)).when(service).createJournalEntry(any(JournalEntryRequest.class));
+
+        JournalEntryReversalRequest request = new JournalEntryReversalRequest(
+                today,
+                false,
+                "Linkage",
+                "Source linkage",
+                Boolean.FALSE
+        );
+
+        service.reverseJournalEntry(504L, request);
+
+        ArgumentCaptor<JournalEntry> entryCaptor = ArgumentCaptor.forClass(JournalEntry.class);
+        verify(journalEntryRepository, atLeastOnce()).save(entryCaptor.capture());
+        JournalEntry savedReversal = entryCaptor.getAllValues().stream()
+                .filter(saved -> Objects.equals(saved.getId(), 904L))
+                .findFirst()
+                .orElseThrow();
+        JournalEntry savedOriginal = entryCaptor.getAllValues().stream()
+                .filter(saved -> Objects.equals(saved.getId(), 504L))
+                .findFirst()
+                .orElseThrow();
+        assertThat(savedReversal.getSourceModule()).isEqualTo("JOURNAL");
+        assertThat(savedReversal.getSourceReference()).isEqualTo("REV-LINKAGE-1");
+        assertThat(savedOriginal.getSourceModule()).isEqualTo("JOURNAL");
+        assertThat(savedOriginal.getSourceReference()).isEqualTo("REV-LINKAGE-1");
+    }
+
+    @Test
     void createJournalEntry_rejectsDealerWithoutReceivableAccount() {
         LocalDate today = LocalDate.of(2024, 3, 15);
         when(companyClock.today(company)).thenReturn(today);

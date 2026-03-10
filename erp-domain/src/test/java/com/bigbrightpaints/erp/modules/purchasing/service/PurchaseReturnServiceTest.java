@@ -191,11 +191,11 @@ class PurchaseReturnServiceTest {
     }
 
     @Test
-    void previewPurchaseReturn_returnsDerivedTotalsAndGeneratedReference() {
+    void previewPurchaseReturn_returnsDerivedTotalsAndSideEffectFreePlaceholderReference() {
         purchase.setTaxAmount(new BigDecimal("8.00"));
         purchase.getLines().getFirst().setTaxAmount(new BigDecimal("8.00"));
         when(allocationService.remainingReturnableQuantity(purchase, material)).thenReturn(new BigDecimal("3.0000"));
-        when(referenceNumberService.purchaseReturnReference(company, supplier)).thenReturn("PR-AUTO-30");
+        when(referenceNumberService.purchaseReturnPreviewReference(company, supplier)).thenReturn("PRN-PREVIEW-GEN-SUP-10");
         when(companyClock.today(company)).thenReturn(LocalDate.of(2026, 3, 10));
 
         PurchaseReturnPreviewDto preview = purchaseReturnService.previewPurchaseReturn(new PurchaseReturnRequest(
@@ -216,7 +216,60 @@ class PurchaseReturnServiceTest {
         assertThat(preview.taxAmount()).isEqualByComparingTo("3.00");
         assertThat(preview.totalAmount()).isEqualByComparingTo("10.50");
         assertThat(preview.returnDate()).isEqualTo(LocalDate.of(2026, 3, 10));
-        assertThat(preview.referenceNumber()).isEqualTo("PR-AUTO-30");
+        assertThat(preview.referenceNumber()).isEqualTo("PRN-PREVIEW-GEN-SUP-10");
+        verify(referenceNumberService).purchaseReturnPreviewReference(company, supplier);
+        verify(referenceNumberService, never()).purchaseReturnReference(any(), any());
+    }
+
+    @Test
+    void recordPurchaseReturn_rejectsReferenceOnlySupplierBeforePostingNewReturn() {
+        supplier.setStatus(SupplierStatus.SUSPENDED);
+
+        PurchaseReturnRequest request = new PurchaseReturnRequest(
+                10L,
+                30L,
+                20L,
+                new BigDecimal("1.0000"),
+                new BigDecimal("5.00"),
+                "PR-30",
+                LocalDate.of(2026, 3, 9),
+                "Damaged"
+        );
+
+        assertThatThrownBy(() -> purchaseReturnService.recordPurchaseReturn(request))
+                .isInstanceOfSatisfying(ApplicationException.class, ex -> {
+                    assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_INVALID_STATE);
+                    assertThat(ex).hasMessageContaining("reference only")
+                            .hasMessageContaining("record purchase returns");
+                });
+
+        verifyNoInteractions(accountingFacade, allocationService);
+        verify(rawMaterialRepository, never()).deductStockIfSufficient(any(), any());
+    }
+
+    @Test
+    void recordPurchaseReturn_rejectsMissingPayableAccountBeforePosting() {
+        supplier.setPayableAccount(null);
+
+        PurchaseReturnRequest request = new PurchaseReturnRequest(
+                10L,
+                30L,
+                20L,
+                new BigDecimal("1.0000"),
+                new BigDecimal("5.00"),
+                "PR-30",
+                LocalDate.of(2026, 3, 9),
+                "Damaged"
+        );
+
+        assertThatThrownBy(() -> purchaseReturnService.recordPurchaseReturn(request))
+                .isInstanceOfSatisfying(ApplicationException.class, ex -> {
+                    assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.VALIDATION_INVALID_STATE);
+                    assertThat(ex).hasMessageContaining("missing payable account mapping");
+                });
+
+        verifyNoInteractions(accountingFacade, allocationService);
+        verify(rawMaterialRepository, never()).deductStockIfSufficient(any(), any());
     }
 
     @Test
@@ -305,6 +358,39 @@ class PurchaseReturnServiceTest {
         verify(rawMaterialRepository, never()).deductStockIfSufficient(any(), any());
         verify(allocationService, never()).applyPurchaseReturnQuantity(any(), any(), any());
         verify(allocationService, never()).applyPurchaseReturnToOutstanding(any(), any());
+    }
+
+    @Test
+    void recordPurchaseReturn_previewPlaceholderGeneratesCanonicalPostingReference() {
+        when(allocationService.remainingReturnableQuantity(purchase, material)).thenReturn(new BigDecimal("4.0000"));
+        when(referenceNumberService.purchaseReturnReference(company, supplier)).thenReturn("PRN-POLICY-0007");
+        when(rawMaterialRepository.deductStockIfSufficient(20L, new BigDecimal("1.0000"))).thenReturn(1);
+        RawMaterialBatch batch = new RawMaterialBatch();
+        ReflectionTestUtils.setField(batch, "id", 71L);
+        batch.setBatchCode("RM-BATCH-7");
+        batch.setQuantity(new BigDecimal("5.0000"));
+        when(rawMaterialBatchRepository.findAvailableBatchesFIFO(material)).thenReturn(List.of(batch));
+        when(rawMaterialBatchRepository.deductQuantityIfSufficient(71L, new BigDecimal("1.0000"))).thenReturn(1);
+        when(accountingFacade.postPurchaseReturn(eq(10L), eq("PRN-POLICY-0007"), eq(LocalDate.of(2026, 3, 9)), any(), any(), any(), any(), eq(new BigDecimal("5.00"))))
+                .thenReturn(stubEntry(903L));
+        JournalEntry persistedReturn = new JournalEntry();
+        ReflectionTestUtils.setField(persistedReturn, "id", 903L);
+        when(journalEntryRepository.findByCompanyAndId(company, 903L)).thenReturn(Optional.of(persistedReturn));
+
+        JournalEntryDto result = purchaseReturnService.recordPurchaseReturn(new PurchaseReturnRequest(
+                10L,
+                30L,
+                20L,
+                new BigDecimal("1.0000"),
+                new BigDecimal("5.00"),
+                "PRN-PREVIEW-GEN-SUP-10",
+                LocalDate.of(2026, 3, 9),
+                "Damaged"
+        ));
+
+        assertThat(result.id()).isEqualTo(903L);
+        verify(referenceNumberService).purchaseReturnReference(company, supplier);
+        verify(accountingFacade).postPurchaseReturn(eq(10L), eq("PRN-POLICY-0007"), eq(LocalDate.of(2026, 3, 9)), any(), any(), any(), any(), eq(new BigDecimal("5.00")));
     }
 
     @Test

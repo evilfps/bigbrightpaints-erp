@@ -118,7 +118,7 @@ public class PurchaseReturnService {
         BigDecimal taxAmount = computeReturnTax(purchase, material, quantity);
         String reference = StringUtils.hasText(request.referenceNumber())
                 ? request.referenceNumber().trim()
-                : referenceNumberService.purchaseReturnReference(company, supplier);
+                : referenceNumberService.purchaseReturnPreviewReference(company, supplier);
         LocalDate returnDate = request.returnDate() != null ? request.returnDate() : companyClock.today(company);
         return new PurchaseReturnPreviewDto(
                 purchase.getId(),
@@ -163,9 +163,7 @@ public class PurchaseReturnService {
         BigDecimal taxAmount = computeReturnTax(purchase, material, quantity);
         BigDecimal totalAmount = currency(lineNet.add(taxAmount));
         String memo = returnMemo(material, supplier, request.reason());
-        String reference = StringUtils.hasText(request.referenceNumber())
-                ? request.referenceNumber().trim()
-                : referenceNumberService.purchaseReturnReference(company, supplier);
+        String reference = resolvePostingReference(company, supplier, request.referenceNumber());
         LocalDate returnDate = request.returnDate() != null ? request.returnDate() : companyClock.today(company);
 
         List<RawMaterialMovement> existingMovements = movementRepository
@@ -177,6 +175,11 @@ public class PurchaseReturnService {
                     returnDate, memo, existingMovements);
         }
 
+        supplier.requireTransactionalUsage("record purchase returns");
+        if (supplier.getPayableAccount() == null || supplier.getPayableAccount().getId() == null) {
+            throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidState(
+                    "Supplier " + supplier.getName() + " is missing payable account mapping");
+        }
         ensurePostedPurchase(purchase);
 
         BigDecimal remainingReturnableQty = allocationService.remainingReturnableQuantity(purchase, material);
@@ -334,6 +337,17 @@ public class PurchaseReturnService {
                         journalEntryRepository.save(entry);
                     }
                 });
+    }
+
+    private String resolvePostingReference(Company company, Supplier supplier, String providedReference) {
+        if (!StringUtils.hasText(providedReference)) {
+            return referenceNumberService.purchaseReturnReference(company, supplier);
+        }
+        String trimmed = providedReference.trim();
+        if (trimmed.regionMatches(true, 0, "PRN-PREVIEW-", 0, "PRN-PREVIEW-".length())) {
+            return referenceNumberService.purchaseReturnReference(company, supplier);
+        }
+        return trimmed;
     }
 
     private void validateReturnReplay(RawMaterial material,
