@@ -2,6 +2,7 @@
   "milestone": "recovery-review",
   "round": 1,
   "status": "pass",
+  "scopeNote": "Recovery-review is clean on the current propagated stack, but that clean state depends on re-anchoring the review evidence to resolvable propagated commits after the restack churn rather than on an uninterrupted first-pass trace.",
   "validatorsRun": {
     "test": {
       "passed": true,
@@ -26,7 +27,13 @@
     "failedFeatures": []
   },
   "blockingIssues": [],
-  "appliedUpdates": [],
+  "appliedUpdates": [
+    {
+      "target": ".factory/validation/recovery-review/scrutiny/reviews/*.json",
+      "description": "Re-anchored the aggregate recovery-review traceability chain to the current propagated commits, including the docs-only PR #102 shareout review on resolvable commit `1eb52bef6d674e5c2224eb5d09a5c17c60aa4c62`, so the milestone pass now reflects a re-established auditable stack rather than a stale clean summary from before restack churn was closed.",
+      "source": "review-traceability"
+    }
+  ],
   "suggestedGuidanceUpdates": [],
   "rejectedObservations": [
     {
