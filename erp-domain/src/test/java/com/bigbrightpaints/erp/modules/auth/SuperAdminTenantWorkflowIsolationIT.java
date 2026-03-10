@@ -83,6 +83,89 @@ class SuperAdminTenantWorkflowIsolationIT extends AbstractIntegrationTest {
                 .isEqualTo("Super Admin is limited to platform control-plane operations and cannot execute tenant business workflows");
     }
 
+    @Test
+    void superAdmin_cannotReadTenantFactoryDashboard() {
+        ResponseEntity<Map> response = rest.exchange(
+                "/api/v1/factory/dashboard",
+                HttpMethod.GET,
+                new HttpEntity<>(authHeaders()),
+                Map.class
+        );
+
+        assertPlatformOnlyForbidden(response);
+    }
+
+    @Test
+    void superAdmin_cannotCreateTenantHrEmployee() {
+        ResponseEntity<Map> response = rest.exchange(
+                "/api/v1/hr/employees",
+                HttpMethod.POST,
+                new HttpEntity<>(Map.of(
+                        "employeeCode", "HR-BLOCKED-1",
+                        "fullName", "Blocked Employee",
+                        "email", "blocked.hr@example.com",
+                        "department", "Operations",
+                        "designation", "Operator",
+                        "dateOfJoining", "2026-01-01"
+                ), jsonHeaders()),
+                Map.class
+        );
+
+        assertPlatformOnlyForbidden(response);
+    }
+
+    @Test
+    void superAdmin_cannotApproveTenantPayrollWorkflow() {
+        ResponseEntity<Map> response = rest.exchange(
+                "/api/v1/payroll/runs/999999/approve",
+                HttpMethod.POST,
+                new HttpEntity<>(jsonHeaders()),
+                Map.class
+        );
+
+        assertPlatformOnlyForbidden(response);
+    }
+
+    @Test
+    void superAdmin_cannotExecuteTenantInventoryWorkflows() {
+        ResponseEntity<Map> adjustmentResponse = rest.exchange(
+                "/api/v1/inventory/adjustments",
+                HttpMethod.POST,
+                new HttpEntity<>(Map.of(
+                        "adjustmentDate", "2026-01-01",
+                        "type", "IN",
+                        "adjustmentAccountId", 1,
+                        "reason", "platform-only-super-admin",
+                        "idempotencyKey", "super-admin-inventory-adjustment",
+                        "lines", List.of()
+                ), jsonHeaders()),
+                Map.class
+        );
+
+        ResponseEntity<Map> openingStockResponse = rest.exchange(
+                "/api/v1/inventory/opening-stock?page=0&size=5",
+                HttpMethod.GET,
+                new HttpEntity<>(authHeaders()),
+                Map.class
+        );
+
+        assertPlatformOnlyForbidden(adjustmentResponse);
+        assertPlatformOnlyForbidden(openingStockResponse);
+    }
+
+    private void assertPlatformOnlyForbidden(ResponseEntity<Map> response) {
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().get("message")).isEqualTo("Access denied");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> data = (Map<String, Object>) response.getBody().get("data");
+        assertThat(data).isNotNull();
+        assertThat(data.get("message")).isEqualTo("Access denied");
+        assertThat(data.get("reason")).isEqualTo("SUPER_ADMIN_PLATFORM_ONLY");
+        assertThat(data.get("reasonDetail"))
+                .isEqualTo("Super Admin is limited to platform control-plane operations and cannot execute tenant business workflows");
+    }
+
     private HttpHeaders jsonHeaders() {
         HttpHeaders headers = authHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
