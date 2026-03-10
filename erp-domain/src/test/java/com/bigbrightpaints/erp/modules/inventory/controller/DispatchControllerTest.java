@@ -5,6 +5,7 @@ import com.bigbrightpaints.erp.modules.inventory.dto.DispatchConfirmationRequest
 import com.bigbrightpaints.erp.modules.inventory.dto.DispatchConfirmationResponse;
 import com.bigbrightpaints.erp.modules.inventory.dto.DispatchPreviewDto;
 import com.bigbrightpaints.erp.modules.inventory.dto.PackagingSlipDto;
+import com.bigbrightpaints.erp.modules.inventory.dto.PackagingSlipLineDto;
 import com.bigbrightpaints.erp.modules.inventory.service.DeliveryChallanPdfService;
 import com.bigbrightpaints.erp.modules.inventory.service.FinishedGoodsService;
 import com.bigbrightpaints.erp.modules.sales.dto.DispatchConfirmRequest;
@@ -926,6 +927,58 @@ class DispatchControllerTest {
                 .hasMessage("Dispatch confirmation requires challanReference");
 
         SecurityContextHolder.clearContext();
+    }
+
+    @Test
+    void factoryPackagingSlipRedaction_clearsUnitCostForLineItems() {
+        DispatchController controller = new DispatchController(
+                finishedGoodsService,
+                salesDispatchReconciliationService,
+                deliveryChallanPdfService);
+        setFactoryAuthentication();
+
+        PackagingSlipDto slip = new PackagingSlipDto(
+                17L,
+                UUID.randomUUID(),
+                70L,
+                "SO-70",
+                "Dealer",
+                "PS-17",
+                "DISPATCHED",
+                Instant.now(),
+                Instant.now(),
+                "factory.user",
+                Instant.now(),
+                "notes",
+                111L,
+                222L,
+                List.of(new PackagingSlipLineDto(
+                        1L,
+                        UUID.randomUUID(),
+                        "BATCH-17",
+                        "FG-17",
+                        "Primer",
+                        new BigDecimal("5.00"),
+                        new BigDecimal("4.00"),
+                        new BigDecimal("1.00"),
+                        new BigDecimal("4.00"),
+                        new BigDecimal("88.00"),
+                        "fragile")),
+                "FastMove Logistics",
+                "Ayaan",
+                "MH12AB1234",
+                "LR-1717",
+                "DC-17",
+                "/api/v1/dispatch/slip/17/challan/pdf"
+        );
+        when(finishedGoodsService.getPackagingSlip(17L)).thenReturn(slip);
+
+        PackagingSlipDto redactedSlip = controller.getPackagingSlip(17L).getBody().data();
+
+        assertThat(redactedSlip.lines()).hasSize(1);
+        assertThat(redactedSlip.lines().getFirst().unitCost()).isNull();
+        assertThat(redactedSlip.lines().getFirst().productCode()).isEqualTo("FG-17");
+        assertThat(redactedSlip.lines().getFirst().quantity()).isEqualByComparingTo("4.00");
     }
 
     private void setFactoryAuthentication() {

@@ -97,6 +97,18 @@ class AccountingComplianceAuditServiceTest {
     }
 
     @Test
+    void recordJournalCreation_omitsBlankAttachmentReferences() {
+        Company company = company(85L, "BBP");
+        JournalEntry entry = journalEntry(107L, "MANJ-2026-0003", JournalEntryType.MANUAL);
+        entry.setAttachmentReferences("   ");
+
+        service.recordJournalCreation(company, entry);
+
+        AuditActionEventCommand command = captureCommand();
+        assertThat(command.metadata()).doesNotContainKey("attachmentReferences");
+    }
+
+    @Test
     void recordJournalReversal_includesBeforeAndAfterState() {
         Company company = company(79L, "BBP");
         JournalEntry original = journalEntry(103L, "INV-2026-0091", JournalEntryType.AUTOMATED);

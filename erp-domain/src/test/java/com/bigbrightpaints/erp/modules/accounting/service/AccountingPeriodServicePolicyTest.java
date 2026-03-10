@@ -235,6 +235,93 @@ class AccountingPeriodServicePolicyTest {
     }
 
     @Test
+    void correctionLinkageHelpers_classifyPrefixedCorrectionsAndMissingMetadata() {
+        Company company = company(1L, "POLICY");
+        AccountingPeriod period = openPeriod(company, 2026, 2);
+
+        JournalEntry prefixed = new JournalEntry();
+        prefixed.setReferenceNumber("  prn-2026-0001  ");
+
+        JournalEntry linked = new JournalEntry();
+        linked.setCorrectionType(JournalCorrectionType.REVERSAL);
+        linked.setCorrectionReason("SALES_RETURN");
+        linked.setSourceModule("SALES_RETURN");
+        linked.setSourceReference("INV-1");
+
+        when(journalEntryRepository.findByCompanyAndEntryDateBetweenOrderByEntryDateAsc(
+                company,
+                period.getStartDate(),
+                period.getEndDate())).thenReturn(List.of(prefixed, linked));
+
+        assertThat((Long) ReflectionTestUtils.invokeMethod(coreService, "countCorrectionLinkageGaps", company, period))
+                .isEqualTo(1L);
+        assertThat((Boolean) ReflectionTestUtils.invokeMethod(coreService, "isCorrectionJournal", new Object[]{null}))
+                .isFalse();
+        assertThat((Boolean) ReflectionTestUtils.invokeMethod(coreService, "isCorrectionJournal", prefixed))
+                .isTrue();
+        assertThat((Boolean) ReflectionTestUtils.invokeMethod(coreService, "isMissingCorrectionLinkage", linked))
+                .isFalse();
+    }
+
+    @Test
+    void rejectPeriodClose_allowsAdminReviewerToRejectPendingRequest() {
+        Company company = company(1L, "POLICY");
+        AccountingPeriod period = openPeriod(company, 2026, 2);
+        ReflectionTestUtils.setField(period, "id", 12L);
+        PeriodCloseRequest pending = pendingCloseRequest(company, period, 703L, "maker.user");
+        when(companyContextService.requireCurrentCompany()).thenReturn(company);
+        when(accountingPeriodRepository.lockByCompanyAndId(company, 12L)).thenReturn(Optional.of(period));
+        when(periodCloseRequestRepository.lockByCompanyAndAccountingPeriodAndStatus(
+                company, period, PeriodCloseRequestStatus.PENDING)).thenReturn(Optional.of(pending));
+        when(periodCloseRequestRepository.save(pending)).thenReturn(pending);
+        authenticate("policy.admin", "ROLE_ADMIN");
+
+        assertThat(service.rejectPeriodClose(12L, new PeriodCloseRequestActionRequest("reject for review", false)).status())
+                .isEqualTo(PeriodCloseRequestStatus.REJECTED.name());
+    }
+
+    @Test
+    void correctionLinkageHelpers_coverNullPeriodsPrefixesAndMissingSourceMetadata() {
+        Company company = company(1L, "POLICY");
+        AccountingPeriod period = openPeriod(company, 2026, 3);
+
+        when(journalEntryRepository.findByCompanyAndEntryDateBetweenOrderByEntryDateAsc(
+                company,
+                period.getStartDate(),
+                period.getEndDate())).thenReturn(null);
+
+        assertThat((Long) ReflectionTestUtils.invokeMethod(coreService, "countCorrectionLinkageGaps", company, period))
+                .isZero();
+
+        JournalEntry reversalLinked = new JournalEntry();
+        reversalLinked.setReversalOf(new JournalEntry());
+        JournalEntry debitNote = new JournalEntry();
+        debitNote.setReferenceNumber("DN-2026-0001");
+        JournalEntry blankReference = new JournalEntry();
+        blankReference.setReferenceNumber("   ");
+        JournalEntry missingSource = new JournalEntry();
+        missingSource.setCorrectionType(JournalCorrectionType.REVERSAL);
+        missingSource.setCorrectionReason("SALES_RETURN");
+
+        assertThat((Boolean) ReflectionTestUtils.invokeMethod(coreService, "isCorrectionJournal", reversalLinked)).isTrue();
+        assertThat((Boolean) ReflectionTestUtils.invokeMethod(coreService, "isCorrectionJournal", debitNote)).isTrue();
+        assertThat((Boolean) ReflectionTestUtils.invokeMethod(coreService, "isCorrectionJournal", blankReference)).isFalse();
+        assertThat((Boolean) ReflectionTestUtils.invokeMethod(coreService, "isMissingCorrectionLinkage", missingSource)).isTrue();
+    }
+
+    @Test
+    void requireAdminRole_rejectsUnauthenticatedAndAllowsSuperAdmin() {
+        SecurityContextHolder.clearContext();
+
+        assertThatThrownBy(() -> ReflectionTestUtils.invokeMethod(service, "requireAdminRole"))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("ROLE_ADMIN authority required");
+
+        authenticate("super.admin", "ROLE_SUPER_ADMIN");
+        ReflectionTestUtils.invokeMethod(service, "requireAdminRole");
+    }
+
+    @Test
     void approvePeriodClose_reportsUnresolvedControlsInDeterministicPolicyOrder() {
         Company company = company(1L, "POLICY");
         AccountingPeriod period = openPeriod(company, 2026, 2);

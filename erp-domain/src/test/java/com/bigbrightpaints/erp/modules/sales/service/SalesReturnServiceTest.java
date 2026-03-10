@@ -3,6 +3,7 @@ package com.bigbrightpaints.erp.modules.sales.service;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
+import com.bigbrightpaints.erp.modules.accounting.domain.JournalCorrectionType;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.SalesReturnRequest;
@@ -37,6 +38,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.lang.reflect.Field;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -336,6 +338,35 @@ class SalesReturnServiceTest {
                 "Draft correction",
                 List.of(new SalesReturnRequest.ReturnLine(1L, BigDecimal.ONE))
         )))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Only posted invoices can be corrected through sales return");
+    }
+
+    @Test
+    void ensurePostedInvoice_rejectsMissingJournalVoidAndReversedStatuses() {
+        Invoice missingJournal = new Invoice();
+        assertThatThrownBy(() -> ReflectionTestUtils.invokeMethod(
+                salesReturnService,
+                "ensurePostedInvoice",
+                missingJournal))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Only posted invoices can be corrected through sales return");
+
+        Invoice invalidStatus = new Invoice();
+        attachPostedJournal(invalidStatus, 901L);
+        invalidStatus.setStatus("VOID");
+        assertThatThrownBy(() -> ReflectionTestUtils.invokeMethod(
+                salesReturnService,
+                "ensurePostedInvoice",
+                invalidStatus))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Only posted invoices can be corrected through sales return");
+
+        invalidStatus.setStatus("REVERSED");
+        assertThatThrownBy(() -> ReflectionTestUtils.invokeMethod(
+                salesReturnService,
+                "ensurePostedInvoice",
+                invalidStatus))
                 .isInstanceOf(ApplicationException.class)
                 .hasMessageContaining("Only posted invoices can be corrected through sales return");
     }
@@ -941,6 +972,33 @@ class SalesReturnServiceTest {
     }
 
     @Test
+    void previewReturn_requiresReturnLinesWhenRequestLinesAreNull() {
+        Invoice invoice = new Invoice();
+        invoice.setCompany(company);
+        invoice.setInvoiceNumber("INV-NULL-PREVIEW");
+        attachPostedJournal(invoice, 921L);
+        setField(invoice, "id", 91L);
+        when(invoiceRepository.lockByCompanyAndId(company, 91L)).thenReturn(Optional.of(invoice));
+
+        assertThatThrownBy(() -> salesReturnService.previewReturn(new SalesReturnRequest(91L, "preview", null)))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Return lines are required");
+    }
+
+    @Test
+    void previewReturn_rejectsMissingInvoice() {
+        when(invoiceRepository.lockByCompanyAndId(company, 404L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> salesReturnService.previewReturn(new SalesReturnRequest(
+                404L,
+                "Missing",
+                List.of(new SalesReturnRequest.ReturnLine(1L, BigDecimal.ONE))
+        )))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Invoice not found: id=404");
+    }
+
+    @Test
     void processReturn_replayRelinksExistingReturnMovementsAndCorrectionJournal() {
         Dealer dealer = new Dealer();
         dealer.setCompany(company);
@@ -1059,6 +1117,151 @@ class SalesReturnServiceTest {
     }
 
     @Test
+    void processReturn_requiresReturnLinesWhenRequestLinesAreNull() {
+        Dealer dealer = new Dealer();
+        dealer.setCompany(company);
+        Account receivable = new Account();
+        setField(receivable, "id", 77L);
+        dealer.setReceivableAccount(receivable);
+
+        Invoice invoice = new Invoice();
+        invoice.setCompany(company);
+        invoice.setDealer(dealer);
+        invoice.setInvoiceNumber("INV-NULL-LINES");
+        attachPostedJournal(invoice, 935L);
+        setField(invoice, "id", 132L);
+
+        when(invoiceRepository.lockByCompanyAndId(company, 132L)).thenReturn(Optional.of(invoice));
+
+        assertThatThrownBy(() -> salesReturnService.processReturn(new SalesReturnRequest(132L, "Null lines", null)))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Return lines are required");
+    }
+
+    @Test
+    void processReturn_requiresReturnLinesWhenRequestLinesAreEmpty() {
+        Dealer dealer = new Dealer();
+        dealer.setCompany(company);
+        Account receivable = new Account();
+        setField(receivable, "id", 79L);
+        dealer.setReceivableAccount(receivable);
+
+        Invoice invoice = new Invoice();
+        invoice.setCompany(company);
+        invoice.setDealer(dealer);
+        invoice.setInvoiceNumber("INV-EMPTY-LINES");
+        attachPostedJournal(invoice, 937L);
+        setField(invoice, "id", 134L);
+
+        when(invoiceRepository.lockByCompanyAndId(company, 134L)).thenReturn(Optional.of(invoice));
+
+        assertThatThrownBy(() -> salesReturnService.processReturn(new SalesReturnRequest(134L, "Empty lines", List.of())))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Return lines are required");
+    }
+
+    @Test
+    void processReturn_rejectsZeroReturnAmountBeforePosting() {
+        Dealer dealer = new Dealer();
+        dealer.setCompany(company);
+        Account receivable = new Account();
+        setField(receivable, "id", 78L);
+        dealer.setReceivableAccount(receivable);
+        setField(dealer, "id", 12L);
+
+        Invoice invoice = new Invoice();
+        invoice.setCompany(company);
+        invoice.setDealer(dealer);
+        invoice.setInvoiceNumber("INV-ZERO");
+        attachPostedJournal(invoice, 936L);
+        setField(invoice, "id", 133L);
+
+        InvoiceLine line = new InvoiceLine();
+        line.setInvoice(invoice);
+        line.setProductCode("FG-ZERO");
+        line.setQuantity(BigDecimal.ONE);
+        line.setUnitPrice(BigDecimal.ZERO);
+        line.setTaxableAmount(BigDecimal.ZERO);
+        line.setTaxAmount(BigDecimal.ZERO);
+        line.setLineTotal(BigDecimal.ZERO);
+        setField(line, "id", 92L);
+        invoice.getLines().add(line);
+
+        FinishedGood fg = new FinishedGood();
+        fg.setCompany(company);
+        fg.setProductCode("FG-ZERO");
+        setField(fg, "id", 602L);
+
+        when(invoiceRepository.lockByCompanyAndId(company, 133L)).thenReturn(Optional.of(invoice));
+        when(finishedGoodRepository.lockByCompanyAndProductCode(company, "FG-ZERO")).thenReturn(Optional.of(fg));
+        when(inventoryMovementRepository.findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdOrderByCreatedAtAsc(
+                company,
+                "SALES_RETURN",
+                "INV-ZERO")).thenReturn(List.of());
+        when(inventoryMovementRepository.findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdStartingWithOrderByCreatedAtAsc(
+                company,
+                "SALES_RETURN",
+                "INV-ZERO:")).thenReturn(List.of());
+
+        assertThatThrownBy(() -> salesReturnService.processReturn(new SalesReturnRequest(
+                133L,
+                "Zero",
+                List.of(new SalesReturnRequest.ReturnLine(92L, BigDecimal.ONE))
+        )))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Return amount must be greater than zero");
+    }
+
+    @Test
+    void previewReturn_withoutSalesOrderFailsOnMissingDispatchCostLayers() {
+        Dealer dealer = new Dealer();
+        dealer.setCompany(company);
+
+        Invoice invoice = new Invoice();
+        invoice.setCompany(company);
+        invoice.setDealer(dealer);
+        invoice.setInvoiceNumber("INV-NO-SO");
+        attachPostedJournal(invoice, 934L);
+        setField(invoice, "id", 131L);
+
+        InvoiceLine line = new InvoiceLine();
+        line.setInvoice(invoice);
+        line.setProductCode("FG-NO-SO");
+        line.setQuantity(BigDecimal.ONE);
+        line.setUnitPrice(new BigDecimal("100.00"));
+        line.setTaxableAmount(new BigDecimal("100.00"));
+        line.setTaxAmount(BigDecimal.ZERO);
+        line.setLineTotal(new BigDecimal("100.00"));
+        setField(line, "id", 88L);
+        invoice.getLines().add(line);
+
+        FinishedGood fg = new FinishedGood();
+        fg.setCompany(company);
+        fg.setProductCode("FG-NO-SO");
+        setField(fg, "id", 501L);
+
+        when(invoiceRepository.lockByCompanyAndId(company, 131L)).thenReturn(Optional.of(invoice));
+        when(finishedGoodRepository.lockByCompanyAndProductCode(company, "FG-NO-SO")).thenReturn(Optional.of(fg));
+        when(inventoryMovementRepository.findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdOrderByCreatedAtAsc(
+                company,
+                "SALES_RETURN",
+                "INV-NO-SO")).thenReturn(List.of());
+        when(inventoryMovementRepository.findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdStartingWithOrderByCreatedAtAsc(
+                company,
+                "SALES_RETURN",
+                "INV-NO-SO:")).thenReturn(List.of());
+
+        assertThatThrownBy(() -> salesReturnService.previewReturn(new SalesReturnRequest(
+                131L,
+                "Preview",
+                List.of(new SalesReturnRequest.ReturnLine(88L, BigDecimal.ONE))
+        )))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("dispatch cost layers")
+                .hasMessageContaining("FG-NO-SO");
+    }
+
+    @Test
     void ensurePostedInvoice_rejectsMissingJournalAndBlankStatus() {
         Invoice missingJournal = new Invoice();
         assertThatThrownBy(() -> ReflectionTestUtils.invokeMethod(
@@ -1078,6 +1281,402 @@ class SalesReturnServiceTest {
                 blankStatus))
                 .isInstanceOf(ApplicationException.class)
                 .hasMessageContaining("Only posted invoices can be corrected through sales return");
+    }
+
+    @Test
+    void ensurePostedInvoice_rejectsVoidAndReversedStatus() {
+        Invoice voidInvoice = new Invoice();
+        attachPostedJournal(voidInvoice, 932L);
+        voidInvoice.setStatus("VOID");
+
+        Invoice reversedInvoice = new Invoice();
+        attachPostedJournal(reversedInvoice, 933L);
+        reversedInvoice.setStatus("REVERSED");
+
+        assertThatThrownBy(() -> ReflectionTestUtils.invokeMethod(
+                salesReturnService,
+                "ensurePostedInvoice",
+                voidInvoice))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Only posted invoices can be corrected through sales return");
+        assertThatThrownBy(() -> ReflectionTestUtils.invokeMethod(
+                salesReturnService,
+                "ensurePostedInvoice",
+                reversedInvoice))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Only posted invoices can be corrected through sales return");
+    }
+
+    @Test
+    void ensurePostedInvoice_allowsNullInvoice() {
+        ReflectionTestUtils.invokeMethod(salesReturnService, "ensurePostedInvoice", new Object[]{null});
+    }
+
+    @Test
+    void loadReturnMovements_aggregatesCanonicalKeyedReferencesAndIgnoresNoise() {
+        FinishedGood fg = new FinishedGood();
+        fg.setProductCode("FG-CANON");
+        setField(fg, "id", 31L);
+
+        InventoryMovement keyed = new InventoryMovement();
+        keyed.setFinishedGood(fg);
+        keyed.setReferenceId(" INV-CANON:55:KEY-1 ");
+        keyed.setQuantity(new BigDecimal("2.00"));
+
+        InventoryMovement direct = new InventoryMovement();
+        direct.setFinishedGood(fg);
+        direct.setReferenceId("INV-CANON:55");
+        direct.setQuantity(BigDecimal.ONE);
+
+        InventoryMovement invalidLine = new InventoryMovement();
+        invalidLine.setFinishedGood(fg);
+        invalidLine.setReferenceId("INV-CANON:ABC");
+        invalidLine.setQuantity(new BigDecimal("4.00"));
+
+        InventoryMovement blankLine = new InventoryMovement();
+        blankLine.setFinishedGood(fg);
+        blankLine.setReferenceId("INV-CANON:");
+        blankLine.setQuantity(new BigDecimal("5.00"));
+
+        InventoryMovement unrelated = new InventoryMovement();
+        unrelated.setFinishedGood(fg);
+        unrelated.setReferenceId("INV-CANON-OTHER:55");
+        unrelated.setQuantity(new BigDecimal("9.00"));
+
+        when(inventoryMovementRepository.findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdOrderByCreatedAtAsc(
+                company,
+                "SALES_RETURN",
+                "INV-CANON")).thenReturn(List.of());
+        when(inventoryMovementRepository.findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdStartingWithOrderByCreatedAtAsc(
+                company,
+                "SALES_RETURN",
+                "INV-CANON:")).thenReturn(List.of(keyed, direct, invalidLine, blankLine, unrelated));
+
+        Object summary = ReflectionTestUtils.invokeMethod(
+                salesReturnService,
+                "loadReturnMovements",
+                company,
+                "INV-CANON");
+
+        @SuppressWarnings("unchecked")
+        Map<Long, BigDecimal> byLine = (Map<Long, BigDecimal>) ReflectionTestUtils.invokeMethod(summary, "byInvoiceLineId");
+        @SuppressWarnings("unchecked")
+        Map<Long, BigDecimal> byFinishedGood = (Map<Long, BigDecimal>) ReflectionTestUtils.invokeMethod(summary, "byFinishedGoodId");
+
+        assertThat(byLine).containsEntry(55L, new BigDecimal("3.00"));
+        assertThat(byFinishedGood).containsEntry(31L, new BigDecimal("12.00"));
+    }
+
+    @Test
+    void validateReturnQuantities_rejectsMissingInvoiceLinesAndOverInvoicedQuantities() {
+        Invoice invoice = new Invoice();
+        invoice.setCompany(company);
+        invoice.setInvoiceNumber("INV-VALIDATE");
+
+        InvoiceLine line = new InvoiceLine();
+        line.setInvoice(invoice);
+        line.setProductCode("FG-VAL");
+        line.setQuantity(new BigDecimal("2.00"));
+        setField(line, "id", 90L);
+        invoice.getLines().add(line);
+
+        Map<Long, InvoiceLine> invoiceLines = Map.of(90L, line);
+
+        assertThatThrownBy(() -> ReflectionTestUtils.invokeMethod(
+                salesReturnService,
+                "validateReturnQuantities",
+                company,
+                invoice,
+                new SalesReturnRequest(90L, "bad", List.of(new SalesReturnRequest.ReturnLine(999L, BigDecimal.ONE))),
+                invoiceLines,
+                new HashMap<String, FinishedGood>()))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Invoice line not found: 999");
+
+        assertThatThrownBy(() -> ReflectionTestUtils.invokeMethod(
+                salesReturnService,
+                "validateReturnQuantities",
+                company,
+                invoice,
+                new SalesReturnRequest(90L, "bad", List.of(new SalesReturnRequest.ReturnLine(90L, new BigDecimal("3.00")))),
+                invoiceLines,
+                new HashMap<String, FinishedGood>()))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Return quantity exceeds invoiced amount for FG-VAL");
+    }
+
+    @Test
+    void validateReturnQuantities_allocatesLegacyFinishedGoodReturnsAcrossKnownInvoiceLines() {
+        Invoice invoice = new Invoice();
+        invoice.setCompany(company);
+        invoice.setInvoiceNumber("INV-LEGACY");
+
+        InvoiceLine firstLine = new InvoiceLine();
+        firstLine.setInvoice(invoice);
+        firstLine.setProductCode("FG-1");
+        firstLine.setQuantity(new BigDecimal("5.00"));
+        setField(firstLine, "id", 81L);
+
+        InvoiceLine secondLine = new InvoiceLine();
+        secondLine.setInvoice(invoice);
+        secondLine.setProductCode("FG-1");
+        secondLine.setQuantity(new BigDecimal("5.00"));
+        setField(secondLine, "id", 82L);
+
+        InvoiceLine unrelatedLine = new InvoiceLine();
+        unrelatedLine.setInvoice(invoice);
+        unrelatedLine.setProductCode("FG-2");
+        unrelatedLine.setQuantity(new BigDecimal("4.00"));
+        setField(unrelatedLine, "id", 83L);
+
+        invoice.getLines().add(firstLine);
+        invoice.getLines().add(secondLine);
+        invoice.getLines().add(unrelatedLine);
+
+        FinishedGood fg1 = new FinishedGood();
+        fg1.setCompany(company);
+        fg1.setProductCode("FG-1");
+        setField(fg1, "id", 401L);
+
+        when(finishedGoodRepository.lockByCompanyAndProductCode(company, "FG-1")).thenReturn(Optional.of(fg1));
+        when(inventoryMovementRepository.findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdOrderByCreatedAtAsc(
+                company,
+                "SALES_RETURN",
+                "INV-LEGACY")).thenReturn(List.of());
+
+        InventoryMovement lineScoped = new InventoryMovement();
+        lineScoped.setFinishedGood(fg1);
+        lineScoped.setReferenceId("INV-LEGACY:81");
+        lineScoped.setQuantity(new BigDecimal("2.00"));
+
+        InventoryMovement legacyProductLevel = new InventoryMovement();
+        legacyProductLevel.setFinishedGood(fg1);
+        legacyProductLevel.setReferenceId("INV-LEGACY:999");
+        legacyProductLevel.setQuantity(new BigDecimal("2.00"));
+
+        FinishedGood otherFinishedGood = new FinishedGood();
+        otherFinishedGood.setProductCode("FG-2");
+        setField(otherFinishedGood, "id", 402L);
+
+        InventoryMovement otherProduct = new InventoryMovement();
+        otherProduct.setFinishedGood(otherFinishedGood);
+        otherProduct.setReferenceId("INV-LEGACY:83");
+        otherProduct.setQuantity(BigDecimal.ONE);
+
+        when(inventoryMovementRepository.findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdStartingWithOrderByCreatedAtAsc(
+                company,
+                "SALES_RETURN",
+                "INV-LEGACY:")).thenReturn(List.of(lineScoped, legacyProductLevel, otherProduct));
+
+        SalesReturnRequest request = new SalesReturnRequest(
+                81L,
+                "Legacy allocation",
+                List.of(new SalesReturnRequest.ReturnLine(82L, new BigDecimal("3.00"))));
+
+        Map<Long, InvoiceLine> invoiceLines = Map.of(
+                81L, firstLine,
+                82L, secondLine,
+                83L, unrelatedLine
+        );
+
+        ReflectionTestUtils.invokeMethod(
+                salesReturnService,
+                "validateReturnQuantities",
+                company,
+                invoice,
+                request,
+                invoiceLines,
+                new HashMap<String, FinishedGood>());
+
+        verify(finishedGoodRepository).lockByCompanyAndProductCode(company, "FG-1");
+    }
+
+    @Test
+    void validateReturnQuantities_rejectsFinishedGoodLevelOverReturnFromInvalidLegacyMarkers() {
+        Invoice invoice = new Invoice();
+        invoice.setCompany(company);
+        invoice.setInvoiceNumber("INV-FG-OVER");
+
+        InvoiceLine line = new InvoiceLine();
+        line.setInvoice(invoice);
+        line.setProductCode("FG-OVER");
+        line.setQuantity(new BigDecimal("5.00"));
+        setField(line, "id", 91L);
+        invoice.getLines().add(line);
+
+        FinishedGood fg = new FinishedGood();
+        fg.setCompany(company);
+        fg.setProductCode("FG-OVER");
+        setField(fg, "id", 601L);
+
+        when(finishedGoodRepository.lockByCompanyAndProductCode(company, "FG-OVER")).thenReturn(Optional.of(fg));
+        when(inventoryMovementRepository.findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdOrderByCreatedAtAsc(
+                company,
+                "SALES_RETURN",
+                "INV-FG-OVER")).thenReturn(List.of());
+
+        InventoryMovement invalidLegacy = new InventoryMovement();
+        invalidLegacy.setFinishedGood(fg);
+        invalidLegacy.setReferenceId("INV-FG-OVER:BAD-LINE");
+        invalidLegacy.setQuantity(new BigDecimal("6.00"));
+
+        when(inventoryMovementRepository.findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdStartingWithOrderByCreatedAtAsc(
+                company,
+                "SALES_RETURN",
+                "INV-FG-OVER:")).thenReturn(List.of(invalidLegacy));
+
+        assertThatThrownBy(() -> ReflectionTestUtils.invokeMethod(
+                salesReturnService,
+                "validateReturnQuantities",
+                company,
+                invoice,
+                new SalesReturnRequest(91L, "FG over", List.of(new SalesReturnRequest.ReturnLine(91L, BigDecimal.ONE))),
+                Map.of(91L, line),
+                new HashMap<String, FinishedGood>()))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Return quantity exceeds remaining invoiced amount for FG-OVER");
+    }
+
+    @Test
+    void validateReturnQuantities_skipsLegacyRowsWithMissingProductCodeAndFinishedGoodIds() {
+        Invoice invoice = new Invoice();
+        invoice.setCompany(company);
+        invoice.setInvoiceNumber("INV-LEGACY-SKIP");
+
+        InvoiceLine nullProduct = new InvoiceLine();
+        nullProduct.setInvoice(invoice);
+        nullProduct.setQuantity(new BigDecimal("2.00"));
+        setField(nullProduct, "id", 81L);
+
+        InvoiceLine requestedLine = new InvoiceLine();
+        requestedLine.setInvoice(invoice);
+        requestedLine.setProductCode("FG-LEG");
+        requestedLine.setQuantity(new BigDecimal("2.00"));
+        setField(requestedLine, "id", 82L);
+
+        invoice.getLines().add(nullProduct);
+        invoice.getLines().add(requestedLine);
+
+        FinishedGood requestedFinishedGood = new FinishedGood();
+        requestedFinishedGood.setCompany(company);
+        requestedFinishedGood.setProductCode("FG-LEG");
+
+        FinishedGood legacyFinishedGood = new FinishedGood();
+        legacyFinishedGood.setCompany(company);
+        legacyFinishedGood.setProductCode("FG-OTHER");
+        setField(legacyFinishedGood, "id", 501L);
+
+        FinishedGood trackedFinishedGood = new FinishedGood();
+        trackedFinishedGood.setCompany(company);
+        trackedFinishedGood.setProductCode("FG-LEG");
+        setField(trackedFinishedGood, "id", 502L);
+
+        InventoryMovement missingProductMovement = new InventoryMovement();
+        missingProductMovement.setFinishedGood(legacyFinishedGood);
+        missingProductMovement.setReferenceId("INV-LEGACY-SKIP:81");
+        missingProductMovement.setQuantity(BigDecimal.ONE);
+
+        InventoryMovement zeroQuantityRequestedLine = new InventoryMovement();
+        zeroQuantityRequestedLine.setFinishedGood(trackedFinishedGood);
+        zeroQuantityRequestedLine.setReferenceId("INV-LEGACY-SKIP:82");
+        zeroQuantityRequestedLine.setQuantity(BigDecimal.ZERO);
+
+        when(finishedGoodRepository.lockByCompanyAndProductCode(company, "FG-LEG")).thenReturn(Optional.of(requestedFinishedGood));
+        when(inventoryMovementRepository.findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdOrderByCreatedAtAsc(
+                company,
+                "SALES_RETURN",
+                "INV-LEGACY-SKIP")).thenReturn(List.of());
+        when(inventoryMovementRepository.findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdStartingWithOrderByCreatedAtAsc(
+                company,
+                "SALES_RETURN",
+                "INV-LEGACY-SKIP:")).thenReturn(List.of(missingProductMovement, zeroQuantityRequestedLine));
+
+        ReflectionTestUtils.invokeMethod(
+                salesReturnService,
+                "validateReturnQuantities",
+                company,
+                invoice,
+                new SalesReturnRequest(82L, "skip legacy", List.of(new SalesReturnRequest.ReturnLine(82L, BigDecimal.ONE))),
+                Map.of(81L, nullProduct, 82L, requestedLine),
+                new HashMap<String, FinishedGood>());
+
+        verify(finishedGoodRepository).lockByCompanyAndProductCode(company, "FG-LEG");
+    }
+
+    @Test
+    void ensureLinkedCorrectionJournal_repairsMismatchedReversalMetadata() {
+        JournalEntry sourceJournal = new JournalEntry();
+        setField(sourceJournal, "id", 940L);
+
+        JournalEntry replayEntry = new JournalEntry();
+        setField(replayEntry, "id", 941L);
+        replayEntry.setCorrectionType(JournalCorrectionType.REVERSAL);
+        replayEntry.setCorrectionReason("SALES_RETURN");
+        replayEntry.setSourceModule("SALES_RETURN");
+        replayEntry.setSourceReference("OLD-REF");
+        JournalEntry wrongSource = new JournalEntry();
+        setField(wrongSource, "id", 1L);
+        replayEntry.setReversalOf(wrongSource);
+
+        when(journalEntryRepository.findByCompanyAndId(company, 941L)).thenReturn(Optional.of(replayEntry));
+
+        ReflectionTestUtils.invokeMethod(
+                salesReturnService,
+                "ensureLinkedCorrectionJournal",
+                company,
+                stubEntry(941L),
+                sourceJournal,
+                "INV-CORR-1");
+
+        verify(journalEntryRepository).save(argThat(entry -> Objects.equals(entry.getId(), 941L)
+                && entry.getReversalOf() == sourceJournal
+                && Objects.equals(entry.getSourceReference(), "INV-CORR-1")));
+    }
+
+    @Test
+    void ensureLinkedCorrectionJournal_skipsSaveWhenReplayEntryAlreadyMatches() {
+        JournalEntry sourceJournal = new JournalEntry();
+        setField(sourceJournal, "id", 942L);
+
+        JournalEntry aligned = new JournalEntry();
+        setField(aligned, "id", 943L);
+        aligned.setCorrectionType(JournalCorrectionType.REVERSAL);
+        aligned.setCorrectionReason("SALES_RETURN");
+        aligned.setSourceModule("SALES_RETURN");
+        aligned.setSourceReference("INV-CORR-2");
+        aligned.setReversalOf(sourceJournal);
+
+        when(journalEntryRepository.findByCompanyAndId(company, 943L)).thenReturn(Optional.of(aligned));
+
+        ReflectionTestUtils.invokeMethod(
+                salesReturnService,
+                "ensureLinkedCorrectionJournal",
+                company,
+                stubEntry(943L),
+                sourceJournal,
+                "INV-CORR-2");
+
+        verify(journalEntryRepository, never()).save(any(JournalEntry.class));
+    }
+
+    @Test
+    void ensureLinkedCorrectionJournal_returnsWhenDtoOrSourceMissing() {
+        ReflectionTestUtils.invokeMethod(
+                salesReturnService,
+                "ensureLinkedCorrectionJournal",
+                company,
+                null,
+                new JournalEntry(),
+                "INV-CORR-NULL");
+        ReflectionTestUtils.invokeMethod(
+                salesReturnService,
+                "ensureLinkedCorrectionJournal",
+                company,
+                stubEntry(944L),
+                null,
+                "INV-CORR-NULL");
+
+        verify(journalEntryRepository, never()).save(any(JournalEntry.class));
     }
 
     @Test
@@ -1118,6 +1717,107 @@ class SalesReturnServiceTest {
     }
 
     @Test
+    void relinkExistingReturnMovements_skipsNullAndEmptyRequestsBeforeLoadingMovements() {
+        ReflectionTestUtils.invokeMethod(
+                salesReturnService,
+                "relinkExistingReturnMovements",
+                company,
+                "INV-RELINK-EMPTY",
+                null,
+                44L,
+                "KEY-1");
+        ReflectionTestUtils.invokeMethod(
+                salesReturnService,
+                "relinkExistingReturnMovements",
+                company,
+                "INV-RELINK-EMPTY",
+                new SalesReturnRequest(1L, "No-op", List.of()),
+                44L,
+                "KEY-1");
+
+        verify(inventoryMovementRepository, never())
+                .findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdOrderByCreatedAtAsc(any(), any(), any());
+        verify(inventoryMovementRepository, never())
+                .findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdStartingWithOrderByCreatedAtAsc(any(), any(), any());
+    }
+
+    @Test
+    void relinkExistingReturnMovements_skipsWhenRequestLinesAreNull() {
+        ReflectionTestUtils.invokeMethod(
+                salesReturnService,
+                "relinkExistingReturnMovements",
+                company,
+                "INV-RELINK-NULL-LINES",
+                new SalesReturnRequest(1L, "No-op", null),
+                44L,
+                "KEY-1");
+
+        verify(inventoryMovementRepository, never())
+                .findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdOrderByCreatedAtAsc(any(), any(), any());
+    }
+
+    @Test
+    void relinkExistingReturnMovements_skipsWhenRepositoriesReturnNoMovements() {
+        when(inventoryMovementRepository.findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdOrderByCreatedAtAsc(
+                company,
+                "SALES_RETURN",
+                "INV-RELINK-NONE")).thenReturn(null);
+        when(inventoryMovementRepository.findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdStartingWithOrderByCreatedAtAsc(
+                company,
+                "SALES_RETURN",
+                "INV-RELINK-NONE:")).thenReturn(List.of());
+
+        ReflectionTestUtils.invokeMethod(
+                salesReturnService,
+                "relinkExistingReturnMovements",
+                company,
+                "INV-RELINK-NONE",
+                new SalesReturnRequest(1L, "No-op", List.of(new SalesReturnRequest.ReturnLine(55L, BigDecimal.ONE))),
+                99L,
+                "KEY-1");
+
+        verify(inventoryMovementRepository, never()).saveAll(any());
+    }
+
+    @Test
+    void relinkExistingReturnMovements_updatesMatchingInvoiceAndLineScopedReferencesOnly() {
+        InventoryMovement invoiceScoped = new InventoryMovement();
+        invoiceScoped.setReferenceId("INV-RELINK-OK");
+        invoiceScoped.setJournalEntryId(11L);
+
+        InventoryMovement lineScoped = new InventoryMovement();
+        lineScoped.setReferenceId("INV-RELINK-OK:55:RET-KEY-9");
+        lineScoped.setJournalEntryId(12L);
+
+        InventoryMovement unrelated = new InventoryMovement();
+        unrelated.setReferenceId("INV-RELINK-OK:77:OTHER");
+        unrelated.setJournalEntryId(13L);
+
+        when(inventoryMovementRepository.findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdOrderByCreatedAtAsc(
+                company,
+                "SALES_RETURN",
+                "INV-RELINK-OK")).thenReturn(List.of(invoiceScoped));
+        when(inventoryMovementRepository.findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdStartingWithOrderByCreatedAtAsc(
+                company,
+                "SALES_RETURN",
+                "INV-RELINK-OK:")).thenReturn(List.of(lineScoped, unrelated));
+
+        ReflectionTestUtils.invokeMethod(
+                salesReturnService,
+                "relinkExistingReturnMovements",
+                company,
+                "INV-RELINK-OK",
+                new SalesReturnRequest(1L, "Replay", List.of(new SalesReturnRequest.ReturnLine(55L, BigDecimal.ONE))),
+                99L,
+                "KEY-9");
+
+        assertThat(invoiceScoped.getJournalEntryId()).isEqualTo(99L);
+        assertThat(lineScoped.getJournalEntryId()).isEqualTo(99L);
+        assertThat(unrelated.getJournalEntryId()).isEqualTo(13L);
+        verify(inventoryMovementRepository).saveAll(any());
+    }
+
+    @Test
     void salesReturnReferences_handleMissingInvoiceAndMissingReturnKey() throws Exception {
         Class<?> helper = Class.forName("com.bigbrightpaints.erp.modules.sales.service.SalesReturnService$StreamReferenceHelper");
         var method = helper.getDeclaredMethod("salesReturnReferences", String.class, Long.class, String.class);
@@ -1127,9 +1827,23 @@ class SalesReturnServiceTest {
         List<String> empty = (List<String>) method.invoke(null, "   ", null, "KEY");
         @SuppressWarnings("unchecked")
         List<String> single = (List<String>) method.invoke(null, "INV-1", 55L, "   ");
+        @SuppressWarnings("unchecked")
+        List<String> keyed = (List<String>) method.invoke(null, "INV-1", 55L, "KEY");
+        @SuppressWarnings("unchecked")
+        List<String> invoiceOnly = (List<String>) method.invoke(null, "INV-ONLY", null, "KEY");
 
         assertThat(empty).isEmpty();
         assertThat(single).containsExactly("INV-1:55");
+        assertThat(keyed).containsExactly("INV-1:55", "INV-1:55:RET-KEY");
+        assertThat(invoiceOnly).containsExactly("INV-ONLY", "INV-ONLY:RET-KEY");
+    }
+
+    @Test
+    void quantityValue_defaultsNullToZero() {
+        assertThat((BigDecimal) ReflectionTestUtils.invokeMethod(salesReturnService, "quantityValue", new Object[]{null}))
+                .isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat((BigDecimal) ReflectionTestUtils.invokeMethod(salesReturnService, "quantityValue", new BigDecimal("2.50")))
+                .isEqualByComparingTo("2.50");
     }
 
     private JournalEntryDto stubEntry(long id) {

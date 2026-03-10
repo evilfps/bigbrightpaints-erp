@@ -329,6 +329,116 @@ class PurchaseReturnServiceTest {
     }
 
     @Test
+    void previewPurchaseReturn_rejectsMissingPurchaseAndMissingRawMaterial() {
+        when(purchaseRepository.lockByCompanyAndId(company, 999L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> purchaseReturnService.previewPurchaseReturn(new PurchaseReturnRequest(
+                10L,
+                999L,
+                20L,
+                new BigDecimal("1.0000"),
+                new BigDecimal("5.00"),
+                "PR-404",
+                LocalDate.of(2026, 3, 9),
+                "Damaged"
+        )))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Raw material purchase not found");
+
+        when(rawMaterialRepository.lockByCompanyAndId(company, 999L)).thenReturn(Optional.empty());
+        assertThatThrownBy(() -> purchaseReturnService.previewPurchaseReturn(new PurchaseReturnRequest(
+                10L,
+                30L,
+                999L,
+                new BigDecimal("1.0000"),
+                new BigDecimal("5.00"),
+                "PR-405",
+                LocalDate.of(2026, 3, 9),
+                "Damaged"
+        )))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Raw material not found");
+    }
+
+    @Test
+    void previewPurchaseReturn_rejectsPurchaseForDifferentSupplier() {
+        Supplier otherSupplier = new Supplier();
+        ReflectionTestUtils.setField(otherSupplier, "id", 11L);
+        purchase.setSupplier(otherSupplier);
+
+        assertThatThrownBy(() -> purchaseReturnService.previewPurchaseReturn(new PurchaseReturnRequest(
+                10L,
+                30L,
+                20L,
+                new BigDecimal("1.0000"),
+                new BigDecimal("5.00"),
+                "PR-31",
+                LocalDate.of(2026, 3, 9),
+                "Damaged"
+        )))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Purchase does not belong to the supplier");
+    }
+
+    @Test
+    void previewPurchaseReturn_rejectsPurchaseWithoutSupplierAndNullMaterialLines() {
+        purchase.setSupplier(null);
+
+        assertThatThrownBy(() -> purchaseReturnService.previewPurchaseReturn(new PurchaseReturnRequest(
+                10L,
+                30L,
+                20L,
+                new BigDecimal("1.0000"),
+                new BigDecimal("5.00"),
+                "PR-NULL-SUP",
+                LocalDate.of(2026, 3, 9),
+                "Damaged"
+        )))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Purchase does not belong to the supplier");
+
+        purchase.setSupplier(supplier);
+        purchase.getLines().clear();
+        RawMaterialPurchaseLine blankLine = new RawMaterialPurchaseLine();
+        blankLine.setPurchase(purchase);
+        purchase.getLines().add(blankLine);
+
+        assertThatThrownBy(() -> purchaseReturnService.previewPurchaseReturn(new PurchaseReturnRequest(
+                10L,
+                30L,
+                20L,
+                new BigDecimal("1.0000"),
+                new BigDecimal("5.00"),
+                "PR-NULL-LINE",
+                LocalDate.of(2026, 3, 9),
+                "Damaged"
+        )))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Purchase does not include raw material Resin");
+    }
+
+    @Test
+    void previewPurchaseReturn_trimsExplicitReferenceAndUsesExplicitReturnDate() {
+        when(allocationService.remainingReturnableQuantity(purchase, material)).thenReturn(new BigDecimal("3.0000"));
+
+        PurchaseReturnPreviewDto preview = purchaseReturnService.previewPurchaseReturn(new PurchaseReturnRequest(
+                10L,
+                30L,
+                20L,
+                new BigDecimal("1.0000"),
+                new BigDecimal("5.00"),
+                "  PR-EXPLICIT-30  ",
+                LocalDate.of(2026, 3, 8),
+                "Damaged"
+        ));
+
+        assertThat(preview.referenceNumber()).isEqualTo("PR-EXPLICIT-30");
+        assertThat(preview.returnDate()).isEqualTo(LocalDate.of(2026, 3, 8));
+        verify(referenceNumberService, never()).purchaseReturnReference(any(), any());
+        verify(companyClock, never()).today(any());
+    }
+
+    @Test
     void previewPurchaseReturn_rejectsQuantityBeyondRemainingReturnable() {
         when(allocationService.remainingReturnableQuantity(purchase, material)).thenReturn(new BigDecimal("0.5000"));
 
@@ -360,6 +470,55 @@ class PurchaseReturnServiceTest {
                 purchaseReturnService,
                 "ensurePostedPurchase",
                 blankStatusPurchase))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Only posted purchases can be corrected through purchase return");
+    }
+
+    @Test
+    void ensurePostedPurchase_rejectsMissingJournalAndDraftStatus() {
+        RawMaterialPurchase missingJournal = new RawMaterialPurchase();
+
+        assertThatThrownBy(() -> ReflectionTestUtils.invokeMethod(
+                purchaseReturnService,
+                "ensurePostedPurchase",
+                missingJournal))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Only posted purchases can be corrected through purchase return");
+
+        RawMaterialPurchase draftPurchase = new RawMaterialPurchase();
+        JournalEntry posted = new JournalEntry();
+        ReflectionTestUtils.setField(posted, "id", 79L);
+        draftPurchase.setJournalEntry(posted);
+        draftPurchase.setStatus("DRAFT");
+
+        assertThatThrownBy(() -> ReflectionTestUtils.invokeMethod(
+                purchaseReturnService,
+                "ensurePostedPurchase",
+                draftPurchase))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Only posted purchases can be corrected through purchase return");
+    }
+
+    @Test
+    void ensurePostedPurchase_rejectsVoidAndReversedStatuses() {
+        RawMaterialPurchase invalidPurchase = new RawMaterialPurchase();
+        JournalEntry posted = new JournalEntry();
+        ReflectionTestUtils.setField(posted, "id", 78L);
+        invalidPurchase.setJournalEntry(posted);
+
+        invalidPurchase.setStatus("VOID");
+        assertThatThrownBy(() -> ReflectionTestUtils.invokeMethod(
+                purchaseReturnService,
+                "ensurePostedPurchase",
+                invalidPurchase))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Only posted purchases can be corrected through purchase return");
+
+        invalidPurchase.setStatus("REVERSED");
+        assertThatThrownBy(() -> ReflectionTestUtils.invokeMethod(
+                purchaseReturnService,
+                "ensurePostedPurchase",
+                invalidPurchase))
                 .isInstanceOf(ApplicationException.class)
                 .hasMessageContaining("Only posted purchases can be corrected through purchase return");
     }
@@ -407,6 +566,69 @@ class PurchaseReturnServiceTest {
                 "PINV-30");
 
         verify(journalEntryRepository, never()).save(any(JournalEntry.class));
+    }
+
+    @Test
+    void ensureLinkedCorrectionJournal_repairsReplayMetadataAndSkipsAlignedEntry() {
+        JournalEntry sourceEntry = new JournalEntry();
+        ReflectionTestUtils.setField(sourceEntry, "id", 50L);
+
+        JournalEntry replay = new JournalEntry();
+        ReflectionTestUtils.setField(replay, "id", 901L);
+        replay.setCorrectionReason("OLD");
+        replay.setSourceModule("OLD");
+        replay.setSourceReference("OLD");
+
+        when(journalEntryRepository.findByCompanyAndId(company, 901L)).thenReturn(Optional.of(replay));
+
+        ReflectionTestUtils.invokeMethod(
+                purchaseReturnService,
+                "ensureLinkedCorrectionJournal",
+                company,
+                stubEntry(901L),
+                sourceEntry,
+                "PINV-30");
+
+        verify(journalEntryRepository).save(argThat(entry -> Objects.equals(entry.getId(), 901L)
+                && entry.getCorrectionType() == JournalCorrectionType.REVERSAL
+                && Objects.equals(entry.getCorrectionReason(), "PURCHASE_RETURN")
+                && Objects.equals(entry.getSourceModule(), "PURCHASING_RETURN")
+                && Objects.equals(entry.getSourceReference(), "PINV-30")
+                && entry.getReversalOf() == sourceEntry));
+
+        JournalEntry aligned = new JournalEntry();
+        ReflectionTestUtils.setField(aligned, "id", 902L);
+        aligned.setCorrectionType(JournalCorrectionType.REVERSAL);
+        aligned.setCorrectionReason("PURCHASE_RETURN");
+        aligned.setSourceModule("PURCHASING_RETURN");
+        aligned.setSourceReference("PINV-30");
+        aligned.setReversalOf(sourceEntry);
+        when(journalEntryRepository.findByCompanyAndId(company, 902L)).thenReturn(Optional.of(aligned));
+
+        ReflectionTestUtils.invokeMethod(
+                purchaseReturnService,
+                "ensureLinkedCorrectionJournal",
+                company,
+                stubEntry(902L),
+                sourceEntry,
+                "PINV-30");
+
+        verify(journalEntryRepository, org.mockito.Mockito.times(1)).save(any(JournalEntry.class));
+    }
+
+    @Test
+    void ensureLinkedCorrectionJournal_skipsWhenSourceEntryIdMissing() {
+        JournalEntry sourceEntry = new JournalEntry();
+
+        ReflectionTestUtils.invokeMethod(
+                purchaseReturnService,
+                "ensureLinkedCorrectionJournal",
+                company,
+                stubEntry(903L),
+                sourceEntry,
+                "PINV-30");
+
+        verify(journalEntryRepository, never()).findByCompanyAndId(any(), org.mockito.ArgumentMatchers.anyLong());
     }
 
     private JournalEntryDto stubEntry(long id) {

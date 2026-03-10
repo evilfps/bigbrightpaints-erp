@@ -1,6 +1,7 @@
 package com.bigbrightpaints.erp.modules.accounting.controller;
 
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
+import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryReversalRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalLineDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalListItemDto;
@@ -17,6 +18,7 @@ import org.junit.jupiter.api.Test;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import org.mockito.ArgumentCaptor;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -170,6 +172,70 @@ class AccountingControllerJournalEndpointsTest {
 
         verify(journalEntryService).listJournalEntriesByReferencePrefix("CRN-");
         verifyNoMoreInteractions(journalEntryService);
+    }
+
+    @Test
+    void createJournalEntry_sanitizesManagedFieldsBeforeDelegating() {
+        AccountingService accountingService = mock(AccountingService.class);
+        AccountingController controller = newController(accountingService, mock(JournalEntryService.class), null);
+        JournalEntryRequest request = new JournalEntryRequest(
+                "CLIENT-IDEMP-1",
+                LocalDate.of(2026, 3, 10),
+                "Manual correction",
+                7L,
+                null,
+                Boolean.FALSE,
+                List.of(new JournalEntryRequest.JournalLineRequest(11L, "Debit", new BigDecimal("50.00"), BigDecimal.ZERO)),
+                "USD",
+                new BigDecimal("83.25"),
+                "SALES_RETURN",
+                "INV-100",
+                "AUTOMATED",
+                List.of("ATT-1")
+        );
+        JournalEntryDto expected = new JournalEntryDto(
+                300L,
+                null,
+                "JRN-300",
+                LocalDate.of(2026, 3, 10),
+                "Manual correction",
+                "POSTED",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                List.<JournalLineDto>of(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+        );
+        when(accountingService.createManualJournalEntry(org.mockito.ArgumentMatchers.any(JournalEntryRequest.class), org.mockito.ArgumentMatchers.eq("CLIENT-IDEMP-1")))
+                .thenReturn(expected);
+
+        ApiResponse<JournalEntryDto> body = controller.createJournalEntry(request).getBody();
+
+        ArgumentCaptor<JournalEntryRequest> captor = ArgumentCaptor.forClass(JournalEntryRequest.class);
+        verify(accountingService).createManualJournalEntry(captor.capture(), org.mockito.ArgumentMatchers.eq("CLIENT-IDEMP-1"));
+        JournalEntryRequest sanitized = captor.getValue();
+        assertThat(body).isNotNull();
+        assertThat(body.data()).isEqualTo(expected);
+        assertThat(sanitized.referenceNumber()).isNull();
+        assertThat(sanitized.fxRate()).isEqualByComparingTo("83.25");
+        assertThat(sanitized.sourceModule()).isNull();
+        assertThat(sanitized.sourceReference()).isNull();
+        assertThat(sanitized.journalType()).isNull();
+        assertThat(sanitized.attachmentReferences()).containsExactly("ATT-1");
     }
 
     @Test

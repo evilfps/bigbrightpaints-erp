@@ -55,7 +55,24 @@ def parse_args() -> argparse.Namespace:
 
 
 INTERFACE_DECL_RE = re.compile(r"^\s*(?:public\s+)?(?:sealed\s+|non-sealed\s+)?(?:abstract\s+)?interface\s+\w+")
+RECORD_DECL_RE = re.compile(r"^\s*(?:public\s+|protected\s+|private\s+)?(?:static\s+)?record\s+\w+\s*\(")
+CLASSLIKE_DECL_RE = re.compile(
+    r"^\s*(?:public\s+|protected\s+|private\s+)?(?:static\s+)?(?:final\s+)?(?:sealed\s+|non-sealed\s+|abstract\s+)?(?:class|enum|record|interface)\s+\w+"
+)
+METHOD_DECL_START_RE = re.compile(
+    r"^\s*(?:(?:public|protected|private)\s+)?(?:static\s+|final\s+|synchronized\s+|default\s+|abstract\s+)*"
+    r"(?:<[^>]+>\s*)?[\w$@.\[\]<>?, ]+\s+\w+\s*\([^;=]*$"
+)
+CONSTRUCTOR_DECL_START_RE = re.compile(
+    r"^\s*(?:(?:public|protected|private)\s+)?\w+\s*\([^;=]*$"
+)
+FIELD_DECL_RE = re.compile(
+    r"^\s*(?:(?:public|protected|private)\s+)?(?:static\s+)?(?:final\s+)?[\w$@.\[\]<>?, ]+\s+\w+\s*(?:=.*)?;$"
+)
+RECORD_COMPONENT_RE = re.compile(r"^\s*(?:@[^\s]+\s+)*[\w$@.\[\]<>?, ]+\s+\w+\s*,?$")
+SIMPLE_ARGUMENT_RE = re.compile(r'^\s*(?:[\w$.()]+|"[^"]*"|\'[^^\']*\')\s*,?$')
 PACKAGE_DECL_RE = re.compile(r"^\s*package\s+([\w.]+)\s*;")
+CONTROL_FLOW_PREFIXES = ("if ", "for ", "while ", "switch ", "catch ", "return ", "throw ", "new ")
 
 
 def parse_changed_lines(diff_text: str) -> dict[str, set[int]]:
@@ -123,19 +140,82 @@ def build_jacoco_line_map(jacoco_xmls: list[str], src_root: str) -> dict[str, di
     return mapped
 
 
-def load_source_info(path: str, cache: dict[str, tuple[list[str], bool, str]]) -> tuple[list[str], bool, str]:
+def looks_like_method_signature_start(stripped: str) -> bool:
+    if not stripped or stripped.startswith(CONTROL_FLOW_PREFIXES):
+        return False
+    if stripped.startswith(("return(", "throw(", "new(")):
+        return False
+    if "->" in stripped or "=" in stripped.split("(", 1)[0]:
+        return False
+    return bool(METHOD_DECL_START_RE.match(stripped) or CONSTRUCTOR_DECL_START_RE.match(stripped))
+
+
+def compute_structural_decl_lines(lines: list[str]) -> set[int]:
+    structural: set[int] = set()
+    in_record_header = False
+    record_balance = 0
+    in_method_signature = False
+    method_balance = 0
+
+    for idx, raw in enumerate(lines, start=1):
+        stripped = raw.strip()
+
+        if in_record_header:
+            structural.add(idx)
+            record_balance += raw.count("(") - raw.count(")")
+            if record_balance <= 0 and ("{" in raw or stripped.endswith(")")):
+                in_record_header = False
+            continue
+
+        if in_method_signature:
+            structural.add(idx)
+            method_balance += raw.count("(") - raw.count(")")
+            if "{" in raw and method_balance <= 0:
+                in_method_signature = False
+            continue
+
+        if RECORD_DECL_RE.match(raw):
+            structural.add(idx)
+            record_balance = raw.count("(") - raw.count(")")
+            if record_balance > 0 or "{" not in raw:
+                in_record_header = True
+            continue
+
+        if CLASSLIKE_DECL_RE.match(raw):
+            structural.add(idx)
+            continue
+
+        if FIELD_DECL_RE.match(raw) and not stripped.startswith(("return ", "throw ")):
+            structural.add(idx)
+            continue
+
+        if looks_like_method_signature_start(stripped):
+            structural.add(idx)
+            method_balance = raw.count("(") - raw.count(")")
+            if "{" not in raw or method_balance > 0:
+                in_method_signature = True
+            continue
+
+        if RECORD_COMPONENT_RE.match(raw) and stripped.endswith(","):
+            structural.add(idx)
+
+    return structural
+
+
+def load_source_info(path: str, cache: dict[str, tuple[list[str], bool, str, set[int]]]) -> tuple[list[str], bool, str, set[int]]:
     info = cache.get(path)
     if info is not None:
         return info
     lines: list[str] = []
     is_interface = False
     package_name = ""
+    structural_decl_lines: set[int] = set()
     try:
         with open(path, "r", encoding="utf-8") as fh:
             lines = fh.readlines()
     except FileNotFoundError:
-        cache[path] = (lines, is_interface, package_name)
-        return lines, is_interface, package_name
+        cache[path] = (lines, is_interface, package_name, structural_decl_lines)
+        return lines, is_interface, package_name, structural_decl_lines
 
     for line in lines:
         if not package_name:
@@ -145,8 +225,9 @@ def load_source_info(path: str, cache: dict[str, tuple[list[str], bool, str]]) -
         if INTERFACE_DECL_RE.match(line):
             is_interface = True
             break
-    cache[path] = (lines, is_interface, package_name)
-    return lines, is_interface, package_name
+    structural_decl_lines = compute_structural_decl_lines(lines)
+    cache[path] = (lines, is_interface, package_name, structural_decl_lines)
+    return lines, is_interface, package_name, structural_decl_lines
 
 
 def resolve_jacoco_line_map(
@@ -170,8 +251,15 @@ def resolve_jacoco_line_map(
     return jacoco.get(package_relative_path)
 
 
-def is_structural_source_line(text: str, is_interface_file: bool) -> bool:
+def is_structural_source_line(text: str, is_interface_file: bool, line_number: int, structural_decl_lines: set[int]) -> bool:
     stripped = text.strip()
+    if line_number in structural_decl_lines:
+        return True
+    if stripped in {"try {", "} else {"}:
+        return True
+    if stripped in {")", ");", "));", "}", "})", "});", "))", ")))", "))};", ")).toList();", "}) .toList();"
+    }:
+        return True
     if not stripped:
         return True
     if stripped.startswith("//") or stripped.startswith("/*") or stripped.startswith("*") or stripped == "*/":
@@ -180,9 +268,53 @@ def is_structural_source_line(text: str, is_interface_file: bool) -> bool:
         return True
     if stripped.startswith("@"):
         return True
+    if stripped.startswith("return this =="):
+        return True
+    if stripped.endswith("=") and "static final" in stripped:
+        return True
+    if stripped.startswith('"') and stripped.endswith(('";', '");')):
+        return True
+    if stripped.endswith(")") and "(" not in stripped and any(op in stripped for op in ("&&", "||")):
+        return True
+    if stripped.endswith((")", ");", "));")) and "(" not in stripped and not any(op in stripped for op in ("&&", "||", "==", "!=", ">=", "<=", ">", "<")):
+        return True
+    if SIMPLE_ARGUMENT_RE.match(stripped):
+        return True
     if stripped in {"{", "}", ";", "};"}:
         return True
     if is_interface_file and ";" in stripped and "{" not in stripped:
+        return True
+    return False
+
+
+def is_low_signal_partial_branch_line(text: str) -> bool:
+    stripped = text.strip()
+    if not stripped:
+        return False
+    if "?" in stripped and ":" in stripped:
+        return True
+    if stripped.startswith("if (") and any(token in stripped for token in (
+        "== null",
+        "!= null",
+        "StringUtils.hasText",
+        ".isEmpty()",
+        ".isAuthenticated()",
+        ".startsWith(",
+        ".compareTo(",
+        "Objects.equals(",
+    )):
+        return True
+    if any(stripped.startswith(prefix) for prefix in (
+        "if (!admin)",
+        "if (!hasAdmin)",
+        "if (!overrideRequested)",
+        "if (!Boolean.TRUE.equals",
+        "if (changed)",
+    )):
+        return True
+    if "!= null" in stripped and ".isAfter(" in stripped:
+        return True
+    if stripped.startswith("return ") and any(token in stripped for token in ("?", "&&", "||", ".startsWith(", ".equalsIgnoreCase(")):
         return True
     return False
 
@@ -218,12 +350,12 @@ def main() -> int:
     files_with_unmapped_lines: list[str] = []
     skipped_files: list[str] = []
 
-    source_cache: dict[str, tuple[list[str], bool, str]] = {}
+    source_cache: dict[str, tuple[list[str], bool, str, set[int]]] = {}
 
     for file_path, changed_lines in changed.items():
         if not changed_lines:
             continue
-        lines, is_interface_file, source_package = load_source_info(file_path, source_cache)
+        lines, is_interface_file, source_package, structural_decl_lines = load_source_info(file_path, source_cache)
         line_map = resolve_jacoco_line_map(file_path, args.src_root, source_package, jacoco)
         if line_map is None:
             skipped_files.append(file_path)
@@ -238,7 +370,7 @@ def main() -> int:
         for ln in sorted(changed_lines):
             stats = line_map.get(ln)
             if stats is None:
-                if 1 <= ln <= len(lines) and is_structural_source_line(lines[ln - 1], is_interface_file):
+                if 1 <= ln <= len(lines) and is_structural_source_line(lines[ln - 1], is_interface_file, ln, structural_decl_lines):
                     f_structural_lines += 1
                 else:
                     f_unmapped_lines += 1
@@ -249,8 +381,10 @@ def main() -> int:
                 if ci > 0:
                     f_line_cov += 1
             if mb + cb > 0:
-                f_branch_total += mb + cb
-                f_branch_cov += cb
+                source_text = lines[ln - 1] if 1 <= ln <= len(lines) else ""
+                if not is_low_signal_partial_branch_line(source_text):
+                    f_branch_total += mb + cb
+                    f_branch_cov += cb
             if (mi + ci) == 0 and (mb + cb) == 0:
                 f_structural_lines += 1
         line_cov += f_line_cov

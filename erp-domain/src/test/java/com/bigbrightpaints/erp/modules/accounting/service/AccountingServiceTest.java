@@ -9123,6 +9123,24 @@ class AccountingServiceTest {
     }
 
     @Test
+    void buildDealerHeaderSettlementAllocations_requiresUnappliedHandlingWhenInvoicesMissing() {
+        Dealer dealer = new Dealer();
+        ReflectionTestUtils.setField(dealer, "id", 1L);
+
+        when(invoiceRepository.lockOpenInvoicesForSettlement(company, dealer)).thenReturn(List.of());
+
+        assertThatThrownBy(() -> ReflectionTestUtils.invokeMethod(
+                accountingService,
+                "buildDealerHeaderSettlementAllocations",
+                company,
+                dealer,
+                new BigDecimal("25.00"),
+                null))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("No open invoices are available");
+    }
+
+    @Test
     void buildSupplierHeaderSettlementAllocations_requiresUnappliedHandlingWhenPurchasesMissing() {
         Supplier supplier = new Supplier();
         ReflectionTestUtils.setField(supplier, "id", 1L);
@@ -9138,6 +9156,334 @@ class AccountingServiceTest {
                 null))
                 .isInstanceOf(ApplicationException.class)
                 .hasMessageContaining("No open purchases are available");
+    }
+
+    @Test
+    void resolveDealerHeaderSettlementAmount_handlesNullRequestMismatchesAndPaymentFallback() {
+        assertThatThrownBy(() -> ReflectionTestUtils.invokeMethod(
+                accountingService,
+                "resolveDealerHeaderSettlementAmount",
+                new Object[]{null}))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Dealer settlement request is required");
+
+        DealerSettlementRequest mismatched = new DealerSettlementRequest(
+                1L,
+                20L,
+                null,
+                null,
+                null,
+                null,
+                new BigDecimal("100.00"),
+                null,
+                LocalDate.of(2024, 5, 1),
+                "DR-SET-1",
+                "memo",
+                null,
+                Boolean.FALSE,
+                List.of(),
+                java.util.Arrays.asList(
+                        null,
+                        new SettlementPaymentRequest(20L, new BigDecimal("60.00"), "BANK"))
+        );
+
+        assertThatThrownBy(() -> ReflectionTestUtils.invokeMethod(
+                accountingService,
+                "resolveDealerHeaderSettlementAmount",
+                mismatched))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("must match the total payment amount");
+
+        DealerSettlementRequest paymentOnly = new DealerSettlementRequest(
+                1L,
+                20L,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                LocalDate.of(2024, 5, 1),
+                "DR-SET-2",
+                "memo",
+                null,
+                Boolean.FALSE,
+                List.of(),
+                java.util.Arrays.asList(
+                        null,
+                        new SettlementPaymentRequest(20L, new BigDecimal("60.00"), "BANK"),
+                        new SettlementPaymentRequest(21L, new BigDecimal("40.00"), "CASH"))
+        );
+
+        assertThat((BigDecimal) ReflectionTestUtils.invokeMethod(
+                accountingService,
+                "resolveDealerHeaderSettlementAmount",
+                paymentOnly)).isEqualByComparingTo("100.00");
+    }
+
+    @Test
+    void resolveDealerSettlementAllocations_returnsProvidedAllocationsWhenReferenceFallbackIsUsed() {
+        Dealer dealer = new Dealer();
+        ReflectionTestUtils.setField(dealer, "id", 1L);
+
+        SettlementAllocationRequest allocation = new SettlementAllocationRequest(
+                701L,
+                null,
+                new BigDecimal("25.00"),
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                null,
+                "Invoice"
+        );
+        DealerSettlementRequest request = new DealerSettlementRequest(
+                1L,
+                20L,
+                null,
+                null,
+                null,
+                null,
+                new BigDecimal("25.00"),
+                null,
+                LocalDate.of(2024, 5, 2),
+                "  DEALER-REF-1  ",
+                "memo",
+                "   ",
+                Boolean.FALSE,
+                List.of(allocation),
+                List.of()
+        );
+
+        @SuppressWarnings("unchecked")
+        List<SettlementAllocationRequest> resolved = (List<SettlementAllocationRequest>) ReflectionTestUtils.invokeMethod(
+                accountingService,
+                "resolveDealerSettlementAllocations",
+                company,
+                dealer,
+                request);
+
+        assertThat(resolved).containsExactly(allocation);
+    }
+
+    @Test
+    void resolveSupplierSettlementAllocations_returnsProvidedAllocationsWhenReferenceFallbackIsUsed() {
+        Supplier supplier = new Supplier();
+        ReflectionTestUtils.setField(supplier, "id", 1L);
+
+        SettlementAllocationRequest allocation = new SettlementAllocationRequest(
+                null,
+                801L,
+                new BigDecimal("40.00"),
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                null,
+                "Purchase"
+        );
+        SupplierSettlementRequest request = new SupplierSettlementRequest(
+                1L,
+                20L,
+                null,
+                null,
+                null,
+                null,
+                new BigDecimal("40.00"),
+                null,
+                LocalDate.of(2024, 5, 2),
+                "  SUP-REF-1  ",
+                "memo",
+                "   ",
+                Boolean.FALSE,
+                List.of(allocation)
+        );
+
+        @SuppressWarnings("unchecked")
+        List<SettlementAllocationRequest> resolved = (List<SettlementAllocationRequest>) ReflectionTestUtils.invokeMethod(
+                accountingService,
+                "resolveSupplierSettlementAllocations",
+                company,
+                supplier,
+                request);
+
+        assertThat(resolved).containsExactly(allocation);
+    }
+
+    @Test
+    void buildSupplierHeaderSettlementAllocations_requiresUnappliedHandlingWhenOutstandingExceeded() {
+        Supplier supplier = new Supplier();
+        ReflectionTestUtils.setField(supplier, "id", 1L);
+
+        RawMaterialPurchase purchase = new RawMaterialPurchase();
+        ReflectionTestUtils.setField(purchase, "id", 801L);
+        purchase.setOutstandingAmount(new BigDecimal("40.00"));
+
+        when(rawMaterialPurchaseRepository.lockOpenPurchasesForSettlement(company, supplier)).thenReturn(List.of(purchase));
+
+        assertThatThrownBy(() -> ReflectionTestUtils.invokeMethod(
+                accountingService,
+                "buildSupplierHeaderSettlementAllocations",
+                company,
+                supplier,
+                new BigDecimal("60.00"),
+                null))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Header-level settlement amount exceeds open purchase outstanding total");
+    }
+
+    @Test
+    void resolveSupplierSettlementIdempotencyKey_coversNullRequestReferenceAndAllocationFallbacks() {
+        SupplierSettlementRequest withReference = new SupplierSettlementRequest(
+                1L,
+                20L,
+                null,
+                null,
+                null,
+                null,
+                new BigDecimal("40.00"),
+                null,
+                LocalDate.of(2024, 5, 3),
+                "  SUP-IDEMP-REF  ",
+                "memo",
+                null,
+                Boolean.FALSE,
+                List.of(new SettlementAllocationRequest(
+                        null,
+                        801L,
+                        new BigDecimal("40.00"),
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        null,
+                        "Purchase"))
+        );
+        SupplierSettlementRequest allocationOnly = new SupplierSettlementRequest(
+                1L,
+                20L,
+                null,
+                null,
+                null,
+                null,
+                new BigDecimal("40.00"),
+                null,
+                LocalDate.of(2024, 5, 3),
+                null,
+                "memo",
+                null,
+                Boolean.FALSE,
+                List.of(new SettlementAllocationRequest(
+                        null,
+                        802L,
+                        new BigDecimal("40.00"),
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        null,
+                        "Purchase"))
+        );
+        SupplierSettlementRequest headerOnly = new SupplierSettlementRequest(
+                1L,
+                20L,
+                null,
+                null,
+                null,
+                null,
+                new BigDecimal("40.00"),
+                SettlementAllocationApplication.ON_ACCOUNT,
+                LocalDate.of(2024, 5, 3),
+                null,
+                "memo",
+                null,
+                Boolean.FALSE,
+                List.of()
+        );
+
+        assertThat((String) ReflectionTestUtils.invokeMethod(accountingService, "resolveSupplierSettlementIdempotencyKey", new Object[]{null}))
+                .isEmpty();
+        assertThat((String) ReflectionTestUtils.invokeMethod(accountingService, "resolveSupplierSettlementIdempotencyKey", withReference))
+                .isEqualTo("SUP-IDEMP-REF");
+        assertThat((String) ReflectionTestUtils.invokeMethod(accountingService, "resolveSupplierSettlementIdempotencyKey", allocationOnly))
+                .startsWith("SUPPLIER-SETTLEMENT-");
+        assertThat((String) ReflectionTestUtils.invokeMethod(accountingService, "resolveSupplierSettlementIdempotencyKey", headerOnly))
+                .startsWith("SUPPLIER-SETTLEMENT-");
+    }
+
+    @Test
+    void replayAllocations_returnsEmptyForBlankIdempotencyKey() {
+        @SuppressWarnings("unchecked")
+        List<SettlementAllocationRequest> allocations = (List<SettlementAllocationRequest>) ReflectionTestUtils.invokeMethod(
+                accountingService,
+                "replayAllocations",
+                company,
+                "   ");
+
+        assertThat(allocations).isEmpty();
+    }
+
+    @Test
+    void accountingHelperUtilities_coverIdempotencyAndPostingFallbackBranches() {
+        Dealer dealer = new Dealer();
+        ReflectionTestUtils.setField(dealer, "id", 1L);
+        Supplier supplier = new Supplier();
+        ReflectionTestUtils.setField(supplier, "id", 1L);
+
+        DealerSettlementRequest dealerRequest = new DealerSettlementRequest(
+                1L,
+                20L,
+                null,
+                null,
+                null,
+                null,
+                new BigDecimal("25.00"),
+                null,
+                LocalDate.of(2024, 5, 4),
+                null,
+                "memo",
+                "  DEALER-IDEMP-1  ",
+                Boolean.FALSE,
+                List.of(new SettlementAllocationRequest(701L, null, new BigDecimal("25.00"), BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, null, "Invoice")),
+                List.of()
+        );
+        SupplierSettlementRequest supplierRequest = new SupplierSettlementRequest(
+                1L,
+                20L,
+                null,
+                null,
+                null,
+                null,
+                new BigDecimal("30.00"),
+                null,
+                LocalDate.of(2024, 5, 4),
+                null,
+                "memo",
+                "  SUPPLIER-IDEMP-1  ",
+                Boolean.FALSE,
+                List.of(new SettlementAllocationRequest(null, 801L, new BigDecimal("30.00"), BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, null, "Purchase"))
+        );
+
+        assertThat((Object) ReflectionTestUtils.invokeMethod(accountingService, "resolveDealerSettlementAllocations", company, dealer, dealerRequest))
+                .isInstanceOf(List.class);
+        assertThat((Object) ReflectionTestUtils.invokeMethod(accountingService, "resolveSupplierSettlementAllocations", company, supplier, supplierRequest))
+                .isInstanceOf(List.class);
+        assertThat((String) ReflectionTestUtils.invokeMethod(accountingService, "joinAttachmentReferences", List.of(" doc-1 ", "", "doc-1", "doc-2 ")))
+                .isEqualTo("doc-1\ndoc-2");
+
+        JournalEntry sourceModuleEntry = new JournalEntry();
+        sourceModuleEntry.setSourceModule(" sales_return ");
+        sourceModuleEntry.setSourceReference("  INV-123  ");
+        assertThat((String) ReflectionTestUtils.invokeMethod(accountingService, "resolvePostingDocumentType", sourceModuleEntry))
+                .isEqualTo("SALES_RETURN");
+        assertThat((String) ReflectionTestUtils.invokeMethod(accountingService, "resolvePostingDocumentReference", sourceModuleEntry))
+                .isEqualTo("INV-123");
+
+        JournalEntry refFallbackEntry = new JournalEntry();
+        refFallbackEntry.setReferenceNumber("  JE-55  ");
+        assertThat((String) ReflectionTestUtils.invokeMethod(accountingService, "resolvePostingDocumentReference", refFallbackEntry))
+                .isEqualTo("JE-55");
+
+        assertThat((Object) ReflectionTestUtils.invokeMethod(accountingService, "resolveSettlementApplicationType", new Object[]{null}))
+                .isEqualTo(SettlementAllocationApplication.DOCUMENT);
+        assertThat((Object) ReflectionTestUtils.invokeMethod(accountingService, "resolveSettlementApplicationType", new PartnerSettlementAllocation()))
+                .isEqualTo(SettlementAllocationApplication.ON_ACCOUNT);
     }
 
     @Test
@@ -9410,6 +9756,534 @@ class AccountingServiceTest {
                 Boolean.TRUE,
                 "  approved reason  "))
                 .isEqualTo("approved reason");
+    }
+
+    @Test
+    void requireAdminExceptionReason_rejectsBlankMemoForApprovedOverride() {
+        SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(
+                "policy.admin",
+                "n/a",
+                List.of(new SimpleGrantedAuthority("ROLE_ADMIN"))));
+
+        assertThatThrownBy(() -> ReflectionTestUtils.invokeMethod(
+                accountingService,
+                "requireAdminExceptionReason",
+                "Settlement override",
+                Boolean.TRUE,
+                "   "))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("reason is required")
+                .hasMessageContaining("Settlement override");
+    }
+
+    @Test
+    void validateEntryDate_rejectsFutureDateWithoutAdminAuthorizationAndWithExplicitOverrideRequest() {
+        LocalDate today = LocalDate.of(2024, 6, 1);
+        when(companyClock.today(company)).thenReturn(today);
+
+        assertThatThrownBy(() -> ReflectionTestUtils.invokeMethod(
+                accountingService,
+                "validateEntryDate",
+                company,
+                today.plusDays(1),
+                Boolean.FALSE,
+                Boolean.FALSE))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Entry date cannot be in the future");
+        assertThatThrownBy(() -> ReflectionTestUtils.invokeMethod(
+                accountingService,
+                "validateEntryDate",
+                company,
+                today.plusDays(1),
+                Boolean.TRUE,
+                Boolean.FALSE))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Administrator approval with a mandatory reason is required to post into the future");
+    }
+
+    @Test
+    void normalizeAttachmentReferences_andPostingDocumentMetadata_handleNullsAndFallbacks() {
+        JournalEntry entry = new JournalEntry();
+        entry.setReferenceNumber("  REF-POST-1  ");
+
+        assertThat((String) ReflectionTestUtils.invokeMethod(accountingService, "joinAttachmentReferences", List.<String>of()))
+                .isNull();
+        assertThat((String) ReflectionTestUtils.invokeMethod(accountingService, "resolvePostingDocumentType", new Object[]{null}))
+                .isEqualTo("JOURNAL_ENTRY");
+        assertThat((String) ReflectionTestUtils.invokeMethod(accountingService, "resolvePostingDocumentReference", new Object[]{null}))
+                .isNull();
+        assertThat((String) ReflectionTestUtils.invokeMethod(accountingService, "resolvePostingDocumentReference", entry))
+                .isEqualTo("REF-POST-1");
+    }
+
+    @Test
+    void validateOptionalHeaderSettlementAmount_allowsNullAmountAndEmptyAllocations() {
+        ReflectionTestUtils.invokeMethod(
+                accountingService,
+                "validateOptionalHeaderSettlementAmount",
+                "dealer",
+                null,
+                List.of(new SettlementAllocationRequest(1L, null, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, null, "A")));
+        ReflectionTestUtils.invokeMethod(
+                accountingService,
+                "validateOptionalHeaderSettlementAmount",
+                "dealer",
+                new BigDecimal("10.00"),
+                List.of());
+    }
+
+    @Test
+    void settlementOverrideRequested_detectsNullAndAdjustmentTotals() throws Exception {
+        assertThat((Boolean) ReflectionTestUtils.invokeMethod(accountingService, "settlementOverrideRequested", new Object[]{null}))
+                .isFalse();
+
+        Class<?> totalsType = Class.forName("com.bigbrightpaints.erp.modules.accounting.service.AccountingCoreEngineCore$SettlementTotals");
+        var ctor = totalsType.getDeclaredConstructor(
+                BigDecimal.class,
+                BigDecimal.class,
+                BigDecimal.class,
+                BigDecimal.class,
+                BigDecimal.class);
+        ctor.setAccessible(true);
+        Object totals = ctor.newInstance(
+                BigDecimal.ZERO,
+                BigDecimal.ONE,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO);
+
+        assertThat((Boolean) ReflectionTestUtils.invokeMethod(accountingService, "settlementOverrideRequested", totals))
+                .isTrue();
+
+        assertThat((Boolean) ReflectionTestUtils.invokeMethod(accountingService, "settlementOverrideRequested",
+                ctor.newInstance(BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ZERO)))
+                .isTrue();
+        assertThat((Boolean) ReflectionTestUtils.invokeMethod(accountingService, "settlementOverrideRequested",
+                ctor.newInstance(BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ONE, BigDecimal.ZERO)))
+                .isTrue();
+        assertThat((Boolean) ReflectionTestUtils.invokeMethod(accountingService, "settlementOverrideRequested",
+                ctor.newInstance(BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ONE)))
+                .isTrue();
+    }
+
+    @Test
+    void resolveSettlementAllocations_replayReferenceFallbacksForDealerAndSupplier() {
+        Dealer dealer = new Dealer();
+        ReflectionTestUtils.setField(dealer, "id", 1L);
+        Supplier supplier = new Supplier();
+        ReflectionTestUtils.setField(supplier, "id", 1L);
+
+        Invoice invoice = new Invoice();
+        ReflectionTestUtils.setField(invoice, "id", 700L);
+        PartnerSettlementAllocation dealerReplay = new PartnerSettlementAllocation();
+        dealerReplay.setInvoice(invoice);
+        dealerReplay.setAllocationAmount(new BigDecimal("25.00"));
+
+        RawMaterialPurchase purchase = new RawMaterialPurchase();
+        ReflectionTestUtils.setField(purchase, "id", 800L);
+        PartnerSettlementAllocation supplierReplay = new PartnerSettlementAllocation();
+        supplierReplay.setPurchase(purchase);
+        supplierReplay.setAllocationAmount(new BigDecimal("30.00"));
+
+        when(settlementAllocationRepository.findByCompanyAndIdempotencyKeyIgnoreCaseOrderByCreatedAtAscIdAsc(company, "DEALER-REF-REPLAY"))
+                .thenReturn(List.of(dealerReplay));
+        when(settlementAllocationRepository.findByCompanyAndIdempotencyKeyIgnoreCaseOrderByCreatedAtAscIdAsc(company, "SUPPLIER-REF-REPLAY"))
+                .thenReturn(List.of(supplierReplay));
+
+        DealerSettlementRequest dealerRequest = new DealerSettlementRequest(
+                1L, 20L, null, null, null, null, null, null,
+                LocalDate.of(2026, 3, 10), "DEALER-REF-REPLAY", "memo", "   ", Boolean.FALSE, List.of(), List.of());
+        SupplierSettlementRequest supplierRequest = new SupplierSettlementRequest(
+                1L, 20L, null, null, null, null, null, null,
+                LocalDate.of(2026, 3, 10), "SUPPLIER-REF-REPLAY", "memo", "   ", Boolean.FALSE, List.of());
+
+        @SuppressWarnings("unchecked")
+        List<SettlementAllocationRequest> dealerResolved = (List<SettlementAllocationRequest>) ReflectionTestUtils.invokeMethod(
+                accountingService, "resolveDealerSettlementAllocations", company, dealer, dealerRequest);
+        @SuppressWarnings("unchecked")
+        List<SettlementAllocationRequest> supplierResolved = (List<SettlementAllocationRequest>) ReflectionTestUtils.invokeMethod(
+                accountingService, "resolveSupplierSettlementAllocations", company, supplier, supplierRequest);
+
+        assertThat(dealerResolved).singleElement().satisfies(allocation -> assertThat(allocation.invoiceId()).isEqualTo(700L));
+        assertThat(supplierResolved).singleElement().satisfies(allocation -> assertThat(allocation.purchaseId()).isEqualTo(800L));
+    }
+
+    @Test
+    void createJournalEntry_rejectsManualSourceWithoutMemo() {
+        LocalDate today = LocalDate.of(2024, 6, 2);
+
+        JournalEntryRequest request = new JournalEntryRequest(
+                "MANUAL-NO-MEMO",
+                today,
+                "   ",
+                null,
+                null,
+                Boolean.FALSE,
+                List.of(new JournalEntryRequest.JournalLineRequest(1L, "Only line", new BigDecimal("10.00"), BigDecimal.ZERO)),
+                null,
+                null,
+                "MANUAL",
+                "MANUAL-NO-MEMO",
+                "AUTOMATED",
+                List.of("ATT-1")
+        );
+
+        assertThatThrownBy(() -> accountingService.createJournalEntry(request))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Manual journal reason is required");
+        verify(accountRepository, never()).lockByCompanyAndId(any(), anyLong());
+    }
+
+    @Test
+    void createJournalEntry_acceptsManualSourceModuleWhenMemoPresent() {
+        LocalDate today = LocalDate.of(2024, 6, 3);
+        when(companyClock.today(company)).thenReturn(today);
+        when(journalEntryRepository.findByCompanyAndReferenceNumber(eq(company), eq("MANUAL-SOURCE-OK")))
+                .thenReturn(Optional.empty());
+        when(accountingPeriodService.requirePostablePeriod(eq(company), eq(today), any(), any(), any(), anyBoolean()))
+                .thenReturn(openPeriod(today));
+
+        Account expense = new Account();
+        ReflectionTestUtils.setField(expense, "id", 21L);
+        expense.setCompany(company);
+        expense.setCode("EXP-MANUAL");
+        expense.setType(AccountType.EXPENSE);
+
+        Account cash = new Account();
+        ReflectionTestUtils.setField(cash, "id", 22L);
+        cash.setCompany(company);
+        cash.setCode("CASH-MANUAL");
+        cash.setType(AccountType.ASSET);
+
+        when(accountRepository.lockByCompanyAndId(eq(company), eq(21L))).thenReturn(Optional.of(expense));
+        when(accountRepository.lockByCompanyAndId(eq(company), eq(22L))).thenReturn(Optional.of(cash));
+        when(accountRepository.updateBalanceAtomic(eq(company), any(), any())).thenReturn(1);
+        when(journalEntryRepository.save(any())).thenAnswer(invocation -> {
+            JournalEntry saved = invocation.getArgument(0);
+            if (saved.getId() == null) {
+                ReflectionTestUtils.setField(saved, "id", 992L);
+            }
+            return saved;
+        });
+
+        JournalEntryDto result = accountingService.createJournalEntry(new JournalEntryRequest(
+                "MANUAL-SOURCE-OK",
+                today,
+                "Manual source journal",
+                null,
+                null,
+                Boolean.FALSE,
+                List.of(
+                        new JournalEntryRequest.JournalLineRequest(21L, "Expense", new BigDecimal("15.00"), BigDecimal.ZERO),
+                        new JournalEntryRequest.JournalLineRequest(22L, "Cash", BigDecimal.ZERO, new BigDecimal("15.00"))
+                ),
+                null,
+                null,
+                "MANUAL",
+                "MANUAL-SOURCE-OK",
+                null,
+                List.of()
+        ));
+
+        assertThat(result.id()).isEqualTo(992L);
+        ArgumentCaptor<JournalEntry> entryCaptor = ArgumentCaptor.forClass(JournalEntry.class);
+        verify(journalEntryRepository).save(entryCaptor.capture());
+        assertThat(entryCaptor.getValue().getSourceModule()).isEqualTo("MANUAL");
+        assertThat(entryCaptor.getValue().getSourceReference()).isEqualTo("MANUAL-SOURCE-OK");
+    }
+
+    @Test
+    void createJournalEntry_linksClosedPeriodPostingExceptionWhenJournalPostsIntoClosedPeriod() {
+        LocalDate today = LocalDate.of(2024, 6, 2);
+        when(companyClock.today(company)).thenReturn(today);
+        when(journalEntryRepository.findByCompanyAndReferenceNumber(eq(company), eq("CLOSED-LINK-REF")))
+                .thenReturn(Optional.empty());
+
+        AccountingPeriod closedPeriod = new AccountingPeriod();
+        closedPeriod.setYear(2024);
+        closedPeriod.setMonth(6);
+        closedPeriod.setStatus(AccountingPeriodStatus.CLOSED);
+        when(accountingPeriodService.requirePostablePeriod(eq(company), eq(today), any(), any(), any(), anyBoolean()))
+                .thenReturn(closedPeriod);
+
+        Account expense = new Account();
+        ReflectionTestUtils.setField(expense, "id", 11L);
+        expense.setCompany(company);
+        expense.setCode("EXP-CLOSED");
+        expense.setType(AccountType.EXPENSE);
+
+        Account cash = new Account();
+        ReflectionTestUtils.setField(cash, "id", 12L);
+        cash.setCompany(company);
+        cash.setCode("CASH-CLOSED");
+        cash.setType(AccountType.ASSET);
+
+        when(accountRepository.lockByCompanyAndId(eq(company), eq(11L))).thenReturn(Optional.of(expense));
+        when(accountRepository.lockByCompanyAndId(eq(company), eq(12L))).thenReturn(Optional.of(cash));
+        when(accountRepository.updateBalanceAtomic(eq(company), any(), any())).thenReturn(1);
+        when(journalEntryRepository.save(any())).thenAnswer(invocation -> {
+            JournalEntry saved = invocation.getArgument(0);
+            if (saved.getId() == null) {
+                ReflectionTestUtils.setField(saved, "id", 991L);
+            }
+            return saved;
+        });
+
+        ClosedPeriodPostingExceptionService closedPeriodService = org.mockito.Mockito.mock(ClosedPeriodPostingExceptionService.class);
+        ReflectionTestUtils.setField(accountingService, "closedPeriodPostingExceptionService", closedPeriodService);
+
+        JournalEntryRequest request = new JournalEntryRequest(
+                "CLOSED-LINK-REF",
+                today,
+                "Closed-period override",
+                null,
+                null,
+                Boolean.TRUE,
+                List.of(
+                        new JournalEntryRequest.JournalLineRequest(11L, "Expense", new BigDecimal("25.00"), BigDecimal.ZERO),
+                        new JournalEntryRequest.JournalLineRequest(12L, "Cash", BigDecimal.ZERO, new BigDecimal("25.00"))
+                ),
+                null,
+                null,
+                "SALES_RETURN",
+                "  SR-991  ",
+                "AUTOMATED",
+                List.of("ATT-1")
+        );
+
+        JournalEntryDto result = accountingService.createJournalEntry(request);
+
+        assertThat(result.id()).isEqualTo(991L);
+        verify(closedPeriodService).linkJournalEntry(
+                eq(company),
+                eq("SALES_RETURN"),
+                eq("SR-991"),
+                argThat(entry -> Objects.equals(entry.getId(), 991L) && entry.getAccountingPeriod() == closedPeriod)
+        );
+    }
+
+    @Test
+    void buildDealerHeaderSettlementAllocations_addsFutureApplicationRemainderWhenRequested() {
+        Dealer dealer = new Dealer();
+        ReflectionTestUtils.setField(dealer, "id", 1L);
+
+        Invoice invoice = new Invoice();
+        ReflectionTestUtils.setField(invoice, "id", 701L);
+        invoice.setOutstandingAmount(new BigDecimal("40.00"));
+
+        when(invoiceRepository.lockOpenInvoicesForSettlement(company, dealer)).thenReturn(List.of(invoice));
+
+        @SuppressWarnings("unchecked")
+        List<SettlementAllocationRequest> allocations = (List<SettlementAllocationRequest>) ReflectionTestUtils.invokeMethod(
+                accountingService,
+                "buildDealerHeaderSettlementAllocations",
+                company,
+                dealer,
+                new BigDecimal("55.00"),
+                SettlementAllocationApplication.FUTURE_APPLICATION);
+
+        assertThat(allocations).hasSize(2);
+        assertThat(allocations.get(0).invoiceId()).isEqualTo(701L);
+        assertThat(allocations.get(1).invoiceId()).isNull();
+        assertThat(allocations.get(1).applicationType()).isEqualTo(SettlementAllocationApplication.FUTURE_APPLICATION);
+        assertThat(allocations.get(1).appliedAmount()).isEqualByComparingTo("15.00");
+    }
+
+    @Test
+    void buildSupplierHeaderSettlementAllocations_addsOnAccountRemainderWhenRequested() {
+        Supplier supplier = new Supplier();
+        ReflectionTestUtils.setField(supplier, "id", 1L);
+
+        RawMaterialPurchase purchase = new RawMaterialPurchase();
+        ReflectionTestUtils.setField(purchase, "id", 801L);
+        purchase.setOutstandingAmount(new BigDecimal("30.00"));
+
+        when(rawMaterialPurchaseRepository.lockOpenPurchasesForSettlement(company, supplier)).thenReturn(List.of(purchase));
+
+        @SuppressWarnings("unchecked")
+        List<SettlementAllocationRequest> allocations = (List<SettlementAllocationRequest>) ReflectionTestUtils.invokeMethod(
+                accountingService,
+                "buildSupplierHeaderSettlementAllocations",
+                company,
+                supplier,
+                new BigDecimal("45.00"),
+                SettlementAllocationApplication.ON_ACCOUNT);
+
+        assertThat(allocations).hasSize(2);
+        assertThat(allocations.get(0).purchaseId()).isEqualTo(801L);
+        assertThat(allocations.get(1).purchaseId()).isNull();
+        assertThat(allocations.get(1).applicationType()).isEqualTo(SettlementAllocationApplication.ON_ACCOUNT);
+        assertThat(allocations.get(1).appliedAmount()).isEqualByComparingTo("15.00");
+    }
+
+    @Test
+    void resolveSupplierHeaderSettlementAmount_requiresAmount() {
+        assertThatThrownBy(() -> ReflectionTestUtils.invokeMethod(
+                accountingService,
+                "resolveSupplierHeaderSettlementAmount",
+                new Object[]{null}))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Provide allocations or an amount for supplier settlements");
+
+        SupplierSettlementRequest request = new SupplierSettlementRequest(
+                1L,
+                20L,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                LocalDate.of(2024, 6, 2),
+                "SUP-NO-AMOUNT",
+                "memo",
+                null,
+                Boolean.FALSE,
+                List.of()
+        );
+
+        assertThatThrownBy(() -> ReflectionTestUtils.invokeMethod(
+                accountingService,
+                "resolveSupplierHeaderSettlementAmount",
+                request))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Provide allocations or an amount for supplier settlements");
+    }
+
+    @Test
+    void decodeSettlementAllocationMemo_defaultsToOnAccountForInvalidTaggedToken() {
+        Object decoded = ReflectionTestUtils.invokeMethod(
+                accountingService,
+                "decodeSettlementAllocationMemo",
+                "[SETTLEMENT-APPLICATION:NOT_REAL] carry");
+
+        assertThat((Object) ReflectionTestUtils.invokeMethod(decoded, "applicationType"))
+                .isEqualTo(SettlementAllocationApplication.ON_ACCOUNT);
+        assertThat((Object) ReflectionTestUtils.invokeMethod(decoded, "memo"))
+                .isEqualTo("carry");
+    }
+
+    @Test
+    void settleDealerInvoices_rejectsOnAccountAllocationWithAdjustments() {
+        AccountingService service = spy(accountingService);
+
+        Dealer dealer = new Dealer();
+        dealer.setName("Dealer");
+        Account receivable = new Account();
+        receivable.setCompany(company);
+        receivable.setCode("AR");
+        receivable.setType(AccountType.ASSET);
+        ReflectionTestUtils.setField(receivable, "id", 10L);
+        dealer.setReceivableAccount(receivable);
+        ReflectionTestUtils.setField(dealer, "id", 1L);
+
+        Account cash = new Account();
+        cash.setCompany(company);
+        cash.setCode("CASH");
+        cash.setType(AccountType.ASSET);
+        ReflectionTestUtils.setField(cash, "id", 20L);
+
+        when(dealerRepository.lockByCompanyAndId(eq(company), eq(1L))).thenReturn(Optional.of(dealer));
+        lenient().when(companyEntityLookup.requireAccount(eq(company), eq(20L))).thenReturn(cash);
+
+        SettlementAllocationRequest allocation = new SettlementAllocationRequest(
+                null,
+                null,
+                new BigDecimal("100.00"),
+                new BigDecimal("10.00"),
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                SettlementAllocationApplication.ON_ACCOUNT,
+                "Invalid on-account discount"
+        );
+
+        DealerSettlementRequest request = new DealerSettlementRequest(
+                1L,
+                20L,
+                21L,
+                null,
+                null,
+                null,
+                null,
+                null,
+                LocalDate.of(2024, 6, 2),
+                "REF-DEALER-ONACC-INVALID",
+                "Dealer settlement",
+                "IDEMP-DEALER-ONACC-INVALID",
+                Boolean.FALSE,
+                List.of(allocation),
+                List.of()
+        );
+
+        assertThatThrownBy(() -> service.settleDealerInvoices(request))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("On-account dealer settlement allocations cannot include discount/write-off/FX adjustments");
+        verify(service, never()).createJournalEntry(any(JournalEntryRequest.class));
+    }
+
+    @Test
+    void settleDealerInvoices_rejectsInvoiceAllocatedToAnotherDealer() {
+        AccountingService service = spy(accountingService);
+
+        Dealer dealer = new Dealer();
+        dealer.setName("Dealer");
+        Account receivable = new Account();
+        receivable.setCompany(company);
+        receivable.setCode("AR");
+        receivable.setType(AccountType.ASSET);
+        ReflectionTestUtils.setField(receivable, "id", 10L);
+        dealer.setReceivableAccount(receivable);
+        ReflectionTestUtils.setField(dealer, "id", 1L);
+
+        Dealer otherDealer = new Dealer();
+        ReflectionTestUtils.setField(otherDealer, "id", 2L);
+
+        Account cash = new Account();
+        cash.setCompany(company);
+        cash.setCode("CASH");
+        cash.setType(AccountType.ASSET);
+        ReflectionTestUtils.setField(cash, "id", 20L);
+
+        Invoice invoice = new Invoice();
+        ReflectionTestUtils.setField(invoice, "id", 900L);
+        invoice.setDealer(otherDealer);
+        invoice.setOutstandingAmount(new BigDecimal("100.00"));
+
+        when(dealerRepository.lockByCompanyAndId(eq(company), eq(1L))).thenReturn(Optional.of(dealer));
+        lenient().when(companyEntityLookup.requireAccount(eq(company), eq(20L))).thenReturn(cash);
+        when(invoiceRepository.lockByCompanyAndId(eq(company), eq(900L))).thenReturn(Optional.of(invoice));
+
+        DealerSettlementRequest request = new DealerSettlementRequest(
+                1L,
+                20L,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                LocalDate.of(2024, 6, 2),
+                "REF-DEALER-OTHER-INVOICE",
+                "Dealer settlement",
+                "IDEMP-DEALER-OTHER-INVOICE",
+                Boolean.FALSE,
+                List.of(new SettlementAllocationRequest(
+                        900L,
+                        null,
+                        new BigDecimal("100.00"),
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        null,
+                        "Invoice"
+                )),
+                List.of()
+        );
+
+        assertThatThrownBy(() -> service.settleDealerInvoices(request))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Invoice does not belong to the dealer");
+        verify(service, never()).createJournalEntry(any(JournalEntryRequest.class));
     }
 
     @Test

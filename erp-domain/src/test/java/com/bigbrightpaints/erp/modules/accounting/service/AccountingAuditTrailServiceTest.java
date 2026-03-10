@@ -271,6 +271,37 @@ class AccountingAuditTrailServiceTest {
     }
 
     @Test
+    void decodeSettlementAuditMemo_handlesDocumentMalformedAndTaggedOnAccountRows() {
+        PartnerSettlementAllocation documentAllocation = new PartnerSettlementAllocation();
+        Invoice invoice = new Invoice();
+        documentAllocation.setInvoice(invoice);
+        documentAllocation.setMemo("  Visible memo  ");
+
+        PartnerSettlementAllocation malformed = new PartnerSettlementAllocation();
+        malformed.setMemo("[SETTLEMENT-APPLICATION:BAD");
+
+        PartnerSettlementAllocation tagged = new PartnerSettlementAllocation();
+        tagged.setMemo("[SETTLEMENT-APPLICATION:FUTURE_APPLICATION] Carry forward");
+
+        Object documentParts = ReflectionTestUtils.invokeMethod(service, "decodeSettlementAuditMemo", documentAllocation);
+        Object malformedParts = ReflectionTestUtils.invokeMethod(service, "decodeSettlementAuditMemo", malformed);
+        Object taggedParts = ReflectionTestUtils.invokeMethod(service, "decodeSettlementAuditMemo", tagged);
+
+        assertThat((Object) ReflectionTestUtils.invokeMethod(documentParts, "applicationType"))
+                .isEqualTo(SettlementAllocationApplication.DOCUMENT);
+        assertThat((Object) ReflectionTestUtils.invokeMethod(documentParts, "memo"))
+                .isEqualTo("Visible memo");
+        assertThat((Object) ReflectionTestUtils.invokeMethod(malformedParts, "applicationType"))
+                .isEqualTo(SettlementAllocationApplication.ON_ACCOUNT);
+        assertThat((Object) ReflectionTestUtils.invokeMethod(malformedParts, "memo"))
+                .isEqualTo("[SETTLEMENT-APPLICATION:BAD");
+        assertThat((Object) ReflectionTestUtils.invokeMethod(taggedParts, "applicationType"))
+                .isEqualTo(SettlementAllocationApplication.FUTURE_APPLICATION);
+        assertThat((Object) ReflectionTestUtils.invokeMethod(taggedParts, "memo"))
+                .isEqualTo("Carry forward");
+    }
+
+    @Test
     void listTransactions_classifiesSupplierPrefixedReferenceAsSettlement() {
         Company company = new Company();
         company.setCode("BBP");

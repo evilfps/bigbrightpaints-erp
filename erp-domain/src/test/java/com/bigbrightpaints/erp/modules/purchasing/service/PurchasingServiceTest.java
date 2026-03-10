@@ -35,6 +35,7 @@ import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchase;
 import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchaseLine;
 import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchaseRepository;
 import com.bigbrightpaints.erp.modules.purchasing.domain.Supplier;
+import com.bigbrightpaints.erp.modules.purchasing.dto.PurchaseReturnPreviewDto;
 import com.bigbrightpaints.erp.modules.purchasing.dto.PurchaseReturnRequest;
 import com.bigbrightpaints.erp.modules.purchasing.dto.RawMaterialPurchaseLineRequest;
 import com.bigbrightpaints.erp.modules.purchasing.dto.RawMaterialPurchaseRequest;
@@ -193,6 +194,40 @@ class PurchasingServiceTest {
 
         verify(purchaseRepository).lockByCompanyAndInvoiceNumberIgnoreCase(company, "INV-001");
         verify(purchaseRepository, never()).save(any());
+    }
+
+    @Test
+    void previewPurchaseReturn_delegatesToPurchaseReturnService() {
+        PurchaseReturnService purchaseReturnService = mock(PurchaseReturnService.class);
+        ReflectionTestUtils.setField(purchasingService, "purchaseReturnService", purchaseReturnService);
+
+        PurchaseReturnRequest request = new PurchaseReturnRequest(
+                10L,
+                30L,
+                20L,
+                BigDecimal.ONE,
+                new BigDecimal("5.00"),
+                "PRN-TEST-0001",
+                LocalDate.of(2026, 3, 10),
+                "Preview"
+        );
+        PurchaseReturnPreviewDto preview = new PurchaseReturnPreviewDto(
+                30L,
+                "PINV-30",
+                20L,
+                "Test Material",
+                BigDecimal.ONE,
+                new BigDecimal("2.0000"),
+                new BigDecimal("5.00"),
+                BigDecimal.ZERO,
+                new BigDecimal("5.00"),
+                LocalDate.of(2026, 3, 10),
+                "PRN-TEST-0001"
+        );
+        when(purchaseReturnService.previewPurchaseReturn(request)).thenReturn(preview);
+
+        assertThat(purchasingService.previewPurchaseReturn(request)).isEqualTo(preview);
+        verify(purchaseReturnService).previewPurchaseReturn(request);
     }
 
     @Test

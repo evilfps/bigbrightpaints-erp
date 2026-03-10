@@ -109,6 +109,33 @@ class ClosedPeriodPostingExceptionServiceTest {
     }
 
     @Test
+    void authorize_ignoresExpiredAndUndatedExistingExceptions() {
+        installFixedClock();
+        Company company = company();
+        AccountingPeriod period = new AccountingPeriod();
+        ClosedPeriodPostingException undated = new ClosedPeriodPostingException();
+        ClosedPeriodPostingException expired = new ClosedPeriodPostingException();
+        expired.setExpiresAt(FIXED_NOW.minusSeconds(60));
+        ClosedPeriodPostingException unexpired = new ClosedPeriodPostingException();
+        unexpired.setExpiresAt(FIXED_NOW.plusSeconds(60));
+        authenticate("super.admin", "ROLE_SUPER_ADMIN");
+        when(repository.findByCompanyAndDocumentTypeIgnoreCaseAndDocumentReferenceIgnoreCaseOrderByApprovedAtDescIdDesc(
+                company,
+                "PURCHASE_RETURN",
+                "PR-002")).thenReturn(List.of(undated, expired, unexpired));
+        when(repository.save(unexpired)).thenReturn(unexpired);
+
+        ClosedPeriodPostingException saved = service.authorize(
+                company,
+                period,
+                "PURCHASE_RETURN",
+                "PR-002",
+                "approved");
+
+        assertThat(saved).isSameAs(unexpired);
+    }
+
+    @Test
     void authorize_rejectsMissingInputsAndNonAdminActors() {
         Company company = company();
         AccountingPeriod period = new AccountingPeriod();
@@ -149,6 +176,32 @@ class ClosedPeriodPostingExceptionServiceTest {
     }
 
     @Test
+    void authorize_requiresAuthenticatedAdminAnd_linkJournalEntrySkipsMissingMatches() {
+        Company company = company();
+        AccountingPeriod period = new AccountingPeriod();
+
+        assertThatThrownBy(() -> service.authorize(company, period, "DOC", "REF", "reason"))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Closed-period posting requires an explicit admin exception");
+
+        SecurityContextHolder.getContext().setAuthentication(UsernamePasswordAuthenticationToken.unauthenticated(
+                "admin.user",
+                "N/A"));
+        assertThatThrownBy(() -> service.authorize(company, period, "DOC", "REF", "reason"))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Closed-period posting requires an explicit admin exception");
+
+        when(repository.findByCompanyAndDocumentTypeIgnoreCaseAndDocumentReferenceIgnoreCaseOrderByApprovedAtDescIdDesc(
+                company,
+                "DOC",
+                "REF")).thenReturn(List.of());
+
+        service.linkJournalEntry(company, "DOC", "REF", new JournalEntry());
+
+        verify(repository, never()).save(any(ClosedPeriodPostingException.class));
+    }
+
+    @Test
     void entityLifecycle_populatesPersistDefaultsAndExposesAccessors() {
         installFixedClock();
         Company company = company();
@@ -181,6 +234,21 @@ class ClosedPeriodPostingExceptionServiceTest {
         assertThat(exception.getUsedAt()).isEqualTo(FIXED_NOW);
         assertThat(exception.getJournalEntry()).isSameAs(journalEntry);
         assertThat(exception.getId()).isNull();
+    }
+
+    @Test
+    void entityLifecycle_preservesExistingPublicIdAndApprovedAt() {
+        ClosedPeriodPostingException exception = new ClosedPeriodPostingException();
+        java.util.UUID publicId = java.util.UUID.randomUUID();
+        Instant approvedAt = FIXED_NOW.minusSeconds(120);
+
+        ReflectionTestUtils.setField(exception, "publicId", publicId);
+        exception.setApprovedAt(approvedAt);
+
+        exception.prePersist();
+
+        assertThat(exception.getPublicId()).isEqualTo(publicId);
+        assertThat(exception.getApprovedAt()).isEqualTo(approvedAt);
     }
 
     private Company company() {
