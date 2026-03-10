@@ -91,7 +91,7 @@ public class CompanyContextFilter extends OncePerRequestFilter {
         TenantRuntimeEnforcementService.TenantRequestAdmission admission =
                 TenantRuntimeEnforcementService.TenantRequestAdmission.notTracked();
         try {
-            String runtimePath = resolveApplicationPath(request);
+            String runtimePath = normalizePath(resolveApplicationPath(request));
             if (isPublicPasswordResetRequest(runtimePath, request.getMethod())) {
                 filterChain.doFilter(request, response);
                 return;
@@ -516,7 +516,7 @@ public class CompanyContextFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        String path = resolveApplicationPath(request);
+        String path = normalizePath(resolveApplicationPath(request));
         if (!StringUtils.hasText(path)) {
             return false;
         }
@@ -536,6 +536,17 @@ public class CompanyContextFilter extends OncePerRequestFilter {
             return path;
         }
         String normalizedPath = path.trim();
+        String[] segments = normalizedPath.split("/", -1);
+        StringBuilder sanitizedPath = new StringBuilder(normalizedPath.length());
+        for (int i = 0; i < segments.length; i++) {
+            if (i > 0) {
+                sanitizedPath.append('/');
+            }
+            String segment = segments[i];
+            int matrixParamIndex = segment.indexOf(';');
+            sanitizedPath.append(matrixParamIndex >= 0 ? segment.substring(0, matrixParamIndex) : segment);
+        }
+        normalizedPath = sanitizedPath.toString();
         while (normalizedPath.endsWith("/") && normalizedPath.length() > 1) {
             normalizedPath = normalizedPath.substring(0, normalizedPath.length() - 1);
         }
