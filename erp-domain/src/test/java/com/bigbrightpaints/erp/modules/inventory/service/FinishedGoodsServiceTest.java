@@ -1030,7 +1030,7 @@ class FinishedGoodsServiceTest extends AbstractIntegrationTest {
         reservation.setQuantity(new BigDecimal("5"));
         reservation.setReservedQuantity(null);
         reservation.setStatus("RESERVED");
-        inventoryReservationRepository.save(reservation);
+        InventoryReservation savedReservation = inventoryReservationRepository.saveAndFlush(reservation);
 
         FinishedGoodsService.InventoryReservationResult result = finishedGoodsService.reserveForOrder(order);
 
@@ -1038,11 +1038,10 @@ class FinishedGoodsServiceTest extends AbstractIntegrationTest {
         List<InventoryReservation> reservations = inventoryReservationRepository
                 .findByFinishedGoodCompanyAndReferenceTypeAndReferenceId(
                         company, InventoryReference.SALES_ORDER, order.getId().toString());
-        BigDecimal totalReserved = reservations.stream()
-                .filter(r -> !"CANCELLED".equalsIgnoreCase(r.getStatus()))
-                .map(r -> r.getReservedQuantity() != null ? r.getReservedQuantity() : BigDecimal.ZERO)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-        assertThat(totalReserved).isEqualByComparingTo(new BigDecimal("5"));
+        assertThat(reservations).hasSize(1);
+        InventoryReservation refreshedReservation = reservations.getFirst();
+        assertThat(refreshedReservation.getId()).isEqualTo(savedReservation.getId());
+        assertThat(refreshedReservation.getReservedQuantity()).isEqualByComparingTo(new BigDecimal("5"));
     }
 
     @Test

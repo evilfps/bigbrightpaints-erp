@@ -6,6 +6,7 @@ ROOT="$(cd -- "${SCRIPT_DIR}/.." >/dev/null 2>&1 && pwd)"
 COMPOSE_FILE="$ROOT/docker-compose.yml"
 PINNED_DB_PORT="5433"
 DB_PORT="$PINNED_DB_PORT"
+RABBIT_PORT="${RABBIT_PORT:-5672}"
 APP_PORT="${APP_PORT:-8081}"
 
 JWT_SECRET="${JWT_SECRET:-placeholder}"
@@ -21,6 +22,7 @@ if [[ -f "$ROOT/.env" ]]; then
 fi
 
 DB_PORT="$PINNED_DB_PORT"
+RABBIT_PORT="${RABBIT_PORT:-5672}"
 APP_PORT="${APP_PORT:-8081}"
 
 if [[ -z "${JWT_SECRET:-}" || "$JWT_SECRET" == YOUR_* || "$JWT_SECRET" == "placeholder" ]]; then
@@ -40,23 +42,23 @@ fi
 if [[ -z "${ERP_VALIDATION_SEED_PASSWORD:-}" || "$ERP_VALIDATION_SEED_PASSWORD" == YOUR_* || "$ERP_VALIDATION_SEED_PASSWORD" == "placeholder" ]]; then
   ERP_VALIDATION_SEED_PASSWORD="$(python3 - <<'PY'
 import secrets
-print(f"Validation!{secrets.token_hex(8)}")
+print(f"Validation1!{secrets.token_hex(8)}")
 PY
 )"
   ERP_VALIDATION_SEED_PASSWORD_SOURCE="generated"
 fi
 
 echo "[final-validation-reset] Resetting compose runtime on port ${DB_PORT}"
-DB_PORT="$DB_PORT" docker compose -f "$COMPOSE_FILE" down -v --remove-orphans
-DB_PORT="$DB_PORT" docker compose -f "$COMPOSE_FILE" up -d db rabbitmq mailhog
+DB_PORT="$DB_PORT" RABBIT_PORT="$RABBIT_PORT" APP_PORT="$APP_PORT" docker compose -f "$COMPOSE_FILE" down -v --remove-orphans
+DB_PORT="$DB_PORT" RABBIT_PORT="$RABBIT_PORT" APP_PORT="$APP_PORT" docker compose -f "$COMPOSE_FILE" up -d db rabbitmq mailhog
 
 ready=0
 for _ in $(seq 1 60); do
-  if DB_PORT="$DB_PORT" python3 - <<'PY'
+  if DB_PORT="$DB_PORT" RABBIT_PORT="$RABBIT_PORT" python3 - <<'PY'
 import os
 import socket
 
-for host, port in [('127.0.0.1', int(os.environ['DB_PORT'])), ('127.0.0.1', 5672)]:
+for host, port in [('127.0.0.1', int(os.environ['DB_PORT'])), ('127.0.0.1', int(os.environ['RABBIT_PORT']))]:
     with socket.create_connection((host, port), 2):
         pass
 PY
@@ -68,7 +70,7 @@ PY
 done
 
 if [[ "$ready" -ne 1 ]]; then
-  echo "[final-validation-reset] ERROR: DB/RabbitMQ did not become ready on ports ${DB_PORT}/5672 after 60 attempts" >&2
+  echo "[final-validation-reset] ERROR: DB/RabbitMQ did not become ready on ports ${DB_PORT}/${RABBIT_PORT} after 60 attempts" >&2
   exit 1
 fi
 
@@ -87,6 +89,8 @@ SPRING_MAIL_PASSWORD='' \
 SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH='false' \
 SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE='false' \
 SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_REQUIRED='false' \
+RABBIT_PORT="$RABBIT_PORT" \
+APP_PORT="$APP_PORT" \
 docker compose -f "$COMPOSE_FILE" up -d --build app
 
 for _ in $(seq 1 90); do

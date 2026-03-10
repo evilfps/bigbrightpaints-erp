@@ -26,7 +26,6 @@ import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
-import java.util.Objects;
 
 @Configuration
 @Profile("validation-seed")
@@ -167,29 +166,22 @@ public class ValidationSeedDataInitializer {
         user.setMustChangePassword(false);
         user.setFailedLoginAttempts(0);
         user.setLockedUntil(null);
-        companies.forEach(company -> ensureCompanyMembership(user, company));
-        roles.forEach(role -> ensureRoleMembership(user, role));
+        user.setMfaEnabled(false);
+        user.setMfaSecret(null);
+        user.setMfaRecoveryCodeHashes(List.of());
+        normalizeCompanyMemberships(user, companies);
+        normalizeRoleMemberships(user, roles);
         return userAccountRepository.save(user);
     }
 
-    private void ensureCompanyMembership(UserAccount user, Company company) {
-        boolean alreadyAssigned = user.getCompanies().stream()
-                .map(Company::getCode)
-                .filter(Objects::nonNull)
-                .anyMatch(existingCode -> existingCode.equalsIgnoreCase(company.getCode()));
-        if (!alreadyAssigned) {
-            user.addCompany(company);
-        }
+    private void normalizeCompanyMemberships(UserAccount user, List<Company> companies) {
+        user.getCompanies().clear();
+        companies.forEach(user::addCompany);
     }
 
-    private void ensureRoleMembership(UserAccount user, Role role) {
-        boolean alreadyAssigned = user.getRoles().stream()
-                .map(Role::getName)
-                .filter(Objects::nonNull)
-                .anyMatch(existingName -> existingName.equalsIgnoreCase(role.getName()));
-        if (!alreadyAssigned) {
-            user.addRole(role);
-        }
+    private void normalizeRoleMemberships(UserAccount user, List<Role> roles) {
+        user.getRoles().clear();
+        roles.forEach(user::addRole);
     }
 
     private Dealer ensureDealer(DealerRepository dealerRepository,

@@ -174,7 +174,7 @@ class ValidationSeedDataInitializerTest {
     }
 
     @Test
-    void seedValidationActorsDoesNotDuplicateExistingCompanyOrRoleMemberships() throws Exception {
+    void seedValidationActorsNormalizesExistingCompanyAndRoleMemberships() throws Exception {
         Company existingMockCompany = company("MOCK", "Mock Training Co");
         Company currentMockCompany = company("MOCK", "Mock Training Co");
         Company rivalCompany = company("RIVAL", "Rival Validation Co");
@@ -190,7 +190,9 @@ class ValidationSeedDataInitializerTest {
 
         UserAccount existingAdminUser = new UserAccount("validation.admin@example.com", "encoded:old", "Validation Admin");
         existingAdminUser.addCompany(existingMockCompany);
+        existingAdminUser.addCompany(rivalCompany);
         existingAdminUser.addRole(existingAdminRole);
+        existingAdminUser.addRole(factoryRole);
 
         when(companyRepository.findByCodeIgnoreCase(anyString())).thenAnswer(invocation -> switch (invocation.getArgument(0, String.class)) {
             case "MOCK" -> Optional.of(currentMockCompany);
@@ -248,7 +250,7 @@ class ValidationSeedDataInitializerTest {
     }
 
     @Test
-    void seedValidationActorsClearsExistingLockoutStateOnReseed() throws Exception {
+    void seedValidationActorsClearsExistingLockoutAndMfaStateOnReseed() throws Exception {
         Company mockCompany = company("MOCK", "Mock Training Co");
         Company rivalCompany = company("RIVAL", "Rival Validation Co");
         Company superAdminCompany = company("SKE", "Platform Super Admin");
@@ -263,6 +265,9 @@ class ValidationSeedDataInitializerTest {
         UserAccount existingSalesUser = new UserAccount("validation.sales@example.com", "encoded:old", "Validation Sales");
         existingSalesUser.setFailedLoginAttempts(5);
         existingSalesUser.setLockedUntil(Instant.now().plusSeconds(600));
+        existingSalesUser.setMfaEnabled(true);
+        existingSalesUser.setMfaSecret("encrypted-secret");
+        existingSalesUser.setMfaRecoveryCodeHashes(java.util.List.of("hash-1", "hash-2"));
 
         when(companyRepository.findByCodeIgnoreCase(anyString())).thenAnswer(invocation -> switch (invocation.getArgument(0, String.class)) {
             case "MOCK" -> Optional.of(mockCompany);
@@ -310,6 +315,9 @@ class ValidationSeedDataInitializerTest {
 
         assertThat(existingSalesUser.getFailedLoginAttempts()).isZero();
         assertThat(existingSalesUser.getLockedUntil()).isNull();
+        assertThat(existingSalesUser.isMfaEnabled()).isFalse();
+        assertThat(existingSalesUser.getMfaSecret()).isNull();
+        assertThat(existingSalesUser.getMfaRecoveryCodeHashes()).isEmpty();
     }
 
     private MockEnvironment activeProfiles(String... profiles) {
