@@ -90,6 +90,32 @@ public class OrderFulfillmentE2ETest extends AbstractIntegrationTest {
         ensureTestAccounts();
     }
 
+    @Test
+    @DisplayName("Setup preserves existing company state code")
+    void ensureTestAccounts_preservesExistingCompanyStateCode() {
+        Company company = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();
+        company.setStateCode("DL");
+        companyRepository.save(company);
+
+        ensureTestAccounts();
+
+        Company refreshed = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();
+        assertThat(refreshed.getStateCode()).isEqualTo("DL");
+    }
+
+    @Test
+    @DisplayName("Setup seeds company state code when missing")
+    void ensureTestAccounts_seedsMissingCompanyStateCode() {
+        Company company = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();
+        company.setStateCode(null);
+        companyRepository.save(company);
+
+        ensureTestAccounts();
+
+        Company refreshed = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();
+        assertThat(refreshed.getStateCode()).isEqualTo("MH");
+    }
+
     private String login() {
         Map<String, Object> req = Map.of(
                 "email", ADMIN_EMAIL,
@@ -141,7 +167,7 @@ public class OrderFulfillmentE2ETest extends AbstractIntegrationTest {
                 || !company.getGstInputTaxAccountId().equals(gstInput.getId())) {
             company.setGstInputTaxAccountId(gstInput.getId());
         }
-        if (!"MH".equalsIgnoreCase(company.getStateCode())) {
+        if (company.getStateCode() == null || company.getStateCode().isBlank()) {
             company.setStateCode("MH");
         }
         companyRepository.save(company);
