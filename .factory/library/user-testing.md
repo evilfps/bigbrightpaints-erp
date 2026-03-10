@@ -25,7 +25,7 @@ Testing surface: tools, URLs, setup steps, isolation notes, known quirks.
 - Docker Compose for `rabbitmq` and `mailhog` when runtime validation is needed
 
 ## Setup Steps
-1. Run `/home/realnigga/Desktop/Mission-control/.factory/init.sh`.
+1. From the repository root, run `bash .factory/init.sh`.
 2. When runtime evidence is needed, start the compose-backed mission services on `5433/5672/1025/8081/9090` rather than touching the unrelated local PostgreSQL on `5432`.
 3. Start `db`, `rabbitmq`, and `mailhog` with `DB_PORT=5433 docker compose up -d db rabbitmq mailhog`.
 4. Start the backend on `8081/9090` with the explicit Flyway v2 overrides from `.factory/services.yaml`.
@@ -33,12 +33,12 @@ Testing surface: tools, URLs, setup steps, isolation notes, known quirks.
 6. Exercise auth/admin endpoints with `curl`.
 7. For the compose-backed auth runtime currently on `8081`, the seeded `MOCK` tenant already has usable UAT actors (`uat.admin@example.com`, `uat.sales@example.com`, `uat.superadmin@example.com`). If their passwords drift, reset them directly in the local `erp_db` container with `crypt('<password>', gen_salt('bf'))` before user-testing.
 8. To validate the **current code** on the compose-backed runtime after this milestone, rebuild and restart the app with explicit overrides so it uses Flyway v2, passes production CORS validation, and forces MailHog instead of any `.env` SMTP credentials: `SPRING_PROFILES_ACTIVE='prod,flyway-v2' ERP_CORS_ALLOWED_ORIGINS='https://app.bigbrightpaints.com' ERP_CORS_ALLOW_TAILSCALE_HTTP_ORIGINS='true' DB_PORT=5433 SPRING_MAIL_HOST='mailhog' SPRING_MAIL_PORT='1025' SPRING_MAIL_USERNAME='' SPRING_MAIL_PASSWORD='' SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH='false' SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE='false' SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_REQUIRED='false' docker compose up -d --build app`.
-9. For final adversarial validation, prefer the repo-local reset harness: `bash /home/realnigga/Desktop/Mission-control/scripts/reset_final_validation_runtime.sh`. It rebuilds the compose runtime on `5433/8081` with `prod,flyway-v2,mock,validation-seed`, recreates the DB volume, and reseeds deterministic actors for `MOCK`, `RIVAL`, and `SKE`.
+9. For final adversarial validation, prefer the repo-local reset harness from the repository root: `bash scripts/reset_final_validation_runtime.sh`. It rebuilds the compose runtime on `5433/8081` with `prod,flyway-v2,mock,validation-seed`, recreates the DB volume, and reseeds deterministic actors for `MOCK`, `RIVAL`, and `SKE`.
 
 ## Final Validation Runtime Reset
-- Canonical reset command: `bash /home/realnigga/Desktop/Mission-control/scripts/reset_final_validation_runtime.sh`
-- Equivalent factory command: `.factory/services.yaml -> commands.final-validation-reset`
-- Seeded actor password default: `Validation123!` unless `ERP_VALIDATION_SEED_PASSWORD` is exported before running the reset.
+- Canonical reset command: `bash scripts/reset_final_validation_runtime.sh`
+- Equivalent factory command: `.factory/services.yaml -> commands.final-validation-reset` (it resolves the current clone root with `git rev-parse --show-toplevel` before invoking the script)
+- Seeded actor password: export `ERP_VALIDATION_SEED_PASSWORD` before running the reset if you want a deterministic local password; otherwise the script generates a strong local-only password and prints it before listing the seeded actors.
 - Seeded actors:
   - `validation.admin@example.com` -> `MOCK` admin/accounting/sales
   - `validation.accounting@example.com` -> `MOCK` accounting
