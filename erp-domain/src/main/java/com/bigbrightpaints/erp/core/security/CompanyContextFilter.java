@@ -60,6 +60,11 @@ public class CompanyContextFilter extends OncePerRequestFilter {
             "/api/v1/suppliers",
             "/api/v1/catalog",
             "/api/v1/dispatch");
+    private static final Set<String> SUPER_ADMIN_TENANT_ADMIN_WORKFLOW_PREFIXES = Set.of(
+            "/api/v1/admin/approvals",
+            "/api/v1/admin/exports",
+            "/api/v1/admin/notify",
+            "/api/v1/admin/users");
     private static final Set<String> PUBLIC_PASSWORD_RESET_ENDPOINTS = Set.of(
             "/api/v1/auth/password/forgot",
             "/api/v1/auth/password/forgot/superadmin",
@@ -287,6 +292,11 @@ public class CompanyContextFilter extends OncePerRequestFilter {
         String normalizedPath = normalizePath(requestPath);
         if (!StringUtils.hasText(normalizedPath)) {
             return false;
+        }
+        boolean matchesTenantAdminWorkflowPrefix = SUPER_ADMIN_TENANT_ADMIN_WORKFLOW_PREFIXES.stream()
+                .anyMatch(prefix -> normalizedPath.equals(prefix) || normalizedPath.startsWith(prefix + "/"));
+        if (matchesTenantAdminWorkflowPrefix) {
+            return true;
         }
         boolean matchesBusinessPrefix = SUPER_ADMIN_TENANT_BUSINESS_PREFIXES.stream()
                 .anyMatch(prefix -> normalizedPath.equals(prefix) || normalizedPath.startsWith(prefix + "/"));
