@@ -165,6 +165,8 @@ public class ValidationSeedDataInitializer {
         user.setPasswordHash(passwordEncoder.encode(password));
         user.setEnabled(true);
         user.setMustChangePassword(false);
+        user.setFailedLoginAttempts(0);
+        user.setLockedUntil(null);
         companies.forEach(company -> ensureCompanyMembership(user, company));
         roles.forEach(role -> ensureRoleMembership(user, role));
         return userAccountRepository.save(user);

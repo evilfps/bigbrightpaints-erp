@@ -6,6 +6,7 @@ ROOT="$(cd -- "${SCRIPT_DIR}/.." >/dev/null 2>&1 && pwd)"
 COMPOSE_FILE="$ROOT/docker-compose.yml"
 PINNED_DB_PORT="5433"
 DB_PORT="$PINNED_DB_PORT"
+APP_PORT="${APP_PORT:-8081}"
 
 JWT_SECRET="${JWT_SECRET:-placeholder}"
 ERP_SECURITY_ENCRYPTION_KEY="${ERP_SECURITY_ENCRYPTION_KEY:-placeholder}"
@@ -20,6 +21,7 @@ if [[ -f "$ROOT/.env" ]]; then
 fi
 
 DB_PORT="$PINNED_DB_PORT"
+APP_PORT="${APP_PORT:-8081}"
 
 if [[ -z "${JWT_SECRET:-}" || "$JWT_SECRET" == YOUR_* || "$JWT_SECRET" == "placeholder" ]]; then
   JWT_SECRET="$(python3 - <<'PY'
@@ -88,14 +90,14 @@ SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_REQUIRED='false' \
 docker compose -f "$COMPOSE_FILE" up -d --build app
 
 for _ in $(seq 1 90); do
-  status=$(curl -s -o /tmp/final-validation-auth.out -w '%{http_code}' http://localhost:8081/api/v1/auth/me || true)
+  status=$(curl -s -o /tmp/final-validation-auth.out -w '%{http_code}' "http://localhost:${APP_PORT}/api/v1/auth/me" || true)
   if [[ "$status" == "200" || "$status" == "401" || "$status" == "403" ]]; then
     break
   fi
   sleep 2
 done
 
-status=$(curl -s -o /tmp/final-validation-auth.out -w '%{http_code}' http://localhost:8081/api/v1/auth/me || true)
+status=$(curl -s -o /tmp/final-validation-auth.out -w '%{http_code}' "http://localhost:${APP_PORT}/api/v1/auth/me" || true)
 if [[ "$status" != "200" && "$status" != "401" && "$status" != "403" ]]; then
   echo "[final-validation-reset] Backend did not become ready; last status=$status"
   exit 1
@@ -105,7 +107,7 @@ cat <<EOF
 [final-validation-reset] Ready.
 
 Runtime:
-  Base URL: http://localhost:8081
+  Base URL: http://localhost:${APP_PORT}
   MailHog:  http://localhost:8025
   Profiles: prod,flyway-v2,mock,validation-seed
 

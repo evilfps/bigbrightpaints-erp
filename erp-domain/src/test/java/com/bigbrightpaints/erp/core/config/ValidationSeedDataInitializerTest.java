@@ -20,6 +20,7 @@ import org.springframework.boot.CommandLineRunner;
 import org.springframework.mock.env.MockEnvironment;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import java.time.Instant;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -244,6 +245,71 @@ class ValidationSeedDataInitializerTest {
         assertThat(existingAdminUser.getRoles())
                 .extracting(Role::getName)
                 .containsExactlyInAnyOrder("ROLE_ADMIN", "ROLE_ACCOUNTING", "ROLE_SALES");
+    }
+
+    @Test
+    void seedValidationActorsClearsExistingLockoutStateOnReseed() throws Exception {
+        Company mockCompany = company("MOCK", "Mock Training Co");
+        Company rivalCompany = company("RIVAL", "Rival Validation Co");
+        Company superAdminCompany = company("SKE", "Platform Super Admin");
+
+        Role adminRole = role("ROLE_ADMIN", "Administrator");
+        Role accountingRole = role("ROLE_ACCOUNTING", "Accounting");
+        Role salesRole = role("ROLE_SALES", "Sales");
+        Role factoryRole = role("ROLE_FACTORY", "Factory");
+        Role dealerRole = role("ROLE_DEALER", "Dealer portal");
+        Role superAdminRole = role("ROLE_SUPER_ADMIN", "Platform super administrator");
+
+        UserAccount existingSalesUser = new UserAccount("validation.sales@example.com", "encoded:old", "Validation Sales");
+        existingSalesUser.setFailedLoginAttempts(5);
+        existingSalesUser.setLockedUntil(Instant.now().plusSeconds(600));
+
+        when(companyRepository.findByCodeIgnoreCase(anyString())).thenAnswer(invocation -> switch (invocation.getArgument(0, String.class)) {
+            case "MOCK" -> Optional.of(mockCompany);
+            case "RIVAL" -> Optional.of(rivalCompany);
+            case "SKE" -> Optional.of(superAdminCompany);
+            default -> Optional.empty();
+        });
+        when(companyRepository.save(any(Company.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(roleRepository.findByName(anyString())).thenAnswer(invocation -> switch (invocation.getArgument(0, String.class)) {
+            case "ROLE_ADMIN" -> Optional.of(adminRole);
+            case "ROLE_ACCOUNTING" -> Optional.of(accountingRole);
+            case "ROLE_SALES" -> Optional.of(salesRole);
+            case "ROLE_FACTORY" -> Optional.of(factoryRole);
+            case "ROLE_DEALER" -> Optional.of(dealerRole);
+            case "ROLE_SUPER_ADMIN" -> Optional.of(superAdminRole);
+            default -> Optional.empty();
+        });
+        when(accountRepository.findByCompanyAndCodeIgnoreCase(any(Company.class), anyString())).thenReturn(Optional.empty());
+        when(accountRepository.save(any(Account.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(userAccountRepository.findByEmailIgnoreCase(anyString())).thenAnswer(invocation -> {
+            String email = invocation.getArgument(0, String.class);
+            if ("validation.sales@example.com".equalsIgnoreCase(email)) {
+                return Optional.of(existingSalesUser);
+            }
+            return Optional.empty();
+        });
+        when(userAccountRepository.save(any(UserAccount.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(dealerRepository.findByCompanyAndCodeIgnoreCase(any(Company.class), anyString())).thenReturn(Optional.empty());
+        when(dealerRepository.save(any(Dealer.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(passwordEncoder.encode(anyString())).thenAnswer(invocation -> "encoded:" + invocation.getArgument(0, String.class));
+
+        CommandLineRunner runner = initializer.seedValidationActors(
+                companyRepository,
+                roleRepository,
+                userAccountRepository,
+                dealerRepository,
+                accountRepository,
+                passwordEncoder,
+                passwordPolicy,
+                activeProfiles("mock", "validation-seed"),
+                true,
+                "ValidationSeed1!");
+
+        runner.run();
+
+        assertThat(existingSalesUser.getFailedLoginAttempts()).isZero();
+        assertThat(existingSalesUser.getLockedUntil()).isNull();
     }
 
     private MockEnvironment activeProfiles(String... profiles) {
