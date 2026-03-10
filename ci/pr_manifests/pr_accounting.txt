@@ -21,5 +21,7 @@ AccountingPeriodServiceTest
 AccountingServiceTest
 AccountingServiceStandardJournalTest
 AccountingAuditTrailServiceTest
+AdminApprovalRbacIT
 ClosedPeriodPostingExceptionServiceTest
+ReferenceNumberServiceTest
 SettlementServiceTest
