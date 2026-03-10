@@ -420,6 +420,42 @@ class CompanyContextFilterControlPlaneBindingTest {
     }
 
     @Test
+    void tenantOrchestratorApprovalRequest_rejectsSuperAdminBeforeWorkflowExecution()
+            throws ServletException, IOException {
+        authenticate("root-superadmin@bbp.com", Set.of("ROLE_SUPER_ADMIN"), Set.of("TENANT-A"));
+
+        MockHttpServletRequest request = request("POST", "/api/v1/orchestrator/orders/99/approve");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, filterChain);
+
+        assertThat(response.getStatus()).isEqualTo(403);
+        assertThat(response.getContentAsString()).contains("SUPER_ADMIN_PLATFORM_ONLY");
+        verifyNoInteractions(companyService);
+        verify(tenantRuntimeEnforcementService, never())
+                .beginRequest(anyString(), anyString(), anyString(), anyString(), anyBoolean());
+        verify(filterChain, never()).doFilter(request, response);
+    }
+
+    @Test
+    void tenantOrchestratorFulfillmentRequest_rejectsSuperAdminBeforeWorkflowExecution()
+            throws ServletException, IOException {
+        authenticate("root-superadmin@bbp.com", Set.of("ROLE_SUPER_ADMIN"), Set.of("TENANT-A"));
+
+        MockHttpServletRequest request = request("POST", "/api/v1/orchestrator/orders/99/fulfillment");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, filterChain);
+
+        assertThat(response.getStatus()).isEqualTo(403);
+        assertThat(response.getContentAsString()).contains("SUPER_ADMIN_PLATFORM_ONLY");
+        verifyNoInteractions(companyService);
+        verify(tenantRuntimeEnforcementService, never())
+                .beginRequest(anyString(), anyString(), anyString(), anyString(), anyBoolean());
+        verify(filterChain, never()).doFilter(request, response);
+    }
+
+    @Test
     void adminSettingsRequest_keepsPlatformControlPlaneAccessForSuperAdmin()
             throws ServletException, IOException {
         authenticate("root-superadmin@bbp.com", Set.of("ROLE_SUPER_ADMIN"), Set.of("TENANT-A"));
@@ -471,6 +507,35 @@ class CompanyContextFilterControlPlaneBindingTest {
         verify(tenantRuntimeEnforcementService).beginRequest(
                 "TENANT-A",
                 "/api/v1/admin/roles",
+                "GET",
+                "root-superadmin@bbp.com",
+                false);
+        verify(filterChain).doFilter(request, response);
+    }
+
+    @Test
+    void orchestratorHealthRequest_keepsPlatformControlPlaneAccessForSuperAdmin()
+            throws ServletException, IOException {
+        authenticate("root-superadmin@bbp.com", Set.of("ROLE_SUPER_ADMIN"), Set.of("TENANT-A"));
+        when(companyService.resolveLifecycleStateByCode("TENANT-A")).thenReturn(CompanyLifecycleState.ACTIVE);
+        when(tenantRuntimeEnforcementService.beginRequest(
+                eq("TENANT-A"),
+                eq("/api/v1/orchestrator/health/events"),
+                eq("GET"),
+                eq("root-superadmin@bbp.com"),
+                eq(false))).thenReturn(admission(true, 200, "allowed"));
+
+        MockHttpServletRequest request = request("GET", "/api/v1/orchestrator/health/events");
+        request.setAttribute("jwtClaims", claimsFor("TENANT-A"));
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, filterChain);
+
+        assertThat(response.getStatus()).isEqualTo(200);
+        verify(companyService).resolveLifecycleStateByCode("TENANT-A");
+        verify(tenantRuntimeEnforcementService).beginRequest(
+                "TENANT-A",
+                "/api/v1/orchestrator/health/events",
                 "GET",
                 "root-superadmin@bbp.com",
                 false);
