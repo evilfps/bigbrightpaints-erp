@@ -222,6 +222,55 @@ class SuperAdminTenantWorkflowIsolationIT extends AbstractIntegrationTest {
     }
 
     @Test
+    void superAdmin_cannotExecuteTenantRawMaterialIntakeWorkflow() {
+        ResponseEntity<Map> response = rest.exchange(
+                "/api/v1/raw-materials/intake",
+                HttpMethod.POST,
+                new HttpEntity<>(Map.of(
+                        "rawMaterialId", 999999,
+                        "batchCode", "RM-SUPER-BLOCKED",
+                        "quantity", 5,
+                        "unit", "KG",
+                        "costPerUnit", 12.50,
+                        "supplierId", 999999,
+                        "notes", "platform-only-super-admin"
+                ), jsonHeaders()),
+                Map.class
+        );
+
+        assertPlatformOnlyForbidden(response);
+    }
+
+    @Test
+    void superAdmin_cannotExecuteTenantRawMaterialBatchWorkflow() {
+        HttpHeaders headers = jsonHeaders();
+        headers.set("Idempotency-Key", "super-admin-raw-material-batch");
+
+        ResponseEntity<Map> response = rest.exchange(
+                "/api/v1/raw-material-batches/999999",
+                HttpMethod.POST,
+                new HttpEntity<>(Map.of(
+                        "batchCode", "RM-BATCH-SUPER-BLOCKED",
+                        "quantity", 2,
+                        "unit", "KG",
+                        "costPerUnit", 11.75,
+                        "supplierId", 999999,
+                        "notes", "platform-only-super-admin"
+                ), headers),
+                Map.class
+        );
+
+        assertPlatformOnlyForbidden(response);
+    }
+
+    @Test
+    void superAdmin_cannotExecuteTenantMigrationImportWorkflow() {
+        ResponseEntity<Map> response = importTally(sampleTallyXml(), "super-admin-tally.xml", authHeaders());
+
+        assertPlatformOnlyForbidden(response);
+    }
+
+    @Test
     void superAdmin_keepsPlatformAdminSettingsAccess() {
         ResponseEntity<Map> response = rest.exchange(
                 "/api/v1/admin/settings",
@@ -268,5 +317,64 @@ class SuperAdminTenantWorkflowIsolationIT extends AbstractIntegrationTest {
         headers.setBearerAuth((String) login.getBody().get("accessToken"));
         headers.set("X-Company-Code", TENANT);
         return headers;
+    }
+
+    private ResponseEntity<Map> importTally(String xml, String fileName, HttpHeaders headers) {
+        org.springframework.util.MultiValueMap<String, Object> body = new org.springframework.util.LinkedMultiValueMap<>();
+        HttpHeaders fileHeaders = new HttpHeaders();
+        fileHeaders.setContentType(MediaType.parseMediaType("application/xml"));
+        body.add("file", new HttpEntity<>(xmlResource(fileName, xml), fileHeaders));
+
+        HttpHeaders requestHeaders = new HttpHeaders();
+        requestHeaders.putAll(headers);
+        requestHeaders.setContentType(MediaType.MULTIPART_FORM_DATA);
+
+        return rest.exchange(
+                "/api/v1/migration/tally-import",
+                HttpMethod.POST,
+                new HttpEntity<>(body, requestHeaders),
+                Map.class);
+    }
+
+    private org.springframework.core.io.ByteArrayResource xmlResource(String fileName, String xml) {
+        return new org.springframework.core.io.ByteArrayResource(xml.getBytes(java.nio.charset.StandardCharsets.UTF_8)) {
+            @Override
+            public String getFilename() {
+                return fileName;
+            }
+        };
+    }
+
+    private String sampleTallyXml() {
+        return """
+                <ENVELOPE>
+                  <BODY>
+                    <DATA>
+                      <TALLYMESSAGE>
+                        <LEDGER NAME=\"Customer A\">
+                          <PARENT>Sundry Debtors</PARENT>
+                        </LEDGER>
+                      </TALLYMESSAGE>
+                      <TALLYMESSAGE>
+                        <LEDGER NAME=\"Supplier B\">
+                          <PARENT>Sundry Creditors</PARENT>
+                        </LEDGER>
+                      </TALLYMESSAGE>
+                      <TALLYMESSAGE>
+                        <VOUCHER VCHTYPE=\"Opening Balance\" VOUCHERTYPENAME=\"Opening Balance\">
+                          <ALLLEDGERENTRIES.LIST>
+                            <LEDGERNAME>Customer A</LEDGERNAME>
+                            <AMOUNT>1200.00</AMOUNT>
+                          </ALLLEDGERENTRIES.LIST>
+                          <ALLLEDGERENTRIES.LIST>
+                            <LEDGERNAME>Supplier B</LEDGERNAME>
+                            <AMOUNT>-1200.00</AMOUNT>
+                          </ALLLEDGERENTRIES.LIST>
+                        </VOUCHER>
+                      </TALLYMESSAGE>
+                    </DATA>
+                  </BODY>
+                </ENVELOPE>
+                """;
     }
 }
