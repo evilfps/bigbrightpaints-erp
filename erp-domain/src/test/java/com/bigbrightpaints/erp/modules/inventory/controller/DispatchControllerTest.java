@@ -1,6 +1,7 @@
 package com.bigbrightpaints.erp.modules.inventory.controller;
 
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
+import com.bigbrightpaints.erp.core.security.PortalRoleActionMatrix;
 import com.bigbrightpaints.erp.modules.inventory.dto.DispatchConfirmationRequest;
 import com.bigbrightpaints.erp.modules.inventory.dto.DispatchConfirmationResponse;
 import com.bigbrightpaints.erp.modules.inventory.dto.DispatchPreviewDto;
@@ -304,7 +305,7 @@ class DispatchControllerTest {
 
         assertThat(org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class,
                 () -> controller.confirmDispatch(request, () -> "factory.user")).getMessage())
-                .isEqualTo("Dispatch confirmation requires transporterName or driverName");
+                .isEqualTo(PortalRoleActionMatrix.transporterOrDriverRequiredMessage());
     }
 
     @Test
@@ -340,10 +341,10 @@ class DispatchControllerTest {
 
         assertThat(org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class,
                 () -> controller.confirmDispatch(missingVehicle, () -> "factory.user")).getMessage())
-                .isEqualTo("Dispatch confirmation requires vehicleNumber");
+                .isEqualTo(PortalRoleActionMatrix.vehicleNumberRequiredMessage());
         assertThat(org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class,
                 () -> controller.confirmDispatch(missingChallan, () -> "factory.user")).getMessage())
-                .isEqualTo("Dispatch confirmation requires challanReference");
+                .isEqualTo(PortalRoleActionMatrix.challanReferenceRequiredMessage());
     }
 
     @Test
@@ -881,7 +882,7 @@ class DispatchControllerTest {
 
         assertThatThrownBy(() -> controller.confirmDispatch(request, () -> "factory.user"))
                 .isInstanceOf(ApplicationException.class)
-                .hasMessage("Dispatch confirmation requires transporterName or driverName");
+                .hasMessage(PortalRoleActionMatrix.transporterOrDriverRequiredMessage());
 
         SecurityContextHolder.clearContext();
     }
@@ -908,7 +909,7 @@ class DispatchControllerTest {
 
         assertThatThrownBy(() -> controller.confirmDispatch(missingVehicle, () -> "factory.user"))
                 .isInstanceOf(ApplicationException.class)
-                .hasMessage("Dispatch confirmation requires vehicleNumber");
+                .hasMessage(PortalRoleActionMatrix.vehicleNumberRequiredMessage());
 
         DispatchConfirmationRequest missingChallan = new DispatchConfirmationRequest(
                 10L,
@@ -924,7 +925,7 @@ class DispatchControllerTest {
 
         assertThatThrownBy(() -> controller.confirmDispatch(missingChallan, () -> "factory.user"))
                 .isInstanceOf(ApplicationException.class)
-                .hasMessage("Dispatch confirmation requires challanReference");
+                .hasMessage(PortalRoleActionMatrix.challanReferenceRequiredMessage());
 
         SecurityContextHolder.clearContext();
     }

@@ -1,6 +1,7 @@
 package com.bigbrightpaints.erp.modules.inventory.controller;
 
 import com.bigbrightpaints.erp.core.security.PortalRoleActionMatrix;
+import com.bigbrightpaints.erp.core.validation.ValidationUtils;
 import com.bigbrightpaints.erp.shared.dto.ApiResponse;
 import com.bigbrightpaints.erp.modules.inventory.dto.*;
 import com.bigbrightpaints.erp.modules.inventory.service.DeliveryChallanPdfService;
@@ -192,16 +193,13 @@ public class DispatchController {
         boolean hasTransportActor = StringUtils.hasText(request.transporterName())
                 || StringUtils.hasText(request.driverName());
         if (!hasTransportActor) {
-            throw com.bigbrightpaints.erp.core.validation.ValidationUtils
-                    .invalidInput(PortalRoleActionMatrix.transporterOrDriverRequiredMessage());
+            throw ValidationUtils.invalidInput(PortalRoleActionMatrix.transporterOrDriverRequiredMessage());
         }
         if (!StringUtils.hasText(request.vehicleNumber())) {
-            throw com.bigbrightpaints.erp.core.validation.ValidationUtils
-                    .invalidInput(PortalRoleActionMatrix.vehicleNumberRequiredMessage());
+            throw ValidationUtils.invalidInput(PortalRoleActionMatrix.vehicleNumberRequiredMessage());
         }
         if (!StringUtils.hasText(request.challanReference())) {
-            throw com.bigbrightpaints.erp.core.validation.ValidationUtils
-                    .invalidInput(PortalRoleActionMatrix.challanReferenceRequiredMessage());
+            throw ValidationUtils.invalidInput(PortalRoleActionMatrix.challanReferenceRequiredMessage());
         }
     }
 
