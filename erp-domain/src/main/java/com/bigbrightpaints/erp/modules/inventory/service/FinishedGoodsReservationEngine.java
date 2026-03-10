@@ -156,15 +156,16 @@ public class FinishedGoodsReservationEngine {
             return true;
         }
 
-        Map<Long, InventoryReservation> reservationsByBatchId = new HashMap<>();
-        for (InventoryReservation reservation : activeReservations) {
+        Map<Long, List<InventoryReservation>> reservationsByBatchId = new HashMap<>();
+        for (InventoryReservation reservation : reservations) {
+            if (reservation == null || "CANCELLED".equalsIgnoreCase(reservation.getStatus())) {
+                continue;
+            }
             FinishedGoodBatch batch = reservation.getFinishedGoodBatch();
             if (batch == null || batch.getId() == null) {
                 return false;
             }
-            if (reservationsByBatchId.putIfAbsent(batch.getId(), reservation) != null) {
-                return false;
-            }
+            reservationsByBatchId.computeIfAbsent(batch.getId(), ignored -> new ArrayList<>()).add(reservation);
         }
 
         if (!reservationsByBatchId.keySet().equals(expectedByBatchId.keySet())) {
@@ -173,15 +174,25 @@ public class FinishedGoodsReservationEngine {
 
         Map<Long, FinishedGood> touchedGoods = new HashMap<>();
         Map<Long, FinishedGoodBatch> touchedBatches = new HashMap<>();
-        for (Map.Entry<Long, InventoryReservation> entry : reservationsByBatchId.entrySet()) {
+        for (Map.Entry<Long, List<InventoryReservation>> entry : reservationsByBatchId.entrySet()) {
             Long batchId = entry.getKey();
-            InventoryReservation reservation = entry.getValue();
+            List<InventoryReservation> batchReservations = entry.getValue();
             BigDecimal allocation = expectedByBatchId.get(batchId);
-            applySynchronizedAllocation(reservation, allocation, slip);
 
-            FinishedGood finishedGood = reservation.getFinishedGood();
-            if (finishedGood != null && finishedGood.getId() != null) {
-                touchedGoods.computeIfAbsent(finishedGood.getId(), id -> lockFinishedGood(slip.getCompany(), id));
+            List<InventoryReservation> activeForBatch = batchReservations.stream()
+                    .filter(this::isActiveReservation)
+                    .toList();
+            if (activeForBatch.size() == 1 && batchReservations.size() == 1) {
+                applySynchronizedAllocation(activeForBatch.getFirst(), allocation, slip);
+            } else if (!quantitiesMatch(batchReservations, allocation)) {
+                return false;
+            }
+
+            for (InventoryReservation reservation : batchReservations) {
+                FinishedGood finishedGood = reservation.getFinishedGood();
+                if (finishedGood != null && finishedGood.getId() != null) {
+                    touchedGoods.computeIfAbsent(finishedGood.getId(), id -> lockFinishedGood(slip.getCompany(), id));
+                }
             }
             touchedBatches.computeIfAbsent(batchId, id -> finishedGoodBatchRepository.lockById(id).orElseThrow(() ->
                     com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidState("Finished good batch not found: " + id)));
@@ -190,6 +201,14 @@ public class FinishedGoodsReservationEngine {
         inventoryReservationRepository.saveAll(activeReservations);
         recalculateReservationState(touchedGoods, touchedBatches);
         return true;
+    }
+
+    private boolean quantitiesMatch(List<InventoryReservation> reservations, BigDecimal expectedQuantity) {
+        BigDecimal actualQuantity = reservations.stream()
+                .map(InventoryReservation::getQuantity)
+                .map(inventoryValuationService::safeQuantity)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        return actualQuantity.compareTo(expectedQuantity) == 0;
     }
 
     private void applySynchronizedAllocation(InventoryReservation reservation,

@@ -3,13 +3,13 @@
 ## Scope
 - Feature: `recovery-followup.final-hardening-comment-recheck-and-closure`
 - Branch: `recovery/07-final-hardening`
-- High-risk paths touched: final-validation runtime reset guidance (`scripts/reset_final_validation_runtime.sh`), PR shard routing for the final-hardening coverage gate (`ci/pr_manifests/pr_accounting.txt`), the existing validation-seed / reservation replay surfaces plus their focused regression tests (`ValidationSeedDataInitializerTest`, `FinishedGoodsReservationEngineTest`, `FinishedGoodsServiceTest`), and this governance record.
-- Why this is R2: the packet closes the last PR #101 runtime/test blockers on auth/company/accounting-adjacent validation behavior, preserves caller-controlled seed credentials during local reset, and routes focused regression coverage so the changed-files gate exercises the final-hardening seed/runtime paths without widening runtime authority.
+- High-risk paths touched: the final-hardening reservation replay surface in `FinishedGoodsReservationEngine`, focused regression coverage in `FinishedGoodsReservationEngineTest`, the validating inventory/runtime regression suite that already protects `FinishedGoodsServiceTest` and `ValidationSeedDataInitializerTest`, and this governance record.
+- Why this is R2: the packet closes the last PR #101 runtime/test blocker on the live final-hardening stack by hardening reservation replay around valid repeated-batch shapes without widening tenant, auth, or dispatch authority, and keeps the earlier seed/runtime hardening evidence accurate for review.
 
 ## Risk Trigger
-- Triggered by edits under `scripts/reset_final_validation_runtime.sh`, `ci/pr_manifests/pr_accounting.txt`, and focused validation / inventory regression tests covering `ValidationSeedDataInitializer` plus `FinishedGoodsReservationEngine` replay paths.
-- Contract surfaces affected: explicit precedence for exported `ERP_VALIDATION_SEED_PASSWORD`, local reset/runtime determinism, PR-shard changed-files coverage for final-hardening runtime changes, and idempotent reservation replay after full dispatch.
-- Main risks being controlled: `.env` silently overriding an explicitly exported seed password during reset, false-negative post-reset login checks, and any coverage blind spot that would let validation-seed or reservation-replay regressions merge without the accounting PR shard exercising them.
+- Triggered by edits under `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/service/FinishedGoodsReservationEngine.java`, focused replay coverage in `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/inventory/service/FinishedGoodsReservationEngineTest.java`, and this checkpoint refresh.
+- Contract surfaces affected: reservation replay for sales-order packaging slips whose valid active reservation set contains multiple rows for the same finished-good batch, plus the final-hardening regression suite that must keep the earlier seed/runtime safety work intact.
+- Main risks being controlled: valid repeated-batch reservation shapes incorrectly falling back to release-and-rebuild replay, duplicate cancelled/recreated reservation rows after safe retries, and review drift where the active R2 evidence no longer matches the actual remaining PR #101 runtime bug.
 
 ## Approval Authority
 - Mode: orchestrator
@@ -18,17 +18,17 @@
 
 ## Escalation Decision
 - Human escalation required: no
-- Reason: the packet narrows validation/runtime risk, keeps seeding local-only and fail-fast, and does not grant new business or cross-tenant powers.
+- Reason: the packet narrows reservation replay risk, keeps the fix inside existing inventory/runtime behavior, and does not grant new business, accounting, or cross-tenant powers.
 
 ## Rollback Owner
 - Owner: final-hardening recovery worker
-- Rollback method: revert the feature commit, then rerun `MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='FinishedGoodsReservationEngineTest,ValidationSeedDataInitializerTest,FinishedGoodsServiceTest' test`, the local PR-style changed-files coverage reproduction against base `6c55ac82c66c7230733ff2f7958108b565dfc8d1`, `MIGRATION_SET=v2 mvn -T8 test -Pgate-fast -Djacoco.skip=true`, `bash ci/check-enterprise-policy.sh`, and `bash ci/check-codex-review-guidelines.sh` before re-review.
+- Rollback method: revert the feature commit, then rerun `MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='FinishedGoodsReservationEngineTest,FinishedGoodsServiceTest,ValidationSeedDataInitializerTest' test`, `MIGRATION_SET=v2 mvn -T8 test -Pgate-fast -Djacoco.skip=true`, `bash ci/check-enterprise-policy.sh`, and `gh pr checks 101 --repo anasibnanwar-XYE/bigbrightpaints-erp || true` before re-review.
 
 ## Expiry
 - Valid until: 2026-03-14
-- Re-evaluate if: later packets widen validation seeding beyond local/mock-only use, add new auth/accounting runtime defaults, or broaden dispatch/accounting authority contracts.
+- Re-evaluate if: later packets broaden reservation replay semantics again, widen final-validation runtime/auth scope beyond the already-approved hardening, or introduce new accounting/dispatch authority changes on this stack.
 
 ## Verification Evidence
-- Verification bundle: compile, focused validation/inventory regressions, PR-style accounting/persistence-smoke coverage reproduction, gate-fast, enterprise-policy, codex-review-guidelines, reset-harness precedence verification, and PR check readback were rerun for this final-hardening packet.
-- Result summary: the narrowed shell fix now snapshots export state before initializing `ERP_VALIDATION_SEED_PASSWORD`, so an explicitly exported value still wins even when `.env` defines a conflicting deterministic password; the added critical-path validation/inventory tests plus accounting-manifest routing drive the local PR-style changed-files coverage reproduction green against the live PR base (`line_ratio=0.9677`, `branch_ratio=0.9167`); targeted tests, compile, and full `gate-fast` stayed green; and the remote `gh pr checks` output remains red only because GitHub has not rerun against this unpushed local head yet.
-- Artifacts/links: `scripts/reset_final_validation_runtime.sh`, `ci/pr_manifests/pr_accounting.txt`, `erp-domain/src/main/java/com/bigbrightpaints/erp/core/config/ValidationSeedDataInitializer.java`, `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/service/FinishedGoodsReservationEngine.java`, `erp-domain/src/test/java/com/bigbrightpaints/erp/core/config/ValidationSeedDataInitializerTest.java`, `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/inventory/service/FinishedGoodsReservationEngineTest.java`, `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/inventory/service/FinishedGoodsServiceTest.java`.
+- Verification bundle: focused reservation replay regressions, the packet-requested targeted inventory/validation suite, the full fast gate, enterprise-policy, and PR check readback were rerun for this final-hardening packet.
+- Result summary: `FinishedGoodsReservationEngine` now accepts valid repeated-batch reservation sets during replay as long as the non-cancelled batch-level allocation still matches the packaging slip, so retries no longer cancel and rebuild perfectly valid active rows just because two reservations point at the same batch. The new focused regression reproduced that exact repeated-batch shape, failed before the fix with four reservation rows after replay, and now passes while the broader `FinishedGoodsServiceTest`, `ValidationSeedDataInitializerTest`, and full `gate-fast` suite remain green; the remote `gh pr checks` output still reflects the last pushed head and has not yet rerun on this local packet.
+- Artifacts/links: `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/service/FinishedGoodsReservationEngine.java`, `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/inventory/service/FinishedGoodsReservationEngineTest.java`, `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/inventory/service/FinishedGoodsServiceTest.java`, `erp-domain/src/test/java/com/bigbrightpaints/erp/core/config/ValidationSeedDataInitializerTest.java`.

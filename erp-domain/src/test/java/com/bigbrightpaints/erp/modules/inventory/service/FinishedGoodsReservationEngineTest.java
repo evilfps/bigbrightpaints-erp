@@ -149,6 +149,39 @@ class FinishedGoodsReservationEngineTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void reserveForOrderReplay_reusesActiveRepeatedBatchReservations() {
+        Company company = seedCompany("RES-REPLAY-DUP-BATCH");
+        FinishedGood finishedGood = createFinishedGood(company, "FG-RES-REPLAY-DUP-BATCH", new BigDecimal("10"), BigDecimal.ZERO);
+        FinishedGoodBatch batch = createBatch(
+                finishedGood,
+                "BATCH-RES-REPLAY-DUP-BATCH",
+                new BigDecimal("10"),
+                new BigDecimal("10"),
+                new BigDecimal("11"));
+        SalesOrder order = createOrder(company, "SO-RES-REPLAY-DUP-BATCH-" + UUID.randomUUID(), finishedGood.getProductCode(), new BigDecimal("5"));
+        createSlip(company, order, "RESERVED", batch, new BigDecimal("2"), new BigDecimal("3"));
+        InventoryReservation firstReservation = createReservation(order, finishedGood, batch, new BigDecimal("2"));
+        InventoryReservation secondReservation = createReservation(order, finishedGood, batch, new BigDecimal("3"));
+
+        FinishedGoodsService.InventoryReservationResult replay = finishedGoodsService.reserveForOrder(order);
+
+        List<InventoryReservation> reservations = reservationsFor(company, order.getId());
+        assertThat(replay.shortages()).isEmpty();
+        assertThat(reservations).hasSize(2);
+        assertThat(reservations)
+                .extracting(InventoryReservation::getId)
+                .containsExactly(firstReservation.getId(), secondReservation.getId());
+        assertThat(reservations)
+                .extracting(InventoryReservation::getStatus)
+                .containsOnly("RESERVED");
+        assertThat(reservations)
+                .extracting(InventoryReservation::getQuantity)
+                .containsExactly(new BigDecimal("2"), new BigDecimal("3"));
+        assertThat(finishedGoodRepository.findById(finishedGood.getId()).orElseThrow().getReservedStock())
+                .isEqualByComparingTo(new BigDecimal("5"));
+    }
+
+    @Test
     void synchronizeReservationsForSlip_returnsFalseWhenSlipHasNoLines() {
         PackagingSlip slip = new PackagingSlip();
 
@@ -329,6 +362,14 @@ class FinishedGoodsReservationEngineTest extends AbstractIntegrationTest {
                                      String status,
                                      FinishedGoodBatch batch,
                                      BigDecimal quantity) {
+        return createSlip(company, order, status, batch, new BigDecimal[] {quantity});
+    }
+
+    private PackagingSlip createSlip(Company company,
+                                     SalesOrder order,
+                                     String status,
+                                     FinishedGoodBatch batch,
+                                     BigDecimal... quantities) {
         PackagingSlip slip = new PackagingSlip();
         slip.setCompany(company);
         slip.setSalesOrder(order);
@@ -336,13 +377,15 @@ class FinishedGoodsReservationEngineTest extends AbstractIntegrationTest {
         slip.setStatus(status);
         slip.setBackorder("BACKORDER".equalsIgnoreCase(status));
 
-        PackagingSlipLine line = new PackagingSlipLine();
-        line.setPackagingSlip(slip);
-        line.setFinishedGoodBatch(batch);
-        line.setOrderedQuantity(quantity);
-        line.setQuantity(quantity);
-        line.setUnitCost(batch.getUnitCost());
-        slip.getLines().add(line);
+        for (BigDecimal quantity : quantities) {
+            PackagingSlipLine line = new PackagingSlipLine();
+            line.setPackagingSlip(slip);
+            line.setFinishedGoodBatch(batch);
+            line.setOrderedQuantity(quantity);
+            line.setQuantity(quantity);
+            line.setUnitCost(batch.getUnitCost());
+            slip.getLines().add(line);
+        }
         return packagingSlipRepository.saveAndFlush(slip);
     }
 
