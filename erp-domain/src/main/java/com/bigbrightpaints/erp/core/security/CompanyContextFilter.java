@@ -62,6 +62,7 @@ public class CompanyContextFilter extends OncePerRequestFilter {
             "/api/v1/raw-materials",
             "/api/v1/raw-material-batches",
             "/api/v1/migration",
+            "/api/v1/orchestrator",
             "/api/v1/dispatch");
     private static final Set<String> SUPER_ADMIN_TENANT_ADMIN_WORKFLOW_PREFIXES = Set.of(
             "/api/v1/admin/approvals",
@@ -304,12 +305,20 @@ public class CompanyContextFilter extends OncePerRequestFilter {
         boolean matchesBusinessPrefix = SUPER_ADMIN_TENANT_BUSINESS_PREFIXES.stream()
                 .anyMatch(prefix -> normalizedPath.equals(prefix) || normalizedPath.startsWith(prefix + "/"));
         if (matchesBusinessPrefix) {
+            if (normalizedPath.equals("/api/v1/orchestrator") || normalizedPath.startsWith("/api/v1/orchestrator/")) {
+                return !isSuperAdminAllowedOrchestratorControlPath(normalizedPath);
+            }
             return true;
         }
         if (normalizedPath.equals("/api/v1/accounting") || normalizedPath.startsWith("/api/v1/accounting/")) {
             return !isSuperAdminAllowedAccountingControlPath(normalizedPath);
         }
         return false;
+    }
+
+    private boolean isSuperAdminAllowedOrchestratorControlPath(String normalizedPath) {
+        return normalizedPath.equals("/api/v1/orchestrator/health")
+                || normalizedPath.startsWith("/api/v1/orchestrator/health/");
     }
 
     private boolean isSuperAdminAllowedAccountingControlPath(String normalizedPath) {

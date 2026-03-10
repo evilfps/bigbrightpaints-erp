@@ -3,6 +3,7 @@ package com.bigbrightpaints.erp.modules.auth;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bigbrightpaints.erp.test.AbstractIntegrationTest;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
@@ -25,10 +26,14 @@ class SuperAdminTenantWorkflowIsolationIT extends AbstractIntegrationTest {
     @Autowired
     private TestRestTemplate rest;
 
+    private Long seededOrderId;
+
     @BeforeEach
     void setup() {
         dataSeeder.ensureUser(SUPER_ADMIN_EMAIL, PASSWORD, "Workflow Super Admin", TENANT,
                 List.of("ROLE_SUPER_ADMIN"));
+        seededOrderId = dataSeeder.ensureSalesOrder(TENANT, "SO-SUPERADMIN-ORCH-" + System.nanoTime(),
+                new BigDecimal("1250.00")).getId();
     }
 
     @Test
@@ -81,6 +86,57 @@ class SuperAdminTenantWorkflowIsolationIT extends AbstractIntegrationTest {
         assertThat(data.get("reason")).isEqualTo("SUPER_ADMIN_PLATFORM_ONLY");
         assertThat(data.get("reasonDetail"))
                 .isEqualTo("Super Admin is limited to platform control-plane operations and cannot execute tenant business workflows");
+    }
+
+    @Test
+    void superAdmin_cannotApproveTenantOrchestratorOrderWorkflow() {
+        HttpHeaders headers = jsonHeaders();
+        headers.set("Idempotency-Key", "super-admin-orchestrator-approve");
+
+        ResponseEntity<Map> response = rest.exchange(
+                "/api/v1/orchestrator/orders/" + seededOrderId + "/approve",
+                HttpMethod.POST,
+                new HttpEntity<>(Map.of(
+                        "orderId", String.valueOf(seededOrderId),
+                        "approvedBy", SUPER_ADMIN_EMAIL,
+                        "totalAmount", 1250.00
+                ), headers),
+                Map.class
+        );
+
+        assertPlatformOnlyForbidden(response);
+    }
+
+    @Test
+    void superAdmin_cannotExecuteTenantOrchestratorFulfillmentWorkflow() {
+        HttpHeaders headers = jsonHeaders();
+        headers.set("Idempotency-Key", "super-admin-orchestrator-fulfillment");
+
+        ResponseEntity<Map> response = rest.exchange(
+                "/api/v1/orchestrator/orders/" + seededOrderId + "/fulfillment",
+                HttpMethod.POST,
+                new HttpEntity<>(Map.of(
+                        "status", "PROCESSING",
+                        "notes", "platform-only-super-admin"
+                ), headers),
+                Map.class
+        );
+
+        assertPlatformOnlyForbidden(response);
+    }
+
+    @Test
+    void superAdmin_keepsPlatformOrchestratorHealthAccess() {
+        ResponseEntity<Map> response = rest.exchange(
+                "/api/v1/orchestrator/health/events",
+                HttpMethod.GET,
+                new HttpEntity<>(authHeaders()),
+                Map.class
+        );
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody()).containsKeys("pendingEvents", "publishingEvents", "deadLetters");
     }
 
     @Test

@@ -31,6 +31,8 @@ public class OrchestratorControllerIT extends AbstractIntegrationTest {
     private static final String COMPANY_CODE = "ACME";
     private static final String ORCH_EMAIL = "orch@bbp.com";
     private static final String ORCH_PASSWORD = "orch123";
+    private static final String SUPER_ADMIN_EMAIL = "orch-superadmin@bbp.com";
+    private static final String SUPER_ADMIN_PASSWORD = "orch-superadmin";
 
     @Autowired
     private TestRestTemplate rest;
@@ -57,6 +59,13 @@ public class OrchestratorControllerIT extends AbstractIntegrationTest {
                 "Orchestrator",
                 COMPANY_CODE,
                 List.of("ROLE_SALES", "orders.approve", "ROLE_FACTORY", "factory.dispatch", "ROLE_ACCOUNTING", "payroll.run")
+        );
+        dataSeeder.ensureUser(
+                SUPER_ADMIN_EMAIL,
+                SUPER_ADMIN_PASSWORD,
+                "Orchestrator Super Admin",
+                COMPANY_CODE,
+                List.of("ROLE_SUPER_ADMIN")
         );
         SalesOrder order = dataSeeder.ensureSalesOrder(COMPANY_CODE, "SO-" + System.nanoTime(), new BigDecimal("5000"));
         seededOrderId = order.getId();
@@ -629,13 +638,77 @@ public class OrchestratorControllerIT extends AbstractIntegrationTest {
         assertThat(approveResponse.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
     }
 
-    private String loginToken() {
-        Map<String, Object> req = Map.of(
-                "email", ORCH_EMAIL,
-                "password", ORCH_PASSWORD,
-                "companyCode", COMPANY_CODE
+    @Test
+    void superAdmin_tenant_context_cannot_approve_order_workflow() {
+        String token = loginToken(SUPER_ADMIN_EMAIL, SUPER_ADMIN_PASSWORD, COMPANY_CODE);
+        HttpHeaders headers = authHeaders(token);
+        headers.add("Idempotency-Key", UUID.randomUUID().toString());
+
+        Map<String, Object> body = Map.of(
+                "orderId", String.valueOf(seededOrderId),
+                "approvedBy", SUPER_ADMIN_EMAIL,
+                "totalAmount", new BigDecimal("5000")
         );
-        return (String) rest.postForEntity("/api/v1/auth/login", req, Map.class).getBody().get("accessToken");
+
+        ResponseEntity<Map> response = rest.exchange(
+                "/api/v1/orchestrator/orders/" + seededOrderId + "/approve",
+                HttpMethod.POST,
+                new HttpEntity<>(body, headers),
+                Map.class);
+
+        assertPlatformOnlyForbidden(response);
+    }
+
+    @Test
+    void superAdmin_tenant_context_cannot_execute_fulfillment_workflow() {
+        String token = loginToken(SUPER_ADMIN_EMAIL, SUPER_ADMIN_PASSWORD, COMPANY_CODE);
+        HttpHeaders headers = authHeaders(token);
+        headers.add("Idempotency-Key", UUID.randomUUID().toString());
+
+        Map<String, Object> body = Map.of(
+                "status", "PROCESSING",
+                "notes", "platform-only-super-admin"
+        );
+
+        ResponseEntity<Map> response = rest.exchange(
+                "/api/v1/orchestrator/orders/" + seededOrderId + "/fulfillment",
+                HttpMethod.POST,
+                new HttpEntity<>(body, headers),
+                Map.class);
+
+        assertPlatformOnlyForbidden(response);
+    }
+
+    @Test
+    void superAdmin_tenant_context_keeps_orchestrator_health_access() {
+        String token = loginToken(SUPER_ADMIN_EMAIL, SUPER_ADMIN_PASSWORD, COMPANY_CODE);
+
+        ResponseEntity<Map> response = rest.exchange(
+                "/api/v1/orchestrator/health/events",
+                HttpMethod.GET,
+                new HttpEntity<>(authHeaders(token)),
+                Map.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody()).containsKeys("pendingEvents", "publishingEvents", "deadLetters");
+    }
+
+    private String loginToken() {
+        return loginToken(ORCH_EMAIL, ORCH_PASSWORD, COMPANY_CODE);
+    }
+
+    @SuppressWarnings("unchecked")
+    private String loginToken(String email, String password, String companyCode) {
+        Map<String, Object> req = Map.of(
+                "email", email,
+                "password", password,
+                "companyCode", companyCode
+        );
+        ResponseEntity<Map> response = rest.postForEntity("/api/v1/auth/login", req, Map.class);
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isNotNull();
+        return (String) response.getBody().get("accessToken");
     }
 
     private HttpHeaders authHeaders(String token) {
@@ -644,5 +717,19 @@ public class OrchestratorControllerIT extends AbstractIntegrationTest {
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.add("X-Company-Code", COMPANY_CODE);
         return headers;
+    }
+
+    @SuppressWarnings("unchecked")
+    private void assertPlatformOnlyForbidden(ResponseEntity<Map> response) {
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().get("message")).isEqualTo("Access denied");
+        Object payload = response.getBody().get("data");
+        assertThat(payload).isInstanceOf(Map.class);
+        Map<String, Object> data = (Map<String, Object>) payload;
+        assertThat(data.get("message")).isEqualTo("Access denied");
+        assertThat(data.get("reason")).isEqualTo("SUPER_ADMIN_PLATFORM_ONLY");
+        assertThat(data.get("reasonDetail"))
+                .isEqualTo("Super Admin is limited to platform control-plane operations and cannot execute tenant business workflows");
     }
 }
