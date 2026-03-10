@@ -135,6 +135,14 @@ class ReferenceNumberServiceTest {
     }
 
     @Test
+    void purchaseReturnPreviewReference_defaultsMissingParticipants() {
+        String preview = referenceNumberService.purchaseReturnPreviewReference(null, null);
+
+        assertTrue(preview.startsWith("PRN-PREVIEW-GEN-GEN-"));
+        assertTrue(preview.length() <= 64);
+    }
+
+    @Test
     void purchaseReferenceIsBoundedForLongInvoiceNumbers() {
         Company company = new Company();
         company.setCode("CRIT-AXES");

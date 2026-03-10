@@ -629,6 +629,19 @@ class AccountingPeriodServicePolicyTest {
     }
 
     @Test
+    void lockOrCreatePeriod_usesCurrentDateAndReturnsExistingLockedPeriod() {
+        Company company = company(1L, "POLICY");
+        AccountingPeriod period = openPeriod(company, 2026, 3);
+        period.setStatus(AccountingPeriodStatus.LOCKED);
+        when(companyClock.today(company)).thenReturn(LocalDate.of(2026, 3, 21));
+        when(accountingPeriodRepository.lockByCompanyAndYearAndMonth(company, 2026, 3)).thenReturn(Optional.of(period));
+
+        AccountingPeriod resolved = ReflectionTestUtils.invokeMethod(coreService, "lockOrCreatePeriod", company, null);
+
+        assertThat(resolved).isSameAs(period);
+    }
+
+    @Test
     void confirmBankReconciliation_rejectsChecklistMutationOnClosedPeriod() {
         Company company = company(1L, "POLICY");
         AccountingPeriod period = openPeriod(company, 2026, 2);
@@ -788,6 +801,68 @@ class AccountingPeriodServicePolicyTest {
 
         assertThat((Boolean) ReflectionTestUtils.invokeMethod(coreService, "isMissingCorrectionLinkage", reversal))
                 .isFalse();
+    }
+
+    @Test
+    void isLegacyReturnJournalWithoutCorrectionMetadata_requiresDealerForSalesReturnPrefix() {
+        JournalEntry legacySalesReturn = new JournalEntry();
+        legacySalesReturn.setReferenceNumber("CRN-INV-100");
+
+        assertThat((Boolean) ReflectionTestUtils.invokeMethod(
+                coreService,
+                "isLegacyReturnJournalWithoutCorrectionMetadata",
+                legacySalesReturn)).isFalse();
+
+        legacySalesReturn.setDealer(dealer(company(1L, "POLICY"), 10L, "Legacy Dealer"));
+
+        assertThat((Boolean) ReflectionTestUtils.invokeMethod(
+                coreService,
+                "isLegacyReturnJournalWithoutCorrectionMetadata",
+                legacySalesReturn)).isTrue();
+    }
+
+    @Test
+    void isLegacyReturnJournalWithoutCorrectionMetadata_rejectsBlankAndNonReturnReferences() {
+        JournalEntry blankReference = new JournalEntry();
+        blankReference.setReferenceNumber("   ");
+
+        JournalEntry debitNote = new JournalEntry();
+        debitNote.setReferenceNumber("DN-2026-0001");
+
+        assertThat((Boolean) ReflectionTestUtils.invokeMethod(
+                coreService,
+                "isLegacyReturnJournalWithoutCorrectionMetadata",
+                blankReference)).isFalse();
+        assertThat((Boolean) ReflectionTestUtils.invokeMethod(
+                coreService,
+                "isLegacyReturnJournalWithoutCorrectionMetadata",
+                debitNote)).isFalse();
+    }
+
+    @Test
+    void isLegacyReturnJournalWithoutCorrectionMetadata_rejectsEntriesWithCorrectionMetadata() {
+        JournalEntry legacySalesReturn = new JournalEntry();
+        legacySalesReturn.setReferenceNumber("CRN-INV-100");
+        legacySalesReturn.setDealer(dealer(company(1L, "POLICY"), 10L, "Legacy Dealer"));
+        legacySalesReturn.setCorrectionReason("SALES_RETURN");
+
+        assertThat((Boolean) ReflectionTestUtils.invokeMethod(
+                coreService,
+                "isLegacyReturnJournalWithoutCorrectionMetadata",
+                legacySalesReturn)).isFalse();
+    }
+
+    @Test
+    void isMissingCorrectionLinkage_flagsMissingSourceModuleWhenOnlySourceReferenceExists() {
+        JournalEntry missingSourceModule = new JournalEntry();
+        missingSourceModule.setCorrectionType(JournalCorrectionType.REVERSAL);
+        missingSourceModule.setCorrectionReason("SALES_RETURN");
+        missingSourceModule.setSourceReference("INV-101");
+
+        assertThat((Boolean) ReflectionTestUtils.invokeMethod(
+                coreService,
+                "isMissingCorrectionLinkage",
+                missingSourceModule)).isTrue();
     }
 
     private Company company(Long id, String code) {
