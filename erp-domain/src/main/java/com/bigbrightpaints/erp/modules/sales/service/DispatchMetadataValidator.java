@@ -2,6 +2,7 @@ package com.bigbrightpaints.erp.modules.sales.service;
 
 import com.bigbrightpaints.erp.core.validation.ValidationUtils;
 import com.bigbrightpaints.erp.modules.sales.dto.DispatchConfirmRequest;
+import java.util.function.BooleanSupplier;
 import org.springframework.util.StringUtils;
 
 public final class DispatchMetadataValidator {
@@ -15,6 +16,10 @@ public final class DispatchMetadataValidator {
         return hasTransportActor
                 && StringUtils.hasText(request.vehicleNumber())
                 && StringUtils.hasText(request.challanReference());
+    }
+
+    public static boolean shouldEnforceValidation(DispatchConfirmRequest request, BooleanSupplier dispatchedSlipReplaySupplier) {
+        return hasRequiredMetadata(request) || !dispatchedSlipReplaySupplier.getAsBoolean();
     }
 
     public static void validate(DispatchConfirmRequest request) {

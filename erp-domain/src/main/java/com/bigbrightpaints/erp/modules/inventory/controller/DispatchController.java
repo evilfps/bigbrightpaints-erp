@@ -163,7 +163,7 @@ public class DispatchController {
     }
 
     private boolean shouldEnforceDispatchMetadata(DispatchConfirmRequest request, Long packagingSlipId) {
-        return DispatchMetadataValidator.hasRequiredMetadata(request) || !isDispatchedSlipReplay(packagingSlipId);
+        return DispatchMetadataValidator.shouldEnforceValidation(request, () -> isDispatchedSlipReplay(packagingSlipId));
     }
 
     private boolean isDispatchedSlipReplay(Long packagingSlipId) {
