@@ -345,13 +345,17 @@ public class InvoiceService {
         if (slip == null || invoice == null) {
             return false;
         }
-        boolean hasExplicitInvoiceLinks = candidateSlips != null && candidateSlips.stream().anyMatch(candidate -> candidate != null && candidate.getInvoiceId() != null);
-        if (!hasExplicitInvoiceLinks) {
-            return true;
+        boolean hasExplicitInvoiceLinks = candidateSlips != null
+                && candidateSlips.stream().anyMatch(candidate -> candidate != null && candidate.getInvoiceId() != null);
+        if (hasExplicitInvoiceLinks) {
+            return slip.getInvoiceId() != null
+                    && invoice.getId() != null
+                    && slip.getInvoiceId().equals(invoice.getId());
         }
-        return slip.getInvoiceId() != null
-                && invoice.getId() != null
-                && slip.getInvoiceId().equals(invoice.getId());
+        long candidateCount = candidateSlips == null
+                ? 0
+                : candidateSlips.stream().filter(Objects::nonNull).count();
+        return candidateCount == 1;
     }
 
     private record LinkedReferenceContext(Map<Long, List<PackagingSlip>> packagingSlipsBySalesOrderId, Map<Long, List<PartnerSettlementAllocation>> settlementAllocationsByInvoiceId) {

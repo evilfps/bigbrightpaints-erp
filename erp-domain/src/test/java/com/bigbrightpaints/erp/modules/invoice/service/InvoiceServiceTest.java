@@ -675,6 +675,79 @@ class InvoiceServiceTest {
     }
 
     @Test
+    void getInvoice_omitsDispatchReferencesWhenLegacySlipLinkageIsAmbiguous() {
+        when(companyContextService.requireCurrentCompany()).thenReturn(company);
+
+        SalesOrder order = new SalesOrder();
+        ReflectionTestUtils.setField(order, "id", 1801L);
+        order.setCompany(company);
+        order.setOrderNumber("SO-1801");
+
+        Invoice invoice = new Invoice();
+        ReflectionTestUtils.setField(invoice, "id", 1802L);
+        invoice.setCompany(company);
+        invoice.setSalesOrder(order);
+        invoice.setInvoiceNumber("INV-1802");
+        invoice.setStatus("ISSUED");
+
+        PackagingSlip firstLegacySlip = new PackagingSlip();
+        ReflectionTestUtils.setField(firstLegacySlip, "id", 1803L);
+        firstLegacySlip.setSalesOrder(order);
+        firstLegacySlip.setSlipNumber("PS-1803");
+        firstLegacySlip.setStatus("DISPATCHED");
+
+        PackagingSlip secondLegacySlip = new PackagingSlip();
+        ReflectionTestUtils.setField(secondLegacySlip, "id", 1804L);
+        secondLegacySlip.setSalesOrder(order);
+        secondLegacySlip.setSlipNumber("PS-1804");
+        secondLegacySlip.setStatus("DISPATCHED");
+
+        when(invoiceRepository.findByCompanyAndId(company, 1802L)).thenReturn(Optional.of(invoice));
+        when(packagingSlipRepository.findAllByCompanyAndSalesOrderIdIn(company, List.of(1801L)))
+                .thenReturn(List.of(firstLegacySlip, secondLegacySlip));
+        when(settlementAllocationRepository.findByCompanyAndInvoice_IdInOrderByCreatedAtDesc(company, List.of(1802L)))
+                .thenReturn(List.of());
+
+        assertThat(invoiceService.getInvoice(1802L).linkedReferences())
+                .filteredOn(reference -> "DISPATCH".equals(reference.relationType()))
+                .isEmpty();
+    }
+
+    @Test
+    void getInvoice_keepsSingleLegacyDispatchReferenceWhenLinkageIsUnambiguous() {
+        when(companyContextService.requireCurrentCompany()).thenReturn(company);
+
+        SalesOrder order = new SalesOrder();
+        ReflectionTestUtils.setField(order, "id", 1811L);
+        order.setCompany(company);
+        order.setOrderNumber("SO-1811");
+
+        Invoice invoice = new Invoice();
+        ReflectionTestUtils.setField(invoice, "id", 1812L);
+        invoice.setCompany(company);
+        invoice.setSalesOrder(order);
+        invoice.setInvoiceNumber("INV-1812");
+        invoice.setStatus("ISSUED");
+
+        PackagingSlip legacySlip = new PackagingSlip();
+        ReflectionTestUtils.setField(legacySlip, "id", 1813L);
+        legacySlip.setSalesOrder(order);
+        legacySlip.setSlipNumber("PS-1813");
+        legacySlip.setStatus("DISPATCHED");
+
+        when(invoiceRepository.findByCompanyAndId(company, 1812L)).thenReturn(Optional.of(invoice));
+        when(packagingSlipRepository.findAllByCompanyAndSalesOrderIdIn(company, List.of(1811L)))
+                .thenReturn(List.of(legacySlip));
+        when(settlementAllocationRepository.findByCompanyAndInvoice_IdInOrderByCreatedAtDesc(company, List.of(1812L)))
+                .thenReturn(List.of());
+
+        assertThat(invoiceService.getInvoice(1812L).linkedReferences())
+                .filteredOn(reference -> "DISPATCH".equals(reference.relationType()))
+                .extracting(LinkedBusinessReferenceDto::documentNumber)
+                .containsExactly("PS-1813");
+    }
+
+    @Test
     void helperMethods_coverLockedOrderAndSlipFallbackBranches() {
         Long orderId = 990L;
         SalesOrder lockedOrder = new SalesOrder();
