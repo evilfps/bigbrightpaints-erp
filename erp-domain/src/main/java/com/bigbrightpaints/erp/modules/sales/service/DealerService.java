@@ -43,7 +43,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StringUtils;
-import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class DealerService {
@@ -478,8 +477,7 @@ public class DealerService {
 
     private Dealer requireDealerForRead(Company company, Long dealerId) {
         return dealerRepository.findByCompanyAndId(company, dealerId)
-                .orElseThrow(() -> new ResponseStatusException(org.springframework.http.HttpStatus.NOT_FOUND,
-                        "Dealer not found"));
+                .orElseThrow(() -> com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput("Dealer not found"));
     }
 
     private String normalizeOptionalToken(String value) {

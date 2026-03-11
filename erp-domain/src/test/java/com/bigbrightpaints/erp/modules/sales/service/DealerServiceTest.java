@@ -31,7 +31,6 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
-import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -286,9 +285,9 @@ class DealerServiceTest {
         when(dealerRepository.findByCompanyAndId(company, 404L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> dealerService.creditUtilization(404L))
-                .isInstanceOfSatisfying(ResponseStatusException.class, ex -> {
-                    assertThat(ex.getStatusCode().value()).isEqualTo(404);
-                    assertThat(ex.getReason()).isEqualTo("Dealer not found");
+                .isInstanceOfSatisfying(ApplicationException.class, ex -> {
+                    assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.VALIDATION_INVALID_INPUT);
+                    assertThat(ex.getMessage()).isEqualTo("Dealer not found");
                 });
     }
 
@@ -297,9 +296,9 @@ class DealerServiceTest {
         when(dealerRepository.findByCompanyAndId(company, 405L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> dealerService.agingSummary(405L))
-                .isInstanceOfSatisfying(ResponseStatusException.class, ex -> {
-                    assertThat(ex.getStatusCode().value()).isEqualTo(404);
-                    assertThat(ex.getReason()).isEqualTo("Dealer not found");
+                .isInstanceOfSatisfying(ApplicationException.class, ex -> {
+                    assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.VALIDATION_INVALID_INPUT);
+                    assertThat(ex.getMessage()).isEqualTo("Dealer not found");
                 });
     }
 
@@ -308,9 +307,9 @@ class DealerServiceTest {
         when(dealerRepository.findByCompanyAndId(company, 406L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> dealerService.ledgerView(406L))
-                .isInstanceOfSatisfying(ResponseStatusException.class, ex -> {
-                    assertThat(ex.getStatusCode().value()).isEqualTo(404);
-                    assertThat(ex.getReason()).isEqualTo("Dealer not found");
+                .isInstanceOfSatisfying(ApplicationException.class, ex -> {
+                    assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.VALIDATION_INVALID_INPUT);
+                    assertThat(ex.getMessage()).isEqualTo("Dealer not found");
                 });
     }
 
