@@ -317,6 +317,89 @@ class SalesReturnServiceTest {
     }
 
     @Test
+    void previewReturn_includesLegacyInvoiceScopedReturnsInLineBalances() {
+        Dealer dealer = new Dealer();
+        dealer.setCompany(company);
+        Account receivable = new Account();
+        setField(receivable, "id", 73L);
+        dealer.setReceivableAccount(receivable);
+        setField(dealer, "id", 10L);
+
+        SalesOrder salesOrder = new SalesOrder();
+        setField(salesOrder, "id", 99L);
+
+        Invoice invoice = new Invoice();
+        invoice.setCompany(company);
+        invoice.setDealer(dealer);
+        invoice.setSalesOrder(salesOrder);
+        invoice.setInvoiceNumber("INV-LEGACY-PREVIEW");
+        attachPostedJournal(invoice, 909L);
+        setField(invoice, "id", 112L);
+
+        InvoiceLine line = new InvoiceLine();
+        line.setInvoice(invoice);
+        line.setProductCode("FG-LEGACY");
+        line.setQuantity(new BigDecimal("2"));
+        line.setUnitPrice(new BigDecimal("100"));
+        line.setTaxableAmount(new BigDecimal("100"));
+        line.setTaxAmount(BigDecimal.ZERO);
+        line.setLineTotal(new BigDecimal("100"));
+        setField(line, "id", 113L);
+        invoice.getLines().add(line);
+
+        FinishedGood fg = new FinishedGood();
+        fg.setCompany(company);
+        fg.setProductCode("FG-LEGACY");
+        setField(fg, "id", 211L);
+
+        InventoryMovement dispatchMovement = new InventoryMovement();
+        dispatchMovement.setFinishedGood(fg);
+        dispatchMovement.setReferenceType(InventoryReference.SALES_ORDER);
+        dispatchMovement.setReferenceId("99");
+        dispatchMovement.setMovementType("DISPATCH");
+        dispatchMovement.setQuantity(new BigDecimal("2"));
+        dispatchMovement.setUnitCost(new BigDecimal("50"));
+
+        InventoryMovement legacyMovement = new InventoryMovement();
+        legacyMovement.setFinishedGood(fg);
+        legacyMovement.setReferenceType("SALES_RETURN");
+        legacyMovement.setReferenceId("INV-LEGACY-PREVIEW");
+        legacyMovement.setQuantity(BigDecimal.ONE);
+
+        when(invoiceRepository.lockByCompanyAndId(company, 112L)).thenReturn(Optional.of(invoice));
+        when(finishedGoodRepository.lockByCompanyAndProductCode(company, "FG-LEGACY")).thenReturn(Optional.of(fg));
+        when(inventoryMovementRepository.findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdOrderByCreatedAtAsc(
+                eq(company),
+                eq(InventoryReference.SALES_ORDER),
+                eq("99")
+        )).thenReturn(List.of(dispatchMovement));
+        when(inventoryMovementRepository.findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdOrderByCreatedAtAsc(
+                eq(company),
+                eq("SALES_RETURN"),
+                eq("INV-LEGACY-PREVIEW")
+        )).thenReturn(List.of(legacyMovement));
+        when(inventoryMovementRepository.findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdStartingWithOrderByCreatedAtAsc(
+                eq(company),
+                eq("SALES_RETURN"),
+                eq("INV-LEGACY-PREVIEW:")
+        )).thenReturn(List.of());
+
+        SalesReturnPreviewDto preview = salesReturnService.previewReturn(new SalesReturnRequest(
+                112L,
+                "Legacy preview",
+                List.of(new SalesReturnRequest.ReturnLine(113L, BigDecimal.ONE))
+        ));
+
+        assertThat(preview.totalReturnAmount()).isEqualByComparingTo("50.00");
+        assertThat(preview.totalInventoryValue()).isEqualByComparingTo("50.00");
+        assertThat(preview.lines()).singleElement().satisfies(linePreview -> {
+            assertThat(linePreview.alreadyReturnedQuantity()).isEqualByComparingTo("1.00");
+            assertThat(linePreview.remainingQuantityAfterReturn()).isEqualByComparingTo("0.00");
+            assertThat(linePreview.inventoryUnitCost()).isEqualByComparingTo("50.0000");
+        });
+    }
+
+    @Test
     void processReturn_rejectsDraftInvoiceMutationPath() {
         Dealer dealer = new Dealer();
         dealer.setCompany(company);
