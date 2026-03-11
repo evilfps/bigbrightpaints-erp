@@ -1335,6 +1335,44 @@ class SalesServiceTest {
     }
 
     @Test
+    void confirmDispatchRejectsNoSlipFallbackForDispatchedOrder() {
+        SalesOrder order = new SalesOrder();
+        setField(order, "id", 10L);
+        order.setCompany(company);
+        order.setStatus("DISPATCHED");
+
+        when(companyEntityLookup.requireSalesOrder(company, 10L)).thenReturn(order);
+        when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 10L)).thenReturn(List.of());
+
+        ApplicationException ex = assertThrows(ApplicationException.class,
+                () -> salesService.confirmDispatch(new DispatchConfirmRequest(null, 10L, List.of(), null, "admin", Boolean.FALSE, null, null)));
+
+        assertEquals(ErrorCode.BUSINESS_INVALID_STATE, ex.getErrorCode());
+        assertEquals("DISPATCHED", ex.getDetails().get("currentStatus"));
+        verify(finishedGoodsService, never()).reserveForOrder(any(SalesOrder.class));
+        verifyNoInteractions(dealerRepository);
+    }
+
+    @Test
+    void confirmDispatchRejectsNoSlipFallbackForDraftOrder() {
+        SalesOrder order = new SalesOrder();
+        setField(order, "id", 11L);
+        order.setCompany(company);
+        order.setStatus("DRAFT");
+
+        when(companyEntityLookup.requireSalesOrder(company, 11L)).thenReturn(order);
+        when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 11L)).thenReturn(List.of());
+
+        ApplicationException ex = assertThrows(ApplicationException.class,
+                () -> salesService.confirmDispatch(new DispatchConfirmRequest(null, 11L, List.of(), null, "admin", Boolean.FALSE, null, null)));
+
+        assertEquals(ErrorCode.BUSINESS_INVALID_STATE, ex.getErrorCode());
+        assertEquals("DRAFT", ex.getDetails().get("currentStatus"));
+        verify(finishedGoodsService, never()).reserveForOrder(any(SalesOrder.class));
+        verifyNoInteractions(dealerRepository);
+    }
+
+    @Test
     void confirmDispatchBlocksWhenCreditLimitExceededWithoutOverride() {
         Dealer dealer = dealerWithCreditLimit(42L, BigDecimal.valueOf(100));
         Account receivable = new Account();
