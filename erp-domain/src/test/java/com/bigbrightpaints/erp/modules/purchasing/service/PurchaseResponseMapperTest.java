@@ -101,7 +101,7 @@ class PurchaseResponseMapperTest {
         allocation.setJournalEntry(journalEntry(72L, "SET-72", "POSTED"));
         allocation.setIdempotencyKey("settlement-72");
 
-        when(settlementAllocationRepository.findByCompanyAndPurchaseOrderByCreatedAtDesc(company, purchase))
+        when(settlementAllocationRepository.findByCompanyAndPurchase_IdInOrderByCreatedAtDesc(company, List.of(61L)))
                 .thenReturn(List.of(allocation));
 
         RawMaterialPurchaseResponse response = mapper.toPurchaseResponse(purchase);
@@ -141,6 +141,46 @@ class PurchaseResponseMapperTest {
                 .containsExactlyInAnyOrder("PURCHASE_ORDER", "SELF");
         verify(purchaseRepository).findByCompanyAndGoodsReceipt_IdIn(company, List.of(401L, 402L));
         verify(purchaseRepository, never()).findByCompanyAndGoodsReceipt(any(), any());
+    }
+
+    @Test
+    void toPurchaseResponses_batchesSettlementLookup() {
+        RawMaterialPurchase firstPurchase = new RawMaterialPurchase();
+        ReflectionTestUtils.setField(firstPurchase, "id", 511L);
+        firstPurchase.setCompany(company);
+        firstPurchase.setSupplier(supplier);
+        firstPurchase.setInvoiceNumber("PINV-511");
+        firstPurchase.setStatus("POSTED");
+        firstPurchase.getLines().add(purchaseLine(firstPurchase));
+
+        RawMaterialPurchase secondPurchase = new RawMaterialPurchase();
+        ReflectionTestUtils.setField(secondPurchase, "id", 512L);
+        secondPurchase.setCompany(company);
+        secondPurchase.setSupplier(supplier);
+        secondPurchase.setInvoiceNumber("PINV-512");
+        secondPurchase.setStatus("POSTED");
+        secondPurchase.getLines().add(purchaseLine(secondPurchase));
+
+        PartnerSettlementAllocation allocation = new PartnerSettlementAllocation();
+        ReflectionTestUtils.setField(allocation, "id", 513L);
+        allocation.setCompany(company);
+        allocation.setPurchase(firstPurchase);
+        allocation.setIdempotencyKey("settlement-513");
+
+        when(settlementAllocationRepository.findByCompanyAndPurchase_IdInOrderByCreatedAtDesc(company, List.of(511L, 512L)))
+                .thenReturn(List.of(allocation));
+
+        List<RawMaterialPurchaseResponse> responses = mapper.toPurchaseResponses(List.of(firstPurchase, secondPurchase));
+
+        assertThat(responses).hasSize(2);
+        assertThat(responses.get(0).linkedReferences())
+                .extracting(LinkedBusinessReferenceDto::relationType)
+                .contains("SETTLEMENT", "SELF");
+        assertThat(responses.get(1).linkedReferences())
+                .extracting(LinkedBusinessReferenceDto::relationType)
+                .containsExactly("SELF");
+        verify(settlementAllocationRepository).findByCompanyAndPurchase_IdInOrderByCreatedAtDesc(company, List.of(511L, 512L));
+        verify(settlementAllocationRepository, never()).findByCompanyAndPurchaseOrderByCreatedAtDesc(any(), any());
     }
 
     @Test
@@ -254,7 +294,7 @@ class PurchaseResponseMapperTest {
         allocation.setPurchase(purchase);
         allocation.setIdempotencyKey("settlement-91");
 
-        when(settlementAllocationRepository.findByCompanyAndPurchaseOrderByCreatedAtDesc(company, purchase))
+        when(settlementAllocationRepository.findByCompanyAndPurchase_IdInOrderByCreatedAtDesc(company, List.of(81L)))
                 .thenReturn(List.of(allocation));
 
         RawMaterialPurchaseResponse response = mapper.toPurchaseResponse(purchase);
@@ -347,7 +387,7 @@ class PurchaseResponseMapperTest {
         purchase.setStatus("POSTED");
         purchase.getLines().add(purchaseLine(purchase));
 
-        when(settlementAllocationRepository.findByCompanyAndPurchaseOrderByCreatedAtDesc(company, purchase)).thenReturn(null);
+        when(settlementAllocationRepository.findByCompanyAndPurchase_IdInOrderByCreatedAtDesc(company, List.of(941L))).thenReturn(null);
 
         assertThat(mapper.toPurchaseResponse(purchase).linkedReferences())
                 .extracting(LinkedBusinessReferenceDto::relationType)

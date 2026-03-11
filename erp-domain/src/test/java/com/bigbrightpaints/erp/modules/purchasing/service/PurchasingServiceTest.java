@@ -36,6 +36,7 @@ import com.bigbrightpaints.erp.modules.purchasing.domain.Supplier;
 import com.bigbrightpaints.erp.modules.purchasing.dto.PurchaseReturnRequest;
 import com.bigbrightpaints.erp.modules.purchasing.dto.RawMaterialPurchaseLineRequest;
 import com.bigbrightpaints.erp.modules.purchasing.dto.RawMaterialPurchaseRequest;
+import com.bigbrightpaints.erp.modules.purchasing.dto.RawMaterialPurchaseResponse;
 import com.bigbrightpaints.erp.shared.dto.LinkedBusinessReferenceDto;
 import com.bigbrightpaints.erp.modules.accounting.service.ReferenceNumberService;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -233,12 +234,54 @@ class PurchasingServiceTest {
         allocation.setJournalEntry(settlementJournal);
 
         when(companyEntityLookup.requireRawMaterialPurchase(company, 215L)).thenReturn(purchase);
-        when(settlementAllocationRepository.findByCompanyAndPurchaseOrderByCreatedAtDesc(company, purchase))
+        when(settlementAllocationRepository.findByCompanyAndPurchase_IdInOrderByCreatedAtDesc(company, List.of(215L)))
                 .thenReturn(List.of(allocation));
 
         assertThat(purchasingService.getPurchase(215L).linkedReferences())
                 .extracting(LinkedBusinessReferenceDto::relationType)
                 .contains("PURCHASE_ORDER", "GOODS_RECEIPT", "ACCOUNTING_ENTRY", "SETTLEMENT", "SELF");
+    }
+
+    @Test
+    @DisplayName("listPurchases batch-loads settlement references for facade mapper")
+    void listPurchases_batchLoadsSettlementLinkedReferences() {
+        when(companyContextService.requireCurrentCompany()).thenReturn(company);
+
+        RawMaterialPurchase firstPurchase = new RawMaterialPurchase();
+        ReflectionTestUtils.setField(firstPurchase, "id", 230L);
+        firstPurchase.setCompany(company);
+        firstPurchase.setSupplier(supplier);
+        firstPurchase.setInvoiceNumber("PINV-230");
+        firstPurchase.setStatus("POSTED");
+        firstPurchase.getLines().add(purchaseLine(firstPurchase, rawMaterial, BigDecimal.ONE, new BigDecimal("25.00")));
+
+        RawMaterialPurchase secondPurchase = new RawMaterialPurchase();
+        ReflectionTestUtils.setField(secondPurchase, "id", 231L);
+        secondPurchase.setCompany(company);
+        secondPurchase.setSupplier(supplier);
+        secondPurchase.setInvoiceNumber("PINV-231");
+        secondPurchase.setStatus("POSTED");
+        secondPurchase.getLines().add(purchaseLine(secondPurchase, rawMaterial, BigDecimal.ONE, new BigDecimal("30.00")));
+
+        PartnerSettlementAllocation firstAllocation = new PartnerSettlementAllocation();
+        ReflectionTestUtils.setField(firstAllocation, "id", 232L);
+        firstAllocation.setCompany(company);
+        firstAllocation.setPurchase(firstPurchase);
+        firstAllocation.setIdempotencyKey("settlement-232");
+
+        when(purchaseRepository.findByCompanyWithLinesOrderByInvoiceDateDesc(company))
+                .thenReturn(List.of(firstPurchase, secondPurchase));
+        when(settlementAllocationRepository.findByCompanyAndPurchase_IdInOrderByCreatedAtDesc(company, List.of(230L, 231L)))
+                .thenReturn(List.of(firstAllocation));
+
+        List<RawMaterialPurchaseResponse> responses = purchasingService.listPurchases();
+
+        assertThat(responses).hasSize(2);
+        assertThat(responses.get(0).linkedReferences())
+                .extracting(LinkedBusinessReferenceDto::relationType)
+                .contains("SETTLEMENT", "SELF");
+        verify(settlementAllocationRepository).findByCompanyAndPurchase_IdInOrderByCreatedAtDesc(company, List.of(230L, 231L));
+        verify(settlementAllocationRepository, never()).findByCompanyAndPurchaseOrderByCreatedAtDesc(any(), any());
     }
 
     @Test

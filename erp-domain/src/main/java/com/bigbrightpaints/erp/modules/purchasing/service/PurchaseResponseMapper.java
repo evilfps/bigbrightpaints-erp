@@ -22,6 +22,7 @@ import com.bigbrightpaints.erp.modules.purchasing.dto.RawMaterialPurchaseRespons
 import com.bigbrightpaints.erp.shared.dto.DocumentLifecycleDto;
 import com.bigbrightpaints.erp.shared.dto.LinkedBusinessReferenceDto;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Map;
 import org.springframework.stereotype.Component;
 
@@ -51,7 +52,19 @@ public class PurchaseResponseMapper {
                 .toList();
     }
 
+    public List<RawMaterialPurchaseResponse> toPurchaseResponses(List<RawMaterialPurchase> purchases) { if (purchases == null || purchases.isEmpty()) {
+            return List.of(); }
+        Map<Long, List<PartnerSettlementAllocation>> settlementAllocationsByPurchaseId = resolveSettlementAllocations(purchases);
+        return purchases.stream()
+                .map(purchase -> toPurchaseResponse(purchase, settlementAllocationsByPurchaseId.getOrDefault(purchase.getId(), List.of())))
+                .toList();
+    }
+
     public RawMaterialPurchaseResponse toPurchaseResponse(RawMaterialPurchase purchase) {
+        return toPurchaseResponse(purchase, resolveSettlementAllocations(List.of(purchase)).getOrDefault(purchase.getId(), List.of()));
+    }
+
+    private RawMaterialPurchaseResponse toPurchaseResponse(RawMaterialPurchase purchase, List<PartnerSettlementAllocation> settlementAllocations) {
         JournalEntry journalEntry = purchase.getJournalEntry();
         Supplier supplier = purchase.getSupplier();
         PurchaseOrder purchaseOrder = purchase.getPurchaseOrder();
@@ -60,7 +73,7 @@ public class PurchaseResponseMapper {
                 .map(this::toPurchaseLineResponse)
                 .toList();
         DocumentLifecycleDto lifecycle = BusinessDocumentTruths.purchaseLifecycle(purchase);
-        return new RawMaterialPurchaseResponse(purchase.getId(), purchase.getPublicId(), purchase.getInvoiceNumber(), purchase.getInvoiceDate(), purchase.getTotalAmount(), purchase.getTaxAmount(), purchase.getOutstandingAmount(), purchase.getStatus(), purchase.getMemo(), supplier != null ? supplier.getId() : null, supplier != null ? supplier.getCode() : null, supplier != null ? supplier.getName() : null, purchaseOrder != null ? purchaseOrder.getId() : null, purchaseOrder != null ? purchaseOrder.getOrderNumber() : null, goodsReceipt != null ? goodsReceipt.getId() : null, goodsReceipt != null ? goodsReceipt.getReceiptNumber() : null, journalEntry != null ? journalEntry.getId() : null, purchase.getCreatedAt(), lines, lifecycle, purchaseLinkedReferences(purchase, lifecycle));
+        return new RawMaterialPurchaseResponse(purchase.getId(), purchase.getPublicId(), purchase.getInvoiceNumber(), purchase.getInvoiceDate(), purchase.getTotalAmount(), purchase.getTaxAmount(), purchase.getOutstandingAmount(), purchase.getStatus(), purchase.getMemo(), supplier != null ? supplier.getId() : null, supplier != null ? supplier.getCode() : null, supplier != null ? supplier.getName() : null, purchaseOrder != null ? purchaseOrder.getId() : null, purchaseOrder != null ? purchaseOrder.getOrderNumber() : null, goodsReceipt != null ? goodsReceipt.getId() : null, goodsReceipt != null ? goodsReceipt.getReceiptNumber() : null, journalEntry != null ? journalEntry.getId() : null, purchase.getCreatedAt(), lines, lifecycle, purchaseLinkedReferences(purchase, lifecycle, settlementAllocations));
     }
 
     public RawMaterialPurchaseLineResponse toPurchaseLineResponse(RawMaterialPurchaseLine line) {
@@ -152,7 +165,7 @@ public class PurchaseResponseMapper {
         );
     }
 
-    private List<LinkedBusinessReferenceDto> purchaseLinkedReferences(RawMaterialPurchase purchase, DocumentLifecycleDto lifecycle) { List<LinkedBusinessReferenceDto> linkedReferences = new ArrayList<>();
+    private List<LinkedBusinessReferenceDto> purchaseLinkedReferences(RawMaterialPurchase purchase, DocumentLifecycleDto lifecycle, List<PartnerSettlementAllocation> settlementAllocations) { List<LinkedBusinessReferenceDto> linkedReferences = new ArrayList<>();
         PurchaseOrder purchaseOrder = purchase.getPurchaseOrder();
         if (purchaseOrder != null) {
             linkedReferences.add(BusinessDocumentTruths.reference("PURCHASE_ORDER", "PURCHASE_ORDER", purchaseOrder.getId(), purchaseOrder.getOrderNumber(), new DocumentLifecycleDto(purchaseOrder.getStatusValue(), "NOT_ELIGIBLE"), null));
@@ -164,13 +177,9 @@ public class PurchaseResponseMapper {
         if (purchase.getJournalEntry() != null) {
             linkedReferences.add(BusinessDocumentTruths.reference("ACCOUNTING_ENTRY", "JOURNAL_ENTRY", purchase.getJournalEntry().getId(), purchase.getJournalEntry().getReferenceNumber(), BusinessDocumentTruths.journalLifecycle(purchase.getJournalEntry()), purchase.getJournalEntry().getId()));
         }
-        if (settlementAllocationRepository != null && purchase.getCompany() != null) {
-            List<PartnerSettlementAllocation> settlementAllocations = settlementAllocationRepository
-                    .findByCompanyAndPurchaseOrderByCreatedAtDesc(purchase.getCompany(), purchase);
-            if (settlementAllocations != null) {
-                for (PartnerSettlementAllocation allocation : settlementAllocations) {
-                    linkedReferences.add(BusinessDocumentTruths.reference("SETTLEMENT", "SETTLEMENT_ALLOCATION", allocation.getId(), allocation.getIdempotencyKey(), BusinessDocumentTruths.settlementLifecycle(allocation.getJournalEntry()), allocation.getJournalEntry() != null ? allocation.getJournalEntry().getId() : null));
-                }
+        if (settlementAllocations != null) {
+            for (PartnerSettlementAllocation allocation : settlementAllocations) {
+                linkedReferences.add(BusinessDocumentTruths.reference("SETTLEMENT", "SETTLEMENT_ALLOCATION", allocation.getId(), allocation.getIdempotencyKey(), BusinessDocumentTruths.settlementLifecycle(allocation.getJournalEntry()), allocation.getJournalEntry() != null ? allocation.getJournalEntry().getId() : null));
             }
         }
         linkedReferences.add(BusinessDocumentTruths.reference("SELF", "PURCHASE_INVOICE", purchase.getId(), purchase.getInvoiceNumber(), lifecycle, purchase.getJournalEntry() != null ? purchase.getJournalEntry().getId() : null));
@@ -224,5 +233,28 @@ public class PurchaseResponseMapper {
         return purchaseRepository.findByCompanyAndGoodsReceipt_IdIn(company, receiptIds).stream()
                 .filter(purchase -> purchase.getGoodsReceipt() != null && purchase.getGoodsReceipt().getId() != null)
                 .collect(Collectors.toMap(purchase -> purchase.getGoodsReceipt().getId(), purchase -> purchase, (left, right) -> left));
+    }
+
+    private Map<Long, List<PartnerSettlementAllocation>> resolveSettlementAllocations(List<RawMaterialPurchase> purchases) { if (settlementAllocationRepository == null || purchases == null || purchases.isEmpty()) {
+            return Map.of(); }
+        Map<Long, List<PartnerSettlementAllocation>> allocationsByPurchaseId = new HashMap<>();
+        Map<com.bigbrightpaints.erp.modules.company.domain.Company, List<Long>> purchaseIdsByCompany = purchases.stream()
+                .filter(Objects::nonNull)
+                .filter(purchase -> purchase.getCompany() != null && purchase.getId() != null)
+                .collect(Collectors.groupingBy(
+                        RawMaterialPurchase::getCompany,
+                        Collectors.mapping(RawMaterialPurchase::getId, Collectors.collectingAndThen(Collectors.toList(), ids -> ids.stream().distinct().toList()))));
+        for (Map.Entry<com.bigbrightpaints.erp.modules.company.domain.Company, List<Long>> entry : purchaseIdsByCompany.entrySet()) {
+            List<PartnerSettlementAllocation> allocations = settlementAllocationRepository.findByCompanyAndPurchase_IdInOrderByCreatedAtDesc(entry.getKey(), entry.getValue());
+            if (allocations == null) {
+                continue;
+            }
+            allocations.stream()
+                    .filter(allocation -> allocation.getPurchase() != null && allocation.getPurchase().getId() != null)
+                    .forEach(allocation -> allocationsByPurchaseId
+                            .computeIfAbsent(allocation.getPurchase().getId(), ignored -> new ArrayList<>())
+                            .add(allocation));
+        }
+        return allocationsByPurchaseId;
     }
 }

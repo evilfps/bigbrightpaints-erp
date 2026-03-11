@@ -294,9 +294,13 @@ public class InvoiceService {
     private List<LinkedBusinessReferenceDto> buildLinkedReferences(Invoice invoice, DocumentLifecycleDto lifecycle, LinkedReferenceContext linkedReferenceContext) { List<LinkedBusinessReferenceDto> linkedReferences = new ArrayList<>();
         SalesOrder salesOrder = invoice.getSalesOrder();
         if (salesOrder != null) {
+            List<PackagingSlip> slips = linkedReferenceContext.packagingSlipsBySalesOrderId()
+                    .getOrDefault(salesOrder.getId(), List.of());
             linkedReferences.add(BusinessDocumentTruths.reference("SOURCE_ORDER", "SALES_ORDER", salesOrder.getId(), salesOrder.getOrderNumber(), BusinessDocumentTruths.salesOrderLifecycle(salesOrder), salesOrder.getSalesJournalEntryId()));
-            for (PackagingSlip slip : linkedReferenceContext.packagingSlipsBySalesOrderId()
-                    .getOrDefault(salesOrder.getId(), List.of())) {
+            for (PackagingSlip slip : slips) {
+                if (!isSlipLinkedToInvoice(slip, invoice, slips)) {
+                    continue;
+                }
                 linkedReferences.add(BusinessDocumentTruths.reference("DISPATCH", "PACKAGING_SLIP", slip.getId(), slip.getSlipNumber(), BusinessDocumentTruths.packagingSlipLifecycle(slip), slip.getCogsJournalEntryId() != null ? slip.getCogsJournalEntryId() : slip.getJournalEntryId()));
             }
         }
@@ -342,6 +346,19 @@ public class InvoiceService {
                 .collect(Collectors.groupingBy(allocation -> allocation.getInvoice().getId()));
 
         return new LinkedReferenceContext(packagingSlipsBySalesOrderId, settlementAllocationsByInvoiceId);
+    }
+
+    private boolean isSlipLinkedToInvoice(PackagingSlip slip, Invoice invoice, List<PackagingSlip> candidateSlips) {
+        if (slip == null || invoice == null) {
+            return false;
+        }
+        boolean hasExplicitInvoiceLinks = candidateSlips != null && candidateSlips.stream().anyMatch(candidate -> candidate != null && candidate.getInvoiceId() != null);
+        if (!hasExplicitInvoiceLinks) {
+            return true;
+        }
+        return slip.getInvoiceId() != null
+                && invoice.getId() != null
+                && slip.getInvoiceId().equals(invoice.getId());
     }
 
     private record LinkedReferenceContext(Map<Long, List<PackagingSlip>> packagingSlipsBySalesOrderId, Map<Long, List<PartnerSettlementAllocation>> settlementAllocationsByInvoiceId) {

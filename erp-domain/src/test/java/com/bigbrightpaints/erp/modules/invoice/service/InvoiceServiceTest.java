@@ -626,6 +626,48 @@ class InvoiceServiceTest {
     }
 
     @Test
+    void getInvoice_filtersDispatchReferencesToCurrentInvoice() {
+        when(companyContextService.requireCurrentCompany()).thenReturn(company);
+
+        SalesOrder order = new SalesOrder();
+        ReflectionTestUtils.setField(order, "id", 1701L);
+        order.setCompany(company);
+        order.setOrderNumber("SO-1701");
+
+        Invoice invoice = new Invoice();
+        ReflectionTestUtils.setField(invoice, "id", 1702L);
+        invoice.setCompany(company);
+        invoice.setSalesOrder(order);
+        invoice.setInvoiceNumber("INV-1702");
+        invoice.setStatus("ISSUED");
+
+        PackagingSlip matchingSlip = new PackagingSlip();
+        ReflectionTestUtils.setField(matchingSlip, "id", 1703L);
+        matchingSlip.setSalesOrder(order);
+        matchingSlip.setSlipNumber("PS-1703");
+        matchingSlip.setStatus("DISPATCHED");
+        matchingSlip.setInvoiceId(1702L);
+
+        PackagingSlip unrelatedSlip = new PackagingSlip();
+        ReflectionTestUtils.setField(unrelatedSlip, "id", 1704L);
+        unrelatedSlip.setSalesOrder(order);
+        unrelatedSlip.setSlipNumber("PS-1704");
+        unrelatedSlip.setStatus("DISPATCHED");
+        unrelatedSlip.setInvoiceId(1705L);
+
+        when(invoiceRepository.findByCompanyAndId(company, 1702L)).thenReturn(Optional.of(invoice));
+        when(packagingSlipRepository.findAllByCompanyAndSalesOrderIdIn(company, List.of(1701L)))
+                .thenReturn(List.of(matchingSlip, unrelatedSlip));
+        when(settlementAllocationRepository.findByCompanyAndInvoice_IdInOrderByCreatedAtDesc(company, List.of(1702L)))
+                .thenReturn(List.of());
+
+        assertThat(invoiceService.getInvoice(1702L).linkedReferences())
+                .filteredOn(reference -> "DISPATCH".equals(reference.relationType()))
+                .extracting(LinkedBusinessReferenceDto::documentNumber)
+                .containsExactly("PS-1703");
+    }
+
+    @Test
     void helperMethods_coverLockedOrderAndSlipFallbackBranches() {
         Long orderId = 990L;
         SalesOrder lockedOrder = new SalesOrder();

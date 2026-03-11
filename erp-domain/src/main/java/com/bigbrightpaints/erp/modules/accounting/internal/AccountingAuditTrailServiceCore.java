@@ -345,8 +345,12 @@ public class AccountingAuditTrailServiceCore {
         }
         if (invoice != null) {
             if (invoice.getSalesOrder() != null) {
+                List<PackagingSlip> slips = packagingSlipRepository.findAllByCompanyAndSalesOrderId(invoice.getCompany(), invoice.getSalesOrder().getId());
                 chain.add(BusinessDocumentTruths.reference("SOURCE_ORDER", "SALES_ORDER", invoice.getSalesOrder().getId(), invoice.getSalesOrder().getOrderNumber(), BusinessDocumentTruths.salesOrderLifecycle(invoice.getSalesOrder()), invoice.getSalesOrder().getSalesJournalEntryId()));
-                for (PackagingSlip slip : packagingSlipRepository.findAllByCompanyAndSalesOrderId(invoice.getCompany(), invoice.getSalesOrder().getId())) {
+                for (PackagingSlip slip : slips) {
+                    if (!isSlipLinkedToInvoice(slip, invoice, slips)) {
+                        continue;
+                    }
                     chain.add(BusinessDocumentTruths.reference("DISPATCH", "PACKAGING_SLIP", slip.getId(), slip.getSlipNumber(), BusinessDocumentTruths.packagingSlipLifecycle(slip), slip.getCogsJournalEntryId() != null ? slip.getCogsJournalEntryId() : slip.getJournalEntryId()));
                 }
             }
@@ -384,6 +388,19 @@ public class AccountingAuditTrailServiceCore {
         for (PartnerSettlementAllocation allocation : allocations) {
             chain.add(BusinessDocumentTruths.reference("SETTLEMENT", "SETTLEMENT_ALLOCATION", allocation.getId(), allocation.getIdempotencyKey(), BusinessDocumentTruths.settlementLifecycle(allocation.getJournalEntry()), allocation.getJournalEntry() != null ? allocation.getJournalEntry().getId() : null));
         }
+    }
+
+    private boolean isSlipLinkedToInvoice(PackagingSlip slip, Invoice invoice, List<PackagingSlip> candidateSlips) {
+        if (slip == null || invoice == null) {
+            return false;
+        }
+        boolean hasExplicitInvoiceLinks = candidateSlips != null && candidateSlips.stream().anyMatch(candidate -> candidate != null && candidate.getInvoiceId() != null);
+        if (!hasExplicitInvoiceLinks) {
+            return true;
+        }
+        return slip.getInvoiceId() != null
+                && invoice.getId() != null
+                && slip.getInvoiceId().equals(invoice.getId());
     }
 
     private Specification<JournalEntry> byCompany(Company company) {

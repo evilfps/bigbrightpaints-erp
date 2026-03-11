@@ -531,6 +531,64 @@ class AccountingAuditTrailServiceTest {
     }
 
     @Test
+    void transactionDetail_filtersDispatchChainToDrivingInvoice() {
+        Company company = new Company();
+        company.setCode("BBP");
+        when(companyContextService.requireCurrentCompany()).thenReturn(company);
+
+        JournalEntry entry = new JournalEntry();
+        setField(entry, "id", 193L);
+        entry.setReferenceNumber("INV-BBP-193");
+        entry.setEntryDate(LocalDate.of(2026, 2, 16));
+        entry.setStatus("POSTED");
+        entry.getLines().add(line("AR", "500.00", "0.00"));
+        entry.getLines().add(line("REV", "0.00", "500.00"));
+
+        SalesOrder order = new SalesOrder();
+        setField(order, "id", 393L);
+        order.setOrderNumber("SO-393");
+        order.setStatus("INVOICED");
+
+        Invoice invoice = new Invoice();
+        setField(invoice, "id", 593L);
+        invoice.setCompany(company);
+        invoice.setInvoiceNumber("INV-593");
+        invoice.setStatus("ISSUED");
+        invoice.setSalesOrder(order);
+        invoice.setJournalEntry(entry);
+
+        PackagingSlip matchingSlip = new PackagingSlip();
+        setField(matchingSlip, "id", 693L);
+        matchingSlip.setSalesOrder(order);
+        matchingSlip.setSlipNumber("PS-693");
+        matchingSlip.setStatus("DISPATCHED");
+        matchingSlip.setInvoiceId(593L);
+
+        PackagingSlip unrelatedSlip = new PackagingSlip();
+        setField(unrelatedSlip, "id", 694L);
+        unrelatedSlip.setSalesOrder(order);
+        unrelatedSlip.setSlipNumber("PS-694");
+        unrelatedSlip.setStatus("DISPATCHED");
+        unrelatedSlip.setInvoiceId(594L);
+
+        when(journalEntryRepository.findByCompanyAndId(company, 193L)).thenReturn(Optional.of(entry));
+        when(settlementAllocationRepository.findByCompanyAndJournalEntryOrderByCreatedAtAsc(company, entry)).thenReturn(List.of());
+        when(invoiceRepository.findByCompanyAndJournalEntry(company, entry)).thenReturn(Optional.of(invoice));
+        when(rawMaterialPurchaseRepository.findByCompanyAndJournalEntry(company, entry)).thenReturn(Optional.empty());
+        when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 393L))
+                .thenReturn(List.of(matchingSlip, unrelatedSlip));
+        when(settlementAllocationRepository.findByCompanyAndInvoiceOrderByCreatedAtDesc(company, invoice)).thenReturn(List.of());
+        when(accountingEventRepository.findByJournalEntryIdOrderByEventTimestampAsc(193L)).thenReturn(List.of());
+
+        AccountingTransactionAuditDetailDto detail = service.transactionDetail(193L);
+
+        assertThat(detail.linkedReferenceChain())
+                .filteredOn(reference -> "DISPATCH".equals(reference.relationType()))
+                .extracting(LinkedBusinessReferenceDto::documentNumber)
+                .containsExactly("PS-693");
+    }
+
+    @Test
     void transactionDetail_settlementDrivingInvoiceUsesSourceInvoiceJournalEntryId() {
         Company company = new Company();
         company.setCode("BBP");
