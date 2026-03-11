@@ -5,8 +5,10 @@ import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
+import com.bigbrightpaints.erp.modules.accounting.domain.JournalCorrectionType;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
+import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
 import com.bigbrightpaints.erp.modules.accounting.service.GstService;
 import com.bigbrightpaints.erp.modules.accounting.service.ReferenceNumberService;
@@ -21,6 +23,7 @@ import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchaseLine
 import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchaseRepository;
 import com.bigbrightpaints.erp.modules.purchasing.domain.Supplier;
 import com.bigbrightpaints.erp.modules.purchasing.domain.SupplierStatus;
+import com.bigbrightpaints.erp.modules.purchasing.dto.PurchaseReturnPreviewDto;
 import com.bigbrightpaints.erp.modules.purchasing.dto.PurchaseReturnRequest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
@@ -33,12 +36,14 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -121,8 +126,8 @@ class PurchaseReturnServiceTest {
         when(companyContextService.requireCurrentCompany()).thenReturn(company);
         when(companyEntityLookup.requireSupplier(company, 10L)).thenReturn(supplier);
         when(purchaseRepository.lockByCompanyAndId(company, 30L)).thenReturn(Optional.of(purchase));
-        when(rawMaterialRepository.lockByCompanyAndId(company, 20L)).thenReturn(Optional.of(material));
-        when(movementRepository.findByRawMaterialCompanyAndReferenceTypeAndReferenceId(eq(company), eq(com.bigbrightpaints.erp.modules.inventory.domain.InventoryReference.PURCHASE_RETURN), eq("PR-30")))
+        lenient().when(rawMaterialRepository.lockByCompanyAndId(company, 20L)).thenReturn(Optional.of(material));
+        lenient().when(movementRepository.findByRawMaterialCompanyAndReferenceTypeAndReferenceId(eq(company), eq(com.bigbrightpaints.erp.modules.inventory.domain.InventoryReference.PURCHASE_RETURN), eq("PR-30")))
                 .thenReturn(List.of());
     }
 
@@ -204,5 +209,146 @@ class PurchaseReturnServiceTest {
         verify(allocationService).remainingReturnableQuantity(purchase, material);
         verifyNoInteractions(accountingFacade);
         verify(rawMaterialRepository, never()).deductStockIfSufficient(any(), any());
+    }
+
+    @Test
+    void previewPurchaseReturn_computesCanonicalPreviewAndDefaults() {
+        purchase.setInvoiceNumber("PI-30");
+        purchase.setTaxAmount(new BigDecimal("4.00"));
+        purchase.getLines().getFirst().setTaxAmount(new BigDecimal("4.00"));
+        when(allocationService.remainingReturnableQuantity(purchase, material)).thenReturn(new BigDecimal("3.0000"));
+        when(referenceNumberService.purchaseReturnReference(company, supplier)).thenReturn("PR-AUTO-30");
+        when(companyClock.today(company)).thenReturn(LocalDate.of(2026, 3, 10));
+
+        PurchaseReturnPreviewDto preview = purchaseReturnService.previewPurchaseReturn(new PurchaseReturnRequest(
+                10L,
+                30L,
+                20L,
+                BigDecimal.ONE,
+                new BigDecimal("5.00"),
+                null,
+                null,
+                "Damaged"
+        ));
+
+        assertThat(preview.purchaseId()).isEqualTo(30L);
+        assertThat(preview.purchaseInvoiceNumber()).isEqualTo("PI-30");
+        assertThat(preview.rawMaterialId()).isEqualTo(20L);
+        assertThat(preview.rawMaterialName()).isEqualTo("Resin");
+        assertThat(preview.requestedQuantity()).isEqualByComparingTo("1.00");
+        assertThat(preview.remainingReturnableQuantity()).isEqualByComparingTo("2.00");
+        assertThat(preview.lineAmount()).isEqualByComparingTo("5.00");
+        assertThat(preview.taxAmount()).isEqualByComparingTo("1.00");
+        assertThat(preview.totalAmount()).isEqualByComparingTo("6.00");
+        assertThat(preview.returnDate()).isEqualTo(LocalDate.of(2026, 3, 10));
+        assertThat(preview.referenceNumber()).isEqualTo("PR-AUTO-30");
+    }
+
+    @Test
+    void previewPurchaseReturn_rejectsPurchaseWithoutPostedJournal() {
+        purchase.setJournalEntry(null);
+
+        assertThatThrownBy(() -> purchaseReturnService.previewPurchaseReturn(new PurchaseReturnRequest(
+                10L,
+                30L,
+                20L,
+                BigDecimal.ONE,
+                new BigDecimal("5.00"),
+                "PR-30",
+                LocalDate.of(2026, 3, 9),
+                "Damaged"
+        )))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Only posted purchases can be corrected through purchase return");
+
+        verifyNoInteractions(accountingFacade);
+    }
+
+    @Test
+    void recordPurchaseReturn_replayRelinksExistingMovementsAndCorrectionMetadata() {
+        Account payable = new Account();
+        ReflectionTestUtils.setField(payable, "id", 40L);
+        supplier.setPayableAccount(payable);
+        purchase.setInvoiceNumber("PI-30");
+
+        JournalEntry postedReturnEntry = new JournalEntry();
+        ReflectionTestUtils.setField(postedReturnEntry, "id", 901L);
+
+        com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovement existingMovement =
+                new com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovement();
+        existingMovement.setRawMaterial(material);
+        existingMovement.setReferenceId("PR-30");
+        existingMovement.setReferenceType(com.bigbrightpaints.erp.modules.inventory.domain.InventoryReference.PURCHASE_RETURN);
+        existingMovement.setQuantity(BigDecimal.ONE);
+        existingMovement.setUnitCost(new BigDecimal("5.00"));
+
+        when(movementRepository.findByRawMaterialCompanyAndReferenceTypeAndReferenceId(
+                company,
+                com.bigbrightpaints.erp.modules.inventory.domain.InventoryReference.PURCHASE_RETURN,
+                "PR-30"
+        )).thenReturn(List.of(existingMovement));
+        when(accountingFacade.postPurchaseReturn(
+                eq(10L),
+                eq("PR-30"),
+                eq(LocalDate.of(2026, 3, 9)),
+                eq("Damaged - Resin to Supplier 10"),
+                eq(Map.of(200L, new BigDecimal("5.00"))),
+                eq(null),
+                eq(null),
+                eq(new BigDecimal("5.00"))
+        )).thenReturn(journalEntryDto(901L, "PR-30", LocalDate.of(2026, 3, 9), "Damaged - Resin to Supplier 10"));
+        when(journalEntryRepository.findByCompanyAndId(company, 901L)).thenReturn(Optional.of(postedReturnEntry));
+
+        JournalEntryDto result = purchaseReturnService.recordPurchaseReturn(new PurchaseReturnRequest(
+                10L,
+                30L,
+                20L,
+                BigDecimal.ONE,
+                new BigDecimal("5.00"),
+                "PR-30",
+                LocalDate.of(2026, 3, 9),
+                "Damaged"
+        ));
+
+        assertThat(result.id()).isEqualTo(901L);
+        assertThat(postedReturnEntry.getCorrectionType()).isEqualTo(JournalCorrectionType.REVERSAL);
+        assertThat(postedReturnEntry.getCorrectionReason()).isEqualTo("PURCHASE_RETURN");
+        assertThat(postedReturnEntry.getSourceModule()).isEqualTo("PURCHASING_RETURN");
+        assertThat(postedReturnEntry.getSourceReference()).isEqualTo("PI-30");
+        assertThat(existingMovement.getJournalEntryId()).isEqualTo(901L);
+        verify(journalEntryRepository).save(postedReturnEntry);
+        verify(movementRepository).saveAll(List.of(existingMovement));
+        verify(rawMaterialRepository, never()).deductStockIfSufficient(any(), any());
+        verify(allocationService, never()).applyPurchaseReturnQuantity(any(), any(), any());
+    }
+
+    private JournalEntryDto journalEntryDto(Long id, String reference, LocalDate entryDate, String memo) {
+        return new JournalEntryDto(
+                id,
+                null,
+                reference,
+                entryDate,
+                memo,
+                "POSTED",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                List.of(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+        );
     }
 }

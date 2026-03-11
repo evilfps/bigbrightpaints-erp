@@ -441,6 +441,15 @@ class AccountingPeriodServicePolicyTest {
                 .hasMessageContaining("ROLE_ADMIN authority required");
     }
 
+    @Test
+    void rejectPeriodClose_requiresAdminRole() {
+        authenticate("policy.accounting", "ROLE_ACCOUNTING");
+
+        assertThatThrownBy(() -> service.rejectPeriodClose(15L, new PeriodCloseRequestActionRequest("reject close", false)))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("ROLE_ADMIN authority required");
+    }
+
     private Company company(Long id, String code) {
         Company company = new Company();
         company.setCode(code);

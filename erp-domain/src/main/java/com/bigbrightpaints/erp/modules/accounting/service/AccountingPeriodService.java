@@ -169,6 +169,7 @@ public class AccountingPeriodService extends AccountingPeriodServiceCore {
     }
 
     @Override
+    @Transactional
     public AccountingPeriodDto approvePeriodClose(Long periodId,
                                                   com.bigbrightpaints.erp.modules.accounting.dto.PeriodCloseRequestActionRequest request) {
         requireAdminRole();
@@ -176,6 +177,7 @@ public class AccountingPeriodService extends AccountingPeriodServiceCore {
     }
 
     @Override
+    @Transactional
     public com.bigbrightpaints.erp.modules.accounting.dto.PeriodCloseRequestDto rejectPeriodClose(Long periodId,
                                                                                                    com.bigbrightpaints.erp.modules.accounting.dto.PeriodCloseRequestActionRequest request) {
         requireAdminRole();

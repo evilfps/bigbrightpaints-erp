@@ -22,7 +22,9 @@ import com.bigbrightpaints.erp.modules.accounting.dto.AccountingPeriodReopenRequ
 import com.bigbrightpaints.erp.modules.accounting.dto.AccountingPeriodUpdateRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.AccountingPeriodUpsertRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.MonthEndChecklistUpdateRequest;
+import com.bigbrightpaints.erp.modules.accounting.dto.PeriodCloseRequestDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.PeriodCloseRequestActionRequest;
+import com.bigbrightpaints.erp.modules.accounting.service.ClosedPeriodPostingExceptionService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.hr.domain.PayrollRun;
@@ -77,6 +79,7 @@ class AccountingPeriodServiceTest {
     @Mock private ObjectProvider<AccountingFacade> accountingFacadeProvider;
     @Mock private PeriodCloseHook periodCloseHook;
     @Mock private AccountingPeriodSnapshotService snapshotService;
+    @Mock private ClosedPeriodPostingExceptionService closedPeriodPostingExceptionService;
 
     private AccountingPeriodService service;
 
@@ -109,6 +112,7 @@ class AccountingPeriodServiceTest {
                 periodCloseHook,
                 snapshotService
         );
+        ReflectionTestUtils.setField(service, "closedPeriodPostingExceptionService", closedPeriodPostingExceptionService);
     }
 
     @Test
@@ -390,6 +394,70 @@ class AccountingPeriodServiceTest {
     }
 
     @Test
+    void rejectPeriodClose_marksPendingRequestRejectedAndClearsApprovalNote() {
+        Company company = company(1L, "ACME");
+        AccountingPeriod period = openPeriod(company, 2026, 2);
+        ReflectionTestUtils.setField(period, "id", 35L);
+        PeriodCloseRequest pending = pendingCloseRequest(company, period, 505L, "maker.user");
+        pending.setApprovalNote("stale approval");
+        when(companyContextService.requireCurrentCompany()).thenReturn(company);
+        when(accountingPeriodRepository.lockByCompanyAndId(company, 35L)).thenReturn(Optional.of(period));
+        when(periodCloseRequestRepository.lockByCompanyAndAccountingPeriodAndStatus(
+                company, period, PeriodCloseRequestStatus.PENDING)).thenReturn(Optional.of(pending));
+        when(periodCloseRequestRepository.save(pending)).thenReturn(pending);
+        authenticate("checker.user", "ROLE_ADMIN");
+
+        PeriodCloseRequestDto result = service.rejectPeriodClose(
+                35L,
+                new PeriodCloseRequestActionRequest("  not ready yet  ", false));
+
+        assertThat(result.status()).isEqualTo("REJECTED");
+        assertThat(result.reviewNote()).isEqualTo("not ready yet");
+        assertThat(result.approvalNote()).isNull();
+        assertThat(pending.getReviewedBy()).isEqualTo("checker.user");
+        assertThat(pending.getStatus()).isEqualTo(PeriodCloseRequestStatus.REJECTED);
+    }
+
+    @Test
+    void requirePostablePeriod_rejectsClosedPeriodWithoutOverride() {
+        Company company = company(1L, "ACME");
+        AccountingPeriod period = openPeriod(company, 2026, 2);
+        period.setStatus(AccountingPeriodStatus.CLOSED);
+        when(accountingPeriodRepository.findByCompanyAndYearAndMonth(company, 2026, 2)).thenReturn(Optional.of(period));
+
+        assertThatThrownBy(() -> service.requirePostablePeriod(
+                company,
+                LocalDate.of(2026, 2, 12),
+                "JOURNAL_ENTRY",
+                "JE-12",
+                "closed period post",
+                false))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("admin one-hour posting exception is required");
+    }
+
+    @Test
+    void requirePostablePeriod_authorizesClosedPeriodOverrideWhenWorkflowPresent() {
+        Company company = company(1L, "ACME");
+        AccountingPeriod period = openPeriod(company, 2026, 2);
+        period.setStatus(AccountingPeriodStatus.LOCKED);
+        ClosedPeriodPostingExceptionService exceptionService = org.mockito.Mockito.mock(ClosedPeriodPostingExceptionService.class);
+        ReflectionTestUtils.setField(service, "closedPeriodPostingExceptionService", exceptionService);
+        when(accountingPeriodRepository.lockByCompanyAndYearAndMonth(company, 2026, 2)).thenReturn(Optional.of(period));
+
+        AccountingPeriod result = service.requirePostablePeriod(
+                company,
+                LocalDate.of(2026, 2, 12),
+                "JOURNAL_ENTRY",
+                "JE-14",
+                "override post",
+                true);
+
+        assertThat(result).isSameAs(period);
+        verify(exceptionService).authorize(company, period, "JOURNAL_ENTRY", "JE-14", "override post");
+    }
+
+    @Test
     void getMonthEndChecklist_includesTrialBalancePassFailItem() {
         Company company = company(1L, "ACME");
         AccountingPeriod period = openPeriod(company, 2026, 2);
@@ -456,6 +524,229 @@ class AccountingPeriodServiceTest {
                 .orElseThrow();
         assertThat(trialBalanceItem.completed()).isFalse();
         assertThat(trialBalanceItem.detail()).contains("differ by");
+    }
+
+    @Test
+    void requirePostablePeriod_rejectsLockedPeriodWithoutOverride() {
+        Company company = company(1L, "ACME");
+        AccountingPeriod period = openPeriod(company, 2026, 2);
+        period.setStatus(AccountingPeriodStatus.LOCKED);
+
+        when(accountingPeriodRepository.lockByCompanyAndYearAndMonth(company, 2026, 2)).thenReturn(Optional.of(period));
+
+        assertThatThrownBy(() -> service.requirePostablePeriod(
+                company,
+                LocalDate.of(2026, 2, 12),
+                "JOURNAL_ENTRY",
+                "JE-LOCKED-1",
+                "late adjustment",
+                false))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("admin one-hour posting exception is required");
+        verify(closedPeriodPostingExceptionService, never()).authorize(any(), any(), anyString(), anyString(), anyString());
+    }
+
+    @Test
+    void requirePostablePeriod_rejectsOverrideWhenWorkflowNotConfigured() {
+        Company company = company(1L, "ACME");
+        AccountingPeriod period = openPeriod(company, 2026, 2);
+        period.setStatus(AccountingPeriodStatus.CLOSED);
+        ReflectionTestUtils.setField(service, "closedPeriodPostingExceptionService", null);
+
+        when(accountingPeriodRepository.lockByCompanyAndYearAndMonth(company, 2026, 2)).thenReturn(Optional.of(period));
+
+        assertThatThrownBy(() -> service.requirePostablePeriod(
+                company,
+                LocalDate.of(2026, 2, 12),
+                "JOURNAL_ENTRY",
+                "JE-CLOSED-1",
+                "year-end correction",
+                true))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("workflow is not configured");
+    }
+
+    @Test
+    void requirePostablePeriod_authorizesOverrideForLockedPeriod() {
+        Company company = company(1L, "ACME");
+        AccountingPeriod period = openPeriod(company, 2026, 2);
+        period.setStatus(AccountingPeriodStatus.CLOSED);
+
+        when(accountingPeriodRepository.lockByCompanyAndYearAndMonth(company, 2026, 2)).thenReturn(Optional.of(period));
+
+        assertThat(service.requirePostablePeriod(
+                company,
+                LocalDate.of(2026, 2, 12),
+                "JOURNAL_ENTRY",
+                "JE-CLOSED-2",
+                "approved exception",
+                true)).isSameAs(period);
+        verify(closedPeriodPostingExceptionService).authorize(
+                company,
+                period,
+                "JOURNAL_ENTRY",
+                "JE-CLOSED-2",
+                "approved exception");
+    }
+
+    @Test
+    void getMonthEndChecklist_countsCorrectionLinkageGapsAsUnlinkedDocuments() {
+        Company company = company(1L, "ACME");
+        AccountingPeriod period = openPeriod(company, 2026, 2);
+        period.setBankReconciled(true);
+        period.setInventoryCounted(true);
+
+        JournalEntry correctionEntry = new JournalEntry();
+        correctionEntry.setReferenceNumber("  crn-2001 ");
+        correctionEntry.setCorrectionReason(" ");
+        correctionEntry.setSourceModule(null);
+        correctionEntry.setSourceReference(null);
+
+        when(companyContextService.requireCurrentCompany()).thenReturn(company);
+        when(companyEntityLookup.requireAccountingPeriod(company, 199L)).thenReturn(period);
+        when(journalEntryRepository.countByCompanyAndEntryDateBetweenAndStatusIn(
+                company, period.getStartDate(), period.getEndDate(), List.of("DRAFT", "PENDING"))).thenReturn(0L);
+        when(reportService.inventoryReconciliation()).thenReturn(new com.bigbrightpaints.erp.modules.reports.dto.ReconciliationSummaryDto(
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO));
+        when(reconciliationService.reconcileSubledgersForPeriod(period.getStartDate(), period.getEndDate()))
+                .thenReturn(new ReconciliationService.PeriodReconciliationResult(
+                        period.getStartDate(),
+                        period.getEndDate(),
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        true,
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        true));
+        when(reconciliationService.generateGstReconciliation(java.time.YearMonth.from(period.getStartDate())))
+                .thenReturn(gstReconciliation(BigDecimal.ZERO));
+        when(reconciliationDiscrepancyRepository.countByCompanyAndAccountingPeriodAndStatus(
+                company, period, ReconciliationDiscrepancyStatus.OPEN)).thenReturn(0L);
+        when(reportService.trialBalance(period.getEndDate())).thenReturn(new TrialBalanceDto(
+                List.of(),
+                new BigDecimal("120.00"),
+                new BigDecimal("120.00"),
+                true,
+                null));
+        when(journalEntryRepository.findByCompanyAndEntryDateBetweenOrderByEntryDateAsc(
+                company, period.getStartDate(), period.getEndDate())).thenReturn(List.of(correctionEntry));
+        when(invoiceRepository.countByCompanyAndIssueDateBetweenAndStatusNotAndJournalEntryIsNull(
+                company, period.getStartDate(), period.getEndDate(), "DRAFT")).thenReturn(0L);
+        when(rawMaterialPurchaseRepository.countByCompanyAndInvoiceDateBetweenAndStatusInAndJournalEntryIsNull(
+                company, period.getStartDate(), period.getEndDate(), List.of("POSTED", "PARTIAL", "PAID"))).thenReturn(0L);
+        when(payrollRunRepository.countByCompanyAndPeriodBetweenAndStatusInAndJournalMissing(
+                company,
+                period.getStartDate(),
+                period.getEndDate(),
+                List.of(PayrollRun.PayrollStatus.POSTED, PayrollRun.PayrollStatus.PAID))).thenReturn(0L);
+        when(invoiceRepository.countByCompanyAndIssueDateBetweenAndStatusIn(
+                company, period.getStartDate(), period.getEndDate(), List.of("DRAFT"))).thenReturn(0L);
+        when(rawMaterialPurchaseRepository.countByCompanyAndInvoiceDateBetweenAndStatusNotIn(
+                company, period.getStartDate(), period.getEndDate(), List.of("POSTED", "PARTIAL", "PAID"))).thenReturn(0L);
+        when(payrollRunRepository.countByCompanyAndPeriodBetweenAndStatusIn(
+                company,
+                period.getStartDate(),
+                period.getEndDate(),
+                List.of(PayrollRun.PayrollStatus.DRAFT,
+                        PayrollRun.PayrollStatus.CALCULATED,
+                        PayrollRun.PayrollStatus.APPROVED))).thenReturn(0L);
+        when(goodsReceiptRepository.countByCompanyAndReceiptDateBetweenAndStatusNot(
+                company, period.getStartDate(), period.getEndDate(), GoodsReceiptStatus.INVOICED)).thenReturn(0L);
+
+        var checklist = service.getMonthEndChecklist(199L);
+        var unlinkedItem = checklist.items().stream()
+                .filter(item -> "unlinkedDocuments".equals(item.key()))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(unlinkedItem.completed()).isFalse();
+        assertThat(unlinkedItem.detail()).contains("1 missing journal links");
+    }
+
+    @Test
+    void getMonthEndChecklist_ignoresCorrectionEntriesWithCompleteLinkage() {
+        Company company = company(1L, "ACME");
+        AccountingPeriod period = openPeriod(company, 2026, 2);
+        period.setBankReconciled(true);
+        period.setInventoryCounted(true);
+
+        JournalEntry correctionEntry = new JournalEntry();
+        correctionEntry.setReferenceNumber("CRN-2002");
+        correctionEntry.setCorrectionType(com.bigbrightpaints.erp.modules.accounting.domain.JournalCorrectionType.REVERSAL);
+        correctionEntry.setCorrectionReason("approved credit correction");
+        correctionEntry.setSourceModule("SALES_RETURN");
+        correctionEntry.setSourceReference("SR-2002");
+
+        JournalEntry regularEntry = new JournalEntry();
+        regularEntry.setReferenceNumber("GEN-2003");
+
+        when(companyContextService.requireCurrentCompany()).thenReturn(company);
+        when(companyEntityLookup.requireAccountingPeriod(company, 200L)).thenReturn(period);
+        when(journalEntryRepository.countByCompanyAndEntryDateBetweenAndStatusIn(
+                company, period.getStartDate(), period.getEndDate(), List.of("DRAFT", "PENDING"))).thenReturn(0L);
+        when(reportService.inventoryReconciliation()).thenReturn(new com.bigbrightpaints.erp.modules.reports.dto.ReconciliationSummaryDto(
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO));
+        when(reconciliationService.reconcileSubledgersForPeriod(period.getStartDate(), period.getEndDate()))
+                .thenReturn(new ReconciliationService.PeriodReconciliationResult(
+                        period.getStartDate(),
+                        period.getEndDate(),
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        true,
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        true));
+        when(reconciliationService.generateGstReconciliation(java.time.YearMonth.from(period.getStartDate())))
+                .thenReturn(gstReconciliation(BigDecimal.ZERO));
+        when(reconciliationDiscrepancyRepository.countByCompanyAndAccountingPeriodAndStatus(
+                company, period, ReconciliationDiscrepancyStatus.OPEN)).thenReturn(0L);
+        when(reportService.trialBalance(period.getEndDate())).thenReturn(new TrialBalanceDto(
+                List.of(),
+                new BigDecimal("120.00"),
+                new BigDecimal("120.00"),
+                true,
+                null));
+        when(journalEntryRepository.findByCompanyAndEntryDateBetweenOrderByEntryDateAsc(
+                company, period.getStartDate(), period.getEndDate())).thenReturn(List.of(correctionEntry, regularEntry));
+        when(invoiceRepository.countByCompanyAndIssueDateBetweenAndStatusNotAndJournalEntryIsNull(
+                company, period.getStartDate(), period.getEndDate(), "DRAFT")).thenReturn(0L);
+        when(rawMaterialPurchaseRepository.countByCompanyAndInvoiceDateBetweenAndStatusInAndJournalEntryIsNull(
+                company, period.getStartDate(), period.getEndDate(), List.of("POSTED", "PARTIAL", "PAID"))).thenReturn(0L);
+        when(payrollRunRepository.countByCompanyAndPeriodBetweenAndStatusInAndJournalMissing(
+                company,
+                period.getStartDate(),
+                period.getEndDate(),
+                List.of(PayrollRun.PayrollStatus.POSTED, PayrollRun.PayrollStatus.PAID))).thenReturn(0L);
+        when(invoiceRepository.countByCompanyAndIssueDateBetweenAndStatusIn(
+                company, period.getStartDate(), period.getEndDate(), List.of("DRAFT"))).thenReturn(0L);
+        when(rawMaterialPurchaseRepository.countByCompanyAndInvoiceDateBetweenAndStatusNotIn(
+                company, period.getStartDate(), period.getEndDate(), List.of("POSTED", "PARTIAL", "PAID"))).thenReturn(0L);
+        when(payrollRunRepository.countByCompanyAndPeriodBetweenAndStatusIn(
+                company,
+                period.getStartDate(),
+                period.getEndDate(),
+                List.of(PayrollRun.PayrollStatus.DRAFT,
+                        PayrollRun.PayrollStatus.CALCULATED,
+                        PayrollRun.PayrollStatus.APPROVED))).thenReturn(0L);
+        when(goodsReceiptRepository.countByCompanyAndReceiptDateBetweenAndStatusNot(
+                company, period.getStartDate(), period.getEndDate(), GoodsReceiptStatus.INVOICED)).thenReturn(0L);
+
+        var checklist = service.getMonthEndChecklist(200L);
+        var unlinkedItem = checklist.items().stream()
+                .filter(item -> "unlinkedDocuments".equals(item.key()))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(unlinkedItem.completed()).isTrue();
+        assertThat(unlinkedItem.detail()).isEqualTo("All documents linked");
     }
 
     @Test

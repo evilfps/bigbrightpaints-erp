@@ -2,6 +2,7 @@ package com.bigbrightpaints.erp.modules.sales.service;
 
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
+import com.bigbrightpaints.erp.modules.accounting.domain.JournalCorrectionType;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
@@ -671,6 +672,216 @@ class SalesReturnServiceTest {
     }
 
     @Test
+    void processReturn_replayRelinksMatchingReturnMovementsAndCorrectionMetadata() {
+        Dealer dealer = new Dealer();
+        dealer.setCompany(company);
+        dealer.setName("Replay Partner");
+        Account receivable = new Account();
+        setField(receivable, "id", 82L);
+        dealer.setReceivableAccount(receivable);
+        setField(dealer, "id", 12L);
+
+        Invoice invoice = new Invoice();
+        invoice.setCompany(company);
+        invoice.setDealer(dealer);
+        invoice.setInvoiceNumber("INV-REPLAY-LINK");
+        JournalEntry sourceJournal = new JournalEntry();
+        setField(sourceJournal, "id", 9061L);
+        sourceJournal.setStatus("POSTED");
+        invoice.setJournalEntry(sourceJournal);
+        invoice.setStatus("POSTED");
+        setField(invoice, "id", 130L);
+
+        InvoiceLine line = new InvoiceLine();
+        line.setInvoice(invoice);
+        line.setProductCode("FG-RELINK");
+        line.setQuantity(BigDecimal.ONE);
+        line.setUnitPrice(new BigDecimal("100"));
+        line.setTaxableAmount(new BigDecimal("100"));
+        line.setTaxAmount(BigDecimal.ZERO);
+        line.setLineTotal(new BigDecimal("100"));
+        setField(line, "id", 177L);
+        invoice.getLines().add(line);
+
+        FinishedGood fg = new FinishedGood();
+        fg.setCompany(company);
+        fg.setProductCode("FG-RELINK");
+        fg.setRevenueAccountId(713L);
+        setField(fg, "id", 223L);
+
+        JournalEntry replayJournal = new JournalEntry();
+        setField(replayJournal, "id", 1201L);
+        replayJournal.setStatus("POSTED");
+
+        SalesReturnRequest request = new SalesReturnRequest(
+                130L,
+                "Replay relink",
+                List.of(new SalesReturnRequest.ReturnLine(177L, BigDecimal.ONE))
+        );
+        String returnKey = invokeBuildReturnIdempotencyKey(invoice, request);
+
+        InventoryMovement matchingMovement = new InventoryMovement();
+        matchingMovement.setReferenceType("SALES_RETURN");
+        matchingMovement.setReferenceId("INV-REPLAY-LINK:177:RET-" + returnKey);
+        matchingMovement.setJournalEntryId(null);
+
+        InventoryMovement unrelatedMovement = new InventoryMovement();
+        unrelatedMovement.setReferenceType("SALES_RETURN");
+        unrelatedMovement.setReferenceId("INV-REPLAY-LINK:999:RET-" + returnKey);
+        unrelatedMovement.setJournalEntryId(44L);
+
+        when(invoiceRepository.lockByCompanyAndId(company, 130L)).thenReturn(Optional.of(invoice));
+        when(finishedGoodRepository.lockByCompanyAndProductCode(company, "FG-RELINK")).thenReturn(Optional.of(fg));
+        when(inventoryMovementRepository.existsByFinishedGood_CompanyAndReferenceTypeAndReferenceIdContainingIgnoreCase(
+                eq(company),
+                eq("SALES_RETURN"),
+                anyString()
+        )).thenReturn(true);
+        when(accountingFacade.postSalesReturn(
+                eq(dealer.getId()),
+                eq("INV-REPLAY-LINK"),
+                anyMap(),
+                argThat(total -> total.compareTo(new BigDecimal("100")) == 0),
+                eq("Replay relink")
+        )).thenReturn(stubEntry(1201L));
+        when(journalEntryRepository.findByCompanyAndId(company, 1201L)).thenReturn(Optional.of(replayJournal));
+        when(inventoryMovementRepository.findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdStartingWithOrderByCreatedAtAsc(
+                eq(company),
+                eq("SALES_RETURN"),
+                eq("INV-REPLAY-LINK:")
+        )).thenReturn(List.of(matchingMovement, unrelatedMovement));
+
+        JournalEntryDto result = salesReturnService.processReturn(request);
+
+        assertThat(result.id()).isEqualTo(1201L);
+        assertThat(replayJournal.getCorrectionType()).isEqualTo(JournalCorrectionType.REVERSAL);
+        assertThat(replayJournal.getCorrectionReason()).isEqualTo("SALES_RETURN");
+        assertThat(replayJournal.getSourceModule()).isEqualTo("SALES_RETURN");
+        assertThat(replayJournal.getSourceReference()).isEqualTo("INV-REPLAY-LINK");
+        verify(journalEntryRepository).save(replayJournal);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<InventoryMovement>> movementCaptor = ArgumentCaptor.forClass(List.class);
+        verify(inventoryMovementRepository).saveAll(movementCaptor.capture());
+        List<InventoryMovement> savedMovements = movementCaptor.getValue();
+        assertThat(savedMovements).containsExactly(matchingMovement, unrelatedMovement);
+        assertThat(matchingMovement.getJournalEntryId()).isEqualTo(1201L);
+        assertThat(unrelatedMovement.getJournalEntryId()).isEqualTo(44L);
+        verify(finishedGoodRepository, never()).save(any(FinishedGood.class));
+    }
+
+    @Test
+    void previewReturn_rejectsInvoiceWithoutPostedJournal() {
+        Dealer dealer = new Dealer();
+        dealer.setCompany(company);
+        Account receivable = new Account();
+        setField(receivable, "id", 83L);
+        dealer.setReceivableAccount(receivable);
+
+        Invoice invoice = new Invoice();
+        invoice.setCompany(company);
+        invoice.setDealer(dealer);
+        invoice.setInvoiceNumber("INV-NO-JOURNAL");
+        invoice.setStatus("POSTED");
+        setField(invoice, "id", 140L);
+
+        when(invoiceRepository.lockByCompanyAndId(company, 140L)).thenReturn(Optional.of(invoice));
+
+        assertThatThrownBy(() -> salesReturnService.previewReturn(new SalesReturnRequest(
+                140L,
+                "Preview missing journal",
+                List.of(new SalesReturnRequest.ReturnLine(1L, BigDecimal.ONE))
+        )))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Only posted invoices can be corrected through sales return");
+    }
+
+    @Test
+    void previewReturn_capsRemainingQuantityAtZeroWhenRequestConsumesBalance() {
+        Dealer dealer = new Dealer();
+        dealer.setCompany(company);
+        Account receivable = new Account();
+        setField(receivable, "id", 84L);
+        dealer.setReceivableAccount(receivable);
+
+        SalesOrder salesOrder = new SalesOrder();
+        setField(salesOrder, "id", 299L);
+
+        Invoice invoice = new Invoice();
+        invoice.setCompany(company);
+        invoice.setDealer(dealer);
+        invoice.setSalesOrder(salesOrder);
+        invoice.setInvoiceNumber("INV-PREVIEW-2");
+        attachPostedJournal(invoice, 909L);
+        setField(invoice, "id", 150L);
+
+        InvoiceLine line = new InvoiceLine();
+        line.setInvoice(invoice);
+        line.setProductCode("FG-PREVIEW-2");
+        line.setQuantity(new BigDecimal("2"));
+        line.setUnitPrice(new BigDecimal("50"));
+        line.setTaxableAmount(new BigDecimal("100"));
+        line.setTaxAmount(new BigDecimal("10"));
+        line.setLineTotal(new BigDecimal("110"));
+        setField(line, "id", 211L);
+        invoice.getLines().add(line);
+
+        FinishedGood fg = new FinishedGood();
+        fg.setCompany(company);
+        fg.setProductCode("FG-PREVIEW-2");
+        setField(fg, "id", 311L);
+
+        InventoryMovement dispatchMovement = new InventoryMovement();
+        dispatchMovement.setFinishedGood(fg);
+        dispatchMovement.setReferenceType(InventoryReference.SALES_ORDER);
+        dispatchMovement.setReferenceId("299");
+        dispatchMovement.setMovementType("DISPATCH");
+        dispatchMovement.setQuantity(new BigDecimal("2"));
+        dispatchMovement.setUnitCost(new BigDecimal("20"));
+
+        InventoryMovement priorReturn = new InventoryMovement();
+        priorReturn.setFinishedGood(fg);
+        priorReturn.setReferenceType("SALES_RETURN");
+        priorReturn.setReferenceId("INV-PREVIEW-2:211");
+        priorReturn.setQuantity(new BigDecimal("1.5"));
+
+        when(invoiceRepository.lockByCompanyAndId(company, 150L)).thenReturn(Optional.of(invoice));
+        when(finishedGoodRepository.lockByCompanyAndProductCode(company, "FG-PREVIEW-2")).thenReturn(Optional.of(fg));
+        when(inventoryMovementRepository.findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdOrderByCreatedAtAsc(
+                eq(company),
+                eq(InventoryReference.SALES_ORDER),
+                eq("299")
+        )).thenReturn(List.of(dispatchMovement));
+        when(inventoryMovementRepository.findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdOrderByCreatedAtAsc(
+                eq(company),
+                eq("SALES_RETURN"),
+                eq("INV-PREVIEW-2")
+        )).thenReturn(List.of());
+        when(inventoryMovementRepository.findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdStartingWithOrderByCreatedAtAsc(
+                eq(company),
+                eq("SALES_RETURN"),
+                eq("INV-PREVIEW-2:")
+        )).thenReturn(List.of(priorReturn));
+
+        SalesReturnPreviewDto preview = salesReturnService.previewReturn(new SalesReturnRequest(
+                150L,
+                "Preview exact remainder",
+                List.of(new SalesReturnRequest.ReturnLine(211L, new BigDecimal("0.5")))
+        ));
+
+        assertThat(preview.totalReturnAmount()).isEqualByComparingTo("27.50");
+        assertThat(preview.totalInventoryValue()).isEqualByComparingTo("10.00");
+        assertThat(preview.lines()).singleElement().satisfies(linePreview -> {
+            assertThat(linePreview.alreadyReturnedQuantity()).isEqualByComparingTo("1.50");
+            assertThat(linePreview.remainingQuantityAfterReturn()).isEqualByComparingTo("0.00");
+            assertThat(linePreview.lineAmount()).isEqualByComparingTo("27.50");
+            assertThat(linePreview.taxAmount()).isEqualByComparingTo("2.50");
+            assertThat(linePreview.inventoryUnitCost()).isEqualByComparingTo("20.0000");
+            assertThat(linePreview.inventoryValue()).isEqualByComparingTo("10.00");
+        });
+    }
+
+    @Test
     void processReturn_normalizesGstInclusiveDiscounts() {
         Dealer dealer = new Dealer();
         dealer.setCompany(company);
@@ -813,6 +1024,20 @@ class SalesReturnServiceTest {
             field.setAccessible(true);
             field.set(target, value);
         } catch (NoSuchFieldException | IllegalAccessException ex) {
+            throw new RuntimeException(ex);
+        }
+    }
+
+    private String invokeBuildReturnIdempotencyKey(Invoice invoice, SalesReturnRequest request) {
+        try {
+            var method = SalesReturnService.class.getDeclaredMethod(
+                    "buildReturnIdempotencyKey",
+                    Invoice.class,
+                    SalesReturnRequest.class
+            );
+            method.setAccessible(true);
+            return (String) method.invoke(salesReturnService, invoice, request);
+        } catch (ReflectiveOperationException ex) {
             throw new RuntimeException(ex);
         }
     }

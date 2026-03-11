@@ -396,6 +396,309 @@ class AccountingServiceTest {
     }
 
     @Test
+    void createJournalEntry_adminOverridePassesDocumentContextToPeriodAuthorization() {
+        LocalDate today = LocalDate.of(2024, 2, 1);
+        when(companyClock.today(company)).thenReturn(today);
+        when(accountingPeriodService.requirePostablePeriod(eq(company), eq(today), any(), any(), any(), anyBoolean()))
+                .thenReturn(openPeriod(today));
+
+        Account debitAccount = new Account();
+        debitAccount.setCompany(company);
+        debitAccount.setActive(true);
+        debitAccount.setType(AccountType.ASSET);
+        debitAccount.setBalance(BigDecimal.ZERO);
+        ReflectionTestUtils.setField(debitAccount, "id", 1L);
+
+        Account creditAccount = new Account();
+        creditAccount.setCompany(company);
+        creditAccount.setActive(true);
+        creditAccount.setType(AccountType.LIABILITY);
+        creditAccount.setBalance(BigDecimal.ZERO);
+        ReflectionTestUtils.setField(creditAccount, "id", 2L);
+
+        when(accountRepository.lockByCompanyAndId(eq(company), eq(1L))).thenReturn(Optional.of(debitAccount));
+        when(accountRepository.lockByCompanyAndId(eq(company), eq(2L))).thenReturn(Optional.of(creditAccount));
+        when(accountRepository.updateBalanceAtomic(eq(company), any(), any())).thenReturn(1);
+        when(journalEntryRepository.save(any(JournalEntry.class))).thenAnswer(invocation -> {
+            JournalEntry entry = invocation.getArgument(0);
+            ReflectionTestUtils.setField(entry, "id", 4001L);
+            return entry;
+        });
+
+        JournalEntryRequest request = new JournalEntryRequest(
+                "OVERRIDE-REF",
+                today,
+                "Admin override close-period posting",
+                null,
+                null,
+                Boolean.TRUE,
+                List.of(
+                        new JournalEntryRequest.JournalLineRequest(1L, "Debit", new BigDecimal("25.00"), BigDecimal.ZERO),
+                        new JournalEntryRequest.JournalLineRequest(2L, "Credit", BigDecimal.ZERO, new BigDecimal("25.00"))
+                ),
+                null,
+                null,
+                null,
+                null,
+                null,
+                List.of("scan-1")
+        );
+
+        JournalEntryDto result = accountingService.createJournalEntry(request);
+
+        assertThat(result.id()).isEqualTo(4001L);
+        verify(accountingPeriodService).requirePostablePeriod(
+                eq(company),
+                eq(today),
+                eq("JOURNAL_ENTRY"),
+                eq("OVERRIDE-REF"),
+                eq("Admin override close-period posting"),
+                eq(true));
+    }
+
+    @Test
+    void settleSupplierInvoices_requiresReasonWhenAdminOverrideRequested() {
+        Supplier supplier = new Supplier();
+        supplier.setStatus(SupplierStatus.ACTIVE);
+        ReflectionTestUtils.setField(supplier, "id", 1L);
+
+        Account payable = new Account();
+        payable.setCompany(company);
+        payable.setCode("AP-OVERRIDE");
+        payable.setType(AccountType.LIABILITY);
+        ReflectionTestUtils.setField(payable, "id", 10L);
+        supplier.setPayableAccount(payable);
+
+        Account cash = new Account();
+        cash.setCompany(company);
+        cash.setCode("CASH-OVERRIDE");
+        cash.setType(AccountType.ASSET);
+        ReflectionTestUtils.setField(cash, "id", 20L);
+
+        RawMaterialPurchase purchase = new RawMaterialPurchase();
+        purchase.setCompany(company);
+        purchase.setSupplier(supplier);
+        purchase.setTotalAmount(new BigDecimal("100.00"));
+        purchase.setTaxAmount(BigDecimal.ZERO);
+        purchase.setOutstandingAmount(new BigDecimal("100.00"));
+        ReflectionTestUtils.setField(purchase, "id", 7003L);
+
+        JournalEntry purchaseJournal = new JournalEntry();
+        ReflectionTestUtils.setField(purchaseJournal, "id", 9703L);
+        purchaseJournal.setSupplier(supplier);
+        purchaseJournal.setReferenceNumber("RMP-OVERRIDE-1");
+        purchaseJournal.getLines().add(journalLine(purchaseJournal, cash, "Purchase invoice", new BigDecimal("100.00"), BigDecimal.ZERO));
+        purchaseJournal.getLines().add(journalLine(purchaseJournal, payable, "Purchase invoice", BigDecimal.ZERO, new BigDecimal("100.00")));
+        purchase.setJournalEntry(purchaseJournal);
+
+        when(supplierRepository.lockByCompanyAndId(eq(company), eq(1L))).thenReturn(Optional.of(supplier));
+
+        SupplierSettlementRequest request = new SupplierSettlementRequest(
+                1L,
+                20L,
+                null,
+                null,
+                null,
+                null,
+                LocalDate.of(2024, 4, 9),
+                "SUP-OVERRIDE-1",
+                "   ",
+                "IDEMP-SUP-OVERRIDE-1",
+                Boolean.TRUE,
+                List.of(new SettlementAllocationRequest(
+                        null,
+                        7003L,
+                        new BigDecimal("10.00"),
+                        BigDecimal.ONE,
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        null
+                ))
+        );
+
+        assertThatThrownBy(() -> accountingService.settleSupplierInvoices(request))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Settlement override reason is required");
+    }
+
+    @Test
+    void settleDealerInvoices_rejectsHeaderAmountMismatchWithPaymentTotal() {
+        Dealer dealer = new Dealer();
+        dealer.setName("Mismatch Dealer");
+        ReflectionTestUtils.setField(dealer, "id", 1L);
+
+        Account receivable = new Account();
+        receivable.setCompany(company);
+        receivable.setCode("AR-MISMATCH");
+        receivable.setType(AccountType.ASSET);
+        ReflectionTestUtils.setField(receivable, "id", 10L);
+        dealer.setReceivableAccount(receivable);
+
+        when(dealerRepository.lockByCompanyAndId(eq(company), eq(1L))).thenReturn(Optional.of(dealer));
+
+        DealerSettlementRequest request = new DealerSettlementRequest(
+                1L,
+                20L,
+                null,
+                null,
+                null,
+                null,
+                new BigDecimal("150.00"),
+                null,
+                LocalDate.of(2024, 4, 9),
+                "DR-MISMATCH-1",
+                "Dealer mismatch",
+                "IDEMP-DR-MISMATCH-1",
+                Boolean.FALSE,
+                null,
+                List.of(new SettlementPaymentRequest(20L, new BigDecimal("120.00"), "BANK"))
+        );
+
+        assertThatThrownBy(() -> accountingService.settleDealerInvoices(request))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("must match the total payment amount");
+    }
+
+    @Test
+    void settleDealerInvoices_requiresUnappliedApplicationWhenHeaderAmountExceedsOutstanding() {
+        Dealer dealer = new Dealer();
+        dealer.setName("Overflow Dealer");
+        ReflectionTestUtils.setField(dealer, "id", 1L);
+
+        Account receivable = new Account();
+        receivable.setCompany(company);
+        receivable.setCode("AR-OVERFLOW");
+        receivable.setType(AccountType.ASSET);
+        ReflectionTestUtils.setField(receivable, "id", 10L);
+        dealer.setReceivableAccount(receivable);
+
+        Invoice invoice = new Invoice();
+        invoice.setCompany(company);
+        invoice.setDealer(dealer);
+        invoice.setOutstandingAmount(new BigDecimal("75.00"));
+        ReflectionTestUtils.setField(invoice, "id", 701L);
+
+        when(dealerRepository.lockByCompanyAndId(eq(company), eq(1L))).thenReturn(Optional.of(dealer));
+        when(invoiceRepository.lockOpenInvoicesForSettlement(eq(company), eq(dealer))).thenReturn(List.of(invoice));
+
+        DealerSettlementRequest request = new DealerSettlementRequest(
+                1L,
+                20L,
+                null,
+                null,
+                null,
+                null,
+                new BigDecimal("100.00"),
+                null,
+                LocalDate.of(2024, 4, 10),
+                "DR-OVERFLOW-1",
+                "Dealer overflow",
+                "IDEMP-DR-OVERFLOW-1",
+                Boolean.FALSE,
+                null,
+                null
+        );
+
+        assertThatThrownBy(() -> accountingService.settleDealerInvoices(request))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("choose ON_ACCOUNT or FUTURE_APPLICATION");
+    }
+
+    @Test
+    void settleDealerInvoices_rejectsOnAccountAllocationWithAdjustments() {
+        Dealer dealer = new Dealer();
+        dealer.setName("Dealer On Account");
+        ReflectionTestUtils.setField(dealer, "id", 1L);
+
+        Account receivable = new Account();
+        receivable.setCompany(company);
+        receivable.setCode("AR-ON-ACCOUNT");
+        receivable.setType(AccountType.ASSET);
+        ReflectionTestUtils.setField(receivable, "id", 10L);
+        dealer.setReceivableAccount(receivable);
+
+        when(dealerRepository.lockByCompanyAndId(eq(company), eq(1L))).thenReturn(Optional.of(dealer));
+
+        DealerSettlementRequest request = new DealerSettlementRequest(
+                1L,
+                20L,
+                21L,
+                null,
+                null,
+                null,
+                new BigDecimal("25.00"),
+                null,
+                LocalDate.of(2024, 4, 11),
+                "DR-ON-ACCOUNT-1",
+                "dealer on account",
+                "IDEMP-DR-ON-ACCOUNT-1",
+                Boolean.FALSE,
+                List.of(new SettlementAllocationRequest(
+                        null,
+                        null,
+                        new BigDecimal("25.00"),
+                        new BigDecimal("1.00"),
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        SettlementAllocationApplication.ON_ACCOUNT,
+                        "keep on account"
+                )),
+                null
+        );
+
+        assertThatThrownBy(() -> accountingService.settleDealerInvoices(request))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("On-account dealer settlement allocations cannot include discount/write-off/FX adjustments");
+    }
+
+    @Test
+    void settleDealerInvoices_requiresExplicitAdminOverrideForDiscountSettlement() {
+        Dealer dealer = new Dealer();
+        dealer.setName("Dealer Override");
+        ReflectionTestUtils.setField(dealer, "id", 1L);
+
+        Account receivable = new Account();
+        receivable.setCompany(company);
+        receivable.setCode("AR-OVERRIDE");
+        receivable.setType(AccountType.ASSET);
+        ReflectionTestUtils.setField(receivable, "id", 10L);
+        dealer.setReceivableAccount(receivable);
+
+        when(dealerRepository.lockByCompanyAndId(eq(company), eq(1L))).thenReturn(Optional.of(dealer));
+
+        DealerSettlementRequest request = new DealerSettlementRequest(
+                1L,
+                20L,
+                21L,
+                null,
+                null,
+                null,
+                new BigDecimal("25.00"),
+                null,
+                LocalDate.of(2024, 4, 11),
+                "DR-OVERRIDE-1",
+                "discount without override",
+                "IDEMP-DR-OVERRIDE-1",
+                Boolean.FALSE,
+                List.of(new SettlementAllocationRequest(
+                        701L,
+                        null,
+                        new BigDecimal("25.00"),
+                        new BigDecimal("1.00"),
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        SettlementAllocationApplication.DOCUMENT,
+                        "discount allocation"
+                )),
+                null
+        );
+
+        assertThatThrownBy(() -> accountingService.settleDealerInvoices(request))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Settlement override requires an explicit admin override");
+    }
+
+    @Test
     void reverseJournalEntry_rejectsLockedPeriod() {
         LocalDate today = LocalDate.of(2024, 4, 1);
         when(companyClock.today(company)).thenReturn(today);
@@ -7429,6 +7732,52 @@ class AccountingServiceTest {
         assertThat(response.allocations().get(2).purchaseId()).isNull();
         assertThat(response.allocations().get(2).applicationType()).isEqualTo(SettlementAllocationApplication.ON_ACCOUNT);
         assertThat(response.allocations().get(2).appliedAmount()).isEqualByComparingTo("30.00");
+    }
+
+    @Test
+    void settleSupplierInvoices_requiresUnappliedApplicationWhenHeaderAmountExceedsOutstanding() {
+        Supplier supplier = new Supplier();
+        supplier.setName("Supplier Overflow");
+        supplier.setStatus(SupplierStatus.ACTIVE);
+        ReflectionTestUtils.setField(supplier, "id", 1L);
+
+        Account payable = new Account();
+        payable.setCompany(company);
+        payable.setCode("AP-OVERFLOW");
+        payable.setType(AccountType.LIABILITY);
+        ReflectionTestUtils.setField(payable, "id", 10L);
+        supplier.setPayableAccount(payable);
+
+        RawMaterialPurchase purchase = new RawMaterialPurchase();
+        purchase.setCompany(company);
+        purchase.setSupplier(supplier);
+        purchase.setOutstandingAmount(new BigDecimal("60.00"));
+        purchase.setTotalAmount(new BigDecimal("60.00"));
+        ReflectionTestUtils.setField(purchase, "id", 803L);
+
+        when(supplierRepository.lockByCompanyAndId(eq(company), eq(1L))).thenReturn(Optional.of(supplier));
+        when(rawMaterialPurchaseRepository.lockOpenPurchasesForSettlement(eq(company), eq(supplier))).thenReturn(List.of(purchase));
+
+        SupplierSettlementRequest request = new SupplierSettlementRequest(
+                1L,
+                20L,
+                null,
+                null,
+                null,
+                null,
+                new BigDecimal("75.00"),
+                null,
+                LocalDate.of(2024, 5, 4),
+                "HDR-SUPPLIER-OVERFLOW",
+                "Supplier overflow",
+                "IDEMP-HDR-SUPPLIER-OVERFLOW",
+                Boolean.FALSE,
+                null
+        );
+
+        assertThatThrownBy(() -> accountingService.settleSupplierInvoices(request))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("choose ON_ACCOUNT or FUTURE_APPLICATION");
     }
 
     @Test
