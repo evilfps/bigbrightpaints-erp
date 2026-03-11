@@ -2,7 +2,7 @@
   "milestone": "recovery-review",
   "round": 1,
   "status": "pass",
-  "scopeNote": "Recovery-review is clean on the current propagated stack because the re-anchored review evidence now resolves on the current branch, including the latest PR #102 traceability re-check for the three previously stale review-artifact commit anchors, so the restored pass state is auditable rather than a stale clean summary carried forward from pre-restack history.",
+  "scopeNote": "Recovery-review is clean on the current propagated stack because the follow-up PR #102 traceability re-check now uses branch-reachable review anchors on the live branch ancestry, so the restored pass state is auditable rather than a stale clean summary carried forward from pre-restack history.",
   "validatorsRun": {
     "test": {
       "passed": true,
@@ -37,12 +37,12 @@
   "appliedUpdates": [
     {
       "target": ".factory/validation/recovery-review/scrutiny/reviews/*.json",
-      "description": "Re-anchored the aggregate recovery-review traceability chain to the current propagated commits, replacing the three stale non-ancestor review anchors with reachable propagated commits: final-hardening `373e705819bdebb6e7166b1ce1528eb3cebf1f39`, portal `42d93ea5a3182308d50dddf3db634492f72ffd8c`, and the docs-only PR #102 shareout review `3e1ac865c2c4110d60d25cf50634e63362b9b753`, so the milestone pass now reflects a re-established auditable stack rather than a stale clean summary from before restack churn was closed.",
+      "description": "Re-anchored the remaining stale non-ancestor recovery-review anchors to reachable propagated commits on the current stack: final-hardening `fd712a3adbe5a503c2079eaa56301dcfe6a31373` and the docs-only PR #102 shareout review `bd4b0b52e3193b9ed916deda608baeceb2ef70d1`; the existing portal anchor `42d93ea5a3182308d50dddf3db634492f72ffd8c` was already reachable and remained unchanged. The milestone pass therefore reflects the live propagated ancestry rather than a stale clean summary from an older restack state.",
       "source": "review-traceability"
     },
     {
       "target": ".factory/validation/recovery-review/scrutiny/synthesis.json",
-      "description": "Recorded the aggregate traceability verification result explicitly: all eight linked recovery-review artifacts now point at commitIds that resolve on the current propagated branch, so the reported 8/8 pass count no longer overstates replayable evidence.",
+      "description": "Recorded the aggregate traceability verification result explicitly: all eight linked recovery-review artifacts now point at commitIds that both resolve and are branch-reachable on the current propagated branch, so the reported 8/8 pass count no longer overstates replayable evidence.",
       "source": "review-traceability-verification"
     }
   ],
