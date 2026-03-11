@@ -2,6 +2,10 @@ package com.bigbrightpaints.erp.modules.auth;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.bigbrightpaints.erp.modules.admin.domain.SupportTicket;
+import com.bigbrightpaints.erp.modules.admin.domain.SupportTicketCategory;
+import com.bigbrightpaints.erp.modules.admin.domain.SupportTicketRepository;
+import com.bigbrightpaints.erp.modules.admin.domain.SupportTicketStatus;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyLifecycleState;
@@ -37,6 +41,9 @@ class SuperAdminTenantWorkflowIsolationIT extends AbstractIntegrationTest {
     @Autowired
     private UserAccountRepository userAccountRepository;
 
+    @Autowired
+    private SupportTicketRepository supportTicketRepository;
+
     @BeforeEach
     void setUp() {
         dataSeeder.ensureUser(ADMIN_EMAIL, PASSWORD, "Audit Admin", TENANT_A, List.of("ROLE_ADMIN"));
@@ -69,6 +76,36 @@ class SuperAdminTenantWorkflowIsolationIT extends AbstractIntegrationTest {
                 Map.class);
         assertThat(deniedResponse.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
         assertForbiddenReason(deniedResponse, "SUPER_ADMIN_TENANT_WORKFLOW_DENIED");
+    }
+
+    @Test
+    void tenantAdminCanReadSupportTickets_butTenantAttachedSuperAdminIsDenied() {
+        Long ticketId = seedSupportTicket(TENANT_A, ADMIN_EMAIL, "support-denial-" + System.nanoTime());
+        String adminToken = login(ADMIN_EMAIL, TENANT_A);
+        String superAdminToken = login(SUPER_ADMIN_EMAIL, TENANT_A);
+
+        ResponseEntity<Map> adminResponse = rest.exchange(
+                "/api/v1/support/tickets",
+                HttpMethod.GET,
+                new HttpEntity<>(jsonHeaders(adminToken, TENANT_A)),
+                Map.class);
+        assertThat(adminResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+        ResponseEntity<Map> deniedListResponse = rest.exchange(
+                "/api/v1/support/tickets",
+                HttpMethod.GET,
+                new HttpEntity<>(jsonHeaders(superAdminToken, TENANT_A)),
+                Map.class);
+        assertThat(deniedListResponse.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertForbiddenReason(deniedListResponse, "SUPER_ADMIN_PLATFORM_ONLY");
+
+        ResponseEntity<Map> deniedDetailResponse = rest.exchange(
+                "/api/v1/support/tickets/" + ticketId,
+                HttpMethod.GET,
+                new HttpEntity<>(jsonHeaders(superAdminToken, TENANT_A)),
+                Map.class);
+        assertThat(deniedDetailResponse.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertForbiddenReason(deniedDetailResponse, "SUPER_ADMIN_PLATFORM_ONLY");
     }
 
     @Test
@@ -119,6 +156,22 @@ class SuperAdminTenantWorkflowIsolationIT extends AbstractIntegrationTest {
         Map<String, Object> body = response.getBody();
         assertThat(body).isNotNull();
         return body.get("accessToken").toString();
+    }
+
+    private Long seedSupportTicket(String companyCode, String email, String subject) {
+        Company company = companyRepository.findByCodeIgnoreCase(companyCode).orElseThrow();
+        Long userId = userAccountRepository.findByEmailIgnoreCase(email)
+                .map(user -> user.getId())
+                .orElseThrow();
+
+        SupportTicket ticket = new SupportTicket();
+        ticket.setCompany(company);
+        ticket.setUserId(userId);
+        ticket.setCategory(SupportTicketCategory.SUPPORT);
+        ticket.setSubject(subject);
+        ticket.setDescription("Support workflow isolation verification");
+        ticket.setStatus(SupportTicketStatus.OPEN);
+        return supportTicketRepository.save(ticket).getId();
     }
 
     private HttpHeaders jsonHeaders(String token, String companyCode) {
