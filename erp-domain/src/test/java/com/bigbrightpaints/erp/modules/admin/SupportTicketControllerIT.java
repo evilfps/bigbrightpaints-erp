@@ -129,9 +129,7 @@ class SupportTicketControllerIT extends AbstractIntegrationTest {
                 HttpMethod.GET,
                 new HttpEntity<>(authHeaders(login(SUPER_ADMIN_EMAIL, ROOT_TENANT), ROOT_TENANT)),
                 Map.class);
-        assertThat(superAdminResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
-        Set<String> superAdminSubjects = subjectsFromListResponse(superAdminResponse);
-        assertThat(superAdminSubjects).contains(selfSubject, teammateSubject, foreignSubject);
+        assertForbiddenPlatformOnly(superAdminResponse);
     }
 
     @Test
@@ -173,7 +171,22 @@ class SupportTicketControllerIT extends AbstractIntegrationTest {
                 HttpMethod.GET,
                 new HttpEntity<>(authHeaders(login(SUPER_ADMIN_EMAIL, ROOT_TENANT), ROOT_TENANT)),
                 Map.class);
-        assertThat(superAdminAllowed.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertForbiddenPlatformOnly(superAdminAllowed);
+    }
+
+    @Test
+    void createEndpoint_deniesSuperAdminTenantWorkflowAccess() {
+        ResponseEntity<Map> response = rest.exchange(
+                "/api/v1/support/tickets",
+                HttpMethod.POST,
+                new HttpEntity<>(Map.of(
+                        "category", "SUPPORT",
+                        "subject", "platform-only-" + System.nanoTime(),
+                        "description", "Super admin must not create tenant support tickets"
+                ), authHeaders(login(SUPER_ADMIN_EMAIL, ROOT_TENANT), ROOT_TENANT)),
+                Map.class);
+
+        assertForbiddenPlatformOnly(response);
     }
 
     private Long seedTicket(String companyCode, String userEmail, String subject) {
@@ -224,5 +237,17 @@ class SupportTicketControllerIT extends AbstractIntegrationTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).isNotNull();
         return String.valueOf(response.getBody().get("accessToken"));
+    }
+
+    @SuppressWarnings("unchecked")
+    private void assertForbiddenPlatformOnly(ResponseEntity<Map> response) {
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().get("success")).isEqualTo(Boolean.FALSE);
+        assertThat(response.getBody().get("message")).isEqualTo("Access denied");
+        Map<String, Object> data = (Map<String, Object>) response.getBody().get("data");
+        assertThat(data).isNotNull();
+        assertThat(data.get("code")).isEqualTo("AUTH_004");
+        assertThat(data.get("reason")).isEqualTo("SUPER_ADMIN_PLATFORM_ONLY");
     }
 }

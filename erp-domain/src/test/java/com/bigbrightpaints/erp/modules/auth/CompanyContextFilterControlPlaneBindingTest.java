@@ -152,6 +152,26 @@ class CompanyContextFilterControlPlaneBindingTest {
     }
 
     @Test
+    void supportTenantWorkflowRequest_rejectsTenantAttachedSuperAdminAsPlatformOnly()
+            throws ServletException, IOException {
+        authenticate("root-superadmin@bbp.com", Set.of("ROLE_SUPER_ADMIN"), Set.of("TENANT-A"));
+
+        MockHttpServletRequest request = request("GET", "/api/v1/support/tickets");
+        request.setAttribute("jwtClaims", claimsFor("TENANT-A"));
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, filterChain);
+
+        assertThat(response.getStatus()).isEqualTo(403);
+        assertThat(response.getContentAsString()).contains("SUPER_ADMIN_PLATFORM_ONLY");
+        assertThat(response.getContentAsString()).contains("platform control-plane operations");
+        verifyNoInteractions(companyService);
+        verify(tenantRuntimeEnforcementService, never())
+                .beginRequest(anyString(), anyString(), anyString(), anyString(), anyBoolean());
+        verify(filterChain, never()).doFilter(request, response);
+    }
+
+    @Test
     void lifecycleControlRequest_rejectsNonSuperAdminWhenPathTargetDiffersFromContextCompany()
             throws ServletException, IOException {
         authenticate("tenant-admin@bbp.com", Set.of("ROLE_ADMIN"), Set.of("ROOT"));
