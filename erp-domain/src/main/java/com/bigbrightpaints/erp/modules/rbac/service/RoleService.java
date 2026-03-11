@@ -17,6 +17,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.springframework.security.access.AccessDeniedException;
@@ -136,6 +137,18 @@ public class RoleService {
         return SystemRole.fromName(roleName).isPresent();
     }
 
+    @Transactional
+    public int synchronizeSystemRoles() {
+        Map<String, Permission> permissionCache = new HashMap<>();
+        int synchronizedRoles = 0;
+        for (SystemRole definition : SystemRole.values()) {
+            if (synchronizeSystemRole(definition, permissionCache)) {
+                synchronizedRoles++;
+            }
+        }
+        return synchronizedRoles;
+    }
+
     private RoleDto persistRole(CreateRoleRequest request) {
         String normalizedName = normalizeRoleName(request.name());
         SystemRole definition = SystemRole.fromName(normalizedName)
@@ -163,6 +176,35 @@ public class RoleService {
 
         Role saved = roleRepository.save(role);
         return toDto(saved);
+    }
+
+    private boolean synchronizeSystemRole(SystemRole definition, Map<String, Permission> permissionCache) {
+        Role role = roleRepository.lockByName(definition.getRoleName()).orElseGet(Role::new);
+        boolean dirty = role.getId() == null;
+        if (!StringUtils.hasText(role.getName())) {
+            role.setName(definition.getRoleName());
+            dirty = true;
+        }
+        if (!StringUtils.hasText(role.getDescription())) {
+            role.setDescription(definition.getDescription());
+            dirty = true;
+        }
+        Set<String> existingPermissionCodes = role.getPermissions().stream()
+                .map(Permission::getCode)
+                .filter(StringUtils::hasText)
+                .collect(Collectors.toSet());
+        for (String permissionCode : definition.getDefaultPermissions()) {
+            if (existingPermissionCodes.add(permissionCode)) {
+                Permission permission = permissionCache.computeIfAbsent(permissionCode, this::ensurePermissionExists);
+                role.getPermissions().add(permission);
+                dirty = true;
+            }
+        }
+        if (!dirty) {
+            return false;
+        }
+        roleRepository.save(role);
+        return true;
     }
 
     private String normalizeRoleName(String roleName) {

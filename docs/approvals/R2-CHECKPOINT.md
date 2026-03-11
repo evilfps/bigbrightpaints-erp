@@ -71,6 +71,41 @@
 ---
 
 ## Scope
+- Feature: `recovery-review.portal-live-comment-closure`
+- Branch: `recovery/06-portal-boundaries`
+- High-risk paths touched: `erp-domain/src/main/java/com/bigbrightpaints/erp/core/security/CompanyContextFilter.java`, `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/rbac/service/RoleService.java`, `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/rbac/config/RbacSynchronizationConfig.java`, plus the focused auth/RBAC regression suites under `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/auth/`, `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/rbac/config/`, and `erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/`.
+- Why this is R2: the packet closes the remaining live PR #100 review scope on high-risk auth/company/RBAC paths by tightening super-admin isolation for tenant audit workflows and guaranteeing startup RBAC permission synchronization after role seeders complete.
+
+## Risk Trigger
+- Triggered by review-driven remediation under `core/security`, `modules/rbac`, and auth/runtime regression tests on a portal-boundary recovery branch.
+- Contract surfaces affected: company-context enforcement for `/api/v1/audit/**`, startup synchronization of system-role default permissions, and the branch-local runtime truth coverage proving those boundaries.
+- Main risks being controlled: tenant-attached super-admins reaching tenant audit workflows through role hierarchy, first-boot system roles being created without their default permissions when seeders run before RBAC synchronization, and enterprise-policy rejection if this auth/company/RBAC review packet ships without R2 evidence.
+
+## Approval Authority
+- Mode: orchestrator
+- Approver: ERP truth-stabilization recovery-review orchestration
+- Basis: compatibility-preserving review remediation on the active stacked branch with no privilege widening, no destructive migration behavior, and no tenant-boundary expansion beyond fail-closed hardening.
+
+## Escalation Decision
+- Human escalation required: no
+- Reason: the packet narrows super-admin tenant reach and restores deterministic startup permission backfill without broadening APIs, tenant scope, or operational authority.
+
+## Rollback Owner
+- Owner: recovery-review portal worker
+- Rollback method: revert the recovery-review commit, then rerun `cd /home/realnigga/Desktop/Mission-control/erp-domain && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='CompanyContextFilterControlPlaneBindingTest,SuperAdminTenantWorkflowIsolationIT,RbacSynchronizationConfigTest,TS_RuntimePortalBoundaryDelegatedCoverageTest' test`, `cd /home/realnigga/Desktop/Mission-control/erp-domain && MIGRATION_SET=v2 mvn -T8 test -Pgate-fast -Djacoco.skip=true`, and `cd /home/realnigga/Desktop/Mission-control && DIFF_BASE=$(git rev-parse origin/recovery/05-corrections-control) GATE_FAST_REQUIRE_DIFF_BASE=true bash scripts/gate_fast.sh` before re-opening PR #100.
+
+## Expiry
+- Valid until: 2026-03-16
+- Re-evaluate if: the packet grows beyond review-remediation into new auth/RBAC/company workflows, widens super-admin or tenant authority, or introduces schema/runtime changes outside the current comment-closure scope.
+
+## Verification Evidence
+- Commands run: `cd /home/realnigga/Desktop/Mission-control/erp-domain && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='CompanyContextFilterControlPlaneBindingTest,SuperAdminTenantWorkflowIsolationIT,RbacSynchronizationConfigTest,TS_RuntimePortalBoundaryDelegatedCoverageTest' test`; `cd /home/realnigga/Desktop/Mission-control/erp-domain && MIGRATION_SET=v2 mvn -T8 test -Pgate-fast -Djacoco.skip=true`; `cd /home/realnigga/Desktop/Mission-control && bash ci/check-enterprise-policy.sh`; `cd /home/realnigga/Desktop/Mission-control && bash ci/check-codex-review-guidelines.sh`; `cd /home/realnigga/Desktop/Mission-control && DIFF_BASE=$(git rev-parse origin/recovery/05-corrections-control) GATE_FAST_REQUIRE_DIFF_BASE=true bash scripts/gate_fast.sh`
+- Result summary: the packet fail-closes `/api/v1/audit/**` for platform-only super-admin sessions while leaving root control-plane flows intact, backfills default permissions for seeded system roles after startup seeders finish, and adds focused unit/integration/truth-lane coverage so the narrowed PR #100 review scope stays branch-locally reproducible.
+- Artifacts/links: `docs/approvals/R2-CHECKPOINT.md`, `erp-domain/src/main/java/com/bigbrightpaints/erp/core/security/CompanyContextFilter.java`, `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/rbac/service/RoleService.java`, `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/rbac/config/RbacSynchronizationConfig.java`, `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/auth/CompanyContextFilterControlPlaneBindingTest.java`, `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/auth/SuperAdminTenantWorkflowIsolationIT.java`, `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/rbac/config/RbacSynchronizationConfigTest.java`, `erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimePortalBoundaryDelegatedCoverageTest.java`
+
+---
+
+## Scope
 - Feature: `recovery-followup.corrections-control-linkage-and-close-blockers`
 - Branch: `recovery/05-corrections-control`
 - High-risk paths touched: accounting correction linkage, purchase/sales return truth surfaces, and accounting period-close blocker enforcement under `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/`, `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/purchasing/`, and `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/sales/`.

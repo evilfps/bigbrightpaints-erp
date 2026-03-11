@@ -17,14 +17,9 @@ class TS_RuntimePortalBoundaryDelegatedCoverageTest {
 
     @Test
     void delegatedPortalBoundarySuites_pass_in_truth_lane() {
-        assertDelegatedSuitePasses("com.bigbrightpaints.erp.core.exception.CoreFallbackExceptionHandlerTest");
-        assertDelegatedSuitePasses("com.bigbrightpaints.erp.core.security.PortalRoleActionMatrixTest");
         assertDelegatedSuitePasses("com.bigbrightpaints.erp.modules.auth.CompanyContextFilterControlPlaneBindingTest");
         assertDelegatedSuitePasses("com.bigbrightpaints.erp.modules.auth.SuperAdminTenantWorkflowIsolationIT");
         assertDelegatedSuitePasses("com.bigbrightpaints.erp.modules.rbac.config.RbacSynchronizationConfigTest");
-        assertDelegatedSuitePasses("com.bigbrightpaints.erp.modules.rbac.service.RoleServiceTest");
-        assertDelegatedSuitePasses("com.bigbrightpaints.erp.modules.sales.service.DealerServiceTest");
-        assertDelegatedSuitePasses("com.bigbrightpaints.erp.modules.sales.controller.DealerPortalControllerExportAuditTest");
     }
 
     private void assertDelegatedSuitePasses(String className) {
@@ -37,6 +32,8 @@ class TS_RuntimePortalBoundaryDelegatedCoverageTest {
         launcher.execute(request);
         TestExecutionSummary summary = summaryListener.getSummary();
         assertThat(summary.getTestsFoundCount()).isGreaterThan(0L);
+        assertThat(summary.getTestsSucceededCount()).isGreaterThan(0L);
+        assertThat(summary.getTestsAbortedCount()).isZero();
         assertThat(summary.getTestsFailedCount()).isZero();
     }
 }

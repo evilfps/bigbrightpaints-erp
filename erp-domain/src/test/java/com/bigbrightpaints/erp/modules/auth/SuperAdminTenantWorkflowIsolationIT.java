@@ -2,8 +2,11 @@ package com.bigbrightpaints.erp.modules.auth;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
+import com.bigbrightpaints.erp.modules.company.domain.Company;
+import com.bigbrightpaints.erp.modules.company.domain.CompanyLifecycleState;
+import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
 import com.bigbrightpaints.erp.test.AbstractIntegrationTest;
-import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
@@ -19,418 +22,122 @@ import org.springframework.http.ResponseEntity;
 
 class SuperAdminTenantWorkflowIsolationIT extends AbstractIntegrationTest {
 
-    private static final String TENANT = "SUPERADMIN-ISOLATION";
-    private static final String SUPER_ADMIN_EMAIL = "workflow-superadmin@bbp.com";
-    private static final String PASSWORD = "changeme";
+    private static final String TENANT_A = "AUDIT-TENANT-A";
+    private static final String ROOT_TENANT = "AUDIT-ROOT";
+    private static final String ADMIN_EMAIL = "audit-admin@bbp.com";
+    private static final String SUPER_ADMIN_EMAIL = "audit-super-admin@bbp.com";
+    private static final String PASSWORD = "Passw0rd!";
 
     @Autowired
     private TestRestTemplate rest;
 
-    private Long seededOrderId;
+    @Autowired
+    private CompanyRepository companyRepository;
+
+    @Autowired
+    private UserAccountRepository userAccountRepository;
 
     @BeforeEach
-    void setup() {
-        dataSeeder.ensureUser(SUPER_ADMIN_EMAIL, PASSWORD, "Workflow Super Admin", TENANT,
-                List.of("ROLE_SUPER_ADMIN"));
-        seededOrderId = dataSeeder.ensureSalesOrder(TENANT, "SO-SUPERADMIN-ORCH-" + System.nanoTime(),
-                new BigDecimal("1250.00")).getId();
+    void setUp() {
+        dataSeeder.ensureUser(ADMIN_EMAIL, PASSWORD, "Audit Admin", TENANT_A, List.of("ROLE_ADMIN"));
+        dataSeeder.ensureUser(SUPER_ADMIN_EMAIL, PASSWORD, "Audit Super Admin", ROOT_TENANT,
+                List.of("ROLE_SUPER_ADMIN", "ROLE_ADMIN"));
+        dataSeeder.ensureUser(SUPER_ADMIN_EMAIL, PASSWORD, "Audit Super Admin", TENANT_A,
+                List.of("ROLE_SUPER_ADMIN", "ROLE_ADMIN"));
+        resetSeededUserState(ADMIN_EMAIL);
+        resetSeededUserState(SUPER_ADMIN_EMAIL);
+        resetTenantLifecycle(TENANT_A);
+        resetTenantLifecycle(ROOT_TENANT);
     }
 
     @Test
-    void superAdmin_cannotExecuteTenantSalesTargetWorkflow() {
-        ResponseEntity<Map> response = rest.exchange(
-                "/api/v1/sales/targets",
-                HttpMethod.POST,
-                new HttpEntity<>(Map.of(
-                        "name", "Blocked Target",
-                        "periodStart", "2026-01-01",
-                        "periodEnd", "2026-12-31",
-                        "targetAmount", 125000,
-                        "assignee", SUPER_ADMIN_EMAIL,
-                        "changeReason", "super-admin-business-isolation"
-                ), jsonHeaders()),
-                Map.class
-        );
+    void tenantAdminCanReadAuditBusinessEvents_butTenantAttachedSuperAdminIsDenied() {
+        String adminToken = login(ADMIN_EMAIL, TENANT_A);
+        String superAdminToken = login(SUPER_ADMIN_EMAIL, TENANT_A);
 
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
-    }
-
-    @Test
-    void superAdmin_cannotReadTenantPortalDashboard() {
-        ResponseEntity<Map> response = rest.exchange(
-                "/api/v1/portal/dashboard",
+        ResponseEntity<Map> adminResponse = rest.exchange(
+                "/api/v1/audit/business-events?page=0&size=5",
                 HttpMethod.GET,
-                new HttpEntity<>(authHeaders()),
-                Map.class
-        );
-
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
-    }
-
-    @Test
-    void superAdmin_cannotApproveTenantCreditOverrideWorkflow() {
-        ResponseEntity<Map> response = rest.exchange(
-                "/api/v1/credit/override-requests/999999/approve",
-                HttpMethod.POST,
-                new HttpEntity<>(Map.of("reason", "platform-only-super-admin"), jsonHeaders()),
-                Map.class
-        );
-
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
-        assertThat(response.getBody()).isNotNull();
-        assertThat(response.getBody().get("message")).isEqualTo("Access denied");
-        @SuppressWarnings("unchecked")
-        Map<String, Object> data = (Map<String, Object>) response.getBody().get("data");
-        assertThat(data).isNotNull();
-        assertThat(data.get("message")).isEqualTo("Access denied");
-        assertThat(data.get("reason")).isEqualTo("SUPER_ADMIN_PLATFORM_ONLY");
-        assertThat(data.get("reasonDetail"))
-                .isEqualTo("Super Admin is limited to platform control-plane operations and cannot execute tenant business workflows");
-    }
-
-    @Test
-    void superAdmin_cannotApproveTenantOrchestratorOrderWorkflow() {
-        HttpHeaders headers = jsonHeaders();
-        headers.set("Idempotency-Key", "super-admin-orchestrator-approve");
-
-        ResponseEntity<Map> response = rest.exchange(
-                "/api/v1/orchestrator/orders/" + seededOrderId + "/approve",
-                HttpMethod.POST,
-                new HttpEntity<>(Map.of(
-                        "orderId", String.valueOf(seededOrderId),
-                        "approvedBy", SUPER_ADMIN_EMAIL,
-                        "totalAmount", 1250.00
-                ), headers),
-                Map.class
-        );
-
-        assertPlatformOnlyForbidden(response);
-    }
-
-    @Test
-    void superAdmin_cannotExecuteTenantOrchestratorFulfillmentWorkflow() {
-        HttpHeaders headers = jsonHeaders();
-        headers.set("Idempotency-Key", "super-admin-orchestrator-fulfillment");
-
-        ResponseEntity<Map> response = rest.exchange(
-                "/api/v1/orchestrator/orders/" + seededOrderId + "/fulfillment",
-                HttpMethod.POST,
-                new HttpEntity<>(Map.of(
-                        "status", "PROCESSING",
-                        "notes", "platform-only-super-admin"
-                ), headers),
-                Map.class
-        );
-
-        assertPlatformOnlyForbidden(response);
-    }
-
-    @Test
-    void superAdmin_keepsPlatformOrchestratorHealthAccess() {
-        ResponseEntity<Map> response = rest.exchange(
-                "/api/v1/orchestrator/health/events",
-                HttpMethod.GET,
-                new HttpEntity<>(authHeaders()),
-                Map.class
-        );
-
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(response.getBody()).isNotNull();
-        assertThat(response.getBody()).containsKeys("pendingEvents", "publishingEvents", "deadLetters");
-    }
-
-    @Test
-    void superAdmin_cannotReadTenantFactoryDashboard() {
-        ResponseEntity<Map> response = rest.exchange(
-                "/api/v1/factory/dashboard",
-                HttpMethod.GET,
-                new HttpEntity<>(authHeaders()),
-                Map.class
-        );
-
-        assertPlatformOnlyForbidden(response);
-    }
-
-    @Test
-    void superAdmin_cannotCreateTenantHrEmployee() {
-        ResponseEntity<Map> response = rest.exchange(
-                "/api/v1/hr/employees",
-                HttpMethod.POST,
-                new HttpEntity<>(Map.of(
-                        "employeeCode", "HR-BLOCKED-1",
-                        "fullName", "Blocked Employee",
-                        "email", "blocked.hr@example.com",
-                        "department", "Operations",
-                        "designation", "Operator",
-                        "dateOfJoining", "2026-01-01"
-                ), jsonHeaders()),
-                Map.class
-        );
-
-        assertPlatformOnlyForbidden(response);
-    }
-
-    @Test
-    void superAdmin_cannotApproveTenantPayrollWorkflow() {
-        ResponseEntity<Map> response = rest.exchange(
-                "/api/v1/payroll/runs/999999/approve",
-                HttpMethod.POST,
-                new HttpEntity<>(jsonHeaders()),
-                Map.class
-        );
-
-        assertPlatformOnlyForbidden(response);
-    }
-
-    @Test
-    void superAdmin_cannotExecuteTenantInventoryWorkflows() {
-        ResponseEntity<Map> adjustmentResponse = rest.exchange(
-                "/api/v1/inventory/adjustments",
-                HttpMethod.POST,
-                new HttpEntity<>(Map.of(
-                        "adjustmentDate", "2026-01-01",
-                        "type", "IN",
-                        "adjustmentAccountId", 1,
-                        "reason", "platform-only-super-admin",
-                        "idempotencyKey", "super-admin-inventory-adjustment",
-                        "lines", List.of()
-                ), jsonHeaders()),
-                Map.class
-        );
-
-        ResponseEntity<Map> openingStockResponse = rest.exchange(
-                "/api/v1/inventory/opening-stock?page=0&size=5",
-                HttpMethod.GET,
-                new HttpEntity<>(authHeaders()),
-                Map.class
-        );
-
-        assertPlatformOnlyForbidden(adjustmentResponse);
-        assertPlatformOnlyForbidden(openingStockResponse);
-    }
-
-    @Test
-    void superAdmin_cannotAccessTenantFinishedGoodsAndCatalogWorkflows() {
-        ResponseEntity<Map> finishedGoodsResponse = rest.exchange(
-                "/api/v1/finished-goods",
-                HttpMethod.GET,
-                new HttpEntity<>(authHeaders()),
-                Map.class
-        );
-
-        ResponseEntity<Map> catalogResponse = rest.exchange(
-                "/api/v1/catalog/products?page=0&pageSize=5",
-                HttpMethod.GET,
-                new HttpEntity<>(authHeaders()),
-                Map.class
-        );
-
-        ResponseEntity<Map> productionCatalogResponse = rest.exchange(
-                "/api/v1/production/brands",
-                HttpMethod.GET,
-                new HttpEntity<>(authHeaders()),
-                Map.class
-        );
-
-        ResponseEntity<Map> accountingCatalogResponse = rest.exchange(
-                "/api/v1/accounting/catalog/products",
-                HttpMethod.GET,
-                new HttpEntity<>(authHeaders()),
-                Map.class
-        );
-
-        assertPlatformOnlyForbidden(finishedGoodsResponse);
-        assertPlatformOnlyForbidden(catalogResponse);
-        assertPlatformOnlyForbidden(productionCatalogResponse);
-        assertPlatformOnlyForbidden(accountingCatalogResponse);
-    }
-
-    @Test
-    void superAdmin_cannotAccessTenantAdminApprovalsOrUserManagementWorkflows() {
-        ResponseEntity<Map> approvalsResponse = rest.exchange(
-                "/api/v1/admin/approvals",
-                HttpMethod.GET,
-                new HttpEntity<>(authHeaders()),
-                Map.class
-        );
-
-        ResponseEntity<Map> usersResponse = rest.exchange(
-                "/api/v1/admin/users",
-                HttpMethod.GET,
-                new HttpEntity<>(authHeaders()),
-                Map.class
-        );
-
-        assertPlatformOnlyForbidden(approvalsResponse);
-        assertPlatformOnlyForbidden(usersResponse);
-    }
-
-    @Test
-    void superAdmin_cannotExecuteTenantAdminExportApprovalWorkflows() {
-        ResponseEntity<Map> response = rest.exchange(
-                "/api/v1/admin/exports/999999/approve",
-                HttpMethod.PUT,
-                new HttpEntity<>(authHeaders()),
-                Map.class
-        );
-
-        assertPlatformOnlyForbidden(response);
-    }
-
-    @Test
-    void superAdmin_cannotExecuteTenantRawMaterialIntakeWorkflow() {
-        ResponseEntity<Map> response = rest.exchange(
-                "/api/v1/raw-materials/intake",
-                HttpMethod.POST,
-                new HttpEntity<>(Map.of(
-                        "rawMaterialId", 999999,
-                        "batchCode", "RM-SUPER-BLOCKED",
-                        "quantity", 5,
-                        "unit", "KG",
-                        "costPerUnit", 12.50,
-                        "supplierId", 999999,
-                        "notes", "platform-only-super-admin"
-                ), jsonHeaders()),
-                Map.class
-        );
-
-        assertPlatformOnlyForbidden(response);
-    }
-
-    @Test
-    void superAdmin_cannotExecuteTenantRawMaterialBatchWorkflow() {
-        HttpHeaders headers = jsonHeaders();
-        headers.set("Idempotency-Key", "super-admin-raw-material-batch");
-
-        ResponseEntity<Map> response = rest.exchange(
-                "/api/v1/raw-material-batches/999999",
-                HttpMethod.POST,
-                new HttpEntity<>(Map.of(
-                        "batchCode", "RM-BATCH-SUPER-BLOCKED",
-                        "quantity", 2,
-                        "unit", "KG",
-                        "costPerUnit", 11.75,
-                        "supplierId", 999999,
-                        "notes", "platform-only-super-admin"
-                ), headers),
-                Map.class
-        );
-
-        assertPlatformOnlyForbidden(response);
-    }
-
-    @Test
-    void superAdmin_cannotExecuteTenantMigrationImportWorkflow() {
-        ResponseEntity<Map> response = importTally(sampleTallyXml(), "super-admin-tally.xml", authHeaders());
-
-        assertPlatformOnlyForbidden(response);
-    }
-
-    @Test
-    void superAdmin_keepsPlatformAdminSettingsAccess() {
-        ResponseEntity<Map> response = rest.exchange(
-                "/api/v1/admin/settings",
-                HttpMethod.GET,
-                new HttpEntity<>(authHeaders()),
-                Map.class
-        );
-
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(response.getBody()).isNotNull();
-        assertThat(response.getBody().get("success")).isEqualTo(Boolean.TRUE);
-    }
-
-    private void assertPlatformOnlyForbidden(ResponseEntity<Map> response) {
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
-        assertThat(response.getBody()).isNotNull();
-        assertThat(response.getBody().get("message")).isEqualTo("Access denied");
-        @SuppressWarnings("unchecked")
-        Map<String, Object> data = (Map<String, Object>) response.getBody().get("data");
-        assertThat(data).isNotNull();
-        assertThat(data.get("message")).isEqualTo("Access denied");
-        assertThat(data.get("reason")).isEqualTo("SUPER_ADMIN_PLATFORM_ONLY");
-        assertThat(data.get("reasonDetail"))
-                .isEqualTo("Super Admin is limited to platform control-plane operations and cannot execute tenant business workflows");
-    }
-
-    private HttpHeaders jsonHeaders() {
-        HttpHeaders headers = authHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        return headers;
-    }
-
-    private HttpHeaders authHeaders() {
-        Map<String, Object> loginPayload = Map.of(
-                "email", SUPER_ADMIN_EMAIL,
-                "password", PASSWORD,
-                "companyCode", TENANT
-        );
-        ResponseEntity<Map> login = rest.postForEntity("/api/v1/auth/login", loginPayload, Map.class);
-        assertThat(login.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(login.getBody()).isNotNull();
-
-        HttpHeaders headers = new HttpHeaders();
-        headers.setBearerAuth((String) login.getBody().get("accessToken"));
-        headers.set("X-Company-Code", TENANT);
-        return headers;
-    }
-
-    private ResponseEntity<Map> importTally(String xml, String fileName, HttpHeaders headers) {
-        org.springframework.util.MultiValueMap<String, Object> body = new org.springframework.util.LinkedMultiValueMap<>();
-        HttpHeaders fileHeaders = new HttpHeaders();
-        fileHeaders.setContentType(MediaType.parseMediaType("application/xml"));
-        body.add("file", new HttpEntity<>(xmlResource(fileName, xml), fileHeaders));
-
-        HttpHeaders requestHeaders = new HttpHeaders();
-        requestHeaders.putAll(headers);
-        requestHeaders.setContentType(MediaType.MULTIPART_FORM_DATA);
-
-        return rest.exchange(
-                "/api/v1/migration/tally-import",
-                HttpMethod.POST,
-                new HttpEntity<>(body, requestHeaders),
+                new HttpEntity<>(jsonHeaders(adminToken, TENANT_A)),
                 Map.class);
+        assertThat(adminResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+        ResponseEntity<Map> deniedResponse = rest.exchange(
+                "/api/v1/audit/business-events?page=0&size=5",
+                HttpMethod.GET,
+                new HttpEntity<>(jsonHeaders(superAdminToken, TENANT_A)),
+                Map.class);
+        assertThat(deniedResponse.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertForbiddenReason(deniedResponse, "SUPER_ADMIN_TENANT_WORKFLOW_DENIED");
     }
 
-    private org.springframework.core.io.ByteArrayResource xmlResource(String fileName, String xml) {
-        return new org.springframework.core.io.ByteArrayResource(xml.getBytes(java.nio.charset.StandardCharsets.UTF_8)) {
-            @Override
-            public String getFilename() {
-                return fileName;
-            }
-        };
+    @Test
+    void rootSuperAdminRetainsPlatformOnlyControlPlaneAccess() {
+        Long tenantAId = companyRepository.findByCodeIgnoreCase(TENANT_A).map(Company::getId).orElseThrow();
+        String rootToken = login(SUPER_ADMIN_EMAIL, ROOT_TENANT);
+
+        ResponseEntity<Map> metricsResponse = rest.exchange(
+                "/api/v1/companies/" + tenantAId + "/tenant-metrics",
+                HttpMethod.GET,
+                new HttpEntity<>(jsonHeaders(rootToken, ROOT_TENANT)),
+                Map.class);
+
+        assertThat(metricsResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        Map<String, Object> body = metricsResponse.getBody();
+        assertThat(body).isNotNull();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> data = (Map<String, Object>) body.get("data");
+        assertThat(data).isNotNull();
+        assertThat(data.get("companyCode")).isEqualTo(TENANT_A);
     }
 
-    private String sampleTallyXml() {
-        return """
-                <ENVELOPE>
-                  <BODY>
-                    <DATA>
-                      <TALLYMESSAGE>
-                        <LEDGER NAME=\"Customer A\">
-                          <PARENT>Sundry Debtors</PARENT>
-                        </LEDGER>
-                      </TALLYMESSAGE>
-                      <TALLYMESSAGE>
-                        <LEDGER NAME=\"Supplier B\">
-                          <PARENT>Sundry Creditors</PARENT>
-                        </LEDGER>
-                      </TALLYMESSAGE>
-                      <TALLYMESSAGE>
-                        <VOUCHER VCHTYPE=\"Opening Balance\" VOUCHERTYPENAME=\"Opening Balance\">
-                          <ALLLEDGERENTRIES.LIST>
-                            <LEDGERNAME>Customer A</LEDGERNAME>
-                            <AMOUNT>1200.00</AMOUNT>
-                          </ALLLEDGERENTRIES.LIST>
-                          <ALLLEDGERENTRIES.LIST>
-                            <LEDGERNAME>Supplier B</LEDGERNAME>
-                            <AMOUNT>-1200.00</AMOUNT>
-                          </ALLLEDGERENTRIES.LIST>
-                        </VOUCHER>
-                      </TALLYMESSAGE>
-                    </DATA>
-                  </BODY>
-                </ENVELOPE>
-                """;
+    private void resetSeededUserState(String email) {
+        userAccountRepository.findByEmailIgnoreCase(email).ifPresent(user -> {
+            user.setEnabled(true);
+            user.setMustChangePassword(false);
+            user.setFailedLoginAttempts(0);
+            user.setLockedUntil(null);
+            userAccountRepository.save(user);
+        });
+    }
+
+    private void resetTenantLifecycle(String companyCode) {
+        companyRepository.findByCodeIgnoreCase(companyCode).ifPresent(company -> {
+            company.setLifecycleState(CompanyLifecycleState.ACTIVE);
+            company.setLifecycleReason(null);
+            companyRepository.save(company);
+        });
+    }
+
+    private String login(String email, String companyCode) {
+        ResponseEntity<Map> response = rest.postForEntity("/api/v1/auth/login", Map.of(
+                "email", email,
+                "password", PASSWORD,
+                "companyCode", companyCode
+        ), Map.class);
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        Map<String, Object> body = response.getBody();
+        assertThat(body).isNotNull();
+        return body.get("accessToken").toString();
+    }
+
+    private HttpHeaders jsonHeaders(String token, String companyCode) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.setBearerAuth(token);
+        headers.set("X-Company-Code", companyCode);
+        return headers;
+    }
+
+    @SuppressWarnings("unchecked")
+    private void assertForbiddenReason(ResponseEntity<Map> response, String expectedReason) {
+        Map<String, Object> body = response.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.get("success")).isEqualTo(Boolean.FALSE);
+        assertThat(body.get("message")).isEqualTo("Access denied");
+        Map<String, Object> error = (Map<String, Object>) body.get("data");
+        assertThat(error).isNotNull();
+        assertThat(error.get("code")).isEqualTo("AUTH_004");
+        assertThat(error.get("reason")).isEqualTo(expectedReason);
     }
 }

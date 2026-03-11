@@ -32,6 +32,7 @@ import java.util.UUID;
 public class CompanyContextFilter extends OncePerRequestFilter {
 
     private static final Logger log = LoggerFactory.getLogger(CompanyContextFilter.class);
+    private static final String AUDIT_API_PREFIX = "/api/v1/audit";
     private static final String COMPANY_API_PREFIX = "/api/v1/companies/";
     private static final String LIFECYCLE_STATE_SUFFIX = "/lifecycle-state";
     private static final String TENANT_METRICS_SUFFIX = "/tenant-metrics";
@@ -183,6 +184,12 @@ public class CompanyContextFilter extends OncePerRequestFilter {
                 }
             }
             if (companyCode != null) {
+                if (isTenantAuditWorkflowRequest(runtimePath) && hasSuperAdminAuthority()) {
+                    writeAccessDenied(response,
+                            "SUPER_ADMIN_TENANT_WORKFLOW_DENIED",
+                            "Access denied to tenant audit workflow for platform-only super admin");
+                    return;
+                }
                 CompanyLifecycleState lifecycleState = companyService.resolveLifecycleStateByCode(companyCode);
                 // Recovery endpoints for non-active tenants are intended for super-admin operators
                 // even when they are not explicitly attached to the tenant membership list.
@@ -529,6 +536,11 @@ public class CompanyContextFilter extends OncePerRequestFilter {
         }
         String normalizedPath = normalizePath(path);
         return PUBLIC_PASSWORD_RESET_ENDPOINTS.contains(normalizedPath);
+    }
+
+    private boolean isTenantAuditWorkflowRequest(String path) {
+        String normalizedPath = normalizePath(path);
+        return StringUtils.hasText(normalizedPath) && normalizedPath.startsWith(AUDIT_API_PREFIX);
     }
 
     private String normalizePath(String path) {
