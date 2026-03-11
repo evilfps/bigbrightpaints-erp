@@ -2,7 +2,7 @@
   "milestone": "recovery-review",
   "round": 1,
   "status": "pass",
-  "scopeNote": "Recovery-review is clean on the current propagated stack because every linked scrutiny review artifact now points at a commit id that both resolves and is ancestor-reachable from `recovery/08-engineer-shareout`; stale pre-restack anchors were replaced with reachable propagated equivalents so the restored pass state is auditable rather than a carried-forward clean summary from older ancestry.",
+  "scopeNote": "Recovery-review is clean on the current propagated stack because every linked scrutiny review artifact now points at a commit id that both resolves and is ancestor-reachable from `recovery/08-engineer-shareout`; stale pre-restack anchors were replaced with the latest reachable propagated equivalents so the restored pass state is auditable rather than a carried-forward clean summary from older ancestry.",
   "validatorsRun": {
     "test": {
       "passed": true,
@@ -37,12 +37,12 @@
   "appliedUpdates": [
     {
       "target": ".factory/validation/recovery-review/scrutiny/reviews/*.json",
-      "description": "Re-anchored every stale non-ancestor recovery-review artifact to a current-stack reachable commit id: O2C `140ae266b089673dbdbe724b60946827c6afffe9`, P2P `610e63dee94edb542797195bf33242a2c48cd8cf`, corrections/control `09dc2b8bf301613f0dd9ca456d55f3c50abedbbd`, portal `9933ec4f82d0b95453218cfb2c1c375c5c916cd6`, final-hardening `c4e30c64c72e243f24923eec61f53d8852ebf540`, and the docs-only PR #102 shareout review `4f9ba95c5b1788e792d3c964915adbb8aab5ac6b`; the shared-ci baseline and truth-rails anchors were already reachable and remained unchanged. The milestone pass therefore reflects the live propagated ancestry rather than a stale clean summary from an older restack state.",
+      "description": "Re-anchored every stale non-ancestor recovery-review artifact to a current-stack reachable commit id: O2C `140ae266b089673dbdbe724b60946827c6afffe9`, P2P `39b73910e061a42deb23ddc16779b9be726e57f9`, corrections/control `02654ad7f839da7ffc24d0fa426904001f5acbe2`, portal `db2586fc76a6b64c1e413669906e56598d15ecca`, final-hardening `d23648b84e25955284f315c31cd3abacaec6f0d9`, and the docs-only PR #102 shareout review `5e2ef405f6c9ae47c0f7f5f08bf5c8c273bb3e66`; the shared-ci baseline and truth-rails anchors were already reachable and remained unchanged. The milestone pass therefore reflects the live propagated ancestry rather than a stale clean summary from an older restack state.",
       "source": "review-traceability"
     },
     {
       "target": ".factory/validation/recovery-review/scrutiny/synthesis.json",
-      "description": "Recorded the aggregate traceability verification result explicitly: all eight linked recovery-review artifacts now point at commitIds that both resolve and are branch-reachable on `recovery/08-engineer-shareout`, so the reported 8/8 pass count no longer overstates replayable evidence.",
+      "description": "Recorded the aggregate traceability verification result explicitly: all eight linked recovery-review artifacts now point at commitIds that both resolve and are branch-reachable on `recovery/08-engineer-shareout`, so the reported 8/8 pass count does not overstate replayable evidence.",
       "source": "review-traceability-verification"
     }
   ],

@@ -1,12 +1,12 @@
 {
   "featureId": "recovery-review.p2p-r2-and-idempotency",
   "reviewedAt": "2026-03-09T06:10:00+05:30",
-  "commitId": "610e63dee94edb542797195bf33242a2c48cd8cf",
+  "commitId": "39b73910e061a42deb23ddc16779b9be726e57f9",
   "transcriptSkeletonReviewed": true,
   "diffReviewed": true,
   "status": "pass",
   "codeReview": {
-    "summary": "Manual scrutiny review confirmed the P2P packet addressed the actual PR #98 blockers, and the current propagated stack now keeps that evidence traceable on reachable descendant commit `610e63dee94edb542797195bf33242a2c48cd8cf` (`fix(p2p): close remaining PR #98 live comments`). That current-stack anchor preserves the earlier replay-first supplier settlement/accounting recovery, R2 evidence, docs cleanup, and changed-files coverage closure while also carrying the final PurchaseInvoiceEngine linkage fix that landed later on the same recovery branch.",
+    "summary": "Manual scrutiny review confirmed the P2P packet addressed the actual PR #98 blockers, and the current propagated stack now keeps that evidence traceable on reachable descendant commit `39b73910e061a42deb23ddc16779b9be726e57f9` (`fix(p2p): close remaining PR #98 live comments`). That current-stack anchor preserves the earlier replay-first supplier settlement/accounting recovery, R2 evidence, docs cleanup, and changed-files coverage closure while also carrying the final PurchaseInvoiceEngine linkage fix that landed later on the same recovery branch.",
     "issues": [
       {
         "severity": "non_blocking",
@@ -22,5 +22,5 @@
     }
   ],
   "addressesFailureFrom": null,
-  "summary": "Pass with non-blocking follow-up. PR #98 replay/governance/coverage blockers remain validated on branch-reachable commit `610e63dee94edb542797195bf33242a2c48cd8cf`, with the earlier coverage/R2 closure now traced through the current propagated descendant rather than the stale pre-restack commit id."
+  "summary": "Pass with non-blocking follow-up. PR #98 replay/governance/coverage blockers remain validated on branch-reachable commit `39b73910e061a42deb23ddc16779b9be726e57f9`, with the earlier coverage/R2 closure now traced through the current propagated descendant rather than the stale pre-restack commit id."
 }
