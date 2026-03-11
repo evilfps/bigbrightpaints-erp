@@ -131,6 +131,14 @@ public class SalesCoreEngine {
             ORDER_STATUS_PENDING_PRODUCTION,
             ORDER_STATUS_RESERVED
     );
+    private static final Set<String> DISPATCH_AUTO_RESERVABLE_ORDER_STATUSES = Set.of(
+            ORDER_STATUS_CONFIRMED,
+            ORDER_STATUS_PROCESSING,
+            ORDER_STATUS_PENDING_INVENTORY,
+            ORDER_STATUS_RESERVED,
+            ORDER_STATUS_PENDING_PRODUCTION,
+            ORDER_STATUS_READY_TO_SHIP
+    );
     private static final Set<String> VALID_ORDER_STATUSES = Set.of(
             ORDER_STATUS_DRAFT,
             ORDER_STATUS_CONFIRMED,
@@ -1271,6 +1279,26 @@ public class SalesCoreEngine {
                 .orElse(null);
     }
 
+    private void assertDispatchAutoReservationAllowed(SalesOrder order) {
+        if (order == null) {
+            return;
+        }
+        String status = canonicalOrderStatus(order.getStatus());
+        if (!DISPATCH_AUTO_RESERVABLE_ORDER_STATUSES.contains(status)) {
+            throw new ApplicationException(ErrorCode.BUSINESS_INVALID_STATE,
+                    "Cannot auto-create packing slip for dispatch from order status " + status)
+                    .withDetail("orderId", order.getId())
+                    .withDetail("currentStatus", status)
+                    .withDetail("allowedStatuses", DISPATCH_AUTO_RESERVABLE_ORDER_STATUSES);
+        }
+        if (order.hasInvoiceIssued() || order.hasSalesJournalPosted() || order.hasCogsJournalPosted()) {
+            throw new ApplicationException(ErrorCode.BUSINESS_INVALID_STATE,
+                    "Cannot auto-create packing slip for dispatch when order already has accounting markers")
+                    .withDetail("orderId", order.getId())
+                    .withDetail("currentStatus", status);
+        }
+    }
+
     private void assertOrderMutable(SalesOrder order, String action) {
         if (order == null) {
             return;
@@ -2390,6 +2418,7 @@ public class SalesCoreEngine {
         if (orderSlips.isEmpty()) {
             FinishedGoodsService.InventoryReservationResult reservationResult = null;
             if (requestedSlipId == null) {
+                assertDispatchAutoReservationAllowed(order);
                 reservationResult = finishedGoodsService.reserveForOrder(order);
                 orderSlips = findOrderSlips(company, salesOrderId, true);
             }

@@ -125,6 +125,7 @@ class DispatchControllerTest {
         assertThat(redacted.totalShippedAmount()).isNull();
         assertThat(redacted.deliveryChallanPdfPath()).isEqualTo("/api/v1/dispatch/slip/10/challan/pdf");
 
+        verify(finishedGoodsService).getPackagingSlip(10L);
         verify(finishedGoodsService).getDispatchConfirmation(10L);
         verifyNoMoreInteractions(salesDispatchReconciliationService, finishedGoodsService);
     }
@@ -195,7 +196,7 @@ class DispatchControllerTest {
         ResponseEntity<ApiResponse<DispatchConfirmationResponse>> response = controller.confirmDispatch(request, () -> "factory.user");
 
         assertThat(response.getStatusCode().value()).isEqualTo(200);
-        verify(finishedGoodsService).getPackagingSlip(10L);
+        verify(finishedGoodsService, org.mockito.Mockito.times(2)).getPackagingSlip(10L);
         verify(salesDispatchReconciliationService).confirmDispatch(org.mockito.ArgumentMatchers.any(DispatchConfirmRequest.class));
     }
 
