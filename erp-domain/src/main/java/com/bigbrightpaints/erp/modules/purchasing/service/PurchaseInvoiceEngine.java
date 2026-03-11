@@ -563,6 +563,7 @@ public class PurchaseInvoiceEngine {
     private void linkGoodsReceiptMovementsToJournal(Company company, String receiptNumber, Long journalEntryId) { if (journalEntryId == null || !StringUtils.hasText(receiptNumber)) {
             return;
         }
+        List<RawMaterialMovement> receiptMovements = findGoodsReceiptMovements(company, receiptNumber);
         if (receiptMovements.isEmpty()) {
             return;
         }
