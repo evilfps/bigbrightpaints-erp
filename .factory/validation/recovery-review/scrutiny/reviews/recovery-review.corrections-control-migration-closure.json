@@ -1,15 +1,15 @@
 {
   "featureId": "recovery-review.corrections-control-migration-closure",
   "reviewedAt": "2026-03-09T06:10:00+05:30",
-  "commitId": "86890527b289b94ca70a2e1e8fe8621b66161d97",
+  "commitId": "826fefe672f48752336dc043f27f9c173be8009f",
   "transcriptSkeletonReviewed": true,
   "diffReviewed": true,
   "status": "pass",
   "codeReview": {
-    "summary": "Manual scrutiny review found the corrections/control recovery packet stayed tightly aligned to PR #99: legacy replay and reversal provenance paths were hardened, migration/R2 governance evidence was updated in the same packet, and the focused accounting/purchasing/sales-return regression surface passed cleanly without introducing new scope.",
+    "summary": "Manual scrutiny review found the corrections/control recovery packet stayed tightly aligned to PR #99: legacy replay and reversal provenance paths were hardened, migration/R2 governance evidence was updated in the same packet, and the focused accounting/purchasing/sales-return regression surface passed cleanly without introducing new scope. The review now anchors to branch-reachable commit `826fefe672f48752336dc043f27f9c173be8009f` (`fix(accounting): close corrections-control comment gaps`) so the shareout packet no longer points at a stale pre-restack closure id.",
     "issues": []
   },
   "sharedStateObservations": [],
   "addressesFailureFrom": null,
-  "summary": "Pass. Corrections/control replay, provenance, and migration-governance recovery work is coherently covered and validated on a reachable recovery/05 closure commit."
+  "summary": "Pass. Corrections/control replay, provenance, and migration-governance recovery work is coherently covered and validated on branch-reachable commit `826fefe672f48752336dc043f27f9c173be8009f`."
 }

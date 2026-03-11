@@ -1,15 +1,15 @@
 {
   "featureId": "recovery-review.final-hardening-seed-safety",
   "reviewedAt": "2026-03-11T02:13:59Z",
-  "commitId": "fd712a3adbe5a503c2079eaa56301dcfe6a31373",
+  "commitId": "f30d9bbabc5ad37137d4d601fad5c6e63b6b270a",
   "transcriptSkeletonReviewed": true,
   "diffReviewed": true,
   "status": "pass",
   "codeReview": {
-    "summary": "Manual scrutiny re-check confirmed the current propagated final-hardening evidence is traceable on resolvable, branch-reachable commit `fd712a3adbe5a503c2079eaa56301dcfe6a31373` (`fix(validation): harden final runtime seed contract`). That reachable propagated commit still captures the reviewed seed/runtime-safety packet: validation seeding is explicit and password-policy guarded, the reset harness is repo-portable and self-verifying, the R2 evidence is refreshed, and the targeted validation coverage around the seed initializer and reset harness remains auditable from `git show`.",
+    "summary": "Manual scrutiny re-check confirmed the current propagated final-hardening evidence is traceable on resolvable, branch-reachable commit `f30d9bbabc5ad37137d4d601fad5c6e63b6b270a` (`fix(validation): harden final runtime seed contract`). That reachable propagated commit still captures the reviewed seed/runtime-safety packet: validation seeding is explicit and password-policy guarded, the reset harness is repo-portable and self-verifying, the R2 evidence is refreshed, and the targeted validation coverage around the seed initializer and reset harness remains auditable from `git show`.",
     "issues": []
   },
   "sharedStateObservations": [],
   "addressesFailureFrom": null,
-  "summary": "Pass. Re-anchored the final-hardening recovery review to reachable propagated commit `fd712a3adbe5a503c2079eaa56301dcfe6a31373`, which still captures the reviewed seed/runtime-safety packet on the current propagated stack."
+  "summary": "Pass. Re-anchored the final-hardening recovery review to reachable propagated commit `f30d9bbabc5ad37137d4d601fad5c6e63b6b270a`, which still captures the reviewed seed/runtime-safety packet on the current propagated stack."
 }

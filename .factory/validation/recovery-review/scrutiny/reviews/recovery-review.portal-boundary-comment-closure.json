@@ -1,15 +1,15 @@
 {
   "featureId": "recovery-review.portal-boundary-comment-closure",
   "reviewedAt": "2026-03-10T18:39:38Z",
-  "commitId": "42d93ea5a3182308d50dddf3db634492f72ffd8c",
+  "commitId": "ad58bbaa48fd7505c41167f85c1e7baaaf1ddce5",
   "transcriptSkeletonReviewed": true,
   "diffReviewed": true,
   "status": "pass",
   "codeReview": {
-    "summary": "Manual scrutiny re-check confirmed the current propagated portal-boundary evidence is traceable on resolvable commit `42d93ea5a3182308d50dddf3db634492f72ffd8c` (`fix(portal): close PR100 review gaps`). That reachable propagated commit remains the closest auditable anchor for the reviewed fail-closed portal packet: super-admin tenant workflow denial, deterministic dealer read-only handling, aligned denial payloads, and tighter RBAC assertions are all visible from the touched runtime/test files and reproducible with the focused portal suite plus gate-fast rerun recorded for this review.",
+    "summary": "Manual scrutiny re-check confirmed the current propagated portal-boundary evidence is traceable on resolvable, branch-reachable commit `ad58bbaa48fd7505c41167f85c1e7baaaf1ddce5` (`fix(portal): close PR100 review gaps`). That reachable propagated commit remains the closest auditable anchor for the reviewed fail-closed portal packet: super-admin tenant workflow denial, deterministic dealer read-only handling, aligned denial payloads, and tighter RBAC assertions are all visible from the touched runtime/test files and reproducible with the focused portal suite plus gate-fast rerun recorded for this review.",
     "issues": []
   },
   "sharedStateObservations": [],
   "addressesFailureFrom": null,
-  "summary": "Pass. Re-anchored the portal-boundary recovery review to reachable propagated commit `42d93ea5a3182308d50dddf3db634492f72ffd8c`, preserving an auditable trace to the reviewed fail-closed portal packet on the propagated stack."
+  "summary": "Pass. Re-anchored the portal-boundary recovery review to reachable propagated commit `ad58bbaa48fd7505c41167f85c1e7baaaf1ddce5`, preserving an auditable trace to the reviewed fail-closed portal packet on the propagated stack."
 }

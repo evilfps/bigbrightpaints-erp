@@ -1,12 +1,12 @@
 {
   "featureId": "recovery-review.p2p-r2-and-idempotency",
   "reviewedAt": "2026-03-09T06:10:00+05:30",
-  "commitId": "1169c9bebf2efe43917125c6edd3aa03da1032c4",
+  "commitId": "7b442c757a8cb4c55809d6235c56de18777506a0",
   "transcriptSkeletonReviewed": true,
   "diffReviewed": true,
   "status": "pass",
   "codeReview": {
-    "summary": "Manual scrutiny review confirmed the P2P packet addressed the actual PR #98 blockers: replay-first supplier settlement/accounting behavior was restored, R2 evidence landed with the code changes, the packet-local docs nit was fixed, and the refreshed changed-files coverage logic was covered by dedicated CI contract tests before the branch fast gate was rerun successfully.",
+    "summary": "Manual scrutiny review confirmed the P2P packet addressed the actual PR #98 blockers: replay-first supplier settlement/accounting behavior was restored, R2 evidence landed with the code changes, the packet-local docs nit was fixed, and the refreshed changed-files coverage logic was covered by dedicated CI contract tests before the branch fast gate was rerun successfully. The review now anchors to branch-reachable commit `7b442c757a8cb4c55809d6235c56de18777506a0` (`fix(p2p): close PR #98 changed coverage gate`) so the shareout packet reports current-stack reachability truthfully.",
     "issues": [
       {
         "severity": "non_blocking",
@@ -22,5 +22,5 @@
     }
   ],
   "addressesFailureFrom": null,
-  "summary": "Pass with non-blocking follow-up. PR #98 replay/governance/coverage blockers were closed and validated, but a broader CI contract test still documents a runtime probe mismatch outside the required packet gates."
+  "summary": "Pass with non-blocking follow-up. PR #98 replay/governance/coverage blockers were closed and validated on branch-reachable commit `7b442c757a8cb4c55809d6235c56de18777506a0`, but a broader CI contract test still documents a runtime probe mismatch outside the required packet gates."
 }

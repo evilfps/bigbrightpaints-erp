@@ -1,15 +1,15 @@
 {
   "featureId": "recovery-review.o2c-feedback-and-coverage",
   "reviewedAt": "2026-03-09T06:10:00+05:30",
-  "commitId": "348fa7cad0aeafa7157a664347ad30ed3daf14f5",
+  "commitId": "140ae266b089673dbdbe724b60946827c6afffe9",
   "transcriptSkeletonReviewed": true,
   "diffReviewed": true,
   "status": "pass",
   "codeReview": {
-    "summary": "Manual scrutiny review of the final handoff and commit confirmed the packet finished the earlier partial O2C recovery work instead of masking it: dealer-receipt CODE-RED coverage was repaired to follow the shipped reservation-driven dispatch truth, changed-files coverage cleared the stacked thresholds, and the challan/dispatch/proforma/payment-mode review fixes remained protected by targeted tests.",
+    "summary": "Manual scrutiny review of the final handoff and the current propagated branch anchor confirmed the packet finished the earlier partial O2C recovery work instead of masking it: dealer-receipt CODE-RED coverage was repaired to follow the shipped reservation-driven dispatch truth, changed-files coverage cleared the stacked thresholds, and the challan/dispatch/proforma/payment-mode review fixes remained protected by targeted tests. The review now anchors to branch-reachable commit `140ae266b089673dbdbe724b60946827c6afffe9` (`test(o2c): route dispatch truth coverage into pr-fast`) so the shareout packet does not overstate reachability from the old pre-restack closure id.",
     "issues": []
   },
   "sharedStateObservations": [],
   "addressesFailureFrom": null,
-  "summary": "Pass. O2C recovery closed its review comments, restored codered-finance, and passed stacked changed-files coverage at 97.04% line and 90.08% branch on the reachable recovery/03 closure commit."
+  "summary": "Pass. O2C recovery closed its review comments, restored codered-finance, and passed stacked changed-files coverage at 97.04% line and 90.08% branch on branch-reachable commit `140ae266b089673dbdbe724b60946827c6afffe9`."
 }
