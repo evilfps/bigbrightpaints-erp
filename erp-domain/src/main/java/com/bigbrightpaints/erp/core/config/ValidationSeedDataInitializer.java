@@ -120,7 +120,9 @@ public class ValidationSeedDataInitializer {
         company.setName(name);
         company.setTimezone("UTC");
         company.setBaseCurrency("INR");
-        company.setStateCode("MH");
+        if (company.getStateCode() == null || company.getStateCode().isBlank()) {
+            company.setStateCode("MH");
+        }
         return companyRepository.save(company);
     }
 

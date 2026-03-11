@@ -34,6 +34,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -143,8 +144,8 @@ class CompanyContextFilterControlPlaneBindingTest {
         filter.doFilter(request, response, filterChain);
 
         assertThat(response.getStatus()).isEqualTo(403);
-        assertThat(response.getContentAsString()).contains("SUPER_ADMIN_TENANT_WORKFLOW_DENIED");
-        assertThat(response.getContentAsString()).contains("platform-only super admin");
+        assertThat(response.getContentAsString()).contains("SUPER_ADMIN_PLATFORM_ONLY");
+        assertThat(response.getContentAsString()).contains("platform control-plane operations");
         verifyNoInteractions(companyService);
         verify(tenantRuntimeEnforcementService, never())
                 .beginRequest(anyString(), anyString(), anyString(), anyString(), anyBoolean());
@@ -338,8 +339,8 @@ class CompanyContextFilterControlPlaneBindingTest {
 
     private Claims claimsFor(String companyCode) {
         Claims claims = mock(Claims.class);
-        when(claims.get("companyCode", String.class)).thenReturn(companyCode);
-        when(claims.get("cid", String.class)).thenReturn(null);
+        lenient().when(claims.get("companyCode", String.class)).thenReturn(companyCode);
+        lenient().when(claims.get("cid", String.class)).thenReturn(null);
         return claims;
     }
 

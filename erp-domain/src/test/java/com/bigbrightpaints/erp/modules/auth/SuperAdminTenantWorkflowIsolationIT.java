@@ -75,7 +75,7 @@ class SuperAdminTenantWorkflowIsolationIT extends AbstractIntegrationTest {
                 new HttpEntity<>(jsonHeaders(superAdminToken, TENANT_A)),
                 Map.class);
         assertThat(deniedResponse.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
-        assertForbiddenReason(deniedResponse, "SUPER_ADMIN_TENANT_WORKFLOW_DENIED");
+        assertForbiddenReason(deniedResponse, "SUPER_ADMIN_PLATFORM_ONLY");
     }
 
     @Test
