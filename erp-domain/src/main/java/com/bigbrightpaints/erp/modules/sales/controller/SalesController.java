@@ -1,5 +1,7 @@
 package com.bigbrightpaints.erp.modules.sales.controller;
 
+import com.bigbrightpaints.erp.modules.inventory.dto.PackagingSlipDto;
+import com.bigbrightpaints.erp.modules.inventory.service.FinishedGoodsService;
 import com.bigbrightpaints.erp.modules.sales.dto.*;
 import com.bigbrightpaints.erp.modules.sales.service.DealerService;
 import com.bigbrightpaints.erp.modules.sales.service.SalesDashboardService;
@@ -34,6 +36,7 @@ public class SalesController {
     private final SalesDispatchReconciliationService salesDispatchReconciliationService;
     private final SalesDashboardService salesDashboardService;
     private final DealerService dealerService;
+    private final FinishedGoodsService finishedGoodsService;
 
     public SalesController(SalesService salesService,
                            SalesOrderCrudService salesOrderCrudService,
@@ -41,7 +44,8 @@ public class SalesController {
                            SalesDealerCrudService salesDealerCrudService,
                            SalesDispatchReconciliationService salesDispatchReconciliationService,
                            SalesDashboardService salesDashboardService,
-                           DealerService dealerService) {
+                           DealerService dealerService,
+                           FinishedGoodsService finishedGoodsService) {
         this.salesService = salesService;
         this.salesOrderCrudService = salesOrderCrudService;
         this.salesOrderLifecycleService = salesOrderLifecycleService;
@@ -49,6 +53,7 @@ public class SalesController {
         this.salesDispatchReconciliationService = salesDispatchReconciliationService;
         this.salesDashboardService = salesDashboardService;
         this.dealerService = dealerService;
+        this.finishedGoodsService = finishedGoodsService;
     }
 
     /* Dealers alias - frontend calls /sales/dealers, backend has /dealers */
@@ -330,8 +335,22 @@ public class SalesController {
     @PostMapping("/sales/dispatch/confirm")
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING','ROLE_FACTORY') and hasAuthority('dispatch.confirm')")
     public ResponseEntity<ApiResponse<DispatchConfirmResponse>> confirmDispatch(@Valid @RequestBody DispatchConfirmRequest request) {
-        DispatchMetadataValidator.validate(request);
+        if (DispatchMetadataValidator.shouldEnforceValidation(request, () -> isDispatchedSlipReplay(request.packingSlipId()))) {
+            DispatchMetadataValidator.validate(request);
+        }
         return ResponseEntity.ok(ApiResponse.success("Dispatch confirmed", salesDispatchReconciliationService.confirmDispatch(request)));
+    }
+
+    private boolean isDispatchedSlipReplay(Long packingSlipId) {
+        if (packingSlipId == null) {
+            return false;
+        }
+        try {
+            PackagingSlipDto slip = finishedGoodsService.getPackagingSlip(packingSlipId);
+            return slip != null && "DISPATCHED".equalsIgnoreCase(slip.status());
+        } catch (RuntimeException ex) {
+            return false;
+        }
     }
 
     @PostMapping("/sales/dispatch/reconcile-order-markers")
