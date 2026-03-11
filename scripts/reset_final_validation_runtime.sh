@@ -59,6 +59,8 @@ PY
   ERP_VALIDATION_SEED_PASSWORD_SOURCE="generated"
 fi
 
+export JWT_SECRET ERP_SECURITY_ENCRYPTION_KEY
+
 echo "[final-validation-reset] Resetting compose runtime on port ${DB_PORT}"
 DB_PORT="$DB_PORT" RABBIT_PORT="$RABBIT_PORT" APP_PORT="$APP_PORT" docker compose -f "$COMPOSE_FILE" down -v --remove-orphans
 DB_PORT="$DB_PORT" RABBIT_PORT="$RABBIT_PORT" APP_PORT="$APP_PORT" docker compose -f "$COMPOSE_FILE" up -d db rabbitmq mailhog
