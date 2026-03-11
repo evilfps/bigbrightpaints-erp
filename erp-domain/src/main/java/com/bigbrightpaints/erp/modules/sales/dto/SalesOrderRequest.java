@@ -40,8 +40,8 @@ public record SalesOrderRequest(
     }
 
     public String normalizedPaymentMode() {
-        String normalized = IdempotencyUtils.normalizeUpperToken(paymentMode);
-        if (normalized.isBlank()) {
+        String normalized = rawNormalizedPaymentMode();
+        if (DEFAULT_PAYMENT_MODE.equals(normalized)) {
             return DEFAULT_PAYMENT_MODE;
         }
         if (LEGACY_HYBRID_PAYMENT_MODE.equals(normalized)) {
@@ -50,12 +50,16 @@ public record SalesOrderRequest(
         return normalized;
     }
 
+    public boolean usesLegacySplitReplayPaymentMode() {
+        return LEGACY_HYBRID_PAYMENT_MODE.equals(rawNormalizedPaymentMode());
+    }
+
     public String resolveIdempotencyKey() {
         String normalized = IdempotencyUtils.normalizeKey(idempotencyKey);
         if (normalized != null) {
             return normalized;
         }
-        return resolveDerivedIdempotencyKey(false);
+        return resolveDerivedIdempotencyKey(normalizedPaymentMode(), false);
     }
 
     public String resolveIdempotencyKeyIncludingDefaultPaymentMode() {
@@ -63,11 +67,19 @@ public record SalesOrderRequest(
         if (normalized != null) {
             return normalized;
         }
-        return resolveDerivedIdempotencyKey(true);
+        return resolveDerivedIdempotencyKey(normalizedPaymentMode(), true);
     }
 
-    private String resolveDerivedIdempotencyKey(boolean includeDefaultPaymentModeSegment) {
-        String normalizedPaymentMode = normalizedPaymentMode();
+    public String resolveLegacySplitReplayIdempotencyKey() {
+        String normalized = IdempotencyUtils.normalizeKey(idempotencyKey);
+        if (normalized != null || !usesLegacySplitReplayPaymentMode()) {
+            return null;
+        }
+        return resolveDerivedIdempotencyKey(LEGACY_HYBRID_PAYMENT_MODE, false);
+    }
+
+    private String resolveDerivedIdempotencyKey(String normalizedPaymentMode,
+                                                boolean includeDefaultPaymentModeSegment) {
         IdempotencySignatureBuilder signatureBuilder = IdempotencySignatureBuilder.create()
                 .add(dealerId == null ? "null" : dealerId)
                 .add(totalAmount)
@@ -83,5 +95,13 @@ public record SalesOrderRequest(
             }
         }
         return signatureBuilder.buildHash();
+    }
+
+    private String rawNormalizedPaymentMode() {
+        String normalized = IdempotencyUtils.normalizeUpperToken(paymentMode);
+        if (normalized.isBlank()) {
+            return DEFAULT_PAYMENT_MODE;
+        }
+        return normalized;
     }
 }

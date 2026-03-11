@@ -115,4 +115,15 @@ class SalesOrderRequestTest {
 
         assertThat(request.normalizedPaymentMode()).isEqualTo("HYBRID");
     }
+
+    @Test
+    void resolveLegacySplitReplayIdempotencyKey_preservesLegacySplitShape() {
+        SalesOrderItemRequest item = new SalesOrderItemRequest("FG-1", "Item", new BigDecimal("2"), new BigDecimal("10"), null);
+        SalesOrderRequest request = new SalesOrderRequest(7L, new BigDecimal("100"), "INR", null, List.of(item),
+                "NONE", BigDecimal.ZERO, false, null, "split");
+
+        assertThat(request.resolveIdempotencyKey()).isEqualTo(DigestUtils.sha256Hex("7|100|INR|HYBRID|FG-1:2:10"));
+        assertThat(request.resolveLegacySplitReplayIdempotencyKey())
+                .isEqualTo(DigestUtils.sha256Hex("7|100|INR|SPLIT|FG-1:2:10"));
+    }
 }
