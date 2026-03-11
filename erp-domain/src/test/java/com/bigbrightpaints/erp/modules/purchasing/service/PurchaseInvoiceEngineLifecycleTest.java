@@ -743,4 +743,54 @@ class PurchaseInvoiceEngineLifecycleTest {
 
         verify(accountingFacade, never()).postPurchaseJournal(any(), any(), any(), any(), any(), any(), any(), any(), any());
     }
+
+    @Test
+    @DisplayName("createPurchase re-reads current goods receipt movements before linking AP journal")
+    void createPurchase_reReadsCurrentGoodsReceiptMovementsBeforeLinkingJournal() {
+        RawMaterialMovement initialMovement = movementRepository.findByRawMaterialCompanyAndReferenceTypeAndReferenceId(
+                company,
+                "GOODS_RECEIPT",
+                "GRN-40"
+        ).getFirst();
+        RawMaterialMovement concurrentlyLinkedMovement = new RawMaterialMovement();
+        ReflectionTestUtils.setField(concurrentlyLinkedMovement, "id", 500L);
+        concurrentlyLinkedMovement.setRawMaterial(rawMaterial);
+        concurrentlyLinkedMovement.setReferenceType("GOODS_RECEIPT");
+        concurrentlyLinkedMovement.setReferenceId("GRN-40");
+        concurrentlyLinkedMovement.setMovementType("RECEIPT");
+        concurrentlyLinkedMovement.setQuantity(new BigDecimal("10.0000"));
+        concurrentlyLinkedMovement.setUnitCost(new BigDecimal("12.50"));
+        concurrentlyLinkedMovement.setJournalEntryId(701L);
+        when(movementRepository.findByRawMaterialCompanyAndReferenceTypeAndReferenceId(
+                company,
+                "GOODS_RECEIPT",
+                "GRN-40"
+        )).thenReturn(List.of(initialMovement), List.of(concurrentlyLinkedMovement));
+
+        RawMaterialPurchaseRequest request = new RawMaterialPurchaseRequest(
+                10L,
+                "INV-40",
+                LocalDate.of(2026, 3, 2),
+                "invoice",
+                30L,
+                40L,
+                BigDecimal.ZERO,
+                List.of(new RawMaterialPurchaseLineRequest(
+                        20L,
+                        null,
+                        new BigDecimal("10.0000"),
+                        "KG",
+                        new BigDecimal("12.50"),
+                        null,
+                        null,
+                        "line"
+                ))
+        );
+
+        assertThatThrownBy(() -> purchaseInvoiceEngine.createPurchase(request))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("already linked to journal 701");
+
+        verify(movementRepository, never()).saveAll(any());
+    }
 }

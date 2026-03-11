@@ -466,7 +466,7 @@ public class PurchaseInvoiceEngine {
         purchase = purchaseRepository.save(purchase);
 
         if (entry != null) {
-            linkGoodsReceiptMovementsToJournal(goodsReceiptMovements, goodsReceipt.getReceiptNumber(), entry.id());
+            linkGoodsReceiptMovementsToJournal(company, goodsReceipt.getReceiptNumber(), entry.id());
         }
         goodsReceipt.setStatus(GoodsReceiptStatus.INVOICED);
         goodsReceiptRepository.save(goodsReceipt);
@@ -560,9 +560,10 @@ public class PurchaseInvoiceEngine {
         return receiptMovements;
     }
 
-    private void linkGoodsReceiptMovementsToJournal(List<RawMaterialMovement> receiptMovements, String receiptNumber, Long journalEntryId) { if (journalEntryId == null || !StringUtils.hasText(receiptNumber)) {
+    private void linkGoodsReceiptMovementsToJournal(Company company, String receiptNumber, Long journalEntryId) { if (journalEntryId == null || !StringUtils.hasText(receiptNumber)) {
             return;
         }
+        List<RawMaterialMovement> receiptMovements = findGoodsReceiptMovements(company, receiptNumber);
         if (receiptMovements.isEmpty()) {
             return;
         }
