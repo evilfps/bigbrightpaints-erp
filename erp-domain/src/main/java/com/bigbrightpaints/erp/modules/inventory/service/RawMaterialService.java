@@ -769,7 +769,8 @@ public class RawMaterialService {
         return companyEntityLookup.requireSupplier(company, supplierId);
     }
 
-    private void ensureReceiptAccounts(RawMaterial material, Supplier supplier, boolean postingRequired) { if (material.getInventoryAccountId() == null && material.getCompany() != null) {
+    private void ensureReceiptAccounts(RawMaterial material, Supplier supplier, boolean postingRequired) {
+        if (material.getInventoryAccountId() == null && material.getCompany() != null) {
             // Try company default inventory account before failing
             material.setInventoryAccountId(material.getCompany().getDefaultInventoryAccountId());
         }
