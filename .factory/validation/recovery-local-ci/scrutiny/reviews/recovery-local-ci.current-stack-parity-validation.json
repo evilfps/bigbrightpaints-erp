@@ -1,0 +1,15 @@
+{
+  "featureId": "recovery-local-ci.current-stack-parity-validation",
+  "reviewedAt": "2026-03-11T01:55:00Z",
+  "commitId": "140a6e3129014f3d0ee4d44cb1c0d5d7515bc0a4",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "Manual scrutiny review passed. Reviewed the worker handoff for commit `140a6e3129014f3d0ee4d44cb1c0d5d7515bc0a4` together with the supporting parity-closure diff already on branch (`ff350f34fb95a5d8d492696d89dcfdfb1621c1a4`). The feature stayed within scope: it used the new parity runner to validate the active recovery stack, then closed only the real local parity blockers by tightening `ci/pr_manifests/pr_auth_tenant.txt` and `ci/pr_manifests/pr_business_slice.txt`, adding the delegated truthsuite bridge `TS_RuntimePortalBoundaryDelegatedCoverageTest`, expanding targeted portal and RBAC tests, normalizing `ci/pr_manifests/pr_accounting.txt`, and adding focused `FinishedGoodsReservationEngineTest` replay coverage. The recorded parity reruns for PRs #100, #101, and #102 all passed locally, with PR #102 correctly skipping changed-files coverage because its diff has no runtime source changes. I found no blocking or non-blocking implementation issues in the reviewed scope.",
+    "issues": []
+  },
+  "sharedStateObservations": [],
+  "addressesFailureFrom": null,
+  "summary": "Pass. Validated the active recovery stack with the local parity runner and closed the remaining real portal-boundary and final-hardening coverage blockers so PRs #100-#102 now have green local parity evidence, including an explicit no-runtime-diff changed-coverage skip for PR #102."
+}
