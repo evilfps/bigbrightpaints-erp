@@ -23,6 +23,16 @@ class PortalRoleActionMatrixTest {
                 authentication("ROLE_SALES"),
                 request("POST", "/api/v1/sales/dispatch/confirm")))
                 .isEqualTo("Accounting must complete the final dispatch posting after the shipment is confirmed.");
+
+        assertThat(PortalRoleActionMatrix.resolveAccessDeniedMessage(
+                authentication("ROLE_FACTORY"),
+                request("POST", "/api/v1/sales/dispatch/reconcile-order-markers")))
+                .isEqualTo("Use the factory dispatch workspace to confirm the shipment. Accounting will complete the final dispatch posting.");
+
+        assertThat(PortalRoleActionMatrix.resolveAccessDeniedMessage(
+                authentication("ROLE_SALES"),
+                request("POST", "/api/v1/sales/dispatch/reconcile-order-markers")))
+                .isEqualTo("Accounting must complete the final dispatch posting after the shipment is confirmed.");
     }
 
     @Test
@@ -52,6 +62,11 @@ class PortalRoleActionMatrixTest {
                 authentication("ROLE_FACTORY"),
                 request("POST", "/api/v1/credit/override-requests/77/approve")))
                 .isEqualTo("An admin or accountant must review this credit limit override request.");
+
+        assertThat(PortalRoleActionMatrix.resolveAccessDeniedMessage(
+                authentication("ROLE_SALES"),
+                request("POST", "/api/v1/credit/override-requests/77/approve")))
+                .isEqualTo("An admin or accountant must review this credit limit override request.");
     }
 
     @Test
@@ -77,6 +92,36 @@ class PortalRoleActionMatrixTest {
                 authentication("ROLE_DEALER"),
                 request("GET", "/api/v1/dealer-portal/credit-requests")))
                 .isNull();
+
+        assertThat(PortalRoleActionMatrix.resolveAccessDeniedMessage(
+                authentication("ROLE_ADMIN"),
+                request("POST", "/api/v1/dealer-portal/credit-requests")))
+                .isNull();
+
+        assertThat(PortalRoleActionMatrix.resolveAccessDeniedMessage(
+                authentication("ROLE_ADMIN"),
+                request("GET", "/api/v1/sales/promotions")))
+                .isNull();
+
+        assertThat(PortalRoleActionMatrix.resolveAccessDeniedMessage(
+                authentication("ROLE_ADMIN"),
+                request("POST", "   ")))
+                .isNull();
+
+        assertThat(PortalRoleActionMatrix.resolveAccessDeniedMessage(
+                authentication("ROLE_ADMIN"),
+                request("POST", "/api/v1/sales/dispatch/confirm")))
+                .isNull();
+
+        assertThat(PortalRoleActionMatrix.resolveAccessDeniedMessage(
+                authentication("ROLE_ADMIN"),
+                request("GET", "/api/v1/dispatch/preview/5")))
+                .isNull();
+
+        assertThat(PortalRoleActionMatrix.resolveAccessDeniedMessage(
+                authentication("ROLE_ADMIN"),
+                request("POST", "/api/v1/credit/override-requests/77/approve")))
+                .isNull();
     }
 
     @Test
@@ -87,6 +132,14 @@ class PortalRoleActionMatrixTest {
                 .isEqualTo("Add the vehicle number before confirming dispatch.");
         assertThat(PortalRoleActionMatrix.challanReferenceRequiredMessage())
                 .isEqualTo("Add the challan reference before confirming dispatch.");
+    }
+
+    @Test
+    void resolveAccessDeniedMessage_normalizesRepeatedTrailingSlashes() {
+        assertThat(PortalRoleActionMatrix.resolveAccessDeniedMessage(
+                authentication("ROLE_DEALER"),
+                request("GET", "/api/v1/sales/promotions///")))
+                .isEqualTo("Dealer access is limited to your own portal records and exports.");
     }
 
     private Authentication authentication(String... authorities) {

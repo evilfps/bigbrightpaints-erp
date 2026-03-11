@@ -31,6 +31,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -255,6 +256,62 @@ class DealerServiceTest {
         assertThat(payload.get("creditUsed")).isEqualTo(new BigDecimal("900"));
         assertThat(payload.get("availableCredit")).isEqualTo(new BigDecimal("100"));
         assertThat(payload.get("creditStatus")).isEqualTo("NEAR_LIMIT");
+    }
+
+    @Test
+    void agingSummary_returnsDealerPayloadWhenDealerExists() {
+        Dealer dealer = dealer("D-AGING", new BigDecimal("1000"), "WEST");
+        when(dealerRepository.findByCompanyAndId(company, 77L)).thenReturn(Optional.of(dealer));
+        when(companyClock.today(company)).thenReturn(java.time.LocalDate.parse("2026-02-23"));
+
+        var payload = dealerService.agingSummary(77L);
+
+        assertThat(payload).containsEntry("dealerId", 99L).containsEntry("dealerName", "D-AGING Name");
+    }
+
+    @Test
+    void ledgerView_returnsDealerPayloadWhenDealerExists() {
+        Dealer dealer = dealer("D-LEDGER", new BigDecimal("1000"), "WEST");
+        when(dealerRepository.findByCompanyAndId(company, 78L)).thenReturn(Optional.of(dealer));
+        when(dealerLedgerService.entries(dealer)).thenReturn(List.of());
+
+        var payload = dealerService.ledgerView(78L);
+
+        assertThat(payload).containsEntry("dealerId", 99L).containsEntry("dealerName", "D-LEDGER Name");
+        assertThat(payload.get("entries")).isEqualTo(List.of());
+    }
+
+    @Test
+    void creditUtilization_returnsNotFoundWhenDealerDoesNotExist() {
+        when(dealerRepository.findByCompanyAndId(company, 404L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> dealerService.creditUtilization(404L))
+                .isInstanceOfSatisfying(ResponseStatusException.class, ex -> {
+                    assertThat(ex.getStatusCode().value()).isEqualTo(404);
+                    assertThat(ex.getReason()).isEqualTo("Dealer not found");
+                });
+    }
+
+    @Test
+    void agingSummary_returnsNotFoundWhenDealerDoesNotExist() {
+        when(dealerRepository.findByCompanyAndId(company, 405L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> dealerService.agingSummary(405L))
+                .isInstanceOfSatisfying(ResponseStatusException.class, ex -> {
+                    assertThat(ex.getStatusCode().value()).isEqualTo(404);
+                    assertThat(ex.getReason()).isEqualTo("Dealer not found");
+                });
+    }
+
+    @Test
+    void ledgerView_returnsNotFoundWhenDealerDoesNotExist() {
+        when(dealerRepository.findByCompanyAndId(company, 406L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> dealerService.ledgerView(406L))
+                .isInstanceOfSatisfying(ResponseStatusException.class, ex -> {
+                    assertThat(ex.getStatusCode().value()).isEqualTo(404);
+                    assertThat(ex.getReason()).isEqualTo("Dealer not found");
+                });
     }
 
     @Test

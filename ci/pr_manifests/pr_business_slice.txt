@@ -49,3 +49,14 @@ TruthRailsSharedDtoContractTest
 com.bigbrightpaints.erp.codered.CR_PurchasingGrnPeriodCloseTest
 com.bigbrightpaints.erp.codered.CR_PurchasingToApAccountingTest
 com.bigbrightpaints.erp.codered.CR_SalesDispatchInvoiceAccounting
+com.bigbrightpaints.erp.modules.sales.service.SalesCoreEngineCoverageTest
+com.bigbrightpaints.erp.modules.sales.service.SalesReturnServiceTest
+com.bigbrightpaints.erp.modules.sales.service.SalesFulfillmentServiceTest
+com.bigbrightpaints.erp.modules.sales.dto.SalesOrderDtoContractTest
+com.bigbrightpaints.erp.modules.sales.dto.SalesOrderRequestTest
+com.bigbrightpaints.erp.modules.sales.domain.SalesOrderTest
+com.bigbrightpaints.erp.modules.sales.service.SalesProformaBoundaryServiceTest
+com.bigbrightpaints.erp.modules.sales.service.SalesServiceTest
+com.bigbrightpaints.erp.modules.purchasing.domain.SupplierLifecycleGuardTest
+com.bigbrightpaints.erp.modules.inventory.service.PackagingSlipServiceTest
+com.bigbrightpaints.erp.shared.dto.TruthRailsSharedDtoContractTest
