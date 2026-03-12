@@ -349,7 +349,6 @@ class PurchaseInvoiceEngineLifecycleTest {
     }
 
     @Test
-<<<<<<< HEAD
     void listPurchases_usesBatchMapperPathWithoutSupplierFilter() {
         RawMaterialPurchase purchase = new RawMaterialPurchase();
         ReflectionTestUtils.setField(purchase, "id", 601L);
@@ -374,7 +373,9 @@ class PurchaseInvoiceEngineLifecycleTest {
         assertThat(responses.get(0).invoiceNumber()).isEqualTo("PINV-601");
         verify(purchaseRepository).findByCompanyWithLinesOrderByInvoiceDateDesc(company);
         verifyNoMoreInteractions(purchaseRepository);
-=======
+    }
+
+    @Test
     @DisplayName("createPurchase rejects suppliers that are no longer active")
     void createPurchase_rejectsSuspendedSupplierWithExplicitReason() {
         supplier.setStatus(SupplierStatus.SUSPENDED);
@@ -405,7 +406,6 @@ class PurchaseInvoiceEngineLifecycleTest {
                 .hasMessageContaining("reference only");
 
         verify(accountingFacade, never()).postPurchaseJournal(any(), any(), any(), any(), any(), any(), any(), any(), any());
->>>>>>> 04949be9 (fix(p2p): stabilize supplier lifecycle truth)
     }
 
     @Test
