@@ -91,7 +91,6 @@ class PurchaseOrderLifecycleTransitionTest {
                 accountingPeriodService,
                 new PurchaseResponseMapper(),
                 purchaseOrderService,
-                event -> {},
                 new ResourcelessTransactionManager()
         );
 

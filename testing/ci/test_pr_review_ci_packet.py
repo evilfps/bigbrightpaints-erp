@@ -89,6 +89,21 @@ class ChangedFilesCoverageTest(unittest.TestCase):
         merged = changed_files_coverage.merge_line_stats((0, 1, 1, 1), (0, 1, 1, 1))
         self.assertEqual((0, 1, 1, 1), merged)
 
+    def test_structural_classifier_accepts_java_declarations_and_continuations(self):
+        self.assertTrue(changed_files_coverage.is_structural_source_line("public final class Demo {", False))
+        self.assertTrue(changed_files_coverage.is_structural_source_line("private Demo() {", False))
+        self.assertTrue(
+            changed_files_coverage.is_structural_source_line(
+                "private boolean isSlipLinkedToInvoice(PackagingSlip slip,",
+                False,
+            )
+        )
+        self.assertTrue(changed_files_coverage.is_structural_source_line("Invoice invoice,", False))
+        self.assertTrue(changed_files_coverage.is_structural_source_line("int salesOrderInvoiceCount) {", False))
+        self.assertTrue(changed_files_coverage.is_structural_source_line("salesOrderInvoiceCount);", False))
+        self.assertTrue(changed_files_coverage.is_structural_source_line("RawMaterialPurchase::getCompany,", False))
+        self.assertFalse(changed_files_coverage.is_structural_source_line("if (invoice == null) {", False))
+
     def test_changed_source_without_jacoco_mapping_fails_closed(self):
         with tempfile.TemporaryDirectory() as tmp_dir:
             repo_dir = Path(tmp_dir)

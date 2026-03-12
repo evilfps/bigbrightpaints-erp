@@ -73,6 +73,8 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
 
     List<Invoice> findAllByCompanyAndSalesOrderId(Company company, Long salesOrderId);
 
+    List<Invoice> findByCompanyAndSalesOrder_IdIn(Company company, List<Long> salesOrderIds);
+
     Optional<Invoice> findByCompanyAndSalesOrderId(Company company, Long salesOrderId);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)

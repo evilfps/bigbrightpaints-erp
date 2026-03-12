@@ -476,6 +476,118 @@ class CR_DealerReceiptSettlementAuditTrailTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void dealerSettlement_reusedReferenceWithDifferentIdempotencyKey_failsClosedWithoutDuplicateAllocations() {
+        String companyCode = "CR-SET-REF-REUSE-" + shortId();
+        Company company = bootstrapCompany(companyCode, "UTC");
+        Map<String, Account> accounts = ensureCoreAccounts(company);
+        Dealer dealer = ensureDealer(company, accounts.get("AR"));
+
+        FinishedGood fg = ensureFinishedGoodWithCatalog(company, accounts, "FG-" + shortId(), BigDecimal.ZERO);
+        CompanyContextHolder.setCompanyId(companyCode);
+        finishedGoodsService.registerBatch(new FinishedGoodBatchRequest(
+                fg.getId(), "BATCH-1", new BigDecimal("20"), new BigDecimal("10.00"), Instant.now(), null));
+        CompanyContextHolder.clear();
+
+        SalesOrder order = createOrder(company, dealer, fg.getProductCode(), new BigDecimal("5"), new BigDecimal("15.50"));
+        PackagingSlip slip = packagingSlipRepository.findByCompanyAndSalesOrderId(company, order.getId()).orElseThrow();
+
+        DispatchConfirmRequest request = new DispatchConfirmRequest(
+                slip.getId(),
+                order.getId(),
+                slip.getLines().stream()
+                        .map(line -> new DispatchConfirmRequest.DispatchLine(
+                                line.getId(),
+                                null,
+                                line.getOrderedQuantity() != null ? line.getOrderedQuantity() : line.getQuantity(),
+                                null,
+                                null,
+                                null,
+                                null,
+                                null))
+                        .toList(),
+                "CODE-RED dispatch",
+                "codered",
+                false,
+                null,
+                null
+        );
+
+        CompanyContextHolder.setCompanyId(companyCode);
+        var dispatch = salesService.confirmDispatch(request);
+        CompanyContextHolder.clear();
+
+        Invoice invoice = invoiceRepository.findByCompanyAndId(company, dispatch.finalInvoiceId()).orElseThrow();
+        BigDecimal outstanding = invoice.getOutstandingAmount();
+        String referenceNumber = "DS-REF-REUSE-" + UUID.randomUUID();
+
+        DealerSettlementRequest firstRequest = new DealerSettlementRequest(
+                dealer.getId(),
+                accounts.get("BANK").getId(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                referenceNumber,
+                "CODE-RED settlement",
+                "DS-KEY-1-" + UUID.randomUUID(),
+                Boolean.FALSE,
+                List.of(new SettlementAllocationRequest(
+                        invoice.getId(),
+                        null,
+                        outstanding,
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        null,
+                        "Apply to invoice")),
+                null
+        );
+
+        DealerSettlementRequest secondRequest = new DealerSettlementRequest(
+                dealer.getId(),
+                accounts.get("BANK").getId(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                referenceNumber,
+                "CODE-RED settlement",
+                "DS-KEY-2-" + UUID.randomUUID(),
+                Boolean.FALSE,
+                List.of(new SettlementAllocationRequest(
+                        invoice.getId(),
+                        null,
+                        outstanding,
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        null,
+                        "Apply to invoice")),
+                null
+        );
+
+        CompanyContextHolder.setCompanyId(companyCode);
+        try {
+            PartnerSettlementResponse first = accountingService.settleDealerInvoices(firstRequest);
+            assertThat(first.journalEntry().id()).isNotNull();
+            long retryStartedAtNanos = System.nanoTime();
+            org.assertj.core.api.Assertions.assertThatThrownBy(() -> accountingService.settleDealerInvoices(secondRequest))
+                    .isInstanceOf(com.bigbrightpaints.erp.core.exception.ApplicationException.class)
+                    .hasMessageContaining("Settlement allocation exceeds invoice outstanding amount");
+            Duration retryLatency = Duration.ofNanos(System.nanoTime() - retryStartedAtNanos);
+            assertThat(retryLatency).isLessThan(Duration.ofSeconds(5));
+        } finally {
+            CompanyContextHolder.clear();
+        }
+
+        Invoice refreshed = invoiceRepository.findByCompanyAndId(company, invoice.getId()).orElseThrow();
+        assertThat(refreshed.getOutstandingAmount()).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(settlementAllocationRepository.findByCompanyAndInvoiceOrderByCreatedAtDesc(company, invoice))
+                .as("single allocation row for reused settlement reference")
+                .hasSize(1);
+    }
+
+    @Test
     void dealerReceipt_reusedReferenceWithDifferentIdempotencyKey_doesNotDuplicateAllocations() {
         String companyCode = "CR-DR-REF-REUSE-" + shortId();
         Company company = bootstrapCompany(companyCode, "UTC");

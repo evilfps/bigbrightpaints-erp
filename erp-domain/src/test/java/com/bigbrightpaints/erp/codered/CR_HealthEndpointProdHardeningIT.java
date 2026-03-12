@@ -20,7 +20,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @ActiveProfiles(value = {"test", "prod"}, inheritProfiles = false)
 @TestPropertySource(properties = {
-        "jwt.secret=test-secret-should-be-at-least-32-bytes-long-1234",
+        "jwt.secret=placeholder-placeholder-placeholder-000000",
         "spring.mail.host=localhost",
         "spring.mail.username=test-smtp-user",
         "spring.mail.password=test-smtp-password",

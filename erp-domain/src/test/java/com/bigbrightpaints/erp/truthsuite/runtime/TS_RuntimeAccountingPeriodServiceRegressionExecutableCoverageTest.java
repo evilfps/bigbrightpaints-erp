@@ -30,6 +30,7 @@ import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.hr.domain.PayrollRunRepository;
 import com.bigbrightpaints.erp.modules.invoice.domain.InvoiceRepository;
+import com.bigbrightpaints.erp.modules.purchasing.domain.GoodsReceiptStatus;
 import com.bigbrightpaints.erp.modules.purchasing.domain.GoodsReceiptRepository;
 import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchaseRepository;
 import com.bigbrightpaints.erp.modules.reports.service.ReportService;
@@ -107,7 +108,7 @@ class TS_RuntimeAccountingPeriodServiceRegressionExecutableCoverageTest {
         when(accountingPeriodRepository.lockByCompanyAndId(company, 21L))
                 .thenReturn(Optional.of(period), Optional.of(period));
         when(goodsReceiptRepository.countByCompanyAndReceiptDateBetweenAndStatusNot(
-                company, period.getStartDate(), period.getEndDate(), "INVOICED")).thenReturn(0L);
+                company, period.getStartDate(), period.getEndDate(), GoodsReceiptStatus.INVOICED)).thenReturn(0L);
         when(journalLineRepository.summarizeByAccountType(company, period.getStartDate(), period.getEndDate()))
                 .thenReturn(List.of());
         when(accountingPeriodRepository.save(period)).thenReturn(period);

@@ -551,6 +551,13 @@
                                 <include>**/truthsuite/**/*IT.java</include>
                                 <include>**/truthsuite/**/*Suite.java</include>
                                 <include>**/smoke/**/*Test.java</include>
+                                <include>**/core/util/BusinessDocumentTruthsTest.java</include>
+                                <include>**/modules/accounting/service/AccountingAuditTrailServiceTest.java</include>
+                                <include>**/modules/invoice/service/InvoiceServiceTest.java</include>
+                                <include>**/modules/purchasing/service/PurchaseResponseMapperTest.java</include>
+                                <include>**/modules/purchasing/service/PurchasingServiceGoodsReceiptTest.java</include>
+                                <include>**/regression/InventoryAccountingEventListenerIT.java</include>
+                                <include>**/shared/dto/TruthRailsSharedDtoContractTest.java</include>
                             </includes>
                         </configuration>
                     </plugin>
@@ -576,6 +583,13 @@
                                 <include>**/truthsuite/**/*Test.java</include>
                                 <include>**/truthsuite/**/*IT.java</include>
                                 <include>**/truthsuite/**/*Suite.java</include>
+                                <include>**/core/util/BusinessDocumentTruthsTest.java</include>
+                                <include>**/modules/accounting/service/AccountingAuditTrailServiceTest.java</include>
+                                <include>**/modules/invoice/service/InvoiceServiceTest.java</include>
+                                <include>**/modules/purchasing/service/PurchaseResponseMapperTest.java</include>
+                                <include>**/modules/purchasing/service/PurchasingServiceGoodsReceiptTest.java</include>
+                                <include>**/regression/InventoryAccountingEventListenerIT.java</include>
+                                <include>**/shared/dto/TruthRailsSharedDtoContractTest.java</include>
                             </includes>
                         </configuration>
                     </plugin>

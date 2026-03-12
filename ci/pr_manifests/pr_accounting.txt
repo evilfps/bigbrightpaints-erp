@@ -2,3 +2,4 @@ com.bigbrightpaints.erp.truthsuite.accounting.TS_DoubleEntryMathInvariantTest
 com.bigbrightpaints.erp.truthsuite.accounting.TS_SubledgerControlReconciliationContractTest
 com.bigbrightpaints.erp.truthsuite.accounting.TS_AccountingAuditSafetyCoverageTest
 com.bigbrightpaints.erp.truthsuite.accounting.TS_AccountingPeriodCloseChecklistSafetyContractTest
+AccountingAuditTrailServiceTest

@@ -9,6 +9,7 @@ import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriod;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriodRepository;
 import com.bigbrightpaints.erp.modules.accounting.dto.AccountingPeriodCloseRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryRequest;
+import com.bigbrightpaints.erp.modules.accounting.dto.PeriodCloseRequestActionRequest;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingPeriodService;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
@@ -25,6 +26,9 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -50,6 +54,7 @@ class CR_PurchasingGrnPeriodCloseTest extends AbstractIntegrationTest {
     @AfterEach
     void clearCompanyContext() {
         CompanyContextHolder.clear();
+        SecurityContextHolder.clearContext();
     }
 
     @Test
@@ -74,10 +79,16 @@ class CR_PurchasingGrnPeriodCloseTest extends AbstractIntegrationTest {
         AccountingPeriod period = accountingPeriodRepository.findByCompanyAndYearAndMonth(
                 company, receiptDate.getYear(), receiptDate.getMonthValue()).orElseThrow();
 
-        assertThatThrownBy(() -> accountingPeriodService.closePeriod(
+        authenticate("maker.user", "ROLE_ACCOUNTING");
+        accountingPeriodService.requestPeriodClose(
                 period.getId(),
-                new AccountingPeriodCloseRequest(true, "CODE-RED force close")))
-                .isInstanceOf(IllegalStateException.class)
+                new PeriodCloseRequestActionRequest("CODE-RED force close request", true));
+        authenticate("checker.user", "ROLE_ACCOUNTING");
+
+        assertThatThrownBy(() -> accountingPeriodService.approvePeriodClose(
+                period.getId(),
+                new PeriodCloseRequestActionRequest("CODE-RED force close approval", true)))
+                .isInstanceOf(ApplicationException.class)
                 .hasMessageContaining("Un-invoiced goods receipts exist in this period");
 
         AccountingPeriod reloaded = accountingPeriodRepository.findByCompanyAndId(company, period.getId()).orElseThrow();
@@ -98,7 +109,7 @@ class CR_PurchasingGrnPeriodCloseTest extends AbstractIntegrationTest {
         accountingPeriodService.listPeriods();
         AccountingPeriod period = accountingPeriodRepository.findByCompanyAndYearAndMonth(
                 company, today.getYear(), today.getMonthValue()).orElseThrow();
-        accountingPeriodService.closePeriod(period.getId(), new AccountingPeriodCloseRequest(true, "CODE-RED close"));
+        forceClosePeriod(period.getId(), "CODE-RED close request", "CODE-RED close approval");
 
         JournalEntryRequest sanitized = new JournalEntryRequest(
                 null,
@@ -168,5 +179,24 @@ class CR_PurchasingGrnPeriodCloseTest extends AbstractIntegrationTest {
 
     private static String shortId() {
         return UUID.randomUUID().toString().substring(0, 8);
+    }
+
+    private void forceClosePeriod(Long periodId, String requestNote, String approvalNote) {
+        authenticate("maker.user", "ROLE_ACCOUNTING");
+        accountingPeriodService.requestPeriodClose(periodId, new PeriodCloseRequestActionRequest(requestNote, true));
+        authenticate("checker.user", "ROLE_ACCOUNTING");
+        accountingPeriodService.approvePeriodClose(periodId, new PeriodCloseRequestActionRequest(approvalNote, true));
+    }
+
+    private void authenticate(String username, String... roles) {
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken(
+                        username,
+                        "N/A",
+                        java.util.Arrays.stream(roles)
+                                .map(SimpleGrantedAuthority::new)
+                                .toList()
+                )
+        );
     }
 }

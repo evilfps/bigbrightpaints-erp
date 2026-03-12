@@ -1,4 +1,4 @@
-package com.bigbrightpaints.erp.modules.accounting.service;
+package com.bigbrightpaints.erp.modules.accounting.internal;
 
 import com.bigbrightpaints.erp.core.util.CompanyTime;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
@@ -27,6 +27,7 @@ import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingPeriodSnapshotService;
 import com.bigbrightpaints.erp.modules.accounting.service.PeriodCloseHook;
 import com.bigbrightpaints.erp.modules.accounting.service.ReconciliationService;
+import com.bigbrightpaints.erp.modules.accounting.service.ReconciliationServiceCore;
 import com.bigbrightpaints.erp.modules.accounting.domain.ReconciliationDiscrepancyRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.ReconciliationDiscrepancyStatus;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
@@ -34,6 +35,7 @@ import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.hr.domain.PayrollRun;
 import com.bigbrightpaints.erp.modules.hr.domain.PayrollRunRepository;
 import com.bigbrightpaints.erp.modules.invoice.domain.InvoiceRepository;
+import com.bigbrightpaints.erp.modules.purchasing.domain.GoodsReceiptStatus;
 import com.bigbrightpaints.erp.modules.purchasing.domain.GoodsReceiptRepository;
 import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchaseRepository;
 import com.bigbrightpaints.erp.modules.reports.dto.ReconciliationSummaryDto;
@@ -1121,11 +1123,7 @@ public class AccountingPeriodServiceCore {
     }
 
     private long countUninvoicedReceipts(Company company, AccountingPeriod period) {
-        return goodsReceiptRepository.countByCompanyAndReceiptDateBetweenAndStatusNot(
-                company,
-                period.getStartDate(),
-                period.getEndDate(),
-                "INVOICED");
+        return goodsReceiptRepository.countByCompanyAndReceiptDateBetweenAndStatusNot(company, period.getStartDate(), period.getEndDate(), GoodsReceiptStatus.INVOICED);
     }
 
     private long countUnlinkedDocuments(Company company, AccountingPeriod period) {

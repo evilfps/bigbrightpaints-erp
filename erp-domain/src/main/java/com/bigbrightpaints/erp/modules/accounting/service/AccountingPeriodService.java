@@ -15,6 +15,7 @@ import com.bigbrightpaints.erp.modules.accounting.domain.ReconciliationDiscrepan
 import com.bigbrightpaints.erp.modules.accounting.dto.AccountingPeriodCloseRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.AccountingPeriodDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.AccountingPeriodReopenRequest;
+import com.bigbrightpaints.erp.modules.accounting.internal.AccountingPeriodServiceCore;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import java.time.LocalDate;
@@ -24,6 +25,7 @@ import com.bigbrightpaints.erp.modules.purchasing.domain.GoodsReceiptRepository;
 import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchaseRepository;
 import com.bigbrightpaints.erp.modules.reports.service.ReportService;
 import com.bigbrightpaints.erp.core.validation.ValidationUtils;
+import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.Authentication;
@@ -160,6 +162,7 @@ public class AccountingPeriodService extends AccountingPeriodServiceCore {
     }
 
     @Override
+    @Transactional
     public AccountingPeriodDto reopenPeriod(Long periodId, AccountingPeriodReopenRequest request) {
         requireSuperAdminRole();
         return super.reopenPeriod(periodId, request);

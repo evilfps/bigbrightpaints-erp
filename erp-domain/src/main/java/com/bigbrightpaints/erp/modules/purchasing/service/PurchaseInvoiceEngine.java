@@ -118,9 +118,7 @@ public class PurchaseInvoiceEngine {
         List<RawMaterialPurchase> purchases = supplier == null
                 ? purchaseRepository.findByCompanyWithLinesOrderByInvoiceDateDesc(company)
                 : purchaseRepository.findByCompanyAndSupplierWithLinesOrderByInvoiceDateDesc(company, supplier);
-        return purchases.stream()
-                .map(responseMapper::toPurchaseResponse)
-                .toList();
+        return responseMapper.toPurchaseResponses(purchases);
     }
 
     public RawMaterialPurchaseResponse getPurchase(Long id) {

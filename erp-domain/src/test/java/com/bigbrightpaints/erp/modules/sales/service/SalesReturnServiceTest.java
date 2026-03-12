@@ -47,8 +47,9 @@ import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class SalesReturnServiceTest {
@@ -473,6 +474,76 @@ class SalesReturnServiceTest {
         assertThatThrownBy(() -> salesReturnService.processReturn(request))
                 .isInstanceOf(ApplicationException.class)
                 .hasMessageContaining("dispatch cost layers");
+    }
+
+    @Test
+    void processReturn_replaySkipsRestockAndReusesAccountingReplay() {
+        Dealer dealer = new Dealer();
+        dealer.setCompany(company);
+        dealer.setName("Replay Partner");
+        Account receivable = new Account();
+        setField(receivable, "id", 72L);
+        dealer.setReceivableAccount(receivable);
+        setField(dealer, "id", 9L);
+
+        Invoice invoice = new Invoice();
+        invoice.setCompany(company);
+        invoice.setDealer(dealer);
+        invoice.setInvoiceNumber("INV-REPLAY-1");
+        setField(invoice, "id", 30L);
+
+        InvoiceLine line = new InvoiceLine();
+        line.setInvoice(invoice);
+        line.setProductCode("FG-REPLAY");
+        line.setQuantity(new BigDecimal("1"));
+        line.setUnitPrice(new BigDecimal("100"));
+        line.setTaxableAmount(new BigDecimal("100"));
+        line.setTaxAmount(BigDecimal.ZERO);
+        line.setLineTotal(new BigDecimal("100"));
+        setField(line, "id", 77L);
+        invoice.getLines().add(line);
+
+        FinishedGood fg = new FinishedGood();
+        fg.setCompany(company);
+        fg.setProductCode("FG-REPLAY");
+        fg.setRevenueAccountId(712L);
+        setField(fg, "id", 23L);
+
+        when(invoiceRepository.lockByCompanyAndId(company, 30L)).thenReturn(Optional.of(invoice));
+        when(finishedGoodRepository.lockByCompanyAndProductCode(company, "FG-REPLAY")).thenReturn(Optional.of(fg));
+        when(inventoryMovementRepository.existsByFinishedGood_CompanyAndReferenceTypeAndReferenceIdContainingIgnoreCase(
+                eq(company),
+                eq("SALES_RETURN"),
+                anyString()
+        )).thenReturn(true);
+        when(accountingFacade.postSalesReturn(
+                eq(dealer.getId()),
+                eq("INV-REPLAY-1"),
+                anyMap(),
+                argThat(total -> total.compareTo(new BigDecimal("100")) == 0),
+                eq("Replay return")
+        )).thenReturn(stubEntry(120L));
+
+        SalesReturnRequest request = new SalesReturnRequest(
+                30L,
+                "Replay return",
+                List.of(new SalesReturnRequest.ReturnLine(77L, new BigDecimal("1")))
+        );
+
+        JournalEntryDto result = salesReturnService.processReturn(request);
+
+        assertThat(result.id()).isEqualTo(120L);
+        verify(accountingFacade).postSalesReturn(
+                eq(dealer.getId()),
+                eq("INV-REPLAY-1"),
+                anyMap(),
+                argThat(total -> total.compareTo(new BigDecimal("100")) == 0),
+                eq("Replay return")
+        );
+        verify(finishedGoodRepository, never()).save(any(FinishedGood.class));
+        verify(finishedGoodBatchRepository, never()).save(any(FinishedGoodBatch.class));
+        verify(inventoryMovementRepository, never()).save(any(InventoryMovement.class));
+        verify(accountingFacade, never()).postInventoryAdjustment(anyString(), anyString(), anyLong(), anyMap(), anyBoolean(), anyBoolean(), anyString());
     }
 
     @Test

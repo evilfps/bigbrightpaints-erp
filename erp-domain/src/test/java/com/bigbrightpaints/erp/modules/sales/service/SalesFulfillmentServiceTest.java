@@ -74,7 +74,7 @@ class SalesFulfillmentServiceTest {
         InvoiceDto invoice = new InvoiceDto(10L, UUID.randomUUID(), "INV-1", "ISSUED",
                 BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
                 "INR", LocalDate.now(), LocalDate.now().plusDays(15),
-                null, null, order.getId(), null, null, List.of());
+                null, null, order.getId(), null, null, List.of(), null, List.of());
         when(salesService.confirmDispatch(any())).thenReturn(
                 new DispatchConfirmResponse(20L, order.getId(), invoice.id(), 555L, List.of(), true, List.of(), null));
         when(invoiceService.getInvoice(invoice.id())).thenReturn(invoice);
@@ -108,7 +108,7 @@ class SalesFulfillmentServiceTest {
         InvoiceDto invoice = new InvoiceDto(11L, UUID.randomUUID(), "INV-2", "ISSUED",
                 BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
                 "INR", LocalDate.now(), LocalDate.now().plusDays(15),
-                null, null, order.getId(), null, null, List.of());
+                null, null, order.getId(), null, null, List.of(), null, List.of());
         when(salesService.confirmDispatch(any())).thenReturn(
                 new DispatchConfirmResponse(21L, order.getId(), invoice.id(), 999L, List.of(), true, List.of(), null));
         when(invoiceService.getInvoice(invoice.id())).thenReturn(invoice);
@@ -140,7 +140,7 @@ class SalesFulfillmentServiceTest {
         InvoiceDto invoice = new InvoiceDto(12L, UUID.randomUUID(), "INV-3", "ISSUED",
                 BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
                 "INR", LocalDate.now(), LocalDate.now().plusDays(15),
-                null, null, order.getId(), null, null, List.of());
+                null, null, order.getId(), null, null, List.of(), null, List.of());
         when(salesService.confirmDispatch(any())).thenReturn(
                 new DispatchConfirmResponse(22L, order.getId(), invoice.id(), 123L, List.of(), true, List.of(), null));
         when(invoiceService.getInvoice(invoice.id())).thenReturn(invoice);

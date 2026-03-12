@@ -31,6 +31,7 @@ import com.bigbrightpaints.erp.modules.purchasing.domain.Supplier;
 import com.bigbrightpaints.erp.modules.purchasing.dto.RawMaterialPurchaseLineRequest;
 import com.bigbrightpaints.erp.modules.purchasing.dto.RawMaterialPurchaseRequest;
 import com.bigbrightpaints.erp.modules.purchasing.dto.RawMaterialPurchaseResponse;
+import com.bigbrightpaints.erp.shared.dto.LinkedBusinessReferenceDto;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -47,10 +48,14 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -195,9 +200,9 @@ class PurchaseInvoiceEngineLifecycleTest {
         when(purchaseRepository.lockByCompanyAndInvoiceNumberIgnoreCase(company, "INV-40")).thenReturn(Optional.empty());
         when(goodsReceiptRepository.lockByCompanyAndId(company, 40L)).thenReturn(Optional.of(goodsReceipt));
         when(purchaseRepository.findByCompanyAndGoodsReceipt(company, goodsReceipt)).thenReturn(Optional.empty());
-        when(rawMaterialRepository.lockByCompanyAndId(company, 20L)).thenReturn(Optional.of(rawMaterial));
-        when(referenceNumberService.purchaseReference(company, supplier, "INV-40")).thenReturn("RMP-SUP10-INV40");
-        when(gstService.splitTaxAmount(any(), any(), any(), any()))
+        lenient().when(rawMaterialRepository.lockByCompanyAndId(company, 20L)).thenReturn(Optional.of(rawMaterial));
+        lenient().when(referenceNumberService.purchaseReference(company, supplier, "INV-40")).thenReturn("RMP-SUP10-INV40");
+        lenient().when(gstService.splitTaxAmount(any(), any(), any(), any()))
                 .thenAnswer(invocation -> new GstService.GstBreakdown(
                         invocation.getArgument(0),
                         BigDecimal.ZERO,
@@ -239,21 +244,23 @@ class PurchaseInvoiceEngineLifecycleTest {
                 "tester",
                 "tester"
         );
-        when(accountingFacade.postPurchaseJournal(any(), any(), any(), any(), any(), any(), any(), any(), any()))
+        lenient().when(accountingFacade.postPurchaseJournal(any(), any(), any(), any(), any(), any(), any(), any(), any()))
                 .thenReturn(journalEntryDto);
 
         JournalEntry linkedEntry = new JournalEntry();
         ReflectionTestUtils.setField(linkedEntry, "id", 700L);
-        when(companyEntityLookup.requireJournalEntry(company, 700L)).thenReturn(linkedEntry);
+        linkedEntry.setStatus("POSTED");
+        linkedEntry.setReferenceNumber("RMP-SUP10-INV40");
+        lenient().when(companyEntityLookup.requireJournalEntry(company, 700L)).thenReturn(linkedEntry);
 
-        when(purchaseRepository.save(any(RawMaterialPurchase.class))).thenAnswer(invocation -> {
+        lenient().when(purchaseRepository.save(any(RawMaterialPurchase.class))).thenAnswer(invocation -> {
             RawMaterialPurchase purchase = invocation.getArgument(0);
             ReflectionTestUtils.setField(purchase, "id", 600L);
             ReflectionTestUtils.setField(purchase, "createdAt", Instant.parse("2026-03-02T00:00:00Z"));
             return purchase;
         });
-        when(goodsReceiptRepository.save(goodsReceipt)).thenReturn(goodsReceipt);
-        when(purchaseOrderRepository.save(purchaseOrder)).thenReturn(purchaseOrder);
+        lenient().when(goodsReceiptRepository.save(goodsReceipt)).thenReturn(goodsReceipt);
+        lenient().when(purchaseOrderRepository.save(purchaseOrder)).thenReturn(purchaseOrder);
     }
 
     @Test
@@ -332,5 +339,95 @@ class PurchaseInvoiceEngineLifecycleTest {
                 any()
         );
         verify(purchaseOrderService, times(1)).transitionStatus(any(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("createPurchase links AP journal to receipt movement without replaying stock receipt")
+    void createPurchase_linksJournalToReceiptMovementWithoutRestocking() {
+        when(goodsReceiptRepository.findByPurchaseOrder(purchaseOrder)).thenReturn(List.of(goodsReceipt));
+
+        RawMaterialPurchaseRequest request = new RawMaterialPurchaseRequest(
+                10L,
+                "INV-40",
+                LocalDate.of(2026, 3, 2),
+                "invoice",
+                30L,
+                40L,
+                BigDecimal.ZERO,
+                List.of(new RawMaterialPurchaseLineRequest(
+                        20L,
+                        null,
+                        new BigDecimal("10.0000"),
+                        "KG",
+                        new BigDecimal("12.50"),
+                        null,
+                        null,
+                        "line"
+                ))
+        );
+
+        RawMaterialPurchaseResponse response = purchaseInvoiceEngine.createPurchase(request);
+
+        assertThat(response.id()).isEqualTo(600L);
+        assertThat(response.lifecycle().workflowStatus()).isEqualTo("POSTED");
+        assertThat(response.lifecycle().accountingStatus()).isEqualTo("POSTED");
+        assertThat(response.linkedReferences())
+                .extracting(LinkedBusinessReferenceDto::relationType, LinkedBusinessReferenceDto::documentType)
+                .contains(
+                        org.assertj.core.groups.Tuple.tuple("PURCHASE_ORDER", "PURCHASE_ORDER"),
+                        org.assertj.core.groups.Tuple.tuple("GOODS_RECEIPT", "GOODS_RECEIPT"),
+                        org.assertj.core.groups.Tuple.tuple("ACCOUNTING_ENTRY", "JOURNAL_ENTRY")
+                );
+        verify(movementRepository).saveAll(org.mockito.ArgumentMatchers.argThat(movements -> {
+            java.util.Iterator<RawMaterialMovement> iterator = movements.iterator();
+            if (!iterator.hasNext()) {
+                return false;
+            }
+            RawMaterialMovement movement = iterator.next();
+            return !iterator.hasNext()
+                    && movement.getId().equals(500L)
+                    && movement.getJournalEntryId() != null
+                    && movement.getJournalEntryId().equals(700L);
+        }));
+        verify(goodsReceiptRepository).save(goodsReceipt);
+        verify(rawMaterialBatchRepository, never()).save(any(RawMaterialBatch.class));
+        verifyNoInteractions(rawMaterialService);
+    }
+
+    @Test
+    @DisplayName("createPurchase rejects goods receipt movements already linked to another journal")
+    void createPurchase_rejectsGoodsReceiptMovementAlreadyLinkedToJournal() {
+        RawMaterialMovement linkedMovement = movementRepository.findByRawMaterialCompanyAndReferenceTypeAndReferenceId(
+                company,
+                "GOODS_RECEIPT",
+                "GRN-40"
+        ).getFirst();
+        linkedMovement.setJournalEntryId(701L);
+
+        RawMaterialPurchaseRequest request = new RawMaterialPurchaseRequest(
+                10L,
+                "INV-40",
+                LocalDate.of(2026, 3, 2),
+                "invoice",
+                30L,
+                40L,
+                BigDecimal.ZERO,
+                List.of(new RawMaterialPurchaseLineRequest(
+                        20L,
+                        null,
+                        new BigDecimal("10.0000"),
+                        "KG",
+                        new BigDecimal("12.50"),
+                        null,
+                        null,
+                        "line"
+                ))
+        );
+
+        assertThatThrownBy(() -> purchaseInvoiceEngine.createPurchase(request))
+                .isInstanceOf(com.bigbrightpaints.erp.core.exception.ApplicationException.class)
+                .hasMessageContaining("already linked to journal 701");
+
+        verify(accountingFacade, never()).postPurchaseJournal(any(), any(), any(), any(), any(), any(), any(), any(), any());
     }
 }

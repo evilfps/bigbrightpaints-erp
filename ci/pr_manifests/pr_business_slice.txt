@@ -1,2 +1,7 @@
 com.bigbrightpaints.erp.truthsuite.o2c.TS_O2CDispatchCanonicalPostingTest
 com.bigbrightpaints.erp.truthsuite.crossmodule.TS_CrossModuleLinkageContractTest
+BusinessDocumentTruthsTest
+InvoiceServiceTest
+PurchaseResponseMapperTest
+PurchasingServiceGoodsReceiptTest
+TruthRailsSharedDtoContractTest

@@ -1,0 +1,21 @@
+{
+  "featureId": "truth-rails.restore-tenant-runtime-baseline",
+  "reviewedAt": "2026-03-08T05:37:13+05:30",
+  "commitId": "ce339ecea69ab48b24328df14912dbd5a17abe9a",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The fix cleanly hardened CompanyContextFilter to reject missing tenant runtime admission handles with a controlled denial and restored the previously failing truthsuite regression without widening tenant access. The implementation stayed compatibility-preserving and the targeted plus gate-fast validators in the handoff support the change.",
+    "issues": []
+  },
+  "sharedStateObservations": [
+    {
+      "area": "skills",
+      "observation": "The security-backend-worker skill still treats frontend-handoff and related doc updates as mandatory even when a higher-priority mission instruction explicitly forbids documentation edits unless the user requested them and the feature preserved API shapes.",
+      "evidence": "security-backend-worker/SKILL.md Step 5 requires doc updates; the feature handoff's skillFeedback records a justified deviation because the session instructions prohibited doc changes and the fix kept existing request/response shapes."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "Pass. The tenant-runtime regression was fixed with fail-closed behavior and strong regression coverage; only a procedural skill/doc-update mismatch surfaced."
+}

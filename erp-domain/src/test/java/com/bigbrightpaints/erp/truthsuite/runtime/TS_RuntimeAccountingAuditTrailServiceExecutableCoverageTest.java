@@ -18,11 +18,11 @@ import com.bigbrightpaints.erp.modules.accounting.event.AccountingEventRepositor
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingAuditTrailService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
+import com.bigbrightpaints.erp.modules.inventory.domain.PackagingSlipRepository;
 import com.bigbrightpaints.erp.modules.invoice.domain.InvoiceRepository;
 import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchase;
+import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchaseRepository;
 import com.bigbrightpaints.erp.shared.dto.PageResponse;
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.TypedQuery;
 import java.lang.reflect.Field;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -55,9 +55,9 @@ class TS_RuntimeAccountingAuditTrailServiceExecutableCoverageTest {
     @Mock
     private InvoiceRepository invoiceRepository;
     @Mock
-    private EntityManager entityManager;
+    private RawMaterialPurchaseRepository rawMaterialPurchaseRepository;
     @Mock
-    private TypedQuery<RawMaterialPurchase> rawMaterialPurchaseQuery;
+    private PackagingSlipRepository packagingSlipRepository;
 
     private AccountingAuditTrailService service;
     private Company company;
@@ -71,7 +71,8 @@ class TS_RuntimeAccountingAuditTrailServiceExecutableCoverageTest {
                 accountingEventRepository,
                 settlementAllocationRepository,
                 invoiceRepository,
-                entityManager
+                rawMaterialPurchaseRepository,
+                packagingSlipRepository
         );
         company = new Company();
         company.setCode("TRUTH");
@@ -111,10 +112,7 @@ class TS_RuntimeAccountingAuditTrailServiceExecutableCoverageTest {
         when(journalLineRepository.summarizeTotalsByCompanyAndJournalEntryIds(eq(company), eq(List.of(71L))))
                 .thenReturn(List.of(totals(71L, "1500.00", "1500.00")));
         when(invoiceRepository.findByCompanyAndJournalEntry_IdIn(eq(company), eq(List.of(71L)))).thenReturn(List.of());
-        when(entityManager.createQuery(any(String.class), eq(RawMaterialPurchase.class))).thenReturn(rawMaterialPurchaseQuery);
-        when(rawMaterialPurchaseQuery.setParameter("company", company)).thenReturn(rawMaterialPurchaseQuery);
-        when(rawMaterialPurchaseQuery.setParameter("journalEntryIds", List.of(71L))).thenReturn(rawMaterialPurchaseQuery);
-        when(rawMaterialPurchaseQuery.getResultList()).thenReturn(List.of());
+        when(rawMaterialPurchaseRepository.findByCompanyAndJournalEntry_IdIn(eq(company), eq(List.of(71L)))).thenReturn(List.of());
         when(settlementAllocationRepository.findByCompanyAndJournalEntry_IdIn(eq(company), eq(List.of(71L)))).thenReturn(List.of());
 
         PageResponse<AccountingTransactionAuditListItemDto> result =
@@ -157,11 +155,7 @@ class TS_RuntimeAccountingAuditTrailServiceExecutableCoverageTest {
         when(journalEntryRepository.findByCompanyAndId(company, 99L)).thenReturn(Optional.of(entry));
         when(settlementAllocationRepository.findByCompanyAndJournalEntryOrderByCreatedAtAsc(company, entry)).thenReturn(List.of());
         when(invoiceRepository.findByCompanyAndJournalEntry(company, entry)).thenReturn(Optional.empty());
-        when(entityManager.createQuery(any(String.class), eq(RawMaterialPurchase.class))).thenReturn(rawMaterialPurchaseQuery);
-        when(rawMaterialPurchaseQuery.setParameter("company", company)).thenReturn(rawMaterialPurchaseQuery);
-        when(rawMaterialPurchaseQuery.setParameter("journalEntry", entry)).thenReturn(rawMaterialPurchaseQuery);
-        when(rawMaterialPurchaseQuery.setMaxResults(1)).thenReturn(rawMaterialPurchaseQuery);
-        when(rawMaterialPurchaseQuery.getResultList()).thenReturn(List.of());
+        when(rawMaterialPurchaseRepository.findByCompanyAndJournalEntry(company, entry)).thenReturn(Optional.empty());
         when(accountingEventRepository.findByJournalEntryIdOrderByEventTimestampAsc(99L)).thenReturn(List.of());
 
         AccountingTransactionAuditDetailDto detail = service.transactionDetail(99L);

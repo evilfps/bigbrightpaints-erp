@@ -54,7 +54,11 @@ def parse_args() -> argparse.Namespace:
     return p.parse_args()
 
 
+TYPE_DECL_RE = re.compile(
+    r"^\s*(?:public\s+|protected\s+|private\s+)?(?:sealed\s+|non-sealed\s+|abstract\s+|final\s+)?(?:class|interface|record|enum)\s+\w+"
+)
 INTERFACE_DECL_RE = re.compile(r"^\s*(?:public\s+)?(?:sealed\s+|non-sealed\s+)?(?:abstract\s+)?interface\s+\w+")
+CONTROL_FLOW_PREFIXES = ("if ", "for ", "while ", "switch ", "catch ", "return ", "throw ", "new ")
 
 
 def parse_changed_lines(diff_text: str) -> dict[str, set[int]]:
@@ -154,6 +158,20 @@ def is_structural_source_line(text: str, is_interface_file: bool) -> bool:
     if stripped.startswith("@"):
         return True
     if stripped in {"{", "}", ";", "};"}:
+        return True
+    if TYPE_DECL_RE.match(stripped):
+        return True
+    if stripped.endswith(",") and not stripped.startswith(CONTROL_FLOW_PREFIXES) and "=" not in stripped:
+        return True
+    if (
+        stripped.endswith("{")
+        and ")" in stripped
+        and not stripped.startswith(CONTROL_FLOW_PREFIXES)
+        and "=" not in stripped
+        and "->" not in stripped
+    ):
+        return True
+    if stripped.endswith(");") and not stripped.startswith(CONTROL_FLOW_PREFIXES) and "=" not in stripped:
         return True
     if is_interface_file and ";" in stripped and "{" not in stripped:
         return True

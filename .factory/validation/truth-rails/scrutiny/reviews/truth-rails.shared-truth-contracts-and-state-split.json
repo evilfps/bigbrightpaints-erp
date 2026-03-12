@@ -1,0 +1,28 @@
+{
+  "featureId": "truth-rails.shared-truth-contracts-and-state-split",
+  "reviewedAt": "2026-03-08T05:37:13+05:30",
+  "commitId": "ce4fb961076560a1ccc41bea55cf5ea1aa5641f1",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "fail",
+  "codeReview": {
+    "summary": "The feature established the new shared lifecycle/reference DTOs and audit provenance chain, but one of the core lifecycle helpers still collapses commercial-order state into an accounting-pending state before any canonical posting trigger exists. That undercuts the milestone's goal of separating workflow state from accounting eligibility.",
+    "issues": [
+      {
+        "file": "erp-domain/src/main/java/com/bigbrightpaints/erp/core/util/BusinessDocumentTruths.java",
+        "line": 23,
+        "severity": "blocking",
+        "description": "salesOrderLifecycle marks any sales order with a non-blank workflow status as accounting `PENDING` even when the order has neither `fulfillmentInvoiceId` nor `salesJournalEntryId`. This means a commercial source order surfaced in linked references can appear accounting-eligible before dispatch/invoice truth exists, which conflicts with the intended workflow-vs-accounting separation for O2C documents."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "skills",
+      "observation": "The backend-worker skill still makes frontend-handoff/doc updates mandatory even in missions where higher-priority instructions forbid documentation edits unless the user explicitly requested them.",
+      "evidence": "backend-worker/SKILL.md Step 5 requires frontend-handoff updates; this feature's handoff skillFeedback records a justified deviation because the session instructions prohibited doc changes and the packet kept to code/tests only."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "Fail. The shared truth contract scaffolding is valuable, but sales-order accounting lifecycle is still overstated as `PENDING` before any accounting trigger exists."
+}

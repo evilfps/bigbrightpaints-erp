@@ -7,6 +7,8 @@ import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
+import com.bigbrightpaints.erp.modules.accounting.domain.PartnerSettlementAllocation;
+import com.bigbrightpaints.erp.modules.accounting.domain.PartnerSettlementAllocationRepository;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingPeriodService;
@@ -34,6 +36,8 @@ import com.bigbrightpaints.erp.modules.purchasing.domain.Supplier;
 import com.bigbrightpaints.erp.modules.purchasing.dto.PurchaseReturnRequest;
 import com.bigbrightpaints.erp.modules.purchasing.dto.RawMaterialPurchaseLineRequest;
 import com.bigbrightpaints.erp.modules.purchasing.dto.RawMaterialPurchaseRequest;
+import com.bigbrightpaints.erp.modules.purchasing.dto.RawMaterialPurchaseResponse;
+import com.bigbrightpaints.erp.shared.dto.LinkedBusinessReferenceDto;
 import com.bigbrightpaints.erp.modules.accounting.service.ReferenceNumberService;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -66,6 +70,8 @@ class PurchasingServiceTest {
     private CompanyContextService companyContextService;
     @Mock
     private RawMaterialPurchaseRepository purchaseRepository;
+    @Mock
+    private PartnerSettlementAllocationRepository settlementAllocationRepository;
     @Mock
     private PurchaseOrderRepository purchaseOrderRepository;
     @Mock
@@ -122,7 +128,8 @@ class PurchasingServiceTest {
                 accountingPeriodService,
                 gstService,
                 purchaseOrderStatusHistoryRepository,
-                transactionManager
+                transactionManager,
+                settlementAllocationRepository
         );
 
         company = new Company();
@@ -179,6 +186,102 @@ class PurchasingServiceTest {
 
         verify(purchaseRepository).lockByCompanyAndInvoiceNumberIgnoreCase(company, "INV-001");
         verify(purchaseRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("getPurchase includes settlement references when facade constructor builds mapper")
+    void getPurchase_includesSettlementLinkedReferences() {
+        when(companyContextService.requireCurrentCompany()).thenReturn(company);
+
+        RawMaterialPurchase purchase = new RawMaterialPurchase();
+        ReflectionTestUtils.setField(purchase, "id", 215L);
+        purchase.setCompany(company);
+        purchase.setSupplier(supplier);
+        purchase.setInvoiceNumber("PINV-215");
+        purchase.setStatus("POSTED");
+        purchase.setOutstandingAmount(new BigDecimal("25.00"));
+
+        PurchaseOrder order = new PurchaseOrder();
+        ReflectionTestUtils.setField(order, "id", 216L);
+        order.setOrderNumber("PO-216");
+        order.setStatus("INVOICED");
+        purchase.setPurchaseOrder(order);
+
+        GoodsReceipt receipt = new GoodsReceipt();
+        ReflectionTestUtils.setField(receipt, "id", 217L);
+        receipt.setReceiptNumber("GRN-217");
+        receipt.setStatus("INVOICED");
+        receipt.setCompany(company);
+        receipt.setPurchaseOrder(order);
+        purchase.setGoodsReceipt(receipt);
+
+        JournalEntry purchaseJournal = new JournalEntry();
+        ReflectionTestUtils.setField(purchaseJournal, "id", 218L);
+        purchaseJournal.setReferenceNumber("RMP-218");
+        purchaseJournal.setStatus("POSTED");
+        purchase.setJournalEntry(purchaseJournal);
+        purchase.getLines().add(purchaseLine(purchase, rawMaterial, BigDecimal.ONE, new BigDecimal("25.00")));
+
+        PartnerSettlementAllocation allocation = new PartnerSettlementAllocation();
+        ReflectionTestUtils.setField(allocation, "id", 219L);
+        allocation.setCompany(company);
+        allocation.setPurchase(purchase);
+        allocation.setIdempotencyKey("settlement-219");
+        JournalEntry settlementJournal = new JournalEntry();
+        ReflectionTestUtils.setField(settlementJournal, "id", 220L);
+        settlementJournal.setReferenceNumber("SUP-SET-220");
+        settlementJournal.setStatus("POSTED");
+        allocation.setJournalEntry(settlementJournal);
+
+        when(companyEntityLookup.requireRawMaterialPurchase(company, 215L)).thenReturn(purchase);
+        when(settlementAllocationRepository.findByCompanyAndPurchase_IdInOrderByCreatedAtDesc(company, List.of(215L)))
+                .thenReturn(List.of(allocation));
+
+        assertThat(purchasingService.getPurchase(215L).linkedReferences())
+                .extracting(LinkedBusinessReferenceDto::relationType)
+                .contains("PURCHASE_ORDER", "GOODS_RECEIPT", "ACCOUNTING_ENTRY", "SETTLEMENT", "SELF");
+    }
+
+    @Test
+    @DisplayName("listPurchases batch-loads settlement references for facade mapper")
+    void listPurchases_batchLoadsSettlementLinkedReferences() {
+        when(companyContextService.requireCurrentCompany()).thenReturn(company);
+
+        RawMaterialPurchase firstPurchase = new RawMaterialPurchase();
+        ReflectionTestUtils.setField(firstPurchase, "id", 230L);
+        firstPurchase.setCompany(company);
+        firstPurchase.setSupplier(supplier);
+        firstPurchase.setInvoiceNumber("PINV-230");
+        firstPurchase.setStatus("POSTED");
+        firstPurchase.getLines().add(purchaseLine(firstPurchase, rawMaterial, BigDecimal.ONE, new BigDecimal("25.00")));
+
+        RawMaterialPurchase secondPurchase = new RawMaterialPurchase();
+        ReflectionTestUtils.setField(secondPurchase, "id", 231L);
+        secondPurchase.setCompany(company);
+        secondPurchase.setSupplier(supplier);
+        secondPurchase.setInvoiceNumber("PINV-231");
+        secondPurchase.setStatus("POSTED");
+        secondPurchase.getLines().add(purchaseLine(secondPurchase, rawMaterial, BigDecimal.ONE, new BigDecimal("30.00")));
+
+        PartnerSettlementAllocation firstAllocation = new PartnerSettlementAllocation();
+        ReflectionTestUtils.setField(firstAllocation, "id", 232L);
+        firstAllocation.setCompany(company);
+        firstAllocation.setPurchase(firstPurchase);
+        firstAllocation.setIdempotencyKey("settlement-232");
+
+        when(purchaseRepository.findByCompanyWithLinesOrderByInvoiceDateDesc(company))
+                .thenReturn(List.of(firstPurchase, secondPurchase));
+        when(settlementAllocationRepository.findByCompanyAndPurchase_IdInOrderByCreatedAtDesc(company, List.of(230L, 231L)))
+                .thenReturn(List.of(firstAllocation));
+
+        List<RawMaterialPurchaseResponse> responses = purchasingService.listPurchases();
+
+        assertThat(responses).hasSize(2);
+        assertThat(responses.get(0).linkedReferences())
+                .extracting(LinkedBusinessReferenceDto::relationType)
+                .contains("SETTLEMENT", "SELF");
+        verify(settlementAllocationRepository).findByCompanyAndPurchase_IdInOrderByCreatedAtDesc(company, List.of(230L, 231L));
+        verify(settlementAllocationRepository, never()).findByCompanyAndPurchaseOrderByCreatedAtDesc(any(), any());
     }
 
     @Test
@@ -1002,6 +1105,20 @@ class PurchasingServiceTest {
         when(goodsReceiptRepository.lockByCompanyAndId(company, receiptId)).thenReturn(Optional.of(receipt));
         when(purchaseRepository.findByCompanyAndGoodsReceipt(company, receipt)).thenReturn(Optional.empty());
         return receipt;
+    }
+
+    private RawMaterialPurchaseLine purchaseLine(RawMaterialPurchase purchase,
+                                                 RawMaterial material,
+                                                 BigDecimal quantity,
+                                                 BigDecimal costPerUnit) {
+        RawMaterialPurchaseLine line = new RawMaterialPurchaseLine();
+        line.setPurchase(purchase);
+        line.setRawMaterial(material);
+        line.setQuantity(quantity);
+        line.setUnit(material.getUnitType());
+        line.setCostPerUnit(costPerUnit);
+        line.setLineTotal(quantity.multiply(costPerUnit));
+        return line;
     }
 
     private GoodsReceipt stubGoodsReceiptForMaterial(RawMaterial material,
