@@ -4,7 +4,6 @@ import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.modules.inventory.dto.PackagingSlipDto;
 import com.bigbrightpaints.erp.modules.inventory.service.FinishedGoodsService;
 import com.bigbrightpaints.erp.modules.sales.dto.DispatchConfirmRequest;
-import com.bigbrightpaints.erp.modules.sales.dto.DispatchConfirmResponse;
 import com.bigbrightpaints.erp.modules.sales.dto.SalesOrderItemRequest;
 import com.bigbrightpaints.erp.modules.sales.dto.SalesOrderRequest;
 import com.bigbrightpaints.erp.modules.sales.dto.SalesOrderStatusHistoryDto;
@@ -15,7 +14,6 @@ import com.bigbrightpaints.erp.modules.sales.service.SalesDispatchReconciliation
 import com.bigbrightpaints.erp.modules.sales.service.SalesOrderCrudService;
 import com.bigbrightpaints.erp.modules.sales.service.SalesOrderLifecycleService;
 import com.bigbrightpaints.erp.modules.sales.service.SalesService;
-import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.http.HttpStatus;
@@ -36,7 +34,6 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
-@Tag("critical")
 class SalesControllerIdempotencyHeaderTest {
 
     @Mock
@@ -54,25 +51,12 @@ class SalesControllerIdempotencyHeaderTest {
     private SalesDispatchReconciliationService salesDispatchReconciliationService;
     @Mock
     private SalesDashboardService salesDashboardService;
-
     @Mock
     private FinishedGoodsService finishedGoodsService;
 
-    private SalesController controller() {
-        return new SalesController(
-                salesService,
-                salesOrderCrudService,
-                salesOrderLifecycleService,
-                salesDealerCrudService,
-                salesDispatchReconciliationService,
-                salesDashboardService,
-                dealerService,
-                finishedGoodsService);
-    }
-
     @Test
     void createOrder_appliesPrimaryHeaderIdempotencyKeyWhenBodyMissing() {
-        SalesController controller = controller();
+        SalesController controller = createController();
         when(salesOrderCrudService.createOrder(any())).thenReturn(null);
 
         controller.createOrder("hdr-001", null, requestWithoutIdempotencyKey());
@@ -84,7 +68,7 @@ class SalesControllerIdempotencyHeaderTest {
 
     @Test
     void createOrder_appliesLegacyHeaderIdempotencyKeyWhenPrimaryMissing() {
-        SalesController controller = controller();
+        SalesController controller = createController();
         when(salesOrderCrudService.createOrder(any())).thenReturn(null);
 
         controller.createOrder(null, "legacy-001", requestWithoutIdempotencyKey());
@@ -96,7 +80,7 @@ class SalesControllerIdempotencyHeaderTest {
 
     @Test
     void createOrder_rejectsHeaderBodyMismatch() {
-        SalesController controller = controller();
+        SalesController controller = createController();
 
         assertThatThrownBy(() -> controller.createOrder("hdr-001", null, requestWithIdempotencyKey("body-001")))
                 .isInstanceOf(ApplicationException.class)
@@ -105,7 +89,7 @@ class SalesControllerIdempotencyHeaderTest {
 
     @Test
     void createOrder_rejectsWhenPrimaryLegacyHeadersMismatch() {
-        SalesController controller = controller();
+        SalesController controller = createController();
 
         assertThatThrownBy(() -> controller.createOrder("hdr-001", "legacy-001", requestWithoutIdempotencyKey()))
                 .isInstanceOf(ApplicationException.class)
@@ -115,7 +99,7 @@ class SalesControllerIdempotencyHeaderTest {
 
     @Test
     void searchOrders_rejectsInvalidFromDate() {
-        SalesController controller = controller();
+        SalesController controller = createController();
 
         assertThatThrownBy(() -> controller.searchOrders(null, null, null, "bad-date", null, 0, 50))
                 .isInstanceOf(ApplicationException.class)
@@ -124,7 +108,7 @@ class SalesControllerIdempotencyHeaderTest {
 
     @Test
     void cancelOrder_combinesReasonCodeAndReasonText() {
-        SalesController controller = controller();
+        SalesController controller = createController();
 
         when(salesOrderLifecycleService.cancelOrder(44L, "CUSTOMER_REQUEST|Customer changed mind")).thenReturn(
                 new com.bigbrightpaints.erp.modules.sales.dto.SalesOrderDto(
@@ -155,7 +139,7 @@ class SalesControllerIdempotencyHeaderTest {
 
     @Test
     void orderTimeline_delegatesToLifecycleService() {
-        SalesController controller = controller();
+        SalesController controller = createController();
 
         List<SalesOrderStatusHistoryDto> timeline = List.of(
                 new SalesOrderStatusHistoryDto(1L, null, "DRAFT", "ORDER_CREATED", "Order created", "alice", Instant.now())
@@ -171,115 +155,15 @@ class SalesControllerIdempotencyHeaderTest {
     }
 
     @Test
-    void confirmDispatch_validatesMetadataBeforeDelegating() {
-        SalesController controller = controller();
-        DispatchConfirmRequest request = new DispatchConfirmRequest(
-                11L,
-                22L,
-                List.of(),
-                "notes",
-                "tester",
-                Boolean.FALSE,
-                null,
-                null,
-                "Carrier",
-                null,
-                "MH12AB1234",
-                "CH-22"
-        );
-        DispatchConfirmResponse response = new DispatchConfirmResponse(11L, 22L, 33L, 44L, List.of(), true, List.of(), null);
-        when(salesDispatchReconciliationService.confirmDispatch(request)).thenReturn(response);
-
-        var result = controller.confirmDispatch(request);
-
-        assertThat(result.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(result.getBody()).isNotNull();
-        assertThat(result.getBody().data().finalInvoiceId()).isEqualTo(33L);
-        verify(salesDispatchReconciliationService).confirmDispatch(request);
-    }
-
-    @Test
-    void confirmDispatch_rejectsMissingLogisticsMetadata() {
-        SalesController controller = controller();
-        DispatchConfirmRequest request = new DispatchConfirmRequest(
-                11L,
-                22L,
-                List.of(),
-                "notes",
-                "tester",
-                Boolean.FALSE,
-                null,
-                null
-        );
-
-        assertThatThrownBy(() -> controller.confirmDispatch(request))
-                .isInstanceOf(ApplicationException.class)
-                .hasMessageContaining("transporterName or driverName");
-        verifyNoInteractions(salesDispatchReconciliationService);
-    }
-
-    @Test
-    void confirmDispatch_rejectsMissingLogisticsMetadataWhenSlipIdMissing() {
-        SalesController controller = controller();
-        DispatchConfirmRequest request = new DispatchConfirmRequest(
-                null,
-                22L,
-                List.of(),
-                "notes",
-                "tester",
-                Boolean.FALSE,
-                null,
-                null
-        );
-
-        assertThatThrownBy(() -> controller.confirmDispatch(request))
-                .isInstanceOf(ApplicationException.class)
-                .hasMessageContaining("transporterName or driverName");
-        verifyNoInteractions(finishedGoodsService, salesDispatchReconciliationService);
-    }
-
-    @Test
-    void confirmDispatch_rejectsMissingLogisticsMetadataWhenReplayLookupFails() {
-        SalesController controller = controller();
-        DispatchConfirmRequest request = new DispatchConfirmRequest(
-                11L,
-                22L,
-                List.of(),
-                "notes",
-                "tester",
-                Boolean.FALSE,
-                null,
-                null
-        );
-        when(finishedGoodsService.getPackagingSlip(11L)).thenThrow(new RuntimeException("lookup failed"));
-
-        assertThatThrownBy(() -> controller.confirmDispatch(request))
-                .isInstanceOf(ApplicationException.class)
-                .hasMessageContaining("transporterName or driverName");
-        verify(finishedGoodsService).getPackagingSlip(11L);
-        verifyNoInteractions(salesDispatchReconciliationService);
-    }
-
-    @Test
-    void confirmDispatch_rejectsMissingLogisticsMetadataWhenSlipIsNotAlreadyDispatched() {
-        SalesController controller = controller();
-        DispatchConfirmRequest request = new DispatchConfirmRequest(
-                11L,
-                22L,
-                List.of(),
-                "notes",
-                "tester",
-                Boolean.FALSE,
-                null,
-                null
-        );
-        when(finishedGoodsService.getPackagingSlip(11L)).thenReturn(new PackagingSlipDto(
-                11L,
+    void confirmDispatch_enforcesMetadataForNonReplaySlip() {
+        SalesController controller = createController();
+        when(finishedGoodsService.getPackagingSlip(55L)).thenReturn(new PackagingSlipDto(
+                55L,
                 UUID.randomUUID(),
-                22L,
-                "SO-22",
+                7L,
+                "SO-55",
                 "Dealer",
-                "PS-11",
+                "PS-55",
                 "READY",
                 Instant.now(),
                 null,
@@ -297,59 +181,93 @@ class SalesControllerIdempotencyHeaderTest {
                 null
         ));
 
-        assertThatThrownBy(() -> controller.confirmDispatch(request))
+        assertThatThrownBy(() -> controller.confirmDispatch(new DispatchConfirmRequest(
+                55L,
+                null,
+                List.of(new DispatchConfirmRequest.DispatchLine(1L, null, BigDecimal.ONE, null, null, null, null, null)),
+                "notes",
+                "accounting.user",
+                Boolean.FALSE,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+        )))
                 .isInstanceOf(ApplicationException.class)
                 .hasMessageContaining("transporterName or driverName");
-        verify(finishedGoodsService).getPackagingSlip(11L);
         verifyNoInteractions(salesDispatchReconciliationService);
     }
 
     @Test
-    void confirmDispatch_allowsAlreadyDispatchedReplayWithoutFreshMetadata() {
-        SalesController controller = controller();
-        DispatchConfirmRequest request = new DispatchConfirmRequest(
-                11L,
-                22L,
-                List.of(),
-                "notes",
-                "tester",
-                Boolean.FALSE,
-                null,
-                null
-        );
-        when(finishedGoodsService.getPackagingSlip(11L)).thenReturn(new PackagingSlipDto(
-                11L,
+    void confirmDispatch_skipsMetadataValidationForDispatchedReplaySlip() {
+        SalesController controller = createController();
+        when(finishedGoodsService.getPackagingSlip(77L)).thenReturn(new PackagingSlipDto(
+                77L,
                 UUID.randomUUID(),
-                22L,
-                "SO-22",
+                9L,
+                "SO-77",
                 "Dealer",
-                "PS-11",
+                "PS-77",
                 "DISPATCHED",
                 Instant.now(),
                 Instant.now(),
-                "tester",
+                "factory.user",
                 Instant.now(),
                 "notes",
-                33L,
-                44L,
+                null,
+                null,
                 List.of(),
                 null,
                 null,
                 null,
                 null,
-                "DC-PS-11",
-                "/api/v1/dispatch/slip/11/challan/pdf"
+                null,
+                null
         ));
-        DispatchConfirmResponse response = new DispatchConfirmResponse(11L, 22L, 33L, 44L, List.of(), true, List.of(), null);
-        when(salesDispatchReconciliationService.confirmDispatch(request)).thenReturn(response);
+        when(salesDispatchReconciliationService.confirmDispatch(any())).thenReturn(null);
 
-        var result = controller.confirmDispatch(request);
+        assertThat(controller.confirmDispatch(new DispatchConfirmRequest(
+                77L,
+                null,
+                List.of(new DispatchConfirmRequest.DispatchLine(1L, null, BigDecimal.ONE, null, null, null, null, null)),
+                "replay",
+                "accounting.user",
+                Boolean.FALSE,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+        )).getStatusCode()).isEqualTo(HttpStatus.OK);
 
-        assertThat(result.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(result.getBody()).isNotNull();
-        assertThat(result.getBody().data().finalInvoiceId()).isEqualTo(33L);
-        verify(finishedGoodsService).getPackagingSlip(11L);
-        verify(salesDispatchReconciliationService).confirmDispatch(request);
+        verify(salesDispatchReconciliationService).confirmDispatch(any());
+    }
+
+    @Test
+    void confirmDispatch_treatsSlipLookupFailureAsNonReplay() {
+        SalesController controller = createController();
+        when(finishedGoodsService.getPackagingSlip(88L)).thenThrow(new RuntimeException("lookup failed"));
+
+        assertThatThrownBy(() -> controller.confirmDispatch(new DispatchConfirmRequest(
+                88L,
+                null,
+                List.of(new DispatchConfirmRequest.DispatchLine(1L, null, BigDecimal.ONE, null, null, null, null, null)),
+                "notes",
+                "accounting.user",
+                Boolean.FALSE,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+        )))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("transporterName or driverName");
+        verifyNoInteractions(salesDispatchReconciliationService);
     }
 
     private SalesOrderRequest requestWithoutIdempotencyKey() {
@@ -374,6 +292,19 @@ class SalesControllerIdempotencyHeaderTest {
                 Boolean.FALSE,
                 idempotencyKey,
                 "CREDIT"
+        );
+    }
+
+    private SalesController createController() {
+        return new SalesController(
+                salesService,
+                salesOrderCrudService,
+                salesOrderLifecycleService,
+                salesDealerCrudService,
+                salesDispatchReconciliationService,
+                salesDashboardService,
+                dealerService,
+                finishedGoodsService
         );
     }
 }

@@ -18,7 +18,8 @@ public final class DispatchMetadataValidator {
                 && StringUtils.hasText(request.challanReference());
     }
 
-    public static boolean shouldEnforceValidation(DispatchConfirmRequest request, BooleanSupplier dispatchedSlipReplaySupplier) {
+    public static boolean shouldEnforceValidation(DispatchConfirmRequest request,
+                                                  BooleanSupplier dispatchedSlipReplaySupplier) {
         return hasRequiredMetadata(request) || !dispatchedSlipReplaySupplier.getAsBoolean();
     }
 

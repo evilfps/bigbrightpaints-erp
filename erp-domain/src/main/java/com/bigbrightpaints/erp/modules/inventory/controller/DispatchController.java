@@ -19,6 +19,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
 import java.security.Principal;
 import java.util.List;
 
@@ -170,18 +171,6 @@ public class DispatchController {
         return DispatchMetadataValidator.shouldEnforceValidation(request, () -> isDispatchedSlipReplay(packagingSlipId));
     }
 
-    private boolean isDispatchedSlipReplay(Long packagingSlipId) {
-        if (packagingSlipId == null) {
-            return false;
-        }
-        try {
-            PackagingSlipDto slip = finishedGoodsService.getPackagingSlip(packagingSlipId);
-            return slip != null && "DISPATCHED".equalsIgnoreCase(slip.status());
-        } catch (RuntimeException ex) {
-            return false;
-        }
-    }
-
     private void validateFactoryDispatchMetadata(DispatchConfirmationRequest request) {
         if (!isOperationalFactoryView()) {
             return;
@@ -202,10 +191,41 @@ public class DispatchController {
         }
     }
 
+    private boolean isDispatchedSlipReplay(Long packagingSlipId) {
+        if (packagingSlipId == null) {
+            return false;
+        }
+        try {
+            PackagingSlipDto slip = finishedGoodsService.getPackagingSlip(packagingSlipId);
+            return slip != null && "DISPATCHED".equalsIgnoreCase(slip.status());
+        } catch (RuntimeException ex) {
+            return false;
+        }
+    }
+
     private PackagingSlipDto toPackagingSlipView(PackagingSlipDto slip) {
         if (slip == null || !isOperationalFactoryView()) {
             return slip;
         }
+        List<PackagingSlipLineDto> redactedLines = slip.lines() == null
+                ? List.of()
+                : slip.lines().stream()
+                .map(line -> {
+                    BigDecimal redactedUnitCost = null;
+                    return new PackagingSlipLineDto(
+                            line.id(),
+                            line.batchPublicId(),
+                            line.batchCode(),
+                            line.productCode(),
+                            line.productName(),
+                            line.orderedQuantity(),
+                            line.shippedQuantity(),
+                            line.backorderQuantity(),
+                            line.quantity(),
+                            redactedUnitCost,
+                            line.notes());
+                })
+                .toList();
         return new PackagingSlipDto(
                 slip.id(),
                 slip.publicId(),
@@ -221,7 +241,7 @@ public class DispatchController {
                 slip.dispatchNotes(),
                 null,
                 null,
-                redactFactorySlipLines(slip.lines()),
+                redactedLines,
                 slip.transporterName(),
                 slip.driverName(),
                 slip.vehicleNumber(),
@@ -263,30 +283,10 @@ public class DispatchController {
                 preview.dealerCode(),
                 preview.createdAt(),
                 null,
-                null,
+                preview.totalAvailableAmount(),
                 null,
                 lines
         );
-    }
-
-    private List<PackagingSlipLineDto> redactFactorySlipLines(List<PackagingSlipLineDto> lines) {
-        if (lines == null) {
-            return List.of();
-        }
-        return lines.stream()
-                .map(line -> new PackagingSlipLineDto(
-                        line.id(),
-                        line.batchPublicId(),
-                        line.batchCode(),
-                        line.productCode(),
-                        line.productName(),
-                        line.orderedQuantity(),
-                        line.shippedQuantity(),
-                        line.backorderQuantity(),
-                        line.quantity(),
-                        null,
-                        line.notes()))
-                .toList();
     }
 
     private DispatchConfirmationResponse toDispatchConfirmationView(DispatchConfirmationResponse response) {
@@ -342,4 +342,5 @@ public class DispatchController {
                         || "ROLE_SALES".equals(authority.getAuthority()));
         return factory && !elevated;
     }
+
 }

@@ -30,6 +30,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.test.util.ReflectionTestUtils;
 
 @ExtendWith(MockitoExtension.class)
 class RoleServiceTest {
@@ -90,6 +91,52 @@ class RoleServiceTest {
                 .extracting(Permission::getCode)
                 .contains("dispatch.confirm", "payroll.run");
         verify(roleRepository).save(accounting);
+    }
+
+    @Test
+    void ensureRoleExists_returnsExistingAlignedSystemRoleWithoutSaving() {
+        Role accounting = role("ROLE_ACCOUNTING", permission("portal:accounting"), permission("dispatch.confirm"), permission("payroll.run"));
+        when(roleRepository.lockByName("ROLE_ACCOUNTING")).thenReturn(Optional.of(accounting));
+
+        RoleService service = new RoleService(roleRepository, permissionRepository, auditService);
+
+        Role ensured = service.ensureRoleExists("ROLE_ACCOUNTING");
+
+        assertThat(ensured).isSameAs(accounting);
+        verify(roleRepository).lockByName("ROLE_ACCOUNTING");
+        verifyNoMoreInteractions(roleRepository);
+    }
+
+    @Test
+    void ensureRoleExists_backfillsMissingDescriptionForExistingSystemRole() {
+        Role accounting = role("ROLE_ACCOUNTING", permission("portal:accounting"), permission("dispatch.confirm"), permission("payroll.run"));
+        accounting.setDescription(" ");
+        when(roleRepository.lockByName("ROLE_ACCOUNTING")).thenReturn(Optional.of(accounting));
+        when(roleRepository.save(any(Role.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        RoleService service = new RoleService(roleRepository, permissionRepository, auditService);
+
+        Role ensured = service.ensureRoleExists("ROLE_ACCOUNTING");
+
+        assertThat(ensured.getDescription()).isEqualTo(SystemRole.ACCOUNTING.getDescription());
+        verify(roleRepository).save(accounting);
+    }
+
+    @Test
+    void synchronizeSystemRoles_returnsZeroWhenRolesAlreadyAligned() {
+        RoleService service = new RoleService(roleRepository, permissionRepository, auditService);
+        for (SystemRole definition : SystemRole.values()) {
+            Role role = role(definition.getRoleName(), definition.getDefaultPermissions().stream()
+                    .map(this::permission)
+                    .toArray(Permission[]::new));
+            ReflectionTestUtils.setField(role, "id", (long) definition.ordinal() + 1L);
+            role.setDescription(definition.getDescription());
+            when(roleRepository.lockByName(definition.getRoleName())).thenReturn(Optional.of(role));
+        }
+
+        int synchronizedRoles = service.synchronizeSystemRoles();
+
+        assertThat(synchronizedRoles).isZero();
     }
 
     @Test

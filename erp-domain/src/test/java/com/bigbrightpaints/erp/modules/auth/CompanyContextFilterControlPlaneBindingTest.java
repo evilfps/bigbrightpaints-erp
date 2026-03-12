@@ -157,7 +157,6 @@ class CompanyContextFilterControlPlaneBindingTest {
         authenticate("root-superadmin@bbp.com", Set.of("ROLE_SUPER_ADMIN"), Set.of("TENANT-A"));
 
         MockHttpServletRequest request = request("GET", "/api/v1/support/tickets");
-        request.setAttribute("jwtClaims", claimsFor("TENANT-A"));
         MockHttpServletResponse response = new MockHttpServletResponse();
 
         filter.doFilter(request, response, filterChain);
