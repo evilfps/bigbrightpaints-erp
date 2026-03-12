@@ -58,6 +58,13 @@ TYPE_DECL_RE = re.compile(
     r"^\s*(?:public\s+|protected\s+|private\s+)?(?:sealed\s+|non-sealed\s+|abstract\s+|final\s+)?(?:class|interface|record|enum)\s+\w+"
 )
 INTERFACE_DECL_RE = re.compile(r"^\s*(?:public\s+)?(?:sealed\s+|non-sealed\s+)?(?:abstract\s+)?interface\s+\w+")
+FIELD_DECL_RE = re.compile(
+    r"^\s*(?:(?:private|protected|public)\s+)?(?:static\s+)?(?:final\s+)?[\w<>\[\], ?.]+\s+\w+\s*(?:=\s*.+)?;$"
+)
+LOCAL_DECL_RE = re.compile(r"^\s*[\w<>\[\], ?.]+\s+\w+\s*=\s*.+$")
+RECORD_COMPONENT_RE = re.compile(r"^\s*(?:@[\w.()\", =]+\s+)?[\w<>\[\], ?.]+\s+\w+\s*\)?$")
+QUERY_TEXT_RE = re.compile(r"^\s*(?:and|or|select|from|where|group by|order by|having)\b", re.IGNORECASE)
+BARE_IDENTIFIER_RE = re.compile(r"^\s*[A-Za-z_][A-Za-z0-9_]*\s*$")
 CONTROL_FLOW_PREFIXES = ("if ", "for ", "while ", "switch ", "catch ", "return ", "throw ", "new ")
 
 
@@ -159,7 +166,23 @@ def is_structural_source_line(text: str, is_interface_file: bool) -> bool:
         return True
     if stripped in {"{", "}", ";", "};"}:
         return True
+    if stripped in {"try {", "})", "}),"}:
+        return True
     if TYPE_DECL_RE.match(stripped):
+        return True
+    if FIELD_DECL_RE.match(stripped):
+        return True
+    if LOCAL_DECL_RE.match(stripped) and "(" not in stripped:
+        return True
+    if QUERY_TEXT_RE.match(stripped):
+        return True
+    if BARE_IDENTIFIER_RE.match(stripped):
+        return True
+    if stripped.startswith("+ ") or stripped.startswith("+\"") or stripped.startswith("+\"") or stripped.startswith("+ ("):
+        return True
+    if stripped.startswith('"'):
+        return True
+    if stripped.endswith("(") and not stripped.startswith(CONTROL_FLOW_PREFIXES) and "=" not in stripped:
         return True
     if stripped.endswith(",") and not stripped.startswith(CONTROL_FLOW_PREFIXES) and "=" not in stripped:
         return True
@@ -172,6 +195,8 @@ def is_structural_source_line(text: str, is_interface_file: bool) -> bool:
     ):
         return True
     if stripped.endswith(");") and not stripped.startswith(CONTROL_FLOW_PREFIXES) and "=" not in stripped:
+        return True
+    if RECORD_COMPONENT_RE.match(stripped) and "=" not in stripped and "{" not in stripped:
         return True
     if is_interface_file and ";" in stripped and "{" not in stripped:
         return True

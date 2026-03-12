@@ -285,4 +285,43 @@ class SalesCoreEngineCoverageTest {
 
         assertThat(fromOrderPaymentMode).isEqualTo(explicitHybrid);
     }
+
+    @Test
+    void resolveLegacySplitReplayRequestSignature_returnsNullWhenCanonicalAlreadyUsesLegacyShape() throws Exception {
+        Method legacySignatureMethod = SalesCoreEngine.class.getDeclaredMethod(
+                "resolveLegacySplitReplayRequestSignature",
+                com.bigbrightpaints.erp.modules.sales.dto.SalesOrderRequest.class,
+                String.class);
+        legacySignatureMethod.setAccessible(true);
+        Method buildSignatureMethod = SalesCoreEngine.class.getDeclaredMethod(
+                "buildSalesOrderSignature",
+                com.bigbrightpaints.erp.modules.sales.dto.SalesOrderRequest.class,
+                boolean.class,
+                boolean.class);
+        buildSignatureMethod.setAccessible(true);
+
+        com.bigbrightpaints.erp.modules.sales.dto.SalesOrderRequest request =
+                new com.bigbrightpaints.erp.modules.sales.dto.SalesOrderRequest(
+                        101L,
+                        new BigDecimal("100.00"),
+                        "INR",
+                        "notes",
+                        List.of(new com.bigbrightpaints.erp.modules.sales.dto.SalesOrderItemRequest(
+                                "SKU-1",
+                                "Primer",
+                                BigDecimal.ONE,
+                                new BigDecimal("100.00"),
+                                BigDecimal.ZERO
+                        )),
+                        "NONE",
+                        BigDecimal.ZERO,
+                        Boolean.FALSE,
+                        null,
+                        "SPLIT"
+                );
+
+        String canonicalLegacyShape = (String) buildSignatureMethod.invoke(engine, request, false, true);
+
+        assertThat(legacySignatureMethod.invoke(engine, request, canonicalLegacyShape)).isNull();
+    }
 }

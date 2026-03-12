@@ -219,6 +219,92 @@ class SalesControllerIdempotencyHeaderTest {
     }
 
     @Test
+    void confirmDispatch_rejectsMissingLogisticsMetadataWhenSlipIdMissing() {
+        SalesController controller = controller();
+        DispatchConfirmRequest request = new DispatchConfirmRequest(
+                null,
+                22L,
+                List.of(),
+                "notes",
+                "tester",
+                Boolean.FALSE,
+                null,
+                null
+        );
+
+        assertThatThrownBy(() -> controller.confirmDispatch(request))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("transporterName or driverName");
+        verifyNoInteractions(finishedGoodsService, salesDispatchReconciliationService);
+    }
+
+    @Test
+    void confirmDispatch_rejectsMissingLogisticsMetadataWhenReplayLookupFails() {
+        SalesController controller = controller();
+        DispatchConfirmRequest request = new DispatchConfirmRequest(
+                11L,
+                22L,
+                List.of(),
+                "notes",
+                "tester",
+                Boolean.FALSE,
+                null,
+                null
+        );
+        when(finishedGoodsService.getPackagingSlip(11L)).thenThrow(new RuntimeException("lookup failed"));
+
+        assertThatThrownBy(() -> controller.confirmDispatch(request))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("transporterName or driverName");
+        verify(finishedGoodsService).getPackagingSlip(11L);
+        verifyNoInteractions(salesDispatchReconciliationService);
+    }
+
+    @Test
+    void confirmDispatch_rejectsMissingLogisticsMetadataWhenSlipIsNotAlreadyDispatched() {
+        SalesController controller = controller();
+        DispatchConfirmRequest request = new DispatchConfirmRequest(
+                11L,
+                22L,
+                List.of(),
+                "notes",
+                "tester",
+                Boolean.FALSE,
+                null,
+                null
+        );
+        when(finishedGoodsService.getPackagingSlip(11L)).thenReturn(new PackagingSlipDto(
+                11L,
+                UUID.randomUUID(),
+                22L,
+                "SO-22",
+                "Dealer",
+                "PS-11",
+                "READY",
+                Instant.now(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                List.of(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+        ));
+
+        assertThatThrownBy(() -> controller.confirmDispatch(request))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("transporterName or driverName");
+        verify(finishedGoodsService).getPackagingSlip(11L);
+        verifyNoInteractions(salesDispatchReconciliationService);
+    }
+
+    @Test
     void confirmDispatch_allowsAlreadyDispatchedReplayWithoutFreshMetadata() {
         SalesController controller = controller();
         DispatchConfirmRequest request = new DispatchConfirmRequest(

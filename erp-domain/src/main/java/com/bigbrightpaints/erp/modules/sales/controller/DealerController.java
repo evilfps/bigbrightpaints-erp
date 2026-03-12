@@ -93,7 +93,7 @@ public class DealerController {
     @GetMapping("/{dealerId}/aging")
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SALES','ROLE_ACCOUNTING')")
     public ResponseEntity<ApiResponse<Map<String, Object>>> dealerAging(@PathVariable Long dealerId) {
-        Map<String, Object> payload = dealerService.agingSummary(dealerId);
+        Map<String, Object> payload = dealerPortalService.getAgingForDealer(dealerId);
         return ResponseEntity.ok(ApiResponse.success("Dealer aging", payload));
     }
 

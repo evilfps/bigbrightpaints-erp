@@ -553,9 +553,25 @@
                                 <include>**/smoke/**/*Test.java</include>
                                 <include>**/core/util/BusinessDocumentTruthsTest.java</include>
                                 <include>**/modules/accounting/service/AccountingAuditTrailServiceTest.java</include>
+                                <include>**/modules/inventory/controller/DispatchControllerTest.java</include>
+                                <include>**/modules/inventory/domain/PackagingSlipTest.java</include>
+                                <include>**/modules/inventory/dto/DispatchConfirmationRequestTest.java</include>
+                                <include>**/modules/inventory/dto/DispatchConfirmationResponseTest.java</include>
+                                <include>**/modules/inventory/service/DispatchArtifactPathsTest.java</include>
+                                <include>**/modules/inventory/service/DeliveryChallanPdfServiceTest.java</include>
+                                <include>**/modules/inventory/service/FinishedGoodsDispatchEngineCoverageTest.java</include>
+                                <include>**/modules/inventory/service/InventoryValuationServiceTest.java</include>
+                                <include>**/modules/inventory/service/PackagingSlipServiceTest.java</include>
                                 <include>**/modules/invoice/service/InvoiceServiceTest.java</include>
                                 <include>**/modules/purchasing/service/PurchaseResponseMapperTest.java</include>
                                 <include>**/modules/purchasing/service/PurchasingServiceGoodsReceiptTest.java</include>
+                                <include>**/modules/sales/controller/SalesControllerIdempotencyHeaderTest.java</include>
+                                <include>**/modules/sales/domain/SalesOrderTest.java</include>
+                                <include>**/modules/sales/dto/DispatchConfirmRequestTest.java</include>
+                                <include>**/modules/sales/dto/SalesOrderRequestTest.java</include>
+                                <include>**/modules/sales/service/SalesCoreEngineCoverageTest.java</include>
+                                <include>**/modules/sales/service/SalesFulfillmentServiceTest.java</include>
+                                <include>**/modules/sales/service/SalesProformaBoundaryServiceTest.java</include>
                                 <include>**/regression/InventoryAccountingEventListenerIT.java</include>
                                 <include>**/shared/dto/TruthRailsSharedDtoContractTest.java</include>
                             </includes>
@@ -585,9 +601,25 @@
                                 <include>**/truthsuite/**/*Suite.java</include>
                                 <include>**/core/util/BusinessDocumentTruthsTest.java</include>
                                 <include>**/modules/accounting/service/AccountingAuditTrailServiceTest.java</include>
+                                <include>**/modules/inventory/controller/DispatchControllerTest.java</include>
+                                <include>**/modules/inventory/domain/PackagingSlipTest.java</include>
+                                <include>**/modules/inventory/dto/DispatchConfirmationRequestTest.java</include>
+                                <include>**/modules/inventory/dto/DispatchConfirmationResponseTest.java</include>
+                                <include>**/modules/inventory/service/DispatchArtifactPathsTest.java</include>
+                                <include>**/modules/inventory/service/DeliveryChallanPdfServiceTest.java</include>
+                                <include>**/modules/inventory/service/FinishedGoodsDispatchEngineCoverageTest.java</include>
+                                <include>**/modules/inventory/service/InventoryValuationServiceTest.java</include>
+                                <include>**/modules/inventory/service/PackagingSlipServiceTest.java</include>
                                 <include>**/modules/invoice/service/InvoiceServiceTest.java</include>
                                 <include>**/modules/purchasing/service/PurchaseResponseMapperTest.java</include>
                                 <include>**/modules/purchasing/service/PurchasingServiceGoodsReceiptTest.java</include>
+                                <include>**/modules/sales/controller/SalesControllerIdempotencyHeaderTest.java</include>
+                                <include>**/modules/sales/domain/SalesOrderTest.java</include>
+                                <include>**/modules/sales/dto/DispatchConfirmRequestTest.java</include>
+                                <include>**/modules/sales/dto/SalesOrderRequestTest.java</include>
+                                <include>**/modules/sales/service/SalesCoreEngineCoverageTest.java</include>
+                                <include>**/modules/sales/service/SalesFulfillmentServiceTest.java</include>
+                                <include>**/modules/sales/service/SalesProformaBoundaryServiceTest.java</include>
                                 <include>**/regression/InventoryAccountingEventListenerIT.java</include>
                                 <include>**/shared/dto/TruthRailsSharedDtoContractTest.java</include>
                             </includes>

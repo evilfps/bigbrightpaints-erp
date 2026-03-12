@@ -22,10 +22,12 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
@@ -125,7 +127,7 @@ class DispatchControllerTest {
         assertThat(redacted.totalShippedAmount()).isNull();
         assertThat(redacted.deliveryChallanPdfPath()).isEqualTo("/api/v1/dispatch/slip/10/challan/pdf");
 
-        verify(finishedGoodsService).getPackagingSlip(10L);
+        verify(finishedGoodsService, never()).getPackagingSlip(10L);
         verify(finishedGoodsService).getDispatchConfirmation(10L);
         verifyNoMoreInteractions(salesDispatchReconciliationService, finishedGoodsService);
     }
@@ -196,8 +198,113 @@ class DispatchControllerTest {
         ResponseEntity<ApiResponse<DispatchConfirmationResponse>> response = controller.confirmDispatch(request, () -> "factory.user");
 
         assertThat(response.getStatusCode().value()).isEqualTo(200);
-        verify(finishedGoodsService, org.mockito.Mockito.times(2)).getPackagingSlip(10L);
+        verify(finishedGoodsService).getPackagingSlip(10L);
+        verify(finishedGoodsService).getDispatchConfirmation(10L);
         verify(salesDispatchReconciliationService).confirmDispatch(org.mockito.ArgumentMatchers.any(DispatchConfirmRequest.class));
+    }
+
+    @Test
+    void confirmDispatch_requiresMetadataWhenSlipIdMissing() {
+        DispatchController controller = new DispatchController(
+                finishedGoodsService,
+                salesDispatchReconciliationService,
+                deliveryChallanPdfService);
+        setFactoryAuthentication();
+
+        DispatchConfirmationRequest request = new DispatchConfirmationRequest(
+                null,
+                List.of(new DispatchConfirmationRequest.LineConfirmation(100L, BigDecimal.ONE, null)),
+                "notes",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+        );
+
+        assertThat(org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class,
+                () -> controller.confirmDispatch(request, () -> "factory.user")).getMessage())
+                .contains("transporterName or driverName");
+        verifyNoMoreInteractions(salesDispatchReconciliationService, finishedGoodsService);
+    }
+
+    @Test
+    void confirmDispatch_requiresMetadataWhenReplayLookupFails() {
+        DispatchController controller = new DispatchController(
+                finishedGoodsService,
+                salesDispatchReconciliationService,
+                deliveryChallanPdfService);
+        setFactoryAuthentication();
+        when(finishedGoodsService.getPackagingSlip(10L)).thenThrow(new RuntimeException("lookup failed"));
+
+        DispatchConfirmationRequest request = new DispatchConfirmationRequest(
+                10L,
+                List.of(new DispatchConfirmationRequest.LineConfirmation(100L, BigDecimal.ONE, null)),
+                "notes",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+        );
+
+        assertThat(org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class,
+                () -> controller.confirmDispatch(request, () -> "factory.user")).getMessage())
+                .contains("transporterName or driverName");
+        verify(finishedGoodsService).getPackagingSlip(10L);
+        verifyNoMoreInteractions(salesDispatchReconciliationService);
+    }
+
+    @Test
+    void confirmDispatch_requiresMetadataWhenSlipIsNotAlreadyDispatched() {
+        DispatchController controller = new DispatchController(
+                finishedGoodsService,
+                salesDispatchReconciliationService,
+                deliveryChallanPdfService);
+        setFactoryAuthentication();
+        when(finishedGoodsService.getPackagingSlip(10L)).thenReturn(new PackagingSlipDto(
+                10L,
+                UUID.randomUUID(),
+                7L,
+                "SO-7",
+                "Dealer",
+                "PS-10",
+                "READY",
+                Instant.now(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                List.of(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+        ));
+
+        DispatchConfirmationRequest request = new DispatchConfirmationRequest(
+                10L,
+                List.of(new DispatchConfirmationRequest.LineConfirmation(100L, BigDecimal.ONE, null)),
+                "notes",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+        );
+
+        assertThat(org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class,
+                () -> controller.confirmDispatch(request, () -> "factory.user")).getMessage())
+                .contains("transporterName or driverName");
+        verify(finishedGoodsService).getPackagingSlip(10L);
+        verifyNoMoreInteractions(salesDispatchReconciliationService);
     }
 
     @Test
@@ -611,6 +718,44 @@ class DispatchControllerTest {
     }
 
     @Test
+    void getPackagingSlip_redactsNullLinesToEmptyListInFactoryView() {
+        DispatchController controller = new DispatchController(
+                finishedGoodsService,
+                salesDispatchReconciliationService,
+                deliveryChallanPdfService);
+        setAuthentication("ROLE_FACTORY");
+        PackagingSlipDto slip = new PackagingSlipDto(
+                5L,
+                UUID.randomUUID(),
+                7L,
+                "SO-7",
+                "Dealer",
+                "PS-5",
+                "DISPATCHED",
+                Instant.now(),
+                Instant.now(),
+                "sales.user",
+                Instant.now(),
+                "notes",
+                111L,
+                222L,
+                null,
+                "FastMove Logistics",
+                "Ayaan",
+                "MH12AB1234",
+                "LR-7788",
+                "DC-PS-5",
+                "/api/v1/dispatch/slip/5/challan/pdf"
+        );
+        when(finishedGoodsService.getPackagingSlip(5L)).thenReturn(slip);
+
+        PackagingSlipDto response = controller.getPackagingSlip(5L).getBody().data();
+
+        assertThat(response.lines()).isEmpty();
+        assertThat(response.journalEntryId()).isNull();
+    }
+
+    @Test
     void getDispatchPreview_returnsNullWhenPreviewIsMissing() {
         DispatchController controller = new DispatchController(
                 finishedGoodsService,
@@ -620,6 +765,58 @@ class DispatchControllerTest {
         when(finishedGoodsService.getDispatchPreview(404L)).thenReturn(null);
 
         assertThat(controller.getDispatchPreview(404L).getBody().data()).isNull();
+    }
+
+    @Test
+    void getDispatchPreview_preservesCommercialFieldsOutsideOperationalFactoryView() {
+        DispatchController controller = new DispatchController(
+                finishedGoodsService,
+                salesDispatchReconciliationService,
+                deliveryChallanPdfService);
+        setAuthentication("ROLE_ADMIN");
+
+        DispatchPreviewDto preview = new DispatchPreviewDto(
+                5L,
+                "PS-5",
+                "RESERVED",
+                7L,
+                "SO-7",
+                "Dealer",
+                "DLR-7",
+                Instant.now(),
+                new BigDecimal("500.00"),
+                new BigDecimal("450.00"),
+                new DispatchPreviewDto.GstBreakdown(
+                        new BigDecimal("450.00"),
+                        new BigDecimal("25.00"),
+                        new BigDecimal("25.00"),
+                        BigDecimal.ZERO,
+                        new BigDecimal("50.00"),
+                        new BigDecimal("500.00")),
+                List.of(new DispatchPreviewDto.LinePreview(
+                        11L,
+                        22L,
+                        "FG-1",
+                        "Primer",
+                        "BATCH-1",
+                        new BigDecimal("5.00"),
+                        new BigDecimal("5.00"),
+                        new BigDecimal("5.00"),
+                        new BigDecimal("100.00"),
+                        new BigDecimal("500.00"),
+                        new BigDecimal("50.00"),
+                        new BigDecimal("550.00"),
+                        false)));
+        when(finishedGoodsService.getDispatchPreview(5L)).thenReturn(preview);
+
+        DispatchPreviewDto response = controller.getDispatchPreview(5L).getBody().data();
+
+        assertThat(response.totalOrderedAmount()).isEqualByComparingTo("500.00");
+        assertThat(response.gstBreakdown()).isNotNull();
+        assertThat(response.lines()).singleElement().satisfies(line -> {
+            assertThat(line.unitPrice()).isEqualByComparingTo("100.00");
+            assertThat(line.lineTotal()).isEqualByComparingTo("550.00");
+        });
     }
 
     @Test
@@ -690,6 +887,47 @@ class DispatchControllerTest {
                 salesDispatchReconciliationService,
                 deliveryChallanPdfService);
         setAuthentication("ROLE_FACTORY", "ROLE_ACCOUNTING");
+
+        PackagingSlipDto slip = new PackagingSlipDto(
+                13L,
+                UUID.randomUUID(),
+                73L,
+                "SO-73",
+                "Dealer",
+                "PS-13",
+                "DISPATCHED",
+                Instant.now(),
+                null,
+                null,
+                null,
+                null,
+                131L,
+                232L,
+                List.of(),
+                null,
+                null,
+                null,
+                null,
+                "DC-PS-13",
+                "/api/v1/dispatch/slip/13/challan/pdf"
+        );
+        when(finishedGoodsService.getPackagingSlip(13L)).thenReturn(slip);
+
+        PackagingSlipDto response = controller.getPackagingSlip(13L).getBody().data();
+
+        assertThat(response.journalEntryId()).isEqualTo(131L);
+        assertThat(response.cogsJournalEntryId()).isEqualTo(232L);
+    }
+
+    @Test
+    void authenticationWithNullAuthoritiesIsNotOperationalFactoryView() {
+        DispatchController controller = new DispatchController(
+                finishedGoodsService,
+                salesDispatchReconciliationService,
+                deliveryChallanPdfService);
+        Authentication authentication = org.mockito.Mockito.mock(Authentication.class);
+        when(authentication.getAuthorities()).thenReturn(null);
+        SecurityContextHolder.getContext().setAuthentication(authentication);
 
         PackagingSlipDto slip = new PackagingSlipDto(
                 13L,
@@ -881,4 +1119,3 @@ class DispatchControllerTest {
                         authorities));
     }
 }
-

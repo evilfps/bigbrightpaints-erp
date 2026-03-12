@@ -541,6 +541,7 @@ class FinishedGoodsServiceTest extends AbstractIntegrationTest {
     @Test
     void stockSummaryUsesBatchValuationUnitCostForFifoGoods() {
         Company company = seedCompany("FIFO-PARITY");
+        upsertCurrentPeriodCostingMethod(company, CostingMethod.FIFO);
         BigDecimal baselineValue = inventoryValuationService.currentSnapshot(company).totalValue();
         FinishedGood fg = createFinishedGood(company, "FG-FIFO-PARITY", new BigDecimal("5"), BigDecimal.ZERO, "FIFO");
         FinishedGoodBatch older = createBatch(fg, "FIFO-PARITY-OLD", new BigDecimal("2"), new BigDecimal("2"), new BigDecimal("5"));
