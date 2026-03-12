@@ -144,8 +144,8 @@ class CompanyContextFilterControlPlaneBindingTest {
         filter.doFilter(request, response, filterChain);
 
         assertThat(response.getStatus()).isEqualTo(403);
-        assertThat(response.getContentAsString()).contains("SUPER_ADMIN_PLATFORM_ONLY");
-        assertThat(response.getContentAsString()).contains("platform control-plane operations");
+        assertThat(response.getContentAsString()).contains("SUPER_ADMIN_TENANT_WORKFLOW_DENIED");
+        assertThat(response.getContentAsString()).contains("tenant audit workflow");
         verifyNoInteractions(companyService);
         verify(tenantRuntimeEnforcementService, never())
                 .beginRequest(anyString(), anyString(), anyString(), anyString(), anyBoolean());

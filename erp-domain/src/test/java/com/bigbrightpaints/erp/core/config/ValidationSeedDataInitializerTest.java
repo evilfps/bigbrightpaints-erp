@@ -127,6 +127,27 @@ class ValidationSeedDataInitializerTest {
     }
 
     @Test
+    void seedValidationActorsRejectsNullPasswords() throws Exception {
+        CommandLineRunner runner = initializer.seedValidationActors(
+                companyRepository,
+                roleRepository,
+                userAccountRepository,
+                dealerRepository,
+                accountRepository,
+                passwordEncoder,
+                passwordPolicy,
+                activeProfiles("mock", "validation-seed"),
+                true,
+                null);
+
+        assertThatThrownBy(runner::run)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("password policy");
+
+        verifyNoInteractions(companyRepository, roleRepository, userAccountRepository, dealerRepository, accountRepository, passwordEncoder);
+    }
+
+    @Test
     void seedValidationActorsSeedsExpectedActorsWhenEnabled() throws Exception {
         when(companyRepository.findByCodeIgnoreCase(anyString())).thenReturn(Optional.empty());
         when(companyRepository.save(any(Company.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -380,6 +401,65 @@ class ValidationSeedDataInitializerTest {
         assertThat(rivalCompany.getStateCode()).isEqualTo("MH");
         assertThat(superAdminCompany.getStateCode()).isEqualTo("MH");
     }
+
+    @Test
+    void seedValidationActorsAssignsMhWhenExistingCompanyStateCodeIsBlank() throws Exception {
+        Company mockCompany = company("MOCK", "Mock Training Co");
+        mockCompany.setStateCode("   ");
+        Company rivalCompany = company("RIVAL", "Rival Validation Co");
+        rivalCompany.setStateCode("KA");
+        Company superAdminCompany = company("SKE", "Platform Super Admin");
+        superAdminCompany.setStateCode("MH");
+
+        Role adminRole = role("ROLE_ADMIN", "Administrator");
+        Role accountingRole = role("ROLE_ACCOUNTING", "Accounting");
+        Role salesRole = role("ROLE_SALES", "Sales");
+        Role factoryRole = role("ROLE_FACTORY", "Factory");
+        Role dealerRole = role("ROLE_DEALER", "Dealer portal");
+        Role superAdminRole = role("ROLE_SUPER_ADMIN", "Platform super administrator");
+
+        when(companyRepository.findByCodeIgnoreCase(anyString())).thenAnswer(invocation -> switch (invocation.getArgument(0, String.class)) {
+            case "MOCK" -> Optional.of(mockCompany);
+            case "RIVAL" -> Optional.of(rivalCompany);
+            case "SKE" -> Optional.of(superAdminCompany);
+            default -> Optional.empty();
+        });
+        when(companyRepository.save(any(Company.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(roleRepository.findByName(anyString())).thenAnswer(invocation -> switch (invocation.getArgument(0, String.class)) {
+            case "ROLE_ADMIN" -> Optional.of(adminRole);
+            case "ROLE_ACCOUNTING" -> Optional.of(accountingRole);
+            case "ROLE_SALES" -> Optional.of(salesRole);
+            case "ROLE_FACTORY" -> Optional.of(factoryRole);
+            case "ROLE_DEALER" -> Optional.of(dealerRole);
+            case "ROLE_SUPER_ADMIN" -> Optional.of(superAdminRole);
+            default -> Optional.empty();
+        });
+        when(accountRepository.findByCompanyAndCodeIgnoreCase(any(Company.class), anyString())).thenReturn(Optional.empty());
+        when(accountRepository.save(any(Account.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(userAccountRepository.findByEmailIgnoreCase(anyString())).thenReturn(Optional.empty());
+        when(userAccountRepository.save(any(UserAccount.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(dealerRepository.findByCompanyAndCodeIgnoreCase(any(Company.class), anyString())).thenReturn(Optional.empty());
+        when(dealerRepository.save(any(Dealer.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(passwordEncoder.encode(anyString())).thenAnswer(invocation -> "encoded:" + invocation.getArgument(0, String.class));
+
+        CommandLineRunner runner = initializer.seedValidationActors(
+                companyRepository,
+                roleRepository,
+                userAccountRepository,
+                dealerRepository,
+                accountRepository,
+                passwordEncoder,
+                passwordPolicy,
+                activeProfiles("mock", "validation-seed"),
+                true,
+                "ValidationSeed1!");
+
+        runner.run();
+
+        assertThat(mockCompany.getStateCode()).isEqualTo("MH");
+        assertThat(rivalCompany.getStateCode()).isEqualTo("KA");
+        assertThat(superAdminCompany.getStateCode()).isEqualTo("MH");
+    }
     @Test
     void seedValidationActorsPreservesExistingDealerOutstandingBalanceOnReseed() throws Exception {
         Company mockCompany = company("MOCK", "Mock Training Co");
@@ -464,6 +544,90 @@ class ValidationSeedDataInitializerTest {
         assertThat(existingDealer.getOutstandingBalance()).isEqualByComparingTo("1450.75");
         assertThat(existingDealer.getPortalUser()).isSameAs(dealerUser);
         assertThat(existingDealer.getReceivableAccount()).isSameAs(mockReceivable);
+    }
+
+    @Test
+    void seedValidationActorsInitializesNullDealerOutstandingBalanceToZero() throws Exception {
+        Company mockCompany = company("MOCK", "Mock Training Co");
+        Company rivalCompany = company("RIVAL", "Rival Validation Co");
+        Company superAdminCompany = company("SKE", "Platform Super Admin");
+
+        Role adminRole = role("ROLE_ADMIN", "Administrator");
+        Role accountingRole = role("ROLE_ACCOUNTING", "Accounting");
+        Role salesRole = role("ROLE_SALES", "Sales");
+        Role factoryRole = role("ROLE_FACTORY", "Factory");
+        Role dealerRole = role("ROLE_DEALER", "Dealer portal");
+        Role superAdminRole = role("ROLE_SUPER_ADMIN", "Platform super administrator");
+
+        Account mockReceivable = new Account();
+        mockReceivable.setCompany(mockCompany);
+        mockReceivable.setCode("AR");
+
+        UserAccount dealerUser = new UserAccount("validation.dealer@example.com", "encoded:old", "Validation Dealer");
+        Dealer existingDealer = new Dealer();
+        existingDealer.setCompany(mockCompany);
+        existingDealer.setCode("VALID-DEALER");
+        existingDealer.setOutstandingBalance(null);
+
+        when(companyRepository.findByCodeIgnoreCase(anyString())).thenAnswer(invocation -> switch (invocation.getArgument(0, String.class)) {
+            case "MOCK" -> Optional.of(mockCompany);
+            case "RIVAL" -> Optional.of(rivalCompany);
+            case "SKE" -> Optional.of(superAdminCompany);
+            default -> Optional.empty();
+        });
+        when(companyRepository.save(any(Company.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(roleRepository.findByName(anyString())).thenAnswer(invocation -> switch (invocation.getArgument(0, String.class)) {
+            case "ROLE_ADMIN" -> Optional.of(adminRole);
+            case "ROLE_ACCOUNTING" -> Optional.of(accountingRole);
+            case "ROLE_SALES" -> Optional.of(salesRole);
+            case "ROLE_FACTORY" -> Optional.of(factoryRole);
+            case "ROLE_DEALER" -> Optional.of(dealerRole);
+            case "ROLE_SUPER_ADMIN" -> Optional.of(superAdminRole);
+            default -> Optional.empty();
+        });
+        when(accountRepository.findByCompanyAndCodeIgnoreCase(any(Company.class), anyString())).thenAnswer(invocation -> {
+            Company company = invocation.getArgument(0, Company.class);
+            String code = invocation.getArgument(1, String.class);
+            if (company == mockCompany && "AR".equalsIgnoreCase(code)) {
+                return Optional.of(mockReceivable);
+            }
+            return Optional.empty();
+        });
+        when(accountRepository.save(any(Account.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(userAccountRepository.findByEmailIgnoreCase(anyString())).thenAnswer(invocation -> {
+            String email = invocation.getArgument(0, String.class);
+            if ("validation.dealer@example.com".equalsIgnoreCase(email)) {
+                return Optional.of(dealerUser);
+            }
+            return Optional.empty();
+        });
+        when(userAccountRepository.save(any(UserAccount.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(dealerRepository.findByCompanyAndCodeIgnoreCase(any(Company.class), anyString())).thenAnswer(invocation -> {
+            Company company = invocation.getArgument(0, Company.class);
+            String code = invocation.getArgument(1, String.class);
+            if (company == mockCompany && "VALID-DEALER".equalsIgnoreCase(code)) {
+                return Optional.of(existingDealer);
+            }
+            return Optional.empty();
+        });
+        when(dealerRepository.save(any(Dealer.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(passwordEncoder.encode(anyString())).thenAnswer(invocation -> "encoded:" + invocation.getArgument(0, String.class));
+
+        CommandLineRunner runner = initializer.seedValidationActors(
+                companyRepository,
+                roleRepository,
+                userAccountRepository,
+                dealerRepository,
+                accountRepository,
+                passwordEncoder,
+                passwordPolicy,
+                activeProfiles("mock", "validation-seed"),
+                true,
+                "ValidationSeed1!");
+
+        runner.run();
+
+        assertThat(existingDealer.getOutstandingBalance()).isEqualByComparingTo(BigDecimal.ZERO);
     }
 
     private MockEnvironment activeProfiles(String... profiles) {
