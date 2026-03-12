@@ -17,6 +17,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -116,6 +117,83 @@ class SettlementServiceTest {
         assertThat(supplierCaptor.getValue().unappliedAmountApplication()).isEqualTo(SettlementAllocationApplication.FUTURE_APPLICATION);
         assertThat(supplierCaptor.getValue().adminOverride()).isTrue();
         assertThat(supplierCaptor.getValue().referenceNumber()).isEqualTo("SUP-SET-1");
+    }
+
+    @Test
+    void settlementRequests_allowNullAmountAndNullUnappliedApplication() {
+        when(accountingIdempotencyService.settleDealerInvoices(org.mockito.ArgumentMatchers.any())).thenReturn(null);
+        when(accountingIdempotencyService.settleSupplierInvoices(org.mockito.ArgumentMatchers.any())).thenReturn(null);
+
+        settlementService.settleDealerInvoices(new DealerSettlementRequest(
+                81L,
+                210L,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                LocalDate.of(2026, 3, 3),
+                " DEALER-SET-NULL ",
+                " dealer memo ",
+                " dealer-null-key ",
+                Boolean.TRUE,
+                List.of(),
+                List.of()
+        ));
+        settlementService.settleSupplierInvoices(new SupplierSettlementRequest(
+                82L,
+                310L,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                LocalDate.of(2026, 3, 4),
+                " SUP-SET-NULL ",
+                " supplier memo ",
+                " supplier-null-key ",
+                null,
+                List.of()
+        ));
+
+        ArgumentCaptor<DealerSettlementRequest> dealerCaptor = ArgumentCaptor.forClass(DealerSettlementRequest.class);
+        ArgumentCaptor<SupplierSettlementRequest> supplierCaptor = ArgumentCaptor.forClass(SupplierSettlementRequest.class);
+        verify(accountingIdempotencyService).settleDealerInvoices(dealerCaptor.capture());
+        verify(accountingIdempotencyService).settleSupplierInvoices(supplierCaptor.capture());
+
+        DealerSettlementRequest dealerRequest = dealerCaptor.getValue();
+        SupplierSettlementRequest supplierRequest = supplierCaptor.getValue();
+        assertThat(dealerRequest.amount()).isNull();
+        assertThat(dealerRequest.unappliedAmountApplication()).isNull();
+        assertThat(dealerRequest.adminOverride()).isTrue();
+        assertThat(supplierRequest.amount()).isNull();
+        assertThat(supplierRequest.unappliedAmountApplication()).isNull();
+        assertThat(supplierRequest.adminOverride()).isFalse();
+    }
+
+    @Test
+    void settlementRequests_rejectNonPositiveAmountWhenProvided() {
+        assertThatThrownBy(() -> settlementService.settleDealerInvoices(new DealerSettlementRequest(
+                83L,
+                210L,
+                null,
+                null,
+                null,
+                null,
+                BigDecimal.ZERO,
+                null,
+                LocalDate.of(2026, 3, 5),
+                "DEALER-SET-ZERO",
+                null,
+                null,
+                null,
+                List.of(),
+                List.of()
+        )))
+                .isInstanceOf(com.bigbrightpaints.erp.core.exception.ApplicationException.class)
+                .hasMessageContaining("amount");
     }
 
     @Test

@@ -17,7 +17,9 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.util.ReflectionTestUtils;
 
 class AccountingDomainDtoCoverageTest {
 
@@ -50,6 +52,27 @@ class AccountingDomainDtoCoverageTest {
         assertThat(exception.getUsedBy()).isEqualTo("admin");
         assertThat(exception.getUsedAt()).isEqualTo(exception.getApprovedAt());
         assertThat(exception.getJournalEntry()).isSameAs(journalEntry);
+    }
+
+    @Test
+    void closedPeriodPostingException_prePersistPreservesExistingIdentityAndApprovalInstant() {
+        Company company = company();
+        ClosedPeriodPostingException exception = new ClosedPeriodPostingException();
+        exception.setCompany(company);
+        exception.setAccountingPeriod(period(company));
+        exception.setDocumentType("JOURNAL");
+        exception.setDocumentReference("JE-101");
+        exception.setReason("reason");
+        exception.setApprovedBy("admin");
+        UUID existingPublicId = UUID.randomUUID();
+        Instant approvedAt = Instant.parse("2026-03-12T09:15:00Z");
+        ReflectionTestUtils.setField(exception, "publicId", existingPublicId);
+        exception.setApprovedAt(approvedAt);
+
+        exception.prePersist();
+
+        assertThat(exception.getPublicId()).isEqualTo(existingPublicId);
+        assertThat(exception.getApprovedAt()).isEqualTo(approvedAt);
     }
 
     @Test

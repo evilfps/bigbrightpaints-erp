@@ -96,6 +96,32 @@ class ClosedPeriodPostingExceptionServiceTest {
     }
 
     @Test
+    void authorize_rejectsUnauthenticatedPrincipal() {
+        Company company = company();
+        AccountingPeriod period = period(company);
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken("admin.user", "N/A", List.of())
+        );
+
+        assertThatThrownBy(() -> service.authorize(company, period, "JOURNAL", "JE-101", "override"))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("explicit admin exception");
+    }
+
+    @Test
+    void authorize_rejectsExplicitlyUnauthenticatedAdminPrincipal() {
+        Company company = company();
+        AccountingPeriod period = period(company);
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken("admin.user", "N/A")
+        );
+
+        assertThatThrownBy(() -> service.authorize(company, period, "JOURNAL", "JE-102", "override"))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("explicit admin exception");
+    }
+
+    @Test
     void authorize_requiresNormalizedFields() {
         Company company = company();
         AccountingPeriod period = period(company);
@@ -110,6 +136,24 @@ class ClosedPeriodPostingExceptionServiceTest {
         assertThatThrownBy(() -> service.authorize(company, period, "JOURNAL", "DOC-1", " "))
                 .isInstanceOf(ApplicationException.class)
                 .hasMessageContaining("reason is required");
+    }
+
+    @Test
+    void authorize_rejectsMissingCompany() {
+        authenticate("admin.user", "ROLE_ADMIN");
+
+        assertThatThrownBy(() -> service.authorize(null, period(company()), "JOURNAL", "DOC-1", "reason"))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Company and accounting period are required");
+    }
+
+    @Test
+    void authorize_rejectsMissingPeriod() {
+        authenticate("admin.user", "ROLE_ADMIN");
+
+        assertThatThrownBy(() -> service.authorize(company(), null, "JOURNAL", "DOC-1", "reason"))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Company and accounting period are required");
     }
 
     @Test
@@ -137,6 +181,59 @@ class ClosedPeriodPostingExceptionServiceTest {
         assertThat(saved.getDocumentReference()).isEqualTo("SR-1002");
         assertThat(saved.getReason()).isEqualTo("expired exception replaced");
         assertThat(saved.getApprovedBy()).isEqualTo("admin.user");
+    }
+
+    @Test
+    void authorize_superAdminReusesFirstUnexpiredExceptionAfterExpiredHistory() {
+        Company company = company();
+        AccountingPeriod period = period(company);
+        ClosedPeriodPostingException expired = new ClosedPeriodPostingException();
+        expired.setExpiresAt(Instant.now().minusSeconds(60));
+        ClosedPeriodPostingException active = new ClosedPeriodPostingException();
+        active.setExpiresAt(Instant.now().plusSeconds(600));
+        when(repository.findByCompanyAndDocumentTypeIgnoreCaseAndDocumentReferenceIgnoreCaseOrderByApprovedAtDescIdDesc(
+                company,
+                "JOURNAL",
+                "JE-202")).thenReturn(List.of(expired, active));
+        when(repository.save(active)).thenReturn(active);
+        authenticate("super.admin", "ROLE_SUPER_ADMIN");
+
+        ClosedPeriodPostingException saved = service.authorize(
+                company,
+                period,
+                " JOURNAL ",
+                " JE-202 ",
+                " super admin override ");
+
+        assertThat(saved).isSameAs(active);
+        assertThat(saved.getApprovedBy()).isEqualTo("super.admin");
+        assertThat(saved.getUsedBy()).isEqualTo("super.admin");
+        verify(repository).save(active);
+    }
+
+    @Test
+    void authorize_skipsEntriesWithoutExpiryBeforeReusingActiveException() {
+        Company company = company();
+        AccountingPeriod period = period(company);
+        ClosedPeriodPostingException missingExpiry = new ClosedPeriodPostingException();
+        ClosedPeriodPostingException active = new ClosedPeriodPostingException();
+        active.setExpiresAt(Instant.now().plusSeconds(600));
+        when(repository.findByCompanyAndDocumentTypeIgnoreCaseAndDocumentReferenceIgnoreCaseOrderByApprovedAtDescIdDesc(
+                company,
+                "JOURNAL",
+                "JE-203")).thenReturn(List.of(missingExpiry, active));
+        when(repository.save(active)).thenReturn(active);
+        authenticate("admin.user", "ROLE_ADMIN");
+
+        ClosedPeriodPostingException saved = service.authorize(
+                company,
+                period,
+                " JOURNAL ",
+                " JE-203 ",
+                " active exception reused ");
+
+        assertThat(saved).isSameAs(active);
+        verify(repository).save(active);
     }
 
     @Test

@@ -35,6 +35,7 @@ import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchase;
 import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchaseLine;
 import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchaseRepository;
 import com.bigbrightpaints.erp.modules.purchasing.domain.Supplier;
+import com.bigbrightpaints.erp.modules.purchasing.dto.PurchaseReturnPreviewDto;
 import com.bigbrightpaints.erp.modules.purchasing.dto.PurchaseReturnRequest;
 import com.bigbrightpaints.erp.modules.purchasing.dto.RawMaterialPurchaseLineRequest;
 import com.bigbrightpaints.erp.modules.purchasing.dto.RawMaterialPurchaseRequest;
@@ -322,6 +323,41 @@ class PurchasingServiceTest {
 
         assertThat(purchasingService.listPurchases(10L)).containsExactly(filtered);
         verify(invoiceService).listPurchases(10L);
+    }
+
+    @Test
+    @DisplayName("previewPurchaseReturn delegates to purchase return service")
+    void previewPurchaseReturn_delegatesToPurchaseReturnService() {
+        PurchaseReturnService purchaseReturnService = mock(PurchaseReturnService.class);
+        ReflectionTestUtils.setField(purchasingService, "purchaseReturnService", purchaseReturnService);
+
+        PurchaseReturnRequest request = new PurchaseReturnRequest(
+                10L,
+                40L,
+                20L,
+                BigDecimal.valueOf(5),
+                BigDecimal.valueOf(5),
+                null,
+                null,
+                "Preview"
+        );
+        PurchaseReturnPreviewDto preview = new PurchaseReturnPreviewDto(
+                40L,
+                "PINV-040",
+                20L,
+                "Test Material",
+                BigDecimal.valueOf(5),
+                BigDecimal.valueOf(5),
+                BigDecimal.valueOf(25),
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                LocalDate.of(2026, 3, 6),
+                "PRN-040"
+        );
+        when(purchaseReturnService.previewPurchaseReturn(request)).thenReturn(preview);
+
+        assertThat(purchasingService.previewPurchaseReturn(request)).isSameAs(preview);
+        verify(purchaseReturnService).previewPurchaseReturn(request);
     }
 
     @Test

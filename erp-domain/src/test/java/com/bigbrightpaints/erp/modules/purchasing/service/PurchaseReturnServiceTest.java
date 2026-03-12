@@ -630,6 +630,69 @@ class PurchaseReturnServiceTest {
         verify(journalEntryRepository, never()).save(any());
     }
 
+    @Test
+    void purchaseReturnHelpers_rejectReversedAndBlankPurchaseStatuses() {
+        RawMaterialPurchase reversed = new RawMaterialPurchase();
+        reversed.setJournalEntry(purchase.getJournalEntry());
+        reversed.setStatus("REVERSED");
+
+        assertThatThrownBy(() -> ReflectionTestUtils.invokeMethod(
+                purchaseReturnService,
+                "ensurePostedPurchase",
+                reversed
+        ))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Only posted purchases can be corrected");
+
+        RawMaterialPurchase blankStatus = new RawMaterialPurchase();
+        blankStatus.setJournalEntry(purchase.getJournalEntry());
+        blankStatus.setStatus("   ");
+
+        assertThatThrownBy(() -> ReflectionTestUtils.invokeMethod(
+                purchaseReturnService,
+                "ensurePostedPurchase",
+                blankStatus
+        ))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Only posted purchases can be corrected");
+
+        RawMaterialPurchase draftStatus = new RawMaterialPurchase();
+        draftStatus.setJournalEntry(purchase.getJournalEntry());
+        draftStatus.setStatus("DRAFT");
+
+        assertThatThrownBy(() -> ReflectionTestUtils.invokeMethod(
+                purchaseReturnService,
+                "ensurePostedPurchase",
+                draftStatus
+        ))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Only posted purchases can be corrected");
+
+        RawMaterialPurchase journalWithoutId = new RawMaterialPurchase();
+        journalWithoutId.setStatus("POSTED");
+        journalWithoutId.setJournalEntry(new JournalEntry());
+
+        assertThatThrownBy(() -> ReflectionTestUtils.invokeMethod(
+                purchaseReturnService,
+                "ensurePostedPurchase",
+                journalWithoutId
+        ))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Only posted purchases can be corrected");
+
+        ReflectionTestUtils.invokeMethod(
+                purchaseReturnService,
+                "ensureLinkedCorrectionJournal",
+                company,
+                journalEntryDto(999L, "PR-NOOP", LocalDate.now(), "noop"),
+                null,
+                "PI-NOOP"
+        );
+
+        verify(journalEntryRepository, never()).findByCompanyAndId(any(), any());
+        verify(journalEntryRepository, never()).save(any());
+    }
+
     private JournalEntryDto journalEntryDto(Long id, String reference, LocalDate entryDate, String memo) {
         return new JournalEntryDto(
                 id,

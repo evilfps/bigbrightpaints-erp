@@ -188,6 +188,20 @@ class AccountingPeriodServiceTest {
     }
 
     @Test
+    void reopenPeriod_rejectsExplicitlyUnauthenticatedSuperAdminPrincipal() {
+        SecurityContextHolder.clearContext();
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken("super.admin", "N/A")
+        );
+
+        assertThatThrownBy(() -> service.reopenPeriod(20L, null))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("SUPER_ADMIN authority required");
+        verify(accountingPeriodRepository, never()).save(any(AccountingPeriod.class));
+        verify(snapshotService, never()).deleteSnapshotForPeriod(any(), any());
+    }
+
+    @Test
     void reopenPeriod_requiresReasonWhenRequestMissing() {
         Company company = company(1L, "ACME");
         AccountingPeriod period = openPeriod(company, 2026, 2);
@@ -251,6 +265,20 @@ class AccountingPeriodServiceTest {
     @Test
     void approvePeriodClose_requiresAdminRole() {
         authenticate("accounting.user", "ROLE_ACCOUNTING");
+
+        assertThatThrownBy(() -> service.approvePeriodClose(
+                31L,
+                new PeriodCloseRequestActionRequest("close", true)))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("ROLE_ADMIN authority required");
+    }
+
+    @Test
+    void approvePeriodClose_rejectsExplicitlyUnauthenticatedAdminPrincipal() {
+        SecurityContextHolder.clearContext();
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken("admin.user", "N/A")
+        );
 
         assertThatThrownBy(() -> service.approvePeriodClose(
                 31L,
@@ -528,6 +556,25 @@ class AccountingPeriodServiceTest {
     }
 
     @Test
+    void requirePostablePeriod_returnsOpenPeriodWithoutOverrideWorkflow() {
+        Company company = company(1L, "ACME");
+        AccountingPeriod period = openPeriod(company, 2026, 2);
+
+        when(accountingPeriodRepository.lockByCompanyAndYearAndMonth(company, 2026, 2)).thenReturn(Optional.of(period));
+
+        AccountingPeriod result = service.requirePostablePeriod(
+                company,
+                LocalDate.of(2026, 2, 12),
+                "JOURNAL_ENTRY",
+                "JE-OPEN-1",
+                "standard post",
+                false);
+
+        assertThat(result).isSameAs(period);
+        verify(closedPeriodPostingExceptionService, never()).authorize(any(), any(), anyString(), anyString(), anyString());
+    }
+
+    @Test
     void getMonthEndChecklist_includesTrialBalancePassFailItem() {
         Company company = company(1L, "ACME");
         AccountingPeriod period = openPeriod(company, 2026, 2);
@@ -769,6 +816,30 @@ class AccountingPeriodServiceTest {
     }
 
     @Test
+    void correctionLinkageHelpers_coverNullEntriesReversalFlagsAndCompleteLinkage() {
+        assertThat((Boolean) ReflectionTestUtils.invokeMethod(service, "isCorrectionJournal", new Object[]{null})).isFalse();
+
+        JournalEntry reversalLinked = new JournalEntry();
+        reversalLinked.setReversalOf(new JournalEntry());
+        assertThat((Boolean) ReflectionTestUtils.invokeMethod(service, "isCorrectionJournal", reversalLinked)).isTrue();
+
+        JournalEntry debitNote = new JournalEntry();
+        debitNote.setReferenceNumber(" dn-3301 ");
+        assertThat((Boolean) ReflectionTestUtils.invokeMethod(service, "isCorrectionJournal", debitNote)).isTrue();
+
+        JournalEntry purchaseReturnNote = new JournalEntry();
+        purchaseReturnNote.setReferenceNumber(" prn-3302 ");
+        assertThat((Boolean) ReflectionTestUtils.invokeMethod(service, "isCorrectionJournal", purchaseReturnNote)).isTrue();
+
+        JournalEntry complete = new JournalEntry();
+        complete.setCorrectionType(com.bigbrightpaints.erp.modules.accounting.domain.JournalCorrectionType.REVERSAL);
+        complete.setCorrectionReason("SALES_RETURN");
+        complete.setSourceModule("SALES_RETURN");
+        complete.setSourceReference("SR-3301");
+        assertThat((Boolean) ReflectionTestUtils.invokeMethod(service, "isMissingCorrectionLinkage", complete)).isFalse();
+    }
+
+    @Test
     void getMonthEndChecklist_ignoresCorrectionEntriesWithCompleteLinkage() {
         Company company = company(1L, "ACME");
         AccountingPeriod period = openPeriod(company, 2026, 2);
@@ -928,6 +999,21 @@ class AccountingPeriodServiceTest {
     }
 
     @Test
+    void createOrUpdatePeriod_rejectsNullRequest() {
+        assertThatThrownBy(() -> service.createOrUpdatePeriod(null))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Accounting period request is required");
+    }
+
+    @Test
+    void createOrUpdatePeriod_rejectsInvalidMonth() {
+        assertThatThrownBy(() -> service.createOrUpdatePeriod(
+                new AccountingPeriodUpsertRequest(2026, 13, CostingMethod.FIFO)))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("month must be between 1 and 12");
+    }
+
+    @Test
     void createOrUpdatePeriod_defaultsToWeightedAverageWhenRequestMethodMissing() {
         Company company = company(1L, "ACME");
         when(companyContextService.requireCurrentCompany()).thenReturn(company);
@@ -955,6 +1041,31 @@ class AccountingPeriodServiceTest {
         assertThat(dto.costingMethod()).isEqualTo("WEIGHTED_AVERAGE");
         assertThat(period.getStartDate()).isEqualTo(LocalDate.of(2026, 5, 1));
         assertThat(period.getEndDate()).isEqualTo(LocalDate.of(2026, 5, 31));
+    }
+
+    @Test
+    void updatePeriod_rejectsNullRequest() {
+        assertThatThrownBy(() -> service.updatePeriod(77L, null))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Costing method is required");
+    }
+
+    @Test
+    void updatePeriod_rejectsMissingCostingMethod() {
+        assertThatThrownBy(() -> service.updatePeriod(77L, new AccountingPeriodUpdateRequest(null)))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Costing method is required");
+    }
+
+    @Test
+    void updatePeriod_rejectsMissingPeriod() {
+        Company company = company(1L, "ACME");
+        when(companyContextService.requireCurrentCompany()).thenReturn(company);
+        when(accountingPeriodRepository.lockByCompanyAndId(company, 77L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.updatePeriod(77L, new AccountingPeriodUpdateRequest(CostingMethod.FIFO)))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Accounting period not found");
     }
 
     private Company company(Long id, String code) {

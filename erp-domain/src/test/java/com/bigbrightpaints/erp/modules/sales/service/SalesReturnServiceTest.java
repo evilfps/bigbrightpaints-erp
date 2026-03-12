@@ -51,6 +51,7 @@ import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -357,6 +358,19 @@ class SalesReturnServiceTest {
     }
 
     @Test
+    void previewReturn_rejectsMissingInvoice() {
+        when(invoiceRepository.lockByCompanyAndId(company, 999L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> salesReturnService.previewReturn(new SalesReturnRequest(
+                999L,
+                "Missing invoice",
+                List.of(new SalesReturnRequest.ReturnLine(1L, BigDecimal.ONE))
+        )))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Invoice not found: id=999");
+    }
+
+    @Test
     void previewReturn_rejectsVoidedInvoiceMutationPath() {
         Invoice invoice = new Invoice();
         invoice.setCompany(company);
@@ -379,6 +393,104 @@ class SalesReturnServiceTest {
     @Test
     void ensurePostedInvoice_allowsNullInvoice() {
         invokeEnsurePostedInvoice(null);
+    }
+
+    @Test
+    void ensurePostedInvoice_rejectsReversedAndBlankStatus() {
+        Invoice reversed = new Invoice();
+        reversed.setCompany(company);
+        reversed.setInvoiceNumber("INV-REVERSED-1");
+        attachPostedJournal(reversed, 911L);
+        reversed.setStatus("REVERSED");
+
+        assertThatThrownBy(() -> invokeEnsurePostedInvoice(reversed))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Only posted invoices can be corrected through sales return");
+
+        Invoice blankStatus = new Invoice();
+        blankStatus.setCompany(company);
+        blankStatus.setInvoiceNumber("INV-BLANK-1");
+        attachPostedJournal(blankStatus, 912L);
+        blankStatus.setStatus("   ");
+
+        assertThatThrownBy(() -> invokeEnsurePostedInvoice(blankStatus))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Only posted invoices can be corrected through sales return");
+
+        Invoice draftStatus = new Invoice();
+        draftStatus.setCompany(company);
+        draftStatus.setInvoiceNumber("INV-DRAFT-1");
+        attachPostedJournal(draftStatus, 913L);
+        draftStatus.setStatus("DRAFT");
+
+        assertThatThrownBy(() -> invokeEnsurePostedInvoice(draftStatus))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Only posted invoices can be corrected through sales return");
+
+        Invoice journalWithoutId = new Invoice();
+        journalWithoutId.setCompany(company);
+        journalWithoutId.setInvoiceNumber("INV-JE-NO-ID");
+        journalWithoutId.setJournalEntry(new JournalEntry());
+        journalWithoutId.setStatus("POSTED");
+
+        assertThatThrownBy(() -> invokeEnsurePostedInvoice(journalWithoutId))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Only posted invoices can be corrected through sales return");
+    }
+
+    @Test
+    void previewReturn_withoutSalesOrderFailsFastWithoutDispatchLookup() {
+        Dealer dealer = new Dealer();
+        dealer.setCompany(company);
+        Account receivable = new Account();
+        setField(receivable, "id", 280L);
+        dealer.setReceivableAccount(receivable);
+
+        Invoice invoice = new Invoice();
+        invoice.setCompany(company);
+        invoice.setDealer(dealer);
+        invoice.setInvoiceNumber("INV-NO-SO");
+        attachPostedJournal(invoice, 9300L);
+        setField(invoice, "id", 2800L);
+
+        InvoiceLine requestedLine = new InvoiceLine();
+        requestedLine.setInvoice(invoice);
+        requestedLine.setProductCode("FG-NO-SO");
+        requestedLine.setQuantity(new BigDecimal("2"));
+        requestedLine.setUnitPrice(new BigDecimal("40"));
+        requestedLine.setTaxableAmount(new BigDecimal("80"));
+        requestedLine.setTaxAmount(new BigDecimal("8"));
+        requestedLine.setLineTotal(new BigDecimal("88"));
+        setField(requestedLine, "id", 2801L);
+        invoice.getLines().add(requestedLine);
+
+        InvoiceLine siblingWithoutId = new InvoiceLine();
+        siblingWithoutId.setInvoice(invoice);
+        siblingWithoutId.setProductCode("FG-NO-SO");
+        siblingWithoutId.setQuantity(BigDecimal.ONE);
+        invoice.getLines().add(siblingWithoutId);
+
+        FinishedGood fg = new FinishedGood();
+        fg.setCompany(company);
+        fg.setProductCode("FG-NO-SO");
+        setField(fg, "id", 3801L);
+
+        when(invoiceRepository.lockByCompanyAndId(company, 2800L)).thenReturn(Optional.of(invoice));
+        when(finishedGoodRepository.lockByCompanyAndProductCode(company, "FG-NO-SO")).thenReturn(Optional.of(fg));
+        when(inventoryMovementRepository.findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdOrderByCreatedAtAsc(
+                eq(company), eq("SALES_RETURN"), eq("INV-NO-SO"))).thenReturn(List.of());
+        when(inventoryMovementRepository.findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdStartingWithOrderByCreatedAtAsc(
+                eq(company), eq("SALES_RETURN"), eq("INV-NO-SO:"))).thenReturn(List.of());
+
+        assertThatThrownBy(() -> salesReturnService.previewReturn(new SalesReturnRequest(
+                2800L,
+                "No sales order",
+                List.of(new SalesReturnRequest.ReturnLine(2801L, BigDecimal.ONE))
+        )))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("dispatch cost layers");
+        verify(inventoryMovementRepository, never()).findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdOrderByCreatedAtAsc(
+                eq(company), eq(InventoryReference.SALES_ORDER), anyString());
     }
 
     @Test
@@ -1127,6 +1239,125 @@ class SalesReturnServiceTest {
                 anyString(),
                 anyString()
         );
+    }
+
+    @Test
+    void processReturn_replayWithNullAccountingReplaySkipsMetadataAndRelink() {
+        Dealer dealer = new Dealer();
+        dealer.setCompany(company);
+        dealer.setName("Replay Partner");
+        Account receivable = new Account();
+        setField(receivable, "id", 184L);
+        dealer.setReceivableAccount(receivable);
+        setField(dealer, "id", 24L);
+
+        Invoice invoice = new Invoice();
+        invoice.setCompany(company);
+        invoice.setDealer(dealer);
+        invoice.setInvoiceNumber("INV-REPLAY-NIL");
+        attachPostedJournal(invoice, 9164L);
+        setField(invoice, "id", 182L);
+
+        InvoiceLine line = new InvoiceLine();
+        line.setInvoice(invoice);
+        line.setProductCode("FG-REPLAY-NIL");
+        line.setQuantity(BigDecimal.ONE);
+        line.setUnitPrice(new BigDecimal("100"));
+        line.setTaxableAmount(new BigDecimal("100"));
+        line.setTaxAmount(BigDecimal.ZERO);
+        line.setLineTotal(new BigDecimal("100"));
+        setField(line, "id", 279L);
+        invoice.getLines().add(line);
+
+        FinishedGood fg = new FinishedGood();
+        fg.setCompany(company);
+        fg.setProductCode("FG-REPLAY-NIL");
+        fg.setRevenueAccountId(725L);
+        setField(fg, "id", 325L);
+
+        when(invoiceRepository.lockByCompanyAndId(company, 182L)).thenReturn(Optional.of(invoice));
+        when(finishedGoodRepository.lockByCompanyAndProductCode(company, "FG-REPLAY-NIL")).thenReturn(Optional.of(fg));
+        when(inventoryMovementRepository.existsByFinishedGood_CompanyAndReferenceTypeAndReferenceIdContainingIgnoreCase(
+                eq(company),
+                eq("SALES_RETURN"),
+                anyString()
+        )).thenReturn(true);
+        when(accountingFacade.postSalesReturn(
+                eq(dealer.getId()),
+                eq("INV-REPLAY-NIL"),
+                anyMap(),
+                argThat(total -> total.compareTo(new BigDecimal("100")) == 0),
+                eq("Replay nil")
+        )).thenReturn(null);
+
+        JournalEntryDto result = salesReturnService.processReturn(new SalesReturnRequest(
+                182L,
+                "Replay nil",
+                List.of(new SalesReturnRequest.ReturnLine(279L, BigDecimal.ONE))
+        ));
+
+        assertThat(result).isNull();
+        verify(journalEntryRepository, never()).findByCompanyAndId(any(), anyLong());
+        verify(inventoryMovementRepository, never()).findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdStartingWithOrderByCreatedAtAsc(
+                any(),
+                anyString(),
+                anyString()
+        );
+    }
+
+    @Test
+    void processReturn_withoutSalesOrderAndNullAccountingEntryFailsBeforeCogsPosting() {
+        Dealer dealer = new Dealer();
+        dealer.setCompany(company);
+        dealer.setName("Direct partner");
+        Account receivable = new Account();
+        setField(receivable, "id", 185L);
+        dealer.setReceivableAccount(receivable);
+        setField(dealer, "id", 25L);
+
+        Invoice invoice = new Invoice();
+        invoice.setCompany(company);
+        invoice.setDealer(dealer);
+        invoice.setInvoiceNumber("INV-NO-SO-POST");
+        attachPostedJournal(invoice, 9165L);
+        setField(invoice, "id", 183L);
+
+        InvoiceLine line = new InvoiceLine();
+        line.setInvoice(invoice);
+        line.setProductCode("FG-NO-SO-POST");
+        line.setQuantity(BigDecimal.ONE);
+        line.setUnitPrice(new BigDecimal("50"));
+        line.setTaxableAmount(new BigDecimal("50"));
+        line.setTaxAmount(BigDecimal.ZERO);
+        line.setLineTotal(new BigDecimal("50"));
+        setField(line, "id", 280L);
+        invoice.getLines().add(line);
+
+        FinishedGood fg = new FinishedGood();
+        fg.setCompany(company);
+        fg.setProductCode("FG-NO-SO-POST");
+        fg.setValuationAccountId(901L);
+        fg.setCogsAccountId(902L);
+        fg.setRevenueAccountId(903L);
+        setField(fg, "id", 326L);
+
+        when(invoiceRepository.lockByCompanyAndId(company, 183L)).thenReturn(Optional.of(invoice));
+        when(finishedGoodRepository.lockByCompanyAndProductCode(company, "FG-NO-SO-POST")).thenReturn(Optional.of(fg));
+        when(inventoryMovementRepository.findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdOrderByCreatedAtAsc(
+                eq(company), eq("SALES_RETURN"), eq("INV-NO-SO-POST"))).thenReturn(List.of());
+        when(inventoryMovementRepository.findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdStartingWithOrderByCreatedAtAsc(
+                eq(company), eq("SALES_RETURN"), eq("INV-NO-SO-POST:"))).thenReturn(List.of());
+
+        assertThatThrownBy(() -> salesReturnService.processReturn(new SalesReturnRequest(
+                183L,
+                "No SO",
+                List.of(new SalesReturnRequest.ReturnLine(280L, BigDecimal.ONE))
+        )))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("dispatch cost layers");
+        verify(inventoryMovementRepository, never()).findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdOrderByCreatedAtAsc(
+                eq(company), eq(InventoryReference.SALES_ORDER), anyString());
+        verify(accountingFacade, never()).postInventoryAdjustment(anyString(), anyString(), anyLong(), anyMap(), anyBoolean(), anyBoolean(), anyString());
     }
 
     @Test
@@ -2089,6 +2320,225 @@ class SalesReturnServiceTest {
     }
 
     @Test
+    void validateReturnQuantities_skipsLateMissingInvoiceLineAfterLegacyLookup() {
+        Invoice invoice = new Invoice();
+        invoice.setCompany(company);
+        invoice.setInvoiceNumber("INV-LATE-MISSING");
+
+        InvoiceLine requestedLine = new InvoiceLine();
+        requestedLine.setInvoice(invoice);
+        requestedLine.setProductCode("FG-LATE");
+        requestedLine.setQuantity(new BigDecimal("3.00"));
+        setField(requestedLine, "id", 711L);
+        invoice.getLines().add(requestedLine);
+
+        FinishedGood fg = new FinishedGood();
+        fg.setCompany(company);
+        fg.setProductCode("FG-LATE");
+        setField(fg, "id", 811L);
+
+        InventoryMovement legacyHeader = new InventoryMovement();
+        legacyHeader.setFinishedGood(fg);
+        legacyHeader.setReferenceType("SALES_RETURN");
+        legacyHeader.setReferenceId("INV-LATE-MISSING");
+        legacyHeader.setQuantity(new BigDecimal("2.00"));
+
+        when(finishedGoodRepository.lockByCompanyAndProductCode(company, "FG-LATE")).thenReturn(Optional.of(fg));
+        when(inventoryMovementRepository.findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdOrderByCreatedAtAsc(
+                eq(company),
+                eq("SALES_RETURN"),
+                eq("INV-LATE-MISSING")
+        )).thenReturn(List.of(legacyHeader));
+        when(inventoryMovementRepository.findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdStartingWithOrderByCreatedAtAsc(
+                eq(company),
+                eq("SALES_RETURN"),
+                eq("INV-LATE-MISSING:")
+        )).thenReturn(List.of());
+
+        java.util.Map<Long, InvoiceLine> invoiceLines = new java.util.LinkedHashMap<>() {
+            private int requestedLineLookups = 0;
+
+            {
+                put(711L, requestedLine);
+            }
+
+            @Override
+            public InvoiceLine get(Object key) {
+                if (Long.valueOf(711L).equals(key)) {
+                    requestedLineLookups++;
+                    return requestedLineLookups == 1 ? requestedLine : null;
+                }
+                return super.get(key);
+            }
+        };
+
+        invokeValidateReturnQuantities(
+                company,
+                invoice,
+                new SalesReturnRequest(
+                        null,
+                        "Late missing line",
+                        List.of(new SalesReturnRequest.ReturnLine(711L, BigDecimal.ONE))
+                ),
+                invoiceLines,
+                new java.util.HashMap<>()
+        );
+    }
+
+    @Test
+    void validateReturnQuantities_rejectsLegacyOverageAfterPartialAllocationRemainder() {
+        Invoice invoice = new Invoice();
+        invoice.setCompany(company);
+        invoice.setInvoiceNumber("INV-LEGACY-OVERAGE");
+
+        InvoiceLine requestedLine = new InvoiceLine();
+        requestedLine.setInvoice(invoice);
+        requestedLine.setProductCode("FG-OVERAGE");
+        requestedLine.setQuantity(BigDecimal.ONE);
+        setField(requestedLine, "id", 712L);
+        invoice.getLines().add(requestedLine);
+
+        FinishedGood fg = new FinishedGood();
+        fg.setCompany(company);
+        fg.setProductCode("FG-OVERAGE");
+        setField(fg, "id", 812L);
+
+        InventoryMovement legacyHeader = new InventoryMovement();
+        legacyHeader.setFinishedGood(fg);
+        legacyHeader.setReferenceType("SALES_RETURN");
+        legacyHeader.setReferenceId("INV-LEGACY-OVERAGE");
+        legacyHeader.setQuantity(new BigDecimal("2.00"));
+
+        when(finishedGoodRepository.lockByCompanyAndProductCode(company, "FG-OVERAGE")).thenReturn(Optional.of(fg));
+        when(inventoryMovementRepository.findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdOrderByCreatedAtAsc(
+                eq(company),
+                eq("SALES_RETURN"),
+                eq("INV-LEGACY-OVERAGE")
+        )).thenReturn(List.of(legacyHeader));
+        when(inventoryMovementRepository.findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdStartingWithOrderByCreatedAtAsc(
+                eq(company),
+                eq("SALES_RETURN"),
+                eq("INV-LEGACY-OVERAGE:")
+        )).thenReturn(List.of());
+
+        assertThatThrownBy(() -> invokeValidateReturnQuantities(
+                company,
+                invoice,
+                new SalesReturnRequest(
+                        null,
+                        "Legacy overage",
+                        List.of(new SalesReturnRequest.ReturnLine(712L, BigDecimal.ONE))
+                ),
+                Map.of(712L, requestedLine),
+                new java.util.HashMap<>()
+        ))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("remaining invoiced amount for FG-OVERAGE");
+    }
+
+    @Test
+    void validateReturnQuantities_reportsFinishedGoodCodeForFinishedGoodLevelOverage() {
+        Invoice invoice = new Invoice();
+        invoice.setCompany(company);
+        invoice.setInvoiceNumber("INV-FG-OVERAGE-CODE");
+
+        InvoiceLine requestedLine = new InvoiceLine();
+        requestedLine.setInvoice(invoice);
+        requestedLine.setProductCode("FG-CODE");
+        requestedLine.setQuantity(BigDecimal.ONE);
+        setField(requestedLine, "id", 713L);
+        invoice.getLines().add(requestedLine);
+
+        FinishedGood fg = new FinishedGood();
+        fg.setCompany(company);
+        fg.setProductCode("FG-CODE");
+        setField(fg, "id", 813L);
+
+        InventoryMovement legacyHeader = new InventoryMovement();
+        legacyHeader.setFinishedGood(fg);
+        legacyHeader.setReferenceType("SALES_RETURN");
+        legacyHeader.setReferenceId("INV-FG-OVERAGE-CODE");
+        legacyHeader.setQuantity(new BigDecimal("1.50"));
+
+        when(finishedGoodRepository.lockByCompanyAndProductCode(company, "FG-CODE")).thenReturn(Optional.of(fg));
+        when(inventoryMovementRepository.findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdOrderByCreatedAtAsc(
+                eq(company),
+                eq("SALES_RETURN"),
+                eq("INV-FG-OVERAGE-CODE")
+        )).thenReturn(List.of(legacyHeader));
+        when(inventoryMovementRepository.findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdStartingWithOrderByCreatedAtAsc(
+                eq(company),
+                eq("SALES_RETURN"),
+                eq("INV-FG-OVERAGE-CODE:")
+        )).thenReturn(List.of());
+
+        assertThatThrownBy(() -> invokeValidateReturnQuantities(
+                company,
+                invoice,
+                new SalesReturnRequest(
+                        null,
+                        "FG overage code",
+                        List.of(new SalesReturnRequest.ReturnLine(713L, new BigDecimal("0.75")))
+                ),
+                Map.of(713L, requestedLine),
+                new java.util.HashMap<>()
+        ))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("remaining invoiced amount for FG-CODE");
+    }
+
+    @Test
+    void validateReturnQuantities_fallsBackToFinishedGoodIdWhenFinishedGoodIdentityMissing() {
+        Invoice invoice = new Invoice();
+        invoice.setCompany(company);
+        invoice.setInvoiceNumber("INV-FG-OVERAGE-ID");
+
+        InvoiceLine requestedLine = new InvoiceLine();
+        requestedLine.setInvoice(invoice);
+        requestedLine.setProductCode("FG-ID");
+        requestedLine.setQuantity(BigDecimal.ONE);
+        setField(requestedLine, "id", 714L);
+        invoice.getLines().add(requestedLine);
+
+        FinishedGood fg = mock(FinishedGood.class);
+        when(fg.getId()).thenReturn(814L, 815L, 814L, 815L, 814L, 815L);
+
+        InventoryMovement legacyHeader = new InventoryMovement();
+        legacyHeader.setFinishedGood(fg);
+        legacyHeader.setReferenceType("SALES_RETURN");
+        legacyHeader.setReferenceId("INV-FG-OVERAGE-ID");
+        legacyHeader.setQuantity(new BigDecimal("1.50"));
+
+        when(inventoryMovementRepository.findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdOrderByCreatedAtAsc(
+                eq(company),
+                eq("SALES_RETURN"),
+                eq("INV-FG-OVERAGE-ID")
+        )).thenReturn(List.of(legacyHeader));
+        when(inventoryMovementRepository.findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdStartingWithOrderByCreatedAtAsc(
+                eq(company),
+                eq("SALES_RETURN"),
+                eq("INV-FG-OVERAGE-ID:")
+        )).thenReturn(List.of());
+
+        java.util.Map<String, FinishedGood> finishedGoodsByCode = new java.util.HashMap<>();
+        finishedGoodsByCode.put("FG-ID", fg);
+
+        assertThatThrownBy(() -> invokeValidateReturnQuantities(
+                company,
+                invoice,
+                new SalesReturnRequest(
+                        null,
+                        "FG overage id",
+                        List.of(new SalesReturnRequest.ReturnLine(714L, new BigDecimal("0.75")))
+                ),
+                Map.of(714L, requestedLine),
+                finishedGoodsByCode
+        ))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("remaining invoiced amount for 815");
+    }
+
+    @Test
     void relinkExistingReturnMovements_noopsForMissingRequestStateOrEmptyHistory() {
         invokeRelinkExistingReturnMovements(company, "INV-NO-RELINK", null, 991L, "RETKEY");
 
@@ -2127,9 +2577,533 @@ class SalesReturnServiceTest {
     }
 
     @Test
+    void relinkExistingReturnMovements_noopsForNullJournalAndNullHistory() {
+        invokeRelinkExistingReturnMovements(
+                company,
+                "INV-NULL-HISTORY",
+                new SalesReturnRequest(
+                        10L,
+                        "Null journal",
+                        List.of(new SalesReturnRequest.ReturnLine(55L, BigDecimal.ONE))
+                ),
+                null,
+                "RETKEY"
+        );
+
+        when(inventoryMovementRepository.findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdStartingWithOrderByCreatedAtAsc(
+                company,
+                "SALES_RETURN",
+                "INV-NULL-HISTORY:"
+        )).thenReturn(null);
+
+        invokeRelinkExistingReturnMovements(
+                company,
+                "INV-NULL-HISTORY",
+                new SalesReturnRequest(
+                        10L,
+                        "Null history",
+                        List.of(new SalesReturnRequest.ReturnLine(55L, BigDecimal.ONE))
+                ),
+                992L,
+                "RETKEY"
+        );
+
+        verify(inventoryMovementRepository).findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdStartingWithOrderByCreatedAtAsc(
+                company,
+                "SALES_RETURN",
+                "INV-NULL-HISTORY:"
+        );
+        verify(inventoryMovementRepository, never()).saveAll(any());
+    }
+
+    @Test
     void quantityValue_returnsZeroForNull() {
         assertThat(invokeQuantityValue(null)).isEqualByComparingTo(BigDecimal.ZERO);
         assertThat(invokeQuantityValue(new BigDecimal("2.5"))).isEqualByComparingTo("2.5");
+    }
+
+    @Test
+    void buildReturnIdempotencyKey_returnsNullForMissingInputs() {
+        Invoice invoice = new Invoice();
+        invoice.setInvoiceNumber("INV-KEY-1");
+        setField(invoice, "id", 501L);
+
+        assertThat(invokeBuildReturnIdempotencyKey(null, new SalesReturnRequest(
+                501L,
+                "missing invoice",
+                List.of(new SalesReturnRequest.ReturnLine(55L, BigDecimal.ONE))
+        ))).isNull();
+        assertThat(invokeBuildReturnIdempotencyKey(invoice, null)).isNull();
+        assertThat(invokeBuildReturnIdempotencyKey(invoice, new SalesReturnRequest(
+                501L,
+                "null lines",
+                null
+        ))).isNull();
+        assertThat(invokeBuildReturnIdempotencyKey(invoice, new SalesReturnRequest(
+                501L,
+                "empty lines",
+                List.of()
+        ))).isNull();
+    }
+
+    @Test
+    void buildReturnReferenceAndIdempotencyKey_coverFallbackIdentityBranches() {
+        Invoice invoice = new Invoice();
+        invoice.setInvoiceNumber(" INV-KEY-2 ");
+
+        String idempotencyKey = invokeBuildReturnIdempotencyKey(invoice, new SalesReturnRequest(
+                502L,
+                "fallback identity",
+                List.of(new SalesReturnRequest.ReturnLine(88L, BigDecimal.ONE))
+        ));
+
+        assertThat(idempotencyKey).isNotBlank();
+        assertThat(invokeBuildReturnIdempotencyKey(invoice, new SalesReturnRequest(
+                503L,
+                "null line id",
+                List.of(new SalesReturnRequest.ReturnLine(null, BigDecimal.ONE))
+        ))).isNotBlank();
+        assertThat(invokeBuildReturnReference(null, 88L, null)).isNull();
+        assertThat(invokeBuildReturnReference(" INV-KEY-2 ", null, null)).isEqualTo("INV-KEY-2");
+        assertThat(invokeBuildReturnReference(" INV-KEY-2 ", 88L, null)).isEqualTo("INV-KEY-2:88");
+    }
+
+    @Test
+    void loadDispatchMovements_filtersDispatchOnlyAndNonNullFinishedGood() {
+        FinishedGood fg = new FinishedGood();
+        fg.setCompany(company);
+        fg.setProductCode("FG-DISPATCH-FILTER");
+        setField(fg, "id", 611L);
+
+        InventoryMovement validDispatch = new InventoryMovement();
+        validDispatch.setFinishedGood(fg);
+        validDispatch.setMovementType("DISPATCH");
+        validDispatch.setQuantity(BigDecimal.ONE);
+
+        InventoryMovement returnMovement = new InventoryMovement();
+        returnMovement.setFinishedGood(fg);
+        returnMovement.setMovementType("RETURN");
+        returnMovement.setQuantity(BigDecimal.ONE);
+
+        InventoryMovement nullFinishedGood = new InventoryMovement();
+        nullFinishedGood.setMovementType("DISPATCH");
+        nullFinishedGood.setQuantity(BigDecimal.ONE);
+
+        when(inventoryMovementRepository.findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdOrderByCreatedAtAsc(
+                company,
+                InventoryReference.SALES_ORDER,
+                "701"
+        )).thenReturn(List.of(validDispatch, returnMovement, nullFinishedGood));
+
+        Map<Long, List<InventoryMovement>> grouped = invokeLoadDispatchMovements(company, 701L);
+
+        assertThat(grouped).hasSize(1);
+        assertThat(grouped.get(611L)).containsExactly(validDispatch);
+    }
+
+    @Test
+    void loadReturnMovements_returnsEmptyForBlankInvoiceAndSkipsMalformedReferences() {
+        Object blankSummary = invokeLoadReturnMovements(company, "   ");
+        assertThat((Map<?, ?>) invokeRecordAccessor(blankSummary, "byInvoiceLineId")).isEmpty();
+        assertThat((Map<?, ?>) invokeRecordAccessor(blankSummary, "byFinishedGoodId")).isEmpty();
+
+        FinishedGood fg = new FinishedGood();
+        fg.setCompany(company);
+        fg.setProductCode("FG-RET-HISTORY");
+        setField(fg, "id", 612L);
+
+        InventoryMovement exactLegacy = new InventoryMovement();
+        exactLegacy.setFinishedGood(fg);
+        exactLegacy.setReferenceType("SALES_RETURN");
+        exactLegacy.setReferenceId("INV-HISTORY-1");
+        exactLegacy.setQuantity(new BigDecimal("1.00"));
+
+        InventoryMovement mismatchedReference = new InventoryMovement();
+        mismatchedReference.setFinishedGood(fg);
+        mismatchedReference.setReferenceType("SALES_RETURN");
+        mismatchedReference.setReferenceId("INV-OTHER-1:55");
+        mismatchedReference.setQuantity(new BigDecimal("9.00"));
+
+        InventoryMovement blankReference = new InventoryMovement();
+        blankReference.setFinishedGood(fg);
+        blankReference.setReferenceType("SALES_RETURN");
+        blankReference.setReferenceId("   ");
+        blankReference.setQuantity(new BigDecimal("2.00"));
+
+        InventoryMovement validLine = new InventoryMovement();
+        validLine.setFinishedGood(fg);
+        validLine.setReferenceType("SALES_RETURN");
+        validLine.setReferenceId("INV-HISTORY-1:55");
+        validLine.setQuantity(new BigDecimal("0.50"));
+
+        InventoryMovement validLineWithSuffix = new InventoryMovement();
+        validLineWithSuffix.setFinishedGood(fg);
+        validLineWithSuffix.setReferenceType("SALES_RETURN");
+        validLineWithSuffix.setReferenceId("INV-HISTORY-1:55:RETKEY");
+        validLineWithSuffix.setQuantity(new BigDecimal("0.25"));
+
+        InventoryMovement malformedLine = new InventoryMovement();
+        malformedLine.setFinishedGood(fg);
+        malformedLine.setReferenceType("SALES_RETURN");
+        malformedLine.setReferenceId("INV-HISTORY-1:abc");
+        malformedLine.setQuantity(new BigDecimal("0.75"));
+
+        when(inventoryMovementRepository.findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdOrderByCreatedAtAsc(
+                company,
+                "SALES_RETURN",
+                "INV-HISTORY-1"
+        )).thenReturn(List.of(exactLegacy, mismatchedReference, blankReference));
+        when(inventoryMovementRepository.findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdStartingWithOrderByCreatedAtAsc(
+                company,
+                "SALES_RETURN",
+                "INV-HISTORY-1:"
+        )).thenReturn(List.of(validLine, validLineWithSuffix, malformedLine));
+
+        Object summary = invokeLoadReturnMovements(company, "INV-HISTORY-1");
+
+        @SuppressWarnings("unchecked")
+        Map<Long, BigDecimal> byLine = (Map<Long, BigDecimal>) invokeRecordAccessor(summary, "byInvoiceLineId");
+        @SuppressWarnings("unchecked")
+        Map<Long, BigDecimal> byFinishedGood = (Map<Long, BigDecimal>) invokeRecordAccessor(summary, "byFinishedGoodId");
+
+        assertThat(byLine).containsOnlyKeys(55L);
+        assertThat(byLine.get(55L)).isEqualByComparingTo("0.75");
+        assertThat(byFinishedGood).containsOnlyKeys(612L);
+        assertThat(byFinishedGood.get(612L)).isEqualByComparingTo("2.50");
+    }
+
+    @Test
+    void loadReturnMovements_skipsNullMetadataAndEmptyLineSuffixes() {
+        FinishedGood validFg = new FinishedGood();
+        validFg.setCompany(company);
+        validFg.setProductCode("FG-RET-HISTORY-2");
+        setField(validFg, "id", 613L);
+
+        FinishedGood idlessFg = new FinishedGood();
+        idlessFg.setCompany(company);
+        idlessFg.setProductCode("FG-IDLESS");
+
+        InventoryMovement nullFinishedGood = new InventoryMovement();
+        nullFinishedGood.setReferenceType("SALES_RETURN");
+        nullFinishedGood.setReferenceId("INV-HISTORY-2");
+        nullFinishedGood.setQuantity(BigDecimal.ONE);
+
+        InventoryMovement idlessFinishedGood = new InventoryMovement();
+        idlessFinishedGood.setFinishedGood(idlessFg);
+        idlessFinishedGood.setReferenceType("SALES_RETURN");
+        idlessFinishedGood.setReferenceId("INV-HISTORY-2");
+        idlessFinishedGood.setQuantity(BigDecimal.ONE);
+
+        InventoryMovement nullReference = new InventoryMovement();
+        nullReference.setFinishedGood(validFg);
+        nullReference.setReferenceType("SALES_RETURN");
+        nullReference.setReferenceId(null);
+        nullReference.setQuantity(BigDecimal.ONE);
+
+        InventoryMovement blankReference = new InventoryMovement();
+        blankReference.setFinishedGood(validFg);
+        blankReference.setReferenceType("SALES_RETURN");
+        blankReference.setReferenceId("   ");
+        blankReference.setQuantity(BigDecimal.ONE);
+
+        InventoryMovement blankLineSuffix = new InventoryMovement();
+        blankLineSuffix.setFinishedGood(validFg);
+        blankLineSuffix.setReferenceType("SALES_RETURN");
+        blankLineSuffix.setReferenceId("INV-HISTORY-2:   ");
+        blankLineSuffix.setQuantity(new BigDecimal("2.00"));
+
+        InventoryMovement nullQuantityLine = new InventoryMovement();
+        nullQuantityLine.setFinishedGood(validFg);
+        nullQuantityLine.setReferenceType("SALES_RETURN");
+        nullQuantityLine.setReferenceId("INV-HISTORY-2:77");
+        nullQuantityLine.setQuantity(null);
+
+        when(inventoryMovementRepository.findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdOrderByCreatedAtAsc(
+                company,
+                "SALES_RETURN",
+                "INV-HISTORY-2"
+        )).thenReturn(null);
+        when(inventoryMovementRepository.findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdStartingWithOrderByCreatedAtAsc(
+                company,
+                "SALES_RETURN",
+                "INV-HISTORY-2:"
+        )).thenReturn(List.of(
+                nullFinishedGood,
+                idlessFinishedGood,
+                nullReference,
+                blankReference,
+                blankLineSuffix,
+                nullQuantityLine
+        ));
+
+        Object summary = invokeLoadReturnMovements(company, " INV-HISTORY-2 ");
+
+        @SuppressWarnings("unchecked")
+        Map<Long, BigDecimal> byLine = (Map<Long, BigDecimal>) invokeRecordAccessor(summary, "byInvoiceLineId");
+        @SuppressWarnings("unchecked")
+        Map<Long, BigDecimal> byFinishedGood = (Map<Long, BigDecimal>) invokeRecordAccessor(summary, "byFinishedGoodId");
+
+        assertThat(byLine).containsOnlyKeys(77L);
+        assertThat(byLine.get(77L)).isEqualByComparingTo("0");
+        assertThat(byFinishedGood).containsOnlyKeys(613L);
+        assertThat(byFinishedGood.get(613L)).isEqualByComparingTo("2.00");
+    }
+
+    @Test
+    void loadReturnMovements_returnsEmptyForNullInvoiceAndNullLineMovementBatch() {
+        Object nullSummary = invokeLoadReturnMovements(company, null);
+        assertThat((Map<?, ?>) invokeRecordAccessor(nullSummary, "byInvoiceLineId")).isEmpty();
+        assertThat((Map<?, ?>) invokeRecordAccessor(nullSummary, "byFinishedGoodId")).isEmpty();
+
+        when(inventoryMovementRepository.findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdOrderByCreatedAtAsc(
+                company,
+                "SALES_RETURN",
+                "INV-HISTORY-NULL"
+        )).thenReturn(List.of());
+        when(inventoryMovementRepository.findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdStartingWithOrderByCreatedAtAsc(
+                company,
+                "SALES_RETURN",
+                "INV-HISTORY-NULL:"
+        )).thenReturn(null);
+
+        Object summary = invokeLoadReturnMovements(company, "INV-HISTORY-NULL");
+        assertThat((Map<?, ?>) invokeRecordAccessor(summary, "byInvoiceLineId")).isEmpty();
+        assertThat((Map<?, ?>) invokeRecordAccessor(summary, "byFinishedGoodId")).isEmpty();
+    }
+
+    @Test
+    void resolveReturnUnitCost_allocatesAcrossMultipleLayersAndSkipsInvalidQuantities() {
+        FinishedGood fg = new FinishedGood();
+        fg.setCompany(company);
+        fg.setProductCode("FG-LAYERED");
+        setField(fg, "id", 613L);
+
+        InventoryMovement zeroQuantity = new InventoryMovement();
+        zeroQuantity.setQuantity(BigDecimal.ZERO);
+        zeroQuantity.setUnitCost(new BigDecimal("10.00"));
+
+        InventoryMovement firstLayer = new InventoryMovement();
+        firstLayer.setQuantity(new BigDecimal("1.00"));
+        firstLayer.setUnitCost(new BigDecimal("12.00"));
+
+        InventoryMovement secondLayer = new InventoryMovement();
+        secondLayer.setQuantity(new BigDecimal("5.00"));
+        secondLayer.setUnitCost(new BigDecimal("20.00"));
+
+        Map<Long, List<InventoryMovement>> dispatchMovements = Map.of(
+                613L,
+                List.of(zeroQuantity, firstLayer, secondLayer)
+        );
+
+        InvoiceLine invoiceLine = new InvoiceLine();
+        invoiceLine.setProductCode("FG-LAYERED");
+
+        assertThat(invokeResolveReturnUnitCost(
+                fg,
+                new BigDecimal("3.00"),
+                dispatchMovements,
+                invoiceLine
+        )).isEqualByComparingTo("17.3333");
+
+        assertThatThrownBy(() -> invokeResolveReturnUnitCost(
+                fg,
+                new BigDecimal("7.00"),
+                dispatchMovements,
+                invoiceLine
+        ))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Return quantity exceeds dispatched quantity");
+    }
+
+    @Test
+    void postCogsReversal_skipsWhenFinishedGoodMissingOrAccountsMissing() {
+        Invoice invoice = new Invoice();
+        invoice.setCompany(company);
+        invoice.setInvoiceNumber("INV-COGS-SKIP");
+
+        InventoryMovement missingFgMovement = new InventoryMovement();
+        missingFgMovement.setQuantity(new BigDecimal("2.00"));
+        missingFgMovement.setUnitCost(new BigDecimal("15.00"));
+
+        InventoryMovement accountlessMovement = new InventoryMovement();
+        accountlessMovement.setQuantity(new BigDecimal("1.00"));
+        accountlessMovement.setUnitCost(new BigDecimal("18.00"));
+
+        FinishedGood missingAccounts = new FinishedGood();
+        missingAccounts.setCompany(company);
+        missingAccounts.setProductCode("FG-COGS-SKIP");
+        setField(missingAccounts, "id", 615L);
+        missingAccounts.setValuationAccountId(null);
+        missingAccounts.setCogsAccountId(900L);
+
+        when(finishedGoodRepository.findByCompanyAndId(company, 614L)).thenReturn(Optional.empty());
+        when(finishedGoodRepository.findByCompanyAndId(company, 615L)).thenReturn(Optional.of(missingAccounts));
+
+        invokePostCogsReversal(
+                invoice,
+                Map.of(614L, new BigDecimal("2.00"), 615L, BigDecimal.ONE),
+                Map.of(
+                        614L, List.of(missingFgMovement),
+                        615L, List.of(accountlessMovement)
+                )
+        );
+
+        verify(accountingFacade, never()).postInventoryAdjustment(
+                anyString(),
+                anyString(),
+                anyLong(),
+                anyMap(),
+                anyBoolean(),
+                anyBoolean(),
+                anyString()
+        );
+    }
+
+    @Test
+    void postCogsReversal_handlesZeroRemainingNullQuantitiesAndNullUnitCost() {
+        Invoice invoice = new Invoice();
+        invoice.setCompany(company);
+        invoice.setInvoiceNumber("INV-COGS-NULLS");
+
+        FinishedGood fg = new FinishedGood();
+        fg.setCompany(company);
+        fg.setProductCode("FG-COGS-NULLS");
+        fg.setValuationAccountId(901L);
+        fg.setCogsAccountId(902L);
+        setField(fg, "id", 616L);
+
+        InventoryMovement nullQuantity = new InventoryMovement();
+        nullQuantity.setQuantity(null);
+        nullQuantity.setUnitCost(new BigDecimal("9.00"));
+
+        InventoryMovement zeroQuantity = new InventoryMovement();
+        zeroQuantity.setQuantity(BigDecimal.ZERO);
+        zeroQuantity.setUnitCost(new BigDecimal("9.00"));
+
+        InventoryMovement nullCost = new InventoryMovement();
+        nullCost.setQuantity(BigDecimal.ONE);
+        nullCost.setUnitCost(null);
+
+        InventoryMovement valuedLayer = new InventoryMovement();
+        valuedLayer.setQuantity(BigDecimal.ONE);
+        valuedLayer.setUnitCost(new BigDecimal("7.00"));
+
+        when(finishedGoodRepository.findByCompanyAndId(company, 616L)).thenReturn(Optional.of(fg));
+
+        invokePostCogsReversal(
+                invoice,
+                Map.of(615L, BigDecimal.ZERO, 616L, new BigDecimal("2.00")),
+                Map.of(
+                        616L,
+                        List.of(nullQuantity, zeroQuantity, nullCost, valuedLayer)
+                )
+        );
+
+        verify(accountingFacade).postInventoryAdjustment(
+                eq("SALES_RETURN_COGS"),
+                eq("CRN-INV-COGS-NULLS-COGS-0"),
+                eq(902L),
+                argThat(lines -> lines.containsKey(901L)
+                        && new BigDecimal("7.00").compareTo(lines.get(901L)) == 0),
+                eq(true),
+                eq(false),
+                contains("COGS reversal")
+        );
+    }
+
+    @Test
+    void pricingHelpers_coverTaxBaseDiscountAndDiscountTaxInclusiveBranches() {
+        InvoiceLine zeroQuantity = new InvoiceLine();
+        zeroQuantity.setQuantity(BigDecimal.ZERO);
+        assertThat(invokePerUnitTax(zeroQuantity)).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(invokePerUnitBase(zeroQuantity)).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(invokePerUnitDiscount(zeroQuantity, true)).isEqualByComparingTo(BigDecimal.ZERO);
+
+        InvoiceLine fallbackLine = new InvoiceLine();
+        fallbackLine.setQuantity(new BigDecimal("2.00"));
+        fallbackLine.setUnitPrice(new BigDecimal("100.00"));
+        fallbackLine.setDiscountAmount(new BigDecimal("20.00"));
+        fallbackLine.setLineTotal(new BigDecimal("198.00"));
+        fallbackLine.setTaxRate(new BigDecimal("18.00"));
+
+        assertThat(invokePerUnitTax(fallbackLine)).isEqualByComparingTo("9.0000");
+        assertThat(invokePerUnitBase(fallbackLine)).isEqualByComparingTo("90.0000");
+        assertThat(invokePerUnitDiscount(fallbackLine, true)).isEqualByComparingTo("8.4746");
+
+        fallbackLine.setTaxRate(BigDecimal.ZERO);
+        assertThat(invokePerUnitDiscount(fallbackLine, true)).isEqualByComparingTo("10.0000");
+
+        assertThat(invokeIsDiscountTaxInclusive(null, true)).isTrue();
+        assertThat(invokeIsDiscountTaxInclusive(fallbackLine, false)).isFalse();
+
+        InvoiceLine inclusiveFallback = new InvoiceLine();
+        inclusiveFallback.setQuantity(new BigDecimal("2.00"));
+        inclusiveFallback.setUnitPrice(new BigDecimal("100.00"));
+        inclusiveFallback.setDiscountAmount(new BigDecimal("20.00"));
+        inclusiveFallback.setTaxableAmount(new BigDecimal("180.00"));
+        inclusiveFallback.setTaxAmount(BigDecimal.ZERO);
+        assertThat(invokeIsDiscountTaxInclusive(inclusiveFallback, false)).isTrue();
+
+        InvoiceLine missingPrice = new InvoiceLine();
+        missingPrice.setDiscountAmount(new BigDecimal("5.00"));
+        assertThat(invokeIsDiscountTaxInclusive(missingPrice, true)).isTrue();
+    }
+
+    @Test
+    void pricingHelpers_coverNullQuantityNullPriceAndZeroGrossFallbacks() {
+        InvoiceLine nullQuantity = new InvoiceLine();
+        nullQuantity.setQuantity(null);
+        nullQuantity.setDiscountAmount(new BigDecimal("5.00"));
+        assertThat(invokePerUnitTax(nullQuantity)).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(invokePerUnitBase(nullQuantity)).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(invokePerUnitDiscount(nullQuantity, true)).isEqualByComparingTo(BigDecimal.ZERO);
+
+        InvoiceLine nullUnitPrice = new InvoiceLine();
+        nullUnitPrice.setQuantity(BigDecimal.ONE);
+        nullUnitPrice.setDiscountAmount(new BigDecimal("5.00"));
+        assertThat(invokeIsDiscountTaxInclusive(nullUnitPrice, false)).isFalse();
+
+        InvoiceLine zeroGross = new InvoiceLine();
+        zeroGross.setQuantity(BigDecimal.ONE);
+        zeroGross.setUnitPrice(BigDecimal.ZERO);
+        zeroGross.setDiscountAmount(new BigDecimal("2.00"));
+        assertThat(invokeIsDiscountTaxInclusive(zeroGross, true)).isTrue();
+
+        InvoiceLine nullTaxRateDiscount = new InvoiceLine();
+        nullTaxRateDiscount.setQuantity(BigDecimal.ONE);
+        nullTaxRateDiscount.setDiscountAmount(new BigDecimal("4.00"));
+        nullTaxRateDiscount.setTaxRate(null);
+        assertThat(invokePerUnitDiscount(nullTaxRateDiscount, true)).isEqualByComparingTo("4.0000");
+    }
+
+    @Test
+    void ensureLinkedCorrectionJournal_noopsWhenSourceJournalIsNull() {
+        invokeEnsureLinkedCorrectionJournal(
+                company,
+                journalEntryDto(420L, "JE-420", LocalDate.now(), null),
+                null,
+                "INV-NO-SOURCE"
+        );
+
+        verify(journalEntryRepository, never()).findByCompanyAndId(any(), eq(420L));
+    }
+
+    @Test
+    void relinkExistingReturnMovements_noopsForNullRequestLines() {
+        invokeRelinkExistingReturnMovements(
+                company,
+                "INV-NULL-LINES",
+                new SalesReturnRequest(10L, "Null lines", null),
+                993L,
+                "RETKEY"
+        );
+
+        verify(inventoryMovementRepository, never())
+                .findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdStartingWithOrderByCreatedAtAsc(
+                        eq(company),
+                        eq("SALES_RETURN"),
+                        eq("INV-NULL-LINES:")
+                );
     }
 
     private JournalEntryDto stubEntry(long id) {
@@ -2190,11 +3164,32 @@ class SalesReturnServiceTest {
         }
     }
 
+    private String invokeBuildReturnReference(String invoiceNumber, Long invoiceLineId, String returnKey) {
+        try {
+            var method = SalesReturnService.class.getDeclaredMethod(
+                    "buildReturnReference",
+                    String.class,
+                    Long.class,
+                    String.class
+            );
+            method.setAccessible(true);
+            return (String) method.invoke(salesReturnService, invoiceNumber, invoiceLineId, returnKey);
+        } catch (ReflectiveOperationException ex) {
+            throw new RuntimeException(ex);
+        }
+    }
+
     private void invokeEnsurePostedInvoice(Invoice invoice) {
         try {
             var method = SalesReturnService.class.getDeclaredMethod("ensurePostedInvoice", Invoice.class);
             method.setAccessible(true);
             method.invoke(salesReturnService, invoice);
+        } catch (java.lang.reflect.InvocationTargetException ex) {
+            Throwable cause = ex.getCause();
+            if (cause instanceof RuntimeException runtime) {
+                throw runtime;
+            }
+            throw new RuntimeException(cause);
         } catch (ReflectiveOperationException ex) {
             throw new RuntimeException(ex);
         }
@@ -2272,6 +3267,137 @@ class SalesReturnServiceTest {
             var method = SalesReturnService.class.getDeclaredMethod("quantityValue", BigDecimal.class);
             method.setAccessible(true);
             return (BigDecimal) method.invoke(salesReturnService, value);
+        } catch (ReflectiveOperationException ex) {
+            throw new RuntimeException(ex);
+        }
+    }
+
+    private Map<Long, List<InventoryMovement>> invokeLoadDispatchMovements(Company company, Long salesOrderId) {
+        try {
+            var method = SalesReturnService.class.getDeclaredMethod(
+                    "loadDispatchMovements",
+                    Company.class,
+                    Long.class
+            );
+            method.setAccessible(true);
+            @SuppressWarnings("unchecked")
+            Map<Long, List<InventoryMovement>> result =
+                    (Map<Long, List<InventoryMovement>>) method.invoke(salesReturnService, company, salesOrderId);
+            return result;
+        } catch (ReflectiveOperationException ex) {
+            throw new RuntimeException(ex);
+        }
+    }
+
+    private Object invokeLoadReturnMovements(Company company, String invoiceNumber) {
+        try {
+            var method = SalesReturnService.class.getDeclaredMethod(
+                    "loadReturnMovements",
+                    Company.class,
+                    String.class
+            );
+            method.setAccessible(true);
+            return method.invoke(salesReturnService, company, invoiceNumber);
+        } catch (ReflectiveOperationException ex) {
+            throw new RuntimeException(ex);
+        }
+    }
+
+    private Object invokeRecordAccessor(Object target, String methodName) {
+        try {
+            var method = target.getClass().getDeclaredMethod(methodName);
+            method.setAccessible(true);
+            return method.invoke(target);
+        } catch (ReflectiveOperationException ex) {
+            throw new RuntimeException(ex);
+        }
+    }
+
+    private BigDecimal invokeResolveReturnUnitCost(FinishedGood finishedGood,
+                                                   BigDecimal quantity,
+                                                   Map<Long, List<InventoryMovement>> dispatchMovements,
+                                                   InvoiceLine invoiceLine) {
+        try {
+            var method = SalesReturnService.class.getDeclaredMethod(
+                    "resolveReturnUnitCost",
+                    FinishedGood.class,
+                    BigDecimal.class,
+                    Map.class,
+                    InvoiceLine.class
+            );
+            method.setAccessible(true);
+            return (BigDecimal) method.invoke(salesReturnService, finishedGood, quantity, dispatchMovements, invoiceLine);
+        } catch (java.lang.reflect.InvocationTargetException ex) {
+            Throwable cause = ex.getCause();
+            if (cause instanceof RuntimeException runtime) {
+                throw runtime;
+            }
+            throw new RuntimeException(cause);
+        } catch (ReflectiveOperationException ex) {
+            throw new RuntimeException(ex);
+        }
+    }
+
+    private void invokePostCogsReversal(Invoice invoice,
+                                        Map<Long, BigDecimal> returnQuantitiesByFinishedGood,
+                                        Map<Long, List<InventoryMovement>> dispatchMovements) {
+        try {
+            var method = SalesReturnService.class.getDeclaredMethod(
+                    "postCogsReversal",
+                    Invoice.class,
+                    Map.class,
+                    Map.class
+            );
+            method.setAccessible(true);
+            method.invoke(salesReturnService, invoice, returnQuantitiesByFinishedGood, dispatchMovements);
+        } catch (ReflectiveOperationException ex) {
+            throw new RuntimeException(ex);
+        }
+    }
+
+    private BigDecimal invokePerUnitTax(InvoiceLine line) {
+        try {
+            var method = SalesReturnService.class.getDeclaredMethod("perUnitTax", InvoiceLine.class);
+            method.setAccessible(true);
+            return (BigDecimal) method.invoke(salesReturnService, line);
+        } catch (ReflectiveOperationException ex) {
+            throw new RuntimeException(ex);
+        }
+    }
+
+    private BigDecimal invokePerUnitBase(InvoiceLine line) {
+        try {
+            var method = SalesReturnService.class.getDeclaredMethod("perUnitBase", InvoiceLine.class);
+            method.setAccessible(true);
+            return (BigDecimal) method.invoke(salesReturnService, line);
+        } catch (ReflectiveOperationException ex) {
+            throw new RuntimeException(ex);
+        }
+    }
+
+    private BigDecimal invokePerUnitDiscount(InvoiceLine line, boolean discountTaxInclusive) {
+        try {
+            var method = SalesReturnService.class.getDeclaredMethod(
+                    "perUnitDiscount",
+                    InvoiceLine.class,
+                    boolean.class
+            );
+            method.setAccessible(true);
+            return (BigDecimal) method.invoke(salesReturnService, line, discountTaxInclusive);
+        } catch (ReflectiveOperationException ex) {
+            throw new RuntimeException(ex);
+        }
+    }
+
+    private boolean invokeIsDiscountTaxInclusive(InvoiceLine line, boolean orderGstInclusive) {
+        try {
+            var method = SalesReturnService.class.getDeclaredMethod(
+                    "isDiscountTaxInclusive",
+                    InvoiceLine.class,
+                    boolean.class
+            );
+            method.setAccessible(true);
+            return (Boolean) method.invoke(salesReturnService, line, orderGstInclusive);
         } catch (ReflectiveOperationException ex) {
             throw new RuntimeException(ex);
         }

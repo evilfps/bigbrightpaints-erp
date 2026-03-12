@@ -214,6 +214,66 @@ class AccountingServiceStandardJournalTest {
     }
 
     @Test
+    void createStandardJournal_mapsManualSourceToManualJournalType() {
+        AccountingService serviceSpy = spy(accountingService);
+        JournalEntryDto expected = new JournalEntryDto(
+                102L,
+                null,
+                "MAN-101",
+                LocalDate.of(2026, 2, 28),
+                "Manual source",
+                "POSTED",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                List.<JournalLineDto>of(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+        );
+        ArgumentCaptor<JournalEntryRequest> requestCaptor = ArgumentCaptor.forClass(JournalEntryRequest.class);
+        doReturn(expected).when(serviceSpy).createJournalEntry(requestCaptor.capture());
+
+        JournalCreationRequest request = new JournalCreationRequest(
+                new BigDecimal("100.00"),
+                11L,
+                22L,
+                "Manual source",
+                " MANUAL ",
+                "MAN-101",
+                null,
+                List.of(
+                        new JournalCreationRequest.LineRequest(11L, new BigDecimal("100.00"), BigDecimal.ZERO, "Debit"),
+                        new JournalCreationRequest.LineRequest(22L, BigDecimal.ZERO, new BigDecimal("100.00"), "Credit")
+                ),
+                LocalDate.of(2026, 2, 28),
+                null,
+                null,
+                false
+        );
+
+        JournalEntryDto actual = serviceSpy.createStandardJournal(request);
+
+        assertThat(actual).isSameAs(expected);
+        JournalEntryRequest captured = requestCaptor.getValue();
+        assertThat(captured.sourceModule()).isEqualTo("MANUAL");
+        assertThat(captured.sourceReference()).isEqualTo("MAN-101");
+        assertThat(captured.journalType()).isEqualTo(JournalEntryType.MANUAL.name());
+    }
+
+    @Test
     void createStandardJournal_propagatesMissingAccountValidation() {
         AccountingService serviceSpy = spy(accountingService);
         doThrow(new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE, "Account not found"))
