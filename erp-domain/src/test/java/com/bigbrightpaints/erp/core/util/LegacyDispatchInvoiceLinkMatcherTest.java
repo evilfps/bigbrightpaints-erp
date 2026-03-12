@@ -5,10 +5,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.bigbrightpaints.erp.modules.invoice.domain.Invoice;
 import com.bigbrightpaints.erp.modules.inventory.domain.PackagingSlip;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrder;
+import java.util.Arrays;
 import java.util.List;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
+@Tag("critical")
 class LegacyDispatchInvoiceLinkMatcherTest {
 
     @Test
@@ -50,6 +53,30 @@ class LegacyDispatchInvoiceLinkMatcherTest {
     }
 
     @Test
+    void isSlipLinkedToInvoice_rejectsExplicitCandidatesWhenIdsAreMissing() {
+        PackagingSlip explicitSlip = slip(207L, 107L);
+        PackagingSlip legacySlip = slip(208L, null);
+
+        assertThat(LegacyDispatchInvoiceLinkMatcher.isSlipLinkedToInvoice(
+                legacySlip, invoice(107L, "ISSUED"), List.of(explicitSlip, legacySlip), 1)).isFalse();
+        assertThat(LegacyDispatchInvoiceLinkMatcher.isSlipLinkedToInvoice(
+                explicitSlip, invoice(null, "ISSUED"), List.of(explicitSlip), 1)).isFalse();
+    }
+
+    @Test
+    void isSlipLinkedToInvoice_rejectsNullOrEmptyLegacyCandidateSets() {
+        Invoice invoice = invoice(108L, "ISSUED");
+        PackagingSlip legacySlip = slip(209L, null);
+
+        assertThat(LegacyDispatchInvoiceLinkMatcher.isSlipLinkedToInvoice(
+                legacySlip, invoice, null, 1)).isFalse();
+        assertThat(LegacyDispatchInvoiceLinkMatcher.isSlipLinkedToInvoice(
+                legacySlip, invoice, List.of(), 1)).isFalse();
+        assertThat(LegacyDispatchInvoiceLinkMatcher.isSlipLinkedToInvoice(
+                legacySlip, invoice, Arrays.asList((PackagingSlip) null), 1)).isFalse();
+    }
+
+    @Test
     void countCurrentInvoices_countsOnlyCurrentStatuses() {
         List<Invoice> invoices = List.of(
                 invoice(111L, "ISSUED"),
@@ -61,6 +88,12 @@ class LegacyDispatchInvoiceLinkMatcherTest {
                 invoice(117L, null));
 
         assertThat(LegacyDispatchInvoiceLinkMatcher.countCurrentInvoices(invoices)).isEqualTo(4);
+    }
+
+    @Test
+    void countCurrentInvoices_handlesNullListsAndNullEntries() {
+        assertThat(LegacyDispatchInvoiceLinkMatcher.countCurrentInvoices(null)).isZero();
+        assertThat(LegacyDispatchInvoiceLinkMatcher.countCurrentInvoices(Arrays.asList(null, invoice(118L, "VOID")))).isZero();
     }
 
     @Test
@@ -77,7 +110,7 @@ class LegacyDispatchInvoiceLinkMatcherTest {
         ReflectionTestUtils.setField(invoice, "id", id);
         invoice.setStatus(status);
         SalesOrder salesOrder = new SalesOrder();
-        ReflectionTestUtils.setField(salesOrder, "id", 900L + id);
+        ReflectionTestUtils.setField(salesOrder, "id", id == null ? 900L : 900L + id);
         invoice.setSalesOrder(salesOrder);
         return invoice;
     }

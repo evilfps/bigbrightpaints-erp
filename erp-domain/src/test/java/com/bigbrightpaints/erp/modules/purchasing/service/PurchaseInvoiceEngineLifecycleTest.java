@@ -26,6 +26,7 @@ import com.bigbrightpaints.erp.modules.purchasing.domain.PurchaseOrderLine;
 import com.bigbrightpaints.erp.modules.purchasing.domain.PurchaseOrderRepository;
 import com.bigbrightpaints.erp.modules.purchasing.domain.PurchaseOrderStatus;
 import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchase;
+import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchaseLine;
 import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchaseRepository;
 import com.bigbrightpaints.erp.modules.purchasing.domain.Supplier;
 import com.bigbrightpaints.erp.modules.purchasing.dto.RawMaterialPurchaseLineRequest;
@@ -34,6 +35,7 @@ import com.bigbrightpaints.erp.modules.purchasing.dto.RawMaterialPurchaseRespons
 import com.bigbrightpaints.erp.shared.dto.LinkedBusinessReferenceDto;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -56,9 +58,11 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
+@Tag("critical")
 class PurchaseInvoiceEngineLifecycleTest {
 
     @Mock
@@ -196,10 +200,10 @@ class PurchaseInvoiceEngineLifecycleTest {
         movement.setUnitCost(new BigDecimal("12.50"));
 
         when(companyContextService.requireCurrentCompany()).thenReturn(company);
-        when(companyEntityLookup.requireSupplier(company, 10L)).thenReturn(supplier);
-        when(purchaseRepository.lockByCompanyAndInvoiceNumberIgnoreCase(company, "INV-40")).thenReturn(Optional.empty());
-        when(goodsReceiptRepository.lockByCompanyAndId(company, 40L)).thenReturn(Optional.of(goodsReceipt));
-        when(purchaseRepository.findByCompanyAndGoodsReceipt(company, goodsReceipt)).thenReturn(Optional.empty());
+        lenient().when(companyEntityLookup.requireSupplier(company, 10L)).thenReturn(supplier);
+        lenient().when(purchaseRepository.lockByCompanyAndInvoiceNumberIgnoreCase(company, "INV-40")).thenReturn(Optional.empty());
+        lenient().when(goodsReceiptRepository.lockByCompanyAndId(company, 40L)).thenReturn(Optional.of(goodsReceipt));
+        lenient().when(purchaseRepository.findByCompanyAndGoodsReceipt(company, goodsReceipt)).thenReturn(Optional.empty());
         lenient().when(rawMaterialRepository.lockByCompanyAndId(company, 20L)).thenReturn(Optional.of(rawMaterial));
         lenient().when(referenceNumberService.purchaseReference(company, supplier, "INV-40")).thenReturn("RMP-SUP10-INV40");
         lenient().when(gstService.splitTaxAmount(any(), any(), any(), any()))
@@ -211,7 +215,7 @@ class PurchaseInvoiceEngineLifecycleTest {
                         GstService.TaxType.INTRA_STATE
                 ));
 
-        when(movementRepository.findByRawMaterialCompanyAndReferenceTypeAndReferenceId(
+        lenient().when(movementRepository.findByRawMaterialCompanyAndReferenceTypeAndReferenceId(
                 company,
                 "GOODS_RECEIPT",
                 "GRN-40"
@@ -339,6 +343,33 @@ class PurchaseInvoiceEngineLifecycleTest {
                 any()
         );
         verify(purchaseOrderService, times(1)).transitionStatus(any(), any(), any(), any());
+    }
+
+    @Test
+    void listPurchases_usesBatchMapperPathWithoutSupplierFilter() {
+        RawMaterialPurchase purchase = new RawMaterialPurchase();
+        ReflectionTestUtils.setField(purchase, "id", 601L);
+        purchase.setCompany(company);
+        purchase.setSupplier(supplier);
+        purchase.setInvoiceNumber("PINV-601");
+        purchase.setStatus("POSTED");
+        RawMaterialPurchaseLine line = new RawMaterialPurchaseLine();
+        line.setPurchase(purchase);
+        line.setRawMaterial(rawMaterial);
+        line.setQuantity(new BigDecimal("10.0000"));
+        line.setUnit("KG");
+        line.setCostPerUnit(new BigDecimal("12.50"));
+        line.setLineTotal(new BigDecimal("125.00"));
+        purchase.getLines().add(line);
+
+        when(purchaseRepository.findByCompanyWithLinesOrderByInvoiceDateDesc(company)).thenReturn(List.of(purchase));
+
+        List<RawMaterialPurchaseResponse> responses = purchaseInvoiceEngine.listPurchases();
+
+        assertThat(responses).hasSize(1);
+        assertThat(responses.get(0).invoiceNumber()).isEqualTo("PINV-601");
+        verify(purchaseRepository).findByCompanyWithLinesOrderByInvoiceDateDesc(company);
+        verifyNoMoreInteractions(purchaseRepository);
     }
 
     @Test
