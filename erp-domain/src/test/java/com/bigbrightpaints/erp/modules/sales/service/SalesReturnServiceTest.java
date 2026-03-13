@@ -1174,6 +1174,47 @@ class SalesReturnServiceTest {
     }
 
     @Test
+    void processReturn_rejectsDraftInvoiceBeforeReplayIdempotencyShortcut() {
+        Dealer dealer = new Dealer();
+        dealer.setCompany(company);
+        dealer.setName("Replay Draft Partner");
+        Account receivable = new Account();
+        setField(receivable, "id", 73L);
+        dealer.setReceivableAccount(receivable);
+        setField(dealer, "id", 10L);
+
+        Invoice invoice = new Invoice();
+        invoice.setCompany(company);
+        invoice.setDealer(dealer);
+        invoice.setInvoiceNumber("INV-REPLAY-DRAFT");
+        invoice.setStatus("DRAFT");
+        setField(invoice, "id", 31L);
+
+        InvoiceLine line = new InvoiceLine();
+        line.setInvoice(invoice);
+        line.setProductCode("FG-REPLAY-DRAFT");
+        line.setQuantity(BigDecimal.ONE);
+        line.setUnitPrice(new BigDecimal("100"));
+        line.setTaxableAmount(new BigDecimal("100"));
+        line.setTaxAmount(BigDecimal.ZERO);
+        line.setLineTotal(new BigDecimal("100"));
+        setField(line, "id", 78L);
+        invoice.getLines().add(line);
+
+        when(invoiceRepository.lockByCompanyAndId(company, 31L)).thenReturn(Optional.of(invoice));
+
+        assertThatThrownBy(() -> salesReturnService.processReturn(new SalesReturnRequest(
+                31L,
+                "Replay draft",
+                List.of(new SalesReturnRequest.ReturnLine(78L, BigDecimal.ONE))
+        )))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("posted invoice");
+
+        verify(accountingFacade, never()).postSalesReturn(anyLong(), anyString(), anyMap(), any(BigDecimal.class), anyString());
+    }
+
+    @Test
     void processReturn_replayWithNullAccountingReplayIdSkipsMetadataAndRelink() {
         Dealer dealer = new Dealer();
         dealer.setCompany(company);

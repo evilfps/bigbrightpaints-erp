@@ -181,6 +181,8 @@ class ClosedPeriodPostingExceptionServiceTest {
         assertThat(saved.getDocumentReference()).isEqualTo("SR-1002");
         assertThat(saved.getReason()).isEqualTo("expired exception replaced");
         assertThat(saved.getApprovedBy()).isEqualTo("admin.user");
+        assertThat(saved.getUsedBy()).isEqualTo("admin.user");
+        assertThat(saved.getUsedAt()).isEqualTo(saved.getApprovedAt());
     }
 
     @Test

@@ -1133,6 +1133,44 @@ class AccountingPeriodServiceTest {
                 .hasMessageContaining("locked or closed period");
     }
 
+    @Test
+    void countCorrectionLinkageGaps_countsReferenceOnlyReturnJournalsMissingMetadata() {
+        Company company = company(1L, "ACME");
+        AccountingPeriod period = openPeriod(company, 2026, 3);
+
+        JournalEntry salesReturn = new JournalEntry();
+        salesReturn.setCompany(company);
+        salesReturn.setReferenceNumber("CRN-INV-REF-ONLY");
+        salesReturn.setEntryDate(period.getStartDate().plusDays(1));
+        salesReturn.setStatus("POSTED");
+
+        JournalEntry purchaseReturn = new JournalEntry();
+        purchaseReturn.setCompany(company);
+        purchaseReturn.setReferenceNumber("PRN-RMP-REF-ONLY");
+        purchaseReturn.setEntryDate(period.getStartDate().plusDays(2));
+        purchaseReturn.setStatus("POSTED");
+
+        JournalEntry completeCorrection = new JournalEntry();
+        completeCorrection.setCompany(company);
+        completeCorrection.setReferenceNumber("DN-2001");
+        completeCorrection.setEntryDate(period.getStartDate().plusDays(3));
+        completeCorrection.setStatus("POSTED");
+        completeCorrection.setCorrectionType(com.bigbrightpaints.erp.modules.accounting.domain.JournalCorrectionType.REVERSAL);
+        completeCorrection.setCorrectionReason("PRICE_ADJUSTMENT");
+        completeCorrection.setSourceModule("PURCHASING");
+        completeCorrection.setSourceReference("RMP-2001");
+
+        when(journalEntryRepository.findByCompanyAndEntryDateBetweenOrderByEntryDateAsc(
+                company,
+                period.getStartDate(),
+                period.getEndDate()
+        )).thenReturn(List.of(salesReturn, purchaseReturn, completeCorrection));
+
+        long gaps = ReflectionTestUtils.invokeMethod(service, "countCorrectionLinkageGaps", company, period);
+
+        assertThat(gaps).isEqualTo(2L);
+    }
+
     private com.bigbrightpaints.erp.modules.accounting.dto.GstReconciliationDto gstReconciliation(BigDecimal netTotal) {
         com.bigbrightpaints.erp.modules.accounting.dto.GstReconciliationDto dto =
                 new com.bigbrightpaints.erp.modules.accounting.dto.GstReconciliationDto();

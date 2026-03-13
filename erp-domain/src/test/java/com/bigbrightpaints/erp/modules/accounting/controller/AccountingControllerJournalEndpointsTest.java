@@ -200,6 +200,74 @@ class AccountingControllerJournalEndpointsTest {
     }
 
     @Test
+    void listSalesReturns_returnsAllCrnJournalEntriesWithoutControllerFiltering() {
+        AccountingService accountingService = mock(AccountingService.class);
+        JournalEntryService journalEntryService = mock(JournalEntryService.class);
+        AccountingController controller = newController(accountingService, journalEntryService, null);
+        JournalEntryDto salesReturn = new JournalEntryDto(
+                301L,
+                null,
+                "CRN-100",
+                LocalDate.of(2026, 3, 1),
+                "Sales return",
+                "POSTED",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                List.of(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+        );
+        JournalEntryDto cogsEntry = new JournalEntryDto(
+                302L,
+                null,
+                "CRN-100-COGS-0",
+                LocalDate.of(2026, 3, 1),
+                "COGS reversal",
+                "POSTED",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                List.of(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+        );
+        when(journalEntryService.listJournalEntriesByReferencePrefix("CRN-"))
+                .thenReturn(List.of(salesReturn, cogsEntry));
+
+        ApiResponse<List<JournalEntryDto>> body = controller.listSalesReturns().getBody();
+
+        assertThat(body).isNotNull();
+        assertThat(body.data()).containsExactly(salesReturn, cogsEntry);
+    }
+
+    @Test
     void previewSalesReturn_delegatesToSalesReturnService() {
         AccountingService accountingService = mock(AccountingService.class);
         SalesReturnService salesReturnService = mock(SalesReturnService.class);
