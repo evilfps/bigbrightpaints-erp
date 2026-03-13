@@ -77,3 +77,26 @@ Testing surface: tools, URLs, setup steps, isolation notes, known quirks.
 - For `VAL-AUTHZ-005`, you can hold `SELECT ... FOR UPDATE` on the foreign target row in the local Postgres container while issuing the tenant-admin deny probe (for example `PATCH /api/v1/admin/users/3/suspend`); the fixed runtime should still return the masked `400 User not found` contract immediately rather than blocking on the foreign row lock.
 - For shared-role mutation guard validation on `POST /api/v1/admin/roles`, use a system role name such as `ROLE_ADMIN` or `ROLE_SUPER_ADMIN`; arbitrary role names bypass the controller guard and fail later with `400 Unknown platform role ...`, which does not validate the intended authz boundary.
 - For unknown stored tenant-lifecycle validation, protected endpoints such as `GET /api/v1/auth/me` and `GET /api/v1/admin/users` reflect the fail-closed behavior once the stored lifecycle is corrupted locally; restore both the row value and the `chk_companies_lifecycle_state` constraint after the probe.
+
+## O2C Dispatch Canonicalization Packet Guidance
+
+### Validation Surface
+- **Primary:** Maven test suites (`gate-fast`, `gate-core`, targeted test runs)
+- **Secondary:** `curl` against running backend on `localhost:8081` if runtime probes needed
+- Runtime app is NOT required for most assertions in this packet — they are provable through test output and source inspection
+
+### Validation Concurrency
+- **Max concurrent validators:** 3
+- **Rationale:** 16 cores, 15GB RAM (~10GB available). Maven test runs are CPU/memory intensive on this codebase. Conservative limit preserves headroom for test JVMs + Docker services if needed.
+
+### Key Test Suites for O2C Dispatch Assertions
+- **Replay safety:** `CR_SalesDispatchInvoiceAccounting`, `ErpInvariantsSuiteIT`, new truthsuite/o2c/ characterization tests
+- **Listener containment:** `InventoryAccountingEventListenerIT`, new truthsuite/o2c/ tests
+- **Proforma boundary:** `SalesServiceTest`, new truthsuite/o2c/ tests
+- **Provenance linkage:** `TS_CrossModuleLinkageContractTest`, `TS_InventoryCogsLinkageScanContractTest`
+- **Factory view redaction:** `DispatchOperationalBoundaryIT`, `DispatchControllerTest`
+- **Invoice boundary:** `InvoiceServiceTest`
+- **Endpoint equivalence:** `OrderFulfillmentE2ETest`, `DispatchControllerTest`
+- **Orchestrator removal:** New regression tests proving removed paths are gone
+- **Gate-fast:** `cd erp-domain && MIGRATION_SET=v2 mvn test -Pgate-fast -Djacoco.skip=true`
+- **Gate-core:** `cd erp-domain && MIGRATION_SET=v2 mvn test -Pgate-core -Djacoco.skip=true`
