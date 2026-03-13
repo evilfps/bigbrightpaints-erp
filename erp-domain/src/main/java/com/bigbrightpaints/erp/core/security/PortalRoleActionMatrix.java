@@ -22,12 +22,13 @@ public final class PortalRoleActionMatrix {
     public static final String ADMIN_FACTORY_SALES = "hasAnyAuthority('ROLE_ADMIN','ROLE_FACTORY','ROLE_SALES')";
     public static final String ADMIN_ACCOUNTING_SUPER_ADMIN =
             "hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING','ROLE_SUPER_ADMIN')";
-    public static final String FINANCIAL_DISPATCH = ADMIN_OR_ACCOUNTING + " and hasAuthority('dispatch.confirm')";
-    public static final String OPERATIONAL_DISPATCH = ADMIN_FACTORY + " and hasAuthority('dispatch.confirm')";
+    public static final String FINANCIAL_DISPATCH =
+            "hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING') and hasAuthority('dispatch.confirm')";
+    public static final String OPERATIONAL_DISPATCH =
+            "hasAnyAuthority('ROLE_ADMIN','ROLE_FACTORY') and hasAuthority('dispatch.confirm')";
 
-    private static final Set<String> FINANCIAL_DISPATCH_PATHS = Set.of(
-            "/api/v1/sales/dispatch/confirm",
-            "/api/v1/sales/dispatch/reconcile-order-markers");
+    private static final Set<String> FINANCIAL_DISPATCH_PATHS =
+            Set.of("/api/v1/sales/dispatch/confirm", "/api/v1/sales/dispatch/reconcile-order-markers");
 
     private PortalRoleActionMatrix() {
     }

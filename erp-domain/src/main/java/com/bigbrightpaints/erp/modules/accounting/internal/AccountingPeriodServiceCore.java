@@ -1201,37 +1201,25 @@ public class AccountingPeriodServiceCore {
             return false;
         }
         String normalized = reference.trim().toUpperCase();
-        return isCorrectionReference(normalized)
+        return normalized.startsWith("CRN-")
+                || normalized.startsWith("CN-")
                 || normalized.startsWith("DN-")
                 || normalized.startsWith("PRN-");
     }
 
-    private boolean isCorrectionReference(String normalizedReference) {
-        return normalizedReference.startsWith("CRN-")
-                && !normalizedReference.contains("-COGS-");
-    }
-
     private boolean isMissingCorrectionLinkage(JournalEntry entry) {
-        if (isLegacyReturnJournalWithoutCorrectionMetadata(entry)) {
+        if (isLegacyReturnJournalWithoutModernCorrectionMetadata(entry)) {
             return false;
         }
-        if (entry.getCorrectionType() == null
-                || !StringUtils.hasText(entry.getCorrectionReason())) {
-            return true;
-        }
-        boolean hasSourceModule = StringUtils.hasText(entry.getSourceModule());
-        boolean hasSourceReference = StringUtils.hasText(entry.getSourceReference());
-        if (!hasSourceModule && !hasSourceReference) {
-            return false;
-        }
-        return !hasSourceModule || !hasSourceReference;
+        return entry.getCorrectionType() == null
+                || !StringUtils.hasText(entry.getCorrectionReason())
+                || !StringUtils.hasText(entry.getSourceModule())
+                || !StringUtils.hasText(entry.getSourceReference());
     }
 
-    private boolean isLegacyReturnJournalWithoutCorrectionMetadata(JournalEntry entry) {
-        if (entry == null || entry.getReversalOf() != null) {
-            return false;
-        }
-        if (entry.getCorrectionType() != null
+    private boolean isLegacyReturnJournalWithoutModernCorrectionMetadata(JournalEntry entry) {
+        if (entry == null
+                || entry.getCorrectionType() != null
                 || StringUtils.hasText(entry.getCorrectionReason())
                 || StringUtils.hasText(entry.getSourceModule())
                 || StringUtils.hasText(entry.getSourceReference())) {
@@ -1241,11 +1229,11 @@ public class AccountingPeriodServiceCore {
         if (!StringUtils.hasText(reference)) {
             return false;
         }
-        String normalized = reference.trim().toUpperCase();
-        if (isCorrectionReference(normalized)) {
+        String normalizedReference = reference.trim().toUpperCase();
+        if (normalizedReference.startsWith("CRN-")) {
             return entry.getDealer() != null;
         }
-        if (normalized.startsWith("PRN-")) {
+        if (normalizedReference.startsWith("PRN-")) {
             return entry.getSupplier() != null;
         }
         return false;

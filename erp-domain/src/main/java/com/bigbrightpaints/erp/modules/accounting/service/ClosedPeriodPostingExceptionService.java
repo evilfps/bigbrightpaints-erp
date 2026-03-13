@@ -11,7 +11,6 @@ import com.bigbrightpaints.erp.modules.company.domain.Company;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Locale;
-import java.util.Objects;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -73,6 +72,8 @@ public class ClosedPeriodPostingExceptionService {
         exception.setApprovedBy(actor);
         exception.setApprovedAt(now);
         exception.setExpiresAt(now.plus(1, ChronoUnit.HOURS));
+        exception.setUsedBy(actor);
+        exception.setUsedAt(now);
         return repository.save(exception);
     }
 
@@ -90,42 +91,9 @@ public class ClosedPeriodPostingExceptionService {
                 .stream()
                 .findFirst()
                 .ifPresent(exception -> {
-                    boolean changed = false;
-                    if (!sameJournalEntry(exception.getJournalEntry(), journalEntry)) {
-                        exception.setJournalEntry(journalEntry);
-                        changed = true;
-                    }
-                    String usageActor = resolveUsageActor(exception.getApprovedBy());
-                    if (!StringUtils.hasText(exception.getUsedBy()) || !Objects.equals(exception.getUsedBy(), usageActor)) {
-                        exception.setUsedBy(usageActor);
-                        changed = true;
-                    }
-                    if (exception.getUsedAt() == null) {
-                        exception.setUsedAt(CompanyTime.now(company));
-                        changed = true;
-                    }
-                    if (changed) {
-                        repository.save(exception);
-                    }
+                    exception.setJournalEntry(journalEntry);
+                    repository.save(exception);
                 });
-    }
-
-    private boolean sameJournalEntry(JournalEntry existing, JournalEntry incoming) {
-        if (existing == incoming) {
-            return true;
-        }
-        if (existing == null || incoming == null) {
-            return false;
-        }
-        return Objects.equals(existing.getId(), incoming.getId());
-    }
-
-    private String resolveUsageActor(String fallbackActor) {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication != null && authentication.isAuthenticated() && StringUtils.hasText(authentication.getName())) {
-            return authentication.getName().trim();
-        }
-        return StringUtils.hasText(fallbackActor) ? fallbackActor.trim() : null;
     }
 
     private String normalizeRequired(String value, String field) {

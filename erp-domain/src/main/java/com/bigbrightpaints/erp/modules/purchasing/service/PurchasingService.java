@@ -1,7 +1,6 @@
 package com.bigbrightpaints.erp.modules.purchasing.service;
 
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
-import com.bigbrightpaints.erp.modules.accounting.domain.JournalReferenceMappingRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.PartnerSettlementAllocationRepository;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
@@ -115,7 +114,6 @@ public class PurchasingService {
                              GoodsReceiptRepository goodsReceiptRepository,
                              AccountingFacade accountingFacade,
                              JournalEntryRepository journalEntryRepository,
-                             JournalReferenceMappingRepository journalReferenceMappingRepository,
                              CompanyEntityLookup companyEntityLookup,
                              ReferenceNumberService referenceNumberService,
                              CompanyClock companyClock,
@@ -172,7 +170,6 @@ public class PurchasingService {
                 movementRepository,
                 accountingFacade,
                 journalEntryRepository,
-                journalReferenceMappingRepository,
                 companyEntityLookup,
                 referenceNumberService,
                 companyClock,

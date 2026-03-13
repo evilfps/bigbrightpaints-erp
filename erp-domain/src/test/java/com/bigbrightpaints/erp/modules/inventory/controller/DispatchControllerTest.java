@@ -27,6 +27,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -205,6 +206,93 @@ class DispatchControllerTest {
     }
 
     @Test
+    void confirmDispatch_treatsMissingSlipIdAsNonReplayForFactoryValidation() {
+        DispatchController controller = new DispatchController(
+                finishedGoodsService,
+                salesDispatchReconciliationService,
+                deliveryChallanPdfService);
+        setAuthentication("ROLE_FACTORY");
+
+        DispatchConfirmationRequest request = new DispatchConfirmationRequest(
+                null,
+                List.of(new DispatchConfirmationRequest.LineConfirmation(100L, BigDecimal.ONE, null)),
+                "Dispatch notes",
+                null,
+                null,
+                null,
+                null,
+                "MH12AB1234",
+                "LR-7788"
+        );
+
+        assertThat(org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class,
+                () -> controller.confirmDispatch(request, () -> "factory.user")).getMessage())
+                .isEqualTo(PortalRoleActionMatrix.transporterOrDriverRequiredMessage());
+    }
+
+    @Test
+    void confirmDispatch_treatsSlipLookupFailureAsNonReplayForFactoryValidation() {
+        DispatchController controller = new DispatchController(
+                finishedGoodsService,
+                salesDispatchReconciliationService,
+                deliveryChallanPdfService);
+        setAuthentication("ROLE_FACTORY");
+        when(finishedGoodsService.getPackagingSlip(10L)).thenThrow(new RuntimeException("lookup failed"));
+
+        DispatchConfirmationRequest request = new DispatchConfirmationRequest(
+                10L,
+                List.of(new DispatchConfirmationRequest.LineConfirmation(100L, BigDecimal.ONE, null)),
+                "Dispatch notes",
+                null,
+                null,
+                null,
+                null,
+                "MH12AB1234",
+                "LR-7788"
+        );
+
+        assertThat(org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class,
+                () -> controller.confirmDispatch(request, () -> "factory.user")).getMessage())
+                .isEqualTo(PortalRoleActionMatrix.transporterOrDriverRequiredMessage());
+    }
+
+    @Test
+    void helperMethods_isDispatchedSlipReplay_returnsFalseForNullAndNonDispatchedSlips() {
+        DispatchController controller = new DispatchController(
+                finishedGoodsService,
+                salesDispatchReconciliationService,
+                deliveryChallanPdfService);
+
+        when(finishedGoodsService.getPackagingSlip(11L)).thenReturn(null);
+        when(finishedGoodsService.getPackagingSlip(12L)).thenReturn(new PackagingSlipDto(
+                12L,
+                UUID.randomUUID(),
+                7L,
+                "SO-12",
+                "Dealer",
+                "PS-12",
+                "READY",
+                Instant.now(),
+                Instant.now(),
+                "factory.user",
+                null,
+                "notes",
+                null,
+                null,
+                List.of(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+        ));
+
+        assertThat((Boolean) ReflectionTestUtils.invokeMethod(controller, "isDispatchedSlipReplay", 11L)).isFalse();
+        assertThat((Boolean) ReflectionTestUtils.invokeMethod(controller, "isDispatchedSlipReplay", 12L)).isFalse();
+    }
+
+    @Test
     void factoryViews_areRedactedForPreviewAndSlipDetails() {
         DispatchController controller = new DispatchController(
                 finishedGoodsService,
@@ -281,6 +369,58 @@ class DispatchControllerTest {
         assertThat(redactedSlip.journalEntryId()).isNull();
         assertThat(redactedSlip.cogsJournalEntryId()).isNull();
         assertThat(redactedSlip.deliveryChallanPdfPath()).isEqualTo("/api/v1/dispatch/slip/5/challan/pdf");
+    }
+
+    @Test
+    void factorySlipView_redactsLineUnitCost() {
+        DispatchController controller = new DispatchController(
+                finishedGoodsService,
+                salesDispatchReconciliationService,
+                deliveryChallanPdfService);
+        setAuthentication("ROLE_FACTORY");
+
+        PackagingSlipDto slip = new PackagingSlipDto(
+                15L,
+                UUID.randomUUID(),
+                75L,
+                "SO-75",
+                "Dealer",
+                "PS-15",
+                "READY",
+                Instant.now(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                List.of(new PackagingSlipLineDto(
+                        1L,
+                        UUID.randomUUID(),
+                        "BATCH-15",
+                        "FG-15",
+                        "Primer",
+                        new BigDecimal("10.00"),
+                        new BigDecimal("5.00"),
+                        new BigDecimal("5.00"),
+                        new BigDecimal("5.00"),
+                        new BigDecimal("125.00"),
+                        "line-notes"
+                )),
+                "FastMove Logistics",
+                "Ayaan",
+                "MH12AB1234",
+                "LR-1515",
+                "DC-PS-15",
+                "/api/v1/dispatch/slip/15/challan/pdf"
+        );
+        when(finishedGoodsService.getPackagingSlip(15L)).thenReturn(slip);
+
+        PackagingSlipDto response = controller.getPackagingSlip(15L).getBody().data();
+
+        assertThat(response.lines()).hasSize(1);
+        assertThat(response.lines().getFirst().unitCost()).isNull();
+        assertThat(response.lines().getFirst().productCode()).isEqualTo("FG-15");
     }
 
     @Test
@@ -994,4 +1134,3 @@ class DispatchControllerTest {
                         authorities));
     }
 }
-

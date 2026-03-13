@@ -16,10 +16,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
-import org.springframework.core.annotation.Order;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.util.StringUtils;
-import com.bigbrightpaints.erp.modules.rbac.config.RbacSynchronizationConfig;
 
 import java.util.List;
 import java.util.Locale;
@@ -35,7 +33,6 @@ public class DataInitializer {
 
     @Bean
     @Profile({"dev", "seed"})
-    @Order(RbacSynchronizationConfig.ROLE_SEEDER_RUNNER_ORDER)
     CommandLineRunner seedDefaultUser(UserAccountRepository userRepository,
                                       CompanyRepository companyRepository,
                                       RoleRepository roleRepository,

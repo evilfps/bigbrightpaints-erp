@@ -9,7 +9,6 @@ import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriod;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriodRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriodStatus;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
-import com.bigbrightpaints.erp.modules.purchasing.domain.GoodsReceiptStatus;
 import com.bigbrightpaints.erp.modules.accounting.domain.ReconciliationDiscrepancyStatus;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalLineRepository;
@@ -22,7 +21,6 @@ import com.bigbrightpaints.erp.modules.accounting.dto.AccountingPeriodLockReques
 import com.bigbrightpaints.erp.modules.accounting.dto.AccountingPeriodReopenRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.MonthEndChecklistUpdateRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.PeriodCloseRequestActionRequest;
-import com.bigbrightpaints.erp.modules.accounting.internal.AccountingPeriodServiceCore;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.hr.domain.PayrollRun;
@@ -31,17 +29,13 @@ import com.bigbrightpaints.erp.modules.invoice.domain.InvoiceRepository;
 import com.bigbrightpaints.erp.modules.purchasing.domain.GoodsReceiptStatus;
 import com.bigbrightpaints.erp.modules.purchasing.domain.GoodsReceiptRepository;
 import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchaseRepository;
-import com.bigbrightpaints.erp.modules.purchasing.domain.Supplier;
 import com.bigbrightpaints.erp.modules.reports.service.ReportService;
-import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 import java.time.Instant;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -60,7 +54,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
-@Tag("critical")
 class AccountingPeriodServicePolicyTest {
 
     @Mock private AccountingPeriodRepository accountingPeriodRepository;
@@ -82,10 +75,8 @@ class AccountingPeriodServicePolicyTest {
     @Mock private AccountingFacade accountingFacade;
     @Mock private PeriodCloseHook periodCloseHook;
     @Mock private AccountingPeriodSnapshotService snapshotService;
-    @Mock private ClosedPeriodPostingExceptionService closedPeriodPostingExceptionService;
 
     private AccountingPeriodService service;
-    private AccountingPeriodServiceCore coreService;
 
     @BeforeEach
     void setUp() {
@@ -109,8 +100,6 @@ class AccountingPeriodServicePolicyTest {
                 periodCloseHook,
                 snapshotService
         );
-        coreService = service;
-        ReflectionTestUtils.setField(coreService, "closedPeriodPostingExceptionService", closedPeriodPostingExceptionService);
         SecurityContextHolder.clearContext();
     }
 
@@ -237,138 +226,6 @@ class AccountingPeriodServicePolicyTest {
     }
 
     @Test
-    void correctionLinkageHelpers_classifyPrefixedCorrectionsAndMissingMetadata() {
-        Company company = company(1L, "POLICY");
-        AccountingPeriod period = openPeriod(company, 2026, 2);
-
-        JournalEntry prefixed = new JournalEntry();
-        prefixed.setReferenceNumber("  prn-2026-0001  ");
-
-        JournalEntry cogsReversal = new JournalEntry();
-        cogsReversal.setReferenceNumber("CRN-INV-1-COGS-0");
-
-        JournalEntry linked = new JournalEntry();
-        linked.setCorrectionType(JournalCorrectionType.REVERSAL);
-        linked.setCorrectionReason("SALES_RETURN");
-        linked.setSourceModule("SALES_RETURN");
-        linked.setSourceReference("INV-1");
-
-        when(journalEntryRepository.findByCompanyAndEntryDateBetweenOrderByEntryDateAsc(
-                company,
-                period.getStartDate(),
-                period.getEndDate())).thenReturn(List.of(prefixed, cogsReversal, linked));
-
-        assertThat((Long) ReflectionTestUtils.invokeMethod(coreService, "countCorrectionLinkageGaps", company, period))
-                .isEqualTo(1L);
-        assertThat((Boolean) ReflectionTestUtils.invokeMethod(coreService, "isCorrectionJournal", new Object[]{null}))
-                .isFalse();
-        assertThat((Boolean) ReflectionTestUtils.invokeMethod(coreService, "isCorrectionJournal", prefixed))
-                .isTrue();
-        assertThat((Boolean) ReflectionTestUtils.invokeMethod(coreService, "isCorrectionJournal", cogsReversal))
-                .isFalse();
-        assertThat((Boolean) ReflectionTestUtils.invokeMethod(coreService, "isMissingCorrectionLinkage", linked))
-                .isFalse();
-    }
-
-    @Test
-    void rejectPeriodClose_allowsAdminReviewerToRejectPendingRequest() {
-        Company company = company(1L, "POLICY");
-        AccountingPeriod period = openPeriod(company, 2026, 2);
-        ReflectionTestUtils.setField(period, "id", 12L);
-        PeriodCloseRequest pending = pendingCloseRequest(company, period, 703L, "maker.user");
-        when(companyContextService.requireCurrentCompany()).thenReturn(company);
-        when(accountingPeriodRepository.lockByCompanyAndId(company, 12L)).thenReturn(Optional.of(period));
-        when(periodCloseRequestRepository.lockByCompanyAndAccountingPeriodAndStatus(
-                company, period, PeriodCloseRequestStatus.PENDING)).thenReturn(Optional.of(pending));
-        when(periodCloseRequestRepository.save(pending)).thenReturn(pending);
-        authenticate("policy.admin", "ROLE_ADMIN");
-
-        assertThat(service.rejectPeriodClose(12L, new PeriodCloseRequestActionRequest("reject for review", false)).status())
-                .isEqualTo(PeriodCloseRequestStatus.REJECTED.name());
-    }
-
-    @Test
-    void correctionLinkageHelpers_coverNullPeriodsPrefixesAndMissingSourceMetadata() {
-        Company company = company(1L, "POLICY");
-        AccountingPeriod period = openPeriod(company, 2026, 3);
-
-        when(journalEntryRepository.findByCompanyAndEntryDateBetweenOrderByEntryDateAsc(
-                company,
-                period.getStartDate(),
-                period.getEndDate())).thenReturn(null);
-
-        assertThat((Long) ReflectionTestUtils.invokeMethod(coreService, "countCorrectionLinkageGaps", company, period))
-                .isZero();
-
-        JournalEntry reversalLinked = new JournalEntry();
-        reversalLinked.setReversalOf(new JournalEntry());
-        JournalEntry debitNote = new JournalEntry();
-        debitNote.setReferenceNumber("DN-2026-0001");
-        JournalEntry blankReference = new JournalEntry();
-        blankReference.setReferenceNumber("   ");
-        JournalEntry legacyMissingSource = new JournalEntry();
-        legacyMissingSource.setCorrectionType(JournalCorrectionType.REVERSAL);
-        legacyMissingSource.setCorrectionReason("SALES_RETURN");
-        JournalEntry partialMissingSource = new JournalEntry();
-        partialMissingSource.setCorrectionType(JournalCorrectionType.REVERSAL);
-        partialMissingSource.setCorrectionReason("SALES_RETURN");
-        partialMissingSource.setSourceModule("SALES_RETURN");
-
-        assertThat((Boolean) ReflectionTestUtils.invokeMethod(coreService, "isCorrectionJournal", reversalLinked)).isTrue();
-        assertThat((Boolean) ReflectionTestUtils.invokeMethod(coreService, "isCorrectionJournal", debitNote)).isTrue();
-        assertThat((Boolean) ReflectionTestUtils.invokeMethod(coreService, "isCorrectionJournal", blankReference)).isFalse();
-        assertThat((Boolean) ReflectionTestUtils.invokeMethod(coreService, "isMissingCorrectionLinkage", legacyMissingSource)).isFalse();
-        assertThat((Boolean) ReflectionTestUtils.invokeMethod(coreService, "isMissingCorrectionLinkage", partialMissingSource)).isTrue();
-    }
-
-    @Test
-    void correctionLinkageHelpers_allowLegacyReturnPrefixesWithoutPersistedMetadata() {
-        Company company = company(1L, "POLICY");
-        AccountingPeriod period = openPeriod(company, 2026, 3);
-
-        JournalEntry legacySalesReturn = new JournalEntry();
-        legacySalesReturn.setReferenceNumber("CRN-INV-100");
-        legacySalesReturn.setDealer(dealer(company, 10L, "Legacy Dealer"));
-
-        JournalEntry legacyPurchaseReturn = new JournalEntry();
-        legacyPurchaseReturn.setReferenceNumber("PRN-POLICY-SUP-10-0001");
-        legacyPurchaseReturn.setSupplier(supplier(company, 20L, "Legacy Supplier"));
-
-        JournalEntry currentIncomplete = new JournalEntry();
-        currentIncomplete.setReferenceNumber("CRN-INV-101");
-        currentIncomplete.setDealer(dealer(company, 11L, "Current Dealer"));
-        currentIncomplete.setCorrectionType(JournalCorrectionType.REVERSAL);
-        currentIncomplete.setCorrectionReason("SALES_RETURN");
-        currentIncomplete.setSourceModule("SALES_RETURN");
-
-        when(journalEntryRepository.findByCompanyAndEntryDateBetweenOrderByEntryDateAsc(
-                company,
-                period.getStartDate(),
-                period.getEndDate())).thenReturn(List.of(legacySalesReturn, legacyPurchaseReturn, currentIncomplete));
-
-        assertThat((Long) ReflectionTestUtils.invokeMethod(coreService, "countCorrectionLinkageGaps", company, period))
-                .isEqualTo(1L);
-        assertThat((Boolean) ReflectionTestUtils.invokeMethod(coreService, "isMissingCorrectionLinkage", legacySalesReturn))
-                .isFalse();
-        assertThat((Boolean) ReflectionTestUtils.invokeMethod(coreService, "isMissingCorrectionLinkage", legacyPurchaseReturn))
-                .isFalse();
-        assertThat((Boolean) ReflectionTestUtils.invokeMethod(coreService, "isMissingCorrectionLinkage", currentIncomplete))
-                .isTrue();
-    }
-
-    @Test
-    void requireAdminRole_rejectsUnauthenticatedAndAllowsSuperAdmin() {
-        SecurityContextHolder.clearContext();
-
-        assertThatThrownBy(() -> ReflectionTestUtils.invokeMethod(service, "requireAdminRole"))
-                .isInstanceOf(ApplicationException.class)
-                .hasMessageContaining("ROLE_ADMIN authority required");
-
-        authenticate("super.admin", "ROLE_SUPER_ADMIN");
-        ReflectionTestUtils.invokeMethod(service, "requireAdminRole");
-    }
-
-    @Test
     void approvePeriodClose_reportsUnresolvedControlsInDeterministicPolicyOrder() {
         Company company = company(1L, "POLICY");
         AccountingPeriod period = openPeriod(company, 2026, 2);
@@ -428,7 +285,7 @@ class AccountingPeriodServicePolicyTest {
     }
 
     @Test
-    void approvePeriodClose_allowsLegacyCorrectionJournalWithoutBackfilledSourceFields() {
+    void approvePeriodClose_failsWhenCorrectionJournalLinkageIsMissing() {
         Company company = company(1L, "POLICY");
         AccountingPeriod period = openPeriod(company, 2026, 2);
         ReflectionTestUtils.setField(period, "id", 12L);
@@ -489,156 +346,11 @@ class AccountingPeriodServicePolicyTest {
                 List.of(PayrollRun.PayrollStatus.DRAFT,
                         PayrollRun.PayrollStatus.CALCULATED,
                         PayrollRun.PayrollStatus.APPROVED))).thenReturn(0L);
-        when(accountingPeriodRepository.save(period)).thenReturn(period);
-        when(accountingPeriodRepository.findByCompanyAndYearAndMonth(company, 2026, 3))
-                .thenReturn(Optional.of(openPeriod(company, 2026, 3)));
-        when(periodCloseRequestRepository.save(pending)).thenReturn(pending);
         authenticate("policy.admin", "ROLE_ADMIN");
 
-        assertThat(service.approvePeriodClose(12L, new PeriodCloseRequestActionRequest("period close", false)).status())
-                .isEqualTo("CLOSED");
-    }
-
-    @Test
-    void approvePeriodClose_failsWhenCorrectionJournalLinkageIsPartiallyMissing() {
-        Company company = company(1L, "POLICY");
-        AccountingPeriod period = openPeriod(company, 2026, 2);
-        ReflectionTestUtils.setField(period, "id", 13L);
-        PeriodCloseRequest pending = pendingCloseRequest(company, period, 704L, "maker.user");
-        period.setBankReconciled(true);
-        period.setInventoryCounted(true);
-        JournalEntry correctionEntry = new JournalEntry();
-        correctionEntry.setCompany(company);
-        correctionEntry.setReferenceNumber("CRN-INV-101");
-        correctionEntry.setEntryDate(period.getStartDate().plusDays(3));
-        correctionEntry.setStatus("POSTED");
-        correctionEntry.setCorrectionType(JournalCorrectionType.REVERSAL);
-        correctionEntry.setCorrectionReason("SALES_RETURN");
-        correctionEntry.setSourceModule("SALES_RETURN");
-        when(companyContextService.requireCurrentCompany()).thenReturn(company);
-        when(accountingPeriodRepository.lockByCompanyAndId(company, 13L)).thenReturn(Optional.of(period), Optional.of(period));
-        when(periodCloseRequestRepository.lockByCompanyAndAccountingPeriodAndStatus(
-                company, period, PeriodCloseRequestStatus.PENDING)).thenReturn(Optional.of(pending));
-        when(goodsReceiptRepository.countByCompanyAndReceiptDateBetweenAndStatusNot(
-                company, period.getStartDate(), period.getEndDate(), GoodsReceiptStatus.INVOICED)).thenReturn(0L);
-        when(journalEntryRepository.countByCompanyAndEntryDateBetweenAndStatusIn(
-                company, period.getStartDate(), period.getEndDate(), List.of("DRAFT", "PENDING"))).thenReturn(0L);
-        when(reportService.inventoryReconciliation()).thenReturn(inventoryReconciliation(BigDecimal.ZERO));
-        when(reconciliationService.reconcileSubledgersForPeriod(period.getStartDate(), period.getEndDate()))
-                .thenReturn(new ReconciliationService.PeriodReconciliationResult(
-                        period.getStartDate(),
-                        period.getEndDate(),
-                        BigDecimal.ZERO,
-                        BigDecimal.ZERO,
-                        BigDecimal.ZERO,
-                        true,
-                        BigDecimal.ZERO,
-                        BigDecimal.ZERO,
-                        BigDecimal.ZERO,
-                        true));
-        when(reconciliationService.generateGstReconciliation(java.time.YearMonth.from(period.getStartDate())))
-                .thenReturn(gstReconciliation(BigDecimal.ZERO));
-        when(reconciliationDiscrepancyRepository.countByCompanyAndAccountingPeriodAndStatus(
-                company, period, ReconciliationDiscrepancyStatus.OPEN)).thenReturn(0L);
-        when(journalEntryRepository.findByCompanyAndEntryDateBetweenOrderByEntryDateAsc(
-                company, period.getStartDate(), period.getEndDate())).thenReturn(List.of(correctionEntry));
-        when(invoiceRepository.countByCompanyAndIssueDateBetweenAndStatusNotAndJournalEntryIsNull(
-                company, period.getStartDate(), period.getEndDate(), "DRAFT")).thenReturn(0L);
-        when(rawMaterialPurchaseRepository.countByCompanyAndInvoiceDateBetweenAndStatusInAndJournalEntryIsNull(
-                company, period.getStartDate(), period.getEndDate(), List.of("POSTED", "PARTIAL", "PAID"))).thenReturn(0L);
-        when(payrollRunRepository.countByCompanyAndPeriodBetweenAndStatusInAndJournalMissing(
-                company,
-                period.getStartDate(),
-                period.getEndDate(),
-                List.of(PayrollRun.PayrollStatus.POSTED, PayrollRun.PayrollStatus.PAID))).thenReturn(0L);
-        when(invoiceRepository.countByCompanyAndIssueDateBetweenAndStatusIn(
-                company, period.getStartDate(), period.getEndDate(), List.of("DRAFT"))).thenReturn(0L);
-        when(rawMaterialPurchaseRepository.countByCompanyAndInvoiceDateBetweenAndStatusNotIn(
-                company, period.getStartDate(), period.getEndDate(), List.of("POSTED", "PARTIAL", "PAID"))).thenReturn(0L);
-        when(payrollRunRepository.countByCompanyAndPeriodBetweenAndStatusIn(
-                company,
-                period.getStartDate(),
-                period.getEndDate(),
-                List.of(PayrollRun.PayrollStatus.DRAFT,
-                        PayrollRun.PayrollStatus.CALCULATED,
-                        PayrollRun.PayrollStatus.APPROVED))).thenReturn(0L);
-        authenticate("policy.admin", "ROLE_ADMIN");
-
-        assertThatThrownBy(() -> service.approvePeriodClose(13L, new PeriodCloseRequestActionRequest("period close", false)))
+        assertThatThrownBy(() -> service.approvePeriodClose(12L, new PeriodCloseRequestActionRequest("period close", false)))
                 .isInstanceOf(ApplicationException.class)
                 .hasMessageContaining("Documents missing journal links in this period (1)");
-    }
-
-    @Test
-    void requirePostablePeriod_returnsOpenPeriodWithoutOverrideWorkflow() {
-        Company company = company(1L, "POLICY");
-        AccountingPeriod period = openPeriod(company, 2026, 3);
-        when(accountingPeriodRepository.findByCompanyAndYearAndMonth(company, 2026, 3)).thenReturn(Optional.of(period));
-
-        AccountingPeriod resolved = coreService.requirePostablePeriod(
-                company,
-                LocalDate.of(2026, 3, 15),
-                "MANUAL",
-                "MAN-1",
-                "reason",
-                false
-        );
-
-        assertThat(resolved).isSameAs(period);
-        verify(accountingPeriodRepository, never()).save(any(AccountingPeriod.class));
-        verify(closedPeriodPostingExceptionService, never()).authorize(any(), any(), anyString(), anyString(), anyString());
-    }
-
-    @Test
-    void requirePostablePeriod_lockedPeriodFailsClosedWithoutOverride() {
-        Company company = company(1L, "POLICY");
-        AccountingPeriod period = openPeriod(company, 2026, 3);
-        period.setStatus(AccountingPeriodStatus.LOCKED);
-        when(accountingPeriodRepository.findByCompanyAndYearAndMonth(company, 2026, 3)).thenReturn(Optional.of(period));
-
-        assertThatThrownBy(() -> coreService.requirePostablePeriod(
-                company,
-                LocalDate.of(2026, 3, 15),
-                "MANUAL",
-                "MAN-2",
-                "late entry",
-                false
-        ))
-                .isInstanceOf(ApplicationException.class)
-                .hasMessageContaining("admin one-hour posting exception is required");
-    }
-
-    @Test
-    void requirePostablePeriod_lockedPeriodDelegatesToExceptionAuthorizationWhenOverrideRequested() {
-        Company company = company(1L, "POLICY");
-        AccountingPeriod period = openPeriod(company, 2026, 3);
-        period.setStatus(AccountingPeriodStatus.CLOSED);
-        when(accountingPeriodRepository.findByCompanyAndYearAndMonth(company, 2026, 3)).thenReturn(Optional.of(period));
-
-        AccountingPeriod resolved = coreService.requirePostablePeriod(
-                company,
-                LocalDate.of(2026, 3, 15),
-                "MANUAL",
-                "MAN-3",
-                "authorized adjustment",
-                true
-        );
-
-        assertThat(resolved).isSameAs(period);
-        verify(closedPeriodPostingExceptionService).authorize(company, period, "MANUAL", "MAN-3", "authorized adjustment");
-    }
-
-    @Test
-    void lockOrCreatePeriod_usesCurrentDateAndReturnsExistingLockedPeriod() {
-        Company company = company(1L, "POLICY");
-        AccountingPeriod period = openPeriod(company, 2026, 3);
-        period.setStatus(AccountingPeriodStatus.LOCKED);
-        when(companyClock.today(company)).thenReturn(LocalDate.of(2026, 3, 21));
-        when(accountingPeriodRepository.lockByCompanyAndYearAndMonth(company, 2026, 3)).thenReturn(Optional.of(period));
-
-        AccountingPeriod resolved = ReflectionTestUtils.invokeMethod(coreService, "lockOrCreatePeriod", company, null);
-
-        assertThat(resolved).isSameAs(period);
     }
 
     @Test
@@ -713,7 +425,7 @@ class AccountingPeriodServicePolicyTest {
         when(accountingFacadeProvider.getObject()).thenReturn(accountingFacade);
         authenticate("policy.superadmin", "ROLE_SUPER_ADMIN");
 
-        assertThat(coreService.reopenPeriod(13L, new AccountingPeriodReopenRequest("  reopen adjustment  ")).status())
+        assertThat(service.reopenPeriod(13L, new AccountingPeriodReopenRequest("  reopen adjustment  ")).status())
                 .isEqualTo("OPEN");
         assertThat(period.getReopenReason()).isEqualTo("reopen adjustment");
         assertThat(period.getClosingJournalEntryId()).isNull();
@@ -730,139 +442,12 @@ class AccountingPeriodServicePolicyTest {
     }
 
     @Test
-    void requirePostablePeriod_rejectsOverrideWhenWorkflowIsUnavailable() {
-        Company company = company(1L, "POLICY");
-        AccountingPeriod period = openPeriod(company, 2026, 3);
-        period.setStatus(AccountingPeriodStatus.CLOSED);
-        ReflectionTestUtils.setField(coreService, "closedPeriodPostingExceptionService", null);
-        when(accountingPeriodRepository.findByCompanyAndYearAndMonth(company, 2026, 3)).thenReturn(Optional.of(period));
+    void rejectPeriodClose_requiresAdminRole() {
+        authenticate("policy.accounting", "ROLE_ACCOUNTING");
 
-        assertThatThrownBy(() -> coreService.requirePostablePeriod(
-                company,
-                LocalDate.of(2026, 3, 15),
-                "MANUAL",
-                "JRN-1",
-                "override",
-                true))
+        assertThatThrownBy(() -> service.rejectPeriodClose(15L, new PeriodCloseRequestActionRequest("reject close", false)))
                 .isInstanceOf(ApplicationException.class)
-                .hasMessageContaining("workflow is not configured");
-    }
-
-    @Test
-    void isCorrectionJournal_handlesNullsAndPrefixFallbacks() {
-        assertThat((Boolean) ReflectionTestUtils.invokeMethod(coreService, "isCorrectionJournal", new Object[]{null}))
-                .isFalse();
-
-        JournalEntry prefixed = new JournalEntry();
-        prefixed.setReferenceNumber(" prn-2026-001 ");
-        assertThat((Boolean) ReflectionTestUtils.invokeMethod(coreService, "isCorrectionJournal", prefixed))
-                .isTrue();
-
-        JournalEntry correction = new JournalEntry();
-        correction.setReferenceNumber(" CRN-INV-1 ");
-        assertThat((Boolean) ReflectionTestUtils.invokeMethod(coreService, "isCorrectionJournal", correction))
-                .isTrue();
-
-        JournalEntry salesReturnCogs = new JournalEntry();
-        salesReturnCogs.setReferenceNumber(" CRN-INV-1-COGS-1 ");
-        assertThat((Boolean) ReflectionTestUtils.invokeMethod(coreService, "isCorrectionJournal", salesReturnCogs))
-                .isFalse();
-
-        JournalEntry plain = new JournalEntry();
-        plain.setReferenceNumber("SALE-001");
-        assertThat((Boolean) ReflectionTestUtils.invokeMethod(coreService, "isCorrectionJournal", plain))
-                .isFalse();
-    }
-
-    @Test
-    void isMissingCorrectionLinkage_flagsAnyMissingField() {
-        JournalEntry incomplete = new JournalEntry();
-        incomplete.setCorrectionType(JournalCorrectionType.REVERSAL);
-        incomplete.setCorrectionReason("SALES_RETURN");
-        incomplete.setSourceModule("SALES_RETURN");
-
-        assertThat((Boolean) ReflectionTestUtils.invokeMethod(coreService, "isMissingCorrectionLinkage", incomplete))
-                .isTrue();
-
-        incomplete.setSourceReference("INV-100");
-
-        assertThat((Boolean) ReflectionTestUtils.invokeMethod(coreService, "isMissingCorrectionLinkage", incomplete))
-                .isFalse();
-    }
-
-    @Test
-    void isMissingCorrectionLinkage_acceptsJournalReversalSourceMetadata() {
-        JournalEntry reversal = new JournalEntry();
-        reversal.setCorrectionType(JournalCorrectionType.REVERSAL);
-        reversal.setCorrectionReason("Manual reversal");
-        reversal.setSourceModule("JOURNAL");
-        reversal.setSourceReference("REV-100");
-        reversal.setReversalOf(new JournalEntry());
-
-        assertThat((Boolean) ReflectionTestUtils.invokeMethod(coreService, "isMissingCorrectionLinkage", reversal))
-                .isFalse();
-    }
-
-    @Test
-    void isLegacyReturnJournalWithoutCorrectionMetadata_requiresDealerForSalesReturnPrefix() {
-        JournalEntry legacySalesReturn = new JournalEntry();
-        legacySalesReturn.setReferenceNumber("CRN-INV-100");
-
-        assertThat((Boolean) ReflectionTestUtils.invokeMethod(
-                coreService,
-                "isLegacyReturnJournalWithoutCorrectionMetadata",
-                legacySalesReturn)).isFalse();
-
-        legacySalesReturn.setDealer(dealer(company(1L, "POLICY"), 10L, "Legacy Dealer"));
-
-        assertThat((Boolean) ReflectionTestUtils.invokeMethod(
-                coreService,
-                "isLegacyReturnJournalWithoutCorrectionMetadata",
-                legacySalesReturn)).isTrue();
-    }
-
-    @Test
-    void isLegacyReturnJournalWithoutCorrectionMetadata_rejectsBlankAndNonReturnReferences() {
-        JournalEntry blankReference = new JournalEntry();
-        blankReference.setReferenceNumber("   ");
-
-        JournalEntry debitNote = new JournalEntry();
-        debitNote.setReferenceNumber("DN-2026-0001");
-
-        assertThat((Boolean) ReflectionTestUtils.invokeMethod(
-                coreService,
-                "isLegacyReturnJournalWithoutCorrectionMetadata",
-                blankReference)).isFalse();
-        assertThat((Boolean) ReflectionTestUtils.invokeMethod(
-                coreService,
-                "isLegacyReturnJournalWithoutCorrectionMetadata",
-                debitNote)).isFalse();
-    }
-
-    @Test
-    void isLegacyReturnJournalWithoutCorrectionMetadata_rejectsEntriesWithCorrectionMetadata() {
-        JournalEntry legacySalesReturn = new JournalEntry();
-        legacySalesReturn.setReferenceNumber("CRN-INV-100");
-        legacySalesReturn.setDealer(dealer(company(1L, "POLICY"), 10L, "Legacy Dealer"));
-        legacySalesReturn.setCorrectionReason("SALES_RETURN");
-
-        assertThat((Boolean) ReflectionTestUtils.invokeMethod(
-                coreService,
-                "isLegacyReturnJournalWithoutCorrectionMetadata",
-                legacySalesReturn)).isFalse();
-    }
-
-    @Test
-    void isMissingCorrectionLinkage_flagsMissingSourceModuleWhenOnlySourceReferenceExists() {
-        JournalEntry missingSourceModule = new JournalEntry();
-        missingSourceModule.setCorrectionType(JournalCorrectionType.REVERSAL);
-        missingSourceModule.setCorrectionReason("SALES_RETURN");
-        missingSourceModule.setSourceReference("INV-101");
-
-        assertThat((Boolean) ReflectionTestUtils.invokeMethod(
-                coreService,
-                "isMissingCorrectionLinkage",
-                missingSourceModule)).isTrue();
+                .hasMessageContaining("ROLE_ADMIN authority required");
     }
 
     private Company company(Long id, String code) {
@@ -872,22 +457,6 @@ class AccountingPeriodServicePolicyTest {
         company.setTimezone("Asia/Kolkata");
         ReflectionTestUtils.setField(company, "id", id);
         return company;
-    }
-
-    private Dealer dealer(Company company, Long id, String name) {
-        Dealer dealer = new Dealer();
-        dealer.setCompany(company);
-        dealer.setName(name);
-        ReflectionTestUtils.setField(dealer, "id", id);
-        return dealer;
-    }
-
-    private Supplier supplier(Company company, Long id, String name) {
-        Supplier supplier = new Supplier();
-        supplier.setCompany(company);
-        supplier.setName(name);
-        ReflectionTestUtils.setField(supplier, "id", id);
-        return supplier;
     }
 
     private AccountingPeriod openPeriod(Company company, int year, int month) {

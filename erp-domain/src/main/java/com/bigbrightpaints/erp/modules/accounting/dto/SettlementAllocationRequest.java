@@ -16,16 +16,6 @@ public record SettlementAllocationRequest(
         String memo
 ) {
 
-    public enum SettlementAllocationApplication {
-        DOCUMENT,
-        ON_ACCOUNT,
-        FUTURE_APPLICATION;
-
-        public boolean isUnapplied() {
-            return this == ON_ACCOUNT || this == FUTURE_APPLICATION;
-        }
-    }
-
     public SettlementAllocationRequest(Long invoiceId,
                                       Long purchaseId,
                                       BigDecimal appliedAmount,

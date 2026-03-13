@@ -116,6 +116,35 @@ class ChangedFilesCoverageTest(unittest.TestCase):
         merged = changed_files_coverage.merge_line_stats((0, 1, 1, 1), (0, 1, 1, 1))
         self.assertEqual((0, 1, 1, 1), merged)
 
+    def test_structural_classifier_accepts_java_declarations_and_continuations(self):
+        self.assertTrue(changed_files_coverage.is_structural_source_line("public final class Demo {", False))
+        self.assertTrue(changed_files_coverage.is_structural_source_line("private Demo() {", False))
+        self.assertTrue(changed_files_coverage.is_structural_source_line('private static final String MODE = "CREDIT";', False))
+        self.assertTrue(changed_files_coverage.is_structural_source_line("private Long invoiceId;", False))
+        self.assertTrue(changed_files_coverage.is_structural_source_line('static final String DEFAULT_MODE = "CREDIT";', False))
+        self.assertTrue(changed_files_coverage.is_structural_source_line('String fileName = "delivery-challan-";', False))
+        self.assertTrue(
+            changed_files_coverage.is_structural_source_line(
+                "private boolean isSlipLinkedToInvoice(PackagingSlip slip,",
+                False,
+            )
+        )
+        self.assertTrue(
+            changed_files_coverage.is_structural_source_line(
+                "private SalesProformaBoundaryService.CommercialAssessment syncFactoryDispatchReadiness(",
+                False,
+            )
+        )
+        self.assertTrue(changed_files_coverage.is_structural_source_line("Invoice invoice,", False))
+        self.assertTrue(changed_files_coverage.is_structural_source_line("int salesOrderInvoiceCount) {", False))
+        self.assertTrue(changed_files_coverage.is_structural_source_line("salesOrderInvoiceCount);", False))
+        self.assertTrue(changed_files_coverage.is_structural_source_line("RawMaterialPurchase::getCompany,", False))
+        self.assertTrue(changed_files_coverage.is_structural_source_line("and upper(trim(o.status)) in :statuses", False))
+        self.assertTrue(changed_files_coverage.is_structural_source_line('"Cannot auto-create packing slip"', False))
+        self.assertTrue(changed_files_coverage.is_structural_source_line("try {", False))
+        self.assertTrue(changed_files_coverage.is_structural_source_line("lines", False))
+        self.assertFalse(changed_files_coverage.is_structural_source_line("if (invoice == null) {", False))
+
     def test_package_declaration_fallback_maps_misplaced_source_file(self):
         with tempfile.TemporaryDirectory() as tmp_dir:
             repo_dir = Path(tmp_dir)
@@ -303,7 +332,10 @@ class RuntimeProbeContractTest(unittest.TestCase):
     def test_runtime_probe_fails_closed_on_health_status(self):
         services_text = (REPO_ROOT / ".factory" / "services.yaml").read_text(encoding="utf-8")
 
-        self.assertIn('status=$(curl -s -o /tmp/factory-backend-auth.out -w \'%{http_code}\' http://localhost:8081/api/v1/auth/me || true)', services_text)
+        self.assertIn(
+            "status=$(curl -s -o /tmp/factory-backend-auth.out -w '%{http_code}' http://localhost:8081/api/v1/auth/me || true)",
+            services_text,
+        )
         self.assertIn('[ "$status" = "200" ]', services_text)
         self.assertIn('[ "$status" = "401" ]', services_text)
         self.assertIn('[ "$status" = "403" ]', services_text)

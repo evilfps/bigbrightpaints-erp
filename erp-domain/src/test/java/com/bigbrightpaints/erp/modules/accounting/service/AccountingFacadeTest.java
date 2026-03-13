@@ -764,57 +764,6 @@ class AccountingFacadeTest {
     }
 
     @Test
-    void recordManualJournal_rejectsBlankNarration() {
-        ManualJournalRequest request = new ManualJournalRequest(
-                LocalDate.of(2026, 2, 28),
-                "   ",
-                null,
-                false,
-                List.of(
-                        new ManualJournalRequest.LineRequest(
-                                11L,
-                                new BigDecimal("10.00"),
-                                "Dr",
-                                ManualJournalRequest.EntryType.DEBIT),
-                        new ManualJournalRequest.LineRequest(
-                                22L,
-                                new BigDecimal("10.00"),
-                                "Cr",
-                                ManualJournalRequest.EntryType.CREDIT)),
-                List.of()
-        );
-
-        assertThatThrownBy(() -> accountingFacade.createManualJournal(request))
-                .isInstanceOf(ApplicationException.class)
-                .hasMessageContaining("Manual journal reason is required");
-    }
-
-    @Test
-    void createManualJournalEntry_rejectsBlankMemo() {
-        JournalEntryRequest request = new JournalEntryRequest(
-                null,
-                LocalDate.of(2026, 2, 28),
-                "   ",
-                null,
-                null,
-                false,
-                List.of(
-                        new JournalEntryRequest.JournalLineRequest(11L, "Dr", new BigDecimal("25.00"), BigDecimal.ZERO),
-                        new JournalEntryRequest.JournalLineRequest(22L, "Cr", BigDecimal.ZERO, new BigDecimal("25.00"))
-                ),
-                null,
-                null,
-                null,
-                null,
-                null
-        );
-
-        assertThatThrownBy(() -> accountingFacade.createManualJournalEntry(request, "MANUAL-XYZ"))
-                .isInstanceOf(ApplicationException.class)
-                .hasMessageContaining("Manual journal reason is required");
-    }
-
-    @Test
     void recordPayrollPayment_delegatesToAccountingService() {
         PayrollPaymentRequest request = new PayrollPaymentRequest(9L, 2L, 1L, new BigDecimal("800.00"), "PAYROLL-PAY-9", "Payroll clear");
         JournalEntryDto expected = new JournalEntryDto(

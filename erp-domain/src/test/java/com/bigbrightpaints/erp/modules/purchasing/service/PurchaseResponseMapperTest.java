@@ -184,6 +184,12 @@ class PurchaseResponseMapperTest {
     }
 
     @Test
+    void toPurchaseResponses_returnsEmptyForNullOrEmptyInput() {
+        assertThat(mapper.toPurchaseResponses(null)).isEmpty();
+        assertThat(mapper.toPurchaseResponses(List.of())).isEmpty();
+    }
+
+    @Test
     void toGoodsReceiptResponses_returnsEmptyForNullOrEmptyInput() {
         assertThat(mapper.toGoodsReceiptResponses(null)).isEmpty();
         assertThat(mapper.toGoodsReceiptResponses(List.of())).isEmpty();
@@ -361,6 +367,23 @@ class PurchaseResponseMapperTest {
     }
 
     @Test
+    void helperMethods_coverNullReceiptAndRepositoryBranches() {
+        assertThat((Object) ReflectionTestUtils.invokeMethod(mapper, "resolveLinkedPurchase", new Object[]{null})).isNull();
+
+        GoodsReceipt noCompanyReceipt = new GoodsReceipt();
+        ReflectionTestUtils.setField(noCompanyReceipt, "id", 925L);
+        assertThat((Object) ReflectionTestUtils.invokeMethod(mapper, "resolveLinkedPurchase", noCompanyReceipt)).isNull();
+
+        PurchaseResponseMapper noRepoMapper = new PurchaseResponseMapper();
+        @SuppressWarnings("unchecked")
+        Map<Long, RawMaterialPurchase> noRepoLookup = ReflectionTestUtils.invokeMethod(noRepoMapper, "resolveLinkedPurchases", List.of(goodsReceipt(926L, "GRN-926")));
+        assertThat(noRepoLookup).isEmpty();
+        @SuppressWarnings("unchecked")
+        Map<Long, RawMaterialPurchase> nullInputLookup = ReflectionTestUtils.invokeMethod(mapper, "resolveLinkedPurchases", new Object[]{null});
+        assertThat(nullInputLookup).isEmpty();
+    }
+
+    @Test
     void helperMethods_coverResolveLinkedPurchaseSuccessAndMissingReceiptIds() {
         GoodsReceipt receipt = goodsReceipt(930L, "GRN-930");
         RawMaterialPurchase purchase = new RawMaterialPurchase();
@@ -376,6 +399,57 @@ class PurchaseResponseMapperTest {
         @SuppressWarnings("unchecked")
         Map<Long, RawMaterialPurchase> emptyLookup = ReflectionTestUtils.invokeMethod(mapper, "resolveLinkedPurchases", List.of(noIdReceipt));
         assertThat(emptyLookup).isEmpty();
+    }
+
+    @Test
+    void helperMethods_coverResolveLinkedPurchasesDuplicateAndNullAllocationBranches() {
+        GoodsReceipt receipt = goodsReceipt(944L, "GRN-944");
+
+        RawMaterialPurchase firstPurchase = new RawMaterialPurchase();
+        ReflectionTestUtils.setField(firstPurchase, "id", 945L);
+        firstPurchase.setCompany(company);
+        firstPurchase.setInvoiceNumber("PINV-945");
+        firstPurchase.setGoodsReceipt(receipt);
+
+        RawMaterialPurchase secondPurchase = new RawMaterialPurchase();
+        ReflectionTestUtils.setField(secondPurchase, "id", 946L);
+        secondPurchase.setCompany(company);
+        secondPurchase.setInvoiceNumber("PINV-946");
+        secondPurchase.setGoodsReceipt(receipt);
+
+        when(purchaseRepository.findByCompanyAndGoodsReceipt_IdIn(company, List.of(944L)))
+                .thenReturn(List.of(firstPurchase, secondPurchase));
+
+        @SuppressWarnings("unchecked")
+        Map<Long, RawMaterialPurchase> linkedPurchases =
+                ReflectionTestUtils.invokeMethod(mapper, "resolveLinkedPurchases", List.of(receipt));
+        assertThat(linkedPurchases).containsEntry(944L, firstPurchase);
+
+        RawMaterialPurchase companyTwoPurchase = new RawMaterialPurchase();
+        Company companyTwo = new Company();
+        ReflectionTestUtils.setField(companyTwo, "id", 947L);
+        ReflectionTestUtils.setField(companyTwoPurchase, "id", 948L);
+        companyTwoPurchase.setCompany(companyTwo);
+
+        PartnerSettlementAllocation mappedAllocation = new PartnerSettlementAllocation();
+        ReflectionTestUtils.setField(mappedAllocation, "id", 949L);
+        mappedAllocation.setCompany(company);
+        mappedAllocation.setPurchase(firstPurchase);
+
+        PartnerSettlementAllocation nullPurchaseAllocation = new PartnerSettlementAllocation();
+        ReflectionTestUtils.setField(nullPurchaseAllocation, "id", 950L);
+        nullPurchaseAllocation.setCompany(company);
+
+        when(settlementAllocationRepository.findByCompanyAndPurchase_IdInOrderByCreatedAtDesc(company, List.of(945L)))
+                .thenReturn(List.of(mappedAllocation, nullPurchaseAllocation));
+        when(settlementAllocationRepository.findByCompanyAndPurchase_IdInOrderByCreatedAtDesc(companyTwo, List.of(948L)))
+                .thenReturn(null);
+
+        @SuppressWarnings("unchecked")
+        Map<Long, List<PartnerSettlementAllocation>> allocationsByPurchaseId =
+                ReflectionTestUtils.invokeMethod(mapper, "resolveSettlementAllocations", List.of(firstPurchase, companyTwoPurchase));
+        assertThat(allocationsByPurchaseId).containsKey(945L);
+        assertThat(allocationsByPurchaseId.get(945L)).containsExactly(mappedAllocation);
     }
 
     @Test

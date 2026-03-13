@@ -19,10 +19,8 @@ import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
-import org.springframework.core.annotation.Order;
 import org.springframework.core.env.Environment;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import com.bigbrightpaints.erp.modules.rbac.config.RbacSynchronizationConfig;
 
 import java.math.BigDecimal;
 import java.util.Arrays;
@@ -36,7 +34,6 @@ public class ValidationSeedDataInitializer {
     private static final Logger log = LoggerFactory.getLogger(ValidationSeedDataInitializer.class);
 
     @Bean
-    @Order(RbacSynchronizationConfig.ROLE_SEEDER_RUNNER_ORDER)
     CommandLineRunner seedValidationActors(CompanyRepository companyRepository,
                                            RoleRepository roleRepository,
                                            UserAccountRepository userAccountRepository,

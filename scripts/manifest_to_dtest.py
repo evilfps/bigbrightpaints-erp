@@ -6,6 +6,12 @@ from pathlib import Path
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Convert test manifests into a Surefire -Dtest selector")
     parser.add_argument("manifests", nargs="+", help="Manifest files containing one test class per line")
+    parser.add_argument(
+        "--format",
+        choices=("csv", "lines"),
+        default="csv",
+        help="Output format for resolved selectors",
+    )
     return parser.parse_args()
 
 
@@ -36,7 +42,10 @@ def main() -> int:
     if not selectors:
         raise SystemExit("manifest resolved to an empty selector set")
 
-    print(",".join(selectors))
+    if args.format == "lines":
+        print("\n".join(selectors))
+    else:
+        print(",".join(selectors))
     return 0
 
 

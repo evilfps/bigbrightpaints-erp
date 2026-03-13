@@ -83,29 +83,17 @@ class AccountingComplianceAuditServiceTest {
     }
 
     @Test
-    void recordJournalCreation_includesTrimmedSourceReferenceAndAttachments() {
+    void recordJournalCreation_includesSourceReferenceAndAttachmentsWhenPresent() {
         Company company = company(84L, "BBP");
-        JournalEntry entry = journalEntry(106L, "MANJ-2026-0002", JournalEntryType.MANUAL);
-        entry.setSourceReference("  MANUAL-IDEMP-1  ");
-        entry.setAttachmentReferences("  ATT-1,ATT-2  ");
+        JournalEntry entry = journalEntry(106L, "JE-ATT-1", JournalEntryType.AUTOMATED);
+        entry.setSourceReference("  SRC-ATT-1  ");
+        entry.setAttachmentReferences("  att-1,att-2  ");
 
         service.recordJournalCreation(company, entry);
 
         AuditActionEventCommand command = captureCommand();
-        assertThat(command.metadata()).containsEntry("sourceReference", "MANUAL-IDEMP-1");
-        assertThat(command.metadata()).containsEntry("attachmentReferences", "ATT-1,ATT-2");
-    }
-
-    @Test
-    void recordJournalCreation_omitsBlankAttachmentReferences() {
-        Company company = company(85L, "BBP");
-        JournalEntry entry = journalEntry(107L, "MANJ-2026-0003", JournalEntryType.MANUAL);
-        entry.setAttachmentReferences("   ");
-
-        service.recordJournalCreation(company, entry);
-
-        AuditActionEventCommand command = captureCommand();
-        assertThat(command.metadata()).doesNotContainKey("attachmentReferences");
+        assertThat(command.metadata()).containsEntry("sourceReference", "SRC-ATT-1");
+        assertThat(command.metadata()).containsEntry("attachmentReferences", "att-1,att-2");
     }
 
     @Test

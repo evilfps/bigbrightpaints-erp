@@ -31,7 +31,6 @@ import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
@@ -39,7 +38,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @DisplayName("Regression: Purchase return idempotency avoids duplicate movements")
-@Tag("critical")
 class PurchaseReturnIdempotencyRegressionIT extends AbstractIntegrationTest {
 
     private static final String COMPANY_CODE = "LF-022";
@@ -95,7 +93,7 @@ class PurchaseReturnIdempotencyRegressionIT extends AbstractIntegrationTest {
                     created.setCompany(company);
                     created.setName("LF-022 Supplier");
                     created.setCode("SUP-LF022");
-                    created.setStatus("ACTIVE");
+                    created.setStatus(SupplierStatus.ACTIVE);
                     created.setPayableAccount(payable);
                     created.setOutstandingBalance(BigDecimal.ZERO);
                     return supplierRepository.save(created);
@@ -204,46 +202,6 @@ class PurchaseReturnIdempotencyRegressionIT extends AbstractIntegrationTest {
         assertThat(movementsAfter).allMatch(movement -> movement.getJournalEntryId().equals(first.id()));
         assertThat(purchaseAfterSecond.getOutstandingAmount()).isEqualByComparingTo(BigDecimal.ZERO);
         assertThat(purchaseAfterSecond.getStatus()).isEqualTo("VOID");
-    }
-
-    @Test
-    void purchaseReturnPreviewReferenceStaysIdempotentAcrossPostingRetries() {
-        PurchaseReturnRequest previewRequest = new PurchaseReturnRequest(
-                supplier.getId(),
-                purchase.getId(),
-                material.getId(),
-                new BigDecimal("4.00"),
-                new BigDecimal("5.00"),
-                null,
-                firstReturnDate,
-                "Damaged"
-        );
-
-        String previewReference = purchasingService.previewPurchaseReturn(previewRequest).referenceNumber();
-        PurchaseReturnRequest postingRequest = new PurchaseReturnRequest(
-                supplier.getId(),
-                purchase.getId(),
-                material.getId(),
-                new BigDecimal("4.00"),
-                new BigDecimal("5.00"),
-                previewReference,
-                firstReturnDate,
-                "Damaged"
-        );
-
-        JournalEntryDto first = purchasingService.recordPurchaseReturn(postingRequest);
-        JournalEntryDto replay = purchasingService.recordPurchaseReturn(postingRequest);
-
-        List<RawMaterialMovement> movements = movementRepository
-                .findByRawMaterialCompanyAndReferenceTypeAndReferenceId(company,
-                        InventoryReference.PURCHASE_RETURN,
-                        journalEntryRepository.findById(first.id()).orElseThrow().getReferenceNumber());
-
-        assertThat(replay.id()).isEqualTo(first.id());
-        assertThat(movements).hasSize(1);
-        assertThat(movements).allMatch(movement -> movement.getJournalEntryId().equals(first.id()));
-        assertThat(purchaseRepository.findById(purchase.getId()).orElseThrow().getOutstandingAmount())
-                .isEqualByComparingTo(BigDecimal.ZERO);
     }
 
     @Test

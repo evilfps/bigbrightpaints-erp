@@ -548,13 +548,15 @@ jobs:
           cache: maven
 
       - name: Gate Fast
+        env:
+          HEAD_REF: ${{ github.head_ref }}
         run: |
           set -euo pipefail
           if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
             export DIFF_BASE="${{ github.event.pull_request.base.sha }}"
             export GATE_FAST_RELEASE_VALIDATION_MODE=false
             export GATE_FAST_SYNC_PR_MODE=false
-            if [[ "${{ github.head_ref }}" == sync/* ]]; then
+            if [[ "${HEAD_REF}" == sync/* ]]; then
               export GATE_FAST_SYNC_PR_MODE=true
             fi
           else

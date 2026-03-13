@@ -1,277 +1,313 @@
 package com.bigbrightpaints.erp.modules.accounting.service;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
-import com.bigbrightpaints.erp.core.util.CompanyTime;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriod;
 import com.bigbrightpaints.erp.modules.accounting.domain.ClosedPeriodPostingException;
 import com.bigbrightpaints.erp.modules.accounting.domain.ClosedPeriodPostingExceptionRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
+import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.test.util.ReflectionTestUtils;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 @Tag("critical")
 class ClosedPeriodPostingExceptionServiceTest {
 
-    private static final Instant FIXED_NOW = Instant.parse("2026-03-10T00:00:00Z");
-
     @Mock
     private ClosedPeriodPostingExceptionRepository repository;
 
+    @InjectMocks
     private ClosedPeriodPostingExceptionService service;
-
-    @BeforeEach
-    void setUp() {
-        service = new ClosedPeriodPostingExceptionService(repository);
-    }
 
     @AfterEach
     void clearSecurityContext() {
         SecurityContextHolder.clearContext();
-        ReflectionTestUtils.setField(CompanyTime.class, "companyClock", null);
     }
 
     @Test
-    void authorize_adminPersistsNormalizedException() {
-        installFixedClock();
+    void authorize_reusesActiveExceptionForAdminAndMarksItUsed() {
         Company company = company();
-        AccountingPeriod period = new AccountingPeriod();
-        authenticate("admin.user", "ROLE_ADMIN");
-        when(repository.findByCompanyAndDocumentTypeIgnoreCaseAndDocumentReferenceIgnoreCaseOrderByApprovedAtDescIdDesc(
-                company,
-                "sales_return",
-                "SR-001")).thenReturn(List.of());
-        when(repository.save(any(ClosedPeriodPostingException.class))).thenAnswer(invocation -> invocation.getArgument(0));
-
-        ClosedPeriodPostingException exception = service.authorize(
-                company,
-                period,
-                "  sales_return  ",
-                "  SR-001  ",
-                "  late approval  ");
-
-        assertThat(exception.getCompany()).isSameAs(company);
-        assertThat(exception.getAccountingPeriod()).isSameAs(period);
-        assertThat(exception.getDocumentType()).isEqualTo("sales_return");
-        assertThat(exception.getDocumentReference()).isEqualTo("SR-001");
-        assertThat(exception.getReason()).isEqualTo("late approval");
-        assertThat(exception.getApprovedBy()).isEqualTo("admin.user");
-        assertThat(exception.getApprovedAt()).isEqualTo(FIXED_NOW);
-        assertThat(exception.getExpiresAt()).isEqualTo(FIXED_NOW.plusSeconds(3600));
-        assertThat(exception.getUsedBy()).isNull();
-        assertThat(exception.getUsedAt()).isNull();
-    }
-
-    @Test
-    void authorize_reusesUnexpiredException() {
-        installFixedClock();
-        Company company = company();
-        AccountingPeriod period = new AccountingPeriod();
+        AccountingPeriod period = period(company);
         ClosedPeriodPostingException existing = new ClosedPeriodPostingException();
-        existing.setExpiresAt(FIXED_NOW.plusSeconds(60));
-        authenticate("super.admin", "ROLE_SUPER_ADMIN");
-        when(repository.findByCompanyAndDocumentTypeIgnoreCaseAndDocumentReferenceIgnoreCaseOrderByApprovedAtDescIdDesc(
-                company,
-                "PURCHASE_RETURN",
-                "PR-001")).thenReturn(List.of(existing));
-        when(repository.save(existing)).thenReturn(existing);
-
-        ClosedPeriodPostingException saved = service.authorize(
-                company,
-                period,
-                "PURCHASE_RETURN",
-                "PR-001",
-                "approved");
-
-        assertThat(saved).isSameAs(existing);
-        assertThat(saved.getApprovedBy()).isEqualTo("super.admin");
-        assertThat(saved.getAccountingPeriod()).isSameAs(period);
-    }
-
-    @Test
-    void authorize_ignoresExpiredAndUndatedExistingExceptions() {
-        installFixedClock();
-        Company company = company();
-        AccountingPeriod period = new AccountingPeriod();
-        ClosedPeriodPostingException undated = new ClosedPeriodPostingException();
-        ClosedPeriodPostingException expired = new ClosedPeriodPostingException();
-        expired.setExpiresAt(FIXED_NOW.minusSeconds(60));
-        ClosedPeriodPostingException unexpired = new ClosedPeriodPostingException();
-        unexpired.setExpiresAt(FIXED_NOW.plusSeconds(60));
-        authenticate("super.admin", "ROLE_SUPER_ADMIN");
-        when(repository.findByCompanyAndDocumentTypeIgnoreCaseAndDocumentReferenceIgnoreCaseOrderByApprovedAtDescIdDesc(
-                company,
-                "PURCHASE_RETURN",
-                "PR-002")).thenReturn(List.of(undated, expired, unexpired));
-        when(repository.save(unexpired)).thenReturn(unexpired);
-
-        ClosedPeriodPostingException saved = service.authorize(
-                company,
-                period,
-                "PURCHASE_RETURN",
-                "PR-002",
-                "approved");
-
-        assertThat(saved).isSameAs(unexpired);
-    }
-
-    @Test
-    void authorize_rejectsMissingInputsAndNonAdminActors() {
-        Company company = company();
-        AccountingPeriod period = new AccountingPeriod();
-
-        assertThatThrownBy(() -> service.authorize(null, period, "DOC", "REF", "reason"))
-                .isInstanceOf(ApplicationException.class)
-                .hasMessageContaining("Company and accounting period are required");
-
-        authenticate("accounting.user", "ROLE_ACCOUNTING");
-        assertThatThrownBy(() -> service.authorize(company, period, "DOC", "REF", "reason"))
-                .isInstanceOf(ApplicationException.class)
-                .hasMessageContaining("Closed-period posting requires an explicit admin exception");
-
-        authenticate("admin.user", "ROLE_ADMIN");
-        assertThatThrownBy(() -> service.authorize(company, period, "DOC", "REF", "   "))
-                .isInstanceOf(ApplicationException.class)
-                .hasMessageContaining("reason is required for closed-period posting exception");
-
-        verify(repository, never()).save(any(ClosedPeriodPostingException.class));
-    }
-
-    @Test
-    void linkJournalEntry_marksExceptionUsedAfterSuccessfulJournalLink() {
-        installFixedClock();
-        Company company = company();
-        ClosedPeriodPostingException exception = new ClosedPeriodPostingException();
-        exception.setApprovedBy("admin.user");
-        JournalEntry journalEntry = new JournalEntry();
-        authenticate("accounting.admin", "ROLE_ADMIN");
+        existing.setExpiresAt(Instant.now().plusSeconds(600));
         when(repository.findByCompanyAndDocumentTypeIgnoreCaseAndDocumentReferenceIgnoreCaseOrderByApprovedAtDescIdDesc(
                 company,
                 "SALES_RETURN",
-                "SR-009")).thenReturn(List.of(exception));
+                "SR-1001")).thenReturn(List.of(existing));
+        when(repository.save(existing)).thenReturn(existing);
+        authenticate("admin.user", "ROLE_ADMIN");
 
-        service.linkJournalEntry(company, "  SALES_RETURN  ", "  SR-009  ", journalEntry);
-        service.linkJournalEntry(company, " ", "SR-009", journalEntry);
+        ClosedPeriodPostingException saved = service.authorize(
+                company,
+                period,
+                " SALES_RETURN ",
+                " SR-1001 ",
+                " close-month exception ");
 
-        ArgumentCaptor<ClosedPeriodPostingException> captor = ArgumentCaptor.forClass(ClosedPeriodPostingException.class);
-        verify(repository).save(captor.capture());
-        assertThat(captor.getValue().getJournalEntry()).isSameAs(journalEntry);
-        assertThat(captor.getValue().getUsedBy()).isEqualTo("accounting.admin");
-        assertThat(captor.getValue().getUsedAt()).isEqualTo(FIXED_NOW);
+        assertThat(saved).isSameAs(existing);
+        assertThat(saved.getCompany()).isSameAs(company);
+        assertThat(saved.getAccountingPeriod()).isSameAs(period);
+        assertThat(saved.getDocumentType()).isEqualTo("SALES_RETURN");
+        assertThat(saved.getDocumentReference()).isEqualTo("SR-1001");
+        assertThat(saved.getReason()).isEqualTo("close-month exception");
+        assertThat(saved.getApprovedBy()).isEqualTo("admin.user");
+        assertThat(saved.getUsedBy()).isEqualTo("admin.user");
+        assertThat(saved.getApprovedAt()).isNotNull();
+        assertThat(saved.getUsedAt()).isEqualTo(saved.getApprovedAt());
+        assertThat(saved.getExpiresAt()).isAfter(saved.getApprovedAt());
+        verify(repository).save(existing);
     }
 
     @Test
-    void authorize_requiresAuthenticatedAdminAnd_linkJournalEntrySkipsMissingMatches() {
+    void authorize_rejectsMissingAdminAuthority() {
         Company company = company();
-        AccountingPeriod period = new AccountingPeriod();
+        AccountingPeriod period = period(company);
+        authenticate("accounting.user", "ROLE_ACCOUNTING");
 
-        assertThatThrownBy(() -> service.authorize(company, period, "DOC", "REF", "reason"))
+        assertThatThrownBy(() -> service.authorize(company, period, "JOURNAL", "JE-100", "override"))
                 .isInstanceOf(ApplicationException.class)
-                .hasMessageContaining("Closed-period posting requires an explicit admin exception");
+                .hasMessageContaining("explicit admin exception");
+    }
 
-        SecurityContextHolder.getContext().setAuthentication(UsernamePasswordAuthenticationToken.unauthenticated(
-                "admin.user",
-                "N/A"));
-        assertThatThrownBy(() -> service.authorize(company, period, "DOC", "REF", "reason"))
+    @Test
+    void authorize_rejectsMissingAuthentication() {
+        Company company = company();
+        AccountingPeriod period = period(company);
+        SecurityContextHolder.clearContext();
+
+        assertThatThrownBy(() -> service.authorize(company, period, "JOURNAL", "JE-100", "override"))
                 .isInstanceOf(ApplicationException.class)
-                .hasMessageContaining("Closed-period posting requires an explicit admin exception");
+                .hasMessageContaining("explicit admin exception");
+    }
 
+    @Test
+    void authorize_rejectsUnauthenticatedPrincipal() {
+        Company company = company();
+        AccountingPeriod period = period(company);
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken("admin.user", "N/A", List.of())
+        );
+
+        assertThatThrownBy(() -> service.authorize(company, period, "JOURNAL", "JE-101", "override"))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("explicit admin exception");
+    }
+
+    @Test
+    void authorize_rejectsExplicitlyUnauthenticatedAdminPrincipal() {
+        Company company = company();
+        AccountingPeriod period = period(company);
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken("admin.user", "N/A")
+        );
+
+        assertThatThrownBy(() -> service.authorize(company, period, "JOURNAL", "JE-102", "override"))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("explicit admin exception");
+    }
+
+    @Test
+    void authorize_requiresNormalizedFields() {
+        Company company = company();
+        AccountingPeriod period = period(company);
+        authenticate("admin.user", "ROLE_SUPER_ADMIN");
+
+        assertThatThrownBy(() -> service.authorize(company, period, " ", "DOC-1", "reason"))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("documentType is required");
+        assertThatThrownBy(() -> service.authorize(company, period, "JOURNAL", " ", "reason"))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("documentReference is required");
+        assertThatThrownBy(() -> service.authorize(company, period, "JOURNAL", "DOC-1", " "))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("reason is required");
+    }
+
+    @Test
+    void authorize_rejectsMissingCompany() {
+        authenticate("admin.user", "ROLE_ADMIN");
+
+        assertThatThrownBy(() -> service.authorize(null, period(company()), "JOURNAL", "DOC-1", "reason"))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Company and accounting period are required");
+    }
+
+    @Test
+    void authorize_rejectsMissingPeriod() {
+        authenticate("admin.user", "ROLE_ADMIN");
+
+        assertThatThrownBy(() -> service.authorize(company(), null, "JOURNAL", "DOC-1", "reason"))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Company and accounting period are required");
+    }
+
+    @Test
+    void authorize_createsNewExceptionWhenLatestMatchIsExpired() {
+        Company company = company();
+        AccountingPeriod period = period(company);
+        ClosedPeriodPostingException expired = new ClosedPeriodPostingException();
+        expired.setExpiresAt(Instant.now().minusSeconds(60));
         when(repository.findByCompanyAndDocumentTypeIgnoreCaseAndDocumentReferenceIgnoreCaseOrderByApprovedAtDescIdDesc(
                 company,
-                "DOC",
-                "REF")).thenReturn(List.of());
+                "SALES_RETURN",
+                "SR-1002")).thenReturn(List.of(expired));
+        when(repository.save(org.mockito.ArgumentMatchers.any(ClosedPeriodPostingException.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        authenticate("admin.user", "ROLE_ADMIN");
 
-        service.linkJournalEntry(company, "DOC", "REF", new JournalEntry());
+        ClosedPeriodPostingException saved = service.authorize(
+                company,
+                period,
+                " SALES_RETURN ",
+                " SR-1002 ",
+                " expired exception replaced ");
 
-        verify(repository, never()).save(any(ClosedPeriodPostingException.class));
+        assertThat(saved).isNotSameAs(expired);
+        assertThat(saved.getDocumentReference()).isEqualTo("SR-1002");
+        assertThat(saved.getReason()).isEqualTo("expired exception replaced");
+        assertThat(saved.getApprovedBy()).isEqualTo("admin.user");
+        assertThat(saved.getUsedBy()).isEqualTo("admin.user");
+        assertThat(saved.getUsedAt()).isEqualTo(saved.getApprovedAt());
     }
 
     @Test
-    void entityLifecycle_populatesPersistDefaultsAndExposesAccessors() {
-        installFixedClock();
+    void authorize_superAdminReusesFirstUnexpiredExceptionAfterExpiredHistory() {
         Company company = company();
-        AccountingPeriod period = new AccountingPeriod();
-        JournalEntry journalEntry = new JournalEntry();
-        ClosedPeriodPostingException exception = new ClosedPeriodPostingException();
+        AccountingPeriod period = period(company);
+        ClosedPeriodPostingException expired = new ClosedPeriodPostingException();
+        expired.setExpiresAt(Instant.now().minusSeconds(60));
+        ClosedPeriodPostingException active = new ClosedPeriodPostingException();
+        active.setExpiresAt(Instant.now().plusSeconds(600));
+        when(repository.findByCompanyAndDocumentTypeIgnoreCaseAndDocumentReferenceIgnoreCaseOrderByApprovedAtDescIdDesc(
+                company,
+                "JOURNAL",
+                "JE-202")).thenReturn(List.of(expired, active));
+        when(repository.save(active)).thenReturn(active);
+        authenticate("super.admin", "ROLE_SUPER_ADMIN");
 
-        exception.setCompany(company);
-        exception.setAccountingPeriod(period);
-        exception.setDocumentType("DOC");
-        exception.setDocumentReference("REF");
-        exception.setReason("reason");
-        exception.setApprovedBy("admin.user");
-        exception.setExpiresAt(FIXED_NOW.plusSeconds(3600));
-        exception.setUsedBy("admin.user");
-        exception.setUsedAt(FIXED_NOW);
-        exception.setJournalEntry(journalEntry);
-        exception.prePersist();
+        ClosedPeriodPostingException saved = service.authorize(
+                company,
+                period,
+                " JOURNAL ",
+                " JE-202 ",
+                " super admin override ");
 
-        assertThat(exception.getPublicId()).isNotNull();
-        assertThat(exception.getApprovedAt()).isEqualTo(FIXED_NOW);
-        assertThat(exception.getCompany()).isSameAs(company);
-        assertThat(exception.getAccountingPeriod()).isSameAs(period);
-        assertThat(exception.getDocumentType()).isEqualTo("DOC");
-        assertThat(exception.getDocumentReference()).isEqualTo("REF");
-        assertThat(exception.getReason()).isEqualTo("reason");
-        assertThat(exception.getApprovedBy()).isEqualTo("admin.user");
-        assertThat(exception.getExpiresAt()).isEqualTo(FIXED_NOW.plusSeconds(3600));
-        assertThat(exception.getUsedBy()).isEqualTo("admin.user");
-        assertThat(exception.getUsedAt()).isEqualTo(FIXED_NOW);
-        assertThat(exception.getJournalEntry()).isSameAs(journalEntry);
-        assertThat(exception.getId()).isNull();
+        assertThat(saved).isSameAs(active);
+        assertThat(saved.getApprovedBy()).isEqualTo("super.admin");
+        assertThat(saved.getUsedBy()).isEqualTo("super.admin");
+        verify(repository).save(active);
     }
 
     @Test
-    void entityLifecycle_preservesExistingPublicIdAndApprovedAt() {
-        ClosedPeriodPostingException exception = new ClosedPeriodPostingException();
-        java.util.UUID publicId = java.util.UUID.randomUUID();
-        Instant approvedAt = FIXED_NOW.minusSeconds(120);
+    void authorize_skipsEntriesWithoutExpiryBeforeReusingActiveException() {
+        Company company = company();
+        AccountingPeriod period = period(company);
+        ClosedPeriodPostingException missingExpiry = new ClosedPeriodPostingException();
+        ClosedPeriodPostingException active = new ClosedPeriodPostingException();
+        active.setExpiresAt(Instant.now().plusSeconds(600));
+        when(repository.findByCompanyAndDocumentTypeIgnoreCaseAndDocumentReferenceIgnoreCaseOrderByApprovedAtDescIdDesc(
+                company,
+                "JOURNAL",
+                "JE-203")).thenReturn(List.of(missingExpiry, active));
+        when(repository.save(active)).thenReturn(active);
+        authenticate("admin.user", "ROLE_ADMIN");
 
-        ReflectionTestUtils.setField(exception, "publicId", publicId);
-        exception.setApprovedAt(approvedAt);
+        ClosedPeriodPostingException saved = service.authorize(
+                company,
+                period,
+                " JOURNAL ",
+                " JE-203 ",
+                " active exception reused ");
 
-        exception.prePersist();
+        assertThat(saved).isSameAs(active);
+        verify(repository).save(active);
+    }
 
-        assertThat(exception.getPublicId()).isEqualTo(publicId);
-        assertThat(exception.getApprovedAt()).isEqualTo(approvedAt);
+    @Test
+    void linkJournalEntry_updatesLatestMatchingException() {
+        Company company = company();
+        ClosedPeriodPostingException existing = new ClosedPeriodPostingException();
+        JournalEntry journalEntry = new JournalEntry();
+        when(repository.findByCompanyAndDocumentTypeIgnoreCaseAndDocumentReferenceIgnoreCaseOrderByApprovedAtDescIdDesc(
+                company,
+                "JOURNAL",
+                "JE-100")).thenReturn(List.of(existing));
+        when(repository.save(existing)).thenReturn(existing);
+
+        service.linkJournalEntry(company, " JOURNAL ", " JE-100 ", journalEntry);
+
+        assertThat(existing.getJournalEntry()).isSameAs(journalEntry);
+        verify(repository).save(existing);
+    }
+
+    @Test
+    void linkJournalEntry_skipsWhenNoMatchingExceptionExists() {
+        Company company = company();
+        JournalEntry journalEntry = new JournalEntry();
+        when(repository.findByCompanyAndDocumentTypeIgnoreCaseAndDocumentReferenceIgnoreCaseOrderByApprovedAtDescIdDesc(
+                company,
+                "JOURNAL",
+                "JE-404")).thenReturn(List.of());
+
+        service.linkJournalEntry(company, "JOURNAL", "JE-404", journalEntry);
+
+        verify(repository, never()).save(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void linkJournalEntry_ignoresIncompleteInputs() {
+        service.linkJournalEntry(null, "JOURNAL", "REF", new JournalEntry());
+        service.linkJournalEntry(company(), " ", "REF", new JournalEntry());
+        service.linkJournalEntry(company(), "JOURNAL", " ", new JournalEntry());
+        service.linkJournalEntry(company(), "JOURNAL", "REF", null);
+
+        verify(repository, never()).save(org.mockito.ArgumentMatchers.any());
+    }
+
+    private void authenticate(String username, String... authorities) {
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken(
+                        username,
+                        "N/A",
+                        java.util.Arrays.stream(authorities)
+                                .map(SimpleGrantedAuthority::new)
+                                .toList()
+                )
+        );
     }
 
     private Company company() {
         Company company = new Company();
+        company.setName("Coverage Co");
+        company.setCode("COV");
         company.setTimezone("UTC");
         return company;
     }
 
-    private void installFixedClock() {
-        var companyClock = org.mockito.Mockito.mock(com.bigbrightpaints.erp.core.util.CompanyClock.class);
-        when(companyClock.now(any())).thenReturn(FIXED_NOW);
-        ReflectionTestUtils.setField(CompanyTime.class, "companyClock", companyClock);
-    }
-
-    private void authenticate(String username, String role) {
-        SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(
-                username,
-                "N/A",
-                List.of(new SimpleGrantedAuthority(role))));
+    private AccountingPeriod period(Company company) {
+        AccountingPeriod period = new AccountingPeriod();
+        period.setCompany(company);
+        period.setYear(2026);
+        period.setMonth(3);
+        period.setStartDate(LocalDate.of(2026, 3, 1));
+        period.setEndDate(LocalDate.of(2026, 3, 31));
+        return period;
     }
 }
