@@ -1405,6 +1405,185 @@ class InvoiceServiceTest {
     }
 
     @Test
+    void helperMethods_defaultCurrentInvoiceCount_andExplicitLinkContext_coverRemainingFallbacks() throws Exception {
+        Invoice currentInvoice = new Invoice();
+        currentInvoice.setStatus("ISSUED");
+        Invoice historicalInvoice = new Invoice();
+        historicalInvoice.setStatus("VOID");
+
+        assertThat((Integer) ReflectionTestUtils.invokeMethod(invoiceService, "defaultCurrentInvoiceCount", currentInvoice))
+                .isEqualTo(1);
+        assertThat((Integer) ReflectionTestUtils.invokeMethod(invoiceService, "defaultCurrentInvoiceCount", historicalInvoice))
+                .isZero();
+        assertThat((Integer) ReflectionTestUtils.invokeMethod(invoiceService, "defaultCurrentInvoiceCount", new Object[]{null}))
+                .isZero();
+
+        SalesOrder order = new SalesOrder();
+        order.setCompany(company);
+        order.setOrderNumber("SO-EXPLICIT-COUNT");
+        ReflectionTestUtils.setField(order, "id", 18101L);
+
+        Invoice invoice = new Invoice();
+        ReflectionTestUtils.setField(invoice, "id", 18102L);
+        invoice.setCompany(company);
+        invoice.setSalesOrder(order);
+        invoice.setInvoiceNumber("INV-EXPLICIT-COUNT");
+        invoice.setStatus("ISSUED");
+
+        PackagingSlip explicitSlip = new PackagingSlip();
+        ReflectionTestUtils.setField(explicitSlip, "id", 18103L);
+        explicitSlip.setSalesOrder(order);
+        explicitSlip.setInvoiceId(18102L);
+        explicitSlip.setSlipNumber("PS-EXPLICIT-COUNT");
+
+        when(packagingSlipRepository.findAllByCompanyAndSalesOrderIdIn(company, List.of(18101L)))
+                .thenReturn(List.of(explicitSlip));
+        when(settlementAllocationRepository.findByCompanyAndInvoice_IdInOrderByCreatedAtDesc(company, List.of(18102L)))
+                .thenReturn(List.of());
+
+        Object context = ReflectionTestUtils.invokeMethod(invoiceService, "buildLinkedReferenceContext", company, List.of(invoice));
+        java.lang.reflect.Method countMethod = context.getClass().getDeclaredMethod("currentInvoiceCountsBySalesOrderId");
+        countMethod.setAccessible(true);
+
+        @SuppressWarnings("unchecked")
+        java.util.Map<Long, Integer> currentCounts = (java.util.Map<Long, Integer>) countMethod.invoke(context);
+
+        assertThat(currentCounts).isEmpty();
+        verify(invoiceRepository, org.mockito.Mockito.never()).findByCompanyAndSalesOrder_IdIn(company, List.of(18101L));
+    }
+
+    @Test
+    void buildLinkedReferenceContext_skipsInvoicesWithoutSalesOrderIdentityInBatchCountLookup() throws Exception {
+        SalesOrder order = new SalesOrder();
+        order.setCompany(company);
+        order.setOrderNumber("SO-NULL-COUNT");
+        ReflectionTestUtils.setField(order, "id", 18111L);
+
+        Invoice invoice = new Invoice();
+        ReflectionTestUtils.setField(invoice, "id", 18112L);
+        invoice.setCompany(company);
+        invoice.setSalesOrder(order);
+        invoice.setInvoiceNumber("INV-NULL-COUNT");
+        invoice.setStatus("ISSUED");
+
+        PackagingSlip legacySlip = new PackagingSlip();
+        ReflectionTestUtils.setField(legacySlip, "id", 18113L);
+        legacySlip.setSalesOrder(order);
+        legacySlip.setSlipNumber("PS-NULL-COUNT");
+
+        Invoice orphanInvoice = new Invoice();
+        orphanInvoice.setCompany(company);
+        orphanInvoice.setStatus("ISSUED");
+
+        when(packagingSlipRepository.findAllByCompanyAndSalesOrderIdIn(company, List.of(18111L)))
+                .thenReturn(List.of(legacySlip));
+        when(invoiceRepository.findByCompanyAndSalesOrder_IdIn(company, List.of(18111L)))
+                .thenReturn(java.util.Arrays.asList(null, orphanInvoice));
+        when(settlementAllocationRepository.findByCompanyAndInvoice_IdInOrderByCreatedAtDesc(company, List.of(18112L)))
+                .thenReturn(List.of());
+
+        Object context = ReflectionTestUtils.invokeMethod(invoiceService, "buildLinkedReferenceContext", company, List.of(invoice));
+        java.lang.reflect.Method countMethod = context.getClass().getDeclaredMethod("currentInvoiceCountsBySalesOrderId");
+        countMethod.setAccessible(true);
+
+        @SuppressWarnings("unchecked")
+        java.util.Map<Long, Integer> currentCounts = (java.util.Map<Long, Integer>) countMethod.invoke(context);
+
+        assertThat(currentCounts).isEmpty();
+    }
+
+    @Test
+    void buildLinkedReferenceContext_countsOnlyCurrentInvoicesWithSalesOrderIdentity() throws Exception {
+        SalesOrder order = new SalesOrder();
+        order.setCompany(company);
+        order.setOrderNumber("SO-COUNT-CURRENT");
+        ReflectionTestUtils.setField(order, "id", 18121L);
+
+        Invoice invoice = new Invoice();
+        ReflectionTestUtils.setField(invoice, "id", 18122L);
+        invoice.setCompany(company);
+        invoice.setSalesOrder(order);
+        invoice.setInvoiceNumber("INV-COUNT-CURRENT");
+        invoice.setStatus("ISSUED");
+
+        PackagingSlip legacySlip = new PackagingSlip();
+        ReflectionTestUtils.setField(legacySlip, "id", 18123L);
+        legacySlip.setSalesOrder(order);
+        legacySlip.setSlipNumber("PS-COUNT-CURRENT");
+
+        Invoice currentPeer = new Invoice();
+        currentPeer.setCompany(company);
+        currentPeer.setSalesOrder(order);
+        currentPeer.setStatus("POSTED");
+
+        Invoice historicalPeer = new Invoice();
+        historicalPeer.setCompany(company);
+        historicalPeer.setSalesOrder(order);
+        historicalPeer.setStatus("VOID");
+
+        Invoice malformedPeer = new Invoice();
+        malformedPeer.setCompany(company);
+        malformedPeer.setStatus("ISSUED");
+
+        Invoice missingIdPeer = new Invoice();
+        missingIdPeer.setCompany(company);
+        missingIdPeer.setStatus("ISSUED");
+        missingIdPeer.setSalesOrder(new SalesOrder());
+
+        when(packagingSlipRepository.findAllByCompanyAndSalesOrderIdIn(company, List.of(18121L)))
+                .thenReturn(List.of(legacySlip));
+        when(invoiceRepository.findByCompanyAndSalesOrder_IdIn(company, List.of(18121L)))
+                .thenReturn(java.util.Arrays.asList(currentPeer, historicalPeer, malformedPeer, missingIdPeer));
+        when(settlementAllocationRepository.findByCompanyAndInvoice_IdInOrderByCreatedAtDesc(company, List.of(18122L)))
+                .thenReturn(List.of());
+
+        Object context = ReflectionTestUtils.invokeMethod(invoiceService, "buildLinkedReferenceContext", company, List.of(invoice));
+        java.lang.reflect.Method countMethod = context.getClass().getDeclaredMethod("currentInvoiceCountsBySalesOrderId");
+        countMethod.setAccessible(true);
+
+        @SuppressWarnings("unchecked")
+        java.util.Map<Long, Integer> currentCounts = (java.util.Map<Long, Integer>) countMethod.invoke(context);
+
+        assertThat(currentCounts).containsEntry(18121L, 1);
+    }
+
+    @Test
+    void buildLinkedReferenceContext_returnsEmptyCurrentCountsWhenInvoiceBatchLookupReturnsNull() throws Exception {
+        SalesOrder order = new SalesOrder();
+        order.setCompany(company);
+        order.setOrderNumber("SO-NULL-BATCH-COUNT");
+        ReflectionTestUtils.setField(order, "id", 18131L);
+
+        Invoice invoice = new Invoice();
+        ReflectionTestUtils.setField(invoice, "id", 18132L);
+        invoice.setCompany(company);
+        invoice.setSalesOrder(order);
+        invoice.setInvoiceNumber("INV-NULL-BATCH-COUNT");
+        invoice.setStatus("ISSUED");
+
+        PackagingSlip legacySlip = new PackagingSlip();
+        ReflectionTestUtils.setField(legacySlip, "id", 18133L);
+        legacySlip.setSalesOrder(order);
+        legacySlip.setSlipNumber("PS-NULL-BATCH-COUNT");
+
+        when(packagingSlipRepository.findAllByCompanyAndSalesOrderIdIn(company, List.of(18131L)))
+                .thenReturn(List.of(legacySlip));
+        when(invoiceRepository.findByCompanyAndSalesOrder_IdIn(company, List.of(18131L)))
+                .thenReturn(null);
+        when(settlementAllocationRepository.findByCompanyAndInvoice_IdInOrderByCreatedAtDesc(company, List.of(18132L)))
+                .thenReturn(List.of());
+
+        Object context = ReflectionTestUtils.invokeMethod(invoiceService, "buildLinkedReferenceContext", company, List.of(invoice));
+        java.lang.reflect.Method countMethod = context.getClass().getDeclaredMethod("currentInvoiceCountsBySalesOrderId");
+        countMethod.setAccessible(true);
+
+        @SuppressWarnings("unchecked")
+        java.util.Map<Long, Integer> currentCounts = (java.util.Map<Long, Integer>) countMethod.invoke(context);
+
+        assertThat(currentCounts).isEmpty();
+    }
+
+    @Test
     void issueInvoiceForOrder_coversDispatchFailureBranchesAndSteadyStateHelpers() {
         Long nullResponseOrderId = 1201L;
         when(companyContextService.requireCurrentCompany()).thenReturn(company);

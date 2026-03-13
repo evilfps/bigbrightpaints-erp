@@ -14,8 +14,10 @@ import com.bigbrightpaints.erp.modules.accounting.service.GstService;
 import com.bigbrightpaints.erp.modules.accounting.service.ReferenceNumberService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
+import com.bigbrightpaints.erp.modules.inventory.domain.InventoryReference;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterial;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatchRepository;
+import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovement;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovementRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialRepository;
 import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchase;
@@ -521,6 +523,192 @@ class PurchaseReturnServiceTest {
     }
 
     @Test
+    void recordPurchaseReturn_replayWithNullAccountingEntrySkipsMovementRelink() {
+        Account payable = new Account();
+        ReflectionTestUtils.setField(payable, "id", 40L);
+        supplier.setPayableAccount(payable);
+
+        RawMaterialMovement existingMovement = new RawMaterialMovement();
+        existingMovement.setRawMaterial(material);
+        existingMovement.setReferenceId("PR-30");
+        existingMovement.setReferenceType(InventoryReference.PURCHASE_RETURN);
+        existingMovement.setQuantity(BigDecimal.ONE);
+        existingMovement.setUnitCost(new BigDecimal("5.00"));
+
+        when(movementRepository.findByRawMaterialCompanyAndReferenceTypeAndReferenceId(
+                company,
+                InventoryReference.PURCHASE_RETURN,
+                "PR-30"
+        )).thenReturn(List.of(existingMovement));
+        when(accountingFacade.postPurchaseReturn(
+                eq(10L),
+                eq("PR-30"),
+                eq(LocalDate.of(2026, 3, 9)),
+                eq("Damaged - Resin to Supplier 10"),
+                eq(Map.of(200L, new BigDecimal("5.00"))),
+                eq(null),
+                eq(null),
+                eq(new BigDecimal("5.00"))
+        )).thenReturn(null);
+
+        JournalEntryDto result = purchaseReturnService.recordPurchaseReturn(new PurchaseReturnRequest(
+                10L,
+                30L,
+                20L,
+                BigDecimal.ONE,
+                new BigDecimal("5.00"),
+                "PR-30",
+                LocalDate.of(2026, 3, 9),
+                "Damaged"
+        ));
+
+        assertThat(result).isNull();
+        verify(movementRepository, never()).saveAll(any());
+    }
+
+    @Test
+    void recordPurchaseReturn_usesTrimmedExplicitReferenceWithoutAutoNumberLookup() {
+        Account payable = new Account();
+        ReflectionTestUtils.setField(payable, "id", 40L);
+        supplier.setPayableAccount(payable);
+
+        RawMaterialMovement existingMovement = new RawMaterialMovement();
+        existingMovement.setRawMaterial(material);
+        existingMovement.setReferenceId("PR-EXPLICIT-30");
+        existingMovement.setReferenceType(InventoryReference.PURCHASE_RETURN);
+        existingMovement.setQuantity(BigDecimal.ONE);
+        existingMovement.setUnitCost(new BigDecimal("5.00"));
+
+        when(movementRepository.findByRawMaterialCompanyAndReferenceTypeAndReferenceId(
+                company,
+                InventoryReference.PURCHASE_RETURN,
+                "PR-EXPLICIT-30"
+        )).thenReturn(List.of(existingMovement));
+        when(accountingFacade.postPurchaseReturn(
+                eq(10L),
+                eq("PR-EXPLICIT-30"),
+                eq(LocalDate.of(2026, 3, 9)),
+                eq("Damaged - Resin to Supplier 10"),
+                eq(Map.of(200L, new BigDecimal("5.00"))),
+                eq(null),
+                eq(null),
+                eq(new BigDecimal("5.00"))
+        )).thenReturn(journalEntryDto(902L, "PR-EXPLICIT-30", LocalDate.of(2026, 3, 9), "Damaged - Resin to Supplier 10"));
+        when(journalEntryRepository.findByCompanyAndId(company, 902L)).thenReturn(Optional.of(new JournalEntry()));
+
+        JournalEntryDto result = purchaseReturnService.recordPurchaseReturn(new PurchaseReturnRequest(
+                10L,
+                30L,
+                20L,
+                BigDecimal.ONE,
+                new BigDecimal("5.00"),
+                " PR-EXPLICIT-30 ",
+                LocalDate.of(2026, 3, 9),
+                "Damaged"
+        ));
+
+        assertThat(result.id()).isEqualTo(902L);
+        verify(referenceNumberService, never()).purchaseReturnReference(any(), any());
+        verify(rawMaterialRepository, never()).deductStockIfSufficient(any(), any());
+    }
+
+    @Test
+    void recordPurchaseReturn_generatesReferenceWhenExplicitReferenceMissing() {
+        Account payable = new Account();
+        ReflectionTestUtils.setField(payable, "id", 40L);
+        supplier.setPayableAccount(payable);
+
+        RawMaterialMovement existingMovement = new RawMaterialMovement();
+        existingMovement.setRawMaterial(material);
+        existingMovement.setReferenceId("PR-AUTO-30");
+        existingMovement.setReferenceType(InventoryReference.PURCHASE_RETURN);
+        existingMovement.setQuantity(BigDecimal.ONE);
+        existingMovement.setUnitCost(new BigDecimal("5.00"));
+
+        when(referenceNumberService.purchaseReturnReference(company, supplier)).thenReturn("PR-AUTO-30");
+        when(movementRepository.findByRawMaterialCompanyAndReferenceTypeAndReferenceId(
+                company,
+                InventoryReference.PURCHASE_RETURN,
+                "PR-AUTO-30"
+        )).thenReturn(List.of(existingMovement));
+        when(accountingFacade.postPurchaseReturn(
+                eq(10L),
+                eq("PR-AUTO-30"),
+                eq(LocalDate.of(2026, 3, 9)),
+                eq("Damaged - Resin to Supplier 10"),
+                eq(Map.of(200L, new BigDecimal("5.00"))),
+                eq(null),
+                eq(null),
+                eq(new BigDecimal("5.00"))
+        )).thenReturn(journalEntryDto(903L, "PR-AUTO-30", LocalDate.of(2026, 3, 9), "Damaged - Resin to Supplier 10"));
+
+        JournalEntryDto result = purchaseReturnService.recordPurchaseReturn(new PurchaseReturnRequest(
+                10L,
+                30L,
+                20L,
+                BigDecimal.ONE,
+                new BigDecimal("5.00"),
+                " ",
+                LocalDate.of(2026, 3, 9),
+                "Damaged"
+        ));
+
+        assertThat(result.id()).isEqualTo(903L);
+        verify(referenceNumberService).purchaseReturnReference(company, supplier);
+    }
+
+    @Test
+    void recordPurchaseReturn_replayRelinksWhenExistingMovementPointsToDifferentJournal() {
+        Account payable = new Account();
+        ReflectionTestUtils.setField(payable, "id", 40L);
+        supplier.setPayableAccount(payable);
+        purchase.setInvoiceNumber("PI-30");
+
+        JournalEntry postedReturnEntry = new JournalEntry();
+        ReflectionTestUtils.setField(postedReturnEntry, "id", 904L);
+
+        RawMaterialMovement existingMovement = new RawMaterialMovement();
+        existingMovement.setRawMaterial(material);
+        existingMovement.setReferenceId("PR-30");
+        existingMovement.setReferenceType(InventoryReference.PURCHASE_RETURN);
+        existingMovement.setQuantity(BigDecimal.ONE);
+        existingMovement.setUnitCost(new BigDecimal("5.00"));
+        existingMovement.setJournalEntryId(777L);
+
+        when(movementRepository.findByRawMaterialCompanyAndReferenceTypeAndReferenceId(
+                company,
+                InventoryReference.PURCHASE_RETURN,
+                "PR-30"
+        )).thenReturn(List.of(existingMovement));
+        when(accountingFacade.postPurchaseReturn(
+                eq(10L),
+                eq("PR-30"),
+                eq(LocalDate.of(2026, 3, 9)),
+                eq("Damaged - Resin to Supplier 10"),
+                eq(Map.of(200L, new BigDecimal("5.00"))),
+                eq(null),
+                eq(null),
+                eq(new BigDecimal("5.00"))
+        )).thenReturn(journalEntryDto(904L, "PR-30", LocalDate.of(2026, 3, 9), "Damaged - Resin to Supplier 10"));
+        when(journalEntryRepository.findByCompanyAndId(company, 904L)).thenReturn(Optional.of(postedReturnEntry));
+
+        JournalEntryDto result = purchaseReturnService.recordPurchaseReturn(new PurchaseReturnRequest(
+                10L,
+                30L,
+                20L,
+                BigDecimal.ONE,
+                new BigDecimal("5.00"),
+                "PR-30",
+                LocalDate.of(2026, 3, 9),
+                "Damaged"
+        ));
+
+        assertThat(result.id()).isEqualTo(904L);
+        assertThat(existingMovement.getJournalEntryId()).isEqualTo(904L);
+        verify(movementRepository).saveAll(List.of(existingMovement));
+    }
+
+    @Test
     void recordPurchaseReturn_replayRejectsMovementDriftAgainstRequestedMaterial() {
         Account payable = new Account();
         ReflectionTestUtils.setField(payable, "id", 40L);
@@ -733,6 +921,31 @@ class PurchaseReturnServiceTest {
 
         verify(journalEntryRepository, never()).findByCompanyAndId(any(), any());
         verify(journalEntryRepository, never()).save(any());
+    }
+
+    @Test
+    void purchaseReturnHelpers_skipSaveWhenCorrectionJournalAlreadyAligned() {
+        JournalEntry source = new JournalEntry();
+        ReflectionTestUtils.setField(source, "id", 991L);
+
+        JournalEntry aligned = new JournalEntry();
+        aligned.setCorrectionType(JournalCorrectionType.REVERSAL);
+        aligned.setCorrectionReason("PURCHASE_RETURN");
+        aligned.setSourceModule("PURCHASING_RETURN");
+        aligned.setSourceReference("PI-ALIGNED");
+
+        when(journalEntryRepository.findByCompanyAndId(company, 992L)).thenReturn(Optional.of(aligned));
+
+        ReflectionTestUtils.invokeMethod(
+                purchaseReturnService,
+                "ensureLinkedCorrectionJournal",
+                company,
+                journalEntryDto(992L, "PR-ALIGNED", LocalDate.now(), "aligned"),
+                source,
+                "PI-ALIGNED"
+        );
+
+        verify(journalEntryRepository, never()).save(aligned);
     }
 
     private JournalEntryDto journalEntryDto(Long id, String reference, LocalDate entryDate, String memo) {

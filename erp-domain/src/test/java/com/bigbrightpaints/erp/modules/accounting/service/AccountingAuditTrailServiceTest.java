@@ -830,6 +830,57 @@ class AccountingAuditTrailServiceTest {
     }
 
     @Test
+    void helperMethods_resolveCurrentSalesOrderInvoiceCount_prefersRepositoryCurrentCount() {
+        Company company = new Company();
+
+        SalesOrder order = new SalesOrder();
+        setField(order, "id", 903L);
+
+        Invoice invoice = new Invoice();
+        invoice.setCompany(company);
+        invoice.setSalesOrder(order);
+        invoice.setStatus("ISSUED");
+
+        Invoice currentPeer = new Invoice();
+        currentPeer.setCompany(company);
+        currentPeer.setSalesOrder(order);
+        currentPeer.setStatus("POSTED");
+
+        Invoice historicalPeer = new Invoice();
+        historicalPeer.setCompany(company);
+        historicalPeer.setSalesOrder(order);
+        historicalPeer.setStatus("VOID");
+
+        when(invoiceRepository.findAllByCompanyAndSalesOrderId(company, 903L))
+                .thenReturn(List.of(invoice, currentPeer, historicalPeer));
+
+        assertThat((Integer) ReflectionTestUtils.invokeMethod(service, "resolveCurrentSalesOrderInvoiceCount", invoice))
+                .isEqualTo(2);
+    }
+
+    @Test
+    void helperMethods_resolveCurrentSalesOrderInvoiceCount_returnsZeroWhenCompanyOrOrderIdentityMissing() {
+        Invoice companyMissing = new Invoice();
+        companyMissing.setStatus("ISSUED");
+
+        Invoice orderMissing = new Invoice();
+        orderMissing.setCompany(new Company());
+        orderMissing.setStatus("ISSUED");
+
+        Invoice orderIdMissing = new Invoice();
+        orderIdMissing.setCompany(new Company());
+        orderIdMissing.setStatus("ISSUED");
+        orderIdMissing.setSalesOrder(new SalesOrder());
+
+        assertThat((Integer) ReflectionTestUtils.invokeMethod(service, "resolveCurrentSalesOrderInvoiceCount", companyMissing))
+                .isZero();
+        assertThat((Integer) ReflectionTestUtils.invokeMethod(service, "resolveCurrentSalesOrderInvoiceCount", orderMissing))
+                .isZero();
+        assertThat((Integer) ReflectionTestUtils.invokeMethod(service, "resolveCurrentSalesOrderInvoiceCount", orderIdMissing))
+                .isZero();
+    }
+
+    @Test
     void transactionDetail_settlementDrivingInvoiceUsesSourceInvoiceJournalEntryId() {
         Company company = new Company();
         company.setCode("BBP");

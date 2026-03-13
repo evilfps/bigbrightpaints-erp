@@ -473,6 +473,13 @@ class AccountingControllerJournalEndpointsTest {
     }
 
     @Test
+    void settlementAllocationApplication_isUnappliedCoversDocumentAndUnappliedModes() {
+        assertThat(SettlementAllocationApplication.DOCUMENT.isUnapplied()).isFalse();
+        assertThat(SettlementAllocationApplication.ON_ACCOUNT.isUnapplied()).isTrue();
+        assertThat(SettlementAllocationApplication.FUTURE_APPLICATION.isUnapplied()).isTrue();
+    }
+
+    @Test
     void accountingFacade_createManualJournal_requiresReason() {
         AccountingFacade facade = new AccountingFacade(
                 mock(CompanyContextService.class),

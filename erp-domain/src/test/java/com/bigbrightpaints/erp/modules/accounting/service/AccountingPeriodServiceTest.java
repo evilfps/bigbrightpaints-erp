@@ -882,6 +882,20 @@ class AccountingPeriodServiceTest {
         complete.setSourceModule("SALES_RETURN");
         complete.setSourceReference("SR-3301");
         assertThat((Boolean) ReflectionTestUtils.invokeMethod(service, "isMissingCorrectionLinkage", complete)).isFalse();
+
+        JournalEntry missingSourceModule = new JournalEntry();
+        missingSourceModule.setCorrectionType(com.bigbrightpaints.erp.modules.accounting.domain.JournalCorrectionType.REVERSAL);
+        missingSourceModule.setCorrectionReason("SALES_RETURN");
+        missingSourceModule.setSourceModule(" ");
+        missingSourceModule.setSourceReference("SR-3302");
+        assertThat((Boolean) ReflectionTestUtils.invokeMethod(service, "isMissingCorrectionLinkage", missingSourceModule)).isTrue();
+
+        JournalEntry missingSourceReference = new JournalEntry();
+        missingSourceReference.setCorrectionType(com.bigbrightpaints.erp.modules.accounting.domain.JournalCorrectionType.REVERSAL);
+        missingSourceReference.setCorrectionReason("SALES_RETURN");
+        missingSourceReference.setSourceModule("SALES_RETURN");
+        missingSourceReference.setSourceReference(" ");
+        assertThat((Boolean) ReflectionTestUtils.invokeMethod(service, "isMissingCorrectionLinkage", missingSourceReference)).isTrue();
     }
 
     @Test

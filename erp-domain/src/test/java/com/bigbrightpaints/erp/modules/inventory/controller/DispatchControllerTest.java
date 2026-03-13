@@ -27,6 +27,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -253,6 +254,42 @@ class DispatchControllerTest {
         assertThat(org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class,
                 () -> controller.confirmDispatch(request, () -> "factory.user")).getMessage())
                 .isEqualTo(PortalRoleActionMatrix.transporterOrDriverRequiredMessage());
+    }
+
+    @Test
+    void helperMethods_isDispatchedSlipReplay_returnsFalseForNullAndNonDispatchedSlips() {
+        DispatchController controller = new DispatchController(
+                finishedGoodsService,
+                salesDispatchReconciliationService,
+                deliveryChallanPdfService);
+
+        when(finishedGoodsService.getPackagingSlip(11L)).thenReturn(null);
+        when(finishedGoodsService.getPackagingSlip(12L)).thenReturn(new PackagingSlipDto(
+                12L,
+                UUID.randomUUID(),
+                7L,
+                "SO-12",
+                "Dealer",
+                "PS-12",
+                "READY",
+                Instant.now(),
+                Instant.now(),
+                "factory.user",
+                null,
+                "notes",
+                null,
+                null,
+                List.of(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+        ));
+
+        assertThat((Boolean) ReflectionTestUtils.invokeMethod(controller, "isDispatchedSlipReplay", 11L)).isFalse();
+        assertThat((Boolean) ReflectionTestUtils.invokeMethod(controller, "isDispatchedSlipReplay", 12L)).isFalse();
     }
 
     @Test

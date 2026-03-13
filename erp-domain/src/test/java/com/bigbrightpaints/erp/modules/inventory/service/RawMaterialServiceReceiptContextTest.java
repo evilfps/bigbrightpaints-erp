@@ -136,9 +136,9 @@ class RawMaterialServiceReceiptContextTest {
         supplier.setCode("SUP-10");
         supplier.setName("Supplier 10");
 
-        when(companyContextService.requireCurrentCompany()).thenReturn(company);
-        when(rawMaterialRepository.lockByCompanyAndId(company, 20L)).thenReturn(Optional.of(material));
-        when(companyEntityLookup.requireSupplier(company, 10L)).thenReturn(supplier);
+        lenient().when(companyContextService.requireCurrentCompany()).thenReturn(company);
+        lenient().when(rawMaterialRepository.lockByCompanyAndId(company, 20L)).thenReturn(Optional.of(material));
+        lenient().when(companyEntityLookup.requireSupplier(company, 10L)).thenReturn(supplier);
         lenient().when(rawMaterialRepository.save(any(RawMaterial.class))).thenAnswer(invocation -> invocation.getArgument(0));
         lenient().when(batchRepository.existsByRawMaterialAndBatchCode(material, "BATCH-1")).thenReturn(false);
         lenient().when(batchRepository.save(any(RawMaterialBatch.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -376,5 +376,24 @@ class RawMaterialServiceReceiptContextTest {
         verify(batchRepository, never()).save(any(RawMaterialBatch.class));
         verify(movementRepository, never()).save(any(RawMaterialMovement.class));
         verifyNoInteractions(accountingFacade);
+    }
+
+    @Test
+    @DisplayName("ensureReceiptAccounts fails closed when a material has no company default to recover from")
+    void ensureReceiptAccounts_requiresInventoryAccountWithoutCompanyFallback() {
+        RawMaterial orphanMaterial = new RawMaterial();
+        orphanMaterial.setName("Orphan Resin");
+        orphanMaterial.setInventoryAccountId(null);
+
+        assertThatThrownBy(() -> ReflectionTestUtils.invokeMethod(
+                rawMaterialService,
+                "ensureReceiptAccounts",
+                orphanMaterial,
+                supplier,
+                false
+        )).isInstanceOfSatisfying(ApplicationException.class, ex -> {
+            assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.VALIDATION_INVALID_STATE);
+            assertThat(ex).hasMessage("Raw material Orphan Resin is missing an inventory account");
+        });
     }
 }

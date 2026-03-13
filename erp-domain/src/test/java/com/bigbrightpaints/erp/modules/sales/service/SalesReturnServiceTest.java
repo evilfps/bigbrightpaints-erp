@@ -1975,6 +1975,30 @@ class SalesReturnServiceTest {
     }
 
     @Test
+    void processReturn_rejectsDealerWithoutReceivableAccount() {
+        Dealer dealer = new Dealer();
+        dealer.setCompany(company);
+        setField(dealer, "id", 1603L);
+
+        Invoice invoice = new Invoice();
+        invoice.setCompany(company);
+        invoice.setDealer(dealer);
+        invoice.setInvoiceNumber("INV-NO-RECEIVABLE");
+        attachPostedJournal(invoice, 9123L);
+        setField(invoice, "id", 1603L);
+
+        when(invoiceRepository.lockByCompanyAndId(company, 1603L)).thenReturn(Optional.of(invoice));
+
+        assertThatThrownBy(() -> salesReturnService.processReturn(new SalesReturnRequest(
+                1603L,
+                "Receivable missing",
+                List.of(new SalesReturnRequest.ReturnLine(1L, BigDecimal.ONE))
+        )))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("missing dealer receivable context");
+    }
+
+    @Test
     void processReturn_rejectsNullLines() {
         Dealer dealer = new Dealer();
         dealer.setCompany(company);
@@ -2814,6 +2838,65 @@ class SalesReturnServiceTest {
     }
 
     @Test
+    void validateReturnQuantities_skipsNullFinishedGoodIdentityAndZeroLegacyRemainder() {
+        Invoice invoice = new Invoice();
+        invoice.setCompany(company);
+        invoice.setInvoiceNumber("INV-LEGACY-ZERO");
+
+        InvoiceLine requestedLine = new InvoiceLine();
+        requestedLine.setInvoice(invoice);
+        requestedLine.setProductCode("FG-NULL-ID");
+        requestedLine.setQuantity(new BigDecimal("2"));
+        setField(requestedLine, "id", 715L);
+        invoice.getLines().add(requestedLine);
+
+        FinishedGood requestedFg = new FinishedGood();
+        requestedFg.setCompany(company);
+        requestedFg.setProductCode("FG-NULL-ID");
+
+        FinishedGood historyFg = new FinishedGood();
+        historyFg.setCompany(company);
+        historyFg.setProductCode("FG-HISTORY");
+        setField(historyFg, "id", 816L);
+
+        InventoryMovement legacyHeader = new InventoryMovement();
+        legacyHeader.setFinishedGood(historyFg);
+        legacyHeader.setReferenceType("SALES_RETURN");
+        legacyHeader.setReferenceId("INV-LEGACY-ZERO");
+        legacyHeader.setQuantity(BigDecimal.ZERO);
+
+        InventoryMovement lineHistory = new InventoryMovement();
+        lineHistory.setFinishedGood(historyFg);
+        lineHistory.setReferenceType("SALES_RETURN");
+        lineHistory.setReferenceId("INV-LEGACY-ZERO:715");
+        lineHistory.setQuantity(BigDecimal.ONE);
+
+        when(finishedGoodRepository.lockByCompanyAndProductCode(company, "FG-NULL-ID")).thenReturn(Optional.of(requestedFg));
+        when(inventoryMovementRepository.findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdOrderByCreatedAtAsc(
+                eq(company),
+                eq("SALES_RETURN"),
+                eq("INV-LEGACY-ZERO")
+        )).thenReturn(List.of(legacyHeader));
+        when(inventoryMovementRepository.findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdStartingWithOrderByCreatedAtAsc(
+                eq(company),
+                eq("SALES_RETURN"),
+                eq("INV-LEGACY-ZERO:")
+        )).thenReturn(List.of(lineHistory));
+
+        invokeValidateReturnQuantities(
+                company,
+                invoice,
+                new SalesReturnRequest(
+                        null,
+                        "Legacy zero",
+                        List.of(new SalesReturnRequest.ReturnLine(715L, BigDecimal.ONE))
+                ),
+                Map.of(715L, requestedLine),
+                new java.util.HashMap<>()
+        );
+    }
+
+    @Test
     void relinkExistingReturnMovements_noopsForMissingRequestStateOrEmptyHistory() {
         invokeRelinkExistingReturnMovements(company, "INV-NO-RELINK", null, 991L, "RETKEY");
 
@@ -2941,6 +3024,21 @@ class SalesReturnServiceTest {
         assertThat(invokeBuildReturnReference(null, 88L, null)).isNull();
         assertThat(invokeBuildReturnReference(" INV-KEY-2 ", null, null)).isEqualTo("INV-KEY-2");
         assertThat(invokeBuildReturnReference(" INV-KEY-2 ", 88L, null)).isEqualTo("INV-KEY-2:88");
+    }
+
+    @Test
+    void buildReturnReferenceAndPerUnitDiscount_coverKeyedAndTaxInclusiveBranches() {
+        assertThat(invokeBuildReturnReference(" INV-KEY-3 ", 77L, "abc123"))
+                .isEqualTo("INV-KEY-3:77:RET-abc123");
+        assertThat(invokeBuildReturnReference("   ", 77L, "abc123")).isEmpty();
+
+        InvoiceLine line = new InvoiceLine();
+        line.setQuantity(new BigDecimal("2"));
+        line.setDiscountAmount(new BigDecimal("11.80"));
+        line.setTaxRate(new BigDecimal("18"));
+
+        assertThat(invokePerUnitDiscount(line, true)).isEqualByComparingTo("5.000000");
+        assertThat(invokePerUnitDiscount(line, false)).isEqualByComparingTo("5.900000");
     }
 
     @Test
