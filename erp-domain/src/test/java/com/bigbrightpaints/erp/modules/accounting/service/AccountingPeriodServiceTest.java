@@ -389,6 +389,32 @@ class AccountingPeriodServiceTest {
     }
 
     @Test
+    void approvePeriodClose_usesPendingForceWhenRequestForceFlagIsMissing() {
+        Company company = company(1L, "ACME");
+        AccountingPeriod period = openPeriod(company, 2026, 2);
+        ReflectionTestUtils.setField(period, "id", 321L);
+        PeriodCloseRequest pending = pendingCloseRequest(company, period, 521L, "maker.user");
+        pending.setForceRequested(true);
+        when(companyContextService.requireCurrentCompany()).thenReturn(company);
+        when(accountingPeriodRepository.lockByCompanyAndId(company, 321L)).thenReturn(Optional.of(period), Optional.of(period));
+        when(periodCloseRequestRepository.lockByCompanyAndAccountingPeriodAndStatus(
+                company, period, PeriodCloseRequestStatus.PENDING)).thenReturn(Optional.of(pending));
+        when(goodsReceiptRepository.countByCompanyAndReceiptDateBetweenAndStatusNot(
+                company, period.getStartDate(), period.getEndDate(), GoodsReceiptStatus.INVOICED)).thenReturn(0L);
+        when(journalLineRepository.summarizeByAccountType(company, period.getStartDate(), period.getEndDate()))
+                .thenReturn(List.of());
+        when(accountingPeriodRepository.save(period)).thenReturn(period);
+        when(periodCloseRequestRepository.save(pending)).thenReturn(pending);
+        when(accountingPeriodRepository.findByCompanyAndYearAndMonth(company, 2026, 3))
+                .thenReturn(Optional.of(openPeriod(company, 2026, 3)));
+        authenticate("checker.user", "ROLE_ADMIN");
+
+        assertThat(service.approvePeriodClose(321L, new PeriodCloseRequestActionRequest("close with inherited force", null)).status())
+                .isEqualTo("CLOSED");
+        assertThat(pending.isForceRequested()).isTrue();
+    }
+
+    @Test
     void approvePeriodClose_uninvoicedReceiptsPreventCloseAndSnapshotCapture() {
         Company company = company(1L, "ACME");
         AccountingPeriod period = openPeriod(company, 2026, 2);
@@ -516,6 +542,23 @@ class AccountingPeriodServiceTest {
         assertThat(result.approvalNote()).isNull();
         assertThat(pending.getReviewedBy()).isEqualTo("checker.user");
         assertThat(pending.getStatus()).isEqualTo(PeriodCloseRequestStatus.REJECTED);
+    }
+
+    @Test
+    void rejectPeriodClose_requiresNoteWhenRequestPayloadIsMissing() {
+        Company company = company(1L, "ACME");
+        AccountingPeriod period = openPeriod(company, 2026, 2);
+        ReflectionTestUtils.setField(period, "id", 351L);
+        PeriodCloseRequest pending = pendingCloseRequest(company, period, 551L, "maker.user");
+        when(companyContextService.requireCurrentCompany()).thenReturn(company);
+        when(accountingPeriodRepository.lockByCompanyAndId(company, 351L)).thenReturn(Optional.of(period));
+        when(periodCloseRequestRepository.lockByCompanyAndAccountingPeriodAndStatus(
+                company, period, PeriodCloseRequestStatus.PENDING)).thenReturn(Optional.of(pending));
+        authenticate("checker.user", "ROLE_ADMIN");
+
+        assertThatThrownBy(() -> service.rejectPeriodClose(351L, null))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Rejection note is required");
     }
 
     @Test

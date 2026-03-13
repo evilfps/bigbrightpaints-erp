@@ -562,6 +562,48 @@ class PurchaseReturnServiceTest {
     }
 
     @Test
+    void purchaseReturnHelpers_rejectReplayWhenQuantityDiffers() {
+        com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovement existingMovement =
+                new com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovement();
+        existingMovement.setRawMaterial(material);
+        existingMovement.setQuantity(new BigDecimal("0.75"));
+        existingMovement.setUnitCost(new BigDecimal("5.00"));
+
+        assertThatThrownBy(() -> ReflectionTestUtils.invokeMethod(
+                purchaseReturnService,
+                "validateReturnReplay",
+                material,
+                BigDecimal.ONE,
+                new BigDecimal("5.00"),
+                "PR-QTY-MISMATCH",
+                List.of(existingMovement)
+        ))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Purchase return reference already used with different payload");
+    }
+
+    @Test
+    void purchaseReturnHelpers_rejectReplayWhenUnitCostDiffers() {
+        com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovement existingMovement =
+                new com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovement();
+        existingMovement.setRawMaterial(material);
+        existingMovement.setQuantity(BigDecimal.ONE);
+        existingMovement.setUnitCost(new BigDecimal("4.50"));
+
+        assertThatThrownBy(() -> ReflectionTestUtils.invokeMethod(
+                purchaseReturnService,
+                "validateReturnReplay",
+                material,
+                BigDecimal.ONE,
+                new BigDecimal("5.00"),
+                "PR-COST-MISMATCH",
+                List.of(existingMovement)
+        ))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Purchase return reference already used with different payload");
+    }
+
+    @Test
     void recordPurchaseReturn_rejectsOnHandShortfallAfterPosting() {
         Account payable = new Account();
         ReflectionTestUtils.setField(payable, "id", 40L);
