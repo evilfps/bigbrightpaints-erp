@@ -334,7 +334,7 @@ public class SalesController {
 
     /* Dispatch confirmation (final invoice + AR at shipment) */
     @PostMapping("/sales/dispatch/confirm")
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING','ROLE_FACTORY') and hasAuthority('dispatch.confirm')")
+    @PreAuthorize(PortalRoleActionMatrix.FINANCIAL_DISPATCH)
     public ResponseEntity<ApiResponse<DispatchConfirmResponse>> confirmDispatch(@Valid @RequestBody DispatchConfirmRequest request) {
         if (DispatchMetadataValidator.shouldEnforceValidation(request, () -> isDispatchedSlipReplay(request.packingSlipId()))) {
             DispatchMetadataValidator.validate(request);

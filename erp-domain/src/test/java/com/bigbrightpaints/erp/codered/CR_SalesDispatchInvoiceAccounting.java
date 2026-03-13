@@ -86,7 +86,8 @@ class CR_SalesDispatchInvoiceAccounting extends AbstractIntegrationTest {
                 fg.getId(), "BATCH-1", new BigDecimal("50"), new BigDecimal("10.00"), Instant.now(), null));
 
         SalesOrder order = createOrder(company, dealer, fg.getProductCode(), new BigDecimal("10"), new BigDecimal("12.34"));
-        PackagingSlip slip = reserveSlip(company, order);
+        finishedGoodsService.reserveForOrder(order);
+        PackagingSlip slip = packagingSlipRepository.findByCompanyAndSalesOrderId(company, order.getId()).orElseThrow();
 
         DispatchConfirmRequest request = new DispatchConfirmRequest(
                 slip.getId(),
@@ -140,7 +141,8 @@ class CR_SalesDispatchInvoiceAccounting extends AbstractIntegrationTest {
                 fg.getId(), "BATCH-BO", new BigDecimal("20"), new BigDecimal("9.50"), Instant.now(), null));
 
         SalesOrder order = createOrder(company, dealer, fg.getProductCode(), new BigDecimal("10"), new BigDecimal("100.00"));
-        PackagingSlip slip = reserveSlip(company, order);
+        finishedGoodsService.reserveForOrder(order);
+        PackagingSlip slip = packagingSlipRepository.findByCompanyAndSalesOrderId(company, order.getId()).orElseThrow();
 
         BigDecimal orderedQty = slip.getLines().getFirst().getOrderedQuantity() != null
                 ? slip.getLines().getFirst().getOrderedQuantity()
@@ -234,7 +236,8 @@ class CR_SalesDispatchInvoiceAccounting extends AbstractIntegrationTest {
                 fg.getId(), "BATCH-CONC", new BigDecimal("50"), new BigDecimal("10.00"), Instant.now(), null));
 
         SalesOrder order = createOrder(company, dealer, fg.getProductCode(), new BigDecimal("10"), new BigDecimal("99.99"));
-        PackagingSlip slip = reserveSlip(company, order);
+        finishedGoodsService.reserveForOrder(order);
+        PackagingSlip slip = packagingSlipRepository.findByCompanyAndSalesOrderId(company, order.getId()).orElseThrow();
 
         DispatchConfirmRequest request = new DispatchConfirmRequest(
                 slip.getId(),

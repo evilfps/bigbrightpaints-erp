@@ -4,6 +4,7 @@ import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.util.BusinessDocumentTruths;
 import com.bigbrightpaints.erp.core.util.CompanyTime;
+import com.bigbrightpaints.erp.core.util.LegacyDispatchInvoiceLinkMatcher;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalLine;
@@ -13,9 +14,9 @@ import com.bigbrightpaints.erp.modules.accounting.domain.PartnerSettlementAlloca
 import com.bigbrightpaints.erp.modules.accounting.dto.AccountingTransactionAuditDetailDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.AccountingTransactionAuditListItemDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalLineDto;
+import com.bigbrightpaints.erp.modules.accounting.dto.SettlementAllocationApplication;
 import com.bigbrightpaints.erp.modules.accounting.event.AccountingEvent;
 import com.bigbrightpaints.erp.modules.accounting.event.AccountingEventRepository;
-import com.bigbrightpaints.erp.modules.accounting.dto.SettlementAllocationRequest.SettlementAllocationApplication;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.inventory.domain.PackagingSlip;
@@ -351,9 +352,12 @@ public class AccountingAuditTrailServiceCore {
         if (invoice != null) {
             if (invoice.getSalesOrder() != null) {
                 List<PackagingSlip> slips = packagingSlipRepository.findAllByCompanyAndSalesOrderId(invoice.getCompany(), invoice.getSalesOrder().getId());
+                int salesOrderInvoiceCount = LegacyDispatchInvoiceLinkMatcher.hasExplicitInvoiceLinks(slips)
+                        ? 0
+                        : resolveCurrentSalesOrderInvoiceCount(invoice);
                 chain.add(BusinessDocumentTruths.reference("SOURCE_ORDER", "SALES_ORDER", invoice.getSalesOrder().getId(), invoice.getSalesOrder().getOrderNumber(), BusinessDocumentTruths.salesOrderLifecycle(invoice.getSalesOrder()), invoice.getSalesOrder().getSalesJournalEntryId()));
                 for (PackagingSlip slip : slips) {
-                    if (!isSlipLinkedToInvoice(slip, invoice, slips)) {
+                    if (!isSlipLinkedToInvoice(slip, invoice, slips, salesOrderInvoiceCount)) {
                         continue;
                     }
                     chain.add(BusinessDocumentTruths.reference("DISPATCH", "PACKAGING_SLIP", slip.getId(), slip.getSlipNumber(), BusinessDocumentTruths.packagingSlipLifecycle(slip), slip.getCogsJournalEntryId() != null ? slip.getCogsJournalEntryId() : slip.getJournalEntryId()));
@@ -395,17 +399,32 @@ public class AccountingAuditTrailServiceCore {
         }
     }
 
-    private boolean isSlipLinkedToInvoice(PackagingSlip slip, Invoice invoice, List<PackagingSlip> candidateSlips) {
-        if (slip == null || invoice == null) {
-            return false;
+    private boolean isSlipLinkedToInvoice(PackagingSlip slip,
+                                          Invoice invoice,
+                                          List<PackagingSlip> candidateSlips,
+                                          int salesOrderInvoiceCount) {
+        return LegacyDispatchInvoiceLinkMatcher.isSlipLinkedToInvoice(
+                slip,
+                invoice,
+                candidateSlips,
+                salesOrderInvoiceCount);
+    }
+
+    private int resolveCurrentSalesOrderInvoiceCount(Invoice invoice) {
+        if (invoice == null
+                || invoice.getCompany() == null
+                || invoice.getSalesOrder() == null
+                || invoice.getSalesOrder().getId() == null) {
+            return 0;
         }
-        boolean hasExplicitInvoiceLinks = candidateSlips != null && candidateSlips.stream().anyMatch(candidate -> candidate != null && candidate.getInvoiceId() != null);
-        if (!hasExplicitInvoiceLinks) {
-            return true;
+        List<Invoice> orderInvoices = invoiceRepository.findAllByCompanyAndSalesOrderId(
+                invoice.getCompany(),
+                invoice.getSalesOrder().getId());
+        int knownCount = LegacyDispatchInvoiceLinkMatcher.countCurrentInvoices(orderInvoices);
+        if (knownCount > 0) {
+            return knownCount;
         }
-        return slip.getInvoiceId() != null
-                && invoice.getId() != null
-                && slip.getInvoiceId().equals(invoice.getId());
+        return LegacyDispatchInvoiceLinkMatcher.isCurrentInvoiceStatus(invoice.getStatus()) ? 1 : 0;
     }
 
     private Specification<JournalEntry> byCompany(Company company) {

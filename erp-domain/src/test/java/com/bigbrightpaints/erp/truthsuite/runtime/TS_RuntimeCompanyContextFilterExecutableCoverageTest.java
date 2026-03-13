@@ -311,6 +311,23 @@ class TS_RuntimeCompanyContextFilterExecutableCoverageTest {
     }
 
     @Test
+    void helperMethods_coverSuperAdminTenantBusinessAndAuditGuards() {
+        assertThat(invokeIsTenantBusinessRequestBlockedForSuperAdmin(null)).isFalse();
+        assertThat(invokeIsTenantBusinessRequestBlockedForSuperAdmin("/api/v1/admin/approvals")).isTrue();
+        assertThat(invokeIsTenantBusinessRequestBlockedForSuperAdmin("/api/v1/orchestrator/health")).isFalse();
+        assertThat(invokeIsTenantBusinessRequestBlockedForSuperAdmin("/api/v1/orchestrator/jobs")).isTrue();
+        assertThat(invokeIsTenantBusinessRequestBlockedForSuperAdmin("/api/v1/accounting/periods/2026-Q1/reopen")).isFalse();
+        assertThat(invokeIsTenantBusinessRequestBlockedForSuperAdmin("/api/v1/accounting/journals")).isTrue();
+
+        assertThat(invokeIsTenantAuditWorkflowRequest("/api/v1/audit/business-events")).isTrue();
+        assertThat(invokeIsTenantAuditWorkflowRequest("/api/v1/audit;tenant=acme/business-events;mode=full")).isTrue();
+        assertThat(invokeIsTenantAuditWorkflowRequest("/api/v1/admin/settings")).isFalse();
+
+        assertThat(invokeNormalizePath("/api/v1/audit;tenant=acme/business-events;mode=full///"))
+                .isEqualTo("/api/v1/audit/business-events");
+    }
+
+    @Test
     void authControllerForgotPasswordEndpoint_delegatesToPasswordResetService() {
         AuthService authService = mock(AuthService.class);
         PasswordService passwordService = mock(PasswordService.class);
@@ -676,6 +693,18 @@ class TS_RuntimeCompanyContextFilterExecutableCoverageTest {
 
     private String invokeNormalizePath(String path) {
         return ReflectionTestUtils.invokeMethod(filter, "normalizePath", path);
+    }
+
+    private boolean invokeIsTenantBusinessRequestBlockedForSuperAdmin(String path) {
+        Boolean result = ReflectionTestUtils.invokeMethod(filter, "isTenantBusinessRequestBlockedForSuperAdmin", path);
+        assertThat(result).isNotNull();
+        return result;
+    }
+
+    private boolean invokeIsTenantAuditWorkflowRequest(String path) {
+        Boolean result = ReflectionTestUtils.invokeMethod(filter, "isTenantAuditWorkflowRequest", path);
+        assertThat(result).isNotNull();
+        return result;
     }
 
     private UserAccount superAdminUser(String email) {

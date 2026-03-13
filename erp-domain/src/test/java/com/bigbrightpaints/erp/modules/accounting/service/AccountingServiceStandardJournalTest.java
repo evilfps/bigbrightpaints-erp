@@ -33,7 +33,6 @@ import com.bigbrightpaints.erp.modules.purchasing.domain.SupplierRepository;
 import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -56,7 +55,6 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
-@Tag("critical")
 class AccountingServiceStandardJournalTest {
 
     @Mock private CompanyContextService companyContextService;
@@ -213,6 +211,66 @@ class AccountingServiceStandardJournalTest {
         assertThat(captured.sourceReference()).isEqualTo("INV-101");
         assertThat(captured.journalType()).isEqualTo("AUTOMATED");
         assertThat(captured.lines()).hasSize(2);
+    }
+
+    @Test
+    void createStandardJournal_mapsManualSourceToManualJournalType() {
+        AccountingService serviceSpy = spy(accountingService);
+        JournalEntryDto expected = new JournalEntryDto(
+                102L,
+                null,
+                "MAN-101",
+                LocalDate.of(2026, 2, 28),
+                "Manual source",
+                "POSTED",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                List.<JournalLineDto>of(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+        );
+        ArgumentCaptor<JournalEntryRequest> requestCaptor = ArgumentCaptor.forClass(JournalEntryRequest.class);
+        doReturn(expected).when(serviceSpy).createJournalEntry(requestCaptor.capture());
+
+        JournalCreationRequest request = new JournalCreationRequest(
+                new BigDecimal("100.00"),
+                11L,
+                22L,
+                "Manual source",
+                " MANUAL ",
+                "MAN-101",
+                null,
+                List.of(
+                        new JournalCreationRequest.LineRequest(11L, new BigDecimal("100.00"), BigDecimal.ZERO, "Debit"),
+                        new JournalCreationRequest.LineRequest(22L, BigDecimal.ZERO, new BigDecimal("100.00"), "Credit")
+                ),
+                LocalDate.of(2026, 2, 28),
+                null,
+                null,
+                false
+        );
+
+        JournalEntryDto actual = serviceSpy.createStandardJournal(request);
+
+        assertThat(actual).isSameAs(expected);
+        JournalEntryRequest captured = requestCaptor.getValue();
+        assertThat(captured.sourceModule()).isEqualTo("MANUAL");
+        assertThat(captured.sourceReference()).isEqualTo("MAN-101");
+        assertThat(captured.journalType()).isEqualTo(JournalEntryType.MANUAL.name());
     }
 
     @Test

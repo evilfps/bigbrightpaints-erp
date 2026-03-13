@@ -128,17 +128,6 @@ public class ReferenceNumberService {
         return generate(company, key, "purchase-return");
     }
 
-    public String purchaseReturnPreviewReference(Company company, Supplier supplier) {
-        String companyCode = compactToken(sanitize(company != null ? company.getCode() : null), 16);
-        String supplierCode = compactToken(sanitize(supplier != null ? supplier.getCode() : null), 16);
-        String previewNonce = hashToken(UUID.randomUUID().toString());
-        String preview = "PRN-PREVIEW-%s-%s-%s".formatted(companyCode, supplierCode, previewNonce);
-        if (preview.length() <= JOURNAL_REFERENCE_MAX) {
-            return preview;
-        }
-        return "PRN-PREVIEW-" + hashToken(companyCode + "-" + supplierCode + "-" + previewNonce);
-    }
-
     public String inventoryAdjustmentReference(Company company, String adjustmentType) {
         String key = "ADJ-%s-%s".formatted(company.getCode(), sanitize(adjustmentType));
         return generate(company, key, "inventory-adjustment");

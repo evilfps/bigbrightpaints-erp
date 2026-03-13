@@ -29,6 +29,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
@@ -211,5 +212,32 @@ class FinishedGoodsDispatchEngineCoverageTest {
         });
 
         verify(packagingSlipService).resolveBackorderSlipIdForResponse(eq(slip), eq(company), eq(true));
+    }
+
+    @Test
+    void applyDispatchLogistics_ignoresNullSlipOrRequest() throws Exception {
+        Method method = FinishedGoodsDispatchEngine.class
+                .getDeclaredMethod("applyDispatchLogistics", PackagingSlip.class, DispatchConfirmationRequest.class);
+        method.setAccessible(true);
+
+        PackagingSlip slip = new PackagingSlip();
+        DispatchConfirmationRequest request = new DispatchConfirmationRequest(
+                1L,
+                List.of(new DispatchConfirmationRequest.LineConfirmation(1L, BigDecimal.ONE, null)),
+                "notes",
+                "override",
+                2L,
+                " FastMove ",
+                " Ayaan ",
+                " MH12AB1234 ",
+                " LR-900 "
+        );
+
+        assertThatCode(() -> method.invoke(engine, null, request)).doesNotThrowAnyException();
+        assertThatCode(() -> method.invoke(engine, slip, null)).doesNotThrowAnyException();
+        assertThat(slip.getTransporterName()).isNull();
+        assertThat(slip.getDriverName()).isNull();
+        assertThat(slip.getVehicleNumber()).isNull();
+        assertThat(slip.getChallanReference()).isNull();
     }
 }

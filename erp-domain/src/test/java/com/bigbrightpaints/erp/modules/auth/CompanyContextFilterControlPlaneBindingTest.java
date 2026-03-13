@@ -144,8 +144,8 @@ class CompanyContextFilterControlPlaneBindingTest {
         filter.doFilter(request, response, filterChain);
 
         assertThat(response.getStatus()).isEqualTo(403);
-        assertThat(response.getContentAsString()).contains("SUPER_ADMIN_PLATFORM_ONLY");
-        assertThat(response.getContentAsString()).contains("platform control-plane operations");
+        assertThat(response.getContentAsString()).contains("SUPER_ADMIN_TENANT_WORKFLOW_DENIED");
+        assertThat(response.getContentAsString()).contains("tenant audit workflow");
         verifyNoInteractions(companyService);
         verify(tenantRuntimeEnforcementService, never())
                 .beginRequest(anyString(), anyString(), anyString(), anyString(), anyBoolean());
@@ -158,7 +158,6 @@ class CompanyContextFilterControlPlaneBindingTest {
         authenticate("root-superadmin@bbp.com", Set.of("ROLE_SUPER_ADMIN"), Set.of("TENANT-A"));
 
         MockHttpServletRequest request = request("GET", "/api/v1/support/tickets");
-        request.setAttribute("jwtClaims", claimsFor("TENANT-A"));
         MockHttpServletResponse response = new MockHttpServletResponse();
 
         filter.doFilter(request, response, filterChain);

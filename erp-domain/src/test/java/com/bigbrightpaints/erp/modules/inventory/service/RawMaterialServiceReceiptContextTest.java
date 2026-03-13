@@ -269,4 +269,112 @@ class RawMaterialServiceReceiptContextTest {
         assertThat(result.batch().getBatchCode()).isEqualTo("BATCH-1");
         assertThat(result.journalEntryId()).isEqualTo(501L);
     }
+
+    @Test
+    @DisplayName("recordReceipt honors explicit posting contexts and restores inventory account from company defaults")
+    void recordReceipt_explicitPostingContextUsesReferenceAndDefaultInventoryAccount() {
+        Account payable = new Account();
+        ReflectionTestUtils.setField(payable, "id", 301L);
+        supplier.setPayableAccount(payable);
+        material.setCurrentStock(null);
+        material.setInventoryAccountId(null);
+        when(companyClock.today(company)).thenReturn(LocalDate.of(2026, 3, 8));
+
+        JournalEntryDto entry = new JournalEntryDto(
+                502L,
+                null,
+                "BATCH-1",
+                LocalDate.of(2026, 3, 8),
+                "Purchase receipt PO-77",
+                "POSTED",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                List.of(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+        );
+        when(accountingFacade.postPurchaseJournal(eq(10L), eq("BATCH-1"), eq(LocalDate.of(2026, 3, 8)), eq("Purchase receipt PO-77"), any(), org.mockito.ArgumentMatchers.argThat(total -> total != null && total.compareTo(new BigDecimal("20.00")) == 0)))
+                .thenReturn(entry);
+
+        RawMaterialBatchRequest request = new RawMaterialBatchRequest(
+                "BATCH-1",
+                new BigDecimal("4.0000"),
+                "KG",
+                new BigDecimal("5.00"),
+                10L,
+                null,
+                null,
+                "Purchase receipt"
+        );
+
+        RawMaterialService.ReceiptResult result = rawMaterialService.recordReceipt(
+                20L,
+                request,
+                new RawMaterialService.ReceiptContext(
+                        InventoryReference.RAW_MATERIAL_PURCHASE,
+                        "PO-77",
+                        "Purchase receipt PO-77",
+                        true
+                )
+        );
+
+        ArgumentCaptor<RawMaterialMovement> movementCaptor = ArgumentCaptor.forClass(RawMaterialMovement.class);
+        verify(movementRepository, org.mockito.Mockito.times(2)).save(movementCaptor.capture());
+        assertThat(movementCaptor.getAllValues().getFirst().getReferenceId()).isEqualTo("PO-77");
+        assertThat(movementCaptor.getAllValues().getLast().getJournalEntryId()).isEqualTo(502L);
+        assertThat(material.getInventoryAccountId()).isEqualTo(99L);
+        assertThat(material.getCurrentStock()).isEqualByComparingTo("4.0000");
+        assertThat(result.journalEntryId()).isEqualTo(502L);
+    }
+
+    @Test
+    @DisplayName("recordReceipt fails closed when no inventory account can be resolved")
+    void recordReceipt_requiresInventoryAccountEvenForStockOnlyContext() {
+        material.setInventoryAccountId(null);
+        company.setDefaultInventoryAccountId(null);
+
+        RawMaterialBatchRequest request = new RawMaterialBatchRequest(
+                "BATCH-1",
+                new BigDecimal("4.0000"),
+                "KG",
+                new BigDecimal("5.00"),
+                10L,
+                null,
+                null,
+                "GRN receipt"
+        );
+
+        assertThatThrownBy(() -> rawMaterialService.recordReceipt(
+                20L,
+                request,
+                new RawMaterialService.ReceiptContext(
+                        InventoryReference.GOODS_RECEIPT,
+                        "GRN-001",
+                        "Goods receipt GRN-001",
+                        false
+                )
+        )).isInstanceOfSatisfying(ApplicationException.class, ex -> {
+            assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.VALIDATION_INVALID_STATE);
+            assertThat(ex).hasMessage("Raw material Resin is missing an inventory account");
+        });
+
+        verify(rawMaterialRepository, never()).save(any(RawMaterial.class));
+        verify(batchRepository, never()).save(any(RawMaterialBatch.class));
+        verify(movementRepository, never()).save(any(RawMaterialMovement.class));
+        verifyNoInteractions(accountingFacade);
+    }
 }

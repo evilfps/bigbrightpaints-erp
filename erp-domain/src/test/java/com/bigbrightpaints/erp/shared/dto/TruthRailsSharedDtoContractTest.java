@@ -150,7 +150,7 @@ class TruthRailsSharedDtoContractTest {
                 List.of(),
                 List.of(new JournalLineDto(11L, "RM", "Inventory", new BigDecimal("80.00"), BigDecimal.ZERO)),
                 List.of(new AccountingTransactionAuditDetailDto.LinkedDocument("PURCHASE", 61L, "PINV-61", "POSTED", new BigDecimal("80.00"), new BigDecimal("20.00"))),
-                List.of(new AccountingTransactionAuditDetailDto.SettlementAllocation(101L, "SUPPLIER", null, 81L, null, 61L, new BigDecimal("60.00"), BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, "DOCUMENT", "memo", LocalDate.of(2026, 2, 24), "idem-101")),
+                List.of(new AccountingTransactionAuditDetailDto.SettlementAllocation(101L, "SUPPLIER", null, 81L, null, 61L, new BigDecimal("60.00"), BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, "PAYMENT", "memo", LocalDate.of(2026, 2, 24), "idem-101")),
                 List.of(new AccountingTransactionAuditDetailDto.EventTrailItem(111L, "JOURNAL_ENTRY_POSTED", "JournalEntry", UUID.fromString("00000000-0000-0000-0000-000000000111"), 1L, Instant.parse("2026-02-23T00:00:00Z"), LocalDate.of(2026, 2, 23), 11L, "RM", new BigDecimal("80.00"), BigDecimal.ZERO, BigDecimal.ZERO, new BigDecimal("80.00"), "posted", "user-1", UUID.fromString("00000000-0000-0000-0000-000000000211"))),
                 drivingDocument,
                 List.of(drivingDocument),

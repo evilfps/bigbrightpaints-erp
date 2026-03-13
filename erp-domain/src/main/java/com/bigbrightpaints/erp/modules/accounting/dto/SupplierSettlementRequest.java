@@ -16,7 +16,7 @@ public record SupplierSettlementRequest(
         Long fxGainAccountId,
         Long fxLossAccountId,
         @DecimalMin(value = "0.01") BigDecimal amount,
-        SettlementAllocationRequest.SettlementAllocationApplication unappliedAmountApplication,
+        SettlementAllocationApplication unappliedAmountApplication,
         LocalDate settlementDate,
         String referenceNumber,
         String memo,

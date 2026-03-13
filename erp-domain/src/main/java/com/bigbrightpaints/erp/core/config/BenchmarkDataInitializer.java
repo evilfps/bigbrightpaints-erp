@@ -30,10 +30,8 @@ import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
-import org.springframework.core.annotation.Order;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.util.StringUtils;
-import com.bigbrightpaints.erp.modules.rbac.config.RbacSynchronizationConfig;
 
 import java.math.BigDecimal;
 import java.util.HashMap;
@@ -79,7 +77,6 @@ public class BenchmarkDataInitializer {
     private static final Logger log = LoggerFactory.getLogger(BenchmarkDataInitializer.class);
 
     @Bean
-    @Order(RbacSynchronizationConfig.ROLE_SEEDER_RUNNER_ORDER)
     CommandLineRunner seedBenchmarkData(CompanyRepository companyRepository,
                                         RoleRepository roleRepository,
                                         UserAccountRepository userRepository,

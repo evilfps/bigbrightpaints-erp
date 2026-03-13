@@ -720,7 +720,8 @@ public class SalesCoreEngine {
         SalesOrder saved = salesOrderRepository.save(order);
         recordInitialOrderHistory(saved);
 
-        SalesProformaBoundaryService.CommercialAssessment commercialAssessment = syncFactoryDispatchReadiness(company, saved, salesProformaBoundaryService.assessCommercialAvailability(company, saved));
+        SalesProformaBoundaryService.CommercialAssessment commercialAssessment =
+                salesProformaBoundaryService.assessCommercialAvailability(company, saved);
         if (!commercialAssessment.shortages().isEmpty()) {
             transitionOrderStatus(saved,
                     ORDER_STATUS_PENDING_PRODUCTION,
@@ -1011,7 +1012,8 @@ public class SalesCoreEngine {
             enforceCreditLimit(order.getCompany(), order.getDealer(), amounts.total(), paymentMode, order.getId());
         }
         salesOrderRepository.save(order);
-        SalesProformaBoundaryService.CommercialAssessment commercialAssessment = syncFactoryDispatchReadiness(order.getCompany(), order, salesProformaBoundaryService.assessCommercialAvailability(order.getCompany(), order));
+        SalesProformaBoundaryService.CommercialAssessment commercialAssessment =
+                salesProformaBoundaryService.assessCommercialAvailability(order.getCompany(), order);
         if (ORDER_STATUS_PENDING_PRODUCTION.equals(commercialAssessment.commercialStatus())
                 && !ORDER_STATUS_PENDING_PRODUCTION.equals(canonicalOrderStatus(order.getStatus()))) {
             transitionOrderStatus(order,

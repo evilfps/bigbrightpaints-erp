@@ -26,6 +26,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.context.ConfigurableApplicationContext;
@@ -99,6 +100,17 @@ class RbacSynchronizationConfigTest {
             assertThat(STARTUP_EVENTS).containsExactly("seed-roles", "sync-rbac");
             verify(roleService).synchronizeSystemRoles();
         }
+    }
+
+    @Test
+    void applicationReadySynchronization_doesNothingWhenNoRolesNeedSync() {
+        RoleService roleService = mock(RoleService.class);
+        when(roleService.synchronizeSystemRoles()).thenReturn(0);
+        RbacSynchronizationConfig config = new RbacSynchronizationConfig(roleService);
+
+        config.onApplicationEvent(mock(ApplicationReadyEvent.class));
+
+        verify(roleService).synchronizeSystemRoles();
     }
 
     private static Role role(String name, String description) {

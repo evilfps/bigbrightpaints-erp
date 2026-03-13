@@ -171,18 +171,6 @@ public class DispatchController {
         return DispatchMetadataValidator.shouldEnforceValidation(request, () -> isDispatchedSlipReplay(packagingSlipId));
     }
 
-    private boolean isDispatchedSlipReplay(Long packagingSlipId) {
-        if (packagingSlipId == null) {
-            return false;
-        }
-        try {
-            PackagingSlipDto slip = finishedGoodsService.getPackagingSlip(packagingSlipId);
-            return slip != null && "DISPATCHED".equalsIgnoreCase(slip.status());
-        } catch (RuntimeException ex) {
-            return false;
-        }
-    }
-
     private void validateFactoryDispatchMetadata(DispatchConfirmationRequest request) {
         if (!isOperationalFactoryView()) {
             return;
@@ -200,6 +188,18 @@ public class DispatchController {
         }
         if (!StringUtils.hasText(request.challanReference())) {
             throw ValidationUtils.invalidInput(PortalRoleActionMatrix.challanReferenceRequiredMessage());
+        }
+    }
+
+    private boolean isDispatchedSlipReplay(Long packagingSlipId) {
+        if (packagingSlipId == null) {
+            return false;
+        }
+        try {
+            PackagingSlipDto slip = finishedGoodsService.getPackagingSlip(packagingSlipId);
+            return slip != null && "DISPATCHED".equalsIgnoreCase(slip.status());
+        } catch (RuntimeException ex) {
+            return false;
         }
     }
 
@@ -221,8 +221,10 @@ public class DispatchController {
                             line.orderedQuantity(),
                             line.shippedQuantity(),
                             line.backorderQuantity(),
-                            line.quantity(), redactedUnitCost,
-                            line.notes()); })
+                            line.quantity(),
+                            redactedUnitCost,
+                            line.notes());
+                })
                 .toList();
         return new PackagingSlipDto(
                 slip.id(),
@@ -236,7 +238,10 @@ public class DispatchController {
                 slip.confirmedAt(),
                 slip.confirmedBy(),
                 slip.dispatchedAt(),
-                slip.dispatchNotes(), null, null, redactedLines,
+                slip.dispatchNotes(),
+                null,
+                null,
+                redactedLines,
                 slip.transporterName(),
                 slip.driverName(),
                 slip.vehicleNumber(),
@@ -250,7 +255,6 @@ public class DispatchController {
         if (preview == null || !isOperationalFactoryView()) {
             return preview;
         }
-        BigDecimal factoryAvailableAmount = null;
         List<DispatchPreviewDto.LinePreview> lines = preview.lines() == null
                 ? List.of()
                 : preview.lines().stream()
@@ -277,7 +281,11 @@ public class DispatchController {
                 preview.salesOrderNumber(),
                 preview.dealerName(),
                 preview.dealerCode(),
-                preview.createdAt(), null, factoryAvailableAmount, null, lines
+                preview.createdAt(),
+                null,
+                preview.totalAvailableAmount(),
+                null,
+                lines
         );
     }
 
@@ -334,4 +342,5 @@ public class DispatchController {
                         || "ROLE_SALES".equals(authority.getAuthority()));
         return factory && !elevated;
     }
+
 }

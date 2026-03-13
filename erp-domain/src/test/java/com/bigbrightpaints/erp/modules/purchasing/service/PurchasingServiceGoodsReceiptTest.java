@@ -5,7 +5,6 @@ import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
-import com.bigbrightpaints.erp.modules.accounting.domain.JournalReferenceMappingRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.PartnerSettlementAllocationRepository;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingPeriodService;
@@ -95,8 +94,6 @@ class PurchasingServiceGoodsReceiptTest {
     @Mock
     private JournalEntryRepository journalEntryRepository;
     @Mock
-    private JournalReferenceMappingRepository journalReferenceMappingRepository;
-    @Mock
     private CompanyEntityLookup companyEntityLookup;
     @Mock
     private ReferenceNumberService referenceNumberService;
@@ -128,7 +125,6 @@ class PurchasingServiceGoodsReceiptTest {
                 goodsReceiptRepository,
                 accountingFacade,
                 journalEntryRepository,
-                journalReferenceMappingRepository,
                 companyEntityLookup,
                 referenceNumberService,
                 companyClock,
