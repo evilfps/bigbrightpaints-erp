@@ -73,6 +73,8 @@ services:
       ERP_LICENSE_ENFORCE: ${ERP_LICENSE_ENFORCE:-false}
       ERP_LICENSE_PRODUCT_ID: ${ERP_LICENSE_PRODUCT_ID:-31720}
       ERP_LICENSE_KEY: ${ERP_LICENSE_KEY:-}
+      ERP_VALIDATION_SEED_ENABLED: ${ERP_VALIDATION_SEED_ENABLED:-false}
+      ERP_VALIDATION_SEED_PASSWORD: ${ERP_VALIDATION_SEED_PASSWORD:-}
       ERP_MAIL_FROM: ${ERP_MAIL_FROM:-noreply@bigbrightpaints.com}
       ERP_MAIL_BASE_URL: ${ERP_MAIL_BASE_URL:-http://localhost:3000}
       # SMTP defaults to MailHog (safe local inbox). To send real emails (e.g., Brevo),

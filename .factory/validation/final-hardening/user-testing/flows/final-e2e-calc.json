@@ -1,0 +1,98 @@
+{
+  "groupId": "final-e2e-calc",
+  "surface": "api",
+  "appUrl": "http://localhost:8081",
+  "testedAt": "2026-03-08T14:48:27+05:30",
+  "credentials": {
+    "account": "validation.admin@example.com",
+    "companyCode": "MOCK",
+    "namespace": "ut_final_e2e_calc"
+  },
+  "toolsUsed": [
+    "final-validation reset harness",
+    "live curl/python API probes",
+    "mvn final-validation-targeted-tests",
+    "repository inspection"
+  ],
+  "assertions": [
+    {
+      "id": "VAL-FINAL-001",
+      "title": "Final validation proves real-user end-to-end outcomes",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Reset the local validation runtime, log in as seeded MOCK admin and dealer users, and probe the role-scoped runtime surfaces for identity, portal, report, and audit access.",
+          "expected": "The final runtime should accept seeded actors, expose role-scoped business surfaces, and return journal/provenance data without any manual repair of the database or application state.",
+          "observed": "`POST /api/v1/auth/login` returned 200 for both `validation.admin@example.com` and `validation.dealer@example.com` on `MOCK`. `GET /api/v1/auth/me` as admin returned 200 with `companyCode=MOCK` and roles `[ROLE_ACCOUNTING, ROLE_ADMIN, ROLE_SALES]`. `GET /api/v1/dealer-portal/dashboard` as dealer returned 200 with business-facing keys including `agingBuckets`, `availableCredit`, `creditLimit`, `creditStatus`, `creditUsed`, `currentBalance`, `dealerCode`, `dealerId`, `dealerName`, and `pendingInvoices`. `GET /api/v1/accounting/audit/transactions?page=0&size=5` returned 200 with 5 journal rows, and `GET /api/v1/accounting/audit/transactions/13` returned 200 with provenance fields including `drivingDocument` and `linkedDocuments`."
+        },
+        {
+          "action": "Run the curated final-hardening current-contract suites covering O2C fulfillment, corrections, P2P/AP posting, settlements, period controls, portal boundaries, and costing/report parity.",
+          "expected": "Representative O2C and P2P journeys should complete end to end through the real API/service surfaces, with linked documents, corrections, settlements, artifacts, and journals staying internally consistent.",
+          "observed": "The targeted final-hardening command passed 81 tests with 0 failures. `OrderFulfillmentE2ETest` proved dispatch confirmation restores missing artifact links on replay without duplicating dispatch movements, and the partial-dispatch path billed shipped quantity first, created a backorder slip for the remaining quantity, then produced a second backorder invoice with its own COGS journal. `SalesReturnCreditNoteE2EIT` showed invoice -> sales-return preview/post stays linked to canonical dispatch truth, restocks inventory by the returned quantity, and writes balanced return + COGS journals. `CR_PurchasingToApAccountingTest` proved the purchase flow posts a balanced AP journal, marks the GRN `INVOICED`, closes the PO, and reconciles AP against the supplier ledger without manual repair."
+        }
+      ],
+      "evidence": {
+        "runtimeProbe": {
+          "result": "Seeded MOCK admin/dealer runtime probes succeeded; audit and dealer portal surfaces were reachable and returned business/provenance payloads."
+        },
+        "tests": {
+          "command": "cd /home/realnigga/Desktop/Mission-control/erp-domain && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='OrderFulfillmentE2ETest,FinishedGoodsServiceTest,SalesReturnCreditNoteE2EIT,CreditDebitNoteIT,SettlementE2ETest,PeriodCloseLockIT,CR_PurchasingToApAccountingTest,DealerPortalControllerSecurityIT,DealerControllerSecurityIT,FactoryPackagingCostingIT,ReportInventoryParityIT' test",
+          "result": "BUILD SUCCESS; Tests run: 81, Failures: 0, Errors: 0, Skipped: 0"
+        },
+        "codeRefs": [
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/e2e/sales/OrderFulfillmentE2ETest.java:405-716",
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/e2e/sales/SalesReturnCreditNoteE2EIT.java:106-195",
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/codered/CR_PurchasingToApAccountingTest.java:80-109"
+        ]
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-FINAL-003",
+      "title": "Edge-case calculations stay explainable and reconciled",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Run the final-hardening calculation and correction suites covering return previews, credit notes after settlement, settlement validation, packaging-cost carry-forward, and valuation/report parity.",
+          "expected": "Discounts, returns, allocations, and carried costs should reconcile numerically across business documents, inventory effects, and ledger/report outputs without orphaned residuals or silent rounding drift.",
+          "observed": "`SalesReturnCreditNoteE2EIT` previewed a one-unit return at `100.00`, then posted a balanced sales-return journal plus linked COGS journal and restocked the finished good by `1.00`. `CreditDebitNoteIT` showed an idempotent credit note reversing the canonical invoice journal, leaving the invoice `VOID`; after an `800.00` settlement, the follow-up credit note surfaced `outstandingAmount=-800.00` in the invoice API instead of silently clipping the balance. `SettlementE2ETest` rejected dealer over-application with `400 BAD_REQUEST` and kept the original invoice outstanding at `800.00`."
+        },
+        {
+          "action": "Cross-check cost-carry and reporting parity assertions in the final-hardening suites and live report endpoint.",
+          "expected": "Phase-one carried cost and inventory valuation outputs should remain numerically explainable across packing, stock summary, inventory valuation, and profit/loss read models.",
+          "observed": "`FactoryPackagingCostingIT` verified carried unit cost `57.5000`, finished-goods valuation `80.00` units / `5250.00` total value, and profit-and-loss `costOfGoodsSold=2300.00`. `ReportInventoryParityIT` proved FIFO/LIFO rows normalize to weighted-average cost `20`, WAC/WAC-alias rows to `10.4`, reserved drift to `0`, and the post-seed inventory valuation `totalValue` delta exactly matched the sum of `currentStock * weightedAverageCost`. The live runtime also returned `200 OK` for `GET /api/v1/reports/inventory-valuation?date=2099-01-01`."
+        }
+      ],
+      "evidence": {
+        "tests": {
+          "command": "cd /home/realnigga/Desktop/Mission-control/erp-domain && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='OrderFulfillmentE2ETest,FinishedGoodsServiceTest,SalesReturnCreditNoteE2EIT,CreditDebitNoteIT,SettlementE2ETest,PeriodCloseLockIT,CR_PurchasingToApAccountingTest,DealerPortalControllerSecurityIT,DealerControllerSecurityIT,FactoryPackagingCostingIT,ReportInventoryParityIT' test",
+          "result": "BUILD SUCCESS; Tests run: 81, Failures: 0, Errors: 0, Skipped: 0"
+        },
+        "runtimeProbe": {
+          "result": "`GET /api/v1/reports/inventory-valuation?date=2099-01-01` returned 200 from the reset validation runtime."
+        },
+        "codeRefs": [
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/e2e/sales/SalesReturnCreditNoteE2EIT.java:106-195",
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/e2e/accounting/CreditDebitNoteIT.java:101-190",
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/e2e/accounting/SettlementE2ETest.java:67-113",
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/e2e/production/FactoryPackagingCostingIT.java:221-299",
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/reports/ReportInventoryParityIT.java:61-170"
+        ]
+      },
+      "issues": null
+    }
+  ],
+  "frictions": [
+    {
+      "description": "Launching the dedicated `user-testing-flow-validator` Task droid failed immediately with `Invalid model: custom:CLIProxyAPI-5.4-high-pro`.",
+      "resolved": true,
+      "resolution": "Completed the assigned final-hardening e2e/calculation validation directly in-session and wrote the flow artifact manually, per mission guidance for helper-launch failures.",
+      "affectedAssertions": [
+        "VAL-FINAL-001",
+        "VAL-FINAL-003"
+      ]
+    }
+  ],
+  "blockers": [],
+  "summary": "Validated `VAL-FINAL-001` and `VAL-FINAL-003` against the reset final-hardening runtime plus the curated current-contract final-validation suite. Live MOCK runtime probes confirmed seeded role-scoped access, dealer-portal visibility, and journal provenance surfaces, while the passing 81-test final command proved linked O2C/P2P journeys, correction flows, carried-cost parity, and calculation reconciliation without manual repair."
+}

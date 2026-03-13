@@ -1,0 +1,21 @@
+{
+  "milestone": "final-hardening",
+  "round": 1,
+  "status": "pass",
+  "assertionsSummary": {
+    "total": 4,
+    "passed": 4,
+    "failed": 0,
+    "blocked": 0
+  },
+  "passedAssertions": [
+    "VAL-FINAL-001",
+    "VAL-FINAL-002",
+    "VAL-FINAL-003",
+    "VAL-FINAL-004"
+  ],
+  "failedAssertions": [],
+  "blockedAssertions": [],
+  "appliedUpdates": [],
+  "previousRound": null
+}

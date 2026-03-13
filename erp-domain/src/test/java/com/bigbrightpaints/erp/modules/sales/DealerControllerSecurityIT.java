@@ -154,7 +154,7 @@ class DealerControllerSecurityIT extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("Admin gets not-found for missing dealer read endpoints")
+    @DisplayName("Admin gets strict not-found for missing dealer read endpoints")
     void adminGetsNotFoundForMissingDealerReadEndpoints() {
         HttpHeaders headers = authHeaders(ADMIN_EMAIL, PASSWORD);
         long missingDealerId = 999_999_999L;

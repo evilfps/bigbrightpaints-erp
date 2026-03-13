@@ -10,6 +10,8 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class RbacSynchronizationConfig implements ApplicationListener<ApplicationReadyEvent> {
 
+    public static final int ROLE_SEEDER_RUNNER_ORDER = 100;
+
     private static final Logger log = LoggerFactory.getLogger(RbacSynchronizationConfig.class);
 
     private final RoleService roleService;
