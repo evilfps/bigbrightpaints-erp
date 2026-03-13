@@ -1,0 +1,119 @@
+{
+  "groupId": "provenance-equivalence",
+  "surface": "api",
+  "assertions": [
+    {
+      "id": "VAL-PROFORMA-001",
+      "status": "pass",
+      "reason": "TS_O2CListenerProformaInvoiceBoundaryTest#proformaCreateAndUpdateRemainCommercialOnly confirmed sales-order create/update leaves journal, inventory movement, and invoice counts unchanged while status remains commercial-only.",
+      "evidence": [
+        {
+          "type": "command",
+          "detail": "truthsuite-targeted.log: targeted Maven run passed TS_O2CListenerProformaInvoiceBoundaryTest#proformaCreateAndUpdateRemainCommercialOnly"
+        }
+      ]
+    },
+    {
+      "id": "VAL-INVOICE-001",
+      "status": "pass",
+      "reason": "TS_O2CListenerProformaInvoiceBoundaryTest#issueInvoiceForOrderFailsClosedWithoutDispatchCreatedInvoice proved InvoiceService rejects invoicing before dispatch and creates no invoice or journal truth.",
+      "evidence": [
+        {
+          "type": "command",
+          "detail": "truthsuite-targeted.log: targeted Maven run passed TS_O2CListenerProformaInvoiceBoundaryTest#issueInvoiceForOrderFailsClosedWithoutDispatchCreatedInvoice"
+        },
+        {
+          "type": "source",
+          "detail": "source-snippets.txt: InvoiceService.issueInvoiceForOrder returns existing dispatch-owned invoice only for a dispatched slip with invoiceId, otherwise throws dispatch-boundary errors (InvoiceService.java lines 65-100)."
+        }
+      ]
+    },
+    {
+      "id": "VAL-PROV-001",
+      "status": "pass",
+      "reason": "TS_O2CDispatchProvenanceViewsAndEquivalenceTest#salesDispatchConfirm_createsNavigableProvenanceLinkedReferencesAndBalancedTruth verified the slip, order, invoice, AR journal, COGS journal, and dispatch movements all link to one another and resolve to persisted records.",
+      "evidence": [
+        {
+          "type": "command",
+          "detail": "truthsuite-targeted.log: targeted Maven run passed TS_O2CDispatchProvenanceViewsAndEquivalenceTest#salesDispatchConfirm_createsNavigableProvenanceLinkedReferencesAndBalancedTruth"
+        },
+        {
+          "type": "command",
+          "detail": "source-contracts.log: TS_CrossModuleLinkageContractTest#o2cChainPersistsSlipInvoiceJournalAndOrderLinks and TS_InventoryCogsLinkageScanContractTest#dispatchMovementsCarryPackingSlipAndJournalReferences both passed."
+        },
+        {
+          "type": "source",
+          "detail": "source-snippets.txt: SalesCoreEngine persists slip invoice/AR/COGS markers and InvoiceService linked-reference builder emits source order, dispatch, and accounting references."
+        }
+      ]
+    },
+    {
+      "id": "VAL-PROV-002",
+      "status": "pass",
+      "reason": "The same provenance characterization test asserted InvoiceDto.linkedReferences contains SOURCE_ORDER, DISPATCH, and ACCOUNTING_ENTRY entries with the expected document ids, numbers, and journal ids for a dispatch-created invoice.",
+      "evidence": [
+        {
+          "type": "command",
+          "detail": "truthsuite-targeted.log: TS_O2CDispatchProvenanceViewsAndEquivalenceTest asserted linkedReferences size=3 and validated SOURCE_ORDER, DISPATCH, and ACCOUNTING_ENTRY payloads."
+        },
+        {
+          "type": "source",
+          "detail": "source-snippets.txt: InvoiceService.buildLinkedReferences adds SALES_ORDER, PACKAGING_SLIP, and JOURNAL_ENTRY references (InvoiceService.java lines 289-307)."
+        }
+      ]
+    },
+    {
+      "id": "VAL-CROSS-001",
+      "status": "pass",
+      "reason": "The dispatch provenance characterization exercised the canonical end-to-end flow and additionally proved balanced journals plus persisted linkage markers across stock, accounting, invoice, and order records.",
+      "evidence": [
+        {
+          "type": "command",
+          "detail": "truthsuite-targeted.log: TS_O2CDispatchProvenanceViewsAndEquivalenceTest#salesDispatchConfirm_createsNavigableProvenanceLinkedReferencesAndBalancedTruth passed, including balanced-journal and linkage assertions."
+        },
+        {
+          "type": "source",
+          "detail": "source-snippets.txt: SalesDispatchReconciliationService delegates confirmDispatch directly to SalesCoreEngine.confirmDispatch, which handles replay-aware canonical linkage persistence."
+        }
+      ]
+    },
+    {
+      "id": "VAL-CROSS-005",
+      "status": "pass",
+      "reason": "TS_O2CDispatchProvenanceViewsAndEquivalenceTest proved both endpoint orderings\u2014factory then sales replay and sales then factory replay\u2014converge on the same persisted invoice, journal, COGS, and movement truth without duplicate dispatch movements.",
+      "evidence": [
+        {
+          "type": "command",
+          "detail": "truthsuite-targeted.log: targeted Maven run passed factoryThenSalesDispatchReplay_preservesEquivalentCanonicalTruth and salesThenFactoryDispatchReplay_preservesEquivalentCanonicalTruth."
+        },
+        {
+          "type": "source",
+          "detail": "source-snippets.txt: DispatchController and SalesController both route dispatch confirmation through salesDispatchReconciliationService.confirmDispatch, which delegates to SalesCoreEngine.confirmDispatch."
+        }
+      ]
+    }
+  ],
+  "toolsUsed": [
+    "mvn",
+    "Read"
+  ],
+  "frictions": [],
+  "blockers": [],
+  "commands": [
+    {
+      "command": "cd /home/realnigga/Desktop/Mission-control/erp-domain && MIGRATION_SET=v2 mvn test -Djacoco.skip=true -Dtest='TS_O2CListenerProformaInvoiceBoundaryTest#proformaCreateAndUpdateRemainCommercialOnly+issueInvoiceForOrderFailsClosedWithoutDispatchCreatedInvoice,TS_O2CDispatchProvenanceViewsAndEquivalenceTest#salesDispatchConfirm_createsNavigableProvenanceLinkedReferencesAndBalancedTruth+factoryThenSalesDispatchReplay_preservesEquivalentCanonicalTruth+salesThenFactoryDispatchReplay_preservesEquivalentCanonicalTruth'",
+      "exitCode": 0,
+      "observation": "BUILD SUCCESS; 5 targeted truthsuite/integration assertions passed with 0 failures or errors."
+    },
+    {
+      "command": "cd /home/realnigga/Desktop/Mission-control/erp-domain && MIGRATION_SET=v2 mvn test -Djacoco.skip=true -Dtest='TS_CrossModuleLinkageContractTest#o2cChainPersistsSlipInvoiceJournalAndOrderLinks,TS_InventoryCogsLinkageScanContractTest#dispatchMovementsCarryPackingSlipAndJournalReferences'",
+      "exitCode": 0,
+      "observation": "BUILD SUCCESS; 2 narrow source-contract tests passed, confirming persisted O2C linkage markers and dispatch movement journal linkage expectations."
+    }
+  ],
+  "artifacts": [
+    "/home/realnigga/.factory/missions/d7e6cd26-f391-4380-bab8-8e9c76f1a3b6/evidence/freeze-dispatch-seams/provenance-equivalence/truthsuite-targeted.log",
+    "/home/realnigga/.factory/missions/d7e6cd26-f391-4380-bab8-8e9c76f1a3b6/evidence/freeze-dispatch-seams/provenance-equivalence/source-contracts.log",
+    "/home/realnigga/.factory/missions/d7e6cd26-f391-4380-bab8-8e9c76f1a3b6/evidence/freeze-dispatch-seams/provenance-equivalence/source-snippets.txt"
+  ]
+}
