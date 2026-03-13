@@ -74,6 +74,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -708,6 +709,128 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
 
         invariants.assertSubledgerReconciles(p2p.requireAccount("AP").getId(), entryDate);
         invariants.assertNoNegativeStock(company.getId(), material.getSku());
+    }
+
+    @Test
+    @DisplayName("Procure-to-Pay: supplier lifecycle stays visible while blocking non-active transactions")
+    void procureToPay_supplierLifecycleBlocksTransactionsButKeepsReferenceVisibility() {
+        CanonicalErpDataset lifecycleDataset = datasetBuilder.seedCompany("ERP-P2P-LIFECYCLE");
+        dataSeeder.ensureUser("p2p-lifecycle@test.com", PASSWORD, "P2P Lifecycle Admin",
+                lifecycleDataset.company().getCode(), BASE_ROLES);
+
+        Company company = lifecycleDataset.company();
+        HttpHeaders headers = authHeaders("p2p-lifecycle@test.com", company.getCode());
+        LocalDate entryDate = TestDateUtils.safeDate(company);
+
+        Map<String, Object> createSupplierReq = Map.of(
+                "name", "Reference Supplier",
+                "code", "REF-SUP-001",
+                "contactEmail", "reference-supplier@test.com",
+                "creditLimit", new BigDecimal("1000.00")
+        );
+
+        ResponseEntity<Map> createdSupplierResp = rest.exchange(
+                "/api/v1/suppliers",
+                HttpMethod.POST,
+                new HttpEntity<>(createSupplierReq, headers),
+                Map.class);
+        Map<?, ?> createdSupplier = requireData(createdSupplierResp, "create reference-only supplier");
+        Long referenceSupplierId = ((Number) createdSupplier.get("id")).longValue();
+        assertThat(createdSupplier.get("payableAccountId")).isNotNull();
+        assertThat(createdSupplier.get("status")).isEqualTo("PENDING");
+
+        ResponseEntity<Map> supplierListResp = rest.exchange(
+                "/api/v1/suppliers",
+                HttpMethod.GET,
+                new HttpEntity<>(headers),
+                Map.class);
+        assertThat(supplierListResp.getStatusCode()).isEqualTo(HttpStatus.OK);
+        Map<?, ?> supplierListBody = supplierListResp.getBody();
+        assertThat(supplierListBody).isNotNull();
+        assertThat(supplierListBody.get("data")).isInstanceOf(List.class);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> suppliers = (List<Map<String, Object>>) supplierListBody.get("data");
+        assertThat(suppliers)
+                .anySatisfy(supplier -> {
+                    assertThat(((Number) supplier.get("id")).longValue()).isEqualTo(referenceSupplierId);
+                    assertThat(supplier.get("status")).isEqualTo("PENDING");
+                    assertThat(supplier.get("payableAccountId")).isNotNull();
+                });
+
+        RawMaterial material = createRawMaterial(company, "RM-P2P-LIFECYCLE-001", "Lifecycle Material",
+                lifecycleDataset.requireAccount("INV").getId());
+
+        Map<String, Object> line = new HashMap<>();
+        line.put("rawMaterialId", material.getId());
+        line.put("quantity", new BigDecimal("5"));
+        line.put("costPerUnit", new BigDecimal("12.00"));
+        line.put("unit", "KG");
+
+        Map<String, Object> blockedPoReq = new HashMap<>();
+        blockedPoReq.put("supplierId", referenceSupplierId);
+        blockedPoReq.put("orderNumber", nextDeterministicToken("PO-LIFE-BLOCK"));
+        blockedPoReq.put("orderDate", entryDate);
+        blockedPoReq.put("lines", List.of(line));
+
+        ResponseEntity<Map> blockedPoResp = rest.exchange(
+                "/api/v1/purchasing/purchase-orders",
+                HttpMethod.POST,
+                new HttpEntity<>(blockedPoReq, headers),
+                Map.class);
+        assertThat(blockedPoResp.getStatusCode()).isIn(HttpStatus.BAD_REQUEST, HttpStatus.CONFLICT);
+        assertThat(String.valueOf(blockedPoResp.getBody().get("message")))
+                .contains("pending approval")
+                .contains("reference only");
+
+        Long activeSupplierId = lifecycleDataset.supplier().getId();
+        Map<String, Object> activePoReq = new HashMap<>();
+        activePoReq.put("supplierId", activeSupplierId);
+        activePoReq.put("orderNumber", nextDeterministicToken("PO-LIFE-ACTIVE"));
+        activePoReq.put("orderDate", entryDate);
+        activePoReq.put("lines", List.of(line));
+
+        ResponseEntity<Map> activePoResp = rest.exchange(
+                "/api/v1/purchasing/purchase-orders",
+                HttpMethod.POST,
+                new HttpEntity<>(activePoReq, headers),
+                Map.class);
+        Map<?, ?> activePo = requireData(activePoResp, "create active supplier purchase order");
+        Long purchaseOrderId = ((Number) activePo.get("id")).longValue();
+
+        rest.exchange(
+                "/api/v1/purchasing/purchase-orders/" + purchaseOrderId + "/approve",
+                HttpMethod.POST,
+                new HttpEntity<>(headers),
+                Map.class);
+
+        ResponseEntity<Map> suspendedSupplierResp = rest.exchange(
+                "/api/v1/suppliers/" + activeSupplierId + "/suspend",
+                HttpMethod.POST,
+                new HttpEntity<>(headers),
+                Map.class);
+        Map<?, ?> suspendedSupplier = requireData(suspendedSupplierResp, "suspend supplier");
+        assertThat(suspendedSupplier.get("status")).isEqualTo("SUSPENDED");
+        assertThat(suspendedSupplier.get("payableAccountId")).isNotNull();
+
+        Map<String, Object> grLine = new HashMap<>(line);
+        grLine.put("batchCode", nextDeterministicToken("GRN-LIFE-BATCH"));
+
+        Map<String, Object> grReq = new HashMap<>();
+        grReq.put("purchaseOrderId", purchaseOrderId);
+        grReq.put("receiptNumber", nextDeterministicToken("GRN-LIFE"));
+        grReq.put("receiptDate", entryDate);
+        grReq.put("idempotencyKey", nextDeterministicToken("GRN-LIFE-IDEMP"));
+        grReq.put("lines", List.of(grLine));
+
+        ResponseEntity<Map> blockedGrResp = rest.exchange(
+                "/api/v1/purchasing/goods-receipts",
+                HttpMethod.POST,
+                new HttpEntity<>(grReq, headers),
+                Map.class);
+        assertThat(blockedGrResp.getStatusCode()).isIn(HttpStatus.BAD_REQUEST, HttpStatus.CONFLICT);
+        assertThat(String.valueOf(blockedGrResp.getBody().get("message")))
+                .contains("suspended")
+                .contains("reference only");
     }
 
     @Test

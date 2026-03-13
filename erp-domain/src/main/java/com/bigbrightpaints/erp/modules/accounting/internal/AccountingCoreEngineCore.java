@@ -1916,6 +1916,7 @@ public abstract class AccountingCoreEngineCore {
             return toDto(entry);
         }
 
+        supplier.requireTransactionalUsage("record supplier payments");
         cashAccount = requireCashAccountForSettlement(company, request.cashAccountId(), "supplier payment", true);
         JournalEntryRequest payload = new JournalEntryRequest(
                 reference,
@@ -2339,6 +2340,7 @@ public abstract class AccountingCoreEngineCore {
             return buildSupplierSettlementResponse(existingAllocations);
         }
 
+        supplier.requireTransactionalUsage("settle supplier invoices");
         cashAccount = requireCashAccountForSettlement(company, request.cashAccountId(), "supplier settlement", true);
         SettlementLineDraft lineDraft = buildSupplierSettlementLines(company, request, payableAccount, cashAccount, totals, memo);
 

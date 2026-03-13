@@ -1,0 +1,15 @@
+{
+  "featureId": "p2p-truth.supplier-lifecycle-and-payable-provisioning",
+  "reviewedAt": "2026-03-08T09:12:00+05:30",
+  "commitId": "85fc19e615e3bc5e358cb54d5aee6b0db3d14b0e",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The feature moves supplier lifecycle enforcement into the Supplier domain and consistently applies it across purchase-order creation, goods receipt, purchase invoice posting, supplier payments, and supplier settlements while keeping suppliers visible for reference. The diff also shows payable-account provisioning is returned atomically during supplier creation and adds invariant/runtime regression coverage that exercises pending and suspended supplier behavior end to end.",
+    "issues": []
+  },
+  "sharedStateObservations": [],
+  "addressesFailureFrom": null,
+  "summary": "Pass. Supplier onboarding now provisions payable truth atomically and non-active suppliers remain reference-visible while transactional P2P and AP actions fail closed with explicit lifecycle reasons."
+}

@@ -280,8 +280,9 @@ public class RawMaterialService {
         RawMaterial material = requireMaterial(rawMaterialId);
         BigDecimal quantity = ValidationUtils.requirePositive(request.quantity(), "quantity");
         BigDecimal costPerUnit = ValidationUtils.requirePositive(request.costPerUnit(), "costPerUnit");
+        boolean postingRequired = context == null || context.postJournal();
         Supplier supplier = requireSupplier(material.getCompany(), request.supplierId());
-        ensurePostingAccounts(material, supplier);
+        ensureReceiptAccounts(material, supplier, postingRequired);
         RawMaterialBatch batch = new RawMaterialBatch();
         batch.setRawMaterial(material);
         String batchCode = resolveBatchCode(material, request.batchCode());
@@ -297,7 +298,7 @@ public class RawMaterialService {
         BigDecimal currentStock = material.getCurrentStock() == null ? BigDecimal.ZERO : material.getCurrentStock();
         material.setCurrentStock(currentStock.add(quantity));
         rawMaterialRepository.save(material);
-        ReceiptContext effectiveContext = context != null ? context : ReceiptContext.forBatch(batch.getBatchCode());
+        ReceiptContext effectiveContext = context != null ? context : ReceiptContext.forBatch(batchCode);
         batch.setSource(resolveBatchSource(effectiveContext.referenceType()));
         RawMaterialBatch savedBatch = batchRepository.save(batch);
         RawMaterialMovement receiptMovement = recordReceiptMovement(material, savedBatch, quantity, costPerUnit, effectiveContext);
@@ -768,7 +769,7 @@ public class RawMaterialService {
         return companyEntityLookup.requireSupplier(company, supplierId);
     }
 
-    private void ensurePostingAccounts(RawMaterial material, Supplier supplier) {
+    private void ensureReceiptAccounts(RawMaterial material, Supplier supplier, boolean postingRequired) {
         if (material.getInventoryAccountId() == null && material.getCompany() != null) {
             // Try company default inventory account before failing
             material.setInventoryAccountId(material.getCompany().getDefaultInventoryAccountId());
@@ -776,7 +777,7 @@ public class RawMaterialService {
         if (material.getInventoryAccountId() == null) {
             throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidState("Raw material " + material.getName() + " is missing an inventory account");
         }
-        if (supplier.getPayableAccount() == null) {
+        if (postingRequired && supplier.getPayableAccount() == null) {
             throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidState("Supplier " + supplier.getName() + " is missing a payable account");
         }
     }
@@ -818,14 +819,6 @@ public class RawMaterialService {
             return material.getName();
         }
         return material.getId() != null ? material.getId().toString() : "unknown";
-    }
-
-    private String resolveReferenceNumber(RawMaterial material, ReceiptContext context, RawMaterialBatch batch) {
-        if (context != null && StringUtils.hasText(context.referenceId())) {
-            String prefix = StringUtils.hasText(context.referenceType()) ? context.referenceType() : "RM";
-            return prefix + "-" + context.referenceId();
-        }
-        return referenceNumberService.rawMaterialReceiptReference(material.getCompany(), batch.getBatchCode());
     }
 
     private RawMaterialBatchDto createManualIntakeInternal(Company company,

@@ -100,6 +100,12 @@ public class GoodsReceiptService {
         if (request == null || request.lines() == null || request.lines().isEmpty()) {
             throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput("Goods receipt lines are required");
         }
+        if (request.purchaseOrderId() == null) {
+            throw new ApplicationException(ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD, "Purchase order is required");
+        }
+        if (!StringUtils.hasText(request.receiptNumber())) {
+            throw new ApplicationException(ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD, "Receipt number is required");
+        }
         Company company = companyContextService.requireCurrentCompany();
         String idempotencyKey = normalizeIdempotencyKey(request.idempotencyKey());
         if (!StringUtils.hasText(idempotencyKey)) {
@@ -145,6 +151,7 @@ public class GoodsReceiptService {
         PurchaseOrder purchaseOrder = purchaseOrderRepository.lockByCompanyAndId(company, request.purchaseOrderId())
                 .orElseThrow(() -> com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput("Purchase order not found"));
         Supplier supplier = purchaseOrder.getSupplier();
+        supplier.requireTransactionalUsage("progress goods receipts");
 
         String receiptNumber = request.receiptNumber().trim();
         goodsReceiptRepository.lockByCompanyAndReceiptNumberIgnoreCase(company, receiptNumber)

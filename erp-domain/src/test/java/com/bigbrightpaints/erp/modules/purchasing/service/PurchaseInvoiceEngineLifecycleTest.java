@@ -1,5 +1,6 @@
 package com.bigbrightpaints.erp.modules.purchasing.service;
 
+import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
@@ -29,6 +30,7 @@ import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchase;
 import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchaseLine;
 import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchaseRepository;
 import com.bigbrightpaints.erp.modules.purchasing.domain.Supplier;
+import com.bigbrightpaints.erp.modules.purchasing.domain.SupplierStatus;
 import com.bigbrightpaints.erp.modules.purchasing.dto.RawMaterialPurchaseLineRequest;
 import com.bigbrightpaints.erp.modules.purchasing.dto.RawMaterialPurchaseRequest;
 import com.bigbrightpaints.erp.modules.purchasing.dto.RawMaterialPurchaseResponse;
@@ -134,6 +136,7 @@ class PurchaseInvoiceEngineLifecycleTest {
         supplier.setCompany(company);
         supplier.setCode("SUP-10");
         supplier.setName("Supplier 10");
+        supplier.setStatus(SupplierStatus.ACTIVE);
         supplier.setStateCode("KA");
         supplier.setPayableAccount(payableAccount);
 
@@ -373,6 +376,39 @@ class PurchaseInvoiceEngineLifecycleTest {
     }
 
     @Test
+    @DisplayName("createPurchase rejects suppliers that are no longer active")
+    void createPurchase_rejectsSuspendedSupplierWithExplicitReason() {
+        supplier.setStatus(SupplierStatus.SUSPENDED);
+
+        RawMaterialPurchaseRequest request = new RawMaterialPurchaseRequest(
+                10L,
+                "INV-40",
+                LocalDate.of(2026, 3, 2),
+                "invoice",
+                30L,
+                40L,
+                BigDecimal.ZERO,
+                List.of(new RawMaterialPurchaseLineRequest(
+                        20L,
+                        null,
+                        new BigDecimal("10.0000"),
+                        "KG",
+                        new BigDecimal("12.50"),
+                        null,
+                        null,
+                        "line"
+                ))
+        );
+
+        assertThatThrownBy(() -> purchaseInvoiceEngine.createPurchase(request))
+                .isInstanceOf(com.bigbrightpaints.erp.core.exception.ApplicationException.class)
+                .hasMessageContaining("suspended")
+                .hasMessageContaining("reference only");
+
+        verify(accountingFacade, never()).postPurchaseJournal(any(), any(), any(), any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
     @DisplayName("createPurchase links AP journal to receipt movement without replaying stock receipt")
     void createPurchase_linksJournalToReceiptMovementWithoutRestocking() {
         when(goodsReceiptRepository.findByPurchaseOrder(purchaseOrder)).thenReturn(List.of(goodsReceipt));
@@ -426,6 +462,281 @@ class PurchaseInvoiceEngineLifecycleTest {
     }
 
     @Test
+    @DisplayName("createPurchase still records AP truth when journal facade returns no linked entry")
+    void createPurchase_allowsMissingJournalEntryLink() {
+        when(goodsReceiptRepository.findByPurchaseOrder(purchaseOrder)).thenReturn(List.of(goodsReceipt));
+        when(accountingFacade.postPurchaseJournal(any(), any(), any(), any(), any(), any(), any(), any(), any()))
+                .thenReturn(null);
+
+        RawMaterialPurchaseRequest request = new RawMaterialPurchaseRequest(
+                10L,
+                "INV-40",
+                LocalDate.of(2026, 3, 2),
+                "invoice",
+                30L,
+                40L,
+                BigDecimal.ZERO,
+                List.of(new RawMaterialPurchaseLineRequest(
+                        20L,
+                        null,
+                        new BigDecimal("10.0000"),
+                        "KG",
+                        new BigDecimal("12.50"),
+                        null,
+                        null,
+                        "line"
+                ))
+        );
+
+        RawMaterialPurchaseResponse response = purchaseInvoiceEngine.createPurchase(request);
+
+        assertThat(response.id()).isEqualTo(600L);
+        assertThat(goodsReceipt.getStatusEnum()).isEqualTo(GoodsReceiptStatus.INVOICED);
+        verify(movementRepository, never()).saveAll(any());
+    }
+
+    @Test
+    @DisplayName("createPurchase rejects goods receipt drift when stock movement is missing")
+    void createPurchase_rejectsGoodsReceiptWithoutStockMovement() {
+        when(movementRepository.findByRawMaterialCompanyAndReferenceTypeAndReferenceId(
+                company,
+                "GOODS_RECEIPT",
+                "GRN-40"
+        )).thenReturn(List.of());
+
+        RawMaterialPurchaseRequest request = new RawMaterialPurchaseRequest(
+                10L,
+                "INV-40",
+                LocalDate.of(2026, 3, 2),
+                "invoice",
+                30L,
+                40L,
+                BigDecimal.ZERO,
+                List.of(new RawMaterialPurchaseLineRequest(
+                        20L,
+                        null,
+                        new BigDecimal("10.0000"),
+                        "KG",
+                        new BigDecimal("12.50"),
+                        null,
+                        null,
+                        "line"
+                ))
+        );
+
+        assertThatThrownBy(() -> purchaseInvoiceEngine.createPurchase(request))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("has no stock movement");
+
+        verify(accountingFacade, never()).postPurchaseJournal(any(), any(), any(), any(), any(), any(), any(), any(), any());
+        verify(purchaseRepository, never()).save(any(RawMaterialPurchase.class));
+    }
+
+    @Test
+    @DisplayName("createPurchase rejects goods receipts missing persisted receipt number linkage")
+    void createPurchase_rejectsGoodsReceiptWithoutReceiptNumber() {
+        goodsReceipt.setReceiptNumber("   ");
+
+        RawMaterialPurchaseRequest request = new RawMaterialPurchaseRequest(
+                10L,
+                "INV-40",
+                LocalDate.of(2026, 3, 2),
+                "invoice",
+                30L,
+                40L,
+                BigDecimal.ZERO,
+                List.of(new RawMaterialPurchaseLineRequest(
+                        20L,
+                        null,
+                        new BigDecimal("10.0000"),
+                        "KG",
+                        new BigDecimal("12.50"),
+                        null,
+                        null,
+                        "line"
+                ))
+        );
+
+        assertThatThrownBy(() -> purchaseInvoiceEngine.createPurchase(request))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("linkage is incomplete");
+
+        verify(accountingFacade, never()).postPurchaseJournal(any(), any(), any(), any(), any(), any(), any(), any(), any());
+        verify(purchaseRepository, never()).save(any(RawMaterialPurchase.class));
+    }
+
+    @Test
+    @DisplayName("createPurchase rejects goods receipt lines missing GRN batch linkage before posting AP")
+    void createPurchase_rejectsGoodsReceiptLineMissingBatchBeforePostingAp() {
+        goodsReceipt.getLines().getFirst().setRawMaterialBatch(null);
+
+        RawMaterialPurchaseRequest request = new RawMaterialPurchaseRequest(
+                10L,
+                "INV-40",
+                LocalDate.of(2026, 3, 2),
+                "invoice",
+                30L,
+                40L,
+                BigDecimal.ZERO,
+                List.of(new RawMaterialPurchaseLineRequest(
+                        20L,
+                        null,
+                        new BigDecimal("10.0000"),
+                        "KG",
+                        new BigDecimal("12.50"),
+                        null,
+                        null,
+                        "line"
+                ))
+        );
+
+        assertThatThrownBy(() -> purchaseInvoiceEngine.createPurchase(request))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("missing batch linkage");
+
+        verify(accountingFacade, never()).postPurchaseJournal(any(), any(), any(), any(), any(), any(), any(), any(), any());
+        verify(purchaseRepository, never()).save(any(RawMaterialPurchase.class));
+    }
+
+    @Test
+    @DisplayName("createPurchase rejects goods receipt linkage drift when stock movement materials do not match GRN lines")
+    void createPurchase_rejectsGoodsReceiptMovementMaterialDrift() {
+        RawMaterial unexpectedMaterial = new RawMaterial();
+        ReflectionTestUtils.setField(unexpectedMaterial, "id", 21L);
+        unexpectedMaterial.setCompany(company);
+        unexpectedMaterial.setName("Pigment");
+        unexpectedMaterial.setSku("RM-21");
+        unexpectedMaterial.setUnitType("KG");
+
+        RawMaterialMovement driftedMovement = new RawMaterialMovement();
+        ReflectionTestUtils.setField(driftedMovement, "id", 501L);
+        driftedMovement.setRawMaterial(unexpectedMaterial);
+        driftedMovement.setReferenceType("GOODS_RECEIPT");
+        driftedMovement.setReferenceId("GRN-40");
+        driftedMovement.setMovementType("RECEIPT");
+        driftedMovement.setQuantity(new BigDecimal("10.0000"));
+        driftedMovement.setUnitCost(new BigDecimal("12.50"));
+
+        when(movementRepository.findByRawMaterialCompanyAndReferenceTypeAndReferenceId(
+                company,
+                "GOODS_RECEIPT",
+                "GRN-40"
+        )).thenReturn(List.of(driftedMovement));
+
+        RawMaterialPurchaseRequest request = new RawMaterialPurchaseRequest(
+                10L,
+                "INV-40",
+                LocalDate.of(2026, 3, 2),
+                "invoice",
+                30L,
+                40L,
+                BigDecimal.ZERO,
+                List.of(new RawMaterialPurchaseLineRequest(
+                        20L,
+                        null,
+                        new BigDecimal("10.0000"),
+                        "KG",
+                        new BigDecimal("12.50"),
+                        null,
+                        null,
+                        "line"
+                ))
+        );
+
+        assertThatThrownBy(() -> purchaseInvoiceEngine.createPurchase(request))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("linkage drift detected");
+
+        verify(accountingFacade, never()).postPurchaseJournal(any(), any(), any(), any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("createPurchase rejects goods receipt movements missing raw material identity")
+    void createPurchase_rejectsGoodsReceiptMovementWithoutMaterialIdentity() {
+        RawMaterialMovement nullMaterialMovement = new RawMaterialMovement();
+        ReflectionTestUtils.setField(nullMaterialMovement, "id", 501L);
+        nullMaterialMovement.setReferenceType("GOODS_RECEIPT");
+        nullMaterialMovement.setReferenceId("GRN-40");
+        nullMaterialMovement.setMovementType("RECEIPT");
+        nullMaterialMovement.setQuantity(new BigDecimal("10.0000"));
+        nullMaterialMovement.setUnitCost(new BigDecimal("12.50"));
+
+        RawMaterialMovement nullMaterialIdMovement = new RawMaterialMovement();
+        ReflectionTestUtils.setField(nullMaterialIdMovement, "id", 502L);
+        nullMaterialIdMovement.setRawMaterial(new RawMaterial());
+        nullMaterialIdMovement.setReferenceType("GOODS_RECEIPT");
+        nullMaterialIdMovement.setReferenceId("GRN-40");
+        nullMaterialIdMovement.setMovementType("RECEIPT");
+        nullMaterialIdMovement.setQuantity(new BigDecimal("10.0000"));
+        nullMaterialIdMovement.setUnitCost(new BigDecimal("12.50"));
+
+        when(movementRepository.findByRawMaterialCompanyAndReferenceTypeAndReferenceId(
+                company,
+                "GOODS_RECEIPT",
+                "GRN-40"
+        )).thenReturn(List.of(nullMaterialMovement, nullMaterialIdMovement));
+
+        RawMaterialPurchaseRequest request = new RawMaterialPurchaseRequest(
+                10L,
+                "INV-40",
+                LocalDate.of(2026, 3, 2),
+                "invoice",
+                30L,
+                40L,
+                BigDecimal.ZERO,
+                List.of(new RawMaterialPurchaseLineRequest(
+                        20L,
+                        null,
+                        new BigDecimal("10.0000"),
+                        "KG",
+                        new BigDecimal("12.50"),
+                        null,
+                        null,
+                        "line"
+                ))
+        );
+
+        assertThatThrownBy(() -> purchaseInvoiceEngine.createPurchase(request))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("linkage drift detected");
+
+        verify(accountingFacade, never()).postPurchaseJournal(any(), any(), any(), any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("createPurchase rejects goods receipts that have no stock lines to anchor AP truth")
+    void createPurchase_rejectsGoodsReceiptWithoutStockLines() {
+        goodsReceipt.getLines().clear();
+
+        RawMaterialPurchaseRequest request = new RawMaterialPurchaseRequest(
+                10L,
+                "INV-40",
+                LocalDate.of(2026, 3, 2),
+                "invoice",
+                30L,
+                40L,
+                BigDecimal.ZERO,
+                List.of(new RawMaterialPurchaseLineRequest(
+                        20L,
+                        null,
+                        new BigDecimal("10.0000"),
+                        "KG",
+                        new BigDecimal("12.50"),
+                        null,
+                        null,
+                        "line"
+                ))
+        );
+
+        assertThatThrownBy(() -> purchaseInvoiceEngine.createPurchase(request))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("has no stock lines");
+
+        verify(accountingFacade, never()).postPurchaseJournal(any(), any(), any(), any(), any(), any(), any(), any(), any());
+        verify(purchaseRepository, never()).save(any(RawMaterialPurchase.class));
+    }
+
+    @Test
     @DisplayName("createPurchase rejects goods receipt movements already linked to another journal")
     void createPurchase_rejectsGoodsReceiptMovementAlreadyLinkedToJournal() {
         RawMaterialMovement linkedMovement = movementRepository.findByRawMaterialCompanyAndReferenceTypeAndReferenceId(
@@ -460,5 +771,55 @@ class PurchaseInvoiceEngineLifecycleTest {
                 .hasMessageContaining("already linked to journal 701");
 
         verify(accountingFacade, never()).postPurchaseJournal(any(), any(), any(), any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("createPurchase re-reads current goods receipt movements before linking AP journal")
+    void createPurchase_reReadsCurrentGoodsReceiptMovementsBeforeLinkingJournal() {
+        RawMaterialMovement initialMovement = movementRepository.findByRawMaterialCompanyAndReferenceTypeAndReferenceId(
+                company,
+                "GOODS_RECEIPT",
+                "GRN-40"
+        ).getFirst();
+        RawMaterialMovement concurrentlyLinkedMovement = new RawMaterialMovement();
+        ReflectionTestUtils.setField(concurrentlyLinkedMovement, "id", 500L);
+        concurrentlyLinkedMovement.setRawMaterial(rawMaterial);
+        concurrentlyLinkedMovement.setReferenceType("GOODS_RECEIPT");
+        concurrentlyLinkedMovement.setReferenceId("GRN-40");
+        concurrentlyLinkedMovement.setMovementType("RECEIPT");
+        concurrentlyLinkedMovement.setQuantity(new BigDecimal("10.0000"));
+        concurrentlyLinkedMovement.setUnitCost(new BigDecimal("12.50"));
+        concurrentlyLinkedMovement.setJournalEntryId(701L);
+        when(movementRepository.findByRawMaterialCompanyAndReferenceTypeAndReferenceId(
+                company,
+                "GOODS_RECEIPT",
+                "GRN-40"
+        )).thenReturn(List.of(initialMovement), List.of(concurrentlyLinkedMovement));
+
+        RawMaterialPurchaseRequest request = new RawMaterialPurchaseRequest(
+                10L,
+                "INV-40",
+                LocalDate.of(2026, 3, 2),
+                "invoice",
+                30L,
+                40L,
+                BigDecimal.ZERO,
+                List.of(new RawMaterialPurchaseLineRequest(
+                        20L,
+                        null,
+                        new BigDecimal("10.0000"),
+                        "KG",
+                        new BigDecimal("12.50"),
+                        null,
+                        null,
+                        "line"
+                ))
+        );
+
+        assertThatThrownBy(() -> purchaseInvoiceEngine.createPurchase(request))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("already linked to journal 701");
+
+        verify(movementRepository, never()).saveAll(any());
     }
 }

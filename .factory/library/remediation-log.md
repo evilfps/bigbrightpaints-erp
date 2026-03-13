@@ -63,3 +63,30 @@ Track cleanup, duplicate-truth removals, dead-code retirement, and production-re
 - **Duplicate-truth or dead-code impact:** removed the conflicting dispatch-side costing branch that recomputed COGS from period costing policy even after reservation had already chosen a concrete batch with an actual carried cost.
 - **Evidence:** `FinishedGoodsServiceTest#confirmDispatchUsesReservedBatchActualCostWhenPeriodDefaultsToWeightedAverage`, `FinishedGoodsServiceTest#dispatchUsesReservedBatchActualCostUnderLegacyWeightedAverageAliasUnderTurkishLocale`, `FactoryPackagingCostingIT`, `ReportInventoryParityIT`, `InventorySmokeIT`, `ErpInvariantsSuiteIT`, and `mvn -T8 test -Pgate-fast -Djacoco.skip=true` all pass.
 - **Follow-up:** future costing packets should keep period-close or revaluation adjustments updating batch truth upstream instead of introducing new dispatch-time costing branches.
+
+## 2026-03-08 — `p2p-truth.supplier-lifecycle-and-payable-provisioning`
+
+- **Area:** supplier onboarding, supplier lifecycle guardrails, and supplier-driven P2P/AP transaction entry points.
+- **Risk addressed:** supplier creation previously saved the supplier twice during payable provisioning, and non-active suppliers could stay visible yet still slip through later GRN, purchase-invoice, return, payment, or settlement paths with inconsistent blocker behavior.
+- **Cleanup/remediation performed:** collapsed supplier onboarding into one supplier save after payable-account provisioning, added shared lifecycle guardrails with explicit business-language blocker reasons, and enforced those guards across purchase-order creation, goods-receipt progression, purchase invoicing, purchase returns, AP journal posting, supplier payments, and supplier settlements.
+- **Duplicate-truth or dead-code impact:** removed the redundant intermediate supplier save in onboarding and retired the touched fallback behavior where later P2P/AP flows each decided supplier usability differently instead of sharing one lifecycle truth.
+- **Evidence:** `SupplierServiceTest`, `PurchaseOrderServiceTest`, `PurchasingServiceGoodsReceiptTest`, `PurchaseInvoiceEngineLifecycleTest`, `AccountingServiceTest`, and `ErpInvariantsSuiteIT` now cover payable provisioning plus visible-but-blocked reference-only supplier behavior.
+- **Follow-up:** the next P2P packets should keep reusing the shared supplier lifecycle guard so GRN, purchase invoice, settlement, and correction work stays aligned to the same reference-only semantics.
+
+## 2026-03-08 — `p2p-truth.grn-stock-truth-boundary`
+
+- **Area:** GRN validation and the shared raw-material receipt seam used by goods receipts.
+- **Risk addressed:** the GRN path was already stock-only by context, but the shared receipt helper still carried an obsolete AP-coupled validation branch, and direct service callers could reach blank/missing GRN identifiers without explicit business validation.
+- **Cleanup/remediation performed:** added service-level guards for missing purchase-order IDs and blank receipt numbers, captured the stock-only GRN receipt context in tests, and split raw-material receipt account validation so GRN contexts only require inventory truth while AP-posting contexts still fail closed on missing payable setup.
+- **Duplicate-truth or dead-code impact:** removed the dead assumption that every raw-material receipt must validate payable-account posting semantics, and retired the unused `resolveReferenceNumber` helper from the touched inventory receipt service.
+- **Evidence:** `PurchasingServiceGoodsReceiptTest`, `RawMaterialServiceReceiptContextTest`, `TS_P2PGoodsReceiptIdempotencyTest`, `InventoryAccountingEventListenerIT`, and `ErpInvariantsSuiteIT` all pass with the refactored GRN stock-only boundary.
+- **Follow-up:** the purchase-invoice AP-truth packet should continue reusing the explicit GRN receipt linkage and keep journal linking confined to invoice posting rather than reintroducing GRN-side posting paths.
+
+## 2026-03-08 — `p2p-truth.purchase-invoice-ap-truth-and-linkage`
+
+- **Area:** purchase invoice issuance, GRN linkage validation, and AP journal anchoring.
+- **Risk addressed:** purchase invoices still carried a dead fallback path that could try to recreate stock-side receipt effects, and AP posting could proceed even if the linked GRN had lost its stock movement or batch linkage proof.
+- **Cleanup/remediation performed:** made purchase invoicing fail closed unless the linked GRN still has matching stock movements and batch linkage for every received material, then linked the posted AP journal back onto those existing GRN movements instead of creating any new receipt artifacts.
+- **Duplicate-truth or dead-code impact:** removed the duplicate stock-side fallback from `PurchaseInvoiceEngine`, preventing purchase invoice issuance from recreating receipt movements or tolerating linkage drift that would overlap AP truth.
+- **Evidence:** `PurchaseInvoiceEngineLifecycleTest`, `InventoryAccountingEventListenerIT`, `ErpInvariantsSuiteIT`.
+- **Follow-up:** keep the remaining P2P settlement and correction packets anchored to the same GRN-to-purchase journal provenance so close blockers can fail on linkage drift instead of repairing it silently.

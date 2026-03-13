@@ -118,6 +118,73 @@ class ChangedFilesCoverageTest(unittest.TestCase):
         self.assertTrue(changed_files_coverage.is_structural_source_line("lines", False))
         self.assertFalse(changed_files_coverage.is_structural_source_line("if (invoice == null) {", False))
 
+    def test_package_declaration_fallback_maps_misplaced_source_file(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            repo_dir = Path(tmp_dir)
+            java_file = repo_dir / "erp-domain/src/main/java/com/example/internal/Demo.java"
+            java_file.parent.mkdir(parents=True, exist_ok=True)
+
+            self.run_git(repo_dir, "init")
+            self.run_git(repo_dir, "config", "user.name", "Factory Droid")
+            self.run_git(repo_dir, "config", "user.email", "factory@example.com")
+
+            java_file.write_text(
+                "package com.example.service;\npublic class Demo {\n  int value() { return 1; }\n}\n",
+                encoding="utf-8",
+            )
+            self.run_git(repo_dir, "add", ".")
+            self.run_git(repo_dir, "commit", "-m", "base")
+            base_sha = self.run_git(repo_dir, "rev-parse", "HEAD")
+
+            java_file.write_text(
+                "package com.example.service;\npublic class Demo {\n  int value() { return 2; }\n}\n",
+                encoding="utf-8",
+            )
+            self.run_git(repo_dir, "add", ".")
+            self.run_git(repo_dir, "commit", "-m", "change")
+
+            jacoco_file = repo_dir / "jacoco.xml"
+            jacoco_file.write_text(
+                """
+<report name=\"test\">
+  <package name=\"com/example/service\">
+    <sourcefile name=\"Demo.java\">
+      <line nr=\"3\" mi=\"0\" ci=\"1\" mb=\"0\" cb=\"0\"/>
+    </sourcefile>
+  </package>
+</report>
+""".strip()
+                + "\n",
+                encoding="utf-8",
+            )
+            summary_file = repo_dir / "summary.json"
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(CHANGED_COVERAGE_PATH),
+                    "--jacoco",
+                    str(jacoco_file),
+                    "--diff-base",
+                    base_sha,
+                    "--src-root",
+                    "erp-domain/src/main/java",
+                    "--fail-on-vacuous",
+                    "--output",
+                    str(summary_file),
+                ],
+                cwd=repo_dir,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+            summary = json.loads(summary_file.read_text(encoding="utf-8"))
+            self.assertFalse(summary["missing_coverage"])
+            self.assertEqual([], summary["coverage_skipped_files"])
+            self.assertTrue(summary["passes"])
+
     def test_changed_source_without_jacoco_mapping_fails_closed(self):
         with tempfile.TemporaryDirectory() as tmp_dir:
             repo_dir = Path(tmp_dir)

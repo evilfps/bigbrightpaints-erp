@@ -16,7 +16,6 @@ import com.bigbrightpaints.erp.modules.purchasing.domain.PurchaseOrderStatus;
 import com.bigbrightpaints.erp.modules.purchasing.domain.PurchaseOrderStatusHistory;
 import com.bigbrightpaints.erp.modules.purchasing.domain.PurchaseOrderStatusHistoryRepository;
 import com.bigbrightpaints.erp.modules.purchasing.domain.Supplier;
-import com.bigbrightpaints.erp.modules.purchasing.domain.SupplierStatus;
 import com.bigbrightpaints.erp.modules.purchasing.dto.PurchaseOrderLineRequest;
 import com.bigbrightpaints.erp.modules.purchasing.dto.PurchaseOrderRequest;
 import com.bigbrightpaints.erp.modules.purchasing.dto.PurchaseOrderResponse;
@@ -84,12 +83,7 @@ public class PurchaseOrderService {
     public PurchaseOrderResponse createPurchaseOrder(PurchaseOrderRequest request) {
         Company company = companyContextService.requireCurrentCompany();
         Supplier supplier = companyEntityLookup.requireSupplier(company, request.supplierId());
-        if (supplier.getStatusEnum() != SupplierStatus.ACTIVE) {
-            throw new ApplicationException(ErrorCode.BUSINESS_INVALID_STATE,
-                    "Supplier must be ACTIVE to create purchase order")
-                    .withDetail("supplierId", supplier.getId())
-                    .withDetail("supplierStatus", supplier.getStatus());
-        }
+        supplier.requireTransactionalUsage("create purchase orders");
 
         String orderNumber = request.orderNumber().trim();
         purchaseOrderRepository.lockByCompanyAndOrderNumberIgnoreCase(company, orderNumber)

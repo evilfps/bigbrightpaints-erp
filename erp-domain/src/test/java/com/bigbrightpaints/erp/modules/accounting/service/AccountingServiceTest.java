@@ -51,12 +51,14 @@ import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchaseRepo
 import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchase;
 import com.bigbrightpaints.erp.modules.purchasing.domain.SupplierRepository;
 import com.bigbrightpaints.erp.modules.purchasing.domain.Supplier;
+import com.bigbrightpaints.erp.modules.purchasing.domain.SupplierStatus;
 import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.PartnerSettlementAllocation;
 import com.bigbrightpaints.erp.modules.accounting.domain.PartnerSettlementAllocationRepository;
 import com.bigbrightpaints.erp.modules.invoice.service.InvoiceSettlementPolicy;
 import com.bigbrightpaints.erp.core.audit.AuditService;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -94,6 +96,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
+@Tag("critical")
 class AccountingServiceTest {
 
     @Mock
@@ -826,11 +829,13 @@ class AccountingServiceTest {
         Supplier supplierA = new Supplier();
         ReflectionTestUtils.setField(supplierA, "id", 92L);
         supplierA.setName("SKEINA");
+        supplierA.setStatus(SupplierStatus.ACTIVE);
         supplierA.setPayableAccount(payable);
 
         Supplier supplierB = new Supplier();
         ReflectionTestUtils.setField(supplierB, "id", 93L);
         supplierB.setName("OTHER");
+        supplierB.setStatus(SupplierStatus.ACTIVE);
         supplierB.setPayableAccount(payable);
 
         when(accountRepository.lockByCompanyAndId(eq(company), eq(33L))).thenReturn(Optional.of(payable));
@@ -1920,11 +1925,115 @@ class AccountingServiceTest {
     }
 
     @Test
+    void recordSupplierPayment_rejectsReferenceOnlySupplierWithExplicitReason() {
+        AccountingService service = spy(accountingService);
+
+        Supplier supplier = new Supplier();
+        supplier.setName("Supplier");
+        supplier.setStatus(SupplierStatus.SUSPENDED);
+        Account payable = new Account();
+        payable.setCompany(company);
+        payable.setCode("AP-REFONLY");
+        payable.setType(AccountType.LIABILITY);
+        ReflectionTestUtils.setField(payable, "id", 10L);
+        supplier.setPayableAccount(payable);
+        Account cash = new Account();
+        cash.setCompany(company);
+        cash.setCode("CASH-REFONLY");
+        cash.setType(AccountType.ASSET);
+        ReflectionTestUtils.setField(cash, "id", 20L);
+        ReflectionTestUtils.setField(supplier, "id", 1L);
+
+        when(supplierRepository.lockByCompanyAndId(eq(company), eq(1L))).thenReturn(Optional.of(supplier));
+        when(companyEntityLookup.requireAccount(eq(company), eq(20L))).thenReturn(cash);
+
+        SupplierPaymentRequest request = new SupplierPaymentRequest(
+                1L,
+                20L,
+                new BigDecimal("50.00"),
+                "SUP-PAY-REFONLY-1",
+                "Supplier payment",
+                "IDEMP-SUP-PAY-REFONLY-1",
+                List.of(new SettlementAllocationRequest(
+                        null,
+                        7001L,
+                        new BigDecimal("50.00"),
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        null
+                ))
+        );
+
+        assertThatThrownBy(() -> service.recordSupplierPayment(request))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("suspended")
+                .hasMessageContaining("reference only");
+
+        verify(service, never()).createJournalEntry(any(JournalEntryRequest.class));
+    }
+
+    @Test
+    void settleSupplierInvoices_rejectsReferenceOnlySupplierWithExplicitReason() {
+        AccountingService service = spy(accountingService);
+
+        Supplier supplier = new Supplier();
+        supplier.setName("Supplier");
+        supplier.setStatus(SupplierStatus.PENDING);
+        Account payable = new Account();
+        payable.setCompany(company);
+        payable.setCode("AP-REFONLY-SETTLE");
+        payable.setType(AccountType.LIABILITY);
+        ReflectionTestUtils.setField(payable, "id", 10L);
+        supplier.setPayableAccount(payable);
+        Account cash = new Account();
+        cash.setCompany(company);
+        cash.setCode("CASH-REFONLY-SETTLE");
+        cash.setType(AccountType.ASSET);
+        ReflectionTestUtils.setField(cash, "id", 20L);
+        ReflectionTestUtils.setField(supplier, "id", 1L);
+
+        when(supplierRepository.lockByCompanyAndId(eq(company), eq(1L))).thenReturn(Optional.of(supplier));
+        when(companyEntityLookup.requireAccount(eq(company), eq(20L))).thenReturn(cash);
+
+        SupplierSettlementRequest request = new SupplierSettlementRequest(
+                1L,
+                20L,
+                null,
+                null,
+                null,
+                null,
+                LocalDate.of(2024, 4, 9),
+                "SUP-SET-REFONLY-1",
+                "Supplier settlement",
+                "IDEMP-SUP-SET-REFONLY-1",
+                Boolean.FALSE,
+                List.of(new SettlementAllocationRequest(
+                        null,
+                        7001L,
+                        new BigDecimal("50.00"),
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        null
+                ))
+        );
+
+        assertThatThrownBy(() -> service.settleSupplierInvoices(request))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("pending approval")
+                .hasMessageContaining("reference only");
+
+        verify(service, never()).createJournalEntry(any(JournalEntryRequest.class));
+    }
+
+    @Test
     void settleSupplierInvoices_cashAmountAccountsForDiscountAndFxGain() {
         AccountingService service = spy(accountingService);
 
         Supplier supplier = new Supplier();
         supplier.setName("Supplier");
+        supplier.setStatus(SupplierStatus.ACTIVE);
         Account payable = new Account();
         payable.setCompany(company);
         payable.setCode("AP");
@@ -2043,6 +2152,7 @@ class AccountingServiceTest {
 
         Supplier supplier = new Supplier();
         supplier.setName("Supplier");
+        supplier.setStatus(SupplierStatus.ACTIVE);
         ReflectionTestUtils.setField(supplier, "id", 1L);
 
         Account payable = new Account();
@@ -2129,6 +2239,7 @@ class AccountingServiceTest {
 
         Supplier supplier = new Supplier();
         supplier.setName("Supplier");
+        supplier.setStatus(SupplierStatus.ACTIVE);
         ReflectionTestUtils.setField(supplier, "id", 1L);
 
         Account payable = new Account();
@@ -2301,6 +2412,7 @@ class AccountingServiceTest {
 
         Supplier supplier = new Supplier();
         supplier.setName("Closed-period supplier");
+        supplier.setStatus(SupplierStatus.ACTIVE);
         ReflectionTestUtils.setField(supplier, "id", 1L);
 
         Account payable = new Account();
@@ -2387,6 +2499,7 @@ class AccountingServiceTest {
     void recordSupplierPayment_requiresPurchaseAllocation() {
         Supplier supplier = new Supplier();
         supplier.setName("Supplier");
+        supplier.setStatus(SupplierStatus.ACTIVE);
         ReflectionTestUtils.setField(supplier, "id", 1L);
 
         Account payable = new Account();
@@ -2755,9 +2868,10 @@ class AccountingServiceTest {
     }
 
     @Test
-    void recordSupplierPayment_nonLeaderReplayRepairsReferenceMapping() {
+    void recordSupplierPayment_nonLeaderReplayRepairsReferenceMapping_afterSupplierBecomesReferenceOnly() {
         Supplier supplier = new Supplier();
         supplier.setName("Replay Supplier");
+        supplier.setStatus(SupplierStatus.SUSPENDED);
         ReflectionTestUtils.setField(supplier, "id", 1L);
 
         Account payable = new Account();
@@ -2850,6 +2964,7 @@ class AccountingServiceTest {
     void recordSupplierPayment_nonLeaderReplayMissingAllocationIncludesPartnerDetails() {
         Supplier supplier = new Supplier();
         supplier.setName("Replay Supplier");
+        supplier.setStatus(SupplierStatus.ACTIVE);
         ReflectionTestUtils.setField(supplier, "id", 1L);
 
         Account payable = new Account();
@@ -3234,6 +3349,7 @@ class AccountingServiceTest {
     void recordSupplierPayment_replayRejectsMappingAllocationJournalMismatch() {
         Supplier supplier = new Supplier();
         supplier.setName("Mismatch Supplier");
+        supplier.setStatus(SupplierStatus.ACTIVE);
         ReflectionTestUtils.setField(supplier, "id", 1L);
 
         Account payable = new Account();
@@ -3321,6 +3437,7 @@ class AccountingServiceTest {
     void recordSupplierPayment_replayRejectsMappingAllocationJournalMismatchOnLeaderFastPath() {
         Supplier supplier = new Supplier();
         supplier.setName("Mismatch Supplier");
+        supplier.setStatus(SupplierStatus.ACTIVE);
         ReflectionTestUtils.setField(supplier, "id", 1L);
 
         Account payable = new Account();
@@ -3709,6 +3826,7 @@ class AccountingServiceTest {
 
         Supplier supplier = new Supplier();
         supplier.setName("Race Supplier");
+        supplier.setStatus(SupplierStatus.ACTIVE);
         ReflectionTestUtils.setField(supplier, "id", 1L);
 
         Account payable = new Account();
@@ -3932,6 +4050,7 @@ class AccountingServiceTest {
 
         Supplier supplier = new Supplier();
         supplier.setName("Supplier");
+        supplier.setStatus(SupplierStatus.ACTIVE);
         ReflectionTestUtils.setField(supplier, "id", 1L);
 
         Account payable = new Account();
@@ -4572,6 +4691,7 @@ class AccountingServiceTest {
     void settleSupplierInvoices_replayPayloadMismatchWinsOverNetCashPrevalidation() {
         Supplier supplier = new Supplier();
         supplier.setName("Replay Supplier");
+        supplier.setStatus(SupplierStatus.ACTIVE);
         ReflectionTestUtils.setField(supplier, "id", 1L);
 
         Account payable = new Account();
@@ -6946,6 +7066,7 @@ class AccountingServiceTest {
 
         Supplier supplier = new Supplier();
         supplier.setName("Supplier");
+        supplier.setStatus(SupplierStatus.ACTIVE);
         Account payable = new Account();
         payable.setCompany(company);
         payable.setCode("AP");
@@ -7006,6 +7127,7 @@ class AccountingServiceTest {
 
         Supplier supplier = new Supplier();
         supplier.setName("Supplier");
+        supplier.setStatus(SupplierStatus.ACTIVE);
         Account payable = new Account();
         payable.setCompany(company);
         payable.setCode("AP");
@@ -7068,6 +7190,7 @@ class AccountingServiceTest {
 
         Supplier supplier = new Supplier();
         supplier.setName("Supplier");
+        supplier.setStatus(SupplierStatus.ACTIVE);
         Account payable = new Account();
         payable.setCompany(company);
         payable.setCode("AP");
@@ -7122,6 +7245,7 @@ class AccountingServiceTest {
     void settleSupplierInvoices_rejectsDuplicatePurchaseAllocationTargets() {
         Supplier supplier = new Supplier();
         supplier.setName("Supplier");
+        supplier.setStatus(SupplierStatus.ACTIVE);
         Account payable = new Account();
         payable.setCompany(company);
         payable.setCode("AP");
@@ -7185,6 +7309,7 @@ class AccountingServiceTest {
     void settleSupplierInvoices_rejectsAllocationWithNegativeNetCashContribution() {
         Supplier supplier = new Supplier();
         supplier.setName("Supplier");
+        supplier.setStatus(SupplierStatus.ACTIVE);
         Account payable = new Account();
         payable.setCompany(company);
         payable.setCode("AP");
@@ -7247,6 +7372,7 @@ class AccountingServiceTest {
     void settleSupplierInvoices_allowsToleranceBoundaryForNegativeNetCashContribution() {
         Supplier supplier = new Supplier();
         supplier.setName("Supplier");
+        supplier.setStatus(SupplierStatus.ACTIVE);
         Account payable = new Account();
         payable.setCompany(company);
         payable.setCode("AP");
@@ -7311,6 +7437,7 @@ class AccountingServiceTest {
     void settleSupplierInvoices_nonLeaderReplayAllowsInactiveCashAccountAndRepairsReferenceMapping() {
         Supplier supplier = new Supplier();
         supplier.setName("Replay Supplier");
+        supplier.setStatus(SupplierStatus.ACTIVE);
         ReflectionTestUtils.setField(supplier, "id", 1L);
 
         Account payable = new Account();
@@ -7404,6 +7531,7 @@ class AccountingServiceTest {
     void settleSupplierInvoices_nonLeaderReplayAllowsLegacyOnAccountAdjustments() {
         Supplier supplier = new Supplier();
         supplier.setName("Replay Supplier");
+        supplier.setStatus(SupplierStatus.ACTIVE);
         ReflectionTestUtils.setField(supplier, "id", 1L);
 
         Account payable = new Account();
@@ -7508,6 +7636,7 @@ class AccountingServiceTest {
     void settleSupplierInvoices_replayRejectsMappingAllocationJournalMismatch() {
         Supplier supplier = new Supplier();
         supplier.setName("Replay Supplier");
+        supplier.setStatus(SupplierStatus.ACTIVE);
         ReflectionTestUtils.setField(supplier, "id", 1L);
 
         Account payable = new Account();
@@ -7597,6 +7726,7 @@ class AccountingServiceTest {
     void settleSupplierInvoices_replayRejectsMappingAllocationJournalMismatchOnLeaderFastPath() {
         Supplier supplier = new Supplier();
         supplier.setName("Replay Supplier");
+        supplier.setStatus(SupplierStatus.ACTIVE);
         ReflectionTestUtils.setField(supplier, "id", 1L);
 
         Account payable = new Account();
@@ -7681,6 +7811,7 @@ class AccountingServiceTest {
     void settleSupplierInvoices_nonLeaderReplayMissingAllocationsIncludesPartnerDetails() {
         Supplier supplier = new Supplier();
         supplier.setName("Supplier");
+        supplier.setStatus(SupplierStatus.ACTIVE);
         ReflectionTestUtils.setField(supplier, "id", 1L);
 
         Account payable = new Account();
@@ -7755,10 +7886,12 @@ class AccountingServiceTest {
     void settleSupplierInvoices_replayPartnerMismatchIncludesPartnerDetails() {
         Supplier supplier = new Supplier();
         supplier.setName("Supplier");
+        supplier.setStatus(SupplierStatus.ACTIVE);
         ReflectionTestUtils.setField(supplier, "id", 1L);
 
         Supplier otherSupplier = new Supplier();
         otherSupplier.setName("Other Supplier");
+        otherSupplier.setStatus(SupplierStatus.ACTIVE);
         ReflectionTestUtils.setField(otherSupplier, "id", 2L);
 
         Account payable = new Account();
@@ -7846,6 +7979,7 @@ class AccountingServiceTest {
 
         Supplier supplier = new Supplier();
         supplier.setName("Supplier");
+        supplier.setStatus(SupplierStatus.ACTIVE);
         Account payable = new Account();
         payable.setCompany(company);
         payable.setCode("AP-SUP");
@@ -7899,6 +8033,7 @@ class AccountingServiceTest {
 
         Supplier supplier = new Supplier();
         supplier.setName("Supplier");
+        supplier.setStatus(SupplierStatus.ACTIVE);
         Account payable = new Account();
         payable.setCompany(company);
         payable.setCode("AP-SUP");
@@ -8012,6 +8147,7 @@ class AccountingServiceTest {
         Supplier supplier = new Supplier();
         ReflectionTestUtils.setField(supplier, "id", 2L);
         supplier.setName("Supplier Auto");
+        supplier.setStatus(SupplierStatus.ACTIVE);
 
         RawMaterialPurchase oldest = new RawMaterialPurchase();
         ReflectionTestUtils.setField(oldest, "id", 201L);
@@ -8074,6 +8210,7 @@ class AccountingServiceTest {
         ReflectionTestUtils.setField(supplier, "id", 2L);
         supplier.setCode("SUP-02");
         supplier.setName("Supplier Auto");
+        supplier.setStatus(SupplierStatus.ACTIVE);
 
         RawMaterialPurchase oldest = new RawMaterialPurchase();
         ReflectionTestUtils.setField(oldest, "id", 201L);

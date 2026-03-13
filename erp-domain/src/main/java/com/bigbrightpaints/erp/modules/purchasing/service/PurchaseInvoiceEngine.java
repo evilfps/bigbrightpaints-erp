@@ -131,6 +131,7 @@ public class PurchaseInvoiceEngine {
     public RawMaterialPurchaseResponse createPurchase(RawMaterialPurchaseRequest request) {
         Company company = companyContextService.requireCurrentCompany();
         Supplier supplier = companyEntityLookup.requireSupplier(company, request.supplierId());
+        supplier.requireTransactionalUsage("post purchase invoices");
         if (supplier.getPayableAccount() == null) {
             throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidState("Supplier " + supplier.getName() + " is missing a payable account");
         }
@@ -167,7 +168,6 @@ public class PurchaseInvoiceEngine {
                             "Goods receipt already linked to a purchase invoice")
                             .withDetail("purchaseId", existing.getId());
                 });
-        assertGoodsReceiptMovementsUnlinked(company, goodsReceipt.getReceiptNumber());
 
         Map<Long, BigDecimal> receiptQuantities = new HashMap<>();
         Map<Long, BigDecimal> receiptUnitCosts = new HashMap<>();
@@ -188,6 +188,7 @@ public class PurchaseInvoiceEngine {
             receiptUnits.put(materialId, line.getUnit());
             receiptLinesByMaterial.put(materialId, line);
         }
+        List<RawMaterialMovement> goodsReceiptMovements = requireGoodsReceiptMovementsReadyForInvoicing(company, goodsReceipt, receiptLinesByMaterial);
 
         boolean taxProvided = request.taxAmount() != null;
         Set<Long> invoiceMaterialIds = new HashSet<>();
@@ -434,56 +435,21 @@ public class PurchaseInvoiceEngine {
         purchase.setPurchaseOrder(purchaseOrder);
         purchase.setGoodsReceipt(goodsReceipt);
 
-        List<RawMaterialService.ReceiptResult> receipts = new ArrayList<>();
-        int lineIndex = 1;
         for (PurchaseLineCalc lineCalc : computedLines) {
             RawMaterial rawMaterial = lineCalc.rawMaterial();
             BigDecimal quantity = lineCalc.quantity();
             BigDecimal costPerUnit = lineCalc.netUnitCost();
             String unit = lineCalc.unit();
-            String batchCode = lineCalc.batchCode();
             BigDecimal lineTotal = lineCalc.lineNet();
 
             GoodsReceiptLine receiptLine = receiptLinesByMaterial.get(rawMaterial.getId());
-            RawMaterialBatch batch = receiptLine != null ? receiptLine.getRawMaterialBatch() : null;
-            String lineReference = invoiceReference(invoiceNumber, lineIndex++);
-            if (batch == null) {
-                if (goodsReceipt != null) {
-                    throw new ApplicationException(ErrorCode.BUSINESS_CONSTRAINT_VIOLATION,
-                            "Goods receipt line is missing batch; invoice cannot create inventory movements")
-                            .withDetail("rawMaterialId", rawMaterial.getId())
-                            .withDetail("goodsReceiptId", goodsReceipt.getId());
-                }
-                RawMaterialBatchRequest batchRequest = new RawMaterialBatchRequest(
-                        batchCode,
-                        quantity,
-                        unit,
-                        costPerUnit,
-                        supplier.getId(),
-                        null,
-                        null,
-                        lineCalc.notes()
-                );
-                RawMaterialService.ReceiptContext context = new RawMaterialService.ReceiptContext(
-                        InventoryReference.RAW_MATERIAL_PURCHASE,
-                        lineReference,
-                        purchaseMemo(request.memo(), invoiceNumber, batchCode),
-                        false
-                );
-                RawMaterialService.ReceiptResult receipt = rawMaterialService.recordReceipt(rawMaterial.getId(), batchRequest, context);
-                receipts.add(receipt);
-                batch = receipt.batch();
-                if (receiptLine != null) {
-                    receiptLine.setRawMaterialBatch(batch);
-                    receiptLine.setBatchCode(batch.getBatchCode());
-                }
-            }
+            RawMaterialBatch batch = receiptLine.getRawMaterialBatch();
 
             RawMaterialPurchaseLine line = new RawMaterialPurchaseLine();
             line.setPurchase(purchase);
             line.setRawMaterial(rawMaterial);
             line.setRawMaterialBatch(batch);
-            line.setBatchCode(batch != null ? batch.getBatchCode() : batchCode);
+            line.setBatchCode(batch.getBatchCode());
             line.setQuantity(quantity);
             line.setUnit(unit);
             line.setCostPerUnit(costPerUnit);
@@ -500,15 +466,7 @@ public class PurchaseInvoiceEngine {
         purchase = purchaseRepository.save(purchase);
 
         if (entry != null) {
-            Long entryId = entry.id();
-            receipts.stream()
-                    .map(RawMaterialService.ReceiptResult::movement)
-                    .filter(Objects::nonNull)
-                    .forEach(movement -> {
-                        movement.setJournalEntryId(entryId);
-                        movementRepository.save(movement);
-                    });
-            linkGoodsReceiptMovementsToJournal(company, goodsReceipt.getReceiptNumber(), entryId);
+            linkGoodsReceiptMovementsToJournal(company, goodsReceipt.getReceiptNumber(), entry.id());
         }
         goodsReceipt.setStatus(GoodsReceiptStatus.INVOICED);
         goodsReceiptRepository.save(goodsReceipt);
@@ -543,25 +501,66 @@ public class PurchaseInvoiceEngine {
         return responseMapper.toPurchaseResponse(purchase);
     }
 
-    private void assertGoodsReceiptMovementsUnlinked(Company company, String receiptNumber) {
-        if (!StringUtils.hasText(receiptNumber)) {
-            return;
+    private List<RawMaterialMovement> requireGoodsReceiptMovementsReadyForInvoicing(Company company, GoodsReceipt goodsReceipt, Map<Long, GoodsReceiptLine> receiptLinesByMaterial) { if (!StringUtils.hasText(goodsReceipt.getReceiptNumber())) {
+            throw new ApplicationException(ErrorCode.BUSINESS_CONSTRAINT_VIOLATION, "Goods receipt linkage is incomplete; purchase invoice requires a persisted goods receipt reference")
+                    .withDetail("goodsReceiptId", goodsReceipt.getId());
         }
-        for (RawMaterialMovement movement : findGoodsReceiptMovements(company, receiptNumber)) {
+        if (receiptLinesByMaterial.isEmpty()) {
+            throw new ApplicationException(ErrorCode.BUSINESS_CONSTRAINT_VIOLATION, "Goods receipt has no stock lines to anchor purchase invoice")
+                    .withDetail("goodsReceiptId", goodsReceipt.getId())
+                    .withDetail("goodsReceiptNumber", goodsReceipt.getReceiptNumber());
+        }
+
+        List<RawMaterialMovement> receiptMovements = findGoodsReceiptMovements(company, goodsReceipt.getReceiptNumber());
+        if (receiptMovements.isEmpty()) {
+            throw new ApplicationException(ErrorCode.BUSINESS_CONSTRAINT_VIOLATION,
+                    "Goods receipt " + goodsReceipt.getReceiptNumber() + " has no stock movement to anchor purchase invoice")
+                    .withDetail("goodsReceiptId", goodsReceipt.getId())
+                    .withDetail("goodsReceiptNumber", goodsReceipt.getReceiptNumber());
+        }
+
+        Set<Long> movementMaterialIds = new HashSet<>();
+        for (RawMaterialMovement movement : receiptMovements) {
             Long existingJournalId = movement.getJournalEntryId();
             if (existingJournalId != null) {
                 throw new ApplicationException(
                         ErrorCode.BUSINESS_CONSTRAINT_VIOLATION,
-                        "Goods receipt " + receiptNumber + " already linked to journal " + existingJournalId)
-                        .withDetail("goodsReceiptNumber", receiptNumber)
+                        "Goods receipt " + goodsReceipt.getReceiptNumber() + " already linked to journal " + existingJournalId)
+                        .withDetail("goodsReceiptNumber", goodsReceipt.getReceiptNumber())
                         .withDetail("movementId", movement.getId())
                         .withDetail("existingJournalEntryId", existingJournalId);
             }
+            if (movement.getRawMaterial() != null && movement.getRawMaterial().getId() != null) {
+                movementMaterialIds.add(movement.getRawMaterial().getId());
+            }
         }
+
+        Set<Long> receiptMaterialIds = new HashSet<>(receiptLinesByMaterial.keySet());
+        if (!movementMaterialIds.equals(receiptMaterialIds)) {
+            Set<Long> missingMovementMaterialIds = new HashSet<>(receiptMaterialIds);
+            missingMovementMaterialIds.removeAll(movementMaterialIds);
+            Set<Long> unexpectedMovementMaterialIds = new HashSet<>(movementMaterialIds);
+            unexpectedMovementMaterialIds.removeAll(receiptMaterialIds);
+            throw new ApplicationException(ErrorCode.BUSINESS_CONSTRAINT_VIOLATION, "Goods receipt movement linkage drift detected; purchase invoice cannot post AP truth")
+                    .withDetail("goodsReceiptId", goodsReceipt.getId())
+                    .withDetail("goodsReceiptNumber", goodsReceipt.getReceiptNumber())
+                    .withDetail("missingMovementRawMaterialIds", missingMovementMaterialIds)
+                    .withDetail("unexpectedMovementRawMaterialIds", unexpectedMovementMaterialIds);
+        }
+
+        for (Map.Entry<Long, GoodsReceiptLine> entry : receiptLinesByMaterial.entrySet()) {
+            if (entry.getValue().getRawMaterialBatch() == null) {
+                throw new ApplicationException(ErrorCode.BUSINESS_CONSTRAINT_VIOLATION, "Goods receipt line is missing batch linkage; invoice cannot create AP truth")
+                        .withDetail("goodsReceiptId", goodsReceipt.getId())
+                        .withDetail("goodsReceiptNumber", goodsReceipt.getReceiptNumber())
+                        .withDetail("rawMaterialId", entry.getKey());
+            }
+        }
+
+        return receiptMovements;
     }
 
-    private void linkGoodsReceiptMovementsToJournal(Company company, String receiptNumber, Long journalEntryId) {
-        if (journalEntryId == null || !StringUtils.hasText(receiptNumber)) {
+    private void linkGoodsReceiptMovementsToJournal(Company company, String receiptNumber, Long journalEntryId) { if (journalEntryId == null || !StringUtils.hasText(receiptNumber)) {
             return;
         }
         List<RawMaterialMovement> receiptMovements = findGoodsReceiptMovements(company, receiptNumber);
@@ -679,11 +678,6 @@ public class PurchaseInvoiceEngine {
 
     private BigDecimal currency(BigDecimal value) {
         return MoneyUtils.roundCurrency(value);
-    }
-
-    private String invoiceReference(String invoiceNumber, int lineIndex) {
-        String normalized = invoiceNumber == null ? "" : invoiceNumber.replaceAll("\\s+", "-");
-        return normalized + "-" + lineIndex;
     }
 
     private String purchaseMemo(String memo, String invoiceNumber, String batchCode) {

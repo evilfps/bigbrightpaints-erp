@@ -59,6 +59,12 @@ Backend-facing working notes for frontend-v2 consumers.
 - Expected frontend-sensitive areas: supplier lifecycle blockers, GRN vs purchase-invoice boundary, and supplier-settlement guidance.
 - Any blocker-message or state-field changes must be recorded here and in `.factory/library/frontend-handoff.md` when implemented.
 
+#### 2026-03-08 implemented note — `p2p-truth.supplier-lifecycle-and-payable-provisioning`
+
+- `POST /api/v1/suppliers` now guarantees the returned supplier already has a linked `payableAccountId`/`payableAccountCode` from the same onboarding transaction; frontend no longer needs to treat payable-account creation as a separate follow-up concern.
+- Supplier list/detail endpoints still show non-active suppliers for lookup/reference, but create/progress/post actions now fail closed with business-language blocker messages when the supplier is `PENDING`, `APPROVED`, or `SUSPENDED`.
+- Frontend should keep non-active suppliers visible with read-only badges, disable transactional CTA paths for them when status is known, and surface backend blocker text verbatim on stale-state submissions.
+
 ### corrections-and-control
 
 - Expected frontend-sensitive areas: explicit correction outcomes, settlement override flows, admin approval prompts, and period-close blocker reporting.

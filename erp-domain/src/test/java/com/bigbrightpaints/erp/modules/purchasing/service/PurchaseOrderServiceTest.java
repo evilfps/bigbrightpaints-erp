@@ -23,6 +23,7 @@ import com.bigbrightpaints.erp.modules.purchasing.dto.PurchaseOrderStatusHistory
 import com.bigbrightpaints.erp.modules.purchasing.dto.PurchaseOrderVoidRequest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -47,6 +48,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
+@Tag("critical")
 class PurchaseOrderServiceTest {
 
     @Mock
@@ -140,6 +142,37 @@ class PurchaseOrderServiceTest {
         assertThat(history.getReasonCode()).isEqualTo("PURCHASE_ORDER_CREATED");
         assertThat(history.getReason()).isEqualTo("Purchase order created");
         assertThat(history.getChangedBy()).isEqualTo(SecurityActorResolver.UNKNOWN_AUTH_ACTOR);
+    }
+
+    @Test
+    @DisplayName("createPurchaseOrder rejects suppliers that are still reference-only")
+    void createPurchaseOrder_rejectsReferenceOnlySupplierWithExplicitReason() {
+        supplier.setStatus(SupplierStatus.PENDING);
+        when(companyContextService.requireCurrentCompany()).thenReturn(company);
+        when(companyEntityLookup.requireSupplier(company, 11L)).thenReturn(supplier);
+
+        PurchaseOrderRequest request = new PurchaseOrderRequest(
+                11L,
+                "PO-1002",
+                LocalDate.of(2026, 3, 1),
+                "Reference-only supplier order",
+                List.of(new PurchaseOrderLineRequest(
+                        21L,
+                        new BigDecimal("5.0000"),
+                        "KG",
+                        new BigDecimal("10.00"),
+                        "line note"
+                ))
+        );
+
+        assertThatThrownBy(() -> purchaseOrderService.createPurchaseOrder(request))
+                .isInstanceOf(ApplicationException.class)
+                .satisfies(ex -> assertThat(((ApplicationException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.BUSINESS_INVALID_STATE))
+                .hasMessageContaining("pending approval")
+                .hasMessageContaining("reference only");
+
+        verify(purchaseOrderRepository, never()).save(any(PurchaseOrder.class));
     }
 
     @Test
