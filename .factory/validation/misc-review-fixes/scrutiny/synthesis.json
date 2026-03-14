@@ -1,7 +1,7 @@
 {
   "milestone": "misc-review-fixes",
-  "round": 1,
-  "status": "fail",
+  "round": 2,
+  "status": "pass",
   "validatorsRun": {
     "test": {
       "passed": true,
@@ -20,32 +20,23 @@
     }
   },
   "reviewsSummary": {
-    "total": 2,
+    "total": 1,
     "passed": 1,
-    "failed": 1,
-    "failedFeatures": [
-      "pr-review-comment-fixes"
-    ]
+    "failed": 0,
+    "failedFeatures": []
   },
-  "blockingIssues": [
-    {
-      "featureId": "pr-review-comment-fixes",
-      "severity": "blocking",
-      "description": "Stale frontend handoff documentation still directs dispatch-like orchestrator fulfillment callers to /api/v1/sales/dispatch/confirm, conflicting with implemented canonical path /api/v1/dispatch/confirm.",
-      "evidence": ".factory/library/frontend-v2.md:23 and .factory/library/frontend-handoff.md:2120 still reference /api/v1/sales/dispatch/confirm while IntegrationCoordinator and guard checks were updated to /api/v1/dispatch/confirm in follow-up commit 6c9cf52c802d607c9a45c633ab458f4f9e5c5b36."
-    }
-  ],
+  "blockingIssues": [],
   "appliedUpdates": [],
   "suggestedGuidanceUpdates": [],
   "rejectedObservations": [
     {
-      "observation": "The queueProduction fail-closed company guard predated the second feature and the follow-up mainly added coverage.",
-      "reason": "feature-specific observation; not a shared-state update for services.yaml/library/AGENTS/skills"
+      "observation": "The original milestone blocker is resolved on the current branch tip.",
+      "reason": "validated by the fix-feature review; no additional services.yaml/library/AGENTS/skills update required"
     },
     {
-      "observation": "Follow-up feature partially remediated runtime/test/guard canonical path alignment.",
-      "reason": "captured as direct review evidence for this milestone; no additional shared-state mutation required"
+      "observation": "The fix preserved the intended split between fulfillment rejection guidance and accounting/admin posting guidance.",
+      "reason": "confirmed behavior already documented and now consistent; no shared-state mutation needed"
     }
   ],
-  "previousRound": null
+  "previousRound": ".factory/validation/misc-review-fixes/scrutiny/synthesis.round1.json"
 }

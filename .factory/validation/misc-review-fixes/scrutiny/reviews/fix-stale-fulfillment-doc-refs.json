@@ -1,0 +1,17 @@
+{
+  "featureId": "fix-stale-fulfillment-doc-refs",
+  "status": "pass",
+  "summary": "Pass. Commit `6cc50c6b93a102b8b85ad2e48e998c137e928305` resolves the prior blocking docs mismatch from `pr-review-comment-fixes` by updating the two stale frontend handoff references for dispatch-like orchestrator fulfillment rejections to `/api/v1/dispatch/confirm`, matching the current runtime rejection and canonical-path guard.",
+  "issues": [],
+  "sharedStateObservations": [
+    {
+      "observation": "The original milestone blocker is resolved on the current branch tip.",
+      "evidence": "`git show 6cc50c6b93a102b8b85ad2e48e998c137e928305` changes `.factory/library/frontend-v2.md` and `.factory/library/frontend-handoff.md` from `/api/v1/sales/dispatch/confirm` to `/api/v1/dispatch/confirm` for the orchestrator fulfillment redirect, which now matches `erp-domain/src/main/java/com/bigbrightpaints/erp/orchestrator/service/IntegrationCoordinator.java:287-288` and `scripts/guard_workflow_canonical_paths.sh:122-123`."
+    },
+    {
+      "observation": "The fix preserved the intended split between fulfillment rejection guidance and the accounting/admin posting surface.",
+      "evidence": "Current `.factory/library/frontend-v2.md:21` and `.factory/library/frontend-handoff.md:2111,2118,2156,2259,3408` still use `/api/v1/sales/dispatch/confirm` only for accounting/admin posting guidance, while `.factory/library/frontend-v2.md:23` and `.factory/library/frontend-handoff.md:2120` now point dispatch-like fulfillment rejections to `/api/v1/dispatch/confirm`."
+    }
+  ],
+  "reviewedAt": "2026-03-14T10:40:39Z"
+}
