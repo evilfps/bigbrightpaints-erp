@@ -2,6 +2,10 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+O2C_WORKFLOW_DOC="${WORKFLOW_O2C_DOC:-$ROOT_DIR/docs/workflows/sales-order-to-cash.md}"
+P2P_WORKFLOW_DOC="${WORKFLOW_P2P_DOC:-$ROOT_DIR/docs/workflows/purchase-to-pay.md}"
+MANUFACTURING_WORKFLOW_DOC="${WORKFLOW_MANUFACTURING_DOC:-$ROOT_DIR/docs/workflows/manufacturing-and-packaging.md}"
+PAYROLL_WORKFLOW_DOC="${WORKFLOW_PAYROLL_DOC:-$ROOT_DIR/docs/workflows/payroll.md}"
 REMEDIATION_COMMAND="bash scripts/guard_workflow_canonical_paths.sh"
 ERP_MAIN_DIR="$ROOT_DIR/erp-domain/src/main/java/com/bigbrightpaints/erp"
 SALES_CORE_ENGINE="$ERP_MAIN_DIR/modules/sales/service/SalesCoreEngine.java"
@@ -14,6 +18,31 @@ fail() {
   echo "[guard_workflow_canonical_paths] remediation: run '$REMEDIATION_COMMAND'" >&2
   exit 1
 }
+
+require_literal() {
+  local file="$1"
+  local needle="$2"
+  local label="$3"
+  grep -Fq -- "$needle" "$file" || fail "missing $label in $file"
+}
+
+for path in \
+  "$O2C_WORKFLOW_DOC" \
+  "$P2P_WORKFLOW_DOC" \
+  "$MANUFACTURING_WORKFLOW_DOC" \
+  "$PAYROLL_WORKFLOW_DOC"; do
+  [[ -f "$path" ]] || fail "missing required contract document: $path"
+done
+
+require_literal "$O2C_WORKFLOW_DOC" 'preferred `POST /api/v1/sales/dispatch/confirm` (factory view may use `POST /api/v1/dispatch/confirm`)' "O2C dispatch workflow doc guidance"
+
+require_literal "$P2P_WORKFLOW_DOC" '`POST /api/v1/purchasing/goods-receipts`' "P2P GRN canonical endpoint doc"
+require_literal "$P2P_WORKFLOW_DOC" '`POST /api/v1/purchasing/raw-material-purchases`' "P2P invoice canonical endpoint doc"
+
+require_literal "$MANUFACTURING_WORKFLOW_DOC" '`POST /api/v1/factory/packing-records`' "manufacturing packing canonical endpoint doc"
+require_literal "$MANUFACTURING_WORKFLOW_DOC" '`POST /api/v1/factory/pack`' "manufacturing bulk-pack canonical endpoint doc"
+
+require_literal "$PAYROLL_WORKFLOW_DOC" '`POST /api/v1/payroll/runs/{id}/post`' "payroll canonical endpoint doc"
 
 for path in \
   "$SALES_CORE_ENGINE" \
@@ -78,8 +107,8 @@ dispatch_batch_body = extract_method_body(
 )
 if "throw new OrchestratorFeatureDisabledException(" not in dispatch_batch_body:
     fail("CommandDispatcher.dispatchBatch must fail closed instead of dispatching through an alternate posting path")
-if "/api/v1/sales/dispatch/confirm" not in dispatch_batch_body and "SALES_DISPATCH_CANONICAL_PATH" not in dispatch_batch_body:
-    fail("CommandDispatcher.dispatchBatch must point callers to /api/v1/sales/dispatch/confirm")
+if "/api/v1/dispatch/confirm" not in dispatch_batch_body and "CANONICAL_DISPATCH_PATH" not in dispatch_batch_body:
+    fail("CommandDispatcher.dispatchBatch must point callers to /api/v1/dispatch/confirm")
 
 integration_coordinator = read(integration_coordinator_path)
 update_fulfillment_body = extract_method_body(

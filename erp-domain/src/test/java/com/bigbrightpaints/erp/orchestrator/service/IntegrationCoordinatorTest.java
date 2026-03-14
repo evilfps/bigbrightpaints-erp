@@ -10,6 +10,7 @@ import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.modules.accounting.dto.PayrollPaymentRequest;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingService;
+import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
 import com.bigbrightpaints.erp.modules.factory.dto.ProductionBatchRequest;
 import com.bigbrightpaints.erp.modules.factory.dto.ProductionPlanRequest;
 import com.bigbrightpaints.erp.modules.factory.service.FactoryService;
@@ -78,6 +79,8 @@ class IntegrationCoordinatorTest {
     @Mock
     private AccountingFacade accountingFacade;
     @Mock
+    private CompanyRepository companyRepository;
+    @Mock
     private CompanyClock companyClock;
 
     private IntegrationCoordinator integrationCoordinator;
@@ -96,6 +99,7 @@ class IntegrationCoordinatorTest {
                 reportService,
                 orderAutoApprovalStateRepository,
                 accountingFacade,
+                companyRepository,
                 companyClock,
                 new OrchestratorFeatureFlags(true, true),
                 new NoOpTransactionManager());
@@ -103,6 +107,7 @@ class IntegrationCoordinatorTest {
         company = new Company();
         company.setCode(COMPANY_ID);
         company.setTimezone("UTC");
+        lenient().when(companyRepository.findByCodeIgnoreCase(COMPANY_ID)).thenReturn(Optional.of(company));
         lenient().when(companyClock.today(any())).thenReturn(LocalDate.of(2024, 1, 1));
         order = new SalesOrder();
         order.setCompany(company);
@@ -351,6 +356,7 @@ class IntegrationCoordinatorTest {
                 reportService,
                 orderAutoApprovalStateRepository,
                 accountingFacade,
+                companyRepository,
                 companyClock,
                 new OrchestratorFeatureFlags(true, false),
                 new NoOpTransactionManager());
@@ -361,10 +367,11 @@ class IntegrationCoordinatorTest {
     }
 
     @Test
-    void queueProductionBuildsNextDayPlanWithoutCurrentCompanyLookup() {
+    void queueProductionBuildsNextDayPlanUsingTenantCompanyTimezone() {
         integrationCoordinator.queueProduction("101", COMPANY_ID);
 
-        verify(companyClock).today(null);
+        verify(companyRepository).findByCodeIgnoreCase(COMPANY_ID);
+        verify(companyClock).today(company);
         verify(factoryService).createPlan(argThat((ProductionPlanRequest request) ->
                 request != null
                         && request.planNumber().equals("PLAN-101")
@@ -385,6 +392,7 @@ class IntegrationCoordinatorTest {
                 reportService,
                 orderAutoApprovalStateRepository,
                 accountingFacade,
+                companyRepository,
                 companyClock,
                 new OrchestratorFeatureFlags(false, true),
                 new NoOpTransactionManager());
@@ -405,6 +413,7 @@ class IntegrationCoordinatorTest {
                 reportService,
                 orderAutoApprovalStateRepository,
                 accountingFacade,
+                companyRepository,
                 companyClock,
                 new OrchestratorFeatureFlags(false, true),
                 new NoOpTransactionManager());

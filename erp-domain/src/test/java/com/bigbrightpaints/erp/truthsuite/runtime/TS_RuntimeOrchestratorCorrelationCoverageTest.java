@@ -334,6 +334,7 @@ class TS_RuntimeOrchestratorCorrelationCoverageTest {
                 mock(ReportService.class),
                 mock(OrderAutoApprovalStateRepository.class),
                 mock(AccountingFacade.class),
+                mock(CompanyRepository.class),
                 mock(CompanyClock.class),
                 featureFlags,
                 new ResourcelessTransactionManager());

@@ -5,7 +5,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.bigbrightpaints.erp.truthsuite.support.TruthSuiteFileAssert;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
@@ -13,7 +12,6 @@ import org.junit.jupiter.api.Test;
 @Tag("reconciliation")
 class TS_O2COrchestratorDispatchRemovalRegressionTest {
 
-    private static final Path ERP_DOMAIN_ROOT = locateErpDomainRoot();
     private static final String INTEGRATION_COORDINATOR =
             "src/main/java/com/bigbrightpaints/erp/orchestrator/service/IntegrationCoordinator.java";
     private static final String COMMAND_DISPATCHER =
@@ -37,7 +35,7 @@ class TS_O2COrchestratorDispatchRemovalRegressionTest {
 
         assertTrue(source.contains("throw new OrchestratorFeatureDisabledException("),
                 "CommandDispatcher.dispatchBatch should fail closed explicitly");
-        assertTrue(source.contains("/api/v1/sales/dispatch/confirm"),
+        assertTrue(source.contains("/api/v1/dispatch/confirm"),
                 "CommandDispatcher.dispatchBatch should point callers to the canonical dispatch endpoint");
         assertFalse(source.contains("integrationCoordinator.updateProductionStatus("),
                 "dispatchBatch must not advance production status independently");
@@ -51,27 +49,11 @@ class TS_O2COrchestratorDispatchRemovalRegressionTest {
 
     @Test
     void staleOrchestratorDispatchArtifactsAreRemovedFromSourceTree() {
-        assertFalse(Files.exists(resolve("src/main/java/com/bigbrightpaints/erp/modules/sales/service/SalesJournalService.java")),
+        assertFalse(Files.exists(TruthSuiteFileAssert.resolve("src/main/java/com/bigbrightpaints/erp/modules/sales/service/SalesJournalService.java")),
                 "Legacy SalesJournalService should be removed");
-        assertFalse(Files.exists(resolve("src/main/java/com/bigbrightpaints/erp/orchestrator/config/DispatchMappingHealthIndicator.java")),
+        assertFalse(Files.exists(TruthSuiteFileAssert.resolve("src/main/java/com/bigbrightpaints/erp/orchestrator/config/DispatchMappingHealthIndicator.java")),
                 "DispatchMappingHealthIndicator should be removed with orchestrator dispatch journals");
-        assertFalse(Files.exists(resolve("src/test/java/com/bigbrightpaints/erp/truthsuite/o2c/TS_O2COrchestratorDispatchCharacterizationTest.java")),
+        assertFalse(Files.exists(TruthSuiteFileAssert.resolve("src/test/java/com/bigbrightpaints/erp/truthsuite/o2c/TS_O2COrchestratorDispatchCharacterizationTest.java")),
                 "Temporary orchestrator characterization test must be deleted once the path is removed");
-    }
-
-    private static Path resolve(String relativePath) {
-        return ERP_DOMAIN_ROOT.resolve(relativePath).normalize();
-    }
-
-    private static Path locateErpDomainRoot() {
-        Path cwd = Path.of("").toAbsolutePath().normalize();
-        if (Files.exists(cwd.resolve("src/main/java"))) {
-            return cwd;
-        }
-        Path fromRepoRoot = cwd.resolve("erp-domain");
-        if (Files.exists(fromRepoRoot.resolve("src/main/java"))) {
-            return fromRepoRoot;
-        }
-        throw new IllegalStateException("Unable to locate erp-domain root from: " + cwd);
     }
 }

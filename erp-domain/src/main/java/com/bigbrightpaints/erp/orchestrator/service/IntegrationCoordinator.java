@@ -9,6 +9,8 @@ import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.PayrollPaymentRequest;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingService;
+import com.bigbrightpaints.erp.modules.company.domain.Company;
+import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
 import com.bigbrightpaints.erp.modules.factory.dto.FactoryDashboardDto;
 import com.bigbrightpaints.erp.modules.factory.dto.FactoryTaskDto;
 import com.bigbrightpaints.erp.modules.factory.dto.FactoryTaskRequest;
@@ -68,6 +70,7 @@ public class IntegrationCoordinator {
     private final ReportService reportService;
     private final OrderAutoApprovalStateRepository orderAutoApprovalStateRepository;
     private final AccountingFacade accountingFacade;
+    private final CompanyRepository companyRepository;
     private final CompanyClock companyClock;
     private final OrchestratorFeatureFlags featureFlags;
     private final TransactionTemplate txTemplate;
@@ -80,6 +83,7 @@ public class IntegrationCoordinator {
                                   ReportService reportService,
                                   OrderAutoApprovalStateRepository orderAutoApprovalStateRepository,
                                   AccountingFacade accountingFacade,
+                                  CompanyRepository companyRepository,
                                   CompanyClock companyClock,
                                   OrchestratorFeatureFlags featureFlags,
                                   PlatformTransactionManager txManager) {
@@ -91,6 +95,7 @@ public class IntegrationCoordinator {
         this.reportService = reportService;
         this.orderAutoApprovalStateRepository = orderAutoApprovalStateRepository;
         this.accountingFacade = accountingFacade;
+        this.companyRepository = companyRepository;
         this.companyClock = companyClock;
         this.featureFlags = featureFlags;
         TransactionTemplate template = new TransactionTemplate(txManager);
@@ -131,11 +136,12 @@ public class IntegrationCoordinator {
     @Transactional
     public void queueProduction(String orderId, String companyId) {
         runWithCompanyContext(companyId, () -> {
+            Company company = requireCompany(companyId, "queueProduction");
             ProductionPlanRequest request = new ProductionPlanRequest(
                     "PLAN-" + orderId,
                     "Order " + orderId,
                     1.0,
-                    companyClock.today(null).plusDays(1),
+                    companyClock.today(company).plusDays(1),
                     "Auto-generated from orchestrator");
             factoryService.createPlan(request);
             log.info("Queued production plan for order {}", orderId);
@@ -599,6 +605,27 @@ public class IntegrationCoordinator {
         } catch (NumberFormatException ex) {
             return Optional.empty();
         }
+    }
+
+    private Company requireCompany(String companyId, String operation) {
+        String normalizedCompanyId = normalizeCompanyId(companyId);
+        if (normalizedCompanyId == null) {
+            throw new ApplicationException(
+                    ErrorCode.VALIDATION_INVALID_INPUT,
+                    "Missing companyId")
+                    .withDetail("field", "companyId")
+                    .withDetail("operation", operation);
+        }
+        return parseLong(normalizedCompanyId)
+                .flatMap(companyRepository::findById)
+                .or(() -> companyRepository.findByCodeIgnoreCase(normalizedCompanyId))
+                .orElseThrow(() -> new ApplicationException(
+                        ErrorCode.VALIDATION_INVALID_INPUT,
+                        "Unknown companyId")
+                        .withDetail("field", "companyId")
+                        .withDetail("operation", operation)
+                        .withDetail("safeIdentifier",
+                                CorrelationIdentifierSanitizer.safeIdentifierForLog(normalizedCompanyId)));
     }
 
     private String correlationMemo(String baseMemo, String traceId, String idempotencyKey) {

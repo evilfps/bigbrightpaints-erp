@@ -15,8 +15,12 @@ public final class TruthSuiteFileAssert {
     private TruthSuiteFileAssert() {
     }
 
+    public static Path resolve(String relativePath) {
+        return ERP_DOMAIN_ROOT.resolve(relativePath).normalize();
+    }
+
     public static String read(String relativePath) {
-        Path path = ERP_DOMAIN_ROOT.resolve(relativePath).normalize();
+        Path path = resolve(relativePath);
         try {
             return Files.readString(path, StandardCharsets.UTF_8);
         } catch (IOException ex) {

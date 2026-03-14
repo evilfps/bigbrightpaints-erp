@@ -26,7 +26,7 @@ import org.springframework.util.StringUtils;
 public class CommandDispatcher {
 
     private static final Logger log = LoggerFactory.getLogger(CommandDispatcher.class);
-    private static final String SALES_DISPATCH_CANONICAL_PATH = "/api/v1/sales/dispatch/confirm";
+    private static final String CANONICAL_DISPATCH_PATH = "/api/v1/dispatch/confirm";
 
     private final WorkflowService workflowService;
     private final IntegrationCoordinator integrationCoordinator;
@@ -189,8 +189,8 @@ public class CommandDispatcher {
                                 String userId) {
         policyEnforcer.checkDispatchPermissions(userId, companyId);
         throw new OrchestratorFeatureDisabledException(
-                "Orchestrator batch dispatch is deprecated; use " + SALES_DISPATCH_CANONICAL_PATH,
-                SALES_DISPATCH_CANONICAL_PATH);
+                "Orchestrator batch dispatch is deprecated; use " + CANONICAL_DISPATCH_PATH,
+                CANONICAL_DISPATCH_PATH);
     }
 
     @Transactional(noRollbackFor = OrchestratorFeatureDisabledException.class)
