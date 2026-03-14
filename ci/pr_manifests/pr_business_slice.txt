@@ -59,3 +59,4 @@ com.bigbrightpaints.erp.modules.sales.service.SalesServiceTest
 com.bigbrightpaints.erp.modules.purchasing.domain.SupplierLifecycleGuardTest
 com.bigbrightpaints.erp.modules.inventory.service.PackagingSlipServiceTest
 com.bigbrightpaints.erp.shared.dto.TruthRailsSharedDtoContractTest
+com.bigbrightpaints.erp.orchestrator.service.IntegrationCoordinatorTest
