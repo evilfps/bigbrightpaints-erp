@@ -191,7 +191,7 @@ class IntegrationCoordinatorTest {
 
         assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_INVALID_STATE);
         assertThat(ex.getDetails())
-                .containsEntry("canonicalPath", "/api/v1/sales/dispatch/confirm")
+                .containsEntry("canonicalPath", "/api/v1/dispatch/confirm")
                 .containsEntry("requestedStatus", "DISPATCHED");
         verify(salesService, never()).hasDispatchConfirmation(anyLong());
         verify(salesService, never()).getOrderWithItems(anyLong());
@@ -203,7 +203,7 @@ class IntegrationCoordinatorTest {
         ApplicationException ex = assertThrows(ApplicationException.class,
                 () -> integrationCoordinator.updateFulfillment(String.valueOf(ORDER_ID), "DISPATCHED", COMPANY_ID));
 
-        assertThat(ex.getDetails()).containsEntry("canonicalPath", "/api/v1/sales/dispatch/confirm");
+        assertThat(ex.getDetails()).containsEntry("canonicalPath", "/api/v1/dispatch/confirm");
         verify(salesService, never()).hasDispatchConfirmation(anyLong());
         verify(salesService, never()).getOrderWithItems(anyLong());
         verify(salesService, never()).updateOrchestratorWorkflowStatus(eq(ORDER_ID), anyString());
@@ -379,6 +379,55 @@ class IntegrationCoordinatorTest {
                         && request.quantity() == 1.0
                         && request.plannedDate().equals(LocalDate.of(2024, 1, 2))
                         && request.notes().equals("Auto-generated from orchestrator")));
+    }
+
+    @Test
+    void queueProductionBuildsNextDayPlanUsingNumericCompanyIdLookup() {
+        when(companyRepository.findById(99L)).thenReturn(Optional.of(company));
+
+        integrationCoordinator.queueProduction("101", "99");
+
+        verify(companyRepository).findById(99L);
+        verify(companyRepository, never()).findByCodeIgnoreCase("99");
+        verify(companyClock).today(company);
+        verify(factoryService).createPlan(argThat((ProductionPlanRequest request) ->
+                request != null
+                        && request.planNumber().equals("PLAN-101")
+                        && request.productName().equals("Order 101")
+                        && request.quantity() == 1.0
+                        && request.plannedDate().equals(LocalDate.of(2024, 1, 2))
+                        && request.notes().equals("Auto-generated from orchestrator")));
+    }
+
+    @Test
+    void queueProductionRejectsBlankCompanyIdBeforeSideEffects() {
+        ApplicationException ex = assertThrows(ApplicationException.class,
+                () -> integrationCoordinator.queueProduction("101", "   "));
+
+        assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.VALIDATION_INVALID_INPUT);
+        assertThat(ex.getDetails())
+                .containsEntry("field", "companyId")
+                .containsEntry("operation", "queueProduction");
+        verify(companyRepository, never()).findById(anyLong());
+        verify(companyRepository, never()).findByCodeIgnoreCase(anyString());
+        verify(companyClock, never()).today(any());
+        verify(factoryService, never()).createPlan(any());
+    }
+
+    @Test
+    void queueProductionRejectsUnknownCompanyIdWithSafeIdentifier() {
+        ApplicationException ex = assertThrows(ApplicationException.class,
+                () -> integrationCoordinator.queueProduction("101", "UNKNOWN-COMPANY"));
+
+        assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.VALIDATION_INVALID_INPUT);
+        assertThat(ex.getDetails())
+                .containsEntry("field", "companyId")
+                .containsEntry("operation", "queueProduction")
+                .containsEntry("safeIdentifier",
+                        CorrelationIdentifierSanitizer.safeIdentifierForLog("UNKNOWN-COMPANY"));
+        verify(companyRepository).findByCodeIgnoreCase("UNKNOWN-COMPANY");
+        verify(companyClock, never()).today(any());
+        verify(factoryService, never()).createPlan(any());
     }
 
     @Test
