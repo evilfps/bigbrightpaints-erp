@@ -62,17 +62,11 @@ require_literal "REQUEST_ID_HASH_PREFIX" "$SANITIZER" \
 require_literal "safeIdempotencyForLog" "$SANITIZER" \
   "CorrelationIdentifierSanitizer missing safe log representation helper"
 
-# Dispatcher must propagate trace/idempotency into all orchestrator side-effects.
+# Dispatcher must propagate trace/idempotency into active orchestrator side-effects.
 require_multiline_pattern "reserveInventory\\([\\s\\S]*companyId,[\\s\\S]*traceId,[\\s\\S]*idempotencyKey\\)" "$DISPATCHER" \
   "CommandDispatcher.approveOrder does not pass traceId/idempotencyKey to reserveInventory"
 require_multiline_pattern "updateFulfillment\\([\\s\\S]*companyId,[\\s\\S]*traceId,[\\s\\S]*idempotencyKey\\)" "$DISPATCHER" \
   "CommandDispatcher.updateOrderFulfillment does not pass traceId/idempotencyKey to updateFulfillment"
-require_multiline_pattern "updateProductionStatus\\([\\s\\S]*companyId,[\\s\\S]*traceId,[\\s\\S]*idempotencyKey\\)" "$DISPATCHER" \
-  "CommandDispatcher.dispatchBatch does not pass traceId/idempotencyKey to updateProductionStatus"
-require_multiline_pattern "releaseInventory\\([\\s\\S]*companyId,[\\s\\S]*traceId,[\\s\\S]*idempotencyKey\\)" "$DISPATCHER" \
-  "CommandDispatcher.dispatchBatch does not pass traceId/idempotencyKey to releaseInventory"
-require_multiline_pattern "postDispatchJournal\\([\\s\\S]*request\\.postingAmount\\(\\),[\\s\\S]*traceId,[\\s\\S]*idempotencyKey\\)" "$DISPATCHER" \
-  "CommandDispatcher.dispatchBatch does not pass traceId/idempotencyKey to postDispatchJournal"
 require_multiline_pattern "syncEmployees\\([\\s\\S]*companyId,[\\s\\S]*traceId,[\\s\\S]*idempotencyKey\\)" "$DISPATCHER" \
   "CommandDispatcher.runPayroll does not pass traceId/idempotencyKey to syncEmployees"
 require_multiline_pattern "generatePayroll\\([\\s\\S]*companyId,[\\s\\S]*traceId,[\\s\\S]*idempotencyKey\\)" "$DISPATCHER" \
@@ -93,8 +87,6 @@ require_multiline_pattern "public void updateProductionStatus\\(String planId,[\
   "IntegrationCoordinator missing correlation-aware updateProductionStatus overload"
 require_multiline_pattern "public void releaseInventory\\(String batchId,[\\s\\S]*String traceId,[\\s\\S]*String idempotencyKey\\)" "$COORDINATOR" \
   "IntegrationCoordinator missing correlation-aware releaseInventory overload"
-require_multiline_pattern "public void postDispatchJournal\\(String batchId,[\\s\\S]*String traceId,[\\s\\S]*String idempotencyKey\\)" "$COORDINATOR" \
-  "IntegrationCoordinator missing correlation-aware postDispatchJournal overload"
 require_multiline_pattern "public void syncEmployees\\(String companyId,[\\s\\S]*String traceId,[\\s\\S]*String idempotencyKey\\)" "$COORDINATOR" \
   "IntegrationCoordinator missing correlation-aware syncEmployees overload"
 require_multiline_pattern "public PayrollRunDto generatePayroll\\(LocalDate payrollDate,[\\s\\S]*String traceId,[\\s\\S]*String idempotencyKey\\)" "$COORDINATOR" \
@@ -135,18 +127,16 @@ require_literal "CorrelationIdentifierSanitizer.sanitizeOptionalIdempotencyKey(e
   "EventPublisherService does not sanitize idempotency keys before outbox persistence"
 
 # Regression tests must pin correlation propagation.
+require_literal "dispatchBatchFailsClosedToCanonicalDispatchPath" "$DISPATCHER_TEST" \
+  "CommandDispatcherTest missing fail-closed dispatch regression assertion"
 require_literal "updateOrderFulfillmentPropagatesTraceAndIdempotencyToCoordinator" "$DISPATCHER_TEST" \
   "CommandDispatcherTest missing fulfillment correlation propagation assertion"
 require_literal "reserveInventoryCorrelationAnnotatesProductionArtifactsAndAttachesTrace" "$COORDINATOR_TEST" \
   "IntegrationCoordinatorTest missing reserveInventory correlation assertion"
 require_literal "releaseInventoryPropagatesTraceAndIdempotencyInBatchNotes" "$COORDINATOR_TEST" \
   "IntegrationCoordinatorTest missing releaseInventory correlation assertion"
-require_literal "postDispatchJournalPropagatesTraceAndIdempotencyInMemo" "$COORDINATOR_TEST" \
-  "IntegrationCoordinatorTest missing dispatch correlation memo assertion"
 require_literal "recordPayrollPaymentPropagatesTraceAndIdempotencyInMemo" "$COORDINATOR_TEST" \
   "IntegrationCoordinatorTest missing payroll correlation memo assertion"
-require_literal "postDispatchJournalRejectsControlCharsInCorrelationIdentifiers" "$COORDINATOR_TEST" \
-  "IntegrationCoordinatorTest missing control-char rejection assertion"
 require_literal "recordPayrollPaymentRejectsMalformedIdempotencyKey" "$COORDINATOR_TEST" \
   "IntegrationCoordinatorTest missing malformed idempotency rejection assertion"
 require_literal "approve_order_rejects_malformed_idempotency_header" "$CONTROLLER_IT" \
