@@ -56,6 +56,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.doAnswer;
 
 @ExtendWith(MockitoExtension.class)
 @Tag("critical")
@@ -385,13 +386,21 @@ class IntegrationCoordinatorTest {
 
     @Test
     void queueProductionBuildsNextDayPlanUsingNumericCompanyIdLookup() {
+        company.setCode("ACME");
         when(companyRepository.findById(99L)).thenReturn(Optional.of(company));
+        when(companyRepository.findByCodeIgnoreCase("99")).thenReturn(Optional.empty());
+        List<String> contextsDuringCreatePlan = new ArrayList<>();
+        doAnswer(invocation -> {
+            contextsDuringCreatePlan.add(CompanyContextHolder.getCompanyCode());
+            return null;
+        }).when(factoryService).createPlan(any());
 
         integrationCoordinator.queueProduction("101", "99");
 
         verify(companyRepository).findByCodeIgnoreCase("99");
         verify(companyRepository).findById(99L);
         verify(companyClock).today(company);
+        assertThat(contextsDuringCreatePlan).containsExactly("ACME");
         verify(factoryService).createPlan(argThat((ProductionPlanRequest request) ->
                 request != null
                         && request.planNumber().equals("PLAN-101")

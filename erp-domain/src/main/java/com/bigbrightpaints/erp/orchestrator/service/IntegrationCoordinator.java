@@ -135,8 +135,8 @@ public class IntegrationCoordinator {
 
     @Transactional
     public void queueProduction(String orderId, String companyId) {
-        runWithCompanyContext(companyId, () -> {
-            Company company = requireCompany(companyId, "queueProduction");
+        Company company = requireCompany(companyId, "queueProduction");
+        runWithCompanyContext(company.getCode(), () -> {
             ProductionPlanRequest request = new ProductionPlanRequest(
                     "PLAN-" + orderId,
                     "Order " + orderId,
