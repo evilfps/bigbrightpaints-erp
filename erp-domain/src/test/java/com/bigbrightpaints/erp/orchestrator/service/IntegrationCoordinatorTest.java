@@ -194,7 +194,7 @@ class IntegrationCoordinatorTest {
 
         assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_INVALID_STATE);
         assertThat(ex.getDetails())
-                .containsEntry("canonicalPath", "/api/v1/dispatch/confirm")
+                .containsEntry("canonicalPath", "/api/v1/sales/dispatch/confirm")
                 .containsEntry("requestedStatus", "DISPATCHED");
         verify(salesService, never()).hasDispatchConfirmation(anyLong());
         verify(salesService, never()).getOrderWithItems(anyLong());
@@ -206,7 +206,7 @@ class IntegrationCoordinatorTest {
         ApplicationException ex = assertThrows(ApplicationException.class,
                 () -> integrationCoordinator.updateFulfillment(String.valueOf(ORDER_ID), "DISPATCHED", COMPANY_ID));
 
-        assertThat(ex.getDetails()).containsEntry("canonicalPath", "/api/v1/dispatch/confirm");
+        assertThat(ex.getDetails()).containsEntry("canonicalPath", "/api/v1/sales/dispatch/confirm");
         verify(salesService, never()).hasDispatchConfirmation(anyLong());
         verify(salesService, never()).getOrderWithItems(anyLong());
         verify(salesService, never()).updateOrchestratorWorkflowStatus(eq(ORDER_ID), anyString());
