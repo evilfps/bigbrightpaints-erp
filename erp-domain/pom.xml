@@ -571,6 +571,7 @@
                                 <include>**/modules/sales/domain/SalesOrderTest.java</include>
                                 <include>**/modules/sales/dto/DispatchConfirmRequestTest.java</include>
                                 <include>**/modules/sales/dto/SalesOrderRequestTest.java</include>
+                                <include>**/orchestrator/service/IntegrationCoordinatorTest.java</include>
                                 <include>**/modules/sales/service/SalesCoreEngineCoverageTest.java</include>
                                 <include>**/modules/sales/service/SalesFulfillmentServiceTest.java</include>
                                 <include>**/modules/sales/service/SalesProformaBoundaryServiceTest.java</include>

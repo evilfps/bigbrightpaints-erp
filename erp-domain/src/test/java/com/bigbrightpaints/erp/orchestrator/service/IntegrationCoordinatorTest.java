@@ -33,6 +33,7 @@ import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -57,6 +58,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
+@Tag("critical")
 class IntegrationCoordinatorTest {
 
     private static final String COMPANY_ID = "COMP";
@@ -387,8 +389,8 @@ class IntegrationCoordinatorTest {
 
         integrationCoordinator.queueProduction("101", "99");
 
+        verify(companyRepository).findByCodeIgnoreCase("99");
         verify(companyRepository).findById(99L);
-        verify(companyRepository, never()).findByCodeIgnoreCase("99");
         verify(companyClock).today(company);
         verify(factoryService).createPlan(argThat((ProductionPlanRequest request) ->
                 request != null
@@ -397,6 +399,29 @@ class IntegrationCoordinatorTest {
                         && request.quantity() == 1.0
                         && request.plannedDate().equals(LocalDate.of(2024, 1, 2))
                         && request.notes().equals("Auto-generated from orchestrator")));
+    }
+
+    @Test
+    void queueProductionPrefersCompanyCodeBeforeNumericIdFallback() {
+        Company codeCompany = new Company();
+        codeCompany.setCode("99");
+        codeCompany.setTimezone("Asia/Kolkata");
+        Company idCompany = new Company();
+        idCompany.setCode("OTHER");
+        idCompany.setTimezone("UTC");
+        when(companyRepository.findByCodeIgnoreCase("99")).thenReturn(Optional.of(codeCompany));
+        when(companyClock.today(codeCompany)).thenReturn(LocalDate.of(2024, 2, 10));
+
+        integrationCoordinator.queueProduction("101", "99");
+
+        verify(companyRepository).findByCodeIgnoreCase("99");
+        verify(companyRepository, never()).findById(99L);
+        verify(companyClock).today(codeCompany);
+        verify(companyClock, never()).today(idCompany);
+        verify(factoryService).createPlan(argThat((ProductionPlanRequest request) ->
+                request != null
+                        && request.planNumber().equals("PLAN-101")
+                        && request.plannedDate().equals(LocalDate.of(2024, 2, 11))));
     }
 
     @Test

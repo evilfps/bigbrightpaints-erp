@@ -616,9 +616,9 @@ public class IntegrationCoordinator {
                     .withDetail("field", "companyId")
                     .withDetail("operation", operation);
         }
-        return parseLong(normalizedCompanyId)
-                .flatMap(companyRepository::findById)
-                .or(() -> companyRepository.findByCodeIgnoreCase(normalizedCompanyId))
+        return companyRepository.findByCodeIgnoreCase(normalizedCompanyId)
+                .or(() -> parseLong(normalizedCompanyId)
+                        .flatMap(companyRepository::findById))
                 .orElseThrow(() -> new ApplicationException(
                         ErrorCode.VALIDATION_INVALID_INPUT,
                         "Unknown companyId")
