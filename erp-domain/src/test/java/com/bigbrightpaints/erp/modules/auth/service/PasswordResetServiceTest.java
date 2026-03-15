@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
@@ -114,7 +115,7 @@ class PasswordResetServiceTest {
         verify(tokenRepository).saveAndFlush(tokenCaptor.capture());
         ArgumentCaptor<String> emailTokenCaptor = ArgumentCaptor.forClass(String.class);
         verify(emailService).sendPasswordResetEmailRequired(eq("user@example.com"), eq("User"), emailTokenCaptor.capture());
-        verify(tokenRepository).deleteByUser(user);
+        verify(tokenRepository).deleteByUserAndIdNot(eq(user), anyLong());
         // ensure token is linked to the same user
         assertEquals(user, tokenCaptor.getValue().getUser());
         assertNull(tokenCaptor.getValue().getToken());
@@ -205,6 +206,7 @@ class PasswordResetServiceTest {
         assertDoesNotThrow(() -> passwordResetService.requestReset("user@example.com"));
 
         verify(tokenRepository, never()).deleteByUser(any());
+        verify(tokenRepository, never()).deleteByUserAndIdNot(any(), anyLong());
         verify(tokenRepository, never()).save(any(PasswordResetToken.class));
         verify(tokenRepository, never()).saveAndFlush(any(PasswordResetToken.class));
         verify(emailService, never()).sendPasswordResetEmailRequired(anyString(), anyString(), anyString());
@@ -243,7 +245,8 @@ class PasswordResetServiceTest {
         assertEquals(ErrorCode.SYSTEM_DATABASE_ERROR, exception.getErrorCode());
         assertEquals("Password reset temporarily unavailable", exception.getUserMessage());
 
-        verify(tokenRepository).deleteByUser(user);
+        verify(tokenRepository, never()).deleteByUser(any());
+        verify(tokenRepository, never()).deleteByUserAndIdNot(any(), anyLong());
         verify(tokenRepository).saveAndFlush(any(PasswordResetToken.class));
         verify(tokenRepository, never()).deleteByTokenDigest(anyString());
         verify(emailService, never()).sendPasswordResetEmailRequired(anyString(), anyString(), anyString());
@@ -1085,7 +1088,9 @@ class PasswordResetServiceTest {
 
     private static final class ConcurrentResetTokenState {
         private final AtomicLong idSequence = new AtomicLong();
+        private final AtomicLong dispatchSequence = new AtomicLong();
         private final Map<Long, String> activeTokenDigests = new ConcurrentHashMap<>();
+        private final Map<Long, Long> dispatchOrderByTokenId = new ConcurrentHashMap<>();
 
         void stub(PasswordResetTokenRepository tokenRepository, ReentrantLock issuanceLock) {
             doAnswer(invocation -> {
@@ -1093,16 +1098,51 @@ class PasswordResetServiceTest {
                 long id = idSequence.incrementAndGet();
                 ReflectionTestUtils.setField(token, "id", id);
                 activeTokenDigests.put(id, token.getTokenDigest());
+                dispatchOrderByTokenId.putIfAbsent(id, dispatchSequence.incrementAndGet());
                 if (issuanceLock != null && issuanceLock.isHeldByCurrentThread()) {
                     issuanceLock.unlock();
                 }
                 return token;
             }).when(tokenRepository).saveAndFlush(any(PasswordResetToken.class));
 
-            doAnswer(invocation -> {
+            lenient().doAnswer(invocation -> {
                 activeTokenDigests.clear();
+                dispatchOrderByTokenId.clear();
                 return null;
             }).when(tokenRepository).deleteByUser(any(UserAccount.class));
+
+            doAnswer(invocation -> {
+                Long keepId = invocation.getArgument(1);
+                activeTokenDigests.entrySet().removeIf(entry -> !entry.getKey().equals(keepId));
+                if (issuanceLock != null && issuanceLock.isHeldByCurrentThread()) {
+                    issuanceLock.unlock();
+                }
+                return 1;
+            }).when(tokenRepository).deleteByUserAndIdNot(any(UserAccount.class), anyLong());
+
+            lenient().doAnswer(invocation -> {
+                Long tokenId = invocation.getArgument(0);
+                if (tokenId != null) {
+                    dispatchOrderByTokenId.put(tokenId, dispatchSequence.incrementAndGet());
+                }
+                return 1;
+            }).when(tokenRepository).touchCreatedAt(anyLong(), any(Instant.class));
+
+            lenient().doAnswer(invocation -> {
+                Long latestId = activeTokenDigests.keySet().stream()
+                        .max((left, right) -> {
+                            long leftOrder = dispatchOrderByTokenId.getOrDefault(left, left);
+                            long rightOrder = dispatchOrderByTokenId.getOrDefault(right, right);
+                            return Long.compare(leftOrder, rightOrder);
+                        })
+                        .orElse(null);
+                if (latestId == null) {
+                    return Optional.empty();
+                }
+                PasswordResetToken token = mock(PasswordResetToken.class);
+                when(token.getId()).thenReturn(latestId);
+                return Optional.of(token);
+            }).when(tokenRepository).findTopByUserOrderByCreatedAtDescIdDesc(any(UserAccount.class));
         }
 
         int activeTokenCount() {

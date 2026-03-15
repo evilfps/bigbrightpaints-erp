@@ -72,6 +72,25 @@ public class PasswordResetService {
     private record IssuedResetToken(Long id, String rawToken) {
     }
 
+    private static final class PublicResetDispatchFailureException extends RuntimeException {
+        private final IssuedResetToken issuedResetToken;
+        private final RuntimeException dispatchFailure;
+
+        private PublicResetDispatchFailureException(IssuedResetToken issuedResetToken, RuntimeException dispatchFailure) {
+            super(dispatchFailure);
+            this.issuedResetToken = issuedResetToken;
+            this.dispatchFailure = dispatchFailure;
+        }
+
+        private IssuedResetToken issuedResetToken() {
+            return issuedResetToken;
+        }
+
+        private RuntimeException dispatchFailure() {
+            return dispatchFailure;
+        }
+    }
+
     public PasswordResetService(UserAccountRepository userAccountRepository,
                                 PasswordResetTokenRepository tokenRepository,
                                 PasswordService passwordService,
@@ -248,6 +267,9 @@ public class PasswordResetService {
         if (user == null) {
             return false;
         }
+        if (suppressFailures) {
+            return dispatchResetEmailMaskedPublic(user, correlationId, operation);
+        }
         String maskedEmail = obfuscateEmail(user.getEmail());
         IssuedResetToken issuedResetToken = null;
         try {
@@ -259,23 +281,7 @@ public class PasswordResetService {
             emailService.sendPasswordResetEmailRequired(user.getEmail(), user.getDisplayName(), issuedResetToken.rawToken());
             return true;
         } catch (RuntimeException ex) {
-            RuntimeException cleanupFailure = suppressFailures
-                    ? cleanupIssuedResetTokenMasked(issuedResetToken, correlationId, maskedEmail, operation)
-                    : null;
-            if (!suppressFailures) {
-                cleanupIssuedResetToken(issuedResetToken, correlationId, maskedEmail);
-            }
-            if (suppressFailures) {
-                logMaskedPublicResetFailure(operation, correlationId, maskedEmail, ex, issuedResetToken, cleanupFailure);
-                if (isPublicResetPersistenceFailure(ex, issuedResetToken) || cleanupFailure != null) {
-                    RuntimeException effectiveFailure = cleanupFailure != null ? cleanupFailure : ex;
-                    throw new ApplicationException(
-                            ErrorCode.SYSTEM_DATABASE_ERROR,
-                            "Password reset temporarily unavailable",
-                            effectiveFailure);
-                }
-                return false;
-            }
+            cleanupIssuedResetToken(issuedResetToken, correlationId, maskedEmail);
             log.warn(
                     "event=password_reset.{}.failed policy={} correlationId={} email={} outcome=delivery_failed exceptionClass={}",
                     operation,
@@ -287,23 +293,54 @@ public class PasswordResetService {
         }
     }
 
-    private IssuedResetToken issueResetToken(UserAccount user, String correlationId, String maskedEmail) {
-        IssuedResetToken issuedResetToken = tokenLifecycleTransactionTemplate.execute(status -> {
-            assertTokenLifecycleTransactionActive("issue", correlationId, maskedEmail);
-            UserAccount lockedUser = lockUserForResetIssuance(user);
-            if (lockedUser == null) {
-                return null;
+    private boolean dispatchResetEmailMaskedPublic(UserAccount user,
+                                                   String correlationId,
+                                                   String operation) {
+        String maskedEmail = obfuscateEmail(user.getEmail());
+        try {
+            ensureRequiredResetEmailDelivery();
+            Boolean dispatched = tokenLifecycleTransactionTemplate.execute(status -> {
+                IssuedResetToken issuedResetToken = issuePublicResetTokenWithinActiveTransaction(user, correlationId, maskedEmail);
+                if (issuedResetToken == null) {
+                    return Boolean.FALSE;
+                }
+                touchIssuedResetTokenForDispatchOrderingWithinActiveTransaction(issuedResetToken.id(), correlationId, maskedEmail);
+                try {
+                    emailService.sendPasswordResetEmailRequired(user.getEmail(), user.getDisplayName(), issuedResetToken.rawToken());
+                } catch (RuntimeException dispatchFailure) {
+                    throw new PublicResetDispatchFailureException(issuedResetToken, dispatchFailure);
+                }
+                cleanupSupersededPublicResetTokensWithinActiveTransaction(user, issuedResetToken.id(), correlationId, maskedEmail);
+                return Boolean.TRUE;
+            });
+            return Boolean.TRUE.equals(dispatched);
+        } catch (PublicResetDispatchFailureException wrappedDispatchFailure) {
+            IssuedResetToken issuedResetToken = wrappedDispatchFailure.issuedResetToken();
+            RuntimeException dispatchFailure = wrappedDispatchFailure.dispatchFailure();
+            RuntimeException cleanupFailure = cleanupIssuedResetTokenMasked(issuedResetToken, correlationId, maskedEmail, operation);
+            logMaskedPublicResetFailure(operation, correlationId, maskedEmail, dispatchFailure, issuedResetToken, cleanupFailure);
+            if (cleanupFailure != null) {
+                throw new ApplicationException(
+                        ErrorCode.SYSTEM_DATABASE_ERROR,
+                        "Password reset temporarily unavailable",
+                        cleanupFailure);
             }
-            tokenRepository.deleteByUser(lockedUser);
-            String token = generateToken();
-            Instant expiresAt = Instant.now().plusSeconds(RESET_TOKEN_TTL_SECONDS);
-            PasswordResetToken resetToken = PasswordResetToken.digestOnly(
-                    lockedUser,
-                    AuthTokenDigests.passwordResetTokenDigest(token),
-                    expiresAt);
-            PasswordResetToken saved = tokenRepository.saveAndFlush(resetToken);
-            return new IssuedResetToken(saved.getId(), token);
-        });
+            return false;
+        } catch (RuntimeException ex) {
+            logMaskedPublicResetFailure(operation, correlationId, maskedEmail, ex, null, null);
+            if (isPublicResetPersistenceFailure(ex, null)) {
+                throw new ApplicationException(
+                        ErrorCode.SYSTEM_DATABASE_ERROR,
+                        "Password reset temporarily unavailable",
+                        ex);
+            }
+            return false;
+        }
+    }
+
+    private IssuedResetToken issueResetToken(UserAccount user, String correlationId, String maskedEmail) {
+        IssuedResetToken issuedResetToken = tokenLifecycleTransactionTemplate.execute(
+                status -> issueResetTokenWithinActiveTransaction(user, correlationId, maskedEmail));
         if (issuedResetToken == null) {
             return null;
         }
@@ -311,6 +348,73 @@ public class PasswordResetService {
             throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidState("Failed to persist password reset token");
         }
         return issuedResetToken;
+    }
+
+    private IssuedResetToken issueResetTokenWithinActiveTransaction(UserAccount user,
+                                                                     String correlationId,
+                                                                     String maskedEmail) {
+        assertTokenLifecycleTransactionActive("issue", correlationId, maskedEmail);
+        UserAccount lockedUser = lockUserForResetIssuance(user);
+        if (lockedUser == null) {
+            return null;
+        }
+        tokenRepository.deleteByUser(lockedUser);
+        String token = generateToken();
+        Instant expiresAt = Instant.now().plusSeconds(RESET_TOKEN_TTL_SECONDS);
+        PasswordResetToken resetToken = PasswordResetToken.digestOnly(
+                lockedUser,
+                AuthTokenDigests.passwordResetTokenDigest(token),
+                expiresAt);
+        PasswordResetToken saved = tokenRepository.saveAndFlush(resetToken);
+        return new IssuedResetToken(saved.getId(), token);
+    }
+
+    private IssuedResetToken issuePublicResetTokenWithinActiveTransaction(UserAccount user,
+                                                                           String correlationId,
+                                                                           String maskedEmail) {
+        assertTokenLifecycleTransactionActive("issue", correlationId, maskedEmail);
+        if (user == null || !user.isEnabled()) {
+            return null;
+        }
+        String token = generateToken();
+        Instant expiresAt = Instant.now().plusSeconds(RESET_TOKEN_TTL_SECONDS);
+        PasswordResetToken resetToken = PasswordResetToken.digestOnly(
+                user,
+                AuthTokenDigests.passwordResetTokenDigest(token),
+                expiresAt);
+        PasswordResetToken saved = tokenRepository.saveAndFlush(resetToken);
+        return new IssuedResetToken(saved.getId(), token);
+    }
+
+    private void cleanupSupersededPublicResetTokensWithinActiveTransaction(UserAccount user,
+                                                                            Long keepTokenId,
+                                                                            String correlationId,
+                                                                            String maskedEmail) {
+        assertTokenLifecycleTransactionActive("stabilize", correlationId, maskedEmail);
+        if (user == null || keepTokenId == null) {
+            return;
+        }
+        UserAccount lockedUser = lockUserForResetTokenCleanup(user);
+        if (lockedUser == null) {
+            return;
+        }
+        PasswordResetToken latestToken = tokenRepository.findTopByUserOrderByCreatedAtDescIdDesc(lockedUser)
+                .orElse(null);
+        Long effectiveKeepTokenId = latestToken != null ? latestToken.getId() : keepTokenId;
+        if (effectiveKeepTokenId == null) {
+            return;
+        }
+        tokenRepository.deleteByUserAndIdNot(lockedUser, effectiveKeepTokenId);
+    }
+
+    private void touchIssuedResetTokenForDispatchOrderingWithinActiveTransaction(Long tokenId,
+                                                                                  String correlationId,
+                                                                                  String maskedEmail) {
+        assertTokenLifecycleTransactionActive("dispatch_ordering", correlationId, maskedEmail);
+        if (tokenId == null) {
+            return;
+        }
+        tokenRepository.touchCreatedAt(tokenId, Instant.now());
     }
 
     private UserAccount lockUserForResetIssuance(UserAccount user) {
@@ -323,6 +427,16 @@ public class PasswordResetService {
         return userAccountRepository.lockById(user.getId())
                 .filter(UserAccount::isEnabled)
                 .orElse(null);
+    }
+
+    private UserAccount lockUserForResetTokenCleanup(UserAccount user) {
+        if (user == null) {
+            return null;
+        }
+        if (user.getId() == null) {
+            return user;
+        }
+        return userAccountRepository.lockById(user.getId()).orElse(user);
     }
 
     private void cleanupIssuedResetToken(IssuedResetToken issuedResetToken,

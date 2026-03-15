@@ -220,6 +220,58 @@ class AuthPasswordResetPublicContractIT extends AbstractIntegrationTest {
     }
 
     @Test
+    void forgotCleanupFailure_afterDispatchFailure_preservesPriorTokenAndDoesNotPersistUndispatchedReplacement() {
+        String targetEmail = "cleanup.failure.reset.user@bbp.com";
+        UserAccount user = dataSeeder.ensureUser(
+                targetEmail,
+                "Admin@12345",
+                "Cleanup Failure User",
+                PRIMARY_COMPANY,
+                List.of("ROLE_SUPER_ADMIN"));
+        String preExistingToken = "cleanup-preexisting-reset-token";
+        String preExistingDigest = passwordResetDigest(preExistingToken);
+        passwordResetTokenRepository.saveAndFlush(
+                PasswordResetToken.digestOnly(
+                        user,
+                        preExistingDigest,
+                        Instant.now().plusSeconds(600)));
+
+        doThrow(new RuntimeException("smtp down"))
+                .when(emailService)
+                .sendPasswordResetEmailRequired(eq(targetEmail), eq("Cleanup Failure User"), anyString());
+        doThrow(new DataAccessResourceFailureException("cleanup unavailable"))
+                .when(passwordResetTokenRepository)
+                .deleteByTokenDigest(anyString());
+
+        ResponseEntity<Map> forgotResponse = postForgot(targetEmail, "ANY-TENANT");
+
+        assertThat(forgotResponse.getStatusCode()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+        assertThat(forgotResponse.getBody()).isNotNull();
+        assertThat(forgotResponse.getBody().get("success")).isEqualTo(false);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> forgotData = (Map<String, Object>) forgotResponse.getBody().get("data");
+        assertThat(forgotData).isNotNull();
+        assertThat(forgotData.get("code")).isEqualTo("SYS_003");
+
+        Integer tokenCount = jdbcTemplate.queryForObject(
+                "select count(*) from password_reset_tokens where user_id = ?",
+                Integer.class,
+                user.getId());
+        Integer priorDigestCount = jdbcTemplate.queryForObject(
+                "select count(*) from password_reset_tokens where user_id = ? and token_digest = ?",
+                Integer.class,
+                user.getId(),
+                preExistingDigest);
+        assertThat(tokenCount).isEqualTo(1);
+        assertThat(priorDigestCount).isEqualTo(1);
+
+        ResponseEntity<Map> resetResponse = postReset(preExistingToken, "NewPass123!");
+        assertThat(resetResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(resetResponse.getBody()).isNotNull();
+        assertThat(resetResponse.getBody().get("success")).isEqualTo(true);
+    }
+
+    @Test
     void resetEndpoint_rejectsLegacyRawTokenStoredRows() {
         String targetEmail = "legacy.reset.user@bbp.com";
         UserAccount user = dataSeeder.ensureUser(
