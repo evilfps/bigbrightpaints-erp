@@ -1,0 +1,174 @@
+{
+  "groupId": "auth-reset-contracts",
+  "surface": "jvm-tests",
+  "testedAt": "2026-03-16T05:02:16+05:30",
+  "toolsUsed": ["mvn"],
+  "assertions": [
+    {
+      "id": "VAL-AUTH-001",
+      "title": "Forgot-password masking remains consistent for non-persistence failures",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Run `MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest=AuthPasswordResetPublicContractIT,PasswordResetServiceTest,OpenApiSnapshotIT test` and inspect `forgotEndpoint_isPublicAndAntiEnumerationSafeAcrossTenantHeaders`.",
+          "expected": "Known and unknown users both receive the generic 200/success=true forgot-password envelope regardless of tenant header.",
+          "observed": "`AuthPasswordResetPublicContractIT` passed with known and unknown users both returning `200 OK`, `success=true`, and `If the email exists, a reset link has been sent` across `X-Company-Code` variants."
+        },
+        {
+          "action": "Inspect `PasswordResetServiceTest` cases `requestResetMasksDispatchFailureAndDeletesIssuedToken` and `requestResetSkipsTokenIssuanceWhenResetEmailDeliveryDisabled`.",
+          "expected": "Dispatch/configuration failures stay masked and no usable token remains or is sent.",
+          "observed": "Service tests passed, showing SMTP/configuration-adjacent forgot flow failures are masked, issued digest tokens are cleaned up on dispatch failure, and disabled delivery skips token issuance and email dispatch."
+        }
+      ],
+      "evidence": {
+        "command": "cd /home/realnigga/Desktop/Mission-control/erp-domain && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest=AuthPasswordResetPublicContractIT,PasswordResetServiceTest,OpenApiSnapshotIT test",
+        "result": "BUILD SUCCESS; targeted auth/password-reset/OpenAPI contract suites passed under MIGRATION_SET=v2.",
+        "consoleErrors": "Expected structured WARN/ERROR service logs exercised failure paths, but Maven completed with `BUILD SUCCESS` and zero test failures."
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-AUTH-002",
+      "title": "Persistence failure returns controlled non-success",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Inspect `AuthPasswordResetPublicContractIT#forgotEndpoint_returnsControlledNonSuccessForKnownUserWhenTokenPersistenceFails`.",
+          "expected": "Known enabled user returns controlled `503` non-success with system code/traceId; unknown user remains masked `200`.",
+          "observed": "The integration test passed, asserting `503 Service Unavailable`, `success=false`, message `Password reset temporarily unavailable`, `data.code=SYS_003`, and `traceId` for the known user while the unknown user still returned the masked `200` success envelope."
+        },
+        {
+          "action": "Inspect `AuthPasswordResetPublicContractIT#forgotEndpoint_keepsDisabledUsersMaskedWhenPersistenceFails` and paired service test coverage.",
+          "expected": "Disabled users remain masked even when persistence is failing.",
+          "observed": "The disabled-user integration case passed with `200 OK` and the generic success message, confirming only known enabled users surface the controlled non-success contract."
+        }
+      ],
+      "evidence": {
+        "command": "cd /home/realnigga/Desktop/Mission-control/erp-domain && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest=AuthPasswordResetPublicContractIT,PasswordResetServiceTest,OpenApiSnapshotIT test",
+        "result": "BUILD SUCCESS; persistence-failure contract assertions passed for known, unknown, and disabled-user variants.",
+        "consoleErrors": "Structured persistence-failure logs were emitted intentionally; response assertions proved no stack/db leakage and the Maven run stayed green."
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-AUTH-003",
+      "title": "Persistence failure leaves no new usable token",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Inspect `AuthPasswordResetPublicContractIT#forgotPersistenceFailure_keepsPreExistingResetTokenUsableAndDoesNotDispatchEmail`.",
+          "expected": "A failed reissue sends no email and does not strand the user; pre-existing token still resets successfully.",
+          "observed": "The integration test passed with forgot returning `503`, no password-reset email dispatch, and a subsequent reset using the prior token returning `200 OK` / `success=true`."
+        },
+        {
+          "action": "Inspect cleanup-failure coverage in `AuthPasswordResetPublicContractIT#forgotCleanupFailure_afterDispatchFailure_preservesPriorTokenUsability` and `PasswordResetServiceTest#requestResetRestoresPriorTokenWhenDispatchCleanupFailsAfterCommit`.",
+          "expected": "No new usable token is left behind on failure, and prior digest-backed token state is preserved/restored.",
+          "observed": "Both tests passed: DB assertions kept the prior digest row present, service assertions captured restoration of the prior token digest, and failure-path email dispatch remained suppressed."
+        }
+      ],
+      "evidence": {
+        "command": "cd /home/realnigga/Desktop/Mission-control/erp-domain && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest=AuthPasswordResetPublicContractIT,PasswordResetServiceTest,OpenApiSnapshotIT test",
+        "result": "BUILD SUCCESS; prior-token preservation and no-new-usable-token failure-path coverage passed in both integration and service layers.",
+        "consoleErrors": "Failure-path logs were expected; no test-level errors occurred and all token-preservation assertions passed."
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-AUTHC-001",
+      "title": "Refresh tokens are digest-only",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Run follow-up `MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest=RefreshTokenServiceTest test` because the suggested class selector `RefreshTokenServiceIT` did not match the actual test class name.",
+          "expected": "Refresh issuance stores digest only, and legacy raw-token rows are rejected for consume/revoke.",
+          "observed": "`RefreshTokenServiceTest` passed with `issue_persists_digest_only_consume_removes_and_replay_is_rejected`, proving stored rows keep `token=null` and `tokenDigest!=null`, while `consume_rejects_legacy_raw_token_rows` and `revoke_rejects_legacy_raw_token_rows` both rejected legacy raw rows."
+        }
+      ],
+      "evidence": {
+        "command": "cd /home/realnigga/Desktop/Mission-control/erp-domain && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest=RefreshTokenServiceTest test",
+        "result": "BUILD SUCCESS; Tests run: 5, Failures: 0, Errors: 0, Skipped: 0.",
+        "consoleErrors": "No unexpected console errors; the follow-up Maven run ended with `Tests run: 5, Failures: 0, Errors: 0` and `BUILD SUCCESS`."
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-AUTHC-002",
+      "title": "Password-reset tokens are digest-only",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Inspect `AuthPasswordResetPublicContractIT#resetEndpoint_rejectsLegacyRawTokenStoredRows`.",
+          "expected": "Legacy raw password-reset token rows are ignored and cannot be used for reset.",
+          "observed": "The integration test passed after seeding a legacy raw token row and verified `POST /api/v1/auth/password/reset` returned `400 Bad Request` with `Invalid or expired token`."
+        },
+        {
+          "action": "Inspect `PasswordResetServiceTest#resetPasswordRejectsLegacyRawTokenRows`.",
+          "expected": "Service layer rejects legacy raw rows without invoking password change logic.",
+          "observed": "The service test passed and asserted the legacy token throws an application exception and never calls `passwordService.resetPassword(...)`."
+        }
+      ],
+      "evidence": {
+        "command": "cd /home/realnigga/Desktop/Mission-control/erp-domain && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest=AuthPasswordResetPublicContractIT,PasswordResetServiceTest,OpenApiSnapshotIT test",
+        "result": "BUILD SUCCESS; legacy raw password-reset-token rows were rejected in both integration and service-layer coverage.",
+        "consoleErrors": "No unexpected console errors; digest-only rejection coverage passed in both integration and service layers."
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-AUTHC-004",
+      "title": "Deprecated superadmin-forgot alias is retired",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Inspect `AuthPasswordResetPublicContractIT#retiredSuperAdminForgotAlias_returnsControlledCompatibilityContractAcrossTenantHeaders`.",
+          "expected": "Deprecated alias returns controlled `410 Gone` response with canonical guidance and no active recovery side effects.",
+          "observed": "The integration test passed with `410 Gone`, `success=false`, the retirement message, and response data pointing to `/api/v1/auth/password/forgot` and `/api/v1/companies/{id}/support/admin-password-reset`."
+        },
+        {
+          "action": "Inspect `OpenApiSnapshotIT#auth_and_admin_contract_paths_preserve_expected_response_shapes`.",
+          "expected": "OpenAPI still documents the retired tombstone path/shape.",
+          "observed": "`OpenApiSnapshotIT` passed, confirming the auth/admin contract snapshot still preserves the deprecated `/api/v1/auth/password/forgot/superadmin` path shape."
+        }
+      ],
+      "evidence": {
+        "command": "cd /home/realnigga/Desktop/Mission-control/erp-domain && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest=AuthPasswordResetPublicContractIT,PasswordResetServiceTest,OpenApiSnapshotIT test",
+        "result": "BUILD SUCCESS; retired superadmin forgot alias contract and OpenAPI tombstone coverage passed together.",
+        "consoleErrors": "No unexpected console errors; contract and snapshot tests both passed."
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-CROSS-001",
+      "title": "Canonical recovery flow remains functional",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Inspect `AuthPasswordResetPublicContractIT#canonicalRecoveryFlow_forgotResetLoginRefreshAndMe_succeeds_withDigestBackedResetToken`.",
+          "expected": "Canonical forgot -> reset -> login -> refresh -> `/auth/me` succeeds using `companyCode` and `X-Company-Code`, with only digest-backed reset storage.",
+          "observed": "The integration test passed end-to-end: forgot returned `200`, delivered one reset token, DB assertions showed exactly one digest row with `token is null` and zero raw token rows, reset returned `200`, login returned a refresh token, refresh returned a new access token, and `/api/v1/auth/me` returned `200` with `companyCode=RESETA` and the expected email."
+        },
+        {
+          "action": "Pair the flow with `resetEndpoint_rejectsLegacyRawTokenStoredRows`.",
+          "expected": "Legacy raw reset-token rows are rejected while canonical digest-backed flow continues to work.",
+          "observed": "The legacy raw-row rejection test also passed with `400 Invalid or expired token`, confirming the functional recovery corridor is digest-only."
+        }
+      ],
+      "evidence": {
+        "command": "cd /home/realnigga/Desktop/Mission-control/erp-domain && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest=AuthPasswordResetPublicContractIT,PasswordResetServiceTest,OpenApiSnapshotIT test",
+        "result": "BUILD SUCCESS; canonical forgot/reset/login/refresh/me recovery flow passed with digest-backed token assertions.",
+        "consoleErrors": "No unexpected console errors; the chained recovery-flow integration test passed cleanly."
+      },
+      "issues": null
+    }
+  ],
+  "frictions": [
+    {
+      "description": "The prompt's suggested selector used `-Dtest=RefreshTokenServiceIT`, but the file `/erp-domain/src/test/java/com/bigbrightpaints/erp/modules/auth/service/RefreshTokenServiceIT.java` declares class `RefreshTokenServiceTest`, so the initial Maven run skipped refresh-token coverage.",
+      "resolved": true,
+      "resolution": "Ran the allowed narrower follow-up command `MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest=RefreshTokenServiceTest test` and captured a separate evidence log.",
+      "affectedAssertions": ["VAL-AUTHC-001"]
+    }
+  ],
+  "blockers": [],
+  "summary": "Tested 7 assigned assertions on the jvm-tests surface: 7 passed, 0 failed, 0 blocked. Evidence came from `AuthPasswordResetPublicContractIT`, `PasswordResetServiceTest`, `RefreshTokenServiceTest`, and `OpenApiSnapshotIT` with all scoped Maven runs succeeding under `MIGRATION_SET=v2`."
+}

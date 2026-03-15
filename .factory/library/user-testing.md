@@ -24,6 +24,10 @@ Testing surface: tools, URLs, setup steps, isolation notes, known quirks.
 - `curl` for auth/admin API verification
 - Docker Compose for `rabbitmq` and `mailhog` when runtime validation is needed
 
+## Validation Concurrency
+- **api**: max concurrent validators **1** unless each validator gets its own isolated runtime, because shared compose services and MailHog state can make assertions interfere.
+- **jvm-tests**: resource ceiling **2** on this host (~11.4 GB free on 2026-03-16, 16 CPUs), but use **1 validator at a time** against the shared checkout because concurrent Maven runs collide on `erp-domain/target`, Surefire reports, and `artifacts/gate-fast/` outputs. Raise to 2 only if each validator gets an isolated clone or separate build directory.
+
 ## Setup Steps
 1. From the repository root, run `bash .factory/init.sh`.
 2. When runtime evidence is needed, start the compose-backed mission services on `5433/5672/1025/8081/9090` rather than touching the unrelated local PostgreSQL on `5432`.
@@ -77,3 +81,11 @@ Testing surface: tools, URLs, setup steps, isolation notes, known quirks.
 - For `VAL-AUTHZ-005`, you can hold `SELECT ... FOR UPDATE` on the foreign target row in the local Postgres container while issuing the tenant-admin deny probe (for example `PATCH /api/v1/admin/users/3/suspend`); the fixed runtime should still return the masked `400 User not found` contract immediately rather than blocking on the foreign row lock.
 - For shared-role mutation guard validation on `POST /api/v1/admin/roles`, use a system role name such as `ROLE_ADMIN` or `ROLE_SUPER_ADMIN`; arbitrary role names bypass the controller guard and fail later with `400 Unknown platform role ...`, which does not validate the intended authz boundary.
 - For unknown stored tenant-lifecycle validation, protected endpoints such as `GET /api/v1/auth/me` and `GET /api/v1/admin/users` reflect the fail-closed behavior once the stored lifecycle is corrupted locally; restore both the row value and the `chk_companies_lifecycle_state` constraint after the probe.
+
+## Flow Validator Guidance: jvm-tests
+- Lane `auth-merge-gate-hardening` is validated primarily through deterministic Maven integration/unit suites and repo gate scripts; prefer those over ad-hoc runtime mutation.
+- Stay inside the assigned assertion group and evidence directory. Do not edit source files unless the parent validator explicitly assigns artifact-writing work.
+- Use `MIGRATION_SET=v2` for every Maven invocation.
+- Because the shared checkout is not isolated, run only the commands assigned in the prompt and assume no other Maven validator is running in parallel.
+- Treat `AuthTenantAuthorityIT` full-class failures outside the assigned auth-merge methods as pre-existing mission guidance; use the targeted methods or paired suites named in the prompt instead of broad exploratory reruns.
+- For gate/governance assertions, preserve the exact command output and artifact paths (`artifacts/gate-fast/**`, enterprise policy, Codex review guidelines) needed to map each assertion to evidence.

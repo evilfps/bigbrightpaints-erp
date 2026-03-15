@@ -1,0 +1,201 @@
+{
+  "groupId": "admin-gate-governance",
+  "surface": "jvm-tests",
+  "testedAt": "2026-03-15T23:44:00Z",
+  "toolsUsed": ["mvn", "bash", "git", "python3"],
+  "assertions": [
+    {
+      "id": "VAL-AUTHZ-001",
+      "title": "Foreign-user operations are masked consistently",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Run `MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest=AdminUserSecurityIT,AuthTenantAuthorityIT#tenant_admin_cross_tenant_privileged_user_actions_mask_foreign_targets_as_missing_and_still_audit_denials test` in `erp-domain`.",
+          "expected": "Foreign and missing IDs produce the same masked `400 User not found` contract, and audit assertions for foreign targets pass.",
+          "observed": "Maven exited 0 with `Tests run: 17, Failures: 0, Errors: 0, Skipped: 0`; the log shows `User not found` for foreign and missing IDs across force-reset, status, suspend, unsuspend, mfa/disable, and delete paths."
+        },
+        {
+          "action": "Inspect `AuthTenantAuthorityIT#tenant_admin_cross_tenant_privileged_user_actions_mask_foreign_targets_as_missing_and_still_audit_denials` and `awaitPrivilegedUserDeniedAudit`.",
+          "expected": "The audit proof should assert `ACCESS_DENIED` metadata with reason, tenant scope, target user ID, and target company code for foreign existing users.",
+          "observed": "The targeted method awaits denied audits after each privileged action, and `awaitPrivilegedUserDeniedAudit` asserts `reason`, `targetUserId`, `tenantScope`, and `targetCompanyCode` metadata for the `ACCESS_DENIED` event."
+        }
+      ],
+      "evidence": {
+        "command": "cd /home/realnigga/Desktop/Mission-control/erp-domain && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest=AdminUserSecurityIT,AuthTenantAuthorityIT#tenant_admin_cross_tenant_privileged_user_actions_mask_foreign_targets_as_missing_and_still_audit_denials test",
+        "result": "BUILD SUCCESS; Tests run: 17, Failures: 0, Errors: 0, Skipped: 0.",
+        "sourceFiles": [
+          "/home/realnigga/Desktop/Mission-control/erp-domain/src/test/java/com/bigbrightpaints/erp/modules/admin/AdminUserSecurityIT.java",
+          "/home/realnigga/Desktop/Mission-control/erp-domain/src/test/java/com/bigbrightpaints/erp/modules/auth/AuthTenantAuthorityIT.java"
+        ],
+        "observedResponses": "Masked `VAL_001` / `User not found` responses were logged for both foreign and missing user IDs on all privileged admin endpoints exercised by the targeted suites.",
+        "auditProof": "`awaitPrivilegedUserDeniedAudit` asserts `ACCESS_DENIED` with `reason`, `targetUserId`, `tenantScope`, and `targetCompanyCode` metadata."
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-AUTHZ-002",
+      "title": "No unscoped lock / no blocking on foreign row",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Run `MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest=AdminUserSecurityIT#tenant_admin_foreign_row_lock_does_not_block_masked_user_operations test` in `erp-domain`.",
+          "expected": "With a foreign row lock held, lock-taking endpoints should still return the masked missing-user response within the test timeout, and non-locking endpoints should remain non-blocking.",
+          "observed": "Maven exited 0 with `Tests run: 1, Failures: 0, Errors: 0, Skipped: 0`."
+        },
+        {
+          "action": "Inspect `AdminUserSecurityIT#tenant_admin_foreign_row_lock_does_not_block_masked_user_operations`.",
+          "expected": "The test should hold a foreign-row write lock and assert bounded-time masked responses for suspend, unsuspend, mfa/disable, delete, force-reset, and status.",
+          "observed": "The test acquires a row lock with `holdUserRowWriteLock(...)` and uses `executeWithTimeout(..., Duration.ofSeconds(2))` to verify masked responses for all six endpoints without blocking."
+        }
+      ],
+      "evidence": {
+        "command": "cd /home/realnigga/Desktop/Mission-control/erp-domain && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest=AdminUserSecurityIT#tenant_admin_foreign_row_lock_does_not_block_masked_user_operations test",
+        "result": "BUILD SUCCESS; Tests run: 1, Failures: 0, Errors: 0, Skipped: 0.",
+        "sourceFile": "/home/realnigga/Desktop/Mission-control/erp-domain/src/test/java/com/bigbrightpaints/erp/modules/admin/AdminUserSecurityIT.java",
+        "observedResponses": "The command log shows masked `User not found` application errors for suspend, unsuspend, mfa/disable, delete, force-reset, and status while the test remained green under the bounded timeout."
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-GATE-001",
+      "title": "Regression tests are merge-gate eligible",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Inspect `AdminUserSecurityIT` and `AuthPasswordResetPublicContractIT` for merge-gate annotations.",
+          "expected": "Regression suites should be tagged `@Tag(\"critical\")` and not tagged `flaky`.",
+          "observed": "`AdminUserSecurityIT` and `AuthPasswordResetPublicContractIT` are tagged `@Tag(\"critical\")`; no `@Tag(\"flaky\")` annotation was found in either file."
+        },
+        {
+          "action": "Inspect `erp-domain/pom.xml` and `scripts/test_quarantine.txt`.",
+          "expected": "The auth/admin regression suites should be explicitly included in `pr-fast` and `gate-fast`, and no quarantine entries should exclude them.",
+          "observed": "`erp-domain/pom.xml` explicitly includes `**/modules/admin/AdminUserSecurityIT.java` and `**/modules/auth/AuthPasswordResetPublicContractIT.java` in both `pr-fast` and `gate-fast`; `scripts/test_quarantine.txt` contains no quarantined tests."
+        }
+      ],
+      "evidence": {
+        "sourceFiles": [
+          "/home/realnigga/Desktop/Mission-control/erp-domain/src/test/java/com/bigbrightpaints/erp/modules/admin/AdminUserSecurityIT.java",
+          "/home/realnigga/Desktop/Mission-control/erp-domain/src/test/java/com/bigbrightpaints/erp/modules/auth/AuthPasswordResetPublicContractIT.java",
+          "/home/realnigga/Desktop/Mission-control/erp-domain/pom.xml",
+          "/home/realnigga/Desktop/Mission-control/scripts/test_quarantine.txt"
+        ],
+        "catalogValidation": {
+          "testsCataloged": 86,
+          "passes": true
+        },
+        "flakeGuard": {
+          "quarantineEntriesTotal": 0,
+          "passes": true
+        }
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-GATE-002",
+      "title": "Gate-fast passes",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Run `bash scripts/gate_fast.sh` from the repo root.",
+          "expected": "The gate should exit successfully and emit the required `artifacts/gate-fast/` evidence.",
+          "observed": "The script exited 0 and ended with `[gate-fast] OK`."
+        },
+        {
+          "action": "Inspect emitted gate-fast artifacts.",
+          "expected": "`catalog-validation.json`, `flake-guard.json`, and `changed-coverage.json` should be present, with changed-coverage accepted when compatibility mode applies.",
+          "observed": "All required artifacts were emitted. `catalog-validation.json` and `flake-guard.json` report `passes: true`; `changed-coverage.json` reports `passes: false` with `vacuous_reason: coverage_skipped_files`, and the gate log explicitly says it continued in compatibility mode before reporting OK."
+        }
+      ],
+      "evidence": {
+        "command": "bash /home/realnigga/Desktop/Mission-control/scripts/gate_fast.sh",
+        "result": "Exit 0 with final line `[gate-fast] OK`.",
+        "artifactSummary": {
+          "catalogValidationPasses": true,
+          "flakeGuardPasses": true,
+          "changedCoveragePasses": false,
+          "changedCoverageMode": "compatibility",
+          "changedCoverageReason": "coverage_skipped_files"
+        }
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-GATE-003",
+      "title": "Enterprise policy check passes",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Run `bash ci/check-enterprise-policy.sh`.",
+          "expected": "The check should pass and emit the high-risk auth/admin enforcement path.",
+          "observed": "The script exited 0 and logged `[enterprise-policy] high-risk paths changed; enforcing R2 enterprise controls` followed by `[enterprise-policy] OK`."
+        },
+        {
+          "action": "Inspect the branch diff against `main`.",
+          "expected": "The packet diff should include high-risk auth/admin and governance files that justify the R2 enforcement path.",
+          "observed": "`git diff --name-only main...HEAD` includes `docs/approvals/R2-CHECKPOINT.md`, `erp-domain/pom.xml`, `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/admin/AdminUserSecurityIT.java`, and `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/auth/AuthPasswordResetPublicContractIT.java` among the branch changes."
+        }
+      ],
+      "evidence": {
+        "command": "bash /home/realnigga/Desktop/Mission-control/ci/check-enterprise-policy.sh",
+        "result": "Exit 0; logged `[enterprise-policy] high-risk paths changed; enforcing R2 enterprise controls` and `[enterprise-policy] OK`.",
+        "branchDiffCommand": "git -C /home/realnigga/Desktop/Mission-control diff --name-only main...HEAD"
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-GATE-004",
+      "title": "Codex review guidelines pass",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Run `bash ci/check-codex-review-guidelines.sh`.",
+          "expected": "The wrapper and its sub-checks should complete successfully.",
+          "observed": "The script exited 0 and the log shows `knowledgebase-lint`, `architecture-check`, `enterprise-policy`, and `orchestrator-layer` all completing before `[codex-review-guidelines] OK`."
+        }
+      ],
+      "evidence": {
+        "command": "bash /home/realnigga/Desktop/Mission-control/ci/check-codex-review-guidelines.sh",
+        "result": "Exit 0; wrapper completed `knowledgebase-lint`, `architecture-check`, `enterprise-policy`, and `orchestrator-layer` before reporting `[codex-review-guidelines] OK`."
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-GOV-001",
+      "title": "R2 checkpoint updated",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Read `docs/approvals/R2-CHECKPOINT.md`.",
+          "expected": "The checkpoint should include `Scope`, `Risk Trigger`, `Approval Authority`, `Escalation Decision`, `Rollback Owner`, `Expiry`, `Verification Evidence`, plus explicit `Mode` and `Human escalation required` lines.",
+          "observed": "The checkpoint contains all required sections; `Approval Authority` includes `Mode: orchestrator`, and `Escalation Decision` includes `Human escalation required: no`."
+        },
+        {
+          "action": "Compare the branch diff against `main`.",
+          "expected": "The checkpoint update should be part of the packet diff.",
+          "observed": "`git diff --name-only main...HEAD` includes `docs/approvals/R2-CHECKPOINT.md`, confirming the checkpoint file is part of the branch diff."
+        }
+      ],
+      "evidence": {
+        "checkpointFile": "/home/realnigga/Desktop/Mission-control/docs/approvals/R2-CHECKPOINT.md",
+        "branchDiffCommand": "git -C /home/realnigga/Desktop/Mission-control diff --name-only main...HEAD"
+      },
+      "issues": null
+    }
+  ],
+  "frictions": [
+    {
+      "description": "`AuthTenantAuthorityIT` full-class execution is known to have unrelated failures on this branch, so validation used only the milestone-relevant targeted method per mission guidance.",
+      "resolved": true,
+      "resolution": "Used `AuthTenantAuthorityIT#tenant_admin_cross_tenant_privileged_user_actions_mask_foreign_targets_as_missing_and_still_audit_denials` together with the targeted admin suite instead of running the full class.",
+      "affectedAssertions": ["VAL-AUTHZ-001"]
+    },
+    {
+      "description": "`artifacts/gate-fast/changed-coverage.json` reported `passes: false` with `vacuous_reason: coverage_skipped_files` because of the known compatibility-mode changed-files coverage behavior on this broad branch diff.",
+      "resolved": true,
+      "resolution": "Accepted the run because `bash scripts/gate_fast.sh` explicitly continued in compatibility mode and still finished with `[gate-fast] OK`, while the required artifacts were emitted.",
+      "affectedAssertions": ["VAL-GATE-002"]
+    }
+  ],
+  "blockers": [],
+  "summary": "Tested 7 assertions on the `jvm-tests` surface: 7 passed, 0 failed, 0 blocked. Targeted tenant-admin boundary tests passed, merge/policy/governance gates passed, and the gate-fast evidence artifacts were emitted with changed-coverage accepted in compatibility mode."
+}
