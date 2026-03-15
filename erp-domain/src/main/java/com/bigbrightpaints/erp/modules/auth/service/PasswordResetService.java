@@ -81,6 +81,20 @@ public class PasswordResetService {
                                            PriorResetTokenSnapshot priorTokenSnapshot) {
     }
 
+    private static final class PublicResetCleanupFailureException extends RuntimeException {
+        private final PriorResetTokenSnapshot priorTokenSnapshot;
+
+        private PublicResetCleanupFailureException(RuntimeException cleanupFailure,
+                                                   PriorResetTokenSnapshot priorTokenSnapshot) {
+            super(cleanupFailure);
+            this.priorTokenSnapshot = priorTokenSnapshot;
+        }
+
+        private PriorResetTokenSnapshot priorTokenSnapshot() {
+            return priorTokenSnapshot;
+        }
+    }
+
     public PasswordResetService(UserAccountRepository userAccountRepository,
                                 PasswordResetTokenRepository tokenRepository,
                                 PasswordService passwordService,
@@ -310,6 +324,17 @@ public class PasswordResetService {
             return Boolean.TRUE.equals(dispatched);
         } catch (RuntimeException ex) {
             logMaskedPublicResetFailure(operation, correlationId, maskedEmail, ex, null, null);
+            if (ex instanceof PublicResetCleanupFailureException cleanupFailureException) {
+                restorePriorResetTokenAfterCleanupFailure(
+                        cleanupFailureException.priorTokenSnapshot(),
+                        correlationId,
+                        maskedEmail,
+                        operation);
+                throw new ApplicationException(
+                        ErrorCode.SYSTEM_DATABASE_ERROR,
+                        "Password reset temporarily unavailable",
+                        cleanupFailureException);
+            }
             if (isPublicResetPersistenceFailure(ex, null)) {
                 throw new ApplicationException(
                         ErrorCode.SYSTEM_DATABASE_ERROR,
@@ -368,10 +393,9 @@ public class PasswordResetService {
                             dispatchPlan.issuedResetToken(),
                             cleanupFailure);
                     if (cleanupFailure != null) {
-                        throw new ApplicationException(
-                                ErrorCode.SYSTEM_DATABASE_ERROR,
-                                "Password reset temporarily unavailable",
-                                cleanupFailure);
+                        throw new PublicResetCleanupFailureException(
+                                cleanupFailure,
+                                dispatchPlan.priorTokenSnapshot());
                     }
                 }
             }
@@ -535,6 +559,32 @@ public class PasswordResetService {
                     PUBLIC_RESET_PERSISTENCE_FAILURE_REASON_CODE,
                     cleanupEx.getClass().getSimpleName());
             return cleanupEx;
+        }
+    }
+
+    private boolean restorePriorResetTokenAfterCleanupFailure(PriorResetTokenSnapshot priorTokenSnapshot,
+                                                              String correlationId,
+                                                              String maskedEmail,
+                                                              String operation) {
+        if (priorTokenSnapshot == null) {
+            return false;
+        }
+        try {
+            tokenCleanupTransactionTemplate.executeWithoutResult(status -> {
+                assertTokenLifecycleTransactionActive("restore_prior_after_cleanup_failure", correlationId, maskedEmail);
+                restorePriorResetTokenWithinActiveTransaction(priorTokenSnapshot);
+            });
+            return true;
+        } catch (RuntimeException restoreEx) {
+            log.error(
+                    "event=password_reset.{}.masked policy={} correlationId={} email={} outcome=prior_restore_failed reasonCode={} exceptionClass={}",
+                    operation,
+                    RESET_POLICY_SCOPE,
+                    correlationId,
+                    maskedEmail,
+                    PUBLIC_RESET_PERSISTENCE_FAILURE_REASON_CODE,
+                    restoreEx.getClass().getSimpleName());
+            return false;
         }
     }
 

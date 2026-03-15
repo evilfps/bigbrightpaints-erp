@@ -53,6 +53,7 @@ import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.UnexpectedRollbackException;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionCallback;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
@@ -308,6 +309,54 @@ class PasswordResetServiceTest {
         assertEquals("Password reset temporarily unavailable", exception.getUserMessage());
 
         verify(tokenRepository).saveAndFlush(any(PasswordResetToken.class));
+        verify(tokenRepository).deleteByTokenDigest(anyString());
+    }
+
+    @Test
+    void requestResetRestoresPriorTokenWhenDispatchCleanupFailsAfterCommit() {
+        UserAccount user = new UserAccount("user@example.com", "hash", "User");
+        user.setEnabled(true);
+        ReflectionTestUtils.setField(user, "id", 101L);
+        when(userAccountRepository.findByEmailIgnoreCase("user@example.com"))
+                .thenReturn(Optional.of(user));
+        when(userAccountRepository.lockById(101L)).thenReturn(Optional.of(user));
+
+        String priorTokenDigest = AuthTokenDigests.passwordResetTokenDigest("prior-reset-token");
+        PasswordResetToken priorToken = PasswordResetToken.digestOnly(
+                user,
+                priorTokenDigest,
+                Instant.now().plusSeconds(600));
+        ReflectionTestUtils.setField(priorToken, "id", 7L);
+        when(tokenRepository.findTopByUserAndIdNotOrderByCreatedAtDescIdDesc(eq(user), anyLong()))
+                .thenReturn(Optional.of(priorToken));
+        when(userAccountRepository.findById(101L)).thenReturn(Optional.of(user));
+
+        TransactionTemplate cleanupFallbackTemplate = new TransactionTemplate(new ResourcelessTransactionManager());
+        cleanupFallbackTemplate.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRED);
+        ReflectionTestUtils.setField(passwordResetService, "tokenCleanupTransactionTemplate", cleanupFallbackTemplate);
+
+        doThrow(new RuntimeException("smtp down"))
+                .when(emailService)
+                .sendPasswordResetEmailRequired(eq("user@example.com"), eq("User"), anyString());
+        doThrow(new DataAccessResourceFailureException("cleanup unavailable"))
+                .when(tokenRepository)
+                .deleteByTokenDigest(anyString());
+
+        ApplicationException exception = assertThrows(
+                ApplicationException.class,
+                () -> passwordResetService.requestReset("user@example.com"));
+
+        assertEquals(ErrorCode.SYSTEM_DATABASE_ERROR, exception.getErrorCode());
+        assertEquals("Password reset temporarily unavailable", exception.getUserMessage());
+
+        ArgumentCaptor<PasswordResetToken> tokenCaptor = ArgumentCaptor.forClass(PasswordResetToken.class);
+        verify(tokenRepository, atLeast(2)).saveAndFlush(tokenCaptor.capture());
+        assertTrue(
+                tokenCaptor.getAllValues().stream()
+                        .map(PasswordResetToken::getTokenDigest)
+                        .anyMatch(priorTokenDigest::equals),
+                "Expected cleanup-failure fallback to restore the prior token digest");
+        verify(userAccountRepository).findById(101L);
         verify(tokenRepository).deleteByTokenDigest(anyString());
     }
 
