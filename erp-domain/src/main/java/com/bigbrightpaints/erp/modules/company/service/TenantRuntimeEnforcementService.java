@@ -533,18 +533,13 @@ public class TenantRuntimeEnforcementService {
     private void incrementRejectedCount(TenantRuntimeCounters usageCounters) {
         usageCounters.rejectedRequests.incrementAndGet();
         long minuteBucket = CompanyTime.now().getEpochSecond() / 60L;
-        while (true) {
-            long previousBucket = usageCounters.minuteBucket.get();
-            if (previousBucket != minuteBucket) {
-                if (usageCounters.minuteBucket.compareAndSet(previousBucket, minuteBucket)) {
-                    usageCounters.minuteRequestCount.set(0);
-                    usageCounters.minuteRejectedCount.set(0);
-                } else {
-                    continue;
-                }
+        synchronized (usageCounters) {
+            if (usageCounters.minuteBucket.get() != minuteBucket) {
+                usageCounters.minuteBucket.set(minuteBucket);
+                usageCounters.minuteRequestCount.set(0);
+                usageCounters.minuteRejectedCount.set(0);
             }
             usageCounters.minuteRejectedCount.incrementAndGet();
-            return;
         }
     }
 

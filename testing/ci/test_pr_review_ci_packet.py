@@ -404,10 +404,13 @@ class PrAuthTenantManifestContractTest(unittest.TestCase):
         self.assertTrue(
             {
                 "com.bigbrightpaints.erp.modules.company.CompanyControllerIT",
+                "com.bigbrightpaints.erp.modules.company.service.TenantRuntimeEnforcementServiceTest",
                 "com.bigbrightpaints.erp.modules.auth.TenantRuntimeEnforcementAuthIT",
                 "com.bigbrightpaints.erp.modules.auth.CompanyContextFilterControlPlaneBindingTest",
                 "com.bigbrightpaints.erp.OpenApiSnapshotIT",
                 "com.bigbrightpaints.erp.modules.admin.controller.AdminSettingsControllerTenantRuntimeContractTest",
+                "com.bigbrightpaints.erp.modules.admin.service.TenantRuntimePolicyServiceTest",
+                "com.bigbrightpaints.erp.modules.portal.service.TenantRuntimeEnforcementInterceptorTest",
                 "com.bigbrightpaints.erp.truthsuite.runtime.TS_RuntimeTenantPolicyControlExecutableCoverageTest",
                 "com.bigbrightpaints.erp.truthsuite.runtime.TS_RuntimeTenantRuntimeEnforcementTest",
             }.issubset(manifest_lines)

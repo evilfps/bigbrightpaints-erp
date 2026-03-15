@@ -24,6 +24,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.test.util.ReflectionTestUtils;
 
 @ExtendWith(MockitoExtension.class)
 class TenantRuntimeEnforcementInterceptorTest {
@@ -99,6 +102,82 @@ class TenantRuntimeEnforcementInterceptorTest {
     }
 
     @Test
+    void preHandle_passesTrimmedAuthenticatedActorToFallbackAdmission() throws Exception {
+        interceptor = new TenantRuntimeEnforcementInterceptor(companyContextService, tenantRuntimeEnforcementService);
+        Company company = company(55L, "ACME");
+        when(companyContextService.requireCurrentCompany()).thenReturn(company);
+        TenantRuntimeEnforcementService.TenantRequestAdmission admission = admission(true, "ACME", 200, null,
+                null, null, null, null, null);
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken("  actor@bbp.com  ", "ignored"));
+        when(tenantRuntimeEnforcementService.beginRequest(
+                eq("ACME"),
+                eq("/api/v1/portal/dashboard"),
+                eq("GET"),
+                eq("actor@bbp.com"),
+                eq(false))).thenReturn(admission);
+
+        try {
+            MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/portal/dashboard");
+
+            boolean allowed = interceptor.preHandle(request, new MockHttpServletResponse(), new Object());
+
+            assertThat(allowed).isTrue();
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
+    }
+
+    @Test
+    void preHandle_usesNullActorWhenAuthenticationNameIsBlank() throws Exception {
+        interceptor = new TenantRuntimeEnforcementInterceptor(companyContextService, tenantRuntimeEnforcementService);
+        Company company = company(55L, "ACME");
+        when(companyContextService.requireCurrentCompany()).thenReturn(company);
+        TenantRuntimeEnforcementService.TenantRequestAdmission admission = admission(true, "ACME", 200, null,
+                null, null, null, null, null);
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken("   ", "ignored"));
+        when(tenantRuntimeEnforcementService.beginRequest(
+                eq("ACME"),
+                eq("/api/v1/portal/dashboard"),
+                eq("GET"),
+                eq(null),
+                eq(false))).thenReturn(admission);
+
+        try {
+            MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/portal/dashboard");
+
+            boolean allowed = interceptor.preHandle(request, new MockHttpServletResponse(), new Object());
+
+            assertThat(allowed).isTrue();
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
+    }
+
+    @Test
+    void preHandle_translatesNullAdmissionIntoUnavailablePortalContract() {
+        interceptor = new TenantRuntimeEnforcementInterceptor(companyContextService, tenantRuntimeEnforcementService);
+        Company company = company(55L, "ACME");
+        when(companyContextService.requireCurrentCompany()).thenReturn(company);
+        when(tenantRuntimeEnforcementService.beginRequest(any(), any(), any(), any(), eq(false))).thenReturn(null);
+
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/portal/dashboard");
+
+        assertThatThrownBy(() -> interceptor.preHandle(request, new MockHttpServletResponse(), new Object()))
+                .isInstanceOf(ApplicationException.class)
+                .satisfies(error -> {
+                    ApplicationException exception = (ApplicationException) error;
+                    assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_INVALID_STATE);
+                    assertThat(exception.getMessage()).contains("Tenant runtime admission is unavailable");
+                    assertThat(exception.getDetails())
+                            .containsEntry("companyCode", "ACME")
+                            .containsEntry("path", "/api/v1/portal/dashboard");
+                });
+        verify(tenantRuntimeEnforcementService, never()).snapshot("ACME");
+    }
+
+    @Test
     void preHandle_translatesCanonicalStateRejectionIntoPortalContract() {
         interceptor = new TenantRuntimeEnforcementInterceptor(companyContextService, tenantRuntimeEnforcementService);
         Company company = company(55L, "ACME");
@@ -140,6 +219,48 @@ class TenantRuntimeEnforcementInterceptorTest {
                             .containsEntry("holdReason", "SECURITY_REVIEW")
                             .containsEntry("policyReference", "policy-blocked")
                             .containsEntry("path", "/api/v1/portal/dashboard");
+                });
+    }
+
+    @Test
+    void preHandle_translatesQuotaRejectionIntoPortalContract_whenQuotaValuesAreBlankOrInvalid() {
+        interceptor = new TenantRuntimeEnforcementInterceptor(companyContextService, tenantRuntimeEnforcementService);
+        Company company = company(55L, "ACME");
+        when(companyContextService.requireCurrentCompany()).thenReturn(company);
+        TenantRuntimeEnforcementService.TenantRequestAdmission rejected = admission(
+                false,
+                "ACME",
+                429,
+                "Tenant request rate quota exceeded",
+                "TENANT_REQUEST_RATE_EXCEEDED",
+                "POLICY_ACTIVE",
+                "MAX_REQUESTS_PER_MINUTE",
+                "   ",
+                "not-a-number");
+        when(tenantRuntimeEnforcementService.beginRequest(any(), any(), any(), any(), eq(false))).thenReturn(rejected);
+        when(tenantRuntimeEnforcementService.snapshot("ACME")).thenReturn(snapshot(
+                TenantRuntimeEnforcementService.TenantRuntimeState.ACTIVE,
+                "POLICY_ACTIVE",
+                "policy-rpm",
+                Instant.parse("2026-02-20T10:16:05Z"),
+                500,
+                1,
+                200,
+                2,
+                1,
+                0,
+                0L));
+
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/reports/inventory");
+
+        assertThatThrownBy(() -> interceptor.preHandle(request, new MockHttpServletResponse(), new Object()))
+                .isInstanceOf(ApplicationException.class)
+                .satisfies(error -> {
+                    ApplicationException exception = (ApplicationException) error;
+                    assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_LIMIT_EXCEEDED);
+                    assertThat(exception.getDetails())
+                            .containsEntry("quotaValue", 0)
+                            .containsEntry("observed", 0);
                 });
     }
 
@@ -187,6 +308,25 @@ class TenantRuntimeEnforcementInterceptorTest {
                             .containsEntry("policyReference", "policy-rpm")
                             .containsEntry("path", "/api/v1/reports/inventory");
                 });
+    }
+
+    @Test
+    void admissionException_treatsBlankCompanyAndPathAsNulls() {
+        interceptor = new TenantRuntimeEnforcementInterceptor(companyContextService, tenantRuntimeEnforcementService);
+
+        RuntimeException exception = ReflectionTestUtils.invokeMethod(
+                interceptor,
+                "admissionException",
+                "   ",
+                "   ",
+                null);
+
+        assertThat(exception).isInstanceOf(ApplicationException.class);
+        ApplicationException applicationException = (ApplicationException) exception;
+        assertThat(applicationException.getDetails())
+                .containsEntry("companyCode", null)
+                .containsEntry("path", null);
+        verifyNoInteractions(tenantRuntimeEnforcementService);
     }
 
     @Test
