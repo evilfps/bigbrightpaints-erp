@@ -111,7 +111,7 @@ management:
         liveness:
           include: livenessState,ping,diskSpace
         readiness:
-          include: readinessState,db,rabbit,diskSpace,requiredConfig,configuration,dispatchMapping
+          include: readinessState,db,rabbit,diskSpace,requiredConfig,configuration
       show-details: when_authorized
     metrics:
       access: read-only

@@ -23,7 +23,7 @@ public final class PortalRoleActionMatrix {
     public static final String ADMIN_ACCOUNTING_SUPER_ADMIN =
             "hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING','ROLE_SUPER_ADMIN')";
     public static final String FINANCIAL_DISPATCH =
-            "hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING') and hasAuthority('dispatch.confirm')";
+            "hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING','ROLE_FACTORY') and hasAuthority('dispatch.confirm')";
     public static final String OPERATIONAL_DISPATCH =
             "hasAnyAuthority('ROLE_ADMIN','ROLE_FACTORY') and hasAuthority('dispatch.confirm')";
 

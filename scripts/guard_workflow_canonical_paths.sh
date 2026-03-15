@@ -119,8 +119,8 @@ update_fulfillment_body = extract_method_body(
 for token in ["SHIPPED", "DISPATCHED", "FULFILLED", "COMPLETED"]:
     if f'case "{token}":' not in update_fulfillment_body:
         fail(f"IntegrationCoordinator.updateFulfillment must explicitly reject dispatch-like status {token}")
-if "/api/v1/dispatch/confirm" not in update_fulfillment_body:
-    fail("IntegrationCoordinator.updateFulfillment must direct callers to /api/v1/dispatch/confirm")
+if "/api/v1/sales/dispatch/confirm" not in update_fulfillment_body:
+    fail("IntegrationCoordinator.updateFulfillment must direct callers to /api/v1/sales/dispatch/confirm")
 
 forbidden_patterns = {
     "postDispatchJournal(": "removed orchestrator dispatch journal method",

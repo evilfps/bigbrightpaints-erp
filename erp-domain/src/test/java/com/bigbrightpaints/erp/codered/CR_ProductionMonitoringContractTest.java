@@ -41,7 +41,7 @@ class CR_ProductionMonitoringContractTest {
                 .contains("server:")
                 .contains("port: ${MANAGEMENT_SERVER_PORT:9090}")
                 .contains("include: health,info,metrics,prometheus")
-                .contains("include: readinessState,db,rabbit,diskSpace,requiredConfig,configuration,dispatchMapping")
+                .contains("include: readinessState,db,rabbit,diskSpace,requiredConfig,configuration")
                 .contains("include: livenessState,ping,diskSpace")
                 .contains("metrics:")
                 .contains("prometheus:")

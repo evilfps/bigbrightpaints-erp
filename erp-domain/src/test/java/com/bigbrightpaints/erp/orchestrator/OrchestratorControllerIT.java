@@ -612,7 +612,7 @@ public class OrchestratorControllerIT extends AbstractIntegrationTest {
         assertThat(response.getBody()).isNotNull();
         assertThat(response.getBody())
                 .contains("BUS_001")
-                .contains("/api/v1/dispatch/confirm");
+                .contains("/api/v1/sales/dispatch/confirm");
     }
 
     @Test

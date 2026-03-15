@@ -568,6 +568,7 @@
                                 <include>**/modules/purchasing/service/PurchaseResponseMapperTest.java</include>
                                 <include>**/modules/purchasing/service/PurchasingServiceGoodsReceiptTest.java</include>
                                 <include>**/modules/sales/controller/SalesControllerIdempotencyHeaderTest.java</include>
+                                <include>**/modules/sales/SalesControllerIT.java</include>
                                 <include>**/modules/sales/domain/SalesOrderTest.java</include>
                                 <include>**/modules/sales/dto/DispatchConfirmRequestTest.java</include>
                                 <include>**/modules/sales/dto/SalesOrderRequestTest.java</include>
@@ -617,6 +618,7 @@
                                 <include>**/modules/purchasing/service/PurchaseResponseMapperTest.java</include>
                                 <include>**/modules/purchasing/service/PurchasingServiceGoodsReceiptTest.java</include>
                                 <include>**/modules/sales/controller/SalesControllerIdempotencyHeaderTest.java</include>
+                                <include>**/modules/sales/SalesControllerIT.java</include>
                                 <include>**/modules/sales/domain/SalesOrderTest.java</include>
                                 <include>**/modules/sales/dto/DispatchConfirmRequestTest.java</include>
                                 <include>**/modules/sales/dto/SalesOrderRequestTest.java</include>
