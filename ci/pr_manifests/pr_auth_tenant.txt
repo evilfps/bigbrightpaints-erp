@@ -12,6 +12,8 @@ com.bigbrightpaints.erp.OpenApiSnapshotIT
 com.bigbrightpaints.erp.modules.admin.controller.AdminSettingsControllerTenantRuntimeContractTest
 com.bigbrightpaints.erp.modules.admin.service.TenantRuntimePolicyServiceTest
 com.bigbrightpaints.erp.modules.portal.service.TenantRuntimeEnforcementInterceptorTest
+com.bigbrightpaints.erp.modules.portal.PortalInsightsControllerIT
+com.bigbrightpaints.erp.modules.reports.ReportControllerSecurityIT
 com.bigbrightpaints.erp.core.exception.CoreFallbackExceptionHandlerTest
 com.bigbrightpaints.erp.core.security.PortalRoleActionMatrixTest
 com.bigbrightpaints.erp.modules.rbac.config.RbacSynchronizationConfigTest

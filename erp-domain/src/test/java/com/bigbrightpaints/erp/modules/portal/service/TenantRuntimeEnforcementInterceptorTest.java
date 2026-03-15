@@ -223,6 +223,51 @@ class TenantRuntimeEnforcementInterceptorTest {
     }
 
     @Test
+    void preHandle_treatsTenantStateLimitTypeAsInvalidStateContract() {
+        interceptor = new TenantRuntimeEnforcementInterceptor(companyContextService, tenantRuntimeEnforcementService);
+        Company company = company(55L, "ACME");
+        when(companyContextService.requireCurrentCompany()).thenReturn(company);
+        TenantRuntimeEnforcementService.TenantRequestAdmission rejected = admission(
+                false,
+                "ACME",
+                423,
+                "Tenant is currently on hold",
+                "TENANT_ON_HOLD",
+                "MAINTENANCE_WINDOW",
+                "TENANT_STATE",
+                "HOLD",
+                "ACTIVE");
+        when(tenantRuntimeEnforcementService.beginRequest(any(), any(), any(), any(), eq(false))).thenReturn(rejected);
+        when(tenantRuntimeEnforcementService.snapshot("ACME")).thenReturn(snapshot(
+                TenantRuntimeEnforcementService.TenantRuntimeState.HOLD,
+                "MAINTENANCE_WINDOW",
+                "policy-hold",
+                Instant.parse("2026-02-20T10:16:05Z"),
+                500,
+                5000,
+                200,
+                0,
+                1,
+                0,
+                0L));
+
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/v1/portal/orders");
+
+        assertThatThrownBy(() -> interceptor.preHandle(request, new MockHttpServletResponse(), new Object()))
+                .isInstanceOf(ApplicationException.class)
+                .satisfies(error -> {
+                    ApplicationException exception = (ApplicationException) error;
+                    assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_INVALID_STATE);
+                    assertThat(exception.getDetails())
+                            .containsEntry("companyCode", "ACME")
+                            .containsEntry("holdState", "HOLD")
+                            .containsEntry("holdReason", "MAINTENANCE_WINDOW")
+                            .containsEntry("policyReference", "policy-hold")
+                            .containsEntry("path", "/api/v1/portal/orders");
+                });
+    }
+
+    @Test
     void preHandle_translatesQuotaRejectionIntoPortalContract_whenQuotaValuesAreBlankOrInvalid() {
         interceptor = new TenantRuntimeEnforcementInterceptor(companyContextService, tenantRuntimeEnforcementService);
         Company company = company(55L, "ACME");
@@ -327,6 +372,39 @@ class TenantRuntimeEnforcementInterceptorTest {
                 .containsEntry("companyCode", null)
                 .containsEntry("path", null);
         verifyNoInteractions(tenantRuntimeEnforcementService);
+    }
+
+    @Test
+    void admissionException_usesAdmissionCompanyAndStateDetailsWhenSnapshotLookupIsUnavailable() {
+        interceptor = new TenantRuntimeEnforcementInterceptor(companyContextService, tenantRuntimeEnforcementService);
+        TenantRuntimeEnforcementService.TenantRequestAdmission rejected = admission(
+                false,
+                "ACME",
+                403,
+                "Tenant is currently blocked",
+                "TENANT_BLOCKED",
+                "SECURITY_REVIEW",
+                "TENANT_STATE",
+                "BLOCKED",
+                "ACTIVE");
+
+        RuntimeException exception = ReflectionTestUtils.invokeMethod(
+                interceptor,
+                "admissionException",
+                "   ",
+                "/api/v1/portal/orders",
+                rejected);
+
+        assertThat(exception).isInstanceOf(ApplicationException.class);
+        ApplicationException applicationException = (ApplicationException) exception;
+        assertThat(applicationException.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_INVALID_STATE);
+        assertThat(applicationException.getDetails())
+                .containsEntry("companyCode", "ACME")
+                .containsEntry("holdState", "BLOCKED")
+                .containsEntry("holdReason", "SECURITY_REVIEW")
+                .containsEntry("policyReference", "chain-id")
+                .containsEntry("path", "/api/v1/portal/orders");
+        verify(tenantRuntimeEnforcementService).snapshot("ACME");
     }
 
     @Test
