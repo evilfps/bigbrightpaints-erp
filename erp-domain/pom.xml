@@ -552,7 +552,9 @@
                                 <include>**/truthsuite/**/*Suite.java</include>
                                 <include>**/smoke/**/*Test.java</include>
                                 <include>**/core/util/BusinessDocumentTruthsTest.java</include>
+                                <include>**/modules/admin/AdminUserSecurityIT.java</include>
                                 <include>**/modules/accounting/service/AccountingAuditTrailServiceTest.java</include>
+                                <include>**/modules/auth/AuthPasswordResetPublicContractIT.java</include>
                                 <include>**/modules/inventory/controller/DispatchControllerTest.java</include>
                                 <include>**/modules/inventory/domain/PackagingSlipTest.java</include>
                                 <include>**/modules/inventory/dto/DispatchConfirmationRequestTest.java</include>
@@ -600,7 +602,9 @@
                                 <include>**/truthsuite/**/*IT.java</include>
                                 <include>**/truthsuite/**/*Suite.java</include>
                                 <include>**/core/util/BusinessDocumentTruthsTest.java</include>
+                                <include>**/modules/admin/AdminUserSecurityIT.java</include>
                                 <include>**/modules/accounting/service/AccountingAuditTrailServiceTest.java</include>
+                                <include>**/modules/auth/AuthPasswordResetPublicContractIT.java</include>
                                 <include>**/modules/inventory/controller/DispatchControllerTest.java</include>
                                 <include>**/modules/inventory/domain/PackagingSlipTest.java</include>
                                 <include>**/modules/inventory/dto/DispatchConfirmationRequestTest.java</include>

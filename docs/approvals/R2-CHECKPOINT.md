@@ -1,34 +1,34 @@
 # R2 Checkpoint
 
 ## Scope
-- Feature: `factory-droid.integration.validated-recovery-stack`
-- Branch: `recovery/08-engineer-shareout`
-- High-risk paths touched: current-state integration across `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/**`, `erp-domain/src/main/java/com/bigbrightpaints/erp/core/security/**`, `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/**`, `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/invoice/**`, `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/purchasing/**`, `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/sales/**`, the paired regression/test surface under `erp-domain/src/test/java/**`, CI manifest/governance files, and this approval record.
-- Why this is R2: the packet integrates the already validated recovery stack onto the current `Factory-droid` branch tip so the final branch-as-trunk certification can run against real current ancestry; it changes accounting, auth, inventory, sales, and purchasing runtime truth in one packet and therefore requires explicit same-diff approval evidence.
+- Feature: `auth-merge-gate-regression-coverage`
+- Branch: `packet/lane01-tenant-runtime-canonicalization-pr`
+- High-risk paths touched: auth/admin regression security surfaces under `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/auth/AuthPasswordResetPublicContractIT.java` and `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/admin/AdminUserSecurityIT.java`, merge-gate profile selection in `erp-domain/pom.xml`, and this approval record.
+- Why this is R2: this packet strengthens merge-gate enforcement for AUTH-09 and ADMIN-14 regressions on auth/admin control boundaries, so approval evidence must be attached in the same diff to prove the gate catches these regressions before merge.
 
 ## Risk Trigger
-- Triggered by integrating the repaired PR96-PR105 runtime surface onto `Factory-droid` with high-risk edits under accounting, security, purchasing, invoice, inventory, and sales modules.
-- Contract surfaces affected: invoice-to-dispatch truth rails, settlement and period-close correction flow, portal/security boundaries, reservation replay truth, sales/purchase return handling, and the PR business-slice / changed-coverage governance used to certify the branch.
-- Main risks being controlled: dropping a validated fix while rebasing onto current `Factory-droid`, silently regressing accounting replay or return behavior during the integration lift, and merging a high-risk branch packet without same-diff approval evidence tied to the actual final integration head.
+- Triggered by security-sensitive auth/admin regression coverage updates that alter merge-gate execution membership.
+- Contract surfaces affected: public forgot-password persistence-failure contract (AUTH-09), tenant-admin foreign-user masked non-blocking lock behavior (ADMIN-14), and the gate-fast test lane.
+- Main risks being controlled: regressions silently dropping out of gate-fast scope, accidental flaky/quarantine routing, and missing high-risk governance evidence for auth/admin merge-gate updates.
 
 ## Approval Authority
 - Mode: orchestrator
-- Approver: ERP truth-stabilization mission orchestration
-- Basis: controlled integration of an already validated stacked recovery branch into the current `Factory-droid` base; no compatibility bridge or second runtime path is introduced.
+- Approver: ERP auth merge-gate hardening mission orchestration
+- Basis: compatibility-preserving hardening that does not widen tenant boundaries or privilege scope.
 
 ## Escalation Decision
 - Human escalation required: no
-- Reason: the packet is a current-state integration of already reviewed fixes onto the live branch tip, with local compile and CI-governance proof rerun before remote certification; it does not add new tenant scope, migration behavior, or user-facing fallback modes.
+- Reason: this packet only updates regression coverage eligibility and governance evidence; no privilege expansion, tenant-boundary widening, or migration risk is introduced.
 
 ## Rollback Owner
-- Owner: Factory-droid integration worker
-- Rollback method: revert merge commit `7ea0c484f627243baae9ea6edad8b194b0bbcadb`, rerun `mvn -B -ntp -DskipTests compile` from `erp-domain`, rerun `python3 -m unittest testing.ci.test_pr_review_ci_packet`, rerun `ENTERPRISE_DIFF_BASE=56598edf1735aaa5fea41b10eda7e6a060f93f4e bash ci/check-enterprise-policy.sh`, and rerun the final-integration CI workflow before re-review.
+- Owner: security backend worker (session `12cd9f51-a6f8-46ee-81a1-4c74c4b4c0e8`)
+- Rollback method: revert the packet commit, then rerun `cd erp-domain && MIGRATION_SET=v2 mvn -Pgate-fast -Djacoco.skip=true -Dtest=AuthPasswordResetPublicContractIT,AdminUserSecurityIT test`, `bash scripts/gate_fast.sh`, `bash ci/check-enterprise-policy.sh`, and `bash ci/check-codex-review-guidelines.sh`.
 
 ## Expiry
-- Valid until: 2026-03-16
-- Re-evaluate if: current `Factory-droid` or `main` diverges from merge commit `7ea0c484f627243baae9ea6edad8b194b0bbcadb`, additional high-risk runtime files are added in follow-up packets, or any post-merge CI failure points to a runtime regression rather than branch ancestry/governance.
+- Valid until: 2026-03-23
+- Re-evaluate if: any auth/admin regression test path, gate-fast profile include list, or enterprise-policy requirements change before merge.
 
 ## Verification Evidence
-- Verification bundle: final integration branch rebuilt from current `Factory-droid`, validated stack files overlaid from `35f256cb`, local compile, local CI-packet regression proof, local enterprise-policy repro/fix, and live fork PR/Actions execution on PR109.
-- Result summary: the final integration branch was based directly on `Factory-droid`, PR109 went fully green, and it merged into `Factory-droid` at `2026-03-13T15:21:15Z` as commit `7ea0c484f627243baae9ea6edad8b194b0bbcadb`. Local proof passed with `mvn -B -ntp -DskipTests compile` in `erp-domain`, `python3 -m unittest testing.ci.test_pr_review_ci_packet` (`15` tests, `OK`), and the final changed-coverage closure pass that lifted `pr-changed-coverage` and `pr-merge-gate`. The same cleaned head was then promoted to remote `main`, so both authoritative branches now point to `7ea0c484f627243baae9ea6edad8b194b0bbcadb`.
-- Artifacts/links: `docs/approvals/R2-CHECKPOINT.md`, `ci/pr_manifests/pr_business_slice.txt`, `scripts/changed_files_coverage.py`, `testing/ci/test_pr_review_ci_packet.py`, `erp-domain/src/main/java/com/bigbrightpaints/erp/core/util/LegacyDispatchInvoiceLinkMatcher.java`, `erp-domain/src/test/java/com/bigbrightpaints/erp/core/util/LegacyDispatchInvoiceLinkMatcherTest.java`.
+- Commands run: `cd erp-domain && MIGRATION_SET=v2 mvn -Pgate-fast -Djacoco.skip=true -Dtest=AuthPasswordResetPublicContractIT,AdminUserSecurityIT test` (pass: `Tests run: 25, Failures: 0, Errors: 0, Skipped: 0`); `bash scripts/gate_fast.sh` (pass with `catalog-validation.json`/`flake-guard.json`/`changed-coverage.json` emitted under `artifacts/gate-fast/` and gate summary `OK`); `bash ci/check-enterprise-policy.sh` (pass with high-risk enforcement line `high-risk paths changed; enforcing R2 enterprise controls`); `bash ci/check-codex-review-guidelines.sh` (pass with wrapper summary `codex-review-guidelines OK`).
+- Result summary: AUTH-09 and ADMIN-14 regression suites are now tagged `critical` and explicitly included in `pr-fast` + `gate-fast` surefire include lists, gate-fast executes both suites in the merge lane, and required policy/review gates complete successfully for this packet.
+- Artifacts/links: `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/auth/AuthPasswordResetPublicContractIT.java`, `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/admin/AdminUserSecurityIT.java`, `erp-domain/pom.xml`, `scripts/gate_fast.sh`, `ci/check-enterprise-policy.sh`, `ci/check-codex-review-guidelines.sh`, `docs/approvals/R2-CHECKPOINT.md`.
